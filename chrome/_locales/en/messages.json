@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "Toggle fullscreen"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox allows fullscreen only after a click: click the player's fullscreen button."
-    },
     "player_windowed_fullscreen_label": {
         "message": "Toggle windowed fullscreen"
     },

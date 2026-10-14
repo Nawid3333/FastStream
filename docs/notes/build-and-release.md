@@ -54,7 +54,7 @@ e2e suite runs against it, in Firefox.
 | Target | Splices | Notes |
 |---|---|---|
 | `firefox-github` | EXTENSION, FIREFOX | manual install |
-| `firefox-amo` | EXTENSION, FIREFOX, NO_UPDATE_CHECKER | AMO target; min version 142, declares data_collection_permissions |
+| `firefox-amo` | EXTENSION, FIREFOX, NO_UPDATE_CHECKER | AMO target; min version 153, declares data_collection_permissions |
 | `web` | WEB, NO_UPDATE_CHECKER | faststream.online, no extension APIs |
 
 `buildFirefoxAmo()` was written but never invoked (commit "Remove firefox
@@ -163,7 +163,8 @@ each is safe-left-alone. `firefox-github` used to add
 `data_collection_permissions: {required: ['none']}` like `firefox-amo`, which
 needed its `strict_min_version` raised from 136 to 142 (the key needs 140+,
 Android 142+). The only versions that dropped, 136-139, were long out of
-support and never ESR. Neither target has a `players/PlayerLoader.mjs` or
+support and never ESR. Since 2026-10-14 both require 153, where
+Firefox gained the picture-in-picture API the player's PiP button calls. Neither target has a `players/PlayerLoader.mjs` or
 `yt_runner.js` hit anymore; both disappeared along with YouTube support.
 
 **`pnpm run lint:amo` needs `--self-hosted`, or it reports a false

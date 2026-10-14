@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "Attiva/disattiva lo schermo intero"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox consente la modalità a schermo intero solo dopo un clic: fai clic sul pulsante per la modalità a schermo intero del lettore."
-    },
     "player_windowed_fullscreen_label": {
         "message": "Attiva/disattiva lo schermo intero nella finestra"
     },

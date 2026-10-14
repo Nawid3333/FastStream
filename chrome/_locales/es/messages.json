@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "Pantalla completa"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox solo permite la pantalla completa después de un clic: haz clic en el botón de pantalla completa del reproductor."
-    },
     "player_windowed_fullscreen_label": {
         "message": "Alternar pantalla completa en ventana"
     },

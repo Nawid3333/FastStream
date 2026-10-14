@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "Skrin penuh"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox hanya membenarkan skrin penuh selepas klik: klik butang skrin penuh pemain."
-    },
     "player_windowed_fullscreen_label": {
         "message": "Skrin Penuh Bertingkap"
     },

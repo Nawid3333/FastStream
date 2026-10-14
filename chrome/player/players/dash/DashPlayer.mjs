@@ -343,17 +343,6 @@ export default class DashPlayer extends EventEmitter {
     this.emit(DefaultPlayerEvents.DESTROYED);
   }
 
-  getProcessor(adaptationIndex) {
-    const processors = this.dash.getStreamController().getActiveStream().getStreamProcessors();
-    for (let i = 0; i < processors.length; i++) {
-      const processor = processors[i];
-      if (processor.getMediaInfo().index === adaptationIndex) {
-        return processor;
-      }
-    }
-    return null;
-  }
-
   /** Counts a decode error against the video codec playing (setup). */
   onVideoError() {
     if (!this.dash || this.video?.error?.code !== MediaError.MEDIA_ERR_DECODE) {

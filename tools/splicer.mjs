@@ -3,7 +3,6 @@
 // SPLICER preprocessor"). It is a module of its own so the unit tests can run it without a build;
 // build.mjs runs everything at load.
 
-import {glob} from '../miniglob.mjs';
 import fs from 'fs';
 import path from 'path';
 import * as url from 'url';
@@ -151,7 +150,9 @@ export function splice(fileText, target, relativePath) {
 }
 
 export function spliceAndCopy(sourceDir, buildDir, spliceTargets = [], excludeFiles = []) {
-  glob(sourceDir + '/**')
+  fs.readdirSync(sourceDir, {recursive: true, withFileTypes: true})
+      .filter((entry) => entry.isFile())
+      .map((entry) => path.join(entry.parentPath, entry.name))
       .forEach((file) => {
         const fileExtension = path.extname(file);
         const relativePath = path.relative(sourceDir, file);

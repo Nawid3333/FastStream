@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "Во весь экран"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox разрешает полноэкранный режим только после клика: нажмите кнопку полноэкранного режима в плеере."
-    },
     "player_windowed_fullscreen_label": {
         "message": "Переключить полноэкранный режим в окне"
     },

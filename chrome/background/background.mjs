@@ -1109,16 +1109,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (frame.playerOpening && frame.playerOpeningAttempt === msg.attempt) {
       frame.playerOpening = false;
     }
-  } else if (msg.type === MessageTypes.SEND_TO_CONTENT) {
-    chrome.tabs.sendMessage(tab.tabId, {
-      type: MessageTypes.MESSAGE_FROM_CONTENT,
-      data: msg.data,
-      destination: msg.destination,
-    }, {
-      frameId: frame.frameId,
-    }, (response) => {
-      BackgroundUtils.checkMessageError('message_from_content');
-    });
   } else if (msg.type === MessageTypes.REQUEST_SOURCES) {
     sendSources(frame);
   } else if (msg.type === MessageTypes.LOADED_MEDIA) {
@@ -2032,7 +2022,6 @@ function collectSources(frame, remove = false) {
   const sources = [];
 
   let currentFrame = frame;
-  let removed = false;
   let depth = 0;
 
   while (currentFrame) {
@@ -2054,10 +2043,7 @@ function collectSources(frame, remove = false) {
       });
     }
 
-    if (!removed && remove) {
-      if (currentSources.length !== 0) {
-        removed = true;
-      }
+    if (remove) {
       currentSources.length = 0;
       currentSubtitles.length = 0;
     }

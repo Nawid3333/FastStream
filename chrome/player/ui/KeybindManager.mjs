@@ -270,10 +270,6 @@ export class KeybindManager extends EventEmitter {
         this.client.downloadManager.resume();
       }
     });
-
-    this.on('keybind', (keybind, e) => {
-      // console.log("Keybind", keybind);
-    });
   }
 
   /**
@@ -310,15 +306,6 @@ export class KeybindManager extends EventEmitter {
         this.keybindMap.set(keybind, keybinds[keybind]);
       }
     }
-  }
-
-  eventToKeybind(e) {
-    return this.eventToKeybinds(e)[0];
-  }
-
-  eventToKeybinds(e) {
-    const keyString = WebUtils.getKeyString(e);
-    return this.keyStringToKeybinds(keyString, e);
   }
 
   keyStringToKeybinds(keyString) {

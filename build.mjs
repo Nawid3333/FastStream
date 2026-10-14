@@ -1,4 +1,3 @@
-import {glob} from './miniglob.mjs';
 import fs from 'fs';
 import path from 'path';
 import * as url from 'url';
@@ -20,117 +19,18 @@ const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.
 const KEEP_BUILD_DIRS = process.argv.includes('--keep');
 
 fs.mkdirSync(builtDir, {recursive: true});
-glob(builtDir + '/*.zip').forEach((file) => {
-  fs.unlinkSync(file);
-});
+for (const name of fs.readdirSync(builtDir)) {
+  if (name.endsWith('.zip')) {
+    fs.unlinkSync(path.join(builtDir, name));
+  }
+}
 
 removeBuildDirs();
-deleteDirectoryRecursively(webBuildDir);
+fs.rmSync(webBuildDir, {recursive: true, force: true});
 
 function removeBuildDirs() {
-  deleteDirectoryRecursively(firefoxGithubBuildDir);
-  deleteDirectoryRecursively(firefoxAmoBuildDir);
-}
-
-function deleteDirectoryRecursively(dirPath) {
-  if (fs.existsSync(dirPath)) {
-    fs.readdirSync(dirPath).forEach((file, index) => {
-      const curPath = path.join(dirPath, file);
-      if (fs.lstatSync(curPath).isDirectory()) {
-        deleteDirectoryRecursively(curPath);
-      } else {
-        fs.unlinkSync(curPath);
-      }
-    });
-    fs.rmdirSync(dirPath);
-  }
-}
-
-function extractImports(fileText) {
-  const lines = fileText.split('\n');
-  const newLines = [];
-  const imports = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    if (line.trim().startsWith('import')) {
-      const match = line.match(/import\s+\{{0,1}(.*?)\}{0,1}\s+(?:as\s+(.*)\s+){0,1}from\s+'(.*)'/);
-
-      if (!match) {
-        throw new Error('Invalid import: ' + line);
-      }
-
-      const importName = match[1];
-      const importAs = match[3] ? match[2] : null;
-      const importFrom = match[3] || match[2];
-
-      imports.push({
-        name: importName,
-        as: importAs,
-        from: importFrom,
-      });
-    } else {
-      newLines.push(line);
-    }
-  }
-
-  return {
-    imports: imports,
-    fileText: newLines.join('\n'),
-  };
-}
-
-function extractExports(fileText) {
-  const lines = fileText.split('\n');
-  const newLines = [];
-  const exports = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    if (line.trim().startsWith('export')) {
-      const match = line.match(/export\s+(?:default\s+){0,1}(const|let|var|class|function)\s+([^= ]*)/);
-      if (!match) {
-        throw new Error('Invalid export: ' + line);
-      }
-
-      const exportType = match[1];
-      const exportName = match[2];
-
-      exports.push({
-        type: exportType,
-        name: exportName,
-      });
-
-      newLines.push(line.replace('export', '').trim());
-      continue;
-    }
-
-    newLines.push(line);
-  }
-  return {
-    exports: exports,
-    fileText: newLines.join('\n'),
-  };
-}
-
-// eslint-disable-next-line no-unused-vars
-function generateScriptWithAllImports(sourceDir, filePath, resolvedPaths = []) {
-  const text = extractExports(fs.readFileSync(filePath, 'utf8')).fileText;
-  const {imports, fileText} = extractImports(text);
-
-  const importScripts = [];
-  imports.forEach((importData) => {
-    const importPath = path.resolve(path.dirname(filePath), importData.from);
-    if (resolvedPaths.includes(importPath)) {
-      return;
-    }
-
-    resolvedPaths.push(importPath);
-    const importScript = generateScriptWithAllImports(sourceDir, importPath, resolvedPaths);
-    importScripts.push(importScript.trim());
-  });
-
-  return importScripts.join('\n') + '\n' + fileText;
+  fs.rmSync(firefoxGithubBuildDir, {recursive: true, force: true});
+  fs.rmSync(firefoxAmoBuildDir, {recursive: true, force: true});
 }
 
 async function runWebExtBuild(sourceDir, artifactsDir) {
@@ -166,8 +66,7 @@ async function buildFirefoxGithub() {
       // Same floor and data-collection declaration as the AMO build.
       // data_collection_permissions needs Firefox 140+ (Android 142+);
       // without it web-ext lint warns MISSING_DATA_COLLECTION_PERMISSIONS.
-      // The old floor of 136 only kept 136-139, all long out of support.
-      strict_min_version: '142.0',
+      strict_min_version: '153.0',
       data_collection_permissions: {
         required: ['none'],
       },
@@ -194,8 +93,10 @@ async function buildFirefoxAmo() {
   manifest.browser_specific_settings = {
     gecko: {
       id: 'thanatus@Nawid',
-      // data_collection_permissions needs Firefox 140+ (Android 142+).
-      strict_min_version: '142.0',
+      // The player's picture-in-picture button: video.requestPictureInPicture()
+      // and document.exitPictureInPicture() came in Firefox 153, Document
+      // Picture-in-Picture in 151. data_collection_permissions needs 140+.
+      strict_min_version: '153.0',
       // FastStream sends no telemetry and contacts no analytics
       // service, so nothing is collected. Required by AMO for all new
       // submissions: https://mzl.la/firefox-builtin-data-consent

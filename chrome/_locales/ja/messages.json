@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "フルスクリーン"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox では、クリックした後でしかフルスクリーンにできません。プレーヤーのフルスクリーンボタンをクリックしてください。"
-    },
     "player_windowed_fullscreen_label": {
         "message": "ウィンドウ化されたフルスクリーン"
     },

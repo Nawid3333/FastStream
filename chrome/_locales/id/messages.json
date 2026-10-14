@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "Beralih layar penuh"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox hanya mengizinkan layar penuh setelah ada klik: klik tombol layar penuh pemutar."
-    },
     "player_windowed_fullscreen_label": {
         "message": "Beralih ke layar penuh jendela"
     },

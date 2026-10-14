@@ -2,7 +2,6 @@
 import {MessageTypes} from './enums/MessageTypes.mjs';
 import {PlayerModes} from './enums/PlayerModes.mjs';
 import {FastStreamClient} from './FastStreamClient.mjs';
-import {EmbedAPI} from './modules/EmbedAPI.mjs'; // SPLICER:EXTENSION:REMOVE_LINE
 import {Localize} from './modules/Localize.mjs';
 import {SubtitleTrack} from './SubtitleTrack.mjs';
 import {EnvUtils} from './utils/EnvUtils.mjs';
@@ -52,12 +51,6 @@ if (EnvUtils.isExtension()) {
             window.fastStream.interfaceController.setFullscreenStatus(data.value);
           } else if (data.type === 'miniplayer-state') {
             window.fastStream.interfaceController.setMiniplayerStatus(data.value);
-          } else if (data.type === 'key_down') {
-            window.fastStream.keybindManager.handleKeyString(data.key);
-            window.fastStream.userInteracted();
-          } else if (data.type === 'seek_to') {
-            window.fastStream.currentTime = data.time;
-            window.fastStream.userInteracted();
           }
           sendResponse('recieved');
           return;
@@ -376,16 +369,6 @@ async function setup() {
       }
     });
   }
-
-  // SPLICER:EXTENSION:REMOVE_START
-  if (!EnvUtils.isExtension()) {
-    // A page that embeds this player in an iframe cannot reach into the frame to drive
-    // it, the way the extension reaches into its own pages, so it is given a channel to
-    // ask through instead.
-    window.fastStreamEmbedAPI = new EmbedAPI(window.fastStream);
-    window.fastStreamEmbedAPI.start();
-  }
-  // SPLICER:EXTENSION:REMOVE_END
 }
 
 setup().catch((e)=>{

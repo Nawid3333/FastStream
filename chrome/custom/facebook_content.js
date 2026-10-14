@@ -82,8 +82,6 @@ function scanScripts() {
       'Origin': location.origin,
     },
   });
-
-  console.log('Video found', found.value);
 }
 
 scanScripts();

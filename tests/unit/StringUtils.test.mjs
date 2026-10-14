@@ -48,32 +48,6 @@ describe('parseHTTPRange', () => {
   });
 });
 
-describe('truncateFilename', () => {
-  it('leaves a short name alone', () => {
-    expect(StringUtils.truncateFilename('short.mp4', 20)).toBe('short.mp4');
-  });
-
-  it('preserves the extension when shortening', () => {
-    const out = StringUtils.truncateFilename('averylongfilename.mp4', 15);
-    expect(out.endsWith('.mp4')).toBe(true);
-    expect(out).toContain('...');
-  });
-
-  it('handles a name with no extension', () => {
-    const out = StringUtils.truncateFilename('aaaaaaaaaaaaaaaaaaaa', 10);
-    expect(out).toHaveLength(10);
-  });
-
-  it('caps the extension itself at 5 chars, staying within maxLength overall', () => {
-    // Regression test: the "extension" (everything after the last '.') can
-    // be arbitrarily long - e.g. a dotted filename with no real extension.
-    // The result must not exceed maxLength just because ext.length > 5.
-    const out = StringUtils.truncateFilename('impulse_IR.stereo_44100Hz', 20);
-    expect(out).toBe('impulse_IR....ster');
-    expect(out.length).toBeLessThanOrEqual(20);
-  });
-});
-
 describe('levenshteinDistance', () => {
   it('is zero for identical strings', () => {
     expect(StringUtils.levenshteinDistance('abc', 'abc')).toBe(0);

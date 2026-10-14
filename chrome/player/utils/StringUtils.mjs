@@ -135,19 +135,6 @@ export class StringUtils {
   }
 
   /**
-   * Formats a frequency value in Hz to a human-readable string.
-   * @param {number} freq - Frequency in Hz.
-   * @return {string} Formatted frequency string.
-   */
-  static formatFrequency(freq) {
-    if (freq > 1000) {
-      return (freq / 1000).toFixed(1) + 'k';
-    } else {
-      return freq.toFixed(0);
-    }
-  }
-
-  /**
    * Parses an HTTP Range header string to an object.
    * @param {string} range - HTTP Range string.
    * @return {Object} Parsed range object.
@@ -158,25 +145,5 @@ export class StringUtils {
     const start = parseInt(match[1], 10);
     const end = parseInt(match[2], 10);
     return [start, end];
-  }
-
-  static truncateFilename(filename, maxLength) {
-    const extIndex = filename.lastIndexOf('.');
-    const ext = extIndex !== -1 ? filename.slice(extIndex) : '';
-    const name = extIndex !== -1 ? filename.slice(0, extIndex) : filename;
-
-    if (filename.length <= maxLength) {
-      return filename;
-    }
-
-    // max ext length is 5 chars
-    const maxExtLength = Math.min(ext.length, 5);
-    const maxNameLength = maxLength - maxExtLength - 3; // 3 for "..."
-
-    if (maxNameLength <= 0) {
-      return '...' + ext.slice(0, maxExtLength);
-    }
-
-    return name.slice(0, maxNameLength) + '...' + ext.slice(0, maxExtLength);
   }
 }

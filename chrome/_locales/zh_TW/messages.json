@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "切換全螢幕"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox 需要先點擊才能進入全螢幕：請點擊播放器的全螢幕按鈕。"
-    },
     "player_windowed_fullscreen_label": {
         "message": "切換視窗化全螢幕"
     },

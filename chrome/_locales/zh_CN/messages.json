@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "切换全屏"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox 只允许在点击后才进入全屏：请点击播放器的全屏按钮。"
-    },
     "player_windowed_fullscreen_label": {
         "message": "切换窗口化全屏"
     },

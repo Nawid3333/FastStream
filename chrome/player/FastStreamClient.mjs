@@ -2995,15 +2995,5 @@ export class FastStreamClient extends EventEmitter {
   get videoHeight() {
     return this.player?.getVideo().videoHeight || 0;
   }
-
-  /**
-   * Runs a debug demo for the player.
-   */
-  debugDemo() {
-    this.interfaceController.hideControlBar = ()=>{};
-
-    this.currentTime = 6;
-    this.player.getVideo().style.objectFit = 'cover';
-  }
 }
 

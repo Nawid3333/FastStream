@@ -2879,24 +2879,6 @@
     "zh_CN": "切换全屏",
     "zh_TW": "切換全螢幕"
   },
-  "player_fullscreen_denied": {
-    "en": "Firefox allows fullscreen only after a click: click the player's fullscreen button.",
-    "de": "Firefox erlaubt Vollbild nur nach einem Klick: Klicke auf die Vollbild-Schaltfläche des Players.",
-    "es": "Firefox solo permite la pantalla completa después de un clic: haz clic en el botón de pantalla completa del reproductor.",
-    "fr": "Firefox n'autorise le plein écran qu'après un clic : cliquez sur le bouton plein écran du lecteur.",
-    "id": "Firefox hanya mengizinkan layar penuh setelah ada klik: klik tombol layar penuh pemutar.",
-    "it": "Firefox consente la modalità a schermo intero solo dopo un clic: fai clic sul pulsante per la modalità a schermo intero del lettore.",
-    "ja": "Firefox では、クリックした後でしかフルスクリーンにできません。プレーヤーのフルスクリーンボタンをクリックしてください。",
-    "ko": "Firefox에서는 클릭 후에만 전체 화면을 사용할 수 있습니다: 플레이어의 전체 화면 버튼을 클릭하세요.",
-    "ms": "Firefox hanya membenarkan skrin penuh selepas klik: klik butang skrin penuh pemain.",
-    "nl": "Firefox staat volledig scherm alleen na een klik toe: klik op de knop voor volledig scherm van de speler.",
-    "pl": "Firefox zezwala na pełny ekran dopiero po kliknięciu: kliknij przycisk pełnego ekranu odtwarzacza.",
-    "pt_BR": "O Firefox só permite tela cheia depois de um clique: use o botão de tela cheia do reprodutor.",
-    "ru": "Firefox разрешает полноэкранный режим только после клика: нажмите кнопку полноэкранного режима в плеере.",
-    "tr": "Firefox tam ekrana yalnızca bir tıklamadan sonra izin veriyor: oynatıcının tam ekran düğmesine tıklayın.",
-    "zh_CN": "Firefox 只允许在点击后才进入全屏：请点击播放器的全屏按钮。",
-    "zh_TW": "Firefox 需要先點擊才能進入全螢幕：請點擊播放器的全螢幕按鈕。"
-  },
   "player_windowed_fullscreen_label": {
     "en": "Toggle windowed fullscreen",
     "de": "Fenster-Vollbildmodus umschalten",

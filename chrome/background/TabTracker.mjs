@@ -121,11 +121,6 @@ export class FrameHolder {
     childFrame.parent = null;
   }
 
-  addChildFrame(childFrame) {
-    this.children.add(childFrame);
-    childFrame.parent = this;
-  }
-
   setParentFrame(parentFrame) {
     parentFrame.children.add(this);
     this.parent = parentFrame;

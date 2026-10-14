@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "Vollbildmodus umschalten"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox erlaubt Vollbild nur nach einem Klick: Klicke auf die Vollbild-Schaltfläche des Players."
-    },
     "player_windowed_fullscreen_label": {
         "message": "Fenster-Vollbildmodus umschalten"
     },

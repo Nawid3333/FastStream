@@ -30,7 +30,6 @@
   "specs/archive-roundtrip.e2e.mjs": 21,
   "specs/client-setup.e2e.mjs": 40,
   "specs/dialogs.e2e.mjs": 13,
-  "specs/embed-api.e2e.mjs": 14,
   "specs/failed-load.e2e.mjs": 14,
   "specs/firefox.e2e.mjs": 38,
   "specs/hls-live.e2e.mjs": 20,

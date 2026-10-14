@@ -3,7 +3,7 @@ import {describe, expect, it, vi} from 'vitest';
 import {installFakeDom} from './fakeCueDom.mjs';
 
 // SubtitleTrack.loadText is where every subtitle file ends up: from a URL, a file, the
-// page (EmbedAPI, the content script's detected subtitles) and OpenSubtitles. The page
+// page (the content script's detected subtitles) and OpenSubtitles. The page
 // paths hand it strings as they are, so it is the one place to make them parseable.
 
 installFakeDom();
