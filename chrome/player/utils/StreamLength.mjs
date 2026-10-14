@@ -98,6 +98,43 @@ export class StreamLength {
   }
 
   /**
+   * The variants an HLS master playlist lists: the qualities of its stream. MPV mode sends mpv
+   * the one the user's quality setting asks for, and the list, for mpv's quality menu: it sent
+   * the variant the page's player picked for itself ("Auto", 2026-10-14), the only one mpv
+   * then had.
+   * @param {string} text - The playlist.
+   * @return {?{variants: Array<{uri: string, bandwidth: number, height: number}>,
+   *   renditions: boolean}} Each variant as written in it (uri relative to the playlist's URL),
+   *   its BANDWIDTH and the height of its RESOLUTION (0 when it names none); renditions: it
+   *   lists audio or subtitles of their own (EXT-X-MEDIA with a URI), which a variant played
+   *   alone goes without. Null for text that is no master playlist.
+   */
+  static hlsVariants(text) {
+    const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).map((line) => line.trim());
+    const first = lines.findIndex((line) => line !== '');
+    if (first === -1 || !lines[first].startsWith('#EXTM3U')) {
+      return null;
+    }
+
+    const variants = [];
+    let renditions = false;
+    for (let i = first + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.startsWith('#EXT-X-MEDIA:') && /(^|,)\s*URI\s*=/i.test(line.slice('#EXT-X-MEDIA:'.length))) {
+        renditions = true;
+      } else if (line.startsWith('#EXT-X-STREAM-INF:')) {
+        const uri = lines.slice(i + 1).find((next) => next !== '' && !next.startsWith('#'));
+        if (!uri) continue;
+        const attributes = line.slice('#EXT-X-STREAM-INF:'.length);
+        const bandwidth = Number(/(?:^|,)\s*BANDWIDTH\s*=\s*(\d+)/i.exec(attributes)?.[1]) || 0;
+        const height = Number(/(?:^|,)\s*RESOLUTION\s*=\s*\d+x(\d+)/i.exec(attributes)?.[1]) || 0;
+        variants.push({uri, bandwidth, height});
+      }
+    }
+    return variants.length > 0 ? {variants, renditions} : null;
+  }
+
+  /**
    * Reads a DASH manifest.
    * @param {string} text - The MPD.
    * @return {number|null} Its length in seconds (Infinity for a live one), or null.

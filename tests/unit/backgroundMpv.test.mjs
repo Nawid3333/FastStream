@@ -2216,3 +2216,93 @@ describe('the player\'s mpv button and a page that offers several qualities', ()
     expect(bg.native.find((m) => m.type === 'open').qualities).toEqual(LIST);
   });
 });
+
+describe('MPV mode and an HLS stream whose master playlist offers several qualities', () => {
+  // A hoster's JW Player (his report, 2026-10-14): Auto, 1080p, 720p and 480p from one master
+  // playlist. The page loads the master, then the variant its "Auto" picks. The two run as
+  // long as each other, of streams that tie the newest went, and mpv played that variant and
+  // knew no other quality.
+  const MASTER = 'https://cdn.test/v/master.m3u8';
+  const variant = (height) => `https://cdn.test/v/${height}/index.m3u8`;
+  const LIST = [
+    {url: variant(1080), label: '1080p', height: 1080},
+    {url: variant(720), label: '720p', height: 720},
+    {url: variant(480), label: '480p', height: 480},
+  ];
+  const master = (extra = '') => '#EXTM3U\n' + extra +
+    `#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=854x480${extra ? ',AUDIO="aac"' : ''}\n480/index.m3u8\n` +
+    `#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080${extra ? ',AUDIO="aac"' : ''}\n1080/index.m3u8\n` +
+    `#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720${extra ? ',AUDIO="aac"' : ''}\n720/index.m3u8\n`;
+
+  /**
+   * The network: the master playlist, and each variant a 1400 s media playlist.
+   * @param {string} text - The master playlist.
+   * @return {function(string): Promise<Object>} fetch() for loadBackground.
+   */
+  function network(text) {
+    return async (url) => {
+      if (url === MASTER) return response(text);
+      return /\/index\.m3u8$/.test(url) ? response(hlsPlaylist(1400)) : response('', 404);
+    };
+  }
+
+  /**
+   * The page loads the master playlist, then the variant its player picked for itself.
+   * @param {number} height - That variant's.
+   * @return {Promise<void>}
+   */
+  async function pageLoads(height) {
+    await bg.request({tabId: 1, url: MASTER});
+    await bg.wait(100);
+    await bg.request({tabId: 1, url: variant(height)});
+  }
+
+  it('sends a play the highest variant, with the list for mpv, though the page loaded its Auto pick last', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: network(master())});
+    await bg.command('toggle_mpv', 1);
+    await pageLoads(480);
+    await bg.wait(1000);
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: 'blob:https://site.test/1', duration: 1400}},
+        {tabId: 1, frameId: 0});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([variant(1080)]);
+    expect(bg.native.find((m) => m.type === 'open').qualities).toEqual(LIST);
+  });
+
+  it('sends an allowlisted page\'s first stream as the quality the setting asks for', async () => {
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], defaultQuality: '720p'},
+      tabs: [{id: 1, url: PAGE}],
+      fetch: network(master()),
+    });
+    await bg.navigated(1, PAGE);
+    await pageLoads(480);
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([variant(720)]);
+    expect(bg.native.find((m) => m.type === 'open').qualities).toEqual(LIST);
+  });
+
+  it('sends the master when its variants have no sound of their own, and mpv picks the highest itself', async () => {
+    const withAudio = master('#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="Deutsch",DEFAULT=YES,URI="audio/de.m3u8"\n');
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: network(withAudio)});
+    await bg.command('toggle_mpv', 1);
+    await pageLoads(480);
+    await bg.wait(1000);
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: 'blob:https://site.test/1', duration: 1400}},
+        {tabId: 1, frameId: 0});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([MASTER]);
+    expect(bg.native.find((m) => m.type === 'open').qualities).toBeUndefined();
+  });
+
+  it('sends a variant whose master the page never loaded as it is', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: network(master())});
+    await bg.command('toggle_mpv', 1);
+    await bg.request({tabId: 1, url: variant(480)});
+    await bg.wait(1000);
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: 'blob:https://site.test/1', duration: 1400}},
+        {tabId: 1, frameId: 0});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([variant(480)]);
+  });
+});

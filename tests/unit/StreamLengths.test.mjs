@@ -116,6 +116,53 @@ describe('StreamLengths', () => {
     expect(lengths.lengthOf('https://cdn.example/v/master.m3u8')).toBe(1452);
   });
 
+  it('keeps a master playlist\'s qualities, one per height, for the master and each variant', async () => {
+    const {fetch} = server({
+      'https://cdn.example/v/master.m3u8': {
+        redirect: 'https://edge.example/v/master.m3u8?sig=1',
+        body: '#EXTM3U\n' +
+          '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=854x480\n480/index.m3u8\n' +
+          '#EXT-X-STREAM-INF:BANDWIDTH=5000000,AVERAGE-BANDWIDTH=1,RESOLUTION=1920x1080\n1080/index.m3u8\n' +
+          '#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720\n720/index.m3u8\n' +
+          '#EXT-X-STREAM-INF:BANDWIDTH=4000000,RESOLUTION=1920x1080\n1080-low/index.m3u8\n' +
+          '#EXT-X-STREAM-INF:BANDWIDTH=64000,CODECS="mp4a.40.2"\naudio/index.m3u8\n',
+      },
+      'https://edge.example/v/480/index.m3u8': {body: '#EXTM3U\n#EXTINF:600,\na.ts\n#EXT-X-ENDLIST\n'},
+    });
+    const lengths = new StreamLengths({fetch});
+    await lengths.probe({url: 'https://cdn.example/v/master.m3u8', mode: HLS});
+    const list = [
+      {url: 'https://edge.example/v/1080/index.m3u8', label: '1080p', height: 1080},
+      {url: 'https://edge.example/v/720/index.m3u8', label: '720p', height: 720},
+      {url: 'https://edge.example/v/480/index.m3u8', label: '480p', height: 480},
+    ];
+    expect(lengths.hlsQualities('https://cdn.example/v/master.m3u8')).toEqual({master: 'https://cdn.example/v/master.m3u8', list});
+    // The page's player loads a variant after the master: it has the same list.
+    expect(lengths.hlsQualities('https://edge.example/v/720/index.m3u8')).toEqual({master: 'https://cdn.example/v/master.m3u8', list});
+    expect(lengths.hlsQualities('https://edge.example/v/other.m3u8')).toBeNull();
+  });
+
+  it('gives a master with audio or subtitles of their own, or with one height, no list', async () => {
+    const {fetch} = server({
+      'https://cdn.example/a/master.m3u8': {
+        body: '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="English",DEFAULT=YES,URI="audio/en.m3u8"\n' +
+          '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,AUDIO="aac"\n1080.m3u8\n' +
+          '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=854x480,AUDIO="aac"\n480.m3u8\n',
+      },
+      'https://cdn.example/a/1080.m3u8': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'},
+      'https://cdn.example/b/master.m3u8': {
+        body: '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080\nhi.m3u8\n' +
+          '#EXT-X-STREAM-INF:BANDWIDTH=4000000,RESOLUTION=1920x1080\nlo.m3u8\n',
+      },
+      'https://cdn.example/b/hi.m3u8': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'},
+    });
+    const lengths = new StreamLengths({fetch});
+    await lengths.probe({url: 'https://cdn.example/a/master.m3u8', mode: HLS});
+    await lengths.probe({url: 'https://cdn.example/b/master.m3u8', mode: HLS});
+    expect(lengths.hlsQualities('https://cdn.example/a/480.m3u8')).toEqual({master: 'https://cdn.example/a/master.m3u8', list: null});
+    expect(lengths.hlsQualities('https://cdn.example/b/master.m3u8')).toEqual({master: 'https://cdn.example/b/master.m3u8', list: null});
+  });
+
   it('reads a DASH stream\'s length', async () => {
     const {fetch} = server({'https://cdn.example/a.mpd': {body: '<MPD type="static" mediaPresentationDuration="PT24M"></MPD>'}});
     const lengths = new StreamLengths({fetch});

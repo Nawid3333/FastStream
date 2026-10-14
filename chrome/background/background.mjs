@@ -187,6 +187,9 @@ const PlayedVideoWaitMs = 1000;
 // The longest a player, or a hand-off to mpv, waits for a page to list its player's qualities
 // (getPageQualities). It reads them from what it holds: milliseconds, unless its scripts are busy.
 const PageQualitiesWaitMs = 1000;
+// The longest a hand-off to mpv waits for an HLS master playlist to be read, for its
+// qualities (hlsQualityChoice); the read starts when the stream is detected.
+const HlsQualitiesWaitMs = 1500;
 // How long a video's file the page told as it loaded (content.js on loadedmetadata, a
 // LOADED_MEDIA with live set) waits before it is taken in. The request for it, when there
 // was one, is the one to keep: its own headers (an Origin), not the page's stand-ins. It
@@ -3744,6 +3747,41 @@ async function pageQualityChoice(tab, url) {
 }
 
 /**
+ * The variant of an HLS stream the user's quality setting asks for, and the list, from its
+ * master playlist (StreamLengths.hlsQualities). MPV mode sent the variant the page's player
+ * was loading - its "Auto" pick, often not the highest - and mpv knew no other quality (his
+ * report, 2026-10-14): the master and its variant run as long as each other, and of streams
+ * that tie the newest goes. A master whose variants cannot play alone (audio or subtitles of
+ * their own) goes as the master: mpv takes its highest bitrate by itself (hls-bitrate=max).
+ * @param {?Object} tab - TabHolder the stream was found in, if any.
+ * @param {string} url - The stream: a master playlist, or a variant of one.
+ * @return {Promise<?{url: string, list: ?Array<Object>}>} What to send instead, and the list;
+ *   null to send the stream as it is.
+ */
+async function hlsQualityChoice(tab, url) {
+  let hls = Lengths.hlsQualities(url);
+  if (!hls && Lengths.lengthOf(url) === undefined) {
+    // Its read started when it was detected: an allowlisted site's first stream goes at once.
+    const source = tab?.getFrames().flatMap((frame) => frame.getSources()).find((s) => s.url === url);
+    if (source?.mode === PlayerModes.ACCELERATED_HLS) {
+      let timer;
+      await Promise.race([
+        Lengths.probe(source),
+        new Promise((resolve) => {
+          timer = setTimeout(resolve, HlsQualitiesWaitMs);
+        }),
+      ]);
+      clearTimeout(timer);
+      hls = Lengths.hlsQualities(url);
+    }
+  }
+  if (!hls) return null;
+  if (!hls.list) return hls.master !== url ? {url: hls.master, list: null} : null;
+  const best = pickQuality(hls.list, desiredHeight(Options.defaultQuality));
+  return {url: best ? best.url : hls.master, list: hls.list};
+}
+
+/**
  * Hands a stream to mpv, unless the page's request for it went through Firefox VPN: mpv
  * runs outside Firefox, asks from the user's own address, and a site that ties its stream
  * to the VPN's refuses it ("could not open the stream", VOE, 2026-10-06). Then mpv is not
@@ -3780,6 +3818,16 @@ async function openInMpv(tabId, url, ...rest) {
       if (Logging && choice.url !== url) console.log('[MPV] the page\'s best quality instead:', choice.url);
       url = choice.url;
       rest[5] = {...(rest[5] || {}), qualities: choice.list};
+    }
+  }
+  // An HLS stream: the quality its master playlist offers that the setting asks for, and the
+  // list for mpv's quality menu (hlsQualityChoice). Not for the player's button either.
+  if (!(rest[5] && 'qualities' in rest[5])) {
+    const choice = await hlsQualityChoice(tabId !== undefined && tabId >= 0 ? Tabs.getTab(tabId) : null, url);
+    if (choice) {
+      if (Logging && choice.url !== url) console.log('[MPV] the HLS stream\'s best quality instead:', choice.url);
+      url = choice.url;
+      if (choice.list) rest[5] = {...(rest[5] || {}), qualities: choice.list};
     }
   }
   if (VpnMirror.throughBrowserVpn(detected, incognito) || VpnMirror.throughBrowserVpn(url, incognito)) {
