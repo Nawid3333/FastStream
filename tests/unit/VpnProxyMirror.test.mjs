@@ -63,6 +63,26 @@ describe('VpnProxyMirror', () => {
     expect(live.listener(pageRequest(CDN, null))).toBeUndefined();
   });
 
+  it('keeps mirroring the other hosts when Firefox refuses one host\'s pattern', () => {
+    // The review of 2026-10-14: one listener for every host, and a refused pattern made
+    // addListener throw for all of them.
+    const {api, mirror} = setup();
+    api.onRequest.addListener.mockImplementation((listener, {urls}) => {
+      if (urls.includes('*://[::1]/*')) throw new Error('Invalid url pattern: *://[::1]/*');
+    });
+    mirror.noteSource(pageRequest(CDN, vpn()));
+    mirror.noteSource(pageRequest('https://[::1]/hls/master.m3u8', vpn()));
+    const calls = api.onRequest.addListener.mock.calls;
+    const removed = new Set(api.onRequest.removeListener.mock.calls.map((c) => c[0]));
+    const live = calls.filter((c) => !removed.has(c[0]) && !c[1].urls.includes('*://[::1]/*'));
+    expect(live.map((c) => c[1].urls)).toEqual([['*://cdn.example/*']]);
+    expect(live[0][0](ownRequest(CDN))).toMatchObject({host: 'muc139.m1.fastly-masque.net'});
+    // Nothing tried again on the next request: the hosts did not change.
+    const before = calls.length;
+    mirror.noteRequest(pageRequest(CDN, vpn('Bearer two')));
+    expect(calls.length).toBe(before);
+  });
+
   it('uses the newest token any page request through that proxy carried', () => {
     const {mirror, current} = setup();
     mirror.noteSource(pageRequest(CDN, vpn('Bearer one', 'iso1')));

@@ -80,8 +80,9 @@ export class VpnProxyMirror {
     /** @type {Map<string, SeenProxy>} proxy key -> its newest settings */
     this.proxies = new Map();
     this.permitted = false;
-    /** @type {((details: Object) => (Object|undefined))|null} */
-    this.listener = null;
+    /** @type {Array<(details: Object) => (Object|undefined)>} */
+    this.listeners = [];
+    // The hosts' match patterns the listeners were registered for (the refused ones too).
     /** @type {string[]} */
     this.listenerUrls = [];
   }
@@ -341,27 +342,37 @@ export class VpnProxyMirror {
     const urls = Array.from(new Set(Array.from(this.hosts)
         .filter(([, entry]) => CopyableTypes.includes(this.proxies.get(entry.key)?.type || ''))
         .map(([hostKey]) => `*://${hostKey.slice(2)}/*`)));
-    const same = this.listener && urls.length === this.listenerUrls.length &&
-      urls.every((u, i) => u === this.listenerUrls[i]);
+    const same = urls.length === this.listenerUrls.length && urls.every((u, i) => u === this.listenerUrls[i]);
     if (same && api) return;
-    if (this.listener) {
+    for (const listener of this.listeners) {
       try {
-        this.getProxyApi()?.onRequest.removeListener(this.listener);
+        this.getProxyApi()?.onRequest.removeListener(listener);
       } catch (e) {
         // The permission went: so did the listener.
       }
-      this.listener = null;
-      this.listenerUrls = [];
     }
+    this.listeners = [];
+    this.listenerUrls = [];
     if (!api || !urls.length) return;
-    this.listener = (details) => this.proxyFor(details);
     this.listenerUrls = urls;
     try {
-      api.onRequest.addListener(this.listener, {urls});
+      const listener = (details) => this.proxyFor(details);
+      api.onRequest.addListener(listener, {urls});
+      this.listeners = [listener];
     } catch (e) {
-      console.warn('Could not listen for proxy requests', e);
-      this.listener = null;
-      this.listenerUrls = [];
+      // A pattern Firefox refuses throws for the whole filter: every host lost its
+      // mirroring for one bad host. One listener per host then, and only that one is left
+      // out. (A listener registers once, so each host gets its own.)
+      console.warn('Could not listen for proxy requests to all hosts at once', e);
+      for (const url of urls) {
+        const listener = (details) => this.proxyFor(details);
+        try {
+          api.onRequest.addListener(listener, {urls: [url]});
+          this.listeners.push(listener);
+        } catch (err) {
+          console.warn('Could not listen for proxy requests to', url, err);
+        }
+      }
     }
   }
 }

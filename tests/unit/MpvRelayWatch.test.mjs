@@ -1,8 +1,8 @@
 import {afterEach, describe, expect, it} from 'vitest';
 
 import {EpisodeMessages as HostEpisodeMessages, HeartbeatMs as HostHeartbeatMs, MaxNoticeSeconds as HostMaxNoticeSeconds,
-  noticeSeconds as hostNoticeSeconds} from '../../native-host/faststream-mpv-host.mjs';
-import {MpvBackend} from '../../chrome/background/MpvBackend.mjs';
+  ReadableProperties, noticeSeconds as hostNoticeSeconds} from '../../native-host/faststream-mpv-host.mjs';
+import {DecoderProperties, MpvBackend} from '../../chrome/background/MpvBackend.mjs';
 import {EpisodeMessages, HeartbeatMs, MaxNoticeSeconds, noticeSeconds, relayWatch} from '../../chrome/background/MpvRelayWatch.mjs';
 
 // MPV autoplay over the thin helper (host 15, 2026-10-13): the helper only relays mpv's lines
@@ -77,6 +77,12 @@ const pauseEvent = (data) => ({event: 'property-change', id: 3, name: 'pause', d
 const ended = (events) => events.filter((e) => e.type === 'ended');
 
 describe('the relay watch', () => {
+  it('observes only properties the helper lets an observer read (the decoder\'s too)', () => {
+    for (const name of ['path', 'eof-reached', 'pause', ...DecoderProperties]) {
+      expect(ReadableProperties.has(name)).toBe(true);
+    }
+  });
+
   it('keeps the helper\'s constants', () => {
     expect(EpisodeMessages).toEqual(HostEpisodeMessages);
     expect(HeartbeatMs).toBe(HostHeartbeatMs);
@@ -106,6 +112,29 @@ describe('the relay watch', () => {
       {type: 'mpv', command: ['set_property', 'user-data/faststream/connected', true]},
     ]);
     expect(events).toEqual([{type: 'watching'}]);
+  });
+
+  it('observes the decoder\'s properties it is given, and tells each change once, as replies', () => {
+    const port = fakePort();
+    const events = [];
+    relayWatch(port, (event) => events.push(event), {decoderProperties: ['hwdec-current', 'width']});
+    port.emit({type: 'relaying'});
+    expect(commands(port).map((m) => m.command).slice(3, 5)).toEqual([
+      ['observe_property', 10, 'hwdec-current'],
+      ['observe_property', 11, 'width'],
+    ]);
+    const mpv = (data) => port.emit({type: 'mpv', data});
+    mpv({event: 'property-change', id: 10, name: 'hwdec-current'});
+    mpv({event: 'property-change', id: 11, name: 'width'});
+    mpv({event: 'property-change', id: 10, name: 'hwdec-current', data: 'vulkan'});
+    mpv({event: 'property-change', id: 11, name: 'width', data: 1280});
+    mpv({event: 'property-change', id: 11, name: 'width', data: 1280});
+    const told = events.filter((e) => e.type === 'decoder-replies').map((e) => e.replies);
+    expect(told).toEqual([
+      [{error: 'property unavailable'}, {error: 'property unavailable'}],
+      [{error: 'success', data: 'vulkan'}, {error: 'property unavailable'}],
+      [{error: 'success', data: 'vulkan'}, {error: 'success', data: 1280}],
+    ]);
   });
 
   it('holds what is sent before the helper relays, and sends it after', () => {

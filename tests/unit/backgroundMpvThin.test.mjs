@@ -84,8 +84,8 @@ describe('MPV mode with the thin helper', () => {
   /** The mpv commands the background sent through the relay. */
   const commands = (port) => port.sent.filter((m) => m.type === 'mpv');
 
-  it('sends the stream as a play message it built, and shows mpv\'s decoder, asked over ipc', async () => {
-    await onEpisode1();
+  it('sends the stream as a play message it built, and shows mpv\'s decoder, observed over the relay', async () => {
+    const port = await onEpisode1();
     const plays = bg.native.filter((m) => m.type === 'play');
     expect(plays).toHaveLength(1);
     // The allowlist's content type (Movie unless the site is tagged @anime), the resume key and
@@ -93,7 +93,22 @@ describe('MPV mode with the thin helper', () => {
     expect(plays[0].target).toBe(`${S1}#fs-content=movie&fs-id=${fsId(EP1)}&fs-page=${encodeURIComponent(EP1)}`);
     expect(plays[0]).toMatchObject({type: 'play', headers: ['Referer: https://site.test/']});
     expect(bg.native.filter((m) => m.type === 'open' || m.type === 'status')).toEqual([]);
-    expect(bg.native.filter((m) => m.type === 'ipc')[0].commands[0]).toEqual(['get_property', 'hwdec-current']);
+    // The relay the watch holds open observes the decoder: no ipc question, each of which
+    // was a new helper process (review of 2026-10-14).
+    port.emit({type: 'relaying', ...Thin});
+    await bg.wait(50);
+    const observed = commands(port).filter((m) => m.command[0] === 'observe_property').map((m) => m.command[2]);
+    expect(observed).toEqual(['path', 'eof-reached', 'pause', 'hwdec-current', 'hwdec', 'video-format', 'width', 'height']);
+    // mpv opening the stream: no decoder yet, then one, its format and size as they come.
+    const decoder = (id, name, data) => port.emit({type: 'mpv', data: {event: 'property-change', id, name, data}});
+    port.emit({type: 'mpv', data: {event: 'property-change', id: 10, name: 'hwdec-current'}});
+    decoder(10, 'hwdec-current', 'd3d11va');
+    decoder(11, 'hwdec', 'auto-safe');
+    decoder(12, 'video-format', 'av1');
+    decoder(13, 'width', 1920);
+    decoder(14, 'height', 1080);
+    await bg.wait(25000);
+    expect(bg.native.filter((m) => m.type === 'ipc')).toEqual([]);
     expect(bg.badges.get(1)).toBe('');
     expect(bg.titles.get(1)).toBe('FastStream - Playing in MPV - decoded by the graphics card: d3d11va, AV1 1920x1080');
   });
