@@ -1115,12 +1115,6 @@
     "options_mpv_test_decoder_sw": {
         "message": "La fenêtre mpv ouverte décode sur le processeur ($1) : ajoutez hwdec=auto-safe à mpv.conf pour décoder sur la carte graphique."
     },
-    "player_mpv_sent_outdated": {
-        "message": "Envoyé vers mpv. L'assistant mpv de cet ordinateur est obsolète : lancez « Update mpv » depuis le menu Démarrer (dans une copie du dépôt FastStream : update-local.cmd ou native-host\\install.ps1)."
-    },
-    "player_mpv_sent_outdated_unix": {
-        "message": "Envoyé vers mpv. L'assistant mpv de cet ordinateur est obsolète : mettez à jour le fichier faststream-mpv-host.mjs vers lequel pointe votre manifeste de messagerie native (effectuez un git pull dans votre copie du dépôt FastStream ; consultez native-host/README.md)."
-    },
     "player_mpv_content_unset": {
         "message": "Ouvrir ce flux dans mpv (type de contenu : auto – Film sauf si le site est marqué @anime ; clic droit pour le changer pour cette vidéo)"
     },

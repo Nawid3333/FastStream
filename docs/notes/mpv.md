@@ -560,7 +560,7 @@ menu folder "mpv" with "mpv", "Update mpv" (updater.bat; it also brings a host t
 installed to the newest release) and "Uninstall mpv" (removes that host too). Such a user has
 no repository, so:
 - The outdated-host texts (`extension_toggle_label_mpv_outdated`, `options_mpv_test_outdated`,
-  `player_mpv_sent_outdated`, and BackgroundUtils' English fallback) name "Update mpv" in the
+  and BackgroundUtils' English fallback) name "Update mpv" in the
   Start menu first, and `update-local.cmd`/`install.ps1` for a checkout second.
   `options_mpv_body` and two links under it point to mpv-config's README ("Install") first and
   README-MPV.md second; `options_mpv_test_fail` asks "is it installed?".
