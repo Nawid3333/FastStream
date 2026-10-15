@@ -9,6 +9,11 @@ V1.3.78 is a version bump, and the video aspect-ratio option (#552 and 3311d313)
 left for the owner's decision. `upstream-watch.yml` now lists upstream's new commits in one
 issue for review; a fix that helps is ported by hand. The record below is of the merge years.
 
+**Correction (2026-10-15 review of the fork against upstream V1.3.78):** "all here already" did
+not hold for one part of #568: `StandardDownloader.onSuccess`'s `if (this.entry === current)`
+guard was not here (the fork's own try/finally cleaned up unconditionally). Ported that day,
+with a unit test. Every other fix of the 20 upstream commits was found here in some form.
+
 This fork is maintained on its own. Upstream (`Andrews54757/FastStream`) is a
 source of fixes to take, not a tree to stay identical to. The rule for every
 upstream commit:

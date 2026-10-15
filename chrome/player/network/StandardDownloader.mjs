@@ -116,6 +116,9 @@ export class StandardDownloader {
   }
 
   cleanup() {
+    // Free means not delivering either: after an abort mid-delivery, the next entry's
+    // download is no delivery for retire() and the manager to spare.
+    this.delivering = false;
     if (this.entry) {
       this.loader.destroy();
       this.entry.downloader = null;
@@ -139,13 +142,20 @@ export class StandardDownloader {
 
   async onSuccess(response, stats, entry, xhr) {
     this.updateSpeed(stats);
+    const current = this.entry;
     this.delivering = true;
     try {
-      await this.entry.onSuccess(response, stats, this.entry, xhr);
+      await current.onSuccess(response, stats, current, xhr);
     } finally {
-      // Whatever went wrong in there, a downloader left busy would never download again.
-      this.delivering = false;
-      this.cleanup();
+      // An abort while the entry delivered (a watcher gave up on it: an hls.js seek or
+      // quality switch during an AES-128 segment's decryption; the downloads paused) has
+      // cleaned up already, and the manager may have given this downloader its next entry
+      // meanwhile. Cleaning up again ended that one too, and it stayed "downloading" for
+      // good (upstream #568). Otherwise: whatever went wrong in there, a downloader left
+      // busy would never download again.
+      if (this.entry === current) {
+        this.cleanup();
+      }
     }
   }
 

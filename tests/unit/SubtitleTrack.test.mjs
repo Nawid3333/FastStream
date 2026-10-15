@@ -87,6 +87,49 @@ describe('SubtitleTrack.loadText', () => {
   });
 });
 
+// SubtitlesManager.addTrack keeps one of two equal tracks. Upstream's rule: the same cues
+// are the same subtitles unless the name and the language both differ. A 2026-09-11 review
+// took its && for a typo (||), and the same file under another name was listed twice: the
+// page's subtitle file and the user's copy of it, the same OpenSubtitles file saved twice.
+describe('SubtitleTrack.equals', () => {
+  const SRT = '1\n00:00:01,000 --> 00:00:02,000\nHello\n';
+
+  /**
+   * A track with the given name, language and file.
+   * @param {string} label
+   * @param {?string} language
+   * @param {string} [text]
+   * @return {SubtitleTrack}
+   */
+  function track(label, language, text = SRT) {
+    const result = new SubtitleTrack(label, language);
+    result.loadText(text);
+    return result;
+  }
+
+  it('takes the same cues under another name, in the same language, for the same track', () => {
+    expect(track('page.srt', 'en').equals(track('My copy.srt', 'en'))).toBe(true);
+  });
+
+  it('takes the same cues under other names, both without a language, for the same track', () => {
+    expect(track('page.srt', undefined).equals(track('My copy.srt', undefined))).toBe(true);
+  });
+
+  it('takes the same cues under the same name, in another language, for the same track', () => {
+    expect(track('Track 1', 'en').equals(track('Track 1', 'de'))).toBe(true);
+  });
+
+  it('keeps tracks apart whose name and language both differ', () => {
+    expect(track('English', 'en').equals(track('Deutsch', 'de'))).toBe(false);
+  });
+
+  it('keeps tracks apart whose cues differ', () => {
+    const other = '1\n00:00:01,000 --> 00:00:02,000\nHallo\n';
+    expect(track('Track 1', 'en').equals(track('Track 1', 'en', other))).toBe(false);
+    expect(track('Track 1', 'en').equals(track('Track 1', 'en', SRT + '\n2\n00:00:03,000 --> 00:00:04,000\nBye\n'))).toBe(false);
+  });
+});
+
 describe('SubtitleTrack.loadURL', () => {
   // An embedding page's subtitle link that answered 404 was read as a file without cues.
   it('says the server refused the file', async () => {
