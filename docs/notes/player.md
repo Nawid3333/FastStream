@@ -291,7 +291,15 @@ video's `loadedmetadata`, and the CDN's address) and played the CDN's.
   decided on #316 (D5).
 - **`DownloadEntry.notifyWatchers`**: a watcher that throws neither silences the others
   nor skips the cleanup. `StandardDownloader.onSuccess` cleans up in `finally`, or the
-  downloader stays busy for good.
+  downloader stays busy for good - but only while it still holds the entry it delivered
+  (upstream #568, ported 2026-10-15): an abort during the delivery (a watcher giving up on an
+  AES-128 segment during its decryption, the downloads paused) has cleaned up already, the
+  manager may have given the downloader its next entry, and a second cleanup ended that one,
+  left "downloading" for good. `cleanup()` also resets `delivering`.
+- **`SubtitleTrack.equals`** (`SubtitlesManager.addTrack` keeps one of two equal tracks): the
+  same cues are one track unless the name *and* the language differ, as upstream has it. The
+  2026-09-11 review took that `&&` for a typo, and the same file under another name was listed
+  twice (restored 2026-10-15, `tests/unit/SubtitleTrack.test.mjs`).
 - **`setSourceInternal`'s progress chain returns if another source came in**, both before
   it switches progress saving off and after it waits for the player. The wait ends when
   whichever player is current is ready, which may be the next source's.

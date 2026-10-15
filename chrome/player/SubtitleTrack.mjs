@@ -102,8 +102,16 @@ export class SubtitleTrack {
     parser.flush();
   }
 
+  /**
+   * Whether two tracks are the same subtitles (SubtitlesManager.addTrack keeps one): the
+   * same cues, unless the name and the language both differ. The same file under another
+   * name (the page's subtitle file and the user's copy of it) is one track. A 2026-09-11
+   * review took upstream's && here for a typo, and such a file was listed twice.
+   * @param {SubtitleTrack} otherTrack
+   * @return {boolean}
+   */
   equals(otherTrack) {
-    if (this.label !== otherTrack.label || this.language !== otherTrack.language) {
+    if (this.label !== otherTrack.label && this.language !== otherTrack.language) {
       return false;
     }
 

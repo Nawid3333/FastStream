@@ -105,4 +105,43 @@ describe('StandardDownloader', () => {
       error.mockRestore();
     });
   });
+
+  // The same after the download: while the entry delivers (an AES-128 segment's decryption
+  // is awaited), a watcher can give up on it (an hls.js seek or quality switch) or the
+  // downloads can be paused. The abort cleans up at once and the manager gives the
+  // downloader its next entry; the delivery's own cleanup, when it ended, ended that one
+  // too, which then stayed "downloading" for good (upstream #568).
+  describe('an abort while the entry delivers', () => {
+    it('leaves the download the downloader has moved on to alone', async () => {
+      const manager = {onDownloaderFinished: vi.fn()};
+      const downloader = new StandardDownloader(manager);
+      let finishDelivery;
+      const delivering = {
+        onAbort: vi.fn(),
+        getRequest: () => new Promise(() => {}),
+        onSuccess: () => new Promise((resolve) => {
+          finishDelivery = resolve;
+        }),
+      };
+      downloader.run(delivering);
+      const delivery = downloader.onSuccess({data: new ArrayBuffer(1)}, {loaded: 1, loading: {start: 0}}, null, null);
+      downloader.abort();
+      // Free, and not delivering: the next download is not one for retire() to spare.
+      expect(downloader.canHandle({})).toBe(true);
+      expect(downloader.delivering).toBe(false);
+
+      const next = {onAbort: vi.fn(), onFail: vi.fn(), getRequest: () => new Promise(() => {})};
+      downloader.run(next);
+      const destroy = vi.spyOn(downloader.loader, 'destroy');
+
+      finishDelivery();
+      await delivery;
+
+      expect(downloader.entry).toBe(next);
+      expect(next.downloader).toBe(downloader);
+      expect(destroy).not.toHaveBeenCalled();
+      // The abort's only: the next download is not reported finished.
+      expect(manager.onDownloaderFinished).toHaveBeenCalledTimes(1);
+    });
+  });
 });

@@ -104,12 +104,22 @@ describe('Adding a subtitle file', function() {
 
   it('reads a Windows-1252 file with its umlauts, from disk and from a URL', async function() {
     // Read as UTF-8, as the browser does, each of these letters was the replacement mark.
-    const srt = Array.from('1\n00:00:00,000 --> 00:00:01,000\nGr', (c) => c.charCodeAt(0)).concat([0xfc, 0xdf, 0x65]);
-    const expected = 'Gr' + String.fromCharCode(0xfc, 0xdf) + 'e';
-    await pickFile('de.srt', srt);
-    await addUrl(srt);
+    // Two texts: the same file twice is one track (SubtitleTrack.equals), and each path is checked.
+    const header = Array.from('1\n00:00:00,000 --> 00:00:01,000\n', (c) => c.charCodeAt(0));
+    const fromDisk = header.concat([0x47, 0x72, 0xfc, 0xdf, 0x65]);
+    const fromUrl = header.concat([0x47, 0x72, 0xf6, 0xdf, 0x65]);
+    await pickFile('de.srt', fromDisk);
+    await addUrl(fromUrl);
     const texts = await browser.execute(() => window.fastStream.interfaceController.subtitlesManager.tracks
         .map((track) => track.cues.map((cue) => cue.text)));
-    expect(texts).toEqual([[expected], [expected]]);
+    expect(texts).toEqual([['Gr' + String.fromCharCode(0xfc, 0xdf) + 'e'], ['Gr' + String.fromCharCode(0xf6, 0xdf) + 'e']]);
+  });
+
+  // The same subtitles under another name are one track: listed twice since a 2026-09-11
+  // change to SubtitleTrack.equals (restored 2026-10-15).
+  it('lists the same file once, from disk and from a URL', async function() {
+    await pickFile('real.vtt', VTT);
+    await addUrl(VTT);
+    expect((await state()).tracks).toEqual(['real.vtt']);
   });
 });
