@@ -420,8 +420,10 @@ function leaveMpvWhenOff() {
 }
 
 /**
- * The toolbar button, and the toggle_player shortcut (Ctrl+Shift+F unless the user
- * rebinds it) with playerKey.
+ * The toolbar button, and the toggle_player shortcut with playerKey. That command has
+ * no default key: Firefox 159 binds Ctrl+Shift+F, its key until then, to its own Add-ons
+ * page, and Firefox's key wins over an extension's. A user who wants one sets it on
+ * about:addons.
  *
  * The button cycles MPV -> Off -> On -> MPV on a site on the MPV Allowlist, and turns
  * FastStream off or on everywhere else; from MPV a click is Off. The key is the in-page
@@ -534,7 +536,7 @@ chrome.action.onClicked.addListener((tabobj) => onClicked(tabobj));
  * site on the MPV Allowlist - pressing it is the deliberate choice the
  * allowlist otherwise makes for the user. Off means FastStream off, the same
  * as the toolbar's MPV -> Off step. From the in-page player it goes straight to
- * MPV, as Ctrl+Shift+F goes from MPV straight to the player (onClicked).
+ * MPV, as the player's key goes from MPV straight to the player (onClicked).
  *
  * Only a video the user starts goes to mpv (startMpv's onPlay, onUserPlay):
  * on an arbitrary site the first stream a page loads is as likely a preview
@@ -598,7 +600,7 @@ chrome.commands.onCommand.addListener((command, tabobj) => {
 /**
  * A key press the page cancelled, which Firefox therefore never ran as a
  * shortcut (content.js reports only those). Runs the command it is bound to,
- * as Firefox would have: toggle_player (Ctrl+Shift+F by default) or toggle_mpv.
+ * as Firefox would have: toggle_player (no default key) or toggle_mpv.
  * The bindings are read fresh, so a key rebound on about:addons counts at once.
  *
  * @param {Object} press - The key press; see KeyShortcut's KeyPress.
@@ -775,7 +777,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       tab.isOn = true;
       tab.regexMatched = true;
       // The player page has no MPV mode. The MPV key's arm on a new tab would show
-      // there (Ctrl+Shift+F on that tab opens this page), with nothing to send.
+      // there (the player's key on that tab opens this page), with nothing to send.
       tab.isMpv = false;
       tab.mpvOnPlay = false;
     } else if (mpvSite && !tab.mpvMatched && !tab.mpvTurnedOff) {

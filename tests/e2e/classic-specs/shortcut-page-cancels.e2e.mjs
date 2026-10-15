@@ -1,5 +1,7 @@
-// FastStream's shortcuts (Ctrl+Shift+F, and Alt+F for MPV: Ctrl+Shift+U until
-// 2026-10-04) still work on a page that cancels them.
+// FastStream's shortcuts (Alt+F for MPV, Ctrl+Shift+U until 2026-10-04, and the in-page
+// player's, which has no default key since Firefox 159 took Ctrl+Shift+F for its Add-ons
+// page: these tests give it PLAYER_KEY, as a user would) still work on a page that
+// cancels them.
 //
 // Firefox lets a page cancel an extension's shortcut: a keydown the page calls
 // preventDefault() on never reaches the command. Sites do it by accident -
@@ -84,10 +86,16 @@ const PAGES = {
   '/plain': '',
 };
 
+// The key these tests give the in-page player's command, which has none of its own.
+const PLAYER_KEY = 'Ctrl+Shift+L';
+
 const KEYS = {
   // The MPV key's default.
   altF: {alt: true, key: 'F'},
   ctrlShiftU: {ctrl: true, shift: true, key: 'U'},
+  // PLAYER_KEY.
+  player: {ctrl: true, shift: true, key: 'L'},
+  // The player's default until Firefox 159 took it.
   ctrlShiftF: {ctrl: true, shift: true, key: 'F'},
   altShiftU: {alt: true, shift: true, key: 'U'},
 };
@@ -262,12 +270,15 @@ async function expectModeKept(expected, when) {
  */
 async function rebind(name, shortcut) {
   await browser.switchToWindow(extHandle);
-  await browser.execute((name, shortcut) => new Promise((done) => {
+  const result = await browser.execute((name, shortcut) => new Promise((done) => {
     const p = shortcut === null ?
       chrome.commands.reset(name) :
       chrome.commands.update({name, shortcut});
     p.then(() => done(true), (e) => done(String(e)));
   }), name, shortcut);
+  if (result !== true) {
+    throw new Error(`could not rebind ${name} to ${shortcut}: ${result}`);
+  }
 }
 
 describe('FastStream shortcuts on a page that cancels them', function() {
@@ -319,12 +330,14 @@ describe('FastStream shortcuts on a page that cancels them', function() {
       });
     }));
     await browser.pause(1000);
+    await rebind('toggle_player', PLAYER_KEY);
 
     siteHandle = (await browser.getWindowHandles()).find((h) => h !== extHandle);
   });
 
   after(async function() {
     await rebind('toggle_mpv', null).catch(() => {});
+    await rebind('toggle_player', null).catch(() => {});
     if (siteServer) await new Promise((r) => siteServer.close(r));
     if (frameServer) await new Promise((r) => frameServer.close(r));
   });
@@ -354,8 +367,8 @@ describe('FastStream shortcuts on a page that cancels them', function() {
   // three ("Alt+F works on a page that cancels every Alt key", "Ctrl+Shift+F works on a
   // page that cancels every Ctrl key", "Ctrl+Shift+F switches from MPV to the player on a
   // page that cancels it"), each loading the same page anew. Every press and mode check of
-  // the three is here, in the same order within each.
-  it('Alt+F and Ctrl+Shift+F work on a page that cancels them, and Ctrl+Shift+F switches from MPV to the player there', async function() {
+  // the three is here, in the same order within each; the player key is PLAYER_KEY now.
+  it('Alt+F and the player key work on a page that cancels them, and the player key switches from MPV to the player there', async function() {
     await openPage(SITE + '/cancel-modified');
     await expectMode('off', 'on opening the page');
 
@@ -369,27 +382,27 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     await press(KEYS.altF);
     await expectMode('off', 'after Alt+F again');
 
-    // Ctrl+Shift+F, on and off.
+    // The player key, on and off.
     await focusPage();
-    expect(await press(KEYS.ctrlShiftF)).toBe(false);
-    await expectMode('on', 'after Ctrl+Shift+F');
+    expect(await press(KEYS.player)).toBe(false);
+    await expectMode('on', 'after the player key');
 
     await focusPage();
-    await press(KEYS.ctrlShiftF);
-    await expectMode('off', 'after Ctrl+Shift+F again');
+    await press(KEYS.player);
+    await expectMode('off', 'after the player key again');
 
-    // From MPV, Ctrl+Shift+F goes straight to the in-page player, cancelled as it is.
+    // From MPV, the player key goes straight to the in-page player, cancelled as it is.
     await focusPage();
     expect(await press(KEYS.altF)).toBe(false);
     await expectMode('mpv', 'after Alt+F, before the switch');
 
     await focusPage();
-    expect(await press(KEYS.ctrlShiftF)).toBe(false);
-    await expectMode('on', 'after Ctrl+Shift+F in MPV');
+    expect(await press(KEYS.player)).toBe(false);
+    await expectMode('on', 'after the player key in MPV');
 
     await focusPage();
-    await press(KEYS.ctrlShiftF);
-    await expectMode('off', 'after Ctrl+Shift+F in the player');
+    await press(KEYS.player);
+    await expectMode('off', 'after the player key in the player');
   });
 
   it('a shortcut the page leaves alone runs once, not twice', async function() {
@@ -401,27 +414,28 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     await expectMode('mpv', 'after Alt+F');
 
     await focusPage();
-    expect(await press(KEYS.ctrlShiftF)).toBe(true);
-    // From MPV, Ctrl+Shift+F goes straight to the in-page player; run twice it
+    expect(await press(KEYS.player)).toBe(true);
+    // From MPV, the player key goes straight to the in-page player; run twice it
     // would go on to Off.
-    await expectMode('on', 'after Ctrl+Shift+F');
+    await expectMode('on', 'after the player key');
 
     await focusPage();
-    expect(await press(KEYS.ctrlShiftF)).toBe(true);
-    await expectMode('off', 'after Ctrl+Shift+F again');
+    expect(await press(KEYS.player)).toBe(true);
+    await expectMode('off', 'after the player key again');
   });
 
   it('a key event the page makes up runs nothing', async function() {
     await openPage(SITE + '/cancel-modified');
     await expectMode('off', 'on opening the page');
 
-    // One at a time, so each key's own effect would show: Alt+F and Ctrl+Shift+F.
-    for (const combo of [{key: 'f', altKey: true}, {key: 'F', ctrlKey: true, shiftKey: true}]) {
+    // One at a time, so each key's own effect would show: Alt+F and the player key.
+    for (const combo of [{key: 'f', altKey: true}, {key: 'L', ctrlKey: true, shiftKey: true}]) {
       await browser.switchToWindow(siteHandle);
       await browser.execute((combo) => {
         window.__keys = [];
+        const letter = combo.key.toUpperCase();
         document.getElementById('focus').dispatchEvent(new KeyboardEvent('keydown', {
-          ...combo, code: 'KeyF', keyCode: 70, bubbles: true, cancelable: true,
+          ...combo, code: 'Key' + letter, keyCode: letter.charCodeAt(0), bubbles: true, cancelable: true,
         }));
       }, combo);
       expect(await pageKeys()).toEqual([{key: combo.key, prevented: true}]);
@@ -477,5 +491,29 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     await expectMode('off', 'after Alt+Shift+U again');
 
     await rebind('toggle_mpv', null);
+  });
+
+  // Ctrl+Shift+F was the player's default key until Firefox 159 took it for its Add-ons
+  // page, where Firefox's own key won and the player's never ran. Reset, the player's
+  // command has no key at all, so the fallback runs nothing for a press the page
+  // cancels, Ctrl+Shift+F included. (The page cancels it, so Firefox 159 opens no
+  // Add-ons page here either.)
+  it('runs nothing for Ctrl+Shift+F, or for any key, once the player key is reset', async function() {
+    await rebind('toggle_player', null);
+    try {
+      await openPage(SITE + '/cancel-modified');
+      await expectMode('off', 'on opening the page');
+
+      await focusPage();
+      expect(await press(KEYS.ctrlShiftF)).toBe(false);
+      expect(await pageKeys()).toEqual([{key: 'F', prevented: true}]);
+      await expectModeKept('off', 'after Ctrl+Shift+F, with the player key reset');
+
+      await focusPage();
+      expect(await press(KEYS.player)).toBe(false);
+      await expectModeKept('off', 'after the old player key, with the player key reset');
+    } finally {
+      await rebind('toggle_player', PLAYER_KEY);
+    }
   });
 });

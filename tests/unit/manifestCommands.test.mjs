@@ -6,11 +6,14 @@ import {describe, expect, it} from 'vitest';
 // page cancelled the key, content.js's report (onCancelledShortcut). A command wired into
 // only one of them works on most sites and silently does nothing on the others.
 //
-// Ctrl+Shift+F must not be the toolbar button (_execute_action) again. A click on MPV
-// goes to Off, so after the MPV key the key turned FastStream off, and getting the
+// The in-page player's key must not be the toolbar button (_execute_action) again. A click
+// on MPV goes to Off, so after the MPV key the key turned FastStream off, and getting the
 // in-page player took a second press (2026-09-28).
 //
-// The MPV key is Alt+F since 2026-10-04 (Ctrl+Shift+U before), the owner's choice.
+// The MPV key is Alt+F since 2026-10-04 (Ctrl+Shift+U before), the owner's choice. The
+// player's command has no default key since 2026-10-15, the owner's choice too: Firefox 159
+// binds Ctrl+Shift+F, the player's key until then, to its own Add-ons page, and Firefox's
+// key wins over an extension's. A user who wants one sets it on about:addons.
 
 const read = (file) => fs.readFileSync(path.resolve(import.meta.dirname, '../..', file), 'utf8');
 const manifest = JSON.parse(read('chrome/manifest.json'));
@@ -32,10 +35,10 @@ function block(start) {
 describe('manifest commands', () => {
   const names = Object.keys(manifest.commands);
 
-  it('gives Ctrl+Shift+F and Alt+F a command of their own each', () => {
+  it('gives the player and MPV a command each, with Alt+F for MPV and no key for the player', () => {
     const keys = Object.fromEntries(names.map((name) =>
-      [name, manifest.commands[name].suggested_key?.default]));
-    expect(keys).toEqual({toggle_player: 'Ctrl+Shift+F', toggle_mpv: 'Alt+F'});
+      [name, manifest.commands[name].suggested_key?.default ?? null]));
+    expect(keys).toEqual({toggle_player: null, toggle_mpv: 'Alt+F'});
   });
 
   it('runs every command on both paths', () => {

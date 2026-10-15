@@ -98,9 +98,6 @@
   ],
   "commands": {
     "toggle_player": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+F"
-      },
       "description": "__MSG_command_toggle_player__"
     },
     "toggle_mpv": {

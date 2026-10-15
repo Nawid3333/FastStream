@@ -2,15 +2,18 @@
 // on and off for a tab by a real key press, on a site that is not on the MPV Allowlist, and
 // then hands over only a video the user starts: never one the page autoplays
 // (the muted preview here) or merely preloads (the main video, until its play
-// button is clicked). With Ctrl+Shift+F, the in-page player's own key, it
-// switches straight between MPV and the player.
+// button is clicked). With the player key, the in-page player's own key, it
+// switches straight between MPV and the player. That command has no default key
+// since 2026-10-15: Firefox 159 took Ctrl+Shift+F, its key until then, for its own
+// Add-ons page. These tests give it SHORTCUTS.player, as a user would on about:addons.
 //
 // Firefox lets an extension's suggested key win over nothing: a combination
 // Firefox itself binds is refused on about:addons' shortcuts page ("already
-// used by Firefox") and is unreliable at best. Ctrl+Shift+M, the obvious one
-// for MPV, is Responsive Design Mode. So the first test pins the chosen key
-// against Firefox's own check, the one that page uses, and fails if a later
-// Firefox claims it.
+// used by Firefox"), and a default key a later Firefox takes runs Firefox's
+// command instead (159 and Ctrl+Shift+F). Ctrl+Shift+M, the obvious one for
+// MPV, is Responsive Design Mode. So the first test pins the MPV key, and the
+// one these tests give the player, against Firefox's own check, the one that
+// page uses, and fails if a later Firefox claims either.
 //
 // The mode switches need no mpv; the checks that mpv really fetched the
 // stream skip, not fail, when the native host is not installed.
@@ -55,16 +58,20 @@ let testStart = 0;
 // request for the preview fails the test that first sees it, not every test after it.
 let mpvChecked = 0;
 
-// Each command's default key, as Firefox writes it on the extension's <key> element. Both
-// end in F, so a key is found by its modifiers as well.
+// Each command's key, as Firefox writes it on the extension's <key> element: the MPV key's
+// default, and the one bindPlayerKey gives the player (it has no default). A key is found
+// by its modifiers as well.
 const SHORTCUTS = {
   mpv: {label: 'Alt+F', letter: 'F', modifiers: 'alt', hold: ['Alt']},
-  player: {label: 'Ctrl+Shift+F', letter: 'F', modifiers: 'accel,shift', hold: ['Control', 'Shift']},
+  player: {label: 'Ctrl+Shift+L', letter: 'L', modifiers: 'accel,shift', hold: ['Control', 'Shift']},
 };
 
+// Whether the player's command has SHORTCUTS.player now.
+let playerKeyBound = false;
+
 /**
- * Presses the MPV key, Alt+F (or Ctrl+Shift+F, the in-page player's key) with the site
- * page focused, as a user would.
+ * Presses the MPV key, Alt+F (or the player key, the in-page player's key, bound first
+ * if it is not yet) with the site page focused, as a user would.
  *
  * browser.keys() is no good here: WebDriver synthesizes its key events inside
  * the page's content process, where Firefox's window-level shortcuts - the
@@ -84,6 +91,9 @@ const SHORTCUTS = {
  */
 async function pressShortcut(command = 'mpv') {
   const shortcut = SHORTCUTS[command];
+  if (command === 'player') {
+    await bindPlayerKey(true);
+  }
   await browser.switchToWindow(siteHandle);
   const result = await inChrome((extId, shortcut, done) => {
     try {
@@ -337,6 +347,28 @@ async function setOptions(options) {
     });
   }), JSON.stringify(options));
   await browser.pause(500);
+}
+
+/**
+ * Gives the in-page player's command SHORTCUTS.player, the way about:addons' shortcuts
+ * page does, or takes the key away again (the manifest gives it none).
+ * @param {boolean} bind - Bind the key, or reset the command.
+ */
+async function bindPlayerKey(bind) {
+  if (bind && playerKeyBound) {
+    return;
+  }
+  await browser.switchToWindow(extHandle);
+  const result = await browser.execute((shortcut) => new Promise((done) => {
+    const p = shortcut === null ?
+      chrome.commands.reset('toggle_player') :
+      chrome.commands.update({name: 'toggle_player', shortcut});
+    p.then(() => done(true), (e) => done(String(e)));
+  }), bind ? SHORTCUTS.player.label : null);
+  if (result !== true) {
+    throw new Error(`could not ${bind ? 'bind' : 'reset'} the player key: ${result}`);
+  }
+  playerKeyBound = bind;
 }
 
 /**
@@ -647,6 +679,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
   });
 
   after(async function() {
+    await bindPlayerKey(false).catch(() => {});
     if (siteServer) await new Promise((r) => siteServer.close(r));
     if (cdnServer) await new Promise((r) => cdnServer.close(r));
     await closeSpecMpv([SITE, CDN]);
@@ -679,8 +712,9 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     }
   });
 
-  it('binds keys Firefox leaves free, Alt+F and Ctrl+Shift+F, to the extension', async function() {
-    const result = await inChrome((extId, done) => {
+  it('binds Alt+F, a key Firefox leaves free, to MPV, and no key to the player', async function() {
+    await bindPlayerKey(false);
+    const result = await inChrome((extId, playerKey, done) => {
       try {
         const {ShortcutUtils} = ChromeUtils.importESModule(
             'resource://gre/modules/ShortcutUtils.sys.mjs');
@@ -695,7 +729,8 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
           // The same check about:addons' shortcuts page runs before it lets
           // a user pick a combination.
           mpvIsFirefox: !!ShortcutUtils.isSystem(win, 'Alt+F'),
-          fIsFirefox: !!ShortcutUtils.isSystem(win, 'Ctrl+Shift+F'),
+          // The key the tests below give the player has to be free too.
+          playerIsFirefox: !!ShortcutUtils.isSystem(win, playerKey),
           // Control: proves the check sees Firefox's keys at all.
           aIsFirefox: !!ShortcutUtils.isSystem(win, 'Ctrl+Shift+A'),
           bound,
@@ -703,12 +738,12 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
       } catch (e) {
         done({err: String(e)});
       }
-    }, EXTENSION_ID);
+    }, EXTENSION_ID, SHORTCUTS.player.label);
     expect(result.err).toBeUndefined();
     expect(result.aIsFirefox).toBe(true);
     expect(result.mpvIsFirefox).toBe(false);
-    expect(result.fIsFirefox).toBe(false);
-    expect(result.bound.sort()).toEqual(['accel,shift F', 'alt F']);
+    expect(result.playerIsFirefox).toBe(false);
+    expect(result.bound).toEqual(['alt F']);
   });
 
   it('on a site not on the allowlist, sends only the video the user starts', async function() {
@@ -744,7 +779,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
   it('takes an open in-page player over to mpv, then waits for a play', async function() {
     await expectMode('off', 'the start of this test');
 
-    // The toolbar (Ctrl+Shift+F) brings up the in-page player.
+    // The toolbar brings up the in-page player.
     await clickToolbar();
     await expectMode('on', 'clicking the toolbar button');
     await browser.waitUntil(hasOverlayPlayer, {
@@ -774,16 +809,18 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     await expectMode('off', 'pressing Alt+F again');
   });
 
-  // Ctrl+Shift+F used to be the toolbar button (_execute_action), and a click on MPV
+  // The player key used to be the toolbar button (_execute_action), and a click on MPV
   // goes to Off, so after the MPV key the key turned FastStream off and the player
-  // took a second press. Each key now has its own command.
-  it('binds Ctrl+Shift+F to the player\'s own command, not the toolbar button', async function() {
+  // took a second press. Each key now has its own command; the player's has no key
+  // until the user gives it one.
+  it('gives the player a command of its own, with no key, not the toolbar button', async function() {
+    await bindPlayerKey(false);
     await browser.switchToWindow(extHandle);
     const commands = await browser.execute(() => new Promise((done) => {
       chrome.commands.getAll().then((all) => done(all.map((c) => [c.name, c.shortcut || ''])));
     }));
     expect(Object.fromEntries(commands)).toEqual({
-      toggle_player: 'Ctrl+Shift+F',
+      toggle_player: '',
       toggle_mpv: 'Alt+F',
     });
   });
@@ -802,10 +839,10 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
 
     // MPV -> On, from the sources already tracked.
     await pressShortcut('player');
-    await expectMode('on', 'pressing Ctrl+Shift+F in MPV mode');
+    await expectMode('on', 'pressing the player key in MPV mode');
     await browser.waitUntil(hasOverlayPlayer, {
       timeout: 15000,
-      timeoutMsg: 'the in-page player never appeared after Ctrl+Shift+F in MPV mode',
+      timeoutMsg: 'the in-page player never appeared after the player key in MPV mode',
     });
 
     // On -> MPV: the player comes down with a reload.
@@ -821,18 +858,18 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
 
     // And to the player again, from the reloaded page's sources.
     await pressShortcut('player');
-    await expectMode('on', 'pressing Ctrl+Shift+F in MPV mode, after the reload');
+    await expectMode('on', 'pressing the player key in MPV mode, after the reload');
     await browser.waitUntil(hasOverlayPlayer, {
       timeout: 15000,
-      timeoutMsg: 'the in-page player never appeared after the second Ctrl+Shift+F',
+      timeoutMsg: 'the in-page player never appeared after the player key the second time',
     });
 
     // The player's key again is its Off, and the player comes down.
     await pressShortcut('player');
-    await expectMode('off', 'pressing Ctrl+Shift+F with the in-page player open');
+    await expectMode('off', 'pressing the player key with the in-page player open');
     await browser.waitUntil(async () => !(await hasOverlayPlayer()), {
       timeout: 15000,
-      timeoutMsg: 'the in-page player stayed up after Ctrl+Shift+F turned it off',
+      timeoutMsg: 'the in-page player stayed up after the player key turned it off',
     });
   });
 
@@ -849,10 +886,10 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
       await pageVideosLoaded(since);
       await expectMode('off', 'the start of this test');
       await pressShortcut('player');
-      await expectMode('on', 'pressing Ctrl+Shift+F');
+      await expectMode('on', 'pressing the player key');
       await browser.waitUntil(hasOverlayPlayer, {
         timeout: 15000,
-        timeoutMsg: 'the in-page player never appeared after Ctrl+Shift+F',
+        timeoutMsg: 'the in-page player never appeared after the player key',
       });
 
       // A new page on the same site keeps the tab on, so its streams start the timer.
@@ -874,9 +911,9 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     }
   });
 
-  // The player page has no MPV mode. Ctrl+Shift+F on a blank tab opens it, and on a
+  // The player page has no MPV mode. The player key on a blank tab opens it, and on a
   // tab the MPV key had armed, the MPV icon used to stay on it.
-  it('drops the MPV arm when Ctrl+Shift+F opens the player page', async function() {
+  it('drops the MPV arm when the player key opens the player page', async function() {
     await browser.switchToWindow(siteHandle);
     await browser.url('about:blank');
     await expectMode('off', 'opening a blank tab', 'about:blank');
@@ -888,7 +925,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     await pressShortcut('player');
     await browser.waitUntil(async () => (await urlOfTab(tabId)).startsWith(ORIGIN + '/player/'), {
       timeout: 15000,
-      timeoutMsg: 'Ctrl+Shift+F on the blank tab never opened the player page',
+      timeoutMsg: 'the player key on the blank tab never opened the player page',
     });
     let mode;
     try {
@@ -1187,7 +1224,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
   // The MPV key with the player just opened reloads the page (startMpv). On Windows CI a
   // player still starting then said it loaded after the new page had, and counted as the
   // new page's: the page's streams were dropped as the player's own, and no player opened
-  // on it - mpv got nothing on a play, and Ctrl+Shift+F showed nothing. Here the late
+  // on it - mpv got nothing on a play, and the player key showed nothing. Here the late
   // player is one that names a page never in this tab, the state that race left.
   it('takes a player whose page is gone for no player of the page there now', async function() {
     await expectPagePlayerBesidePlanted('/late');
@@ -1298,7 +1335,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     await browser.url(`${SITE}/popup`);
     await expectMode('off', 'opening a site that is not on the allowlist');
     await pressShortcut();
-    await expectMode('mpv', 'pressing Ctrl+Shift+U');
+    await expectMode('mpv', 'pressing Alt+F');
 
     const handles = await browser.getWindowHandles();
     const before = mpvCount();
