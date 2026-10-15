@@ -56,7 +56,7 @@ describe('keyName', () => {
 });
 
 describe('matches', () => {
-  it('matches the manifest defaults', () => {
+  it('matches a Ctrl+Shift letter', () => {
     expect(KeyShortcut.matches('Ctrl+Shift+U', press('U', 'KeyU', ctrlShift))).toBe(true);
     expect(KeyShortcut.matches('Ctrl+Shift+F', press('F', 'KeyF', ctrlShift))).toBe(true);
   });
@@ -78,7 +78,7 @@ describe('matches', () => {
   it('matches a rebound shortcut', () => {
     expect(KeyShortcut.matches('Alt+Shift+U', press('U', 'KeyU', {altKey: true, shiftKey: true})))
         .toBe(true);
-    // The MPV key's default since 2026-10-04, and not the player's Ctrl+Shift+F.
+    // The MPV key's default since 2026-10-04: Alt alone, not with Ctrl+Shift or Shift.
     expect(KeyShortcut.matches('Alt+F', press('f', 'KeyF', {altKey: true}))).toBe(true);
     expect(KeyShortcut.matches('Alt+F', press('F', 'KeyF', ctrlShift))).toBe(false);
     expect(KeyShortcut.matches('Alt+F', press('F', 'KeyF', {altKey: true, shiftKey: true}))).toBe(false);

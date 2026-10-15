@@ -264,8 +264,8 @@ overlays too, once each.
 
 **MPV shortcut: Alt+F since 2026-10-04 (Ctrl+Shift+U before), the `toggle_mpv`
 command (2026-09-26).** The owner switched to Alt+F (tested: nothing in their Firefox
-uses it) and made it the default, so new installs get it the way Ctrl+Shift+F is the
-player's; a user who rebound the key in about:addons keeps theirs. The paragraphs below
+uses it) and made it the default, so new installs get it the way Ctrl+Shift+F was the
+player's until 2026-10-15; a user who rebound the key in about:addons keeps theirs. The paragraphs below
 were written for Ctrl+Shift+U; what they say about the key holds for any binding. MPV
 on or off for the tab on any site, allowlisted or not, while MPV mode is on
 (off = FastStream off, as the toolbar's MPV -> Off). On a blank or new tab it
@@ -307,7 +307,7 @@ it back unless he asks.
 **Off means off, and the stability sweep (2026-10-04 night, after mpv's vulkan decoding
 lost the GPU device - the mpv repo's AGENTS.md "NO VULKAN VIDEO DECODING").**
 - *The user's Off stays.* `tab.mpvTurnedOff` (TabTracker, persisted) is set by every Off
-  the user gives (stopMpv, the toolbar turning FastStream off, Ctrl+Shift+F from MPV to the
+  the user gives (stopMpv, the toolbar turning FastStream off, the player key from MPV to the
   in-page player) and cleared by startMpv or a hostname change. It blocks the allowlist's
   automatic start (the auto-enable list then gives the in-page player): before, a page of
   the site not on the allowlist wiped the Off, and the next episode went to mpv by itself.
@@ -333,6 +333,24 @@ lost the GPU device - the mpv repo's AGENTS.md "NO VULKAN VIDEO DECODING").**
   keeping the hold and the overlay guards through `removePlayers` (for a site's embed whose
   player stays up across a URL change) - the page is given back on a URL change, which
   content-overlays.e2e.mjs "hides the embedding page's bar..." pins.
+**The player key has no default since 2026-10-15: Firefox 159 took Ctrl+Shift+F.**
+Firefox 159 moves its Add-ons and Themes shortcut from Ctrl+Shift+A to Ctrl+Shift+F on
+Windows and Linux (Cmd+Shift+E on macOS), and Ctrl+Shift+A becomes its new Search tabs:
+`key_openAddons` in `browser/base/content/browser-sets.inc.xhtml`, `addons-shortcut-2`
+in `browserSets.ftl`, read on Firefox's beta branch at 159.0b3. Firefox's `mainKeyset`
+comes before the keyset `ExtensionShortcuts` appends for an extension, so Firefox's key
+runs and the extension's never fires: the scheduled Firefox Beta e2e run failed
+mpv-shortcut and shortcut-page-cancels on 159.0b2 (issue #489). The owner's decision:
+`toggle_player` ships with no `suggested_key`, and a user who wants a key sets one on
+about:addons (which refuses a key Firefox uses). Firefox applies that to installs that
+kept the default; a key the user set stays. Ctrl+Shift letters still free on 159: L and U
+(Y is Downloads on Linux). The e2e specs give the command Ctrl+Shift+L with
+`commands.update`, as about:addons does, after mpv-shortcut's first test has checked
+that key free with `ShortcutUtils.isSystem`; shortcut-page-cancels's last test resets it
+and checks that a cancelled Ctrl+Shift+F runs nothing (with the old manifest, the reset
+brings Ctrl+Shift+F back and the fallback switches the player on).
+What the paragraphs here say of Ctrl+Shift+F holds for whatever key the user gives it.
+
 **Ctrl+Shift+F is its own command, `toggle_player` (2026-09-28)**, not the
 toolbar button (`_execute_action`) any more. `_execute_action` fires the
 button's own `action.onClicked`, as a click does, so the background cannot

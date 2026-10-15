@@ -125,7 +125,10 @@ over the allowlist tag for that one video.
 On any site, the MPV shortcut (**Alt+F**; you can change it in Firefox's
 add-on shortcut settings) puts the tab in MPV: the next video you start
 there goes to mpv. FastStream does nothing for YouTube; paste a YouTube link
-into mpv yourself, which opens it with yt-dlp.
+into mpv yourself, which opens it with yt-dlp. The in-page player's own
+switch is in the same settings, with no key until you give it one (Firefox 159
+uses its old key, Ctrl+Shift+F, for its add-ons page); from MPV it goes
+straight to the in-page player.
 
 **A series in one mpv window.** When an episode played in mpv ends and **Autoplay next
 episode in mpv** is on (the default), mpv counts down (**Countdown before the next

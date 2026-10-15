@@ -352,7 +352,7 @@ describe('noteDocumentReplaced', () => {
   });
 });
 
-// The MPV key, Ctrl+Shift+F's MPV exit or the toolbar's Off with a player still starting
+// The MPV key, the player key's MPV exit or the toolbar's Off with a player still starting
 // in an iframe of an iframe: reset, reload, and the player's late PLAYER_LOADED makes its
 // frame and the frame above new ones, with no names on them.
 describe('resetForReload', () => {
