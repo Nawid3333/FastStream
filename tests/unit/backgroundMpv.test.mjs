@@ -1628,7 +1628,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     let port = await onEpisode1({autoplayCountdown: 5});
     port.emit({type: 'ended', path: S1});
     await bg.wait(100);
-    expect(notices(port)).toEqual(['next episode in 5 s (n: now, autoplay button: stop)']);
+    expect(notices(port)).toEqual(['next episode in 5 s (n: now, Space: stop)']);
     await bg.wait(4000);
     expect(navigations).toEqual([]);
     await bg.wait(1000);
@@ -1664,7 +1664,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     let port = await onEpisode1({autoplayCountdown: 5}, 'clicked', {next: true, previous: true, seriesEnd: false});
     port.emit({type: 'ended', path: S1});
     await bg.wait(100);
-    expect(notices(port)).toEqual(['next episode in 5 s (n: now, autoplay button: stop)']);
+    expect(notices(port)).toEqual(['next episode in 5 s (n: now, Space: stop)']);
     await bg.wait(5000);
     expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
     bg.unload();
@@ -1674,7 +1674,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     port.emit({type: 'ended', path: S1});
     await bg.wait(100);
     expect(polls).toEqual([0, 5]);
-    expect(notices(port)).toEqual(['next episode in 5 s (n: now, autoplay button: stop)']);
+    expect(notices(port)).toEqual(['next episode in 5 s (n: now, Space: stop)']);
     bg.unload();
 
     // A frame that never answers costs a second, then the countdown as before (glm's review).
@@ -1683,7 +1683,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     await bg.wait(500);
     expect(notices(port)).toEqual([]);
     await bg.wait(1000);
-    expect(notices(port)).toEqual(['next episode in 5 s (n: now, autoplay button: stop)']);
+    expect(notices(port)).toEqual(['next episode in 5 s (n: now, Space: stop)']);
   });
 
   it('stops the countdown with mpv\'s autoplay switch, which saves the setting and turns it back on', async () => {
@@ -1707,6 +1707,57 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(notices(port).at(-1)).toBe('on');
   });
 
+  it('stops the countdown with Space, which keeps autoplay on for the next end', async () => {
+    // His wish (2026-10-17): Space, the easiest key, stops the countdown. mpv's input.conf
+    // sends faststream-pause with Space and with a click on the video.
+    const timed = (port) => port.sent.filter((m) => m.type === 'notify' || m.type === 'hide')
+        .map((m) => m.type === 'hide' ? 'hide' : [m.detail, m.seconds]);
+    const port = await onEpisode1({autoplayCountdown: 5});
+    port.emit({type: 'watching'});
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(1000);
+    port.emit({type: 'request', action: 'pause'});
+    await bg.wait(100);
+    expect(timed(port)).toEqual([['next episode in 5 s (n: now, Space: stop)', 5], 'hide',
+      ['stopped (n: next episode)', undefined]]);
+    await bg.wait(6000);
+    expect(navigations).toEqual([]);
+    // Autoplay itself stays on: nothing saved, the switch told nothing new.
+    expect(states(port)).toEqual([true]);
+    expect(bg.runtimeSent.map((m) => m.type)).not.toContain('UPDATE_OPTIONS');
+    // A second Space finds no countdown and says nothing.
+    port.emit({type: 'request', action: 'pause'});
+    await bg.wait(100);
+    expect(timed(port)).toHaveLength(3);
+    // The next-episode key still goes on from here.
+    port.emit({type: 'request', action: 'next'});
+    await bg.wait(100);
+    expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
+  });
+
+  it('stops a countdown still asking the page with Space, before it is shown', async () => {
+    const port = await onEpisode1({autoplayCountdown: 5}, 'clicked', new Promise(() => {}));
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(300);
+    port.emit({type: 'request', action: 'pause'});
+    await bg.wait(7000);
+    expect(notices(port)).toEqual([]);
+    expect(navigations).toEqual([]);
+  });
+
+  it('leaves playback alone on Space with no countdown: no notice, no episode', async () => {
+    const port = await onEpisode1({autoplayCountdown: 5});
+    port.emit({type: 'request', action: 'pause'});
+    await bg.wait(100);
+    expect(notices(port)).toEqual([]);
+    // An end after it counts down as usual.
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    expect(notices(port)).toEqual(['next episode in 5 s (n: now, Space: stop)']);
+    await bg.wait(5000);
+    expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
+  });
+
   it('shows a notice in mpv for as long as it needs, and takes a stopped countdown\'s down (host 11)', async () => {
     // Before, every notice went after notify.lua's 2 s: the countdown's 3 s before the
     // episode came, a sentence before it was read.
@@ -1715,7 +1766,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     let port = await onEpisode1({autoplayCountdown: 7});
     port.emit({type: 'ended', path: S1});
     await bg.wait(100);
-    expect(timed(port)).toEqual([['next episode in 7 s (n: now, autoplay button: stop)', 7]]);
+    expect(timed(port)).toEqual([['next episode in 7 s (n: now, Space: stop)', 7]]);
     // Another episode picked in the browser meanwhile: nothing else is said, so it goes.
     await bg.navigated(1, EP2);
     await bg.frameAdded(1, 0, EP2, 'ep2');
@@ -1723,7 +1774,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     await bg.request({tabId: 1, url: S2, frameId: 6});
     await bg.wait(500);
     expect(bg.toMpv()).toEqual([S1, S2]);
-    expect(timed(port)).toEqual([['next episode in 7 s (n: now, autoplay button: stop)', 7], 'hide']);
+    expect(timed(port)).toEqual([['next episode in 7 s (n: now, Space: stop)', 7], 'hide']);
     await bg.wait(8000);
     expect(navigations).toEqual([]);
     bg.unload();
@@ -1734,7 +1785,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     await bg.wait(1000);
     port.emit({type: 'request', action: 'autoplay'});
     await bg.wait(100);
-    expect(timed(port)).toEqual([['next episode in 5 s (n: now, autoplay button: stop)', 5], 'hide', ['off', undefined]]);
+    expect(timed(port)).toEqual([['next episode in 5 s (n: now, Space: stop)', 5], 'hide', ['off', undefined]]);
     bg.unload();
 
     // A sentence to read: 6 s.

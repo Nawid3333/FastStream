@@ -46,14 +46,17 @@ const MaxNoticeChars = 2048;
 
 /**
  * The script messages an mpv key, button or menu sends for the next or the previous episode
- * (input.conf: "n script-message faststream-next"), and for autoplay on or off (the mpv
- * setup's autoplay button); mpv gives them to every IPC client.
+ * (input.conf: "n script-message faststream-next"), for autoplay on or off (the mpv
+ * setup's autoplay button), and for a pause key (input.conf: Space and a click on the video
+ * also send faststream-pause), which stops an end's countdown; mpv gives them to every IPC
+ * client.
  * @type {Object<string, string>}
  */
 export const EpisodeMessages = {
   'faststream-next': 'next',
   'faststream-previous': 'previous',
   'faststream-autoplay': 'autoplay',
+  'faststream-pause': 'pause',
 };
 
 // The ids of the observed properties.

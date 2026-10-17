@@ -1215,7 +1215,10 @@
         "message": "Autoplay"
     },
     "mpv_autoplay_countdown": {
-        "message": "volgende aflevering over $1 s (n: nu, autoplay-knop: stop)"
+        "message": "volgende aflevering over $1 s (n: nu, Spatie: stop)"
+    },
+    "mpv_autoplay_stopped": {
+        "message": "gestopt (n: volgende aflevering)"
     },
     "mpv_autoplay_on": {
         "message": "aan"

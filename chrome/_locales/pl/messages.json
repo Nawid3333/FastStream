@@ -1215,7 +1215,10 @@
         "message": "Autoodtwarzanie"
     },
     "mpv_autoplay_countdown": {
-        "message": "następny odcinek za $1 s (n: teraz, przycisk autoplay: stop)"
+        "message": "następny odcinek za $1 s (n: teraz, Spacja: stop)"
+    },
+    "mpv_autoplay_stopped": {
+        "message": "zatrzymano (n: następny odcinek)"
     },
     "mpv_autoplay_on": {
         "message": "włączone"

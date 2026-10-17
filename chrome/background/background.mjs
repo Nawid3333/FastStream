@@ -2805,7 +2805,8 @@ function tabSources(tab) {
 // mpv over a port kept open (MpvBackend.watch), which also keeps this background page from
 // unloading. Host 9 (same day, his wishes): mpv shows episode buttons and an autoplay switch
 // (the mpv setup's faststream-episodes.lua), which this setting drives and the switch flips;
-// an end waits Options.autoplayCountdown seconds, which the switch or a key can cut short.
+// an end waits Options.autoplayCountdown seconds, which the switch or a key can cut short,
+// and Space stop.
 /**
  * @typedef {{tabId: number, url: string, qualities: ?Array<{url: string}>, alive: boolean, going: boolean,
  *   countdown: ?ReturnType<typeof setTimeout>, countdownAsks: number,
@@ -3013,6 +3014,16 @@ function onMpvWatchEvent(state, event) {
     goToEpisode(state, event.action);
   } else if (event.type === 'request' && event.action === 'autoplay') {
     toggleMpvAutoplay(state);
+  } else if (event.type === 'request' && event.action === 'pause') {
+    // Space at an end (his wish, 2026-10-17: the easiest key): this episode's countdown stops,
+    // and autoplay stays on for the next end, which the switch would have turned off. mpv
+    // stays paused on the last frame. Space during playback finds no countdown to stop.
+    const counting = !!state.countdown;
+    cancelMpvCountdown(state);
+    if (counting) {
+      state.watcher?.notify(chrome.i18n.getMessage('mpv_autoplay_title') || 'Autoplay',
+          chrome.i18n.getMessage('mpv_autoplay_stopped') || 'stopped (n: next episode)');
+    }
   }
 }
 
@@ -3068,7 +3079,8 @@ function notifySeriesEnd(state) {
 
 /**
  * An episode ended in mpv with autoplay on: the next one after the countdown, which mpv
- * shows. The autoplay switch stops it; the next-episode key or button skips it.
+ * shows. Space stops it, the autoplay switch too (and autoplay with it); the next-episode
+ * key or button skips it.
  *
  * The page is asked first (2026-10-12, the mpv setup's TODO): at the series' last episode
  * mpv said "next episode in 5 s", and only when the countdown ran out that autoplay stops.
@@ -3095,7 +3107,7 @@ async function startMpvCountdown(state) {
   }
   state.watcher?.notify(chrome.i18n.getMessage('mpv_autoplay_title') || 'Autoplay',
       chrome.i18n.getMessage('mpv_autoplay_countdown', [String(seconds)]) ||
-      `next episode in ${seconds} s (n: now, autoplay button: stop)`, seconds);
+      `next episode in ${seconds} s (n: now, Space: stop)`, seconds);
   state.countdown = setTimeout(() => {
     state.countdown = null;
     if (state.alive && Options.mpvAutoplayNext) goToEpisode(state, 'next');

@@ -1215,7 +1215,10 @@
         "message": "Autoplay"
     },
     "mpv_autoplay_countdown": {
-        "message": "prossimo episodio tra $1 s (n: ora, pulsante autoplay: stop)"
+        "message": "prossimo episodio tra $1 s (n: ora, Spazio: stop)"
+    },
+    "mpv_autoplay_stopped": {
+        "message": "fermato (n: episodio successivo)"
     },
     "mpv_autoplay_on": {
         "message": "attivo"

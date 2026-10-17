@@ -1215,7 +1215,10 @@
         "message": "Autoplay"
     },
     "mpv_autoplay_countdown": {
-        "message": "next episode in $1 s (n: now, autoplay button: stop)"
+        "message": "next episode in $1 s (n: now, Space: stop)"
+    },
+    "mpv_autoplay_stopped": {
+        "message": "stopped (n: next episode)"
     },
     "mpv_autoplay_on": {
         "message": "on"

@@ -1215,7 +1215,10 @@
         "message": "Putar otomatis"
     },
     "mpv_autoplay_countdown": {
-        "message": "episode berikutnya dalam $1 s (n: sekarang, tombol autoplay: stop)"
+        "message": "episode berikutnya dalam $1 s (n: sekarang, Spasi: stop)"
+    },
+    "mpv_autoplay_stopped": {
+        "message": "dihentikan (n: episode berikutnya)"
     },
     "mpv_autoplay_on": {
         "message": "aktif"
