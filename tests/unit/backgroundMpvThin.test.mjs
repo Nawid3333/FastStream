@@ -127,7 +127,7 @@ describe('MPV mode with the thin helper', () => {
     await bg.wait(1500);
     const notice = commands(port).find((m) => m.command[0] === 'script-message-to' && m.command[2] === 'show');
     expect(notice.command).toEqual(['script-message-to', 'notify', 'show', 'faststream', 'Autoplay',
-      'next episode in 5 s (n: now, autoplay button: stop)', '5']);
+      'next episode in 5 s (n: now, Space: stop)', '5']);
     expect(navigations).toEqual([]);
     await bg.wait(5000);
     expect(navigations).toEqual([{direction: 'next', frameId: 0}]);

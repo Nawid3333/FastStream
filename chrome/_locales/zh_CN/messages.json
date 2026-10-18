@@ -1215,7 +1215,10 @@
         "message": "自动播放"
     },
     "mpv_autoplay_countdown": {
-        "message": "下一集将在 $1 秒后开始 (n: 立即, 自动播放按钮: 停止)"
+        "message": "下一集将在 $1 秒后开始 (n: 立即, 空格: 停止)"
+    },
+    "mpv_autoplay_stopped": {
+        "message": "已停止 (n: 下一集)"
     },
     "mpv_autoplay_on": {
         "message": "开启"

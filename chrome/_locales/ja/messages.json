@@ -1215,7 +1215,10 @@
         "message": "自動再生"
     },
     "mpv_autoplay_countdown": {
-        "message": "次エピソードまであと $1 秒 (n: 今すぐ, 自動再生ボタン: 中止)"
+        "message": "次エピソードまであと $1 秒 (n: 今すぐ, スペース: 中止)"
+    },
+    "mpv_autoplay_stopped": {
+        "message": "中止しました (n: 次のエピソード)"
     },
     "mpv_autoplay_on": {
         "message": "オン"

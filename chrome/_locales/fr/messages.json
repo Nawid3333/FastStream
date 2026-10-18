@@ -1215,7 +1215,10 @@
         "message": "Lecture automatique"
     },
     "mpv_autoplay_countdown": {
-        "message": "prochain épisode dans $1 s (n : maintenant, bouton lecture auto : arrêter)"
+        "message": "prochain épisode dans $1 s (n : maintenant, Espace : arrêter)"
+    },
+    "mpv_autoplay_stopped": {
+        "message": "arrêtée (n : épisode suivant)"
     },
     "mpv_autoplay_on": {
         "message": "activé"

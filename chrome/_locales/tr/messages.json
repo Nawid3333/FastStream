@@ -1215,7 +1215,10 @@
         "message": "Otomatik oynatma"
     },
     "mpv_autoplay_countdown": {
-        "message": "sonraki bölüm $1 sn içinde (n: şimdi, otomatik oynatma düğmesi: durdur)"
+        "message": "sonraki bölüm $1 sn içinde (n: şimdi, Boşluk: durdur)"
+    },
+    "mpv_autoplay_stopped": {
+        "message": "durduruldu (n: sonraki bölüm)"
     },
     "mpv_autoplay_on": {
         "message": "açık"

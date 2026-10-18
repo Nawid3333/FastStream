@@ -84,7 +84,9 @@ describe('the relay watch', () => {
   });
 
   it('keeps the helper\'s constants', () => {
-    expect(EpisodeMessages).toEqual(HostEpisodeMessages);
+    // Plus Space's message, which only the relay (host 15) maps: a helper's own watch, before
+    // host 15, never had a countdown key, and adding it there would move the host's version.
+    expect(EpisodeMessages).toEqual({...HostEpisodeMessages, 'faststream-pause': 'pause'});
     expect(HeartbeatMs).toBe(HostHeartbeatMs);
     expect(MaxNoticeSeconds).toBe(HostMaxNoticeSeconds);
     for (const seconds of [5, 99, 6.04, 0, -1, NaN, Infinity, '5', null, 0.01, 0.06, 2.25, 60]) {
@@ -251,7 +253,7 @@ describe('the relay watch', () => {
     });
   });
 
-  it('passes on the keys for the next and the previous episode and autoplay, and nothing else', () => {
+  it('passes on the keys for the next and the previous episode, autoplay and pause, and nothing else', () => {
     const {events, mpv} = relaying();
     mpv({event: 'client-message', args: ['faststream-next']});
     mpv({event: 'client-message', args: ['faststream-previous']});
@@ -259,10 +261,12 @@ describe('the relay watch', () => {
     mpv({event: 'client-message', args: ['toString']});
     mpv({event: 'client-message'});
     mpv({event: 'client-message', args: ['faststream-autoplay']});
+    mpv({event: 'client-message', args: ['faststream-pause']});
     mpv('not an object');
     mpv(null);
     expect(events.filter((e) => e.type === 'request')).toEqual([
       {type: 'request', action: 'next'}, {type: 'request', action: 'previous'}, {type: 'request', action: 'autoplay'},
+      {type: 'request', action: 'pause'},
     ]);
   });
 

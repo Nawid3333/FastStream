@@ -1215,7 +1215,10 @@
         "message": "자동 재생"
     },
     "mpv_autoplay_countdown": {
-        "message": "다음 에피소드까지 $1초 (n: 즉시 재생, 자동 재생 버튼: 중지)"
+        "message": "다음 에피소드까지 $1초 (n: 즉시 재생, 스페이스: 중지)"
+    },
+    "mpv_autoplay_stopped": {
+        "message": "중지됨 (n: 다음 에피소드)"
     },
     "mpv_autoplay_on": {
         "message": "켬"

@@ -1215,7 +1215,10 @@
         "message": "Main automatik"
     },
     "mpv_autoplay_countdown": {
-        "message": "episod seterusnya dalam $1 s (n: sekarang, butang autoplay: henti)"
+        "message": "episod seterusnya dalam $1 s (n: sekarang, Space: henti)"
+    },
+    "mpv_autoplay_stopped": {
+        "message": "dihentikan (n: episod seterusnya)"
     },
     "mpv_autoplay_on": {
         "message": "aktif"
