@@ -85,8 +85,8 @@ importers:
         specifier: 7.5.0
         version: 7.5.0
       geckodriver:
-        specifier: ^7.0.0
-        version: 7.0.0(supports-color@8.1.1)
+        specifier: ^8.0.0
+        version: 8.0.0(@wdio/logger@10.0.0)
       gif.js:
         specifier: 0.2.0
         version: 0.2.0(patch_hash=7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae)
@@ -1492,6 +1492,10 @@ packages:
     resolution: {integrity: sha512-7HIW+xGAl6LeTlgfLEKeRBPBskNtLSXRNXqb0QuUv6kYO7hhJvSda1UfYvyfyKJxod3q5GRvYZjjdtkxO1FMiQ==}
     engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=18.0.0'}
 
+  '@zip.js/zip.js@2.23.0':
+    resolution: {integrity: sha512-K5obAqfrO7zhycnCupM9aaoZ9kx0SA0kv7+Z2oOUsdpWquv4s/Z4zyD7AdTqxrK3pgPM+ozaUi8kdRQbCWaIrQ==}
+    engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=18.0.0'}
+
   Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/a00946eb69780d2ba3b906c3f4535b03f987cc05:
     resolution: {gitHosted: true, integrity: sha512-BXzPa+odpoBYuiXJalx13ac/jbfasxXM2467Pkn9ES02SXbstTmTCYpsp1rpe6q6tIJqUGUsMh5THX0ZEL+rKg==, tarball: https://codeload.github.com/mdbassit/Coloris/tar.gz/a00946eb69780d2ba3b906c3f4535b03f987cc05}
     version: 0.25.0
@@ -2309,6 +2313,13 @@ packages:
     resolution: {integrity: sha512-RypjU7cNcyjWK3ruEriCkWMRa9nroCT3y2qwkPynGzKTK1wG0UCWubb4AfVDTXzG9BhzRTwg29DoeK7PCRnK1w==}
     engines: {node: '>=20.0.0'}
     hasBin: true
+
+  geckodriver@8.0.0:
+    resolution: {integrity: sha512-2jGCA6deI5MAjODxmHljPqvaUccGbeeqMUHXlW4k3FNDp4YDpxSI+P5QG+w5KIsnCeuGEfTTNi2euKqHI1eD6Q==}
+    engines: {node: '>=22.19.0'}
+    hasBin: true
+    peerDependencies:
+      '@wdio/logger': ^9.18.0 || ^10.0.0
 
   gensync@1.0.0-beta.2:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
@@ -5247,6 +5258,8 @@ snapshots:
 
   '@zip.js/zip.js@2.14.0': {}
 
+  '@zip.js/zip.js@2.23.0': {}
+
   Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/a00946eb69780d2ba3b906c3f4535b03f987cc05(patch_hash=d8a066fa49aa80466d054aad0f7a2c767b2f62cf365492c155bb9b4ce30fb2ec): {}
 
   abort-controller@3.0.0:
@@ -6173,6 +6186,14 @@ snapshots:
       modern-tar: 0.8.5
     transitivePeerDependencies:
       - supports-color
+
+  geckodriver@8.0.0(@wdio/logger@10.0.0):
+    dependencies:
+      '@wdio/logger': 10.0.0
+      '@zip.js/zip.js': 2.23.0
+      decamelize: 6.0.1
+      modern-tar: 0.8.5
+      undici: 8.11.2
 
   gensync@1.0.0-beta.2: {}
 
