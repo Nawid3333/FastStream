@@ -70,7 +70,7 @@
     "eslint-plugin-promise": "^7.3.0",
     "fast-check": "^4.10.2",
     "fuse.js": "7.5.0",
-    "geckodriver": "^7.0.0",
+    "geckodriver": "^8.0.0",
     "gif.js": "0.2.0",
     "globals": "^17.13.0",
     "hls.js": "1.7.3",
