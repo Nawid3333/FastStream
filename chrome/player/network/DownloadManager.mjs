@@ -548,6 +548,14 @@ export class DownloadManager {
 
   /**
    * @param {Object} details - A fragment's getContext().
+   * @return {boolean} Whether its downloaded data is being written to disk now (spill).
+   */
+  isSpilling(details) {
+    return !!this.blobStore?.isSpilling(this.getIdentifier(details));
+  }
+
+  /**
+   * @param {Object} details - A fragment's getContext().
    * @return {boolean} Whether its downloaded data is held in RAM.
    */
   isInRam(details) {

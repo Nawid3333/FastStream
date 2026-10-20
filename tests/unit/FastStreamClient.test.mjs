@@ -1090,6 +1090,93 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
   });
 });
 
+// A write to disk that outlasts a tick of the client (1 s): on CI's Windows runner a queue of
+// them did. A fragment still being written was chosen again on the next tick, its spill
+// answered false at once (FSBlob.spill: one already on its way), and the client let go of it
+// as one that could not be stored, to be downloaded again; with a budget of 0, every tick
+// (ram-budget.e2e: the stream never finished downloading, or RAM never came down).
+describe('FastStreamClient, the RAM budget while writes to disk are slow', () => {
+  const BYTES = 300e3;
+
+  /**
+   * A player at the start of a two-minute stream of 2 s fragments, the first 40 downloaded
+   * and held in RAM, on a disk whose writes do not finish until told to.
+   * @param {number} ramBudget
+   * @return {Object} The client, its fake download manager, the fragments, arrive(from, to)
+   *     to have more downloaded, and finishWrites().
+   */
+  function clientWithSlowDisk(ramBudget) {
+    const client = makeClient({ramBudget});
+    client.peers = {visible: () => true, livePeers: () => []};
+    const fragments = [];
+    for (let sn = 0; sn < 60; sn++) {
+      const fragment = new Fragment('0:0', sn);
+      fragment.start = sn * 2;
+      fragment.end = sn * 2 + 2;
+      fragment.getContext = () => ({url: `http://127.0.0.1/${sn}.ts`});
+      fragments.push(fragment);
+    }
+    client.fragmentsStore['0:0'] = fragments;
+    const inRam = new Set();
+    // url -> what finishes its write.
+    const writing = new Map();
+    const manager = {
+      blobStore: {}, memoryFull: false,
+      ramBytes: () => inRam.size * BYTES,
+      spillingBytes: () => writing.size * BYTES,
+      canSpill: () => true,
+      ramBytesOf: ({url}) => inRam.has(url) ? BYTES : 0,
+      isSpilling: ({url}) => writing.has(url),
+      // As FSBlob.spill: false for one already on its way, and its write goes on.
+      spill: vi.fn(({url}) => {
+        if (!inRam.has(url) || writing.has(url)) return Promise.resolve(false);
+        return new Promise((resolve) => writing.set(url, () => {
+          writing.delete(url);
+          inRam.delete(url);
+          resolve(true);
+        }));
+      }),
+      removeFile: vi.fn(({url}) => inRam.delete(url)),
+    };
+    client.downloadManager = manager;
+    const arrive = (from, to) => {
+      for (const fragment of fragments.slice(from, to)) {
+        fragment.status = DownloadStatus.DOWNLOAD_COMPLETE;
+        inRam.add(fragment.getContext().url);
+      }
+    };
+    arrive(0, 40);
+    const finishWrites = () => [...writing.values()].forEach((finish) => finish());
+    return {client, manager, fragments, arrive, finishWrites};
+  }
+
+  it('lets go of nothing still being written, and writes each fragment once', async () => {
+    for (const ramBudget of [0, 2e6]) {
+      const {client, manager, fragments, arrive, finishWrites} = clientWithSlowDisk(ramBudget);
+      client.keepWithinMemoryBudget();
+      await settle();
+      // All but the next 10 s.
+      expect(manager.spill, String(ramBudget)).toHaveBeenCalledTimes(34);
+
+      // The downloads that were running come in; the writes have not finished.
+      arrive(40, 50);
+      client.keepWithinMemoryBudget();
+      await settle();
+      client.keepWithinMemoryBudget();
+      await settle();
+      finishWrites();
+      await settle();
+
+      expect(manager.removeFile, String(ramBudget)).not.toHaveBeenCalled();
+      expect(fragments.slice(0, 50).every((fragment) => fragment.status === DownloadStatus.DOWNLOAD_COMPLETE), String(ramBudget)).toBe(true);
+      const urls = manager.spill.mock.calls.map(([{url}]) => url);
+      expect(new Set(urls).size, String(ramBudget)).toBe(urls.length);
+      // The 34 of the first tick (fragments 6-39: the first 10 s stay), and the 10 that came.
+      expect(urls, String(ramBudget)).toHaveLength(44);
+    }
+  });
+});
+
 describe('FastStreamClient, "Buffer behind" changed while a video plays', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
