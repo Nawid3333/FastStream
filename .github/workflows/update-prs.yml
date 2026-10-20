@@ -16,13 +16,22 @@ name: Update PRs
 #               ci-failed and assigned to the owner, and a comment @mentions them with the
 #               failed jobs and steps, what each step checks, the last lines of each
 #               failed log, and how main's own CI stands (red there too points away from
-#               the update). Nothing is guessed about the cause beyond that.
+#               the update). Nothing is guessed about the cause beyond that. Red twice, the
+#               new version most likely needs code changes here (2026-10-20): the pull
+#               request is also labelled hold, and one issue "Migration: <what> <version>"
+#               carries the same diagnosis and what to do. That issue closes once CI passes
+#               on the pull request (here; the hold label set here comes off with it), or
+#               once it is merged or closed (security-alerts.yml's daily watch).
 #   CI passed   a comment @mentions the owner and assigns them. "Ready to merge" when
 #               every one of these holds: opened by that bot and only its commits on it; it
 #               changes only what that kind of update changes (package.json and
 #               pnpm-lock.yaml; fsaunpack's two files; .nvmrc; workflow files; the two
-#               Dockerfiles; a re-cut's files); its dependency review passed; and the
-#               branch holds the newest main, so what he merges is exactly what CI tested.
+#               Dockerfiles; a re-cut's files); its dependency review passed; every package
+#               version it adds to the lockfile is 3 days old on the npm registry
+#               (Dependabot's cooldown holds back only what it bumps; a security fix is not
+#               held back); and the branch holds the newest main, so what he merges is
+#               exactly what CI tested. One held back only for that is decided again once
+#               it is old enough (security-alerts.yml's daily watch starts this again).
 #               The comment also says what the merge does:
 #               - Dependabot's shipped libraries (tools/sync-vendor.mjs copies them into the
 #                 extension) and the patched libraries change what the
@@ -84,9 +93,10 @@ jobs:
     permissions:
       contents: write       # bring a branch up to date
       pull-requests: write  # comment, assign, label
-      issues: write         # the ci-failed label, and the issue when this workflow fails
+      issues: write         # the ci-failed label, the migration issues, and the issue when this workflow fails
       actions: write        # start CI once more, or on an updated branch
       checks: read          # the dependency review's check runs
+      vulnerability-alerts: read  # whether an update fixes an open Dependabot alert (no 3-day wait then)
     name: Report on an update PR
     # A run whose actor is this repository's own token comes by workflow_dispatch, should
     # GitHub ever send workflow_run for it as well: one decision per run.
@@ -304,13 +314,10 @@ jobs:
 
             # The failed jobs and steps make the key: the same failure again edits its comment.
             key="red $(sha1sum < "$RUNNER_TEMP/failed.tsv" | cut -c1-12)"
+            # What failed, for the comment and for a migration issue: the failed jobs and steps,
+            # the runs, and the end of each failed log.
             # shellcheck disable=SC2016
             {
-              if [ "$again" = 1 ]; then
-                printf '@%s CI fails on this pull request. It failed twice on this commit, so a flaky test is an unlikely cause.\n\n' "$OWNER"
-              else
-                printf '@%s CI fails on this pull request (%s).\n\n' "$OWNER" "$CONCLUSION"
-              fi
               printf '| Job | Failed step | What the step checks |\n| --- | --- | --- |\n'
               while IFS=$'\t' read -r job steps; do
                 printf '| %s | %s | %s |\n' "$job" "${steps:-(none)}" "$(meaning "${steps%% / *}")"
@@ -326,6 +333,101 @@ jobs:
                   printf '\n<details><summary>The last lines of <b>%s</b></summary>\n\n````\n%s\n````\n</details>\n' "$job" "$lines"
                 fi
               done
+            } > "$RUNNER_TEMP/diagnosis.md"
+
+            # Red twice on an update pull request: the new version most likely needs changes to
+            # the code here, which no rerun or rebase brings (the owner's call, 2026-10-20). The
+            # pull request is parked with the label hold (unless it has it already: one the owner
+            # set stays his, see "CI passed"), and one issue "Migration: <what> <version>" holds
+            # the diagnosis and what to do. Found again by the marker in its body (or an open one
+            # with the same title, which it takes over), it is edited in place when CI fails twice
+            # again, so it sends no new email. Sets $migration to its number.
+            # shellcheck disable=SC2016 # backticks are Markdown
+            migrate() {
+              local what slug updates count group list park take rerun found
+              case $kind in
+                pnpm|node|patched)
+                  # The title less its prefix: "pnpm 12.15.0", "Node.js 26", "hls.js 1.7.4".
+                  what=$(jq -r '.title | sub("^(Toolchain update|Patched library update): "; "")' <<< "$pr")
+                  slug=$what
+                  rerun="**Update branch** on #$number"
+                  park="closing #$number skips this version for good; the next one comes as a pull request of its own"
+                  if [ "$kind" = patched ]; then take=patched-libraries.yml; else take=toolchain-updates.yml; fi
+                  take="$take closes #$number"
+                  ;;
+                *)
+                  # What Dependabot's newest commit updates, "<name> <version>" a line, from the
+                  # metadata at the end of its message (a scoped name comes in double quotes).
+                  gh pr view "$number" --json commits > "$RUNNER_TEMP/commits.json"
+                  jq -r '[.commits[] | select([.authors[].login] | all(. == "dependabot[bot]"))] | last | .messageBody // ""' \
+                    "$RUNNER_TEMP/commits.json" > "$RUNNER_TEMP/meta.txt"
+                  updates=$(awk '/^- dependency-name: / {n = substr($0, 20)}
+                    /^  dependency-version: / && n != "" {print n " " substr($0, 23); n = ""}' "$RUNNER_TEMP/meta.txt" | tr -d "\"'")
+                  count=$(grep -c . <<< "$updates" || true)
+                  group=$(sed -n 's/^  dependency-group: //p' "$RUNNER_TEMP/meta.txt" | head -n 1)
+                  park="\`@dependabot ignore this major version\` on #$number parks it: Dependabot closes it and raises no more of that major until you take it up"
+                  if [ "$count" = 1 ]; then
+                    what=$updates
+                    slug=$updates
+                  elif [ "$count" -gt 1 ]; then
+                    list=$(head -n 3 <<< "$updates" | awk 'NR > 1 {printf ", "} {printf "%s", $0}')
+                    if [ "$count" -gt 3 ]; then list="$list and $((count - 3)) more"; fi
+                    what="${group:-several packages} ($list)"
+                    slug="${group:-update}-${SHA:0:8}"
+                    park="\`@dependabot ignore <dependency name> major version\` on #$number parks the package that breaks: Dependabot closes #$number, raises no more of that major until you take it up, and brings the rest of the group again on its next run"
+                  else
+                    what=${BRANCH#dependabot/*/}
+                    slug=$what
+                  fi
+                  rerun="\`@dependabot rebase\` on #$number"
+                  take="Dependabot closes or rebases #$number on its own"
+                  ;;
+              esac
+              slug=$(tr '[:upper:]' '[:lower:]' <<< "$slug" | sed -E 's/[^a-z0-9.]+/-/g; s/^-+//; s/-+$//' | cut -c1-60)
+              if ! jq -e '.labels | any(.name == "hold")' <<< "$pr" > /dev/null; then
+                gh label create hold --color d4c5f9 --description 'Update PRs: not merged while this label is on' > /dev/null 2>&1 || true
+                gh pr edit "$number" --add-label hold > /dev/null
+              fi
+              {
+                printf '@%s CI failed twice on #%s (%s): the new version most likely needs changes to the code here, which no rerun or rebase brings. #%s is labelled `hold` meanwhile.\n\n' \
+                  "$OWNER" "$number" "$(jq -r .title <<< "$pr")" "$number"
+                printf '### What failed\n\n'
+                cat "$RUNNER_TEMP/diagnosis.md"
+                printf '\n### What to do\n\n'
+                printf '1. On a branch of its own off `main`, `migrate/%s`, an agent session or you change the code for %s, with a test that pins the new behaviour, and open a pull request for it. If `main` fails as well (above), fix that first.\n' "$slug" "$what"
+                printf '2. Once that is merged: if it took the new version itself, %s; otherwise %s runs its CI again.\n' "$take" "$rerun"
+                printf '3. CI passing on #%s closes this issue and takes off the `hold` label it set; #%s is then reported on as every update is.\n\n' "$number" "$number"
+                printf 'Meanwhile, %s.\n\n' "$park"
+                printf 'This issue closes itself once CI passes on #%s, or once #%s is merged or closed (checked daily).\n\n<!-- migration-pr: %s -->\n' "$number" "$number" "$number"
+              } > "$RUNNER_TEMP/migration.md"
+              gh issue list --state open --limit 200 --json number,title,body,author \
+                --jq '[.[] | select(.author.login == "app/github-actions" and (.title | startswith("Migration: ")))]' \
+                > "$RUNNER_TEMP/migrations.json"
+              found=$(jq -r --arg m "<!-- migration-pr: $number -->" --arg t "Migration: $what" \
+                '([.[] | select((.body // "") | contains($m))] + [.[] | select(.title == $t)])[0].number // empty' \
+                "$RUNNER_TEMP/migrations.json")
+              if [ -n "$found" ]; then
+                gh issue edit "$found" --title "Migration: $what" --body-file "$RUNNER_TEMP/migration.md" > /dev/null
+                migration=$found
+              else
+                migration=$(gh issue create --title "Migration: $what" --assignee "$OWNER" --body-file "$RUNNER_TEMP/migration.md")
+                migration=${migration##*/}
+              fi
+            }
+            migration=''
+            if [ "$again" = 1 ] && [ "$kind" != other ]; then migrate; fi
+
+            # shellcheck disable=SC2016
+            {
+              if [ "$again" = 1 ]; then
+                printf '@%s CI fails on this pull request. It failed twice on this commit, so a flaky test is an unlikely cause.\n\n' "$OWNER"
+              else
+                printf '@%s CI fails on this pull request (%s).\n\n' "$OWNER" "$CONCLUSION"
+              fi
+              cat "$RUNNER_TEMP/diagnosis.md"
+              if [ -n "$migration" ]; then
+                printf '\nThe new version most likely needs changes to the code here: this pull request is labelled `hold`, and #%s says what to do.\n' "$migration"
+              fi
               printf '\nThe pull request stays open. A new commit on it runs CI again.\n'
               hint
             } > "$RUNNER_TEMP/body.md"
@@ -339,6 +441,30 @@ jobs:
           if jq -e --arg l "$LABEL" '.labels | any(.name == $l)' <<< "$pr" > /dev/null; then
             gh pr edit "$number" --remove-label "$LABEL" > /dev/null
           fi
+          # A migration issue opened above, when CI had failed twice, is done: CI passes now.
+          gh issue list --state open --limit 200 --json number,title,body,author \
+            --jq ".[] | select(.author.login == \"app/github-actions\" and (.title | startswith(\"Migration: \")) and ((.body // \"\") | contains(\"<!-- migration-pr: $number -->\"))) | .number" \
+            > "$RUNNER_TEMP/migrated.txt"
+          while read -r issue; do
+            gh issue close "$issue" --reason completed --comment "CI passes on #$number now ($RUN_URL). Closing."
+          done < "$RUNNER_TEMP/migrated.txt"
+          # The hold label, the owner's own "not yet", whatever else holds. One this workflow set
+          # when CI failed twice (the last to add it was github-actions[bot]) only parked the pull
+          # request while it was red: it comes off. When that cannot be read, it stays.
+          held=0
+          if jq -e '.labels | any(.name == "hold")' <<< "$pr" > /dev/null; then
+            held=1
+            by=$(gh api --paginate "repos/$GH_REPO/issues/$number/events?per_page=100" \
+              --jq '.[] | select(.event == "labeled" and .label.name == "hold") | .actor.login' | tail -n 1) || by=''
+            if [ "$by" = 'github-actions[bot]' ]; then
+              gh pr edit "$number" --remove-label hold > /dev/null
+              echo 'Took off the hold label this workflow set while CI failed.'
+              held=0
+            fi
+          fi
+          # A package version under 3 days old: when to decide again (below).
+          recheck=''
+          security=''
 
           # The "Review dependency changes" check on a commit: "success" when a run of it passed,
           # "missing" when there is none, else the newest run's conclusion (the API lists them
@@ -360,8 +486,7 @@ jobs:
 
           # What to look at before merging, if anything. None: it is ready to merge.
           reasons=()
-          # The owner's own "not yet", whatever else holds.
-          if jq -e '.labels | any(.name == "hold")' <<< "$pr" > /dev/null; then
+          if [ "$held" = 1 ]; then
             reasons+=('it is labelled hold')
           fi
           case $kind in
@@ -420,7 +545,7 @@ jobs:
             if [ "$(jq -r .isDraft <<< "$pr")" = true ]; then reasons+=('it is a draft'); fi
             if [ "$(jq -r .baseRefName <<< "$pr")" != main ]; then reasons+=('it does not target main'); fi
             if [ "$author" != "app/${bot%\[bot\]}" ]; then reasons+=("$author opened it, not $bot"); fi
-            gh pr view "$number" --json files,commits > "$RUNNER_TEMP/pr.json"
+            gh pr view "$number" --json files,commits,body > "$RUNNER_TEMP/pr.json"
             # gh pr view reads at most 100 files and 100 commits (measured on gh 2.101: a pull
             # request of 789 files and 217 commits gave 100 of each). One with more is not seen
             # whole by the checks below, so a person looks at it.
@@ -489,6 +614,95 @@ jobs:
               updated=$(jq -r '.commits[].messageBody' "$RUNNER_TEMP/pr.json" | sed -n 's/^- dependency-name: //p' | sort -u)
               if [ -n "$shipped" ] && [ -n "$updated" ] && grep -qxF -f <(printf '%s\n' "$shipped") <<< "$updated"; then
                 ships=1
+              fi
+            fi
+            if [ "$kind" = dependabot ] || [ "$kind" = patched ]; then
+              # Green CI cannot see a compromised release: malware passes the tests, and most npm
+              # supply-chain compromises are found and pulled within hours to days. So every
+              # package version this pull request adds to its lockfile must be 3 days old on the
+              # npm registry, or it is not called ready (the owner's call, 2026-10-20; 7 days
+              # until 2026-10-11, then none). Dependabot's cooldown (3 days) holds back only the
+              # packages it bumps, not what the new lockfile brings in with them, and
+              # patched-libraries.yml waits only for pnpm's own minimumReleaseAge. Whatever cannot
+              # be checked counts as too young.
+              #
+              # A security fix is not held back, as Dependabot's cooldown holds back none: one
+              # Dependabot opened as a security update (its body has the line below: #352 and
+              # #353 here do, its version updates do not), or one that updates a package with an
+              # open Dependabot alert on that lockfile (#95, a security update whose body lacks
+              # the line, shows the line alone does not tell).
+              if jq -e '(.body // "") | contains("You can disable automated security fix PRs for this repo")' "$RUNNER_TEMP/pr.json" > /dev/null; then
+                security='Dependabot opened it as a security update'
+              else
+                # The packages it updates: Dependabot names them in its commits' metadata.
+                if [ "$kind" = patched ]; then
+                  printf '%s\n' "$library" > "$RUNNER_TEMP/updates.txt"
+                else
+                  jq -r '.commits[] | select([.authors[].login] | all(. == "dependabot[bot]")) | .messageBody' "$RUNNER_TEMP/pr.json" |
+                    sed -n 's/^- dependency-name: //p' | tr -d "\"'" | LC_ALL=C sort -u > "$RUNNER_TEMP/updates.txt"
+                fi
+                # The open alerts on this lockfile: pnpm-lock.yaml's are in the root, fsaunpack's
+                # in fsaunpack/.
+                manifest_dir=''
+                if [ "$fsa" = 1 ]; then manifest_dir=fsaunpack; fi
+                if MANIFEST_DIR=$manifest_dir gh api --paginate "repos/$GH_REPO/dependabot/alerts?state=open&per_page=100" \
+                     --jq '.[] | select((.dependency.manifest_path | split("/") | .[:-1] | join("/")) == env.MANIFEST_DIR) | .dependency.package.name' \
+                     > "$RUNNER_TEMP/alerted.txt"; then
+                  fixes=$(LC_ALL=C sort -u "$RUNNER_TEMP/alerted.txt" | LC_ALL=C comm -12 "$RUNNER_TEMP/updates.txt" - | tr '\n' ' ' | sed 's/ $//')
+                  if [ -n "$fixes" ]; then security="it updates $fixes, which has an open Dependabot alert"; fi
+                else
+                  echo '::warning::The Dependabot alerts could not be read: the 3-day wait applies to this pull request.'
+                fi
+              fi
+              if [ -n "$security" ]; then
+                echo "A security fix ($security): no 3-day wait."
+              else
+                lock_base=$(gh api "repos/$GH_REPO/compare/main...$SHA" --jq .merge_base_commit.sha)
+                lockfile=pnpm-lock.yaml
+                if [ "$fsa" = 1 ]; then lockfile=fsaunpack/package-lock.json; fi
+                if gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/$lockfile?ref=$lock_base" > "$RUNNER_TEMP/lock.base" &&
+                   gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/$lockfile?ref=$SHA" > "$RUNNER_TEMP/lock.head"; then
+                  # One name@version per line: the keys of pnpm-lock.yaml's packages section, or
+                  # npm's packages (node_modules/<name>, nested ones too; the project itself and
+                  # links aside).
+                  entries() {
+                    if [ "$fsa" = 1 ]; then
+                      jq -r '.packages // {} | to_entries[] | select((.key | startswith("node_modules/")) and (.value.link | not) and .value.version != null) |
+                        "\(.key | sub("^(.*/)?node_modules/"; ""))@\(.value.version)"' "$1" | LC_ALL=C sort -u
+                    else
+                      awk '/^packages:/ {f = 1; next} /^[^ ]/ {f = 0} f && /^  [^ ]/ {sub(/^  /, ""); sub(/:$/, ""); print}' "$1" |
+                        tr -d "'" | LC_ALL=C sort -u
+                    fi
+                  }
+                  entries "$RUNNER_TEMP/lock.base" > "$RUNNER_TEMP/lock.base.txt"
+                  entries "$RUNNER_TEMP/lock.head" > "$RUNNER_TEMP/lock.head.txt"
+                  cutoff=$(date -u -d '3 days ago' +%s)
+                  young=()
+                  newest=0   # the latest publication among the young ones
+                  unknown=0  # whether one's age is unknown
+                  while IFS= read -r entry; do
+                    name=${entry%@*}
+                    version=${entry##*@}
+                    published=$(curl -fsSL --retry 2 --max-time 60 "https://registry.npmjs.org/${name/\//%2F}" |
+                      jq -r --arg v "$version" '.time[$v] // empty' 2> /dev/null || true)
+                    seconds=''
+                    if [ -n "$published" ]; then seconds=$(date -u -d "$published" +%s 2> /dev/null || true); fi
+                    if [ -z "$seconds" ]; then
+                      young+=("$entry (age unknown)")
+                      unknown=1
+                    elif [ "$seconds" -gt "$cutoff" ]; then
+                      young+=("$entry (published ${published:0:10})")
+                      if [ "$seconds" -gt "$newest" ]; then newest=$seconds; fi
+                    fi
+                  done < <(LC_ALL=C comm -13 "$RUNNER_TEMP/lock.base.txt" "$RUNNER_TEMP/lock.head.txt")
+                  if [ ${#young[@]} != 0 ]; then
+                    reasons+=("its lockfile adds package versions under 3 days old or of unknown age, which Dependabot's cooldown does not hold back: $(printf '%s; ' "${young[@]}" | sed 's/; $//')")
+                    # Of known age, all of them: decided again once the youngest is 3 days old.
+                    if [ "$unknown" = 0 ]; then recheck=$((newest + 3 * 24 * 60 * 60)); fi
+                  fi
+                else
+                  reasons+=("its $lockfile could not be read, to check how old the package versions it adds are")
+                fi
               fi
             fi
             if [ "$kind" = pnpm ]; then
@@ -633,6 +847,15 @@ jobs:
             else
               printf '@%s CI passes on this pull request (%s). Look at this before merging:\n\n' "$OWNER" "$RUN_URL"
               printf -- '- %s\n' "${reasons[@]}"
+              if [ -n "$recheck" ]; then
+                # security-alerts.yml's daily watch reads the marker: once its time has passed, it
+                # starts this workflow again on the same CI run, if the branch is still there.
+                printf '\nThe youngest of those versions is 3 days old at %s: this pull request is decided again then, within a day.\n<!-- update-prs-recheck: %s %s %s -->\n' \
+                  "$(date -u -d "@$recheck" '+%Y-%m-%d %H:%M UTC')" "$recheck" "$RUN_ID" "$SHA"
+              fi
+            fi
+            if [ -n "$security" ]; then
+              printf '\nA security fix (%s): the 3-day wait for new releases does not hold it back.\n' "$security"
             fi
             printf '\n'
             hint

@@ -119,8 +119,8 @@
   Node update is a one-file change: the toolchain workflow's `GITHUB_TOKEN` may not
   push changes to `.github/workflows/*`. `tests/unit/checkToolchain.test.mjs` fails
   if a workflow names its own `node-version` or a setup-node step lacks
-  `node-version-file: .nvmrc`. pnpm's newest release of the pinned major, as soon as it
-  is out, changes `packageManager` in `package.json` and nothing else, and waits
+  `node-version-file: .nvmrc`. pnpm's newest release of the pinned major, once it is
+  3 days old (`MIN_AGE_DAYS`; none from 2026-10-11 to 2026-10-20), changes `packageManager` in `package.json` and nothing else, and waits
   for the owner's merge. Nothing from npm runs in that job, beside its write token: CI
   installs the lockfile unchanged with the new pnpm (`--frozen-lockfile`), so one that
   wants it rewritten fails CI and reaches the owner. A newer pnpm major comes
@@ -143,8 +143,8 @@
   October 2026). The decision logic is `plan()` in `tools/check-toolchain.mjs`,
   unit-tested. Dependencies stay pinned by the lockfile on purpose (patches, AMO
   reproducibility); Dependabot's weekly grouped PRs are how they move, each release
-  proposed as soon as it is out (no `cooldown` in `.github/dependabot.yml` since
-  2026-10-11, the owner's call): npm minor/patch is split into `shipped-minor-and-patch`
+  proposed once it is 3 days old (`cooldown` in `.github/dependabot.yml`, the owner's call
+  of 2026-10-20 after none from 2026-10-11; security updates skip it): npm minor/patch is split into `shipped-minor-and-patch`
   (fuse.js, mediabunny, sortablejs - the unpatched libraries
   `tools/sync-vendor.mjs` copies into the extension) and `tooling-minor-and-patch`
   (everything else), so a tooling update is not held back by a shipped one;
@@ -175,7 +175,8 @@
   changes (`package.json` + `pnpm-lock.yaml`; for pnpm only `packageManager`, the lockfile
   untouched; fsaunpack's two files; `.nvmrc`; `.github/workflows` + `.github/actions`;
   the two Dockerfiles; a re-cut's `pnpm-workspace.yaml`, `patches/`, `tools/sync-vendor.mjs`), the
-  dependency review passed (no package-age check since 2026-10-11), it is mergeable, it contains the newest `main`
+  dependency review passed, every version its lockfile adds is 3 days old (fsaunpack's
+  `package-lock.json` read with jq; a security fix exempt; see "Update guards" below), it is mergeable, it contains the newest `main`
   (otherwise GitHub's update-branch runs, CI restarts and that run decides, at most 3
   times), and, for an update that must not ship (all but the shipped and the patched
   libraries), CI's build of the extension (the `faststream-bundles`
@@ -203,6 +204,60 @@
   opens one issue "Update PRs workflow failed" (the decide step has its own
   `timeout-minutes` under the job's, so running out of time fails the step and still
   reaches the report).
+- **Update guards** (2026-10-20, the owner's three calls, so that a green update PR can be
+  merged without a second look). (1) **A 3-day release wait**, back after 2026-10-11's
+  removal (351bd7de; it was 5 days for the cooldown and the toolchain, 7 for the lockfile
+  check): Dependabot's `cooldown` (`default-days: 3`, every entry; zizmor's
+  `dependabot-cooldown` audit asks for 3), `MIN_AGE_DAYS = 3` in `tools/check-toolchain.mjs`
+  (pnpm; `tools/newest-release.mjs` and so update-local.cmd too), and update-prs.yml's
+  registry lookup of every version a Dependabot or patched-library PR adds to its lockfile.
+  Why: green CI cannot see a compromised release, and most npm compromises of 2025 were
+  pulled within hours to days (the owner's reasoning; Renovate's best-practice preset waits
+  3 days for npm). Not measured here: no compromised release has reached this repository.
+  The Node LTS major track has no wait, as before: `.nvmrc` names a major, and setup-node
+  takes its newest release at every run anyway. A security fix is not held back: Dependabot
+  gives its security updates no cooldown, and update-prs.yml skips the lookup for a PR whose
+  body has "You can disable automated security fix PRs for this repo" (measured on all 35
+  Dependabot PRs here: #6, #7, #8, #352 and #353, security updates, have it; none of the
+  other 30 does, #95 among them) or
+  that updates a package with an open Dependabot alert on that lockfile (#95, a security update
+  of 2026-09-30 whose body lacks the line, is why the body alone is not enough; the job asks
+  for `vulnerability-alerts: read`, which actionlint 1.7.12 does not know, see
+  `.github/actionlint.yaml`). Unreadable alerts: the wait applies. Held back only by age, a
+  PR would sit at "look" until its next CI run, so the comment carries
+  `<!-- update-prs-recheck: <time> <run> <commit> -->` (when the youngest version is 3 days
+  old; none when an age is unknown), and security-alerts.yml's daily `watch` job starts
+  update-prs.yml by `workflow_dispatch` on that run once the time has passed and the PR is
+  still at that commit (the CI artifact it compares lives 7 days). (2) **Red twice: hold + a
+  migration issue.** When the second try fails too (again=1) on a dependabot/, toolchain/
+  or patched/ branch, the PR also gets `hold` (only when it has none: an existing one stays
+  the owner's) and one issue "Migration: <what>" - Dependabot's commit metadata gives
+  `<name> <version>` (a scoped name loses its quotes), a group "<group> (first three and N
+  more)", a toolchain or patched PR its title less the prefix - with the diagnosis the red
+  comment has, the branch `migrate/<slug>`, how to run CI again and how to park it. Found
+  again by its `<!-- migration-pr: N -->` marker (or an open bot issue with the same title,
+  which it takes over), it is edited, not opened twice. A green run closes it and takes off
+  `hold` when the last `labeled hold` event's actor is github-actions[bot] (unreadable
+  events: it stays); the daily watch closes the issues of PRs merged or closed. (3) **The
+  piling-up issue**, in the daily watch (security-alerts.yml, not ci.yml, which takes no
+  `schedule:`; not update-prs.yml either, which a `schedule:` would expose to GitHub's
+  60-day disabling): each entry of main's `.github/dependabot.yml` (read with awk as it is
+  written: entries at two spaces, keys at four, directory items at six; a file it cannot read
+  so fails the job) against the open Dependabot PRs, a branch counting for the entry of its
+  package manager whose directory it names (`dependabot/npm_and_yarn/fsaunpack/...`), else
+  the root one. It warns at the limit minus 2, at least 2 (or the limit, if lower): docker's
+  limit is 2, and minus 2 would always warn. Security updates count too (GitHub keeps a
+  separate limit for them, so this warns early, never late). Red for more than 14 days: since
+  the `ci-failed` label last went on after it last came off (issue events). One issue,
+  "Update pull requests piling up", edited daily while it holds, closed when neither holds.
+  Dependabot's branch names write a leading dot of a directory "dot-" (git refuses a path
+  segment that starts with a dot), so `/.github/zizmor` is matched as `dot-github/zizmor/`;
+  no docker or composite-action PR has come here yet to show it. Tests:
+  `tests/workflows/update-prs-decide.test.sh` (413 -> 605 checks; 19 mutations of the new
+  logic, each caught), `tests/workflows/update-watch.test.sh` (83 checks, its p1 on the real
+  `.github/dependabot.yml`; 19 mutations, each caught), and `tests/unit/checkToolchain.test.mjs`
+  keeps the cooldown, zizmor's setting, update-prs.yml's cutoff and `MIN_AGE_DAYS` at one
+  number (a cooldown of 5 in one entry fails it).
 - **`firefox-beta.yml`** (Monday and Thursday, and on PRs touching it or the e2e configs): `test:e2e` and
   `test:ext` against Firefox Beta (`browser-actions/setup-firefox`, `latest-beta`) through
   the `FIREFOX_BINARY` env var the wdio configs honour. A scheduled failure opens one issue
@@ -445,7 +500,9 @@
   mutations of the workflow each fail it. Its stub `gh` applies `--jq` with jq, as CI has
   it; the real gh uses gojq, built in, and the filters avoid the one difference found
   (jq 1.7 splits `""` into `[]`, gojq into `[""]`). The test passed with gojq 0.12.19
-  swapped in too.
+  swapped in too. Since 2026-10-20 a second job, `watch` (daily and by hand, not on a push),
+  looks after the update pull requests: see "Update guards" above. Each job asks for its own
+  permissions (zizmor flags a workflow-wide `issues: write` once there are two jobs).
 - **The Security tab's count also holds CodeQL code scanning** (2026-10-03). GitHub's
   default setup runs it on every push to `main` (Actions shows it as "CodeQL",
   `dynamic/github-code-scanning/codeql`; there is no workflow file), JavaScript and

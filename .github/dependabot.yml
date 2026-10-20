@@ -12,8 +12,9 @@
 # What happens to each PR once CI has run is update-prs.yml's job: it reports, and nothing
 # merges itself (the owner's choice, 2026-10-02: every PR waits for his merge). A red one
 # is reported to the owner; a green one is called ready to merge when it changes only
-# package.json and pnpm-lock.yaml. A tooling
-# update must also leave the built extension identical to the latest release, so it
+# package.json and pnpm-lock.yaml and adds no package version under 3 days old (a security
+# fix aside). A tooling update must also leave the built extension identical to the latest
+# release, so it
 # releases nothing. The libraries the extension ships (tools/sync-vendor.mjs copies them
 # into it) are grouped apart, in shipped-minor-and-patch: merging that PR starts CI on
 # main, and a green run there releases it. update-prs.yml tells that group by its branch,
@@ -21,8 +22,17 @@
 # a branch of its own: update-prs.yml tells a shipped library's by the patterns of
 # shipped-minor-and-patch below, read from main.
 #
-# No cooldown (removed 2026-10-11, the owner's call): a release is proposed as soon as it
-# is out. Nothing merges itself; every PR waits for the owner's merge once CI is green.
+# cooldown: a release is proposed once it is 3 days old (the owner's call, 2026-10-20; 5 days
+# until 2026-10-11, then none). Green CI cannot see a compromised release - malware passes
+# the tests - and most npm supply-chain compromises of 2025 were found and pulled within
+# hours to days: a 3-day wait lets that happen before a release reaches the owner's merge
+# (Renovate's best-practice preset waits 3 days for npm too). Dependabot applies no cooldown
+# to security updates. The cooldown holds back only the packages Dependabot bumps, not what
+# the new lockfile brings in with them: update-prs.yml checks those (3 days as well).
+#
+# open-pull-requests-limit: once an entry has that many pull requests open, Dependabot opens
+# no more for it, and says nothing. security-alerts.yml's daily watch opens one issue,
+# "Update pull requests piling up", when an entry reaches its limit minus 2 (at least 2).
 #
 # Security updates are separate from this file (Settings > Code security >
 # Dependabot security updates) and still open a PR for any vulnerable package,
@@ -34,6 +44,8 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 10
     labels:
       - 'dependencies'
@@ -85,11 +97,13 @@ updates:
   # part of the extension. CI installs that lockfile and starts the test server on a
   # recorded archive (pnpm run verify:fsaunpack), with install scripts off. update-prs.yml
   # calls a PR ready to merge when it changes only fsaunpack/package.json and
-  # fsaunpack/package-lock.json.
+  # fsaunpack/package-lock.json and every version that lockfile adds is 3 days old.
   - package-ecosystem: 'npm'
     directory: '/fsaunpack'
     schedule:
       interval: 'weekly'
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 5
     labels:
       - 'dependencies'
@@ -110,6 +124,8 @@ updates:
       - '/.github/actions/*'
     schedule:
       interval: 'weekly'
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 5
     labels:
       - 'dependencies'
@@ -129,6 +145,8 @@ updates:
       - '/.github/zizmor'
     schedule:
       interval: 'weekly'
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 2
     labels:
       - 'dependencies'

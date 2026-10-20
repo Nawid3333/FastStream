@@ -21,10 +21,11 @@ rules:
   github-env:
     ignore:
       - action.yml
-  # Dependabot proposes a release as soon as it is out (no cooldown since 2026-10-11, the
-  # owner's call: nothing merges itself, he merges every update once CI is green).
+  # Dependabot proposes a release once it is 3 days old (cooldown in dependabot.yml, the
+  # owner's call of 2026-10-20; see its header); zizmor's default asks for 7.
   dependabot-cooldown:
-    disable: true
+    config:
+      days: 3
   # `uses: $/...` for an action in this repository: actionlint, which checks every workflow
   # here, does not accept it yet. `./...` means the same.
   self-repository:
