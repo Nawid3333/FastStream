@@ -207,7 +207,14 @@ export async function openReorderMode(tool) {
  */
 export async function expectOrderKept(expected) {
   expect(await shownOrder()).toEqual(expected);
-  expect(await savedOrder()).toEqual(expected);
+  // Waited for, not read once: the save is synchronous in the web build today, and a
+  // release that delays it (or a storage that does) must not make this flaky.
+  let saved = null;
+  await browser.waitUntil(async () => {
+    saved = await savedOrder();
+    return JSON.stringify(saved) === JSON.stringify(expected);
+  }, {timeout: 5000, interval: 100}).catch(() => {});
+  expect(saved).toEqual(expected);
   await openPlayer();
   expect(await shownOrder()).toEqual(expected);
 }

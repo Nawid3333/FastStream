@@ -11,15 +11,25 @@ import {dragTool, expectOrderKept, openPlayerWithDefaultOrder, openReorderMode, 
   from '../toolbarDrag.mjs';
 
 describe('The control bar rearranged by dragging (sortablejs)', function() {
+  // The order this spec saved stays out of every later spec's player.
+  after(async function() {
+    await browser.execute(() => localStorage.removeItem('toolSettings'));
+  });
+
   it('moves a tool along the bar, and the next player has it there', async function() {
     await openPlayerWithDefaultOrder();
     const before = await shownOrder();
     expect(await savedOrder()).toBe(null);
     expect(before.right.indexOf('settings')).toBeGreaterThan(before.right.indexOf('sources'));
 
-    // Back along its own list: sortablejs puts it before the tool it is let go on.
-    await dragTool('settings', 'sources', 0.5);
-    await expectOrderKept(withMove(before, 'settings', 'sources', 'before'));
+    // Back along its own list: sortablejs puts it before the tool it is let go on. On the
+    // left part of it, not its middle: a release that decided by the half (as across lists)
+    // must not flip on a pixel's rounding. And a move that changes the order, or a drag
+    // that did nothing would pass.
+    const expected = withMove(before, 'settings', 'sources', 'before');
+    expect(expected).not.toEqual(before);
+    await dragTool('settings', 'sources', 0.35);
+    await expectOrderKept(expected);
   });
 
   it('moves a tool from one side of the bar to the other', async function() {
@@ -29,8 +39,10 @@ describe('The control bar rearranged by dragging (sortablejs)', function() {
     expect(before.left).toContain('volume');
 
     // Into the other list, on the left half of the volume button: before it.
+    const expected = withMove(before, 'subtitles', 'volume', 'before');
+    expect(expected).not.toEqual(before);
     await dragTool('subtitles', 'volume', 0.25);
-    await expectOrderKept(withMove(before, 'subtitles', 'volume', 'before'));
+    await expectOrderKept(expected);
   });
 
   it('moves a tool into the "more" menu in the reorder mode a long press opens', async function() {
@@ -38,8 +50,10 @@ describe('The control bar rearranged by dragging (sortablejs)', function() {
     const before = await shownOrder();
     expect(before.extra).toContain('pip');
 
+    const expected = withMove(before, 'playrate', 'pip', 'before');
+    expect(expected).not.toEqual(before);
     await openReorderMode('playpause');
     await dragTool('playrate', 'pip', 0.25);
-    await expectOrderKept(withMove(before, 'playrate', 'pip', 'before'));
+    await expectOrderKept(expected);
   });
 });
