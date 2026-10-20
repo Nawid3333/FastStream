@@ -45,7 +45,9 @@ weekly shipped group, `mediabunny` among them since 2026-09-30 (until then `mp4-
 which Mediabunny replaced, was held for a last release that crashed; `onnxruntime-web` was
 in it until the speech detector went, 2026-10-10). A PR from that group changes the
 extension, so CI runs on `main` after its merge and decides the release;
-`tests/e2e/specs/modules.e2e.mjs` is what checks Mediabunny. Mediabunny releases every few days, so expect it in most of them.
+`tests/e2e/specs/modules.e2e.mjs` is what checks Mediabunny, and
+`tests/e2e/specs/toolbar-reorder.e2e.mjs` sortablejs (a tool dragged along the player's control
+bar, across it and into the "more" menu, saved, and in place in the next player). Mediabunny releases every few days, so expect it in most of them.
 A security update Dependabot cannot make itself leaves its alert open with no PR: a
 package the lockfile holds at several majors, as brace-expansion was (1.x, 2.x and 5.x,
 2026-09-30), fails in its "Dependabot Updates" run, which emails no one. So

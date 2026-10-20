@@ -40,7 +40,8 @@ updates:
     groups:
       # Keep in step with tools/sync-vendor.mjs: the unpatched libraries it copies.
       # The patched ones are ignored below. A new mediabunny must write files that read
-      # back sample for sample (tests/e2e/specs/modules.e2e.mjs).
+      # back sample for sample (tests/e2e/specs/modules.e2e.mjs), a new sortablejs still
+      # rearrange the player's control bar (tests/e2e/specs/toolbar-reorder.e2e.mjs).
       shipped-minor-and-patch:
         patterns: ['fuse.js', 'mediabunny', 'sortablejs']
         update-types: ['minor', 'patch']

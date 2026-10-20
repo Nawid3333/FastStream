@@ -363,6 +363,12 @@
   test's own `this.timeout()` did not lift that under WebdriverIO. For a long local run (a
   timing sweep, a loop waiting for a rare race) set `E2E_TEST_TIMEOUT_MS`
   (`tests/e2e/testTimeout.mjs`); CI keeps the caps, so a hang there still ends the test.
+- **No HTML5 drag and drop through WebDriver, 2026-10-20:** Firefox's WebDriver starts a native
+  drag and never ends it. Its pointer actions gave the page dragstart, dragenter, dragover and
+  dragleave; letting go gave no drop, no dragend and no mouseup (Firefox 158.0.1 on CI's Linux
+  and Windows, run 39477097683; Mozilla's bug 1515879). A spec that needs one dispatches the
+  drag's events in the page, in Firefox's order, to what is under the pointer:
+  `tests/e2e/toolbarDrag.mjs` (libraries.md, "sortablejs: what checks it").
 - **The extension's console in the driver logs, 2026-10-01 (W6):** background.mjs's debug
   lines (`if (Logging)`) are on for a temporary install (`management.getSelf()` says
   `development`: the e2e suites' `installAddOn(xpi, true)`, `web-ext run`, about:debugging)
