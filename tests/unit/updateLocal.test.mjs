@@ -5,9 +5,9 @@ import path from 'node:path';
 import {beforeAll, describe, expect, it} from 'vitest';
 import {isPinnedUrl, newestNode, newestPackage, newestWsl} from '../../tools/newest-release.mjs';
 
-// tools/update-local.ps1 brings this PC to the newest releases, tools/newest-release.mjs picks
-// them. No minimum age since 2026-10-11 (MIN_AGE_DAYS 0 in tools/check-toolchain.mjs, the
-// owner's call); each function still takes one, which the cutoff tests pass.
+// tools/update-local.ps1 brings this PC to the versions CI's rule allows: the newest release
+// at least 3 days old (MIN_AGE_DAYS in tools/check-toolchain.mjs; none from 2026-10-11 to
+// 2026-10-20). tools/newest-release.mjs picks them.
 const now = Date.parse('2026-10-01T12:00:00Z');
 const daysAgo = (n) => new Date(now - n * 24 * 60 * 60 * 1000).toISOString();
 
@@ -20,12 +20,12 @@ describe('newestNode', () => {
     {version: 'v24.21.0', date: daysAgo(20).slice(0, 10)},
   ];
 
-  it('takes the newest release of the major, however new', () => {
-    expect(newestNode(index, 26, now)).toBe('26.10.0');
+  it('takes the newest release of the major that is 3 days old', () => {
+    expect(newestNode(index, 26, now)).toBe('26.9.0');
   });
 
-  it('takes the newest one old enough when asked for a minimum age', () => {
-    expect(newestNode(index, 26, now, 5)).toBe('26.9.0');
+  it('takes the newest one, however new, when asked for no minimum age', () => {
+    expect(newestNode(index, 26, now, 0)).toBe('26.10.0');
   });
 
   it('stays on the major asked for', () => {
@@ -33,7 +33,7 @@ describe('newestNode', () => {
   });
 
   it('gives nothing when no release of that major is old enough', () => {
-    expect(newestNode([{version: 'v28.0.0', date: daysAgo(1).slice(0, 10)}], 28, now, 5)).toBe(null);
+    expect(newestNode([{version: 'v28.0.0', date: daysAgo(1).slice(0, 10)}], 28, now)).toBe(null);
   });
 
   // update-local.ps1 builds a URL and a file name from it (#243): an index that names
@@ -45,7 +45,7 @@ describe('newestNode', () => {
       {version: 'v26.10.1-rc.1', date: daysAgo(9).slice(0, 10)},
       ...index,
     ];
-    expect(newestNode(odd, 26, now)).toBe('26.10.0');
+    expect(newestNode(odd, 26, now)).toBe('26.9.0');
   });
 });
 
@@ -77,16 +77,17 @@ describe('newestPackage', () => {
     'time': {'11.9.0': daysAgo(30), '11.9.1': daysAgo(20), '11.10.0-beta.1': daysAgo(10), '12.0.0': daysAgo(1)},
   };
 
-  it('takes the latest at once', () => {
-    expect(newestPackage(doc, now)).toBe('12.0.0');
+  it('falls back to the major before while the latest has nothing 3 days old', () => {
+    expect(newestPackage(doc, now)).toBe('11.9.0');
   });
 
-  it('falls back to the major before while the latest has nothing old enough', () => {
-    expect(newestPackage(doc, now, 5)).toBe('11.9.0');
+  it('takes the latest major once its release is 3 days old', () => {
+    expect(newestPackage(doc, now + 2 * 24 * 60 * 60 * 1000)).toBe('12.0.0');
+    expect(newestPackage(doc, now + 47 * 60 * 60 * 1000)).toBe('11.9.0');
   });
 
-  it('takes the latest major once its release is old enough', () => {
-    expect(newestPackage(doc, now + 5 * 24 * 60 * 60 * 1000, 5)).toBe('12.0.0');
+  it('takes the latest at once when asked for no minimum age', () => {
+    expect(newestPackage(doc, now, 0)).toBe('12.0.0');
   });
 });
 
@@ -96,14 +97,14 @@ describe('newestPackage', () => {
 describe('newestWsl', () => {
   const release = (tag, days, more = {}) => ({tag_name: tag, published_at: daysAgo(days), ...more});
 
-  it('is the latest release, however new', () => {
+  it('is the latest release once it is 3 days old', () => {
     expect(newestWsl(release('2.6.1', 9), now)).toBe('2.6.1');
-    expect(newestWsl(release('2.6.2', 0), now)).toBe('2.6.2');
+    expect(newestWsl(release('2.6.1.0', 3), now)).toBe('2.6.1.0');
   });
 
-  it('is nothing while the latest release is younger than a minimum age asked for', () => {
-    expect(newestWsl(release('2.6.1.0', 5), now, 5)).toBe('2.6.1.0');
-    expect(newestWsl(release('2.6.2', 4), now, 5)).toBe(null);
+  it('is nothing while the latest release is younger', () => {
+    expect(newestWsl(release('2.6.2', 2.9), now)).toBe(null);
+    expect(newestWsl(release('2.6.2', 0), now, 0)).toBe('2.6.2');
   });
 
   it('is nothing for a pre-release, a draft or a release without a date', () => {

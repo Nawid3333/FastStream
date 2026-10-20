@@ -70,7 +70,8 @@ case "$1 $2" in
   'pr view')
     fields=$(opt --json "$@")
     case $fields in
-      files,commits) cat "$STATE/prview.json" ;;
+      files,commits,body) cat "$STATE/prview.json" ;;
+      commits) jq '{commits}' "$STATE/prview.json" ;;
       mergeable)
         n=$(cat "$STATE/mergeable_calls" 2> /dev/null || echo 0); n=$((n + 1)); echo "$n" > "$STATE/mergeable_calls"
         m=$(cat "$STATE/mergeable")
@@ -164,6 +165,29 @@ case "$1 $2" in
     if grep -qxF '*.xpi' <<< "$pats" && [ -f "$STATE/old.xpi" ]; then cp "$STATE/old.xpi" "$d/99f1b8e844554f46b28a-1.3.82.40.xpi"; fi
     ;;
   'label create') ;;
+  'issue list')
+    # The issues in $STATE/issues.json ({number, title, body, author, state}), the open ones.
+    jq '[.[] | select(.state == "open")]' "$STATE/issues.json" > "$STATE/il.json"
+    jqout "$STATE/il.json"
+    ;;
+  'issue create')
+    n=$(( 700 + $(jq length "$STATE/issues.json") ))
+    jq --argjson n "$n" --arg t "$(opt --title "$@")" --arg b "$(cat "$(opt --body-file "$@")")" --arg a "$(opt --assignee "$@" || true)" \
+      '. + [{number: $n, title: $t, body: $b, assignee: $a, state: "open", author: {login: "app/github-actions"}}]' \
+      "$STATE/issues.json" > "$STATE/i.tmp" && mv "$STATE/i.tmp" "$STATE/issues.json"
+    echo "https://github.com/me/fs/issues/$n"
+    ;;
+  'issue edit')
+    jq --argjson n "$3" --arg t "$(opt --title "$@" || true)" --arg b "$(cat "$(opt --body-file "$@")")" \
+      'map(if .number == $n then .body = $b | (if $t != "" then .title = $t else . end) else . end)' \
+      "$STATE/issues.json" > "$STATE/i.tmp" && mv "$STATE/i.tmp" "$STATE/issues.json"
+    ;;
+  'issue close')
+    if [ -f "$STATE/issue_close_fails" ]; then echo 'stub gh: could not close: closed already' >&2; exit 1; fi
+    jq --argjson n "$3" --arg c "$(opt --comment "$@" || true)" --arg r "$(opt --reason "$@" || true)" \
+      'map(if .number == $n then .state = "closed" | .closing = $c | .reason = $r else . end)' \
+      "$STATE/issues.json" > "$STATE/i.tmp" && mv "$STATE/i.tmp" "$STATE/issues.json"
+    ;;
   'workflow run')
     if [ -f "$STATE/dispatch_fails" ]; then echo 'stub gh: dispatch refused' >&2; exit 1; fi
     ;;
@@ -177,6 +201,15 @@ case "$1 $2" in
     path=$1
     case "$method $path" in
       "GET repos/me/fs/issues/"*/comments) jqout "$STATE/comments.json" ;;
+      "GET repos/me/fs/issues/42/events?per_page=100")
+        # The pull request's events (labeled, unlabeled, ...), oldest first.
+        if [ -f "$STATE/events_fail" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
+        jqout "$STATE/events.json"
+        ;;
+      "GET repos/me/fs/dependabot/alerts?state=open&per_page=100")
+        if [ -f "$STATE/alerts_fail" ]; then echo 'stub gh: HTTP 403 Resource not accessible by integration' >&2; exit 1; fi
+        jqout "$STATE/alerts.json"
+        ;;
       "PATCH repos/me/fs/issues/comments/"*)
         id=${path##*/}
         f=$(opt -F "${ORIG[@]}"); f=${f#body=@}
@@ -355,7 +388,31 @@ published() { # <name> <version> <ISO time>: when the npm registry says that ver
   [ -f "$f" ] || echo '{"time":{}}' > "$f"
   jq --arg v "$2" --arg t "$3" '.time[$v] = $t' "$f" > "$f.new" && mv "$f.new" "$f"
 }
+days_ago() { date -u -d "$1 days ago" +%Y-%m-%dT%H:%M:%S.000Z; }
 hours_ago() { date -u -d "$1 hours ago" +%Y-%m-%dT%H:%M:%S.000Z; }
+prbody() { # <text>: the pull request's body (after prview, which writes the file anew)
+  jq --arg b "$1" '.body = $b' "$STATE/prview.json" > "$STATE/pv.tmp" && mv "$STATE/pv.tmp" "$STATE/prview.json"
+}
+alert() { # <package> <manifest path>: an open Dependabot alert
+  jq --arg p "$1" --arg m "$2" '. + [{number: (length + 1), state: "open", dependency: {package: {ecosystem: "npm", name: $p}, manifest_path: $m}}]' \
+    "$STATE/alerts.json" > "$STATE/a.tmp" && mv "$STATE/a.tmp" "$STATE/alerts.json"
+}
+open_issue() { # <number> <title> <body> [author]: an open issue (author app/github-actions unless given)
+  jq --argjson n "$1" --arg t "$2" --arg b "$3" --arg a "${4:-app/github-actions}" \
+    '. + [{number: $n, title: $t, body: $b, state: "open", author: {login: $a}}]' \
+    "$STATE/issues.json" > "$STATE/i.tmp" && mv "$STATE/i.tmp" "$STATE/issues.json"
+}
+event() { # <event> <label> <actor>: an event on #42, after those before it
+  jq --arg e "$1" --arg l "$2" --arg a "$3" '. + [{event: $e, label: {name: $l}, actor: {login: $a}, created_at: "2026-10-01T00:00:00Z"}]' \
+    "$STATE/events.json" > "$STATE/e.tmp" && mv "$STATE/e.tmp" "$STATE/events.json"
+}
+issue_of() { # <number> <field>: that field of the issue
+  jq -r --argjson n "$1" --arg f "$2" '.[] | select(.number == $n) | .[$f]' "$STATE/issues.json"
+}
+issues_n() { jq length "$STATE/issues.json"; }
+pr_title() { # <title>: the pull request's title
+  jq --arg t "$1" '.[0].title = $t' "$STATE/prs.json" > "$STATE/p.tmp" && mv "$STATE/p.tmp" "$STATE/prs.json"
+}
 
 bundle() { # <dir name> <version> <player.js content>: a firefox-github zip
   local d=$STATE/$1
@@ -400,6 +457,9 @@ setup() {
   write_stubs
   : > "$STATE/gh.log"
   echo '[]' > "$STATE/comments.json"
+  echo '[]' > "$STATE/issues.json"
+  echo '[]' > "$STATE/events.json"
+  echo '[]' > "$STATE/alerts.json"
   echo MERGEABLE > "$STATE/mergeable"
   echo 0 > "$STATE/behind"
   echo v1.3.82.40 > "$STATE/tag"
@@ -969,6 +1029,7 @@ pnpm_same_major() {
   check 'package.json read at the merge base, raw' has_call 'api -H Accept: application/vnd.github.raw repos/me/fs/contents/package.json?ref=1111111111111111111111111111111111111111'
   check "and the pull request's, raw" has_call "api -H Accept: application/vnd.github.raw repos/me/fs/contents/package.json?ref=$sha"
   check 'no lockfile read: that check is for Dependabot pull requests' bash -c '! grep -q pnpm-lock.yaml "$0"' "$STATE/gh.log"
+  check 'no alerts read either' bash -c '! grep -q dependabot/alerts "$0"' "$STATE/gh.log"
 }
 
 pnpm_package_json_more() {
@@ -1263,6 +1324,27 @@ patched_extra_file_waits() {
   check 'names the file' grep -qF 'it changes tests/e2e/specs/x.e2e.mjs, not only what a patch re-cut changes' <(last_comment)
 }
 
+patched_young_package_waits() {
+  patched_setup 1.7.4
+  lock_adds 'hls.js@1.7.4'
+  published hls.js 1.7.4 "$(days_ago 2)"
+  run_step
+  check 'not called ready' not_ready
+  check 'names it' grep -qF 'hls.js@1.7.4 (published' <(last_comment)
+}
+
+patched_security_alert_skips_wait() {
+  # The patched libraries have no Dependabot pull request: an open alert for the library
+  # it updates, on pnpm-lock.yaml, makes it a security fix all the same.
+  patched_setup 1.7.4
+  lock_adds 'hls.js@1.7.4'
+  published hls.js 1.7.4 "$(days_ago 1)"
+  alert hls.js pnpm-lock.yaml
+  run_step
+  check 'ready to merge' ready
+  check 'says why' grep -qF 'A security fix (every package it updates has an open Dependabot alert: hls.js)' <(last_comment)
+}
+
 patched_foreign_commit_waits() {
   patched_setup 1.7.4
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'github-actions[bot]' 'deps: hls.js'),$(commit 'someone' 'tweak')]"
@@ -1339,6 +1421,7 @@ fsa_setup() {
   echo '{"name":"fsaunpack","lockfileVersion":3,"packages":{"":{"name":"fsaunpack"},"node_modules/express":{"version":"5.2.1"},"node_modules/body-parser/node_modules/qs":{"version":"6.14.0"}}}' \
     > "$STATE/npmlock.base"
   jq '.packages["node_modules/express"].version = "5.3.0"' "$STATE/npmlock.base" > "$STATE/npmlock.head"
+  published express 5.3.0 "$(days_ago 9)"
 }
 
 fsaunpack_ready() {
@@ -1346,9 +1429,42 @@ fsaunpack_ready() {
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'ready to merge' ready
-  check 'asks the registry nothing' test ! -s "$STATE/curl.log"
+  check "fsaunpack's lockfile read at the merge base" has_call 'contents/fsaunpack/package-lock.json?ref=1111111111111111111111111111111111111111'
+  check 'the version it adds checked on the registry' grep -qx 'https://registry.npmjs.org/express' "$STATE/curl.log"
+  check 'nothing else looked up' test "$(wc -l < "$STATE/curl.log")" -eq 1
   check 'pnpm-lock.yaml not read' bash -c '! grep -q pnpm-lock.yaml "$0"' "$STATE/gh.log"
   check 'build compared: fsaunpack ships nothing' has_call 'release download'
+}
+
+fsaunpack_young_package_waits() {
+  fsa_setup
+  jq '.packages["node_modules/express/node_modules/qs"] = {version: "6.16.0"}' "$STATE/npmlock.head" > "$STATE/n.tmp" &&
+    mv "$STATE/n.tmp" "$STATE/npmlock.head"
+  published qs 6.16.0 "$(hours_ago 5)"
+  run_step
+  check 'not called ready' not_ready
+  check 'names the nested package' grep -qF 'qs@6.16.0 (published' <(last_comment)
+}
+
+fsaunpack_workspace_entry_ignored() {
+  # npm lists a workspace folder under packages too, with a version: not a registry package.
+  fsa_setup
+  jq '.packages["tools/sub"] = {version: "0.1.0"}' "$STATE/npmlock.head" > "$STATE/n.tmp" && mv "$STATE/n.tmp" "$STATE/npmlock.head"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'ready to merge' ready
+  check 'not looked up' bash -c '! grep -q "tools" "$0"' "$STATE/curl.log"
+}
+
+fsaunpack_security_alert_skips_wait() {
+  # An open alert on fsaunpack's lockfile for the package it updates: a security fix.
+  fsa_setup
+  published express 5.3.0 "$(hours_ago 5)"
+  alert express fsaunpack/package-lock.json
+  run_step
+  check 'ready to merge' ready
+  check 'asks the registry nothing' test ! -s "$STATE/curl.log"
+  check 'says why' grep -qF 'A security fix (every package it updates has an open Dependabot alert: express)' <(last_comment)
 }
 
 fsaunpack_other_file_waits() {
@@ -1360,6 +1476,15 @@ fsaunpack_other_file_waits() {
   check 'names the file' grep -qF 'it changes package.json, not only fsaunpack/package.json and fsaunpack/package-lock.json' <(last_comment)
 }
 
+shipped_young_package_waits() {
+  shipped_setup
+  lock_adds 'mediabunny@1.61.0'
+  published mediabunny 1.61.0 "$(hours_ago 5)"
+  run_step
+  check 'not called ready' not_ready
+  check 'names it' grep -qF 'mediabunny@1.61.0 (published' <(last_comment)
+}
+
 # A tooling update whose build differs is not ready: only the shipped group ships.
 # The owner's hold label keeps a pull request from "ready" that everything else allows.
 held_waits() {
@@ -1368,6 +1493,8 @@ held_waits() {
   run_step
   check 'not called ready' not_ready
   check 'says hold' grep -qF 'it is labelled hold' <(last_comment)
+  check 'asked who set it' has_call 'api --paginate repos/me/fs/issues/42/events?per_page=100'
+  check 'the hold stays' bash -c '! grep -qF "remove-label hold" "$0"' "$STATE/gh.log"
 }
 
 tooling_that_ships_waits() {
@@ -1514,18 +1641,516 @@ compare_after_bundle() {
   check 'compare last, after the build comparison' bash -c 'grep -E "^(api repos/me/fs/compare|release download|run download)" "$0" | tail -n 1 | grep -q "^api repos/me/fs/compare"' "$STATE/gh.log"
 }
 
-# --- No package-age wait (removed 2026-10-11, the owner's call: he merges every update
-# himself once CI is green): a version published an hour ago is ready, and the npm
-# registry is not asked.
+# --- Every package version a Dependabot or patched-library pull request adds to its lockfile
+# must be 3 days old on the npm registry (the owner's call, 2026-10-20; Dependabot's cooldown
+# holds back only what it bumps). A security fix is not held back.
 
-lock_new_package_ready() {
+lock_nothing_added() {
+  setup
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'reads the merge base lockfile' has_call 'api -H Accept: application/vnd.github.raw repos/me/fs/contents/pnpm-lock.yaml?ref=1111111111111111111111111111111111111111'
+  check "and the pull request's" has_call "api -H Accept: application/vnd.github.raw repos/me/fs/contents/pnpm-lock.yaml?ref=$sha"
+  check 'asks the registry nothing' test ! -s "$STATE/curl.log"
+  check 'ready to merge' ready
+  check 'no recheck marker' bash -c '! grep -qF "update-prs-recheck" "$0"' "$STATE/comments.json"
+}
+
+lock_old_packages() {
+  setup
+  lock_adds left-pad@1.3.0 "'@babel/core@7.0.0'"
+  published left-pad 1.3.0 2018-04-09T00:00:00.000Z
+  published @babel/core 7.0.0 "$(days_ago 4)"
+  run_step
+  check 'looks up the added package' grep -qx 'https://registry.npmjs.org/left-pad' "$STATE/curl.log"
+  check 'and the scoped one, its / escaped' grep -qx 'https://registry.npmjs.org/@babel%2Fcore' "$STATE/curl.log"
+  check 'nothing else' test "$(wc -l < "$STATE/curl.log")" -eq 2
+  check 'ready to merge' ready
+}
+
+lock_young_package() {
+  setup
+  lock_adds left-pad@1.3.0 pnpm@11.28.2
+  published left-pad 1.3.0 2018-04-09T00:00:00.000Z
+  pub=$(days_ago 2)
+  published pnpm 11.28.2 "$pub"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check 'names the young one and its date' grep -qF "pnpm@11.28.2 (published ${pub:0:10})" <(last_comment)
+  check 'says 3 days' grep -qF 'package versions under 3 days old or of unknown age' <(last_comment)
+  check 'not the old one' bash -c '! grep -qF left-pad <<< "$0"' "$(last_comment)"
+  check 'assigned' grep -qx nawid "$STATE/assignees"
+  check 'a look key' grep -qF '<!-- update-prs: look -->' <(last_comment)
+}
+
+lock_just_under_3_days() {
+  setup
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 71)"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check 'names it' grep -qF 'pnpm@11.28.2 (published' <(last_comment)
+}
+
+lock_just_over_3_days() {
+  setup
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 73)"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'ready to merge' ready
+}
+
+lock_changed_version() {
+  # A bump replaces a key: only the new version is new.
+  setup
+  sed 's/eslint@10\.11\.0/eslint@10.12.0/' "$STATE/lock.base" > "$STATE/lock.head"
+  published eslint 10.12.0 "$(days_ago 1)"
+  run_step
+  check 'looks up only eslint' test "$(cat "$STATE/curl.log")" = 'https://registry.npmjs.org/eslint'
+  check 'not called ready' not_ready
+  check 'names it' grep -qF 'eslint@10.12.0 (published' <(last_comment)
+}
+
+# recheck_within <from> <to>: the last comment's marker names a time in [from, to], this run and commit.
+recheck_within() {
+  local at
+  at=$(last_comment | sed -n "s/^<!-- update-prs-recheck: \([0-9]*\) 555 $sha -->$/\1/p")
+  [ -n "$at" ] && [ "$at" -ge "$1" ] && [ "$at" -le "$2" ]
+}
+
+lock_unknown_age() {
+  # A package the registry does not have, and a version it does not list. The registry may
+  # have failed for a moment: asked again a day later (the pull request waits all the same).
+  setup
+  lock_adds no-such-pkg-fs-zz9@1.0.0 left-pad@9.9.9
+  published left-pad 1.3.0 2018-04-09T00:00:00.000Z
+  t0=$(date -u +%s)
+  run_step
+  t1=$(date -u +%s)
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check 'the missing package, age unknown' grep -qF 'no-such-pkg-fs-zz9@1.0.0 (age unknown)' <(last_comment)
+  check 'the missing version, age unknown' grep -qF 'left-pad@9.9.9 (age unknown)' <(last_comment)
+  check 'decided again a day later' recheck_within $((t0 + 86400)) $((t1 + 86400))
+  check 'says why' grep -qF 'when the registry is asked again about the ages it did not give, or within a day after.' <(last_comment)
+}
+
+lock_unknown_and_young() {
+  # An unknown age, and a version that is 3 days old only in two and a half days: the later.
+  setup
+  lock_adds no-such-pkg-fs-zz9@1.0.0 left-pad@1.3.0
+  pub=$(hours_ago 12)
+  published left-pad 1.3.0 "$pub"
+  run_step
+  at=$(( $(date -u -d "$pub" +%s) + 3 * 86400 ))
+  check 'when the youngest is old enough' grep -qx "<!-- update-prs-recheck: $at 555 $sha -->" <(last_comment)
+  check 'says why' grep -qF 'when the youngest of those versions is 3 days old' <(last_comment)
+}
+
+lock_base_unreadable() {
   setup
   lock_adds left-pad@1.3.0
-  published left-pad 1.3.0 "$(hours_ago 1)"
+  : > "$STATE/lock_unreadable_1111111111111111111111111111111111111111"
+  t0=$(date -u +%s)
+  run_step
+  t1=$(date -u +%s)
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check 'says so' grep -qF 'its pnpm-lock.yaml could not be read' <(last_comment)
+  check 'read again a day later' recheck_within $((t0 + 86400)) $((t1 + 86400))
+  check 'says why' grep -qF 'when the lockfile is read again' <(last_comment)
+}
+
+lock_head_unreadable() {
+  setup
+  : > "$STATE/lock_unreadable_$sha"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check 'says so' grep -qF 'its pnpm-lock.yaml could not be read' <(last_comment)
+}
+
+# security-alerts.yml's daily watch reads when to decide again, the run and the commit.
+lock_recheck_marker() {
+  setup
+  lock_adds pnpm@11.28.2
+  pub=$(hours_ago 30)
+  published pnpm 11.28.2 "$pub"
+  run_step
+  at=$(( $(date -u -d "$pub" +%s) + 3 * 86400 ))
+  check 'not called ready' not_ready
+  check 'marks when, the run and the commit' grep -qx "<!-- update-prs-recheck: $at 555 $sha -->" <(last_comment)
+  check 'says when and why, readably' grep -qF "decided again at $(date -u -d "@$at" '+%Y-%m-%d %H:%M UTC'), when the youngest of those versions is 3 days old, or within a day after." <(last_comment)
+}
+
+lock_recheck_newest_of_two() {
+  setup
+  lock_adds pnpm@11.28.2 left-pad@1.3.0
+  published pnpm 11.28.2 "$(hours_ago 30)"
+  pub=$(hours_ago 10)
+  published left-pad 1.3.0 "$pub"
+  run_step
+  at=$(( $(date -u -d "$pub" +%s) + 3 * 86400 ))
+  check 'the youngest decides when' grep -qx "<!-- update-prs-recheck: $at 555 $sha -->" <(last_comment)
+}
+
+security_update_body_skips_wait() {
+  # Dependabot's security updates end their body with this line (#352, #353).
+  setup
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 2)"
+  prbody $'Bumps the npm_and_yarn group with 1 update.\n\n---\nYou can disable automated security fix PRs for this repo from the [Security Alerts page](https://github.com/me/fs/network/alerts).'
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'ready to merge' ready
   check 'asks the registry nothing' test ! -s "$STATE/curl.log"
+  check 'reads no lockfile for it' bash -c '! grep -q "contents/pnpm-lock.yaml" "$0"' "$STATE/gh.log"
+  check 'says why' grep -qF 'A security fix (Dependabot opened it as a security update): the 3-day wait for new releases does not hold it back.' <(last_comment)
+}
+
+security_alert_skips_wait() {
+  # #95 was a security update without that line: an open alert for what it updates tells.
+  setup
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 2)"
+  alert eslint pnpm-lock.yaml
+  run_step
+  check 'ready to merge' ready
+  check 'asked for the open alerts' has_call 'api --paginate repos/me/fs/dependabot/alerts?state=open&per_page=100'
+  check 'asks the registry nothing' test ! -s "$STATE/curl.log"
+  check 'says why' grep -qF 'A security fix (every package it updates has an open Dependabot alert: eslint)' <(last_comment)
+}
+
+security_alert_for_one_of_a_group_waits() {
+  # A grouped version update with one alerted member: that member's fix comes as a security
+  # update of its own; the group waits like any other.
+  setup
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'Bump the tooling-minor-and-patch group with 5 updates' "$group_meta")]"
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 2)"
+  alert js-yaml pnpm-lock.yaml
+  run_step
+  check 'not called ready' not_ready
+  check 'no security note' bash -c '! grep -qF "A security fix" <<< "$0"' "$(last_comment)"
+}
+
+security_alert_for_every_one_of_a_group() {
+  setup
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'Bump the tooling-minor-and-patch group with 5 updates' "$group_meta")]"
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 2)"
+  for p in @types/chrome @types/node js-yaml vitest web-ext; do alert "$p" pnpm-lock.yaml; done
+  run_step
+  check 'ready to merge' ready
+  check 'names them' grep -qF 'every package it updates has an open Dependabot alert: @types/chrome @types/node js-yaml vitest web-ext' <(last_comment)
+}
+
+security_alert_on_other_lockfile_waits() {
+  setup
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 2)"
+  alert eslint fsaunpack/package-lock.json
+  run_step
+  check 'not called ready' not_ready
+  check 'names the young one' grep -qF 'pnpm@11.28.2 (published' <(last_comment)
+  check 'no security note' bash -c '! grep -qF "A security fix" <<< "$0"' "$(last_comment)"
+}
+
+security_alert_for_other_package_waits() {
+  setup
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 2)"
+  alert eslint-plugin-x pnpm-lock.yaml
+  alert lint pnpm-lock.yaml
+  run_step
+  check 'not called ready' not_ready
+}
+
+security_alerts_unreadable_waits() {
+  # Without the alerts, the wait applies: a security fix waits 3 days rather than a young
+  # release slipping through.
+  setup
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 2)"
+  alert eslint pnpm-lock.yaml
+  : > "$STATE/alerts_fail"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check 'warns' grep -qF 'The Dependabot alerts could not be read' "$T/out"
+}
+
+# --- Red twice on an update pull request: the new version most likely needs code changes.
+# It is labelled hold, and one issue "Migration: <what> <version>" says what to do; a green
+# run closes it and takes the hold off again.
+
+migration_opened() {
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'labelled hold' grep -qx hold "$STATE/labels"
+  check 'and ci-failed' grep -qx ci-failed "$STATE/labels"
+  check 'one issue' test "$(issues_n)" -eq 1
+  check 'its title' test "$(issue_of 700 title)" = 'Migration: eslint 10.12.0'
+  check 'assigned to the owner' test "$(issue_of 700 assignee)" = nawid
+  check '@mentions the owner, links the pull request' grep -qF '@nawid CI failed twice on #42 (build(deps-dev): bump eslint)' <(issue_of 700 body)
+  check 'the failed step' grep -qF '| Lint, test and build | Unit tests | the unit tests (Vitest) |' <(issue_of 700 body)
+  check 'the log' grep -qF 'FAIL tests/unit/x.test.mjs > it breaks' <(issue_of 700 body)
+  check "main's CI" grep -qF 'main, the latest push: success' <(issue_of 700 body)
+  check 'the branch to migrate on' grep -qF '`migrate/eslint-10.12.0`' <(issue_of 700 body)
+  check 'a test pinning the new behaviour' grep -qF 'with a test that pins the new behaviour' <(issue_of 700 body)
+  check 'how to run CI again' grep -qF '`@dependabot rebase` on #42 runs its CI again' <(issue_of 700 body)
+  check 'how to park it' grep -qF '`@dependabot ignore this major version` on #42 parks it' <(issue_of 700 body)
+  check 'its marker' grep -qx '<!-- migration-pr: 42 -->' <(issue_of 700 body)
+  check 'the comment links it' grep -qF 'this pull request is labelled `hold`, and #700 says what to do' <(last_comment)
+  check 'one comment' test "$(comments_n)" -eq 1
+}
+
+migration_not_on_first_failure() {
+  # GitHub refused the second try: one failure says too little.
+  setup
+  export CONCLUSION=failure
+  : > "$STATE/dispatch_fails"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'no issue' test "$(issues_n)" -eq 0
+  check 'no hold' bash -c '! grep -qx hold "$0"' "$STATE/labels"
+  check 'the comment names none' bash -c '! grep -qF "says what to do" <<< "$0"' "$(last_comment)"
+}
+
+migration_not_before_second_try() {
+  setup
+  export CONCLUSION=failure
+  run_step
+  check 'no issue' test "$(issues_n)" -eq 0
+  check 'no issue call' bash -c '! grep -q "^issue " "$0"' "$STATE/gh.log"
+}
+
+migration_same_again() {
+  # Twice red again (a rebase failed the same way): the same issue, edited, no new email.
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2
+  run_step
+  pr app/dependabot false '[{"name":"ci-failed"},{"name":"hold"}]'
+  : > "$STATE/gh.log"
+  export RUN_URL='https://github.com/me/fs/actions/runs/556'
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'still one issue' test "$(issues_n)" -eq 1
+  check 'edited' has_call 'issue edit 700 --title Migration: eslint 10.12.0 --body-file'
+  check 'with the new run' grep -qF 'runs/556' <(issue_of 700 body)
+  check 'no new issue' bash -c '! grep -q "^issue create" "$0"' "$STATE/gh.log"
+  check 'hold not added again' bash -c '! grep -qF "add-label hold" "$0"' "$STATE/gh.log"
+}
+
+group_meta='---
+updated-dependencies:
+- dependency-name: "@types/chrome"
+  dependency-version: 0.3.5
+  dependency-type: direct:development
+  update-type: version-update:semver-patch
+  dependency-group: tooling-minor-and-patch
+- dependency-name: "@types/node"
+  dependency-version: 26.6.5
+  dependency-type: direct:development
+  update-type: version-update:semver-patch
+  dependency-group: tooling-minor-and-patch
+- dependency-name: js-yaml
+  dependency-version: 5.5.0
+  dependency-type: direct:development
+  update-type: version-update:semver-minor
+  dependency-group: tooling-minor-and-patch
+- dependency-name: vitest
+  dependency-version: 5.0.5
+  dependency-type: direct:development
+  update-type: version-update:semver-patch
+  dependency-group: tooling-minor-and-patch
+- dependency-name: web-ext
+  dependency-version: 10.8.0
+  dependency-type: direct:development
+  update-type: version-update:semver-minor
+  dependency-group: tooling-minor-and-patch
+...'
+
+migration_group() {
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'Bump the tooling-minor-and-patch group with 5 updates' "$group_meta")]"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'the group and its first three' test "$(issue_of 700 title)" = 'Migration: tooling-minor-and-patch (@types/chrome 0.3.5, @types/node 26.6.5, js-yaml 5.5.0 and 2 more)'
+  check 'a branch for the group at this commit' grep -qF '`migrate/tooling-minor-and-patch-aaaaaaaa`' <(issue_of 700 body)
+  check "the group's ignore" grep -qF '`@dependabot ignore <dependency name> major version` on #42 parks the package that breaks' <(issue_of 700 body)
+}
+
+migration_scoped_name() {
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2 BRANCH='dependabot/npm_and_yarn/wdio/cli-10.0.0'
+  local meta=$'---\nupdated-dependencies:\n- dependency-name: "@wdio/cli"\n  dependency-version: 10.0.0\n  dependency-type: direct:development\n  update-type: version-update:semver-major\n...'
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'Bump @wdio/cli from 9.32.0 to 10.0.0' "$meta")]"
+  run_step
+  check 'its name without quotes' test "$(issue_of 700 title)" = 'Migration: @wdio/cli 10.0.0'
+  check 'a branch name git takes' grep -qF '`migrate/wdio-cli-10.0.0`' <(issue_of 700 body)
+}
+
+migration_toolchain_pnpm() {
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2 BRANCH='toolchain/pnpm-13.0.0'
+  pr app/github-actions
+  pr_title 'Toolchain update: pnpm 13.0.0'
+  prview '["package.json"]' "[$(commit 'github-actions[bot]' 'build: pnpm 12.14.0 -> 13.0.0')]"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'from its title' test "$(issue_of 700 title)" = 'Migration: pnpm 13.0.0'
+  check 'its branch' grep -qF '`migrate/pnpm-13.0.0`' <(issue_of 700 body)
+  check 'Update branch runs CI again' grep -qF '**Update branch** on #42 runs its CI again' <(issue_of 700 body)
+  check 'which workflow closes it' grep -qF 'toolchain-updates.yml closes #42' <(issue_of 700 body)
+  check 'closing skips it' grep -qF 'closing #42 skips this version for good' <(issue_of 700 body)
+  check 'reads no commits' bash -c '! grep -q "pr view 42 --json commits" "$0"' "$STATE/gh.log"
+}
+
+migration_toolchain_node() {
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2 BRANCH='toolchain/node-26'
+  pr app/github-actions
+  pr_title 'Toolchain update: Node.js 26'
+  run_step
+  check 'from its title' test "$(issue_of 700 title)" = 'Migration: Node.js 26'
+  check 'its branch' grep -qF '`migrate/node.js-26`' <(issue_of 700 body)
+}
+
+migration_patched() {
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2 BRANCH='patched/hls.js-1.8.0'
+  pr app/github-actions
+  pr_title 'Patched library update: hls.js 1.8.0'
+  run_step
+  check 'from its title' test "$(issue_of 700 title)" = 'Migration: hls.js 1.8.0'
+  check 'which workflow closes it' grep -qF 'patched-libraries.yml closes #42' <(issue_of 700 body)
+}
+
+migration_already_held() {
+  # The owner's hold is his: not added again, so it stays his (green leaves it on).
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2
+  pr app/dependabot false '[{"name":"hold"}]'
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'hold not added' bash -c '! grep -qF "add-label hold" "$0"' "$STATE/gh.log"
+  check 'the issue all the same' test "$(issues_n)" -eq 1
+}
+
+migration_takes_over_open_issue_by_title() {
+  # An open migration issue for the same version, of an earlier pull request: this one takes it over.
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2
+  open_issue 690 'Migration: eslint 10.12.0' $'old\n\n<!-- migration-pr: 41 -->'
+  run_step
+  check 'no new issue' test "$(issues_n)" -eq 1
+  check 'edited' has_call 'issue edit 690'
+  check 'now names #42' grep -qx '<!-- migration-pr: 42 -->' <(issue_of 690 body)
+  check 'the comment links it' grep -qF '#690 says what to do' <(last_comment)
+}
+
+migration_ignores_someone_elses_issue() {
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2
+  open_issue 690 'Migration: eslint 10.12.0' '<!-- migration-pr: 42 -->' nawid
+  run_step
+  check 'a new issue' test "$(issue_of 701 title)" = 'Migration: eslint 10.12.0'
+  check "#690 untouched" bash -c '! grep -q "^issue [a-z]* 690" "$0"' "$STATE/gh.log"
+}
+
+migration_not_for_other_branch() {
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2 BRANCH='feature/x'
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'no issue' test "$(issues_n)" -eq 0
+  check 'no hold' bash -c '! grep -qx hold "$0"' "$STATE/labels"
+}
+
+green_closes_migration() {
+  setup
+  open_issue 700 'Migration: eslint 10.12.0' $'x\n<!-- migration-pr: 42 -->'
+  open_issue 701 'Migration: other 1.0.0' '<!-- migration-pr: 41 -->'
+  open_issue 702 'Migration: other 2.0.0' '<!-- migration-pr: 4 -->'
+  open_issue 703 'Migration: eslint 10.12.0' '<!-- migration-pr: 42 -->' nawid
+  open_issue 704 'Something else' '<!-- migration-pr: 42 -->'
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'ready to merge' ready
+  check 'closes #700' test "$(issue_of 700 state)" = closed
+  check 'as completed' test "$(issue_of 700 reason)" = completed
+  check 'saying why' grep -qF 'CI passes on #42 now (https://github.com/me/fs/actions/runs/555). Closing.' <(issue_of 700 closing)
+  check 'not the others' test "$(jq '[.[] | select(.state == "open")] | length' "$STATE/issues.json")" -eq 4
+}
+
+green_close_refused_goes_on() {
+  # The issue was closed by hand a moment before: the verdict comes all the same.
+  setup
+  open_issue 700 'Migration: eslint 10.12.0' '<!-- migration-pr: 42 -->'
+  : > "$STATE/issue_close_fails"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'tried' has_call 'issue close 700'
+  check 'ready to merge all the same' ready
+}
+
+green_removes_bot_hold() {
+  setup
+  pr app/dependabot false '[{"name":"hold"}]'
+  event labeled ci-failed 'github-actions[bot]'
+  event labeled hold 'github-actions[bot]'
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'takes it off' has_call 'pr edit 42 --remove-label hold'
+  check 'ready to merge' ready
+}
+
+green_keeps_hold_set_again_by_owner() {
+  setup
+  pr app/dependabot false '[{"name":"hold"}]'
+  event labeled hold 'github-actions[bot]'
+  event unlabeled hold nawid
+  event labeled hold nawid
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'the hold stays' bash -c '! grep -qF "remove-label hold" "$0"' "$STATE/gh.log"
+  check 'not called ready' not_ready
+  check 'says hold' grep -qF 'it is labelled hold' <(last_comment)
+}
+
+green_keeps_hold_when_unreadable() {
+  setup
+  pr app/dependabot false '[{"name":"hold"}]'
+  event labeled hold 'github-actions[bot]'
+  : > "$STATE/events_fail"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'the hold stays' bash -c '! grep -qF "remove-label hold" "$0"' "$STATE/gh.log"
+  check 'not called ready' not_ready
+}
+
+migration_then_green() {
+  # Red twice, migrated on main, rebased, green: the issue closes, the hold comes off.
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2
+  run_step
+  pr app/dependabot false '[{"name":"ci-failed"},{"name":"hold"}]'
+  event labeled ci-failed 'github-actions[bot]'
+  event labeled hold 'github-actions[bot]'
+  export CONCLUSION=success RUN_ATTEMPT=1
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'the issue closed' test "$(issue_of 700 state)" = closed
+  check 'ci-failed off' grep -qx 'removed ci-failed' "$STATE/labels"
+  check 'hold off' grep -qx 'removed hold' "$STATE/labels"
+  check 'ready to merge' ready
 }
 
 no_pr
@@ -1607,13 +2232,19 @@ patched_same_version_waits
 patched_unparseable_waits
 patched_range_on_main_waits
 patched_extra_file_waits
+patched_young_package_waits
+patched_security_alert_skips_wait
 patched_foreign_commit_waits
 shipped_ready
 shipped_major_ready
 shipped_major_own_branch_ready
 shipped_list_unreadable_waits
 fsaunpack_ready
+fsaunpack_young_package_waits
+fsaunpack_workspace_entry_ignored
+fsaunpack_security_alert_skips_wait
 fsaunpack_other_file_waits
+shipped_young_package_waits
 tooling_that_ships_waits
 held_waits
 patched_review_passed
@@ -1630,7 +2261,44 @@ update_refused_head_moved
 update_refused
 green_mergeable_stays_unknown
 compare_after_bundle
-lock_new_package_ready
+lock_nothing_added
+lock_old_packages
+lock_young_package
+lock_just_under_3_days
+lock_just_over_3_days
+lock_changed_version
+lock_unknown_age
+lock_base_unreadable
+lock_head_unreadable
+lock_unknown_and_young
+lock_recheck_marker
+lock_recheck_newest_of_two
+security_update_body_skips_wait
+security_alert_skips_wait
+security_alert_on_other_lockfile_waits
+security_alert_for_other_package_waits
+security_alerts_unreadable_waits
+security_alert_for_one_of_a_group_waits
+security_alert_for_every_one_of_a_group
+migration_opened
+migration_not_on_first_failure
+migration_not_before_second_try
+migration_same_again
+migration_group
+migration_scoped_name
+migration_toolchain_pnpm
+migration_toolchain_node
+migration_patched
+migration_already_held
+migration_takes_over_open_issue_by_title
+migration_ignores_someone_elses_issue
+migration_not_for_other_branch
+green_closes_migration
+green_close_refused_goes_on
+green_removes_bot_hold
+green_keeps_hold_set_again_by_owner
+green_keeps_hold_when_unreadable
+migration_then_green
 
 printf '%d checks, %d failed\n' "$checks" "$fails"
 [ "$fails" -eq 0 ]
