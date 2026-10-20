@@ -401,10 +401,17 @@ activation for the user's, so a video the page started by itself within those 5 
 preview whose play came just after the MPV key - went to mpv as the user's (mpv-shortcut on
 CI's Windows runner, runs 38454197759 and 39192185180; only the next test's check saw it).
 An activation counts now only when this frame saw no shortcut-like key in the last 5 s
-(`lastShortcutKeyAt`); a real press counts as before. Not covered: a same-origin frame below
-the one the key went to (Firefox activates it too, and it saw no key). Tests:
-contentUserPlay.test.mjs ("the activation a shortcut's key gave the page" fails without the
-fix), and mpv-shortcut's first case starts the preview again right after the key.
+(`lastShortcutKeyAt`); a real press counts as before, and a media key marks nothing (it is a
+play control: a site's play on MediaPlayPause stays the user's; "a media key that starts the
+video" fails without that). Two cases stay open, both narrower than the bug: a same-origin
+frame below the one the key went to (Firefox activates it too, and it saw no key, so its
+preview still counts), and a click in ANOTHER frame within 5 s of the key, which activates
+this one (its play no longer counts). Both come from the mark being per frame; the precise
+form is per tab: the background, which gets the MPV command, tells the tab's frames when it
+came, and only that command's activation stops counting (glm-5.3-flash's review of #505).
+Tests: contentUserPlay.test.mjs ("the activation a shortcut's key gave the page" fails
+without the fix), and mpv-shortcut's first case starts the preview again right after the
+key, before anything else uses up the 5 s.
 
 **A page that cancels a shortcut (2026-09-27).** Firefox lets page content
 cancel an extension's shortcut: a keydown the page calls `preventDefault()` on

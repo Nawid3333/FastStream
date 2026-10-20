@@ -2677,8 +2677,9 @@
       (ModifierKeys.includes(e.key) || e.key === 'Escape' || couldBeExtensionShortcut(e));
     if (!noPress) {
       lastUserGestureAt = performance.now();
-    } else if (!ModifierKeys.includes(e.key) && e.key !== 'Escape') {
-      // Firefox's activation for it is not the user's (playFollowsUserPress).
+    } else if (!ModifierKeys.includes(e.key) && e.key !== 'Escape' && !/^Media/.test(e.key)) {
+      // Firefox's activation for it is not the user's (playFollowsUserPress). A media key is
+      // a play control, not a shortcut: the play it starts stays the user's.
       lastShortcutKeyAt = performance.now();
     }
     for (const node of e.composedPath()) {

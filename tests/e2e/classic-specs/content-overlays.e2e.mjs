@@ -273,7 +273,7 @@ async function visibilities(ids) {
  */
 async function playerAtRest(frame) {
   await browser.switchFrame(null);
-  const box = await browser.execute(() => {
+  await browser.execute(() => {
     const iframe = document.querySelector('iframe[src*="player/index.html"]');
     if (!window.__playerRestyled) {
       window.__playerRestyled = performance.now();
@@ -281,10 +281,14 @@ async function playerAtRest(frame) {
         window.__playerRestyled = performance.now();
       }).observe(iframe, {attributes: true, attributeFilter: ['style']});
     }
-    return {width: iframe.clientWidth, height: iframe.clientHeight};
   });
   await browser.waitUntil(() => browser.execute(() => performance.now() - window.__playerRestyled > 500),
       {timeout: 10000, interval: 100, timeoutMsg: 'content.js went on laying out the player for 10 s'});
+  // the size once the layout is done, not before: a last restyle can change it
+  const box = await browser.execute(() => {
+    const iframe = document.querySelector('iframe[src*="player/index.html"]');
+    return {width: iframe.clientWidth, height: iframe.clientHeight};
+  });
   await browser.switchFrame(frame);
   await browser.waitUntil(() => browser.execute((box) => innerWidth === box.width && innerHeight === box.height, box),
       {timeout: 5000, interval: 100, timeoutMsg: `the player never took its iframe's size, ${box.width}x${box.height}`});

@@ -754,11 +754,11 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     await expectMode('off', 'visiting a site that is not on the allowlist');
 
     await pressShortcut();
-    await expectMode('mpv', 'pressing Alt+F with FastStream off');
     // The page starts its preview again a moment after the key, as a carousel or a hover
     // preview does. Firefox counts the key press as an activation for 5 s, and such a play
     // went to mpv as the user's (content.js playFollowsUserPress; the preview reached mpv on
-    // CI when its own start came after the key, runs 38454197759 and 39192185180).
+    // CI when its own start came after the key, runs 38454197759 and 39192185180). Right
+    // after the key, before anything else takes time: the check needs those 5 s still on.
     await browser.switchToWindow(siteHandle);
     expect(await browser.execute(() => {
       const preview = document.getElementById('preview');
@@ -766,6 +766,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
       preview.play().catch(() => {});
       return navigator.userActivation.isActive;
     })).toBe(true);
+    await expectMode('mpv', 'pressing Alt+F with FastStream off');
     await expectNothingInMpv('switching MPV on with a preview playing and the main video preloaded');
 
     const before = mpvCount();

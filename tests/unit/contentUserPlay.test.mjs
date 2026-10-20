@@ -77,6 +77,17 @@ describe('a play the user started', () => {
     p.dispatchDocument('play', {target: video});
     expect(plays().length).toBe(1);
   });
+
+  it('is reported for a media key that starts the video (Firefox activates the page for it)', () => {
+    for (const key of [{key: 'MediaPlayPause'}, {key: 'MediaPlay'}]) {
+      const {p, video, plays, activation} = page();
+      p.dispatchWindow('keydown', key);
+      activation.isActive = true;
+      p.advance(300);
+      p.dispatchDocument('play', {target: video});
+      expect(plays().length, JSON.stringify(key)).toBe(1);
+    }
+  });
 });
 
 describe('a play nobody started', () => {
