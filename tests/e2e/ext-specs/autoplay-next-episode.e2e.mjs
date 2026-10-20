@@ -268,8 +268,20 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
 
     await onPage('/ep2');
     await intoPlayer('the next episode');
-    await browser.waitUntil(() => browser.execute(() => !!window.fastStream?.state?.carriedFullscreen),
-        {timeout: 30000, timeoutMsg: 'the next episode did not carry the fullscreen'});
+    // Both halves: carryFullscreen sets carriedFullscreen when the window is fullscreen, and
+    // windowedFullscreen (the player filling the page) only when the background answers its
+    // second request. Read right after the first, the second was still false on a slow
+    // runner (CI runs 38255707770, 38463874992, 39000867338: fillsPage false, all else right).
+    let carried;
+    await browser.waitUntil(async () => {
+      carried = await browser.execute(() => ({
+        carried: !!window.fastStream?.state?.carriedFullscreen,
+        fillsPage: !!window.fastStream?.state?.windowedFullscreen,
+      }));
+      return carried.carried && carried.fillsPage;
+    }, {timeout: 30000, interval: 250}).catch(() => {
+      throw new Error(`the next episode did not carry the fullscreen: ${JSON.stringify(carried)}`);
+    });
     expect(await browser.execute(() => ({
       state: window.fastStream.getFullscreenState(),
       fillsPage: !!window.fastStream.state.windowedFullscreen,
