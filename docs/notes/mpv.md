@@ -394,6 +394,18 @@ the tree; this records presses per frame). Tests: `tests/unit/contentUserPlay.te
 9 fail without the fix, the rest guard the autoplay cases) and mpv-shortcut's `/popup` page,
 whose mpv half runs where the host is installed (CI's Windows e2e jobs).
 
+**The shortcut's own activation (2026-10-20).** Firefox activates the page for a key with a
+modifier too: after Alt+F, `navigator.userActivation.isActive` is true for 5 s (traced on
+Firefox 158, Linux and Windows, CI run 39473761807). `playFollowsUserPress` took any
+activation for the user's, so a video the page started by itself within those 5 s - a muted
+preview whose play came just after the MPV key - went to mpv as the user's (mpv-shortcut on
+CI's Windows runner, runs 38454197759 and 39192185180; only the next test's check saw it).
+An activation counts now only when this frame saw no shortcut-like key in the last 5 s
+(`lastShortcutKeyAt`); a real press counts as before. Not covered: a same-origin frame below
+the one the key went to (Firefox activates it too, and it saw no key). Tests:
+contentUserPlay.test.mjs ("the activation a shortcut's key gave the page" fails without the
+fix), and mpv-shortcut's first case starts the preview again right after the key.
+
 **A page that cancels a shortcut (2026-09-27).** Firefox lets page content
 cancel an extension's shortcut: a keydown the page calls `preventDefault()` on
 never reaches the command (the extension's `<key>` has no `reserved`

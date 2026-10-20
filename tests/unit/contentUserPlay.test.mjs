@@ -50,6 +50,26 @@ describe('a play the user started', () => {
     expect(plays().length).toBe(1);
   });
 
+  it('is reported for a click after the MPV key, whose own activation does not count', () => {
+    const {p, video, plays, activation} = page();
+    p.dispatchWindow('keydown', {key: 'f', altKey: true});
+    activation.isActive = true;
+    p.advance(500);
+    p.dispatchWindow('pointerdown');
+    p.dispatchDocument('play', {target: video});
+    expect(plays().length).toBe(1);
+  });
+
+  it('is reported on an activation this frame did not see the press of (another frame\'s click)', () => {
+    const {p, video, plays, activation} = page();
+    p.dispatchWindow('keydown', {key: 'f', altKey: true});
+    // The shortcut's activation has run out; a click in a frame below activated this one.
+    p.advance(5001);
+    activation.isActive = true;
+    p.dispatchDocument('play', {target: video});
+    expect(plays().length).toBe(1);
+  });
+
   it('is reported up to Firefox\'s activation time after the press', () => {
     const {p, video, plays} = page();
     p.dispatchWindow('pointerdown');
@@ -97,6 +117,21 @@ describe('a play nobody started', () => {
       {key: 'Shift', shiftKey: true}, {key: 'AltGraph'}]) {
       const {p, video, plays} = page();
       p.dispatchWindow('keydown', key);
+      p.dispatchDocument('play', {target: video});
+      expect(plays(), JSON.stringify(key)).toEqual([]);
+    }
+  });
+
+  // Firefox activates the page for such a key as for any other: navigator.userActivation.isActive
+  // is true for 5 s after Alt+F (measured on Firefox 158, CI run 39473761807). A muted preview
+  // whose play came a moment after the key went to mpv as the user's (mpv-shortcut.e2e.mjs on
+  // CI, runs 38454197759 and 39192185180).
+  it('is not reported for the activation a shortcut\'s key gave the page', () => {
+    for (const key of [{key: 'f', altKey: true}, {key: 'U', ctrlKey: true, shiftKey: true}, {key: 'F9'}]) {
+      const {p, video, plays, activation} = page();
+      p.dispatchWindow('keydown', key);
+      activation.isActive = true;
+      p.advance(1500);
       p.dispatchDocument('play', {target: video});
       expect(plays(), JSON.stringify(key)).toEqual([]);
     }
