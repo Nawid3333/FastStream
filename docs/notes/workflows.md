@@ -315,6 +315,20 @@
   1.3 s before the iframe was found to 0.5 s after. It now checks what a reload changes
   (the page is loaded again, and the page cache-busts its stream URL on every load) and
   fails when `chrome.tabs.reload()` is added to that branch.
+- **The web and extension specs of #501** (2026-10-20, the week to 2026-10-19), from both
+  attempts' logs: ram-budget's retries were a real bug, a fragment let go of while it was
+  being written (storage.md, "RAM first"). dialogs read the colour theme before main.mjs had
+  applied the stored options, which put the default back: a spec that changes what
+  `setOptions` sets waits for `window.fastStream.optionsApplied` first, as client-setup and
+  player-controls did. autoplay-next-episode read `windowedFullscreen` the moment
+  `carriedFullscreen` was set, but the background's second answer sets it: wait for an
+  async flow's last effect, not its first. Not explained by the logs, so their failures say
+  more now: storage (the OPFS worker silent for 28 s, once the Cache API and the page too)
+  probes OPFS from the page, the Cache API and IndexedDB when a step never settles;
+  iframe-redirect (OPEN_PLAYER sent, no player) prints the frame's videos and what an
+  IntersectionObserver reports of them, and the background logs content.js's answer to
+  OPEN_PLAYER ("Player opening answered"); player-peers-bfcache (Back reloaded the page once,
+  on Linux) records pagehide's `persisted`: cached and dropped, or never cached.
 - **e2e config, 2026-09-25:** `autoXvfb: false` - Firefox runs `-headless`, and WebdriverIO
   otherwise spawns workers through `xvfb-run`, whose Ubuntu 26.04 version closes fd 3, the
   worker IPC channel: every worker died with `write EINVAL` (webdriverio#15685, unfixed in
