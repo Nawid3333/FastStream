@@ -46,12 +46,14 @@ the packages Dependabot bumps, not what the new lockfile brings in with them, so
 `update-prs.yml` looks up every package version a Dependabot or patched-library PR adds to
 its lockfile on the npm registry: one under 3 days old, or whose age the registry does not
 give, keeps the PR from "ready to merge", even a tooling one. The comment says when the
-youngest is 3 days old; within a day after that, `security-alerts.yml`'s daily watch has
+youngest is 3 days old (for an age the registry did not give, or a lockfile that could not
+be read, a day later: that may have been a moment's failure); within a day after that, `security-alerts.yml`'s daily watch has
 `update-prs.yml` decide again, and the PR becomes "ready to merge" by itself. A security fix
 waits for neither: Dependabot gives its security updates no cooldown, and `update-prs.yml`
 skips the age check for a Dependabot security update (the line "You can disable automated
-security fix PRs" in its description) and for a PR that updates a package with an open
-Dependabot alert. `toolchain-updates.yml` takes a pnpm release once it is 3 days old;
+security fix PRs" in its description) and for a PR every package of which has an open
+Dependabot alert (a grouped update with one such package waits: that package's fix comes as
+a security update of its own). `toolchain-updates.yml` takes a pnpm release once it is 3 days old;
 pnpm's own `minimumReleaseAge` default is untouched. The patched libraries are ignored by
 Dependabot on purpose: they arrive from `patched-libraries.yml`
 (`docs/updating-patched-libraries.md`). The other libraries the extension ships come in the
@@ -224,7 +226,7 @@ comment says "ready to merge" only when all of this holds:
   Actions); the two Dockerfiles (actionlint, zizmor); a re-cut's files (patched libraries);
 - its dependency review passed, and every package version it adds to its lockfile is 3 days
   old on the npm registry (Dependabot's cooldown covers only what it bumps). Not for a
-  security fix: a Dependabot security update, or a PR that updates a package with an open
+  security fix: a Dependabot security update, or a PR every package of which has an open
   Dependabot alert. Held back only for that, it is decided again once the youngest version
   is 3 days old (`security-alerts.yml`'s daily watch starts `update-prs.yml` again);
 - an update not meant to ship (tooling, toolchain, workflows, fsaunpack): CI's build of the

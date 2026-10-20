@@ -220,13 +220,16 @@
   body has "You can disable automated security fix PRs for this repo" (measured on all 35
   Dependabot PRs here: #6, #7, #8, #352 and #353, security updates, have it; none of the
   other 30 does, #95 among them) or
-  that updates a package with an open Dependabot alert on that lockfile (#95, a security update
-  of 2026-09-30 whose body lacks the line, is why the body alone is not enough; the job asks
+  every package of which has an open Dependabot alert on that lockfile (#95, a security update
+  of 2026-09-30 whose body lacks the line, is why the body alone is not enough; every package,
+  or a grouped version update with one alerted member would waive the wait for the rest too;
+  the job asks
   for `vulnerability-alerts: read`, which actionlint 1.7.12 does not know, see
   `.github/actionlint.yaml`). Unreadable alerts: the wait applies. Held back only by age, a
   PR would sit at "look" until its next CI run, so the comment carries
   `<!-- update-prs-recheck: <time> <run> <commit> -->` (when the youngest version is 3 days
-  old; none when an age is unknown), and security-alerts.yml's daily `watch` job starts
+  old; a day later, at the latest, when an age is unknown or the lockfile could not be read,
+  which may be a moment's failure: GLM's review found the marker lost otherwise), and security-alerts.yml's daily `watch` job starts
   update-prs.yml by `workflow_dispatch` on that run once the time has passed and the PR is
   still at that commit (the CI artifact it compares lives 7 days). (2) **Red twice: hold + a
   migration issue.** When the second try fails too (again=1) on a dependabot/, toolchain/
@@ -253,9 +256,9 @@
   Dependabot's branch names write a leading dot of a directory "dot-" (git refuses a path
   segment that starts with a dot), so `/.github/zizmor` is matched as `dot-github/zizmor/`;
   no docker or composite-action PR has come here yet to show it. Tests:
-  `tests/workflows/update-prs-decide.test.sh` (413 -> 605 checks; 19 mutations of the new
-  logic, each caught), `tests/workflows/update-watch.test.sh` (83 checks, its p1 on the real
-  `.github/dependabot.yml`; 19 mutations, each caught), and `tests/unit/checkToolchain.test.mjs`
+  `tests/workflows/update-prs-decide.test.sh` (413 -> 621 checks; 22 mutations of the new
+  logic, each caught), `tests/workflows/update-watch.test.sh` (86 checks, its p1 on the real
+  `.github/dependabot.yml`; 21 mutations, each caught), and `tests/unit/checkToolchain.test.mjs`
   keeps the cooldown, zizmor's setting, update-prs.yml's cutoff and `MIN_AGE_DAYS` at one
   number (a cooldown of 5 in one entry fails it).
 - **`firefox-beta.yml`** (Monday and Thursday, and on PRs touching it or the e2e configs): `test:e2e` and

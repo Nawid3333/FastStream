@@ -48,12 +48,15 @@ case "$1 $2" in
     logged CREATE "${@:3}" >> "$LOG"
     echo "https://github.com/$GH_REPO/issues/99" ;;
   'issue edit') logged EDIT "${@:3}" >> "$LOG" ;;
-  'issue close') logged CLOSE "${@:3}" >> "$LOG" ;;
+  'issue close')
+    logged CLOSE "${@:3}" >> "$LOG"
+    if [ -n "${FX_CLOSE_FAILS:-}" ]; then echo 'stub gh: could not close' >&2; exit 1; fi ;;
   'issue comment') logged COMMENT "${@:3}" >> "$LOG" ;;
   'pr list') answer "$FX_PRS" ;;
   'pr view')
     echo "PRVIEW $3" >> "$LOG"
     state=STATE_PR_$3
+    if [ "${!state:-}" = FAIL ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
     answer "{\"state\": \"${!state:-OPEN}\"}" ;;
   'workflow run') logged DISPATCH "${@:3}" >> "$LOG" ;;
   'api -H')
@@ -199,6 +202,14 @@ check 'closes #701: its pull request was closed' contains "$LOG" \
   "CLOSE [701] [--reason] [not planned] [--comment] [#43 was closed without a merge. Closing.]"
 check 'closes nothing else' count "$LOG" 'CLOSE [' 2
 check 'asks only about the pull requests of its open migration issues' test "$(grep '^PRVIEW' "$LOG" | tr '\n' ' ')" = 'PRVIEW 42 PRVIEW 43 PRVIEW 44 '
+
+scenario 'm1b a pull request that cannot be read, a close refused -> the others all the same' "$close_step" \
+  FX_ISSUES="$(arr "$(iss 700 'Migration: a 1.0.0' '<!-- migration-pr: 42 -->')" "$(iss 701 'Migration: b 1.0.0' '<!-- migration-pr: 43 -->')" \
+    "$(iss 702 'Migration: c 1.0.0' '<!-- migration-pr: 44 -->')")" \
+  STATE_PR_42=FAIL STATE_PR_43=MERGED STATE_PR_44=CLOSED FX_CLOSE_FAILS=1
+check 'succeeds' test "$status" -eq 0
+check 'warns about #42' contains "$FIX/out" '#42 could not be read; #700 waits for the next run.'
+check 'tries #701 and #702' count "$LOG" 'CLOSE [' 2
 
 scenario 'm2 no migration issue -> nothing' "$close_step"
 check 'succeeds' test "$status" -eq 0

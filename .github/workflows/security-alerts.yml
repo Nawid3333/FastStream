@@ -236,11 +236,18 @@ jobs:
           gh issue list --state open --limit 200 --json number,title,body,author \
             --jq '.[] | select(.author.login == "app/github-actions" and (.title | startswith("Migration: "))) | ((.body // "") | capture("<!-- migration-pr: (?<pr>[0-9]+) -->")) as $m | "\(.number) \($m.pr)"' \
             > "$RUNNER_TEMP/migrations.txt"
+          # One that cannot be read or closed now (or was closed meanwhile) stops neither the
+          # others nor the steps below: the next day's run tries again.
           while read -r issue pr <&3; do
-            state=$(gh pr view "$pr" --json state --jq .state)
+            if ! state=$(gh pr view "$pr" --json state --jq .state); then
+              echo "::warning::#$pr could not be read; #$issue waits for the next run."
+              continue
+            fi
             case $state in
-              MERGED) gh issue close "$issue" --reason completed --comment "#$pr was merged. Closing." ;;
-              CLOSED) gh issue close "$issue" --reason 'not planned' --comment "#$pr was closed without a merge. Closing." ;;
+              MERGED) gh issue close "$issue" --reason completed --comment "#$pr was merged. Closing." ||
+                echo "::warning::Could not close #$issue." ;;
+              CLOSED) gh issue close "$issue" --reason 'not planned' --comment "#$pr was closed without a merge. Closing." ||
+                echo "::warning::Could not close #$issue." ;;
               *) echo "#$issue: #$pr is still open." ;;
             esac
           done 3< "$RUNNER_TEMP/migrations.txt"

@@ -183,6 +183,7 @@ case "$1 $2" in
       "$STATE/issues.json" > "$STATE/i.tmp" && mv "$STATE/i.tmp" "$STATE/issues.json"
     ;;
   'issue close')
+    if [ -f "$STATE/issue_close_fails" ]; then echo 'stub gh: could not close: closed already' >&2; exit 1; fi
     jq --argjson n "$3" --arg c "$(opt --comment "$@" || true)" --arg r "$(opt --reason "$@" || true)" \
       'map(if .number == $n then .state = "closed" | .closing = $c | .reason = $r else . end)' \
       "$STATE/issues.json" > "$STATE/i.tmp" && mv "$STATE/i.tmp" "$STATE/issues.json"
@@ -1341,7 +1342,7 @@ patched_security_alert_skips_wait() {
   alert hls.js pnpm-lock.yaml
   run_step
   check 'ready to merge' ready
-  check 'says why' grep -qF 'A security fix (it updates hls.js, which has an open Dependabot alert)' <(last_comment)
+  check 'says why' grep -qF 'A security fix (every package it updates has an open Dependabot alert: hls.js)' <(last_comment)
 }
 
 patched_foreign_commit_waits() {
@@ -1463,7 +1464,7 @@ fsaunpack_security_alert_skips_wait() {
   run_step
   check 'ready to merge' ready
   check 'asks the registry nothing' test ! -s "$STATE/curl.log"
-  check 'says why' grep -qF 'A security fix (it updates express, which has an open Dependabot alert)' <(last_comment)
+  check 'says why' grep -qF 'A security fix (every package it updates has an open Dependabot alert: express)' <(last_comment)
 }
 
 fsaunpack_other_file_waits() {
@@ -1713,28 +1714,54 @@ lock_changed_version() {
   check 'names it' grep -qF 'eslint@10.12.0 (published' <(last_comment)
 }
 
+# recheck_within <from> <to>: the last comment's marker names a time in [from, to], this run and commit.
+recheck_within() {
+  local at
+  at=$(last_comment | sed -n "s/^<!-- update-prs-recheck: \([0-9]*\) 555 $sha -->$/\1/p")
+  [ -n "$at" ] && [ "$at" -ge "$1" ] && [ "$at" -le "$2" ]
+}
+
 lock_unknown_age() {
-  # A package the registry does not have, and a version it does not list: never old enough,
-  # so no time to decide again either.
+  # A package the registry does not have, and a version it does not list. The registry may
+  # have failed for a moment: asked again a day later (the pull request waits all the same).
   setup
   lock_adds no-such-pkg-fs-zz9@1.0.0 left-pad@9.9.9
   published left-pad 1.3.0 2018-04-09T00:00:00.000Z
+  t0=$(date -u +%s)
   run_step
+  t1=$(date -u +%s)
   check 'exit 0' test "$rc" -eq 0
   check 'not called ready' not_ready
   check 'the missing package, age unknown' grep -qF 'no-such-pkg-fs-zz9@1.0.0 (age unknown)' <(last_comment)
   check 'the missing version, age unknown' grep -qF 'left-pad@9.9.9 (age unknown)' <(last_comment)
-  check 'no recheck marker' bash -c '! grep -qF "update-prs-recheck" <<< "$0"' "$(last_comment)"
+  check 'decided again a day later' recheck_within $((t0 + 86400)) $((t1 + 86400))
+  check 'says why' grep -qF 'when the registry is asked again about the ages it did not give, or within a day after.' <(last_comment)
+}
+
+lock_unknown_and_young() {
+  # An unknown age, and a version that is 3 days old only in two and a half days: the later.
+  setup
+  lock_adds no-such-pkg-fs-zz9@1.0.0 left-pad@1.3.0
+  pub=$(hours_ago 12)
+  published left-pad 1.3.0 "$pub"
+  run_step
+  at=$(( $(date -u -d "$pub" +%s) + 3 * 86400 ))
+  check 'when the youngest is old enough' grep -qx "<!-- update-prs-recheck: $at 555 $sha -->" <(last_comment)
+  check 'says why' grep -qF 'when the youngest of those versions is 3 days old' <(last_comment)
 }
 
 lock_base_unreadable() {
   setup
   lock_adds left-pad@1.3.0
   : > "$STATE/lock_unreadable_1111111111111111111111111111111111111111"
+  t0=$(date -u +%s)
   run_step
+  t1=$(date -u +%s)
   check 'exit 0' test "$rc" -eq 0
   check 'not called ready' not_ready
   check 'says so' grep -qF 'its pnpm-lock.yaml could not be read' <(last_comment)
+  check 'read again a day later' recheck_within $((t0 + 86400)) $((t1 + 86400))
+  check 'says why' grep -qF 'when the lockfile is read again' <(last_comment)
 }
 
 lock_head_unreadable() {
@@ -1756,7 +1783,7 @@ lock_recheck_marker() {
   at=$(( $(date -u -d "$pub" +%s) + 3 * 86400 ))
   check 'not called ready' not_ready
   check 'marks when, the run and the commit' grep -qx "<!-- update-prs-recheck: $at 555 $sha -->" <(last_comment)
-  check 'says when, readably' grep -qF "3 days old at $(date -u -d "@$at" '+%Y-%m-%d %H:%M UTC'): this pull request is decided again then" <(last_comment)
+  check 'says when and why, readably' grep -qF "decided again at $(date -u -d "@$at" '+%Y-%m-%d %H:%M UTC'), when the youngest of those versions is 3 days old, or within a day after." <(last_comment)
 }
 
 lock_recheck_newest_of_two() {
@@ -1794,7 +1821,31 @@ security_alert_skips_wait() {
   check 'ready to merge' ready
   check 'asked for the open alerts' has_call 'api --paginate repos/me/fs/dependabot/alerts?state=open&per_page=100'
   check 'asks the registry nothing' test ! -s "$STATE/curl.log"
-  check 'says why' grep -qF 'A security fix (it updates eslint, which has an open Dependabot alert)' <(last_comment)
+  check 'says why' grep -qF 'A security fix (every package it updates has an open Dependabot alert: eslint)' <(last_comment)
+}
+
+security_alert_for_one_of_a_group_waits() {
+  # A grouped version update with one alerted member: that member's fix comes as a security
+  # update of its own; the group waits like any other.
+  setup
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'Bump the tooling-minor-and-patch group with 5 updates' "$group_meta")]"
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 2)"
+  alert js-yaml pnpm-lock.yaml
+  run_step
+  check 'not called ready' not_ready
+  check 'no security note' bash -c '! grep -qF "A security fix" <<< "$0"' "$(last_comment)"
+}
+
+security_alert_for_every_one_of_a_group() {
+  setup
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'Bump the tooling-minor-and-patch group with 5 updates' "$group_meta")]"
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 2)"
+  for p in @types/chrome @types/node js-yaml vitest web-ext; do alert "$p" pnpm-lock.yaml; done
+  run_step
+  check 'ready to merge' ready
+  check 'names them' grep -qF 'every package it updates has an open Dependabot alert: @types/chrome @types/node js-yaml vitest web-ext' <(last_comment)
 }
 
 security_alert_on_other_lockfile_waits() {
@@ -2039,6 +2090,17 @@ green_closes_migration() {
   check 'not the others' test "$(jq '[.[] | select(.state == "open")] | length' "$STATE/issues.json")" -eq 4
 }
 
+green_close_refused_goes_on() {
+  # The issue was closed by hand a moment before: the verdict comes all the same.
+  setup
+  open_issue 700 'Migration: eslint 10.12.0' '<!-- migration-pr: 42 -->'
+  : > "$STATE/issue_close_fails"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'tried' has_call 'issue close 700'
+  check 'ready to merge all the same' ready
+}
+
 green_removes_bot_hold() {
   setup
   pr app/dependabot false '[{"name":"hold"}]'
@@ -2208,6 +2270,7 @@ lock_changed_version
 lock_unknown_age
 lock_base_unreadable
 lock_head_unreadable
+lock_unknown_and_young
 lock_recheck_marker
 lock_recheck_newest_of_two
 security_update_body_skips_wait
@@ -2215,6 +2278,8 @@ security_alert_skips_wait
 security_alert_on_other_lockfile_waits
 security_alert_for_other_package_waits
 security_alerts_unreadable_waits
+security_alert_for_one_of_a_group_waits
+security_alert_for_every_one_of_a_group
 migration_opened
 migration_not_on_first_failure
 migration_not_before_second_try
@@ -2229,6 +2294,7 @@ migration_takes_over_open_issue_by_title
 migration_ignores_someone_elses_issue
 migration_not_for_other_branch
 green_closes_migration
+green_close_refused_goes_on
 green_removes_bot_hold
 green_keeps_hold_set_again_by_owner
 green_keeps_hold_when_unreadable

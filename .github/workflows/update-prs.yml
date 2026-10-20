@@ -446,7 +446,9 @@ jobs:
             --jq ".[] | select(.author.login == \"app/github-actions\" and (.title | startswith(\"Migration: \")) and ((.body // \"\") | contains(\"<!-- migration-pr: $number -->\"))) | .number" \
             > "$RUNNER_TEMP/migrated.txt"
           while read -r issue; do
-            gh issue close "$issue" --reason completed --comment "CI passes on #$number now ($RUN_URL). Closing."
+            # Closed meanwhile (by hand, or the daily watch): no reason to stop deciding.
+            gh issue close "$issue" --reason completed --comment "CI passes on #$number now ($RUN_URL). Closing." ||
+              echo "::warning::Could not close #$issue (closed meanwhile?)."
           done < "$RUNNER_TEMP/migrated.txt"
           # The hold label, the owner's own "not yet", whatever else holds. One this workflow set
           # when CI failed twice (the last to add it was github-actions[bot]) only parked the pull
@@ -462,8 +464,9 @@ jobs:
               held=0
             fi
           fi
-          # A package version under 3 days old: when to decide again (below).
+          # A package version under 3 days old: when to decide again, and why (below).
           recheck=''
+          recheck_why=''
           security=''
 
           # The "Review dependency changes" check on a commit: "success" when a run of it passed,
@@ -628,9 +631,11 @@ jobs:
               #
               # A security fix is not held back, as Dependabot's cooldown holds back none: one
               # Dependabot opened as a security update (its body has the line below: #352 and
-              # #353 here do, its version updates do not), or one that updates a package with an
+              # #353 here do, its version updates do not), or one every package of which has an
               # open Dependabot alert on that lockfile (#95, a security update whose body lacks
-              # the line, shows the line alone does not tell).
+              # the line, shows the line alone does not tell). Every package: a grouped version
+              # update with one alerted member would otherwise waive the wait for all the rest
+              # (that member's fix comes as a security update of its own).
               if jq -e '(.body // "") | contains("You can disable automated security fix PRs for this repo")' "$RUNNER_TEMP/pr.json" > /dev/null; then
                 security='Dependabot opened it as a security update'
               else
@@ -648,8 +653,10 @@ jobs:
                 if MANIFEST_DIR=$manifest_dir gh api --paginate "repos/$GH_REPO/dependabot/alerts?state=open&per_page=100" \
                      --jq '.[] | select((.dependency.manifest_path | split("/") | .[:-1] | join("/")) == env.MANIFEST_DIR) | .dependency.package.name' \
                      > "$RUNNER_TEMP/alerted.txt"; then
-                  fixes=$(LC_ALL=C sort -u "$RUNNER_TEMP/alerted.txt" | LC_ALL=C comm -12 "$RUNNER_TEMP/updates.txt" - | tr '\n' ' ' | sed 's/ $//')
-                  if [ -n "$fixes" ]; then security="it updates $fixes, which has an open Dependabot alert"; fi
+                  unalerted=$(LC_ALL=C sort -u "$RUNNER_TEMP/alerted.txt" | LC_ALL=C comm -23 "$RUNNER_TEMP/updates.txt" -)
+                  if [ -s "$RUNNER_TEMP/updates.txt" ] && [ -z "$unalerted" ]; then
+                    security="every package it updates has an open Dependabot alert: $(tr '\n' ' ' < "$RUNNER_TEMP/updates.txt" | sed 's/ $//')"
+                  fi
                 else
                   echo '::warning::The Dependabot alerts could not be read: the 3-day wait applies to this pull request.'
                 fi
@@ -697,11 +704,20 @@ jobs:
                   done < <(LC_ALL=C comm -13 "$RUNNER_TEMP/lock.base.txt" "$RUNNER_TEMP/lock.head.txt")
                   if [ ${#young[@]} != 0 ]; then
                     reasons+=("its lockfile adds package versions under 3 days old or of unknown age, which Dependabot's cooldown does not hold back: $(printf '%s; ' "${young[@]}" | sed 's/; $//')")
-                    # Of known age, all of them: decided again once the youngest is 3 days old.
-                    if [ "$unknown" = 0 ]; then recheck=$((newest + 3 * 24 * 60 * 60)); fi
+                    # Decided again once the youngest is 3 days old. An age the registry did not
+                    # give may be a moment's failure: asked again a day from now at the latest
+                    # (one it never gives keeps the pull request waiting all the same).
+                    recheck=$((newest + 3 * 24 * 60 * 60))
+                    recheck_why='when the youngest of those versions is 3 days old'
+                    if [ "$unknown" = 1 ] && [ "$recheck" -lt $(( $(date -u +%s) + 24 * 60 * 60 )) ]; then
+                      recheck=$(( $(date -u +%s) + 24 * 60 * 60 ))
+                      recheck_why='when the registry is asked again about the ages it did not give'
+                    fi
                   fi
                 else
                   reasons+=("its $lockfile could not be read, to check how old the package versions it adds are")
+                  recheck=$(( $(date -u +%s) + 24 * 60 * 60 ))
+                  recheck_why='when the lockfile is read again'
                 fi
               fi
             fi
@@ -850,8 +866,8 @@ jobs:
               if [ -n "$recheck" ]; then
                 # security-alerts.yml's daily watch reads the marker: once its time has passed, it
                 # starts this workflow again on the same CI run, if the branch is still there.
-                printf '\nThe youngest of those versions is 3 days old at %s: this pull request is decided again then, within a day.\n<!-- update-prs-recheck: %s %s %s -->\n' \
-                  "$(date -u -d "@$recheck" '+%Y-%m-%d %H:%M UTC')" "$recheck" "$RUN_ID" "$SHA"
+                printf '\nThis pull request is decided again at %s, %s, or within a day after.\n<!-- update-prs-recheck: %s %s %s -->\n' \
+                  "$(date -u -d "@$recheck" '+%Y-%m-%d %H:%M UTC')" "$recheck_why" "$recheck" "$RUN_ID" "$SHA"
               fi
             fi
             if [ -n "$security" ]; then
