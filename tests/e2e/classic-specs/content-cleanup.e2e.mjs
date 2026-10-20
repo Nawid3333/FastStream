@@ -477,8 +477,14 @@ async function openPage(pathname) {
 async function pageMediaIdle() {
   await browser.waitUntil(async () => inPage(() => {
     const video = document.getElementById('main');
-    // HAVE_ENOUGH_DATA, and NETWORK_IDLE: the download is over.
-    return !!video && video.readyState === 4 && video.networkState === 1;
+    if (!video || video.readyState !== 4 || video.networkState !== 1) return false;
+    // NETWORK_IDLE is also a download Firefox only suspended, with its request still open,
+    // and a page with a request open stays out of the cache: "Save of .../cleanup blocked
+    // because document has request .../clip.mp4?main=" (PageCache log, CI run 39483183549:
+    // the test left 0.55 s after the page came, Back loaded it again). The whole clip
+    // buffered is the request done.
+    const buffered = video.buffered;
+    return buffered.length > 0 && buffered.end(buffered.length - 1) >= video.duration - 0.05;
   }), {timeout: 20000, timeoutMsg: 'the page\'s video never finished loading'});
 }
 
