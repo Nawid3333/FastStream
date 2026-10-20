@@ -23,6 +23,17 @@
     shadow root), fixed and tested in content-cleanup.e2e.mjs.
   - PF1 was looked at again on 2026-10-06 and still left alone, for the same reasons.
 
+- **content.js's measurements re-lay out the in-page player (2026-10-20).**
+  `updateReplacedPlayer` sets the player's iframe to `display: none` while it measures the
+  page's element: 8 times in the first 2 s of a soft replace, and after every resize. Each
+  time, the player gets a resize event and, for a moment, the layout of an iframe's default
+  300x150 (traced on CI, runs 39473761807 and 39476690456: a click whose point was taken
+  then went to the video). Input in that moment lands in the wrong place, and the player's
+  size-dependent parts (its media queries, subtitles) run twice. Left as it is for now
+  (#501's fix was the spec's): measuring the page's element without taking the iframe out
+  of the layout needs another way to measure, not tried yet. The e2e cases that click in
+  the player wait for the measurements to end (content-overlays' `playerAtRest`).
+
 - **Measured and changed (2026-10-06).**
   - A video under five minutes is redrawn every animation frame (`progressLoop`); the loop
     ran on while the video was paused, 144 times a second on a 144 Hz screen. It stops

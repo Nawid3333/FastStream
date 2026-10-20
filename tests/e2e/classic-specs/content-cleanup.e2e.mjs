@@ -477,9 +477,68 @@ async function openPage(pathname) {
 async function pageMediaIdle() {
   await browser.waitUntil(async () => inPage(() => {
     const video = document.getElementById('main');
-    // HAVE_ENOUGH_DATA, and NETWORK_IDLE: the download is over.
-    return !!video && video.readyState === 4 && video.networkState === 1;
+    if (!video || video.readyState !== 4 || video.networkState !== 1) return false;
+    // NETWORK_IDLE is also a download Firefox only suspended, with its request still open,
+    // and a page with a request open stays out of the cache: "Save of .../cleanup blocked
+    // because document has request .../clip.mp4?main=" (PageCache log, CI run 39483183549:
+    // the test left 0.55 s after the page came, Back loaded it again). The whole clip
+    // buffered is the request done.
+    const buffered = video.buffered;
+    return buffered.length > 0 && buffered.end(buffered.length - 1) >= video.duration - 0.05;
   }), {timeout: 20000, timeoutMsg: 'the page\'s video never finished loading'});
+}
+
+/**
+ * Marks the site page as the one Back must give back from the back-forward cache, and keeps
+ * how it left (pagehide's persisted, and when) in the tab's sessionStorage, which a load
+ * keeps: a Back that loaded the page again then says whether Firefox had cached it and
+ * dropped it later, or never cached it (expectFromCache). The Linux runner did load it
+ * again now and then after a Back from another site (CI runs 38502810489, 38572484166,
+ * 39095642912; the driver log shows the page's video requested again), with nothing to say
+ * why.
+ */
+async function keepForBack() {
+  await inPage(() => {
+    window.__kept = true;
+    sessionStorage.removeItem('fsLeft');
+    window.addEventListener('pagehide', (e) => {
+      sessionStorage.setItem('fsLeft', JSON.stringify({persisted: e.persisted, at: new Date().toISOString()}));
+    });
+  });
+}
+
+/**
+ * Checks that Back gave the page back from the back-forward cache (keepForBack): a load
+ * fetches the video anew, and proves nothing.
+ * @param {string} backAt - When Back was asked for (ISO time), for the driver log.
+ */
+async function expectFromCache(backAt) {
+  const state = await inPage(() => ({kept: window.__kept === true, left: sessionStorage.getItem('fsLeft')}));
+  if (!state.kept) {
+    throw new Error('Back loaded the page again instead of taking it from the back-forward cache: ' +
+      `its pagehide ${state.left || 'never came'}, Back at ${backAt}. Firefox's PageCache and ` +
+      'SHIPBFCache log, in the driver log, says what kept it out or took it out.');
+  }
+}
+
+/**
+ * What the player in the session's frame was doing, for a wait on it that timed out: its
+ * source and player, and every OPFS worker call that has not answered. The player sets its
+ * source only once its storage is ready and cleared (DownloadManager.reset), and twice on
+ * the Windows runner the source never came within 15 s (CI runs 38284548789, 38737247044:
+ * the player logged "setSource", then nothing), as storage.e2e.mjs's OPFS worker stood
+ * still there.
+ * @return {Promise<Object>}
+ */
+async function playerState() {
+  return browser.execute(() => new Promise((done) => {
+    const state = {source: window.fastStream?.source?.url ?? null, player: !!window.fastStream?.player};
+    import('/player/network/OPFSManager.mjs').then(({OPFSManager}) => {
+      state.opfs = [...OPFSManager.live].map((m) => ({session: m.sessionName, pending: m.pendingCalls()}));
+    }, (e) => {
+      state.opfs = 'unreadable: ' + e.message;
+    }).finally(() => done(state));
+  }));
 }
 
 /**
@@ -616,6 +675,17 @@ describe('content.js around an in-page player', function() {
       }
     }
     await watchContentErrors();
+    // Firefox's own log of what kept a page in its back-forward cache or out of it, into the
+    // driver log (Firefox's stderr), for the Back cases (keepForBack). Set as preferences it
+    // is on in every process, and on Linux too, where CI sets no MOZ_LOG (mozLog.mjs).
+    // SHIPBFCache at Debug says what it checked, stored and evicted, and the flags that block
+    // a page; Verbose adds every request of every load group, six times the lines.
+    await inChrome((done) => {
+      Services.prefs.setBoolPref('logging.config.add_timestamp', true);
+      Services.prefs.setIntPref('logging.PageCache', 5);
+      Services.prefs.setIntPref('logging.SHIPBFCache', 4);
+      done(true);
+    });
   });
 
   afterEach(async function() {
@@ -969,16 +1039,14 @@ describe('content.js around an in-page player', function() {
   // forget its frame and the video detected on it, so the toolbar's On opened no player.
   it('opens the player on a page Back brought out of the back-forward cache', async function() {
     await openPage('/cleanup');
-    await inPage(() => {
-      window.__kept = true;
-    });
+    await keepForBack();
     await pageMediaIdle();
     await openPage('/wrapper');
+    const backAt = new Date().toISOString();
     await browser.back();
     await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
         {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
-    // From the cache, not loaded again: a load fetches the video anew, and proves nothing.
-    expect(await inPage(() => window.__kept === true)).toBe(true);
+    await expectFromCache(backAt);
     await openPlayer();
     await browser.switchFrame(await browser.$('iframe[src*="player/index.html"]'));
     let source;
@@ -986,7 +1054,9 @@ describe('content.js around an in-page player', function() {
       await browser.waitUntil(async () => {
         source = await browser.execute(() => window.fastStream?.source?.url || null);
         return !!source;
-      }, {timeout: 15000, interval: 250, timeoutMsg: 'the player never got a source'});
+      }, {timeout: 15000, interval: 250});
+    } catch (e) {
+      throw new Error(`the player never got a source: ${JSON.stringify(await playerState())}`);
     } finally {
       await browser.switchFrame(null);
     }
@@ -998,18 +1068,17 @@ describe('content.js around an in-page player', function() {
   // (tabs.onUpdated), and that can come after the page named itself again.
   it('opens the player on a page Back brought back from another site', async function() {
     await openPage('/cleanup');
-    await inPage(() => {
-      window.__kept = true;
-    });
+    await keepForBack();
     await pageMediaIdle();
     // localhost is another hostname for the same server.
     await browser.url(`http://localhost:${SITE_PORT}/wrapper?t=${Date.now()}`);
     await browser.waitUntil(async () => inPage(() => location.hostname === 'localhost' &&
         document.querySelector('video')?.readyState >= 2), {timeout: 20000, timeoutMsg: 'the other site never loaded'});
+    const backAt = new Date().toISOString();
     await browser.back();
     await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
         {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
-    expect(await inPage(() => window.__kept === true)).toBe(true);
+    await expectFromCache(backAt);
     await openPlayer();
     expect(await takeContentErrors()).toEqual([]);
   });
