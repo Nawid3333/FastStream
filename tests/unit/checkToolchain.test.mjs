@@ -1,6 +1,8 @@
 import fs from 'node:fs';
+// js-yaml 5 has no default export, only named ones; this form reads 4 and 5 alike.
+import * as yaml from 'js-yaml';
 import {describe, expect, it} from 'vitest';
-import {latestLtsMajor, newestOfMajor, plan, projectNodeMajor, TITLE_PREFIX} from '../../tools/check-toolchain.mjs';
+import {latestLtsMajor, MIN_AGE_DAYS, newestOfMajor, plan, projectNodeMajor, TITLE_PREFIX} from '../../tools/check-toolchain.mjs';
 
 // The toolchain check opens and closes pull requests on these numbers; a wrong one either
 // nags about a Node the project already uses or stays quiet about a new LTS.
@@ -153,6 +155,39 @@ describe('every pinned tool is one Dependabot updates', () => {
   });
 });
 
+// The owner's call of 2026-10-20: a release waits 3 days before it is proposed, wherever the
+// update comes from. Dependabot's cooldown, update-prs.yml's lockfile check, the toolchain's
+// MIN_AGE_DAYS and zizmor's audit name the same number, or one of them lets a younger release
+// through. (zizmor flags a cooldown shorter than its setting, not an entry without one:
+// checked with zizmor 1.30.1.)
+describe('one release wait everywhere', () => {
+  const root = new URL('../../', import.meta.url);
+  const read = (path) => fs.readFileSync(new URL(path, root), 'utf8');
+
+  it('is 3 days', () => {
+    expect(MIN_AGE_DAYS).toBe(3);
+  });
+
+  it('in every entry of .github/dependabot.yml', () => {
+    const {updates} = yaml.load(read('.github/dependabot.yml'));
+    expect(updates.length).toBeGreaterThanOrEqual(4);
+    for (const update of updates) {
+      const name = `${update['package-ecosystem']} ${update.directory ?? update.directories}`;
+      expect(update.cooldown, name).toEqual({'default-days': MIN_AGE_DAYS});
+    }
+  });
+
+  it('in zizmor\'s audit of it', () => {
+    expect(yaml.load(read('.github/zizmor.yml')).rules['dependabot-cooldown']).toEqual({config: {days: MIN_AGE_DAYS}});
+  });
+
+  it('in update-prs.yml\'s lockfile check, and when it decides again', () => {
+    const gate = read('.github/workflows/update-prs.yml');
+    expect(gate).toContain(`cutoff=$(date -u -d '${MIN_AGE_DAYS} days ago' +%s)`);
+    expect(gate).toContain(`recheck=$((newest + ${MIN_AGE_DAYS} * 24 * 60 * 60))`);
+  });
+});
+
 describe('newestOfMajor', () => {
   const day = 24 * 60 * 60 * 1000;
   const now = Date.parse('2026-09-29T12:00:00Z');
@@ -171,6 +206,12 @@ describe('newestOfMajor', () => {
       '12.6.0': new Date(now - 40 * day).toISOString(),
     },
   };
+
+  // A pnpm release is tried once it is MIN_AGE_DAYS (3) old: 11.29.0 is 2 days old.
+  it('waits MIN_AGE_DAYS by default', () => {
+    expect(newestOfMajor(doc, 11, now)).toBe('11.28.0');
+    expect(newestOfMajor(doc, 11, now + day)).toBe('11.29.0');
+  });
 
   it('takes the newest stable release of the major that is old enough', () => {
     expect(newestOfMajor(doc, 11, now, 5)).toBe('11.28.0');

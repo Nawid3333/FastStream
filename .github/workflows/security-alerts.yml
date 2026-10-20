@@ -16,6 +16,12 @@ name: Security alerts
 # closes what it missed. Closing the issue by hand skips the alerts it lists: the
 # `<!-- alerts: ... -->` line in its body records them, and an alert an issue has listed,
 # open or closed, is never raised again.
+#
+# The second job, "watch" (daily and by hand, not on a push), looks after the open update
+# pull requests: it opens "Update pull requests piling up" when a Dependabot entry nears its
+# open-pull-requests-limit or an update has been red for over 14 days, closes the migration
+# issues update-prs.yml opened for pull requests merged or closed since, and starts
+# update-prs.yml again on a pull request it held back for new releases once they are 3 days old.
 
 on:
   schedule:
@@ -27,10 +33,7 @@ on:
       - fsaunpack/package-lock.json
   workflow_dispatch:
 
-permissions:
-  vulnerability-alerts: read  # list the Dependabot alerts
-  pull-requests: read  # see which packages an open Dependabot pull request updates
-  issues: write  # open, update and close the "Security alert" issues
+permissions: {}  # each job asks for what it needs
 
 concurrency:
   group: security-alerts
@@ -39,6 +42,10 @@ concurrency:
 jobs:
   check:
     name: Check the open Dependabot alerts
+    permissions:
+      vulnerability-alerts: read  # list the Dependabot alerts
+      pull-requests: read  # see which packages an open Dependabot pull request updates
+      issues: write  # open, update and close the "Security alert" issues
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -197,5 +204,217 @@ jobs:
             exit 0
           fi
           printf '@%s security-alerts.yml failed: %s\n\nThe run log names the failed command. Until it is fixed, a Dependabot alert with no pull request raises no issue. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+
+  # The update pull requests, once a day. Dependabot fails quietly in another way too: once an
+  # entry of .github/dependabot.yml has its open-pull-requests-limit of pull requests open, it
+  # opens no more for that entry, not even for a new release, and tells no one. And an update
+  # pull request can stay red, parked for a migration, with nobody at it. (2026-10-20)
+  watch:
+    name: Watch the update pull requests
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read        # main's .github/dependabot.yml, for each entry's limit
+      pull-requests: read   # the open pull requests
+      issues: write         # the "Update pull requests piling up" and "Migration: ..." issues
+      actions: write        # start update-prs.yml again on a pull request held for new releases
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Close the migration issues of closed pull requests
+        run: |
+          set -euo pipefail
+          # update-prs.yml opens "Migration: <what> <version>" when CI fails twice on an update
+          # pull request, with the pull request's number in a marker, and closes it once CI
+          # passes there. One whose pull request was merged or closed meanwhile is closed here.
+          # shellcheck disable=SC2016 # $m is jq's
+          gh issue list --state open --limit 200 --json number,title,body,author \
+            --jq '.[] | select(.author.login == "app/github-actions" and (.title | startswith("Migration: "))) | ((.body // "") | capture("<!-- migration-pr: (?<pr>[0-9]+) -->")) as $m | "\(.number) \($m.pr)"' \
+            > "$RUNNER_TEMP/migrations.txt"
+          # One that cannot be read or closed now (or was closed meanwhile) stops neither the
+          # others nor the steps below: the next day's run tries again.
+          while read -r issue pr <&3; do
+            if ! state=$(gh pr view "$pr" --json state --jq .state); then
+              echo "::warning::#$pr could not be read; #$issue waits for the next run."
+              continue
+            fi
+            case $state in
+              MERGED) gh issue close "$issue" --reason completed --comment "#$pr was merged. Closing." ||
+                echo "::warning::Could not close #$issue." ;;
+              CLOSED) gh issue close "$issue" --reason 'not planned' --comment "#$pr was closed without a merge. Closing." ||
+                echo "::warning::Could not close #$issue." ;;
+              *) echo "#$issue: #$pr is still open." ;;
+            esac
+          done 3< "$RUNNER_TEMP/migrations.txt"
+
+      - name: Decide again on update pull requests held for new releases
+        run: |
+          set -euo pipefail
+          # update-prs.yml holds back an update pull request whose lockfile adds a package
+          # version under 3 days old, and its comment says when the youngest is old enough, with
+          # the CI run and the commit it decided on: <!-- update-prs-recheck: <time> <run>
+          # <commit> -->. Once that time has passed, with the pull request still at that commit,
+          # update-prs.yml is started again on that run, as ci.yml's hand-off starts it, and
+          # decides as it does after CI. A newer commit has a CI run of its own, which decides.
+          now=$(date -u +%s)
+          gh pr list --state open --limit 200 --json number,headRefName,headRefOid,isCrossRepository \
+            --jq '.[] | select((.isCrossRepository | not) and (.headRefName | test("^(dependabot|toolchain|patched)/"))) | "\(.number) \(.headRefName) \(.headRefOid)"' \
+            > "$RUNNER_TEMP/prs.txt"
+          while read -r number branch head <&3; do
+            # The last comment update-prs.yml made on it, found as update-prs.yml finds it.
+            gh api --paginate "repos/$GH_REPO/issues/$number/comments" \
+              --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- update-prs: "))) | {body}' \
+              > "$RUNNER_TEMP/ours.jsonl"
+            recheck=$(jq -rs 'last | .body // ""' "$RUNNER_TEMP/ours.jsonl" |
+              sed -n 's/^<!-- update-prs-recheck: \([0-9][0-9]*\) \([0-9][0-9]*\) \([0-9a-f]\{40\}\) -->$/\1 \2 \3/p' | tail -n 1)
+            if [ -z "$recheck" ]; then continue; fi
+            read -r at run sha <<< "$recheck"
+            if [ "$sha" != "$head" ]; then
+              echo "#$number moved on from ${sha:0:8}: the CI run of its new commit decides."
+            elif [ "$at" -gt "$now" ]; then
+              echo "#$number: its youngest new package version is 3 days old at $(date -u -d "@$at" '+%Y-%m-%d %H:%M UTC')."
+            else
+              echo "#$number: its new package versions are 3 days old now. Starting update-prs.yml on CI run $run."
+              gh workflow run update-prs.yml --ref main -f "run_id=$run" -f "branch=$branch"
+            fi
+          done 3< "$RUNNER_TEMP/prs.txt"
+
+      - name: Open, update or close the piling-up issue
+        env:
+          TITLE: 'Update pull requests piling up'
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          now=$(date -u +%s)
+
+          # Each entry of main's .github/dependabot.yml: its ecosystem, its directories and its
+          # open-pull-requests-limit (Dependabot's default, 5, when it names none), a line each.
+          # Read as the file is written: an entry starts at "  - package-ecosystem:", its keys
+          # are indented four spaces, an item of its directories six.
+          gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/.github/dependabot.yml?ref=main" \
+            > "$T/dependabot.yml"
+          awk '
+            function value(s) { sub(/^[^:]*:[ \t]*/, "", s); sub(/[ \t]+#.*$/, "", s); return s }
+            function flush() { if (eco != "") printf "%s\t%s\t%s\n", eco, dirs, (limit == "" ? 5 : limit) }
+            /^  - package-ecosystem:/ { flush(); eco = value($0); dirs = ""; limit = ""; list = 0; next }
+            list && /^      - / { d = $0; sub(/^      - /, "", d); sub(/[ \t]+#.*$/, "", d); dirs = dirs (dirs == "" ? "" : " ") d; next }
+            { list = 0 }
+            eco != "" && /^    directory:/ { dirs = value($0); next }
+            eco != "" && /^    directories:/ { list = 1; next }
+            eco != "" && /^    open-pull-requests-limit:/ { limit = value($0); next }
+            END { flush() }' "$T/dependabot.yml" | tr -d "\"'" > "$T/entries.tsv"
+          jq -R -s '[split("\n")[] | select(. != "") | split("\t") | {eco: .[0], dirs: (.[1] | split(" ")), limit: (.[2] | tonumber)}]' \
+            "$T/entries.tsv" > "$T/entries.json"
+          if [ "$(jq 'length' "$T/entries.json")" = 0 ] || jq -e 'any(.[]; .dirs == [])' "$T/entries.json" > /dev/null; then
+            echo "main's .github/dependabot.yml could not be read as this step expects:" >&2
+            cat "$T/entries.tsv" >&2
+            exit 1
+          fi
+          cat "$T/entries.tsv"
+
+          gh pr list --state open --limit 200 --json number,headRefName,author,labels,isCrossRepository > "$T/prs.json"
+
+          # The entries at their limit minus 2 (at least 2, or the limit if that is lower: with
+          # docker's 2, the limit itself), a table row each. Dependabot names a branch
+          # dependabot/<package manager>/<directory, for one that is not the root>/..., a path
+          # segment's leading dot written "dot-" (git refuses one): a pull request counts for the
+          # entry of its package manager whose directory its branch names, else for the one of
+          # the root. Every open one counts, security updates too, so this warns no later than
+          # Dependabot stops.
+          # shellcheck disable=SC2016 # backticks are Markdown
+          jq -r --slurpfile e "$T/entries.json" '
+            def manager: if . == "npm" then "npm_and_yarn" else gsub("-"; "_") end;
+            def prefix: ltrimstr("/") | sub("[*].*$"; "") | gsub("(?<s>^|/)[.]"; "\(.s)dot-")
+              | if . == "" or endswith("/") then . else . + "/" end;
+            ($e[0] | to_entries | map(.value + {i: .key, manager: (.value.eco | manager)})) as $entries
+            | [.[] | select((.isCrossRepository | not) and .author.login == "app/dependabot" and (.headRefName | startswith("dependabot/")))
+               | (.headRefName | split("/")) as $parts
+               | ($parts[2:] | join("/")) as $rest
+               | [$entries[] | select(.manager == $parts[1])] as $c
+               | (if ($c | length) == 1 then $c[0].i
+                  else ([$c[] | select(any(.dirs[]; prefix as $p | $p != "" and ($rest | startswith($p))))]
+                        + [$c[] | select(any(.dirs[]; . == "/"))])[0].i end) as $i
+               | {number, entry: $i}] as $prs
+            | $entries[]
+            | .i as $i
+            | [$prs[] | select(.entry == $i) | .number] as $open
+            | (if .limit - 2 >= 2 then .limit - 2 else ([.limit, 2] | min) end) as $at
+            | select(.limit > 0 and ($open | length) >= $at)
+            | "| \(.eco) | `\(.dirs | join("`, `"))` | \($open | length) | \(.limit) | \($open | map("#\(.)") | join(", ")) |"' \
+            "$T/prs.json" > "$T/full.md"
+
+          # The update pull requests red for more than 14 days: since the ci-failed label
+          # (update-prs.yml's, on while CI fails) last went on after it last came off.
+          jq -r '.[] | select((.isCrossRepository | not) and (.headRefName | test("^(dependabot|toolchain|patched)/")) and any(.labels[]; .name == "ci-failed")) | .number' \
+            "$T/prs.json" > "$T/red.txt"
+          : > "$T/red.md"
+          while read -r number <&3; do
+            since=$(gh api --paginate "repos/$GH_REPO/issues/$number/events?per_page=100" \
+              --jq '.[] | select((.event == "labeled" or .event == "unlabeled") and .label.name == "ci-failed") | "\(.event) \(.created_at)"' |
+              awk '$1 == "unlabeled" {s = ""} $1 == "labeled" && s == "" {s = $2} END {print s}')
+            if [ -z "$since" ]; then continue; fi
+            age=$((now - $(date -u -d "$since" +%s)))
+            if [ "$age" -gt $((14 * 24 * 60 * 60)) ]; then
+              printf '| #%s | %s (%s days) |\n' "$number" "${since:0:10}" "$((age / 86400))" >> "$T/red.md"
+            fi
+          done 3< "$T/red.txt"
+
+          open=$(gh issue list --state open --limit 200 --json number,title,author \
+            --jq '[.[] | select(.title == env.TITLE and .author.login == "app/github-actions")][0].number // empty')
+          if [ ! -s "$T/full.md" ] && [ ! -s "$T/red.md" ]; then
+            echo 'No Dependabot entry is near its limit, and no update pull request has been red for more than 14 days.'
+            if [ -n "$open" ]; then
+              gh issue close "$open" --reason completed \
+                --comment 'No Dependabot entry is near its limit any more, and no update pull request has been red for more than 14 days. Closing.'
+            fi
+            exit 0
+          fi
+          # shellcheck disable=SC2016 # backticks are Markdown
+          {
+            printf '@%s Update pull requests are piling up, and Dependabot tells no one.\n\n' "$OWNER"
+            if [ -s "$T/full.md" ]; then
+              printf '**Near the limit.** Once an entry of `.github/dependabot.yml` has its `open-pull-requests-limit` of pull requests open, Dependabot opens no more for it, not even for a new release, until some are merged or closed. This warns at the limit minus 2 (at least 2).\n\n'
+              printf '| Ecosystem | Directories | Open | Limit | Pull requests |\n| --- | --- | --- | --- | --- |\n'
+              cat "$T/full.md"
+              printf '\n'
+            fi
+            if [ -s "$T/red.md" ]; then
+              printf '**Red for more than 14 days.** CI has failed on these since then:\n\n'
+              printf '| Pull request | Red since |\n| --- | --- |\n'
+              cat "$T/red.md"
+              printf '\n'
+            fi
+            printf 'Merge what is ready, and close what you will not take (for a Dependabot one, `@dependabot ignore this major version`, `this minor version` or `this dependency`). For a red one, its comment says what fails, and its "Migration: ..." issue, if it has one, what to do.\n\n'
+            printf 'This issue is updated once a day, and closes itself once none of this holds.\n'
+          } > "$T/body.md"
+          if [ -n "$open" ]; then
+            gh issue edit "$open" --body-file "$T/body.md" > /dev/null
+            echo "Updated #$open."
+          else
+            gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$T/body.md"
+          fi
+
+      # As the check's report above, for this job: one issue while it is open, a comment on it
+      # for each later failure.
+      - name: Report the watch's own failure
+        if: failure()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'Update PR watch failed'
+        run: |
+          set -euo pipefail
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
+            exit 0
+          fi
+          printf '@%s The daily watch of the update pull requests (security-alerts.yml, job "Watch the update pull requests") failed: %s\n\nThe run log names the failed command. Until it is fixed, migration issues of closed pull requests stay open, pull requests held for new releases are not decided again, and piling-up pull requests raise no issue. Close this issue once it is fixed; a later failure opens a new one.\n' \
             "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
           gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
