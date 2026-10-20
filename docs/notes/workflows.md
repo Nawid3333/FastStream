@@ -329,6 +329,31 @@
   IntersectionObserver reports of them, and the background logs content.js's answer to
   OPEN_PLAYER ("Player opening answered"); player-peers-bfcache (Back reloaded the page once,
   on Linux) records pagehide's `persisted`: cached and dropped, or never cached.
+- **The classic specs of #501** (2026-10-20). Their logs said what failed, not why, so two
+  CI runs on the branch traced them first (`it.only` loops of the cases with their events
+  recorded, dispatched with `gh workflow run ci.yml --ref <branch>`; the probe commits never
+  reach the pull request). content-overlays' fullscreen case (13 retries): content.js hides
+  the player's iframe while it measures the page's element, 8 times in the player's first
+  2 s and after every resize (leaving fullscreen is one), and the player lays itself out at
+  an iframe's default 300x150 meanwhile (player.md). Marionette takes an element click's
+  point in the frame's layout and dispatches it a moment later; every traced miss came at
+  (274, 132), the button's centre at 300x150, and went to the video, which a single click
+  pauses (run 39473761807, 4 of 100 clicks). Its sign in a driver log: "TimedPromise timed
+  out after 500 ms" from `interaction.flushEventLoop`, the click that never reached its
+  element. The case now clicks once the iframe's style attribute has been quiet for 500 ms
+  and the player is at the iframe's size (`playerAtRest`); 25 rounds on each runner, every
+  click on the button (run 39476690456). page-media-hold played as soon as
+  `fastStream.source` was set, which setSource does before it builds the player: "No source
+  is loaded!" in all three failed attempts' driver logs; wait for the player's video. The
+  stray preview in mpv-shortcut was a product bug (mpv.md, "The shortcut's own
+  activation"). content-cleanup's Back cases were not explained by the logs (Linux: the page
+  loaded again; Windows: the source waited on OPFS for over 15 s, as storage.e2e's worker
+  stood still): they say more now, Firefox's own bfcache log included, set through
+  `logging.*` preferences in the chrome context, which reach every process and work on
+  Linux, where CI sets no MOZ_LOG. Not flakes of main: a WIP branch's merged case
+  (wip/fs-prune, failed twice), and the pre-15 host's PowerShell start of mpv taking 46 s
+  (fix/open-items). One mpv-shortcut attempt hung for two minutes with nothing logged (run
+  38628691870).
 - **e2e config, 2026-09-25:** `autoXvfb: false` - Firefox runs `-headless`, and WebdriverIO
   otherwise spawns workers through `xvfb-run`, whose Ubuntu 26.04 version closes fd 3, the
   worker IPC channel: every worker died with `write EINVAL` (webdriverio#15685, unfixed in
