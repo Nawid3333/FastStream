@@ -5,8 +5,9 @@ your merge. `update-prs.yml` runs after every completed CI run for this reposito
 `dependabot/*`, `toolchain/*` and `patched/*` branches and comments
 on the PR, assigned to you: **ready to merge** once CI is green and its checks hold (only
 that bot's commits, only the files that kind of update changes, the dependency review
-passed, and the build unchanged when
-it is not meant to ship), or what to look at before merging, or why CI failed. The comment
+passed, no package version under 3 days old in its lockfile (a security fix aside), and the
+build unchanged when it is not meant to ship), or what to look at before merging, or why CI
+failed; red twice, it is parked with a migration issue that says what to do. The comment
 says whether your merge releases: an update that ships starts CI on `main` with your merge,
 and a green run there releases it to Firefox. The mpv pin comes as one PR that keeps up with
 shinchiro's builds. Updates without a PR - a runner image, a new Firefox - are watched by
@@ -19,13 +20,13 @@ merged themselves.
 | ---- | -------------- | ---------------------- | ---------------- |
 | npm tooling, minor/patch | one grouped Dependabot PR a week (`tooling-minor-and-patch`) | "ready to merge"; your merge releases nothing (the build is unchanged) | the PR |
 | npm shipped libraries (fuse.js, mediabunny, sortablejs), minor/patch | one grouped Dependabot PR a week (`shipped-minor-and-patch`) | "ready to merge"; your merge starts CI on `main`, and a green run there releases it | the PR; GitHub emails you when CI on `main` fails after your merge |
-| npm major | a Dependabot PR of its own | "ready to merge": a tooling major when the build is unchanged; a shipped library's releases after your merge, as for the shipped group | the PR |
-| fsaunpack (express) | a Dependabot PR for `fsaunpack/`, the helper that unpacks and serves a saved `.fsa` archive; not part of the extension | "ready to merge" when it changes only `fsaunpack/package.json` and `fsaunpack/package-lock.json`; CI installs it (scripts off) and starts its test server on a recorded archive (`pnpm run verify:fsaunpack`). | the PR |
-| GitHub Actions | one grouped Dependabot PR a week (minor/patch), a major on its own | "ready to merge" when it changes only workflow and action files; `update-prs.yml` brings its branch up to date with your token `UPDATE_PRS_TOKEN` (below) | the PR |
-| pnpm 12.x | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/pnpm-<version>`, changing only `packageManager`, as soon as the release is out; one in conflict with `main` is rebuilt on it weekly | "ready to merge" | the PR |
+| npm major | a Dependabot PR of its own (after the 3-day cooldown) | "ready to merge": a tooling major when the build is unchanged; a shipped library's releases after your merge, as for the shipped group | the PR |
+| fsaunpack (express) | a Dependabot PR for `fsaunpack/`, the helper that unpacks and serves a saved `.fsa` archive; not part of the extension | "ready to merge" when it changes only `fsaunpack/package.json` and `fsaunpack/package-lock.json` and every version that lockfile adds is 3 days old; CI installs it (scripts off) and starts its test server on a recorded archive (`pnpm run verify:fsaunpack`). | the PR |
+| GitHub Actions | one grouped Dependabot PR a week (minor/patch), a major on its own, each release once it is 3 days old | "ready to merge" when it changes only workflow and action files; `update-prs.yml` brings its branch up to date with your token `UPDATE_PRS_TOKEN` (below) | the PR |
+| pnpm 12.x | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/pnpm-<version>`, changing only `packageManager`, once the release is 3 days old; one in conflict with `main` is rebuilt on it weekly | "ready to merge" | the PR |
 | pnpm next major | a PR from `toolchain-updates.yml` | as for the same major; one that wants the lockfile rewritten fails CI, and the comment says so | the PR |
 | Node LTS | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/node-<major>`, changing `.nvmrc` | "ready to merge" when the build is unchanged | the PR |
-| WSL, on your PC | `update-local.cmd` compares your WSL with WSL's latest release; nothing in the repository changes | nothing to merge: answer Y, and it runs `wsl --update` and `wsl --shutdown` | no e-mail: you see it when you run `update-local.cmd` |
+| WSL, on your PC | `update-local.cmd` compares your WSL with WSL's latest release (once it is 3 days old); nothing in the repository changes | nothing to merge: answer Y, and it runs `wsl --update` and `wsl --shutdown` | no e-mail: you see it when you run `update-local.cmd` |
 | patched libraries, minor/patch | a PR from `patched-libraries.yml` on `patched/<name>-<version>` with the re-cut patch, CI dispatched on it | "ready to merge"; your merge releases as for the shipped libraries | the PR |
 | patched libraries, major | the same (a re-cut that is not clean comes as an issue instead) | as for minor/patch | the PR |
 | upstream (Andrews54757/FastStream) | nothing to merge any more: this fork no longer follows upstream (your decision, 2026-10-09). `upstream-watch.yml` (daily) lists upstream's commits you have not reviewed yet, the files each touches and which of them this fork still has, and marks the likely fixes | nothing merges; port a fix by hand if it helps this fork | one issue, "Upstream: N commit(s) to review", updated in place; close it once reviewed |
@@ -34,11 +35,26 @@ merged themselves.
 | actionlint and zizmor images | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | "ready to merge" when it changes only those files: CI ran every workflow file through the new checks | the PR |
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
 | adapted copies of other projects' code (StreamSaver) | `vendored-updates.yml` (daily) checks the upstream file each came from (`tools/vendored-sources.json`) | nothing to merge: the copies are changed here, so a person ports upstream's changes | an issue per copy and upstream change, "Vendored source changed upstream: <name> (...)", with the commits; it closes once `tools/vendored-sources.json` has the copy at that commit |
-| security alerts | a Dependabot alert on the Security tab, and a Dependabot PR that fixes it (the rows above); `security-alerts.yml` (daily) watches for an alert with no such PR | as the PR's row says | GitHub's alert email; for an alert over 6 hours old with no Dependabot PR, an issue per package, "Security alert: <package>", closed once its alerts are fixed on `main` or dismissed |
+| security alerts | a Dependabot alert on the Security tab, and a Dependabot PR that fixes it (the rows above), skipping both 3-day waits; `security-alerts.yml` (daily) watches for an alert with no such PR | as the PR's row says | GitHub's alert email; for an alert over 6 hours old with no Dependabot PR, an issue per package, "Security alert: <package>", closed once its alerts are fixed on `main` or dismissed |
 
-Dependabot proposes a release as soon as it is out: no cooldown, and no package-age check
-in `update-prs.yml`, since 2026-10-11 (your call: nothing merges itself, you merge each
-update once CI is green). The patched libraries are ignored by
+Dependabot proposes a release once it is 3 days old (`cooldown` in `.github/dependabot.yml`;
+your call of 2026-10-20, after none from 2026-10-11). Green CI cannot see a compromised
+release - malware passes the tests - and most npm supply-chain compromises of 2025 were found
+and pulled within hours to days: the wait lets that happen before a release reaches your
+merge (Renovate's best-practice preset waits 3 days for npm too). The cooldown covers only
+the packages Dependabot bumps, not what the new lockfile brings in with them, so
+`update-prs.yml` looks up every package version a Dependabot or patched-library PR adds to
+its lockfile on the npm registry: one under 3 days old, or whose age the registry does not
+give, keeps the PR from "ready to merge", even a tooling one. The comment says when the
+youngest is 3 days old (for an age the registry did not give, or a lockfile that could not
+be read, a day later: that may have been a moment's failure); within a day after that, `security-alerts.yml`'s daily watch has
+`update-prs.yml` decide again, and the PR becomes "ready to merge" by itself. A security fix
+waits for neither: Dependabot gives its security updates no cooldown, and `update-prs.yml`
+skips the age check for a Dependabot security update (the line "You can disable automated
+security fix PRs" in its description) and for a PR every package of which has an open
+Dependabot alert (a grouped update with one such package waits: that package's fix comes as
+a security update of its own). `toolchain-updates.yml` takes a pnpm release once it is 3 days old;
+pnpm's own `minimumReleaseAge` default is untouched. The patched libraries are ignored by
 Dependabot on purpose: they arrive from `patched-libraries.yml`
 (`docs/updating-patched-libraries.md`). The other libraries the extension ships come in the
 weekly shipped group, `mediabunny` among them since 2026-09-30 (until then `mp4-muxer`,
@@ -67,8 +83,8 @@ last one is edited in place, so a repeat sends no second email.
 ## Your PC
 
 GitHub can't update your PC, so one double-click checks it: `update-local.cmd` in the
-repository's root. It compares your tools with what CI uses, by CI's rule (the newest
-release), and changes nothing without asking:
+repository's root. It compares your tools with what CI uses, by CI's rule (a release counts
+once it is 3 days old), and changes nothing without asking:
 
 - Node.js of the major `.nvmrc` names: whether a newer eligible release is on nodejs.org.
 - npm's newest release, and the pnpm version `package.json` pins (inside the repository
@@ -104,7 +120,24 @@ comment says it failed twice. (If GitHub refused to start that second run, the c
 reports the one failure.) It holds a table of
 each failed job, the step that failed and what that step checks, the last 40 lines
 of each failed log, and `main`'s latest CI status; the PR carries the `ci-failed`
-label and is assigned to you. Then:
+label and is assigned to you.
+
+Failed twice, the new version most likely needs changes to the code here, which no rerun
+or rebase brings (your call, 2026-10-20). So the PR is also labelled `hold`, and one issue,
+"Migration: <package or group> <version>", carries the same diagnosis and what to do:
+
+- An agent session (or you) changes the code on a branch of its own off `main`,
+  `migrate/<name>-<version>`, with a test that pins the new behaviour, and opens a PR for it.
+- Once that is merged: if it took the new version itself, Dependabot (or the workflow that
+  opened the PR) closes the update PR; otherwise `@dependabot rebase` (**Update branch** for
+  a toolchain or patched-library PR) runs CI on it again.
+- Meanwhile `@dependabot ignore this major version` parks a Dependabot PR.
+
+The issue closes itself when CI passes on the PR, which also takes off the `hold` label the
+workflow set (one you set yourself stays), or when the PR is merged or closed (checked once
+a day). Failing twice again edits the same issue: no second email.
+
+Or, by hand:
 
 - Push a fix to the branch: the next CI run decides again. A fix you push makes the
   PR yours, so the comment then asks you to look at it even when CI is green.
@@ -118,9 +151,12 @@ label and is assigned to you. Then:
 
 "Ready to merge": merge it when you like.
 Otherwise the comment names the check the PR failed - a tooling update whose build differs
-from the latest release, a file that kind of update does not change, a GitHub
+from the latest release, a file that kind of update does not change, a package version
+under 3 days old, a GitHub
 Actions update while `UPDATE_PRS_TOKEN` is missing, the `hold` label - and the PR is
-assigned to you. Look at that, then merge it or close it as above. The comment is
+assigned to you. Look at that, then merge it or close it as above. A PR held back only for
+a young package version needs nothing from you: the comment says when it is old enough, and
+within a day after that it is decided again. The comment is
 edited in place while the PR keeps waiting, even if the reasons change: a new email
 comes when it turns red, turns green, is merged, or fails at a different step.
 
@@ -146,7 +182,17 @@ close themselves on the next green run, a patched-library one when the patch is
 cut against that version or newer, a "Security alert" one when its alerts are fixed or
 dismissed. If `update-prs.yml`, `toolchain-updates.yml` or `security-alerts.yml` itself
 fails, it opens one issue, "Update PRs workflow failed", "Toolchain updates workflow
-failed" or "Security alerts workflow failed", while that one is open.
+failed" or "Security alerts workflow failed" ("Update PR watch failed" for its daily watch,
+below), while that one is open.
+
+Once a day, `security-alerts.yml` also watches the open update PRs. Dependabot opens no more
+PRs for an entry of `.github/dependabot.yml` once it has that entry's
+`open-pull-requests-limit` open - not even for a new release - and says nothing. So
+"Update pull requests piling up" opens when an entry has its limit minus 2 open, at least 2
+(npm 8 of 10, fsaunpack 3 of 5, GitHub Actions 3 of 5, docker 2 of 2), or when an update PR
+has been red for more than 14 days. It lists them, is updated in place each day, and closes
+itself once neither holds. Merge what is ready and close what you will not take; for a red
+one, its comment and its "Migration" issue say what to do.
 
 Once a week, `flaky-specs.yml` opens "Flaky e2e specs: week to <date>" when a CI run in
 those 7 days had to run a spec file again: a test that failed once and passed on its
@@ -180,7 +226,11 @@ comment says "ready to merge" only when all of this holds:
   (Dependabot npm; for pnpm, only the `packageManager` line); `fsaunpack/package.json` and
   `fsaunpack/package-lock.json`; `.nvmrc` (Node); workflow and action files (GitHub
   Actions); the two Dockerfiles (actionlint, zizmor); a re-cut's files (patched libraries);
-- its dependency review passed;
+- its dependency review passed, and every package version it adds to its lockfile is 3 days
+  old on the npm registry (Dependabot's cooldown covers only what it bumps). Not for a
+  security fix: a Dependabot security update, or a PR every package of which has an open
+  Dependabot alert. Held back only for that, it is decided again once the youngest version
+  is 3 days old (`security-alerts.yml`'s daily watch starts `update-prs.yml` again);
 - an update not meant to ship (tooling, toolchain, workflows, fsaunpack): CI's build of the
   extension is file-for-file the latest release's, the version number aside, so it releases
   nothing. A shipped library or a patched library is meant to ship: CI
@@ -188,6 +238,9 @@ comment says "ready to merge" only when all of this holds:
 - last: the PR is mergeable and the branch contains the newest `main`, so what you merge is
   what CI tested; if it does not, the workflow runs GitHub's update-branch, CI starts again
   and that run decides, at most 3 times.
+
+The `hold` label the workflow sets on a PR that failed twice (with its "Migration" issue,
+above) comes off again when CI passes on it; a `hold` you set stays until you take it off.
 
 Your merge is a push of yours, so CI runs on `main` after it, and a green run releases what
 ships (auto-release.yml); GitHub emails you when that run fails. A red `main` releases

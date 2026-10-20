@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // The versions tools/update-local.ps1 brings this PC to, by the rule CI's toolchain follows
-// (tools/check-toolchain.mjs): the newest stable release, as soon as it is out (MIN_AGE_DAYS
-// is 0 since 2026-10-11).
+// (tools/check-toolchain.mjs): the newest stable release at least MIN_AGE_DAYS old, so a
+// broken or hijacked release is usually pulled before it is tried.
 //
 // Usage: node tools/newest-release.mjs node <major>    the newest Node.js <major>.x
 //        node tools/newest-release.mjs npm <package>   the newest release of an npm package,
 //                                                       from its latest major down
 //        node tools/newest-release.mjs wsl             WSL's latest release (microsoft/WSL)
-// Prints the version, or nothing when there is no stable release.
+// Prints the version, or nothing when no stable release is old enough.
 
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
