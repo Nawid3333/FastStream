@@ -250,23 +250,79 @@ async function visibilities(ids) {
 }
 
 /**
+ * Waits until content.js has done laying out the player's iframe, and the player inside is
+ * laid out at the iframe's size.
+ *
+ * content.js measures the page's element again 8 times in the player's first 2 s, and after
+ * every resize (leaving fullscreen is one), and hides the iframe while it measures. The
+ * player inside then lays itself out at an iframe's default size, 300x150, for a moment. A
+ * WebDriver click takes its point in the player's layout and dispatches it a moment later:
+ * taken in that 300x150 layout, the fullscreen button's centre (274, 132) is the video's in
+ * the 640x360 one, and a single click on the video pauses the player, which then rightly
+ * keeps its bar up. All 13 failures of #501 had such a first click (each "started on click
+ * 2", and Marionette's "TimedPromise timed out after 500 ms" from flushEventLoop: the click
+ * never reached the button). Traced on CI (run 39473761807: 3 of 50 clicks on Linux, 1 of
+ * 50 on Windows), every missed click came at (274, 132) and went to the VIDEO, and the
+ * player gets a resize event at each of content.js's measurements (run 39476690456). Each
+ * measurement rewrites the iframe's style attribute, watched here: quiet for twice
+ * content.js's 250 ms step, with the player at the iframe's size, its layout is the one the
+ * click lands in (25 rounds of this case on each runner, every click on the button: run
+ * 39476690456).
+ * @param {WebdriverIO.Element} frame - The player's iframe (the session goes back into it).
+ * @return {Promise<void>}
+ */
+async function playerAtRest(frame) {
+  await browser.switchFrame(null);
+  await browser.execute(() => {
+    const iframe = document.querySelector('iframe[src*="player/index.html"]');
+    if (!window.__playerRestyled) {
+      window.__playerRestyled = performance.now();
+      new MutationObserver(() => {
+        window.__playerRestyled = performance.now();
+      }).observe(iframe, {attributes: true, attributeFilter: ['style']});
+    }
+  });
+  await browser.waitUntil(() => browser.execute(() => performance.now() - window.__playerRestyled > 500),
+      {timeout: 10000, interval: 100, timeoutMsg: 'content.js went on laying out the player for 10 s'});
+  // the size once the layout is done, not before: a last restyle can change it
+  const box = await browser.execute(() => {
+    const iframe = document.querySelector('iframe[src*="player/index.html"]');
+    return {width: iframe.clientWidth, height: iframe.clientHeight};
+  });
+  await browser.switchFrame(frame);
+  await browser.waitUntil(() => browser.execute((box) => innerWidth === box.width && innerHeight === box.height, box),
+      {timeout: 5000, interval: 100, timeoutMsg: `the player never took its iframe's size, ${box.width}x${box.height}`});
+}
+
+/**
  * Enters fullscreen with the player's fullscreen button, in the player frame the session is
- * in. On CI on main the click sometimes did not start it (2026-10-10: Windows the first
- * time, Linux the second, never on the PR or locally), so it clicks again while nothing
- * started - the path stays the button - and, if it never starts, says what the frames knew:
- * focus, Firefox's fullscreenerror events, what the iframe allows.
+ * in, once content.js is done laying out the player (playerAtRest). A click that reached the
+ * button and started nothing is clicked again (2026-10-10: seen on CI's runners, never
+ * locally); one that went elsewhere fails at once and says where, and if fullscreen never
+ * starts, the error says what the frames knew: focus, Firefox's fullscreenerror events, what
+ * the iframe allows.
+ * @param {WebdriverIO.Element} frame - The player's iframe.
  * @param {WebdriverIO.Element} button - The fullscreen button.
  * @param {string} what - For the error.
  * @return {Promise<void>}
  */
-async function enterFullscreenWithButton(button, what) {
+async function enterFullscreenWithButton(frame, button, what) {
   await browser.execute(() => {
     if (window.__fullscreenErrors !== undefined) return;
     window.__fullscreenErrors = 0;
     document.addEventListener('fullscreenerror', () => window.__fullscreenErrors++);
+    window.__clicks = [];
+    window.addEventListener('click', (e) => {
+      if (!e.isTrusted) return;
+      const target = e.target.closest?.('.fluid_control_fullscreen') ? 'button' :
+        `${e.target.tagName}.${e.target.getAttribute?.('class') || ''}`;
+      window.__clicks.push(`${target} at ${e.clientX},${e.clientY} in ${innerWidth}x${innerHeight}`);
+    }, true);
   });
   for (let attempt = 1; attempt <= 3; attempt++) {
     if (await browser.execute(() => !!document.fullscreenElement)) return;
+    await playerAtRest(frame);
+    const clicksBefore = await browser.execute(() => window.__clicks.length);
     await button.click();
     const started = await browser.waitUntil(() => browser.execute(() => !!document.fullscreenElement),
         {timeout: 3000, interval: 100}).then(() => true, () => false);
@@ -274,9 +330,13 @@ async function enterFullscreenWithButton(button, what) {
       if (attempt > 1) console.log(`      ${what}: started on click ${attempt}`);
       return;
     }
+    const clicks = await browser.execute((n) => window.__clicks.slice(n), clicksBefore);
+    if (!clicks.some((c) => c.startsWith('button '))) {
+      throw new Error(`${what}: the click never reached the button: ${JSON.stringify(clicks)}`);
+    }
     await browser.pause(1000);
   }
-  const frame = await browser.execute(() => ({
+  const player = await browser.execute(() => ({
     enabled: document.fullscreenEnabled, focus: document.hasFocus(), errors: window.__fullscreenErrors,
     visibility: document.visibilityState,
   }));
@@ -286,7 +346,7 @@ async function enterFullscreenWithButton(button, what) {
     allow: document.querySelector('iframe[src*="player/index.html"]')?.getAttribute('allow'),
     allowfullscreen: document.querySelector('iframe[src*="player/index.html"]')?.hasAttribute('allowfullscreen'),
   }));
-  throw new Error(`${what}: ${JSON.stringify({frame, page})}`);
+  throw new Error(`${what}: ${JSON.stringify({frame: player, page})}`);
 }
 
 /**
@@ -604,7 +664,7 @@ describe('A site\'s overlays around an in-page player', function() {
       window.fastStream.state.playing = true;
     });
     const fullscreen = await browser.$('.mainplayer .fluid_control_fullscreen');
-    await enterFullscreenWithButton(fullscreen, 'fullscreen never started');
+    await enterFullscreenWithButton(frame, fullscreen, 'fullscreen never started');
     await browser.pause(500);
     await browser.keys(['Escape']);
     await browser.waitUntil(() => browser.execute(() => !document.fullscreenElement),
@@ -614,8 +674,8 @@ describe('A site\'s overlays around an in-page player', function() {
     await browser.waitUntil(() => browser.execute(() => !document.fullscreenElement),
         {timeout: 5000, timeoutMsg: 'the page never left fullscreen'});
     await browser.switchFrame(frame);
-    await browser.pause(500);
-    await enterFullscreenWithButton(fullscreen, 'fullscreen never started again');
+    // Leaving fullscreen resized the page: content.js lays the player out again (playerAtRest).
+    await enterFullscreenWithButton(frame, fullscreen, 'fullscreen never started again');
     await browser.pause(3000);
     try {
       const hidden = await browser.waitUntil(() => browser.execute(() => !window.fastStream.interfaceController.controlsVisible),

@@ -2546,6 +2546,8 @@
   const UserActivationMs = 5000;
   // When the user last pressed a pointer or a key in this frame (trusted; onUserGesture).
   let lastUserGestureAt = -Infinity;
+  // When this frame last saw a key press that could be an extension's shortcut (onUserGesture).
+  let lastShortcutKeyAt = -Infinity;
 
   /**
    * Whether a play now follows the user's own press. navigator.userActivation.isActive
@@ -2554,11 +2556,21 @@
    * already false, was taken for an autoplay, and never went to mpv. A trusted press in
    * this frame within the time Firefox gives an activation counts too; an autoplay with no
    * press behind it still does not.
+   *
+   * Firefox activates the page for a shortcut's key too: after Alt+F, isActive is true for
+   * 5 s (measured on Firefox 158, Linux and Windows, CI run 39473761807). A video the page
+   * started on its own in those 5 s - a muted preview that began a moment after the MPV key -
+   * counted as the user's and went to mpv (mpv-shortcut.e2e.mjs, CI runs 38454197759 and
+   * 39192185180). So the activation counts only when the press behind it was not such a key.
    * @return {boolean}
    */
   function playFollowsUserPress() {
-    if (navigator.userActivation && navigator.userActivation.isActive) return true;
-    return performance.now() - lastUserGestureAt <= UserActivationMs;
+    const now = performance.now();
+    if (now - lastUserGestureAt <= UserActivationMs) return true;
+    if (!navigator.userActivation || !navigator.userActivation.isActive) return false;
+    // Active with no press of its own here: a shortcut's key, or a press in another frame
+    // (Firefox activates the frames above, and the same-origin ones below, too).
+    return now - lastShortcutKeyAt > UserActivationMs;
   }
 
   function reportUserPlay(video) {
@@ -2665,6 +2677,10 @@
       (ModifierKeys.includes(e.key) || e.key === 'Escape' || couldBeExtensionShortcut(e));
     if (!noPress) {
       lastUserGestureAt = performance.now();
+    } else if (!ModifierKeys.includes(e.key) && e.key !== 'Escape' && !/^Media/.test(e.key)) {
+      // Firefox's activation for it is not the user's (playFollowsUserPress). A media key is
+      // a play control, not a shortcut: the play it starts stays the user's.
+      lastShortcutKeyAt = performance.now();
     }
     for (const node of e.composedPath()) {
       if (node instanceof ShadowRoot) {

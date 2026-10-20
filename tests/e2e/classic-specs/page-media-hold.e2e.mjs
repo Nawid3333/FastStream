@@ -197,17 +197,28 @@ describe('the page\'s media under FastStream\'s player', function() {
     await clickToolbar();
     await browser.waitUntil(async () => inPage(() => !!document.querySelector('iframe[src*="player/index.html"]')),
         {timeout: 15000, timeoutMsg: 'the player never opened'});
+    // Its video, not only its source: setSource() names the source first and builds the
+    // player after it (the storage estimate, the player's module, its setup), and a play()
+    // in between throws "No source is loaded!". All three failed attempts of 2026-10-12 to
+    // 2026-10-14 played there (CI runs 38243881444, 38307397931, 38500903567: the error is
+    // in each driver log, between the player's "setSource" and its "Added rule"), then
+    // waited 10 s for a play that never came.
     await browser.waitUntil(async () => {
       try {
-        return await inPlayer(() => !!(window.fastStream && window.fastStream.source));
+        return await inPlayer(() => window.fastStream?.player?.getVideo?.()?.readyState >= 1);
       } catch (e) {
         return false;
       }
-    }, {timeout: 15000, interval: 250, timeoutMsg: 'the player never got a source'});
+    }, {timeout: 15000, interval: 250, timeoutMsg: 'the player never loaded its video'});
 
-    await inPlayer(() => {
-      window.fastStream.play();
-    });
+    // The play's own answer, so a refused one says why (it went to the console only).
+    const refused = await inPlayer(() => new Promise((done) => {
+      window.fastStream.play().then(() => done(null), (e) => done(String(e)));
+      setTimeout(() => done(null), 5000);
+    }));
+    if (refused) {
+      throw new Error(`FastStream's player refused to play: ${refused}`);
+    }
     await browser.waitUntil(async () => inPlayer(() => !window.fastStream.paused),
         {timeout: 10000, timeoutMsg: 'FastStream\'s player never played'});
     await browser.pause(1500);

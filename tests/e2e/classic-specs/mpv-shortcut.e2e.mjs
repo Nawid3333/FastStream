@@ -754,6 +754,18 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     await expectMode('off', 'visiting a site that is not on the allowlist');
 
     await pressShortcut();
+    // The page starts its preview again a moment after the key, as a carousel or a hover
+    // preview does. Firefox counts the key press as an activation for 5 s, and such a play
+    // went to mpv as the user's (content.js playFollowsUserPress; the preview reached mpv on
+    // CI when its own start came after the key, runs 38454197759 and 39192185180). Right
+    // after the key, before anything else takes time: the check needs those 5 s still on.
+    await browser.switchToWindow(siteHandle);
+    expect(await browser.execute(() => {
+      const preview = document.getElementById('preview');
+      preview.pause();
+      preview.play().catch(() => {});
+      return navigator.userActivation.isActive;
+    })).toBe(true);
     await expectMode('mpv', 'pressing Alt+F with FastStream off');
     await expectNothingInMpv('switching MPV on with a preview playing and the main video preloaded');
 
@@ -877,6 +889,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
   // timer only checked "on", and MPV is on too: switching to MPV inside the delay
   // found no player to reload away, and the timer then opened one under MPV.
   it('opens no in-page player under MPV that was due just before the switch', async function() {
+    const mpvBefore = mpvCount();
     await setOptions({mpvMode: true, mpvAllowlist: [], replaceDelay: 8000});
     try {
       // Streams found while off start no timer, and Off -> On opens the player at once.
@@ -903,6 +916,12 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
       await browser.pause(10000);
       expect(await hasOverlayPlayer()).toBe(false);
       await expectMode('mpv', 'the delay running out');
+      // Nor anything to mpv: the page's preview starts as the MPV key comes, and on CI it went
+      // to mpv when its start came after the key (playFollowsUserPress). The next test's
+      // check used to be the one to see it.
+      if (mpvCount() !== mpvBefore) {
+        throw new Error(`switching to MPV with the page's preview starting: mpv requested a video nobody started. Seen: ${seenRequests(testStart)}`);
+      }
 
       await pressShortcut('mpv');
       await expectMode('off', 'pressing Alt+F again');
