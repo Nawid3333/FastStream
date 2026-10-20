@@ -2446,6 +2446,9 @@ async function openPlayer(frame) {
       frameId: frame.frameId,
     }, (response) => {
       BackgroundUtils.checkMessageError('player');
+      // What content.js did ('redirect', 'replace', 'no_video'...): a player that never came
+      // after "Opening player" said nothing of why (iframe-redirect.e2e on CI).
+      if (Logging) console.log('Player opening answered', response, frame.frameId);
 
       if (!BackgroundUtils.isPlayerOpeningResponse(response)) {
         frame.playerOpening = false;
