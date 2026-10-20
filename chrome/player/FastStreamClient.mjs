@@ -1416,6 +1416,12 @@ export class FastStreamClient extends EventEmitter {
         if (!fragment || fragment.sn < 0 || fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE || !fragment.canFree()) continue;
         const bytes = manager.ramBytesOf(fragment.getContext());
         if (!(bytes > 0)) continue;
+        // On its way to disk already, and counted as gone (leaving). Chosen again on a tick
+        // while its write still ran (a slow disk, or a long queue of writes), its spill
+        // answered false at once, and it was let go of as one that could not be stored: with
+        // a budget of 0 that was every tick, as the next seconds are never let go of, and the
+        // video was downloaded again and again (ram-budget.e2e on the Windows runner).
+        if (manager.isSpilling(fragment.getContext())) continue;
         let start = fragment.start;
         let end = fragment.end;
         if (!Number.isFinite(start) || !Number.isFinite(end)) {

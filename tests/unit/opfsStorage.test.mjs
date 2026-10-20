@@ -574,10 +574,13 @@ describe('FSBlob', () => {
     const first = new Blob(['old']);
     await fsblob.saveBlobAsync(first, 'f1', {deferred: true});
     const spilling = fsblob.spill('f1');
+    // What the RAM budget asks before it chooses a fragment (FastStreamClient).
+    expect(fsblob.isSpilling('f1')).toBe(true);
     const second = new Blob(['new data']);
     await fsblob.saveBlobAsync(second, 'f1', {deferred: true});
     release();
     expect(await spilling).toBe(false);
+    expect(fsblob.isSpilling('f1')).toBe(false);
     expect(fsblob.getBlob('f1')).toBe(second);
     expect(fsblob.ramBytes()).toBe(second.size);
   });

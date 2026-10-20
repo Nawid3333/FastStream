@@ -270,6 +270,19 @@ count). What a backend stored replaces the RAM blob only while that blob is stil
 (`replaceIfStill`): a fragment let go of and downloaded again while its first copy was being
 written got the old data back. `enforceMemoryBudget` runs on the client's tick and must not
 throw (it is wrapped). Saves are never cancelled or held by the network yield (player.md).
+A fragment on its way to disk (`FSBlob.isSpilling`) is not chosen again (2026-10-20): what to
+free is counted net of those (`held - leaving`), and chosen again on a tick while its write
+still ran, its `spill()` answered false at once and the client let go of it as one that could
+not be stored. With a budget of 0 that was every tick (the next 10 s are never let go of, so
+the bytes asked for always reached into the ones being written): on CI's Windows runner, whose
+OPFS writes queue for more than a second, RAM stayed at 7-13 MB for 30 s (CI runs 38301048814,
+38626511584) and a 2 MB budget's stream had 26-56 fragments to go after 60 s (38301048814,
+38498488742, 38625482765), while the same runner had written most of a 14 MB spill in 5-8 s in
+the test before: not a slow disk alone (ram-budget.e2e, #501). `FastStreamClient.test.mjs` "the RAM
+budget while writes to disk are slow" fails without it; ram-budget.e2e counts the fragments
+let go of (`letGo`, 0 with the disk on) and the files of the player's own OPFS session only
+(counted over every session, the earlier tests' files counted for this player's: 53-120 files
+were logged at the budget-0 check, with about 52 from the test before).
 
 **Tests.** `ram-budget.e2e.mjs` (a two-minute stream that fits stays in RAM, no file written;
 with a 2 MB budget 64 fragments went to disk, 2.9 MB stayed, and the start played again from

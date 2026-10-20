@@ -14,11 +14,17 @@
 
 import {browser, expect} from '@wdio/globals';
 
-/** Opens the player page without a source. */
+/** Opens the player page without a source, its stored options applied. */
 async function openPlayer() {
   await browser.url('/player/index.html?t=' + Date.now());
   await browser.waitUntil(async () => browser.execute(() => !!window.fastStream),
       {timeout: 15000, timeoutMsg: 'window.fastStream never appeared'});
+  // main.mjs applies the stored options once the client exists (setOptions), the colour
+  // theme on <body> with them: landing after the theme test had set "arctic", they put the
+  // default back, and that dialog came out dark (CI runs 38202941296, 38736131763). It sets
+  // optionsApplied when it has.
+  await browser.waitUntil(async () => browser.execute(() => !!window.fastStream.optionsApplied),
+      {timeout: 15000, timeoutMsg: 'the player options never loaded'});
 }
 
 /**

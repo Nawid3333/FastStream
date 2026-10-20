@@ -333,9 +333,11 @@ export class FSBlob {
 
   /**
    * Writes a blob held in RAM to disk, and lets the RAM copy go once it is there. Nothing for
-   * a memory-only store, a blob already on disk, or one already on its way.
+   * a memory-only store, a blob already on disk, or one already on its way: false then means
+   * only that this call wrote nothing, and for one on its way (isSpilling) the write still
+   * runs. Its caller let go of such a blob as one that could not be stored.
    * @param {string} identifier
-   * @return {Promise<boolean>} Whether it is on disk now.
+   * @return {Promise<boolean>} Whether this call put it on disk.
    */
   async spill(identifier) {
     if (this.memoryOnly || !this.inRam.has(identifier) || this.spilling.has(identifier)) return false;
@@ -371,6 +373,14 @@ export class FSBlob {
     let bytes = 0;
     for (const identifier of this.spilling) bytes += this.inRam.get(identifier) || 0;
     return bytes;
+  }
+
+  /**
+   * @param {string} identifier
+   * @return {boolean} Whether the blob is being written to disk now (spill()).
+   */
+  isSpilling(identifier) {
+    return this.spilling.has(identifier);
   }
 
   /**

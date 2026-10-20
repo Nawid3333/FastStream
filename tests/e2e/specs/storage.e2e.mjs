@@ -36,13 +36,65 @@ async function runInPage(fn, timeout = 30000) {
     // one that sets window.__diag says what the storage was doing at that point.
     const {step, diag} = await browser.execute(() => ({step: window.__step, diag: window.__diag?.()}));
     throw new Error(`the page never settled${step ? ` (last step reached: ${step})` : ''}` +
-        (diag ? `: ${JSON.stringify(diag)}` : ''));
+        (diag ? `: ${JSON.stringify(diag)}` : '') + `; the page's storage then: ${JSON.stringify(await storageProbe())}`);
   }
 
   const {out, err} = await browser.execute(
       () => ({out: window.__out, err: window.__err}));
   if (err) throw new Error('page-side failure: ' + err);
   return out;
+}
+
+/**
+ * Whether the rest of the page's storage answers, for a step that never settled. On the
+ * Windows runner (CI runs 38493461496, 38500903567) the OPFS worker stopped answering its
+ * writes for 28 s, and once the next test's Cache API write did not answer either, nor the
+ * page itself for 3 s: whether all of Firefox's storage for the origin stood still, or only
+ * the worker, the logs could not say. Each of OPFS from the page (not through the worker),
+ * the Cache API and IndexedDB gets 3 s; the page itself 10 s.
+ * @return {Promise<Object>} Each one's milliseconds, or what became of it.
+ */
+async function storageProbe() {
+  const started = Date.now();
+  const call = browser.execute(() => new Promise((done) => {
+    const within = (promise) => {
+      const begun = performance.now();
+      return Promise.race([
+        promise.then(() => Math.round(performance.now() - begun), (e) => `failed: ${e?.name || e}`),
+        new Promise((resolve) => setTimeout(() => resolve('no answer in 3 s'), 3000)),
+      ]);
+    };
+    const name = 'fs-e2e-probe-' + Date.now();
+    Promise.all([
+      within(navigator.storage.getDirectory().then(async (root) => {
+        await root.getDirectoryHandle(name, {create: true});
+        await root.removeEntry(name);
+      })),
+      within(caches.open(name).then(() => caches.delete(name))),
+      within(new Promise((resolve, reject) => {
+        const request = indexedDB.open(name);
+        request.onsuccess = () => {
+          request.result.close();
+          indexedDB.deleteDatabase(name);
+          resolve();
+        };
+        request.onerror = () => reject(request.error);
+      })),
+    ]).then(([opfs, cache, indexedDB]) => done({opfs, cache, indexedDB}));
+  }));
+  // Given up on, it may still fail later, with the session.
+  call.catch(() => {});
+  let timer;
+  try {
+    const answer = await Promise.race([call, new Promise((resolve) => {
+      timer = setTimeout(() => resolve('the page did not answer in 10 s'), 10000);
+    })]);
+    return {answer, ms: Date.now() - started};
+  } catch (e) {
+    return {failed: e.message};
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 describe('FSBlob storage backends', function() {

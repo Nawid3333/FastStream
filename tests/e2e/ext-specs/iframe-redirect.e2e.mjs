@@ -26,6 +26,48 @@ const EMBED = `http://localhost:${SITE_PORT}`;
 
 let siteServer;
 
+/**
+ * What the frame shows, for a failure: its address, whether it may go fullscreen, and its
+ * videos with their boxes and what an IntersectionObserver reports of the first (what
+ * content.js's getVideo waits for), or that it reported nothing in 2 s.
+ * @param {WebdriverIO.Element} frame
+ * @param {string} href - The frame's address as last read.
+ * @return {Promise<Object>}
+ */
+async function frameState(frame, href) {
+  try {
+    await browser.switchFrame(null);
+    await browser.switchFrame(frame);
+    return await browser.execute(() => new Promise((done) => {
+      const videos = Array.from(document.querySelectorAll('video'));
+      const state = {
+        href: location.href,
+        visibility: document.visibilityState,
+        fullscreenEnabled: document.fullscreenEnabled,
+        videos: videos.map((video) => {
+          const box = video.getBoundingClientRect();
+          return {box: [box.x, box.y, box.width, box.height].map(Math.round), readyState: video.readyState};
+        }),
+      };
+      if (!videos.length) {
+        done(state);
+        return;
+      }
+      const timer = setTimeout(() => done({...state, intersection: 'no report in 2 s'}), 2000);
+      const observer = new IntersectionObserver(([entry]) => {
+        clearTimeout(timer);
+        observer.disconnect();
+        done({...state, intersection: entry.intersectionRatio});
+      });
+      observer.observe(videos[0]);
+    }));
+  } catch (e) {
+    return {href, unreadable: e.message};
+  } finally {
+    await browser.switchFrame(null).catch(() => {});
+  }
+}
+
 describe('A video that fills an iframe without allowfullscreen', function() {
   before(async function() {
     siteServer = http.createServer((req, res) => {
@@ -70,12 +112,21 @@ describe('A video that fills an iframe without allowfullscreen', function() {
 
     // The frame is sent to the player page.
     let href;
-    await browser.waitUntil(async () => {
-      await browser.switchFrame(null);
-      await browser.switchFrame(frame);
-      href = await browser.execute(() => location.href);
-      return href.startsWith(ORIGIN + '/player/index.html');
-    }, {timeout: 30000, interval: 250, timeoutMsg: 'the frame was never sent to the player'});
+    try {
+      await browser.waitUntil(async () => {
+        await browser.switchFrame(null);
+        await browser.switchFrame(frame);
+        href = await browser.execute(() => location.href);
+        return href.startsWith(ORIGIN + '/player/index.html');
+      }, {timeout: 30000, interval: 250});
+    } catch (e) {
+      // Once on the Windows runner (CI run 39081539517) the background found the frame's
+      // video and sent OPEN_PLAYER ("Opening player" in the driver log), and nothing came of
+      // it, with no word of why. content.js answers with no player when it sees no video
+      // (getVideo: by an IntersectionObserver's first report), and redirects only a video
+      // that fills its frame: what the frame showed then.
+      throw new Error(`the frame was never sent to the player: ${JSON.stringify(await frameState(frame, href))}`);
+    }
 
     let state;
     try {

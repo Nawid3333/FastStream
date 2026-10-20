@@ -19,7 +19,7 @@
 // profile - and the test left the page 70 ms into that request (the SHIPBFCache log of
 // PR #366's second CI run). Someone leaving a page that fast would lose the cache the same way.
 
-import {browser, expect} from '@wdio/globals';
+import {browser} from '@wdio/globals';
 
 import {BUILD, OPENER_URL} from '../wdio.extension.conf.mjs';
 
@@ -57,6 +57,14 @@ describe('A page with a player in the back-forward cache', function() {
     await openEmbed('first=' + Date.now());
     await browser.execute(() => {
       window.__kept = true;
+      // Whether Firefox took the page into the cache as it left (pagehide's persisted), kept
+      // where the page loaded again can read it: one cached and dropped later, and one never
+      // cached, have different causes. Once on the Linux runner (CI run 38478435862) Back
+      // loaded the page again, and the driver log only showed its documents gone while the
+      // next page's player ran ("can't access dead object"); Linux has no SHIPBFCache log.
+      window.addEventListener('pagehide', (event) => {
+        sessionStorage.setItem('fs-e2e-left', JSON.stringify({persisted: event.persisted, at: Date.now()}));
+      });
     });
     // A script's navigation: WebDriver's own leaves a listener that keeps a page out of the cache.
     await browser.execute((url) => {
@@ -78,7 +86,12 @@ describe('A page with a player in the back-forward cache', function() {
     await browser.back();
     await browser.waitUntil(async () => browser.execute(() => location.search.startsWith('?first')),
         {timeout: 15000, timeoutMsg: 'Back never reached the first page'});
-    expect(await browser.execute(() => window.__kept === true)).toBe(true);
+    const back = await browser.execute(() => ({kept: window.__kept === true, left: JSON.parse(sessionStorage.getItem('fs-e2e-left'))}));
+    if (!back.kept) {
+      const left = back.left ? `persisted ${back.left.persisted}, ${Date.now() - back.left.at} ms ago` : 'no pagehide recorded';
+      throw new Error(`Back loaded the first page again, not from the back-forward cache. As it left: ${left} ` +
+          '(persisted true: cached, then dropped; false: never cached, as with a request in flight)');
+    }
     // And its player with it. Its client went at beforeunload, before the page was cached,
     // and Back gave back a dead player; it starts again now (main.mjs, pageshow).
     await browser.waitUntil(async () => {
