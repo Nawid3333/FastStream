@@ -350,7 +350,10 @@
   loaded again; Windows: the source waited on OPFS for over 15 s, as storage.e2e's worker
   stood still): they say more now, Firefox's own bfcache log included, set through
   `logging.*` preferences in the chrome context, which reach every process and work on
-  Linux, where CI sets no MOZ_LOG. Not flakes of main: a WIP branch's merged case
+  Linux, where CI sets no MOZ_LOG. That log caught the Linux case on this pull request's
+  own CI (run 39483183549): "Save of .../cleanup blocked because document has request
+  .../clip.mp4" - NETWORK_IDLE, which pageMediaIdle waited for, is also a download Firefox
+  only suspended, its request still open; it waits for the whole clip buffered too now. Not flakes of main: a WIP branch's merged case
   (wip/fs-prune, failed twice), and the pre-15 host's PowerShell start of mpv taking 46 s
   (fix/open-items). One mpv-shortcut attempt hung for two minutes with nothing logged (run
   38628691870).
