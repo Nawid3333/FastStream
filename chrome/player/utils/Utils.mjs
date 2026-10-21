@@ -334,6 +334,19 @@ export class Utils {
   }
 
   /**
+   * Saves a blob as a file the way every save goes (downloadURL), its URL let go once the
+   * download is over (revokeWhenDownloaded).
+   * @param {Blob} blob
+   * @param {string} filename
+   * @return {Promise<void>} Once the download was handed to the browser.
+   */
+  static async downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const download = await Utils.downloadURL(url, filename);
+    Utils.revokeWhenDownloaded(url, download);
+  }
+
+  /**
    * Revokes a download's blob: URL once the download no longer needs it.
    *
    * downloads.download() resolves before Firefox has read a blob: URL: revoked at once, 8

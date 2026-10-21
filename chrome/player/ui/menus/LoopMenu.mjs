@@ -402,24 +402,12 @@ export class LoopMenu extends EventEmitter {
         this.client.interfaceController.setStatusMessage('save-gif', Localize.getMessage('loop_menu_gif_finished'), 'info', 5000);
         gif.abort();
         console.log('gif finished');
-        this.saveGif(blob).catch((e) => console.error('Saving the GIF failed', e));
+        // As every save (Utils.downloadURL): an anchor clicked in the player, a frame of the
+        // page, downloads no blob in Firefox.
+        Utils.downloadBlob(blob, 'loop.gif').catch((e) => console.error('Saving the GIF failed', e));
       });
       gif.render();
     }
-  }
-
-  /**
-   * Hands a finished GIF to the browser as every save is (Utils.downloadURL), and lets its
-   * URL go once the download is over. An anchor clicked in the player - a frame of the page -
-   * downloads no blob in Firefox, and the URL was revoked in the same task, before the
-   * download had read it.
-   * @param {Blob} blob
-   * @return {Promise<void>}
-   */
-  async saveGif(blob) {
-    const url = URL.createObjectURL(blob);
-    const download = await Utils.downloadURL(url, 'loop.gif');
-    Utils.revokeWhenDownloaded(url, download);
   }
 
   startLoopLoop() {

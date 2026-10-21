@@ -207,13 +207,14 @@ describe('recut-patch, run on a patch that changes nothing', () => {
   it('refuses it, instead of saying it merged cleanly and deleting it with --apply', () => {
     // An empty patch (truncated by accident) passed every check over no file (glm's review,
     // 2026-10-22). Refused before anything is downloaded.
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'recut-empty-'));
+    // In the repository: the tool takes a patch as a path from it, with / and no drive, and
+    // the temp folder may be on another drive (Windows CI: D: and C:).
+    const repo = path.join(import.meta.dirname, '..', '..');
+    const dir = fs.mkdtempSync(path.join(repo, 'tests', '.recut-empty-'));
     try {
       const patch = path.join(dir, 'empty.patch');
       fs.writeFileSync(patch, '');
-      const repo = path.join(import.meta.dirname, '..', '..');
       const script = path.join(repo, 'tools', 'recut-patch.mjs');
-      // as the tool takes a patch: a path from the repository, with / (no drive, no \)
       const relative = path.relative(repo, patch).split(path.sep).join('/');
       const run = spawnSync(process.execPath, [script, 'hls.js', '1.6.0', '--from', '1.5.0', '--patch', relative],
           {encoding: 'utf8', timeout: 60000});

@@ -189,6 +189,9 @@ const PlayedVideoWaitMs = 1000;
 // whether it may go fullscreen. Content scripts share the page's event loop, and one that
 // never let go held a click (no player opened) or a fullscreen request for good.
 const FrameAnswerWaitMs = 3000;
+// The captions' scrape waits for the page's tracks, each up to 10 s (content.js
+// HttpRequestTimeoutMs): a little longer than that.
+const CaptionsAnswerWaitMs = 12000;
 // The longest a player, or a hand-off to mpv, waits for a page to list its player's qualities
 // (getPageQualities). It reads them from what it holds: milliseconds, unless its scripts are busy.
 const PageQualitiesWaitMs = 1000;
@@ -2206,7 +2209,7 @@ async function scrapeCaptionsTags(frame) {
   const frameId = frame.frameId;
   if (tabId < 0) return null;
 
-  return askFrame(tabId, {type: MessageTypes.SCRAPE_CAPTIONS}, {frameId: frameId}, 'scrape_captions');
+  return askFrame(tabId, {type: MessageTypes.SCRAPE_CAPTIONS}, {frameId: frameId}, 'scrape_captions', CaptionsAnswerWaitMs);
 }
 
 /**
@@ -2287,11 +2290,12 @@ async function getPlayedVideo(player) {
  * @param {Object} message
  * @param {{frameId: number}} target
  * @param {string} label - For BackgroundUtils.checkMessageError.
+ * @param {number} [waitMs] - How long an answer is waited for.
  * @return {Promise<*>}
  */
-function askFrame(tabId, message, target, label) {
+function askFrame(tabId, message, target, label, waitMs = FrameAnswerWaitMs) {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(undefined), FrameAnswerWaitMs);
+    const timer = setTimeout(() => resolve(undefined), waitMs);
     chrome.tabs.sendMessage(tabId, message, target, (answer) => {
       BackgroundUtils.checkMessageError(label);
       clearTimeout(timer);
