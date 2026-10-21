@@ -94,27 +94,31 @@ export class VideoSource {
   }
 
   /**
-   * Should only be called when the source is trusted.
+   * Takes the headers and the mode a link carries in its query (toCopyURL) off its URL.
+   * @param {boolean} [apply=true] - Whether to use them as well: only for a trusted source.
+   *   An untrusted one plays its URL without them.
    */
-  parseHeadersParam() {
+  parseHeadersParam(apply = true) {
     try {
       const url = new URL(this.url);
       const headers = url.searchParams.get('faststream-headers');
       if (headers) {
-        const parsedHeaders = withoutCredentials(JSON.parse(headers));
-        for (const key in parsedHeaders) {
-          if (Object.hasOwn(parsedHeaders, key)) {
-            this.headers[key] = parsedHeaders[key];
+        if (apply) {
+          const parsedHeaders = withoutCredentials(JSON.parse(headers));
+          for (const key in parsedHeaders) {
+            if (Object.hasOwn(parsedHeaders, key)) {
+              this.headers[key] = parsedHeaders[key];
+            }
           }
+          this.headers = this.filterHeaders(this.headers);
         }
-        this.headers = this.filterHeaders(this.headers);
         url.searchParams.delete('faststream-headers');
         this.url = url.toString();
       }
 
       const mode = url.searchParams.get('faststream-mode');
       if (mode) {
-        if (Object.values(PlayerModes).includes(mode)) {
+        if (apply && Object.values(PlayerModes).includes(mode)) {
           this.mode = mode;
         }
         url.searchParams.delete('faststream-mode');

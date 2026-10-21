@@ -4,6 +4,7 @@ import {PlayerModes} from './enums/PlayerModes.mjs';
 import {FastStreamClient} from './FastStreamClient.mjs';
 import {Localize} from './modules/Localize.mjs';
 import {SubtitleTrack} from './SubtitleTrack.mjs';
+import {isAddressFromRedirect} from './utils/AddressKey.mjs';
 import {EnvUtils} from './utils/EnvUtils.mjs';
 import {STILLS_LENGTH, StreamLength} from './utils/StreamLength.mjs';
 import {StreamPick} from './utils/StreamPick.mjs';
@@ -338,7 +339,9 @@ async function setup() {
   // its own: the extension puts one there when you open a stream URL (the redirect rule
   // is main_frame only), and never in the player iframes it adds to pages. A player
   // inside a page with a hash was framed by that page, which could hand it made-up
-  // headers (for mpv, or for the header rules on its own requests).
+  // headers (for mpv, or for the header rules on its own requests). A page can open the
+  // player in a tab too (window.open): the address's headers and mode count only with the
+  // redirect rule's key (AddressKey.mjs); without it the player plays the bare URL.
   if (window.location.hash && (!EnvUtils.isExtension() || window.top === window)) {
     const url = window.location.hash.substring(1);
     const ext = URLUtils.get_url_extension(url);
@@ -353,7 +356,7 @@ async function setup() {
     }
 
     const source = new VideoSource(url, {}, mode);
-    source.parseHeadersParam();
+    source.parseHeadersParam(!EnvUtils.isExtension() || await isAddressFromRedirect(window.location.search));
 
     window.fastStream.addSource(source, true).catch((e) => console.error('Opening the stream in the address failed', e));
   }

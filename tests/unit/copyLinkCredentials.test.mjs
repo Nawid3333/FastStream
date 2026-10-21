@@ -95,6 +95,16 @@ describe('VideoSource.parseHeadersParam', () => {
     expect(source.headers).toEqual(kept);
     expect(source.url).toBe(STREAM);
   });
+
+  it('only takes an untrusted link\'s headers and mode off its URL (a page put them there)', () => {
+    const forged = {Referer: 'https://forged.test/page'};
+    const link = `${STREAM}&faststream-headers=${encodeURIComponent(JSON.stringify(forged))}&faststream-mode=${PlayerModes.ACCELERATED_HLS}`;
+    const source = new VideoSource(link, {}, PlayerModes.AUTO);
+    source.parseHeadersParam(false);
+    expect(source.headers).toEqual({});
+    expect(source.url).toBe(STREAM);
+    expect(source.mode).toBe(PlayerModes.AUTO);
+  });
 });
 
 describe('the time readout\'s copy', () => {

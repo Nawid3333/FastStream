@@ -125,18 +125,21 @@ export class KeybindManager extends EventEmitter {
       }
       this.client.interfaceController.showControlBarTemporarily();
       this.showSpeed();
+      this.rememberSpeed();
     });
 
     this.on('DecreasePlaybackRate', (e) => {
       this.client.playbackRate = Math.max(this.client.playbackRate - 0.1, 0.1);
       this.client.interfaceController.showControlBarTemporarily();
       this.showSpeed();
+      this.rememberSpeed();
     });
 
     this.on('ResetPlaybackRate', (e) => {
       this.client.playbackRate = 1;
       this.client.interfaceController.showControlBarTemporarily();
       this.showSpeed();
+      this.rememberSpeed();
     });
 
     // mpv-style speed presets (a port of the user's speed-presets.lua): a preset key
@@ -160,6 +163,7 @@ export class KeybindManager extends EventEmitter {
         }
         this.client.interfaceController.showControlBarTemporarily();
         this.showSpeed();
+        this.rememberSpeed();
       });
     }
 
@@ -275,6 +279,16 @@ export class KeybindManager extends EventEmitter {
   /**
    * Shows the playback speed now in effect on screen (OnScreenDisplay), as "2×".
    */
+  /**
+   * Keeps the speed a key set for the next video, as the speed menu keeps its own (and
+   * mpv's remember-speed every speed): only the menu saved it. The menu's save, 500 ms
+   * after the last change; a 16x left by its key comes back as 8x (PlaybackRateChanger's
+   * loadState). Holding the video's double speed is not a key's and is not kept.
+   */
+  rememberSpeed() {
+    this.client.interfaceController.playbackRateChanger?.scheduleSave();
+  }
+
   showSpeed() {
     this.osd.show(describePlaybackRate(this.client.playbackRate, this.client.options.maxPlaybackRate,
         Localize.getMessage('player_speed_nosound')));
