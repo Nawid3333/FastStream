@@ -95,7 +95,8 @@ exits, before mpv shows anything. On other platforms there is no job object and
 the direct detached spawn is used.
 
 A process the WMI service creates may not take the foreground, so mpv would
-open behind the browser. The host's PowerShell waits for mpv's window and
+open behind the browser. The host's PowerShell waits for mpv's window (up to
+30 s for an mpv it starts, 5 s for the one already open) and
 raises it (it attaches to the foreground window's input queue), then checks
 250 ms later that mpv's window really is in front. The answer to an `open`
 says how that went (host version 3): `focus` (`True`, `False`, `nowindow`, ...)

@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {CommandLineEnv, focusOutcome, runPowerShell, wmiLaunchLines, wmiLaunchResult} from '../../native-host/faststream-mpv-host.mjs';
+import {CommandLineEnv, ReusedWindowWaitSeconds, focusOutcome, focusPidLines, runPowerShell, wmiLaunchLines,
+  wmiLaunchResult} from '../../native-host/faststream-mpv-host.mjs';
 
 // What the WMI launch script reports about the mpv it started, and what the host makes
 // of it.
@@ -86,5 +87,29 @@ describe.runIf(process.platform === 'win32')('the WMI launch script, about an mp
     const {out, result} = await launch(['function Get-Process { param($Id, $ErrorAction) $null }']);
     expect(out).toContain('FOCUS=gone');
     expect(result).toEqual({ok: false, error: QuitError});
+  }, 60000);
+});
+
+// The window of an mpv already open, which a stream sent to it raises: its pipe answered,
+// so its window came long ago, and one not there is not coming. It was given the 30 s a
+// cold start gets, and the host's answer waited that long: the page played on beside mpv
+// until it came, and the same stream sent again meanwhile went nowhere (2026-10-21).
+describe('the focus script for an mpv already open', () => {
+  it('waits seconds for its window, a start the full WindowWaitSeconds', () => {
+    expect(ReusedWindowWaitSeconds).toBeLessThanOrEqual(5);
+    expect(focusPidLines(42)).toContain('$target = 42');
+    expect(focusPidLines(42).join('\n')).toContain(`.AddSeconds(${ReusedWindowWaitSeconds})`);
+    expect(wmiLaunchLines().join('\n')).toContain('.AddSeconds(30)');
+  });
+
+  it.runIf(process.platform === 'win32')('answers "nowindow" within seconds when the window is not there', async () => {
+    const started = Date.now();
+    const out = await runPowerShell([
+      'function Get-Process { param($Id, $ErrorAction) [pscustomobject]@{MainWindowHandle = [IntPtr]::Zero} }',
+      ...focusPidLines(424242),
+    ], 60000);
+    expect(out).toContain('FOCUS=nowindow');
+    // PowerShell's start and the Add-Type compile on top of the wait, far from the 30 s
+    expect(Date.now() - started).toBeLessThan((ReusedWindowWaitSeconds + 12) * 1000);
   }, 60000);
 });

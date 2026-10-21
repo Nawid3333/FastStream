@@ -67,7 +67,7 @@ const NativeHostName = 'com.faststream.mpv';
 // mpv connection" say to install the host again. Only that: no "!" on the button and no
 // warning in the player since the thin helper (2026-10-13), as an older helper still works
 // (through the messages it knows) and lacks only newer features.
-export const RequiredHostVersion = 15;
+export const RequiredHostVersion = 16;
 
 // The largest message the host reads (MaxMessageBytes in native-host/faststream-mpv-host.mjs),
 // as Firefox sends it: the JSON in UTF-8. A bigger one was never read: the host quit

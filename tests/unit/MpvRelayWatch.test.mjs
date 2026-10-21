@@ -2,7 +2,7 @@ import {afterEach, describe, expect, it} from 'vitest';
 
 import {EpisodeMessages as HostEpisodeMessages, HeartbeatMs as HostHeartbeatMs, MaxNoticeSeconds as HostMaxNoticeSeconds,
   ReadableProperties, noticeSeconds as hostNoticeSeconds} from '../../native-host/faststream-mpv-host.mjs';
-import {DecoderProperties, MpvBackend} from '../../chrome/background/MpvBackend.mjs';
+import {DecoderProperties, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {EpisodeMessages, HeartbeatMs, MaxNoticeSeconds, noticeSeconds, relayWatch} from '../../chrome/background/MpvRelayWatch.mjs';
 
 // MPV autoplay over the thin helper (host 15, 2026-10-13): the helper only relays mpv's lines
@@ -63,7 +63,7 @@ function relaying() {
   const port = fakePort();
   const events = [];
   const watch = relayWatch(port, (event) => events.push(event));
-  port.emit({type: 'relaying', hostVersion: 15, capabilities: ['play', 'ipc', 'relay']});
+  port.emit({type: 'relaying', hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']});
   return {
     port, events, watch,
     mpv: (data) => port.emit({type: 'mpv', data}),
@@ -414,7 +414,7 @@ describe('the relay watch', () => {
     const events = [];
     let legacy = 0;
     relayWatch(port, (event) => events.push(event), {onLegacy: () => legacy++});
-    port.emit({ok: false, error: 'heartbeat refused', hostVersion: 15, capabilities: ['play', 'ipc', 'relay']});
+    port.emit({ok: false, error: 'heartbeat refused', hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']});
     expect(legacy).toBe(0);
     expect(events).toEqual([{type: 'closed', reason: 'heartbeat refused'}]);
   });

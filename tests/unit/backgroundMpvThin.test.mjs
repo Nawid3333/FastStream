@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
+import {RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
 // MPV mode with the thin helper (host 15, 2026-10-13), through the background's real
@@ -11,7 +12,7 @@ import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
 const EP1 = 'https://site.test/watch/1';
 const S1 = 'https://cdn.test/one/master.m3u8';
-const Thin = {hostVersion: 15, capabilities: ['play', 'ipc', 'relay']};
+const Thin = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']};
 const fsId = (page) => crypto.createHash('sha256').update(page).digest('hex').slice(0, 16);
 
 let bg;

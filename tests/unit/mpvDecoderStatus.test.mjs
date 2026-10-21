@@ -212,7 +212,7 @@ describe('the extension asking the host', () => {
 // The thin helper (host 15, 2026-10-13) has no status message of its own to change: the
 // extension asks mpv's properties through its ipc primitive, and reads them as the host did.
 describe('the extension asking the thin helper', () => {
-  const Thin = {hostVersion: 15, capabilities: ['play', 'ipc', 'relay']};
+  const Thin = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']};
   const COMMANDS = ['hwdec-current', 'hwdec', 'video-format', 'width', 'height'].map((name) => ['get_property', name]);
   const answers = (...values) => ({ok: true, ...Thin, replies: values.map((data) =>
     data === undefined ? {error: 'property unavailable'} : {error: 'success', data})});
