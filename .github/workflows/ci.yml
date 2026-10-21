@@ -23,12 +23,15 @@ on:
         type: string
         default: windows-latest
 
-# Cancel superseded runs on the same branch. A called run takes the caller's name as
-# github.workflow; with the images in the group it never cancels a push run or another
-# image's run.
+# A pull request's newer push cancels its older run. Any other run (main's push, a dispatch,
+# a run runner-images.yml calls) has a group of its own and runs to its end: GitHub shows a
+# cancelled run on its commit as a red X, like a failure, and on main two pushes minutes
+# apart cancelled the first one's run (auto-release.yml's restart-cancelled-ci started it
+# again). A called run takes the caller's name as github.workflow; with the images in the
+# group it never meets a push run or another image's run.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.linux-runner }}-${{ inputs.windows-runner }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}-${{ inputs.linux-runner }}-${{ inputs.windows-runner }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Only reads the checkout and uploads workflow-run artifacts; needs nothing else.
 permissions:

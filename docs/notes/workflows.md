@@ -64,7 +64,9 @@
   last release bump, and re-runs that run when it was cancelled and a CI run on `main`
   started after it did. A run cancelled by hand is left alone; after a third cancelled
   attempt, or when GitHub refuses the re-run, the issue "CI on main needs a re-run" goes to
-  the owner. (2) A push by `GITHUB_TOKEN` starts no CI (until 2026-10-02 `mpv-updates.yml`'s
+  the owner. Since 2026-10-21 no later run cancels a run on `main`: `ci.yml` cancels only a
+  pull request's older run, and any other run has a concurrency group of its own (a
+  cancelled run shows on its commit as a red X, which the owner read as a failure). (2) A push by `GITHUB_TOKEN` starts no CI (until 2026-10-02 `mpv-updates.yml`'s
   pin and `update-prs.yml`'s merges were such pushes), so one landing while CI ran on a commit left that commit's
   run seeing `main` moved on, to a commit whose run never comes. "Is this commit still
   main's newest?" now waits a minute for a later commit's CI run on `main` and, with none,
