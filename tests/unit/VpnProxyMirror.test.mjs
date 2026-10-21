@@ -162,19 +162,31 @@ describe('VpnProxyMirror', () => {
     expect(mirror.status(CDN, false, 3).proxied).toBe(false);
   });
 
-  // A proxy of the network settings or a PAC file applies to FastStream's own requests by
-  // itself: copying the page's over it sent the request to a host the PAC file routes
-  // directly (an intranet CDN) through the page's proxy, which could not reach it.
-  it('copies only Firefox VPN\'s proxy (a token), not one of the network settings or a PAC file', () => {
+  // The tab's proxy is a guess for a host the page was not seen asking. A proxy of the
+  // network settings or a PAC file applies to FastStream's own requests by itself, chosen
+  // per host: the page's sent FastStream's request to a host the PAC file routes directly
+  // (an intranet CDN) through a proxy that could not reach it. A host the page itself
+  // reached through such a proxy still goes that way (the e2e's VPN stand-in has no token).
+  it('guesses the tab\'s proxy only for Firefox VPN (a token), and copies a host\'s own either way', () => {
     const {mirror, current} = setup();
     const pac = {type: 'http', host: 'proxy.corp', port: 3128};
     mirror.noteRequest(pageRequest(PAGE, pac, {type: 'main_frame'}));
-    mirror.noteSource(pageRequest(CDN, pac));
     const intranet = 'http://intranet.corp/hls/master.m3u8';
     mirror.noteRequest(ownRequest(intranet));
-    expect(mirror.proxyFor(ownRequest(CDN))).toBeUndefined();
-    expect(mirror.proxyFor(ownRequest(intranet))).toBeUndefined();
+    expect(current()).toBeNull();
     expect(mirror.status(intranet, false, 3).proxied).toBe(false);
+
+    mirror.noteSource(pageRequest(CDN, pac));
+    expect(current().urls).toEqual(['*://cdn.example/*']);
+    expect(current().listener(ownRequest(CDN)).host).toBe('proxy.corp');
+  });
+
+  it('forgets a tab\'s VPN once its page goes through a proxy without a token', () => {
+    const {mirror, current} = setup();
+    mirror.noteRequest(pageRequest(PAGE, vpn(), {type: 'main_frame'}));
+    mirror.noteRequest(pageRequest('https://other.example/', {type: 'http', host: 'proxy.corp', port: 3128},
+        {type: 'main_frame'}));
+    mirror.noteRequest(ownRequest('https://seg.example/seg-1.ts'));
     expect(current()).toBeNull();
   });
 

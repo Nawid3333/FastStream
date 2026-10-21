@@ -117,18 +117,12 @@ export class VpnProxyMirror {
 
   /**
    * The proxy a request took, as remembered settings and their key; null when it went
-   * directly, or through a proxy without a token. Its newest token is kept for every
-   * request that goes through that proxy. Only Firefox VPN (a bearer token on every request)
-   * leaves an extension's own requests out; a proxy of the network settings or a PAC file
-   * applies to them by itself, and copying the page's choice over it misrouted them: a PAC
-   * file that sends the page through a proxy and its stream's host directly had
-   * FastStream's request to that host forced through the page's proxy, which could not
-   * reach it.
+   * directly. Its newest token is kept for every request that goes through that proxy.
    * @param {?Object|undefined} info - webRequest's details.proxyInfo.
    * @return {?string} The proxy's key.
    */
   rememberProxy(info) {
-    if (!info || !info.type || info.type === 'direct' || !info.proxyAuthorizationHeader) return null;
+    if (!info || !info.type || info.type === 'direct') return null;
     /** @type {SeenProxy} */
     const seen = {
       type: String(info.type),
@@ -175,8 +169,17 @@ export class VpnProxyMirror {
       }
       return;
     }
-    // The top frame's: a frame of another site may be on the VPN when the page is not.
-    if (details.tabId >= 0 && (details.frameId ?? 0) === 0) this.tabs.set(details.tabId, key);
+    // The top frame's: a frame of another site may be on the VPN when the page is not. Only
+    // Firefox VPN's (a token on every request): the tab's proxy is a guess for hosts the page
+    // was not seen asking (noteOwnRequest). A proxy of the network settings or a PAC file
+    // applies to FastStream's requests by itself, chosen per host, and the page's sent
+    // FastStream's request to a host the PAC file routes directly (an intranet CDN) through
+    // a proxy that could not reach it. A host the page itself reached through a proxy is
+    // copied whatever the proxy (noteSource): for that host the PAC file answers alike.
+    if (details.tabId >= 0 && (details.frameId ?? 0) === 0) {
+      if (details.proxyInfo?.proxyAuthorizationHeader) this.tabs.set(details.tabId, key);
+      else this.tabs.delete(details.tabId);
+    }
     const entry = this.hosts.get(hostKey);
     if (entry) {
       entry.key = key;
