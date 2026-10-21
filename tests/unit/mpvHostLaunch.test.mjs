@@ -1,6 +1,7 @@
+import {spawn} from 'node:child_process';
 import {describe, expect, it} from 'vitest';
-import {CommandLineEnv, ReusedWindowWaitSeconds, focusOutcome, focusPidLines, runPowerShell, wmiLaunchLines,
-  wmiLaunchResult} from '../../native-host/faststream-mpv-host.mjs';
+import {CommandLineEnv, ReusedWindowWaitSeconds, focusApiLines, focusOutcome, focusPidLines, runPowerShell,
+  showWindowLines, wmiLaunchLines, wmiLaunchResult} from '../../native-host/faststream-mpv-host.mjs';
 
 // What the WMI launch script reports about the mpv it started, and what the host makes
 // of it.
@@ -112,5 +113,78 @@ describe('the focus script for an mpv already open', () => {
     // On top of the wait, PowerShell's start and the Add-Type compile, as much as the host
     // allows them (focusPid's timeout): still short of the 30 s it waited before
     expect(Date.now() - started).toBeLessThan((ReusedWindowWaitSeconds + 15) * 1000);
+  }, 60000);
+});
+
+// The show step, against a window of another process. runPowerShell starts PowerShell with
+// windowsHide, which puts SW_HIDE in its STARTUPINFO, and Windows applies that to the first
+// ShowWindow call the process makes, on any window: the focus script's ShowWindow(mpv,
+// SW_SHOW) hid mpv's window, and no stream sent after that found a window until mpv quit
+// (2026-10-21). ShowWindowAsync is carried out by the window's own thread, so it shows.
+describe.runIf(process.platform === 'win32')('the focus script\'s show step', () => {
+  // The window's owner is a PowerShell started hidden too. Created WS_VISIBLE, the window is
+  // up without a ShowWindow call of its own (the one its startup SW_HIDE would take); off
+  // screen, a tool window that never activates, so the test takes no one's focus. It prints
+  // its handle once visible, then pumps messages, which a ShowWindowAsync needs, until killed.
+  const ownerLines = [
+    'Add-Type -AssemblyName System.Windows.Forms',
+    'Add-Type @"',
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'public class FSTestWin {',
+    // (int, not uint: PowerShell reads 0x80000000 as a negative Int32)
+    '  [DllImport("user32.dll")] public static extern IntPtr CreateWindowEx(int ex, string cls, ' +
+      'string name, int style, int x, int y, int w, int h, IntPtr parent, IntPtr menu, IntPtr inst, IntPtr arg);',
+    '  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);',
+    '  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);',
+    '}',
+    '"@',
+    // WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE; WS_OVERLAPPEDWINDOW | WS_VISIBLE, as mpv's window
+    // is (Windows applies the startup value to an overlapped window, not to a popup)
+    '$h = [FSTestWin]::CreateWindowEx((0x80 -bor 0x08000000), "STATIC", "fs show test", ' +
+      '(0x00CF0000 -bor 0x10000000), -32000, -32000, 1, 1, [IntPtr]::Zero, [IntPtr]::Zero, [IntPtr]::Zero, [IntPtr]::Zero)',
+    // Should the style not have shown it: the first ShowWindow is the one replaced, the
+    // second (SW_SHOWNA, 8: no activation) shows it.
+    'if (-not [FSTestWin]::IsWindowVisible($h)) { $null = [FSTestWin]::ShowWindow($h, 8); $null = [FSTestWin]::ShowWindow($h, 8) }',
+    'Write-Output ("HWND=" + $h)',
+    '[Console]::Out.Flush()',
+    '$end = [DateTime]::UtcNow.AddSeconds(30)',
+    'while ([DateTime]::UtcNow -lt $end) { [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 20 }',
+  ];
+
+  /**
+   * The window owner's handle, from its HWND= line.
+   * @param {import('node:child_process').ChildProcess} owner - The window owner.
+   * @return {Promise<string>} The handle, in decimal.
+   */
+  const hwndOf = (owner) => new Promise((resolve, reject) => {
+    let seen = '';
+    const timer = setTimeout(() => reject(new Error('the window owner printed no HWND= in 30 s')), 30000);
+    owner.stdout.on('data', (chunk) => {
+      seen += String(chunk);
+      const found = seen.match(/HWND=(\d+)/);
+      if (found) {
+        clearTimeout(timer);
+        resolve(found[1]);
+      }
+    });
+  });
+
+  it('leaves the window visible, though PowerShell starts hidden', async () => {
+    const owner = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ownerLines.join('\n')],
+        {windowsHide: true, stdio: ['ignore', 'pipe', 'inherit']});
+    try {
+      const hwnd = await hwndOf(owner);
+      const out = await runPowerShell([
+        ...focusApiLines(),
+        `$h = [IntPtr]${hwnd}`,
+        ...showWindowLines('$h'),
+        'Start-Sleep -Milliseconds 500',
+        'Write-Output ("VISIBLE=" + [FSFg]::IsWindowVisible($h))',
+      ], 60000);
+      expect(out).toContain('VISIBLE=True');
+    } finally {
+      owner.kill();
+    }
   }, 60000);
 });
