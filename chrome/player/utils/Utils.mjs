@@ -246,7 +246,9 @@ export class Utils {
     return new Promise((resolve, reject)=> {
       if (EnvUtils.isExtension()) {
         chrome.storage.local.get(key, (result) => {
-          resolve(result[key]);
+          // A read that failed answers nothing (runtime.lastError): result[key] threw in the
+          // callback, and this never settled. Unset, as for a key never saved.
+          resolve(result?.[key]);
         });
       } else {
         resolve(localStorage.getItem(key));
@@ -264,6 +266,8 @@ export class Utils {
     return new Promise((resolve, reject)=> {
       if (EnvUtils.isExtension()) {
         chrome.storage.local.set({[key]: value}, () => {
+          // Said, not thrown: few callers wait for a save, and a failed one went by unseen.
+          if (chrome.runtime?.lastError) console.error('Saving ' + key + ' failed', chrome.runtime.lastError);
           resolve();
         });
       } else {

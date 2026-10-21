@@ -12,7 +12,7 @@
 // are written out from their real key maps (Windows' kbdgr, kbdsg, kbdfr, kbduk, kbdsp,
 // kbddv, kbdru and kbdus), only the characters the defaults use.
 
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 
 import {DefaultKeybinds} from '../../chrome/player/options/defaults/DefaultKeybinds.mjs';
 import {WebUtils} from '../../chrome/player/utils/WebUtils.mjs';
@@ -210,5 +210,24 @@ describe('keys every layout has in one place keep their names', () => {
     expect(named('KeyZ', 'z', {ctrlKey: true})).toBe('Control+KeyZ');
     // A numpad digit is the digit, as upstream's issue 482 asked.
     expect(named('Numpad5', '5')).toBe('Digit5');
+  });
+});
+
+describe('Control+Alt on a key that types a character', () => {
+  // Windows types with Control+Alt what AltGr types, and that is no shortcut. On Linux and
+  // macOS it is one of its own: Control+Alt+Comma came out as a plain Comma there (glm's
+  // review, 2026-10-22).
+  const press = {code: 'Comma', key: ',', shiftKey: false, ctrlKey: true, altKey: true, metaKey: false,
+    getModifierState: () => false};
+
+  it('is a typed character on Windows, and a shortcut of its own elsewhere', () => {
+    try {
+      vi.stubGlobal('navigator', {platform: 'Win32'});
+      expect(WebUtils.getKeyString(press)).toBe('Comma');
+      vi.stubGlobal('navigator', {platform: 'Linux x86_64'});
+      expect(WebUtils.getKeyString(press)).toBe('Control+Alt+Comma');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

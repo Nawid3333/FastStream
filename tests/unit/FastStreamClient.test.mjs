@@ -1465,3 +1465,22 @@ describe('addSource', () => {
     }
   });
 });
+
+describe('tryNextSource', () => {
+  it('logs the next stream without its headers', () => {
+    // It logged the whole source, the page's Cookie in its headers (glm's review, 2026-10-22).
+    const client = makeClient();
+    client.sourcesBrowser = {updateSources() {}};
+    client.setSource = vi.fn(async () => {});
+    const next = {url: 'https://cdn.example/b.m3u8', mode: 'hls', headers: {Cookie: 'session=SECRET'}};
+    client.fallbacks = {request: client.sourceRequests, sources: [next]};
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(client.tryNextSource()).toBe(true);
+      expect(warn).toHaveBeenCalled();
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('SECRET');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});

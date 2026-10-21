@@ -618,6 +618,12 @@ version 3).** From the review of the owner's "mpv opens behind Firefox" (since 1
   show step from a hidden-started PowerShell on an off-screen overlapped window of another
   process, which must stay visible: red with `ShowWindow` (with a popup window it was green
   either way).
+- **Host 18 (2026-10-22, glm's review): the legacy watch's notices are plain text too**
+  (`watchMpv`'s `notify`, `isPlainText` with no `${`): without notify.lua a notice is mpv's
+  `show-text`, which expands `${working-directory}` - a local path on the screen, which
+  the ipc and relay paths already refused (`tests/unit/mpvWatch.test.mjs`). And `main()`
+  hears a stdout error: a browser gone before an answer was written ended the host with a
+  crash after its work.
 - **An mpv seen and then gone before it had a window is a failed launch** (`FOCUS=quit`,
   `wmiLaunchResult`), like one never seen (`FOCUS=gone`). The first `Get-Process` runs right
   after `Win32_Process.Create` returns, while mpv is still starting, so it nearly always saw

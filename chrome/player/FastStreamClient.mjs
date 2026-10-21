@@ -1706,7 +1706,9 @@ export class FastStreamClient extends EventEmitter {
       return false;
     }
 
-    console.warn('The stream failed to load, trying the next one', next);
+    // By its URL and mode, as addSource logs one: its headers hold the page's Cookie and
+    // Authorization.
+    console.warn('The stream failed to load, trying the next one', next.url, next.mode);
     fallbacks.next = next;
     this.setSource(next, fallbacks.sources).then(() => {
       this.sourcesBrowser.updateSources();

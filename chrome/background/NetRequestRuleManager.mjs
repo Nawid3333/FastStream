@@ -123,8 +123,10 @@ export class RuleManager {
         // `*`, `^` or `|` from the URL can only widen the match, never exclude
         // the URL itself, and the rule is limited to one tab and 5 seconds.
         // Only the scheme at the start: an http URL whose query holds an https one
-        // lost that "https://" instead.
-        urlFilter: '||' + asRequested(url).replace(/^https?:\/\//, ''),
+        // lost that "https://" instead. A `|` at its very end anchors the end there,
+        // before that `|`, and the URL itself did not match: a `*` after it keeps it
+        // a character.
+        urlFilter: '||' + asRequested(url).replace(/^https?:\/\//, '').replace(/\|$/, '|*'),
         tabIds: [tabId],
         // Only the extension's own requests (the player, the background). The tab is
         // the page's too, and without this the page's own requests to that URL got the

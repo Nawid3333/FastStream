@@ -35,6 +35,14 @@ describe('webExtSpawn', () => {
     expect(webExtSpawn(args, 'win32')).toEqual({command: before, args: [], shell: true});
   });
 
+  it('quotes a Windows path that cmd.exe would split, a space or not', () => {
+    // C:\dev\a&b: cmd ran `b\build_firefox_github ...` as a command of its own, and web-ext got
+    // C:\dev\a (glm's review, 2026-10-22).
+    const dir = ['C:', 'dev', 'a&b', 'build_firefox_github'].join(path.win32.sep);
+    expect(webExtSpawn(['run', '--source-dir', dir], 'win32').command)
+        .toBe(`pnpm exec web-ext run --source-dir "${dir}"`);
+  });
+
   it('is what both launchers spawn', () => {
     for (const launcher of ['tools/launch-ff.mjs', 'tools/launch-ff-fresh.mjs']) {
       const text = fs.readFileSync(path.join(root, launcher), 'utf8');

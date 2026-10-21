@@ -555,9 +555,9 @@ export class InterfaceController {
 
     document.addEventListener('visibilitychange', ()=>{
       if (!document.hidden) {
-        this.handleVisibilityChange(true);
+        this.visibilityChanged(true);
       } else {
-        this.handleVisibilityChange(false);
+        this.visibilityChanged(false);
       }
     });
 
@@ -638,9 +638,9 @@ export class InterfaceController {
 
     const o = new IntersectionObserver(([entry]) => {
       if (entry.intersectionRatio > 0.25 && !document.hidden) {
-        this.handleVisibilityChange(true);
+        this.visibilityChanged(true);
       } else {
-        this.handleVisibilityChange(false);
+        this.visibilityChanged(false);
       }
     }, {
       threshold: [0, 0.25, 0.5],
@@ -753,6 +753,16 @@ export class InterfaceController {
     }
 
     this.lastPageVisibility = isVisible;
+  }
+
+  /**
+   * The tab's or the player's visibility changed: its action, a failure of it said on the
+   * console. A play the browser blocks, or picture-in-picture with no click behind it
+   * (Firefox has no such API for a page), was an unhandled rejection at every tab change.
+   * @param {boolean} isVisible
+   */
+  visibilityChanged(isVisible) {
+    this.handleVisibilityChange(isVisible).catch((e) => console.warn('The visibility action failed', e));
   }
 
   requestMiniplayer(force) {

@@ -1899,8 +1899,12 @@
     if (video && (video.currentSrc || video.src || video.srcObject)) {
       pagePlayerStarted = true;
       // Not muted when the page may not play sound yet: left muted when FastStream did not
-      // take its stream after all, the site's player stayed silent.
-      video.play().catch(() => {});
+      // take its stream after all, the site's player stayed silent. A play the browser
+      // refuses (a tab with no click yet) is tried again at the next ask: a play, unlike a
+      // click, does not undo itself.
+      video.play().catch(() => {
+        pagePlayerStarted = false;
+      });
       return 'play';
     }
     // Nothing loaded (or no video yet: some players make it on the click): the player's own

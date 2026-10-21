@@ -100,7 +100,14 @@ export class IndexedDBManager {
         db.createObjectStore('files');
       };
     }
-    return IndexedDBManager.wrapRequest(request, 5000);
+    try {
+      return await IndexedDBManager.wrapRequest(request, 5000);
+    } catch (e) {
+      // A connection that comes after the timeout is closed: kept open, it held the
+      // database, and its tab's own deleteDatabase waited on it when that tab closed.
+      request.onsuccess = (event) => event.target.result.close();
+      throw e;
+    }
   }
 
   static async deleteDB(dbName) {

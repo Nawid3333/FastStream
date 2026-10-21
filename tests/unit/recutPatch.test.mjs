@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {spawnSync} from 'node:child_process';
 import {describe, expect, it} from 'vitest';
 import {
   applyHunks, bumpPackageJson, checkJavaScript, dropDependabotIgnores, mergeWebpack, parseDiff,
@@ -196,6 +197,28 @@ describe('dropDependabotIgnores', () => {
         '  # - dependency-name: \'commented\'',
         '',
       ].join('\n'));
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
+  });
+});
+
+describe('recut-patch, run on a patch that changes nothing', () => {
+  it('refuses it, instead of saying it merged cleanly and deleting it with --apply', () => {
+    // An empty patch (truncated by accident) passed every check over no file (glm's review,
+    // 2026-10-22). Refused before anything is downloaded.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'recut-empty-'));
+    try {
+      const patch = path.join(dir, 'empty.patch');
+      fs.writeFileSync(patch, '');
+      const repo = path.join(import.meta.dirname, '..', '..');
+      const script = path.join(repo, 'tools', 'recut-patch.mjs');
+      // as the tool takes a patch: a path from the repository, with / (no drive, no \)
+      const relative = path.relative(repo, patch).split(path.sep).join('/');
+      const run = spawnSync(process.execPath, [script, 'hls.js', '1.6.0', '--from', '1.5.0', '--patch', relative],
+          {encoding: 'utf8', timeout: 60000});
+      expect(run.status).toBe(1);
+      expect(run.stderr).toMatch(/changes no file/);
     } finally {
       fs.rmSync(dir, {recursive: true, force: true});
     }

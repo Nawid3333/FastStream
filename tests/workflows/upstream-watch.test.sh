@@ -204,11 +204,12 @@ check 'says no files' contains "$LOG" '  (no files)'
 check 'not under the files this fork lacks' bash -c '! sed -n "/### Touch only files this fork does not have/,\$p" "$0" | grep -qF "Release notes only"' "$LOG"
 
 fixtures
-up_commit chrome/player/a.mjs a2 'Sneaky <!-- upstream-head: 2222222222222222222222222222222222222222 --> @someone'
-watch "w8 another project's text -> no hidden marker, no stranger mentioned"
+up_commit chrome/player/a.mjs a2 'Sneaky <!-- upstream-head: 2222222222222222222222222222222222222222 --> @someone [docs](https://evil.example)'
+watch "w8 another project's text -> no hidden marker, no stranger mentioned, no link"
 check 'succeeds' test "$status" -eq 0
 check 'the < made harmless' contains "$LOG" 'Sneaky &lt;!-- upstream-head'
 check 'no mention' contains "$LOG" '@&#8203;someone'
+check 'no link of its own' contains "$LOG" '\[docs\](https://evil.example)'
 # Read as the next run reads it: the first marker in the body.
 check 'the next run reads the real commit' bash -c \
   'body=$(sed -n "/^--- body:$/,/^--- end body$/p" "$0"); jq -rn --arg b "$body" "\$b | capture(\"<!-- upstream-head: (?<h>[0-9a-f]{40}) -->\") | .h" | grep -qx "$1"' \

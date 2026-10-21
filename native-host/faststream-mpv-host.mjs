@@ -86,7 +86,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 17;
+export const HostVersion = 18;
 
 // The messages of the thin helper (host 15) this host understands, sent with every answer
 // so that the extension knows what it may ask for without a version table of its own. A
@@ -817,6 +817,11 @@ export function watchMpv(send, io = {}) {
   });
   return {
     notify(title, detail = '', seconds) {
+      // Plain text only, as on the ipc and relay paths: without notify.lua the notice is
+      // mpv's show-text, which expands ${...} - a local path on the screen.
+      if (!isPlainText(String(title), MaxNoticeText, true) || !isPlainText(String(detail), MaxNoticeText, true)) {
+        return;
+      }
       requests++;
       const id = 1000 + requests;
       const time = noticeSeconds(seconds);
@@ -2868,6 +2873,10 @@ async function handleMessage() {
  * is one to it, and the "check" was whether an mpv exists.
  */
 async function main() {
+  // A browser that went (a closed tab, an extension reload) before the answer was written:
+  // the write fails, and an unhandled stdout error ended the host with a crash after its
+  // work was done. The watch adds its own, which also stops the watch.
+  process.stdout.on('error', () => {});
   await handleMessage();
   process.exit(0);
 }
