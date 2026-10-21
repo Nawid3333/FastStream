@@ -109,7 +109,8 @@ describe('the focus script for an mpv already open', () => {
       ...focusPidLines(424242),
     ], 60000);
     expect(out).toContain('FOCUS=nowindow');
-    // PowerShell's start and the Add-Type compile on top of the wait, far from the 30 s
-    expect(Date.now() - started).toBeLessThan((ReusedWindowWaitSeconds + 12) * 1000);
+    // On top of the wait, PowerShell's start and the Add-Type compile, as much as the host
+    // allows them (focusPid's timeout): still short of the 30 s it waited before
+    expect(Date.now() - started).toBeLessThan((ReusedWindowWaitSeconds + 15) * 1000);
   }, 60000);
 });
