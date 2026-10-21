@@ -6,6 +6,7 @@ import {guessMediaInfo} from '../player/utils/MediaTitle.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
 import {ProblemKinds, recordProblem} from '../player/utils/ProblemLog.mjs';
+import {getAddressKey} from '../player/utils/AddressKey.mjs';
 import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {desiredHeight, listForSource, pickQuality} from '../player/utils/PageQualityPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
@@ -1673,12 +1674,19 @@ async function setupRedirectRule(ruleID, filetypes) {
     }
   }
 
+  // The player takes the link's headers and mode only with this key (AddressKey.mjs); without
+  // one (its storage failed) it still plays the link, without them.
+  const key = await getAddressKey().catch((e) => {
+    console.error('No player address key', e);
+    return '';
+  });
+
   /** @type {chrome.declarativeNetRequest.Rule} */
   const rule = {
     id: ruleID,
     action: {
       type: 'redirect',
-      redirect: {regexSubstitution: BackgroundUtils.getPlayerUrl() + '#\\0'},
+      redirect: {regexSubstitution: BackgroundUtils.getPlayerUrl() + '?address=' + key + '#\\0'},
     },
     condition: {
       // exclude self

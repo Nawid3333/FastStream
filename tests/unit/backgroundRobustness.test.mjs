@@ -209,6 +209,19 @@ describe('the "use the player for stream links" redirect', () => {
     expect(filter(2).test('https://cdn.test/a.m3u8?x=1')).toBe(true);
     expect(filter(2).test('https://cdn.test/a.mpd|x')).toBe(false);
   });
+
+  it('opens the player with the install\'s address key, so it takes the link\'s headers', async () => {
+    // Any page can open the player page with an address of its own: the player takes the
+    // address's headers and mode only with this key (AddressKey.mjs).
+    bg = await loadBackground({options: {playMP4URLs: true, playStreamURLs: true}});
+    const rules = bg.dynamicRules.flatMap((update) => update.addRules || []);
+    const key = bg.local.playerAddressKey;
+    expect(key).toMatch(/^[0-9a-f-]{36}$/);
+    for (const id of [1, 2]) {
+      expect(rules.find((rule) => rule.id === id).action.redirect.regexSubstitution)
+          .toBe('moz-extension://bg-test/player/index.html?address=' + key + '#\\0');
+    }
+  });
 });
 
 // The Auto-enable URLs list as the background turns a tab on by it (tabs.onUpdated). The
