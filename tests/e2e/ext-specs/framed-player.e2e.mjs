@@ -14,10 +14,15 @@
 //   player's Origin or Cookie. The rule now covers only the extension's own requests.
 // - The options page, framed for a click on a changed mpv path. Only the player frames
 //   it, and an extension page needs no web-accessible entry for that.
+// - A player tab a page opened (window.open) with such an address: it is top-level, and
+//   the page's made-up Referer went out with the request, the user's cookies for that site
+//   too. The player takes an address's headers and mode only from the redirect rule's
+//   address now, which carries a key no page can read (AddressKey.mjs).
 //
-// The controls show each mechanism still works where it should: a player in a tab of its
-// own plays its address's source, sending the address's Referer through the header rule;
-// the player's own request gets its rule's headers; the player's settings still load.
+// The controls show each mechanism still works where it should: a copied link opened in a
+// tab goes through the redirect rule to the player, which sends the link's Referer through
+// the header rule; the player's own request gets its rule's headers; the player's settings
+// still load.
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -25,6 +30,7 @@ import path from 'node:path';
 
 import {browser, expect} from '@wdio/globals';
 
+import {inExtensionPage} from '../extension-page.mjs';
 import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 
 const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
@@ -39,14 +45,38 @@ let siteServer;
 const requests = new Map();
 
 /**
+ * A link to a source on the site server with headers of its own, as a copied link holds
+ * them (VideoSource.toCopyURL).
+ * @param {string} name - The source's path on the site server.
+ * @return {string}
+ */
+function linkWithHeaders(name) {
+  return `${SITE}/${name}.mp4?faststream-headers=` + encodeURIComponent(JSON.stringify({Referer: FORGED_REFERER}));
+}
+
+/**
  * A player address with a source and made-up headers, as a page would write it.
  * @param {string} name - The source's path on the site server.
  * @return {string}
  */
 function playerWithSource(name) {
-  const source = `${SITE}/${name}.mp4?faststream-headers=` +
-    encodeURIComponent(JSON.stringify({Referer: FORGED_REFERER}));
-  return `${PLAYER}#${source}`;
+  return `${PLAYER}#${linkWithHeaders(name)}`;
+}
+
+/**
+ * Saves options the way the options page does (everything else at its default), and has
+ * the background load them: it rebuilds the redirect rules.
+ * @param {Object} options
+ */
+async function setOptions(options) {
+  await inExtensionPage((options, done) => {
+    chrome.storage.local.set({options: JSON.stringify(options)}, () => {
+      chrome.runtime.sendMessage({type: 'LOAD_OPTIONS'}, () => {
+        void chrome.runtime.lastError;
+        setTimeout(() => done(true), 500);
+      });
+    });
+  }, options);
 }
 
 /**
@@ -120,16 +150,35 @@ describe('A page framing FastStream\'s pages', function() {
     if (siteServer) await new Promise((resolve) => siteServer.close(resolve));
   });
 
-  it('plays a source from the address in a player tab of its own, with its headers (the control)', async function() {
+  it('plays a link opened in a tab with its headers, through the redirect rule (the control)', async function() {
+    await setOptions({playMP4URLs: true});
+    try {
+      await browser.url(OPENER_URL);
+      await browser.execute((u) => {
+        window.location.href = u;
+      }, linkWithHeaders('own-tab'));
+      await browser.waitUntil(() => requests.has('/own-tab.mp4'), {
+        timeout: 20000, interval: 200, timeoutMsg: 'the redirected player never requested its source',
+      });
+      console.log('      requests:', JSON.stringify(requests.get('/own-tab.mp4')));
+      // with the key: the address's headers count
+      expect((await browser.getUrl()).startsWith(PLAYER + '?address=')).toBe(true);
+      // The player's own requests still get their header rule (limited to the extension's
+      // requests by initiatorDomains).
+      expect(requests.get('/own-tab.mp4')[0].referer).toBe(FORGED_REFERER);
+    } finally {
+      await setOptions({});
+    }
+  });
+
+  it('plays a source a page put in a player tab it opened, without the page\'s headers', async function() {
     await browser.url(OPENER_URL);
-    await browser.execute((u) => window.open(u, '_blank'), playerWithSource('own-tab'));
-    await browser.waitUntil(() => requests.has('/own-tab.mp4'), {
+    await browser.execute((u) => window.open(u, '_blank'), playerWithSource('page-tab'));
+    await browser.waitUntil(() => requests.has('/page-tab.mp4'), {
       timeout: 20000, interval: 200, timeoutMsg: 'the player tab never requested its source',
     });
-    console.log('      requests:', JSON.stringify(requests.get('/own-tab.mp4')));
-    // The player's own requests still get their header rule (limited to the extension's
-    // requests by initiatorDomains).
-    expect(requests.get('/own-tab.mp4')[0].referer).toBe(FORGED_REFERER);
+    console.log('      requests:', JSON.stringify(requests.get('/page-tab.mp4')));
+    expect(requests.get('/page-tab.mp4').map((request) => request.referer)).not.toContain(FORGED_REFERER);
   });
 
   it('ignores a source a page put in the address of a player it framed', async function() {

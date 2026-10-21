@@ -156,6 +156,18 @@ describe('KeybindManager wiring', () => {
     const twice = literal.filter((action, index) => literal.indexOf(action) !== index);
     expect(twice).toEqual([]);
   });
+
+  it('keeps a speed set by key for the next video, as the speed menu keeps its own', () => {
+    // Only the menu saved its speed: a preset or Shift+arrow went at the next video (the
+    // owner's choice, 2026-10-22: as mpv remembers every speed).
+    for (const action of ['IncreasePlaybackRate', 'DecreasePlaybackRate', 'ResetPlaybackRate']) {
+      const handler = source.match(new RegExp(`this\\.on\\('${action}', \\(e\\) => \\{([\\s\\S]*?)\\n    \\}\\);`));
+      expect(handler?.[1], action).toContain('this.rememberSpeed();');
+    }
+    expect(source).toMatch(/const action = speedPresetAction\(preset\);[\s\S]*?this\.rememberSpeed\(\);\s*\}\);\s*\}/);
+    // through the menu's own save, 500 ms after the last change (playerDrags.test.mjs)
+    expect(source).toMatch(/rememberSpeed\(\) \{\s*this\.client\.interfaceController\.playbackRateChanger\?\.scheduleSave\(\);/);
+  });
 });
 
 describe('Utils.getOptionsFromStorage', () => {

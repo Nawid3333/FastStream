@@ -58,6 +58,12 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   a plain element 1.9x at 2x, 0.95x once captured; with an audio track 15.8x either way); the
   player takes every video's sound (the volume above 100 %), so on a silent video the speed keys
   do nothing - sample.mp4 has no audio, which is why that case uses long-av.mp4.
+- **A speed set by key is kept for the next video** (the owner, 2026-10-22, as mpv's
+  remember-speed keeps every speed): the presets, Shift+arrows and the reset key save it the
+  way the speed menu saves its own (`KeybindManager.rememberSpeed()`, the menu's
+  `scheduleSave()`, 500 ms after the last change). Until then only the menu saved. A 16x left
+  by its key starts the next video at 8x, with sound (`PlaybackRateChanger.loadState`);
+  holding the video's double speed is no key's and is not kept.
 - **Speed steps on S and D** (layout version 4, 2026-10-10, as in Nawid's mpv `input.conf`:
   s -0.1, d +0.1): `DecreasePlaybackRate` on S, `IncreasePlaybackRate` on D (Shift+Down/Up
   before), and `SaveVideo` moved from D to Shift+D (still with any extra modifier:

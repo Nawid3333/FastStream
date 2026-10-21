@@ -83,6 +83,14 @@ PowerShell (`tests/unit/mpvHostSecurity.test.mjs`) and the Firefox half in
   only of a player in a tab of its own (the stream-URL redirect rule is `main_frame`
   only); `main.mjs` takes the hash only when `window.top === window`. The copy-URL
   buttons' `faststream-headers` links still work when opened in a tab.
+- **A player tab a page opened takes no headers from its address** (2026-10-22). The
+  player page is web-accessible, so a page can `window.open` it with an address of its own:
+  top-level, and the page's made-up Referer went out with the request, the user's cookies
+  for that site too (glm's review). The redirect rule's address carries a per-install key
+  (`?address=<key>#<url>`, `AddressKey.mjs`, in `storage.local`, which no page reads);
+  without it the player plays the URL but takes neither its `faststream-headers` nor its
+  `faststream-mode`. A copied link opened in a tab still goes through the rule, so it keeps
+  its headers (`framed-player.e2e.mjs`'s control, `AddressKey.test.mjs`).
 - **Header rules cover only the extension's own requests** (`initiatorDomains`, the
   moz-extension host): the rule is per tab, and the tab is the page's, so for 5 s the
   page's own requests to that URL got the player's Origin or Cookie.
