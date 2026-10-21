@@ -23,4 +23,4 @@ microsoft/WSL's latest release once it is 3 days old (`newest-release.mjs wsl`),
 `WSL_UTF8=1` for those calls: wsl.exe otherwise writes UTF-16, read as a NUL after every
 character (`ConvertFrom-WslVersionText` drops them all the same, and reads the number, not
 the localized label). Never Firefox, mpv (`C:\Program Files\mpv` is the owner's own
-repository, Nawid3333/mpv, with its own updater) or the Ubuntu releases inside WSL.
+repository, Nawid3333/mpv-config, with its own updater) or the Ubuntu releases inside WSL.
