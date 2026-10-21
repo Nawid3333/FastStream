@@ -115,7 +115,7 @@ describe('pickRelayHeaders', () => {
 // report success while nothing plays.
 
 // What the thin helper (host 15) adds to every answer.
-const Thin = {hostVersion: 15, capabilities: ['play', 'ipc', 'relay']};
+const Thin = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']};
 // What a helper before it answers the thin helper's messages.
 const Unknown = {ok: false, error: 'unknown message', hostVersion: 14};
 const ThinMessages = ['play', 'ipc', 'relay'];

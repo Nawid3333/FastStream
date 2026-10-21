@@ -86,7 +86,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 15;
+export const HostVersion = 16;
 
 // The messages of the thin helper (host 15) this host understands, sent with every answer
 // so that the extension knows what it may ask for without a version table of its own. A
@@ -506,6 +506,15 @@ const WindowWaitSeconds = 30;
 // Headroom on top of WindowWaitSeconds for PowerShell startup, the Add-Type
 // compile and the focus retries, before the shell is killed.
 const PowerShellTimeoutMs = (WindowWaitSeconds + 15) * 1000;
+
+// The wait for the window of an mpv that is already open (focusPid). It answered on its
+// pipe and loaded the stream, so its window came long before (--force-window=immediate);
+// one not there within seconds is hidden or not responding, and stays so. It waited
+// WindowWaitSeconds, as a start does, and the answer came 30 s late: the extension
+// pauses the page only on the answer, so the page played on beside mpv, and the same
+// stream sent again meanwhile went nowhere (MpvBackend.openStream waits for the send
+// under way). Seen on a PC whose open mpv window was not found (2026-10-21).
+export const ReusedWindowWaitSeconds = 5;
 
 /**
  * Sends commands to the mpv instance listening on our pipe.
@@ -1415,9 +1424,11 @@ function focusApiLines() {
  * the foreground, and SetForegroundWindow is then honoured.
  *
  * @param {string} pidExpr - PowerShell expression holding the process id.
+ * @param {number} waitSeconds - How long to wait for the window: WindowWaitSeconds for an
+ *   mpv just started, ReusedWindowWaitSeconds for one already open.
  * @return {Array<string>} Script lines.
  */
-function focusWindowLines(pidExpr) {
+function focusWindowLines(pidExpr, waitSeconds) {
   return [
     '  try {',
     // Cold starts are slow in this mpv setup: gpu-next on a Vulkan context,
@@ -1426,7 +1437,7 @@ function focusWindowLines(pidExpr) {
     // deadline regularly expired on cold starts, and so did 10s once a slow
     // stream held the window back past it (the host logged focus=nowindow and
     // mpv then appeared behind the browser) -- see WindowWaitSeconds.
-    '    $deadline = (Get-Date).AddSeconds(' + WindowWaitSeconds + ')',
+    '    $deadline = (Get-Date).AddSeconds(' + Number(waitSeconds) + ')',
     '    $h = [IntPtr]::Zero',
     '    $seen = $false',
     '    $quit = $false',
@@ -1539,8 +1550,21 @@ export function wmiLaunchLines() {
       '-Arguments @{CommandLine=$env:' + CommandLineEnv + '}',
     'Write-Output ("RC=" + $r.ReturnValue + " PID=" + $r.ProcessId)',
     'if ($r.ReturnValue -eq 0) {',
-    ...focusWindowLines('$r.ProcessId'),
+    ...focusWindowLines('$r.ProcessId', WindowWaitSeconds),
     '}',
+  ];
+}
+
+/**
+ * The PowerShell that brings an already-running mpv window to the front (focusPid).
+ * @param {number} pid - The mpv process id.
+ * @return {Array<string>} Script lines.
+ */
+export function focusPidLines(pid) {
+  return [
+    ...focusApiLines(),
+    '$target = ' + String(Number(pid)),
+    ...focusWindowLines('$target', ReusedWindowWaitSeconds),
   ];
 }
 
@@ -1550,11 +1574,8 @@ export function wmiLaunchLines() {
  * @return {Promise<string>} The FOCUS= line PowerShell reported.
  */
 async function focusPid(pid) {
-  const out = await runPowerShell([
-    ...focusApiLines(),
-    '$target = ' + String(Number(pid)),
-    ...focusWindowLines('$target'),
-  ], PowerShellTimeoutMs);
+  // Headroom for PowerShell's start, the Add-Type compile and the retries, as a start's.
+  const out = await runPowerShell(focusPidLines(pid), (ReusedWindowWaitSeconds + 15) * 1000);
   const match = /FOCUS=(\S+)(?:\s+FGOK=(\S+))?/.exec(out);
   return match ? match[0] : 'FOCUS=unknown';
 }

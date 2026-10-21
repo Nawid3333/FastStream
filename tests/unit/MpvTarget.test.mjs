@@ -4,7 +4,7 @@ import fc from 'fast-check';
 
 import * as Host from '../../native-host/faststream-mpv-host.mjs';
 import * as Target from '../../chrome/background/MpvTarget.mjs';
-import {MaxPlayTargetChars, MaxPlayTitleChars, MpvBackend} from '../../chrome/background/MpvBackend.mjs';
+import {MaxPlayTargetChars, MaxPlayTitleChars, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 
 // The thin helper (host 15, 2026-10-13): what mpv is given for a stream is built in the
 // extension now (MpvTarget.mjs), no longer in the helper, so a change to it needs no helper
@@ -246,7 +246,7 @@ describe('a play message and an open message for the same stream', () => {
     let message;
     globalThis.chrome = {runtime: {lastError: undefined, sendNativeMessage(name, m, callback) {
       message = m;
-      callback(thin ? {ok: true, hostVersion: 15, capabilities: ['play', 'ipc', 'relay']} : {ok: true, hostVersion: 14});
+      callback(thin ? {ok: true, hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']} : {ok: true, hostVersion: 14});
     }}};
     const backend = Object.assign(new MpvBackend(), settings);
     // What each helper is, known from an answer before.

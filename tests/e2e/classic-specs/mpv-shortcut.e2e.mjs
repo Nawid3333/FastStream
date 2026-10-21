@@ -1329,6 +1329,16 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
           timeout: 15000,
           timeoutMsg: 'the page kept playing the video mpv opened',
         });
+        // Paused by the hand-off, not stopped at its own end: the extension pauses the page
+        // once the helper answered, and the same stream played again before that goes
+        // nowhere (the send under way answers for it). A helper that waited 30 s for an open
+        // mpv window it did not find answered after this 10 s clip had ended, and the play
+        // after Back below sent nothing (2026-10-21).
+        await browser.switchToWindow(siteHandle);
+        if (await browser.execute(() => document.getElementById('main').ended)) {
+          throw new Error('the page played the video mpv opened to its end: the hand-off was ' +
+            'answered late, or never paused the page');
+        }
 
         await awayAndBack();
         await expectMode('mpv', 'going Back to the page');

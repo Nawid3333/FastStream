@@ -589,6 +589,16 @@ version 3).** From the review of the owner's "mpv opens behind Firefox" (since 1
   first appears (with `--force-window=immediate`, before the stream opens), and does not
   see a window that goes behind the browser later. Tests: `MpvNativeHost` ("says how
   raising ... went"), `MpvBackend` ("passes on how raising ..."); each fails without it.
+- **The mpv already open gets 5 s for its window, not 30** (`ReusedWindowWaitSeconds`, host
+  16, 2026-10-21). A stream sent into the open mpv waited for its window as a start does,
+  `WindowWaitSeconds` (30 s); a window not found there (hidden, or not responding) is not
+  coming, and the answer came 30 s late. On the allowlist the page is paused only on the
+  answer, so it played on beside mpv, and the same stream played again meanwhile went
+  nowhere (`MpvBackend.openStream` answers it with the send under way). Seen in the local
+  e2e run: every play into the open mpv logged `focus: nowindow`, and mpv-shortcut's "sends
+  the video the user starts again" failed. `tests/unit/mpvHostLaunch.test.mjs` checks both
+  waits and runs the script with `Get-Process` stubbed to a process without a window (red
+  with 30 s); the e2e case checks that the hand-off, not the clip's end, paused the page.
 - **An mpv seen and then gone before it had a window is a failed launch** (`FOCUS=quit`,
   `wmiLaunchResult`), like one never seen (`FOCUS=gone`). The first `Get-Process` runs right
   after `Win32_Process.Create` returns, while mpv is still starting, so it nearly always saw
