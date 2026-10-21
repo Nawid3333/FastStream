@@ -135,11 +135,12 @@ episode in mpv** is on (the default), mpv counts down (**Countdown before the ne
 episode**, 5 s; 0 = none), then FastStream goes on to the next episode in the page, as
 the player's Next button would, and its stream replaces the old one in the same mpv window.
 
-- In mpv: the previous-episode and next-episode buttons, and `n` / `N`, go there at
-  once (also during the countdown); the autoplay button switches autoplay on or off for
-  mpv, and stops a running countdown. These buttons come with the
-  [mpv setup](https://github.com/Nawid3333/mpv) and show only while FastStream follows
-  the window. Elsewhere bind `script-message faststream-next`,
+- In mpv: the previous-episode and next-episode buttons, `n` or Shift+N (next), Shift+P
+  (previous) and the keyboard's media keys go there at once (also during the countdown);
+  the autoplay button switches autoplay on or off for mpv, and stops a running countdown.
+  These buttons and keys come with the
+  [mpv setup](https://github.com/Nawid3333/mpv-config); the buttons show only while
+  FastStream follows the window. Elsewhere bind `script-message faststream-next`,
   `script-message faststream-previous` and `script-message faststream-autoplay`.
 - mpv says what happens: the next episode loading, that the page has no next episode,
   that its tab is closed, or that the next page brought no stream within a minute.
