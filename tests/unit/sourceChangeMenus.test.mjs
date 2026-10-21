@@ -15,6 +15,7 @@ vi.stubGlobal('window', {});
 const el = () => doc.body.appendChild(doc.createElement('div'));
 const dom = {
   playerContainer: el(), languageButton: el(), languageMenu: el(), audioTracksBtn: el(), audioSourceList: el(),
+  videoSource: el(), videoSourceList: el(),
 };
 globalThis.__sourceChangeMenusDom = dom;
 
@@ -26,6 +27,7 @@ vi.mock('../../chrome/player/modules/vtt.mjs', () => ({WebVTT: {}}));
 const {SubtitleSyncer} = await import('../../chrome/player/ui/subtitles/SubtitleSyncer.mjs');
 const {LanguageChanger} = await import('../../chrome/player/ui/menus/LanguageChanger.mjs');
 const {AudioQualityChanger} = await import('../../chrome/player/ui/menus/AudioQualityChanger.mjs');
+const {VideoQualityChanger} = await import('../../chrome/player/ui/menus/VideoQualityChanger.mjs');
 
 beforeEach(() => {
   for (const target of [dom.playerContainer, doc]) {
@@ -87,5 +89,35 @@ describe('the language and audio menus, open when the source changes', () => {
     menu.openUI();
     menu.updateQualityLevels(singleLevelClient());
     expect(menu.isOpen()).toBe(false);
+  });
+});
+
+describe('the quality menu, open when the source changes', () => {
+  it('closes, with its old rows, for a source with no qualities to pick', () => {
+    const menu = new VideoQualityChanger();
+    dom.videoSourceList.appendChild(doc.createElement('div'));
+    menu.openUI();
+    menu.updateQualityLevels({getMenuVideoLevels: () => new Map()});
+    expect(menu.isOpen()).toBe(false);
+    expect(dom.videoSourceList.children.length).toBe(0);
+  });
+});
+
+describe('the language menu\'s rows', () => {
+  it('name a track without a language "Unknown" to a screen reader, as on screen', () => {
+    const client = singleLevelClient();
+    const english = {id: 'a', language: 'en', bitrate: 1, label: 'English'};
+    const unnamed = {id: 'b', bitrate: 1, label: 'Track 2'};
+    client.getAudioLevels = () => new Map([['a', english], ['b', unnamed]]);
+    const menu = new LanguageChanger();
+    menu.updateLanguageTracks(client);
+    const labels = [];
+    const walk = (node) => {
+      if (node.getAttribute?.('aria-label')) labels.push(node.getAttribute('aria-label'));
+      for (const child of node.children || []) walk(child);
+    };
+    walk(dom.languageMenu);
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.join(' | ')).not.toContain('undefined');
   });
 });

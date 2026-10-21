@@ -234,7 +234,8 @@ export class LanguageChanger extends EventEmitter {
         trackElement.classList.add('language_track');
         trackElement.dataset.type = type;
         trackElement.textContent = Localize.getMessage('player_languagemenu_' + type);
-        trackElement.setAttribute('aria-label', Localize.getMessage('player_languagemenu_' + type) + ': ' + language);
+        // "Unknown" as the row's text says: a track without a language was read out as "undefined".
+        trackElement.setAttribute('aria-label', Localize.getMessage('player_languagemenu_' + type) + ': ' + (language || 'Unknown'));
         const currentLevelID = type === 'video' ? currentVideoLevelID : currentAudioLevelID;
         if (tracks.some((level) => level.id === currentLevelID)) {
           trackElement.classList.add('active');

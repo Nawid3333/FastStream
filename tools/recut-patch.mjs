@@ -523,8 +523,10 @@ async function main() {
     if (opts.resume) {
       // The file a person resolved after an earlier run, instead of this run's merge.
       const resolved = fs.existsSync(outFile) && norm(fs.readFileSync(outFile, 'utf8'));
-      if (resolved === false) {
-        result.problems.push(`${target}: --resume, but ${outFile} is not there`);
+      // An empty file (truncated by accident) passed every check below, and --apply put a
+      // patch that empties the module into the commit.
+      if (resolved === false || !resolved.trim()) {
+        result.problems.push(`${target}: --resume, but ${outFile} is not there or empty`);
         continue;
       }
       if (/^(<{7}|\|{7}|={7}|>{7})( |$)/m.test(resolved)) {

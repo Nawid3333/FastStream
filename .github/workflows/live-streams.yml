@@ -125,7 +125,7 @@ jobs:
             exit 0
           fi
           failed=$(gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs \
-            --jq '[.jobs[] | select(.conclusion == "failure") | .name] | join(", ")')
+            --jq '[.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out") | "\(.name) (\(.conclusion))"] | join(", ")')
           # The backticks are Markdown for the issue body, not command substitution.
           # shellcheck disable=SC2016
           {

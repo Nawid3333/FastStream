@@ -225,6 +225,15 @@ export function HLSLoaderFactory(player) {
           ...player.source.headers,
         },
       };
+      // A segment FastStream decrypts itself (HLSFragmentRequester.takeOverDecryption) that
+      // the store has no place for - numbered before the level's first (a live stream that
+      // started its numbering again), or the init segment of a changed EXT-X-MAP - comes
+      // here still encrypted, and hls.js decrypts none of it: its own decryption was taken
+      // over as well. It went to hls.js as it was, and the stream broke off from there.
+      const decrypt = isPlaylist ? null : player.fragmentRequester?.decryptionFor(this.context.frag, details.headers);
+      if (decrypt) {
+        details.postProcessor = decrypt;
+      }
       if (isPlaylist) {
         // A player's first load of a playlist may be answered from the store, and the copy
         // has to stay there: "dump buffer" writes the store into the archive, and a player

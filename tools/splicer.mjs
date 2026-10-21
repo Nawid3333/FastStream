@@ -17,8 +17,10 @@ const COMMANDS = ['REMOVE_FILE', 'REMOVE_LINE', 'REMOVE_START', 'REMOVE_END', 'I
 
 /**
  * Reads a line's directive: a `//` comment that is exactly SPLICER:<TARGET>:<COMMAND>, on a
- * line of its own or after code. The same text anywhere else (a string, a template literal,
- * a block comment) is not one; it used to be obeyed wherever it stood (#168).
+ * line of its own or after code, ending the line. The text without its `//` (in a string, a
+ * template literal, a block comment) is not one; it used to be obeyed wherever it stood
+ * (#168). The line is not parsed: a `// SPLICER:` in a string before more code throws
+ * below, and a template literal's line that is exactly such a comment would be obeyed.
  *
  * @param {string} line one line of a script
  * @param {string} where file and line number, for the error

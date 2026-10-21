@@ -175,6 +175,10 @@ export class VideoQualityChanger extends EventEmitter {
     const videoLevels = client.getMenuVideoLevels();
     if (!videoLevels || videoLevels.size < 1) {
       DOMElements.videoSource.classList.add('hidden');
+      // An open list stayed open under no button, with the last video's qualities - a
+      // click on one asked this video for a level it does not have (as the audio menu did).
+      DOMElements.videoSourceList.replaceChildren();
+      this.closeUI();
       return;
     } else {
       DOMElements.videoSource.classList.remove('hidden');

@@ -180,13 +180,18 @@ export class SubtitleUtils {
     const xml = parser.parseFromString(data, 'text/xml');
     const cues = xml.getElementsByTagName('text');
     const result = ['WEBVTT'];
+    // A cue without a start is left out, and one without a duration lasts until the next
+    // one starts (2 s for the last): either wrote NaN:NaN:NaN.NaN, and the whole track was
+    // refused.
+    const starts = Array.from(cues, (cue) => parseFloat(cue.getAttribute('start')));
     for (let i = 0; i < cues.length; i++) {
-      const cue = cues[i];
-      const start = parseFloat(cue.getAttribute('start'));
-      const dur = parseFloat(cue.getAttribute('dur'));
-      const end = start + dur;
-      const text = this.translateXMLEntities(cue.textContent);
-      result.push((i + 1) + '\n' + this.vttTimeFormat(start) + ' --> ' + this.vttTimeFormat(end) + '\n' + text);
+      const start = starts[i];
+      if (!Number.isFinite(start)) continue;
+      const dur = parseFloat(cues[i].getAttribute('dur'));
+      const next = starts.slice(i + 1).find((s) => Number.isFinite(s) && s > start);
+      const end = start + (Number.isFinite(dur) ? dur : (next !== undefined ? next - start : 2));
+      const text = this.translateXMLEntities(cues[i].textContent);
+      result.push(result.length + '\n' + this.vttTimeFormat(start) + ' --> ' + this.vttTimeFormat(end) + '\n' + text);
     }
     return result.join('\n\n');
   }

@@ -6,6 +6,10 @@ import {WebUtils} from '../../utils/WebUtils.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 import {SILENT_MAX_PLAYBACK_RATE} from '../../options/KeybindUtils.mjs';
 
+// A speed picked here is saved this long after its last change, as the volume is
+// (VolumeControls): an arrow key held on the speed button wrote it at every repeat.
+const RateSaveDelayMs = 500;
+
 export class PlaybackRateChanger extends EventEmitter {
   constructor(client) {
     super();
@@ -27,13 +31,30 @@ export class PlaybackRateChanger extends EventEmitter {
     this.audioPaddingEnd = 0.25;
 
     this.silenceSkipperLoopHandle = this.silenceSkipperLoop.bind(this);
+    this.saveTimer = null;
+    globalThis.addEventListener?.('pagehide', () => this.saveStateNow());
   }
 
   get maxPlaybackRate() {
     return this.client.options.maxPlaybackRate;
   }
 
+  /** Saves the state once RateSaveDelayMs have passed without another change. */
+  scheduleSave() {
+    clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => this.saveStateNow(), RateSaveDelayMs);
+  }
+
+  /** Saves a change still waiting for its delay. */
+  saveStateNow() {
+    if (this.saveTimer === null) return;
+    this.saveState().catch((e) => console.error('Saving the speed failed', e));
+  }
+
   async saveState() {
+    // Saved now, with whatever a waiting save would have written.
+    clearTimeout(this.saveTimer);
+    this.saveTimer = null;
     const state = {
       playbackRate: this.silenceSkipperActive ? this.regularSpeed : this.playbackRate,
       silenceSkipSpeed: this.silenceSkipSpeed,
@@ -443,7 +464,7 @@ export class PlaybackRateChanger extends EventEmitter {
         }
       }
 
-      this.saveState();
+      this.scheduleSave();
     }
   }
 }

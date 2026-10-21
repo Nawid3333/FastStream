@@ -321,6 +321,9 @@ export class TabHolder {
     // live ones. The reset before a reload knows better (resetForReload).
     this.frames.clear();
     this.playerCount = 0;
+    // The frames that played are gone with the frames: a new page's frame that came back
+    // with one of their ids counted as a playing player and held the page's media paused.
+    this.playingPlayers.clear();
     this.continuationOptions = null;
     // regexMatched/mpvMatched are deliberately NOT cleared here: the
     // leave-a-site detection in the onUpdated handler relies on them

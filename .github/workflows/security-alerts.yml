@@ -153,7 +153,7 @@ jobs:
             jq -r --arg p "$package" --arg list "$list" --arg base "$ALERTS" '
               ($list | split(" ") | map(tonumber)) as $l
               | .[] | select(.package == $p and (.number as $n | any($l[]; . == $n)))
-              | "| [\(.number)](\($base)/\(.number)) | \(.severity) | `\(.manifest)` | `\(.range)` | \(.patched // "none yet") | \(.summary | gsub("[\r\n]+"; " ") | gsub("\\|"; "\\|") | gsub("<"; "&lt;")) |"' \
+              | "| [\(.number)](\($base)/\(.number)) | \(.severity) | `\(.manifest)` | `\(.range)` | \(.patched // "none yet") | \((.summary // "") | gsub("[\r\n]+"; " ") | gsub("\\|"; "\\|") | gsub("<"; "&lt;")) |"' \
               "$T/alerts.json" > "$T/rows.md"
             {
               # shellcheck disable=SC2016 # backticks are Markdown

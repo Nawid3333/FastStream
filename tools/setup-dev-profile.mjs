@@ -42,7 +42,9 @@ export const ADDONS = [
   },
 ];
 
-const PROFILE = path.resolve('.dev-profile');
+// The repository's, as the launchers use it (tools/launch-ff.mjs): from another folder the
+// profile was made there, and the launchers started a fresh one without the ad blocker.
+const PROFILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.dev-profile');
 const EXT_DIR = path.join(PROFILE, 'extensions');
 
 /**

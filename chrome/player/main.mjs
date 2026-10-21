@@ -81,7 +81,8 @@ if (EnvUtils.isExtension()) {
 }
 
 async function recieveSources(request, sendResponse) {
-  console.log('Recieved sources', request.sources, request.subtitles, request.continuationOptions);
+  // URLs only: the sources' headers hold the page's Cookie and Authorization (see addSource)
+  console.log('Recieved sources', (request.sources || []).map((s) => s.url), request.continuationOptions);
 
   const continuationOptions = request.continuationOptions || {};
   if (continuationOptions.autoPlay) {

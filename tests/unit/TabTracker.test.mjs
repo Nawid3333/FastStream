@@ -51,6 +51,20 @@ describe('forgetFrame', () => {
   });
 });
 
+// A reset (a reload, a new site) drops every frame, and with them the frames that played:
+// a frame of the new page that came back with a playing player's id counted as playing, and
+// the page's own media stayed held paused (sendPageMediaHold).
+describe('reset', () => {
+  it('forgets the players that played with the frames', () => {
+    const {tab, player} = tabWithFrames();
+    tab.playingPlayers.add(player.frameId);
+    tab.reset();
+    expect(tab.playingPlayers.size).toBe(0);
+    tab.getFrameOrCreate(2);
+    expect(tab.playingPlayers.has(2)).toBe(false);
+  });
+});
+
 // PLAYER_LOADED from a player whose page reloaded while it started: the MPV key with the
 // player just opened. It said it loaded after the new page's FRAME_ADDED, and the new page
 // then counted as holding a player: its streams were dropped, and no player opened on it.

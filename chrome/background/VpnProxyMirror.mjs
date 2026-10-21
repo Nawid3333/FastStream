@@ -117,12 +117,18 @@ export class VpnProxyMirror {
 
   /**
    * The proxy a request took, as remembered settings and their key; null when it went
-   * directly. Its newest token is kept for every request that goes through that proxy.
+   * directly, or through a proxy without a token. Its newest token is kept for every
+   * request that goes through that proxy. Only Firefox VPN (a bearer token on every request)
+   * leaves an extension's own requests out; a proxy of the network settings or a PAC file
+   * applies to them by itself, and copying the page's choice over it misrouted them: a PAC
+   * file that sends the page through a proxy and its stream's host directly had
+   * FastStream's request to that host forced through the page's proxy, which could not
+   * reach it.
    * @param {?Object|undefined} info - webRequest's details.proxyInfo.
    * @return {?string} The proxy's key.
    */
   rememberProxy(info) {
-    if (!info || !info.type || info.type === 'direct') return null;
+    if (!info || !info.type || info.type === 'direct' || !info.proxyAuthorizationHeader) return null;
     /** @type {SeenProxy} */
     const seen = {
       type: String(info.type),

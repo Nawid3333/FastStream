@@ -1366,6 +1366,35 @@ describe('FastStreamClient, the seek preview\'s player', () => {
   });
 });
 
+describe('FastStreamClient, a player that fails to set up', () => {
+  it('is destroyed, and is not left as the player', async () => {
+    // Left in client.player, its video and its loader lived on, ticked by the main loop,
+    // until a later source's resetPlayer - which a load that ends in an error never has.
+    const client = makeClient();
+    let made = null;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failing = await setSource(client, makeSource('https://cdn.test/x.m3u8'), (player) => {
+      made = player;
+      player.setup = vi.fn(async () => {
+        throw new Error('no MediaSource');
+      });
+      vi.spyOn(player, 'destroy');
+    });
+    expect(failing).toBe(made);
+    expect(made.destroy).toHaveBeenCalledTimes(1);
+    expect(client.player).toBeNull();
+  });
+
+  it('is not destroyed once it has taken the source', async () => {
+    const client = makeClient();
+    const player = await setSource(client, makeSource('https://cdn.test/y.m3u8'), (made) => {
+      vi.spyOn(made, 'destroy');
+    });
+    expect(player.destroy).not.toHaveBeenCalled();
+    expect(client.player).toBe(player);
+  });
+});
+
 describe('FastStreamClient, a seek preview that keeps failing', () => {
   /**
    * A client whose seek preview is bound, with its rebuild counted.
@@ -1414,6 +1443,25 @@ describe('FastStreamClient, a seek preview that keeps failing', () => {
       expect(client.setupPreviewPlayer).toHaveBeenCalledTimes(6);
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+// A source's headers hold the page's Cookie and Authorization, and a console shown to
+// someone (a screenshot, a bug report) handed the session on with them.
+describe('addSource', () => {
+  it('logs the source without its headers', async () => {
+    const client = makeClient();
+    client.sourcesBrowser = {addSource: (s) => s, updateSources() {}};
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const source = {url: 'https://cdn.example/a.m3u8', mode: 'hls', headers: {Cookie: 'session=SECRET'}};
+    source.copy = () => source;
+    try {
+      await client.addSource(source);
+      expect(log).toHaveBeenCalled();
+      expect(JSON.stringify(log.mock.calls)).not.toContain('SECRET');
+    } finally {
+      log.mockRestore();
     }
   });
 });

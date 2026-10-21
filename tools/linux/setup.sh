@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Brings a WSL Ubuntu (or any Ubuntu) up to date and provisions it as CI's Linux runner.
+# Brings a WSL Ubuntu up to date and provisions it as CI's Linux runner: a release CI runs
+# on (the one ubuntu-latest gives, and the next while GitHub moves to it). An older one is
+# no target: its package names differ (no t64 names before 24.04).
 # tools/verify-linux.mjs runs it as root before every check.
 #
 # Every run starts from what is newest, as a runner starts from a freshly built image: apt

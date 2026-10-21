@@ -383,6 +383,12 @@ in mpv, while the site's own player played. The cause was Firefox VPN (Firefox's
   `vpn-serverlist` names no other protocol), so the copy is exact; a MASQUE proxy would not be
   copied. Firefox gives every proxied channel one `proxyInfo` (one token, one isolation key),
   so the newest seen on any page request is the one to use.
+- **Only Firefox VPN's proxy** (a `proxyAuthorizationHeader` on every request) is copied
+  (2026-10-21). A proxy of the network settings or a PAC file applies to an extension's own
+  requests by itself, and copying the page's choice over it misrouted them: with a PAC file
+  that sends the page through a proxy and its stream's host directly, FastStream's request
+  to that host was forced through the page's proxy, which could not reach it.
+  `tests/unit/VpnProxyMirror.test.mjs` fails without it.
 - **Only where needed.** Hosts are added when FastStream fetches them (a detected source, its
   own request in a tab whose page went through the VPN), at most 200; the listener asks for
   those hosts only. A host goes off the list once its tab's page, loaded again, reaches it

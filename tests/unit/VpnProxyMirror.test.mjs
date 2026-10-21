@@ -162,6 +162,22 @@ describe('VpnProxyMirror', () => {
     expect(mirror.status(CDN, false, 3).proxied).toBe(false);
   });
 
+  // A proxy of the network settings or a PAC file applies to FastStream's own requests by
+  // itself: copying the page's over it sent the request to a host the PAC file routes
+  // directly (an intranet CDN) through the page's proxy, which could not reach it.
+  it('copies only Firefox VPN\'s proxy (a token), not one of the network settings or a PAC file', () => {
+    const {mirror, current} = setup();
+    const pac = {type: 'http', host: 'proxy.corp', port: 3128};
+    mirror.noteRequest(pageRequest(PAGE, pac, {type: 'main_frame'}));
+    mirror.noteSource(pageRequest(CDN, pac));
+    const intranet = 'http://intranet.corp/hls/master.m3u8';
+    mirror.noteRequest(ownRequest(intranet));
+    expect(mirror.proxyFor(ownRequest(CDN))).toBeUndefined();
+    expect(mirror.proxyFor(ownRequest(intranet))).toBeUndefined();
+    expect(mirror.status(intranet, false, 3).proxied).toBe(false);
+    expect(current()).toBeNull();
+  });
+
   it('follows the tab\'s proxy from the next request to a host the page was not seen asking', () => {
     const {mirror, current} = setup();
     mirror.noteRequest(pageRequest(PAGE, vpn(), {type: 'main_frame'}));

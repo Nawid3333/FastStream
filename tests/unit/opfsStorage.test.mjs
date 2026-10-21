@@ -691,3 +691,34 @@ describe('FSBlob', () => {
     expect(fsblob.blobStorePromises.has('blob0')).toBe(false);
   });
 });
+
+// A worker whose init fails (the web build in a private window, where getDirectory throws):
+// FSBlob moves on to its next store and drops the manager, and the worker stayed running,
+// one more for every player that opened so.
+describe('OPFSManager.setup', () => {
+  it('ends the worker when its init fails', async () => {
+    const workers = [];
+    class FailingWorker {
+      constructor() {
+        this.listeners = {};
+        this.terminate = vi.fn();
+        workers.push(this);
+      }
+      addEventListener(type, listener) {
+        this.listeners[type] = listener;
+      }
+      postMessage(message) {
+        queueMicrotask(() => this.listeners.message({data: {id: message.id, ok: false, error: 'SecurityError'}}));
+      }
+    }
+    vi.stubGlobal('Worker', FailingWorker);
+    try {
+      const manager = new OPFSManager();
+      await expect(manager.setup()).rejects.toThrow('SecurityError');
+      expect(workers[0].terminate).toHaveBeenCalled();
+      expect(OPFSManager.live.has(manager)).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

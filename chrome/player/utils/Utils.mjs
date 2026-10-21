@@ -117,7 +117,8 @@ export class Utils {
    * @param {Array} array - The array to search.
    * @param {*} el - The element to search for.
    * @param {Function} compareFn - Comparison function.
-   * @return {*} The found element or undefined.
+   * @return {number} The index of a matching element; when there is none, -(the index it
+   *   would go in) - 1, a negative number.
    */
   static binarySearch(array, el, compareFn) {
     let lower = 0;

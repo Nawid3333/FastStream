@@ -486,3 +486,30 @@ describe('withUnit', () => {
     expect(SubtitleUtils.withUnit(undefined)).toBe('');
   });
 });
+
+// XML captions whose <text> cues lack a start or a duration (some sites write only the
+// start): the cue was written with NaN:NaN:NaN.NaN, and the whole track was refused.
+describe('xml2vtt', () => {
+  it('leaves out a cue without a start and ends one without a duration at the next', () => {
+    // DOMParser is a browser API: a stand-in that serves the <text> elements of the string
+    globalThis.DOMParser = class {
+      parseFromString(data) {
+        const cues = [...data.matchAll(/<text([^>]*)>([^<]*)<\/text>/g)].map(([, attrs, text]) => ({
+          getAttribute: (name) => (attrs.match(new RegExp(`${name}="([^"]*)"`)) || [])[1] ?? null,
+          textContent: text,
+        }));
+        return {getElementsByTagName: () => cues};
+      }
+    };
+    try {
+      const vtt = SubtitleUtils.xml2vtt('<transcript><text start="1" dur="2">one</text>' +
+        '<text dur="1">no start</text><text start="4">two</text><text start="7" dur="1">three</text></transcript>');
+      expect(vtt).not.toContain('NaN');
+      expect(vtt).not.toContain('no start');
+      expect(vtt).toContain('00:00:04.000 --> 00:00:07.000\ntwo');
+      expect(vtt.split('\n\n').length).toBe(4);
+    } finally {
+      delete globalThis.DOMParser;
+    }
+  });
+});
