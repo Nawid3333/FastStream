@@ -52,7 +52,8 @@ name: Auto release
 # delivered the push of an older commit a second time, after main had moved on;
 # that run cancelled the newest commit's, went green, and was not released
 # because main had moved on. The restart-cancelled-ci job below starts such a run
-# again. And a push by this repository's token (mpv-updates.yml's pin,
+# again. (Since 2026-10-21 a CI run on main has a concurrency group of its own, so no
+# later run cancels it; the job stays for a run cancelled any other way.) And a push by this repository's token (mpv-updates.yml's pin,
 # update-prs.yml's merges) starts no CI: one landing while CI ran on a commit
 # left that commit's run seeing main moved on, to a commit whose run never comes.
 # "Is this commit still main's newest?" now starts CI on main by dispatch then.
