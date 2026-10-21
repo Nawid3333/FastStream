@@ -86,7 +86,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 16;
+export const HostVersion = 17;
 
 // The messages of the thin helper (host 15) this host understands, sent with every answer
 // so that the extension knows what it may ask for without a version table of its own. A
@@ -1394,7 +1394,7 @@ function quoteWindowsArg(value) {
  * PowerShell that declares the window APIs used to activate mpv.
  * @return {Array<string>} Script lines.
  */
-function focusApiLines() {
+export function focusApiLines() {
   return [
     'Add-Type @"',
     'using System;',
@@ -1405,12 +1405,34 @@ function focusApiLines() {
     '  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);',
     '  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool f);',
     '  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);',
-    '  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);',
+    '  [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr h, int c);',
     '  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);',
+    '  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);',
     '  [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int p);',
     '  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();',
     '}',
     '"@',
+  ];
+}
+
+/**
+ * PowerShell that shows a window, restoring a minimised one: SW_SHOW (5) leaves a
+ * minimised window in the taskbar; SW_RESTORE (9) brings it back.
+ *
+ * ShowWindowAsync, not ShowWindow. runPowerShell starts PowerShell with windowsHide, which
+ * puts SW_HIDE in its STARTUPINFO, and Windows applies that to the first ShowWindow call a
+ * process makes, whatever window and value it names: the focus script's
+ * ShowWindow(mpv, SW_SHOW) hid mpv's window. When SetForegroundWindow then worked at once,
+ * no second call showed it again, and every later stream sent to that mpv found no window
+ * (FOCUS=nowindow) until mpv quit (measured 2026-10-21: hidden after one call, shown after
+ * a second; ShowWindowAsync, which mpv's own thread carries out, left it visible).
+ * @param {string} hwndExpr - PowerShell expression holding the window handle.
+ * @return {Array<string>} Script lines.
+ */
+export function showWindowLines(hwndExpr) {
+  return [
+    `if ([FSFg]::IsIconic(${hwndExpr})) { $null = [FSFg]::ShowWindowAsync(${hwndExpr}, 9) } ` +
+      `else { $null = [FSFg]::ShowWindowAsync(${hwndExpr}, 5) }`,
   ];
 }
 
@@ -1473,8 +1495,7 @@ function focusWindowLines(pidExpr, waitSeconds) {
     '        $t = [FSFg]::GetWindowThreadProcessId($fg, [ref]([uint32]0))',
     '        $me = [FSFg]::GetCurrentThreadId()',
     '        $null = [FSFg]::AttachThreadInput($me, $t, $true)',
-    // SW_SHOW (5) leaves a minimised window in the taskbar; SW_RESTORE (9) brings it back.
-    '        if ([FSFg]::IsIconic($h)) { $null = [FSFg]::ShowWindow($h, 9) } else { $null = [FSFg]::ShowWindow($h, 5) }',
+    ...showWindowLines('$h').map((line) => '        ' + line),
     '        $null = [FSFg]::BringWindowToTop($h)',
     '        $ok = [FSFg]::SetForegroundWindow($h)',
     '        $null = [FSFg]::AttachThreadInput($me, $t, $false)',

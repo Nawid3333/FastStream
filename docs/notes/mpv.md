@@ -599,6 +599,25 @@ version 3).** From the review of the owner's "mpv opens behind Firefox" (since 1
   the video the user starts again" failed. `tests/unit/mpvHostLaunch.test.mjs` checks both
   waits and runs the script with `Get-Process` stubbed to a process without a window (red
   with 30 s); the e2e case checks that the hand-off, not the clip's end, paused the page.
+- **The focus script shows mpv's window with `ShowWindowAsync`, never `ShowWindow`**
+  (`showWindowLines`, host 17, 2026-10-21). After host 16 the local e2e run still logged
+  `focus: nowindow` for every play into the open mpv after its second, put down to a hung
+  mpv's ghost window. An `EnumWindows` sampler (every 250 ms: `IsWindowVisible`,
+  `IsHungAppWindow`, `IsIconic`, Ghost-class windows) found mpv's own window, same hwnd,
+  invisible about 0.5 s after a hand-off and until mpv quit: not hung, not minimised, no
+  ghost; `Process.MainWindowHandle` is then 0, hence `nowindow`. mpv's log showed nothing
+  at that moment. `runPowerShell` starts PowerShell with `windowsHide`, which puts SW_HIDE
+  in its STARTUPINFO, and Windows applies that to the first `ShowWindow` a process makes on
+  an overlapped window, also another process's: the script's `ShowWindow(mpv, SW_SHOW)` hid
+  mpv. A retry 250 ms later showed it again, so it stayed hidden only when
+  `SetForegroundWindow` worked at once; at a cold start mpv's own first frame shows its
+  window, which hid the fault there. Measured: from a hidden-started PowerShell one
+  `ShowWindow(SW_SHOW)` hid mpv's window and a second showed it; under Node's `windowsHide`
+  `ShowWindowAsync` (carried out by mpv's own thread) left it visible, and a first
+  `ShowWindow` on a null handle did not help. `tests/unit/mpvHostLaunch.test.mjs` runs the
+  show step from a hidden-started PowerShell on an off-screen overlapped window of another
+  process, which must stay visible: red with `ShowWindow` (with a popup window it was green
+  either way).
 - **An mpv seen and then gone before it had a window is a failed launch** (`FOCUS=quit`,
   `wmiLaunchResult`), like one never seen (`FOCUS=gone`). The first `Get-Process` runs right
   after `Win32_Process.Create` returns, while mpv is still starting, so it nearly always saw
