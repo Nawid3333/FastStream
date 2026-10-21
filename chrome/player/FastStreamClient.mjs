@@ -792,7 +792,9 @@ export class FastStreamClient extends EventEmitter {
   async addSource(source, setSource = false, fallbacks = []) {
     source = source.copy();
 
-    console.log('addSource', source);
+    // Not the source itself: its headers hold the page's Cookie and Authorization, and a
+    // console shown to someone (a screenshot, a bug report) handed the session on.
+    console.log('addSource', source.url, source.mode);
     source = this.sourcesBrowser.addSource(source);
     if (setSource) {
       await this.setSource(source, fallbacks);
@@ -944,6 +946,8 @@ export class FastStreamClient extends EventEmitter {
   async setSourceInternal(source, fallbacks, start = {}) {
     // Whether the player took the source: a throw before that is a stream that failed.
     let taken = false;
+    // The player built for this source, until it is handed the source (taken)
+    let built = null;
     try {
       source = source.copy();
 
@@ -979,7 +983,7 @@ export class FastStreamClient extends EventEmitter {
 
       const autoPlay = this.options.autoPlay;
 
-      console.log('setSource', source);
+      console.log('setSource', source.url, source.mode); // no headers: see addSource
       await this.resetPlayer();
       this.restoreCarriedDecodeFailures(source);
       this.source = source;
@@ -1001,7 +1005,8 @@ export class FastStreamClient extends EventEmitter {
       this.storageAvailable = await EnvUtils.getAvailableStorage();
 
       const options = {};
-      this.player = await this.playerLoader.createPlayer(source.mode, this, options);
+      built = await this.playerLoader.createPlayer(source.mode, this, options);
+      this.player = built;
 
       await this.player.setup();
 
@@ -1125,6 +1130,19 @@ export class FastStreamClient extends EventEmitter {
     } catch (e) {
       AlertPolyfill.errorSendToDeveloper(e);
       console.error(e);
+      // The player built here, whose setup or setSource threw, was never handed the source:
+      // destroyed, as buildPreviewPlayer destroys its own - left in this.player, its video
+      // and its loader (which may go on fetching) lived on, ticked by mainloop, until a
+      // later source's resetPlayer, which the load error's end state never has. Only this
+      // one: a newer source may have put its own player there meanwhile.
+      if (!taken && built) {
+        try {
+          built.destroy();
+        } catch (destroyError) {
+          console.warn('Could not destroy a player that failed to set up', destroyError);
+        }
+        if (this.player === built) this.player = null;
+      }
       // Its player could not be built or given the source: that stream failed as surely
       // as one whose player reports an error, and the next of those picked from plays
       // (tryNextSource), else the load error shows. Not for a later source's failure, nor

@@ -50,6 +50,57 @@ export class HLSFragmentRequester {
     this.decrypter.destroy();
   }
 
+  /**
+   * What decrypts a segment whose decryption this took over (fs_oldcryptdata): the key's
+   * download starts now, and the postProcessor decrypts the segment's bytes with it.
+   * requestFragment needs it, and so does HLSLoader's own download of such a segment, one
+   * the store has no place for.
+   * @param {Object} frag - The hls.js fragment.
+   * @param {Object} headers - The request headers, for the key's download too.
+   * @return {?Function} The postProcessor for downloadManager.getFile; null for a segment
+   *   this did not take over.
+   */
+  decryptionFor(frag, headers) {
+    const decryptdata = frag?.fs_oldcryptdata;
+    if (!decryptdata) {
+      return null;
+    }
+    const keyPromise = new Promise((resolve, reject) => {
+      this.player.getClient().downloadManager.getFile({
+        url: decryptdata.uri,
+        rangeStart: 0,
+        rangeEnd: 0,
+        responseType: 'arraybuffer',
+        storeRaw: true,
+        headers,
+      }, {
+        onSuccess: async (entry) => {
+          resolve(await entry.getData());
+        },
+        onFail: (err) => {
+          console.log('failed to get key', err);
+          reject(err);
+        },
+        onAbort: (err) => {
+          console.log('key aborted', err);
+          reject(err);
+        },
+      });
+    });
+    return async (entry, response) => {
+      const key = await keyPromise;
+      if (!decryptdata.iv || !key) {
+        console.error('missing decryptdata', decryptdata, key);
+        this.player.emit(DefaultPlayerEvents.NEED_KEY);
+        // Failed, not complete: the still-encrypted data was stored as the segment, and
+        // played or saved as it was.
+        throw new Error('Segment key or IV missing');
+      }
+      response.data = await this.decrypter.decryptAES(response.data, decryptdata.iv.buffer, key);
+      return response;
+    };
+  }
+
   requestFragment(fragment, callbacks, config, priority) {
     const context = fragment.getContext();
     config = config || {};
@@ -67,64 +118,17 @@ export class HLSFragmentRequester {
       this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
     }
 
-    let keyPromise;
-
-    if (frag.fs_oldcryptdata) {
-      const toGet = {
-        url: frag.fs_oldcryptdata.uri,
-        rangeStart: 0,
-        rangeEnd: 0,
-        responseType: 'arraybuffer',
-        storeRaw: true,
-        headers: {
-          ...config.headers,
-          ...this.player.source.headers,
-        },
-      };
-      keyPromise = new Promise((resolve, reject) => {
-        this.player.getClient().downloadManager.getFile(toGet, {
-          onSuccess: async (entry) => {
-            resolve(await entry.getData());
-          },
-          onFail: (err) => {
-            console.log('failed to get key', err);
-            reject(err);
-          },
-          onAbort: (err) => {
-            console.log('key aborted', err);
-            reject(err);
-          },
-        });
-      });
-    }
+    const headers = {
+      ...config.headers,
+      ...this.player.source.headers,
+    };
+    const decrypt = this.decryptionFor(frag, headers);
 
     const loader = this.player.getClient().downloadManager.getFile({
       ...context,
       config,
-      headers: {
-        ...config.headers,
-        ...this.player.source.headers,
-      },
-      postProcessor: async (entry, response) => {
-        if (!frag.fs_oldcryptdata) {
-          return response;
-        }
-
-        const key = await keyPromise;
-        const decryptdata = frag.fs_oldcryptdata;
-
-        if (!decryptdata.iv || !key) {
-          console.error('missing decryptdata', decryptdata, key);
-          this.player.emit(DefaultPlayerEvents.NEED_KEY);
-          // Failed, not complete: the still-encrypted data was stored as the segment, and
-          // played or saved as it was.
-          throw new Error('Segment key or IV missing');
-        }
-
-        response.data = await this.decrypter.decryptAES(response.data, decryptdata.iv.buffer, key);
-
-        return response;
-      },
+      headers,
+      postProcessor: decrypt || (async (entry, response) => response),
     }, {
       onSuccess: async (entry, xhr) => {
         let data;

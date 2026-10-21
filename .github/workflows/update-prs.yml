@@ -651,7 +651,7 @@ jobs:
                 manifest_dir=''
                 if [ "$fsa" = 1 ]; then manifest_dir=fsaunpack; fi
                 if MANIFEST_DIR=$manifest_dir gh api --paginate "repos/$GH_REPO/dependabot/alerts?state=open&per_page=100" \
-                     --jq '.[] | select((.dependency.manifest_path | split("/") | .[:-1] | join("/")) == env.MANIFEST_DIR) | .dependency.package.name' \
+                     --jq '.[] | select((.dependency.manifest_path | ltrimstr("/") | split("/") | .[:-1] | join("/")) == env.MANIFEST_DIR) | .dependency.package.name' \
                      > "$RUNNER_TEMP/alerted.txt"; then
                   unalerted=$(LC_ALL=C sort -u "$RUNNER_TEMP/alerted.txt" | LC_ALL=C comm -23 "$RUNNER_TEMP/updates.txt" -)
                   if [ -s "$RUNNER_TEMP/updates.txt" ] && [ -z "$unalerted" ]; then

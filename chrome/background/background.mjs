@@ -446,7 +446,7 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
   if (!hasPerms) {
     chrome.tabs.create({
       url: chrome.runtime.getURL('perms.html'),
-    });
+    }).catch((e) => console.error('Opening the permissions page failed', e));
     return;
   }
 
@@ -564,7 +564,7 @@ async function onToggleMpv(tabobj) {
   if (!hasPerms) {
     chrome.tabs.create({
       url: chrome.runtime.getURL('perms.html'),
-    });
+    }).catch((e) => console.error('Opening the permissions page failed', e));
     return;
   }
 
@@ -663,7 +663,8 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
 
   if (Options.blockPopupsWhilePlaying && openerTab.popupGuardArmedUntil > Date.now()) {
     if (Logging) console.log('[PopupGuard] Closing tab opened right after a click on the player', openerTabId, newTab.id, newTab.url);
-    chrome.tabs.remove(/** @type {number} */ (newTab.id));
+    // The popup may have closed itself meanwhile (popunder chains do): nothing to do then.
+    chrome.tabs.remove(/** @type {number} */ (newTab.id)).catch(() => {});
 
     // Re-arm briefly rather than clearing outright: a single popup/popunder
     // script commonly chains two or three tabs off one click, and this still

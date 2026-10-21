@@ -86,8 +86,18 @@ export class OPFSManager {
     OPFSManager.live.add(this);
     this.worker.addEventListener('message', (event) => this.handleMessage(event.data));
     this.worker.addEventListener('error', (event) => this.handleWorkerCrash(event));
-    const {sessionName} = await this.call('init');
-    this.sessionName = sessionName;
+    let started;
+    try {
+      started = await this.call('init');
+    } catch (e) {
+      // FSBlob moves on to its next store and drops this manager: its worker ended here, or
+      // every player that opened so (the web build in a private window) left one running.
+      this.worker.terminate();
+      this.worker = null;
+      OPFSManager.live.delete(this);
+      throw e;
+    }
+    this.sessionName = started.sessionName;
   }
 
   handleMessage(msg) {

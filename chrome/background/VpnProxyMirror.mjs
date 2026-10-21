@@ -169,8 +169,17 @@ export class VpnProxyMirror {
       }
       return;
     }
-    // The top frame's: a frame of another site may be on the VPN when the page is not.
-    if (details.tabId >= 0 && (details.frameId ?? 0) === 0) this.tabs.set(details.tabId, key);
+    // The top frame's: a frame of another site may be on the VPN when the page is not. Only
+    // Firefox VPN's (a token on every request): the tab's proxy is a guess for hosts the page
+    // was not seen asking (noteOwnRequest). A proxy of the network settings or a PAC file
+    // applies to FastStream's requests by itself, chosen per host, and the page's sent
+    // FastStream's request to a host the PAC file routes directly (an intranet CDN) through
+    // a proxy that could not reach it. A host the page itself reached through a proxy is
+    // copied whatever the proxy (noteSource): for that host the PAC file answers alike.
+    if (details.tabId >= 0 && (details.frameId ?? 0) === 0) {
+      if (details.proxyInfo?.proxyAuthorizationHeader) this.tabs.set(details.tabId, key);
+      else this.tabs.delete(details.tabId);
+    }
     const entry = this.hosts.get(hostKey);
     if (entry) {
       entry.key = key;

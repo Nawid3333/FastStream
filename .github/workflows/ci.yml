@@ -373,7 +373,9 @@ jobs:
           retention-days: 14
 
       - name: Add the native host's log
-        if: matrix.os == 'Windows' && (failure() || hashFiles('logs/retried.jsonl') != '')
+        # cancelled(): a job that ran out of its time ends cancelled, not failed - the one
+        # whose logs show where it hung
+        if: matrix.os == 'Windows' && (failure() || cancelled() || hashFiles('logs/retried.jsonl') != '')
         shell: pwsh
         run: |
           $log = Join-Path $env:LOCALAPPDATA 'FastStreamMpvHost\faststream-mpv-host.log'
@@ -385,7 +387,7 @@ jobs:
       # Also for a green job that retried a spec: the failed attempt's driver log
       # (driverLogs.mjs keeps each attempt's) is what shows why it failed.
       - name: Upload e2e failure logs
-        if: failure() || hashFiles('logs/retried.jsonl') != ''
+        if: failure() || cancelled() || hashFiles('logs/retried.jsonl') != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-logs-${{ matrix.os }}-${{ matrix.suite }}-${{ matrix.shard }}

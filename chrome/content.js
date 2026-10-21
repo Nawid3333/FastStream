@@ -658,7 +658,9 @@
           }
         }
       }, {
-        threshold: [0, 0.25, 0.5],
+        // 0.3: an entry comes only where the ratio crosses one of these, and the test above
+        // is > 0.3 - with 0.25 and 0.5 alone it fired only half way back
+        threshold: [0, 0.25, 0.3, 0.5],
       });
       observer.observe(miniplayerState.placeholder);
       miniplayerState.closeObserver = observer;
@@ -1495,7 +1497,7 @@
   // handleCaptionsScrape), so a track whose server never answers must not be waited on:
   // without a timeout that request hung, and the player with it. What gives a request up
   // is a stall - this long with no byte arriving - so a large track on a slow connection
-  // still loads; the longer total bounds one that only trickles.
+  // still loads, up to the total, which also bounds one that only trickles.
   const HttpRequestStallMs = 2000;
   const HttpRequestTimeoutMs = 10000;
 

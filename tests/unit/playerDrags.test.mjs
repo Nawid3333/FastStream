@@ -19,7 +19,7 @@ const el = () => doc.body.appendChild(doc.createElement('div'));
 const dom = {
   playerContainer: el(), volumeContainer: el(), volumeControlBar: el(), currentVolume: el(),
   muteBtn: el(), currentVolumeText: el(), volumeBanner: el(), volumeBlock: el(), volumeUnity: el(),
-  subtitlesContainer: el(),
+  subtitlesContainer: el(), playbackRateBanner: el(),
 };
 globalThis.__playerDragsDom = dom;
 
@@ -186,5 +186,26 @@ describe('the silence-skip threshold line', () => {
     move({clientY: 480, buttons: 0});
     move({clientY: 460});
     expect(skipper.silenceThreshold).toBe(0.5);
+  });
+});
+
+describe('the speed menu', () => {
+  it('saves the speed once, after its last change, as the volume is saved', () => {
+    // The review of 2026-10-21: an arrow key held on the speed button wrote it at every repeat.
+    vi.useFakeTimers();
+    try {
+      const changer = new PlaybackRateChanger({options: {maxPlaybackRate: 8}});
+      changer.playbackElements = Array.from({length: 80}, () => el());
+      changer.speedList = el();
+      Utils.setConfig.mockClear();
+      for (let i = 0; i < 5; i++) changer.shiftPlaybackRate(0.1);
+      expect(changer.playbackRate).toBeCloseTo(1.5);
+      expect(Utils.setConfig).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(600);
+      expect(Utils.setConfig).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(Utils.setConfig.mock.calls[0][1]).playbackRate).toBeCloseTo(1.5);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

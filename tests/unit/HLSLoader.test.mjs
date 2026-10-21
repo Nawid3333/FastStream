@@ -24,7 +24,8 @@ function makePlayer(stored = null) {
     // A level stored from sequence number 0 (HLSFragmentStore), when anything is stored.
     client: {getFragment: vi.fn(() => stored), getFragments: () => (stored ? Object.assign([], {snBase: 0}) : undefined)},
     getClient: () => ({downloadManager: {getFile, getIdentifier: (details) => details.url, forgetCompletedFile: vi.fn()}}),
-    fragmentRequester: {requestFragment},
+    // decryptionFor: null for a segment FastStream does not decrypt itself
+    fragmentRequester: {requestFragment, decryptionFor: () => null},
   };
   return {player, getFile, requestFragment};
 }
@@ -224,5 +225,25 @@ describe('HLSLoader, before a download has reported', () => {
     expect(stats.buffering).toEqual({start: 0, first: 0, end: 0});
     expect(stats.total - stats.loaded).toBe(0);
     expect(stats.aborted).toBe(false);
+  });
+});
+
+// A segment FastStream decrypts itself (HLSFragmentRequester.takeOverDecryption) that the
+// store has no place for - numbered before the level's first, a live stream that started
+// its numbering again, or the init segment of a changed EXT-X-MAP: its plain download went
+// to hls.js still encrypted, and hls.js decrypts none of it.
+describe('HLSLoader, an encrypted segment the store has no place for', () => {
+  it('is downloaded with the decryption requestFragment gives a stored one', () => {
+    const {player, getFile, requestFragment} = makePlayer();
+    const decrypt = async (entry, response) => response;
+    player.fragmentRequester.decryptionFor = vi.fn((frag) => (frag?.fs_oldcryptdata ? decrypt : null));
+    const frag = {sn: 0, trackID: 0, level: 0, url: 'http://127.0.0.1/live/seg0.ts',
+      fs_oldcryptdata: {uri: 'http://127.0.0.1/key', iv: new Uint8Array(16)}};
+    const onError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    new (hlsLoaderFactory(player))().load({url: frag.url, frag}, {}, fragmentCallbacks());
+    onError.mockRestore();
+    expect(requestFragment).not.toHaveBeenCalled();
+    expect(getFile).toHaveBeenCalledTimes(1);
+    expect(getFile.mock.calls[0][0].postProcessor).toBe(decrypt);
   });
 });
