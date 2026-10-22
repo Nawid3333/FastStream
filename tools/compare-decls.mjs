@@ -60,10 +60,18 @@ if (name) {
   process.exit(1);
 }
 
+/**
+ * @param {string} label
+ * @param {string[]} list
+ */
 const show = (label, list) =>
   console.log(`${label.padEnd(12)} ${list.length}` +
     (list.length && label !== 'identical' ? `  ${list.join(', ')}` : ''));
 
+/**
+ * @param {string} heading
+ * @param {{same: string[], differs: string[], onlyA: string[], onlyB: string[]}} r
+ */
 const report = (heading, r) => {
   console.log(heading);
   show('identical', r.same);

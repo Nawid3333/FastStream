@@ -97,7 +97,7 @@ export class StringUtils {
       h = d;
     }
 
-    return h;
+    return /** @type {number} */ (h);
   }
 
   /**
@@ -115,6 +115,11 @@ export class StringUtils {
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time - minutes * 60);
 
+    /**
+     * @param {number} string - The number of minutes or seconds to pad.
+     * @param {string} pad - The padding character.
+     * @param {number} length - The width to pad to.
+     */
     function strPadLeft(string, pad, length) {
       return (new Array(length + 1).join(pad) + string).slice(-length);
     }

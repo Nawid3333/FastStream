@@ -102,6 +102,7 @@ export function newestOfMajor(doc, major, now, minAgeDays = MIN_AGE_DAYS) {
  * @return {{raise: Array<Object>, close: Array<{number: number, comment: string}>}}
  */
 export function plan(updates, open, used, {raising = true} = {}) {
+  /** @param {{name: string, latest: string}} update */
   const title = (update) => `${TITLE_PREFIX}${update.name} ${update.latest}`;
   const raise = !raising ? [] : updates.filter((update) => update.behind && !used.has(title(update)))
       .map((update) => ({...update, title: title(update)}));
@@ -122,6 +123,7 @@ export function plan(updates, open, used, {raising = true} = {}) {
       continue;
     }
     // Node has one track, its LTS majors. pnpm has two: its pinned major, and the next.
+    /** @param {string} version_ */
     const onPinnedMajor = (version_) => parseInt(version_, 10) === parseInt(current, 10);
     const track = tracks.find((update) => name === 'Node.js' ||
         onPinnedMajor(update.latest) === onPinnedMajor(version));
@@ -132,7 +134,9 @@ export function plan(updates, open, used, {raising = true} = {}) {
   return {raise, close};
 }
 
+/** @param {string} url */
 async function getJson(url) {
+  /** @type {Record<string, string>} */
   const headers = {'accept': 'application/json', 'user-agent': 'faststream-check-toolchain'};
   if (url.startsWith('https://api.github.com/') && process.env.GH_TOKEN) {
     headers.authorization = `Bearer ${process.env.GH_TOKEN}`;

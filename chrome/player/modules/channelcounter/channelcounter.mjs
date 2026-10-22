@@ -10,11 +10,13 @@ if (currentScript) {
       .replace(/\/[^\/]+$/, '/');
 }
 
+/** @param {string} file */
 const assetPath = (file) => {
   return basePath + file;
 };
 
 export class ChannelCounterNode extends EventEmitter {
+  /** @param {AudioContext} ctx */
   constructor(ctx) {
     super();
     this.ctx = ctx;

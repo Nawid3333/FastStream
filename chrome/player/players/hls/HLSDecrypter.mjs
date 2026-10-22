@@ -4,6 +4,11 @@ export class HLSDecrypter {
   constructor() {
     this.lastId = 0;
   }
+  /**
+   * @param {ArrayBuffer} data
+   * @param {ArrayBuffer} iv
+   * @param {ArrayBuffer} key
+   */
   async decryptAES(data, iv, key) {
     // No data is a failure, never a result: the download stored what it got as the
     // decrypted segment, complete, and nothing was ever there to play or save.
@@ -70,6 +75,7 @@ export class HLSDecrypter {
     // be read reaches no one: what was waiting waited forever (the segment stayed
     // "downloading", and a save holding it hung). It is failed, and the next decrypt starts
     // a new worker.
+    /** @param {ErrorEvent} event */
     const crashed = (event) => {
       console.error('The decrypter worker failed', event);
       if (this.encryptionWorker === worker) {

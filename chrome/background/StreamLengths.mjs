@@ -45,6 +45,7 @@ export class StreamLengths {
     /** @type {Map<string, string>} */
     this.masterOf = new Map();
     this.active = 0;
+    /** @type {Array<() => void>} */
     this.waiting = [];
   }
 
@@ -224,7 +225,7 @@ export class StreamLengths {
     if (this.active >= MAX_ACTIVE) {
       // A read that finishes hands its slot over (below): woken, this one already counts.
       // Woken into a free slot, a caller arriving meanwhile took it as well: five at once.
-      await new Promise((resolve) => this.waiting.push(resolve));
+      await new Promise((resolve) => this.waiting.push(/** @type {() => void} */ (resolve)));
     } else {
       this.active++;
     }
@@ -252,13 +253,13 @@ export class StreamLengths {
 
     // The headers the player would send, less the conditional ones: a read that copied
     // the page's If-None-Match would get a 304 and no body.
-    const headers = new VideoSource(source.url, source.headers, source.mode).headers;
+    const headers = /** @type {Record<string, string>} */ (new VideoSource(source.url, source.headers, source.mode).headers);
     for (const name of Object.keys(headers)) {
       if (name.startsWith('if-')) {
         delete headers[name];
       }
     }
-    const request = RequestUtils.splitSpecialHeaders(headers);
+    const request = /** @type {{customHeaderCommands: Array<Object>, regularHeaders: Object}} */ (RequestUtils.splitSpecialHeaders(headers));
 
     if (source.mode === PlayerModes.ACCELERATED_HLS) {
       let url = source.url;

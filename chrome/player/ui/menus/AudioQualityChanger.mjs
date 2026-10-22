@@ -4,6 +4,7 @@ import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 
+/** @typedef {{id: string, bitrate: number, mimeType?: string, audioCodec?: string, language?: string}} AudioLevel */
 export class AudioQualityChanger extends EventEmitter {
   constructor() {
     super();
@@ -147,7 +148,10 @@ export class AudioQualityChanger extends EventEmitter {
     });
   }
 
-  updateQualityLevels(client) {
+ /**
+  * @param {{getLevelManager: () => {filterAudioLevelsByLanguage: (levels: AudioLevel[]) => AudioLevel[]}, getAudioLevels: () => Map<string, AudioLevel>, getCurrentAudioLevelID: () => string}} client
+  */
+ updateQualityLevels(client) {
     const audioLevels = client.getLevelManager().filterAudioLevelsByLanguage(Array.from(client.getAudioLevels().values()));
     this.hasChoice = !!audioLevels && audioLevels.length > 1;
     /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).classList.toggle('hidden', !this.hasChoice);

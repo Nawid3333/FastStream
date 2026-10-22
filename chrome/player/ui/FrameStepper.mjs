@@ -49,6 +49,7 @@ export function frameStepTarget(currentTime, frameDuration, direction, anchor = 
  */
 export class FrameStepper {
   constructor() {
+  /** @type {HTMLVideoElement | null} */
     this.video = null;
     this.detach = null;
     this.forget();
@@ -94,6 +95,7 @@ export class FrameStepper {
     if (typeof video.requestVideoFrameCallback !== 'function') {
       return;
     }
+  /** @type {(now: number, metadata: VideoFrameCallbackMetadata) => void} */
     const onFrame = (now, metadata) => {
       if (this.video !== video) {
         return;

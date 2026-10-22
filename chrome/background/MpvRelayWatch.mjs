@@ -94,8 +94,15 @@ function noticeText(text) {
 
 /**
  * @typedef {{notify: (title: string, detail?: string, seconds?: number) => void,
- *   hide: () => void, state: (state: Object) => void, stop: () => void}} MpvWatcher
+ *   hide: () => void, state: (state: {autoplay: boolean}) => void, stop: () => void}} MpvWatcher
  */
+
+/**
+ * A message sent to the helper over the relay port: an mpv command to run, with an id when
+ * its answer is to be read back, or the once-sent setup of the relay itself.
+ * @typedef {{type: 'mpv', command: Array<*>, id?: number}} MpvCommand
+ */
+/** @typedef {MpvCommand|{type: 'relay', heartbeat: {property: string, everyMs: number}, onStop: Array<Array<*>>}} ToHelperMessage */
 
 /**
  * Follows mpv over a `relay` port of the helper: its file, its end, and its keys for the next
@@ -125,7 +132,7 @@ function noticeText(text) {
 export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {}) {
   let ended = false;
   let relaying = false;
-  /** @type {Array<Object>} */
+  /** @type {Array<MpvCommand>} */
   const queue = [];
   /** @type {boolean|undefined} */
   let eof;
@@ -147,6 +154,11 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
   /** @type {Map<number, {text: string, seconds: (number|undefined)}>} */
   const notices = new Map();
 
+  /**
+   * Sends a message to the helper over the port; a failure (the helper went meanwhile) is
+   * swallowed here, and onDisconnect will be heard from instead.
+   * @param {ToHelperMessage} message
+   */
   const post = (message) => {
     try {
       port.postMessage(message);
@@ -162,6 +174,7 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
    */
   const send = (command, id) => {
     if (ended) return;
+    /** @type {MpvCommand} */
     const message = id === undefined ? {type: 'mpv', command} : {type: 'mpv', command, id};
     if (relaying) {
       post(message);
@@ -169,6 +182,11 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
       queue.push(message);
     }
   };
+  /**
+   * Ends the watch the first time it is called, and tells the watcher why; with a null
+   * reason (an end this code chooses, in stop()) no 'closed' event goes.
+   * @param {string|null} reason
+   */
   const end = (reason) => {
     if (ended) return false;
     ended = true;
@@ -253,6 +271,12 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
     }
   };
 
+  /**
+   * A message the helper sent over the port: the answer to our 'relay' message (ok), or a
+   * relayed line, command answer, refusal or close (type, and its fields). What a field
+   * holds is tested here before use, since the relay only passes mpv's words on.
+   * @param {{ok?: boolean, type?: string, error?: *, id?: number, reason?: string, data?: *, capabilities?: Array<*>}} message
+   */
   port.onMessage.addListener((message) => {
     if (ended || !message || typeof message !== 'object') return;
     if (message.ok === false) {

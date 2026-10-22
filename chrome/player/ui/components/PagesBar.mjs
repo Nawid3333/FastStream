@@ -3,6 +3,11 @@ import {WebUtils} from '../../utils/WebUtils.mjs';
 
 // textContent and contentEditable take a number or a boolean as its string (the DOM converts
 // it): the casts below say so to the type checker.
+/**
+ * @param {number} page
+ * @param {number} totalPages
+ * @param {(page: number) => void} callback
+ */
 export function createPagesBar(page, totalPages, callback) {
   /** @type {(tag: string, attrs: any, className: string) => HTMLElement} */
   const create = WebUtils.create;

@@ -66,7 +66,7 @@ export class PlayerPeers {
    * @param {() => OwnState} options.state - This player's state, asked when needed.
    * @param {() => boolean} [options.visible] - Whether the user can see it (the tab,
    *   or picture-in-picture).
-   * @param {(name: string) => Object} [options.channel] - Makes the channel (tests).
+   * @param {(name: string) => BroadcastChannel} [options.channel] - Makes the channel (tests).
    * @param {() => number} [options.now]
    * @param {() => void} [options.onChange] - Called when a peer's message changed who needs
    *   the network: a hidden page's own timers run late (up to 15 s), its messages do not,
@@ -90,6 +90,7 @@ export class PlayerPeers {
     this.id = Math.random().toString(36).slice(2) + this.now().toString(36);
     /** @type {Map<string, PeerState>} */
     this.peers = new Map();
+    /** @type {BroadcastChannel | null} */
     this.channel = null;
     this.seekedAt = -Infinity;
     this.lastNeedyPeerAt = -Infinity;

@@ -70,7 +70,7 @@ export function newestWsl(release, now, minAgeDays = MIN_AGE_DAYS) {
 /**
  * The newest stable release old enough, from the major "latest" points at down: a new
  * major whose first release is a day old leaves the one before in use.
- * @param {{'dist-tags': {latest: string}, versions: Object, time: Object<string, string>}} doc
+ * @param {{'dist-tags': {latest: string}, versions: Record<string, {deprecated?: string}>, time: Object<string, string>}} doc
  *     - registry.npmjs.org/<package>.
  * @param {number} now - Date.now().
  * @param {number} [minAgeDays]
@@ -84,6 +84,7 @@ export function newestPackage(doc, now, minAgeDays = MIN_AGE_DAYS) {
   return null;
 }
 
+/** @param {string|URL} url */
 async function getJson(url) {
   // Only the two pinned hosts are talked to, however `name` was spelled on the
   // command line (CodeQL js/request-forgery), and the URL object proves the origin.
