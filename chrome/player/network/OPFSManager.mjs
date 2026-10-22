@@ -35,7 +35,7 @@ export class OPFSManager {
    * ('https://host/seg.ts::0-100::arraybuffer'), and an OPFS name must not hold a '/' (or a
    * '\' on Windows): Firefox refused every such name with a TypeError, so no fragment was
    * ever stored here, and every one stayed in RAM.
-   * @param {string} identifier
+   * @param {string | null} identifier
    * @param {boolean} [create] - name an identifier that has no name yet
    * @return {?string} null for an identifier with no name
    */
@@ -104,6 +104,9 @@ export class OPFSManager {
     this.sessionName = started.sessionName;
   }
 
+  /**
+   * @param {{id: number, ok: boolean, result: *, error: string}} msg
+   */
   handleMessage(msg) {
     const pending = this.pending.get(msg.id);
     if (!pending) return;
@@ -126,20 +129,34 @@ export class OPFSManager {
    * writes chunks through the worker - FileSystemSyncAccessHandle only
    * exists in a dedicated worker - and finishes by opening the completed
    * file directly with getFileHandle/getFile, which DO exist here.
+   * @param {string | null} identifier
    * @return {Promise<void>}
    */
   async saveBegin(identifier) {
     await this.call('saveBegin', {identifier: this.fileName(identifier, true)});
   }
 
+  /**
+   * @param {string | null} identifier
+   * @param {Uint8Array} chunk
+   * @return {Promise<void>}
+   */
   async saveAppend(identifier, chunk) {
-    await this.call('saveAppend', {identifier: this.fileName(identifier), data: chunk}, [chunk.buffer]);
+    await this.call('saveAppend', {identifier: this.fileName(identifier), data: chunk}, [(chunk.buffer)]);
   }
 
+  /**
+   * @param {string | null} identifier
+   * @return {Promise<void>}
+   */
   async saveEnd(identifier) {
     await this.call('saveEnd', {identifier: this.fileName(identifier)});
   }
 
+  /**
+   * @param {string | null} identifier
+   * @return {Promise<void>}
+   */
   async saveAbort(identifier) {
     const name = this.fileName(identifier);
     if (name === null) return;
@@ -175,6 +192,7 @@ export class OPFSManager {
    * so every *later* call fails fast too instead of posting into a worker
    * that fired 'error' but may still be technically alive (a crash doesn't
    * always mean the worker stopped running) and never replies.
+   * @param {ErrorEvent | {message: string}} event
    */
   handleWorkerCrash(event) {
     clearTimeout(/** @type {number} */ (this.watchdog));
@@ -194,6 +212,12 @@ export class OPFSManager {
     OPFSManager.live.delete(this);
   }
 
+  /**
+   * @param {string} op
+   * @param {{identifier: string | null, data?: Uint8Array | ArrayBuffer}} [payload]
+   * @param {Transferable[]} [transfer]
+   * @return {Promise<*>}
+   */
   call(op, payload, transfer) {
     if (!this.worker) {
       return Promise.reject(new Error('OPFS worker is not available'));
@@ -234,6 +258,11 @@ export class OPFSManager {
     }, OPFSManager.CallTimeoutMs);
   }
 
+  /**
+   * @param {string | null} identifier
+   * @param {Blob} blob
+   * @return {Promise<void>}
+   */
   async setFile(identifier, blob) {
     const buffer = await blob.arrayBuffer();
     await this.call('set', {identifier: this.fileName(identifier, true), data: buffer}, [buffer]);
@@ -249,6 +278,10 @@ export class OPFSManager {
     return this.getSavedFile(identifier);
   }
 
+  /**
+   * @param {string | null} identifier
+   * @return {Promise<void>}
+   */
   async deleteFile(identifier) {
     const name = this.fileName(identifier);
     if (name === null) return;

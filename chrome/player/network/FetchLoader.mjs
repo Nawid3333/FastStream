@@ -8,6 +8,12 @@ import {RequestUtils} from '../utils/RequestUtils.mjs';
 // XHRLoader until 2026-10-06, named for the XMLHttpRequest it wrapped before it moved to
 // fetch(). (dash.js has an XHRLoader of its own, which DashPlayer replaces by that name.)
 
+/** @typedef {{aborted: boolean, timedout: boolean, loaded: number, total: number, retry: number, chunkCount: number, bwEstimate: number, loading: {start: number, first: number, end: number}, parsing: {start: number, end: number}, buffering: {start: number, first: number, end: number}, error?: {code: number, text: string, retryAfter?: number}}} LoaderStats */
+/** @typedef {{url: string, method?: string, headers?: Object<string, string>, body?: *, responseType?: string, rangeStart: number, rangeEnd: number}} LoaderRequest */
+/** @typedef {{retryDelay: number, timeout: number, maxRetry: number, maxRetryDelay: number, fetchPriority?: 'high'|'low'|'auto'|(() => 'high'|'low'|'auto')}} LoaderConfig */
+/** @typedef {{url: string, status: number, headers: Object<string, string>, data: string|ArrayBuffer}} LoaderResponse */
+/** @typedef {{onError: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onProgress?: (stats: LoaderStats, request: LoaderRequest, data: string|ArrayBuffer, networkDetails: null) => void, onSuccess: (response: LoaderResponse, stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onTimeout: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onSlowDown?: (retryAfter: number|null) => void}} LoaderCallbacks */
+
 /**
  * How long a Retry-After header asks to wait: a number of seconds or an HTTP date.
  * @param {string|null} value - The header.
@@ -25,7 +31,7 @@ export function retryAfterMs(value, now = Date.now()) {
 /**
  * The Fetch Priority a load asks for: config.fetchPriority, a value or a function asked at
  * each attempt (a retry goes out with the priority the download has by then).
- * @param {Object} config - The load's config.
+ * @param {LoaderConfig} config - The load's config.
  * @return {'high'|'low'|'auto'} 'high', 'low' or 'auto'.
  */
 export function fetchPriorityOf(config) {
@@ -37,6 +43,7 @@ export class FetchLoader {
   constructor() {
     /** @type {any[]|null} */
     this.callbacks = [];
+    /** @type {LoaderStats} */
     this.stats = {
       aborted: false,
       timedout: false,
@@ -65,6 +72,7 @@ export class FetchLoader {
     this.response = null;
   }
 
+  /** @param {LoaderCallbacks} callbacks - The load's progress and error callbacks. */
   addCallbacks(callbacks) {
     if (this.callbacks !== null) {
       this.callbacks.push(callbacks);
@@ -73,11 +81,17 @@ export class FetchLoader {
     }
   }
 
+  /**
+   * @param {LoaderRequest} request - The load to fetch.
+   * @param {LoaderConfig} config - The load's retry and timeout configuration.
+   */
   load(request, config) {
     if (this.stats.loading.start) {
       throw new Error('Loader can only be used once.');
     }
+    /** @type {LoaderRequest} */
     this.request = request;
+    /** @type {LoaderConfig} */
     this.config = config;
     this.retryDelay = config.retryDelay;
     this.loadInternal();
@@ -136,11 +150,12 @@ export class FetchLoader {
     stats.loading.first = 0;
     stats.loaded = 0;
 
+    /** @type {Object<string, string>} */
     const fetchHeaders = {};
     try {
       const headers = request.headers;
       if (headers) {
-        const {customHeaderCommands, regularHeaders} = RequestUtils.splitSpecialHeaders(headers);
+        const {customHeaderCommands, regularHeaders} = /** @type {{customHeaderCommands: *[], regularHeaders: Object<string, string>}} */ (RequestUtils.splitSpecialHeaders(headers));
         for (const header in regularHeaders) {
           if (!Object.hasOwn(regularHeaders, header)) continue;
           fetchHeaders[header] = regularHeaders[header];
@@ -247,7 +262,7 @@ export class FetchLoader {
     // was taken for the range asked for (the file's start, labelled as a range further in);
     // the range is cut out of it now (readBody). A 200 that says it is the range (a
     // Content-Range, or exactly the range's length) is taken as one, as before.
-    const length = parseInt(response.headers.get('content-length'), 10);
+    const length = parseInt(/** @type {string} */ (response.headers.get('content-length')), 10);
     const wholeFile = status === 200 && !!request.rangeEnd && !response.headers.has('content-range') &&
         !(request.rangeStart > 0 && length === request.rangeEnd - request.rangeStart);
 
@@ -266,7 +281,7 @@ export class FetchLoader {
       return;
     }
 
-    if (wholeFile && !(isArrayBuffer ? data.byteLength : data.length)) {
+    if (wholeFile && !(isArrayBuffer ? /** @type {ArrayBuffer} */ (data).byteLength : /** @type {string} */ (data).length)) {
       // The file ends before the range starts.
       this.handleLoadFailure(416, 'Range Not Satisfiable');
       return;
@@ -274,7 +289,7 @@ export class FetchLoader {
 
     self.clearTimeout(this.requestTimeout);
     stats.loading.end = Math.max(self.performance.now(), stats.loading.first);
-    stats.loaded = stats.total = isArrayBuffer ? data.byteLength : data.length;
+    stats.loaded = stats.total = isArrayBuffer ? /** @type {ArrayBuffer} */ (data).byteLength : /** @type {string} */ (data).length;
 
     if (!this.callbacks) {
       return;
@@ -290,6 +305,7 @@ export class FetchLoader {
       return;
     }
 
+    /** @type {Object<string, string>} */
     const responseHeaders = {};
     response.headers.forEach((value, key) => {
       responseHeaders[key] = value;
@@ -414,7 +430,7 @@ export class FetchLoader {
       console.error(`${status} while loading ${request.url}`);
 
       this.stats.error = {code: status, text: statusText};
-      if (retryAfter !== null) this.stats.error.retryAfter = retryAfter;
+      if (retryAfter !== null) /** @type {{code: number, text: string, retryAfter?: number}} */ (this.stats.error).retryAfter = retryAfter;
       this.callbacks?.forEach((callbacks) => {
         callbacks?.onError(this.stats, request, null);
       });
