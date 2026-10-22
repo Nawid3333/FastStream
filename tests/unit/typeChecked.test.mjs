@@ -46,6 +46,18 @@ const CHECKED = [
   'chrome/player/enums/ReferenceTypes.mjs',
   'chrome/player/i18n.mjs',
   'chrome/player/main.mjs',
+  'chrome/player/modules/FSBlob.mjs',
+  'chrome/player/modules/LargeBuffer.mjs',
+  'chrome/player/modules/Localize.mjs',
+  'chrome/player/modules/StreamSaver.mjs',
+  'chrome/player/modules/analyzer/AudioAnalyzer.mjs',
+  'chrome/player/modules/analyzer/AudioAnalyzerNode.mjs',
+  'chrome/player/modules/analyzer/PreviewFrameExtractor.mjs',
+  'chrome/player/modules/channelcounter/channelcounter.mjs',
+  'chrome/player/modules/channelcounter/channelcounter.worklet.mjs',
+  'chrome/player/modules/decrypter-worker.js',
+  'chrome/player/modules/eventemitter.mjs',
+  'chrome/player/modules/remux/TimestampRebaser.mjs',
   'chrome/player/network/BufferAhead.mjs',
   'chrome/player/network/DownloadEntry.mjs',
   'chrome/player/network/DownloadManager.mjs',
@@ -152,6 +164,32 @@ const CHECKED = [
   'chrome/player/utils/VideoUtils.mjs',
   'chrome/player/utils/WebUtils.mjs',
   'native-host/faststream-mpv-host.mjs',
+  'tools/ast-compare.mjs',
+  'tools/check-patched-updates.mjs',
+  'tools/check-toolchain.mjs',
+  'tools/check-update-path.mjs',
+  'tools/compare-decls.mjs',
+  'tools/cut-release.mjs',
+  'tools/e2e-spec-weights.mjs',
+  'tools/fetch-amo-signed.mjs',
+  'tools/find-base.mjs',
+  'tools/gen-update-manifest.mjs',
+  'tools/hash-build.mjs',
+  'tools/launch-ff-fresh.mjs',
+  'tools/launch-ff.mjs',
+  'tools/merge-mutation-reports.mjs',
+  'tools/mutation-report.mjs',
+  'tools/newest-release.mjs',
+  'tools/rebuild.mjs',
+  'tools/recut-patch.mjs',
+  'tools/setup-dev-profile.mjs',
+  'tools/sign-amo.mjs',
+  'tools/splicer.mjs',
+  'tools/sync-vendor.mjs',
+  'tools/test-ext-github.mjs',
+  'tools/verify-fsaunpack.mjs',
+  'tools/verify-linux.mjs',
+  'tools/verify-vtt.mjs',
 ];
 
 /**
@@ -164,6 +202,13 @@ function isChecked(file) {
   return head.some((line) => line.trim() === '// @ts-check');
 }
 
+// The vendored libraries: tools/sync-vendor.mjs writes them at build time, so .gitignore
+// names each (a folder with a trailing slash). Not the whole modules folder: FastStream's
+// own modules (FSBlob, the analyzers, remux) sit beside them.
+const vendored = fs.readFileSync(path.join(root, '.gitignore'), 'utf8').split(/\r?\n/)
+    .map((line) => line.trim()).filter((line) => line.startsWith('chrome/'));
+const isVendored = (rel, isDir) => vendored.some((entry) => (entry.endsWith('/') ? isDir && `${rel}/` === entry : rel === entry));
+
 /**
  * Every first-party script under a folder, vendored modules left out.
  * @param {string} dir - Folder from the repository.
@@ -173,8 +218,8 @@ function scripts(dir) {
   const out = [];
   for (const entry of fs.readdirSync(path.join(root, dir), {withFileTypes: true})) {
     const rel = `${dir}/${entry.name}`;
+    if (isVendored(rel, entry.isDirectory())) continue;
     if (entry.isDirectory()) {
-      if (rel === 'chrome/player/modules' || rel === 'chrome/player/assets') continue;
       out.push(...scripts(rel));
     } else if (/\.m?js$/.test(entry.name)) {
       out.push(rel);
@@ -189,7 +234,7 @@ describe('type-checked files', () => {
   });
 
   it('are all listed here, so none drops out unnoticed', () => {
-    const checked = [...scripts('chrome'), ...scripts('native-host')].filter(isChecked).sort();
+    const checked = [...scripts('chrome'), ...scripts('native-host'), ...scripts('tools')].filter(isChecked).sort();
     expect(checked).toEqual([...CHECKED].sort());
   });
 });
