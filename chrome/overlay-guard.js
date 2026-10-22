@@ -1,3 +1,4 @@
+// @ts-check
 // Keeps a site's own overlays off FastStream's player, for content.js.
 //
 // FastStream's player is an iframe in the frame whose video it replaced, and each frame

@@ -1,3 +1,4 @@
+// @ts-check
 export const DOMElements = {
   playerContainer: document.querySelector('.mainplayer'),
   videoContainer: document.querySelector('.mainplayer .video-container'),

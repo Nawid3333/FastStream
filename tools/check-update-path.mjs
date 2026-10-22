@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Checks a release's self-update path the way Firefox walks it.
 //
 // The AMO build's update_url (build.mjs) is .../releases/latest/download/updates.json.
@@ -28,7 +29,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * The files of a zip archive. An xpi is one; this reads the central directory and inflates
  * entries on demand, which is all an xpi needs (no ZIP64, no encryption).
  * @param {Buffer} buffer - The archive.
- * @return {Map<string, function(): Buffer>} Each file's name, and a function returning its
+ * @return {Map<string, () => Buffer>} Each file's name, and a function returning its
  *   contents.
  */
 export function readZip(buffer) {
@@ -77,7 +78,7 @@ export function readZip(buffer) {
  * @param {string} release.version - The release's version.
  * @param {string} release.repo - owner/repo.
  * @param {string} release.tag - The release's tag.
- * @return {{problems: string[], entry: Object|undefined}} No problems when it is right.
+ * @return {{problems: string[], entry?: Object|undefined}} No problems when it is right.
  */
 export function checkUpdatesJson(json, {id, version, repo, tag}) {
   const updates = json?.addons?.[id]?.updates;
@@ -130,7 +131,7 @@ export function checkXpi(xpi, {id, version, hash, minVersion}) {
   }
   let manifest;
   try {
-    manifest = JSON.parse(files.get('manifest.json')().toString('utf8'));
+    manifest = JSON.parse(/** @type {() => Buffer} */ (files.get('manifest.json'))().toString('utf8'));
   } catch (e) {
     return [...problems, `the xpi has no readable manifest.json: ${e.message}`];
   }
@@ -181,8 +182,8 @@ export function isPassingTrouble(status) {
  * broken" for a path that held.
  * @param {string} url
  * @param {Object} [options]
- * @param {function(string, Object): Promise<Response>} [options.get] - fetch.
- * @param {function(number): Promise<void>} [options.sleep]
+ * @param {(url: string, options: Object) => Promise<Response>} [options.get] - fetch.
+ * @param {(ms: number) => Promise<void>} [options.sleep]
  * @return {Promise<{status: number, body?: Buffer}>} status 200 with the body, or the
  *   status of an answer that says the file is not there (a 404, say).
  */
@@ -225,7 +226,7 @@ async function main() {
   const updateUrl = `https://github.com/${repo}/releases/latest/download/updates.json`;
 
   const problems = [];
-  const updates = await download(updateUrl);
+  const updates = /** @type {{status: number, body: Buffer}} */ (await download(updateUrl));
   if (updates.status !== 200) {
     problems.push(`${updateUrl}: HTTP ${updates.status} - the latest release has no updates.json`);
   } else {
@@ -239,7 +240,7 @@ async function main() {
       const checked = checkUpdatesJson(json, {id, version, repo, tag});
       problems.push(...checked.problems);
       if (checked.entry && checked.problems.length === 0) {
-        const xpi = await download(checked.entry.update_link);
+        const xpi = /** @type {{status: number, body: Buffer}} */ (await download(checked.entry.update_link));
         if (xpi.status !== 200) {
           problems.push(`${checked.entry.update_link}: HTTP ${xpi.status}`);
         } else {

@@ -1,3 +1,4 @@
+// @ts-check
 import {InterfaceController} from './ui/InterfaceController.mjs';
 import {KeybindManager} from './ui/KeybindManager.mjs';
 import {FrameStepper} from './ui/FrameStepper.mjs';
@@ -67,6 +68,14 @@ const PREVIEW_RELOAD_LIMIT = 3;
 // (watchEndStall).
 const EndStallMs = 3000;
 
+/**
+ * A player built by PlayerLoader: the members of one that this client uses.
+ * @typedef {Object} LoadedPlayer
+ * @property {() => Promise<void>} setup
+ * @property {(source: Object) => Promise<void>} setSource
+ * @property {() => void} destroy
+ * @property {() => HTMLVideoElement} getVideo
+ */
 export class FastStreamClient extends EventEmitter {
   /**
    * Constructs a FastStreamClient instance.
@@ -157,12 +166,14 @@ export class FastStreamClient extends EventEmitter {
     this.audioAnalyzer = new AudioAnalyzer(this);
     this.frameExtractor = new PreviewFrameExtractor(this);
     if (EnvUtils.isWebAudioSupported()) {
+      /** @type {AudioOutput} */
       this.audioOutput = new AudioOutput();
+      /** @type {AudioContext|null|undefined} */
       this.audioContext = new AudioContext();
       this.audioOutput.setupNodes(this.audioContext);
     }
 
-    DOMElements.playerContainer.addEventListener('keydown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.escapeAll();
         e.preventDefault();
@@ -177,12 +188,14 @@ export class FastStreamClient extends EventEmitter {
     // Counts the sources asked for, and holds the streams to try should the latest one
     // fail before it shows anything (setSource()).
     this.sourceRequests = 0;
+    /** @type {{request: number, sources: Object[], next?: Object}} */
     this.fallbacks = {request: 0, sources: []};
     // A source's decode failures, kept over its own reload (reloadWithoutFailedCodec).
     this.carriedDecodeFailures = null;
     // The source that has shown something (LOADEDDATA), and when the player was built again
     // for it after an error (recoverPlayer).
     this.playedSource = null;
+    /** @type {{url: ?string, times: number[]}} */
     this.recoveries = {url: null, times: []};
     // The last decode error recoverPlayer built the player again for (BrokenMedia.mjs).
     this.lastDecodeFailure = null;
@@ -507,7 +520,7 @@ export class FastStreamClient extends EventEmitter {
     if (this.options.storeProgress && this.progressData && time !== this.progressData.lastTime && !this.disableProgressSave &&
       !this.isLive()) {
       const now = Date.now();
-      if (now - this.lastProgressSave > 1000) {
+      if (now - /** @type {number} */ (this.lastProgressSave) > 1000) {
         this.lastProgressSave = now;
         this.progressData.lastTime = time;
         this.saveProgressData();
@@ -531,7 +544,7 @@ export class FastStreamClient extends EventEmitter {
    */
   hidePreview() {
     if (this.previewPlayer) {
-      this.previewPlayer.getVideo().style.opacity = 0;
+      this.previewPlayer.getVideo().style.opacity = /** @type {any} */ (0);
       clearTimeout(this.previewPlayerLoadingTimeout);
       this.previewPlayerLoadingTimeout = setTimeout(() => {
         // previewPlayer can go null (resetPlayer/destroy) while this timeout
@@ -539,7 +552,7 @@ export class FastStreamClient extends EventEmitter {
         // plain UI debounce rather than something tied to the player's
         // lifecycle.
         if (this.previewPlayer && parseFloat(this.previewPlayer.getVideo().style.opacity) === 0) {
-          DOMElements.seekPreviewVideo.classList.add('loading');
+          /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).classList.add('loading');
         }
       }, 200);
     }
@@ -550,8 +563,8 @@ export class FastStreamClient extends EventEmitter {
    */
   showPreview() {
     if (this.previewPlayer) {
-      this.previewPlayer.getVideo().style.opacity = 1;
-      DOMElements.seekPreviewVideo.classList.remove('loading');
+      this.previewPlayer.getVideo().style.opacity = /** @type {any} */ (1);
+      /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).classList.remove('loading');
       clearTimeout(this.previewPlayerLoadingTimeout);
     }
   }
@@ -716,7 +729,7 @@ export class FastStreamClient extends EventEmitter {
         this.hasDownloadSpace = false;
       } else if (bitrate && this.duration) {
         // With nothing on disk, the room is RAM: the disk's free space does not count.
-        let storageAvailable = ramOnly ? ramRoom : (this.storageAvailable * 8) * 0.6;
+        let storageAvailable = ramOnly ? ramRoom : (/** @type {number} */ (this.storageAvailable) * 8) * 0.6;
         // 0 is a limit too: nothing predownloaded (an empty field, -1, is none).
         if (this.options.maxVideoSize >= 0 && this.options.maxVideoSize * 8 < storageAvailable) {
           storageAvailable = this.options.maxVideoSize * 8;
@@ -849,9 +862,22 @@ export class FastStreamClient extends EventEmitter {
       return;
     }
 
-    const previewPlayer = await this.playerLoader.createPlayer(source.mode, this, {
+    /**
+     * A video player as PlayerLoader.createPlayer builds it; what a preview
+     * player's build here needs of one.
+     * @typedef {Object} PreviewPlayer
+     * @property {() => Promise<void>} setup
+     * @property {(source: Object) => Promise<void>} setSource
+     * @property {() => void} destroy
+     * @property {() => HTMLVideoElement} getVideo
+     * @property {number} currentTime
+     * @property {TimeRanges} buffered
+     * @property {(levelID: string|number|null) => void} setCurrentVideoLevelID
+     * @property {(levelID: string|number|null) => void} setCurrentAudioLevelID
+     */
+    const previewPlayer = /** @type {PreviewPlayer} */ (await this.playerLoader.createPlayer(source.mode, this, {
       isPreview: true,
-    });
+    }));
 
     try {
       await previewPlayer.setup();
@@ -891,11 +917,11 @@ export class FastStreamClient extends EventEmitter {
     this.audioOutputNode.connectFrom(this.audioSource);
 
     this.audioAnalyzer.setupAnalyzerNodeForMainPlayer(this.player.getVideo(), this.audioOutputNode, this.audioContext, ()=>{
-      return this.currentVideo.currentTime + this.options.videoDelay / 1000;
+      return /** @type {HTMLVideoElement} */ (this.currentVideo).currentTime + this.options.videoDelay / 1000;
     });
     this.audioOutput.setupNodes(this.audioContext);
-    this.audioOutput.getInputNode().connectFrom(this.audioOutputNode);
-    this.audioOutput.getOutputNode().connect(this.audioContext.destination);
+    /** @type {VirtualAudioNode} */ (this.audioOutput.getInputNode()).connectFrom(this.audioOutputNode);
+    /** @type {VirtualAudioNode} */ (this.audioOutput.getOutputNode()).connect(this.audioContext.destination);
   }
 
   /**
@@ -947,12 +973,14 @@ export class FastStreamClient extends EventEmitter {
     // Whether the player took the source: a throw before that is a stream that failed.
     let taken = false;
     // The player built for this source, until it is handed the source (taken)
+    /** @type {*} */
     let built = null;
     try {
       source = source.copy();
 
+      /** @type {string|number|null} */
       let timeFromURL = URLUtils.get_param(source.url, 'faststream-timestamp');
-      timeFromURL = parseInt(timeFromURL);
+      timeFromURL = parseInt(/** @type {string} */ (timeFromURL));
 
       if (isNaN(timeFromURL)) {
         timeFromURL = null;
@@ -976,7 +1004,7 @@ export class FastStreamClient extends EventEmitter {
       let timeFromPage = false;
       if (timeFromURL === null && !this.pageTimestampUsed) {
         timeFromURL = URLUtils.get_param(window.location.href, 'faststream-timestamp');
-        timeFromURL = parseInt(timeFromURL);
+        timeFromURL = parseInt(/** @type {string} */ (timeFromURL));
         timeFromPage = true;
       }
 
@@ -1154,7 +1182,7 @@ export class FastStreamClient extends EventEmitter {
       }
     }
 
-    DOMElements.playerContainer.style.backgroundColor = 'black';
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).style.backgroundColor = 'black';
 
     this.emit('setsource', this);
   }
@@ -1166,6 +1194,7 @@ export class FastStreamClient extends EventEmitter {
    */
   setupInitHook() {
     return new Promise((resolve) => {
+      /** @type {ReturnType<typeof setInterval>|number} */
       let interval = 0;
 
       const hook = () => {
@@ -1223,12 +1252,14 @@ export class FastStreamClient extends EventEmitter {
     // resetPlayer() has cleared this state for it, and writing this video's record now would
     // make the next video start at this one's time and save its progress into this record.
     this.disableProgressSave = true;
+    /** @type {{identifierHash: ArrayBuffer, keyHash: ArrayBuffer}|null} */
     let hashes = null;
+    /** @type {{lastTime: number}|null} */
     let progressData = null;
     try {
-      hashes = await this.progressMemory.getHashes(player.getSource().identifier);
+      hashes = await /** @type {SecureMemory} */ (this.progressMemory).getHashes(player.getSource().identifier);
       if (this.player !== player) return;
-      progressData = (await this.progressMemory.getFile(hashes)) || {
+      progressData = (await /** @type {SecureMemory} */ (this.progressMemory).getFile(hashes)) || {
         lastTime: 0,
       };
     } catch (e) {
@@ -1261,7 +1292,7 @@ export class FastStreamClient extends EventEmitter {
     // Called every second from updateTime, which nothing awaits: a failing write was an
     // unhandled rejection each time.
     try {
-      await this.progressMemory.setFile(this.progressHashesCache, this.progressData);
+      await /** @type {SecureMemory} */ (this.progressMemory).setFile(this.progressHashesCache, this.progressData);
     } catch (e) {
       console.warn('Could not save the remembered time', e);
     }
@@ -1624,7 +1655,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets reserved fragments that are waiting to be downloaded.
-   * @param {Array} fragments
+   * @param {Array|undefined} fragments - None for a level with no fragments yet.
    * @return {Array} Reserved fragments.
    */
   getWaitingReservedFragments(fragments) {
@@ -1796,7 +1827,7 @@ export class FastStreamClient extends EventEmitter {
     if (isDecodeError(reason) && !this.isLive() && /^https?:/i.test(source.url)) {
       if (isSamePlace(this.lastDecodeFailure, url, time, now)) {
         skip = true;
-        time = pastBrokenMedia(this.fragments, time);
+        time = pastBrokenMedia(/** @type {Array<?{start: number, end: number}>} */ (this.fragments), time);
         this.lastDecodeFailure = null;
       } else {
         this.lastDecodeFailure = {url, time, at: now};
@@ -2416,7 +2447,7 @@ export class FastStreamClient extends EventEmitter {
    * @return {boolean}
    */
   isRegionBuffered(start, end) {
-    const fragments = this.getFragments(this.getCurrentVideoLevelID());
+    const fragments = this.getFragments(/** @type {string|number} */ (this.getCurrentVideoLevelID()));
     if (!fragments) {
       return true;
     }
@@ -2580,12 +2611,12 @@ export class FastStreamClient extends EventEmitter {
     qualities.forEach((entry, i) => {
       const id = PAGE_QUALITY_LEVEL + i;
       const playing = i === index && this.videoWidth > 0 && this.videoHeight > 0;
-      levels.set(id, new VideoLevel({
+      levels.set(id, new VideoLevel(/** @type {NonNullable<ConstructorParameters<typeof VideoLevel>[0]>} */ ({
         id,
         height: playing ? this.videoHeight : entry.height,
         width: playing ? this.videoWidth : 0,
         label: entry.label || (entry.height ? entry.height + 'p' : ''),
-      }));
+      })));
     });
     return levels;
   }

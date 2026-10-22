@@ -1,3 +1,4 @@
+// @ts-check
 import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {DOMElements} from '../DOMElements.mjs';
@@ -17,7 +18,7 @@ export class AudioQualityChanger extends EventEmitter {
       target: DOMElements.audioTracksBtn,
     });
 
-    DOMElements.audioSourceList.style.display = '';
+    /** @type {HTMLElement} */ (DOMElements.audioSourceList).style.display = '';
     if (!dontSetStayVisible) {
       this.stayOpen = true;
     }
@@ -27,20 +28,20 @@ export class AudioQualityChanger extends EventEmitter {
     if (!this.isOpen()) {
       return false;
     }
-    DOMElements.audioSourceList.style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.audioSourceList).style.display = 'none';
     this.stayOpen = false;
     return true;
   }
 
   isOpen() {
-    return DOMElements.audioSourceList.style.display !== 'none';
+    return /** @type {HTMLElement} */ (DOMElements.audioSourceList).style.display !== 'none';
   }
 
   setupUI() {
     // Its click opened the audio settings window, its right click this list; since the
     // window went (2026-10-10), both open the list.
-    WebUtils.setupTabIndex(DOMElements.audioTracksBtn);
-    DOMElements.audioTracksBtn.addEventListener('click', (e) => {
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.audioTracksBtn));
+    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('click', (e) => {
       if (this.isOpen() || !this.enabled) {
         this.closeUI();
       } else {
@@ -50,15 +51,15 @@ export class AudioQualityChanger extends EventEmitter {
     });
 
     let isMouseDown = false;
-    DOMElements.audioTracksBtn.addEventListener('mousedown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('mousedown', (e) => {
       isMouseDown = true;
     }, true);
 
-    DOMElements.audioTracksBtn.addEventListener('mouseup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('mouseup', (e) => {
       isMouseDown = false;
     }, true);
 
-    DOMElements.audioTracksBtn.addEventListener('contextmenu', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('contextmenu', (e) => {
       if (this.isOpen() || !this.enabled) {
         this.closeUI();
       } else {
@@ -68,19 +69,19 @@ export class AudioQualityChanger extends EventEmitter {
       e.preventDefault();
     });
 
-    DOMElements.audioTracksBtn.addEventListener('focus', ()=>{
+    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('focus', ()=>{
       if ( this.enabled &&!this.isOpen() && !isMouseDown) {
         this.openUI(true);
       }
     });
 
-    DOMElements.audioTracksBtn.addEventListener('blur', ()=>{
+    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('blur', ()=>{
       isMouseDown = false;
       if (!this.stayOpen) {
         this.closeUI();
       }
 
-      const candidates = Array.from(DOMElements.audioSourceList.children);
+      const candidates = Array.from(/** @type {HTMLElement} */ (DOMElements.audioSourceList).children);
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
         current = candidates.find((el) => el.classList.contains('source_active'));
@@ -93,11 +94,11 @@ export class AudioQualityChanger extends EventEmitter {
       current.classList.remove('candidate');
     });
 
-    DOMElements.audioTracksBtn.addEventListener('keydown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('keydown', (e) => {
       // The button keeps the focus after a click; with the list closed, its keys are the
       // player's again (the arrows are the volume), not a choice in a list no one sees.
       if (!this.isOpen()) return;
-      const candidates = Array.from(DOMElements.audioSourceList.children);
+      const candidates = Array.from(/** @type {HTMLElement} */ (DOMElements.audioSourceList).children);
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
         current = candidates.find((el) => el.classList.contains('source_active'));
@@ -131,17 +132,17 @@ export class AudioQualityChanger extends EventEmitter {
           e.stopPropagation();
           return;
         }
-        current.click();
+        /** @type {HTMLElement} */ (current).click();
         e.preventDefault();
         e.stopPropagation();
       }
     }, true);
 
-    DOMElements.audioSourceList.addEventListener('mousedown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.audioSourceList).addEventListener('mousedown', (e) => {
       e.stopPropagation();
     });
 
-    DOMElements.audioSourceList.addEventListener('mouseup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.audioSourceList).addEventListener('mouseup', (e) => {
       e.stopPropagation();
     });
   }
@@ -149,7 +150,7 @@ export class AudioQualityChanger extends EventEmitter {
   updateQualityLevels(client) {
     const audioLevels = client.getLevelManager().filterAudioLevelsByLanguage(Array.from(client.getAudioLevels().values()));
     this.hasChoice = !!audioLevels && audioLevels.length > 1;
-    DOMElements.audioTracksBtn.classList.toggle('hidden', !this.hasChoice);
+    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).classList.toggle('hidden', !this.hasChoice);
     // With one track the button hides, and an open list stayed open under no button.
     if (!this.hasChoice) {
       this.closeUI();
@@ -157,7 +158,7 @@ export class AudioQualityChanger extends EventEmitter {
     if (!audioLevels || audioLevels.length < 1) {
       this.enabled = false;
       // An open list kept the previous video's tracks (final review, 2026-10-10).
-      DOMElements.audioSourceList.replaceChildren();
+      /** @type {HTMLElement} */ (DOMElements.audioSourceList).replaceChildren();
       this.closeUI();
       return;
     } else {
@@ -171,7 +172,7 @@ export class AudioQualityChanger extends EventEmitter {
 
     const currentAudioLevelID = client.getCurrentAudioLevelID();
 
-    DOMElements.audioSourceList.replaceChildren();
+    /** @type {HTMLElement} */ (DOMElements.audioSourceList).replaceChildren();
 
     audioLevels.forEach((level) => {
       const levelelement = document.createElement('div');
@@ -185,7 +186,7 @@ export class AudioQualityChanger extends EventEmitter {
           return;
         }
 
-        Array.from(DOMElements.audioSourceList.getElementsByClassName('source_active')).forEach((element) => {
+        Array.from(/** @type {HTMLElement} */ (DOMElements.audioSourceList).getElementsByClassName('source_active')).forEach((element) => {
           element.classList.remove('source_active');
         });
         this.emit('qualityChanged', level);
@@ -225,7 +226,7 @@ export class AudioQualityChanger extends EventEmitter {
 
       levelelement.appendChild(text);
 
-      DOMElements.audioSourceList.appendChild(levelelement);
+      /** @type {HTMLElement} */ (DOMElements.audioSourceList).appendChild(levelelement);
     });
   }
 }

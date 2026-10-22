@@ -1,3 +1,4 @@
+// @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {Localize} from '../modules/Localize.mjs';
 import {EventEmitter} from '../modules/eventemitter.mjs';
@@ -6,6 +7,10 @@ import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 
+/**
+ * The bar once placeMarker ran: where it put each marker last (set there on first use).
+ * @typedef {ProgressBar & {markerPlaces: Map<HTMLElement, string|null>}} MarkedProgressBar
+ */
 export class ProgressBar extends EventEmitter {
   constructor(client) {
     super();
@@ -67,48 +72,52 @@ export class ProgressBar extends EventEmitter {
   }
 
   setupUI() {
+    /** @type {HTMLDivElement} */
     this.seekMarker = document.createElement('div');
     this.seekMarker.classList.add('seek_marker');
-    DOMElements.markerContainer.appendChild(this.seekMarker);
+    /** @type {HTMLElement} */ (DOMElements.markerContainer).appendChild(this.seekMarker);
     this.seekMarker.style.display = 'none';
 
+    /** @type {HTMLDivElement} */
     this.unseekMarker = document.createElement('div');
     this.unseekMarker.classList.add('seek_marker');
     this.unseekMarker.classList.add('unseek_marker');
-    DOMElements.markerContainer.appendChild(this.unseekMarker);
+    /** @type {HTMLElement} */ (DOMElements.markerContainer).appendChild(this.unseekMarker);
     this.unseekMarker.style.display = 'none';
 
+    /** @type {HTMLDivElement} */
     this.audioAnalyzerMarker = document.createElement('div');
     this.audioAnalyzerMarker.classList.add('analyzer_marker');
     this.audioAnalyzerMarker.style.backgroundColor = '#ff0';
-    DOMElements.markerContainer.appendChild(this.audioAnalyzerMarker);
+    /** @type {HTMLElement} */ (DOMElements.markerContainer).appendChild(this.audioAnalyzerMarker);
     this.audioAnalyzerMarker.style.display = 'none';
 
+    /** @type {HTMLDivElement} */
     this.frameExtractorMarker = document.createElement('div');
     this.frameExtractorMarker.classList.add('analyzer_marker');
     this.frameExtractorMarker.style.backgroundColor = '#f00';
-    DOMElements.markerContainer.appendChild(this.frameExtractorMarker);
+    /** @type {HTMLElement} */ (DOMElements.markerContainer).appendChild(this.frameExtractorMarker);
     this.frameExtractorMarker.style.display = 'none';
 
-    DOMElements.progressContainer.addEventListener('mousedown', this.onProgressbarMouseDown.bind(this));
-    DOMElements.progressContainer.addEventListener('mouseenter', this.onProgressbarMouseEnter.bind(this));
-    DOMElements.progressContainer.addEventListener('mouseleave', this.onProgressbarMouseLeave.bind(this));
-    DOMElements.progressContainer.addEventListener('mousemove', this.onProgressbarMouseMove.bind(this));
+    /** @type {HTMLElement} */ (DOMElements.progressContainer).addEventListener('mousedown', this.onProgressbarMouseDown.bind(this));
+    /** @type {HTMLElement} */ (DOMElements.progressContainer).addEventListener('mouseenter', this.onProgressbarMouseEnter.bind(this));
+    /** @type {HTMLElement} */ (DOMElements.progressContainer).addEventListener('mouseleave', this.onProgressbarMouseLeave.bind(this));
+    /** @type {HTMLElement} */ (DOMElements.progressContainer).addEventListener('mousemove', this.onProgressbarMouseMove.bind(this));
 
-    DOMElements.nextVideoBannerButton.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.nextVideoBannerButton).addEventListener('click', (e) => {
       this.client.nextVideo();
       e.preventDefault();
       e.stopPropagation();
     });
-    WebUtils.setupTabIndex(DOMElements.nextVideoBannerButton);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.nextVideoBannerButton));
     // Stops the countdown: autoplay off for this tab, as the autoplay switch does.
-    DOMElements.nextVideoCancelButton.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.nextVideoCancelButton).addEventListener('click', (e) => {
       if (this.client.options.autoplayNext) this.client.interfaceController.toggleAutoplayNext();
       this.updateNextVideoBanner();
       e.preventDefault();
       e.stopPropagation();
     });
-    WebUtils.setupTabIndex(DOMElements.nextVideoCancelButton);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.nextVideoCancelButton));
   }
 
   reset() {
@@ -116,14 +125,14 @@ export class ProgressBar extends EventEmitter {
     // release then seeked it to the old position.
     // Without playing on: the next video does not start because one was dragged in.
     this.endDrag?.(null, false);
-    DOMElements.progressLoadedContainer.replaceChildren();
+    /** @type {HTMLElement} */ (DOMElements.progressLoadedContainer).replaceChildren();
     this.progressCache = [];
     this.progressCacheAudio = [];
     // updateNextVideoBanner() runs only once the next video has a duration, and one that
     // never gets one kept the previous video's banner.
     this.hasShownNextVideo = false;
-    DOMElements.nextVideoBannerButton.style.display = 'none';
-    DOMElements.nextVideoCancelButton.style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.nextVideoBannerButton).style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.nextVideoCancelButton).style.display = 'none';
   }
 
   collectProgressbarData(fragments) {
@@ -207,7 +216,7 @@ export class ProgressBar extends EventEmitter {
         className: '',
         element: document.createElement('div'),
       };
-      DOMElements.progressLoadedContainer.appendChild(entry.element);
+      /** @type {HTMLElement} */ (DOMElements.progressLoadedContainer).appendChild(entry.element);
       cache.push(entry);
     }
 
@@ -242,6 +251,9 @@ export class ProgressBar extends EventEmitter {
     }
   }
 
+  /**
+   * @param {string|null} [additionalClass]
+   */
   renderProgressBar(duration, cache, fragments, additionalClass = null) {
     const {results, total, loaded, failed} = this.collectProgressbarData(fragments);
 
@@ -313,30 +325,30 @@ export class ProgressBar extends EventEmitter {
     // The countdown the options set (5 s; 0: none, the next one comes at the end).
     const countdown = Math.min(30, Math.max(0, Math.round(Number(this.client.options.autoplayCountdown ?? 5)) || 0));
     if (this.client.options.autoplayNext && this.client.hasNextVideo() && countdown > 0 && left <= countdown) {
-      DOMElements.nextVideoBannerButton.style.display = '';
-      DOMElements.nextVideoCancelButton.style.display = '';
-      DOMElements.nextVideoBannerButton.textContent = Localize.getMessage('player_nextvideoin', [left]);
+      /** @type {HTMLElement} */ (DOMElements.nextVideoBannerButton).style.display = '';
+      /** @type {HTMLElement} */ (DOMElements.nextVideoCancelButton).style.display = '';
+      /** @type {HTMLElement} */ (DOMElements.nextVideoBannerButton).textContent = Localize.getMessage('player_nextvideoin', [left]);
       if (!this.hasShownNextVideo) {
         this.hasShownNextVideo = true;
         this.emit('show-next-video');
       }
     } else {
-      DOMElements.nextVideoBannerButton.style.display = 'none';
-      DOMElements.nextVideoCancelButton.style.display = 'none';
+      /** @type {HTMLElement} */ (DOMElements.nextVideoBannerButton).style.display = 'none';
+      /** @type {HTMLElement} */ (DOMElements.nextVideoCancelButton).style.display = 'none';
       this.hasShownNextVideo = false;
     }
   }
 
   onProgressbarMouseMove(event) {
-    const currentX = Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(DOMElements.progressContainer), 0), DOMElements.progressContainer.clientWidth);
-    const totalWidth = DOMElements.progressContainer.clientWidth;
+    const currentX = Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.progressContainer)), 0), /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth);
+    const totalWidth = /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth;
 
     const time = this.client.duration * currentX / totalWidth;
 
-    DOMElements.seekPreviewVideo.style.bottom = '25px';
-    DOMElements.seekPreviewText.innerText = StringUtils.formatTime(time);
+    /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).style.bottom = '25px';
+    /** @type {HTMLElement} */ (DOMElements.seekPreviewText).innerText = StringUtils.formatTime(time);
 
-    const maxWidth = Math.max(DOMElements.seekPreviewVideo.clientWidth, DOMElements.seekPreview.clientWidth);
+    const maxWidth = Math.max(/** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).clientWidth, /** @type {HTMLElement} */ (DOMElements.seekPreview).clientWidth);
 
     let nudgeAmount = 0;
 
@@ -348,13 +360,13 @@ export class ProgressBar extends EventEmitter {
       nudgeAmount = (totalWidth - maxWidth / 2 - currentX);
     }
 
-    DOMElements.seekPreview.style.left = (currentX + nudgeAmount) / totalWidth * 100 + '%';
-    DOMElements.seekPreviewTip.style.left = currentX / totalWidth * 100 + '%';
+    /** @type {HTMLElement} */ (DOMElements.seekPreview).style.left = (currentX + nudgeAmount) / totalWidth * 100 + '%';
+    /** @type {HTMLElement} */ (DOMElements.seekPreviewTip).style.left = currentX / totalWidth * 100 + '%';
 
     if (nudgeAmount) {
-      DOMElements.seekPreviewTip.classList.add('detached');
+      /** @type {HTMLElement} */ (DOMElements.seekPreviewTip).classList.add('detached');
     } else {
-      DOMElements.seekPreviewTip.classList.remove('detached');
+      /** @type {HTMLElement} */ (DOMElements.seekPreviewTip).classList.remove('detached');
     }
 
 
@@ -377,24 +389,26 @@ export class ProgressBar extends EventEmitter {
     this.client.savePosition();
     this.client.setSeekSave(false);
 
-    DOMElements.progressContainer.classList.add('freeze');
+    /** @type {HTMLElement} */ (DOMElements.progressContainer).classList.add('freeze');
     // we need an initial position for touchstart events, as mouse up has no offset x for iOS
-    let initialPosition = Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(DOMElements.progressContainer), 0), DOMElements.progressContainer.clientWidth);
+    let initialPosition = Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.progressContainer)), 0), /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth);
 
+    /** @type {?number} */
     let preciseSavedTime = null;
+    /** @type {?number} */
     let preciseSavedPosition = null;
     const shiftTime = (timeBarX) => {
-      const totalWidth = DOMElements.progressContainer.clientWidth;
+      const totalWidth = /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth;
       if (totalWidth) {
         let newTime;
         if (preciseSavedPosition !== null) {
-          newTime = preciseSavedTime + 60 * (timeBarX - preciseSavedPosition) / totalWidth;
+          newTime = /** @type {number} */ (preciseSavedTime) + 60 * (timeBarX - preciseSavedPosition) / totalWidth;
         } else {
           newTime = this.client.duration * timeBarX / totalWidth;
         }
         this.client.currentTime = newTime;
         this.client.updateTime(newTime);
-        DOMElements.currentProgress.style.width = Utils.clamp(newTime / this.client.duration, 0, 1) * 100 + '%';
+        /** @type {HTMLElement} */ (DOMElements.currentProgress).style.width = Utils.clamp(newTime / this.client.duration, 0, 1) * 100 + '%';
       }
     };
 
@@ -407,9 +421,9 @@ export class ProgressBar extends EventEmitter {
         return;
       }
       this.hidePreview();
-      const currentY = Math.min(Math.max(event.clientY - WebUtils.getOffsetTop(DOMElements.progressContainer), -100), 50);
-      const currentX = Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(DOMElements.progressContainer), 0), DOMElements.progressContainer.clientWidth);
-      const isExpanded = DOMElements.playerContainer.classList.contains('expanded');
+      const currentY = Math.min(Math.max(event.clientY - WebUtils.getOffsetTop(/** @type {HTMLElement} */ (DOMElements.progressContainer)), -100), 50);
+      const currentX = Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.progressContainer)), 0), /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth);
+      const isExpanded = /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.contains('expanded');
       const offset = isExpanded ? 0 : 80;
       if ((this.preciseMode || preciseSavedPosition !== null) && currentY > 20) {
         preciseSavedTime = null;
@@ -433,11 +447,11 @@ export class ProgressBar extends EventEmitter {
       // Once: a mouseup in the player reaches its listener and the document's.
       if (ended) return;
       ended = true;
-      DOMElements.playerContainer.removeEventListener('mousemove', onProgressbarMouseMove);
-      DOMElements.playerContainer.removeEventListener('touchmove', onProgressbarMouseMove);
-      DOMElements.playerContainer.removeEventListener('mouseup', onProgressbarMouseUp);
-      DOMElements.playerContainer.removeEventListener('mouseleave', onProgressbarMouseUp);
-      DOMElements.playerContainer.removeEventListener('touchend', onProgressbarMouseUp);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mousemove', onProgressbarMouseMove);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('touchmove', onProgressbarMouseMove);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseup', onProgressbarMouseUp);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseleave', onProgressbarMouseUp);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('touchend', onProgressbarMouseUp);
       document.removeEventListener('mouseup', onProgressbarMouseUp);
       if (this.endDrag === endDrag) this.endDrag = null;
       if (!this.keepPreciseModeOpen) {
@@ -449,7 +463,7 @@ export class ProgressBar extends EventEmitter {
         this.showPreview();
       }
 
-      let clickedX = event ? Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(DOMElements.progressContainer), 0), DOMElements.progressContainer.clientWidth) : NaN;
+      let clickedX = event ? Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.progressContainer)), 0), /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth) : NaN;
 
       if (event && isNaN(clickedX) && !isNaN(initialPosition)) {
         clickedX = initialPosition;
@@ -459,7 +473,7 @@ export class ProgressBar extends EventEmitter {
       }
       this.client.setSeekSave(true);
 
-      DOMElements.progressContainer.classList.remove('freeze');
+      /** @type {HTMLElement} */ (DOMElements.progressContainer).classList.remove('freeze');
 
       if (shouldPlay && resume) {
         this.client.player?.play();
@@ -471,11 +485,11 @@ export class ProgressBar extends EventEmitter {
     // Anywhere in this document: a drag keeps the mouse events in the frame it started in,
     // wherever the button is let go (FineTimeControls).
     document.addEventListener('mouseup', onProgressbarMouseUp);
-    DOMElements.playerContainer.addEventListener('mouseup', onProgressbarMouseUp);
-    DOMElements.playerContainer.addEventListener('touchend', onProgressbarMouseUp, {passive: true});
-    DOMElements.playerContainer.addEventListener('mouseleave', onProgressbarMouseUp);
-    DOMElements.playerContainer.addEventListener('mousemove', onProgressbarMouseMove);
-    DOMElements.playerContainer.addEventListener('touchmove', onProgressbarMouseMove, {passive: true});
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', onProgressbarMouseUp);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('touchend', onProgressbarMouseUp, {passive: true});
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseleave', onProgressbarMouseUp);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', onProgressbarMouseMove);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('touchmove', onProgressbarMouseMove, {passive: true});
   }
 
   onProgressbarMouseLeave() {
@@ -491,13 +505,13 @@ export class ProgressBar extends EventEmitter {
   }
 
   showPreview() {
-    DOMElements.seekPreview.style.display = '';
-    DOMElements.seekPreviewTip.style.display = '';
+    /** @type {HTMLElement} */ (DOMElements.seekPreview).style.display = '';
+    /** @type {HTMLElement} */ (DOMElements.seekPreviewTip).style.display = '';
   }
 
   hidePreview() {
-    DOMElements.seekPreview.style.display = 'none';
-    DOMElements.seekPreviewTip.style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.seekPreview).style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.seekPreviewTip).style.display = 'none';
   }
 
   /**
@@ -505,14 +519,15 @@ export class ProgressBar extends EventEmitter {
    * updateMarkers on every animation frame while they run: a marker's style is written
    * only when it moved or showed or hid.
    * @param {HTMLElement} marker
-   * @param {?number} time - Seconds, or null for none.
+   * @param {number|null} time - Seconds, or null for none.
    * @param {number} duration
+   * @this {ProgressBar} - The class itself, not a subclass's this: so it casts to MarkedProgressBar.
    */
   placeMarker(marker, time, duration) {
     const left = time === null ? null : (time / duration * 100) + '%';
-    this.markerPlaces ??= new Map();
-    if (this.markerPlaces.has(marker) && this.markerPlaces.get(marker) === left) return;
-    this.markerPlaces.set(marker, left);
+    /** @type {MarkedProgressBar} */ (this).markerPlaces ??= new Map();
+    if (/** @type {MarkedProgressBar} */ (this).markerPlaces.has(marker) && /** @type {MarkedProgressBar} */ (this).markerPlaces.get(marker) === left) return;
+    /** @type {MarkedProgressBar} */ (this).markerPlaces.set(marker, left);
     if (left === null) {
       marker.style.display = 'none';
     } else {

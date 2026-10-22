@@ -1,3 +1,4 @@
+// @ts-check
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 
 const TranslationMap = {

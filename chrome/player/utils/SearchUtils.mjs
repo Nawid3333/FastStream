@@ -1,28 +1,32 @@
+// @ts-check
+// @ts-ignore - fuse.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import Fuse from '../modules/fuse.mjs';
 import {Localize} from '../modules/Localize.mjs';
 
 // Primary Singleton/Adapter class to pass values into Fuse
 class Search {
+  /** @type {Search|null} */
   static SearchInstance = null;
   constructor() {
     this.Fuse = new Fuse([], {
       useExtendedSearch: true,
       threshold: 0.4,
     });
-    this.baseSearchEls = Array.from(document.querySelectorAll('.search-target-remove'));
+    this.baseSearchEls = /** @type {HTMLElement[]} */ (Array.from(document.querySelectorAll('.search-target-remove')));
     this.baseSearchStyles = this.baseSearchEls.map((el) => el.style.display);
-    this.keybindSearchEls = Array.from(document.querySelectorAll('.search-target-remove-keybind'));
+    this.keybindSearchEls = /** @type {HTMLElement[]} */ (Array.from(document.querySelectorAll('.search-target-remove-keybind')));
     this.keybindSearchStyles = this.keybindSearchEls.map((el) => el.style.display || 'grid');
     this.baseSearchText = Array.from(document.querySelectorAll('.search-target-text'), (el) => el.textContent);
     this.keybindSearchText = Array.from(document.querySelectorAll('.search-target-keybind'), (el) => el.textContent);
     this.sections = this.buildSections();
     this.Fuse.setCollection([...this.baseSearchText, ...this.keybindSearchText]);
   }
+  /** @return {Search} */
   static get_search_instance() {
     if (this.SearchInstance === null) {
       this.SearchInstance = new Search();
     }
-    return this.SearchInstance;
+    return /** @type {Search} */ (this.SearchInstance);
   }
   buildSections() {
     return Array.from(document.querySelectorAll('[data-search-section]'), (section) => {

@@ -1,3 +1,4 @@
+// @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 
 export class Fragment {

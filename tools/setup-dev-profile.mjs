@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Builds a persistent Firefox profile for `web-ext run` with uBlock Origin
 // pre-installed.
 //
@@ -106,7 +107,7 @@ export async function download(url, dest, sha256) {
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
   const part = dest + '.part';
   try {
-    await pipeline(res.body, fs.createWriteStream(part));
+    await pipeline(/** @type {NonNullable<typeof res.body>} */ (res.body), fs.createWriteStream(part));
     const got = createHash('sha256').update(fs.readFileSync(part)).digest('hex');
     if (got !== sha256) {
       throw new Error(`${url}: SHA-256 ${got}, expected ${sha256}`);

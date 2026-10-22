@@ -1,3 +1,4 @@
+// @ts-check
 // A SubRip timestamp line: `00:00:01,000 --> 00:00:02,000`, also with '.' before the
 // milliseconds, short or missing milliseconds, and one-digit minutes and seconds. It is only
 // tried where a run of digits starts: from inside a long line of digits, (\d+): failed again
@@ -89,13 +90,13 @@ export class SubtitleUtils {
       // No UTF-8: the older encoding of the browser's language, as Firefox falls back to.
       // Read as Windows-1252, a Russian, Polish or Greek file showed wrong letters.
       const language = String(globalThis.navigator?.language || '').toLowerCase();
-      const legacy = [
+      const legacy = /** @type {Array<[RegExp, string]>} */ ([
         [/^(ru|uk|be|bg|sr|mk)\b/, 'windows-1251'], [/^(pl|cs|sk|sl|hu|hr|ro|bs)\b/, 'windows-1250'],
         [/^el\b/, 'windows-1253'], [/^(tr|az)\b/, 'windows-1254'], [/^he\b/, 'windows-1255'],
         [/^(ar|fa|ur)\b/, 'windows-1256'], [/^(lt|lv|et)\b/, 'windows-1257'], [/^vi\b/, 'windows-1258'],
         [/^th\b/, 'windows-874'], [/^ja\b/, 'shift_jis'], [/^ko\b/, 'euc-kr'],
         [/^zh-(tw|hk|mo|hant)/, 'big5'], [/^zh\b/, 'gb18030'],
-      ].find(([pattern]) => pattern.test(language));
+      ]).find(([pattern]) => pattern.test(language));
       return new TextDecoder(legacy ? legacy[1] : 'windows-1252').decode(bytes);
     }
   }
@@ -183,11 +184,11 @@ export class SubtitleUtils {
     // A cue without a start is left out, and one without a duration lasts until the next
     // one starts (2 s for the last): either wrote NaN:NaN:NaN.NaN, and the whole track was
     // refused.
-    const starts = Array.from(cues, (cue) => parseFloat(cue.getAttribute('start')));
+    const starts = Array.from(cues, (cue) => parseFloat(/** @type {string} */ (cue.getAttribute('start'))));
     for (let i = 0; i < cues.length; i++) {
       const start = starts[i];
       if (!Number.isFinite(start)) continue;
-      const dur = parseFloat(cues[i].getAttribute('dur'));
+      const dur = parseFloat(/** @type {string} */ (cues[i].getAttribute('dur')));
       const next = starts.slice(i + 1).find((s) => Number.isFinite(s) && s > start);
       const end = start + (Number.isFinite(dur) ? dur : (next !== undefined ? next - start : 2));
       const text = this.translateXMLEntities(cues[i].textContent);

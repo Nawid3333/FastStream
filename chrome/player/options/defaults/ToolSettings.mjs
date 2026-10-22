@@ -1,3 +1,4 @@
+// @ts-check
 export const DefaultToolSettings = {
   'playpause': {
     'location': 'left',

@@ -1,3 +1,4 @@
+// @ts-check
 import {Localize} from '../modules/Localize.mjs';
 import {getCodecEfficiency, getCodecFamily, screenSupportsHdr} from './DecodingCapabilities.mjs';
 
@@ -312,8 +313,8 @@ export class LevelManager {
     const hdrScreen = screenSupportsHdr();
     const keys = new Map(group.map((level) => [level, this.videoRankKey(level, hdrScreen)]));
     group.sort((a, b) => {
-      const ka = keys.get(a);
-      const kb = keys.get(b);
+      const ka = /** @type {Array<number>} */ (keys.get(a));
+      const kb = /** @type {Array<number>} */ (keys.get(b));
       for (let i = 0; i < ka.length; i++) {
         if (ka[i] !== kb[i]) {
           return kb[i] - ka[i];
@@ -343,11 +344,11 @@ export class LevelManager {
   }
 
   getVideoLanguage() {
-    return this.currentVideoLanguage || navigator.language || navigator.userLanguage || null;
+    return this.currentVideoLanguage || navigator.language || /** @type {Navigator & {userLanguage?: string}} */ (navigator).userLanguage || null;
   }
 
   getAudioLanguage() {
-    return this.currentAudioLanguage || navigator.language || navigator.userLanguage || null;
+    return this.currentAudioLanguage || navigator.language || /** @type {Navigator & {userLanguage?: string}} */ (navigator).userLanguage || null;
   }
 
   getDesiredVideoHeight() {
@@ -426,6 +427,11 @@ export class LevelManager {
     return true;
   }
 
+  /**
+   * @param {Array<Object>} availableLevels
+   * @param {?number} [desiredHeight]
+   * @param {boolean} [ignoreCurrent]
+   */
   pickVideoLevel(availableLevels, desiredHeight = null, ignoreCurrent = false) {
     // Check if current level is still valid
     if (!ignoreCurrent && this.currentVideoLevelID !== null) {

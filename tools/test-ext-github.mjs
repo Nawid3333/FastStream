@@ -1,3 +1,4 @@
+// @ts-check
 // Runs a smoke set of the installed-extension suite against the GitHub self-host build
 // instead of the AMO one. The two builds share every line of the background, the content
 // scripts and the player; the GitHub build adds only the options page's update checker

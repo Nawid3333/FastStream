@@ -1,7 +1,10 @@
+// @ts-check
 import {ChannelCounterNode} from '../../modules/channelcounter/channelcounter.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {AbstractAudioModule} from './AbstractAudioModule.mjs';
 import {AudioGain} from './AudioGain.mjs';
+
+/** @typedef {import('./VirtualAudioNode.mjs').VirtualAudioNode} VirtualAudioNode */
 
 const RECOUNTED = 'Channel counter node changed';
 
@@ -23,8 +26,8 @@ export class AudioOutput extends AbstractAudioModule {
   setupNodes(audioContext) {
     super.setupNodes(audioContext);
     this.gain.setupNodes(audioContext);
-    this.getInputNode().connect(this.gain.getInputNode());
-    this.gain.getOutputNode().connect(this.getOutputNode());
+    /** @type {VirtualAudioNode} */ (this.getInputNode()).connect(this.gain.getInputNode());
+    /** @type {VirtualAudioNode} */ (this.gain.getOutputNode()).connect(this.getOutputNode());
     this.updateChannelCount();
   }
 
@@ -96,12 +99,12 @@ export class AudioOutput extends AbstractAudioModule {
         this.cachedChannelCount = count;
         this.channelCounterPromise = null;
         this.channelCounterNode = null;
-        this.getInputNode().disconnect(node.getNode());
+        /** @type {VirtualAudioNode} */ (this.getInputNode()).disconnect(node.getNode());
         node.destroy();
         resolve(count);
       });
 
-      this.getInputNode().connect(node.getNode());
+      /** @type {VirtualAudioNode} */ (this.getInputNode()).connect(node.getNode());
     });
 
     return this.channelCounterPromise;
@@ -112,7 +115,7 @@ export class AudioOutput extends AbstractAudioModule {
     this.channelCounterPromise = null;
     if (this.channelCounterNode) {
       try {
-        this.getInputNode().disconnect(this.channelCounterNode.getNode());
+        /** @type {VirtualAudioNode} */ (this.getInputNode()).disconnect(this.channelCounterNode.getNode());
       } catch (e) {
       }
       this.channelCounterNode.destroy();

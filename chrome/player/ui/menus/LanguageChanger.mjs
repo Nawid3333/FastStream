@@ -1,3 +1,4 @@
+// @ts-check
 import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {DOMElements} from '../DOMElements.mjs';
@@ -13,38 +14,38 @@ export class LanguageChanger extends EventEmitter {
       target: DOMElements.languageButton,
     });
 
-    DOMElements.languageMenu.style.display = '';
+    /** @type {HTMLElement} */ (DOMElements.languageMenu).style.display = '';
     if (!dontSetStayVisible) {
       this.stayOpen = true;
     }
   }
 
   closeUI() {
-    if (DOMElements.languageMenu.style.display === 'none') {
+    if (/** @type {HTMLElement} */ (DOMElements.languageMenu).style.display === 'none') {
       return false;
     }
-    DOMElements.languageMenu.style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.languageMenu).style.display = 'none';
     this.stayOpen = false;
     return true;
   }
 
   isOpen() {
-    return DOMElements.languageMenu.style.display !== 'none';
+    return /** @type {HTMLElement} */ (DOMElements.languageMenu).style.display !== 'none';
   }
 
   setupUI() {
-    DOMElements.languageButton.tabIndex = 0;
+    /** @type {HTMLElement} */ (DOMElements.languageButton).tabIndex = 0;
 
     let isMouseDown = false;
-    DOMElements.languageButton.addEventListener('mousedown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.languageButton).addEventListener('mousedown', (e) => {
       isMouseDown = true;
     }, true);
 
-    DOMElements.languageButton.addEventListener('mouseup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.languageButton).addEventListener('mouseup', (e) => {
       isMouseDown = false;
     }, true);
 
-    DOMElements.languageButton.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.languageButton).addEventListener('click', (e) => {
       if (this.isOpen()) {
         this.closeUI();
       } else {
@@ -53,19 +54,19 @@ export class LanguageChanger extends EventEmitter {
       e.stopPropagation();
     });
 
-    DOMElements.languageButton.addEventListener('focus', () => {
+    /** @type {HTMLElement} */ (DOMElements.languageButton).addEventListener('focus', () => {
       if (!this.isOpen() && !isMouseDown) {
         this.openUI(true);
       }
     });
 
-    DOMElements.languageButton.addEventListener('blur', () => {
+    /** @type {HTMLElement} */ (DOMElements.languageButton).addEventListener('blur', () => {
       isMouseDown = false;
       if (!this.stayOpen) {
         this.closeUI();
       }
 
-      const candidates = Array.from(DOMElements.languageMenu.getElementsByClassName('language_track'));
+      const candidates = Array.from(/** @type {HTMLElement} */ (DOMElements.languageMenu).getElementsByClassName('language_track'));
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
         current = candidates.find((el) => el.classList.contains('active'));
@@ -75,12 +76,12 @@ export class LanguageChanger extends EventEmitter {
       }
       current.classList.remove('candidate');
     });
-    DOMElements.languageButton.addEventListener('keydown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.languageButton).addEventListener('keydown', (e) => {
       // The button keeps the focus after a click closes the menu; its keys are then the
       // player's again (the arrows are the volume), not a choice in a menu no one sees.
       if (!this.isOpen()) return;
       // A filler is the empty cell of a language that has no track of that type.
-      const candidates = Array.from(DOMElements.languageMenu.getElementsByClassName('language_track'))
+      const candidates = Array.from(/** @type {HTMLElement} */ (DOMElements.languageMenu).getElementsByClassName('language_track'))
           .filter((el) => !el.classList.contains('language_track_filler'));
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
@@ -114,22 +115,22 @@ export class LanguageChanger extends EventEmitter {
         e.preventDefault();
         e.stopPropagation();
       } else if (e.key === 'Enter') {
-        current.click();
+        /** @type {HTMLElement} */ (current).click();
         e.preventDefault();
         e.stopPropagation();
       }
     });
 
-    DOMElements.languageMenu.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.languageMenu).addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
     });
 
-    DOMElements.languageMenu.addEventListener('mousedown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.languageMenu).addEventListener('mousedown', (e) => {
       e.stopPropagation();
     });
 
-    DOMElements.languageMenu.addEventListener('mouseup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.languageMenu).addEventListener('mouseup', (e) => {
       e.stopPropagation();
     });
   }
@@ -158,20 +159,20 @@ export class LanguageChanger extends EventEmitter {
     const currentAudioLevelID = client.getLevelManager().getCurrentAudioLevelID();
 
     if (videoLanguageMap.size < 2 && audioLanguageMap.size < 2) {
-      DOMElements.languageButton.classList.add('hidden');
+      /** @type {HTMLElement} */ (DOMElements.languageButton).classList.add('hidden');
       // An open menu stayed with the previous video's languages (review of 2026-10-14), as
       // the audio menu once did.
-      DOMElements.languageMenu.replaceChildren();
+      /** @type {HTMLElement} */ (DOMElements.languageMenu).replaceChildren();
       this.closeUI();
       return;
     } else {
-      DOMElements.languageButton.classList.remove('hidden');
+      /** @type {HTMLElement} */ (DOMElements.languageButton).classList.remove('hidden');
     }
 
-    DOMElements.languageMenu.replaceChildren();
+    /** @type {HTMLElement} */ (DOMElements.languageMenu).replaceChildren();
     const languageTable = document.createElement('div');
     languageTable.classList.add('language_table');
-    DOMElements.languageMenu.appendChild(languageTable);
+    /** @type {HTMLElement} */ (DOMElements.languageMenu).appendChild(languageTable);
 
     const languages = [];
     const hasVideoLanguages = videoLanguageMap.size > 1;
@@ -206,7 +207,7 @@ export class LanguageChanger extends EventEmitter {
       const languageText = document.createElement('div');
       languageText.classList.add('language_text');
       try {
-        languageText.textContent = regionNames.of(language);
+        languageText.textContent = /** @type {string} */ (regionNames.of(language));
       } catch (e) {
         languageText.textContent = language || 'Unknown';
       }
@@ -242,7 +243,7 @@ export class LanguageChanger extends EventEmitter {
         }
         languageElement.appendChild(trackElement);
         trackElement.addEventListener('click', (e) => {
-          Array.from(DOMElements.languageMenu.getElementsByClassName('active')).forEach((element) => {
+          /** @type {HTMLElement[]} */ (Array.from(/** @type {HTMLElement} */ (DOMElements.languageMenu).getElementsByClassName('active'))).forEach((element) => {
             if (element.dataset.type === type) {
               element.classList.remove('active');
             }

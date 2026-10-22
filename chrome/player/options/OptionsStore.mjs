@@ -1,3 +1,4 @@
+// @ts-check
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {DefaultOptions} from './defaults/DefaultOptions.mjs';
@@ -9,6 +10,7 @@ import {MessageTypes} from '../enums/MessageTypes.mjs';
 export class OptionsStore {
   static #options = null;
   static #listeners = new Set();
+  /** @type {number|null} */
   static #lastSendTime = null;
   /** @type {?Promise<void>} The first init()'s load, which every later caller waits for. */
   static #initialized = null;

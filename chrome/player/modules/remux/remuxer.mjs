@@ -1,5 +1,7 @@
+// @ts-check
 import {EventEmitter} from '../eventemitter.mjs';
 import {FSBlob} from '../FSBlob.mjs';
+// @ts-ignore - mediabunny.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {ALL_FORMATS, BlobSource, EncodedPacketSink, Input} from './mediabunny.mjs';
 import {MP4Writer} from './mp4-writer.mjs';
 
@@ -17,11 +19,12 @@ import {MP4Writer} from './mp4-writer.mjs';
  */
 export class Remuxer extends EventEmitter {
   /**
-   * @param {function(function(): void): void} [registerCancel] called with the function
+   * @param {(callback: () => void) => void} [registerCancel] called with the function
    *     that cancels the save
    */
   constructor(registerCancel) {
     super();
+    /** @type {FSBlob|null} */
     this.blobManager = new FSBlob();
     this.cancelled = false;
     this.destroyed = false;
@@ -125,7 +128,7 @@ export class Remuxer extends EventEmitter {
       const video = videoTrack ? await this.describe(videoTrack) : null;
       const audio = audioTrack ? await this.describe(audioTrack) : null;
 
-      this.writer = new MP4Writer(this.blobManager, {
+      this.writer = new MP4Writer(/** @type {FSBlob} */ (this.blobManager), {
         video: video?.codec ?? null,
         audio: audio?.codec ?? null,
       });

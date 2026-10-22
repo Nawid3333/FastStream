@@ -1,3 +1,4 @@
+// @ts-check
 
 onmessage = (e) => {
   decrypt(e.data);

@@ -1,3 +1,4 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {PlayerModes} from '../../enums/PlayerModes.mjs';
 import {RequestUtils} from '../../utils/RequestUtils.mjs';

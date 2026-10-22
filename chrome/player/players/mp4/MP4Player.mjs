@@ -1,7 +1,9 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
 import {EmitterCancel, EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
+// @ts-ignore
 import {createFile} from '../../modules/mp4box/mp4box.all.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
@@ -109,12 +111,12 @@ export default class MP4Player extends EventEmitter {
 
   removeSourceBuffers() {
     if (this.videoSourceBuffer) {
-      this.mediaSource.removeSourceBuffer(this.videoSourceBuffer.sourceBuffer);
+      /** @type {MediaSource} */ (this.mediaSource).removeSourceBuffer(this.videoSourceBuffer.sourceBuffer);
       this.videoSourceBuffer = null;
     }
 
     if (this.audioSourceBuffer) {
-      this.mediaSource.removeSourceBuffer(this.audioSourceBuffer.sourceBuffer);
+      /** @type {MediaSource} */ (this.mediaSource).removeSourceBuffer(this.audioSourceBuffer.sourceBuffer);
       this.audioSourceBuffer = null;
     }
   }
@@ -162,7 +164,7 @@ export default class MP4Player extends EventEmitter {
     this.mp4box.fragmentedTracks.length = 0;
 
     const videoTrack = this.metaData.videoTracks[this.currentVideoTrack];
-    const audioTrack = this.metaData.audioTracks[this.currentAudioTrack];
+    const audioTrack = this.metaData.audioTracks[/** @type {number} */ (this.currentAudioTrack)];
 
     this.mp4box.onSegment = (id, user, buffer, sampleNumber, last) => {
       // console.log(id, sampleNumber)
@@ -208,11 +210,11 @@ export default class MP4Player extends EventEmitter {
 
     let ind = 0;
     if (videoTrack) {
-      this.videoSourceBuffer.appendBuffer(initSegs[ind++].buffer).catch(warnRefused);
+      /** @type {SourceBufferWrapper} */ (this.videoSourceBuffer).appendBuffer(initSegs[ind++].buffer).catch(warnRefused);
     }
 
     if (audioTrack) {
-      this.audioSourceBuffer.appendBuffer(initSegs[ind++].buffer).catch(warnRefused);
+      /** @type {SourceBufferWrapper} */ (this.audioSourceBuffer).appendBuffer(initSegs[ind++].buffer).catch(warnRefused);
     }
 
     this.mp4box.seek(this.currentTime);
@@ -221,7 +223,7 @@ export default class MP4Player extends EventEmitter {
 
 
   async setup() {
-    return new Promise((resolve, reject) => {
+    return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
       const preEvents = new EventEmitter();
 
       preEvents.on(DefaultPlayerEvents.DURATIONCHANGE, () => {
@@ -229,7 +231,7 @@ export default class MP4Player extends EventEmitter {
       });
 
       const emitterRelay = new EmitterRelay([preEvents, this]);
-      VideoUtils.addPassthroughEventListenersToVideo(this.video, emitterRelay);
+      VideoUtils.addPassthroughEventListenersToVideo(/** @type {HTMLVideoElement} */ (this.video), emitterRelay);
 
       this.mp4box.onReady = (info) => {
         this.onMetadataParsed(info);
@@ -247,7 +249,7 @@ export default class MP4Player extends EventEmitter {
         resolve();
       });
       this.video.src = this.mediaSourceURL;
-    });
+    }));
   }
 
   sortSamples(samples) {
@@ -505,7 +507,7 @@ export default class MP4Player extends EventEmitter {
 
   removeFromBuffers(start, end) {
     start = Math.max(0, start);
-    end = Math.min(this.mediaSource.duration, Math.max(end, start));
+    end = Math.min(/** @type {MediaSource} */ (this.mediaSource).duration, Math.max(end, start));
 
     if (start === end) {
       return;
@@ -749,7 +751,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   downloadFragment(fragment, priority) {
-    return new Promise((resolve, reject) => {
+    return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
       this.fragmentRequester.requestFragment(fragment, {
         skipProcess: true,
         onSuccess: (entry, data) => {
@@ -765,7 +767,7 @@ export default class MP4Player extends EventEmitter {
           reject(new Error('Aborted download'));
         },
       }, null, priority);
-    });
+    }));
   }
 
 
@@ -808,13 +810,13 @@ export default class MP4Player extends EventEmitter {
     this.mp4box = null;
     this.metaData = null;
 
-    this.videoTracks = null;
-    this.audioTracks = null;
+    this.videoTracks = /** @type {any} */ (null);
+    this.audioTracks = /** @type {any} */ (null);
 
     clearTimeout(this.loopTimeout);
 
-    VideoUtils.destroyVideo(this.video);
-    this.video = null;
+    VideoUtils.destroyVideo(/** @type {HTMLVideoElement} */ (this.video));
+    this.video = /** @type {any} */ (null);
 
     this.emit(DefaultPlayerEvents.DESTROYED);
   }
@@ -897,7 +899,7 @@ export default class MP4Player extends EventEmitter {
     }
     // A removal still queued takes away what `buffered` shows (removalPending, #265).
     if (!VideoUtils.isBuffered(this.buffered, target) ||
-        removalPending([this.videoSourceBuffer, this.audioSourceBuffer], target)) {
+        removalPending(/** @type {Array<SourceBufferWrapper|null>} */ ([this.videoSourceBuffer, this.audioSourceBuffer]), target)) {
       this.resetHLS();
     }
   }
@@ -919,7 +921,7 @@ export default class MP4Player extends EventEmitter {
     const track = this.metaData.videoTracks[0];
     const result = new Map();
     const id = this.getCurrentVideoLevelID();
-    result.set(id, new VideoLevel({
+    result.set(id, new VideoLevel(/** @type {Exclude<ConstructorParameters<typeof VideoLevel>[0], undefined>} */ ({
       id: id,
       width: track.track_width,
       height: track.track_height,
@@ -927,7 +929,7 @@ export default class MP4Player extends EventEmitter {
       mimeType: 'video/mp4',
       language: track.language,
       videoCodec: track.codec,
-    }));
+    })));
     return result;
   }
 
@@ -936,13 +938,13 @@ export default class MP4Player extends EventEmitter {
     const track = this.metaData.audioTracks[0];
     const result = new Map();
     const id = this.getCurrentAudioLevelID();
-    result.set(id, new AudioLevel({
+    result.set(id, new AudioLevel(/** @type {Exclude<ConstructorParameters<typeof AudioLevel>[0], undefined>} */ ({
       id: id,
       bitrate: track.bitrate,
       mimeType: 'audio/mp4',
       language: track.language,
       audioCodec: track.codec,
-    }));
+    })));
     return result;
   }
 
@@ -986,9 +988,9 @@ export default class MP4Player extends EventEmitter {
     const newDuration = this.calculateDuration();
     // The MediaSource takes a duration only while it is open; after endOfStream() it is
     // 'ended' until the next append opens it again, and the setter would throw.
-    if (newDuration !== this._duration && this.mediaSource.readyState === 'open') {
+    if (newDuration !== this._duration && /** @type {MediaSource} */ (this.mediaSource).readyState === 'open') {
       this._duration = newDuration;
-      this.mediaSource.duration = newDuration;
+      /** @type {MediaSource} */ (this.mediaSource).duration = newDuration;
       this.emit(DefaultPlayerEvents.DURATIONCHANGE);
     }
   }
@@ -1001,7 +1003,7 @@ export default class MP4Player extends EventEmitter {
       const time = this.currentTime;
       const sortedSamples = [];
       if (this.videoTracks[this.currentVideoTrack]) {
-        sortedSamples.push(this.videoTracks[parseInt(this.currentVideoTrack)].sortedSamples);
+        sortedSamples.push(this.videoTracks[parseInt(/** @type {any} */ (this.currentVideoTrack))].sortedSamples);
       }
 
       if (this.currentAudioTrack !== null && this.audioTracks[this.currentAudioTrack]) {

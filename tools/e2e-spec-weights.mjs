@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Writes tests/e2e/specWeights.json anew from a CI run: how long each e2e spec file took on
 // the Windows runner, which tests/e2e/shardSpecs.mjs groups the suites by (E2E_SHARD).
 //
@@ -33,6 +34,7 @@ const SUITES = ['specs', 'ext-specs', 'classic-specs'];
  */
 export function timesFromLog(log) {
   const times = {};
+  /** @type {number|null} */
   let last = null;
   for (const line of log.split(/\r?\n/)) {
     const match = /^[^\t]*\t[^\t]*\t(\d{4}-\d\d-\d\dT[\d:.]+Z) (.*)$/.exec(line);

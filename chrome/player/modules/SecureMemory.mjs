@@ -1,3 +1,4 @@
+// @ts-check
 import {IndexedDBManager} from '../network/IndexedDBManager.mjs';
 
 export class SecureMemory {
@@ -19,6 +20,7 @@ export class SecureMemory {
 
   static async hash(message, salt) {
     // use pbkdf2 to hash the message
+    // @ts-expect-error - TextEncoder takes no argument (it is always UTF-8): the browser ignores it.
     const encoder = new TextEncoder('utf-8');
     const key = await crypto.subtle.importKey(
         'raw',
@@ -62,6 +64,7 @@ export class SecureMemory {
     );
 
     const iv = await SecureMemory.randomBuffer(12);
+    // @ts-expect-error - TextEncoder takes no argument (it is always UTF-8): the browser ignores it.
     const encoder = new TextEncoder('utf-8');
     const encrypted = await crypto.subtle.encrypt(
         {name: 'AES-GCM', iv},
@@ -163,6 +166,7 @@ export class SecureMemory {
       } catch (e) {
         // A record that was read but is no use. The caller may save over it; after a
         // failed read it must not (see FastStreamClient.loadProgressData).
+        /** @type {Error & {unusableRecord?: boolean}} */
         const error = new Error('The saved record does not decrypt', {cause: e});
         error.unusableRecord = true;
         throw error;
@@ -183,7 +187,7 @@ export class SecureMemory {
       const transaction = db.transaction(['files'], 'readwrite');
       const store = transaction.objectStore('files');
       const request = store.openCursor();
-      await new Promise((resolve, reject)=>{
+      await /** @type {Promise<void>} */ (new Promise((resolve, reject)=>{
         request.onsuccess = (event)=>{
           const cursor = event.target.result;
           if (cursor) {
@@ -206,7 +210,7 @@ export class SecureMemory {
             // Already finished.
           }
         };
-      });
+      }));
     } catch (e) {
       console.warn('Could not delete old saved positions', e);
     }
@@ -214,6 +218,8 @@ export class SecureMemory {
 
   destroy() {
     this.indexedDbManager.close();
-    this.indexedDbManager = null;
+    // Its last use: the client drops this object here, and its reads and writes catch a
+    // call still in flight.
+    this.indexedDbManager = /** @type {any} */ (null);
   }
 }

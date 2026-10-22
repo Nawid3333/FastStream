@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Copies third-party libraries from node_modules into chrome/player/modules/,
 // where build.mjs and the browser's native ES module resolution expect them.
 //
@@ -412,8 +413,8 @@ function main() {
     const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     const data = lib.transform ?
       Buffer.from(
-          lib.transform(Array.isArray(lib.from) ? sources.map(read) : read(
-              sources[0])),
+          lib.transform(/** @type {string} */ (Array.isArray(lib.from) ? sources.map(read) : read(
+              sources[0]))),
           'utf8') :
       fs.readFileSync(src);
     // Bytes may be large; a string read of them would mangle binary content. Read the

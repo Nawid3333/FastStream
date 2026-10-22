@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Puts a 33-bit MPEG-TS timestamp on the same side of a rollover as a reference.
  *

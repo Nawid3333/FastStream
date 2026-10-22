@@ -1,5 +1,11 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {EventEmitter} from '../eventemitter.mjs';
+
+/**
+ * A stretch of the video whose frames are extracted, in seconds.
+ * @typedef {{start: number, end: number}} DoneRange
+ */
 
 const AnalyzerStatus = {
   IDLE: 'idle',
@@ -26,7 +32,7 @@ export class PreviewFrameExtractor extends EventEmitter {
     this.backgroundStarts = 0;
 
     this.extractorCanvas = document.createElement('canvas');
-    this.extractorContext = this.extractorCanvas.getContext('2d');
+    this.extractorContext = /** @type {CanvasRenderingContext2D} */ (this.extractorCanvas.getContext('2d'));
   }
 
   getFrameBuffer() {
@@ -208,6 +214,9 @@ export class PreviewFrameExtractor extends EventEmitter {
     return player;
   }
 
+  /**
+   * @param {DoneRange[]} doneRanges
+   */
   runAnalyzerInBackground(player, doneRanges, onDone) {
     const offsetTarget = -35;
     const time = this.client.currentTime;
@@ -246,8 +255,10 @@ export class PreviewFrameExtractor extends EventEmitter {
       doneRanges = [];
     }
 
+    /** @type {DoneRange|null} */
     let currentRange = null;
     let currentRangeIndex = 0;
+    /** @type {DoneRange|null} */
     let currentClientRange = null;
     let lastOffsetCalc = Date.now();
 
@@ -312,7 +323,7 @@ export class PreviewFrameExtractor extends EventEmitter {
         const url = this.extractorCanvas.toDataURL('image/png');
         if (SHOULD_STORE_AS_BLOB) {
           // convert to blob
-          const blob = new Blob([Uint8Array.fromBase64(url.slice(url.indexOf(',') + 1))], {type: 'image/png'});
+          const blob = new Blob([/** @type {any} */ (Uint8Array).fromBase64(url.slice(url.indexOf(',') + 1))], {type: 'image/png'});
           this.frameBuffer[frame] = {
             blob,
             url: URL.createObjectURL(blob),
@@ -352,37 +363,38 @@ export class PreviewFrameExtractor extends EventEmitter {
         }
 
         // check if ranges need to merge (if they are close enough)
-        if (currentRangeIndex > 0 && currentRange.start - doneRanges[currentRangeIndex - 1].end < 0) {
-          doneRanges[currentRangeIndex - 1].end = Math.max(doneRanges[currentRangeIndex - 1].end, currentRange.end);
+        // (Set by now: found in doneRanges, or a new one made.)
+        if (currentRangeIndex > 0 && /** @type {DoneRange} */ (currentRange).start - doneRanges[currentRangeIndex - 1].end < 0) {
+          doneRanges[currentRangeIndex - 1].end = Math.max(doneRanges[currentRangeIndex - 1].end, /** @type {DoneRange} */ (currentRange).end);
           doneRanges.splice(currentRangeIndex, 1);
           currentRangeIndex--;
           currentRange = doneRanges[currentRangeIndex];
         }
       }
 
-      if (currentRangeIndex < doneRanges.length - 1 && doneRanges[currentRangeIndex + 1].start - currentRange.end < 0) {
-        currentRange.end = Math.max(currentRange.end, doneRanges[currentRangeIndex + 1].end);
+      if (currentRangeIndex < doneRanges.length - 1 && doneRanges[currentRangeIndex + 1].start - /** @type {DoneRange} */ (currentRange).end < 0) {
+        /** @type {DoneRange} */ (currentRange).end = Math.max(/** @type {DoneRange} */ (currentRange).end, doneRanges[currentRangeIndex + 1].end);
         doneRanges.splice(currentRangeIndex + 1, 1);
       }
 
 
-      if (currentRange.end - currentRange.start >= player.duration - 5) {
+      if (/** @type {DoneRange} */ (currentRange).end - /** @type {DoneRange} */ (currentRange).start >= player.duration - 5) {
         onEnd();
         return;
       }
 
       let timeSet = false;
-      if (currentRange.end > time + 10) {
-        player.currentTime = Math.floor((currentRange.end - 5) / this.outputRateInv) * this.outputRateInv;
+      if (/** @type {DoneRange} */ (currentRange).end > time + 10) {
+        player.currentTime = Math.floor((/** @type {DoneRange} */ (currentRange).end - 5) / this.outputRateInv) * this.outputRateInv;
         timeSet = true;
-        console.log('[FrameExtractor] Already analyzed range, seeking', player.currentTime, currentRange.end);
-      } else if (currentRange.end < time) {
-        currentRange.end = time;
+        console.log('[FrameExtractor] Already analyzed range, seeking', player.currentTime, /** @type {DoneRange} */ (currentRange).end);
+      } else if (/** @type {DoneRange} */ (currentRange).end < time) {
+        /** @type {DoneRange} */ (currentRange).end = time;
       }
 
-      if (clientTime < currentRange.start - 5 || clientTime > currentRange.end + 5) {
+      if (clientTime < /** @type {DoneRange} */ (currentRange).start - 5 || clientTime > /** @type {DoneRange} */ (currentRange).end + 5) {
         if (!currentClientRange || Math.min(clientTime + 90, player.duration) > currentClientRange.end + 5 || clientTime + 5 < currentClientRange.start) {
-          console.log('[FrameExtractor] Client time is outside of analyzed region, seeking', clientTime, currentRange.start, currentRange.end);
+          console.log('[FrameExtractor] Client time is outside of analyzed region, seeking', clientTime, /** @type {DoneRange} */ (currentRange).start, /** @type {DoneRange} */ (currentRange).end);
           offset = this.client.isRegionBuffered(clientTimeOriginal + offsetTarget, clientTimeOriginal) ? offsetTarget : 0;
           player.currentTime = Math.floor(Math.max(clientTimeOriginal + offset, 0) / this.outputRateInv) * this.outputRateInv;
           timeSet = true;

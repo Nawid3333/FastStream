@@ -1,3 +1,4 @@
+// @ts-check
 import {DOMElements} from './DOMElements.mjs';
 
 // How long a change stays on screen.
@@ -22,7 +23,7 @@ export class OnScreenDisplay {
     if (!element) return;
     element.textContent = text;
     element.classList.add('visible');
-    clearTimeout(this.hideTimeout);
+    clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.hideTimeout));
     this.hideTimeout = setTimeout(() => {
       element.classList.remove('visible');
     }, ShowMs);

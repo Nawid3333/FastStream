@@ -1,3 +1,4 @@
+// @ts-check
 /** The frame length a frame step assumes until playback has shown two frames: the old fixed step. */
 export const FALLBACK_FRAME_DURATION = 1 / 30;
 
@@ -54,6 +55,7 @@ export class FrameStepper {
   }
 
   forget() {
+    /** @type {number | null} */
     this.shortestGap = null;
     this.anchor = null;
     this.last = null;

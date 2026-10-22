@@ -1,5 +1,7 @@
+// @ts-check
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {PlayerModes} from '../enums/PlayerModes.mjs';
+// @ts-ignore - coloris.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {Coloris} from '../modules/coloris.mjs';
 import {Localize} from '../modules/Localize.mjs';
 import {ClickActions} from '../options/defaults/ClickActions.mjs';
@@ -42,6 +44,11 @@ function isKeyboardFocus(element) {
   }
 }
 
+/**
+ * Chromium's Document Picture-in-Picture API, which TypeScript's DOM types do not have.
+ * The nested window is read only after the API itself was found to be there.
+ * @typedef {Window & typeof globalThis & {documentPictureInPicture: {window: Window}}} PipWindow
+ */
 export class InterfaceController {
   constructor(client) {
     this.client = client;
@@ -137,9 +144,9 @@ export class InterfaceController {
 
   updateAutoNextIndicator() {
     const on = !!this.client.options.autoplayNext;
-    DOMElements.autoNextIndicator.style.display = on ? '' : 'none';
-    DOMElements.autoplaySwitch.setAttribute('aria-checked', String(on));
-    DOMElements.autoplaySwitch.classList.toggle('on', on);
+    /** @type {HTMLElement} */ (DOMElements.autoNextIndicator).style.display = on ? '' : 'none';
+    /** @type {HTMLElement} */ (DOMElements.autoplaySwitch).setAttribute('aria-checked', String(on));
+    /** @type {HTMLElement} */ (DOMElements.autoplaySwitch).classList.toggle('on', on);
   }
 
   updateToolVisibility() {
@@ -159,9 +166,9 @@ export class InterfaceController {
 
   closeAllMenus(e) {
     let closedSomething = false;
-    if (e !== true && (!e || (e.target && !DOMElements.extraTools.contains(e.target)))) {
-      if (DOMElements.extraTools.classList.contains('visible')) {
-        DOMElements.extraTools.classList.remove('visible');
+    if (e !== true && (!e || (e.target && !/** @type {HTMLElement} */ (DOMElements.extraTools).contains(e.target)))) {
+      if (/** @type {HTMLElement} */ (DOMElements.extraTools).classList.contains('visible')) {
+        /** @type {HTMLElement} */ (DOMElements.extraTools).classList.remove('visible');
         closedSomething = true;
       }
     }
@@ -207,7 +214,7 @@ export class InterfaceController {
   }
 
   reset() {
-    DOMElements.videoContainer.replaceChildren();
+    /** @type {HTMLElement} */ (DOMElements.videoContainer).replaceChildren();
 
     this.resetPreviewVideo();
     this.progressBar.reset();
@@ -219,11 +226,11 @@ export class InterfaceController {
     // And its "all buffered" was the next one's: one buffered from the start never said so.
     this.shownDownloadComplete = false;
     // The next video may never have fragments to count, and then nothing else hides it.
-    DOMElements.resetFailed.style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.resetFailed).style.display = 'none';
     this.stopProgressLoop();
     this.state.playing = false;
     this.updatePlayPauseButton();
-    DOMElements.playPauseButtonBigCircle.style.display = '';
+    /** @type {HTMLElement} */ (DOMElements.playPauseButtonBigCircle).style.display = '';
     // Shown the way every other show is, with its hide check (showControlBar): only the
     // class was added, nothing checked, and the bar could stay up after the next video.
     this.showControlBar();
@@ -253,9 +260,9 @@ export class InterfaceController {
     this.state.buffering = isBuffering;
 
     if (isBuffering) {
-      DOMElements.bufferingSpinner.style.display = '';
+      /** @type {HTMLElement} */ (DOMElements.bufferingSpinner).style.display = '';
     } else {
-      DOMElements.bufferingSpinner.style.display = 'none';
+      /** @type {HTMLElement} */ (DOMElements.bufferingSpinner).style.display = 'none';
     }
   }
 
@@ -266,22 +273,22 @@ export class InterfaceController {
 
   addVideo(video) {
     this.dressVideo(video);
-    DOMElements.videoContainer.appendChild(video);
+    /** @type {HTMLElement} */ (DOMElements.videoContainer).appendChild(video);
   }
 
   addPreviewVideo(video) {
     this.dressVideo(video);
-    DOMElements.seekPreviewVideo.style.display = '';
-    DOMElements.seekPreviewVideo.appendChild(video);
+    /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).style.display = '';
+    /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).appendChild(video);
   }
 
   resetPreviewVideo() {
-    DOMElements.seekPreviewVideo.replaceChildren();
+    /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).replaceChildren();
     const spinner = document.createElement('div');
     spinner.classList.add('spinner');
-    DOMElements.seekPreviewVideo.appendChild(spinner);
-    DOMElements.seekPreviewVideo.classList.remove('loading');
-    DOMElements.seekPreviewVideo.style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).appendChild(spinner);
+    /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).classList.remove('loading');
+    /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).style.display = 'none';
   }
 
   updateMarkers() {
@@ -299,7 +306,7 @@ export class InterfaceController {
       return;
     }
 
-    const {loaded, total, failed} = this.progressBar.getFragmentCounts();
+    const {loaded, total, failed} = /** @type {{loaded: number, total: number, failed: number}} */ (this.progressBar.getFragmentCounts());
     if (total === 0) {
       this.setStatusMessage('download', null);
       return;
@@ -329,10 +336,10 @@ export class InterfaceController {
     }
 
     if (failed > 0) {
-      DOMElements.resetFailed.style.display = '';
-      DOMElements.resetFailed.textContent = Localize.getMessage(failed === 1 ? 'player_fragment_failed_singular' : 'player_fragment_failed_plural', [failed]);
+      /** @type {HTMLElement} */ (DOMElements.resetFailed).style.display = '';
+      /** @type {HTMLElement} */ (DOMElements.resetFailed).textContent = Localize.getMessage(failed === 1 ? 'player_fragment_failed_singular' : 'player_fragment_failed_plural', [failed]);
     } else {
-      DOMElements.resetFailed.style.display = 'none';
+      /** @type {HTMLElement} */ (DOMElements.resetFailed).style.display = 'none';
     }
   }
 
@@ -341,22 +348,22 @@ export class InterfaceController {
       this.client.userInteracted();
     };
 
-    DOMElements.playerContainer.addEventListener('keydown', interactHandler, true);
-    DOMElements.playerContainer.addEventListener('mousedown', interactHandler, true);
-    DOMElements.playerContainer.addEventListener('touchstart', interactHandler, true);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('keydown', interactHandler, true);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousedown', interactHandler, true);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('touchstart', interactHandler, true);
 
-    DOMElements.playPauseButton.addEventListener('click', this.playPauseToggle.bind(this));
-    WebUtils.setupTabIndex(DOMElements.playPauseButton);
+    /** @type {HTMLElement} */ (DOMElements.playPauseButton).addEventListener('click', this.playPauseToggle.bind(this));
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.playPauseButton));
 
-    DOMElements.playPauseButtonBigCircle.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playPauseButtonBigCircle).addEventListener('click', (e) => {
       this.hideControlBarOnAction();
       this.playPauseToggle();
       e.stopPropagation();
     });
     // Tab skipped it: a role="button" with no tabindex.
-    WebUtils.setupTabIndex(DOMElements.playPauseButtonBigCircle);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.playPauseButtonBigCircle));
 
-    DOMElements.fullscreen.addEventListener('click', (e)=>{
+    /** @type {HTMLElement} */ (DOMElements.fullscreen).addEventListener('click', (e)=>{
       if (e.shiftKey) {
         this.pipToggle();
         return;
@@ -369,15 +376,15 @@ export class InterfaceController {
       e.stopPropagation();
     });
 
-    DOMElements.fullscreen.addEventListener('contextmenu', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.fullscreen).addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.toggleWindowedFullscreen();
     });
 
-    WebUtils.setupTabIndex(DOMElements.fullscreen);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.fullscreen));
 
-    DOMElements.windowedFullscreen.addEventListener('click', (e)=>{
+    /** @type {HTMLElement} */ (DOMElements.windowedFullscreen).addEventListener('click', (e)=>{
       if (this.state.carriedFullscreen) {
         this.exitCarriedFullscreen();
         return;
@@ -392,36 +399,38 @@ export class InterfaceController {
         e.preventDefault();
       }
     }, true);
-    WebUtils.setupTabIndex(DOMElements.windowedFullscreen);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.windowedFullscreen));
 
     document.addEventListener('fullscreenchange', this.updateFullScreenButton.bind(this));
 
-    DOMElements.playerContainer.addEventListener('mousemove', this.onPlayerMouseMove.bind(this));
-    DOMElements.controlsContainer.addEventListener('mouseenter', this.onControlsMouseEnter.bind(this));
-    DOMElements.controlsContainer.addEventListener('mouseleave', this.onControlsMouseLeave.bind(this));
-    DOMElements.controlsContainer.addEventListener('focusin', (e)=>{
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', this.onPlayerMouseMove.bind(this));
+    /** @type {HTMLElement} */ (DOMElements.controlsContainer).addEventListener('mouseenter', this.onControlsMouseEnter.bind(this));
+    /** @type {HTMLElement} */ (DOMElements.controlsContainer).addEventListener('mouseleave', this.onControlsMouseLeave.bind(this));
+    /** @type {HTMLElement} */ (DOMElements.controlsContainer).addEventListener('focusin', (e)=>{
       // Keyboard focus only (:focus-visible): a click on a button focuses it too, and the bar
       // then stayed up while it kept the focus - after a click on fullscreen, until the
       // video was played or paused by a click on it.
-      this.focusingControls = isKeyboardFocus(e.target);
+      this.focusingControls = isKeyboardFocus(/** @type {?Element} */ (e.target));
       this.showControlBar();
       // Kept while focus is there (queueControlsHide looks again until it may go): focus
       // can leave without a focusout (isFocusInControls), and then nothing else asked (#383).
       this.queueControlsHide();
     });
-    DOMElements.controlsContainer.addEventListener('focusout', ()=>{
+    /** @type {HTMLElement} */ (DOMElements.controlsContainer).addEventListener('focusout', ()=>{
       this.focusingControls = false;
       this.queueControlsHide();
     });
 
-    DOMElements.playerContainer.addEventListener('mouseleave', (e)=>{
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseleave', (e)=>{
       this.queueControlsHide(1);
     });
 
+    /** @type {any} */
     let holdTimeout = null;
+    /** @type {any} */
     let lastSpeed = null;
     let wasPlaying = false;
-    DOMElements.videoContainer.addEventListener('mousedown', (e)=>{
+    /** @type {HTMLElement} */ (DOMElements.videoContainer).addEventListener('mousedown', (e)=>{
       if (e.button === 0) {
         clearTimeout(holdTimeout);
         holdTimeout = setTimeout(() => {
@@ -455,7 +464,7 @@ export class InterfaceController {
     //   stopSpeedUp();
     // });
 
-    DOMElements.videoContainer.addEventListener('mouseleave', (e)=>{
+    /** @type {HTMLElement} */ (DOMElements.videoContainer).addEventListener('mouseleave', (e)=>{
       stopSpeedUp();
     });
 
@@ -485,7 +494,7 @@ export class InterfaceController {
           break;
       }
     });
-    DOMElements.videoContainer.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.videoContainer).addEventListener('click', (e) => {
       clearTimeout(holdTimeout);
       if (lastSpeed !== null) {
         stopSpeedUp();
@@ -507,36 +516,36 @@ export class InterfaceController {
 
       clicks.click();
     });
-    DOMElements.hideButton.addEventListener('click', () => {
-      DOMElements.hideButton.blur();
+    /** @type {HTMLElement} */ (DOMElements.hideButton).addEventListener('click', () => {
+      /** @type {HTMLElement} */ (DOMElements.hideButton).blur();
       this.focusingControls = false;
       this.hideControlBar();
     });
 
-    WebUtils.setupTabIndex(DOMElements.hideButton);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.hideButton));
 
-    DOMElements.resetFailed.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.resetFailed).addEventListener('click', (e) => {
       this.client.resetFailed();
       e.stopPropagation();
     });
-    WebUtils.setupTabIndex(DOMElements.resetFailed);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.resetFailed));
 
-    DOMElements.pip.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.pip).addEventListener('click', (e) => {
       this.pipToggle();
     });
 
-    WebUtils.setupTabIndex(DOMElements.pip);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.pip));
 
-    DOMElements.playerContainer.addEventListener('dragenter', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('dragenter', (e) => {
       e.stopPropagation();
       e.preventDefault();
     }, false);
-    DOMElements.playerContainer.addEventListener('dragover', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('dragover', (e) => {
       e.stopPropagation();
       e.preventDefault();
     }, false);
 
-    DOMElements.settingsButton.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.settingsButton).addEventListener('click', (e) => {
       if (e.shiftKey) {
         chrome.runtime.openOptionsPage();
       } else {
@@ -544,12 +553,12 @@ export class InterfaceController {
       }
       e.stopPropagation();
     });
-    WebUtils.setupTabIndex(DOMElements.settingsButton);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.settingsButton));
 
     const welcomeText = Localize.getMessage('player_welcometext', [this.client.version]);
     this.setStatusMessage('welcome', welcomeText, 'info', 3000);
 
-    DOMElements.controlsContainer.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.controlsContainer).addEventListener('click', (e) => {
       e.stopPropagation();
     });
 
@@ -561,41 +570,41 @@ export class InterfaceController {
       }
     });
 
-    DOMElements.skipForwardButton.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.skipForwardButton).addEventListener('click', (e) => {
       this.client.setSeekSave(false);
       this.client.currentTime += SKIP_BUTTON_SECONDS;
       this.client.setSeekSave(true);
       e.stopPropagation();
     });
 
-    WebUtils.setupTabIndex(DOMElements.skipForwardButton);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.skipForwardButton));
 
-    DOMElements.skipBackwardButton.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.skipBackwardButton).addEventListener('click', (e) => {
       this.client.setSeekSave(false);
       this.client.currentTime += -SKIP_BUTTON_SECONDS;
       this.client.setSeekSave(true);
       e.stopPropagation();
     });
 
-    WebUtils.setupTabIndex(DOMElements.skipBackwardButton);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.skipBackwardButton));
 
-    DOMElements.moreButton.addEventListener('click', (e) => {
-      if (!DOMElements.extraTools.classList.contains('visible')) {
+    /** @type {HTMLElement} */ (DOMElements.moreButton).addEventListener('click', (e) => {
+      if (!/** @type {HTMLElement} */ (DOMElements.extraTools).classList.contains('visible')) {
         this.closeAllMenus(true);
-        DOMElements.extraTools.classList.add('visible');
+        /** @type {HTMLElement} */ (DOMElements.extraTools).classList.add('visible');
       } else {
-        DOMElements.extraTools.classList.remove('visible');
+        /** @type {HTMLElement} */ (DOMElements.extraTools).classList.remove('visible');
       }
       e.stopPropagation();
     });
-    WebUtils.setupTabIndex(DOMElements.moreButton);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.moreButton));
 
-    DOMElements.duration.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.duration).addEventListener('click', (e) => {
       this.copySourceLink();
     });
-    WebUtils.setupTabIndex(DOMElements.duration);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.duration));
 
-    DOMElements.nextVideo.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.nextVideo).addEventListener('click', (e) => {
       if (e.shiftKey || e.altKey) {
         this.toggleAutoplayNext();
         return;
@@ -605,7 +614,7 @@ export class InterfaceController {
       e.stopPropagation();
     });
 
-    DOMElements.nextVideo.addEventListener('contextmenu', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.nextVideo).addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.toggleAutoplayNext();
@@ -614,12 +623,12 @@ export class InterfaceController {
     // The autoplay switch, a tool of its own (his wish, 2026-10-11): what the right click on
     // the next button did, for this tab, which nobody found. The options page's setting is
     // where a new tab starts.
-    DOMElements.autoplaySwitch.tabIndex = 0;
-    DOMElements.autoplaySwitch.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.autoplaySwitch).tabIndex = 0;
+    /** @type {HTMLElement} */ (DOMElements.autoplaySwitch).addEventListener('click', (e) => {
       this.toggleAutoplayNext();
       e.stopPropagation();
     });
-    DOMElements.autoplaySwitch.addEventListener('keydown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.autoplaySwitch).addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         this.toggleAutoplayNext();
         e.preventDefault();
@@ -627,14 +636,14 @@ export class InterfaceController {
       }
     });
 
-    WebUtils.setupTabIndex(DOMElements.nextVideo);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.nextVideo));
 
-    DOMElements.previousVideo.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.previousVideo).addEventListener('click', (e) => {
       this.client.previousVideo();
       e.stopPropagation();
     });
 
-    WebUtils.setupTabIndex(DOMElements.previousVideo);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.previousVideo));
 
     const o = new IntersectionObserver(([entry]) => {
       if (entry.intersectionRatio > 0.25 && !document.hidden) {
@@ -670,15 +679,15 @@ export class InterfaceController {
     }
 
     const mouseUpHandler = (e) => {
-      DOMElements.playerContainer.removeEventListener('mousemove', mouseMoveHandler);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mousemove', mouseMoveHandler);
       // With capture, as it was added: without, the remove did nothing, and each drag left one more.
-      DOMElements.playerContainer.removeEventListener('mouseup', mouseUpHandler, true);
-      DOMElements.playerContainer.removeEventListener('mouseleave', mouseUpHandler);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseup', mouseUpHandler, true);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseleave', mouseUpHandler);
     };
 
     const mouseMoveHandler = (e) => {
-      const currentY = Math.min(Math.max(e.clientY - WebUtils.getOffsetTop(DOMElements.progressContainer), -100), 100);
-      const isExpanded = DOMElements.playerContainer.classList.contains('expanded');
+      const currentY = Math.min(Math.max(e.clientY - WebUtils.getOffsetTop(/** @type {HTMLElement} */ (DOMElements.progressContainer)), -100), 100);
+      const isExpanded = /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.contains('expanded');
       const offset = isExpanded ? 0 : 80;
       if (currentY > 50) {
         this.closeTimeline();
@@ -687,20 +696,20 @@ export class InterfaceController {
       }
     };
 
-    DOMElements.controlsLeft.addEventListener('mousedown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.controlsLeft).addEventListener('mousedown', (e) => {
       if (e.button !== 0) {
         return;
       }
 
       // Ignore if user is over an element contained by .tools_container_left
-      if (DOMElements.leftToolsContainer.contains(e.target)) {
+      if (/** @type {HTMLElement} */ (DOMElements.leftToolsContainer).contains(/** @type {?Node} */ (e.target))) {
         return;
       }
 
 
-      DOMElements.playerContainer.addEventListener('mousemove', mouseMoveHandler);
-      DOMElements.playerContainer.addEventListener('mouseup', mouseUpHandler, true);
-      DOMElements.playerContainer.addEventListener('mouseleave', mouseUpHandler);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', mouseMoveHandler);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', mouseUpHandler, true);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseleave', mouseUpHandler);
     });
   }
 
@@ -738,7 +747,8 @@ export class InterfaceController {
           }
         }
         break;
-      case VisChangeActions.PIP:
+      // VisChangeActions has no PIP at present (commented out there), so this reads undefined.
+      case /** @type {Record<string, string|undefined>} */ (VisChangeActions).PIP:
         if (!isVisible) {
           await this.enterPip();
         } else {
@@ -808,7 +818,7 @@ export class InterfaceController {
       }, (response) => {
         MiniplayerCooldown = Date.now() + 200;
         this.state.miniplayer = response === 'enter';
-        DOMElements.playerContainer.classList.toggle('miniplayer', this.state.miniplayer);
+        /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.toggle('miniplayer', this.state.miniplayer);
       });
     }
   }
@@ -823,13 +833,13 @@ export class InterfaceController {
 
   toggleHide() {
     if (this.hidden) {
-      DOMElements.playerContainer.classList.remove('player-hidden');
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.remove('player-hidden');
       this.hidden = false;
       if (this.shouldPlay) {
         this.client.player?.play();
       }
     } else {
-      DOMElements.playerContainer.classList.add('player-hidden');
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.add('player-hidden');
 
       this.hidden = true;
       this.shouldPlay = this.client.state.playing;
@@ -849,7 +859,7 @@ export class InterfaceController {
   }
 
   isInPip() {
-    return !!document.pictureInPictureElement || !!window.documentPictureInPicture?.window || this.state.documentPip;
+    return !!document.pictureInPictureElement || !!/** @type {PipWindow} */ (window).documentPictureInPicture?.window || this.state.documentPip;
   }
 
   shouldDoDocumentPip() {
@@ -858,7 +868,7 @@ export class InterfaceController {
       return true;
     }
 
-    if (!window.documentPictureInPicture) {
+    if (!/** @type {PipWindow} */ (window).documentPictureInPicture) {
       return false;
     }
 
@@ -871,8 +881,8 @@ export class InterfaceController {
   }
 
   exitPip() {
-    if (window.documentPictureInPicture?.window) {
-      window.documentPictureInPicture.window.close();
+    if (/** @type {PipWindow} */ (window).documentPictureInPicture?.window) {
+      /** @type {PipWindow} */ (window).documentPictureInPicture.window.close();
     } else if (this.state.documentPip) {
       window.close();
     }
@@ -895,9 +905,11 @@ export class InterfaceController {
   }
 
   async enterDocumentPip() {
+    /** @type {Window} */
+    // @ts-ignore - Chromium's global documentPictureInPicture is not in TypeScript's DOM types.
     const pipWindow = await documentPictureInPicture.requestWindow({
-      width: DOMElements.playerContainer.clientWidth,
-      height: DOMElements.playerContainer.clientHeight,
+      width: /** @type {HTMLElement} */ (DOMElements.playerContainer).clientWidth,
+      height: /** @type {HTMLElement} */ (DOMElements.playerContainer).clientHeight,
     });
 
     // Copy all except script tags from the current document to the new window
@@ -907,7 +919,10 @@ export class InterfaceController {
 
     // Copy style sheets over from the initial document
     // so that the player looks the same.
-    [...document.styleSheets].forEach((styleSheet) => {
+    // A style sheet of this document, copied over as CSS text when its rules can be read,
+    // else as a link to it; the fallback link takes the media query text and the URL as
+    // plain strings (the link's media setter stringifies the MediaList).
+    [...document.styleSheets].forEach(/** @param {CSSStyleSheet & {media: string, href: string}} styleSheet */ (styleSheet) => {
       try {
         const cssRules = [...styleSheet.cssRules]
             .map((rule) => rule.cssText)
@@ -936,7 +951,7 @@ export class InterfaceController {
   destroy() {
     // Its hide check looks again for as long as the bar is up (queueControlsHide).
     this.destroyed = true;
-    clearTimeout(this.hideControlBarTimeout);
+    clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.hideControlBarTimeout));
     this.saveManager.destroy();
   }
 
@@ -991,7 +1006,7 @@ export class InterfaceController {
   }
   onControlsMouseLeave() {
     this.mouseOverControls = false;
-    if (document.activeElement && DOMElements.controlsContainer.contains(document.activeElement)) document.activeElement.blur();
+    if (document.activeElement && /** @type {HTMLElement} */ (DOMElements.controlsContainer).contains(document.activeElement)) /** @type {HTMLElement} */ (document.activeElement).blur();
     this.queueControlsHide();
   }
   onPlayerMouseMove(event) {
@@ -1012,10 +1027,10 @@ export class InterfaceController {
    */
   isFocusInControls() {
     const focused = document.activeElement;
-    if (this.focusingControls && (!DOMElements.controlsContainer.contains(focused) || !isKeyboardFocus(focused))) {
+    if (this.focusingControls && (!/** @type {HTMLElement} */ (DOMElements.controlsContainer).contains(focused) || !isKeyboardFocus(focused))) {
       this.focusingControls = false;
     }
-    return this.focusingControls;
+    return /** @type {boolean} */ (this.focusingControls);
   }
 
   /**
@@ -1027,14 +1042,14 @@ export class InterfaceController {
    * @return {boolean}
    */
   isPointerOverControls() {
-    if (this.mouseOverControls && !DOMElements.controlsContainer.matches(':hover')) {
+    if (this.mouseOverControls && !/** @type {HTMLElement} */ (DOMElements.controlsContainer).matches(':hover')) {
       this.mouseOverControls = false;
     }
     return this.mouseOverControls;
   }
 
   queueControlsHide(time) {
-    clearTimeout(this.hideControlBarTimeout);
+    clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.hideControlBarTimeout));
     this.hideControlBarTimeout = null;
     if (this.destroyed) return;
     this.hideControlBarTimeout = setTimeout(() => {
@@ -1059,21 +1074,21 @@ export class InterfaceController {
   }
 
   hideBigPlayButton() {
-    DOMElements.playPauseButtonBigCircle.style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.playPauseButtonBigCircle).style.display = 'none';
   }
 
   isBigPlayButtonVisible() {
-    return DOMElements.playPauseButtonBigCircle.style.display !== 'none';
+    return /** @type {HTMLElement} */ (DOMElements.playPauseButtonBigCircle).style.display !== 'none';
   }
 
   hideControlBar() {
-    clearTimeout(this.hideControlBarTimeout);
+    clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.hideControlBarTimeout));
     this.hideControlBarTimeout = null;
     this.controlsVisible = false;
-    DOMElements.playerContainer.classList.remove('controls_visible');
-    DOMElements.controlsContainer.classList.remove('fade_in');
-    DOMElements.controlsContainer.classList.add('fade_out');
-    DOMElements.progressContainer.classList.remove('freeze');
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.remove('controls_visible');
+    /** @type {HTMLElement} */ (DOMElements.controlsContainer).classList.remove('fade_in');
+    /** @type {HTMLElement} */ (DOMElements.controlsContainer).classList.add('fade_out');
+    /** @type {HTMLElement} */ (DOMElements.progressContainer).classList.remove('freeze');
   }
 
   toggleControlBar() {
@@ -1086,9 +1101,9 @@ export class InterfaceController {
 
   showControlBar() {
     this.controlsVisible = true;
-    DOMElements.playerContainer.classList.add('controls_visible');
-    DOMElements.controlsContainer.classList.remove('fade_out');
-    DOMElements.controlsContainer.classList.add('fade_in');
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.add('controls_visible');
+    /** @type {HTMLElement} */ (DOMElements.controlsContainer).classList.remove('fade_out');
+    /** @type {HTMLElement} */ (DOMElements.controlsContainer).classList.add('fade_in');
     // Every bar shown has a hide check (#383): a pause, the show-controls key, a new video,
     // a closed menu or a tab come back to showed it without one, and it stayed up until
     // something else asked. One already waiting keeps its own time.
@@ -1118,7 +1133,7 @@ export class InterfaceController {
     // Nothing to copy (no source, or none that can be copied): the clipboard was emptied, and
     // "Link copied" said otherwise.
     if (!copyURL) return;
-    await WebUtils.copyText(copyURL, DOMElements.playerContainer);
+    await WebUtils.copyText(copyURL, /** @type {HTMLElement} */ (DOMElements.playerContainer));
 
     this.setStatusMessage(StatusTypes.COPY, Localize.getMessage('source_copied'), 'info', 2000);
   }
@@ -1146,13 +1161,13 @@ export class InterfaceController {
     if (!this.progressBar.isSeeking) {
       // Until the duration is known, 0 / 0 made a width the style refused, which left the
       // previous video's progress on the bar.
-      DOMElements.currentProgress.style.width = (duration > 0 ? Utils.clamp(this.state.currentTime / duration, 0, 1) * 100 : 0) + '%';
+      /** @type {HTMLElement} */ (DOMElements.currentProgress).style.width = (duration > 0 ? Utils.clamp(this.state.currentTime / duration, 0, 1) * 100 : 0) + '%';
     }
     // Written only when it changes: a short video's time is updated every frame (up to 144
     // times a second), its text once a second.
     const timeText = StringUtils.formatTime(this.state.currentTime) + ' / ' + StringUtils.formatTime(duration);
-    if (DOMElements.duration.textContent !== timeText) {
-      DOMElements.duration.textContent = timeText;
+    if (/** @type {HTMLElement} */ (DOMElements.duration).textContent !== timeText) {
+      /** @type {HTMLElement} */ (DOMElements.duration).textContent = timeText;
     }
 
     this.subtitlesManager.renderSubtitles();
@@ -1181,7 +1196,7 @@ export class InterfaceController {
       if (response !== 'enter') return;
       this.state.carriedFullscreen = true;
       this.toggleWindowedFullscreen(true);
-      DOMElements.fullscreen.classList.add('out');
+      /** @type {HTMLElement} */ (DOMElements.fullscreen).classList.add('out');
     });
   }
 
@@ -1190,7 +1205,7 @@ export class InterfaceController {
     if (!this.state.carriedFullscreen) return;
     this.state.carriedFullscreen = false;
     this.toggleWindowedFullscreen(false);
-    DOMElements.fullscreen.classList.remove('out');
+    /** @type {HTMLElement} */ (DOMElements.fullscreen).classList.remove('out');
     chrome.runtime.sendMessage({type: MessageTypes.REQUEST_WINDOW_FULLSCREEN, force: false}, () => {
       void chrome.runtime.lastError;
     });
@@ -1213,7 +1228,7 @@ export class InterfaceController {
       this.updateFullScreenButton();
     } else {
       if (EnvUtils.isExtension()) {
-        return new Promise((resolve, reject) => {
+        return new Promise(/** @type {(resolve: (value: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void} */ ((resolve, reject) => {
           chrome.runtime.sendMessage({
             type: MessageTypes.REQUEST_FULLSCREEN,
             force,
@@ -1225,7 +1240,7 @@ export class InterfaceController {
             this.setFullscreenStatus(response === 'enter');
             resolve();
           });
-        });
+        }));
       }
     }
   }
@@ -1235,7 +1250,7 @@ export class InterfaceController {
   }
 
   setFullscreenStatus(status) {
-    const fullScreenButton = DOMElements.fullscreen;
+    const fullScreenButton = /** @type {HTMLElement} */ (DOMElements.fullscreen);
     if (status) {
       fullScreenButton.classList.add('out');
       this.state.fullscreen = true;
@@ -1279,8 +1294,8 @@ export class InterfaceController {
   }
 
   updatePlayPauseButton() {
-    const playButton = DOMElements.playPauseButton;
-    const playButtonBig = DOMElements.playPauseButtonBig;
+    const playButton = /** @type {HTMLElement} */ (DOMElements.playPauseButton);
+    const playButtonBig = /** @type {HTMLElement} */ (DOMElements.playPauseButtonBig);
     if (this.state.playing) {
       playButton.classList.add('playing');
       playButtonBig.classList.replace('fluid_initial_play_button', 'fluid_initial_pause_button');

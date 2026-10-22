@@ -1,3 +1,4 @@
+// @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 
 /**
@@ -5,8 +6,8 @@ import {DownloadStatus} from '../enums/DownloadStatus.mjs';
  * is gone. A stored download can lose its data after it completed (DownloadEntry: its
  * onDataLost drops the entry) while the fragment still says downloaded, and a save read it
  * bare: it failed there every time, where the loaders download such a fragment again.
- * @param {function(): ?Object} entryOf - The download manager's entry of the fragment now.
- * @param {function(): Promise<void>} downloadAgain - Downloads the fragment once more.
+ * @param {() => Object | null} entryOf - The download manager's entry of the fragment now.
+ * @param {() => Promise<void>} downloadAgain - Downloads the fragment once more.
  * @return {Promise<{getData: () => Promise<*>, getDataFromBlob: (type?: string) => Promise<*>}>}
  *   Reads that download it again when the entry is gone, or went while it was read.
  */
@@ -92,7 +93,7 @@ export class SaveFragmentFetcher {
    * A fragment's entry once it is downloaded (get), its data downloaded again once when the
    * store lost it (savedEntry).
    * @param {number} index
-   * @param {function(): ?Object} entryOf - The download manager's entry of the fragment now.
+   * @param {() => Object | null} entryOf - The download manager's entry of the fragment now.
    * @return {ReturnType<typeof savedEntry>}
    */
   async entry(index, entryOf) {
@@ -101,6 +102,7 @@ export class SaveFragmentFetcher {
       if (this.cancelled) {
         throw new Error('Cancelled');
       }
+      /** @type {{promise: Promise<void> | null, loader: any, reject: ((e: Error) => void) | null}} */
       const download = {promise: null, loader: null, reject: null};
       download.promise = this.download(this.fragments[index], download);
       this.downloads.set(index, download);
@@ -121,11 +123,12 @@ export class SaveFragmentFetcher {
     if (!fragment || this.downloads.has(index) || fragment.status === DownloadStatus.DOWNLOAD_COMPLETE) {
       return;
     }
+    /** @type {{promise: Promise<void> | null, loader: any, reject: ((e: Error) => void) | null}} */
     const download = {promise: null, loader: null, reject: null};
     download.promise = this.download(fragment, download);
     // One downloaded ahead is waited for when its turn comes, and fails the save then, as
     // it did when it was downloaded then; until that its failure is held here.
-    download.promise.catch(() => {});
+    /** @type {Promise<void>} */ (download.promise).catch(() => {});
     this.downloads.set(index, download);
   }
 
@@ -140,6 +143,7 @@ export class SaveFragmentFetcher {
         throw new Error('Cancelled');
       }
       try {
+        /** @type {PromiseWithResolvers<void>} */
         const {promise, resolve, reject} = Promise.withResolvers();
         download.reject = reject;
         download.loader = this.requester.requestFragment(fragment, {

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Cuts a release: bumps the version everywhere it needs to live in sync,
 // commits, tags, and pushes both. That push is what release.yml watches
 // for (v*.*.* / V*.*.* tags) - once this script exits, GitHub Actions

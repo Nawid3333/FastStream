@@ -1,3 +1,4 @@
+// @ts-check
 // SPLICER:NO_UPDATE_CHECKER:REMOVE_FILE
 
 import {RequestUtils} from './RequestUtils.mjs';

@@ -1,3 +1,4 @@
+// @ts-check
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {cachedAnswer} from '../DecodingCapabilities.mjs';
 
@@ -51,7 +52,7 @@ export class DashTrackUtils {
           return;
         }
 
-        map.set(levelId, new VideoLevel({
+        map.set(levelId, new VideoLevel(/** @type {{audioCodec: any, bitrate: any, decoding: any, frameRate: any, height: any, id: any, label: any, language: any, mimeType: any, track: any, videoCodec: any, videoRange: any, width: any}} */ ({
           id: levelId,
           width: data.width,
           height: data.height,
@@ -63,7 +64,7 @@ export class DashTrackUtils {
           frameRate: details?.get(levelId)?.frameRate,
           videoRange: details?.get(levelId)?.videoRange,
           decoding: cachedAnswer(details?.get(levelId)?.probe ?? null),
-        }));
+        })));
       });
     });
     return map;

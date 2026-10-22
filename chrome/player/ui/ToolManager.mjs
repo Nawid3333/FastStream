@@ -1,8 +1,11 @@
+// @ts-check
+// @ts-ignore - sortable.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {Sortable} from '../modules/sortable.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 
+/** @typedef {Element & {_toolSkipClick: boolean}} ToolElement */
 export class ToolManager {
   constructor(client, interfaceController) {
     this.interfaceController = interfaceController;
@@ -13,9 +16,9 @@ export class ToolManager {
 
   setupUI() {
     this.updateToolVisibility();
-    DOMElements.playerContainer.addEventListener('click', (e) => {
+    /** @type {Element} */ (DOMElements.playerContainer).addEventListener('click', (e) => {
       this.stopReorderUI();
-      DOMElements.extraTools.classList.remove('visible');
+      /** @type {Element} */ (DOMElements.extraTools).classList.remove('visible');
     });
 
     const options = {
@@ -43,14 +46,15 @@ export class ToolManager {
       this.sortableExtra.option('disabled', true);
     }
 
-    const tools = Array.from(DOMElements.leftToolsContainer.children).concat(Array.from(DOMElements.rightToolsContainer.children), Array.from(DOMElements.extraTools.children));
+    const tools = /** @type {ToolElement[]} */ (Array.from(/** @type {Element} */ (DOMElements.leftToolsContainer).children).concat(Array.from(/** @type {Element} */ (DOMElements.rightToolsContainer).children), Array.from(/** @type {Element} */ (DOMElements.extraTools).children)));
 
     // Only one tool's long-press can be pending at a time (each mousedown
     // clears any previous this.reorderTimeout), so a single shared mouseup
     // listener can track which element is waiting for its skipClick reset
     // instead of registering a near-identical listener per tool.
+    /** @type {ToolElement | null} */
     let pendingSkipClickEl = null;
-    DOMElements.playerContainer.addEventListener('mouseup', (e) => {
+    /** @type {Element} */ (DOMElements.playerContainer).addEventListener('mouseup', (e) => {
       clearTimeout(this.reorderTimeout);
       if (pendingSkipClickEl) {
         const el = pendingSkipClickEl;
@@ -101,62 +105,62 @@ export class ToolManager {
   }
 
   updateToolVisibility() {
-    DOMElements.playinfo.style.display = this.client.player ? 'none' : '';
+    /** @type {HTMLElement} */ (DOMElements.playinfo).style.display = this.client.player ? 'none' : '';
 
     if ((this.client.player && document.pictureInPictureEnabled) || this.interfaceController.shouldDoDocumentPip()) {
-      DOMElements.pip.classList.remove('hidden');
+      /** @type {Element} */ (DOMElements.pip).classList.remove('hidden');
     } else {
-      DOMElements.pip.classList.add('hidden');
+      /** @type {Element} */ (DOMElements.pip).classList.add('hidden');
     }
 
     if (this.client.player) {
-      DOMElements.screenshot.classList.remove('hidden');
-      DOMElements.loopButton.classList.remove('hidden');
-      DOMElements.skipForwardButton.classList.remove('hidden');
-      DOMElements.skipBackwardButton.classList.remove('hidden');
+      /** @type {Element} */ (DOMElements.screenshot).classList.remove('hidden');
+      /** @type {Element} */ (DOMElements.loopButton).classList.remove('hidden');
+      /** @type {Element} */ (DOMElements.skipForwardButton).classList.remove('hidden');
+      /** @type {Element} */ (DOMElements.skipBackwardButton).classList.remove('hidden');
     } else {
-      DOMElements.screenshot.classList.add('hidden');
-      DOMElements.loopButton.classList.add('hidden');
-      DOMElements.skipForwardButton.classList.add('hidden');
-      DOMElements.skipBackwardButton.classList.add('hidden');
+      /** @type {Element} */ (DOMElements.screenshot).classList.add('hidden');
+      /** @type {Element} */ (DOMElements.loopButton).classList.add('hidden');
+      /** @type {Element} */ (DOMElements.skipForwardButton).classList.add('hidden');
+      /** @type {Element} */ (DOMElements.skipBackwardButton).classList.add('hidden');
     }
 
     if (this.client.player && !this.client.player.canSave().cantSave) {
-      DOMElements.download.classList.remove('hidden');
+      /** @type {Element} */ (DOMElements.download).classList.remove('hidden');
     } else {
-      DOMElements.download.classList.add('hidden');
+      /** @type {Element} */ (DOMElements.download).classList.add('hidden');
     }
 
     // MPV button: only meaningful when the extension can talk to the native
     // host (extension context, MPV mode enabled) and a source is playing.
     if (this.client.player && this.client.source && EnvUtils.isExtension() && this.client.options.mpvMode) {
-      DOMElements.mpv.classList.remove('hidden');
+      /** @type {Element} */ (DOMElements.mpv).classList.remove('hidden');
     } else {
-      DOMElements.mpv.classList.add('hidden');
+      /** @type {Element} */ (DOMElements.mpv).classList.add('hidden');
     }
 
     if (this.client.player && window.self !== window.top) {
-      DOMElements.windowedFullscreen.classList.remove('hidden');
+      /** @type {Element} */ (DOMElements.windowedFullscreen).classList.remove('hidden');
     } else {
-      DOMElements.windowedFullscreen.classList.add('hidden');
+      /** @type {Element} */ (DOMElements.windowedFullscreen).classList.add('hidden');
     }
 
     if (this.client.hasPreviousVideo()) {
-      DOMElements.previousVideo.classList.remove('hidden');
+      /** @type {Element} */ (DOMElements.previousVideo).classList.remove('hidden');
     } else {
-      DOMElements.previousVideo.classList.add('hidden');
+      /** @type {Element} */ (DOMElements.previousVideo).classList.add('hidden');
     }
 
     // The next button only with a next video; the autoplay switch always (his wish, 2026-10-11:
     // it went with the next button, and was never there where FastStream found no next link).
-    DOMElements.nextVideo.classList.toggle('hidden', !this.client.hasNextVideo());
+    /** @type {Element} */ (DOMElements.nextVideo).classList.toggle('hidden', !this.client.hasNextVideo());
 
     // The audio-track list's button: only where there is a track to choose (2026-10-10; it
     // opened the audio settings until they went).
-    DOMElements.audioTracksBtn.classList.toggle('hidden', !this.interfaceController.audioQualityChanger?.hasChoice);
+    /** @type {Element} */ (DOMElements.audioTracksBtn).classList.toggle('hidden', !this.interfaceController.audioQualityChanger?.hasChoice);
 
     const toolSettings = this.client.options.toolSettings;
-    const toolElements = {
+    const toolElements = /** @type {Record<string, HTMLElement>} */ (/** @type {unknown} */ ({
       playpause: DOMElements.playPauseButton,
       volume: DOMElements.volumeBlock,
       duration: DOMElements.duration,
@@ -180,7 +184,7 @@ export class ToolManager {
       more: DOMElements.moreButton,
       forward: DOMElements.skipForwardButton,
       backward: DOMElements.skipBackwardButton,
-    };
+    }));
 
     if (this.specialReorderModeEnabled) {
       return;
@@ -211,35 +215,35 @@ export class ToolManager {
 
     leftToolPairs.sort((a, b) => a[1].priority - b[1].priority);
     for (const [element] of leftToolPairs) {
-      DOMElements.leftToolsContainer.appendChild(element);
+      /** @type {Element} */ (DOMElements.leftToolsContainer).appendChild(element);
     }
 
     rightToolPairs.sort((a, b) => a[1].priority - b[1].priority);
     for (const [element] of rightToolPairs) {
-      DOMElements.rightToolsContainer.appendChild(element);
+      /** @type {Element} */ (DOMElements.rightToolsContainer).appendChild(element);
     }
 
     extraToolPairs.sort((a, b) => a[1].priority - b[1].priority);
     for (const [element] of extraToolPairs) {
-      DOMElements.extraTools.appendChild(element);
+      /** @type {Element} */ (DOMElements.extraTools).appendChild(element);
     }
 
     this.checkMoreTool();
   }
 
   checkMoreTool() {
-    if (Array.from(DOMElements.extraTools.children).some((el) => {
+    if (Array.from(/** @type {HTMLElement} */ (DOMElements.extraTools).children).some((el) => {
       return !el.classList.contains('hidden');
     })) {
-      DOMElements.moreButton.classList.remove('hidden');
+      /** @type {HTMLButtonElement} */ (DOMElements.moreButton).classList.remove('hidden');
     } else {
-      DOMElements.moreButton.classList.add('hidden');
-      DOMElements.extraTools.classList.remove('visible');
+      /** @type {HTMLButtonElement} */ (DOMElements.moreButton).classList.add('hidden');
+      /** @type {HTMLElement} */ (DOMElements.extraTools).classList.remove('visible');
     }
 
-    if (DOMElements.leftToolsContainer.children.length === 0 && DOMElements.rightToolsContainer.children.length === 0) {
+    if (/** @type {HTMLElement} */ (DOMElements.leftToolsContainer).children.length === 0 && /** @type {HTMLElement} */ (DOMElements.rightToolsContainer).children.length === 0) {
       this.moveMoreTool(DOMElements.extraTools, DOMElements.rightToolsContainer);
-    } else if (DOMElements.extraTools.children.length === 0) {
+    } else if (/** @type {HTMLElement} */ (DOMElements.extraTools).children.length === 0) {
       this.moveMoreTool(DOMElements.rightToolsContainer, DOMElements.extraTools);
       this.moveMoreTool(DOMElements.leftToolsContainer, DOMElements.extraTools);
     }
@@ -256,20 +260,20 @@ export class ToolManager {
   checkToolsAndSave() {
     this.checkMoreTool();
 
-    Array.from(DOMElements.leftToolsContainer.children).forEach((el, i) => {
-      const tool = el.dataset.tool;
+    Array.from(/** @type {HTMLElement} */ (DOMElements.leftToolsContainer).children).forEach((el, i) => {
+      const tool = /** @type {string} */ (/** @type {HTMLElement} */ (el).dataset.tool);
       this.client.options.toolSettings[tool].priority = (i + 1) * 100;
       this.client.options.toolSettings[tool].location = 'left';
     });
 
-    Array.from(DOMElements.rightToolsContainer.children).forEach((el, i) => {
-      const tool = el.dataset.tool;
+    Array.from(/** @type {HTMLElement} */ (DOMElements.rightToolsContainer).children).forEach((el, i) => {
+      const tool = /** @type {string} */ (/** @type {HTMLElement} */ (el).dataset.tool);
       this.client.options.toolSettings[tool].priority = (i + 1) * 100;
       this.client.options.toolSettings[tool].location = 'right';
     });
 
-    Array.from(DOMElements.extraTools.children).forEach((el, i) => {
-      const tool = el.dataset.tool;
+    Array.from(/** @type {HTMLElement} */ (DOMElements.extraTools).children).forEach((el, i) => {
+      const tool = /** @type {string} */ (/** @type {HTMLElement} */ (el).dataset.tool);
       this.client.options.toolSettings[tool].priority = (i + 1) * 100;
       this.client.options.toolSettings[tool].location = 'extra';
     });
@@ -281,9 +285,9 @@ export class ToolManager {
     if (this.specialReorderModeEnabled) return;
     this.interfaceController.closeAllMenus();
     this.specialReorderModeEnabled = true;
-    DOMElements.rightToolsContainer.classList.add('reordering');
-    DOMElements.leftToolsContainer.classList.add('reordering');
-    DOMElements.extraTools.classList.add('reordering');
+    /** @type {HTMLElement} */ (DOMElements.rightToolsContainer).classList.add('reordering');
+    /** @type {HTMLElement} */ (DOMElements.leftToolsContainer).classList.add('reordering');
+    /** @type {HTMLElement} */ (DOMElements.extraTools).classList.add('reordering');
 
     if (EnvUtils.isMobile()) {
       this.sortableRight.option('disabled', false);
@@ -295,9 +299,9 @@ export class ToolManager {
   stopReorderUI() {
     if (!this.specialReorderModeEnabled) return;
     this.specialReorderModeEnabled = false;
-    DOMElements.rightToolsContainer.classList.remove('reordering');
-    DOMElements.leftToolsContainer.classList.remove('reordering');
-    DOMElements.extraTools.classList.remove('reordering');
+    /** @type {HTMLElement} */ (DOMElements.rightToolsContainer).classList.remove('reordering');
+    /** @type {HTMLElement} */ (DOMElements.leftToolsContainer).classList.remove('reordering');
+    /** @type {HTMLElement} */ (DOMElements.extraTools).classList.remove('reordering');
 
     if (EnvUtils.isMobile()) {
       this.sortableRight.option('disabled', true);

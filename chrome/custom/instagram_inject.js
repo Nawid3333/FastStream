@@ -1,3 +1,4 @@
+// @ts-check
 (()=>{
   function findPropertyRecursive(obj, key, list = [], stack = []) {
     if (typeof obj !== 'object' || obj === null) {

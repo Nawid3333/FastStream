@@ -1,3 +1,4 @@
+// @ts-check
 export const DefaultKeybinds = {
   'HidePlayer': 'AltRight',
   'ToggleControls': 'None',

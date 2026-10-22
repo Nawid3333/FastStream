@@ -1,10 +1,17 @@
+// @ts-check
 export class SpeedTracker {
   constructor() {
     this.buffer = [];
+    /** @type {{dataSize: number, start: number, end: number} | null} */
     this.lastEntry = null;
     this.cutoffSize = 10000;
   }
 
+  /**
+  * @param {number} dataSize
+  * @param {number} start
+  * @param {number} end
+  */
   update(dataSize, start, end) {
     if (this.lastEntry?.start === start) {
       this.lastEntry.dataSize = dataSize;

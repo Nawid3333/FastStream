@@ -1,3 +1,4 @@
+// @ts-check
 import {EventEmitter} from '../modules/eventemitter.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
@@ -90,12 +91,13 @@ export class FineTimeControls extends EventEmitter {
   }
 
   setup() {
+    /** @type {Record<string, HTMLElement>} */
     this.ui = {};
     this.ui.currentPosition = WebUtils.create('div', '', 'current_position_bar');
-    DOMElements.timelineSyncer.appendChild(this.ui.currentPosition);
+    /** @type {HTMLElement} */ (DOMElements.timelineSyncer).appendChild(this.ui.currentPosition);
 
     this.ui.timelineContainer = WebUtils.create('div', '', 'timeline_container');
-    DOMElements.timelineSyncer.appendChild(this.ui.timelineContainer);
+    /** @type {HTMLElement} */ (DOMElements.timelineSyncer).appendChild(this.ui.timelineContainer);
 
     this.ui.timelineTicks = WebUtils.create('div', '', 'timeline_ticks');
     this.ui.timelineContainer.appendChild(this.ui.timelineTicks);
@@ -104,10 +106,11 @@ export class FineTimeControls extends EventEmitter {
     this.ui.timelineContainer.appendChild(this.ui.timelineImages);
     this.ui.timelineImages.style.display = 'none';
 
+    /** @type {HTMLCanvasElement} */
     this.currentFrameCanvas = document.createElement('canvas');
     this.currentFrameCanvas.classList.add('timeline_frame');
     this.currentFrameCanvas.height = 64;
-    this.currentFrameCtx = this.currentFrameCanvas.getContext('2d');
+    this.currentFrameCtx = /** @type {CanvasRenderingContext2D} */ (this.currentFrameCanvas.getContext('2d'));
 
     this.ui.timelineAudio = WebUtils.create('div', '', 'timeline_audio');
     this.ui.timelineContainer.appendChild(this.ui.timelineAudio);
@@ -173,10 +176,10 @@ export class FineTimeControls extends EventEmitter {
     // previous one's position, and its release started it. It ends there, without seeking
     // or playing on, as the progress bar's drag does.
     this.endGrab = () => endGrab(null, false, false);
-    DOMElements.playerContainer.addEventListener('mouseup', (e) => endGrab(e, true), true);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', (e) => endGrab(e, true), true);
     document.addEventListener('mouseup', (e) => endGrab(e, true));
 
-    DOMElements.playerContainer.addEventListener('mousemove', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', (e) => {
       if (isGrabbing && e.buttons === 0) {
         endGrab(e, false);
         return;
@@ -212,7 +215,9 @@ export class FineTimeControls extends EventEmitter {
 
   reset() {
     this.endGrab?.();
+    /** @type {{time: number, element: HTMLElement}[]} */
     this.ticklineElements = [];
+    /** @type {{index: number, element: HTMLImageElement, cachedSrc: number | null}[]} */
     this.frameElements = [];
     this.ui.timelineTicks.replaceChildren();
     this.resetAudio();
@@ -221,6 +226,7 @@ export class FineTimeControls extends EventEmitter {
   }
 
   resetAudio() {
+    /** @type {{index: number, element: HTMLCanvasElement, ctx: any, cachedWidth: number, cachedHeight?: number}[]} */
     this.canvasElements = [];
     this.ui.timelineAudioCanvasContainer.replaceChildren();
   }
@@ -237,7 +243,7 @@ export class FineTimeControls extends EventEmitter {
     this.client.audioAnalyzer.addBackgroundDependent(this);
     this.client.audioAnalyzer.updateBackgroundAnalyzer();
 
-    DOMElements.playerContainer.classList.add('expanded');
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.add('expanded');
     this.client.interfaceController.runProgressLoop();
     this.renderTimeline();
   }
@@ -252,7 +258,7 @@ export class FineTimeControls extends EventEmitter {
     this.client.audioAnalyzer.off('audioLevelChanged', this.resetAudioHandle);
 
     this.client.interfaceController.durationChanged();
-    DOMElements.playerContainer.classList.remove('expanded');
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.remove('expanded');
   }
 
   onVideoTimeUpdate() {
@@ -333,7 +339,7 @@ export class FineTimeControls extends EventEmitter {
     for (let frameIndex = minFrameIndex; frameIndex < maxFrameIndex; frameIndex++) {
       if (hasArr[frameIndex - minFrameIndex]) continue;
 
-      const el = WebUtils.create('img', '', 'timeline_frame');
+      const el = /** @type {HTMLImageElement} */ (WebUtils.create('img', '', 'timeline_frame'));
       el.style.left = frameIndex * outputRateInv / duration * 100 + '%';
       el.style.width = outputRateInv / duration * 100 + '%';
       el.style.display = 'none';
@@ -389,7 +395,8 @@ export class FineTimeControls extends EventEmitter {
         this.currentFrameCanvas.width = newWidth;
       }
 
-      this.currentFrameCtx.drawImage(video, 0, 0, this.currentFrameCanvas.width, this.currentFrameCanvas.height);
+      // setup() made it, before any frame is drawn.
+      /** @type {CanvasRenderingContext2D} */ (this.currentFrameCtx).drawImage(video, 0, 0, this.currentFrameCanvas.width, this.currentFrameCanvas.height);
       this.currentFrameCanvas.style.left = currentFrame * outputRateInv / duration * 100 + '%';
       this.currentFrameCanvas.style.width = outputRateInv / duration * 100 + '%';
       this.currentFrameCanvas.style.display = '';
@@ -414,7 +421,7 @@ export class FineTimeControls extends EventEmitter {
     for (let canvIndex = minCanvIndex; canvIndex < maxCanvIndex; canvIndex++) {
       if (hasArr[canvIndex - minCanvIndex]) continue;
 
-      const el = WebUtils.create('canvas', '', 'timeline_audio_canvas');
+      const el = /** @type {HTMLCanvasElement} */ (WebUtils.create('canvas', '', 'timeline_audio_canvas'));
       el.style.left = canvIndex * 10 / duration * 100 + '%';
       el.style.width = 10 / duration * 100 + '%';
       el.height = 22 * window.devicePixelRatio;
@@ -423,7 +430,7 @@ export class FineTimeControls extends EventEmitter {
       this.canvasElements.push({
         index: canvIndex,
         element: el,
-        ctx: el.getContext('2d'),
+        ctx: /** @type {CanvasRenderingContext2D} */ (el.getContext('2d')),
         cachedWidth: 0,
       });
     }
@@ -534,7 +541,7 @@ export class FineTimeControls extends EventEmitter {
     // too.
     if (!(duration > 0) || !Number.isFinite(duration)) return;
 
-    const timePerWidth = window.subEditMode ? 30 : 60;
+    const timePerWidth = /** @type {any} */ (window).subEditMode ? 30 : 60;
     const minTime = Math.floor(Math.max(0, time - timePerWidth / 2 - 5));
     const maxTime = Math.ceil(Math.min(video.duration, time + timePerWidth / 2 + 5));
     this.ui.timelineContainer.style.width = (video.duration / timePerWidth) * 100 + '%';

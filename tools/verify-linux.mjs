@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Runs CI's Linux checks here, before pushing:
 //   pnpm run verify:linux [all|verify|workflows] [--distro <WSL distro>]...
 //

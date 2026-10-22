@@ -1,3 +1,4 @@
+// @ts-check
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 
 export class SourceBufferWrapper extends EventEmitter {

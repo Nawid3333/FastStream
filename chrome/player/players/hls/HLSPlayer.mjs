@@ -1,9 +1,11 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {audioProbeFor, cachedAnswer, probeDecoding, videoProbeFor} from '../DecodingCapabilities.mjs';
 import {EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
+// @ts-ignore - hls.mjs is hls.js, put in place by the build; the source tree has none.
 import {AbrController, Hls} from '../../modules/hls.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
@@ -151,7 +153,7 @@ export default class HLSPlayer extends EventEmitter {
   /**
    * Reads an init segment, downloading it first if hls.js has not yet (a level just
    * switched to), as DashPlayer's save does.
-   * @param {HLSFragment} init - The level's fragment -1.
+   * @param {import('./HLSFragment.mjs').HLSFragment} init - The level's fragment -1.
    * @return {Promise<Uint8Array>}
    */
   async readInitSegment(init) {
@@ -190,7 +192,9 @@ export default class HLSPlayer extends EventEmitter {
 
     // Read before the fragments are pinned below: a pinned fragment is unpinned only by
     // its getEntry or by the catch at the end, so nothing between the two may throw.
+    /** @type {Uint8Array|null} */
     let levelInitData = null;
+    /** @type {Uint8Array|null} */
     let audioLevelInitData = null;
 
     if (fragments[-1]) {
@@ -240,7 +244,8 @@ export default class HLSPlayer extends EventEmitter {
         const audioMimeType = audioLevel?.audioCodec ? `audio/mp4; codecs="${audioLevel.audioCodec}"` : null;
 
         const blob = await dash2mp4.convert(
-            videoMimeType, level.details.totalduration, levelInitData.buffer,
+            // Set: mergeable needs it.
+            videoMimeType, level.details.totalduration, /** @type {Uint8Array} */ (levelInitData).buffer,
             audioMimeType,
             audioLevelInitData ? audioLevel.details.totalduration : 0,
             audioLevelInitData ? audioLevelInitData.buffer : null,
@@ -293,15 +298,15 @@ export default class HLSPlayer extends EventEmitter {
   async setup() {
     this.hls.attachMedia(this.video);
 
-    await new Promise((resolve, reject) => {
+    await /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
       this.hls.on(Hls.Events.MEDIA_ATTACHED, function() {
         resolve();
       });
-    });
+    }));
 
     const preEvents = new EventEmitter();
     const emitterRelay = new EmitterRelay([preEvents, this]);
-    VideoUtils.addPassthroughEventListenersToVideo(this.video, emitterRelay);
+    VideoUtils.addPassthroughEventListenersToVideo(/** @type {HTMLVideoElement} */ (this.video), emitterRelay);
 
 
     this.hls.on(Hls.Events.MANIFEST_PARSED, async (event, data) => {
@@ -387,6 +392,9 @@ export default class HLSPlayer extends EventEmitter {
     return this.source;
   }
 
+  /**
+   * @return {Promise<void>}
+   */
   downloadFragment(fragment, priority) {
     return new Promise((resolve, reject) => {
       this.fragmentRequester.requestFragment(fragment, {
@@ -423,8 +431,9 @@ export default class HLSPlayer extends EventEmitter {
     this.fragmentRequester.destroy();
     this.hls.destroy();
 
-    VideoUtils.destroyVideo(this.video);
-    this.video = null;
+    VideoUtils.destroyVideo(/** @type {HTMLVideoElement} */ (this.video));
+    // Not used after destroy; typed as always there, as the other players do.
+    this.video = /** @type {any} */ (null);
 
     this.emit(DefaultPlayerEvents.DESTROYED);
   }
@@ -468,7 +477,7 @@ export default class HLSPlayer extends EventEmitter {
 
   /**
    * @param {Object} level - An hls.js Level.
-   * @return {?Object} What DecodingCapabilities asks about it.
+   * @return {Object|null} What DecodingCapabilities asks about it.
    */
   static videoProbeForLevel(level) {
     return videoProbeFor({
@@ -483,7 +492,7 @@ export default class HLSPlayer extends EventEmitter {
 
   /**
    * @param {Object} track - An hls.js audio track.
-   * @return {?Object}
+   * @return {Object|null}
    */
   static audioProbeForTrack(track) {
     return audioProbeFor({codec: track.audioCodec, bitrate: track.bitrate});
@@ -502,7 +511,7 @@ export default class HLSPlayer extends EventEmitter {
     const result = new Map();
     this.hls.levels.forEach((level, index) => {
       const identifier = this.getIdentifier(0, index);
-      result.set(identifier, new VideoLevel({
+      result.set(identifier, new VideoLevel(/** @type {NonNullable<ConstructorParameters<typeof VideoLevel>[0]>} */ ({
         id: identifier,
         width: level.width,
         height: level.height,
@@ -514,7 +523,7 @@ export default class HLSPlayer extends EventEmitter {
         frameRate: level.frameRate,
         videoRange: level.videoRange,
         decoding: cachedAnswer(HLSPlayer.videoProbeForLevel(level)),
-      }));
+      })));
     });
     return result;
   }
@@ -523,14 +532,14 @@ export default class HLSPlayer extends EventEmitter {
     const result = new Map();
     this.hls.audioTracks.forEach((track, index) => {
       const identifier = this.getIdentifier(1, index);
-      result.set(identifier, new AudioLevel({
+      result.set(identifier, new AudioLevel(/** @type {NonNullable<ConstructorParameters<typeof AudioLevel>[0]>} */ ({
         id: identifier,
         bitrate: track.bitrate,
         mimeType: null,
         language: track.lang,
         audioCodec: track.audioCodec ? `audio/mp4; codecs="${track.audioCodec}"` : null,
         decoding: cachedAnswer(HLSPlayer.audioProbeForTrack(track)),
-      }));
+      })));
     });
     return result;
   }

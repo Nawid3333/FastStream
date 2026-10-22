@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Launcher for `web-ext run` that:
 //  1. rebuilds the Firefox libre target,
 //  2. uses an absolute path for the dev profile,

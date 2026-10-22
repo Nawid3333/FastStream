@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Creates and reads blobs.
  */
@@ -28,7 +29,7 @@ export class BlobManager {
     const reader = new FileReader();
     reader.readAsText(blob);
     return new Promise((resolve, reject) => {
-      reader.onload = () => resolve(reader.result);
+      reader.onload = () => resolve(/** @type {string} */ (reader.result));
       reader.onerror = () => reject(reader.error);
     });
   }

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Moves every track's timestamps back by one amount, so the file starts at zero and the
  * tracks keep their offset to each other.
@@ -16,11 +17,12 @@
 export class TimestampRebaser {
   /**
    * @param {string[]} tracks the tracks that will send packets
-   * @param {function(string, number, *): void} emit gets each packet's track, its moved
+   * @param {(track: string, timestamp: number, item: any) => void} emit gets each packet's track, its moved
    *     timestamp and the item push() was given, in the order push() was called
    */
   constructor(tracks, emit) {
     // Each track's first timestamp; null until its first packet.
+    /** @type {Map<string, number|null>} */
     this.firsts = new Map(tracks.map((track) => [track, null]));
     this.emit = emit;
     this.held = [];

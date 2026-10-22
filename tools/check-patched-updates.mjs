@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Lists the patched libraries (pnpm-workspace.yaml, patchedDependencies) that have a newer
 // release than the version the patch is cut against.
 //
@@ -47,7 +48,7 @@ export function patchedDependencies(yaml) {
  * against. Either would be copied without FastStream's changes, with the build green (#176).
  * @param {Array<{name: string, patched?: boolean}>} vendor - sync-vendor.mjs's list.
  * @param {string} yaml - pnpm-workspace.yaml.
- * @param {function(string): ?string} installed - A library's installed version, null if none.
+ * @param {(name: string) => string|null} installed - A library's installed version, null if none.
  * @return {string[]} One message per such library.
  */
 export function unappliedPatches(vendor, yaml, installed) {

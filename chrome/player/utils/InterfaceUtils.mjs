@@ -1,3 +1,4 @@
+// @ts-check
 import {DOMElements} from '../ui/DOMElements.mjs';
 
 /**
@@ -9,18 +10,18 @@ export class InterfaceUtils {
    * @return {boolean} True if any windows were open, false otherwise.
    */
   static closeWindows() {
-    const windows = [
+    const windows = /** @type {HTMLElement[]} */ ([
       DOMElements.optionsContainer,
       DOMElements.subuiContainer,
       DOMElements.linkuiContainer,
-    ];
+    ]);
 
     let wasOpen = false;
     for (const box of windows) {
       if (box.style.display !== 'none') {
         wasOpen = true;
       }
-      box.getElementsByClassName('close_button')[0].click();
+      /** @type {HTMLElement} */ (box.getElementsByClassName('close_button')[0]).click();
     }
 
     return wasOpen;
@@ -31,11 +32,11 @@ export class InterfaceUtils {
    * @return {boolean} True if at least one popwindow is open.
    */
   static isAnyWindowOpen() {
-    const windows = [
+    const windows = /** @type {HTMLElement[]} */ ([
       DOMElements.optionsContainer,
       DOMElements.subuiContainer,
       DOMElements.linkuiContainer,
-    ];
+    ]);
 
     return windows.some((box) => box.style.display !== 'none');
   }

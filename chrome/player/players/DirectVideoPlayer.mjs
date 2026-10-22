@@ -1,3 +1,4 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../enums/DefaultPlayerEvents.mjs';
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {EmitterRelay, EventEmitter} from '../modules/eventemitter.mjs';
@@ -20,10 +21,10 @@ const NOT_FOR_THE_ELEMENT = new Set(['range', 'if-range', 'accept-encoding', 'ho
 export function elementHeaderCommands(headers) {
   const commands = [];
   for (const header in headers || {}) {
-    if (!Object.hasOwn(headers, header)) continue;
+    if (!Object.hasOwn(/** @type {Object<string, string|boolean>} */ (headers), header)) continue;
     const name = header.toLowerCase();
     if (NOT_FOR_THE_ELEMENT.has(name) || name.startsWith('proxy-')) continue;
-    const value = headers[header];
+    const value = /** @type {Object<string, string|boolean>} */ (headers)[header];
     commands.push(value === false ? {operation: 'remove', header} : {operation: 'set', header, value: String(value)});
   }
   return commands;
@@ -48,7 +49,7 @@ export default class DirectVideoPlayer extends EventEmitter {
     super();
     this.client = client;
 
-    this.video = document.createElement(config?.isAudioOnly ? 'audio' : 'video');
+    this.video = /** @type {HTMLVideoElement} */ (document.createElement(config?.isAudioOnly ? 'audio' : 'video'));
   }
 
   load() {
@@ -122,7 +123,7 @@ export default class DirectVideoPlayer extends EventEmitter {
 
   destroy() {
     VideoUtils.destroyVideo(this.video);
-    this.video = null;
+    this.video = /** @type {any} */ (null);
 
     this.emit(DefaultPlayerEvents.DESTROYED);
   }

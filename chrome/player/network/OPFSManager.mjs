@@ -1,3 +1,4 @@
+// @ts-check
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 
 // Main-thread counterpart to opfs-worker.mjs. Mirrors IndexedDBManager.mjs's
@@ -16,6 +17,7 @@ export class OPFSManager {
   static CallTimeoutMs = 30000;
 
   constructor() {
+    /** @type {Worker | null} */
     this.worker = null;
     this.pending = new Map();
     this.nextId = 0;
@@ -23,6 +25,7 @@ export class OPFSManager {
     // identifier -> its name in the session directory (fileName).
     this.fileNames = new Map();
     this.fileCount = 0;
+    /** @type {number | ReturnType<typeof setTimeout> | null} */
     this.watchdog = null;
   }
 
@@ -109,7 +112,7 @@ export class OPFSManager {
     if (this.pending.size) {
       this.armWatchdog();
     } else {
-      clearTimeout(this.watchdog);
+      clearTimeout(/** @type {number} */ (this.watchdog));
     }
     if (msg.ok) {
       pending.resolve(msg.result);
@@ -174,7 +177,7 @@ export class OPFSManager {
    * always mean the worker stopped running) and never replies.
    */
   handleWorkerCrash(event) {
-    clearTimeout(this.watchdog);
+    clearTimeout(/** @type {number} */ (this.watchdog));
     const error = new Error(event.message || 'OPFS worker crashed');
     for (const {reject} of this.pending.values()) {
       reject(error);
@@ -201,13 +204,13 @@ export class OPFSManager {
       if (this.pending.size === 0) this.armWatchdog();
       this.pending.set(id, {resolve, reject, op, started: Date.now()});
       try {
-        this.worker.postMessage({id, op, ...payload}, transfer || []);
+        /** @type {Worker} */ (this.worker).postMessage({id, op, ...payload}, transfer || []);
       } catch (e) {
         // Never sent (a buffer given away already, data that cannot be copied): left waiting,
         // it kept the watchdog going, and 30 s later the working worker counted as crashed
         // (glm's review, 2026-10-13).
         this.pending.delete(id);
-        if (this.pending.size === 0) clearTimeout(this.watchdog);
+        if (this.pending.size === 0) clearTimeout(/** @type {number} */ (this.watchdog));
         reject(e);
       }
     });
@@ -222,7 +225,7 @@ export class OPFSManager {
    * video downloading to a slow disk) counted as a crash, which dropped OPFS for the session.
    */
   armWatchdog() {
-    clearTimeout(this.watchdog);
+    clearTimeout(/** @type {number} */ (this.watchdog));
     this.watchdog = setTimeout(() => {
       const [oldest] = this.pending.values();
       if (oldest) {
@@ -277,7 +280,7 @@ export class OPFSManager {
       this.worker.terminate();
     }
     this.worker = null;
-    clearTimeout(this.watchdog);
+    clearTimeout(/** @type {number} */ (this.watchdog));
     OPFSManager.live.delete(this);
     for (const {reject} of this.pending.values()) {
       reject(new Error('OPFSManager closed'));

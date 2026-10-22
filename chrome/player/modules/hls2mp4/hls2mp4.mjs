@@ -1,3 +1,4 @@
+// @ts-check
 import {EventEmitter} from '../eventemitter.mjs';
 import {FSBlob} from '../FSBlob.mjs';
 import {MP4} from './MP4Generator.mjs';
@@ -61,7 +62,7 @@ export class HLS2MP4 extends EventEmitter {
       console.log('discontinuity');
     }
     this.prevFrag = fragData;
-    const result = this.transmuxer.pushData(new Uint8Array(data), isDiscontinuity);
+    const result = /** @type {Transmuxer} */ (this.transmuxer).pushData(new Uint8Array(data), isDiscontinuity);
 
     if (result.video) {
       if (!this.videoTrack) {
@@ -109,7 +110,7 @@ export class HLS2MP4 extends EventEmitter {
       console.log('discontinuity');
     }
     this.prevFragAudio = fragData;
-    const result = this.transmuxerAudio.pushData(new Uint8Array(data), isDiscontinuity);
+    const result = /** @type {Transmuxer} */ (this.transmuxerAudio).pushData(new Uint8Array(data), isDiscontinuity);
     if (result.audio) {
       if (!this.audioTrack) {
         this.audioTrack = this.makeTrack(result.audioTrack);
@@ -151,8 +152,8 @@ export class HLS2MP4 extends EventEmitter {
     track.chunks.push({
       id: track.nextChunkId++,
       samples: remuxed.outputSamples,
-      offset: this.datasOffset + headerLen,
-      originalOffset: this.datasOffset + headerLen,
+      offset: /** @type {number} */ (this.datasOffset) + headerLen,
+      originalOffset: /** @type {number} */ (this.datasOffset) + headerLen,
       startDTS: remuxed.startDTS + initPTS,
       endDTS: remuxed.endDTS + initPTS,
       startPTS: remuxed.startPTS + initPTS,
@@ -161,7 +162,7 @@ export class HLS2MP4 extends EventEmitter {
     const blob = new Blob([remuxed.data2], {
       type: 'video/mp4',
     });
-    this.datas.push(this.blobManager.saveBlob(blob));
+    /** @type {Array<*>} */ (this.datas).push(this.blobManager.saveBlob(blob));
     this.datasOffset += remuxed.data2.byteLength;
   }
 
@@ -318,7 +319,7 @@ export class HLS2MP4 extends EventEmitter {
       initSeg = MP4.initSegment(tracks);
     }
 
-    const dataChunks = await Promise.all(this.datas.map((data) => {
+    const dataChunks = await Promise.all(/** @type {Array<*>} */ (this.datas).map((data) => {
       return this.blobManager.getBlob(data);
     }));
 
@@ -388,7 +389,8 @@ export class HLS2MP4 extends EventEmitter {
    */
   release() {
     const blobManager = this.blobManager;
-    this.blobManager = null;
+    // The last use of it: nothing reads the store once it is released.
+    this.blobManager = /** @type {any} */ (null);
     blobManager?.close();
   }
 }

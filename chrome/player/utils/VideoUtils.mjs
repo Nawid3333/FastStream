@@ -1,3 +1,4 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../enums/DefaultPlayerEvents.mjs';
 
 /**
@@ -7,7 +8,7 @@ export class VideoUtils {
   /**
    * Adds passthrough event listeners to a video element and emits events via the emitter.
    * @param {HTMLVideoElement} video - The video element.
-   * @param {EventEmitter} emitter - The event emitter instance.
+   * @param {{emit: (event: string, ...args: *[]) => *}} emitter - What it emits on (an EventEmitter, an EmitterRelay).
    */
   static addPassthroughEventListenersToVideo(video, emitter) {
     video.addEventListener(DefaultPlayerEvents.ABORT, (event) => {

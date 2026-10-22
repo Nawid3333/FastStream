@@ -1,6 +1,8 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
+// @ts-ignore - dash.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {MediaPlayer} from '../../modules/dash.mjs';
 import {EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
 import {Utils} from '../../utils/Utils.mjs';
@@ -21,7 +23,7 @@ export default class DashPlayer extends EventEmitter {
     this.isAudioOnly = config?.isAudioOnly || false;
     this.isAnalyzer = config?.isAnalyzer || false;
     this.defaultQuality = client.options.defaultQuality || 'Auto';
-    this.video = document.createElement(this.isAudioOnly ? 'audio' : 'video');
+    this.video = /** @type {HTMLVideoElement} */ (document.createElement(this.isAudioOnly ? 'audio' : 'video'));
 
     this.fragmentRequester = new DashFragmentRequester(this);
     this.activeRequests = [];
@@ -294,7 +296,7 @@ export default class DashPlayer extends EventEmitter {
   }
 
   downloadFragment(fragment, priority) {
-    return new Promise((resolve, reject) => {
+    return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
       this.fragmentRequester.requestFragment(fragment, {
         skipProcess: true,
         onProgress: (e) => {
@@ -310,7 +312,7 @@ export default class DashPlayer extends EventEmitter {
           reject(new Error('Aborted download'));
         },
       }, null, priority);
-    });
+    }));
   }
 
   async play() {
@@ -338,7 +340,7 @@ export default class DashPlayer extends EventEmitter {
       this.videoErrorListener = null;
     }
     VideoUtils.destroyVideo(this.video);
-    this.video = null;
+    this.video = /** @type {any} */ (null);
 
     this.emit(DefaultPlayerEvents.DESTROYED);
   }

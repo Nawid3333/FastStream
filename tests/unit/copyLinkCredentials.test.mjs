@@ -107,9 +107,13 @@ describe('VideoSource.parseHeadersParam', () => {
   });
 });
 
+// JSDoc casts (`/** @type {T} */ (x)`, for the type checker) are no code: the checks below
+// read the source without them.
+const withoutCasts = (text) => text.replace(/\/\*\* @type \{[^}]*\} \*\/ \(([^()]*)\)/g, '$1');
+
 describe('the time readout\'s copy', () => {
   const chromeDir = fileURLToPath(new URL('../../chrome', import.meta.url));
-  const source = fs.readFileSync(path.join(chromeDir, 'player/ui/InterfaceController.mjs'), 'utf8');
+  const source = withoutCasts(fs.readFileSync(path.join(chromeDir, 'player/ui/InterfaceController.mjs'), 'utf8'));
 
   it('builds its link with VideoSource.toCopyURL', () => {
     let method = null;

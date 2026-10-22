@@ -1,3 +1,4 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {StringUtils} from '../../utils/StringUtils.mjs';
 import {DashTrackUtils} from './DashTrackUtils.mjs';

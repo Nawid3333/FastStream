@@ -1,3 +1,4 @@
+// @ts-check
 export const DefaultSubtitlesSettings = {
   fontFamily: 'Arial',
   fontWeight: 'normal',

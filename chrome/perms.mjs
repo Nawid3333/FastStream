@@ -1,3 +1,4 @@
+// @ts-check
 async function updatePerms() {
   const perms = await chrome.permissions.getAll();
   const permsEl = document.querySelectorAll('.permstatus');

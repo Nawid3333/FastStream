@@ -1,3 +1,4 @@
+// @ts-check
 // btoa takes Latin-1 only: a manifest with any other character (a title, an address)
 // threw. This is the manifest's UTF-8, in base64.
 function base64Utf8(text) {

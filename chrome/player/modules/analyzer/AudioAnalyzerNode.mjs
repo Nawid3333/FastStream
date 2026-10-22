@@ -1,3 +1,4 @@
+// @ts-check
 /* eslint-disable new-cap */
 import {AudioUtils} from '../../utils/AudioUtils.mjs';
 import {EventEmitter} from '../eventemitter.mjs';

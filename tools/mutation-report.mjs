@@ -1,3 +1,4 @@
+// @ts-check
 // Turns Stryker's report (reports/mutation/mutation.json) into what mutation-tests.yml
 // shows: a table per file for the run's summary, and the body of the week's issue, which
 // lists the mutants the unit tests did not catch.
@@ -100,6 +101,7 @@ export function issueBody(report, owner, runUrl) {
     summary(report),
     `### Not caught${list.length > LISTED ? ` (the first ${LISTED} of ${list.length})` : ''}`,
   ];
+  /** @type {string|null} */
   let file = null;
   for (const m of shown) {
     if (m.file !== file) {

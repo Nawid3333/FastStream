@@ -1,3 +1,4 @@
+// @ts-check
 import {Fragment} from '../Fragment.mjs';
 
 export class MP4Fragment extends Fragment {

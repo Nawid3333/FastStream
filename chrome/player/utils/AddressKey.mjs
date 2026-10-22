@@ -1,3 +1,4 @@
+// @ts-check
 // A secret only FastStream's redirect rule puts into a player's address
 // (player/index.html?address=<key>#<stream URL>), kept in the extension's storage, which no
 // page can read. The player page is web-accessible, so any page could open it in a tab with
@@ -7,6 +8,7 @@
 // only from an address that carries the key.
 
 const StorageKey = 'playerAddressKey';
+/** @type {Promise<string> | null} */
 let made = null;
 
 /**

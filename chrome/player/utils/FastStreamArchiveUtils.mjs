@@ -1,3 +1,4 @@
+// @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {DownloadEntry} from '../network/DownloadEntry.mjs';
 import {RequestUtils} from './RequestUtils.mjs';
@@ -77,6 +78,8 @@ export class FastStreamArchiveUtils {
         throw new Error('Entry is not complete!');
       }
 
+      // An ArrayBuffer by the end: a raw entry's string is encoded into one.
+      /** @type {*} */
       let data = null;
       if (entry.storeRaw) {
         data = await entry.getData();
@@ -84,7 +87,7 @@ export class FastStreamArchiveUtils {
           data = (new TextEncoder().encode(data)).buffer;
         }
       } else {
-        data = await entry.getDataFromBlob('arraybuffer');
+        data = /** @type {ArrayBuffer} */ (await entry.getDataFromBlob('arraybuffer'));
       }
 
       const dataSize = data.byteLength;

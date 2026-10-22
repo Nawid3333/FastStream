@@ -1,3 +1,4 @@
+// @ts-check
 import {PlayerModes} from '../enums/PlayerModes.mjs';
 
 export class PlayerLoader {
@@ -15,7 +16,7 @@ export class PlayerLoader {
    * eagerly would pull both into the first page load whatever the video turns
    * out to be.
    *
-   * @param {number} mode a PlayerModes value
+   * @param {string} mode a PlayerModes value
    * @param {object} client the FastStreamClient
    * @param {object} options passed through to the player
    * @return {Promise<object>} the constructed player

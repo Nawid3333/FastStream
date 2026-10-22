@@ -1,6 +1,17 @@
+// @ts-check
+// @ts-ignore - mediabunny.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {EncodedAudioPacketSource, EncodedVideoPacketSource, Mp4OutputFormat, Output, StreamTarget} from './mediabunny.mjs';
 import {TimestampRebaser} from './TimestampRebaser.mjs';
-
+/**
+ * A Mediabunny encoded packet: one piece of a track's encoded data. Mediabunny's
+ * own types aren't reachable here (its module ships no declarations to load), so
+ * this lays out the members this file uses.
+ *
+ * @typedef {Object} EncodedPacket
+ * @property {number} microsecondTimestamp the packet's timestamp, in microseconds
+ * @property {(overrides?: {timestamp?: number}) => EncodedPacket} clone a copy of
+ *     the packet, with fields of the given object overriding it
+ */
 // The file is kept in RAM in pieces of this size, and each piece that is full moves to
 // the blob manager (disk).
 const PIECE_SIZE = 16 * 1024 * 1024;

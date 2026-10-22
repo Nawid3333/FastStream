@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Generates the self-hosted update manifest (updates.json) that
 // browser_specific_settings.gecko.update_url in the AMO build points at
 // (see build.mjs's buildFirefoxAmo). Firefox polls that URL -- both on its

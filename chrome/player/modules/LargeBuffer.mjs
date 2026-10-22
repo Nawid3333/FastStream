@@ -1,3 +1,4 @@
+// @ts-check
 export class LargeBuffer {
   constructor(byteLength, bufferLength) {
     this.byteLength = byteLength;

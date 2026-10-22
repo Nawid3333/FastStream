@@ -1,3 +1,4 @@
+// @ts-check
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {ClickActions} from '../options/defaults/ClickActions.mjs';
 import {DefaultOptions} from '../options/defaults/DefaultOptions.mjs';
@@ -164,7 +165,8 @@ export class Utils {
 
   /**
    * Zips timed fragments from multiple tracks into a sorted array.
-   * @param {Map} tracks - Map of track to fragments.
+   * @param {Map<*, Array<{start: number}>>|Array<Array<{start: number}>>} tracks - Each track's
+   *   fragments: a Map by track, or an array (the track is then its index).
    * @return {Array} Sorted array of zipped fragments.
    */
   static zipTimedFragments(tracks) {
@@ -250,7 +252,7 @@ export class Utils {
         chrome.storage.local.get(key, (result) => {
           // A read that failed answers nothing (runtime.lastError): result[key] threw in the
           // callback, and this never settled. Unset, as for a key never saved.
-          resolve(result?.[key]);
+          resolve(/** @type {string|null} */ (result?.[key]));
         });
       } else {
         resolve(localStorage.getItem(key));
@@ -370,10 +372,11 @@ export class Utils {
    * Waits until a download no longer reads its URL (revokeWhenDownloaded): Firefox says it
    * is over, or a minute after a link click, or 30 minutes at most.
    * @param {*} download - What downloadURL resolved with: the download's id, or not.
-   * @param {function(): void} [atOver] - Run at that moment, before the promise settles.
+   * @param {() => void} [atOver] - Run at that moment, before the promise settles.
    * @return {Promise<void>}
    */
   static whenDownloaded(download, atOver = () => {}) {
+    /** @type {PromiseWithResolvers<void>} */
     const {promise: over, resolve: revoked} = Promise.withResolvers();
     const revoke = () => {
       atOver();
@@ -412,7 +415,7 @@ export class Utils {
    * @param {string} url - The file URL.
    * @param {string} filename - The filename to save as.
    * @param {boolean} [forceDirect=false] - Force direct download (bypass extension).
-   * @return {Promise<void>|void} Resolves when download starts.
+   * @return {Promise<boolean|void>} Resolves when download starts.
    */
   static async downloadURL(url, filename, forceDirect = false) {
     // Firefox has a bug where it doesn't download filed from sandboxed iframes

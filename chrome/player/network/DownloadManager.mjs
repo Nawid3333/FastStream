@@ -1,3 +1,4 @@
+// @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {FSBlob} from '../modules/FSBlob.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
@@ -181,16 +182,17 @@ export class DownloadManager {
 
   destroy() {
     // queueNext's retry after a failure would find no downloaders left.
-    clearTimeout(this.failCooldown);
+    clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.failCooldown));
     this.failCooldown = null;
     this.abortRetiring();
     this.downloaders.forEach((downloader) => {
       downloader.destroy();
     });
-    this.downloaders = null;
-    this.storage = null;
+    // Gone with the manager: typed as the live fields they are until here.
+    this.downloaders = /** @type {any} */ (null);
+    this.storage = /** @type {any} */ (null);
     this.blobStore.close();
-    this.blobStore = null;
+    this.blobStore = /** @type {any} */ (null);
   }
 
   getFile(details, callbacks, priority) {
@@ -312,8 +314,8 @@ export class DownloadManager {
     const now = Date.now();
     // Hold every download back for at least the server's Retry-After, as before. An answer
     // in the same burst still extends this, even if it does not halve again.
-    if (retryAfter > 0) {
-      this.holdUntil = Math.max(this.holdUntil, now + Math.min(retryAfter, DownloadManager.MaxRetryAfterMs));
+    if (/** @type {number} */ (retryAfter) > 0) {
+      this.holdUntil = Math.max(this.holdUntil, now + Math.min(/** @type {number} */ (retryAfter), DownloadManager.MaxRetryAfterMs));
     }
     // Answers within this time of the last halving belong to the same burst: they extend
     // the Retry-After hold but do not halve again.

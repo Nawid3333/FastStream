@@ -1,3 +1,4 @@
+// @ts-check
 import {DOMElements} from './DOMElements.mjs';
 
 export const StatusTypes = {
@@ -72,7 +73,7 @@ export class StatusManager {
 
     let displayCount = 0;
     toDisplayList.forEach((toDisplay, index) => {
-      const element = elements[index];
+      const element = /** @type {HTMLElement} */ (elements[index]);
       if (!toDisplay) {
         element.style.display = 'none';
         return;
@@ -101,7 +102,7 @@ export class StatusManager {
           continue;
         }
 
-        const element = elements[i];
+        const element = /** @type {HTMLElement} */ (elements[i]);
         const width = element.offsetWidth + 5;
 
         toDisplay.maxWidth = Math.max(toDisplay.maxWidth, width);

@@ -1,3 +1,4 @@
+// @ts-check
 import {Localize} from '../modules/Localize.mjs';
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 
@@ -30,8 +31,8 @@ export class MpvSuggestion {
    * @param {HTMLElement} parts.text - Its text.
    * @param {HTMLElement} parts.enableButton - "Turn on MPV mode".
    * @param {HTMLElement} parts.dismissLink - "Dismiss" (after the button: "Close").
-   * @param {function(): boolean} parts.isMpvModeOn - Whether MPV mode is on in the options.
-   * @param {function(): void} parts.turnOnMpvMode - Turns it on, as its checkbox does.
+   * @param {() => boolean} parts.isMpvModeOn - Whether MPV mode is on in the options.
+   * @param {() => void} parts.turnOnMpvMode - Turns it on, as its checkbox does.
    */
   constructor({box, text, enableButton, dismissLink, isMpvModeOn, turnOnMpvMode}) {
     this.box = box;

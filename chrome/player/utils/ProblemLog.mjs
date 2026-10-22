@@ -1,3 +1,4 @@
+// @ts-check
 // Sites where autoplay could not go on (his wish, 2026-10-11): kept per site and kind, newest
 // first, for the options page to list and report as a GitHub issue the user reviews. Only the
 // page's host and path are kept - a query often carries a session token.
@@ -56,7 +57,7 @@ export function recordProblem(problem, now = Date.now()) {
  * @return {Promise<void>}
  */
 async function note({url, kind, mode}, now) {
-  if (!Object.values(ProblemKinds).includes(kind)) return;
+  if (!Object.values(ProblemKinds).includes(/** @type {"no_next" | "no_stream"} */ (kind))) return;
   let page;
   try {
     page = new URL(url);

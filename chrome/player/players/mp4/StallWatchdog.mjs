@@ -1,3 +1,4 @@
+// @ts-check
 // A video that says it is playing, with this much buffered ahead of it, is stuck once its
 // time has not moved for STALL_TIMEOUT_MS; it is then nudged forward STALL_NUDGE seconds,
 // one step further each time, at most STALL_MAX_NUDGES times until it moves again. The
@@ -18,7 +19,7 @@ const STALL_MAX_NUDGES = 3;
  */
 export class StallWatchdog {
   /**
-   * @param {function(number): void} [onStuck] - Called once, with the time, when the video is
+   * @param {((time: number) => void)|null} [onStuck] - Called once, with the time, when the video is
    *   still stuck after the last nudge; again only after it has played on. The video stayed
    *   frozen after the nudges ran out, with no error to show.
    */

@@ -1,8 +1,10 @@
+// @ts-check
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 import {Localize} from '../../modules/Localize.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {Utils} from '../../utils/Utils.mjs';
+// @ts-ignore - gif.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {GIF} from '../../modules/gif/gif.mjs';
 
 export class LoopMenu extends EventEmitter {
@@ -58,27 +60,27 @@ export class LoopMenu extends EventEmitter {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
   }
   setupUI() {
-    DOMElements.loopMenu.addEventListener('keydown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.loopMenu).addEventListener('keydown', (e) => {
       e.stopPropagation();
     });
 
-    DOMElements.loopMenu.addEventListener('keyup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.loopMenu).addEventListener('keyup', (e) => {
       e.stopPropagation();
     });
 
-    DOMElements.loopMenu.addEventListener('mousedown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.loopMenu).addEventListener('mousedown', (e) => {
       e.stopPropagation();
     });
 
-    DOMElements.loopMenu.addEventListener('mouseup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.loopMenu).addEventListener('mouseup', (e) => {
       e.stopPropagation();
     });
 
-    DOMElements.loopMenu.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.loopMenu).addEventListener('click', (e) => {
       e.stopPropagation();
     });
 
-    DOMElements.loopButton.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.loopButton).addEventListener('click', (e) => {
       if (this.isOpen()) {
         this.closeUI();
       } else {
@@ -86,7 +88,7 @@ export class LoopMenu extends EventEmitter {
       }
       e.stopPropagation();
     });
-    WebUtils.setupTabIndex(DOMElements.loopButton);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.loopButton));
 
     const timeSettings = this.loopTimeSettings;
 
@@ -110,9 +112,10 @@ export class LoopMenu extends EventEmitter {
       input.setAttribute('autocapitalize', 'off');
       input.setAttribute('spellcheck', 'false');
 
+      /** @type {ReturnType<typeof setTimeout> | null} */
       let timeout = null;
       input.addEventListener('keyup', () => {
-        clearTimeout(timeout);
+        clearTimeout(/** @type {ReturnType<typeof setTimeout>} */ (timeout));
         timeout = setTimeout(() => {
           this.loopTimeSettings[name] = input.value;
           this.updateLoopAndGif();
@@ -143,12 +146,12 @@ export class LoopMenu extends EventEmitter {
       option.appendChild(input);
 
 
-      DOMElements.loopMenu.appendChild(option);
+      /** @type {HTMLElement} */ (DOMElements.loopMenu).appendChild(option);
     }
 
     const loopButtonContainer = document.createElement('div');
     loopButtonContainer.style = 'display: flex; justify-content: center';
-    DOMElements.loopMenu.appendChild(loopButtonContainer);
+    /** @type {HTMLElement} */ (DOMElements.loopMenu).appendChild(loopButtonContainer);
 
     const toggleLoopButton = document.createElement('div');
     this.toggleLoopButton = toggleLoopButton;
@@ -236,11 +239,11 @@ export class LoopMenu extends EventEmitter {
       input.setAttribute('aria-invalid', String(!this.loopRangeValid));
     }
 
-    this.toggleLoopButton.textContent = Localize.getMessage('loop_menu_toggle_' + (this.loopEnabled ? 'enabled' : 'disabled'));
+    /** @type {HTMLDivElement} */ (this.toggleLoopButton).textContent = Localize.getMessage('loop_menu_toggle_' + (this.loopEnabled ? 'enabled' : 'disabled'));
     if (this.loopEnabled) {
-      this.toggleLoopButton.classList.add('enabled');
+      /** @type {HTMLDivElement} */ (this.toggleLoopButton).classList.add('enabled');
     } else {
-      this.toggleLoopButton.classList.remove('enabled');
+      /** @type {HTMLDivElement} */ (this.toggleLoopButton).classList.remove('enabled');
     }
 
     if (player) {
@@ -264,7 +267,7 @@ export class LoopMenu extends EventEmitter {
   }
 
   isOpen() {
-    return DOMElements.loopMenu.style.display !== 'none';
+    return /** @type {HTMLElement} */ (DOMElements.loopMenu).style.display !== 'none';
   }
 
   openUI() {
@@ -272,14 +275,14 @@ export class LoopMenu extends EventEmitter {
       target: DOMElements.loopButton,
     });
 
-    DOMElements.loopMenu.style.display = '';
+    /** @type {HTMLElement} */ (DOMElements.loopMenu).style.display = '';
   }
 
   closeUI() {
-    if (DOMElements.loopMenu.style.display === 'none') {
+    if (/** @type {HTMLElement} */ (DOMElements.loopMenu).style.display === 'none') {
       return false;
     }
-    DOMElements.loopMenu.style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.loopMenu).style.display = 'none';
     return true;
   }
 
@@ -304,7 +307,7 @@ export class LoopMenu extends EventEmitter {
     this.gifCtx = ctx;
     this.lastTimeRecorded = null;
 
-    const loopStart = this.loopStart;
+    const loopStart = /** @type {number} */ (this.loopStart);
 
     this.client.currentTime = Math.max(loopStart - 1, 0);
     this.client.play();
@@ -346,10 +349,10 @@ export class LoopMenu extends EventEmitter {
       return;
     }
     const currentTime = Math.floor(player.currentTime * 100) / 100;
-    const loopStart = this.loopStart;
+    const loopStart = /** @type {number} */ (this.loopStart);
     let reachedEnd = false;
     if (currentTime >= loopStart) {
-      const lastRecorded = this.lastTimeRecorded;
+      const lastRecorded = /** @type {number | null} */ (this.lastTimeRecorded);
 
       if (currentTime >= this.loopEnd || (lastRecorded !== null && currentTime < lastRecorded)) {
         reachedEnd = true;
@@ -361,7 +364,7 @@ export class LoopMenu extends EventEmitter {
           });
         }
 
-        this.gifCtx.drawImage(player.getVideo(), 0, 0, this.gifCanvas.width, this.gifCanvas.height);
+        /** @type {CanvasRenderingContext2D} */ (this.gifCtx).drawImage(player.getVideo(), 0, 0, /** @type {HTMLCanvasElement} */ (this.gifCanvas).width, /** @type {HTMLCanvasElement} */ (this.gifCanvas).height);
         this.lastTimeRecorded = currentTime;
       }
     }
@@ -445,8 +448,8 @@ export class LoopMenu extends EventEmitter {
     const currentTime = this.client.currentTime;
     if (currentTime >= this.loopEnd) {
       this.client.currentTime = this.loopStart;
-    } else if (this.loopStart > 0) {
-      if (currentTime < this.loopStart) {
+    } else if (/** @type {number} */ (this.loopStart) > 0) {
+      if (currentTime < /** @type {number} */ (this.loopStart)) {
         this.client.currentTime = this.loopStart;
       }
     }

@@ -1,3 +1,4 @@
+// @ts-check
 import {PlayerModes} from '../enums/PlayerModes.mjs';
 import {STILLS_LENGTH, StreamLength} from './StreamLength.mjs';
 
@@ -45,7 +46,7 @@ export class StreamPick {
       // Its file: the length read from it, when there is one.
       length = StreamPick.lengthOf(played[0].duration) ?? length;
     } else if (length !== null) {
-      played = sources.filter((source) => StreamPick.sameLength(source.duration, length));
+      played = sources.filter((source) => StreamPick.sameLength(source.duration, /** @type {number} */ (length)));
     }
     if (played.length === 0) {
       return null;
@@ -111,10 +112,10 @@ export class StreamPick {
     let picked = candidates.reduce((result, curr) => {
       // Lower depth first, either way round: a file at depth 0 and a deeper stream gave the
       // stream in one detection order and the file in the other (glm, r5-04; 2026-10-14).
-      if (result.depth > curr.depth) {
+      if (/** @type {number} */ (result.depth) > /** @type {number} */ (curr.depth)) {
         return curr;
       }
-      if (result.depth < curr.depth) {
+      if (/** @type {number} */ (result.depth) < /** @type {number} */ (curr.depth)) {
         return result;
       }
       // Then a streaming one over a file, at one depth.
@@ -129,10 +130,10 @@ export class StreamPick {
       files.sort((a, b) => {
         // Lower depth is better.
         if (a.depth !== b.depth) {
-          return a.depth - b.depth;
+          return /** @type {number} */ (a.depth) - /** @type {number} */ (b.depth);
         }
         // Newer is better.
-        return b.time - a.time;
+        return /** @type {number} */ (b.time) - /** @type {number} */ (a.time);
       });
       picked = files[0];
     }
@@ -170,7 +171,7 @@ export class StreamPick {
     if (duration === Infinity || length === Infinity) {
       return duration === length;
     }
-    return Math.abs(duration - length) <= Math.max(MATCH_S, length * MATCH_SHARE);
+    return Math.abs(/** @type {number} */ (duration) - length) <= Math.max(MATCH_S, length * MATCH_SHARE);
   }
 
   /**

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Maps the filename the player asks for to one Firefox accepts to save.
  *
@@ -53,7 +54,7 @@ export function sanitizeDownloadFilename(filename) {
   // Only the edges of the name; spaces and dots inside it stay. Firefox refuses
   // a name that starts with a space or a dot, or ends with one.
   name = name.replace(/[. ]+$/, '');
-  const start = /^[. ]*/.exec(name)[0];
+  const start = /** @type {RegExpExecArray} */ (/^[. ]*/.exec(name))[0];
   name = name.slice(start.length);
   // A name that was only an extension (".png") keeps it, after the fallback name.
   if (start.endsWith('.') && isExtension(name)) {
