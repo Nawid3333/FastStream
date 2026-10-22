@@ -247,3 +247,42 @@ describe('HLSLoader, an encrypted segment the store has no place for', () => {
     expect(getFile.mock.calls[0][0].postProcessor).toBe(decrypt);
   });
 });
+
+// The store finds a media segment by its number only. A live stream that starts its numbering
+// again can do so while the level's store still reaches that far (downloaded segments are
+// kept for saving), and the segment taking a stored one's number was served that one's
+// bytes, hours old, with no error. Not by URL alone: a live stream rotates a token in the
+// query on every refresh; and hls.js moves a live segment's start once it read its
+// timestamps.
+describe('HLSLoader, a live stream that started its numbering again', () => {
+  const STORED = {sn: 0, url: 'http://127.0.0.1/live/seg-1000.ts?token=a', start: 0, duration: 4};
+
+  /**
+   * Loads segment 0 as the given hls.js fragment.
+   * @param {Object} fields - The request fragment's url, start and duration.
+   * @return {{getFile: Function, requestFragment: Function}}
+   */
+  function load(fields) {
+    const {player, getFile, requestFragment} = makePlayer({getFrag: () => STORED});
+    const frag = {sn: 0, trackID: 0, level: 0, ...fields};
+    const onError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    new (hlsLoaderFactory(player))().load({url: frag.url, frag}, {}, fragmentCallbacks());
+    onError.mockRestore();
+    return {getFile, requestFragment};
+  }
+
+  it('downloads the segment that took a stored one\'s number', () => {
+    const {getFile, requestFragment} = load({url: 'http://127.0.0.1/live/seg-9000.ts?token=b', start: 4 * 3600, duration: 4});
+    expect(requestFragment).not.toHaveBeenCalled();
+    expect(getFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves the stored one through a rotated token and a moved start', () => {
+    const rotated = load({url: 'http://127.0.0.1/live/seg-1000.ts?token=z', start: 3600, duration: 4});
+    expect(rotated.requestFragment).toHaveBeenCalledTimes(1);
+    expect(rotated.getFile).not.toHaveBeenCalled();
+    // A token in the path, at the same place in the stream.
+    const inPath = load({url: 'http://127.0.0.1/live/tok-z/seg-1000.ts', start: 0.4, duration: 4});
+    expect(inPath.requestFragment).toHaveBeenCalledTimes(1);
+  });
+});

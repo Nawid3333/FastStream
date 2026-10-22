@@ -18,6 +18,41 @@ function isSameSegment(a, b) {
     a.byteRangeEndOffset === b.byteRangeEndOffset;
 }
 
+// How far a segment's start and duration may lie from a stored copy's for the same place.
+const PLACE_TOLERANCE_S = 1;
+
+/**
+ * A URL without its query and fragment: where a live stream's rotating token sits.
+ * @param {string} url
+ * @return {string}
+ */
+function withoutQuery(url) {
+  return String(url || '').replace(/[?#].*$/, '');
+}
+
+/**
+ * Whether a stored media segment is still the one a request names, after a live stream
+ * may have started its numbering again: the store finds a segment by its number only, and
+ * the one taking a stored one's number was served that one's bytes, with no error. Not by
+ * its URL: a live stream rotates a token in the query on every playlist refresh. Another
+ * only when both differ - its address without the query, and its place in the stream
+ * (start, duration): hls.js moves a live segment's start once it read its timestamps, so
+ * the place alone would take every kept segment for another.
+ * @param {Object} stored - The stored fragment's hls.js fragment.
+ * @param {Object} frag - The request's.
+ * @return {boolean}
+ */
+function isSamePlace(stored, frag) {
+  if (!stored?.url || !frag?.url || withoutQuery(stored.url) === withoutQuery(frag.url)) {
+    return true;
+  }
+  if (!Number.isFinite(stored.start) || !Number.isFinite(frag.start)) {
+    return true;
+  }
+  return Math.abs(stored.start - frag.start) <= PLACE_TOLERANCE_S &&
+    Math.abs((stored.duration || 0) - (frag.duration || 0)) <= PLACE_TOLERANCE_S;
+}
+
 /**
      * Calling load() will start retrieving content located at given URL (HTTP GET).
      *
@@ -150,6 +185,10 @@ export function HLSLoaderFactory(player) {
         // One init segment is kept per level, but a playlist can change its EXT-X-MAP:
         // the kept one is only this request's if it is the same segment.
         if (frag && sn === -1 && !isSameSegment(frag.getFrag(), this.context.frag)) {
+          frag = null;
+        }
+        // A kept media segment only for its own place (isSamePlace).
+        if (frag && sn !== -1 && !isSamePlace(frag.getFrag(), this.context.frag)) {
           frag = null;
         }
         if (!frag) {
