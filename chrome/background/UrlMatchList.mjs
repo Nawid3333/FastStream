@@ -1,5 +1,6 @@
 // @ts-check
 
+/** @typedef {{negative: boolean, regex: boolean, exclude_domain: boolean, contentType: string|null, match: RegExp|string|null}} Entry */
 /**
  * Parses and evaluates a URL allowlist in the same format as the
  * "Auto-enable URLs" option: one entry per line, pages starting with the
@@ -29,7 +30,7 @@ export class UrlMatchList {
    *   alone. The MPV allowlist keeps `-` a plain hostname match.
    */
   constructor({domainEntriesExclude = false} = {}) {
-    /** @type {Array<Object>} */
+    /** @type {Array<Entry>} */
     this.entries = [];
     this.domainEntriesExclude = domainEntriesExclude;
   }
@@ -64,7 +65,7 @@ export class UrlMatchList {
   /**
    * Parses a single allowlist entry.
    * @param {string} raw - Raw entry string.
-   * @return {Object|null} Parsed entry, or null when the entry is empty, a
+   * @return {Entry|null} Parsed entry, or null when the entry is empty, a
    *   comment, or an invalid regex.
    */
   static parseEntry(raw) {
@@ -167,7 +168,7 @@ export class UrlMatchList {
   /**
    * Finds the entry that decides a URL's match result.
    * @param {string} [url] - The URL to test; none matches nothing.
-   * @return {Object|null} The matching entry (later entries take
+   * @return {Entry|null} The matching entry (later entries take
    *   precedence, mirroring the reversed AutoEnableList), or null when
    *   nothing matched.
    */
@@ -190,7 +191,7 @@ export class UrlMatchList {
 
   /**
    * Tests a single parsed entry against a normalized URL.
-   * @param {Object} entry - Parsed entry.
+   * @param {Entry} entry - Parsed entry.
    * @param {string} normalizedUrl - Lowercased URL.
    * @return {boolean} True when the entry matches the URL.
    */
@@ -226,6 +227,7 @@ export class UrlMatchList {
     if (entryScheme ? entryScheme !== urlScheme : !/^https?:\/\/$/.test(urlScheme || '')) {
       return false;
     }
+    /** @type {(text: string) => string} */
     const withoutWww = (text) => text.replace(/^www\./, '');
     const written = match.slice(entryScheme ? entryScheme.length : 0);
     const site = withoutWww(written);

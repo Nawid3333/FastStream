@@ -1,6 +1,5 @@
 {
   "chrome/background/NetRequestRuleManager.mjs": 9,
-  "chrome/background/UrlMatchList.mjs": 13,
   "chrome/player/FastStreamClient.mjs": 165,
   "chrome/player/SubtitleTrack.mjs": 12,
   "chrome/player/VideoSource.mjs": 7,
@@ -18,9 +17,7 @@
   "chrome/player/modules/remux/remuxer.mjs": 9,
   "chrome/player/network/DownloadEntry.mjs": 20,
   "chrome/player/network/DownloadManager.mjs": 23,
-  "chrome/player/network/FetchLoader.mjs": 18,
   "chrome/player/network/IndexedDBManager.mjs": 39,
-  "chrome/player/network/OPFSManager.mjs": 13,
   "chrome/player/network/StandardDownloader.mjs": 20,
   "chrome/player/players/DirectVideoPlayer.mjs": 14,
   "chrome/player/players/Fragment.mjs": 5,
