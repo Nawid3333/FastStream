@@ -84,6 +84,5 @@
   "tools/check-patched-updates.mjs": 5,
   "tools/fetch-amo-signed.mjs": 1,
   "tools/recut-patch.mjs": 123,
-  "tools/sign-amo.mjs": 1,
-  "tools/sync-vendor.mjs": 1
+  "tools/sign-amo.mjs": 1
 }

@@ -226,6 +226,10 @@ function checkMp4boxImports(src) {
   return src;
 }
 
+/**
+ * @param {string} src gif.js's dist/gif.js
+ * @return {string} the same code as an ES module that exports GIF
+ */
 function toGifModule(src) {
   const umdHead = '(function(f){if(typeof exports==="object"&&typeof ' +
     'module!=="undefined"){module.exports=f()}else if(typeof define===' +
