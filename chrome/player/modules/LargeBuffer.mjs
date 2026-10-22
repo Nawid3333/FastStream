@@ -1,5 +1,9 @@
 // @ts-check
 export class LargeBuffer {
+  /**
+   * @param {number} byteLength - The file's size in bytes.
+   * @param {number} bufferLength - How many chunks it comes in.
+   */
   constructor(byteLength, bufferLength) {
     this.byteLength = byteLength;
     this.bufferLength = bufferLength;
@@ -10,7 +14,11 @@ export class LargeBuffer {
     this.bufferIndex = 0;
   }
 
+  /**
+   * @param {(index: number) => Promise<Uint8Array>} getBufferFn - Fetches a chunk by its index.
+   */
   async initialize(getBufferFn) {
+    /** @type {(index: number) => Promise<Uint8Array>} */
     this.getBuffer = getBufferFn;
     this.nextPreloadedBuffer = this.getBuffer(this.bufferIndex);
     return this.nextBuffer();
@@ -27,6 +35,10 @@ export class LargeBuffer {
     this.currentBuffer = preloaded ? await preloaded : null;
   }
 
+  /**
+   * @param {number} length - Bytes to read.
+   * @return {Promise<Uint8Array[]>} Views of the chunks that hold them, in order.
+   */
   async getParts(length) {
     // Lengths come from the file itself (an archive's headers): a negative one, or one
     // that is no number, read nothing, and the next read started in the wrong place.
@@ -57,6 +69,10 @@ export class LargeBuffer {
     return parts;
   }
 
+  /**
+   * @param {number} length - Bytes to read.
+   * @return {Promise<Uint8Array>}
+   */
   async read(length) {
     // Checked first: a length from a damaged or crafted archive asked for up to 4 GB of
     // memory before it was found out of range.

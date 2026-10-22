@@ -277,7 +277,7 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
    * holds is tested here before use, since the relay only passes mpv's words on.
    * @param {{ok?: boolean, type?: string, error?: *, id?: number, reason?: string, data?: *, capabilities?: Array<*>}} message
    */
-  port.onMessage.addListener((message) => {
+  port.onMessage.addListener((/** @type {{ok?: boolean, type?: string, error?: *, id?: number, reason?: string, data?: *, capabilities?: Array<*>}} */ message) => {
     if (ended || !message || typeof message !== 'object') return;
     if (message.ok === false) {
       if (message.error === 'unknown message' && !Array.isArray(message.capabilities) && onLegacy) {
