@@ -1,3 +1,4 @@
+// @ts-check
 import {SubtitleTrack} from '../../SubtitleTrack.mjs';
 import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
@@ -65,16 +66,16 @@ export class OpenSubtitlesSearch extends EventEmitter {
 
   openUI() {
     InterfaceUtils.closeWindows();
-    DOMElements.subuiContainer.style.display = '';
+    /** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display = '';
     this.subui.search.focus();
   }
 
   closeUI() {
-    DOMElements.subuiContainer.style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display = 'none';
   }
 
   isOpen() {
-    return DOMElements.subuiContainer.style.display !== 'none';
+    return /** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display !== 'none';
   }
 
   toggleUI() {
@@ -92,7 +93,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
    * @return {HTMLInputElement}
    */
   createInput(className, placeholderKey) {
-    const input = WebUtils.create('input', null, 'text_input');
+    const input = /** @type {HTMLInputElement} */ (WebUtils.create('input', /** @type {any} */ (null), 'text_input'));
     input.placeholder = Localize.getMessage(placeholderKey);
     input.classList.add(className);
     input.ariaLabel = input.placeholder;
@@ -108,24 +109,24 @@ export class OpenSubtitlesSearch extends EventEmitter {
   }
 
   setupUI() {
-    DOMElements.subuiContainer.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.subuiContainer).addEventListener('click', (e) => {
       e.stopPropagation();
     });
-    DOMElements.subuiContainer.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-    });
-
-    DOMElements.subuiContainer.addEventListener('keyup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.subuiContainer).addEventListener('dblclick', (e) => {
       e.stopPropagation();
     });
 
-    const closeBtn = DOMElements.subuiContainer.getElementsByClassName('close_button')[0];
+    /** @type {HTMLElement} */ (DOMElements.subuiContainer).addEventListener('keyup', (e) => {
+      e.stopPropagation();
+    });
+
+    const closeBtn = /** @type {HTMLElement} */ (/** @type {HTMLElement} */ (DOMElements.subuiContainer).getElementsByClassName('close_button')[0]);
     closeBtn.addEventListener('click', (e) => {
       this.closeUI();
     });
 
     WebUtils.setupTabIndex(closeBtn);
-    const contentContainer = DOMElements.subuiContainer.getElementsByClassName('content_container')[0];
+    const contentContainer = /** @type {HTMLElement} */ (DOMElements.subuiContainer).getElementsByClassName('content_container')[0];
 
     this.subui.searchContainer = document.createElement('div');
     this.subui.searchContainer.classList.add('subtitle-search-container');
@@ -133,7 +134,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
 
     this.subui.search = this.createInput('subtitle-search-input', 'player_opensubtitles_search_placeholder');
 
-    const searchBtn = WebUtils.create('div', null, 'textbutton subtitle-search-btn');
+    const searchBtn = WebUtils.create('div', /** @type {any} */ (null), 'textbutton subtitle-search-btn');
     searchBtn.textContent = Localize.getMessage('player_opensubtitles_searchbtn');
     WebUtils.setupTabIndex(searchBtn);
     searchBtn.addEventListener('click', () => this.startSearch());
@@ -170,7 +171,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
     // on as one for a movie.
     const number = (input) => {
       // With its sign: "-1" is no number to search for, and not 1 (review).
-      const value = parseInt(/-?\d+/.exec(input.value)?.[0], 10);
+      const value = parseInt(/** @type {string} */ (/-?\d+/.exec(input.value)?.[0]), 10);
       return Number.isFinite(value) && value >= 0 ? value : null;
     };
     return {
@@ -438,7 +439,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
     label.textContent = Localize.getMessage('player_opensubtitles_other_titles');
     list.appendChild(label);
     others.forEach((other) => {
-      const button = WebUtils.create('div', null, 'textbutton subtitle-other-title');
+      const button = WebUtils.create('div', /** @type {any} */ (null), 'textbutton subtitle-other-title');
       button.textContent = titleLabel(other);
       WebUtils.setupTabIndex(button);
       button.addEventListener('click', () => {
@@ -532,7 +533,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
     try {
       let link = item.cached_download_link;
       if (!link) {
-        const data = (await RequestUtils.request({
+        const data = (await RequestUtils.request(/** @type {any} */ ({
           type: 'POST',
           url: API + 'download',
           responseType: 'json',
@@ -553,7 +554,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
             file_id: item.attributes.files[0].file_id,
             sub_format: 'webvtt',
           }),
-        })).response;
+        }))).response;
 
         if (!data.link && data.remaining !== undefined && data.remaining !== null && Number(data.remaining) <= 0) {
           item.downloading = false;
@@ -608,7 +609,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
       // Before the check below: with the search closed during the download, the result
       // stayed "downloading" and ignored every click after.
       item.downloading = false;
-      if (DOMElements.subuiContainer.style.display === 'none') return;
+      if (/** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display === 'none') return;
       await AlertPolyfill.alert(Localize.getMessage('player_opensubtitles_down_alert'), 'error');
       if (await AlertPolyfill.confirm(Localize.getMessage('player_opensubtitles_askopen'), 'question')) {
         EnvUtils.openExternalURL(item.attributes.url);

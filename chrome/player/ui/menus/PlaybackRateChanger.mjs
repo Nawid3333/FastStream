@@ -41,7 +41,7 @@ export class PlaybackRateChanger extends EventEmitter {
 
   /** Saves the state once RateSaveDelayMs have passed without another change. */
   scheduleSave() {
-    clearTimeout(this.saveTimer);
+    clearTimeout(/** @type {number} */ (this.saveTimer));
     this.saveTimer = setTimeout(() => this.saveStateNow(), RateSaveDelayMs);
   }
 
@@ -53,7 +53,7 @@ export class PlaybackRateChanger extends EventEmitter {
 
   async saveState() {
     // Saved now, with whatever a waiting save would have written.
-    clearTimeout(this.saveTimer);
+    clearTimeout(/** @type {number} */ (this.saveTimer));
     this.saveTimer = null;
     const state = {
       playbackRate: this.silenceSkipperActive ? this.regularSpeed : this.playbackRate,
@@ -108,21 +108,21 @@ export class PlaybackRateChanger extends EventEmitter {
     };
 
     const onAudioMouseUp = (e) => {
-      DOMElements.playerContainer.removeEventListener('mousemove', onAudioMouseMove);
-      DOMElements.playerContainer.removeEventListener('mouseup', onAudioMouseUp);
-      DOMElements.playerContainer.removeEventListener('mouseleave', onAudioMouseUp);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mousemove', onAudioMouseMove);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseup', onAudioMouseUp);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseleave', onAudioMouseUp);
       this.saveState();
     };
 
-    DOMElements.playerContainer.addEventListener('mousemove', onAudioMouseMove);
-    DOMElements.playerContainer.addEventListener('mouseup', onAudioMouseUp);
-    DOMElements.playerContainer.addEventListener('mouseleave', onAudioMouseUp);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', onAudioMouseMove);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', onAudioMouseUp);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseleave', onAudioMouseUp);
   }
 
   updateSilenceSkipper() {
     const fineTimeControls = this.client.interfaceController.fineTimeControls;
 
-    this.ui.thresholdBar.style.bottom = this.silenceThreshold * 100 + '%';
+    /** @type {{thresholdBar: HTMLElement}} */ (this.ui).thresholdBar.style.bottom = this.silenceThreshold * 100 + '%';
     if (fineTimeControls.isStateActive(this.onSilenceSkipperUIOpenHandle)) {
       fineTimeControls.setAudioSilenceThreshold(this.silenceThreshold, this.audioPaddingStart, this.audioPaddingEnd);
     }
@@ -131,7 +131,7 @@ export class PlaybackRateChanger extends EventEmitter {
   onSilenceSkipperUIOpen() {
     const fineTimeControls = this.client.interfaceController.fineTimeControls;
     fineTimeControls.ui.timelineAudioCanvasContainer.style.height = '200%';
-    fineTimeControls.ui.timelineAudio.appendChild(this.ui.thresholdBar);
+    fineTimeControls.ui.timelineAudio.appendChild(/** @type {{thresholdBar: HTMLElement}} */ (this.ui).thresholdBar);
     fineTimeControls.ui.timelineAudio.addEventListener('mousedown', this.onAudioMouseDownHandle);
     fineTimeControls.ui.timelineAudio.style.cursor = 'ns-resize';
     this.updateSilenceSkipper();
@@ -142,7 +142,7 @@ export class PlaybackRateChanger extends EventEmitter {
   onSilenceSkipperUIClose() {
     const fineTimeControls = this.client.interfaceController.fineTimeControls;
     fineTimeControls.ui.timelineAudioCanvasContainer.style.height = '';
-    fineTimeControls.ui.timelineAudio.removeChild(this.ui.thresholdBar);
+    fineTimeControls.ui.timelineAudio.removeChild(/** @type {{thresholdBar: HTMLElement}} */ (this.ui).thresholdBar);
     fineTimeControls.ui.timelineAudio.removeEventListener('mousedown', this.onAudioMouseDownHandle);
     fineTimeControls.ui.timelineAudio.style.cursor = '';
     fineTimeControls.setAudioSilenceThreshold(null);
@@ -279,7 +279,7 @@ export class PlaybackRateChanger extends EventEmitter {
       target: DOMElements.playbackRate,
     });
 
-    DOMElements.playbackRateMenuContainer.style.display = '';
+    /** @type {HTMLElement} */ (DOMElements.playbackRateMenuContainer).style.display = '';
 
     this.scrollToPosition();
     if (!dontSetStayVisible) {
@@ -299,14 +299,14 @@ export class PlaybackRateChanger extends EventEmitter {
 
   scrollToPosition() {
     const element = this.entryFor(this.playbackElements, this.playbackRate);
-    this.speedList.scrollTop = element.offsetTop - this.speedList.clientHeight / 2 + element.clientHeight / 2;
+    /** @type {HTMLDivElement} */ (this.speedList).scrollTop = element.offsetTop - /** @type {HTMLDivElement} */ (this.speedList).clientHeight / 2 + element.clientHeight / 2;
   }
 
   closeUI() {
     if (!this.isOpen()) {
       return false;
     }
-    DOMElements.playbackRateMenuContainer.style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.playbackRateMenuContainer).style.display = 'none';
     this.stayOpen = false;
     return true;
   }
@@ -320,7 +320,7 @@ export class PlaybackRateChanger extends EventEmitter {
   }
 
   isOpen() {
-    return DOMElements.playbackRateMenuContainer.style.display !== 'none';
+    return /** @type {HTMLElement} */ (DOMElements.playbackRateMenuContainer).style.display !== 'none';
   }
 
   setupUI() {
@@ -329,31 +329,31 @@ export class PlaybackRateChanger extends EventEmitter {
     this.speedList = speedList;
     speedList.classList.add('rate-changer-list');
 
-    DOMElements.rateMenu.appendChild(speedList);
+    /** @type {HTMLElement} */ (DOMElements.rateMenu).appendChild(speedList);
 
     let isMouseDown = false;
-    DOMElements.playbackRate.addEventListener('mousedown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('mousedown', (e) => {
       isMouseDown = true;
     }, true);
 
-    DOMElements.playbackRate.addEventListener('mouseup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('mouseup', (e) => {
       isMouseDown = false;
     }, true);
 
-    DOMElements.playbackRate.addEventListener('focus', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('focus', (e) => {
       if (!this.isOpen() && !isMouseDown) {
         this.openUI(true);
       }
     });
 
-    DOMElements.playbackRate.addEventListener('blur', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('blur', (e) => {
       isMouseDown = false;
       if (!this.stayOpen) {
         this.closeUI();
       }
     });
 
-    DOMElements.playbackRate.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('click', (e) => {
       if (e.shiftKey || e.altKey) {
         this.toggleSilenceSkipper();
         e.stopPropagation();
@@ -368,13 +368,13 @@ export class PlaybackRateChanger extends EventEmitter {
       e.stopPropagation();
     });
 
-    DOMElements.playbackRate.addEventListener('contextmenu', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.toggleSilenceSkipper();
     });
 
-    WebUtils.setupTabIndex(DOMElements.playbackRate);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.playbackRate));
 
     for (let i = 1; i <= this.maxPlaybackRate * 10; i += 1) {
       ((i) => {
@@ -396,7 +396,7 @@ export class PlaybackRateChanger extends EventEmitter {
 
     this.playbackElements = els;
 
-    DOMElements.playbackRate.addEventListener('keydown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('keydown', (e) => {
       // The button keeps the focus after a click closes the list; its keys are then the
       // player's again (the arrows are the volume), as for the quality and language lists.
       if (!this.isOpen()) return;
@@ -411,11 +411,11 @@ export class PlaybackRateChanger extends EventEmitter {
       }
     });
 
-    DOMElements.rateMenu.addEventListener('mousedown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.rateMenu).addEventListener('mousedown', (e) => {
       e.stopPropagation();
     });
 
-    DOMElements.rateMenu.addEventListener('mouseup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.rateMenu).addEventListener('mouseup', (e) => {
       e.stopPropagation();
     });
 
@@ -442,11 +442,11 @@ export class PlaybackRateChanger extends EventEmitter {
     this.scrollToPosition();
     element.classList.add('rate-selected');
 
-    DOMElements.playbackRateBanner.textContent = this.playbackRate.toFixed(1).padStart(1, '0');
+    /** @type {HTMLElement} */ (DOMElements.playbackRateBanner).textContent = this.playbackRate.toFixed(1).padStart(1, '0');
     if (this.playbackRate === 1) {
-      DOMElements.playbackRateBanner.style.display = 'none';
+      /** @type {HTMLElement} */ (DOMElements.playbackRateBanner).style.display = 'none';
     } else {
-      DOMElements.playbackRateBanner.style.display = '';
+      /** @type {HTMLElement} */ (DOMElements.playbackRateBanner).style.display = '';
     }
 
     if (!noEmit) {

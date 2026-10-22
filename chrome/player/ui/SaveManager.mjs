@@ -567,7 +567,7 @@ export class SaveManager {
         }
       } catch (e) {
         console.error(e);
-        if (newSource.loadedFromArchive) {
+        if (/** @type {VideoSource} */ (newSource).loadedFromArchive) {
           this.setStatusMessage('save-video', Localize.getMessage('player_archive_fail'), 'error', 4000);
         }
       }

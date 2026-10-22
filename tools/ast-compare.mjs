@@ -1,3 +1,4 @@
+// @ts-check
 // Structural comparison of two JavaScript files, ignoring the differences
 // that the project's own `eslint --fix` introduces.
 //
@@ -121,7 +122,7 @@ export function normalise(node) {
  * acorn needs to be told which; trying both avoids having to record it.
  *
  * @param {string} src JavaScript source
- * @return {object} the parsed program
+ * @return {any} the parsed program
  */
 export function parse(src) {
   try {

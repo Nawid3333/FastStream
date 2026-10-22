@@ -1,3 +1,4 @@
+// @ts-check
 const closeQueue = [];
 
 export class IndexedDBManager {
@@ -63,7 +64,7 @@ export class IndexedDBManager {
     const databases = await IndexedDBManager.getDatabases();
 
     return Promise.all(databases.map(async (database)=>{
-      if (database.name.startsWith('faststream-temp-')) {
+      if (/** @type {string} */ (database.name).startsWith('faststream-temp-')) {
         try {
           const db = await IndexedDBManager.requestDB(database.name, false);
           // check if stale
@@ -95,7 +96,7 @@ export class IndexedDBManager {
     const request = window.indexedDB.open(dbName, 3);
     if (open) {
       request.onupgradeneeded = (event) => {
-        const db = event.target.result;
+        const db = /** @type {IDBOpenDBRequest} */ (event.target).result;
         db.createObjectStore('metadata');
         db.createObjectStore('files');
       };
@@ -105,7 +106,7 @@ export class IndexedDBManager {
     } catch (e) {
       // A connection that comes after the timeout is closed: kept open, it held the
       // database, and its tab's own deleteDatabase waited on it when that tab closed.
-      request.onsuccess = (event) => event.target.result.close();
+      request.onsuccess = (event) => /** @type {IDBOpenDBRequest} */ (event.target).result.close();
       throw e;
     }
   }

@@ -1,3 +1,4 @@
+// @ts-check
 import {DefaultKeybinds, KeybindsWithModifiers} from './defaults/DefaultKeybinds.mjs';
 
 // Everything about keybinds that needs no DOM, so it can be tested in Node and shared by
@@ -271,7 +272,7 @@ export function keyDisplayName(keyString, noneText = 'None') {
     return noneText;
   }
   // The modifiers lead, each with its '+': the key itself may be a typed '+'.
-  const match = /^((?:(?:Meta|Control|Alt|Shift)\+)*)(.+)$/.exec(keyString);
+  const match = /** @type {RegExpExecArray} */ (/^((?:(?:Meta|Control|Alt|Shift)\+)*)(.+)$/.exec(keyString));
   const modifiers = match[1] ? match[1].slice(0, -1).split('+').map((m) => (m === 'Control' ? 'Ctrl' : m)) : [];
   const key = match[2];
   const named = /^Key([A-Z])$/.exec(key)?.[1] ?? /^Digit(\d)$/.exec(key)?.[1] ??

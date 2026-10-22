@@ -1,3 +1,4 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../enums/DefaultPlayerEvents.mjs';
 import {EventEmitter} from '../modules/eventemitter.mjs';
 import {Utils} from '../utils/Utils.mjs';
@@ -65,7 +66,7 @@ export class SyncedAudioPlayer extends EventEmitter {
     const delaySeconds = -this.videoDelay / 1000;
     // A delay node holds up to the most it was made for: one made for 1 s held a delay of
     // -1500 ms at -1000 (the options field takes any number; its slider stops at 1000).
-    if (this.audioDelayNode && !(this.audioContext && delaySeconds > 0 && delaySeconds <= this.audioDelayMax)) {
+    if (this.audioDelayNode && !(this.audioContext && delaySeconds > 0 && delaySeconds <= /** @type {number} */ (this.audioDelayMax))) {
       this.outputNode.disconnectFrom(this.audioDelayNode);
       this.audioSource.disconnect(this.audioDelayNode);
       this.outputNode.connectFrom(this.audioSource);
@@ -81,7 +82,7 @@ export class SyncedAudioPlayer extends EventEmitter {
         this.outputNode.connectFrom(this.audioDelayNode);
       }
 
-      this.audioDelayNode.delayTime.value = Math.min(delaySeconds, this.audioDelayMax);
+      this.audioDelayNode.delayTime.value = Math.min(delaySeconds, /** @type {number} */ (this.audioDelayMax));
     }
     this.consecutiveResyncs = 0;
   }

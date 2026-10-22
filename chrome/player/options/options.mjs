@@ -21,56 +21,56 @@ import {ColorThemes} from './defaults/ColorThemes.mjs';
 import {MpvSuggestion} from './MpvSuggestion.mjs';
 
 let Options = {};
-const playStreamURLs = document.getElementById('playstreamurls');
-const playMP4URLs = document.getElementById('playmp4urls');
-const downloadAll = document.getElementById('downloadall');
-const keybindsList = document.getElementById('keybindslist');
-const autoEnableURLSInput = document.getElementById('autoEnableURLs');
-const mpvModeToggle = document.getElementById('mpvmode');
-const mpvModeSectionToggle = document.getElementById('mpvModeSectionToggle');
-const mpvAllowlistInput = document.getElementById('mpvAllowlist');
-const mpvPathInput = document.getElementById('mpvpath');
-const mpvFullscreenToggle = document.getElementById('mpvfullscreen');
-const mpvPausePageToggle = document.getElementById('mpvpausepage');
-const mpvSingleInstanceToggle = document.getElementById('mpvsingleinstance');
-const mpvAutoplayNextToggle = document.getElementById('mpvautoplaynext');
-const mpvTestButton = document.getElementById('mpvtest');
-const mpvTestResult = document.getElementById('mpvtestresult');
-const autoSub = document.getElementById('autosub');
-const maxSpeed = document.getElementById('maxspeed');
-const maxSize = document.getElementById('maxsize');
-const maxSizeUnit = document.getElementById('maxsizeunit');
-const ramBudget = document.getElementById('rambudget');
-const ramBudgetUnit = document.getElementById('rambudgetunit');
-const bufferToDisk = document.getElementById('buffertodisk');
-const bufferAhead = document.getElementById('bufferahead');
-const bufferBehind = document.getElementById('bufferbehind');
-const seekStepSize = document.getElementById('seekstepsize');
-const autoplayNext = document.getElementById('autoplaynext');
-const autoplayCountdown = document.getElementById('autoplaycountdown');
-const problemsList = document.getElementById('problemslist');
-const clearProblemsButton = document.getElementById('clearproblems');
-const blockPopupsWhilePlaying = document.getElementById('blockpopupswhileplaying');
+const playStreamURLs = /** @type {HTMLInputElement} */ (document.getElementById('playstreamurls'));
+const playMP4URLs = /** @type {HTMLInputElement} */ (document.getElementById('playmp4urls'));
+const downloadAll = /** @type {HTMLInputElement} */ (document.getElementById('downloadall'));
+const keybindsList = /** @type {HTMLElement} */ (document.getElementById('keybindslist'));
+const autoEnableURLSInput = /** @type {HTMLTextAreaElement} */ (document.getElementById('autoEnableURLs'));
+const mpvModeToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvmode'));
+const mpvModeSectionToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvModeSectionToggle'));
+const mpvAllowlistInput = /** @type {HTMLTextAreaElement} */ (document.getElementById('mpvAllowlist'));
+const mpvPathInput = /** @type {HTMLInputElement} */ (document.getElementById('mpvpath'));
+const mpvFullscreenToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvfullscreen'));
+const mpvPausePageToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvpausepage'));
+const mpvSingleInstanceToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvsingleinstance'));
+const mpvAutoplayNextToggle = /** @type {HTMLInputElement} */ (document.getElementById('mpvautoplaynext'));
+const mpvTestButton = /** @type {HTMLButtonElement} */ (document.getElementById('mpvtest'));
+const mpvTestResult = /** @type {HTMLElement} */ (document.getElementById('mpvtestresult'));
+const autoSub = /** @type {HTMLInputElement} */ (document.getElementById('autosub'));
+const maxSpeed = /** @type {HTMLInputElement} */ (document.getElementById('maxspeed'));
+const maxSize = /** @type {HTMLInputElement} */ (document.getElementById('maxsize'));
+const maxSizeUnit = /** @type {HTMLSelectElement} */ (document.getElementById('maxsizeunit'));
+const ramBudget = /** @type {HTMLInputElement} */ (document.getElementById('rambudget'));
+const ramBudgetUnit = /** @type {HTMLSelectElement} */ (document.getElementById('rambudgetunit'));
+const bufferToDisk = /** @type {HTMLInputElement} */ (document.getElementById('buffertodisk'));
+const bufferAhead = /** @type {HTMLInputElement} */ (document.getElementById('bufferahead'));
+const bufferBehind = /** @type {HTMLInputElement} */ (document.getElementById('bufferbehind'));
+const seekStepSize = /** @type {HTMLInputElement} */ (document.getElementById('seekstepsize'));
+const autoplayNext = /** @type {HTMLInputElement} */ (document.getElementById('autoplaynext'));
+const autoplayCountdown = /** @type {HTMLInputElement} */ (document.getElementById('autoplaycountdown'));
+const problemsList = /** @type {HTMLElement} */ (document.getElementById('problemslist'));
+const clearProblemsButton = /** @type {HTMLButtonElement} */ (document.getElementById('clearproblems'));
+const blockPopupsWhilePlaying = /** @type {HTMLInputElement} */ (document.getElementById('blockpopupswhileplaying'));
 const qualityMenu = document.getElementById('quality');
-const importButton = document.getElementById('import');
-const exportButton = document.getElementById('export');
+const importButton = /** @type {HTMLElement} */ (document.getElementById('import'));
+const exportButton = /** @type {HTMLElement} */ (document.getElementById('export'));
 const clickAction = document.getElementById('clickaction');
 const dblclickAction = document.getElementById('dblclickaction');
 const tplclickAction = document.getElementById('tplclickaction');
 const visChangeAction = document.getElementById('vischangeaction');
-const customSourcePatterns = document.getElementById('customSourcePatterns');
-const showWhenMiniSelected = document.getElementById('showWhenMiniSelected');
-const storeProgress = document.getElementById('storeprogress');
-const miniSize = document.getElementById('minisize');
+const customSourcePatterns = /** @type {HTMLTextAreaElement} */ (document.getElementById('customSourcePatterns'));
+const showWhenMiniSelected = /** @type {HTMLElement} */ (document.getElementById('showWhenMiniSelected'));
+const storeProgress = /** @type {HTMLInputElement} */ (document.getElementById('storeprogress'));
+const miniSize = /** @type {HTMLInputElement} */ (document.getElementById('minisize'));
 const miniPos = document.getElementById('minipos');
-const previewEnabled = document.getElementById('previewenabled');
-const decodingAwareQuality = document.getElementById('decodingawarequality');
-const replaceDelay = document.getElementById('replacedelay');
+const previewEnabled = /** @type {HTMLInputElement} */ (document.getElementById('previewenabled'));
+const decodingAwareQuality = /** @type {HTMLInputElement} */ (document.getElementById('decodingawarequality'));
+const replaceDelay = /** @type {HTMLInputElement} */ (document.getElementById('replacedelay'));
 const colorTheme = document.getElementById('colortheme');
 const videoAspectRatio = document.getElementById('videoAspectRatio');
-const optionsSearchBar = document.getElementById('searchbar');
-const optionsResetButton = document.getElementById('resetsearch');
-const maxdownloaders = document.getElementById('maxdownloaders');
+const optionsSearchBar = /** @type {HTMLInputElement} */ (document.getElementById('searchbar'));
+const optionsResetButton = /** @type {HTMLElement} */ (document.getElementById('resetsearch'));
+const maxdownloaders = /** @type {HTMLInputElement} */ (document.getElementById('maxdownloaders'));
 autoEnableURLSInput.setAttribute('autocapitalize', 'off');
 autoEnableURLSInput.setAttribute('autocomplete', 'off');
 autoEnableURLSInput.setAttribute('autocorrect', 'off');
@@ -140,7 +140,7 @@ if (!EnvUtils.isExtension()) {
   mpvSingleInstanceToggle.disabled = true;
   mpvAutoplayNextToggle.disabled = true;
   mpvTestButton.disabled = true;
-  miniSize.disabled = true;
+  /** @type {HTMLInputElement} */ (miniSize).disabled = true;
   autoplayNext.disabled = true;
   autoplayCountdown.disabled = true;
 }
@@ -204,12 +204,12 @@ async function loadOptions(newOptions) {
     renderKeybinds();
   }
 
-  document.querySelectorAll('.video-option').forEach((option) => {
-    const numberInput = option.querySelector('input.number');
-    const rangeInput = option.querySelector('input.range');
+  /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.video-option')).forEach((option) => {
+    const numberInput = /** @type {HTMLInputElement} */ (option.querySelector('input.number'));
+    const rangeInput = /** @type {HTMLInputElement & {value: any}} */ (option.querySelector('input.range'));
     const unit = option.dataset.unit || '%';
-    const unitMultiplier = parseInt(option.dataset.multiplier || 100);
-    const optionKey = option.dataset.option;
+    const unitMultiplier = parseInt(/** @type {string} */ (option.dataset.multiplier) || 100);
+    const optionKey = /** @type {string} */ (option.dataset.option);
     const val = Math.round(Options[optionKey] * unitMultiplier);
     rangeInput.value = val;
     numberInput.value = val + unit;
@@ -218,7 +218,7 @@ async function loadOptions(newOptions) {
   autoEnableURLSInput.value = Options.autoEnableURLs.join('\n');
 
   if (Options.dev) {
-    document.getElementById('dev').style.display = '';
+    /** @type {HTMLElement} */ (document.getElementById('dev')).style.display = '';
   }
   // MPV mode turned on another way ends the offer.
   if (mpvSuggestion) {
@@ -231,6 +231,9 @@ async function loadOptions(newOptions) {
   }
 }
 
+/**
+ * @param {((option: string) => string)|null} [labelOf]
+ */
 function createSelectMenu(container, options, selected, localPrefix, callback, labelOf = null) {
   container.replaceChildren();
   const select = document.createElement('select');
@@ -336,12 +339,12 @@ document.querySelectorAll('.option').forEach((option) => {
 });
 
 document.querySelectorAll('.video-option').forEach((option) => {
-  const numberInput = option.querySelector('input.number');
-  const rangeInput = option.querySelector('input.range');
+  const numberInput = /** @type {HTMLInputElement} */ (option.querySelector('input.number'));
+  const rangeInput = /** @type {HTMLInputElement & {value: any}} */ (option.querySelector('input.range'));
   const unit = option.dataset.unit || '%';
-  const unitMultiplier = parseInt(option.dataset.multiplier || 100);
+  const unitMultiplier = parseInt(/** @type {string} */ (option.dataset.multiplier) || 100);
 
-  const optionKey = option.dataset.option;
+  const optionKey = /** @type {string} */ (option.dataset.option);
 
   function numberInputChanged() {
     const text = numberInput.value.replace(unit, '').trim();
@@ -410,9 +413,9 @@ function renderKeybinds() {
  */
 function refreshKeybindConflicts() {
   const partners = conflictPartners(Options.keybinds);
-  keybindsList.querySelectorAll('.keybind-container').forEach((container) => {
+  /** @type {NodeListOf<HTMLElement>} */ (keybindsList.querySelectorAll('.keybind-container')).forEach((container) => {
     const others = partners.get(container.dataset.keybind);
-    const warning = container.querySelector('.keybind-warning');
+    const warning = /** @type {HTMLElement} */ (container.querySelector('.keybind-warning'));
     container.classList.toggle('keybind-conflict', !!others);
     warning.hidden = !others;
     warning.textContent = others ? Localize.getMessage('options_keybinds_conflict', [others.map(keybindLabel).join(', ')]) : '';
@@ -494,10 +497,10 @@ function createKeybindElement(keybind) {
 }
 
 if (EnvUtils.isExtension()) {
-  document.getElementById('welcome').href = chrome.runtime.getURL('welcome.html');
+  /** @type {HTMLAnchorElement} */ (document.getElementById('welcome')).href = chrome.runtime.getURL('welcome.html');
 } else {
   // The web build has no welcome page (build.mjs leaves it out): the link was a 404.
-  document.getElementById('welcomeitem').style.display = 'none';
+  /** @type {HTMLElement} */ (document.getElementById('welcomeitem')).style.display = 'none';
 }
 
 playMP4URLs.addEventListener('change', () => {
@@ -583,7 +586,7 @@ mpvTestButton.addEventListener('click', () => {
   const sendTest = () => {
     chrome.runtime.sendMessage({type: 'MPV_TEST'}, (response) => {
       if (chrome.runtime.lastError || !response) {
-        mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_fail');
+        mpvTestResult.textContent = /** @type {any} */ (window).getI18nMessage('options_mpv_test_fail');
         return;
       }
       if (response.ok && response.mpv && typeof response.path === 'string') {
@@ -592,21 +595,21 @@ mpvTestButton.addEventListener('click', () => {
         // hid that.
         const typed = mpvPathInput.value.trim();
         mpvTestResult.textContent = !typed || samePath(typed, response.path) ?
-          window.getI18nMessage('options_mpv_test_ok_at', [response.path]) :
-          window.getI18nMessage('options_mpv_test_otherpath', [response.path]);
+          /** @type {any} */ (window).getI18nMessage('options_mpv_test_ok_at', [response.path]) :
+          /** @type {any} */ (window).getI18nMessage('options_mpv_test_otherpath', [response.path]);
       } else if (response.ok && response.mpv) {
-        mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_ok');
+        mpvTestResult.textContent = /** @type {any} */ (window).getI18nMessage('options_mpv_test_ok');
       } else if (response.ok) {
-        mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_nompv');
+        mpvTestResult.textContent = /** @type {any} */ (window).getI18nMessage('options_mpv_test_nompv');
       } else {
-        mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_fail');
+        mpvTestResult.textContent = /** @type {any} */ (window).getI18nMessage('options_mpv_test_fail');
       }
       // The host answered as an older version than this extension was released with
       // (MpvBackend's RequiredHostVersion): the copy on this PC was not installed again
       // after the host changed.
       if (response.ok && response.hostOutdated) {
         // The steps differ: Windows has a Start menu entry, Linux and macOS a manifest.
-        mpvTestResult.textContent += ' ' + window.getI18nMessage(EnvUtils.isWindows() ?
+        mpvTestResult.textContent += ' ' + /** @type {any} */ (window).getI18nMessage(EnvUtils.isWindows() ?
           'options_mpv_test_outdated' : 'options_mpv_test_outdated_unix');
       }
       // An mpv the host started is open: which decoder it plays with, as mpv says. On the
@@ -614,7 +617,7 @@ mpvTestButton.addEventListener('click', () => {
       if (response.ok && response.decoder && typeof response.decoderText === 'string') {
         const key = response.decoder.hardware ? 'options_mpv_test_decoder_hw' : 'options_mpv_test_decoder_sw';
         const what = response.decoderText || String(response.decoder.api || '');
-        mpvTestResult.textContent += ' ' + window.getI18nMessage(key, [what]);
+        mpvTestResult.textContent += ' ' + /** @type {any} */ (window).getI18nMessage(key, [what]);
       }
     });
   };
@@ -627,7 +630,7 @@ mpvTestButton.addEventListener('click', () => {
           if (granted) {
             sendTest();
           } else {
-            mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_fail');
+            mpvTestResult.textContent = /** @type {any} */ (window).getI18nMessage('options_mpv_test_fail');
           }
         });
       }
@@ -672,7 +675,7 @@ autoplayNext.addEventListener('change', () => {
  */
 async function renderProblems() {
   if (!EnvUtils.isExtension()) {
-    document.getElementById('autoplayproblems').hidden = true;
+    /** @type {HTMLElement} */ (document.getElementById('autoplayproblems')).hidden = true;
     return;
   }
   const problems = await readProblems();
@@ -863,7 +866,7 @@ function readNumberField(input, fallback, min, max = Infinity, whole = false) {
   const text = String(input.value).trim().replace(',', '.');
   const value = whole ? parseInt(text) : parseFloat(text);
   const result = Number.isFinite(value) ? Math.min(Math.max(value, min), max) : fallback;
-  input.value = result;
+  input.value = /** @type {string} */ (/** @type {unknown} */ (result));
   return result;
 }
 
@@ -879,7 +882,7 @@ function showSeconds(input, seconds) {
 
 // Whole seconds; an empty field is no limit (-1), and anything else that is no number keeps
 // the value saved (an empty field read as 0 kept nothing buffered).
-for (const [input, option] of [[bufferAhead, 'bufferAhead'], [bufferBehind, 'bufferBehind']]) {
+for (const [input, option] of /** @type {[HTMLInputElement, string][]} */ ([[bufferAhead, 'bufferAhead'], [bufferBehind, 'bufferBehind']])) {
   input.addEventListener('change', (e) => {
     const text = input.value.trim().replace(',', '.');
     const seconds = text === '' ? -1 : Number(text);
@@ -924,7 +927,7 @@ maxdownloaders.addEventListener('change', () => {
  * @param {HTMLInputElement|HTMLTextAreaElement} input
  */
 function saveWhileTyping(input) {
-  let timer = null;
+  /** @type {any} */ let timer = null;
   // Typed and not saved yet: an emptied field waits for the field or the page to be left.
   let unsaved = false;
   const save = (leaving = false) => {
@@ -1001,13 +1004,13 @@ optionsResetButton.addEventListener('click', () => {
   resetSearch();
 });
 
-document.getElementById('resetdefault').addEventListener('click', () => {
+/** @type {HTMLElement} */ (document.getElementById('resetdefault')).addEventListener('click', () => {
   Options.keybinds = structuredClone(DefaultKeybinds);
   renderKeybinds();
   optionChanged();
 });
 
-WebUtils.setupTabIndex(document.getElementById('resetdefault'));
+WebUtils.setupTabIndex(/** @type {HTMLElement} */ (document.getElementById('resetdefault')));
 
 autoEnableURLSInput.addEventListener('change', (e) => {
   Options.autoEnableURLs = autoEnableURLSInput.value.split('\n').map((o)=>o.trim()).filter((o)=>o.length);
@@ -1027,7 +1030,7 @@ importButton.addEventListener('click', () => {
   picker.type = 'file';
   picker.accept = '.json';
   picker.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
+    const file = /** @type {HTMLInputElement} */ (e.target).files[0];
     if (!file) return;
     let newOptionsObj;
     try {
@@ -1071,6 +1074,7 @@ exportButton.addEventListener('click', async () => {
 // saves too, and redrawing the page then rebuilt every keybind row (the box a key was
 // just pressed in lost focus), rewrote a number field after each key typed (the caret
 // jumped to the end) and undid a search; the page already shows what it saved.
+/** @type {object|null} */
 let ownSave = null;
 
 function optionChanged() {
@@ -1084,7 +1088,7 @@ function optionChanged() {
   ownSave = OptionsStore.get();
 }
 
-const versionDiv = document.getElementById('version');
+const versionDiv = /** @type {HTMLElement} */ (document.getElementById('version'));
 versionDiv.textContent = `FastStream v${EnvUtils.getVersion()}`;
 
 // if in iframe, add the frame class to body
@@ -1111,14 +1115,14 @@ if (EnvUtils.isExtension()) {
   o.observe(document.body);
 
   // SPLICER:NO_UPDATE_CHECKER:REMOVE_START
-  const updatebox = document.getElementById('updatebox');
-  const updatetext = document.getElementById('updatetext');
+  const updatebox = /** @type {HTMLElement} */ (document.getElementById('updatebox'));
+  const updatetext = /** @type {HTMLElement} */ (document.getElementById('updatetext'));
   const updatenotif = parent.document ? parent.document.getElementById('update_notif_banner') : null;
 
   chrome.storage.local.get({
     updateData: '{}',
   }, async (result) => {
-    const data = result?.updateData ? JSON.parse(result.updateData) : {};
+    const data = result?.updateData ? JSON.parse(/** @type {string} */ (result.updateData)) : {};
     const now = Date.now();
     if (!data.latestVersion || now - data.lastUpdateCheck > 1000 * 60 * 60 * 12) {
       data.latestVersion = await UpdateChecker.getLatestVersion();
@@ -1138,22 +1142,22 @@ if (EnvUtils.isExtension()) {
       if (updatenotif) {
         updatenotif.style.display = 'block';
         // A bare "!" on the settings button said nothing of what it is about.
-        updatenotif.title = window.getI18nMessage('options_update_header');
+        updatenotif.title = /** @type {any} */ (window).getI18nMessage('options_update_header');
       }
     }
   });
 
-  document.getElementById('update').addEventListener('click', (e) => {
+  /** @type {HTMLElement} */ (document.getElementById('update')).addEventListener('click', (e) => {
     chrome.tabs.create({
       url: 'https://github.com/Nawid3333/FastStream/releases',
     });
   });
 
-  document.getElementById('noupdate').addEventListener('click', (e) => {
+  /** @type {HTMLElement} */ (document.getElementById('noupdate')).addEventListener('click', (e) => {
     updatebox.style.display = 'none';
     if (updatenotif) updatenotif.style.display = 'none';
     chrome.storage.local.get('updateData', (result) => {
-      const data = result?.updateData ? JSON.parse(result.updateData) : {};
+      const data = result?.updateData ? JSON.parse(/** @type {string} */ (result.updateData)) : {};
       data.ignoreVersion = data.latestVersion;
       chrome.storage.local.set({
         updateData: JSON.stringify(data),

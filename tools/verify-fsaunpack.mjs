@@ -45,7 +45,7 @@ entries.forEach((entry, i) => {
  */
 function notLoopbackAddress() {
   const found = Object.values(os.networkInterfaces()).flat()
-      .find((address) => address && (address.family === 'IPv4' || address.family === 4) && !address.internal);
+      .find((address) => address && (address.family === 'IPv4' || (/** @type {string|number} */ (address.family)) === 4) && !address.internal);
   return found ? found.address : null;
 }
 
@@ -70,7 +70,7 @@ function reachable(host, port) {
 
 const port = await new Promise((resolve, reject) => {
   const probe = net.createServer().once('error', reject).listen(0, '127.0.0.1', () => {
-    const {port: free} = probe.address();
+    const {port: free} = /** @type {import('node:net').AddressInfo} */ (probe.address());
     probe.close(() => resolve(free));
   });
 });

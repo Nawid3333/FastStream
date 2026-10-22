@@ -1,13 +1,17 @@
 import {WebUtils} from '../../utils/WebUtils.mjs';
 
+/**
+ * @param {((choice: string, text: string) => void) | null} editableCallback - Called with the dropdown's value and the edited text.
+ */
 export function createDropdown(defaultChoice, title, items, call, editableCallback = null) {
+/** @type {(tag: string, style?: string | null, className?: string) => HTMLElement} */
   const create = WebUtils.create;
   const container = create('div', null, 'dropdown');
 
   const text = create('div');
   text.appendChild(document.createTextNode(`${title}: `));
   const span = create('span', null, 'dropdown_text');
-  span.contentEditable = editableCallback != null;
+  span.contentEditable = /** @type {any} */ (editableCallback != null);
   span.textContent = items[defaultChoice];
   text.appendChild(span);
   text.appendChild(document.createTextNode(' ˅'));
@@ -68,13 +72,13 @@ export function createDropdown(defaultChoice, title, items, call, editableCallba
  */
 export function renameDropdownChoice(container, value) {
   const text = container.children[0];
-  const span = text.querySelector('.dropdown_text');
+  const span = /** @type {HTMLElement} */ (text.querySelector('.dropdown_text'));
   // Set only when it differs, or the caret of an edit in progress would jump.
   if (span.textContent !== value) span.textContent = value;
-  const item = Array.from(container.querySelector('.items').children).find((el) => el.dataset.val === container.dataset.val);
+  const item = Array.from(/** @type {HTMLElement} */ (container.querySelector('.items')).children).find((el) => /** @type {HTMLElement} */ (el).dataset.val === container.dataset.val);
   if (item) item.textContent = value;
   // The label is the title's text node ("Profile: ") and the name.
-  container.ariaLabel = text.firstChild.textContent + value;
+  container.ariaLabel = /** @type {Text} */ (text.firstChild).textContent + value;
 }
 
 

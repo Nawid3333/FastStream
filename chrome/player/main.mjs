@@ -257,6 +257,7 @@ async function loadOptions() {
 
 async function setup() {
   if (!window.fastStream) {
+    /** @type {FastStreamClient} */
     window.fastStream = new FastStreamClient();
     await window.fastStream.setup();
   }
@@ -317,6 +318,7 @@ async function setup() {
   // Only a player in a page's frame: a player tab's own leave is the user's (an address typed
   // there), and loading again there would cancel a navigation that took over StayedMs.
   const StayedMs = 3000;
+  /** @type {any} */
   let stayTimer = null;
   window.addEventListener('beforeunload', () => {
     const time = window.fastStream?.source ? window.fastStream.currentTime : 0;
@@ -409,13 +411,13 @@ setup().catch((e)=>{
 // When it is added, move the player to the right
 const observer = new MutationObserver((mutations) => {
   mutations.forEach((mutation) => {
-    mutation.addedNodes.forEach((node) => {
+    mutation.addedNodes.forEach((/** @type {Element} */ node) => {
       if (node.id === 'wave_sidebar_container' || node.id === 'waveordercontainer') {
         doWaveFix();
       }
     });
 
-    mutation.removedNodes.forEach((node) => {
+    mutation.removedNodes.forEach((/** @type {Element} */ node) => {
       if (node.id === 'wave_sidebar_container') {
         undoWaveFix();
       }
@@ -427,16 +429,17 @@ observer.observe(document.body, {
   childList: true,
 });
 
+/** @type {ResizeObserver|null} */
 let lastObserver = null;
 
 function doWaveFix() {
-  const player = document.querySelector('.mainplayer');
+  const player = /** @type {HTMLElement} */ (document.querySelector('.mainplayer'));
   if (player) {
     player.style.left = '380px';
     player.style.width = 'calc(100% - 380px)';
   }
 
-  const waveordercontainer = document.querySelector('#waveordercontainer');
+  const waveordercontainer = /** @type {HTMLElement} */ (document.querySelector('#waveordercontainer'));
   if (waveordercontainer) {
     waveordercontainer.style.left = '380px';
   }
@@ -460,7 +463,7 @@ function doWaveFix() {
 }
 
 function undoWaveFix() {
-  const player = document.querySelector('.mainplayer');
+  const player = /** @type {HTMLElement} */ (document.querySelector('.mainplayer'));
   if (player) {
     player.style.left = '';
     player.style.width = '';

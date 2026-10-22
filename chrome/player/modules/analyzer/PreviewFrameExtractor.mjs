@@ -26,7 +26,7 @@ export class PreviewFrameExtractor extends EventEmitter {
     this.backgroundStarts = 0;
 
     this.extractorCanvas = document.createElement('canvas');
-    this.extractorContext = this.extractorCanvas.getContext('2d');
+    this.extractorContext = /** @type {CanvasRenderingContext2D} */ (this.extractorCanvas.getContext('2d'));
   }
 
   getFrameBuffer() {
@@ -208,6 +208,9 @@ export class PreviewFrameExtractor extends EventEmitter {
     return player;
   }
 
+  /**
+   * @param {{start: number, end: number}[]} doneRanges
+   */
   runAnalyzerInBackground(player, doneRanges, onDone) {
     const offsetTarget = -35;
     const time = this.client.currentTime;
@@ -246,8 +249,10 @@ export class PreviewFrameExtractor extends EventEmitter {
       doneRanges = [];
     }
 
+    /** @type {{start: number, end: number}|null} */
     let currentRange = null;
     let currentRangeIndex = 0;
+    /** @type {{start: number, end: number}|null} */
     let currentClientRange = null;
     let lastOffsetCalc = Date.now();
 
@@ -312,7 +317,7 @@ export class PreviewFrameExtractor extends EventEmitter {
         const url = this.extractorCanvas.toDataURL('image/png');
         if (SHOULD_STORE_AS_BLOB) {
           // convert to blob
-          const blob = new Blob([Uint8Array.fromBase64(url.slice(url.indexOf(',') + 1))], {type: 'image/png'});
+          const blob = new Blob([/** @type {any} */ (Uint8Array).fromBase64(url.slice(url.indexOf(',') + 1))], {type: 'image/png'});
           this.frameBuffer[frame] = {
             blob,
             url: URL.createObjectURL(blob),

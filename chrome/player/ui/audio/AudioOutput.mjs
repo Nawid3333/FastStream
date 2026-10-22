@@ -23,8 +23,8 @@ export class AudioOutput extends AbstractAudioModule {
   setupNodes(audioContext) {
     super.setupNodes(audioContext);
     this.gain.setupNodes(audioContext);
-    this.getInputNode().connect(this.gain.getInputNode());
-    this.gain.getOutputNode().connect(this.getOutputNode());
+    /** @type {AudioNode} */ (this.getInputNode()).connect(this.gain.getInputNode());
+    /** @type {AudioNode} */ (this.gain.getOutputNode()).connect(this.getOutputNode());
     this.updateChannelCount();
   }
 
@@ -96,12 +96,12 @@ export class AudioOutput extends AbstractAudioModule {
         this.cachedChannelCount = count;
         this.channelCounterPromise = null;
         this.channelCounterNode = null;
-        this.getInputNode().disconnect(node.getNode());
+        /** @type {AudioNode} */ (this.getInputNode()).disconnect(node.getNode());
         node.destroy();
         resolve(count);
       });
 
-      this.getInputNode().connect(node.getNode());
+      /** @type {AudioNode} */ (this.getInputNode()).connect(node.getNode());
     });
 
     return this.channelCounterPromise;
@@ -112,7 +112,7 @@ export class AudioOutput extends AbstractAudioModule {
     this.channelCounterPromise = null;
     if (this.channelCounterNode) {
       try {
-        this.getInputNode().disconnect(this.channelCounterNode.getNode());
+        /** @type {AudioNode} */ (this.getInputNode()).disconnect(this.channelCounterNode.getNode());
       } catch (e) {
       }
       this.channelCounterNode.destroy();

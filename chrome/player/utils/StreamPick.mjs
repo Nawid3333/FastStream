@@ -45,7 +45,7 @@ export class StreamPick {
       // Its file: the length read from it, when there is one.
       length = StreamPick.lengthOf(played[0].duration) ?? length;
     } else if (length !== null) {
-      played = sources.filter((source) => StreamPick.sameLength(source.duration, length));
+      played = sources.filter((source) => StreamPick.sameLength(source.duration, /** @type {number} */ (length)));
     }
     if (played.length === 0) {
       return null;
@@ -170,7 +170,7 @@ export class StreamPick {
     if (duration === Infinity || length === Infinity) {
       return duration === length;
     }
-    return Math.abs(duration - length) <= Math.max(MATCH_S, length * MATCH_SHARE);
+    return Math.abs(/** @type {number} */ (duration) - length) <= Math.max(MATCH_S, length * MATCH_SHARE);
   }
 
   /**

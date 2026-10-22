@@ -1,3 +1,4 @@
+// @ts-check
 import {AbstractAudioModule} from './AbstractAudioModule.mjs';
 
 export class AudioGain extends AbstractAudioModule {
@@ -10,7 +11,7 @@ export class AudioGain extends AbstractAudioModule {
   setupNodes(audioContext) {
     super.setupNodes(audioContext);
     this.gainNode = null;
-    this.getInputNode().connect(this.getOutputNode());
+    /** @type {any} */ (this.getInputNode()).connect(this.getOutputNode());
     this.updateNodes();
   }
 
@@ -32,16 +33,16 @@ export class AudioGain extends AbstractAudioModule {
     if (this.gain !== 1) {
       if (!this.gainNode) {
         this.gainNode = this.audioContext.createGain();
-        this.getInputNode().disconnect(this.getOutputNode());
-        this.getInputNode().connect(this.gainNode);
-        this.getOutputNode().connectFrom(this.gainNode);
+        /** @type {any} */ (this.getInputNode()).disconnect(this.getOutputNode());
+        /** @type {any} */ (this.getInputNode()).connect(this.gainNode);
+        /** @type {any} */ (this.getOutputNode()).connectFrom(this.gainNode);
       }
       this.gainNode.gain.value = this.gain;
     } else {
       if (this.gainNode && yeet) {
-        this.getInputNode().disconnect(this.gainNode);
-        this.getOutputNode().disconnectFrom(this.gainNode);
-        this.getInputNode().connect(this.getOutputNode());
+        /** @type {any} */ (this.getInputNode()).disconnect(this.gainNode);
+        /** @type {any} */ (this.getOutputNode()).disconnectFrom(this.gainNode);
+        /** @type {any} */ (this.getInputNode()).connect(this.getOutputNode());
         this.gainNode = null;
       } else if (this.gainNode) {
         // The node goes once the volume has settled; until then the old volume stayed on.

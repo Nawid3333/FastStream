@@ -1,6 +1,7 @@
 import {WebUtils} from '../../utils/WebUtils.mjs';
 
 export function createPagesBar(page, totalPages, callback) {
+  /** @type {(tag: string, attrs: any, className: string) => HTMLElement} */
   const create = WebUtils.create;
   const total = Math.min(totalPages, 1000);
   let start = Math.max(page - 5, 1);

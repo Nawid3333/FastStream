@@ -21,7 +21,7 @@ export default class DashPlayer extends EventEmitter {
     this.isAudioOnly = config?.isAudioOnly || false;
     this.isAnalyzer = config?.isAnalyzer || false;
     this.defaultQuality = client.options.defaultQuality || 'Auto';
-    this.video = document.createElement(this.isAudioOnly ? 'audio' : 'video');
+    this.video = /** @type {HTMLVideoElement} */ (document.createElement(this.isAudioOnly ? 'audio' : 'video'));
 
     this.fragmentRequester = new DashFragmentRequester(this);
     this.activeRequests = [];
@@ -294,7 +294,7 @@ export default class DashPlayer extends EventEmitter {
   }
 
   downloadFragment(fragment, priority) {
-    return new Promise((resolve, reject) => {
+    return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
       this.fragmentRequester.requestFragment(fragment, {
         skipProcess: true,
         onProgress: (e) => {
@@ -310,7 +310,7 @@ export default class DashPlayer extends EventEmitter {
           reject(new Error('Aborted download'));
         },
       }, null, priority);
-    });
+    }));
   }
 
   async play() {
@@ -338,7 +338,7 @@ export default class DashPlayer extends EventEmitter {
       this.videoErrorListener = null;
     }
     VideoUtils.destroyVideo(this.video);
-    this.video = null;
+    this.video = /** @type {any} */ (null);
 
     this.emit(DefaultPlayerEvents.DESTROYED);
   }
@@ -494,7 +494,7 @@ export default class DashPlayer extends EventEmitter {
     const videoFragments = this.client.getFragments(this.getCurrentVideoLevelID()) || [];
     const audioFragments = this.client.getFragments(this.getCurrentAudioLevelID()) || [];
 
-    let zippedFragments = Utils.zipTimedFragments([videoFragments, audioFragments]);
+    let zippedFragments = Utils.zipTimedFragments(/** @type {any} */ ([videoFragments, audioFragments]));
 
     if (options.partialSave) {
       zippedFragments = zippedFragments.filter((data) => {

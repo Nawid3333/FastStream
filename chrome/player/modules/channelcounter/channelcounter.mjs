@@ -1,3 +1,4 @@
+// @ts-check
 import {EventEmitter} from '../eventemitter.mjs';
 
 const currentScript = import.meta;
@@ -38,7 +39,7 @@ export class ChannelCounterNode extends EventEmitter {
     if (!this.counterNode) {
       return;
     }
-    this.getNode().port.postMessage({type: 'close'});
+    /** @type {AudioWorkletNode} */ (this.getNode()).port.postMessage({type: 'close'});
     this.counterNode.disconnect();
     this.counterNode = undefined;
   }

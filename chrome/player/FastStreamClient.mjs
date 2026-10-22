@@ -67,6 +67,14 @@ const PREVIEW_RELOAD_LIMIT = 3;
 // (watchEndStall).
 const EndStallMs = 3000;
 
+/**
+ * A player built by PlayerLoader: the members of one that this client uses.
+ * @typedef {Object} LoadedPlayer
+ * @property {() => Promise<void>} setup
+ * @property {(source: Object) => Promise<void>} setSource
+ * @property {() => void} destroy
+ * @property {() => HTMLVideoElement} getVideo
+ */
 export class FastStreamClient extends EventEmitter {
   /**
    * Constructs a FastStreamClient instance.
@@ -157,6 +165,7 @@ export class FastStreamClient extends EventEmitter {
     this.audioAnalyzer = new AudioAnalyzer(this);
     this.frameExtractor = new PreviewFrameExtractor(this);
     if (EnvUtils.isWebAudioSupported()) {
+      /** @type {AudioOutput} */
       this.audioOutput = new AudioOutput();
       this.audioContext = new AudioContext();
       this.audioOutput.setupNodes(this.audioContext);
@@ -716,7 +725,7 @@ export class FastStreamClient extends EventEmitter {
         this.hasDownloadSpace = false;
       } else if (bitrate && this.duration) {
         // With nothing on disk, the room is RAM: the disk's free space does not count.
-        let storageAvailable = ramOnly ? ramRoom : (this.storageAvailable * 8) * 0.6;
+        let storageAvailable = ramOnly ? ramRoom : (/** @type {number} */ (this.storageAvailable) * 8) * 0.6;
         // 0 is a limit too: nothing predownloaded (an empty field, -1, is none).
         if (this.options.maxVideoSize >= 0 && this.options.maxVideoSize * 8 < storageAvailable) {
           storageAvailable = this.options.maxVideoSize * 8;
@@ -849,9 +858,18 @@ export class FastStreamClient extends EventEmitter {
       return;
     }
 
-    const previewPlayer = await this.playerLoader.createPlayer(source.mode, this, {
+    /**
+     * A video player as PlayerLoader.createPlayer builds it; what a preview
+     * player's build here needs of one.
+     * @typedef {Object} PreviewPlayer
+     * @property {() => Promise<void>} setup
+     * @property {(source: Object) => Promise<void>} setSource
+     * @property {() => void} destroy
+     * @property {() => HTMLVideoElement} getVideo
+     */
+    const previewPlayer = /** @type {PreviewPlayer} */ (await this.playerLoader.createPlayer(source.mode, this, {
       isPreview: true,
-    });
+    }));
 
     try {
       await previewPlayer.setup();
@@ -891,11 +909,11 @@ export class FastStreamClient extends EventEmitter {
     this.audioOutputNode.connectFrom(this.audioSource);
 
     this.audioAnalyzer.setupAnalyzerNodeForMainPlayer(this.player.getVideo(), this.audioOutputNode, this.audioContext, ()=>{
-      return this.currentVideo.currentTime + this.options.videoDelay / 1000;
+      return /** @type {HTMLVideoElement} */ (this.currentVideo).currentTime + this.options.videoDelay / 1000;
     });
     this.audioOutput.setupNodes(this.audioContext);
-    this.audioOutput.getInputNode().connectFrom(this.audioOutputNode);
-    this.audioOutput.getOutputNode().connect(this.audioContext.destination);
+    /** @type {VirtualAudioNode} */ (this.audioOutput.getInputNode()).connectFrom(this.audioOutputNode);
+    /** @type {VirtualAudioNode} */ (this.audioOutput.getOutputNode()).connect(this.audioContext.destination);
   }
 
   /**
@@ -1223,12 +1241,14 @@ export class FastStreamClient extends EventEmitter {
     // resetPlayer() has cleared this state for it, and writing this video's record now would
     // make the next video start at this one's time and save its progress into this record.
     this.disableProgressSave = true;
+    /** @type {{identifierHash: ArrayBuffer, keyHash: ArrayBuffer}|null} */
     let hashes = null;
+    /** @type {{lastTime: number}|null} */
     let progressData = null;
     try {
-      hashes = await this.progressMemory.getHashes(player.getSource().identifier);
+      hashes = await /** @type {SecureMemory} */ (this.progressMemory).getHashes(player.getSource().identifier);
       if (this.player !== player) return;
-      progressData = (await this.progressMemory.getFile(hashes)) || {
+      progressData = (await /** @type {SecureMemory} */ (this.progressMemory).getFile(hashes)) || {
         lastTime: 0,
       };
     } catch (e) {

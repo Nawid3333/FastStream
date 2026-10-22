@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Re-cuts a library's pnpm patch onto a newer release of that library.
 //
 //   node tools/recut-patch.mjs <package> <new-version>          report only
@@ -98,7 +99,7 @@ function usage(msg) {
 // --- helpers -----------------------------------------------------------------------
 
 function run(cmd, args, opts = {}) {
-  const base = {encoding: 'utf8', maxBuffer: 1 << 30, ...opts};
+  const base = /** @type {{encoding: 'utf8', maxBuffer: number}} */ ({encoding: 'utf8', maxBuffer: 1 << 30, ...opts});
   // npm and pnpm are .cmd shims on Windows, which Node only starts through a shell - and
   // a shell does not quote arguments, so they are quoted here (paths have spaces). The
   // percent sign joins the quoted set: cmd.exe expands %VAR% even inside double quotes,
@@ -127,7 +128,7 @@ function currentPatch(pkg) {
   const entry = patchedDependencies(yaml).find(({name}) => name === pkg);
   if (!entry) throw new Error(`${pkg} has no entry in patchedDependencies`);
   const key = `${pkg}@${entry.version}`;
-  const line = yaml.split('\n').find((l) => /^\s/.test(l) && l.replace(/['"]/g, '').trim().startsWith(key + ':'));
+  const line = /** @type {string} */ (yaml.split('\n').find((l) => /^\s/.test(l) && l.replace(/['"]/g, '').trim().startsWith(key + ':')));
   const patch = line.slice(line.indexOf(':', line.indexOf(key) + key.length) + 1).trim();
   return {version: entry.version, patch, line};
 }
@@ -287,8 +288,8 @@ function mergeText(ours, base, theirs, label) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'recut-merge-'));
   try {
     for (const [n, v] of [['ours', ours], ['base', base], ['theirs', theirs]]) fs.writeFileSync(path.join(tmp, n), v);
-    const r = run('git', ['merge-file', '-p', '--diff3', '-L', `ours (FastStream)`, '-L', `base`, '-L', `theirs (new release)`,
-      path.join(tmp, 'ours'), path.join(tmp, 'base'), path.join(tmp, 'theirs')]);
+    const r = /** @type {{status: number, stdout: string, stderr: string}} */ (run('git', ['merge-file', '-p', '--diff3', '-L', `ours (FastStream)`, '-L', `base`, '-L', `theirs (new release)`,
+      path.join(tmp, 'ours'), path.join(tmp, 'base'), path.join(tmp, 'theirs')]));
     if (r.status < 0 || r.status > 127) throw new Error(`git merge-file failed on ${label}: ${r.stderr}`);
     return {text: r.stdout, conflicts: r.status};
   } finally {
@@ -322,6 +323,7 @@ function splitWebpack(text) {
 }
 
 function mergeWebpack(b, o, t, label) {
+  /** @type {{theirs: number, ours: number, same: number, merged: string[], conflicts: string[], removedUpstream: string[]}} */
   const report = {theirs: 0, ours: 0, same: 0, merged: [], conflicts: [], removedUpstream: []};
   const part = (name, bv, ov, tv) => {
     if (ov === bv) return tv;
@@ -459,6 +461,24 @@ async function checkJavaScript(merged, stock, label, oldBase, oldOurs) {
 
 // --- main --------------------------------------------------------------------------
 
+/**
+ * One file the patch touches, as reported and as carried into --apply: the paths it has
+ * in each release and how its merge went. mode and the module counts are set only when
+ * the file merged as webpack modules.
+ * @typedef {Object} MergedFile
+ * @property {string} file - The file's path in the new release.
+ * @property {string} from - Its path in the release the patch was cut against.
+ * @property {number} conflicts
+ * @property {string} [mode]
+ * @property {number} [theirs]
+ * @property {number} [ours]
+ * @property {number} [same]
+ * @property {string[]} merged - Modules merged or kept; empty for a whole-file merge.
+ * @property {string[]} [removedUpstream]
+ * @property {string[]} [conflictList]
+ * @property {boolean} [resumed]
+ * @property {boolean} [landed]
+ */
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   const cur = opts.from ? {version: opts.from, patch: opts.patch} : currentPatch(opts.pkg);
@@ -502,6 +522,7 @@ async function main() {
     }
   }
 
+  /** @type {{package: string, from: string, to: string, work: string, files: MergedFile[], problems: string[], renamed: {from: string, to: string}[]}} */
   const result = {package: opts.pkg, from: cur.version, to: opts.to, work, files: [], problems: [], renamed: []};
   for (const rel of files) {
     const base = fs.readFileSync(path.join(baseDir, rel), 'utf8');
@@ -521,7 +542,7 @@ async function main() {
     const [b, o, t] = [norm(base), norm(ours), norm(theirsRaw)];
     const wb = splitWebpack(b); const wo = splitWebpack(o); const wt = splitWebpack(t);
     let merged;
-    const entry = {file: target, from: rel};
+    const entry = /** @type {MergedFile} */ ({file: target, from: rel});
     if (wb && wo && wt) {
       merged = mergeWebpack(wb, wo, wt, target);
       Object.assign(entry, {mode: 'webpack modules', ...merged.report, conflictList: merged.report.conflicts});

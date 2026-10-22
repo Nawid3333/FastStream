@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Signs the Firefox AMO build with web-ext and submits it to addons.mozilla.org.
 //
 // Locally, credentials come from .amo-credentials.json (gitignored), never
@@ -57,14 +58,14 @@ const MIN_UPLOAD_TIME = 60 * 1000;
 /**
  * Signs through web-ext, and when the network fails under it, asks AMO for the
  * version itself until the deadline.
- * @param {Object} deps
- * @param {function(number): Promise<Object>} deps.sign - web-ext's sign, given the
+ * @param {object} deps
+ * @param {(ms: number) => Promise<{downloadedFiles?: string[]}>} deps.sign - web-ext's sign, given the
  *   approval timeout left; resolves with its result.
- * @param {function(): Promise<string>} deps.check - fetchSigned() for this version.
+ * @param {() => Promise<string>} deps.check - fetchSigned() for this version.
  * @param {number} deps.deadline - When to stop waiting (ms since the epoch).
- * @param {function(): number} [deps.now]
+ * @param {() => number} [deps.now]
  * @param {Object} [deps.wait] - Passed on to waitForSigned() (interval, sleep).
- * @param {function(string): void} [deps.log]
+ * @param {(msg: string) => void} [deps.log]
  * @return {Promise<{signed: boolean, files: string[], state: string}>} files are
  *   web-ext's downloads; after a network failure the xpi is saved by fetchSigned().
  */

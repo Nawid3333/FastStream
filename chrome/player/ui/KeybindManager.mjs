@@ -25,7 +25,7 @@ export class KeybindManager extends EventEmitter {
       }
     }
 
-    DOMElements.playerContainer.addEventListener('keydown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('keydown', (e) => {
       this.onKeyDown(e);
     });
 
@@ -115,6 +115,7 @@ export class KeybindManager extends EventEmitter {
 
     // Every speed key shows the speed it left, top left over the video, as mpv does: the
     // control bar's rate button alone was easy to miss (and the bar may be hidden).
+    /** @type {OnScreenDisplay} */
     this.osd = new OnScreenDisplay();
 
     this.on('IncreasePlaybackRate', (e) => {
@@ -149,6 +150,7 @@ export class KeybindManager extends EventEmitter {
     // (Shift+arrows) are deliberately not tracked as revert targets: they are
     // adjustments, not presets - the next preset press simply reverts to whatever they
     // left active. The rules live in applySpeedPreset.
+    /** @type {Record<string, number>} */
     this.presetRevertMemory = {};
     for (const preset of SPEED_PRESETS) {
       const action = speedPresetAction(preset);

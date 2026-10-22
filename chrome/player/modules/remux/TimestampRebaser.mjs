@@ -16,7 +16,7 @@
 export class TimestampRebaser {
   /**
    * @param {string[]} tracks the tracks that will send packets
-   * @param {function(string, number, *): void} emit gets each packet's track, its moved
+   * @param {(track: string, timestamp: number, item: any) => void} emit gets each packet's track, its moved
    *     timestamp and the item push() was given, in the order push() was called
    */
   constructor(tracks, emit) {

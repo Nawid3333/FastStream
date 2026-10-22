@@ -1,3 +1,4 @@
+// @ts-check
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {Localize} from '../../modules/Localize.mjs';
 import {WebVTT} from '../../modules/vtt.mjs';
@@ -174,13 +175,13 @@ export class SubtitlesManager extends EventEmitter {
   }
 
   closeUI() {
-    if (DOMElements.subtitlesMenu.style.display === 'none') {
+    if (/** @type {HTMLElement} */ (DOMElements.subtitlesMenu).style.display === 'none') {
       return false;
     }
-    DOMElements.subtitlesMenu.style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).style.display = 'none';
     // Opened again, it showed the settings it was closed on, not the list of tracks.
     this.settingsManager.closeUI();
-    WebUtils.setLabels(DOMElements.subtitles, Localize.getMessage('player_subtitlesmenu_open_label'));
+    WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.subtitles), Localize.getMessage('player_subtitlesmenu_open_label'));
     return true;
   }
 
@@ -188,44 +189,44 @@ export class SubtitlesManager extends EventEmitter {
     this.emit('open', {
       target: DOMElements.subtitles,
     });
-    DOMElements.subtitlesMenu.style.display = '';
+    /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).style.display = '';
 
-    WebUtils.setLabels(DOMElements.subtitles, Localize.getMessage('player_subtitlesmenu_close_label'));
+    WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.subtitles), Localize.getMessage('player_subtitlesmenu_close_label'));
   }
 
   isOpen() {
-    return DOMElements.subtitlesMenu.style.display !== 'none';
+    return /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).style.display !== 'none';
   }
 
   setupUI() {
-    DOMElements.subtitles.addEventListener('click', this.onCaptionsButtonInteract.bind(this));
-    DOMElements.subtitles.tabIndex = 0;
+    /** @type {HTMLElement} */ (DOMElements.subtitles).addEventListener('click', this.onCaptionsButtonInteract.bind(this));
+    /** @type {HTMLElement} */ (DOMElements.subtitles).tabIndex = 0;
 
-    DOMElements.subtitles.addEventListener('keydown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.subtitles).addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         this.onCaptionsButtonInteract(e);
       }
     });
 
-    DOMElements.subtitlesOptionsTestButton.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsTestButton).addEventListener('click', (e) => {
       this.isTestSubtitleActive = !this.isTestSubtitleActive;
       if (this.isTestSubtitleActive) {
-        DOMElements.subtitlesOptionsTestButton.textContent = Localize.getMessage('player_subtitlesmenu_testbtn_stop');
-        DOMElements.playerContainer.style.backgroundImage = 'linear-gradient(to right, black, white)';
+        /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsTestButton).textContent = Localize.getMessage('player_subtitlesmenu_testbtn_stop');
+        /** @type {HTMLElement} */ (DOMElements.playerContainer).style.backgroundImage = 'linear-gradient(to right, black, white)';
       } else {
-        DOMElements.subtitlesOptionsTestButton.textContent = Localize.getMessage('player_subtitlesmenu_testbtn');
-        DOMElements.playerContainer.style.backgroundImage = '';
+        /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsTestButton).textContent = Localize.getMessage('player_subtitlesmenu_testbtn');
+        /** @type {HTMLElement} */ (DOMElements.playerContainer).style.backgroundImage = '';
       }
 
       this.renderSubtitles();
     });
-    WebUtils.setupTabIndex(DOMElements.subtitlesOptionsTestButton);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.subtitlesOptionsTestButton));
 
     const filechooser = document.createElement('input');
     filechooser.type = 'file';
     filechooser.style.display = 'none';
     filechooser.accept = '.vtt, .srt';
-    filechooser.ariaHidden = true;
+    filechooser.ariaHidden = /** @type {any} */ (true);
     filechooser.ariaLabel = Localize.getMessage('player_subtitlesmenu_uploadbtn');
 
     filechooser.addEventListener('change', () => {
@@ -253,7 +254,7 @@ export class SubtitlesManager extends EventEmitter {
       // be added again (after removing it, say).
       filechooser.value = '';
     });
-    DOMElements.playerContainer.appendChild(filechooser);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).appendChild(filechooser);
 
     const filebutton = document.createElement('div');
     filebutton.classList.add('subtitle-menu-option');
@@ -263,7 +264,7 @@ export class SubtitlesManager extends EventEmitter {
     filebutton.addEventListener('click', (e) => {
       filechooser.click();
     });
-    DOMElements.subtitlesView.appendChild(filebutton);
+    /** @type {HTMLElement} */ (DOMElements.subtitlesView).appendChild(filebutton);
 
     const urlbutton = document.createElement('div');
     urlbutton.classList.add('subtitle-menu-option');
@@ -295,7 +296,7 @@ export class SubtitlesManager extends EventEmitter {
       }
     });
 
-    DOMElements.subtitlesView.appendChild(urlbutton);
+    /** @type {HTMLElement} */ (DOMElements.subtitlesView).appendChild(urlbutton);
 
     const internetbutton = document.createElement('div');
     internetbutton.textContent = Localize.getMessage('player_subtitlesmenu_searchbtn');
@@ -305,7 +306,7 @@ export class SubtitlesManager extends EventEmitter {
     internetbutton.addEventListener('click', (e) => {
       this.openSubtitlesSearch.toggleUI();
     });
-    DOMElements.subtitlesView.appendChild(internetbutton);
+    /** @type {HTMLElement} */ (DOMElements.subtitlesView).appendChild(internetbutton);
 
     const clearbutton = document.createElement('div');
     clearbutton.textContent = Localize.getMessage('player_subtitlesmenu_clearbtn');
@@ -315,7 +316,7 @@ export class SubtitlesManager extends EventEmitter {
     clearbutton.addEventListener('click', (e) => {
       this.clearTracks();
     });
-    DOMElements.subtitlesView.appendChild(clearbutton);
+    /** @type {HTMLElement} */ (DOMElements.subtitlesView).appendChild(clearbutton);
 
     const optionsbutton = document.createElement('div');
     optionsbutton.classList.add('subtitle-menu-option');
@@ -326,11 +327,11 @@ export class SubtitlesManager extends EventEmitter {
       this.settingsManager.openUI();
     });
 
-    WebUtils.setupTabIndex(DOMElements.subtitlesOptionsBackButton);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.subtitlesOptionsBackButton));
 
-    DOMElements.subtitlesView.appendChild(optionsbutton);
+    /** @type {HTMLElement} */ (DOMElements.subtitlesView).appendChild(optionsbutton);
 
-    DOMElements.subtitlesMenu.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).addEventListener('click', (e) => {
       e.stopPropagation();
     });
 
@@ -338,11 +339,11 @@ export class SubtitlesManager extends EventEmitter {
       this.checkTrackBounds();
     });
 
-    DOMElements.subtitlesMenu.addEventListener('mousedown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).addEventListener('mousedown', (e) => {
       e.stopPropagation();
     });
 
-    DOMElements.subtitlesMenu.addEventListener('mouseup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).addEventListener('mouseup', (e) => {
       e.stopPropagation();
     });
   }
@@ -538,7 +539,7 @@ export class SubtitlesManager extends EventEmitter {
     for (let i = cachedElements.length; i < tracks.length; i++) {
       const elements = this.createTrackEntryElements(i);
       cachedElements.push(elements);
-      DOMElements.subtitlesList.appendChild(elements.trackElement);
+      /** @type {HTMLElement} */ (DOMElements.subtitlesList).appendChild(elements.trackElement);
     }
 
     // Update elements
@@ -574,8 +575,8 @@ export class SubtitlesManager extends EventEmitter {
     let yStart = 0;
 
     const mouseup = (e) => {
-      DOMElements.playerContainer.removeEventListener('mousemove', mousemove);
-      DOMElements.playerContainer.removeEventListener('mouseup', mouseup);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mousemove', mousemove);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseup', mouseup);
       document.removeEventListener('mouseup', mouseup);
       e.stopPropagation();
     };
@@ -595,12 +596,12 @@ export class SubtitlesManager extends EventEmitter {
         const newMarginBottom = Math.max(marginBottom + diff, 5);
         current.style.marginBottom = newMarginBottom + 'px';
         diff -= (newMarginBottom - marginBottom);
-        current = current.nextElementSibling;
+        current = /** @type {HTMLDivElement} */ (current.nextElementSibling);
       } while (current && diff < 0);
 
       const adjustedDiff = oldDiff - diff;
 
-      const previousSibling = wrapper.previousElementSibling;
+      const previousSibling = /** @type {HTMLElement} */ (wrapper.previousElementSibling);
       if (previousSibling) {
         const previousMarginBottom = parseInt(previousSibling.style.marginBottom) || 0;
         const newPreviousMarginBottom = Math.max(previousMarginBottom - adjustedDiff, 5);
@@ -620,8 +621,8 @@ export class SubtitlesManager extends EventEmitter {
         return;
       }
       yStart = e.clientY;
-      DOMElements.playerContainer.addEventListener('mousemove', mousemove);
-      DOMElements.playerContainer.addEventListener('mouseup', mouseup);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', mousemove);
+      /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', mouseup);
       // Let go outside the player: only the document hears that mouseup.
       document.addEventListener('mouseup', mouseup);
     });
@@ -641,7 +642,7 @@ export class SubtitlesManager extends EventEmitter {
     if (trackElements.length === 0) {
       return;
     }
-    const playerHeight = DOMElements.playerContainer.offsetHeight - parseInt(window.getComputedStyle(DOMElements.subtitlesContainer).bottom);
+    const playerHeight = /** @type {HTMLElement} */ (DOMElements.playerContainer).offsetHeight - parseInt(window.getComputedStyle(/** @type {HTMLElement} */ (DOMElements.subtitlesContainer)).bottom);
 
     let totalTrackHeight = 0;
     for (let i = 0; i < trackElements.length; i++) {
@@ -682,7 +683,7 @@ export class SubtitlesManager extends EventEmitter {
       const {trackContainer, wrapper} = this.createSubtitleDisplayElements(i);
 
       cachedElements.push(trackContainer);
-      DOMElements.subtitlesContainer.appendChild(wrapper);
+      /** @type {HTMLElement} */ (DOMElements.subtitlesContainer).appendChild(wrapper);
     }
 
     // Update elements
@@ -743,11 +744,11 @@ export class SubtitlesManager extends EventEmitter {
     }
 
     if (subtitlesVisible) {
-      DOMElements.subtitlesContainer.style.display = '';
+      /** @type {HTMLElement} */ (DOMElements.subtitlesContainer).style.display = '';
       const margin = SubtitleUtils.withUnit(this.settingsManager.getSettings().bottomMargin);
-      DOMElements.subtitlesContainer.style.bottom = margin === '40px' ? '' : margin;
+      /** @type {HTMLElement} */ (DOMElements.subtitlesContainer).style.bottom = margin === '40px' ? '' : margin;
     } else {
-      DOMElements.subtitlesContainer.style.display = 'none';
+      /** @type {HTMLElement} */ (DOMElements.subtitlesContainer).style.display = 'none';
     }
 
     this.checkTrackBounds();

@@ -35,20 +35,20 @@ export class SubtitlesSettingsManager extends EventEmitter {
   }
 
   setupSettingsUI() {
-    DOMElements.subtitlesOptionsList.addEventListener('keydown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).addEventListener('keydown', (e) => {
       e.stopPropagation();
     });
 
-    DOMElements.subtitlesOptionsList.addEventListener('keyup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).addEventListener('keyup', (e) => {
       e.stopPropagation();
     });
 
-    DOMElements.subtitlesOptionsBackButton.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsBackButton).addEventListener('click', (e) => {
       this.closeUI();
       e.stopPropagation();
     });
 
-    DOMElements.subtitlesOptionsList.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).addEventListener('click', (e) => {
       Coloris.close();
     }, true);
 
@@ -92,7 +92,7 @@ export class SubtitlesSettingsManager extends EventEmitter {
   }
 
   updateSettingsUI() {
-    DOMElements.subtitlesOptionsList.replaceChildren();
+    /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).replaceChildren();
     for (const key in this.settings) {
       if (!Object.hasOwn(this.settings, key)) continue;
       const config = SubtitleSettingsConfigData[key];
@@ -124,7 +124,7 @@ export class SubtitlesSettingsManager extends EventEmitter {
           }
         });
       }
-      let timeout = null;
+      /** @type {any} */ let timeout = null;
       input.addEventListener('keyup', () => {
         clearTimeout(timeout);
         timeout = setTimeout(() => {
@@ -139,7 +139,7 @@ export class SubtitlesSettingsManager extends EventEmitter {
       });
       option.appendChild(label);
       option.appendChild(input);
-      DOMElements.subtitlesOptionsList.appendChild(option);
+      /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).appendChild(option);
     }
   }
 
@@ -150,15 +150,15 @@ export class SubtitlesSettingsManager extends EventEmitter {
   }
 
   openUI() {
-    DOMElements.subtitlesMenu.classList.add('settings');
+    /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).classList.add('settings');
   }
 
   closeUI() {
-    DOMElements.subtitlesMenu.classList.remove('settings');
+    /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).classList.remove('settings');
     Coloris.close();
   }
 
   isOpen() {
-    return DOMElements.subtitlesMenu.classList.contains('settings');
+    return /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).classList.contains('settings');
   }
 }

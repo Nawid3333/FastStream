@@ -84,13 +84,13 @@ export function isNetworkError(error) {
  * Asks AMO about a version until it is signed, rejected or missing, or the time runs out.
  * A check the network failed is asked again at the next interval; any other error (no
  * credentials, the wrong build) is thrown at once, as waiting cannot mend it.
- * @param {function(): Promise<string>} check - Resolves with a signingState() state.
+ * @param {() => Promise<string>} check - Resolves with a signingState() state.
  * @param {Object} options
  * @param {number} options.deadline - Stop asking after this time (ms since the epoch).
  * @param {number} [options.interval] - Wait between checks, in ms.
- * @param {function(): number} [options.now]
- * @param {function(number): Promise<void>} [options.sleep]
- * @param {function(string): void} [options.log]
+ * @param {() => number} [options.now]
+ * @param {(ms: number) => Promise<void>} [options.sleep]
+ * @param {(message: string) => void} [options.log]
  * @return {Promise<string>} 'signed', 'rejected' or 'missing'; when the time runs out,
  *   'pending', or 'error' if the last check failed too.
  */

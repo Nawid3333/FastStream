@@ -18,7 +18,7 @@ const REFUSALS_BEFORE_ERROR = 3;
 export class SegmentAppender {
   /**
    * @param {Object} player - What to do about a refusal.
-   * @param {function(): void} player.reload - Load again from the playhead.
+   * @param {() => void} player.reload - Load again from the playhead.
    * @param {function(): void} player.readLess - Buffer less ahead from now on.
    * @param {function(string): void} player.fail - Stop with this error.
    * @param {function(Object): boolean} player.isCurrent - Whether a SourceBufferWrapper is

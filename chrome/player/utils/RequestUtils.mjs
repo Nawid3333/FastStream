@@ -70,7 +70,7 @@ export class RequestResult {
 /**
  * Reads a response's body piece by piece, telling onProgress how far it got.
  * @param {Response} response
- * @param {function({loaded: number, total: number, lengthComputable: boolean})} onProgress
+ * @param {(progress: {loaded: number, total: number, lengthComputable: boolean}) => void} onProgress
  * @return {Promise<Response>} The whole body, readable as text, ArrayBuffer or Blob again.
  */
 async function readWithProgress(response, onProgress) {

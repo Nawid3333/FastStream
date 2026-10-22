@@ -17,9 +17,13 @@ const HEARTBEAT_MS = 1000;
 const META_FILE = '_meta.json';
 
 const queue = new OpQueue();
+/** @type {FileSystemDirectoryHandle|null} */
 let fsBlobRoot = null;
+/** @type {FileSystemDirectoryHandle|null} */
 let sessionDir = null;
+/** @type {string|null} */
 let sessionName = null;
+/** @type {Timeout|null} */
 let heartbeatInterval = null;
 let heartbeatInFlight = false;
 
@@ -48,7 +52,7 @@ async function getFsBlobRoot() {
 async function readHeartbeat(name) {
   let fileHandle;
   try {
-    const dir = await fsBlobRoot.getDirectoryHandle(name);
+    const dir = await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).getDirectoryHandle(name);
     fileHandle = await dir.getFileHandle(META_FILE);
   } catch (e) {
     return {time: null};
@@ -89,7 +93,7 @@ function sessionCreatedTime(name) {
  */
 async function prune(ownName) {
   const stale = [];
-  for await (const name of fsBlobRoot.keys()) {
+  for await (const name of /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).keys()) {
     if (name === ownName) continue;
     const created = sessionCreatedTime(name);
     if (created !== null && Date.now() - created <= STALE_MS) continue;
@@ -101,7 +105,7 @@ async function prune(ownName) {
   }
   await Promise.all(stale.map(async (name) => {
     try {
-      await fsBlobRoot.removeEntry(name, {recursive: true});
+      await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).removeEntry(name, {recursive: true});
     } catch (e) {
       // Another tab may be pruning or still finishing its own close() at
       // the same time - not fatal, just leave it for the next prune pass.
@@ -134,7 +138,7 @@ function writeAll(accessHandle, data, at) {
 
 /** Overwrites this session's heartbeat marker with the current time. */
 async function writeHeartbeat() {
-  const handle = await sessionDir.getFileHandle(META_FILE, {create: true});
+  const handle = await /** @type {FileSystemDirectoryHandle} */ (sessionDir).getFileHandle(META_FILE, {create: true});
   const accessHandle = await handle.createSyncAccessHandle();
   try {
     const bytes = new TextEncoder().encode(JSON.stringify({updated_time: Date.now()}));
@@ -153,7 +157,7 @@ async function init() {
   // mistaken for one of the (stale) siblings being cleaned up.
   await prune(sessionName);
 
-  sessionDir = await fsBlobRoot.getDirectoryHandle(sessionName, {create: true});
+  sessionDir = await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).getDirectoryHandle(sessionName, {create: true});
   await writeHeartbeat();
   heartbeatInterval = setInterval(() => {
     // Deliberately NOT queue.push()'d: the heartbeat only ever touches
@@ -174,7 +178,7 @@ async function init() {
 }
 
 async function setFile(identifier, data) {
-  const fileHandle = await sessionDir.getFileHandle(identifier, {create: true});
+  const fileHandle = await /** @type {FileSystemDirectoryHandle} */ (sessionDir).getFileHandle(identifier, {create: true});
   const accessHandle = await fileHandle.createSyncAccessHandle();
   try {
     writeAll(accessHandle, data, 0);
@@ -182,14 +186,14 @@ async function setFile(identifier, data) {
   } catch (e) {
     accessHandle.close();
     // What was written of it only takes up the space that ran out.
-    await sessionDir.removeEntry(identifier).catch(() => {});
+    await /** @type {FileSystemDirectoryHandle} */ (sessionDir).removeEntry(identifier).catch(() => {});
     throw e;
   }
   accessHandle.close();
 }
 
 async function getFile(identifier) {
-  const fileHandle = await sessionDir.getFileHandle(identifier);
+  const fileHandle = await /** @type {FileSystemDirectoryHandle} */ (sessionDir).getFileHandle(identifier);
   const accessHandle = await fileHandle.createSyncAccessHandle();
   try {
     const size = accessHandle.getSize();
@@ -203,7 +207,7 @@ async function getFile(identifier) {
 
 async function deleteFile(identifier) {
   try {
-    await sessionDir.removeEntry(identifier);
+    await /** @type {FileSystemDirectoryHandle} */ (sessionDir).removeEntry(identifier);
   } catch (e) {
     // Already gone - fine, deleteFile is idempotent everywhere else in
     // this codebase's storage backends too.
@@ -212,14 +216,14 @@ async function deleteFile(identifier) {
 
 async function clearStorage() {
   const names = [];
-  for await (const name of sessionDir.keys()) {
+  for await (const name of /** @type {FileSystemDirectoryHandle} */ (sessionDir).keys()) {
     if (name !== META_FILE) names.push(name);
   }
-  await Promise.all(names.map((name) => sessionDir.removeEntry(name).catch(() => {})));
+  await Promise.all(names.map((name) => /** @type {FileSystemDirectoryHandle} */ (sessionDir).removeEntry(name).catch(() => {})));
 }
 
 async function destroy() {
-  clearInterval(heartbeatInterval);
+  clearInterval(/** @type {Timeout} */ (heartbeatInterval));
   heartbeatInterval = null;
   for (const stream of saveStreams.values()) {
     try {
@@ -244,7 +248,7 @@ async function destroy() {
  * thread via getFile. 'saveAbort' discards everything.
  */
 async function saveBegin(identifier) {
-  const fileHandle = await sessionDir.getFileHandle(identifier, {create: true});
+  const fileHandle = await /** @type {FileSystemDirectoryHandle} */ (sessionDir).getFileHandle(identifier, {create: true});
   const accessHandle = await fileHandle.createSyncAccessHandle();
   saveStreams.set(identifier, {handle: accessHandle, offset: 0});
 }
@@ -283,7 +287,7 @@ async function saveAbort(identifier) {
     saveStreams.delete(identifier);
   }
   try {
-    await sessionDir.removeEntry(identifier);
+    await /** @type {FileSystemDirectoryHandle} */ (sessionDir).removeEntry(identifier);
   } catch (e) {
     // Never created / already gone - fine, abort is idempotent.
   }

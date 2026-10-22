@@ -37,8 +37,12 @@ describe('the volume block', () => {
   });
 });
 
+// JSDoc casts (`/** @type {T} */ (x)`, for the type checker) are no code: the checks below
+// read the source without them.
+const withoutCasts = (text) => text.replace(/\/\*\* @type \{[^}]*\} \*\/ \(([^()]*)\)/g, '$1');
+
 describe('the player\'s buttons', () => {
-  const source = fs.readFileSync(new URL('../../chrome/player/ui/InterfaceController.mjs', import.meta.url), 'utf8');
+  const source = withoutCasts(fs.readFileSync(new URL('../../chrome/player/ui/InterfaceController.mjs', import.meta.url), 'utf8'));
   const css = fs.readFileSync(new URL('../../chrome/player/assets/fluidplayer/css/fluidplayer.css', import.meta.url), 'utf8');
 
   it('lets the keyboard reach and press the big play button', () => {
