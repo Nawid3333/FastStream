@@ -365,6 +365,18 @@ describe('Utils.getOptionsFromStorage', () => {
     expect(options.autoEnableURLs.join('\n')).toBe('https://a.example\n~^https://b');
   });
 
+  it('hands out a copy of a default list, never the default itself', () => {
+    // The default's array was handed out as it was: an options object whose list was
+    // changed in place (push, splice) changed DefaultOptions for every later merge.
+    const merged = Utils.mergeOptions(DefaultOptions, {});
+    expect(merged.mpvAllowlist).not.toBe(DefaultOptions.mpvAllowlist);
+    merged.mpvAllowlist.push('https://a.example');
+    merged.autoEnableURLs.push('https://b.example');
+    expect(Utils.mergeOptions(DefaultOptions, {}).mpvAllowlist).toEqual(DefaultOptions.mpvAllowlist);
+    expect(DefaultOptions.mpvAllowlist).not.toContain('https://a.example');
+    expect(DefaultOptions.autoEnableURLs).not.toContain('https://b.example');
+  });
+
   it('cannot be poisoned through the saved keybinds', async () => {
     store('{"keybinds": {"__proto__": {"polluted": true}, "constructor": {"prototype": {"polluted": true}}}}');
     const {keybinds} = await Utils.getOptionsFromStorage();
