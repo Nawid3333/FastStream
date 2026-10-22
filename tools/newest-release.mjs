@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // The versions tools/update-local.ps1 brings this PC to, by the rule CI's toolchain follows
 // (tools/check-toolchain.mjs): the newest stable release at least MIN_AGE_DAYS old, so a
 // broken or hijacked release is usually pulled before it is tried.

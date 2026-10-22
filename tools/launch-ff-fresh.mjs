@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Launcher for a *fresh* `web-ext run`:
 //  1. resets the persistent dev profile's mutable state while keeping
 //     pre-installed extensions like uBlock Origin,

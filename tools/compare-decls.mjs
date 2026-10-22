@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Compares two JavaScript files declaration by declaration.
 //
 // Whole-file comparison answers "is this the same program?" and stops being

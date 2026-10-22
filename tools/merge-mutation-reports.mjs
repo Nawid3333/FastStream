@@ -1,3 +1,4 @@
+// @ts-check
 // mutation-tests.yml's report job: the shards' reports, as their artifacts were downloaded
 // (shards/mutation-reports-<shard>/mutation.json), put together into the one report the
 // summary and the week's issue read (reports/mutation/mutation.json). No arguments: the

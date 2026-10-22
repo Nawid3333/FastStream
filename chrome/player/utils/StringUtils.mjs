@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Utility functions for string manipulation and comparison.
  */

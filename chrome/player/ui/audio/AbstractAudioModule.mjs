@@ -1,3 +1,4 @@
+// @ts-check
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {VirtualAudioNode} from './VirtualAudioNode.mjs';
 

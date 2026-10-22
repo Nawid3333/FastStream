@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Proves where chrome/player/modules/vtt.mjs came from.
 //
 // vtt.mjs is the one vendored bundle that cannot be generated during the

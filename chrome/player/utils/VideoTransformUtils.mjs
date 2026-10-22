@@ -1,3 +1,4 @@
+// @ts-check
 import {AspectRatios} from '../options/defaults/AspectRatios.mjs';
 
 /**

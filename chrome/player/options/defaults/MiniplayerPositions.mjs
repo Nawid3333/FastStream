@@ -1,3 +1,4 @@
+// @ts-check
 export const MiniplayerPositions = {
   TOP_LEFT: 'topleft',
   TOP_RIGHT: 'topright',

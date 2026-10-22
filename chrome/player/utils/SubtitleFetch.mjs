@@ -1,3 +1,4 @@
+// @ts-check
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {RequestUtils} from './RequestUtils.mjs';
 import {SubtitleUtils} from './SubtitleUtils.mjs';

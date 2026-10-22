@@ -1,3 +1,4 @@
+// @ts-check
 import {Localize} from './modules/Localize.mjs';
 import {WebVTT} from './modules/vtt.mjs';
 import {SubtitleUtils} from './utils/SubtitleUtils.mjs';

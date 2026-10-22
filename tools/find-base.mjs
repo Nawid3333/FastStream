@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Finds which upstream release or commit a vendored file was built from.
 //
 // Why this exists

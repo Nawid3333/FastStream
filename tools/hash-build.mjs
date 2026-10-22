@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Hashes an unpacked extension build so two builds can be compared.
 //
 // Text files are hashed with CRLF collapsed to LF. Without that, a build made

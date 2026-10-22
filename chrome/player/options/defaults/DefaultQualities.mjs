@@ -1,3 +1,4 @@
+// @ts-check
 export const DefaultQualities = {
   'AUTO': 'Auto',
   '144p': '144p',

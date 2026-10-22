@@ -1,3 +1,4 @@
+// @ts-check
 export const EmitterCancel = Symbol('EmitterCancel');
 
 class EventEmitterContext {

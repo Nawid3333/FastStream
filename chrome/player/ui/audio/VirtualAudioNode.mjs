@@ -1,3 +1,4 @@
+// @ts-check
 export class VirtualAudioNode {
   constructor(name) {
     this.name = name;

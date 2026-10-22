@@ -1,3 +1,4 @@
+// @ts-check
 class Bilibili2Dash {
   constructor() {
     this.document = document.implementation.createDocument('', '', null);

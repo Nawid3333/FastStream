@@ -1,3 +1,4 @@
+// @ts-check
 (() => { // Encapsulate the code to avoid polluting the global scope
   const MessageTypes = {
     OPEN_PLAYER: 'OPEN_PLAYER',

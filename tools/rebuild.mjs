@@ -1,3 +1,4 @@
+// @ts-check
 // Shared rebuild step for the dev launchers, and how they start web-ext (webExtSpawn).
 //
 // This exists because the launchers must run the *same* steps as

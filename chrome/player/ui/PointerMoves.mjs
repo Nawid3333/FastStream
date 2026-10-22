@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Tells the user's mouse moves from the ones Firefox makes up. When the page changes under a
  * pointer that stays still (fullscreen on or off, the controls going), Firefox sends a

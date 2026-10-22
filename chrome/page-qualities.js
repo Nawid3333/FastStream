@@ -1,3 +1,4 @@
+// @ts-check
 // The qualities a page's own player offers as files of their own (one MP4 per resolution), for
 // content.js. The page asks for one of them - its player's default, often the lowest - and that
 // one request is all FastStream used to see: its player showed one quality and played that, and

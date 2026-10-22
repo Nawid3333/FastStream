@@ -1,3 +1,4 @@
+// @ts-check
 import {AspectRatios} from './AspectRatios.mjs';
 import {ClickActions} from './ClickActions.mjs';
 import {ColorThemes} from './ColorThemes.mjs';

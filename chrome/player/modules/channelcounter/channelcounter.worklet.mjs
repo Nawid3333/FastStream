@@ -1,3 +1,4 @@
+// @ts-check
 registerProcessor('channelcounter-worklet', class ChannelCounter extends AudioWorkletProcessor {
   constructor() {
     super();

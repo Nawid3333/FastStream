@@ -1,3 +1,4 @@
+// @ts-check
 import {StringUtils} from '../../utils/StringUtils.mjs';
 import {Fragment} from '../Fragment.mjs';
 

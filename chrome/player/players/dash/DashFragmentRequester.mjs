@@ -1,3 +1,4 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 
