@@ -43,7 +43,6 @@
   "chrome/player/players/hls/HLSPlayer.mjs": 36,
   "chrome/player/players/mp4/MP4Fragment.mjs": 5,
   "chrome/player/players/mp4/MP4FragmentRequester.mjs": 13,
-  "chrome/player/players/mp4/MP4Player.mjs": 50,
   "chrome/player/players/mp4/SegmentAppender.mjs": 2,
   "chrome/player/players/mp4/SourceBufferWrapper.mjs": 8,
   "chrome/player/players/vm/VMPlayer.mjs": 7,
