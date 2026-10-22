@@ -88,3 +88,19 @@ declare module 'mp4box' {
     }>;
   }
 }
+
+declare module 'hls.js' {
+  interface Fragment {
+    /**
+     * FastStream's own: HLSFragmentStore notes on each fragment it stores the store's id of
+     * its level and its track (0 the levels, 1 the audio tracks).
+     */
+    levelIdentifier?: string;
+    trackID?: number;
+  }
+
+  interface LevelDetails {
+    /** FastStream's own: HLSPlayer.trackUpdated notes the track (0 a level, 1 an audio track). */
+    trackID?: number;
+  }
+}

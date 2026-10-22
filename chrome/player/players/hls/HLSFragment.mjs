@@ -2,13 +2,9 @@
 import {Fragment} from '../Fragment.mjs';
 
 /**
- * @typedef {object} HlsJsFragment - The hls.js fragment.
- * @property {number|string} sn - Its media sequence number; 'initSegment' for an init segment.
- * @property {string} levelIdentifier - The identifier of the level it belongs to.
- * @property {number} duration - Its length, in seconds.
- * @property {string} url - Its resolved address.
- * @property {number} byteRangeStartOffset - First byte of its byte range.
- * @property {number} byteRangeEndOffset - Last byte of its byte range.
+ * The hls.js fragment, with what HLSFragmentStore notes on it (its levelIdentifier and
+ * trackID: types/vendor-patches.d.ts). An init segment's has no levelIdentifier.
+ * @typedef {import('../../modules/hls.mjs').Fragment} HlsJsFragment
  */
 export class HLSFragment extends Fragment {
   /**

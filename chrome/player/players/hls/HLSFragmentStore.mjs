@@ -15,7 +15,9 @@ import {HLSFragment} from './HLSFragment.mjs';
 // hls.mjs, which unit tests do not have).
 
 /**
- * @typedef {Array & {snBase?: number}} FragmentStore
+ * A level's store: its HLSFragments by place (with holes where segments were forgotten), and
+ * the first segment's number when the level was first stored.
+ * @typedef {Array<HLSFragment> & {snBase?: number}} FragmentStore
  */
 /**
  * Where a segment is in its level's store.
@@ -41,8 +43,10 @@ export function storeIndex(fragments, sn) {
  * (and the hls.js fragment it wraps) for the whole session. Downloaded ones stay (a save of
  * the stream so far may want them; playback frees them as it leaves them behind), and so do
  * pinned or downloading ones, until they are released: a later refresh forgets them then.
- * @param {Object} client - The FastStreamClient whose store this is.
- * @param {Object} levelDetails - hls.js's LevelDetails, with trackID set.
+ * @param {import('../../FastStreamClient.mjs').FastStreamClient} client - The FastStreamClient
+ *   whose store this is.
+ * @param {import('../../modules/hls.mjs').LevelDetails} levelDetails - hls.js's LevelDetails,
+ *   with trackID set.
  * @param {(level: number) => string} identifierOf - The store's id of an hls.js level index.
  */
 export function storeLevel(client, levelDetails, identifierOf) {
@@ -64,7 +68,8 @@ export function storeLevel(client, levelDetails, identifierOf) {
     fragment.levelIdentifier = identifier;
     fragment.trackID = levelDetails.trackID;
 
-    const base = client.getFragments(identifier)?.snBase ?? fragment.sn;
+    // The level's store (FastStreamClient documents it as an Array).
+    const base = /** @type {FragmentStore|undefined} */ (client.getFragments(identifier))?.snBase ?? fragment.sn;
     const index = fragment.sn - base;
     if (index < 0) {
       return;
@@ -72,21 +77,23 @@ export function storeLevel(client, levelDetails, identifierOf) {
     if (!client.getFragment(identifier, index)) {
       client.makeFragment(identifier, index, new HLSFragment(fragment, start, end, index));
     }
-    client.getFragments(identifier).snBase = base;
+    // There: the fragment at index was found or made just above.
+    /** @type {FragmentStore} */ (client.getFragments(identifier)).snBase = base;
   });
 
   if (levelDetails.live && fragments.length) {
     const store = client.getFragments(identifierOf(fragments[0].level));
     const windowStart = storeIndex(store, fragments[0].sn);
     if (windowStart !== null) {
-      forgetPassed(store, windowStart);
+      // A store: storeIndex finds no place without one.
+      forgetPassed(/** @type {FragmentStore} */ (store), windowStart);
     }
   }
 }
 
 /**
  * Forgets the segments before a live window that hold nothing (storeLevel).
- * @param {Array} store - The level's store.
+ * @param {FragmentStore} store - The level's store.
  * @param {number} windowStart - The index of the window's first segment.
  */
 function forgetPassed(store, windowStart) {
