@@ -29,7 +29,7 @@ export class StreamPick {
    * The streams the page's video plays.
    * @template {{url: string, duration?: number|null}} T
    * @param {T[]} sources - Detected sources, each with its length in seconds, when known.
-   * @param {?{src?: string, duration?: number|null}} video - What the video plays: its URL,
+   * @param {?{src?: string, duration?: number|null}|undefined} video - What the video plays: its URL,
    *   for a file it plays itself (not a blob:), and its length in seconds (content.js).
    * @return {T[]|null} Those of the sources, or null when the video tells none of them:
    *   then the longest play, as StreamLength.longest tells them.

@@ -28,8 +28,14 @@ import {VideoSource} from './VideoSource.mjs';
  *   duration?: number|null, qualities?: ?Array<{url: string, label: string, height: number}>}} SentSource
  */
 
+/**
+ * A subtitle track once loadSubtitles() fetched its text, with its label and language; score
+ * is what sortSubtitles() gives its language.
+ * @typedef {{label: string, language: string, data: string, score?: number}} SubtitleData
+ */
+
 let OPTIONS = null;
-let optionSendTime = null;
+/** @type {number|null} */ let optionSendTime = null;
 if (EnvUtils.isExtension()) {
   chrome.runtime.onMessage.addListener(
       (request, sender, sendResponse) => {
@@ -95,11 +101,19 @@ if (EnvUtils.isExtension()) {
   }, 10000);
 }
 
+/**
+ * @param {{sources: SentSource[], video?: ?{src?: string, duration?: number|null},
+ *   subtitles?: Array<Object>, autoSetSource?: boolean, forceAutoplay?: boolean,
+ *   continuationOptions: {autoPlay?: boolean,
+ *   disableLoadProgress?: boolean, fullscreenState?: string}}} request - The SOURCES
+ * message, from the background's runtime listener or the page's iframe messager.
+ * @param {(response: *) => void} sendResponse - Answers the sender when it's done.
+ */
 async function recieveSources(request, sendResponse) {
   // URLs only: the sources' headers hold the page's Cookie and Authorization (see addSource)
   console.log('Recieved sources', (request.sources || []).map((s) => s.url), request.continuationOptions);
 
-  const continuationOptions = request.continuationOptions || {};
+  const continuationOptions = /** @type {{autoPlay?: boolean, disableLoadProgress?: boolean, fullscreenState?: string}} */ (request.continuationOptions || {});
   if (continuationOptions.autoPlay) {
     request.forceAutoplay = true;
   }
@@ -145,7 +159,7 @@ async function recieveSources(request, sendResponse) {
    * A detected stream as a source, with the qualities its page's player offers it in
    * (page-qualities.js). The one played is the quality the user's setting asks for: the page
    * asked for its own default, the lowest on kinoger's fsst hoster.
-   * @param {Object} s - The stream, as the background sent it.
+   * @param {SentSource} s - The stream, as the background sent it.
    * @param {boolean} played - Whether it is the one the player plays.
    * @return {VideoSource}
    */
@@ -217,13 +231,17 @@ async function recieveSources(request, sendResponse) {
   sendResponse('sources_recieved');
 }
 
+/**
+ * Sorts the subtitles by their language's match score, best first.
+ * @param {SubtitleData[]} subs - The subtitles; each gets a score for its language here.
+ */
 async function sortSubtitles(subs) {
   if (!EnvUtils.isExtension() || !chrome?.i18n?.detectLanguage) {
     return subs;
   }
 
   let defLang = 'en';
-  const subtitlesSettings = await Utils.getSubtitlesSettingsFromStorage();
+  const subtitlesSettings = /** @type {{defaultLanguage?: string}} */ (await Utils.getSubtitlesSettingsFromStorage());
   if (subtitlesSettings.defaultLanguage) {
     defLang = subtitlesSettings.defaultLanguage;
   }
@@ -253,7 +271,7 @@ async function sortSubtitles(subs) {
   }));
 
   subs.sort((a, b) => {
-    return b.score - a.score;
+    return /** @type {number} */ (b.score) - /** @type {number} */ (a.score);
   });
 
   return subs;

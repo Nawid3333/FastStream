@@ -7,15 +7,23 @@ import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 
+/** @typedef {import('../FastStreamClient.mjs').FastStreamClient} FastStreamClient */
+/** @typedef {import('../players/Fragment.mjs').Fragment} Fragment */
+/** @typedef {{start: number, width: number, className: string, element: HTMLDivElement, duration?: number}} ProgressBarEntry */
 /**
  * The bar once placeMarker ran: where it put each marker last (set there on first use).
  * @typedef {ProgressBar & {markerPlaces: Map<HTMLElement, string|null>}} MarkedProgressBar
  */
 export class ProgressBar extends EventEmitter {
+  /**
+   * @param {FastStreamClient} client
+   */
   constructor(client) {
     super();
     this.client = client;
+    /** @type {ProgressBarEntry[]} */
     this.progressCache = [];
+    /** @type {ProgressBarEntry[]} */
     this.progressCacheAudio = [];
     this.hasShownNextVideo = false;
     this.isSeeking = false;
@@ -135,6 +143,9 @@ export class ProgressBar extends EventEmitter {
     /** @type {HTMLElement} */ (DOMElements.nextVideoCancelButton).style.display = 'none';
   }
 
+  /**
+   * @param {Array<Fragment|undefined>} fragments
+   */
   collectProgressbarData(fragments) {
     let i = 0;
     let total = 0;
@@ -186,8 +197,8 @@ export class ProgressBar extends EventEmitter {
 
       i++;
 
-      while (i < fragments.length && fragments[i] && fragments[i].status === frag.status) {
-        end = currentTime + fragments[i].duration;
+      while (i < fragments.length && fragments[i] && /** @type {Fragment} */ (fragments[i]).status === frag.status) {
+        end = currentTime + /** @type {Fragment} */ (fragments[i]).duration;
         currentTime = end;
         i++;
 
@@ -208,6 +219,12 @@ export class ProgressBar extends EventEmitter {
   }
 
 
+  /**
+   * @param {number} duration
+   * @param {ProgressBarEntry[]} cache
+   * @param {{start: number, end: number, width: number, statusClass: string}[]} results
+   * @param {string|null} additionalClass
+   */
   updateProgressBar(duration, cache, results, additionalClass) {
     for (let i = cache.length; i < results.length; i++) {
       const entry = {
@@ -252,6 +269,9 @@ export class ProgressBar extends EventEmitter {
   }
 
   /**
+   * @param {number} duration
+   * @param {ProgressBarEntry[]} cache
+   * @param {Array<Fragment|undefined>} fragments
    * @param {string|null} [additionalClass]
    */
   renderProgressBar(duration, cache, fragments, additionalClass = null) {
@@ -339,6 +359,9 @@ export class ProgressBar extends EventEmitter {
     }
   }
 
+  /**
+   * @param {MouseEvent} event
+   */
   onProgressbarMouseMove(event) {
     const currentX = Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.progressContainer)), 0), /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth);
     const totalWidth = /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth;
@@ -373,6 +396,9 @@ export class ProgressBar extends EventEmitter {
     this.client.seekPreview(time);
   }
 
+  /**
+   * @param {MouseEvent} event
+   */
   onProgressbarMouseDown(event) {
     // check if left mouse button was pressed
     if (event.button !== 0) {
@@ -397,6 +423,7 @@ export class ProgressBar extends EventEmitter {
     let preciseSavedTime = null;
     /** @type {?number} */
     let preciseSavedPosition = null;
+    /** @type {(timeBarX: number) => void} */
     const shiftTime = (timeBarX) => {
       const totalWidth = /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth;
       if (totalWidth) {
@@ -412,17 +439,18 @@ export class ProgressBar extends EventEmitter {
       }
     };
 
+    /** @type {(event: MouseEvent | TouchEvent) => void} */
     const onProgressbarMouseMove = (event) => {
       // No button held: it was let go outside the player, where neither mouseup nor
       // mouseleave may reach this frame. The drag ends where it was, without seeking:
       // every move went on seeking, and the next click played the video.
-      if (event.type === 'mousemove' && event.buttons === 0) {
+      if (event.type === 'mousemove' && (/** @type {MouseEvent} */ (event)).buttons === 0) {
         endDrag(null);
         return;
       }
       this.hidePreview();
-      const currentY = Math.min(Math.max(event.clientY - WebUtils.getOffsetTop(/** @type {HTMLElement} */ (DOMElements.progressContainer)), -100), 50);
-      const currentX = Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.progressContainer)), 0), /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth);
+      const currentY = Math.min(Math.max((/** @type {MouseEvent} */ (event)).clientY - WebUtils.getOffsetTop(/** @type {HTMLElement} */ (DOMElements.progressContainer)), -100), 50);
+      const currentX = Math.min(Math.max((/** @type {MouseEvent} */ (event)).clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.progressContainer)), 0), /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth);
       const isExpanded = /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.contains('expanded');
       const offset = isExpanded ? 0 : 80;
       if ((this.preciseMode || preciseSavedPosition !== null) && currentY > 20) {
@@ -443,6 +471,7 @@ export class ProgressBar extends EventEmitter {
 
     // Ends the drag, at the release point of a mouseup (event) or where it was (null).
     let ended = false;
+    /** @type {(event: MouseEvent | TouchEvent | null, resume?: boolean) => void} */
     const endDrag = (event, resume = true) => {
       // Once: a mouseup in the player reaches its listener and the document's.
       if (ended) return;
@@ -463,7 +492,7 @@ export class ProgressBar extends EventEmitter {
         this.showPreview();
       }
 
-      let clickedX = event ? Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.progressContainer)), 0), /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth) : NaN;
+      let clickedX = event ? Math.min(Math.max((/** @type {MouseEvent} */ (event)).clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.progressContainer)), 0), /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth) : NaN;
 
       if (event && isNaN(clickedX) && !isNaN(initialPosition)) {
         clickedX = initialPosition;
@@ -479,6 +508,7 @@ export class ProgressBar extends EventEmitter {
         this.client.player?.play();
       }
     };
+    /** @type {(event: MouseEvent | TouchEvent) => void} */
     const onProgressbarMouseUp = (event) => endDrag(event);
     this.endDrag = endDrag;
     shiftTime(initialPosition);
