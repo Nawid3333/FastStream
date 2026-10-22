@@ -39,10 +39,10 @@ export class MP4Writer {
 
     this.sources = {};
     if (tracks.video) {
-      this.sources.video = new EncodedVideoPacketSource(tracks.video);
+      this.sources.video = new EncodedVideoPacketSource(/** @type {import('./mediabunny.mjs').VideoCodec} */ (tracks.video));
     }
     if (tracks.audio) {
-      this.sources.audio = new EncodedAudioPacketSource(tracks.audio);
+      this.sources.audio = new EncodedAudioPacketSource(/** @type {import('./mediabunny.mjs').AudioCodec} */ (tracks.audio));
     }
     this.rebaser = new TimestampRebaser(Object.keys(this.sources), (track, timestamp, item) => {
       this.mux(track, timestamp, item);
