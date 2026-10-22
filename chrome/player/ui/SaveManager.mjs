@@ -98,7 +98,8 @@ export class SaveManager {
       return;
     }
 
-    const source = this.client.source;
+    // The VideoSource checked above (FastStreamClient documents it as an Object).
+    const source = /** @type {VideoSource} */ (this.client.source);
     const headers = Object.entries(source.headers || {}).map(([name, value]) => {
       return {name, value};
     });
@@ -244,7 +245,9 @@ export class SaveManager {
       return;
     }
 
-    const suggestedName = (this.client.mediaInfo?.name || 'video').replaceAll(' ', '_') + '@' + StringUtils.formatTime(this.client.currentTime);
+    // What the tab's title tells (FastStreamClient documents it as an Object): MediaTitle's
+    // guess, none for a player in a tab of its own.
+    const suggestedName = (/** @type {?ReturnType<typeof import('../utils/MediaTitle.mjs').guessMediaInfo>|undefined} */ (this.client.mediaInfo)?.name || 'video').replaceAll(' ', '_') + '@' + StringUtils.formatTime(this.client.currentTime);
     const name = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
 
     if (!name) {
@@ -338,7 +341,8 @@ export class SaveManager {
 
     // A Firefox save, private window or not, lands straight in the download directory
     // under whatever name is passed, so the name is always asked for.
-    const suggestedName = (this.client.mediaInfo?.name || 'video').replaceAll(' ', '_');
+    // What the tab's title tells (FastStreamClient documents it as an Object), as above.
+    const suggestedName = (/** @type {?ReturnType<typeof import('../utils/MediaTitle.mjs').guessMediaInfo>|undefined} */ (this.client.mediaInfo)?.name || 'video').replaceAll(' ', '_');
 
     if (doDump) {
       const name = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
@@ -365,7 +369,7 @@ export class SaveManager {
     // The file kept is of the quality and audio track it was made of: saved again after a
     // change of either, it was the previous one's file under the new name.
     const levels = String(player.getCurrentVideoLevelID?.()) + '|' + String(player.getCurrentAudioLevelID?.());
-    if (this.reuseDownloadURL && this.downloadURL && isComplete && this.downloadURLLevels === levels) {
+    if (this.reuseDownloadURL && this.downloadURL && isComplete && /** @type {string|undefined} */ (this.downloadURLLevels) === levels) {
       url = this.downloadURL;
     } else {
       this.reuseDownloadURL = isComplete;
@@ -538,6 +542,8 @@ export class SaveManager {
 
     /** @type {?VideoSource} */
     let newSource = null;
+    // An archive's stored downloads (parseFSA's entries), for the download manager.
+    /** @type {?Array<import('../network/DownloadEntry.mjs').DownloadEntry>} */
     let newEntries = null;
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -569,9 +575,10 @@ export class SaveManager {
         newSource.identifier = file.name + 'size' + file.size;
       } else if (ext === 'fsa') {
         try {
-          const {source, entries, currentLevel, currentAudioLevel} = await FastStreamArchiveUtils.parseFSAFile(file, (progress)=>{
+          // What parseFSA returns, as parseFSAFile says (its type says Object).
+          const {source, entries, currentLevel, currentAudioLevel} = /** @type {Awaited<ReturnType<typeof FastStreamArchiveUtils.parseFSA>>} */ (await FastStreamArchiveUtils.parseFSAFile(file, (/** @type {number} */ progress)=>{
             this.setStatusMessage('save-video', Localize.getMessage('player_archive_loading', [Math.floor(progress * 100)]), 'info');
-          }, this.client.downloadManager);
+          }, this.client.downloadManager));
 
           newEntries = entries;
 
@@ -630,7 +637,8 @@ export class SaveManager {
         window.URL.revokeObjectURL(file.url);
       }
       return track;
-    }))).filter(Boolean).forEach((track) => {
+    }))).filter(Boolean).forEach((/** @type {SubtitleTrack} */ track) => {
+      // A track: filter(Boolean) left no null.
       const returnedTrack = this.client.loadSubtitleTrack(track);
       this.client.interfaceController.subtitlesManager.activateTrack(returnedTrack);
     });
