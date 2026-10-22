@@ -1,3 +1,4 @@
+// @ts-check
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {HLSFragment} from './HLSFragment.mjs';
 
@@ -14,8 +15,11 @@ import {HLSFragment} from './HLSFragment.mjs';
 // hls.mjs, which unit tests do not have).
 
 /**
+ * @typedef {Array & {snBase?: number}} FragmentStore
+ */
+/**
  * Where a segment is in its level's store.
- * @param {Array} [fragments] - The level's store; none before the level was first stored.
+ * @param {FragmentStore|undefined} fragments - The level's store; none before the level was first stored.
  * @param {number} sn - The segment's media sequence number.
  * @return {?number} Null when the level has no store yet, or for a segment before the
  *   level's first (a live stream that started its numbering again): it is not stored, and
@@ -39,7 +43,7 @@ export function storeIndex(fragments, sn) {
  * pinned or downloading ones, until they are released: a later refresh forgets them then.
  * @param {Object} client - The FastStreamClient whose store this is.
  * @param {Object} levelDetails - hls.js's LevelDetails, with trackID set.
- * @param {function(number): string} identifierOf - The store's id of an hls.js level index.
+ * @param {(level: number) => string} identifierOf - The store's id of an hls.js level index.
  */
 export function storeLevel(client, levelDetails, identifierOf) {
   const fragments = levelDetails.fragments;
