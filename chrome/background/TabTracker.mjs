@@ -151,7 +151,9 @@ export class FrameHolder {
 
   /**
    * Keeps a stream the page asked for, within the limits (trimTracked).
-   * @param {{url: string, mode: string}} source - The source.
+   * @param {{url: string, mode: string, headers: *, time: number, requestedUrl?: string}} source -
+   *   The source: its request's headers as detected, when it was detected, and, for a
+   *   redirected one, the address first asked for (background.mjs addSource).
    */
   addSource(source) {
     this.trackedSources.push(source);
@@ -160,7 +162,9 @@ export class FrameHolder {
 
   /**
    * Keeps a subtitle file the page asked for, within the limits (trimTracked).
-   * @param {{source: string}} subtitle - The subtitle.
+   * @param {{source: string, headers: *, label: string, time: number}} subtitle - The subtitle:
+   *   its URL, its request's headers, its file name, when it was detected (background.mjs
+   *   handleSubtitles).
    */
   addSubtitle(subtitle) {
     this.trackedSubtitles.push(subtitle);
@@ -261,7 +265,7 @@ export class TabHolder {
     this.mpvNextPickTimer = undefined;
     // A fullscreen carried over to the next episode (background.mjs setCarriedFullscreen):
     // the window's state before it went fullscreen, to go back to, and the player that asked.
-    /** @type {?string} */
+    /** @type {chrome.windows.Window['state']|null} */
     this.windowStateBefore = null;
     /** @type {?number} */
     this.carriedFullscreenFrameId = null;
@@ -320,6 +324,8 @@ export class TabHolder {
     // a new hostname) still names the page it replaced. The names this reset drops can be
     // live ones. The reset before a reload knows better (resetForReload).
     this.frames.clear();
+    // A number from the constructor on, which runs this.
+    /** @type {number} */
     this.playerCount = 0;
     // The frames that played are gone with the frames: a new page's frame that came back
     // with one of their ids counted as a playing player and held the page's media paused.

@@ -24,7 +24,11 @@ import {TabTracker} from './TabTracker.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {VpnProxyMirror} from './VpnProxyMirror.mjs';
 
-let Options = {};
+/** @typedef {typeof import('../player/options/defaults/DefaultOptions.mjs').DefaultOptions} PlayerOptions */
+
+// Empty until the saved options are read (loadOptions; ensureOptions waits for them).
+let Options = /** @type {PlayerOptions} */ ({});
+/** @type {{customSourcePatterns?: string}} What loadCustomPatterns last compiled. */
 const OptionsCache = {};
 
 // "Auto-enable URLs": prefix, `~` regex and `!` exclusion like the MPV allowlist, and
@@ -77,7 +81,7 @@ let LastManualMpvTime = 0;
 // The answer of that send, which a repeat click gets too: an immediate "sent" made the
 // player say so and pause the page while the first send could still fail (glm's review,
 // 2026-10-12).
-/** @type {?Promise<Object>} */
+/** @type {?Promise<MpvHandOff>} */
 let LastManualMpvAnswer = null;
 
 // The shortcut's MPV waits for the user to start a video (onUserPlay). A play
@@ -213,7 +217,7 @@ BackgroundUtils.forgetRemovedAudioSettingsOnUpdate();
 
 // After the restore, or a woken event page would reset every tab's icon to Off.
 ensureOptions().then(() => BackgroundUtils.queryTabs()).then((ctabs) => {
-  ctabs.forEach((tabobj) => {
+  ctabs.forEach(/** @param {chrome.tabs.Tab} tabobj */ (tabobj) => {
     const tab = Tabs.getTabOrCreate(tabobj.id);
     try {
       BackgroundUtils.updateTabIcon(tab, true);
@@ -237,7 +241,7 @@ let playerOpeningAttempts = 0;
  * a stale overlay survives an Off that should have torn it down, or stays up
  * while mpv plays the same stream in its own window.
  *
- * @param {Object} tab - TabHolder to check.
+ * @param {TabHolder} tab - The tab to check.
  * @return {boolean} True when an in-page player is open or opening.
  */
 function hasOrOpeningPlayer(tab) {
@@ -262,7 +266,7 @@ const HasPlayerTimeoutMs = 1000;
  * still stop it, after a hang or with about:debugging's Terminate. Off then left the
  * player playing under a toolbar that said Off.
  *
- * @param {Object} tab - TabHolder to check.
+ * @param {TabHolder} tab - The tab to check.
  * @return {Promise<boolean>}
  */
 async function tabHasPlayer(tab) {
@@ -271,7 +275,7 @@ async function tabHasPlayer(tab) {
   }
   return await new Promise((resolve) => {
     const timer = setTimeout(() => resolve(false), HasPlayerTimeoutMs);
-    chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.HAS_PLAYER}, (response) => {
+    chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.HAS_PLAYER}, /** @param {boolean|undefined} response */ (response) => {
       // No content script (a blank or privileged page) is a tab without a player.
       void chrome.runtime.lastError;
       clearTimeout(timer);
@@ -297,7 +301,7 @@ async function tabHasPlayer(tab) {
  * decoder - goes: it is about a stream sent before, and after MPV off and on again it
  * showed with nothing sent since. The next hand-off says it again.
  *
- * @param {Object} tab - TabHolder to switch.
+ * @param {TabHolder & TabExtras} tab - The tab to switch.
  * @param {boolean} [onPlay] - Wait for the user to start a video.
  * @return {Promise<void>}
  */
@@ -344,7 +348,7 @@ async function startMpv(tab, onPlay = false) {
  * Takes a tab out of MPV mode and turns FastStream off for it, tearing down
  * any in-page player that is up or on its way.
  *
- * @param {Object} tab - TabHolder to switch.
+ * @param {TabHolder} tab - The tab to switch.
  * @return {Promise<void>}
  */
 async function stopMpv(tab) {
@@ -370,7 +374,7 @@ async function stopMpv(tab) {
  *   next address on the site kept the Off, but a page of the site the list does not name
  *   (an entry for its /watch pages, and its home page) forgot it, and the next episode
  *   went to mpv by itself. Another site is a fresh decision, as before.
- * @param {Object} tab - TabHolder.
+ * @param {TabHolder} tab
  */
 function userTurnedOff(tab) {
   tab.mpvTurnedOff = true;
@@ -441,7 +445,7 @@ function leaveMpvWhenOff() {
  * decides. The key used to be the button (_execute_action), and after the MPV key it
  * turned FastStream off: getting the player took a second press.
  *
- * @param {Object} tabobj - The tab the button was clicked or the key pressed in.
+ * @param {chrome.tabs.Tab} tabobj - The tab the button was clicked or the key pressed in.
  * @param {{playerKey?: boolean}} [how] - playerKey: the shortcut, not the button.
  */
 async function onClicked(tabobj, {playerKey = false} = {}) {
@@ -559,7 +563,7 @@ chrome.action.onClicked.addListener((tabobj) => onClicked(tabobj));
  * Does nothing while MPV mode is off: that option is the switch for the whole
  * mpv integration, and openMpvWithSources refuses without it.
  *
- * @param {Object} tabobj - The tab that was active when the key was pressed.
+ * @param {chrome.tabs.Tab} tabobj - The tab that was active when the key was pressed.
  */
 async function onToggleMpv(tabobj) {
   await ensureOptions();
@@ -611,8 +615,8 @@ chrome.commands.onCommand.addListener((command, tabobj) => {
  * as Firefox would have: toggle_player (no default key) or toggle_mpv.
  * The bindings are read fresh, so a key rebound on about:addons counts at once.
  *
- * @param {Object} press - The key press; see KeyShortcut's KeyPress.
- * @param {Object} tabobj - The tab it was pressed in.
+ * @param {import('./KeyShortcut.mjs').KeyPress} press - The key press.
+ * @param {chrome.tabs.Tab} tabobj - The tab it was pressed in.
  */
 async function onCancelledShortcut(press, tabobj) {
   const commands = await chrome.commands.getAll();
@@ -961,6 +965,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // The player builds these from VideoSource.headers, which strips
     // User-Agent (it is on VideoSource's header blacklist). Put the browser's
     // own back, or mpv identifies itself to the CDN as "libmpv".
+    /** @type {Array<{name: string, value: string}>} */
     const headers = Array.isArray(msg.headers) ? msg.headers.slice() : [];
     if (!headers.some((h) => h && /^user-agent$/i.test(h.name))) {
       headers.push({name: 'User-Agent', value: navigator.userAgent});
@@ -1414,7 +1419,7 @@ function handleFullscreenRequest(frame, msg, sendResponse) {
  * episode played windowed. The browser window goes fullscreen instead - an extension may
  * do that - and the player fills the page (windowed fullscreen); off goes back to the
  * window's state before (left as it is when it was fullscreen already, F11).
- * @param {Object} frame - The player's frame.
+ * @param {FrameHolder} frame - The player's frame.
  * @param {boolean} on
  * @return {Promise<string>} enter or exit.
  */
@@ -1450,7 +1455,7 @@ async function setCarriedFullscreen(frame, on) {
 
 /**
  * The window back to its state before a carried fullscreen, once.
- * @param {Object} tab - TabHolder.
+ * @param {TabHolder} tab
  * @param {number} windowId
  */
 async function restoreWindowState(tab, windowId) {
@@ -1468,7 +1473,7 @@ async function restoreWindowState(tab, windowId) {
 
 /**
  * Tells the page's top frame whether Escape is to end a carried fullscreen (content.js).
- * @param {Object} tab - TabHolder.
+ * @param {TabHolder} tab
  * @param {boolean} active
  */
 function tellPageCarried(tab, active) {
@@ -1780,7 +1785,7 @@ function getSourceFromURL(frame, url) {
 
 /**
  * Keeps a stream a frame's page asked for.
- * @param {Object} frame - FrameHolder.
+ * @param {FrameHolder} frame
  * @param {string} url
  * @param {string} mode
  * @param {*} headers
@@ -1797,7 +1802,7 @@ function addSource(frame, url, mode, headers, time = Date.now(), requestedUrl = 
 
 /**
  * The quality lists a frame's page holds for its player's files (content.js, page-qualities.js).
- * @param {Object} tab - TabHolder.
+ * @param {TabHolder} tab
  * @param {number} frameId
  * @return {Promise<Array<Array<{url: string, label: string, height: number}>>>} None when the
  *   page did not answer within PageQualitiesWaitMs.
@@ -1818,7 +1823,7 @@ function getPageQualities(tab, frameId) {
  * Gives each stream the qualities its page's player offers as files of their own, as
  * `qualities`, asked of the frames the streams were found in: the player lists them and plays
  * the one the user's quality setting asks for.
- * @param {Object} tab - TabHolder.
+ * @param {TabHolder} tab
  * @param {Array<{url: string, requestedUrl?: string, frameId: number, qualities?: Array<Object>}>} sources -
  *   collectSources'.
  * @return {Promise<void>}
@@ -1881,6 +1886,31 @@ function modeFromQuery(url) {
 
 /** @typedef {import('./TabTracker.mjs').FrameHolder} FrameHolder */
 /** @typedef {import('./TabTracker.mjs').TabHolder} TabHolder */
+
+/**
+ * The fields this file sets on a TabHolder that TabTracker.mjs does not declare.
+ * regexMatched and mpvMatched are saved with the tab's state there (PersistedTabFields).
+ * @typedef {Object} TabExtras
+ * @property {boolean} [regexMatched] - A list (the MPV Allowlist, the auto-enable list) or
+ *     the player page turned the tab on, not the user.
+ * @property {boolean} [mpvMatched] - The MPV Allowlist started MPV on the tab's site.
+ * @property {?{url: string, filename: string, resolve: (value: *) => boolean}} [downloadInfo] -
+ *     The save a player opened in this tab is for (DOWNLOAD in a container): resolve
+ *     answers the page that asked.
+ */
+
+/**
+ * The field this file sets on a player's FrameHolder that TabTracker.mjs does not declare.
+ * @typedef {Object} FrameExtras
+ * @property {FrameHolder} [pageFrame] - The frame of the page the player plays for
+ *     (acceptPlayer).
+ */
+
+/**
+ * What a hand-off to mpv answers: MpvBackend.openStream's answer, or openInMpv's refusal
+ * of a stream Firefox VPN carries.
+ * @typedef {Awaited<ReturnType<MpvBackend['openStream']>>|{ok: false, vpn: true, error: string}} MpvHandOff
+ */
 
 /**
  * Whether a frame's streams include one that may show a video, and not only playlists of
@@ -2095,7 +2125,7 @@ async function noteProblem(tabId, problem) {
 /**
  * Notes a next episode whose page brought no video within a minute (ProblemLog): the
  * continuation is still there, as nothing took it (its sources, or mpv's stream).
- * @param {Object} tab - TabHolder.
+ * @param {TabHolder} tab
  * @param {Object} continuation
  * @param {'player'|'mpv'} mode
  */
@@ -2230,7 +2260,7 @@ async function scrapeCaptionsTags(frame) {
 /**
  * Takes in a frame's own <track> elements, as content.js read them (scrapeCaptionsTags).
  * A track seen before is replaced by its latest copy, anything new is added.
- * @param {Object} frame - FrameHolder they are in.
+ * @param {FrameHolder} frame - The frame they are in.
  * @param {*} subs - The frame's answer: [{data, source, label, language}], or nothing.
  */
 function takeScrapedCaptions(frame, subs) {
@@ -2253,7 +2283,7 @@ function takeScrapedCaptions(frame, subs) {
  * <track> elements, in every frame - what the in-page player would show from that page. A
  * frame that does not tell its <track> elements within CaptionScrapeWaitMs keeps those it
  * had.
- * @param {Object} tab - TabHolder.
+ * @param {TabHolder} tab
  * @return {Promise<Array<{label: string, srt: string}>>}
  */
 async function pageSubtitlesForMpv(tab) {
@@ -2275,7 +2305,7 @@ async function pageSubtitlesForMpv(tab) {
 /**
  * What the page's video that a player replaced played (content.js replacedVideo), asked
  * of the frame the player's iframe is in.
- * @param {Object} player - The player's frame.
+ * @param {FrameHolder} player - The player's frame.
  * @return {Promise<?{src: string, duration: ?number}>} Its file's URL and its length, or
  *   null when the player replaced no video (it fills the page), or the page did not answer
  *   within PlayedVideoWaitMs.
@@ -2375,8 +2405,9 @@ async function isPlayerParentProven(tab, frame, parentFrameId, opener) {
 
 /**
  * Takes a player that said it loaded (PLAYER_LOADED) for one, and answers it.
- * @param {Object} tab - TabHolder of the player.
- * @param {Object} frame - FrameHolder of the player, its parent set when it has one.
+ * @param {TabHolder & TabExtras} tab - The tab of the player.
+ * @param {FrameHolder & FrameExtras} frame - The frame of the player, its parent set when it
+ *     has one.
  * @param {chrome.runtime.MessageSender} sender - The message's sender.
  * @param {Function} sendResponse - The answer.
  */
@@ -2698,7 +2729,7 @@ function pauseTabMedia(tabId) {
  * went (the host's focus, foreground and reused). Not when the user turned MPV off since
  * the stream went (userTurnedOff): mpv got it all the same, but the page they went back to
  * plays on. A fresh mpv answers seconds after the send.
- * @param {Object} tab - TabHolder the stream was sent from.
+ * @param {TabHolder} tab - The tab the stream was sent from.
  * @param {{focus?: string, foreground?: string, reused?: boolean}} result - The host's answer.
  */
 function pauseAfterHandOff(tab, result) {
@@ -2714,7 +2745,7 @@ function pauseAfterHandOff(tab, result) {
  * The allowlist's MPV: hands a page's stream to mpv, once per page
  * (tab.mpvAutoOpened), then pauses the page.
  *
- * @param {Object} tab - TabHolder the stream is in.
+ * @param {TabHolder} tab - The tab the stream is in.
  * @param {string} url - The stream.
  * @param {*} headers - Its request headers, as detected.
  */
@@ -2924,7 +2955,7 @@ function syncMpvAutoplay(state) {
  * Follows the mpv a stream of the tab just went to: the latest hand-off is the one an end or
  * a key goes on from. Only a single mpv window (Mpv.singleInstance), which the host can
  * follow; a window per stream has no pipe.
- * @param {Object} tab - TabHolder.
+ * @param {TabHolder} tab
  * @param {string} url - The stream sent.
  * @param {?Array<{url: string}>} [qualities] - The page's qualities of it that went along
  *   (isSentStream).
@@ -3248,7 +3279,7 @@ async function goToEpisode(state, direction) {
  * Whether the tracker still holds the tab. A closed tab's holder lives on in the callbacks
  * of what it sent, and a state saved for it put the closed tab back into storage.session,
  * for every later background to make a holder of again.
- * @param {Object} tab - TabHolder.
+ * @param {TabHolder} tab
  * @return {boolean}
  */
 function isTabOpen(tab) {
@@ -3261,7 +3292,7 @@ function isTabOpen(tab) {
  * after the send. An answer for the page before paused the next page's video with nothing
  * sent for it, showed that page's failure or decoder on the button, and a failure opened
  * the allowlist's hand-off again, which then sent the next page's second stream as well.
- * @param {Object} tab - TabHolder the stream was sent from.
+ * @param {TabHolder} tab - The tab the stream was sent from.
  * @param {number} page - Its tab.mpvPage when the stream was sent.
  * @return {boolean}
  */
@@ -3276,7 +3307,7 @@ function isHandOffPage(tab, page) {
  * alone (no "!" since the thin helper, 2026-10-13: an older one still plays the stream):
  * it says to install the host again, as the copy a PC runs is not updated by an extension
  * update or a `git pull` (MpvBackend's RequiredHostVersion).
- * @param {Object} tab - TabHolder the stream was sent from.
+ * @param {TabHolder} tab - The tab the stream was sent from.
  * @param {{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean}} result -
  *   The host's answer.
  */
@@ -3309,7 +3340,7 @@ const MpvDecoderWaitMs = 20000;
  * for the toolbar button's tooltip: the hardware API, or a hint that mpv decodes in
  * software (with what to add to mpv.conf). Read-only: FastStream never overrides mpv.conf.
  * Only an mpv the host started for single-instance use has the pipe to ask over.
- * @param {Object} tab - TabHolder the stream was sent from.
+ * @param {TabHolder} tab - The tab the stream was sent from.
  * @param {{ok: boolean}} result - The hand-off's answer.
  */
 function followMpvDecoder(tab, result) {
@@ -3335,7 +3366,7 @@ function followMpvDecoder(tab, result) {
 }
 
 /**
- * @param {Object} tab - TabHolder.
+ * @param {TabHolder} tab
  * @param {?Object} decoder - MpvBackend's MpvDecoder, or null.
  */
 function setMpvDecoder(tab, decoder) {
@@ -3370,7 +3401,7 @@ async function tabTitle(tabId) {
  * now (it moved on to another video without a load), and its detection sends it;
  * when none has gone within MpvPlayKnownAfterMs, the page's known stream goes.
  *
- * @param {Object} tab - TabHolder the video is in.
+ * @param {TabHolder} tab - The tab the video is in.
  * @param {number} frameId - Frame the video is in.
  * @param {string} src - The video element's currentSrc.
  * @param {?Object} video - What it plays (content.js playedVideo).
@@ -3540,7 +3571,7 @@ async function sendPendingPlay(tab, first) {
  * pick plainly another length than the video is none: the video's stream is
  * still to come.
  *
- * @param {Object} tab - TabHolder the video is in.
+ * @param {TabHolder} tab - The tab the video is in.
  * @param {number} frameId - Frame the video is in.
  * @param {string} src - The video element's currentSrc.
  * @param {?Object} video - What it plays (content.js playedVideo).
@@ -3672,7 +3703,7 @@ function sendPageMediaHold(tab) {
  * the page again. openStream gets no tab: its per-page dedupe would swallow a
  * later, deliberate play of a video already sent (after closing mpv).
  *
- * @param {Object} tab - TabHolder the video is in.
+ * @param {TabHolder} tab - The tab the video is in.
  * @param {Object} source - Detected source: url and request headers.
  * @param {?{time?: number, duration?: ?number}} [video] - The page's video as it played
  *   (content.js playedVideo): mpv starts where it was. It started at 0:00, and the page,
@@ -3732,7 +3763,7 @@ function sendPlayedToMpv(tab, source, video = null) {
  * is the one the page just started playing; the rest stay tracked, so the
  * player's "send to mpv" button can still reach them.
  *
- * @param {Object} tab - TabHolder whose tracked sources should open in mpv.
+ * @param {TabHolder} tab - The tab whose tracked sources should open in mpv.
  * @return {boolean} True when a source was handed to mpv.
  */
 function openMpvWithSources(tab) {
@@ -3780,7 +3811,7 @@ function openMpvWithSources(tab) {
 /**
  * The quality of a stream's file the user's setting asks for, when the page's player offers
  * the file in several (page-qualities.js), asked of the frame the stream was found in.
- * @param {?Object} tab - TabHolder.
+ * @param {?TabHolder} tab
  * @param {string} url - The stream.
  * @return {Promise<?{url: string, list: Array<Object>}>} The file to play and the list, or null.
  */
@@ -3804,7 +3835,7 @@ async function pageQualityChoice(tab, url) {
  * report, 2026-10-14): the master and its variant run as long as each other, and of streams
  * that tie the newest goes. A master whose variants cannot play alone (audio or subtitles of
  * their own) goes as the master: mpv takes its highest bitrate by itself (hls-bitrate=max).
- * @param {?Object} tab - TabHolder the stream was found in, if any.
+ * @param {?TabHolder} tab - The tab the stream was found in, if any.
  * @param {string} url - The stream: a master playlist, or a variant of one.
  * @return {Promise<?{url: string, list: ?Array<Object>}>} What to send instead, and the list;
  *   null to send the stream as it is.
@@ -3848,7 +3879,7 @@ async function hlsQualityChoice(tab, url) {
  *   window decides which of the VPN's hosts count (VpnProxyMirror.throughBrowserVpn).
  * @param {string} url - The stream.
  * @param {...*} rest - openStream's other arguments.
- * @return {Promise<Object>} openStream's answer, or {ok: false, vpn: true, error}.
+ * @return {Promise<MpvHandOff>} openStream's answer, or {ok: false, vpn: true, error}.
  */
 async function openInMpv(tabId, url, ...rest) {
   let incognito;
