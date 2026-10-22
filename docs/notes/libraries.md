@@ -8,8 +8,9 @@
 ## Vendored libraries
 
 hls.js is the npm release, **1.7.3**, plus `patches/hls.js@1.7.3.patch` (the extra
-demuxer exports, `outputSamples` on the remux result and the VTT part-loading guard),
-which pnpm applies at install; dash.js is `dashjs@5.2.1` with its patch the same way. The
+demuxer exports, `outputSamples` on the remux result and the VTT part-loading guard, all in
+`dist/hls.mjs`), which pnpm applies at install; the playback worker is hls.js's own
+`dist/hls.worker.js`, unpatched (2026-10-22); dash.js is `dashjs@5.2.1` with its patch the same way. The
 in-tree hls.js they replaced was 1.6.9 with 466 lines of divergence across 22 hunks (1.3%),
 not a fork; that diff is kept as `docs/hls.js-1.6.9-faststream.patch`. See
 [docs/vendored-libraries.md](docs/vendored-libraries.md) for the hunk classification.
