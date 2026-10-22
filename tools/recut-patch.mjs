@@ -334,8 +334,19 @@ function mergeWebpack(b, o, t, label) {
   const head = part('<webpack head>', b.head, o.head, t.head);
   for (const p of t.order) {
     const bv = b.modules.get(p); const ov = o.modules.get(p); const tv = t.modules.get(p);
-    if (ov === undefined || ov === bv) {
+    if (ov === bv) {
       out.push(tv); report.theirs++; continue;
+    }
+    if (ov === undefined) {
+      // In base and the new release, not in ours: the patch deleted it. Taking the new
+      // release's copy brought back what the patch removed, with a clean report. Kept
+      // deleted; one the new release changed too is for a person to decide.
+      if (tv === bv) {
+        report.merged.push(`${p} (FastStream's deletion, kept)`);
+      } else {
+        report.conflicts.push(`${p} (FastStream deleted it; the new release changed it)`);
+      }
+      continue;
     }
     if (bv === undefined) {
       out.push(part(p, '', ov, tv)); continue;

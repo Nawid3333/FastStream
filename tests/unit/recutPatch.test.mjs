@@ -85,6 +85,19 @@ describe('mergeWebpack', () => {
     expect(gone.report.removedUpstream).toEqual(['./b.js']);
   });
 
+  it('keeps a module the patch deleted out, and stops when the new release changed it', () => {
+    // In base and the new release, not in ours: the patch deleted it. The merge took the
+    // new release's copy back, with a clean report: what the patch removed shipped again.
+    const kept = merge({'./a.js': 'a;', './b.js': 'b;', './z.js': 'z;'}, {'./a.js': 'a;', './z.js': 'z;'}, {'./a.js': 'a;', './b.js': 'b;', './z.js': 'z;'});
+    expect(kept.conflicts).toBe(0);
+    expect(kept.text).not.toContain('./b.js');
+    expect(kept.report.merged).toContain(`./b.js (FastStream's deletion, kept)`);
+    const changed = merge({'./a.js': 'a;', './b.js': 'b;', './z.js': 'z;'}, {'./a.js': 'a;', './z.js': 'z;'}, {'./a.js': 'a;', './b.js': 'b upstream;', './z.js': 'z;'});
+    expect(changed.conflicts).toBe(1);
+    expect(changed.text).not.toContain('./b.js');
+    expect(changed.report.conflicts[0]).toContain('./b.js');
+  });
+
   it('does not take a plain file for a bundle', () => {
     expect(splitWebpack('export const x = 1;\n')).toBe(null);
   });
