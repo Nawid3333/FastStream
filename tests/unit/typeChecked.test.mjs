@@ -49,6 +49,7 @@ const CHECKED = [
   'chrome/player/modules/FSBlob.mjs',
   'chrome/player/modules/LargeBuffer.mjs',
   'chrome/player/modules/Localize.mjs',
+  'chrome/player/modules/SecureMemory.mjs',
   'chrome/player/modules/StreamSaver.mjs',
   'chrome/player/modules/analyzer/AudioAnalyzer.mjs',
   'chrome/player/modules/analyzer/AudioAnalyzerNode.mjs',
