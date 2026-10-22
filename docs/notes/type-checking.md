@@ -51,6 +51,25 @@ purpose: any change to it raises `HostVersion` and `RequiredHostVersion`, and th
 then has every user reinstall the helper, for comments that change no behaviour. It is
 typed the next time it changes for a real reason; until then the ratchet holds its count.
 
+### The libraries' own types (2026-10-22)
+
+Each vendored library's declaration (`chrome/player/modules/*.d.mts`) re-exports the npm
+package's own types (`export * from 'hls.js'`, `dashjs`, `fuse.js`, `mp4box`,
+`mediabunny`); Sortable, Coloris and gif.js ship none and stay `any`. Where a package's
+types fall short of its code, `types/vendor-patches.d.ts` adds the rest, each with its
+reason: the APIs FastStream's patches add (dash.js's `getStreamController` and
+`setCustomBitrateSelectionFunction`, mp4box's `getSampleList`), and members the code has
+but the types lack (dash.js accepts an async capabilities filter, `MediaInfo.representations`,
+`StreamProcessor.getRepresentation`; mp4box's `seek` without `useRap`). hls.js's internals
+that the patch exports (`TSDemuxer` and the other demuxers and remuxers) are not in its
+types and stay `any`. A class the package declares but does not export by name is reached
+through one it does: mp4box's trak box is `ISOFile['moov']['traks'][number]`. With the
+real types, 44 places failed the normal check, none of them a bug: dash.js and mp4box
+fields set at runtime, values the code knows are set (a stream is active in dash.js's
+stream events), and members hls.js's types call private or protected. They were fixed with
+casts and declarations only (syntax trees unchanged), and 51 untyped places went with
+them (2597 to 2546).
+
 What the review of glm-5.3-flash's typing answers found (2026-10-22): its types pass
 the checks and can still be false. It wrote its own shape for another file's class (a
 `Client` with the members one file uses) where the real class is the type

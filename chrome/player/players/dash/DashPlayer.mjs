@@ -61,6 +61,7 @@ export default class DashPlayer extends EventEmitter {
   }
 
   async setup() {
+    /** @type {import('../../modules/dash.mjs').MediaPlayerClass} */
     // eslint-disable-next-line new-cap
     this.dash = MediaPlayer().create();
 
@@ -189,6 +190,7 @@ export default class DashPlayer extends EventEmitter {
     // error, so without this the player would wait forever. Once the stream is up, the errors
     // it stays stuck after for good (DashErrors.mjs): they were dropped, and such a stream sat
     // behind a spinner for ever.
+    /** @type {number[]} */
     const manifestErrors = [
       MediaPlayer.errors.MANIFEST_LOADER_PARSING_FAILURE_ERROR_CODE,
       MediaPlayer.errors.MANIFEST_LOADER_LOADING_FAILURE_ERROR_CODE,
@@ -197,7 +199,8 @@ export default class DashPlayer extends EventEmitter {
     const stuck = stuckAfterStart(MediaPlayer.errors);
     const stuckLive = stuckAfterStart(MediaPlayer.errors, true);
     this.dash.on('error', (e) => {
-      const code = e.error?.code;
+      // A string error (dash.js has some) has no code: undefined, which no list holds.
+      const code = /** @type {{code: number}} */ (e.error)?.code;
       let live = false;
       try {
         live = initAlready && this.dash.isDynamic();
@@ -211,7 +214,8 @@ export default class DashPlayer extends EventEmitter {
       }
     });
 
-    this.dash.on('REPRESENTATION_UPDATED', (a) => {
+    // The event patches/dashjs@*.patch adds.
+    this.dash.on('REPRESENTATION_UPDATED', (/** @type {import('../../modules/dash.mjs').MediaPlayerEvent & {representation: import('../../modules/dash.mjs').Representation}} */ a) => {
       const rep = a.representation;
       this.extractFragments(rep);
     });
@@ -229,7 +233,8 @@ export default class DashPlayer extends EventEmitter {
   }
 
   extractAllFragments() {
-    const processors = this.dash.getStreamController().getActiveStream().getStreamProcessors();
+    // Called from dash.js's stream events, so a stream is active.
+    const processors = /** @type {import('../../modules/dash.mjs').DashStream} */ (this.dash.getStreamController().getActiveStream()).getStreamProcessors();
     processors.forEach((processor) => {
       const mediaInfo = processor.getMediaInfo();
       mediaInfo.representations.forEach((rep) => {
@@ -332,7 +337,8 @@ export default class DashPlayer extends EventEmitter {
     } catch (e) {
 
     }
-    this.dash = null;
+    // Its last use: nothing reads it once the player is destroyed.
+    this.dash = /** @type {any} */ (null);
 
     if (this.videoErrorListener) {
       this.video.removeEventListener('error', this.videoErrorListener);

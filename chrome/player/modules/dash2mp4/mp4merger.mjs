@@ -117,7 +117,8 @@ export class MP4Merger extends EventEmitter {
     const mdat = mdats[0];
     // A muxed fragment describes one track per traf and indexes each of them
     // separately, both keyed by the track ID.
-    const sidxs = mp4boxfile.boxes.filter((box) => box.type === 'sidx');
+    // A sidx box's fields (mp4box's sidxBox, which it does not export by name).
+    const sidxs = /** @type {Array<import('../mp4box/mp4box.all.mjs').Box & {reference_ID: number, earliest_presentation_time: number}>} */ (mp4boxfile.boxes.filter((box) => box.type === 'sidx'));
     const sampleLists = mp4boxfile.getSampleList(moof, defaultTrack.trexs);
 
     sampleLists.forEach((samplesList) => {
@@ -158,7 +159,7 @@ export class MP4Merger extends EventEmitter {
       // The mdat is copied whole, so each track's samples keep their distance into it.
       // In a muxed fragment one track's samples follow the other's rather than starting
       // right after the box header, which is why this is measured and not assumed.
-      const offset = /** @type {number} */ (this.datasOffset) + (samplesList.samples[0].offset - mdat.start);
+      const offset = /** @type {number} */ (this.datasOffset) + (samplesList.samples[0].offset - /** @type {number} */ (mdat.start));
 
       track.chunks.push({
         id: track.nextChunkId++,
@@ -177,8 +178,8 @@ export class MP4Merger extends EventEmitter {
     // through blobManager.getBlob(), which would answer undefined for a slice. Upstream
     // stores `blobManager.saveBlob(slice)` here; taking that line as it stands produces a
     // file with a valid header and no media in it.
-    /** @type {Array<*>} */ (this.datas).push(blob.slice(mdat.start, mdat.start + mdat.size));
-    this.datasOffset += mdat.size;
+    /** @type {Array<*>} */ (this.datas).push(blob.slice(mdat.start, /** @type {number} */ (mdat.start) + mdat.size));
+    /** @type {number} */ (this.datasOffset) += mdat.size;
   }
 
   /**

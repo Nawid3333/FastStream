@@ -20,8 +20,8 @@ import {SaveFragmentFetcher, savedEntry} from '../SaveFragmentFetcher.mjs';
 // in the base constructor (not a prototype method), so it has to be
 // reassigned after `super()` runs rather than simply redeclared - a
 // prototype method of the same name would be shadowed by that instance
-// property and never called.
-class FastStreamAbrController extends AbrController {
+// property and never called. hls.js's types call it private, so the base is cast.
+class FastStreamAbrController extends /** @type {any} */ (AbrController) {
   constructor(hls) {
     super(hls);
     this._abandonRulesCheck = () => {};
@@ -103,7 +103,8 @@ export default class HLSPlayer extends EventEmitter {
       abrBandWidthFactor: 0.95,
       abrBandWidthUpFactor: 0.7,
       abrMaxWithRealBitrate: false,
-      abrController: FastStreamAbrController,
+      // Cast as its base is (FastStreamAbrController): hls.js's types call a member it overrides private.
+      abrController: /** @type {any} */ (FastStreamAbrController),
       // Without this, hls.js's error controller silently resets a manually
       // pinned level back to auto (getLevelSwitchAction -> hls.loadLevel =
       // -1) whenever a fragment/level load fails - exactly what a weak
@@ -244,9 +245,9 @@ export default class HLSPlayer extends EventEmitter {
 
         const blob = await dash2mp4.convert(
             // Set: mergeable needs it.
-            videoMimeType, level.details.totalduration, /** @type {Uint8Array} */ (levelInitData).buffer,
+            videoMimeType, /** @type {import('../../modules/hls.mjs').LevelDetails} */ (level.details).totalduration, /** @type {Uint8Array} */ (levelInitData).buffer,
             audioMimeType,
-            audioLevelInitData ? audioLevel.details.totalduration : 0,
+            audioLevelInitData ? /** @type {import('../../modules/hls.mjs').LevelDetails} */ (audioLevel.details).totalduration : 0,
             audioLevelInitData ? audioLevelInitData.buffer : null,
             zippedFragments);
 
@@ -447,7 +448,8 @@ export default class HLSPlayer extends EventEmitter {
     if (this.isPreview && this.activeRequests.length > 0 && !VideoUtils.isBuffered(this.video.buffered, value)) {
       // Still on the segment that is loading: it goes on. The pointer moves many times a
       // second, and on a slow line each move started that segment over.
-      const loading = this.hls.streamController?.fragCurrent;
+      // hls.js's types keep streamController and its fragCurrent protected.
+      const loading = /** @type {any} */ (this.hls).streamController?.fragCurrent;
       if (loading && value >= loading.start && value < loading.start + loading.duration) {
         this.video.currentTime = value;
         return;
@@ -590,7 +592,8 @@ export default class HLSPlayer extends EventEmitter {
    * @return {Object|null}
    */
   get currentFragment() {
-    const frag = this.hls.streamController.currentFrag;
+    // hls.js's types keep streamController protected.
+    const frag = /** @type {any} */ (this.hls).streamController.currentFrag;
     if (!frag) return null;
     const identifier = this.getIdentifier(0, frag.level);
     const fragments = this.client.getFragments(identifier);

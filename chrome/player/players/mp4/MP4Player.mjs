@@ -11,6 +11,13 @@ import {relabelEsdsAacLayout} from './AacLayout.mjs';
 import {MP4Fragment} from './MP4Fragment.mjs';
 import {lengthFromAnswer} from './RangeAnswers.mjs';
 import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
+
+/** @typedef {import('../../modules/mp4box/mp4box.all.mjs').ISOFile} ISOFile */
+/** @typedef {import('../../modules/mp4box/mp4box.all.mjs').Sample} Sample */
+/**
+ * mp4box's trak box, reached through ISOFile: mp4box does not export its class by name.
+ * @typedef {ISOFile['moov']['traks'][number]} TrakBox
+ */
 import {keyframeOffset, sampledDuration} from './SampleIndex.mjs';
 import {SegmentAppender} from './SegmentAppender.mjs';
 import {SourceBufferWrapper, removalPending} from './SourceBufferWrapper.mjs';
@@ -142,7 +149,8 @@ export default class MP4Player extends EventEmitter {
 
   freeSamples(id) {
     // return;
-    const trak = this.mp4box.getTrackById(id);
+    // samples_stored: patches/mp4box@*.patch.
+    const trak = /** @type {TrakBox & {samples_stored: Sample[]}} */ (this.mp4box.getTrackById(id));
 
     trak.samples_stored.forEach((sample) => {
       this.mp4box.releaseSample(trak, sample.number);
@@ -274,7 +282,7 @@ export default class MP4Player extends EventEmitter {
       const trak = this.mp4box.moov.traks.find((trak) => {
         return trak.tkhd.track_id === track.id;
       });
-      const samples = trak.samples;
+      const samples = /** @type {TrakBox} */ (trak).samples;
       if (samples.length > 0) {
         const lastSample = samples[samples.length - 1];
         if (lastSample.offset + lastSample.size > maxOffset) {
@@ -301,7 +309,7 @@ export default class MP4Player extends EventEmitter {
       const trak = this.mp4box.moov.traks.find((trak) => {
         return trak.tkhd.track_id === info.videoTracks[this.currentVideoTrack].id;
       });
-      const samples = trak.samples;
+      const samples = /** @type {TrakBox} */ (trak).samples;
       this.videoTracks.push({
         trak,
         track: info.videoTracks[this.currentVideoTrack],
@@ -316,7 +324,7 @@ export default class MP4Player extends EventEmitter {
       const trak = this.mp4box.moov.traks.find((trak) => {
         return trak.tkhd.track_id === info.audioTracks[l].id;
       });
-      const samples = trak.samples;
+      const samples = /** @type {TrakBox} */ (trak).samples;
       this.audioTracks.push({
         trak,
         track: info.audioTracks[l],
@@ -806,7 +814,8 @@ export default class MP4Player extends EventEmitter {
       this.loader = null;
     }
 
-    this.mp4box = null;
+    // Its last use: nothing reads it once the player is destroyed.
+    this.mp4box = /** @type {any} */ (null);
     this.metaData = null;
 
     this.videoTracks = /** @type {any} */ (null);

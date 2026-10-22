@@ -11,6 +11,8 @@
     "A library tools/sync-vendor.mjs copies into chrome/player/modules (gitignored)",
     "is typed by the declaration file beside it (hls.d.mts beside hls.mjs, which",
     "TypeScript prefers to the script), the same whether the build has run or not.",
+    "It re-exports the npm package's own types; types/vendor-patches.d.ts adds what",
+    "FastStream's patches add and what the types lack (docs/notes/type-checking.md).",
     "Without one, the check failed once the library was there: TypeScript read its",
     "JavaScript and guessed types the code does not fit. typeChecked.test.mjs keeps",
     "a declaration beside each imported one; the build ships none (tools/splicer.mjs)."
