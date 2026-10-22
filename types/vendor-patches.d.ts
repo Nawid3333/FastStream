@@ -46,6 +46,11 @@ declare module 'dashjs' {
     processor?: StreamProcessor;
   }
 
+  interface RepresentationController {
+    /** What it plays, or null before its first; dash.js's types also give it as `object`. */
+    getCurrentRepresentation(): Representation | null;
+  }
+
   interface StreamProcessor {
     /** The representation it plays: in dash.js's StreamProcessor, not in its types. */
     getRepresentation(): Representation | null;

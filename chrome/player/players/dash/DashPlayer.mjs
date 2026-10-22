@@ -421,7 +421,7 @@ export default class DashPlayer extends EventEmitter {
   setCurrentVideoLevelID(id) {
     if (typeof id !== 'string') return;
     try {
-      this.dash.setRepresentationForTypeById('video', DashTrackUtils.deconstructLevel(id).id);
+      this.dash.setRepresentationForTypeById('video', /** @type {{type: string, id: string}} */ (DashTrackUtils.deconstructLevel(id)).id);
     } catch (e) {
       console.warn(e);
     }
@@ -434,7 +434,7 @@ export default class DashPlayer extends EventEmitter {
   setCurrentAudioLevelID(id) {
     if (typeof id !== 'string') return;
     try {
-      this.dash.setRepresentationForTypeById('audio', DashTrackUtils.deconstructLevel(id).id, true);
+      this.dash.setRepresentationForTypeById('audio', /** @type {{type: string, id: string}} */ (DashTrackUtils.deconstructLevel(id)).id, true);
     } catch (e) {
       console.warn(e);
     }
