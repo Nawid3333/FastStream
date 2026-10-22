@@ -23,6 +23,7 @@ const TOAST_MS = 3000;
 let lastId = 0;
 
 // The mark inside each icon's circle.
+/** @type {Object<string, string>} */
 const ICON_MARKS = {
   success: '✓',
   error: '✕',
@@ -79,6 +80,11 @@ function openDialog({icon, title, text, content, input, confirmText, cancelText}
   form.method = 'dialog';
   if (icon) form.append(makeIcon(icon));
   // What a screen reader names the dialog by, and reads after its name.
+  /**
+   * @param {HTMLElement} element
+   * @param {string} attribute
+   * @return {HTMLElement}
+   */
   const said = (element, attribute) => {
     element.id = `fs-dialog-${++lastId}`;
     dialog.setAttribute(attribute, element.id);

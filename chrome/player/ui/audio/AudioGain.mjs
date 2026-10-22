@@ -8,6 +8,7 @@ export class AudioGain extends AbstractAudioModule {
     this.gain = 1;
   }
 
+  /** @param {AudioContext} audioContext */
   setupNodes(audioContext) {
     super.setupNodes(audioContext);
     this.gainNode = null;
@@ -15,6 +16,7 @@ export class AudioGain extends AbstractAudioModule {
     this.updateNodes();
   }
 
+  /** @param {number} gain */
   setGain(gain) {
     this.gain = gain;
     this.updateNodes();

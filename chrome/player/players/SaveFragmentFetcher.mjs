@@ -1,12 +1,14 @@
 // @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 
+/** @typedef {{getData: () => Promise<*>, getDataFromBlob: (type?: string) => Promise<*>}} Entry */
+
 /**
  * A downloaded fragment's stored entry for a save, its data downloaded again once when it
  * is gone. A stored download can lose its data after it completed (DownloadEntry: its
  * onDataLost drops the entry) while the fragment still says downloaded, and a save read it
  * bare: it failed there every time, where the loaders download such a fragment again.
- * @param {() => Object | null} entryOf - The download manager's entry of the fragment now.
+ * @param {() => Entry | null} entryOf - The download manager's entry of the fragment now.
  * @param {() => Promise<void>} downloadAgain - Downloads the fragment once more.
  * @return {Promise<{getData: () => Promise<*>, getDataFromBlob: (type?: string) => Promise<*>}>}
  *   Reads that download it again when the entry is gone, or went while it was read.
@@ -19,6 +21,7 @@ export async function savedEntry(entryOf, downloadAgain) {
     return entry;
   };
   let entry = entryOf() || await fresh();
+  /** @param {(entry: Entry) => Promise<*>} how */
   const read = async (how) => {
     try {
       return await how(entry);

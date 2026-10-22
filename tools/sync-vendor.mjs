@@ -206,6 +206,7 @@ function addSortableNamedExport(src) {
  * @return {string} the same file, unchanged
  */
 function checkMp4boxImports(src) {
+  /** @type {(text: string) => string[]} */
   const importsOf = (text) => [...text.matchAll(/^import\s[^;]*?\sfrom\s+"\.\/([^"]+)";?$/gm)].map((m) => m[1]);
   const dist = path.join(root, 'node_modules/mp4box/dist');
   const found = new Set(importsOf(src));
@@ -410,6 +411,7 @@ function main() {
     const pkgPath = path.join(root, 'node_modules', lib.name, 'package.json');
     const version = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version;
 
+    /** @type {(f: string) => string} */
     const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
     const data = lib.transform ?
       Buffer.from(

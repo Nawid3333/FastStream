@@ -42,6 +42,11 @@ function readDirective(line, where) {
   return {target: directive[1], command: directive[2]};
 }
 
+/**
+ * @param {string} fileText
+ * @param {string} target
+ * @param {string} relativePath
+ */
 export function splice(fileText, target, relativePath) {
   if (!TARGETS.includes(target)) {
     throw new Error(`Unknown SPLICER target ${target}: add it to TARGETS in tools/splicer.mjs`);
@@ -78,6 +83,7 @@ export function splice(fileText, target, relativePath) {
         const localesPath = path.join(chromeSourceDir, '_locales/');
         // get all locale folders
         const localeFolders = fs.readdirSync(localesPath);
+        /** @type {{translationMap: Object<string, string>, code: string}[]} */
         const locales = [];
 
         localeFolders.forEach((localeFolder) => {
@@ -88,6 +94,7 @@ export function splice(fileText, target, relativePath) {
           }
 
           const messages = JSON.parse(fs.readFileSync(localePath, 'utf8'));
+          /** @type {Object<string, string>} */
           const translationMap = {};
           // Own-property reads only: a messages.json key like __proto__ must not reach
           // the lookup (CodeQL js/remote-property-injection).
@@ -113,6 +120,7 @@ export function splice(fileText, target, relativePath) {
           }
         });
 
+        /** @type {Object<string, string[]>} */
         const newLocales = {};
         newLocales['LANGUAGES'] = locales.map((locale) => locale.code);
         const englishMap = locales[0].translationMap;
@@ -152,6 +160,12 @@ export function splice(fileText, target, relativePath) {
   return newLines.join('\n');
 }
 
+/**
+ * @param {string} sourceDir
+ * @param {string} buildDir
+ * @param {string[]} spliceTargets
+ * @param {string[]} excludeFiles
+ */
 export function spliceAndCopy(sourceDir, buildDir, spliceTargets = [], excludeFiles = []) {
   fs.readdirSync(sourceDir, {recursive: true, withFileTypes: true})
       .filter((entry) => entry.isFile())

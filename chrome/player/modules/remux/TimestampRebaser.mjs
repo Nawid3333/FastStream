@@ -25,6 +25,7 @@ export class TimestampRebaser {
     /** @type {Map<string, number|null>} */
     this.firsts = new Map(tracks.map((track) => [track, null]));
     this.emit = emit;
+    /** @type {{track: string, timestamp: number, item: *}[]} */
     this.held = [];
     this.offset = null;
   }

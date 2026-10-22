@@ -95,10 +95,16 @@ function words(text) {
  */
 function trimEdges(list) {
   const out = list.slice();
+  /**
+   * @param {boolean} atStart
+   */
   const strip = (atStart) => {
     const keep = atStart ? MAY_START : MAY_END;
     // Whether, from the word at index inwards, only words that may stand there come before a
     // word of the title.
+    /**
+     * @param {number} index
+     */
     const leadsToTitle = (index) => {
       for (let i = index; atStart ? i < out.length : i >= 0; i += atStart ? 1 : -1) {
         const word = bare(out[i]);
@@ -145,6 +151,10 @@ export function guessMediaInfo(title, hostname = '', now = new Date().getFullYea
   // A season and episode marker ends the title: what follows is the episode's own title or the
   // site's ("The Bear S02E03 Sundae"). One at the very start is cut off instead ("S02E03 - The
   // Bear").
+  /**
+   * @param {number} start
+   * @param {number} end
+   */
   const cutAt = (start, end) => {
     text = text.slice(0, start).trim() ? text.slice(0, start) : text.slice(end);
   };
@@ -220,6 +230,9 @@ function nameAndYear(text, site, now) {
   // ("2012 Movie").
   const last = parts[parts.length - 1];
   if (year === null && last && (last.length > 1 || parts.length > 1)) {
+    /**
+     * @param {string} word
+     */
     const isYear = (word) => /^(?:19|20)\d{2}$/.test(word ?? '') && Number(word) <= now + 1;
     const at = isYear(last[last.length - 1]) ? last.length - 1 :
       ((last.length > 2 || (last.length === 2 && parts.length > 1)) && isYear(last[last.length - 2]) && EDGE_WORDS.has(bare(last[last.length - 1])) ? last.length - 2 : -1);

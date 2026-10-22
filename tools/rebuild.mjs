@@ -55,6 +55,7 @@ export function webExtSpawn(args, platform = process.platform) {
   if (platform === 'win32') {
     // cmd.exe reads the line again: a path with & | < > ^ ( ) or % in it is quoted too (the
     // set recut-patch's run() quotes), or `C:\dev\a&b` ran `b\...` as a command of its own.
+    /** @type {(s: string) => string} */
     const quote = (s) => /[\s"&|<>^()%!]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     return {command: ['pnpm', ...pnpmArgs].map(quote).join(' '), args: [], shell: true};
   }

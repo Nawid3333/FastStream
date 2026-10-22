@@ -39,7 +39,7 @@ export const EXIT = {signed: 0, error: 1, pending: 3, missing: 4, rejected: 5};
 /**
  * What a version's API response says about its signing.
  * @param {number} httpStatus - The response status.
- * @param {Object|null} version - The response body, when there is one.
+ * @param {{file?: {status: string, url: string}}|null} version - The response body, when there is one.
  * @return {'signed'|'pending'|'missing'|'rejected'|'error'}
  */
 export function signingState(httpStatus, version) {
@@ -206,7 +206,7 @@ async function main() {
   const state = waitMinutes > 0 ?
     await waitForSigned(() => fetchSigned(version), {deadline: Date.now() + waitMinutes * 60 * 1000}) :
     await fetchSigned(version);
-  process.exitCode = EXIT[state];
+  process.exitCode = EXIT[/** @type {'signed'|'pending'|'missing'|'rejected'|'error'} */ (state)];
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

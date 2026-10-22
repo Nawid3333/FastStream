@@ -121,6 +121,9 @@ jobs:
       - name: Type check
         run: pnpm run typecheck
 
+      - name: Untyped places may only fall (noImplicitAny)
+        run: pnpm run typecheck:strict
+
       - name: Unit tests
         run: pnpm test
 

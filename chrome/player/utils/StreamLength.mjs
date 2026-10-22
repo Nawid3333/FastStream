@@ -331,6 +331,9 @@ export class StreamLength {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     let pos = 0;
 
+    /**
+     * @param {boolean} keepMarker - Whether the VInt keeps its marker bit in the value.
+     */
     const readVint = (keepMarker) => {
       if (pos >= bytes.length) {
         return null;

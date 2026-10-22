@@ -28,6 +28,37 @@ and tools), and `types/firefox-chrome.d.ts` adds the Firefox-only fields read he
 one guard: a message from a page outside any tab is no longer handled as a tab's. The
 player's files are next; fix what tsc reports only with the playback suites to hand.
 
+Since 2026-10-22 (#523) every own script under `chrome/`, `native-host/` and `tools/` has
+`// @ts-check`: 192 files, counted that day with `head -2 | grep @ts-check` over
+`git ls-files`, the vendored libraries left out.
+
+### noImplicitAny, file by file (2026-10-22)
+
+`noImplicitAny` stays off in `tsconfig.json`: with it, 2725 places were untyped on
+2026-10-22 once the first 29 files were typed, each a value TypeScript checks as `any`. They are typed with comments only
+(JSDoc and `/** @type {T} */ (x)` casts), proven by hashing each file's syntax tree
+before and after (positions and comments left out, so only comments may change).
+`pnpm run typecheck:strict` (`tools/check-implicit-any.mjs`, a step of CI's lint job) is
+the ratchet: it runs `tsc --noEmit --noImplicitAny` and compares each file's error count
+with `types/implicit-any.json`. A count above the record fails, and so does a file the
+record leaves out (at 0, or new) with any error; a count below it fails until the record
+is lowered with `pnpm run typecheck:strict -- --update`, so a typed file cannot go back
+unnoticed. `tests/unit/checkImplicitAny.test.mjs` covers the rules (each broken once, and
+caught), and an untyped parameter planted in a file at 0 failed the check with its line.
+
+The mpv host (`native-host/faststream-mpv-host.mjs`, 76 untyped places) is left out on
+purpose: any change to it raises `HostVersion` and `RequiredHostVersion`, and the add-on
+then has every user reinstall the helper, for comments that change no behaviour. It is
+typed the next time it changes for a real reason; until then the ratchet holds its count.
+
+What the review of glm-5.3-flash's typing answers found (2026-10-22): its types pass
+the checks and can still be false. It wrote its own shape for another file's class (a
+`Client` with the members one file uses) where the real class is the type
+(`import('../../FastStreamClient.mjs').FastStreamClient`), and such a shape had a `Map`
+of `VideoLevel`s as an array and FastStreamClient's player as an `HTMLVideoElement`;
+`{Object}` in JSDoc is `any` without the flag and `Object` with it. A parameter's type
+is read from its callers too: `setStatusMessage(key, null)` makes it `string|null`.
+
 `types/messages.d.ts` describes the cross-context message contracts. Add a
 message only after reading its real payload; an inaccurate type is worse
 than an absent one.

@@ -1,6 +1,7 @@
 // @ts-check
 export class SpeedTracker {
   constructor() {
+    /** @type {Array<{dataSize: number, start: number, end: number}>} */
     this.buffer = [];
     /** @type {{dataSize: number, start: number, end: number} | null} */
     this.lastEntry = null;

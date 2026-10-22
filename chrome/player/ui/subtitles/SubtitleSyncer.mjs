@@ -20,7 +20,12 @@ const MinCueDuration = 0.1;
  * @typedef {{cue: SyncCue, element: HTMLElement}} TrackElement
  */
 
+/** @typedef {import('../../SubtitleTrack.mjs').SubtitleTrack} SubtitleTrack */
+
 export class SubtitleSyncer extends EventEmitter {
+  /**
+   * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
+   */
   constructor(client) {
     super();
     this.client = client;
@@ -32,9 +37,12 @@ export class SubtitleSyncer extends EventEmitter {
     this.setup();
   }
 
+  /**
+   * @param {number} delta
+   */
   shiftSubtitles(delta) {
     if (!this.started) return;
-    this.trackToSync.shift(delta);
+    /** @type {SubtitleTrack} */ (this.trackToSync).shift(delta);
     this.client.interfaceController.subtitlesManager.renderSubtitles();
     // There is no onVideoTimeUpdate() here (it moved to FineTimeControls long
     // ago), so this used to throw a TypeError on every ShiftSubtitles key.
@@ -56,7 +64,7 @@ export class SubtitleSyncer extends EventEmitter {
   // The track's total shift, so the tool says where the subtitles stand
   // instead of only "drag subtitles to resync".
   showShift() {
-    const shift = SubtitleSyncUtils.formatShift(this.trackToSync.shiftTotal || 0);
+    const shift = SubtitleSyncUtils.formatShift(/** @type {SubtitleTrack} */ (this.trackToSync).shiftTotal || 0);
     this.client.interfaceController.setStatusMessage('subtitles', Localize.getMessage('player_subtitlesmenu_shifttool_message', [shift]), 'info', 2000);
   }
 
@@ -110,7 +118,7 @@ export class SubtitleSyncer extends EventEmitter {
     this.ui.timelineTrack.addEventListener('dblclick', (e) => {
       if (!/** @type {any} */ (window).subEditMode) return;
       const time = this.client.interfaceController.fineTimeControls.mousePositionToTime(e.clientX);
-      const cue = this.trackToSync.cues.find((c) => {
+      const cue = /** @type {SubtitleTrack} */ (this.trackToSync).cues.find((c) => {
         return time >= c.startTime && time <= c.endTime;
       });
       if (cue) {
@@ -130,14 +138,14 @@ export class SubtitleSyncer extends EventEmitter {
               if (!cue.dom2) {
                 cue.dom2 = WebVTT.convertCueToDOMTree(window, cue.text);
               }
-              el.element.appendChild(cue.dom2);
+              el.element.appendChild(/** @type {Node} */ (cue.dom2));
               el.element.title = cue.text;
             }
           } else {
             // if text is empty, remove cue
-            const index = this.trackToSync.cues.indexOf(cue);
+            const index = /** @type {SubtitleTrack} */ (this.trackToSync).cues.indexOf(cue);
             if (index !== -1) {
-              this.trackToSync.cues.splice(index, 1);
+              /** @type {SubtitleTrack} */ (this.trackToSync).cues.splice(index, 1);
             }
           }
           // Shown on the video at once: only playback redrew it, and paused the old text
@@ -149,9 +157,9 @@ export class SubtitleSyncer extends EventEmitter {
         // create new cue at this time with default duration of 2 seconds
         /** @type {SyncCue} */
         const newCue = new VTTCue(time, time + 2, Localize.getMessage('player_subtitles_new_cue'));
-        this.trackToSync.cues.push(newCue);
+        /** @type {SubtitleTrack} */ (this.trackToSync).cues.push(newCue);
         // sort cues by start time
-        this.trackToSync.cues.sort((a, b) => a.startTime - b.startTime);
+        /** @type {SubtitleTrack} */ (this.trackToSync).cues.sort((a, b) => a.startTime - b.startTime);
         this.client.interfaceController.subtitlesManager.renderSubtitles();
         this.redrawTrack();
         AlertPolyfill.prompt(Localize.getMessage('player_subtitlesmenu_resynctool_edit'), newCue.text).then((newText) => {
@@ -171,9 +179,9 @@ export class SubtitleSyncer extends EventEmitter {
             }
           } else {
             // Cancelled, or emptied: no new cue, rather than one reading "New subtitle".
-            const index = this.trackToSync.cues.indexOf(newCue);
+            const index = /** @type {SubtitleTrack} */ (this.trackToSync).cues.indexOf(newCue);
             if (index !== -1) {
-              this.trackToSync.cues.splice(index, 1);
+              /** @type {SubtitleTrack} */ (this.trackToSync).cues.splice(index, 1);
             }
           }
           // Either way: a cancelled one stayed on a paused video, reading "New subtitle".
@@ -241,6 +249,9 @@ export class SubtitleSyncer extends EventEmitter {
     });
   }
 
+  /**
+   * @param {SubtitleTrack} track
+   */
   toggleTrack(track, removeOnly = false) {
     if (this.started && this.trackToSync === track) {
       const fineTimeControls = this.client.interfaceController.fineTimeControls;
@@ -308,6 +319,10 @@ export class SubtitleSyncer extends EventEmitter {
     this.client.interfaceController.setStatusMessage('subtitles');
   }
 
+  /**
+   * @param {number} minTime
+   * @param {number} maxTime
+   */
   renderTracks(minTime, maxTime) {
     if (!this.started || !this.client.player) return;
 
@@ -321,7 +336,7 @@ export class SubtitleSyncer extends EventEmitter {
       // `||` here kept every cue (all of them start before maxTime or end
       // after minTime), so the whole track sat in the DOM and each cue was
       // repositioned on every frame.
-      this.visibleCues = /** @type {Array<SyncCue>} */ (SubtitleSyncUtils.cuesInRange(this.trackToSync.cues, minTime, maxTime));
+      this.visibleCues = /** @type {Array<SyncCue>} */ (SubtitleSyncUtils.cuesInRange(/** @type {SubtitleTrack} */ (this.trackToSync).cues, minTime, maxTime));
     }
 
     // visibleCues is set by now: start() makes lastUpdate 0, so its first render sets it.

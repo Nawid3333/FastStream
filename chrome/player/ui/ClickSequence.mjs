@@ -5,6 +5,13 @@ import {ClickActions} from '../options/defaults/ClickActions.mjs';
 export const ClickWindowMs = 300;
 
 /**
+ * The options' three click actions, each one of ClickActions' action names.
+ * @typedef {Object} ClickOptions
+ * @property {string} singleClickAction
+ * @property {string} doubleClickAction
+ * @property {string} tripleClickAction
+ */
+/**
  * The clicks on the video: one, two or three in a row, each with its action (the options'
  * singleClickAction, doubleClickAction, tripleClickAction).
  *
@@ -17,12 +24,13 @@ export const ClickWindowMs = 300;
  */
 export class ClickSequence {
   /**
-   * @param {() => Object} getOptions - The player's options, as they are now.
+   * @param {() => ClickOptions} getOptions - The player's options, as they are now.
    * @param {(action: string) => void} act - Does a ClickActions action.
    */
   constructor(getOptions, act) {
     this.getOptions = getOptions;
     // "Nothing" is no action to do (kimi's review).
+    /** @param {string} action */
     this.act = (action) => {
       if (action && action !== ClickActions.NOTHING) act(action);
     };

@@ -56,8 +56,8 @@ export function bufferedAhead(ranges, time) {
  * when there is one, the audio track (the shorter), or what the element has buffered,
  * whichever reaches further (a fragmented MP4's fragments have no times until parsed).
  * @param {Object} parts
- * @param {Array|undefined|null} parts.video - The video track's fragments.
- * @param {Array|undefined|null} [parts.audio] - The audio track's, if separate.
+ * @param {Array<TimedFragment|undefined|null>|undefined|null} parts.video - The video track's fragments.
+ * @param {Array<TimedFragment|undefined|null>|undefined|null} [parts.audio] - The audio track's, if separate.
  * @param {*} [parts.buffered] - The element's buffered ranges.
  * @param {number} parts.time - The playhead.
  * @return {number}

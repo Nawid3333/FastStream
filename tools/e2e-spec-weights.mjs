@@ -33,7 +33,7 @@ const SUITES = ['specs', 'ext-specs', 'classic-specs'];
  *     passed on its first attempt.
  */
 export function timesFromLog(log) {
-  const times = {};
+  const times = /** @type {Object<string, number>} */ ({});
   /** @type {number|null} */
   let last = null;
   for (const line of log.split(/\r?\n/)) {
@@ -74,13 +74,17 @@ export function mergeWeights(old, fresh, existing) {
       .sort(([a], [b]) => a.localeCompare(b)));
 }
 
+/**
+ * @param {string} runId - The CI run id, from the command line.
+ */
 function main(runId) {
   if (!/^\d+$/.test(runId ?? '')) {
     console.error('usage: node tools/e2e-spec-weights.mjs <CI run id>');
     return 1;
   }
+  /** @type {(...args: string[]) => string} */
   const gh = (...args) => execFileSync('gh', args, {encoding: 'utf8', maxBuffer: 256 * 1024 * 1024});
-  const jobs = JSON.parse(gh('run', 'view', runId, '--json', 'jobs')).jobs
+  const jobs = /** @type {{name: string, databaseId: number}[]} */ (JSON.parse(gh('run', 'view', runId, '--json', 'jobs')).jobs)
       .filter((job) => /^e2e \(Windows, (playback|extension)\b/.test(job.name));
   if (jobs.length === 0) {
     console.error(`Run ${runId} has no Windows playback or extension e2e job.`);

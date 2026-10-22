@@ -26,6 +26,7 @@ export class StallWatchdog {
   constructor(onStuck = null) {
     // The time last seen and since when, how many nudges there have been, and where the
     // last one went (NaN: none).
+  /** @type {number|null} */
     this.time = null;
     this.since = 0;
     this.nudges = 0;

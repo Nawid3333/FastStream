@@ -7,7 +7,7 @@ import {AspectRatios} from '../options/defaults/AspectRatios.mjs';
 export class VideoTransformUtils {
   /**
    * Generates a CSS transform string based on video options.
-   * @param {Object} options - Video transform options.
+   * @param {{videoZoom: number, videoFlip: number, videoRotate: number}} options - Video transform options.
    * @return {string} The CSS transform string.
    */
   static getTransformString(options) {
@@ -33,7 +33,7 @@ export class VideoTransformUtils {
    * The styles for the picture's aspect ratio (upstream #552 and its fix): a ratio gives the
    * video a box of that shape, as large as fits the player, and stretches the picture to it;
    * stretch fills the player. Auto (or an unknown value) leaves the video's own.
-   * @param {Object} options - The player's options (videoAspectRatio).
+   * @param {{videoAspectRatio: string}} options - The player's options (videoAspectRatio).
    * @return {{objectFit: string, aspectRatio: string}} aspectRatio as CSS ("16/9"), or ''.
    */
   static getAspectRatioStyles(options) {

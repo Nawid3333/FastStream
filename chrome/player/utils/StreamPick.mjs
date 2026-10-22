@@ -152,6 +152,7 @@ export class StreamPick {
    * @return {T[]} The others, in the order to try them.
    */
   static fallbacks(candidates, picked) {
+    /** @type {(source: T) => number} */
     const streaming = (source) => STREAMING_MODES.includes(source.mode) ? 0 : 1;
     return candidates
         .filter((source) => source !== picked && source.duration !== STILLS_LENGTH)

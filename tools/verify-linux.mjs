@@ -25,8 +25,10 @@ const RUNNER_IMAGES = 'https://raw.githubusercontent.com/actions/runner-images/m
 
 // The Ubuntu releases in GitHub's runner image table, read as runner-images.yml reads them:
 // of the x64 images that are generally available, the one ubuntu-latest gives and the newest.
+/** @param {string} readme */
 function ubuntuReleases(readme) {
-  const rows = readme.split('\n').filter((row) => /^\|.*\| x64 \|/.test(row) && !/preview|beta|deprecated/i.test(row));
+  const rows = readme.split('\n').filter((row) =>/^\|.*\| x64 \|/.test(row) && !/preview|beta|deprecated/i.test(row));
+  /** @param {string} row */
   const releases = (row) => [...row.matchAll(/`ubuntu-(\d{2}\.\d{2})`/g)].map((m) => m[1]);
   const latest = releases(rows.find((row) => row.includes('`ubuntu-latest`')) ?? '')[0];
   const newest = rows.flatMap(releases).sort((a, b) => a.localeCompare(b, 'en', {numeric: true})).at(-1);
@@ -36,6 +38,10 @@ function ubuntuReleases(readme) {
   return {latest, newest};
 }
 
+/**
+ * @param {string} cmd
+ * @param {string[]} args
+ */
 const run = (cmd, args) => spawnSync(cmd, args, {stdio: 'inherit'}).status;
 
 // wsl.exe writes its own messages in UTF-16.

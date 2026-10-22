@@ -23,6 +23,9 @@ export class AudioOutput extends AbstractAudioModule {
     this.channelCounterNode = null;
   }
 
+  /**
+   * @param {AudioContext} audioContext - the audio context the output nodes run in.
+   */
   setupNodes(audioContext) {
     super.setupNodes(audioContext);
     this.gain.setupNodes(audioContext);
@@ -91,7 +94,7 @@ export class AudioOutput extends AbstractAudioModule {
         reject(new Error(RECOUNTED));
         return;
       }
-      node.once('channelcount', (count) => {
+      node.once('channelcount', /** @param {number} count */ (count) => {
         if (this.channelCounterNode !== node) {
           reject(new Error(RECOUNTED));
           return;

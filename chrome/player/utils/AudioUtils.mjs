@@ -2,6 +2,7 @@
 // --- ITU-R 468 weighting with per-bin cache, returns dBFS ---
 
 // 468 curve in dB
+/** @param {number} fHz - Frequency in hertz. */
 function ituR468_dB(fHz) {
   if (!Number.isFinite(fHz) || fHz <= 0) return -Infinity;
   const f = fHz;
@@ -24,6 +25,7 @@ function ituR468_dB(fHz) {
 const _weightsCache = new WeakMap(); // analyser -> { fftSize, sampleRate, weights: Float32Array }
 
 // Build or reuse weights. Normalize so the peak bin weight equals 1.0
+/** @param {AnalyserNode} analyser - The analyser to weight the frequency bins for. */
 function get468WeightsForAnalyser(analyser) {
   const fftSize = analyser.fftSize;
   const sampleRate = analyser.context.sampleRate;
@@ -77,6 +79,7 @@ export class AudioUtils {
   static VOLUME_FLOOR_DB = -70;
   static VOLUME_CEILING_DB = 0;
 
+  /** @param {AudioContext} audioContext - The audio context to create the volume analyser on. */
   static createVolumeAnalyserNode(audioContext) {
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 256;

@@ -63,6 +63,7 @@ if (!xpiName.endsWith(`-${manifest.version}.xpi`)) {
 const xpiBuffer = fs.readFileSync(path.join(artifactsDir, xpiName));
 const hash = crypto.createHash('sha256').update(xpiBuffer).digest('hex');
 
+/** @type {{version: string, update_link: string, update_hash: string, applications?: {gecko: {strict_min_version: string}}}} */
 const updateEntry = {
   version: manifest.version,
   update_link: `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(xpiName)}`,
