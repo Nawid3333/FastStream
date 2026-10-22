@@ -218,7 +218,7 @@ BackgroundUtils.forgetRemovedAudioSettingsOnUpdate();
 // After the restore, or a woken event page would reset every tab's icon to Off.
 ensureOptions().then(() => BackgroundUtils.queryTabs()).then((ctabs) => {
   ctabs.forEach(/** @param {chrome.tabs.Tab} tabobj */ (tabobj) => {
-    const tab = Tabs.getTabOrCreate(tabobj.id);
+    const tab = Tabs.getTabOrCreate(/** @type {number} */ (tabobj.id));
     try {
       BackgroundUtils.updateTabIcon(tab, true);
     } catch (e) {
@@ -451,7 +451,7 @@ function leaveMpvWhenOff() {
 async function onClicked(tabobj, {playerKey = false} = {}) {
   await ensureOptions();
 
-  const tab = Tabs.getTabOrCreate(tabobj.id);
+  const tab = Tabs.getTabOrCreate(/** @type {number} */ (tabobj.id));
 
   // check permissions
   const hasPerms = await BackgroundUtils.checkPermissions();
@@ -580,7 +580,7 @@ async function onToggleMpv(tabobj) {
     return;
   }
 
-  const tab = Tabs.getTabOrCreate(tabobj.id);
+  const tab = Tabs.getTabOrCreate(/** @type {number} */ (tabobj.id));
   if (tabobj.url) {
     tab.url = tabobj.url;
   }
@@ -998,7 +998,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   } else if (msg.type === MessageTypes.POPUP_GUARD_ARM) {
     if (sender.tab) {
-      Tabs.getTabOrCreate(sender.tab.id).popupGuardArmedUntil = Date.now() + PopupGuardArmMs;
+      Tabs.getTabOrCreate(/** @type {number} */ (sender.tab.id)).popupGuardArmedUntil = Date.now() + PopupGuardArmMs;
     }
     return;
   } else if (msg.type === MessageTypes.MPV_USER_PLAY) {
@@ -1017,9 +1017,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!senderTab) {
     return;
   }
-  // TabTracker's maps are not typed: these are a TabHolder and one of its FrameHolders.
-  const tab = /** @type {TabHolder & TabExtras} */ (Tabs.getTabOrCreate(senderTab.id));
-  const frame = /** @type {FrameHolder & FrameExtras} */ (tab.getFrameOrCreate(sender.frameId));
+  // TabTracker's maps are not typed: these are a TabHolder and one of its FrameHolders. A
+  // tab's content script names its tab and frame.
+  const tab = /** @type {TabHolder & TabExtras} */ (Tabs.getTabOrCreate(/** @type {number} */ (senderTab.id)));
+  const frame = /** @type {FrameHolder & FrameExtras} */ (tab.getFrameOrCreate(/** @type {number} */ (sender.frameId)));
 
   if (msg.type === MessageTypes.PLAYER_LOADED) {
     const opener = playerOpener(msg.url || sender.url);
@@ -1203,7 +1204,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           sendResponse(null);
           return;
         }
-        const tab2 = Tabs.getTabOrCreate(tabobj2.id);
+        const tab2 = Tabs.getTabOrCreate(/** @type {number} */ (tabobj2.id));
         // Answered once: by the player's HANDLE_DOWNLOAD answer, or by the timeout below.
         let answered = false;
         const answer = /** @param {boolean|null|undefined} value - The player's answer (true: its download started), or null. */ (value) => {
@@ -1585,6 +1586,7 @@ function traceFrames(frame, toFrame) {
     return [frame];
   }
   const frames = [];
+  /** @type {?FrameHolder} */
   let currentFrame = frame;
   while (currentFrame && currentFrame !== toFrame) {
     frames.push(currentFrame);
@@ -1650,7 +1652,7 @@ async function getPageFrame(frame) {
  */
 async function checkIsFull(frame) {
   return askFrame(frame.tab.tabId, {type: MessageTypes.IS_FULL, frameId: frame.frameId},
-      {frameId: frame.parent.frameId}, 'is_full');
+      {frameId: /** @type {FrameHolder} */ (frame.parent).frameId}, 'is_full');
 }
 
 /**
@@ -1670,7 +1672,8 @@ async function linkToParentFrame(frame) {
       frameId: frame.frameId,
       key,
     }, {
-      frameId: frame.parent.frameId,
+      // Checked above: the promise's executor runs at once.
+      frameId: /** @type {FrameHolder} */ (frame.parent).frameId,
     }, (response) => {
       BackgroundUtils.checkMessageError('link_frame_reciever');
       chrome.tabs.sendMessage(frame.tab.tabId, {
@@ -1686,11 +1689,17 @@ async function linkToParentFrame(frame) {
   });
 }
 
+/**
+ * What the title of a player's tab tells of its media (guessMediaInfo); none for the player
+ * page in a tab of its own.
+ * @param {chrome.tabs.Tab|undefined} tab - The player's tab; undefined outside any tab. Its
+ *   url is set: the extension has the "tabs" permission, which gives every tab's.
+ */
 function getMediaInfoFromTab(tab) {
-  if (!tab || BackgroundUtils.isUrlPlayerUrl(tab.url)) return;
+  if (!tab || BackgroundUtils.isUrlPlayerUrl(/** @type {string} */ (tab.url))) return;
   let hostname;
   try {
-    hostname = new URL(tab.url).hostname;
+    hostname = new URL(/** @type {string} */ (tab.url)).hostname;
   } catch (e) {
     return;
   }
@@ -2167,6 +2176,7 @@ function collectSources(frame, remove = false) {
   /** @type {Array<CollectedSource>} */
   const sources = [];
 
+  /** @type {?FrameHolder} */
   let currentFrame = frame;
   let depth = 0;
 
@@ -2425,7 +2435,8 @@ async function pageSubtitlesForMpv(tab) {
 /**
  * What the page's video that a player replaced played (content.js replacedVideo), asked
  * of the frame the player's iframe is in.
- * @param {FrameHolder} player - The player's frame.
+ * @param {FrameHolder} player - The player's frame, one with a parent (sendSources asks
+ *   only then).
  * @return {Promise<?{src: string, duration: ?number}>} Its file's URL and its length, or
  *   null when the player replaced no video (it fills the page), or the page did not answer
  *   within PlayedVideoWaitMs.
@@ -2439,7 +2450,7 @@ async function getPlayedVideo(player) {
       type: MessageTypes.GET_PLAYED_VIDEO,
       frameId: player.frameId,
     }, {
-      frameId: player.parent.frameId,
+      frameId: /** @type {FrameHolder} */ (player.parent).frameId,
     }, (video) => {
       BackgroundUtils.checkMessageError('get_played_video');
       clearTimeout(timer);
