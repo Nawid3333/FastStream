@@ -2,6 +2,11 @@
 import {WebUtils} from '../../utils/WebUtils.mjs';
 
 /**
+ * @param {string} defaultChoice - The key of the item chosen at first.
+ * @param {string} title - What the dropdown sets, shown before the choice.
+ * @param {Object<string, string>} items - Each item's name by its key.
+ * @param {(value: string, previous: string) => void} call - Called with the key chosen and
+ *     the one before.
  * @param {((choice: string, text: string) => void) | null} editableCallback - Called with the dropdown's value and the edited text.
  */
 export function createDropdown(defaultChoice, title, items, call, editableCallback = null) {
@@ -83,6 +88,13 @@ export function renameDropdownChoice(container, value) {
 }
 
 
+/**
+ * @param {HTMLElement} itemListElement - The list of items, each a div with its key as data-val.
+ * @param {HTMLElement} text - The label, the choice's name in its first child.
+ * @param {HTMLElement} container - The dropdown, its key as data-val.
+ * @param {(value: string, previous: string) => void} call - createDropdown's.
+ * @param {string} title
+ */
 function setupDropdown(itemListElement, text, container, call, title) {
   container.addEventListener('mouseleave', (e) => {
     container.blur();
@@ -95,19 +107,21 @@ function setupDropdown(itemListElement, text, container, call, title) {
 
   const main = text.children[0];
 
+  // The items createDropdown made, and the dropdown, each have their key as data-val.
+  /** @param {number} indexAmount - How many items on: 1 the next, -1 the one before. */
   function shiftSelection(indexAmount) {
     for (let j = 0; j < itemListElement.children.length; j++) {
-      const element = itemListElement.children[j];
+      const element = /** @type {HTMLElement} */ (itemListElement.children[j]);
       if (element.dataset.val === container.dataset.val) {
         element.style.backgroundColor = '';
         const newIndex = (j + indexAmount + itemListElement.children.length) % itemListElement.children.length;
-        const nextElement = itemListElement.children[newIndex];
+        const nextElement = /** @type {HTMLElement} */ (itemListElement.children[newIndex]);
         nextElement.style.backgroundColor = 'var(--popwindow-dropdown-item-selected-background-color)';
         main.textContent = nextElement.textContent;
         container.dataset.val = nextElement.dataset.val;
         // As a click on an item does, or a screen reader keeps the old value.
         container.ariaLabel = title + ': ' + nextElement.textContent;
-        if (call) call(container.dataset.val, element.dataset.val);
+        if (call) call(/** @type {string} */ (container.dataset.val), /** @type {string} */ (element.dataset.val));
         break;
       }
     }
@@ -136,7 +150,7 @@ function setupDropdown(itemListElement, text, container, call, title) {
 
   for (let i = 0; i < itemListElement.children.length; i++) {
     ((i) => {
-      const el = itemListElement.children[i];
+      const el = /** @type {HTMLElement} */ (itemListElement.children[i]);
 
       el.addEventListener('click', (e) => {
         main.textContent = el.textContent;
@@ -145,14 +159,14 @@ function setupDropdown(itemListElement, text, container, call, title) {
 
         for (let j = 0; j < itemListElement.children.length; j++) {
           if (j === i) {
-            itemListElement.children[j].style.backgroundColor = 'var(--popwindow-dropdown-item-selected-background-color)';
+            /** @type {HTMLElement} */ (itemListElement.children[j]).style.backgroundColor = 'var(--popwindow-dropdown-item-selected-background-color)';
           } else {
-            itemListElement.children[j].style.backgroundColor = '';
+            /** @type {HTMLElement} */ (itemListElement.children[j]).style.backgroundColor = '';
           }
         }
         e.stopPropagation();
         container.ariaLabel = title + ': ' + el.textContent;
-        if (call) call(container.dataset.val, prevValue);
+        if (call) call(/** @type {string} */ (container.dataset.val), /** @type {string} */ (prevValue));
       });
     })(i);
   }
