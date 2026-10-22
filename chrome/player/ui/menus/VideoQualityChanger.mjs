@@ -1,3 +1,4 @@
+// @ts-check
 import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {getCodecDisplayName, getDecodingLabel} from '../../players/DecodingCapabilities.mjs';
@@ -11,7 +12,7 @@ const DECODING_MESSAGES = {
 /**
  * "HW" or "SW" after a quality: whether Firefox decodes that version in hardware.
  * @param {Object} level
- * @return {?HTMLElement} null when Firefox gave no answer.
+ * @return {HTMLElement|null} null when Firefox gave no answer.
  */
 function makeDecodingBadge(level) {
   const label = getDecodingLabel(level?.decoding);
@@ -27,7 +28,7 @@ function makeDecodingBadge(level) {
 
 /**
  * @param {Object} level
- * @return {?string} The tooltip line saying how the version is decoded.
+ * @return {string|null} The tooltip line saying how the version is decoded.
  */
 function decodingTitle(level) {
   const label = getDecodingLabel(level?.decoding);
@@ -45,7 +46,7 @@ export class VideoQualityChanger extends EventEmitter {
       target: DOMElements.videoSource,
     });
 
-    DOMElements.videoSourceList.style.display = '';
+    /** @type {HTMLElement} */ (DOMElements.videoSourceList).style.display = '';
     if (!dontSetStayVisible) {
       this.stayOpen = true;
     }
@@ -55,28 +56,28 @@ export class VideoQualityChanger extends EventEmitter {
     if (!this.isOpen()) {
       return false;
     }
-    DOMElements.videoSourceList.style.display = 'none';
+    /** @type {HTMLElement} */ (DOMElements.videoSourceList).style.display = 'none';
     this.stayOpen = false;
     return true;
   }
 
   isOpen() {
-    return DOMElements.videoSourceList.style.display !== 'none';
+    return /** @type {HTMLElement} */ (DOMElements.videoSourceList).style.display !== 'none';
   }
 
   setupUI() {
-    DOMElements.videoSource.tabIndex = 0;
+    /** @type {HTMLElement} */ (DOMElements.videoSource).tabIndex = 0;
 
     let isMouseDown = false;
-    DOMElements.videoSource.addEventListener('mousedown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.videoSource).addEventListener('mousedown', (e) => {
       isMouseDown = true;
     }, true);
 
-    DOMElements.videoSource.addEventListener('mouseup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.videoSource).addEventListener('mouseup', (e) => {
       isMouseDown = false;
     }, true);
 
-    DOMElements.videoSource.addEventListener('click', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.videoSource).addEventListener('click', (e) => {
       if (this.isOpen()) {
         this.closeUI();
       } else {
@@ -85,19 +86,19 @@ export class VideoQualityChanger extends EventEmitter {
       e.stopPropagation();
     });
 
-    DOMElements.videoSource.addEventListener('focus', () => {
+    /** @type {HTMLElement} */ (DOMElements.videoSource).addEventListener('focus', () => {
       if (!this.isOpen() && !isMouseDown) {
         this.openUI(true);
       }
     });
 
-    DOMElements.videoSource.addEventListener('blur', () => {
+    /** @type {HTMLElement} */ (DOMElements.videoSource).addEventListener('blur', () => {
       isMouseDown = false;
       if (!this.stayOpen) {
         this.closeUI();
       }
 
-      const candidates = Array.from(DOMElements.videoSourceList.children);
+      const candidates = Array.from(/** @type {HTMLElement} */ (DOMElements.videoSourceList).children);
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
         current = candidates.find((el) => el.classList.contains('source_active'));
@@ -110,11 +111,11 @@ export class VideoQualityChanger extends EventEmitter {
       current.classList.remove('candidate');
     });
 
-    DOMElements.videoSource.addEventListener('keydown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.videoSource).addEventListener('keydown', (e) => {
       // The button keeps the focus after a click closes the list; its keys are then the
       // player's again (the arrows are the volume), not a choice in a list no one sees.
       if (!this.isOpen()) return;
-      const candidates = Array.from(DOMElements.videoSourceList.children);
+      const candidates = Array.from(/** @type {HTMLElement} */ (DOMElements.videoSourceList).children);
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
         current = candidates.find((el) => el.classList.contains('source_active'));
@@ -141,17 +142,17 @@ export class VideoQualityChanger extends EventEmitter {
         e.preventDefault();
         e.stopPropagation();
       } else if (e.key === 'Enter') {
-        current.click();
+        /** @type {HTMLElement} */ (current).click();
         e.preventDefault();
         e.stopPropagation();
       }
     });
 
-    DOMElements.videoSourceList.addEventListener('mousedown', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.videoSourceList).addEventListener('mousedown', (e) => {
       e.stopPropagation();
     });
 
-    DOMElements.videoSourceList.addEventListener('mouseup', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.videoSourceList).addEventListener('mouseup', (e) => {
       e.stopPropagation();
     });
   }
@@ -174,20 +175,20 @@ export class VideoQualityChanger extends EventEmitter {
     // The page's own qualities when it offers its file in several (FastStreamClient.getMenuVideoLevels).
     const videoLevels = client.getMenuVideoLevels();
     if (!videoLevels || videoLevels.size < 1) {
-      DOMElements.videoSource.classList.add('hidden');
+      /** @type {HTMLElement} */ (DOMElements.videoSource).classList.add('hidden');
       // An open list stayed open under no button, with the last video's qualities - a
       // click on one asked this video for a level it does not have (as the audio menu did).
-      DOMElements.videoSourceList.replaceChildren();
+      /** @type {HTMLElement} */ (DOMElements.videoSourceList).replaceChildren();
       this.closeUI();
       return;
     } else {
-      DOMElements.videoSource.classList.remove('hidden');
+      /** @type {HTMLElement} */ (DOMElements.videoSource).classList.remove('hidden');
     }
 
     const videoLevelsByDimensions = this.groupLevelsByDimensions(client.getLevelManager().filterVideoLevelsByLanguage(Array.from(videoLevels.values())));
     const currentVideoLevelID = client.getMenuVideoLevelID();
 
-    DOMElements.videoSourceList.replaceChildren();
+    /** @type {HTMLElement} */ (DOMElements.videoSourceList).replaceChildren();
 
     videoLevelsByDimensions.forEach((levels) => {
       const isLevelActive = levels.some((level) => level.id === currentVideoLevelID);
@@ -228,7 +229,7 @@ export class VideoQualityChanger extends EventEmitter {
           return;
         }
 
-        Array.from(DOMElements.videoSourceList.getElementsByClassName('source_active')).forEach((element) => {
+        Array.from(/** @type {HTMLElement} */ (DOMElements.videoSourceList).getElementsByClassName('source_active')).forEach((element) => {
           element.classList.remove('source_active');
         });
         // With the versions it was picked from: LevelManager.rememberVideoChoice saves a
@@ -312,7 +313,7 @@ export class VideoQualityChanger extends EventEmitter {
         levelelement.appendChild(groupBadge);
       }
 
-      DOMElements.videoSourceList.appendChild(levelelement);
+      /** @type {HTMLElement} */ (DOMElements.videoSourceList).appendChild(levelelement);
 
       if (levels.length > 1 && isLevelActive) {
         // Add sub-level elements
@@ -369,14 +370,14 @@ export class VideoQualityChanger extends EventEmitter {
               return;
             }
 
-            Array.from(DOMElements.videoSourceList.getElementsByClassName('source_active')).forEach((element) => {
+            Array.from(/** @type {HTMLElement} */ (DOMElements.videoSourceList).getElementsByClassName('source_active')).forEach((element) => {
               element.classList.remove('source_active');
             });
             this.emit('qualityChanged', level, true, levels);
             subLevelElement.classList.add('source_active');
             e.stopPropagation();
           });
-          DOMElements.videoSourceList.appendChild(subLevelElement);
+          /** @type {HTMLElement} */ (DOMElements.videoSourceList).appendChild(subLevelElement);
         });
       }
     });
@@ -407,7 +408,7 @@ export class VideoQualityChanger extends EventEmitter {
       }
 
       // Find element with .quality-<quality> class
-      const element = DOMElements.videoSource.querySelector(`.quality-${quality}`);
+      const element = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (DOMElements.videoSource).querySelector(`.quality-${quality}`));
       if (!element) {
         console.warn('No element for quality', quality);
         continue;

@@ -1,3 +1,4 @@
+// @ts-check
 import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {WebVTT} from '../../modules/vtt.mjs';
@@ -8,6 +9,16 @@ import {DOMElements} from '../DOMElements.mjs';
 
 // The shortest a cue can be dragged to, in seconds.
 const MinCueDuration = 0.1;
+
+/**
+ * A cue with the DOM trees the subtitle code caches on it: `dom` for the video,
+ * `dom2` for the resync timeline.
+ * @typedef {VTTCue & {dom?: Node|null, dom2?: Node|null}} SyncCue
+ */
+
+/**
+ * @typedef {{cue: SyncCue, element: HTMLElement}} TrackElement
+ */
 
 export class SubtitleSyncer extends EventEmitter {
   constructor(client) {
@@ -37,6 +48,7 @@ export class SubtitleSyncer extends EventEmitter {
    * switch to another track showed the old places (glm's second look, 2026-10-13).
    */
   redrawTrack() {
+    /** @type {number} */
     this.lastUpdate = 0;
     this.client.interfaceController.fineTimeControls.renderTimeline();
   }
@@ -49,14 +61,17 @@ export class SubtitleSyncer extends EventEmitter {
   }
 
   setup() {
-    this.ui = {};
+    /** @type {{timelineTrack: HTMLElement}} */
+    this.ui = /** @type {{timelineTrack: HTMLElement}} */ ({});
 
     this.ui.timelineTrack = WebUtils.create('div', '', 'timeline_track');
 
     // track line is grabbable
     let isGrabbingTrack = false;
     let grabStartTrack = 0;
+    /** @type {SyncCue|null} */
     let grabbedCue = null;
+    /** @type {string|null} */
     let grabbedEdge = null;
 
 
@@ -67,7 +82,7 @@ export class SubtitleSyncer extends EventEmitter {
       if (e.button !== 0) return;
       isGrabbingTrack = true;
       grabStartTrack = e.clientX;
-      if (window.subEditMode && !e.shiftKey) {
+      if (/** @type {any} */ (window).subEditMode && !e.shiftKey) {
         const grabbed = this.trackElements.find((el) => {
           const rect = el.element.getBoundingClientRect();
           return e.clientX >= rect.left && e.clientX <= rect.right;
@@ -93,7 +108,7 @@ export class SubtitleSyncer extends EventEmitter {
 
     // double click to edit
     this.ui.timelineTrack.addEventListener('dblclick', (e) => {
-      if (!window.subEditMode) return;
+      if (!/** @type {any} */ (window).subEditMode) return;
       const time = this.client.interfaceController.fineTimeControls.mousePositionToTime(e.clientX);
       const cue = this.trackToSync.cues.find((c) => {
         return time >= c.startTime && time <= c.endTime;
@@ -132,6 +147,7 @@ export class SubtitleSyncer extends EventEmitter {
         }).catch((e) => console.error('Applying the subtitle edit failed', e));
       } else {
         // create new cue at this time with default duration of 2 seconds
+        /** @type {SyncCue} */
         const newCue = new VTTCue(time, time + 2, Localize.getMessage('player_subtitles_new_cue'));
         this.trackToSync.cues.push(newCue);
         // sort cues by start time
@@ -149,7 +165,8 @@ export class SubtitleSyncer extends EventEmitter {
               if (!newCue.dom2) {
                 newCue.dom2 = WebVTT.convertCueToDOMTree(window, newCue.text);
               }
-              el.element.appendChild(newCue.dom2);
+              // A tree: newText is not empty.
+              el.element.appendChild(/** @type {Node} */ (newCue.dom2));
               el.element.title = newCue.text;
             }
           } else {
@@ -179,11 +196,11 @@ export class SubtitleSyncer extends EventEmitter {
       }
     };
 
-    DOMElements.playerContainer.addEventListener('mouseup', clearGrabbing);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', clearGrabbing);
 
-    DOMElements.playerContainer.addEventListener('mouseleave', clearGrabbing);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseleave', clearGrabbing);
 
-    DOMElements.playerContainer.addEventListener('mousemove', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', (e) => {
       // No button held: it was let go where this drag never heard of it (the subtitles menu
       // and the subtitle rows stop mouseup), and the track went on following the pointer.
       // The subtitles' own drag ends the same way (SubtitlesManager).
@@ -213,7 +230,7 @@ export class SubtitleSyncer extends EventEmitter {
             this.trackToSync.shiftAfter(grabbedCue, amount);
           }
         } else {
-          if (window.subEditMode) return;
+          if (/** @type {any} */ (window).subEditMode) return;
           this.trackToSync.shift(amount);
           this.showShift();
         }
@@ -257,6 +274,7 @@ export class SubtitleSyncer extends EventEmitter {
     }
 
     this.lastUpdate = 0;
+    /** @type {Array<TrackElement>} */
     this.trackElements = [];
     this.ui.timelineTrack.replaceChildren();
 
@@ -303,12 +321,12 @@ export class SubtitleSyncer extends EventEmitter {
       // `||` here kept every cue (all of them start before maxTime or end
       // after minTime), so the whole track sat in the DOM and each cue was
       // repositioned on every frame.
-      this.visibleCues = SubtitleSyncUtils.cuesInRange(this.trackToSync.cues, minTime, maxTime);
+      this.visibleCues = /** @type {Array<SyncCue>} */ (SubtitleSyncUtils.cuesInRange(this.trackToSync.cues, minTime, maxTime));
     }
 
-
+    // visibleCues is set by now: start() makes lastUpdate 0, so its first render sets it.
     this.trackElements = this.trackElements.filter((el) => {
-      if (!this.visibleCues.includes(el.cue)) {
+      if (!/** @type {Array<SyncCue>} */ (this.visibleCues).includes(el.cue)) {
         el.element.remove();
         return false;
       } else {
@@ -317,7 +335,7 @@ export class SubtitleSyncer extends EventEmitter {
       return true;
     });
 
-    this.visibleCues.forEach((cue) => {
+    /** @type {Array<SyncCue>} */ (this.visibleCues).forEach((cue) => {
       if (cue.text.length === 0) return;
       if (this.trackElements.find((el) => el.cue === cue)) return;
 
@@ -327,7 +345,8 @@ export class SubtitleSyncer extends EventEmitter {
       if (!cue.dom2) {
         cue.dom2 = WebVTT.convertCueToDOMTree(window, cue.text);
       }
-      el.appendChild(cue.dom2);
+      // A tree: the text is not empty (checked above).
+      el.appendChild(/** @type {Node} */ (cue.dom2));
       el.title = cue.text;
       this.ui.timelineTrack.appendChild(el);
 

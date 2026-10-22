@@ -1,6 +1,12 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {EventEmitter} from '../eventemitter.mjs';
 import {AudioAnalyzerNode} from './AudioAnalyzerNode.mjs';
+
+/**
+ * A stretch of the video the background analysis has covered, in seconds.
+ * @typedef {{start: number, end: number}} DoneRange
+ */
 
 const AnalyzerStatus = {
   IDLE: 'idle',
@@ -234,9 +240,10 @@ export class AudioAnalyzer extends EventEmitter {
     await player.setup();
 
     const audioAnalyzerNode = new AudioAnalyzerNode();
-    const audioContext = new AudioContext({
+    // sinkId (no output device) is newer than TypeScript's AudioContextOptions.
+    const audioContext = new AudioContext(/** @type {AudioContextOptions & {sinkId: {type: 'none'}}} */ ({
       sinkId: {type: 'none'},
-    });
+    }));
     const audioSource = audioContext.createMediaElementSource(player.getVideo());
     audioAnalyzerNode.attach(player.getVideo(), audioSource, audioContext);
     audioAnalyzerNode.on('volume', this.onVolumeFrameProcessed.bind(this));
@@ -281,6 +288,9 @@ export class AudioAnalyzer extends EventEmitter {
     return player;
   }
 
+  /**
+   * @param {DoneRange[]} doneRanges
+   */
   runAnalyzerInBackground(player, doneRanges, onDone) {
     const offsetTarget = -35;
     const time = this.client.currentTime;
@@ -306,8 +316,10 @@ export class AudioAnalyzer extends EventEmitter {
       doneRanges = [];
     }
 
+    /** @type {DoneRange|null} */
     let currentRange = null;
     let currentRangeIndex = 0;
+    /** @type {DoneRange|null} */
     let currentClientRange = null;
     let lastOffsetCalc = Date.now();
 
@@ -396,35 +408,36 @@ export class AudioAnalyzer extends EventEmitter {
         }
 
         // check if ranges need to merge (if they are close enough)
-        if (currentRangeIndex > 0 && currentRange.start - doneRanges[currentRangeIndex - 1].end < 0) {
-          doneRanges[currentRangeIndex - 1].end = Math.max(doneRanges[currentRangeIndex - 1].end, currentRange.end);
+        // (Set by now: found in doneRanges, or a new one made.)
+        if (currentRangeIndex > 0 && /** @type {DoneRange} */ (currentRange).start - doneRanges[currentRangeIndex - 1].end < 0) {
+          doneRanges[currentRangeIndex - 1].end = Math.max(doneRanges[currentRangeIndex - 1].end, /** @type {DoneRange} */ (currentRange).end);
           doneRanges.splice(currentRangeIndex, 1);
           currentRangeIndex--;
           currentRange = doneRanges[currentRangeIndex];
         }
       }
 
-      if (currentRangeIndex < doneRanges.length - 1 && doneRanges[currentRangeIndex + 1].start - currentRange.end < 0) {
-        currentRange.end = Math.max(currentRange.end, doneRanges[currentRangeIndex + 1].end);
+      if (currentRangeIndex < doneRanges.length - 1 && doneRanges[currentRangeIndex + 1].start - /** @type {DoneRange} */ (currentRange).end < 0) {
+        /** @type {DoneRange} */ (currentRange).end = Math.max(/** @type {DoneRange} */ (currentRange).end, doneRanges[currentRangeIndex + 1].end);
         doneRanges.splice(currentRangeIndex + 1, 1);
       }
 
 
-      if (currentRange.end - currentRange.start >= player.duration - 5) {
+      if (/** @type {DoneRange} */ (currentRange).end - /** @type {DoneRange} */ (currentRange).start >= player.duration - 5) {
         onEnd();
         return;
       }
 
-      if (currentRange.end > time + 10) {
-        player.currentTime = currentRange.end - 5;
-        console.log('[AudioAnalyzer] Already analyzed range, seeking', player.currentTime, currentRange.end);
-      } else if (currentRange.end < time) {
-        currentRange.end = time;
+      if (/** @type {DoneRange} */ (currentRange).end > time + 10) {
+        player.currentTime = /** @type {DoneRange} */ (currentRange).end - 5;
+        console.log('[AudioAnalyzer] Already analyzed range, seeking', player.currentTime, /** @type {DoneRange} */ (currentRange).end);
+      } else if (/** @type {DoneRange} */ (currentRange).end < time) {
+        /** @type {DoneRange} */ (currentRange).end = time;
       }
 
-      if (clientTime < currentRange.start - 5 || clientTime > currentRange.end + 5) {
+      if (clientTime < /** @type {DoneRange} */ (currentRange).start - 5 || clientTime > /** @type {DoneRange} */ (currentRange).end + 5) {
         if (!currentClientRange || Math.min(clientTime + 90, player.duration) > currentClientRange.end + 5 || clientTime + 5 < currentClientRange.start) {
-          console.log('[AudioAnalyzer] Client time is outside of analyzed region, seeking', clientTime, currentRange.start, currentRange.end);
+          console.log('[AudioAnalyzer] Client time is outside of analyzed region, seeking', clientTime, /** @type {DoneRange} */ (currentRange).start, /** @type {DoneRange} */ (currentRange).end);
           offset = this.client.isRegionBuffered(clientTimeOriginal + offsetTarget, clientTimeOriginal) ? offsetTarget : 0;
           player.currentTime = Math.max(clientTimeOriginal + offset, 0);
           currentRange = null;
