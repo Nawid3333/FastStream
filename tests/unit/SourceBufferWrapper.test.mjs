@@ -212,4 +212,17 @@ describe('a removal still to run', () => {
     expect(wrapper.hasPendingRemove(95)).toBe(false);
     expect(wrapper.hasPendingRemove(70)).toBe(true);
   });
+
+  it('aborts without a throw while a removal runs (the player is being destroyed)', () => {
+    // SourceBuffer.abort() throws InvalidStateError while a removal runs: MP4Player's
+    // destroy() stopped half way, and DESTROYED was never emitted.
+    const {sourceBuffer, wrapper} = makeWrapper();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    sourceBuffer.abort = vi.fn(() => {
+      throw new DOMException('a removal is running', 'InvalidStateError');
+    });
+    wrapper.remove(0, 10);
+    expect(() => wrapper.abort()).not.toThrow();
+    expect(sourceBuffer.abort).toHaveBeenCalledTimes(1);
+  });
 });
