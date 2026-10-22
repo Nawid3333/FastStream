@@ -455,6 +455,9 @@ async function main() {
   const patchText = fs.readFileSync(patchPath, 'utf8');
   cur.text = patchText; // --apply puts it back if the install fails
   const files = patchedFiles(patchText);
+  // An empty patch (truncated by accident) changes no file: every check below passed over
+  // nothing, "merged cleanly" was said, and --apply deleted the patch as merged.
+  if (files.length === 0) throw new Error(`${cur.patch} changes no file (empty, or no git diff): nothing to move`);
   if (cur.version === opts.to && !opts.from) {
     console.log(`${opts.pkg} is already patched at ${opts.to}.`);
     return 0;

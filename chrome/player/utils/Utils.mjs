@@ -246,7 +246,9 @@ export class Utils {
     return new Promise((resolve, reject)=> {
       if (EnvUtils.isExtension()) {
         chrome.storage.local.get(key, (result) => {
-          resolve(result[key]);
+          // A read that failed answers nothing (runtime.lastError): result[key] threw in the
+          // callback, and this never settled. Unset, as for a key never saved.
+          resolve(result?.[key]);
         });
       } else {
         resolve(localStorage.getItem(key));
@@ -264,6 +266,8 @@ export class Utils {
     return new Promise((resolve, reject)=> {
       if (EnvUtils.isExtension()) {
         chrome.storage.local.set({[key]: value}, () => {
+          // Said, not thrown: few callers wait for a save, and a failed one went by unseen.
+          if (chrome.runtime?.lastError) console.error('Saving ' + key + ' failed', chrome.runtime.lastError);
           resolve();
         });
       } else {
@@ -327,6 +331,19 @@ export class Utils {
         resolve();
       }, timeout);
     });
+  }
+
+  /**
+   * Saves a blob as a file the way every save goes (downloadURL), its URL let go once the
+   * download is over (revokeWhenDownloaded).
+   * @param {Blob} blob
+   * @param {string} filename
+   * @return {Promise<void>} Once the download was handed to the browser.
+   */
+  static async downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const download = await Utils.downloadURL(url, filename);
+    Utils.revokeWhenDownloaded(url, download);
   }
 
   /**

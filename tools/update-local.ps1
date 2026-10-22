@@ -242,7 +242,10 @@ Invoke-Step 'The repository' {
         else {
             $script:onMain = $true
             if ($Apply) {
-                Invoke-Change 'git fetch --prune --tags' { & git fetch --prune --tags }
+                # The tags without --prune: with --tags it pruned the tags too, and deleted
+                # one that was only here (a tag set while testing).
+                Invoke-Change 'git fetch --prune' { & git fetch --prune }
+                Invoke-Change 'git fetch --tags' { & git fetch --tags }
             }
             $behind = [int]((& git rev-list --count "main..$remote/main") | Out-String).Trim()
             if ($behind -eq 0) {

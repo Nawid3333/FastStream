@@ -92,7 +92,8 @@ export class OPFSManager {
     } catch (e) {
       // FSBlob moves on to its next store and drops this manager: its worker ended here, or
       // every player that opened so (the web build in a private window) left one running.
-      this.worker.terminate();
+      // A crash before the answer let it go already (handleWorkerCrash).
+      this.worker?.terminate();
       this.worker = null;
       OPFSManager.live.delete(this);
       throw e;

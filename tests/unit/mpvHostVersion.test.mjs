@@ -32,8 +32,8 @@ const installerFile = path.join(root, 'native-host/install.ps1');
 // chrome/background/MpvBackend.mjs by one, then put the new values here (a failure prints
 // the hashes).
 const RECORDED = {
-  version: 17,
-  host: '2b2386cee98732e34e9a86294f149fdeef8b488c63644587e25450eb1b0d63c4',
+  version: 18,
+  host: '564d598ad5f0a4a5e7d2f9ea1ac2000f2bc9a8b39b7064c3c6856090878e2f55',
   installer: 'db3b8027b508556b8af66eb4b8188460c2a5a6e1feb32d32b490f2e234b29b3a',
 };
 

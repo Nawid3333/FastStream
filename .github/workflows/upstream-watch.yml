@@ -118,9 +118,11 @@ jobs:
           fi
 
           # Another project's text, made safe for this repository's issue: a < could hide a
-          # fake marker, an @ would notify a stranger, and #123 means upstream's 123, not ours.
+          # fake marker, an @ would notify a stranger, #123 means upstream's 123, not ours, and
+          # a [text](address) would show as a link that text chose.
           escape() {
-            sed -e 's/</\&lt;/g' -e "s~#\([0-9][0-9]*\)~${UPSTREAM_REPO}#\1~g" -e 's/@/@\&#8203;/g'
+            sed -e 's/</\&lt;/g' -e "s~#\([0-9][0-9]*\)~${UPSTREAM_REPO}#\1~g" -e 's/@/@\&#8203;/g' \
+              -e 's/\[/\\[/g' -e 's/]/\\]/g'
           }
           : > "$T/have.md"
           : > "$T/other.md"

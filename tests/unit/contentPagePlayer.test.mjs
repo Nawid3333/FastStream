@@ -58,6 +58,28 @@ describe('the page\'s own player, started for an autoplay next', () => {
     expect(await later).toBe('play');
     expect(plays()).toBe(1);
   });
+
+  it('is played by a later ask when the browser refused the first play', async () => {
+    // A tab the autoplay next went on in has had no click: Firefox may refuse the play, and
+    // the latch kept every later ask from trying again (glm's review, 2026-10-22).
+    const {p, video, plays, see} = backgroundTabPage();
+    const play = video.play;
+    let refuse = true;
+    video.play = () => {
+      const done = play();
+      if (!refuse) return done;
+      refuse = false;
+      return Promise.reject(new DOMException('no activation', 'NotAllowedError'));
+    };
+    const first = p.send({type: 'START_PAGE_PLAYER'});
+    see();
+    expect(await first).toBe('play');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const later = p.send({type: 'START_PAGE_PLAYER'});
+    see();
+    expect(await later).toBe('play');
+    expect(plays()).toBe(2);
+  });
 });
 
 describe('a fullscreen carried into the next episode', () => {

@@ -35,6 +35,8 @@ describe('RuleManager.addHeaderRule', () => {
     ['https://cdn.test/hls/master.m3u8', 'cdn.test/hls/master.m3u8'],
     ['http://cdn.test/v.mp4?acl=/*~hmac=1f', 'cdn.test/v.mp4?acl=/*~hmac=1f'],
     ['https://cdn.test/s/v.mpd?a=b^1|c', 'cdn.test/s/v.mpd?a=b^1|c'],
+    // a `|` at the very end anchors the end before it: a `*` keeps it a character
+    ['https://cdn.test/live.ts?t=a|', 'cdn.test/live.ts?t=a|*'],
     ['http://cdn.test/r?u=https://x.test/v.mp4', 'cdn.test/r?u=https://x.test/v.mp4'],
     // As the browser requests it: an accent or a space goes out percent-encoded, and
     // Firefox refuses a urlFilter that is not ASCII. (A `^` in the path too, but Node

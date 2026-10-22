@@ -402,12 +402,9 @@ export class LoopMenu extends EventEmitter {
         this.client.interfaceController.setStatusMessage('save-gif', Localize.getMessage('loop_menu_gif_finished'), 'info', 5000);
         gif.abort();
         console.log('gif finished');
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'loop.gif';
-        a.click();
-        URL.revokeObjectURL(url);
+        // As every save (Utils.downloadURL): an anchor clicked in the player, a frame of the
+        // page, downloads no blob in Firefox.
+        Utils.downloadBlob(blob, 'loop.gif').catch((e) => console.error('Saving the GIF failed', e));
       });
       gif.render();
     }

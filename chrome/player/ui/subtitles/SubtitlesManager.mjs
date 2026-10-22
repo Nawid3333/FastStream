@@ -709,10 +709,15 @@ export class SubtitlesManager extends EventEmitter {
       if (!toAdd.length) {
         trackContainer.style.opacity = 0;
 
-        // Remove all children except one
-        const fillerCue = trackContainer.children[0] || document.createElement('div');
+        // Remove all children except one. An empty one is not kept: it may be a cue's own
+        // element (a tag-only cue, `<v Bob></v>`), which took the '|' and showed it the
+        // next time the cue came.
+        let fillerCue = trackContainer.children[0];
+        if (!fillerCue?.textContent) {
+          fillerCue = trackContainer.fillerCue ??= document.createElement('div');
+          fillerCue.textContent = '|';
+        }
         WebUtils.replaceChildrenPerformant(trackContainer, [fillerCue]);
-        if (!fillerCue.textContent) fillerCue.textContent = '|';
       } else {
         trackContainer.style.opacity = '';
 

@@ -89,3 +89,24 @@ describe('content.js messages to the background', () => {
     expect(callsOf('notifyBackground').length).toBeGreaterThan(1);
   });
 });
+
+describe('the site scripts\' messages to the background (chrome/custom)', () => {
+  // The same for the scripts a few sites get (bilibili, Facebook, Instagram): their sends had
+  // no callback, and an extension reloaded under such a page put an unhandled rejection in
+  // its console at the next scan (glm's review, 2026-10-22).
+  const dir = new URL('../../chrome/custom/', import.meta.url);
+  const files = fs.readdirSync(dir).filter((name) => name.endsWith('_content.js'));
+
+  it('are found', () => {
+    expect(files.length).toBeGreaterThan(2);
+  });
+
+  it.each(files)('%s: each have a callback, or are caught', (name) => {
+    const tree = acorn.parse(fs.readFileSync(new URL(name, dir), 'utf8'),
+        {ecmaVersion: 'latest', sourceType: 'script', locations: true});
+    const calls = nodesOf(tree, (node) => node.type === 'CallExpression' && isName(node.callee, 'chrome.runtime.sendMessage'));
+    const bare = calls.filter((call) => !caught(call) &&
+      !(call.node.arguments.length >= 2 && isFunction(call.node.arguments.at(-1))));
+    expect(bare.map(({node}) => `${name}:${node.loc.start.line}`)).toEqual([]);
+  });
+});

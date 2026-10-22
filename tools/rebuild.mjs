@@ -52,7 +52,9 @@ export function resolveTarget(argv = process.argv.slice(2)) {
 export function webExtSpawn(args, platform = process.platform) {
   const pnpmArgs = ['exec', 'web-ext', ...args];
   if (platform === 'win32') {
-    const quote = (s) => s.includes(' ') ? `"${s}"` : s;
+    // cmd.exe reads the line again: a path with & | < > ^ ( ) or % in it is quoted too (the
+    // set recut-patch's run() quotes), or `C:\dev\a&b` ran `b\...` as a command of its own.
+    const quote = (s) => /[\s"&|<>^()%!]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     return {command: ['pnpm', ...pnpmArgs].map(quote).join(' '), args: [], shell: true};
   }
   return {command: 'pnpm', args: pnpmArgs, shell: false};

@@ -266,6 +266,20 @@ describe('watchMpv', () => {
     watch.stop();
   });
 
+  it('shows no notice that is not plain text (mpv\'s own text expands ${...})', async () => {
+    // A notice went to show-text with ${working-directory} in it, which mpv expands: a local
+    // path on the screen, which the ipc and relay paths refuse (glm's review, 2026-10-22).
+    const {mpv, watch, settle} = await watching('plain');
+    watch.notify('Next ' + '${working-directory}', 'loading');
+    watch.notify('Next episode', 'a line\nbreak');
+    watch.notify('Next episode', 'x'.repeat(3000));
+    watch.notify('Next episode', 'loading');
+    await settle();
+    const shown = mpv.commands.filter((c) => c.command[0] === 'script-message-to');
+    expect(shown.map((c) => c.command.slice(4))).toEqual([['Next episode', 'loading']]);
+    watch.stop();
+  });
+
   it('says how long a notice stays, and takes it down early (host 11)', async () => {
     // Before, every notice went after notify.lua's 2 s: "next episode in 5 s" was gone 3 s
     // before the episode came.

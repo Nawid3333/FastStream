@@ -721,4 +721,29 @@ describe('OPFSManager.setup', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it('says why when its worker crashes before init answers', async () => {
+    // The crash handler had let the worker go already, and the cleanup's terminate() on
+    // null threw a TypeError in place of the reason (glm's review, 2026-10-22).
+    class CrashingWorker {
+      constructor() {
+        this.listeners = {};
+        this.terminate = vi.fn();
+      }
+      addEventListener(type, listener) {
+        this.listeners[type] = listener;
+      }
+      postMessage() {
+        queueMicrotask(() => this.listeners.error({message: 'SyntaxError: a broken import'}));
+      }
+    }
+    vi.stubGlobal('Worker', CrashingWorker);
+    try {
+      const manager = new OPFSManager();
+      await expect(manager.setup()).rejects.toThrow('SyntaxError: a broken import');
+      expect(OPFSManager.live.has(manager)).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

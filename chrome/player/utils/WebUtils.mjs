@@ -1,3 +1,5 @@
+import {EnvUtils} from './EnvUtils.mjs';
+
 /**
  * The US key each digit and US punctuation character is on, the name a binding to it has
  * (getKeyString): a press that types the character is that key, on any layout.
@@ -114,8 +116,10 @@ export class WebUtils {
     //   letters too. Named keys (arrows, Enter, F1) go by position as before.
     const char = e.key && e.key.length === 1 && e.key !== ' ' ? e.key : null;
     // AltGr is Control+Alt on Windows; with it a key types a character, it is no shortcut.
+    // Only there: on Linux and macOS Control+Alt is a shortcut of its own (Control+Alt+Comma
+    // came out as Comma), and their AltGr says so (AltGraph).
     const altGraph = (typeof e.getModifierState === 'function' && e.getModifierState('AltGraph')) ||
-      (e.ctrlKey && e.altKey && char !== null && !/^[a-z]$/i.test(char));
+      (EnvUtils.isWindows() && e.ctrlKey && e.altKey && char !== null && !/^[a-z]$/i.test(char));
     let key;
     let typed = false;
     if (e.key === ' ') {

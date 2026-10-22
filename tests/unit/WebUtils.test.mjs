@@ -139,7 +139,13 @@ describe('getKeyString', () => {
     // A character no US key types alone is named by itself, so it is not that key's
     // binding: Shift+1's '!', and AltGr+Q's '@' (Windows reports AltGr as Control+Alt).
     expect(WebUtils.getKeyString(press('Digit1', '!', {shiftKey: true}))).toBe('!');
-    expect(WebUtils.getKeyString(press('KeyQ', '@', {ctrlKey: true, altKey: true}))).toBe('@');
+    // (on Windows: elsewhere Control+Alt is a shortcut of its own, keyboardLayouts.test.mjs)
+    vi.stubGlobal('navigator', {platform: 'Win32'});
+    try {
+      expect(WebUtils.getKeyString(press('KeyQ', '@', {ctrlKey: true, altKey: true}))).toBe('@');
+    } finally {
+      vi.unstubAllGlobals();
+    }
     // A layout without Latin letters keeps the letters by position (Russian Ya on US Z).
     expect(WebUtils.getKeyString(press('KeyZ', 'я'))).toBe('KeyZ');
     expect(WebUtils.getKeyString(press('Space', ' '))).toBe('Space');

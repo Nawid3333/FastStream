@@ -43,6 +43,10 @@ window.addEventListener('message', (event) => {
         'Referer': location.href,
         'Origin': location.origin,
       },
+    }, () => {
+      // An extension reloaded under the page answers nothing: heard here, it is no
+      // unhandled rejection in the page's console (as content.js's sends).
+      void chrome.runtime.lastError;
     });
 
     console.log('Detected source', event.data);

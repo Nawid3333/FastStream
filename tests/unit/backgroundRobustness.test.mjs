@@ -122,6 +122,25 @@ describe('the toolbar\'s On with players for several frames', () => {
     expect(bg.sent('OPEN_PLAYER').map((m) => m.frameId)).toEqual([3, 1, 2]);
   });
 
+  it('opens them also when a frame never answers (its page holds the event loop)', async () => {
+    // Content scripts share the page's event loop: the click waited for that frame's size
+    // and opened no player at all (glm's review, 2026-10-22).
+    const sizes = {1: 100, 3: 300};
+    bg = await loadBackground({
+      tabs: [{id: 1, url: PAGE}],
+      onTabMessage: ({frameId, message}) => {
+        if (message.type !== 'GET_VIDEO_SIZE') return undefined;
+        return frameId === 2 ? new Promise(() => {}) : sizes[frameId];
+      },
+    });
+    for (const frameId of [1, 2, 3]) {
+      await bg.request({tabId: 1, frameId, parentFrameId: 0, url: `https://cdn.test/${frameId}/master.m3u8`});
+    }
+    await bg.click(1);
+    await bg.wait(6000);
+    expect(bg.sent('OPEN_PLAYER').map((m) => m.frameId)).toEqual([3, 1, 2]);
+  });
+
   it('opens none in a frame the tab dropped while its video was measured', async () => {
     // The page answers its video's size when its scripts let it; the tab went on to another
     // site meanwhile, and the frame's id was sent a player for the page there (glm's review,

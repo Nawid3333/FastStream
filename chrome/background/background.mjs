@@ -185,6 +185,13 @@ const SourceLengthWaitMs = 2500;
 // The page answers within milliseconds unless its own scripts keep it busy; then the
 // longest decides, as before the question.
 const PlayedVideoWaitMs = 1000;
+// The longest the other questions to a frame wait (askFrame): its video's size, its captions,
+// whether it may go fullscreen. Content scripts share the page's event loop, and one that
+// never let go held a click (no player opened) or a fullscreen request for good.
+const FrameAnswerWaitMs = 3000;
+// The captions' scrape waits for the page's tracks, each up to 10 s (content.js
+// HttpRequestTimeoutMs): a little longer than that.
+const CaptionsAnswerWaitMs = 12000;
 // The longest a player, or a hand-off to mpv, waits for a page to list its player's qualities
 // (getPageQualities). It reads them from what it holds: milliseconds, unless its scripts are busy.
 const PageQualitiesWaitMs = 1000;
@@ -1537,17 +1544,8 @@ function traceFrames(frame, toFrame) {
 }
 
 async function checkIsFullscreenAllowed(frame) {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(frame.tab.tabId, {
-      type: MessageTypes.TOGGLE_FULLSCREEN,
-      queryPermissions: true,
-    }, {
-      frameId: frame.frameId,
-    }, (response) => {
-      BackgroundUtils.checkMessageError('check_fullscreen');
-      resolve(response);
-    });
-  });
+  return askFrame(frame.tab.tabId, {type: MessageTypes.TOGGLE_FULLSCREEN, queryPermissions: true},
+      {frameId: frame.frameId}, 'check_fullscreen');
 }
 
 function checkURLMatch(frame) {
@@ -1584,17 +1582,8 @@ async function getPageFrame(frame) {
 }
 
 async function checkIsFull(frame) {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(frame.tab.tabId, {
-      type: MessageTypes.IS_FULL,
-      frameId: frame.frameId,
-    }, {
-      frameId: frame.parent.frameId,
-    }, (response) => {
-      BackgroundUtils.checkMessageError('is_full');
-      resolve(response);
-    });
-  });
+  return askFrame(frame.tab.tabId, {type: MessageTypes.IS_FULL, frameId: frame.frameId},
+      {frameId: frame.parent.frameId}, 'is_full');
 }
 
 /**
@@ -2220,16 +2209,7 @@ async function scrapeCaptionsTags(frame) {
   const frameId = frame.frameId;
   if (tabId < 0) return null;
 
-  return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(tabId, {
-      type: MessageTypes.SCRAPE_CAPTIONS,
-    }, {
-      frameId: frameId,
-    }, (sub) => {
-      BackgroundUtils.checkMessageError('scrape_captions');
-      resolve(sub);
-    });
-  });
+  return askFrame(tabId, {type: MessageTypes.SCRAPE_CAPTIONS}, {frameId: frameId}, 'scrape_captions', CaptionsAnswerWaitMs);
 }
 
 /**
@@ -2303,17 +2283,29 @@ async function getPlayedVideo(player) {
   });
 }
 
-async function getVideoSize(frame) {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(frame.tab.tabId, {
-      type: MessageTypes.GET_VIDEO_SIZE,
-    }, {
-      frameId: frame.frameId,
-    }, (size) => {
-      BackgroundUtils.checkMessageError('get_video_size');
-      resolve(size);
+/**
+ * Asks a frame's content script, as tabs.sendMessage does, and answers undefined - as a frame
+ * without one does - once FrameAnswerWaitMs have passed with no answer.
+ * @param {number} tabId
+ * @param {Object} message
+ * @param {{frameId: number}} target
+ * @param {string} label - For BackgroundUtils.checkMessageError.
+ * @param {number} [waitMs] - How long an answer is waited for.
+ * @return {Promise<*>}
+ */
+function askFrame(tabId, message, target, label, waitMs = FrameAnswerWaitMs) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), waitMs);
+    chrome.tabs.sendMessage(tabId, message, target, (answer) => {
+      BackgroundUtils.checkMessageError(label);
+      clearTimeout(timer);
+      resolve(answer);
     });
   });
+}
+
+async function getVideoSize(frame) {
+  return askFrame(frame.tab.tabId, {type: MessageTypes.GET_VIDEO_SIZE}, {frameId: frame.frameId}, 'get_video_size');
 }
 
 /**

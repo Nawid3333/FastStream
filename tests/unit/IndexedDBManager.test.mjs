@@ -124,3 +124,24 @@ describe('IndexedDBManager.prune', () => {
     expect(deleteDB).not.toHaveBeenCalled();
   });
 });
+
+describe('IndexedDBManager.requestDB', () => {
+  it('closes a connection that opens after its timeout', async () => {
+    // The open gave up after 5 s, and the connection that came later stayed open: the other
+    // tab's own deleteDatabase then waited on it (glm's review, 2026-10-22).
+    vi.useFakeTimers();
+    try {
+      const request = {};
+      window.indexedDB = {open: () => request};
+      const opened = IndexedDBManager.requestDB('faststream-temp-slow', false);
+      const failed = expect(opened).rejects.toThrow('Timeout');
+      await vi.advanceTimersByTimeAsync(5001);
+      await failed;
+      const db = {close: vi.fn()};
+      request.onsuccess({target: {result: db}});
+      expect(db.close).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
