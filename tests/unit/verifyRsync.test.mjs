@@ -9,7 +9,10 @@ import {describe, expect, it} from 'vitest';
 // working tree and copy. It needs bash and rsync, as verify:linux and CI's Linux have; a
 // Windows checkout without rsync skips it.
 
-const hasRsync = spawnSync('bash', ['-c', 'command -v rsync'], {encoding: 'utf8'}).status === 0;
+// Linux only: on Windows `bash` can be WSL's, which has rsync but not the Windows paths,
+// and the run waited for good.
+const hasRsync = process.platform !== 'win32' &&
+  spawnSync('bash', ['-c', 'command -v rsync'], {encoding: 'utf8', timeout: 10000}).status === 0;
 
 /**
  * The rsync command of verify.sh, its continued lines joined.
@@ -60,7 +63,7 @@ describe('verify.sh\'s copy of the working tree', () => {
       fs.writeFileSync(path.join(dst, '.git', 'HEAD'), 'ref: refs/heads/main\n');
       fs.writeFileSync(path.join(dst, 'tests', 'e2e', 'fixtures', 'sample.mp4'), 'kept\n');
 
-      const r = spawnSync('bash', ['-c', rsyncCommand()], {encoding: 'utf8', env: {...process.env, src, dst}});
+      const r = spawnSync('bash', ['-c', rsyncCommand()], {encoding: 'utf8', env: {...process.env, src, dst}, timeout: 60000});
       expect(r.status, r.stderr).toBe(0);
       expect(fs.readFileSync(path.join(dst, 'keep.txt'), 'utf8')).toBe('the new text\n');
       // One that stopped being ignored (#101), and one ignored in both trees: both gone.

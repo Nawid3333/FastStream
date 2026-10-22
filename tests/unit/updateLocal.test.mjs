@@ -418,8 +418,10 @@ describe('update-local.ps1', () => {
           `$a = Get-Acl -LiteralPath '${probe}'; ` +
           `$a.SetOwner((New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544'))); ` +
           `Set-Acl -LiteralPath '${probe}' -AclObject $a; 'yes'`],
-          {encoding: 'utf8', windowsHide: true, timeout: 30000});
-        if (r.stdout.trim() !== 'yes') { ctx.skip(); }
+        {encoding: 'utf8', windowsHide: true, timeout: 30000});
+        if (r.stdout.trim() !== 'yes') {
+          ctx.skip();
+        }
       } finally {
         fs.rmSync(dir, {recursive: true, force: true});
       }
@@ -451,7 +453,7 @@ describe('update-local.ps1', () => {
         const sha = crypto.createHash('sha256').update(body).digest('hex');
         const run = (expected) => spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
           '-File', elevated, '-Msi', msi, '-Sha256', expected],
-          {encoding: 'utf8', windowsHide: true, timeout: 30000});
+        {encoding: 'utf8', windowsHide: true, timeout: 30000});
         expect(run('0'.repeat(64)).status).toBe(51);
         expect(run(sha).status).toBe(52);
       } finally {
@@ -473,7 +475,7 @@ describe('update-local.ps1', () => {
           `protected = $a.AreAccessRulesProtected; rules = @($a.Access | ForEach-Object { '{0} {1} {2} {3}' -f ` +
           `$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value, $_.FileSystemRights, ` +
           `$_.AccessControlType, $_.IsInherited })} | ConvertTo-Json -Compress`],
-          {encoding: 'utf8', windowsHide: true, timeout: 30000});
+        {encoding: 'utf8', windowsHide: true, timeout: 30000});
         expect(r.stderr).toBe('');
         const acl = JSON.parse(r.stdout);
         expect(acl.owner).toBe('S-1-5-32-544');
