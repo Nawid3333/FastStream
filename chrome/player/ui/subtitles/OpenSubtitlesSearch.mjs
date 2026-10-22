@@ -278,14 +278,15 @@ export class OpenSubtitlesSearch extends EventEmitter {
    * @overload
    * @param {'features'} path
    * @param {Object<string, string|number|undefined>} query
-   * @return {Promise<{data: Array<Object>}>}
+   * @return {Promise<{data: Array<import('./SubtitleSearchTitles.mjs').FeatureItem>}>}
    */
   /**
    * Asks the OpenSubtitles API.
    * @param {'subtitles'|'features'} path
    * @param {Object<string, string|number|undefined>} query - An empty or undefined value is
    *     left out.
-   * @return {Promise<SubtitlesAnswer|{data: Array<Object>}>} Its answer, with results (data).
+   * @return {Promise<SubtitlesAnswer|{data: Array<import('./SubtitleSearchTitles.mjs').FeatureItem>}>} Its answer,
+   *     with results (data).
    */
   async request(path, query) {
     // In alphabetical order, as the API asks (it redirects other orders).
