@@ -170,8 +170,7 @@ export default class HLSPlayer extends EventEmitter {
     const fragments = this.client.getFragments(this.getCurrentVideoLevelID()) || [];
     const audioFragments = this.client.getFragments(this.getCurrentAudioLevelID()) || [];
 
-    // An array of tracks, which zipTimedFragments takes as well as the Map its JSDoc names.
-    let zippedFragments = Utils.zipTimedFragments(/** @type {any} */ ([fragments, audioFragments]));
+    let zippedFragments = Utils.zipTimedFragments([fragments, audioFragments]);
 
     if (options.partialSave) {
       zippedFragments = zippedFragments.filter((data) => {

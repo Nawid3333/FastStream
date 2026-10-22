@@ -1,3 +1,5 @@
+// @ts-check
+// @ts-ignore - fuse.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import Fuse from '../modules/fuse.mjs';
 import {Localize} from '../modules/Localize.mjs';
 

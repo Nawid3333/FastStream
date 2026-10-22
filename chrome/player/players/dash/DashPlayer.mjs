@@ -1,6 +1,8 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
+// @ts-ignore - dash.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {MediaPlayer} from '../../modules/dash.mjs';
 import {EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
 import {Utils} from '../../utils/Utils.mjs';
@@ -494,7 +496,7 @@ export default class DashPlayer extends EventEmitter {
     const videoFragments = this.client.getFragments(this.getCurrentVideoLevelID()) || [];
     const audioFragments = this.client.getFragments(this.getCurrentAudioLevelID()) || [];
 
-    let zippedFragments = Utils.zipTimedFragments(/** @type {any} */ ([videoFragments, audioFragments]));
+    let zippedFragments = Utils.zipTimedFragments([videoFragments, audioFragments]);
 
     if (options.partialSave) {
       zippedFragments = zippedFragments.filter((data) => {

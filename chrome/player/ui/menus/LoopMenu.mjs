@@ -1,8 +1,10 @@
+// @ts-check
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 import {Localize} from '../../modules/Localize.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {Utils} from '../../utils/Utils.mjs';
+// @ts-ignore - gif.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {GIF} from '../../modules/gif/gif.mjs';
 
 export class LoopMenu extends EventEmitter {

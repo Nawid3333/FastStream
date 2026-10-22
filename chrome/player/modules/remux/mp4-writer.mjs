@@ -1,3 +1,5 @@
+// @ts-check
+// @ts-ignore - mediabunny.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {EncodedAudioPacketSource, EncodedVideoPacketSource, Mp4OutputFormat, Output, StreamTarget} from './mediabunny.mjs';
 import {TimestampRebaser} from './TimestampRebaser.mjs';
 /**

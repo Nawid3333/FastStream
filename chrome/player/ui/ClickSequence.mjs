@@ -1,3 +1,4 @@
+// @ts-check
 import {ClickActions} from '../options/defaults/ClickActions.mjs';
 
 // How long a click waits for the next one of a double or a triple click.
@@ -35,7 +36,7 @@ export class ClickSequence {
   /** A click on the video. */
   click() {
     const options = this.getOptions();
-    clearTimeout(/** @type {number} */ (this.timer));
+    clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.timer));
     if (options.doubleClickAction === ClickActions.NOTHING && options.tripleClickAction === ClickActions.NOTHING) {
       // No double or triple click: each click is a single one, at once (two quick ones are
       // two, not a double click that does nothing).

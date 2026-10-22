@@ -165,7 +165,8 @@ export class Utils {
 
   /**
    * Zips timed fragments from multiple tracks into a sorted array.
-   * @param {Map} tracks - Map of track to fragments.
+   * @param {Map<*, Array<{start: number}>>|Array<Array<{start: number}>>} tracks - Each track's
+   *   fragments: a Map by track, or an array (the track is then its index).
    * @return {Array} Sorted array of zipped fragments.
    */
   static zipTimedFragments(tracks) {

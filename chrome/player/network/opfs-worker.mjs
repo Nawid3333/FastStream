@@ -1,3 +1,4 @@
+// @ts-check
 import {OpQueue} from './OpQueue.mjs';
 
 // Owns one OPFS subdirectory (chrome/player/network/OPFSManager.mjs's
@@ -23,7 +24,7 @@ let fsBlobRoot = null;
 let sessionDir = null;
 /** @type {string|null} */
 let sessionName = null;
-/** @type {number|null} */
+/** @type {ReturnType<typeof setInterval>|null} */
 let heartbeatInterval = null;
 let heartbeatInFlight = false;
 
@@ -223,7 +224,7 @@ async function clearStorage() {
 }
 
 async function destroy() {
-  clearInterval(/** @type {number} */ (heartbeatInterval));
+  clearInterval(/** @type {ReturnType<typeof setInterval>|undefined} */ (heartbeatInterval));
   heartbeatInterval = null;
   for (const stream of saveStreams.values()) {
     try {

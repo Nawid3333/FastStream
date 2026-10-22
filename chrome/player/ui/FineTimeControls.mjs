@@ -1,3 +1,4 @@
+// @ts-check
 import {EventEmitter} from '../modules/eventemitter.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
@@ -338,7 +339,7 @@ export class FineTimeControls extends EventEmitter {
     for (let frameIndex = minFrameIndex; frameIndex < maxFrameIndex; frameIndex++) {
       if (hasArr[frameIndex - minFrameIndex]) continue;
 
-      const el = WebUtils.create('img', '', 'timeline_frame');
+      const el = /** @type {HTMLImageElement} */ (WebUtils.create('img', '', 'timeline_frame'));
       el.style.left = frameIndex * outputRateInv / duration * 100 + '%';
       el.style.width = outputRateInv / duration * 100 + '%';
       el.style.display = 'none';
@@ -394,7 +395,8 @@ export class FineTimeControls extends EventEmitter {
         this.currentFrameCanvas.width = newWidth;
       }
 
-      this.currentFrameCtx.drawImage(video, 0, 0, this.currentFrameCanvas.width, this.currentFrameCanvas.height);
+      // setup() made it, before any frame is drawn.
+      /** @type {CanvasRenderingContext2D} */ (this.currentFrameCtx).drawImage(video, 0, 0, this.currentFrameCanvas.width, this.currentFrameCanvas.height);
       this.currentFrameCanvas.style.left = currentFrame * outputRateInv / duration * 100 + '%';
       this.currentFrameCanvas.style.width = outputRateInv / duration * 100 + '%';
       this.currentFrameCanvas.style.display = '';
