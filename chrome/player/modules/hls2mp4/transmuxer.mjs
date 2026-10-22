@@ -288,6 +288,3 @@ export default class Transmuxer {
     };
   }
 }
-export function isPromise(p) {
-  return 'then' in p && p.then instanceof Function;
-}
