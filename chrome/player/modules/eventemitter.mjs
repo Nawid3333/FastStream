@@ -1,9 +1,22 @@
 // @ts-check
 export const EmitterCancel = Symbol('EmitterCancel');
 
+/**
+ * A listener of an event. It is called with what emit() was given for that event, which
+ * differs from event to event: the emitter does not type its events, so a listener's
+ * parameters are typed where it is written. Returning EmitterCancel stops the listeners
+ * after it. (A function type with `*` arguments here made every inline listener's
+ * parameters `any` without a word.)
+ * @typedef {Function} EmitterListener
+ */
+
 class EventEmitterContext {
+  /**
+   * @param {EventEmitter} parent
+   */
   constructor(parent) {
     this.parent = parent;
+    /** @type {Map<string, EmitterListener[]>} */
     this.events = new Map();
   }
 
@@ -11,23 +24,32 @@ class EventEmitterContext {
     this.parent.removeContext(this);
   }
 
+  /**
+   * @param {string} event
+   * @param {EmitterListener} callback
+   * @param {boolean} [prepend] - Called before the listeners already there.
+   */
   on(event, callback, prepend = false) {
     if (!this.events.has(event)) {
       this.events.set(event, []);
     }
     if (prepend) {
-      this.events.get(event).unshift(callback);
+      /** @type {EmitterListener[]} */ (this.events.get(event)).unshift(callback);
     } else {
-      this.events.get(event).push(callback);
+      /** @type {EmitterListener[]} */ (this.events.get(event)).push(callback);
     }
     return this;
   }
 
+  /**
+   * @param {string} event
+   * @param {EmitterListener} callback
+   */
   off(event, callback) {
     if (!this.events.has(event)) {
       return this;
     }
-    const callbacks = this.events.get(event);
+    const callbacks = /** @type {EmitterListener[]} */ (this.events.get(event));
     const index = callbacks.indexOf(callback);
     if (index !== -1) {
       callbacks.splice(index, 1);
@@ -35,7 +57,12 @@ class EventEmitterContext {
     return this;
   }
 
+  /**
+   * @param {string} event
+   * @param {EmitterListener} callback
+   */
   once(event, callback) {
+    /** @param {...*} args - What emit() was given, passed on. */
     const onceCallback = (...args) => {
       this.off(event, onceCallback);
       callback(...args);
@@ -44,18 +71,25 @@ class EventEmitterContext {
     return this;
   }
 
+  /**
+   * @param {string} event
+   */
   clear(event) {
     this.events.delete(event);
     return this;
   }
 
+  /**
+   * @param {string} event
+   * @param {...*} args - What the event's listeners are called with.
+   */
   emit(event, ...args) {
     if (!this.events.has(event)) {
       return this;
     }
     // A copy: a listener that removes itself (once()) took its place away while this was
     // on it, and the next one, moved into that place, was skipped.
-    if (![...this.events.get(event)].every((callback) => {
+    if (![.../** @type {EmitterListener[]} */ (this.events.get(event))].every((callback) => {
       try {
         const result = callback(...args);
         if (result === EmitterCancel) {
@@ -92,6 +126,9 @@ export class EventEmitter {
     this.debug = true;
   }
 
+  /**
+   * @param {EventEmitterContext} context
+   */
   removeContext(context) {
     const index = this.contexts.indexOf(context);
     if (index === 0) {
@@ -104,21 +141,37 @@ export class EventEmitter {
     return this;
   }
 
+  /**
+   * @param {string} event
+   * @param {EmitterListener} callback
+   */
   on(event, callback) {
     this.mainContext.on(event, callback);
     return this;
   }
 
+  /**
+   * @param {string} event
+   * @param {EmitterListener} callback
+   */
   off(event, callback) {
     this.mainContext.off(event, callback);
     return this;
   }
 
+  /**
+   * @param {string} event
+   * @param {EmitterListener} callback
+   */
   once(event, callback) {
     this.mainContext.once(event, callback);
     return this;
   }
 
+  /**
+   * @param {string} event
+   * @param {...*} args - What the event's listeners are called with.
+   */
   emit(event, ...args) {
     if (this.debug) {
       console.log(event, ...args);
@@ -139,7 +192,11 @@ export class EventEmitter {
 }
 
 export class EmitterRelay {
+  /**
+   * @param {EventEmitter|EventEmitter[]} [outs] - Where each event goes, in order.
+   */
   constructor(outs) {
+    /** @type {EventEmitter[]} */
     this.outs = [];
 
     if (Array.isArray(outs)) {
@@ -149,16 +206,25 @@ export class EmitterRelay {
     }
   }
 
+  /**
+   * @param {EventEmitter} out
+   */
   appendOutput(out) {
     this.outs.push(out);
     return this;
   }
 
+  /**
+   * @param {EventEmitter} out
+   */
   prependOutput(out) {
     this.outs.unshift(out);
     return this;
   }
 
+  /**
+   * @param {EventEmitter} out
+   */
   removeOutput(out) {
     const index = this.outs.indexOf(out);
     if (index !== -1) {
@@ -167,6 +233,10 @@ export class EmitterRelay {
     return this;
   }
 
+  /**
+   * @param {string} event
+   * @param {...*} args - What the event's listeners are called with.
+   */
   emit(event, ...args) {
     for (let i = 0; i < this.outs.length; i++) {
       const val = this.outs[i].emit(event, ...args);
