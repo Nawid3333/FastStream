@@ -23,9 +23,14 @@ describe('sync-vendor outputs', () => {
   it('are gitignored and not committed', () => {
     expect(outputs.length).toBeGreaterThanOrEqual(12);
     const ignored = fs.readFileSync(path.join(root, '.gitignore'), 'utf8').split('\n').map((line) => line.trim());
-    const isIgnored = (file) => ignored.some((line) => line === file || (line.endsWith('/') && file.startsWith(line)));
+    // A folder as `dir/`, or `dir/*` when a file in it is kept (mp4box's type declaration).
+    const isIgnored = (file) => ignored.some((line) => line === file ||
+      ((line.endsWith('/') || line.endsWith('/*')) && file.startsWith(line.replace(/\*$/, ''))));
     expect(outputs.filter((file) => !isIgnored(file))).toEqual([]);
-    const tracked = execFileSync('git', ['ls-files', '--', ...outputs], {cwd: root, encoding: 'utf8'}).trim();
-    expect(tracked).toBe('');
+    // Not the type declarations beside them (hls.d.mts, mp4box's in its folder): those are
+    // written by hand, for the type checker, and committed.
+    const tracked = execFileSync('git', ['ls-files', '--', ...outputs], {cwd: root, encoding: 'utf8'})
+        .split('\n').filter((file) => file && !file.endsWith('.d.mts'));
+    expect(tracked).toEqual([]);
   });
 });

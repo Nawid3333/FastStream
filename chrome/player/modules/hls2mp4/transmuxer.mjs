@@ -1,5 +1,4 @@
 // @ts-check
-// @ts-ignore - hls.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {TSDemuxer, MP4Remuxer, MP4Demuxer, AACDemuxer, MP3Demuxer, PassThroughRemuxer, ChunkMetadata} from '../hls.mjs';
 import {normalizePts} from './ptsNormalize.mjs';
 

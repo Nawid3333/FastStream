@@ -128,6 +128,13 @@ describe('spliceAndCopy', {timeout: 30000}, () => {
     expect(fs.existsSync(path.join(tmp, 'out', 'gone.mjs'))).toBe(false);
   });
 
+  it('ships no type declaration, which only the type checker reads', () => {
+    source({'lib.mjs': 'export const a = 1;\n', 'lib.d.mts': 'export declare const a: number;\n'});
+    spliceAndCopy(path.join(tmp, 'src'), path.join(tmp, 'out'), ['WEB']);
+    expect(fs.existsSync(path.join(tmp, 'out', 'lib.mjs'))).toBe(true);
+    expect(fs.existsSync(path.join(tmp, 'out', 'lib.d.mts'))).toBe(false);
+  });
+
   it('leaves out what the exclusion list names, by whole path segments', () => {
     // As a plain prefix, 'background' also dropped a root-level backgroundAudio.mjs (#175).
     source({

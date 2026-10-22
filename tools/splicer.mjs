@@ -167,6 +167,10 @@ export function spliceAndCopy(sourceDir, buildDir, spliceTargets = [], excludeFi
         if (excludeFiles.some((exclude) => relative === exclude || relative.startsWith(exclude + '/'))) {
           return;
         }
+        // A type declaration (the .d.mts beside a vendored library) is for the type checker.
+        if (/\.d\.[cm]?ts$/.test(relative)) {
+          return;
+        }
 
         if (fileExtension === '.mjs' || fileExtension === '.js') {
           // Only scripts are read as text: every wasm, model and image was too, for nothing (#174).

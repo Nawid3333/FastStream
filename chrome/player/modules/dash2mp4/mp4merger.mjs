@@ -1,6 +1,5 @@
 // @ts-check
 import {EventEmitter} from '../eventemitter.mjs';
-// @ts-ignore - mp4box is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {createFile, DataStream, Endianness} from '../mp4box/mp4box.all.mjs';
 import {MP4} from '../hls2mp4/MP4Generator.mjs';
 import {FSBlob} from '../FSBlob.mjs';

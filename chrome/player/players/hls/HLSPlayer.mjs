@@ -5,7 +5,6 @@ import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {audioProbeFor, cachedAnswer, probeDecoding, videoProbeFor} from '../DecodingCapabilities.mjs';
 import {EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
-// @ts-ignore - hls.mjs is hls.js, put in place by the build; the source tree has none.
 import {AbrController, Hls} from '../../modules/hls.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';

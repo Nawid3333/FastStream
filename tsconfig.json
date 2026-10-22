@@ -6,7 +6,14 @@
     "",
     "checkJs is off by default: files opt in with a `// @ts-check` comment at",
     "the top. That lets the codebase be typed a file at a time instead of",
-    "producing thousands of errors on day one."
+    "producing thousands of errors on day one.",
+    "",
+    "A library tools/sync-vendor.mjs copies into chrome/player/modules (gitignored)",
+    "is typed by the declaration file beside it (hls.d.mts beside hls.mjs, which",
+    "TypeScript prefers to the script), the same whether the build has run or not.",
+    "Without one, the check failed once the library was there: TypeScript read its",
+    "JavaScript and guessed types the code does not fit. typeChecked.test.mjs keeps",
+    "a declaration beside each imported one; the build ships none (tools/splicer.mjs)."
   ],
   "compilerOptions": {
     "module": "ESNext",
