@@ -497,8 +497,8 @@
   merge like every update.
   `tests/unit/checkToolchain.test.mjs` fails for a pin in a form Dependabot does not update. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
-- **No CVE watch for the vendored components outside the lockfile** (vtt.js, StreamSaver;
-  knob until 2026-10-10): measured 2026-09-25, OSV has
+- **No CVE watch for the vendored components outside the lockfile** (vtt.js; StreamSaver
+  until its body became FastStream's own, knob until 2026-10-10): measured 2026-09-25, OSV has
   never recorded a vulnerability for any of them, so a workflow could never fire. They are
   covered by the provenance checks instead. The lockfile-backed libraries are covered by
   Dependabot alerts (OSV's only hls.js record, MAL-2026-3019, is two canary builds, not 1.7.3).
@@ -575,18 +575,15 @@
   were current in effect: silero-vad v6.2.3 and dash.js v5.2.1 publish the same bytes as
   the pins (v6.2.1, v5.1.0). `tests/workflows/vendored-updates.test.sh`: 10 scenarios
   (real git pushing to a local bare origin), and 7 undone rules each fail it.
-  **Adapted copies** (job `sources`, 2026-10-01): `tools/vendored-sources.json` lists code
-  copied from other projects and changed here (StreamSaver.mjs; until 2026-10-10 also
-  knob.mjs from jherrm/knobs, crosstalk/fft.mjs from indutny/fft.js and vad/vad.mjs from
-  ricky0123/vad, which went with the audio settings and the speech detector), each with the
-  upstream path and the commit it was taken from. When upstream's newest commit to that path
-  is not in the ref (compare status behind or diverged), an issue "Vendored source changed
-  upstream: <name> (<repo> <sha8>)" lists the commits after the ref that changed it; port by
-  hand, move the ref, and it closes itself. The lists are read on fds 3/4 (gh.exe via WSL
-  swallowed stdin and ended the loop after the first source). On 2026-10-01 knob (16 commits
-  after its 2012 pin) and vad-web (37 since 2023-03-30) were behind, StreamSaver and fft.js
-  current. `tests/workflows/vendored-sources.test.sh`: 8 scenarios, 10 undone rules caught
-  (its fixture still names knob and vad-web: made-up sources, the job reads no real file).
+  **Adapted copies** (job `sources`, 2026-10-01 to 2026-10-22, removed): it watched the
+  upstream file of each copy in `tools/vendored-sources.json` (knob.mjs, crosstalk/fft.mjs and
+  vad/vad.mjs until 2026-10-10, when they went with the audio settings and the speech
+  detector; StreamSaver.mjs last) and opened "Vendored source changed upstream: ..." when
+  upstream changed it after the copy's ref. StreamSaver.mjs keeps only StreamSaver.js's API
+  name (`streamSaver.createWriteStream`): its body is FastStream's own OPFS and memory sinks
+  (every save uses them since 9ef061b1; the ServiceWorker transport it was taken for is gone,
+  `StreamSaver.mjs`'s `createWriteStream` comment says why), so an upstream change had
+  nothing to port, and the job, its list and `tests/workflows/vendored-sources.test.sh` went.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
   Since 2026-09-30 it also runs on `workflow_dispatch`, which `patched-libraries.yml` sends
   next to CI's: its PRs are opened by the workflow token, so the `pull_request` run waits
