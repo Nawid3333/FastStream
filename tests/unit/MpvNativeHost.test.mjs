@@ -696,6 +696,17 @@ describe('ipcPipeFor', () => {
     expect(ipcPipeFor({ipcToken: token}, 'linux', {})).not.toContain('pipe');
   });
 
+  it('fits a Unix socket path in macOS\'s long temp folder', () => {
+    // /var/folders/xx/.../T/ with the name and its token came to about 106 bytes, over a
+    // socket path's 103: mpv could not make its socket, and nothing reached it again.
+    const macTemp = '/var/folders/zz/zyxvpxvq6csfxvn_n0000000000000gn/T/';
+    const socket = ipcPipeFor({ipcToken: token}, 'darwin', {TMPDIR: macTemp});
+    expect(Buffer.byteLength(socket)).toBeLessThanOrEqual(103);
+    expect(socket).toMatch(new RegExp(`^/tmp/faststream-mpv-\\d+-${token}\\.sock$`));
+    // A short temp folder stays where it is.
+    expect(ipcPipeFor({ipcToken: token}, 'darwin', {TMPDIR: '/tmp/x'}).startsWith('/tmp/x/')).toBe(true);
+  });
+
   it('carries the token elsewhere too when there is one: the temp folder can be shared (glm\'s review)', () => {
     expect(ipcPipeFor({ipcToken: token}, 'linux', {})).toMatch(new RegExp(`/faststream-mpv-\\d+-${token}\\.sock$`));
     expect(ipcPipeFor({ipcToken: 'short'}, 'linux', {XDG_RUNTIME_DIR: '/run/user/1000'})).toMatch(/^\/run\/user\/1000\/faststream-mpv-\d+\.sock$/);

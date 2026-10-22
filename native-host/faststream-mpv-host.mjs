@@ -492,8 +492,17 @@ export function ipcPipeFor(config, platform = process.platform, env = process.en
   // could take the name first, as on Windows.
   const token = config && typeof config.ipcToken === 'string' && /^[0-9a-f]{32}$/.test(config.ipcToken) ?
     '-' + config.ipcToken : '';
-  return path.posix.join(env.XDG_RUNTIME_DIR || os.tmpdir(), `faststream-mpv-${user}${token}.sock`);
+  const name = `faststream-mpv-${user}${token}.sock`;
+  const socket = path.posix.join(env.XDG_RUNTIME_DIR || env.TMPDIR || os.tmpdir(), name);
+  // A socket's path is at most MaxSocketPathBytes: in macOS's temp folder
+  // (/var/folders/xx/.../T/, no $XDG_RUNTIME_DIR there) the name with its token came to about
+  // 106 bytes, mpv could not make its socket, and no later send, key or end detection reached
+  // it. /tmp then: the token keeps the name unguessable there.
+  return Buffer.byteLength(socket, 'utf8') > MaxSocketPathBytes ? path.posix.join('/tmp', name) : socket;
 }
+
+// The longest Unix socket path (sockaddr_un's sun_path: 104 bytes on macOS, its NUL included).
+export const MaxSocketPathBytes = 103;
 
 // How long to wait for mpv's window to exist before giving up on focusing it.
 // mpv only creates its window once the stream has opened (unless it is started
