@@ -102,6 +102,20 @@ describe('a download from a container tab', () => {
     expect(answers).toEqual([null]);
     expect(bg.removedTabs).toEqual([bg.createdTabs[0].id]);
   });
+
+  it('creates the hidden tab in the playing tab\'s window', async () => {
+    // It went to the last focused window: after a switch to a normal window during the
+    // save, Firefox refused a private tab's cookie store there, and the save was answered
+    // null.
+    const privateTab = {id: 1, url: PAGE, windowId: 7, cookieStoreId: 'firefox-private'};
+    bg = await loadBackground({tabs: [privateTab]});
+    for (const listener of bg.chrome.runtime.onMessage.listeners) {
+      listener({type: 'DOWNLOAD', url: 'blob:moz-extension://bg-test/1', filename: 'a.mp4'},
+          {tab: privateTab, frameId: 3, url: 'moz-extension://bg-test/player/index.html'}, () => {});
+    }
+    await bg.wait(0);
+    expect(bg.createdTabs[0]).toMatchObject({windowId: 7, cookieStoreId: 'firefox-private'});
+  });
 });
 
 describe('the toolbar\'s On with players for several frames', () => {
@@ -210,6 +224,33 @@ describe('the "use the player for stream links" redirect', () => {
     expect(filter(2).test('https://cdn.test/a.mpd|x')).toBe(false);
   });
 
+  it('does not take the extension from the query string', async () => {
+    // `.+` ran past the `?`: a search for index.mp4 (the address bar's search puts q= last)
+    // and an embed page naming its stream in the query were redirected to the player.
+    bg = await loadBackground({options: {playMP4URLs: true, playStreamURLs: true}});
+    const rules = bg.dynamicRules.flatMap((update) => update.addRules || []);
+    const filter = (id) => new RegExp(rules.find((rule) => rule.id === id).condition.regexFilter);
+    expect(filter(1).test('https://www.search.test/search?client=firefox-b-d&q=index.mp4')).toBe(false);
+    expect(filter(2).test('https://site.test/embed.php?file=https://cdn.test/x/index.m3u8')).toBe(false);
+    expect(filter(2).test('https://cdn.test/x/index.m3u8?t=1')).toBe(true);
+  });
+
+  it('keeps no rule for an option turned off while its rule was being added', async () => {
+    // The rule waits for its address key (a storage read): a second options load, the option
+    // off, removed the rule during that wait, and the first one's add came after it, the
+    // option off and its links still redirected (glm's review, 2026-10-22).
+    bg = await loadBackground({options: {playMP4URLs: false}});
+    bg.options = {playMP4URLs: true};
+    const on = bg.message({type: 'LOAD_OPTIONS', time: 1}, {tabId: 99});
+    bg.options = {playMP4URLs: false};
+    const off = bg.message({type: 'LOAD_OPTIONS', time: 2}, {tabId: 99});
+    await Promise.all([on, off]);
+    await bg.wait(100);
+    const touching = bg.dynamicRules.filter((update) => (update.removeRuleIds || []).includes(1) ||
+      (update.addRules || []).some((rule) => rule.id === 1));
+    expect(touching.at(-1).addRules?.some((rule) => rule.id === 1) ?? false).toBe(false);
+  });
+
   it('opens the player with the install\'s address key, so it takes the link\'s headers', async () => {
     // Any page can open the player page with an address of its own: the player takes the
     // address's headers and mode only with this key (AddressKey.mjs).
@@ -290,5 +331,36 @@ describe('messages only FastStream\'s own pages send', () => {
     expect(bg.native.filter((m) => m.type === 'open').length).toBe(1);
     expect(bg.sessionRuleUpdates.filter((update) => update.addRules?.length).length).toBe(1);
     expect(downloads).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the permissions tab the player\'s VPN button opens', () => {
+  it('is not closed as a popup by the same click', async () => {
+    // The button's click was the first into the player's iframe: content.js armed the popup
+    // guard for the page's tab, and the permissions tab, opened with that tab as its opener,
+    // was closed as a popup - the button seemed to do nothing.
+    bg = await loadBackground({options: {blockPopupsWhilePlaying: true}, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.message({type: 'POPUP_GUARD_ARM'}, {tabId: 1, frameId: 0, url: PAGE});
+    await bg.message({type: 'VPN_OPEN_PERMISSION'},
+        {tab: {id: 1, index: 0, url: PAGE}, frameId: 3, url: 'moz-extension://bg-test/player/index.html'});
+    const perms = bg.createdTabs[0];
+    expect(String(perms.url)).toContain('perms.html#proxy');
+    for (const listener of bg.chrome.tabs.onCreated.listeners) {
+      listener({id: 200, index: 1, windowId: 1, openerTabId: 1, url: perms.url});
+    }
+    await bg.wait(10);
+    expect(bg.removedTabs).toEqual([]);
+  });
+
+  it('leaves the guard closing a popup that page opens on a click', async () => {
+    bg = await loadBackground({options: {blockPopupsWhilePlaying: true}, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.message({type: 'POPUP_GUARD_ARM'}, {tabId: 1, frameId: 0, url: PAGE});
+    for (const listener of bg.chrome.tabs.onCreated.listeners) {
+      listener({id: 201, index: 1, windowId: 1, openerTabId: 1, url: 'https://ads.test/'});
+    }
+    await bg.wait(10);
+    expect(bg.removedTabs).toEqual([201]);
   });
 });

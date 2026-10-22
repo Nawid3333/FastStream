@@ -204,3 +204,34 @@ describe('RuleManager when the browser refuses', () => {
     expect(next.id).toBe(rule.id);
   });
 });
+
+describe('RuleManager, a rule added while the last event page\'s are cleared', () => {
+  afterEach(() => {
+    delete globalThis.chrome;
+  });
+
+  it('is added after the clearing, which cannot take it away then', async () => {
+    // The clearing listed the old rules, then removed them: a new rule added between the two,
+    // given the id of one of them, went with them (glm's review, 2026-10-22).
+    const calls = [];
+    let listed;
+    globalThis.chrome = {
+      runtime: {getURL: (path) => 'moz-extension://0f3e2c1a-uuid-of-the-extension' + path},
+      declarativeNetRequest: {
+        getSessionRules: () => new Promise((resolve) => {
+          listed = () => resolve([{id: 4242}]);
+        }),
+        updateSessionRules: async (update) => {
+          calls.push(update.addRules?.length ? 'add' : 'clear');
+        },
+      },
+    };
+    const manager = new RuleManager();
+    const adding = manager.addHeaderRule('https://cdn.test/a.m3u8', 7, [{operation: 'set', header: 'referer', value: 'https://site.test/'}]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    listed();
+    await adding;
+    // (its own expiry may remove it later: the order of the first two is what counts)
+    expect(calls.slice(0, 2)).toEqual(['clear', 'add']);
+  });
+});

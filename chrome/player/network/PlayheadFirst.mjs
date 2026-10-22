@@ -48,8 +48,10 @@ export function downloadingOutside(fragments, time, behind, ahead) {
   /** @type {F[]} */
   const outside = [];
   for (const fragment of fragments) {
+    // Known means not negative: a fragment keeps -1 until its times are parsed, and -1 is
+    // finite - the first fragment of an MP4 resumed later in read as behind the playhead.
     if (fragment && fragment.status === INITIATED &&
-        Number.isFinite(fragment.start) && Number.isFinite(fragment.end) &&
+        fragment.start >= 0 && fragment.end >= 0 &&
         (fragment.end < time - behind || fragment.start > time + ahead)) {
       outside.push(fragment);
     }

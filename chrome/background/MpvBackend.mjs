@@ -94,6 +94,7 @@ const StatusPollMs = 1000;
 export const DecoderProperties = ['hwdec-current', 'hwdec', 'video-format', 'width', 'height'];
 
 const TooLongError = 'the stream\'s address is too long to send to mpv';
+const PrivateNeedsNewerHostError = 'a private window\'s stream needs mpv helper 15 or newer: update the helper';
 
 /**
  * Which video decoder an mpv started by the host uses (the host's `status` answer).
@@ -244,6 +245,9 @@ export class MpvBackend {
     // thin helper's message goes first: its answer says which one it is (learn()).
     /** @type {?Array<string>} */
     this.capabilities = null;
+    // The last stream's send, which the next one waits for (sendStream).
+    /** @type {Promise<*>} */
+    this.lastSend = Promise.resolve();
     // The watch of mpv for MPV autoplay (watch()), while one runs.
     /** @type {?import('./MpvRelayWatch.mjs').MpvWatcher} */
     this.watcher = null;
@@ -529,6 +533,21 @@ export class MpvBackend {
   }
 
   /**
+   * Sends a stream to the helper, one at a time (sendStreamNow): each send is a helper
+   * process of its own, and two at once with no mpv running each found no pipe and started
+   * an mpv - the second on the same pipe name, with no IPC for good, which no later send
+   * reached. The next starts once the last has its answer, by when its mpv has the pipe.
+   * @param {MpvStream} stream
+   * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean,
+   *   focus?: string, foreground?: string, reused?: boolean}>}
+   */
+  sendStream(stream) {
+    const mine = this.lastSend.then(() => this.sendStreamNow(stream));
+    this.lastSend = mine.catch(() => {});
+    return mine;
+  }
+
+  /**
    * Sends a stream to the helper: as a play message while the helper may have it (host 15,
    * or nothing known yet), else, or when it answers that it does not know it, as an open
    * message.
@@ -536,7 +555,7 @@ export class MpvBackend {
    * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean,
    *   focus?: string, foreground?: string, reused?: boolean}>}
    */
-  async sendStream(stream) {
+  async sendStreamNow(stream) {
     if (this.mayUse(Capabilities.PLAY)) {
       const play = await this.playMessage(stream);
       if (!play.message) {
@@ -547,6 +566,11 @@ export class MpvBackend {
         return this.streamResult(answer);
       }
       // A helper from before host 15: the same stream once more, as it knows it.
+    }
+    // Not a private window's: the open message has no fs-private, and mpv kept where such a
+    // stream was left, on disk (stream-resume.json).
+    if (stream.extras.private === true) {
+      return this.withHostState({ok: false, error: PrivateNeedsNewerHostError});
     }
     const message = this.openMessage(stream);
     if (!message) {

@@ -722,3 +722,42 @@ describe('relayQualities', () => {
     expect(MpvBackend.relayQualities('not a list')).toBeNull();
   });
 });
+
+describe('streams sent at once', () => {
+  afterEach(() => {
+    delete globalThis.chrome;
+    vi.restoreAllMocks();
+  });
+
+  it('go one after the other, the next once the last has its answer', async () => {
+    // Each is a helper process of its own: two at once with no mpv running started an mpv
+    // each, the second on the same pipe name with no IPC for good (glm's review, 2026-10-22).
+    const sent = [];
+    const answers = [];
+    globalThis.chrome = {runtime: {lastError: undefined, sendNativeMessage(name, message, callback) {
+      sent.push(message);
+      answers.push(() => callback({ok: true, ...Thin}));
+    }}};
+    const backend = new MpvBackend();
+    const a = backend.openStream('https://cdn.test/a.m3u8');
+    const b = backend.openStream('https://cdn.test/b.m3u8');
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(sent).toHaveLength(1);
+    answers[0]();
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
+    answers[1]();
+    expect(await a).toMatchObject({ok: true});
+    expect(await b).toMatchObject({ok: true});
+  });
+
+  it('sends no private window\'s stream to a helper from before host 15', async () => {
+    // Its open message has no fs-private, and mpv kept where the stream was left, on disk.
+    const host = stubNativeHost({ok: true, hostVersion: 14});
+    const result = await new MpvBackend().openStream('https://cdn.test/a.m3u8', undefined, [], '',
+        'https://site.test/watch', 'Episode', {private: true});
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/private window/);
+    expect(host.sent().map((message) => message.type)).toEqual(['play']);
+  });
+});

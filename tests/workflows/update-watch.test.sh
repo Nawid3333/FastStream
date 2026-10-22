@@ -162,6 +162,7 @@ updates:
   - package-ecosystem: 'docker'
     directories:
       - '/.github/actionlint'
+      # a comment inside the list, which ended it (glm's review, 2026-10-22)
       - '/.github/zizmor'
     open-pull-requests-limit: 2
 EOF

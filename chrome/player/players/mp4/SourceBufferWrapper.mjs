@@ -31,7 +31,14 @@ export class SourceBufferWrapper extends EventEmitter {
     return covers(this.removing) || this.toDo.some((op) => op.type === 'remove' && covers(op));
   }
   abort() {
-    this.sourceBuffer.abort();
+    // SourceBuffer.abort() also throws while a removal runs (the back buffer goes while the
+    // video plays): the player being destroyed then stopped half way, its media source URL
+    // never revoked and DESTROYED never emitted. A removal has nothing to abort.
+    try {
+      this.sourceBuffer.abort();
+    } catch (e) {
+      console.warn('SourceBuffer.abort refused', e);
+    }
   }
 
   appendBuffer(buffer) {

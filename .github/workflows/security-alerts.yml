@@ -303,6 +303,8 @@ jobs:
             function flush() { if (eco != "") printf "%s\t%s\t%s\n", eco, dirs, (limit == "" ? 5 : limit) }
             /^  - package-ecosystem:/ { flush(); eco = value($0); dirs = ""; limit = ""; list = 0; next }
             list && /^      - / { d = $0; sub(/^      - /, "", d); sub(/[ \t]+#.*$/, "", d); dirs = dirs (dirs == "" ? "" : " ") d; next }
+            # a comment or a blank line inside the list is no end of it
+            list && /^[ \t]*(#.*)?$/ { next }
             { list = 0 }
             eco != "" && /^    directory:/ { dirs = value($0); next }
             eco != "" && /^    directories:/ { list = 1; next }

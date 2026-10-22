@@ -583,6 +583,21 @@ describe('FastStreamClient, a source that comes with its own time', () => {
     expect(plays).toEqual([]);
   });
 
+  it('does not autoplay at a canplay while its player is still being set up', async () => {
+    // The time was armed only once the player, its audio and its preview were set up:
+    // resetPlayer had just cleared it, and a canplay meanwhile played from 0, then jumped.
+    const client = makeClient({autoPlay: true});
+    const plays = recordPlays(client);
+    await setSource(client, makeSource('http://127.0.0.1/film.mp4?faststream-timestamp=3725'), (made) => {
+      made.video.readyState = 0;
+      made.setSource = async () => {
+        made.emit(DefaultPlayerEvents.CANPLAY);
+      };
+    });
+
+    expect(plays).toEqual([]);
+  });
+
   it('resumes a player built again after an error at its time, not from 0 first', async () => {
     const client = makeClient();
     client.downloadManager.keepStorageOnce = vi.fn();

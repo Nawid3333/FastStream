@@ -1399,6 +1399,21 @@ shipped_major_own_branch_ready() {
   check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
 }
 
+shipped_scoped_ready() {
+  # A scoped name comes in double quotes in Dependabot's commit message, and it was compared
+  # with them: a shipped scoped library's update was taken for tooling (glm's review,
+  # 2026-10-22).
+  shipped_own_branch_setup
+  sed -i "s|'sortablejs'\]|'sortablejs', '@kurkle/color']|" "$STATE/dependabot.yml"
+  export BRANCH='dependabot/npm_and_yarn/kurkle/color-0.4.0'
+  local meta=$'---\nupdated-dependencies:\n- dependency-name: "@kurkle/color"\n  dependency-version: 0.4.0\n  dependency-type: direct:production\n  update-type: version-update:semver-major\n...'
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'build(deps): bump @kurkle/color from 0.3.4 to 0.4.0' "$meta")]"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'ready to merge, a shipped library' ready
+  check 'no build comparison' bash -c '! grep -qF "release download" "$0"' "$STATE/gh.log"
+}
+
 shipped_list_unreadable_waits() {
   # Without main's dependabot.yml it counts as tooling, whose build must not differ.
   shipped_own_branch_setup
@@ -2238,6 +2253,7 @@ patched_foreign_commit_waits
 shipped_ready
 shipped_major_ready
 shipped_major_own_branch_ready
+shipped_scoped_ready
 shipped_list_unreadable_waits
 fsaunpack_ready
 fsaunpack_young_package_waits

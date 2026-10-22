@@ -614,7 +614,8 @@ jobs:
               shipped=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/.github/dependabot.yml?ref=main" |
                 awk '/^[[:space:]]*shipped-minor-and-patch:[[:space:]]*$/ {f = 1; next} f && /^[[:space:]]*patterns:/ {print; exit}' |
                 grep -oE "'[^']+'" | tr -d "'" || true)
-              updated=$(jq -r '.commits[].messageBody' "$RUNNER_TEMP/pr.json" | sed -n 's/^- dependency-name: //p' | sort -u)
+              # A scoped name comes in double quotes, as for the age check below.
+              updated=$(jq -r '.commits[].messageBody' "$RUNNER_TEMP/pr.json" | sed -n 's/^- dependency-name: //p' | tr -d "\"'" | sort -u)
               if [ -n "$shipped" ] && [ -n "$updated" ] && grep -qxF -f <(printf '%s\n' "$shipped") <<< "$updated"; then
                 ships=1
               fi

@@ -148,7 +148,9 @@ jobs:
 
   report:
     needs: [detect, e2e]
-    if: always() && needs.e2e.result != 'skipped'
+    # A detect that failed too: the suites were skipped, and so was this report, and the
+    # daily check ended red each day with no one told.
+    if: always() && (needs.e2e.result != 'skipped' || needs.detect.result == 'failure')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -158,6 +160,7 @@ jobs:
       - name: Open or close the Firefox stable issue
         env:
           GH_TOKEN: ${{ github.token }}
+          DETECT: ${{ needs.detect.result }}
           RESULT: ${{ needs.e2e.result }}
           VERSION: ${{ needs.detect.outputs.version }}
           OWNER: ${{ github.repository_owner }}
@@ -165,6 +168,22 @@ jobs:
         run: |
           set -euo pipefail
           prefix='Firefox stable breaks FastStream'
+          unreadable='Firefox stable check cannot read the version list'
+          if [ "$DETECT" != success ]; then
+            if gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json title --jq '.[].title' | grep -qxF "$unreadable"; then
+              echo 'Already reported.'
+              exit 0
+            fi
+            printf '@%s The daily Firefox stable check could not read the current release from Mozilla, so no suite ran: %s\n\nThis issue closes on its own once a run reads it again.\n' \
+              "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$unreadable" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+            exit 0
+          fi
+          gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title \
+            --jq ".[] | select(.title == \"$unreadable\") | .number" |
+          while read -r number; do
+            gh issue close "$number" --repo "$GITHUB_REPOSITORY" --comment "The version list is read again: $RUN_URL"
+          done
           if [ "$RESULT" = success ]; then
             gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title \
               --jq ".[] | select(.title | startswith(\"$prefix\")) | .number" |

@@ -33,7 +33,9 @@ export class RuleManager {
     this.idStart = 10 + Math.floor(Math.random() * 1000) * 1000;
     this.rules = [];
     this.isLoopRunning = false;
-    this.dumpRules().catch((e) => console.warn('Could not clear the header rules left from before', e));
+    // The rules a last event page left, cleared before any new one is added (addHeaderRule):
+    // a new rule given the id of one it lists was removed with them.
+    this.initialClear = this.dumpRules().catch((e) => console.warn('Could not clear the header rules left from before', e));
   }
 
   getInsertionIndex(id) {
@@ -101,6 +103,7 @@ export class RuleManager {
   }
 
   async addHeaderRule(url, tabId, requestHeaderCommands) {
+    await this.initialClear;
     const rule = new RuleEntry(this.getNextID());
     // insert rule in order
     const index = this.getInsertionIndex(rule.id);
