@@ -39,12 +39,14 @@ async function releaseWhenDownloaded(url, downloads, release) {
 }
 
 export class SaveManager {
+  /** @param {import('../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     this.client = client;
     this.downloadURL = null;
     // What Utils.downloadURL answered for the last download of downloadURL.
     this.downloadURLDownload = undefined;
     // ... and for each of its downloads: the URL goes once all of them are over.
+    /** @type {Array<*>} */
     this.downloadURLDownloads = [];
     // Closes the blob store the file behind downloadURL reads from, if it has one.
     this.downloadURLRelease = null;
@@ -55,6 +57,7 @@ export class SaveManager {
     // Manual override for the mpv anime/movie shader selection, cycled by
     // right-clicking the mpv button. null defers to the MPV Allowlist's
     // per-site @anime/@movie tag (see UrlMatchList.mjs / background.mjs).
+    /** @type {null|'anime'|'movie'} */
     this.mpvContentType = null;
   }
 
@@ -105,7 +108,7 @@ export class SaveManager {
     // mpv carries on where this player is, with the subtitles it shows (as SubRip,
     // shifts and edits included).
     const startTime = this.client.currentTime;
-    const subtitles = this.client.interfaceController.subtitlesManager.activeTracks.map((track) => ({
+    const subtitles = this.client.interfaceController.subtitlesManager.activeTracks.map((/** @type {SubtitleTrack} */ track) => ({
       label: track.label || track.language || '',
       srt: SubtitleUtils.cuesToSrt(track.cues),
     }));
@@ -150,6 +153,12 @@ export class SaveManager {
     });
   }
 
+  /**
+   * @param {string} key
+   * @param {string} message
+   * @param {string} type
+   * @param {number=} expiry
+   */
   setStatusMessage(key, message, type, expiry) {
     this.client.interfaceController.setStatusMessage(key, message, type, expiry);
   }
@@ -162,7 +171,7 @@ export class SaveManager {
    */
   cycleMpvContentType() {
     const order = [null, 'anime', 'movie'];
-    const next = order[(order.indexOf(this.mpvContentType) + 1) % order.length];
+    const next = /** @type {null|'anime'|'movie'} */ (order[(order.indexOf(this.mpvContentType) + 1) % order.length]);
     this.mpvContentType = next;
     this.updateMpvContentBadge();
   }
@@ -264,6 +273,10 @@ export class SaveManager {
     }
   }
 
+  /**
+   * @param {MouseEvent} e
+   * @param {boolean} [allowPartial]
+   */
   async saveVideo(e, allowPartial = false) {
     // A second click while the first still asks (a confirm, the file name) started a second
     // save: makingDownload is set only once the save begins, which clears this.
@@ -276,6 +289,10 @@ export class SaveManager {
     }
   }
 
+  /**
+   * @param {MouseEvent} e
+   * @param {boolean} allowPartial
+   */
   async saveVideoAsked(e, allowPartial) {
     if (!this.client.player) {
       await AlertPolyfill.alert(Localize.getMessage('player_nosource_alert'), 'error');
@@ -361,10 +378,10 @@ export class SaveManager {
       try {
         const start = performance.now();
         this.pendingSave = player.saveVideo({
-          onProgress: (progress) => {
+          onProgress: (/** @type {number} */ progress) => {
             this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_progress', [Math.floor(progress * 100)]), 'info');
           },
-          registerCancel: (cancel) => {
+          registerCancel: (/** @type {() => void} */ cancel) => {
             // Multiple layers (the player itself, and any muxer it hands
             // off to) each register their own cancel callback. Compose
             // rather than overwrite, or only the last one registered would
@@ -441,7 +458,7 @@ export class SaveManager {
         return;
       }
 
-      this.downloadURLDownload = await Utils.downloadURL(url, name + '.' + saveExtension);
+      this.downloadURLDownload = await Utils.downloadURL(/** @type {string} */ (url), name + '.' + saveExtension);
       this.downloadURLDownloads.push(this.downloadURLDownload);
       // null: Firefox refused the download (no room, a folder it cannot write to), and after
       // "Save complete" nothing said so.
@@ -471,11 +488,14 @@ export class SaveManager {
     this.downloadURLRelease = null;
   }
 
+  /**
+   * @param {string} name
+   */
   async dumpBuffer(name) {
     const entries = this.client.downloadManager.getCompletedEntries();
     const filestream = /** @type {StreamSaverApi} */ (streamSaver).createWriteStream(name + '.fsa');
     try {
-      await FastStreamArchiveUtils.writeFSAToStream(filestream, this.client.player, entries, (progress)=>{
+      await FastStreamArchiveUtils.writeFSAToStream(filestream, this.client.player, entries, (/** @type {number} */ progress)=>{
         this.setStatusMessage('save-video', Localize.getMessage('player_archiver_progress', [Math.floor(progress * 100)]), 'info');
       });
 
@@ -487,11 +507,15 @@ export class SaveManager {
     }
   }
 
+  /**
+   * @param {DragEvent} e
+   */
   async onFileDrop(e) {
     e.stopPropagation();
     e.preventDefault();
 
-    const dt = e.dataTransfer;
+    // A drop event carries its data.
+    const dt = /** @type {DataTransfer} */ (e.dataTransfer);
     const files = dt.files;
     if (files.length === 0) {
       return;
