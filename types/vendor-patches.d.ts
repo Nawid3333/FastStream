@@ -2,7 +2,7 @@
 // libraries' own types do not describe, and where a library's types are narrower than its
 // code. chrome/player/modules/*.d.mts re-export each library's own types; this adds to them.
 import type {MediaInfo, Representation, Stream, StreamController, StreamProcessor} from 'dashjs';
-import type {Box, Sample} from 'mp4box';
+import type {Box, DataStream, Sample} from 'mp4box';
 
 declare module 'dashjs' {
   interface MediaPlayerClass {
@@ -64,6 +64,12 @@ declare module 'mp4box' {
      * read from a file keeps its bytes as data.
      */
     esds?: Box & {data: Uint8Array};
+
+    /**
+     * mp4box's types ask for a MultiBufferStream, its code (writeHeader, writeFooter and each
+     * entry's write) uses only DataStream's writers: MP4Merger writes an entry into one.
+     */
+    write(stream: DataStream): void;
   }
 
   interface ISOFile {

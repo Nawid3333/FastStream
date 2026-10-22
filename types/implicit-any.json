@@ -17,7 +17,7 @@
   "chrome/player/modules/analyzer/AudioAnalyzerNode.mjs": 5,
   "chrome/player/modules/analyzer/PreviewFrameExtractor.mjs": 20,
   "chrome/player/modules/dash2mp4/dash2mp4.mjs": 10,
-  "chrome/player/modules/dash2mp4/mp4merger.mjs": 73,
+  "chrome/player/modules/dash2mp4/mp4merger.mjs": 2,
   "chrome/player/modules/eventemitter.mjs": 27,
   "chrome/player/modules/hls2mp4/hls2mp4.mjs": 7,
   "chrome/player/modules/hls2mp4/transmuxer.mjs": 31,
