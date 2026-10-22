@@ -471,7 +471,7 @@ describe('update-local.ps1', () => {
         const dir = path.join(parent, 'staging');
         const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
           `$ErrorActionPreference = 'Stop'; . '${helper}'; New-AdminOnlyDirectory '${dir}'; $a = Get-Acl -LiteralPath '${dir}'; ` +
-          `[pscustomobject]@{owner = $a.Owner.Translate([System.Security.Principal.SecurityIdentifier]).Value; ` +
+          `[pscustomobject]@{owner = $a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; ` +
           `protected = $a.AreAccessRulesProtected; rules = @($a.Access | ForEach-Object { '{0} {1} {2} {3}' -f ` +
           `$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value, $_.FileSystemRights, ` +
           `$_.AccessControlType, $_.IsInherited })} | ConvertTo-Json -Compress`],

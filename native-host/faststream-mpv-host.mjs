@@ -2340,12 +2340,14 @@ const PipeWaitPollMs = 200;
 export const LaunchLockMs = PipeWaitMs + 5000;
 
 /**
- * The launch lock's file for a pipe, in the user's temp folder.
+ * The launch lock's file for a pipe, in the helper's own folder: only this user writes there.
+ * In the temp folder - /tmp on Linux without $XDG_RUNTIME_DIR, shared - another account could
+ * make the file first and keep every mpv from starting.
  * @param {string} pipe - The helper's pipe (ipcPipeFor).
  * @param {string} [dir] - Its folder (tests).
  * @return {string}
  */
-export function launchLockFile(pipe, dir = os.tmpdir()) {
+export function launchLockFile(pipe, dir = __dirname) {
   const id = crypto.createHash('sha256').update(pipe).digest('hex').slice(0, 16);
   return path.join(dir, `faststream-mpv-launch-${id}.lock`);
 }
@@ -2373,12 +2375,17 @@ function processAlive(pid) {
  * @return {boolean}
  */
 export function launchLockHeld(file, io = {}) {
+  let fd = null;
   try {
-    if ((io.now || Date.now)() - fs.statSync(file).mtimeMs >= LaunchLockMs) return false;
-    const pid = Number(JSON.parse(fs.readFileSync(file, 'utf8')).pid);
+    // Its age and its contents from one open file: the file can be replaced in between.
+    fd = fs.openSync(file, 'r');
+    if ((io.now || Date.now)() - fs.fstatSync(fd).mtimeMs >= LaunchLockMs) return false;
+    const pid = Number(JSON.parse(fs.readFileSync(fd, 'utf8')).pid);
     return !Number.isInteger(pid) || (io.alive || processAlive)(pid);
   } catch (e) {
     return false;
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
   }
 }
 
@@ -2393,14 +2400,14 @@ export function takeLaunchLock(file, io = {}) {
   const none = {hand: () => {}, release: () => {}};
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      fs.writeFileSync(file, JSON.stringify({pid: process.pid}), {flag: 'wx'});
+      fs.writeFileSync(file, JSON.stringify({pid: process.pid}), {flag: 'wx', mode: 0o600});
       let released = false;
       return {
         taken: true,
         hand: (pid) => {
           if (released) return;
           try {
-            fs.writeFileSync(file, JSON.stringify({pid}));
+            fs.writeFileSync(file, JSON.stringify({pid}), {mode: 0o600});
           } catch (e) {
             // Without the lock the next send only starts an mpv of its own, as before.
           }

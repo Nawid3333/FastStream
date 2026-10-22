@@ -201,6 +201,9 @@ describe('playMpv', () => {
     return {
       record,
       platform: 'win32',
+      // A launch lock of its own (launchLockFile's default is the helper's folder, here the
+      // repository's).
+      lockFile: path.join(os.tmpdir(), `fs-thin-lock-${crypto.randomBytes(6).toString('hex')}`),
       ipcRequest: async (commands, timeoutMs, replyTimeoutMs, pipe) => {
         record.asks.push({pipe, commands: commands.map((c) => c.command)});
         if (pendingPipe === pipe && --pipeUpIn <= 0) running.add(pipe);

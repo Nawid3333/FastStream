@@ -6,13 +6,29 @@ import {describe, expect, it} from 'vitest';
 
 // tools/linux/verify.sh mirrors the working tree into its copy with rsync. This runs the
 // script's own rsync line (read from the file, so the two cannot drift) over a made-up
-// working tree and copy. It needs bash and rsync, as verify:linux and CI's Linux have; a
-// Windows checkout without rsync skips it.
+// working tree and copy, rsync started with the line's arguments, no shell. It needs
+// rsync, as verify:linux and CI's Linux have.
 
-// Linux only: on Windows `bash` can be WSL's, which has rsync but not the Windows paths,
-// and the run waited for good.
+// Linux only: on Windows an rsync can be WSL's, which has not the Windows paths, and the run
+// waited for good.
 const hasRsync = process.platform !== 'win32' &&
-  spawnSync('bash', ['-c', 'command -v rsync'], {encoding: 'utf8', timeout: 10000}).status === 0;
+  spawnSync('rsync', ['--version'], {encoding: 'utf8', timeout: 10000}).status === 0;
+
+/**
+ * The arguments of verify.sh's rsync line, its continued lines joined, its quotes taken off,
+ * and its "$src/" "$dst/" these folders.
+ * @param {string} src
+ * @param {string} dst
+ * @return {string[]}
+ */
+function rsyncArgs(src, dst) {
+  const line = rsyncCommand();
+  // A word as the shell reads one: unquoted characters and quoted pieces, its quotes then gone.
+  const words = (line.match(/(?:[^\s'"]+|'[^']*'|"[^"]*")+/g) || [])
+      .map((word) => word.replace(/'([^']*)'|"([^"]*)"/g, '$1$2'));
+  expect(words[0]).toBe('rsync');
+  return words.slice(1).map((word) => word === '$src/' ? src + '/' : word === '$dst/' ? dst + '/' : word);
+}
 
 /**
  * The rsync command of verify.sh, its continued lines joined.
@@ -63,7 +79,7 @@ describe('verify.sh\'s copy of the working tree', () => {
       fs.writeFileSync(path.join(dst, '.git', 'HEAD'), 'ref: refs/heads/main\n');
       fs.writeFileSync(path.join(dst, 'tests', 'e2e', 'fixtures', 'sample.mp4'), 'kept\n');
 
-      const r = spawnSync('bash', ['-c', rsyncCommand()], {encoding: 'utf8', env: {...process.env, src, dst}, timeout: 60000});
+      const r = spawnSync('rsync', rsyncArgs(src, dst), {encoding: 'utf8', timeout: 60000});
       expect(r.status, r.stderr).toBe(0);
       expect(fs.readFileSync(path.join(dst, 'keep.txt'), 'utf8')).toBe('the new text\n');
       // One that stopped being ignored (#101), and one ignored in both trees: both gone.

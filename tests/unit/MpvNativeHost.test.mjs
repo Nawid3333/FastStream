@@ -537,6 +537,9 @@ describe('launchMpv', () => {
     return {
       record,
       lockFile: path.join(lockDir, `lock-${++locks}`),
+      // The pids the stand-in launches answer are made up, and one can be a process that runs
+      // here (77 on a Linux runner): a lock handed to it holds for no stand.
+      lock: {alive: () => false},
       ipcRequest: async (commands, timeoutMs, replyTimeoutMs, pipe) => {
         record.pipes.push(pipe);
         return typeof reply === 'function' ? reply(commands) : reply;
@@ -592,6 +595,7 @@ describe('launchMpv', () => {
     const io = stand((commands) => up ? answered('success')(commands) : {ok: false, error: 'no mpv ipc'});
     const other = takeLaunchLock(io.lockFile);
     other.hand(process.pid);
+    io.lock = {alive: (pid) => pid === process.pid};
     let slept = 0;
     io.sleep = async (ms) => {
       slept += ms;
