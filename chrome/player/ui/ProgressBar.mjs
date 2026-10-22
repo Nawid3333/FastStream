@@ -1,3 +1,4 @@
+// @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {Localize} from '../modules/Localize.mjs';
 import {EventEmitter} from '../modules/eventemitter.mjs';
@@ -6,6 +7,10 @@ import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 
+/**
+ * The bar once placeMarker ran: where it put each marker last (set there on first use).
+ * @typedef {ProgressBar & {markerPlaces: Map<HTMLElement, string|null>}} MarkedProgressBar
+ */
 export class ProgressBar extends EventEmitter {
   constructor(client) {
     super();
@@ -388,14 +393,16 @@ export class ProgressBar extends EventEmitter {
     // we need an initial position for touchstart events, as mouse up has no offset x for iOS
     let initialPosition = Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.progressContainer)), 0), /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth);
 
+    /** @type {?number} */
     let preciseSavedTime = null;
+    /** @type {?number} */
     let preciseSavedPosition = null;
     const shiftTime = (timeBarX) => {
       const totalWidth = /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth;
       if (totalWidth) {
         let newTime;
         if (preciseSavedPosition !== null) {
-          newTime = preciseSavedTime + 60 * (timeBarX - preciseSavedPosition) / totalWidth;
+          newTime = /** @type {number} */ (preciseSavedTime) + 60 * (timeBarX - preciseSavedPosition) / totalWidth;
         } else {
           newTime = this.client.duration * timeBarX / totalWidth;
         }
@@ -514,13 +521,13 @@ export class ProgressBar extends EventEmitter {
    * @param {HTMLElement} marker
    * @param {number|null} time - Seconds, or null for none.
    * @param {number} duration
+   * @this {ProgressBar} - The class itself, not a subclass's this: so it casts to MarkedProgressBar.
    */
   placeMarker(marker, time, duration) {
     const left = time === null ? null : (time / duration * 100) + '%';
-    /** @type {Map<HTMLElement, string|null>} */
-    this.markerPlaces ??= new Map();
-    if (this.markerPlaces.has(marker) && this.markerPlaces.get(marker) === left) return;
-    this.markerPlaces.set(marker, left);
+    /** @type {MarkedProgressBar} */ (this).markerPlaces ??= new Map();
+    if (/** @type {MarkedProgressBar} */ (this).markerPlaces.has(marker) && /** @type {MarkedProgressBar} */ (this).markerPlaces.get(marker) === left) return;
+    /** @type {MarkedProgressBar} */ (this).markerPlaces.set(marker, left);
     if (left === null) {
       marker.style.display = 'none';
     } else {

@@ -1,3 +1,5 @@
+// @ts-check
+// @ts-ignore - sortable.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {Sortable} from '../modules/sortable.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
@@ -158,7 +160,7 @@ export class ToolManager {
     /** @type {Element} */ (DOMElements.audioTracksBtn).classList.toggle('hidden', !this.interfaceController.audioQualityChanger?.hasChoice);
 
     const toolSettings = this.client.options.toolSettings;
-    const toolElements = /** @type {Record<string, HTMLElement>} */ ({
+    const toolElements = /** @type {Record<string, HTMLElement>} */ (/** @type {unknown} */ ({
       playpause: DOMElements.playPauseButton,
       volume: DOMElements.volumeBlock,
       duration: DOMElements.duration,
@@ -182,7 +184,7 @@ export class ToolManager {
       more: DOMElements.moreButton,
       forward: DOMElements.skipForwardButton,
       backward: DOMElements.skipBackwardButton,
-    });
+    }));
 
     if (this.specialReorderModeEnabled) {
       return;
@@ -259,19 +261,19 @@ export class ToolManager {
     this.checkMoreTool();
 
     Array.from(/** @type {HTMLElement} */ (DOMElements.leftToolsContainer).children).forEach((el, i) => {
-      const tool = /** @type {HTMLElement} */ (el).dataset.tool;
+      const tool = /** @type {string} */ (/** @type {HTMLElement} */ (el).dataset.tool);
       this.client.options.toolSettings[tool].priority = (i + 1) * 100;
       this.client.options.toolSettings[tool].location = 'left';
     });
 
     Array.from(/** @type {HTMLElement} */ (DOMElements.rightToolsContainer).children).forEach((el, i) => {
-      const tool = /** @type {HTMLElement} */ (el).dataset.tool;
+      const tool = /** @type {string} */ (/** @type {HTMLElement} */ (el).dataset.tool);
       this.client.options.toolSettings[tool].priority = (i + 1) * 100;
       this.client.options.toolSettings[tool].location = 'right';
     });
 
     Array.from(/** @type {HTMLElement} */ (DOMElements.extraTools).children).forEach((el, i) => {
-      const tool = /** @type {HTMLElement} */ (el).dataset.tool;
+      const tool = /** @type {string} */ (/** @type {HTMLElement} */ (el).dataset.tool);
       this.client.options.toolSettings[tool].priority = (i + 1) * 100;
       this.client.options.toolSettings[tool].location = 'extra';
     });
