@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
-import {SaveFragmentFetcher} from '../../chrome/player/players/SaveFragmentFetcher.mjs';
+import {SaveFragmentFetcher, savedEntry} from '../../chrome/player/players/SaveFragmentFetcher.mjs';
 
 // A save reads its fragments one after the other. SaveFragmentFetcher downloads the next
 // few while the current one is read. The requester here is a stand-in for a player's: it
@@ -170,5 +170,36 @@ describe('SaveFragmentFetcher', () => {
     await settle();
     fetcher.cancel();
     await expect(first).rejects.toThrow('Cancelled');
+  });
+});
+
+describe('savedEntry', () => {
+  it('downloads again when a read finds the data gone and the store dropped the entry', async () => {
+    // getDataFromBlob tells the store a read of data it lost (onDataLost), which drops the
+    // entry; the save downloaded nothing and failed.
+    let current = {getDataFromBlob: async () => {
+      current = null;
+      throw new DOMException('gone', 'NotFoundError');
+    }};
+    let downloads = 0;
+    const entry = await savedEntry(() => current, async () => {
+      downloads++;
+      current = {getDataFromBlob: async () => 'fresh'};
+    });
+    expect(await entry.getDataFromBlob()).toBe('fresh');
+    expect(downloads).toBe(1);
+  });
+
+  it('does not download again for a read that fails with its entry still there', async () => {
+    // A mistake in reading would fail the same way after a new download.
+    const current = {getDataFromBlob: async () => {
+      throw new TypeError('bad');
+    }};
+    let downloads = 0;
+    const entry = await savedEntry(() => current, async () => {
+      downloads++;
+    });
+    await expect(entry.getDataFromBlob()).rejects.toThrow('bad');
+    expect(downloads).toBe(0);
   });
 });

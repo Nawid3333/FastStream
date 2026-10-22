@@ -100,8 +100,10 @@ export class Utils {
           // A list takes only a list, of text lines (autoEnableURLs and mpvAllowlist are the
           // lists in the defaults). typeof null and of {} is 'object' too: an imported
           // `"autoEnableURLs": null` was kept, saved, and broke the options page for good.
+          // A copy of the default's list: handed out itself, an options object that changed
+          // its list in place (push, splice) changed the defaults for every later merge.
           options[prop] = Object.hasOwn(newOptions, prop) && Array.isArray(newOptions[prop]) ?
-            newOptions[prop].filter((item) => typeof item === 'string') : opt;
+            newOptions[prop].filter((item) => typeof item === 'string') : opt.slice();
         } else if (typeof opt === 'object') {
           options[prop] = this.mergeOptions(opt, newOptions[prop] || {});
         } else {
@@ -361,9 +363,20 @@ export class Utils {
    *     reads from (a save's OPFS session) can be let go then too.
    */
   static revokeWhenDownloaded(url, download) {
+    return Utils.whenDownloaded(download, () => URL.revokeObjectURL(url));
+  }
+
+  /**
+   * Waits until a download no longer reads its URL (revokeWhenDownloaded): Firefox says it
+   * is over, or a minute after a link click, or 30 minutes at most.
+   * @param {*} download - What downloadURL resolved with: the download's id, or not.
+   * @param {function(): void} [atOver] - Run at that moment, before the promise settles.
+   * @return {Promise<void>}
+   */
+  static whenDownloaded(download, atOver = () => {}) {
     const {promise: over, resolve: revoked} = Promise.withResolvers();
     const revoke = () => {
-      URL.revokeObjectURL(url);
+      atOver();
       revoked();
     };
     const downloads = globalThis.chrome?.downloads;

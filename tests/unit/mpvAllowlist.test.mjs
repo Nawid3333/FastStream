@@ -436,6 +436,12 @@ describe('checkPlayMessage', () => {
       // Bytes, as UTF-8: a character of three bytes counts three.
       const wide = String.fromCharCode(0x4E2D).repeat(Math.ceil(MaxTargetBytes / 3));
       expect(checkPlayMessage({target: head + wide}).ok).toBe(false);
+      // As JSON writes it: mpv's path event carries the target so to the extension, and one
+      // the escaping took past the relay's line limit never arrived. A quote counts two.
+      const quotes = '"'.repeat(Math.ceil((MaxTargetBytes - head.length) / 2) + 1);
+      expect(Buffer.byteLength(head + quotes)).toBeLessThan(MaxTargetBytes);
+      expect(checkPlayMessage({target: head + quotes}))
+          .toEqual({ok: false, error: 'the stream URL is too long for mpv'});
     });
   });
 

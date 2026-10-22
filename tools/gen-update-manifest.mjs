@@ -51,6 +51,14 @@ if (xpiFiles.length !== 1) {
   process.exit(1);
 }
 const xpiName = xpiFiles[0];
+// web-ext-artifacts/ keeps what earlier runs left: one stale xpi passed the count above, and
+// updates.json advertised this version with the old file's link and hash - consistent, so
+// Firefox installed the old version and offered this one again for good. A signed xpi is
+// named <id>-<version>.xpi.
+if (!xpiName.endsWith(`-${manifest.version}.xpi`)) {
+  console.error(`${xpiName} is not the xpi of version ${manifest.version} (its name must end in -${manifest.version}.xpi): remove stale .xpi files from ${artifactsDir} and sign again`);
+  process.exit(1);
+}
 const xpiBuffer = fs.readFileSync(path.join(artifactsDir, xpiName));
 const hash = crypto.createHash('sha256').update(xpiBuffer).digest('hex');
 

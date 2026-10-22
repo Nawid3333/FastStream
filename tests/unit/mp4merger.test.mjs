@@ -49,7 +49,7 @@ afterEach(() => {
  * @return {Promise<Object>} readMp4() of the file
  */
 async function merge(track, fragments, duration) {
-  const zipped = fragments.map((data) => ({track: 0, getEntry: async () => ({getData: async () => data})}));
+  const zipped = fragments.map((data) => ({track: 0, getEntry: async () => ({getData: async () => data, getDataFromBlob: async () => data.arrayBuffer()})}));
   const blob = await new MP4Merger().convert(duration, initSegment(track), 0, null, zipped);
   return readMp4(new Uint8Array(await blob.arrayBuffer()));
 }
@@ -132,7 +132,7 @@ describe('MP4Merger: cancelling', () => {
     const track = videoTrack({timescale: 90000});
     const fragments = [0, 1, 2, 3].map((i) => fragment(track, i + 1, i * 6000,
         [{duration: 3000, cts: 0, key: true}, {duration: 3000, cts: 0}]));
-    const zipped = fragments.map((data) => ({track: 0, getEntry: async () => ({getData: async () => data})}));
+    const zipped = fragments.map((data) => ({track: 0, getEntry: async () => ({getData: async () => data, getDataFromBlob: async () => data.arrayBuffer()})}));
     const merger = new MP4Merger((fn) => {
       cancel = fn;
     });
@@ -153,7 +153,7 @@ describe('MP4Merger: the blob store of a save', () => {
     const data = fragment(track, 1, 0, [{duration: 3000, cts: 0, key: true}]);
     const merger = new MP4Merger();
     await merger.convert(3000 / 90000, initSegment(track), 0, null,
-        [{track: 0, getEntry: async () => ({getData: async () => data})}]);
+        [{track: 0, getEntry: async () => ({getData: async () => data, getDataFromBlob: async () => data.arrayBuffer()})}]);
     const store = stores.at(-1);
 
     await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
@@ -164,7 +164,7 @@ describe('MP4Merger: the blob store of a save', () => {
 
   it('closes the store at once when the save fails', async () => {
     const merger = new MP4Merger();
-    const broken = {track: 0, getEntry: async () => ({getData: async () => new Blob(['not an mp4'])})};
+    const broken = {track: 0, getEntry: async () => ({getData: async () => new Blob(['not an mp4']), getDataFromBlob: async () => new Blob(['not an mp4']).arrayBuffer()})};
     const track = videoTrack({timescale: 90000});
     await expect(merger.convert(1, initSegment(track), 0, null, [broken])).rejects.toThrow();
 

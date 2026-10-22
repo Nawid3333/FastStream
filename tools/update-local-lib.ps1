@@ -1,4 +1,5 @@
-# Dot-sourced by update-local.ps1 (and its test): New-PrivateDirectory,
+# Dot-sourced by update-local.ps1 (and its test), and by install-node-elevated.ps1, which the
+# Node.js step starts elevated: New-PrivateDirectory, New-AdminOnlyDirectory,
 # Invoke-InPrivateDirectory, Test-ChangedSince, ConvertFrom-WslVersionText.
 
 # Windows PowerShell started under PowerShell 7 - by cmd.exe or node in a PowerShell 7
@@ -19,9 +20,11 @@ function Test-ChangedSince([string]$File, [string]$Marker) {
 }
 
 # Creates $Path with an ACL that admits only the current user, Administrators and SYSTEM,
-# inheritance off. update-local.ps1 stages the Node.js installer there: %TEMP% is writable
-# by any process running as this user, and one of them could swap the MSI between the hash
-# check and the elevated msiexec.
+# inheritance off. update-local.ps1 stages the Node.js installer's download there, which
+# keeps the PC's other users out. A process running as this user keeps the access it has
+# (the user's SID has an entry, and as the owner it could rewrite the ACL): what lands here
+# is only checked, never installed from - install-node-elevated.ps1 installs its own copy
+# from a folder New-AdminOnlyDirectory makes.
 # Accounts by SID, never by name: Windows names its built-in accounts in its own language
 # ("Administratoren" on German Windows), and an English name fails there with "Some or all
 # identity references could not be translated" (2026-10-03, the user's PC).
@@ -40,6 +43,22 @@ function New-PrivateDirectory([string]$Path) {
     foreach ($sid in $owners) {
         $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
     }
+    Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
+# Creates $Path with an ACL that admits only Administrators and SYSTEM, inheritance off, owned
+# by Administrators: no process running as this user can write there, or rewrite the ACL as
+# its owner. install-node-elevated.ps1 checks and installs its copy of the Node.js installer
+# from such a folder (it runs elevated, which setting Administrators as the owner needs).
+function New-AdminOnlyDirectory([string]$Path) {
+    New-Item -ItemType Directory -Path $Path | Out-Null
+    $acl = Get-Acl -LiteralPath $Path
+    $acl.SetAccessRuleProtection($true, $false)
+    foreach ($rule in @($acl.Access)) { $acl.RemoveAccessRuleSpecific($rule) }
+    foreach ($sid in @('S-1-5-32-544', 'S-1-5-18')) { # Administrators, then SYSTEM
+        $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule((New-Object System.Security.Principal.SecurityIdentifier($sid)), 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+    }
+    $acl.SetOwner((New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')))
     Set-Acl -LiteralPath $Path -AclObject $acl
 }
 

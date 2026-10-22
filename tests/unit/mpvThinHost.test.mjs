@@ -9,16 +9,21 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {
   Capabilities,
   HostVersion,
+  LaunchLockMs,
   MaxRelayLineBytes,
+  MaxTargetBytes,
   PipeWaitMs,
   checkPlayMessage,
   freshMpvArgs,
   ipcPipeFor,
+  launchLockFile,
+  launchLockHeld,
   loadInto,
   mpvNotFoundError,
   playMpv,
   relayMpv,
   runIpc,
+  takeLaunchLock,
   waitForPipe,
 } from '../../native-host/faststream-mpv-host.mjs';
 
@@ -196,6 +201,9 @@ describe('playMpv', () => {
     return {
       record,
       platform: 'win32',
+      // A launch lock of its own (launchLockFile's default is the helper's folder, here the
+      // repository's).
+      lockFile: path.join(os.tmpdir(), `fs-thin-lock-${crypto.randomBytes(6).toString('hex')}`),
       ipcRequest: async (commands, timeoutMs, replyTimeoutMs, pipe) => {
         record.asks.push({pipe, commands: commands.map((c) => c.command)});
         if (pendingPipe === pipe && --pipeUpIn <= 0) running.add(pipe);
@@ -315,6 +323,84 @@ describe('playMpv', () => {
         .toEqual([['loadfile', 'get_property pid'], ['get_property pid'], ['loadfile', 'get_property pid']]);
     expect(loadfiles(io.record).map((load) => load.pipe)).toEqual([basePipe, basePipe]);
     expect(loadfiles(io.record)[1].command.options).toMatchObject({'start': '12', 'http-header-fields': 'Referer: https://site.test/'});
+  });
+
+  it('waits for another helper starting an mpv, then plays the stream in that one', async () => {
+    // Two sends within one start (a second tab): each helper found no mpv on the pipe and
+    // started one, and the second ran without the pipe for good. The second now waits for
+    // the first helper to be done, so its own stream also comes after the first one.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
+    try {
+      const lockFile = launchLockFile({ipcToken: token}, dir);
+      const other = takeLaunchLock(lockFile);
+      expect(other.taken).toBe(true);
+      const io = stand();
+      io.lockFile = lockFile;
+      const sleep = io.sleep;
+      io.sleep = async (ms) => {
+        await sleep(ms);
+        // The other helper's mpv is up and has its stream: it lets go.
+        if (io.record.slept >= 2000) {
+          io.record.running = true;
+          other.release();
+        }
+      };
+      const ipcRequest = io.ipcRequest;
+      io.ipcRequest = (commands, timeoutMs, replyTimeoutMs, pipe) => io.record.running ?
+        Promise.resolve({ok: true, replies: commands.map((c, i) => ({request_id: i + 1, error: 'success',
+          data: c.command[0] === 'get_property' ? 4242 : null}))}) :
+        ipcRequest(commands, timeoutMs, replyTimeoutMs, pipe);
+      const result = await playMpv('mpv.exe', play(), {ipcToken: token}, io);
+      expect(result.ok).toBe(true);
+      expect(result.reused).toBe(true);
+      expect(io.record.started).toEqual([]);
+      expect(io.record.slept).toBeGreaterThanOrEqual(2000);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
+  });
+
+  it('starts no second mpv when the other helper’s is busy after the wait', async () => {
+    // The other helper's mpv is up but opening its slow stream (no answer in time): a second
+    // mpv on the same pipe would leave that one without it.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
+    try {
+      const lockFile = launchLockFile({ipcToken: token}, dir);
+      const other = takeLaunchLock(lockFile);
+      const io = stand();
+      io.lockFile = lockFile;
+      const sleep = io.sleep;
+      io.sleep = async (ms) => {
+        await sleep(ms);
+        if (io.record.slept >= 1000) other.release();
+      };
+      const ipcRequest = io.ipcRequest;
+      io.ipcRequest = (commands, timeoutMs, replyTimeoutMs, pipe) => io.record.slept >= 1000 ?
+        Promise.resolve({ok: false, busy: true, error: 'mpv did not answer in time'}) :
+        ipcRequest(commands, timeoutMs, replyTimeoutMs, pipe);
+      const result = await playMpv('mpv.exe', play(), {ipcToken: token}, io);
+      expect(result).toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
+      expect(io.record.started).toEqual([]);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
+  });
+
+  it('lets go of the launch lock once its own start is done, or failed', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
+    try {
+      const io = stand({pipeUpAfter: 2});
+      io.lockFile = launchLockFile({ipcToken: token}, dir);
+      expect((await playMpv('mpv.exe', play(), {ipcToken: token}, io)).ok).toBe(true);
+      expect(io.record.started).toHaveLength(1);
+      expect(launchLockHeld(io.lockFile)).toBe(false);
+      const failing = stand({start: {ok: false, error: 'no'}});
+      failing.lockFile = io.lockFile;
+      expect((await playMpv('mpv.exe', play(), {ipcToken: token}, failing)).ok).toBe(false);
+      expect(launchLockHeld(io.lockFile)).toBe(false);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
   });
 
   it('starts it fullscreen from the command line, not with a set_property after', async () => {
@@ -654,14 +740,14 @@ describe('relayMpv', () => {
     expect(beats().length).toBe(after);
   });
 
-  it('drops a line over 256 KB and goes on with the next', async () => {
+  it('drops a line over MaxRelayLineBytes and goes on with the next', async () => {
     const {mpv, sent, relay} = await relaying('big');
     mpv.event({event: 'property-change', name: 'path', data: 'x'.repeat(MaxRelayLineBytes)});
     mpv.event({event: 'property-change', name: 'path', data: 'https://cdn.test/v.m3u8'});
     // One that comes in pieces, never all of it in the relay's buffer.
     const piece = 'y'.repeat(100 * 1024);
     mpv.raw('{"event":"property-change","name":"path","data":"');
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i <= MaxRelayLineBytes / piece.length; i++) {
       await settle(10);
       mpv.raw(piece);
     }
@@ -684,7 +770,7 @@ describe('relayMpv', () => {
     relay.receive({type: 'mpv', command: ['get_property', 'path'], id: 10});
     await settle();
     mpv.raw('{"data":"');
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i <= MaxRelayLineBytes / (100 * 1024); i++) {
       await settle(10);
       mpv.raw('y'.repeat(100 * 1024));
     }
@@ -695,6 +781,20 @@ describe('relayMpv', () => {
       {type: 'mpv-reply', id: 10, error: 'reply too large', data: undefined},
     ]);
     expect(ofType(sent, 'mpv')).toEqual([]);
+    relay.stop();
+  });
+
+  it('passes on the path event of the longest stream play takes', async () => {
+    // The relay dropped mpv's lines over 256 KB, while play takes a target up to 512 KB
+    // (MaxTargetBytes): the path event of a longer one never arrived, and the extension's
+    // end detection over the relay never saw that stream's path.
+    const {mpv, sent, relay} = await relaying('longest');
+    const head = 'https://cdn.test/v.m3u8#fs-quality=';
+    const target = head + 'a'.repeat(MaxTargetBytes - head.length);
+    expect(checkPlayMessage({target}).ok).toBe(true);
+    mpv.event({event: 'property-change', id: 12345, name: 'path', data: target});
+    await settle(150);
+    expect(ofType(sent, 'mpv').map((m) => m.data.data)).toEqual([target]);
     relay.stop();
   });
 
@@ -783,4 +883,29 @@ describe('the host process (host 15)', () => {
     expect(await askHost({type: 'relay', onStop: [['load-script', 'x.lua']]}))
         .toEqual({type: 'closed', reason: 'refused', error: 'onStop command 0 refused: command not allowed: load-script', ...versioned});
   }, 30000);
+});
+
+describe('the launch lock', () => {
+  it('is one helper’s at a time, and holds no longer once let go, old, or its process gone', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
+    try {
+      const file = launchLockFile({}, dir);
+      const first = takeLaunchLock(file);
+      expect(first.taken).toBe(true);
+      expect(takeLaunchLock(file).taken).toBe(false);
+      expect(launchLockHeld(file)).toBe(true);
+      first.release();
+      expect(launchLockHeld(file)).toBe(false);
+      // Handed to the mpv started: held while that mpv runs, not once it is gone.
+      const second = takeLaunchLock(file);
+      second.hand(4242);
+      expect(launchLockHeld(file, {alive: (pid) => pid === 4242})).toBe(true);
+      expect(launchLockHeld(file, {alive: () => false})).toBe(false);
+      expect(takeLaunchLock(file, {alive: () => false}).taken).toBe(true);
+      // Left by a helper that died before it let go: old after LaunchLockMs.
+      expect(launchLockHeld(file, {now: () => Date.now() + LaunchLockMs + 1000})).toBe(false);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
+  });
 });

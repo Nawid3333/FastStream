@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {MaxLogBytes, SubtitleDirPrefix, debugFromEnvironment, debugLog, ipcPipeFor, launchDirect, launchMpv, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, qualityFragmentFor, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
+import {afterAll, afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {MaxLogBytes, SubtitleDirPrefix, debugFromEnvironment, debugLog, ipcPipeFor, launchDirect, launchMpv, takeLaunchLock, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, qualityFragmentFor, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides whether the "reuse the window we already own"
 // path actually worked, from the IPC replies mpvIpcRequest collects. That
@@ -527,10 +527,19 @@ describe('launchMpv', () => {
    * @param {Object} reply - What the pipe answers (mpvIpcRequest's result) for the loadfile.
    * @return {Object} io for launchMpv, and the record.
    */
+  // A launch lock of each stand's own, out of the user's temp folder's real ones: a start
+  // hands it to the pid the launch answered, which can be anyone's here.
+  const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
+  let locks = 0;
+  afterAll(() => fs.rmSync(lockDir, {recursive: true, force: true}));
   const stand = (reply) => {
     const record = {pipes: [], focused: [], started: []};
     return {
       record,
+      lockFile: path.join(lockDir, `lock-${++locks}`),
+      // The pids the stand-in launches answer are made up, and one can be a process that runs
+      // here (77 on a Linux runner): a lock handed to it holds for no stand.
+      lock: {alive: () => false},
       ipcRequest: async (commands, timeoutMs, replyTimeoutMs, pipe) => {
         record.pipes.push(pipe);
         return typeof reply === 'function' ? reply(commands) : reply;
@@ -577,6 +586,37 @@ describe('launchMpv', () => {
     await launchMpv('mpv.exe', open, {ipcToken: token}, {...io, platform: 'win32'});
     expect(io.record.pipes).toEqual([`\\\\.\\pipe\\faststream-mpv-${token}`]);
     expect(io.record.focused).toEqual([4242]);
+  });
+
+  it('waits for another helper starting an mpv, then gives the stream to that one', async () => {
+    // Two sends within one start (a second tab): each found no mpv on the pipe and started
+    // one, and the second ran without the pipe for good, out of reach of every later send.
+    let up = false;
+    const io = stand((commands) => up ? answered('success')(commands) : {ok: false, error: 'no mpv ipc'});
+    const other = takeLaunchLock(io.lockFile);
+    other.hand(process.pid);
+    io.lock = {alive: (pid) => pid === process.pid};
+    let slept = 0;
+    io.sleep = async (ms) => {
+      slept += ms;
+      if (slept >= 1000) up = true;
+    };
+    io.now = () => slept;
+    const result = await launchMpv('mpv.exe', open, {ipcToken: token}, {...io, platform: 'win32'});
+    expect(result).toEqual({ok: true, reused: true, focus: 'True'});
+    expect(io.record.started).toEqual([]);
+    other.release();
+  });
+
+  it('hands the launch lock to the mpv it started, and lets it go when the start failed', async () => {
+    const io = stand({ok: false, error: 'no mpv ipc'});
+    io.start = async () => ({ok: true, pid: 4321});
+    await launchMpv('mpv.exe', open, {ipcToken: token}, {...io, platform: 'win32'});
+    expect(JSON.parse(fs.readFileSync(io.lockFile, 'utf8'))).toEqual({pid: 4321});
+    const failing = stand({ok: false, error: 'no mpv ipc'});
+    failing.start = async () => ({ok: false, error: 'no'});
+    await launchMpv('mpv.exe', open, {ipcToken: token}, {...failing, platform: 'win32'});
+    expect(fs.existsSync(failing.lockFile)).toBe(false);
   });
 
   it('raises the window on Windows only: elsewhere there is no PowerShell (#153)', async () => {
@@ -658,6 +698,17 @@ describe('ipcPipeFor', () => {
     expect(ipcPipeFor({}, 'linux', {XDG_RUNTIME_DIR: '/run/user/1000'})).toMatch(/^\/run\/user\/1000\/faststream-mpv-\d+\.sock$/);
     expect(ipcPipeFor({}, 'darwin', {}).startsWith(os.tmpdir())).toBe(true);
     expect(ipcPipeFor({ipcToken: token}, 'linux', {})).not.toContain('pipe');
+  });
+
+  it('fits a Unix socket path in macOS\'s long temp folder', () => {
+    // /var/folders/xx/.../T/ with the name and its token came to about 106 bytes, over a
+    // socket path's 103: mpv could not make its socket, and nothing reached it again.
+    const macTemp = '/var/folders/zz/zyxvpxvq6csfxvn_n0000000000000gn/T/';
+    const socket = ipcPipeFor({ipcToken: token}, 'darwin', {TMPDIR: macTemp});
+    expect(Buffer.byteLength(socket)).toBeLessThanOrEqual(103);
+    expect(socket).toMatch(new RegExp(`^/tmp/faststream-mpv-\\d+-${token}\\.sock$`));
+    // A short temp folder stays where it is.
+    expect(ipcPipeFor({ipcToken: token}, 'darwin', {TMPDIR: '/tmp/x'}).startsWith('/tmp/x/')).toBe(true);
   });
 
   it('carries the token elsewhere too when there is one: the temp folder can be shared (glm\'s review)', () => {

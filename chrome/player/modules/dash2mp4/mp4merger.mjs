@@ -93,8 +93,11 @@ export class MP4Merger extends EventEmitter {
 
   async pushFragment(defaultTrack, fragData) {
     const entry = await fragData.getEntry();
+    // getDataFromBlob first, not getData and BlobManager: it tells the store a read of data
+    // it lost, and the save downloads the fragment again (savedEntry); the blob sliced
+    // below is then the new download's.
+    const data = await entry.getDataFromBlob('arraybuffer');
     const blob = await entry.getData();
-    const data = await BlobManager.getDataFromBlob(blob, 'arraybuffer');
     data.fileStart = 0;
     const mp4boxfile = createFile(false);
     mp4boxfile.onError = function(module, message) {

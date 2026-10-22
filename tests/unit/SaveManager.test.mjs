@@ -136,6 +136,44 @@ describe('SaveManager: the URL of a finished save', () => {
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();
   });
 
+  it('lets go of a URL two downloads read from only once both are over', async () => {
+    // A complete video saved again downloads the same URL again. Only the newest download
+    // was followed: its end revoked the URL and closed the blob store under the first one,
+    // still running (paused in the downloads panel).
+    const states = new Map([[1, 'in_progress'], [2, 'in_progress']]);
+    const listeners = [];
+    vi.stubGlobal('chrome', {downloads: {
+      onChanged: {addListener: (fn) => listeners.push(fn), removeListener: () => {}},
+      search: async ({id}) => [{id, state: states.get(id)}],
+    }});
+    const end = (id) => {
+      states.set(id, 'complete');
+      listeners.slice().forEach((fn) => fn({id, state: {current: 'complete'}}));
+    };
+    const {Utils} = await import('../../chrome/player/utils/Utils.mjs');
+    Utils.downloadURL.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    const release = vi.fn();
+    const player = {
+      canSave: () => ({canSave: true, isComplete: true, canStream: false}),
+      saveVideo: async () => ({blob: new Blob(['video']), release}),
+    };
+    const manager = new SaveManager(makeClient(player));
+    await manager.saveVideo({});
+    await manager.saveVideo({});
+    expect(created).toEqual(['blob:save-1']);
+    manager.reset();
+
+    end(2);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    expect(release).not.toHaveBeenCalled();
+    end(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:save-1');
+    expect(release).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+
   // Saved again after another quality or audio track was picked, it was the previous one's
   // file under the new name (review, 2026-10-09).
   it('makes the file again once the quality has changed', async () => {

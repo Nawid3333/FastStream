@@ -11,7 +11,7 @@ import {stuckAfterStart} from './DashErrors.mjs';
 import {DASHLoaderFactory} from './DashLoader.mjs';
 import {DashTrackUtils} from './DashTrackUtils.mjs';
 import {audioProbeFor, describeDashRepresentation, probeDecoding, videoProbeFor} from '../DecodingCapabilities.mjs';
-import {SaveFragmentFetcher} from '../SaveFragmentFetcher.mjs';
+import {SaveFragmentFetcher, savedEntry} from '../SaveFragmentFetcher.mjs';
 
 export default class DashPlayer extends EventEmitter {
   constructor(client, config) {
@@ -529,8 +529,12 @@ export default class DashPlayer extends EventEmitter {
       await this.downloadFragment(audioInitSegment, -1);
     }
 
-    const videoInitSegmentData = videoInitSegment ? await this.client.downloadManager.getEntry(videoInitSegment.getContext()).getDataFromBlob() : null;
-    const audioInitSegmentData = audioInitSegment ? await this.client.downloadManager.getEntry(audioInitSegment.getContext()).getDataFromBlob() : null;
+    // Downloaded again when the store lost it (savedEntry).
+    const readInit = async (segment) => !segment ? null :
+      (await savedEntry(() => this.client.downloadManager.getEntry(segment.getContext()),
+          () => this.downloadFragment(segment, -1))).getDataFromBlob();
+    const videoInitSegmentData = await readInit(videoInitSegment);
+    const audioInitSegmentData = await readInit(audioInitSegment);
 
     const {DASH2MP4} = await import('../../modules/dash2mp4/dash2mp4.mjs');
 
@@ -550,9 +554,9 @@ export default class DashPlayer extends EventEmitter {
     zippedFragments.forEach((data, index) => {
       data.fragment.addReference(ReferenceTypes.SAVER);
       data.getEntry = async () => {
-        await fetcher.get(index);
+        const entry = await fetcher.entry(index, () => this.client.downloadManager.getEntry(data.fragment.getContext()));
         data.fragment.removeReference(ReferenceTypes.SAVER);
-        return this.client.downloadManager.getEntry(data.fragment.getContext());
+        return entry;
       };
     });
 
