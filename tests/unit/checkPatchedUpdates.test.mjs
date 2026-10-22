@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import {describe, expect, it} from 'vitest';
-import {LOCKSTEP, compareVersions, githubRepo, patchedDependencies} from '../../tools/check-patched-updates.mjs';
+import {compareVersions, githubRepo, patchedDependencies} from '../../tools/check-patched-updates.mjs';
 
 // The patched libraries are left out of Dependabot, and this script is what still notices
 // their updates. Reading the list wrongly, or comparing versions as text, would hide an
@@ -11,7 +11,7 @@ const yaml = fs.readFileSync(new URL('../../pnpm-workspace.yaml', import.meta.ur
 describe('patchedDependencies', () => {
   it('reads every patched library with the version its patch is cut against', () => {
     const libraries = patchedDependencies(yaml);
-    expect(libraries.length).toBeGreaterThanOrEqual(6);
+    expect(libraries.length).toBeGreaterThanOrEqual(5);
     expect(libraries).toContainEqual({name: 'hls.js', version: '1.7.3'});
     expect(libraries).toContainEqual({name: 'Coloris', version: '0.25.0'});
     for (const {name, version} of libraries) {
@@ -43,22 +43,10 @@ describe('patchedDependencies', () => {
     }
   });
 
-  it('is the list Dependabot is told to ignore, with the packages that move with them', () => {
+  it('is the list Dependabot is told to ignore', () => {
     const dependabot = fs.readFileSync(new URL('../../.github/dependabot.yml', import.meta.url), 'utf8');
     const ignored = [...dependabot.matchAll(/dependency-name: '([^']+)'/g)].map((match) => match[1]).sort();
-    const patched = patchedDependencies(yaml).map(({name}) => name);
-    expect(ignored).toEqual([...patched, ...patched.flatMap((name) => LOCKSTEP[name] || [])].sort());
-  });
-
-  it('pins what moves with a patched library to the library\'s own version', () => {
-    // @stryker-mutator/vitest-runner requires @stryker-mutator/core at its version exactly:
-    // apart, Stryker runs with a runner its core was not made for.
-    const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
-    const declared = {...pkg.dependencies, ...pkg.devDependencies};
-    for (const {name, version} of patchedDependencies(yaml)) {
-      for (const companion of LOCKSTEP[name] || []) expect(declared[companion], companion).toBe(version);
-    }
-    expect(LOCKSTEP['@stryker-mutator/vitest-runner']).toEqual(['@stryker-mutator/core']);
+    expect(ignored).toEqual(patchedDependencies(yaml).map(({name}) => name).sort());
   });
 
   it('leaves the other libraries the build copies to Dependabot\'s shipped group', () => {

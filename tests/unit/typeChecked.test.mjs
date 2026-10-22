@@ -196,8 +196,6 @@ const CHECKED = [
   'tools/hash-build.mjs',
   'tools/launch-ff-fresh.mjs',
   'tools/launch-ff.mjs',
-  'tools/merge-mutation-reports.mjs',
-  'tools/mutation-report.mjs',
   'tools/newest-release.mjs',
   'tools/rebuild.mjs',
   'tools/recut-patch.mjs',

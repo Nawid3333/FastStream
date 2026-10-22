@@ -15,9 +15,8 @@ import {Capabilities, HostVersion} from '../../native-host/faststream-mpv-host.m
 const root = path.resolve(import.meta.dirname, '../..');
 // "José 中文", from code points: the file tools used to write this suite mangle escapes.
 const FOLDER = 'Jos' + String.fromCodePoint(0xE9) + ' ' + String.fromCodePoint(0x4E2D, 0x6587);
-// A host that never answers (a mutation test's endless read loop, a real hang) used to outlive
-// the run: Stryker gives up on a mutant about a minute in, before this test's own timeout, and
-// nothing stopped the host, which spun a core for good. A ping answers well within this.
+// A host that never answers (an endless read loop, a real hang) would outlive the run: nothing
+// would stop it, and it would spin a core for good. A ping answers well within this.
 const REPLY_TIMEOUT_MS = 15000;
 
 let dir;

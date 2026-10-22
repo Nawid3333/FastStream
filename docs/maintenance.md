@@ -207,12 +207,6 @@ third attempt was cancelled too or GitHub refused the re-run: re-run it from the
 tab, and the issue closes at the next green CI run on `main`. "Auto release failed" means
 such a run was red or its release failed; the issue links the run.
 
-Once a week, `mutation-tests.yml` changes the code the unit tests cover one thing at a
-time and checks the tests notice. When they miss some, "Mutation testing: week to <date>"
-lists them: each is a place a fix could ship without a test that fails without it. Nothing
-waits on it; the next week's issue replaces it, and a week with every change caught closes
-it.
-
 ## What update-prs.yml checks before it says "ready to merge"
 
 Nothing merges itself (the owner's choice, 2026-10-02; from 2026-10-01 every kind of update
