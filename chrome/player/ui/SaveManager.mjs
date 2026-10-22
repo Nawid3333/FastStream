@@ -274,7 +274,7 @@ export class SaveManager {
   }
 
   /**
-   * @param {MouseEvent} e
+   * @param {MouseEvent|KeyboardEvent} e - The click or key: Alt saves what is loaded, Shift dumps.
    * @param {boolean} [allowPartial]
    */
   async saveVideo(e, allowPartial = false) {
@@ -290,7 +290,7 @@ export class SaveManager {
   }
 
   /**
-   * @param {MouseEvent} e
+   * @param {MouseEvent|KeyboardEvent} e
    * @param {boolean} allowPartial
    */
   async saveVideoAsked(e, allowPartial) {
