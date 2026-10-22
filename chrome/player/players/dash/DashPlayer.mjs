@@ -14,7 +14,16 @@ import {DashTrackUtils} from './DashTrackUtils.mjs';
 import {audioProbeFor, describeDashRepresentation, probeDecoding, videoProbeFor} from '../DecodingCapabilities.mjs';
 import {SaveFragmentFetcher, savedEntry} from '../SaveFragmentFetcher.mjs';
 
+/** @typedef {import('../../modules/dash.mjs').Representation} Representation */
+
 export default class DashPlayer extends EventEmitter {
+  /**
+   * @param client - The FastStreamClient. Left untyped: its getFragments is documented for a
+   *   string or a number, and this asks it for the level getCurrentLevel answers, null when
+   *   dash.js plays none (the store answers undefined).
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean, isAnalyzer?: boolean}} [config] -
+   *   What the player is for (PlayerLoader.createPlayer's callers).
+   */
   constructor(client, config) {
     super();
     this.client = client;
@@ -25,6 +34,8 @@ export default class DashPlayer extends EventEmitter {
     this.video = /** @type {HTMLVideoElement} */ (document.createElement(this.isAudioOnly ? 'audio' : 'video'));
 
     this.fragmentRequester = new DashFragmentRequester(this);
+    // The segment downloads under way (DashLoader).
+    /** @type {Array<ReturnType<DashFragmentRequester['requestFragment']>>} */
     this.activeRequests = [];
     // Download-manager keys of the manifests this player has loaded; a second load of one
     // is a live refresh (DashLoader).
@@ -38,7 +49,7 @@ export default class DashPlayer extends EventEmitter {
    * dash.js waits for its capability filters before it picks tracks, so the answers are
    * in by the first pick. This one never removes anything: it always answers true, and a
    * probe gives up after DecodingCapabilities.PROBE_TIMEOUT_MS.
-   * @param {Object} rep - A representation as dash.js parsed it.
+   * @param {Representation} rep - A representation as dash.js parsed it.
    * @return {Promise<boolean>}
    */
   async probeRepresentation(rep) {
@@ -244,6 +255,10 @@ export default class DashPlayer extends EventEmitter {
     });
   }
 
+  /**
+   * Stores a representation's init segment and segments as DashFragments.
+   * @param {Representation} rep - One extractAllFragments noted the processor of.
+   */
   extractFragments(rep) {
     const processor = rep.processor;
     if (!processor) {
@@ -264,7 +279,8 @@ export default class DashPlayer extends EventEmitter {
       }
     }
     if (rep.hasSegments() || rep.segments) {
-      const segments = segmentsController.getAllSegments(rep).map((segment) => {
+      // A list: dash.js has a getter of segments for a representation that has them.
+      const segments = /** @type {Array<import('../../modules/dash.mjs').Segment>} */ (segmentsController.getAllSegments(rep)).map((segment) => {
         return dashHandler._getRequestForSegment(mediaInfo, segment);
       });
       segments.forEach((request) => {
@@ -290,6 +306,7 @@ export default class DashPlayer extends EventEmitter {
     return this.video;
   }
 
+  /** @param {import('../../VideoSource.mjs').VideoSource} source */
   async setSource(source) {
     this.source = source;
     this.dash.initialize(this.video, this.source.url, false);
@@ -299,6 +316,11 @@ export default class DashPlayer extends EventEmitter {
     return this.source;
   }
 
+  /**
+   * @param {DashFragment} fragment
+   * @param {number} priority - In the download manager's queue, higher first (a save's -1).
+   * @return {Promise<void>}
+   */
   downloadFragment(fragment, priority) {
     return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
       this.fragmentRequester.requestFragment(fragment, {
@@ -418,6 +440,7 @@ export default class DashPlayer extends EventEmitter {
     return DashTrackUtils.getCurrentLevel(this.dash, 'video');
   }
 
+  /** @param {string|number} id - A level's (LevelManager's); only a string names a DASH one. */
   setCurrentVideoLevelID(id) {
     if (typeof id !== 'string') return;
     try {
@@ -431,6 +454,7 @@ export default class DashPlayer extends EventEmitter {
     return DashTrackUtils.getCurrentLevel(this.dash, 'audio');
   }
 
+  /** @param {string|number} id - A level's (LevelManager's); only a string names a DASH one. */
   setCurrentAudioLevelID(id) {
     if (typeof id !== 'string') return;
     try {
@@ -445,7 +469,8 @@ export default class DashPlayer extends EventEmitter {
   }
 
   get currentFragment() {
-    const frags = this.client.getFragments(this.getCurrentVideoLevelID());
+    // A DASH level's fragments are DashFragments (extractFragments).
+    const frags = /** @type {Array<DashFragment>|undefined} */ (this.client.getFragments(this.getCurrentVideoLevelID()));
     if (!frags) return null;
 
     const time = this.currentTime;
@@ -456,7 +481,8 @@ export default class DashPlayer extends EventEmitter {
   }
 
   get currentAudioFragment() {
-    const frags = this.client.getFragments(this.getCurrentAudioLevelID());
+    // A DASH level's fragments are DashFragments (extractFragments).
+    const frags = /** @type {Array<DashFragment>|undefined} */ (this.client.getFragments(this.getCurrentAudioLevelID()));
     if (!frags) return null;
 
     const time = this.currentTime;
@@ -497,6 +523,13 @@ export default class DashPlayer extends EventEmitter {
     };
   }
 
+  /**
+   * Makes an MP4 file of the fragments of the levels playing (DASH2MP4).
+   * @param {{filestream?: WritableStream<Uint8Array>, partialSave: boolean,
+   *   registerCancel: (cancel: () => void) => void, onProgress: (progress: number) => void}} options -
+   *   SaveManager's: no stream for a DASH save (canSave says nothing of streaming).
+   * @return {Promise<{extension: string, blob: Blob, release: () => void}>}
+   */
   async saveVideo(options) {
     const videoFragments = this.client.getFragments(this.getCurrentVideoLevelID()) || [];
     const audioFragments = this.client.getFragments(this.getCurrentAudioLevelID()) || [];
@@ -537,6 +570,7 @@ export default class DashPlayer extends EventEmitter {
     }
 
     // Downloaded again when the store lost it (savedEntry).
+    /** @param {DashFragment|undefined} segment */
     const readInit = async (segment) => !segment ? null :
       (await savedEntry(() => this.client.downloadManager.getEntry(segment.getContext()),
           () => this.downloadFragment(segment, -1))).getDataFromBlob();
@@ -547,7 +581,7 @@ export default class DashPlayer extends EventEmitter {
 
     const dash2mp4 = new DASH2MP4(options.registerCancel);
 
-    dash2mp4.on('progress', (progress) => {
+    dash2mp4.on('progress', (/** @type {number} */ progress) => {
       if (options?.onProgress) {
         options.onProgress(progress);
       }

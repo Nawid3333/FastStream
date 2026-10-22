@@ -1,7 +1,10 @@
 // What FastStream's patches add to the vendored libraries (patches/*.patch), which the
 // libraries' own types do not describe, and where a library's types are narrower than its
 // code. chrome/player/modules/*.d.mts re-export each library's own types; this adds to them.
-import type {MediaInfo, Representation, Stream, StreamController, StreamProcessor} from 'dashjs';
+import type {
+  DashHandler, FragmentRequest, MediaInfo, Representation, Segment, SegmentsController, Stream, StreamController,
+  StreamProcessor,
+} from 'dashjs';
 import type {Box, DataStream, Sample} from 'mp4box';
 
 declare module 'dashjs' {
@@ -44,6 +47,31 @@ declare module 'dashjs' {
   interface Representation {
     /** FastStream's own: DashPlayer.extractAllFragments notes the processor that plays it. */
     processor?: StreamProcessor;
+    /** Whether it has an init segment: in dash.js's Representation, not in its types. */
+    hasInitialization(): boolean;
+    /** Whether it lists its segments (a template, a timeline, a list): likewise. */
+    hasSegments(): boolean;
+  }
+
+  interface FragmentRequest {
+    /**
+     * In dash.js's FragmentRequest, not in its types: the byte range ("start-end"), null for
+     * the whole file, and the representation it is for.
+     */
+    range: string | null;
+    representation: Representation | null;
+    /** FastStream's own: DashPlayer.extractFragments notes the store's level of each request. */
+    level?: string;
+  }
+
+  interface SegmentsController {
+    /** Every segment of a representation (null when it has no way to list them): its types lack it. */
+    getAllSegments(representation: Representation): Segment[] | null;
+  }
+
+  interface DashHandler {
+    /** The request for a segment (null for none): DashHandler returns it, its types lack it. */
+    _getRequestForSegment(mediaInfo: MediaInfo, segment: Segment): FragmentRequest | null;
   }
 
   interface RepresentationController {
@@ -54,6 +82,9 @@ declare module 'dashjs' {
   interface StreamProcessor {
     /** The representation it plays: in dash.js's StreamProcessor, not in its types. */
     getRepresentation(): Representation | null;
+    /** Its segments' controller and its DashHandler: likewise. */
+    getSegmentsController(): SegmentsController;
+    getDashHandler(): DashHandler;
   }
 }
 

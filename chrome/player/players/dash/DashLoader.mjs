@@ -9,6 +9,23 @@ import {DashTrackUtils} from './DashTrackUtils.mjs';
 // errors once the stream is up leave it playing (DashPlayer), so no error ever showed.
 const SEGMENT_FAILURES_BEFORE_ERROR = 3;
 
+/** @typedef {import('../../modules/dash.mjs').FragmentRequest} FragmentRequest */
+/** @typedef {import('../../network/DownloadEntry.mjs').DownloadEntry} DownloadEntry */
+/** @typedef {import('../../network/FetchLoader.mjs').FetchLoader['stats']} LoadStats */
+
+/**
+ * What dash.js's HTTPLoader hands its XHRLoader (load): dash.js's own CommonMediaRequest
+ * (src/streaming/vo/CommonMediaRequest.js; its types give the loader a metrics HTTPRequest),
+ * its customData holding dash.js's request and the callbacks FastStream's patch adds
+ * (patches/dashjs@*.patch), none of which reads an argument. abort and _loader are this
+ * file's.
+ * @typedef {{url: string, method: string, headers: Object<string, string>,
+ *   customData: {request: FragmentRequest,
+ *     onSuccess: (data: ArrayBuffer|string|undefined, responseURL: string) => void,
+ *     onFail: (unread?: *) => void, onAbort: (unread?: *) => void, abort?: () => void},
+ *   _loader?: ?ReturnType<import('../../network/DownloadManager.mjs').DownloadManager['getFile']>}} DashLoaderRequest
+ */
+
 /**
  * decodeURI, but a URL it cannot decode (a `%` not followed by two hex digits, which a
  * manifest or a page may well contain) is used as it is instead of throwing.
@@ -25,8 +42,8 @@ function decodeUrl(url) {
 
 /**
  * Whether two of dash.js's requests name the same bytes.
- * @param {Object} a - A FragmentRequest.
- * @param {Object} b - Another.
+ * @param {FragmentRequest} a - A FragmentRequest.
+ * @param {FragmentRequest} b - Another.
  * @return {boolean}
  */
 function isSameRequest(a, b) {
@@ -34,13 +51,20 @@ function isSameRequest(a, b) {
 }
 
 
+/**
+ * @param player - The DashPlayer. Left untyped: request() asks it for preProcessFragment and
+ *   postProcessFragment, which no player has.
+ */
 export function DASHLoaderFactory(player) {
   // Failures in a row, per segment, for this player; a success forgets them.
+  /** @type {Map<string, number>} */
   const segmentFailures = new Map();
 
+  /** @param {Object} [cfg] - What dash.js makes the loader with ({} or nothing): unread. */
   return (cfg) => {
     cfg = cfg || {};
 
+    /** @param {DashLoaderRequest} httpRequest */
     function load(httpRequest) {
       const requestObj = httpRequest.customData.request;
       if (requestObj.type === 'InitializationSegment' ||
@@ -52,6 +76,7 @@ export function DASHLoaderFactory(player) {
       request(httpRequest);
     }
 
+    /** @param {DashLoaderRequest} httpRequest - A segment's. */
     function loadFragmentInternal(httpRequest) {
       // console.log(httpRequest);
       try {
@@ -87,7 +112,7 @@ export function DASHLoaderFactory(player) {
         const activeRequests = player.activeRequests;
         const segmentKey = level + ':' + segmentIndex;
 
-        const loader = player.fragmentRequester.requestFragment(frag, {
+        const loader = player.fragmentRequester.requestFragment(frag, /** @type {import('./DashFragmentRequester.mjs').FragmentCallbacks} */ ({
           onSuccess: (entry, data) => {
             segmentFailures.delete(segmentKey);
             httpRequest.customData.onSuccess(data, entry.responseURL);
@@ -120,7 +145,7 @@ export function DASHLoaderFactory(player) {
               activeRequests.splice(index, 1);
             }
           },
-        }, null, 1000);
+        }), null, 1000);
 
         httpRequest.customData.abort = () => {
           loader.abort();
@@ -138,15 +163,26 @@ export function DASHLoaderFactory(player) {
       }
     }
 
+    /**
+     * Downloads what dash.js asks for that the store does not hold: a manifest, or a segment
+     * it has no place for (loadFragmentInternal).
+     * @param {DashLoaderRequest} httpRequest
+     * @param {boolean} [isSegment]
+     * @param {number} [startTime] - A segment's, in seconds.
+     * @param {boolean} [isInit] - Whether the segment is an init segment.
+     */
     function request(httpRequest, isSegment = false, startTime = 0, isInit = false) {
       // Variables will be used in the callback functions
       const request = httpRequest.customData.request;
 
+      /** @type {number|undefined} */
       let rangeStart = undefined;
+      /** @type {number|undefined} */
       let rangeEnd = undefined;
 
       if (request.range) {
-        const [start, end] = StringUtils.parseHTTPRange(request.range);
+        // StringUtils documents its answer as an Object.
+        const [start, end] = /** @type {[number, number]|[undefined, undefined]} */ (StringUtils.parseHTTPRange(request.range));
         if (start === undefined) {
           console.warn('Failed to parse range', request.range);
         } else {
@@ -177,7 +213,9 @@ export function DASHLoaderFactory(player) {
       };
 
       const downloadManager = player.getClient().downloadManager;
-      if (request.type === 'MPD') {
+      // A string: dash.js's types know a FragmentRequest's segment types only, and the
+      // manifest's (a TextRequest) is 'MPD'.
+      if (/** @type {?string} */ (request.type) === 'MPD') {
         // A player's first load of the manifest may be answered from the store, and the copy
         // has to stay there for "dump buffer" archives, a player opened from one, and the
         // seek preview. dash.js loads a live manifest again to learn of new segments: then
@@ -188,12 +226,21 @@ export function DASHLoaderFactory(player) {
       }
       const loader = downloadManager.getFile({
         ...context,
+        /**
+         * @param {DownloadEntry} entry
+         * @param {Awaited<ReturnType<DownloadEntry['getRequest']>>} request - The request it makes.
+         */
         preProcessor: async (entry, request) => {
           if (isSegment && player.preProcessFragment) {
             return await player.preProcessFragment(entry, request, startTime, isInit);
           }
           return request;
         },
+        /**
+         * @param {DownloadEntry} entry
+         * @param {{url: string, status: number, headers: Object<string, string>, data: ArrayBuffer|string}} response -
+         *   FetchLoader's answer.
+         */
         postProcessor: async (entry, response) => {
           if (isSegment && player.postProcessFragment) {
             return await player.postProcessFragment(entry, response, startTime, isInit);
@@ -201,6 +248,10 @@ export function DASHLoaderFactory(player) {
           return response;
         },
       }, {
+        /**
+         * @param {DownloadEntry} entry
+         * @param {null} [xhr] - FetchLoader has none; none at all for a stored copy.
+         */
         onSuccess: async (entry, xhr) => {
           if (isSegment) {
             segmentFailures.delete('url:' + context.url + ':' + (rangeStart ?? '') + '-' + (rangeEnd ?? ''));
@@ -218,9 +269,16 @@ export function DASHLoaderFactory(player) {
           }
           httpRequest.customData.onSuccess(data, entry.responseURL);
         },
+        /**
+         * @param {LoadStats} stats
+         * @param {Awaited<ReturnType<DownloadEntry['getRequest']>>} context - The request.
+         * @param {ArrayBuffer|string} data
+         * @param {null} xhr - FetchLoader has none.
+         */
         onProgress: (stats, context, data, xhr)=> {
 
         },
+        /** @param {DownloadEntry} entry */
         onFail: (entry)=> {
           if (!isSegment) {
             httpRequest.customData.onFail(entry);
@@ -240,6 +298,7 @@ export function DASHLoaderFactory(player) {
             player.emit(DefaultPlayerEvents.ERROR, 'Segment ' + context.url + ' failed to load');
           }
         },
+        /** @param {DownloadEntry} entry */
         onAbort: (entry) => {
           httpRequest.customData.onAbort(entry);
         },
@@ -252,6 +311,7 @@ export function DASHLoaderFactory(player) {
       httpRequest._loader = loader;
     }
 
+    /** @param {DashLoaderRequest} request */
     function abort(request) {
       if (request._loader) {
         request._loader.abort();

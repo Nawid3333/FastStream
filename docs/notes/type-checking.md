@@ -60,8 +60,14 @@ types fall short of its code, `types/vendor-patches.d.ts` adds the rest, each wi
 reason: the APIs FastStream's patches add (dash.js's `getStreamController` and
 `setCustomBitrateSelectionFunction`, mp4box's `getSampleList`), and members the code has
 but the types lack (dash.js accepts an async capabilities filter, `MediaInfo.representations`,
-`StreamProcessor.getRepresentation`; mp4box's `seek` without `useRap`, and a sample entry's
-`write` into a plain DataStream, which its code allows and its types do not). hls.js's internals
+`StreamProcessor.getRepresentation`, `getSegmentsController` and `getDashHandler`,
+`SegmentsController.getAllSegments`, `DashHandler._getRequestForSegment`, a Representation's
+`hasInitialization` and `hasSegments`, a FragmentRequest's `range` and `representation`;
+mp4box's `seek` without `useRap`, and a sample entry's `write` into a plain DataStream, which
+its code allows and its types do not). The fields FastStream's own code sets on a library's
+objects are declared there too: a Representation's `processor` and a FragmentRequest's `level`
+(DashPlayer), an hls.js fragment's `trackID` and `levelIdentifier` (HLSFragmentStore) and its
+level details' `trackID` (HLSPlayer). hls.js's internals
 that the patch exports (`TSDemuxer` and the other demuxers and remuxers) are not in its
 types and stay `any`. A class the package declares but does not export by name is reached
 through one it does: mp4box's trak box is `ISOFile['moov']['traks'][number]`. With the
