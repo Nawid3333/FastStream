@@ -144,6 +144,15 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: node tools/gen-update-manifest.mjs "$GITHUB_REPOSITORY" "$TAG"
 
+      # The helper's files, as the release's tag has them: mpv-config's one-click installer
+      # downloads them from the tag and runs them only when both match this list. Without it,
+      # whatever answered at that address ran (a moved tag, a changed or broken download).
+      - name: List the helper's files with their SHA-256
+        run: |
+          cd native-host
+          sha256sum install.ps1 faststream-mpv-host.mjs > ../built/native-host.sha256
+          cat ../built/native-host.sha256
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -152,6 +161,7 @@ jobs:
         run: |
           assets=(
             built/firefox-github-*.zip
+            built/native-host.sha256
           )
           if [ "$SIGNED" = "success" ]; then
             assets+=(web-ext-artifacts/*.xpi web-ext-artifacts/updates.json)
