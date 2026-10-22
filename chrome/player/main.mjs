@@ -287,7 +287,9 @@ async function setup() {
       isExt: true,
       parentFrameId: urlParams.has('parent_frame_id') ? parseInt(/** @type {string} */ (urlParams.get('parent_frame_id'))) : undefined,
     }).then((data) => {
-      if (!data) {
+      // Nor once the client went (beforeunload) before the background answered: its answer
+      // then threw on the missing client.
+      if (!data || !/** @type {FastStreamWindow} */ (window).fastStream) {
         return;
       }
       /** @type {FastStreamWindow} */ (window).fastStream.setMediaInfo(data.mediaInfo);

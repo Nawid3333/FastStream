@@ -12,9 +12,10 @@ const PLAYER = 'moz-extension://faststream/player/index.html?opener=page-1';
  * Loads main.mjs into a stand-in page, with a client playing at the given second.
  * @param {number} time - Where the client plays.
  * @param {boolean} [inFrame] - A player in a page's frame (else a player tab).
+ * @param {function(): Promise<*>} [answer] - The background's answer to PLAYER_LOADED.
  * @return {Promise<{fire: Function, client: Object, replace: Function}>}
  */
-async function loadPlayerPage(time, inFrame = true) {
+async function loadPlayerPage(time, inFrame = true, answer = () => Promise.resolve(null)) {
   vi.resetModules();
   vi.useFakeTimers();
   const listeners = new Map();
@@ -33,7 +34,7 @@ async function loadPlayerPage(time, inFrame = true) {
   vi.stubGlobal('chrome', {
     runtime: {
       onMessage: {addListener: vi.fn()},
-      sendMessage: vi.fn(() => Promise.resolve(null)),
+      sendMessage: vi.fn((message) => message.type === 'PLAYER_LOADED' ? answer() : Promise.resolve(null)),
     },
   });
   vi.doMock('../../chrome/player/FastStreamClient.mjs', () => ({
@@ -112,5 +113,27 @@ describe('the player page at beforeunload', () => {
     fire('pagehide', {persisted: true});
     vi.advanceTimersByTime(10000);
     expect(replace).not.toHaveBeenCalled();
+  });
+});
+
+describe('the player page, the background answering late', () => {
+  it('takes a PLAYER_LOADED answer that came after beforeunload quietly', async () => {
+    // beforeunload had taken the client before the background answered: the answer threw
+    // on the missing client, a rejection nothing caught.
+    const late = Promise.withResolvers();
+    const rejections = [];
+    const onRejection = (reason) => rejections.push(reason);
+    process.on('unhandledRejection', onRejection);
+    try {
+      const {fire} = await loadPlayerPage(10, true, () => late.promise);
+      fire('beforeunload', {});
+      late.resolve({mediaInfo: {}, isMainPlayer: true});
+      // Real time for Node to report a rejection nothing caught (the harness's timers are fake).
+      vi.useRealTimers();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onRejection);
+    }
   });
 });
