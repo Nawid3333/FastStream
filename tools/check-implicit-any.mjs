@@ -86,10 +86,17 @@ function main() {
     return 1;
   }
   const recordFile = path.join(root, RECORD);
+  // Read once, no exists-check first (CodeQL's js/file-system-race): a missing record is null.
+  /** @type {Object<string, number>|null} */
+  let recorded = null;
+  try {
+    recorded = JSON.parse(fs.readFileSync(recordFile, 'utf8'));
+  } catch (e) {
+    if (/** @type {NodeJS.ErrnoException} */ (e).code !== 'ENOENT') throw e;
+  }
   if (process.argv.includes('--update')) {
     // The first --update writes the record; later ones only lower it.
-    const recorded = fs.existsSync(recordFile) ? JSON.parse(fs.readFileSync(recordFile, 'utf8')) : current;
-    const {grown} = compareCounts(recorded, current);
+    const {grown} = compareCounts(recorded ?? current, current);
     if (grown.length) {
       for (const g of grown) console.error(`${g.file}: ${g.was} -> ${g.now} untyped places; the record is not raised`);
       return 1;
@@ -98,7 +105,10 @@ function main() {
     console.log(`${RECORD}: ${Object.values(current).reduce((a, b) => a + b, 0)} untyped places in ${Object.keys(current).length} files`);
     return 0;
   }
-  const recorded = JSON.parse(fs.readFileSync(recordFile, 'utf8'));
+  if (!recorded) {
+    console.error(`${RECORD} is missing: write it with pnpm run typecheck:strict -- --update`);
+    return 1;
+  }
   const {grown, fallen} = compareCounts(recorded, current);
   for (const g of grown) {
     console.error(`${g.file}: ${g.was} -> ${g.now} untyped places (noImplicitAny). Type what the change added.`);
