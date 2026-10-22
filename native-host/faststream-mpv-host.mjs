@@ -2375,6 +2375,7 @@ function processAlive(pid) {
  * @return {boolean}
  */
 export function launchLockHeld(file, io = {}) {
+  /** @type {?number} */
   let fd = null;
   try {
     // Its age and its contents from one open file: the file can be replaced in between.
