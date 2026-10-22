@@ -35,7 +35,7 @@ export class ClickSequence {
   /** A click on the video. */
   click() {
     const options = this.getOptions();
-    clearTimeout(this.timer);
+    clearTimeout(/** @type {number} */ (this.timer));
     if (options.doubleClickAction === ClickActions.NOTHING && options.tripleClickAction === ClickActions.NOTHING) {
       // No double or triple click: each click is a single one, at once (two quick ones are
       // two, not a double click that does nothing).

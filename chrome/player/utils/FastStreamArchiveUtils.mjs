@@ -84,7 +84,7 @@ export class FastStreamArchiveUtils {
           data = (new TextEncoder().encode(data)).buffer;
         }
       } else {
-        data = await entry.getDataFromBlob('arraybuffer');
+        data = /** @type {ArrayBuffer} */ (await entry.getDataFromBlob('arraybuffer'));
       }
 
       const dataSize = data.byteLength;

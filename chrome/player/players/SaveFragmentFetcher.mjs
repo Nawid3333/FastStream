@@ -143,7 +143,8 @@ export class SaveFragmentFetcher {
         throw new Error('Cancelled');
       }
       try {
-        const {promise, resolve, reject} = /** @type {typeof Promise & {withResolvers: () => {promise: Promise<void>, resolve: () => void, reject: (e: Error) => void}}} */ (Promise).withResolvers();
+        /** @type {PromiseWithResolvers<void>} */
+        const {promise, resolve, reject} = Promise.withResolvers();
         download.reject = reject;
         download.loader = this.requester.requestFragment(fragment, {
           skipProcess: true,

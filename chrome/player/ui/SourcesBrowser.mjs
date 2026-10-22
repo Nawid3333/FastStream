@@ -1,3 +1,4 @@
+// @ts-check
 import {VideoSource} from '../VideoSource.mjs';
 import {PlayerModes} from '../enums/PlayerModes.mjs';
 import {MessageTypes} from '../enums/MessageTypes.mjs';
@@ -37,7 +38,7 @@ export class SourcesBrowser {
     // eslint-disable-next-line prefer-const
     let headersInput;
     const sourceContainer = WebUtils.create('div', /** @type {any} */ (null), 'linkui-source');
-    this.linkui.sourcesList.insertBefore(sourceContainer, this.linkui.sourcesList.firstChild);
+    /** @type {{sourcesList: HTMLElement}} */ (this.linkui).sourcesList.insertBefore(sourceContainer, /** @type {{sourcesList: HTMLElement}} */ (this.linkui).sourcesList.firstChild);
 
     const sourceURL = /** @type {HTMLInputElement} */ (WebUtils.create('input', /** @type {any} */ (null), 'text_input linkui-source-url'));
     sourceURL.value = source.url;
@@ -86,7 +87,7 @@ export class SourcesBrowser {
       source.parseHeadersParam();
       sourceHeadersBtn.textContent = Localize.getMessage('player_source_headerbtn', [Object.keys(source.headers).length]);
       headersInput.value = URLUtils.objToHeadersString(source.headers);
-      Array.from(sourceMode.children[1].children).find((el) => el.dataset.val === source.mode)?.click();
+      /** @type {HTMLElement[]} */ (Array.from(sourceMode.children[1].children)).find((el) => el.dataset.val === source.mode)?.click();
       sourceURL.value = source.url;
     });
 
@@ -237,11 +238,11 @@ export class SourcesBrowser {
     });
 
     if (sourceLen === 0) {
-      this.linkui.sourcesFound.textContent = Localize.getMessage('player_source_nonelisted');
+      /** @type {{sourcesFound: HTMLElement}} */ (this.linkui).sourcesFound.textContent = Localize.getMessage('player_source_nonelisted');
     } else if (sourceLen === 1) {
-      this.linkui.sourcesFound.textContent = Localize.getMessage('player_source_onelisted');
+      /** @type {{sourcesFound: HTMLElement}} */ (this.linkui).sourcesFound.textContent = Localize.getMessage('player_source_onelisted');
     } else {
-      this.linkui.sourcesFound.textContent = Localize.getMessage('player_source_multilisted', [sourceLen]);
+      /** @type {{sourcesFound: HTMLElement}} */ (this.linkui).sourcesFound.textContent = Localize.getMessage('player_source_multilisted', [sourceLen]);
     }
     this.sources.forEach((source) => {
       source.sourceBrowserElements.setBtn.classList.remove('loading');
@@ -322,7 +323,7 @@ export class SourcesBrowser {
 
     this.linkui.clearButton.addEventListener('click', (e) => {
       this.sources.length = 0;
-      /** @type {HTMLElement} */ (this.linkui.sourcesList).replaceChildren();
+      /** @type {HTMLElement} */ (/** @type {{sourcesList: HTMLElement}} */ (this.linkui).sourcesList).replaceChildren();
       this.updateSources();
       if (EnvUtils.isExtension()) {
         // The player's list is a mirror of the background's per-frame store;

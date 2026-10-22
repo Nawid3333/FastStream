@@ -1,3 +1,4 @@
+// @ts-check
 import {IndexedDBManager} from '../network/IndexedDBManager.mjs';
 import {OPFSManager} from '../network/OPFSManager.mjs';
 
@@ -164,8 +165,8 @@ export class FSBlob {
   async saveBlobInOPFSAsync(identifier, blob) {
     // Setup is already settled and the backend re-checked by offloadBlob().
     try {
-      await this.opfsManager.setFile(identifier, blob);
-      const file = await this.opfsManager.getFile(identifier);
+      await /** @type {OPFSManager} */ (this.opfsManager).setFile(identifier, blob);
+      const file = await /** @type {OPFSManager} */ (this.opfsManager).getFile(identifier);
       return this.replaceIfStill(identifier, blob, file);
     } catch (e) {
       if (this.opfsManager && !this.opfsManager.worker) {
@@ -187,12 +188,12 @@ export class FSBlob {
   async saveBlobInIndexedDBAsync(identifier, blob) {
     try {
       // Store file
-      await this.indexedDBManager.setFile(identifier, blob);
+      await /** @type {IndexedDBManager} */ (this.indexedDBManager).setFile(identifier, blob);
       // Get file
-      const file = await this.indexedDBManager.getFile(identifier);
+      const file = await /** @type {IndexedDBManager} */ (this.indexedDBManager).getFile(identifier);
 
       // Delete file to orphan it
-      await this.indexedDBManager.deleteFile(identifier);
+      await /** @type {IndexedDBManager} */ (this.indexedDBManager).deleteFile(identifier);
 
       return this.replaceIfStill(identifier, blob, file);
     } catch (e) {
@@ -208,7 +209,7 @@ export class FSBlob {
   async saveBlobUsingCache(identifier, blob) {
     const identifierURL = this.getIdentifierURL(identifier);
     // One cache for the put and the check: clear() replaces this.cache meanwhile.
-    const cache = this.cache;
+    const cache = /** @type {Cache} */ (this.cache);
 
     try {
       await cache.put(identifierURL, new Response(blob));
@@ -421,7 +422,7 @@ export class FSBlob {
         await this.opfsManager.deleteFile(identifier);
       } else if (this.cache) {
         const identifierURL = this.getIdentifierURL(identifier);
-        await this.cache.delete(identifierURL);
+        await /** @type {Cache} */ (this.cache).delete(identifierURL);
       } else if (this.indexedDBManager) {
         await this.indexedDBManager.deleteFile(identifier);
       }

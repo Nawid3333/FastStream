@@ -23,7 +23,7 @@ let fsBlobRoot = null;
 let sessionDir = null;
 /** @type {string|null} */
 let sessionName = null;
-/** @type {Timeout|null} */
+/** @type {number|null} */
 let heartbeatInterval = null;
 let heartbeatInFlight = false;
 
@@ -223,7 +223,7 @@ async function clearStorage() {
 }
 
 async function destroy() {
-  clearInterval(/** @type {Timeout} */ (heartbeatInterval));
+  clearInterval(/** @type {number} */ (heartbeatInterval));
   heartbeatInterval = null;
   for (const stream of saveStreams.values()) {
     try {

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Fetches the signed xpi of a version already submitted to addons.mozilla.org, without
 // uploading anything.
 //
@@ -162,7 +163,7 @@ export async function fetchSigned(version) {
     if (!download.ok) {
       throw new Error(`downloading ${body.file.url}: HTTP ${download.status}`);
     }
-    const name = decodeURIComponent(fileUrl.pathname.split('/').pop());
+    const name = decodeURIComponent(/** @type {string} */ (fileUrl.pathname.split('/').pop()));
     if (!/^[\w.-]+\.xpi$/.test(name)) {
       throw new Error(`${name}: not a plain .xpi file name`);
     }

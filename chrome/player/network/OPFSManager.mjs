@@ -1,3 +1,4 @@
+// @ts-check
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 
 // Main-thread counterpart to opfs-worker.mjs. Mirrors IndexedDBManager.mjs's
@@ -24,7 +25,7 @@ export class OPFSManager {
     // identifier -> its name in the session directory (fileName).
     this.fileNames = new Map();
     this.fileCount = 0;
-    /** @type {number | null} */
+    /** @type {number | ReturnType<typeof setTimeout> | null} */
     this.watchdog = null;
   }
 

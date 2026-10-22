@@ -1,3 +1,4 @@
+// @ts-check
 import {Utils} from '../utils/Utils.mjs';
 import {FSBlob} from './FSBlob.mjs';
 
@@ -32,6 +33,7 @@ function createWriteStreamBlob(filename, opts, size) {
   // The blob store itself is made then too: a save that failed before its first
   // write (a direct download's bad status code) left one, with its OPFS worker
   // and heartbeat, running until the tab closed.
+  /** @type {Promise<{write: Function, close: Function, abort: Function}>|null} */
   let sinkPromise = null;
   const getSink = () => {
     if (!sinkPromise) {
@@ -89,7 +91,7 @@ async function closeWhenDownloaded(blobManager, url, download) {
  * @return {{write: Function, close: Function, abort: Function}}
  */
 function createOPFSSink(filename, blobManager) {
-  const opfs = blobManager.opfsManager;
+  const opfs = /** @type {NonNullable<typeof blobManager.opfsManager>} */ (blobManager.opfsManager);
   const identifier = 'save-' + Date.now() + '-' + (saveCounter++);
   const opfsWriterReady = opfs.saveBegin(identifier);
 
@@ -104,6 +106,7 @@ function createOPFSSink(filename, blobManager) {
       await opfs.saveAppend(identifier, new Uint8Array(copy));
     },
     async close() {
+      /** @type {string|null} */
       let url = null;
       let download;
       try {
@@ -161,10 +164,11 @@ function createMemorySink(filename, blobManager) {
       }
     },
     async close() {
+      /** @type {string|null} */
       let url = null;
       let download;
       try {
-        const chunks = await Promise.all(blobs.map((blob) => blobManager.getBlob(blob)));
+        const chunks = /** @type {Array<Blob|File>} */ (await Promise.all(blobs.map((blob) => blobManager.getBlob(blob))));
         const blob = new Blob(chunks, {type: 'application/octet-stream'});
         url = URL.createObjectURL(blob);
         download = await Utils.downloadURL(url, filename);

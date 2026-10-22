@@ -1,3 +1,4 @@
+// @ts-check
 import {Utils} from '../../utils/Utils.mjs';
 
 // MP4Player's arithmetic on mp4box's sample lists, kept apart from MP4Player so that unit
@@ -50,6 +51,7 @@ export function keyframeOffsetIn(samples, time) {
  * @return {?number} Null while no track has a keyframe.
  */
 export function keyframeOffset(sampleLists, time) {
+  /** @type {number|null} */
   let offset = null;
   for (const samples of sampleLists) {
     if (!samples.length) continue;

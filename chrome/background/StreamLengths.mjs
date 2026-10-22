@@ -1,3 +1,4 @@
+// @ts-check
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 import {RequestUtils} from '../player/utils/RequestUtils.mjs';
 import {PIECE_LENGTH, StreamLength} from '../player/utils/StreamLength.mjs';
@@ -26,8 +27,8 @@ const MAX_KNOWN = 300;
 export class StreamLengths {
   /**
    * @param {Object} [options]
-   * @param {function(string, Object): Promise<Response>} [options.fetch] - fetch().
-   * @param {function(string, Array<Object>): Promise<*>} [options.setHeaders] - Makes the
+   * @param {(url: string, init: *) => Promise<Response>} [options.fetch] - fetch().
+   * @param {(url: string, commands: Array<Object>) => Promise<*>} [options.setHeaders] - Makes the
    *   background's next requests to a URL carry the page's Referer, Origin and cookies,
    *   which a fetch() cannot set: a declarativeNetRequest rule, as the player's own
    *   requests get.
@@ -169,6 +170,7 @@ export class StreamLengths {
       return known.promise;
     }
 
+    /** @type {{duration: number|null|undefined, promise: *}} */
     const entry = {duration: undefined, promise: null};
     entry.promise = this.queue(() => this.read(source)).catch(() => null).then((duration) => {
       entry.duration = duration;
@@ -188,7 +190,7 @@ export class StreamLengths {
    * stream, and as the newest, the one that plays. The caller takes the sources right
    * after, before another can come, and their lengths from lengthsOf, which counts one
    * still unread at the deadline, or not readable, as a piece when its like was read as one.
-   * @param {function(): Array<Object>} getSources - The detected sources as they are now,
+   * @param {() => Array<{url: string, mode: string, headers: *}>} getSources - The detected sources as they are now,
    *   asked again after each wait.
    * @param {number} waitMs - The longest to wait.
    * @return {Promise<void>}
@@ -215,7 +217,7 @@ export class StreamLengths {
 
   /**
    * Runs a read when fewer than MAX_ACTIVE are running.
-   * @param {function(): Promise<*>} task - The read.
+   * @param {() => Promise<*>} task - The read.
    * @return {Promise<*>} What it gave.
    */
   async queue(task) {
@@ -312,7 +314,7 @@ export class StreamLengths {
    *   page's headers: those the rule sets, and the rest.
    * @param {Array<number>|null} range - The bytes to ask for, [start, end), or null for
    *   up to MAX_TEXT_BYTES from the start.
-   * @return {Promise<?{bytes: Uint8Array, text: function(): string, url: string, partial: boolean}>}
+   * @return {Promise<{bytes: Uint8Array, text: () => string, url: string, partial: boolean}|null>}
    *   What came, or null for an error status.
    */
   async get(url, request, range) {

@@ -1,3 +1,4 @@
+// @ts-check
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {RequestUtils} from '../utils/RequestUtils.mjs';
@@ -25,7 +26,7 @@ export function retryAfterMs(value, now = Date.now()) {
  * The Fetch Priority a load asks for: config.fetchPriority, a value or a function asked at
  * each attempt (a retry goes out with the priority the download has by then).
  * @param {Object} config - The load's config.
- * @return {string} 'high', 'low' or 'auto'.
+ * @return {'high'|'low'|'auto'} 'high', 'low' or 'auto'.
  */
 export function fetchPriorityOf(config) {
   const priority = typeof config.fetchPriority === 'function' ? config.fetchPriority() : config.fetchPriority;
@@ -34,6 +35,7 @@ export function fetchPriorityOf(config) {
 
 export class FetchLoader {
   constructor() {
+    /** @type {any[]|null} */
     this.callbacks = [];
     this.stats = {
       aborted: false,
@@ -316,7 +318,7 @@ export class FetchLoader {
    * progressing body.
    * @param {Response} response - the fetch Response to read.
    * @param {boolean} isArrayBuffer - true to return an ArrayBuffer, false for text.
-   * @param {function(): boolean} [isStale] - true once this attempt has been torn down;
+   * @param {() => boolean} [isStale] - true once this attempt has been torn down;
    *   a chunk still delivered then must not re-arm the next attempt's stall timer.
    * @param {?{rangeStart: number, rangeEnd: number}} [range] - for a body that is the whole
    *   file although a range was asked for: only that range is returned, and reading stops

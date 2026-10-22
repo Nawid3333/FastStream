@@ -1,3 +1,4 @@
+// @ts-check
 
 export class HLSDecrypter {
   constructor() {
@@ -14,7 +15,7 @@ export class HLSDecrypter {
     }
     const id = this.lastId++;
     return new Promise((resolve, reject) => {
-      this.encryptionWorkerCallbacks.set(id, (decrypted, error) => {
+      /** @type {Map<number, (decrypted: any, error: any) => void>} */ (this.encryptionWorkerCallbacks).set(id, (decrypted, error) => {
         // decrypter-worker.js answers a failure (a wrong key, an IV that is not 16 bytes,
         // a download cut short) with 0 bytes and an error, and those 0 bytes were stored
         // as the segment, complete.
@@ -24,7 +25,7 @@ export class HLSDecrypter {
           reject(new Error('Segment not decrypted: ' + (error || 'the decrypter was destroyed')));
         }
       });
-      this.encryptionWorker.postMessage({
+      /** @type {Worker} */ (this.encryptionWorker).postMessage({
         encrypted: data,
         iv: iv,
         key: key,
@@ -60,9 +61,9 @@ export class HLSDecrypter {
     const worker = this.encryptionWorker = new Worker('modules/decrypter-worker.js');
     worker.addEventListener('message', (event) => {
       const data = event.data;
-      const callback = this.encryptionWorkerCallbacks.get(data.id);
+      const callback = /** @type {Map<number, (decrypted: any, error: any) => void>} */ (this.encryptionWorkerCallbacks).get(data.id);
       if (!callback) return;
-      this.encryptionWorkerCallbacks.delete(data.id);
+      /** @type {Map<number, (decrypted: any, error: any) => void>} */ (this.encryptionWorkerCallbacks).delete(data.id);
       callback(data.decrypted, data.error);
     });
     // A worker that failed to load, or threw, answers nothing, and an answer that could not

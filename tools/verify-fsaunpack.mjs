@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Starts fsaunpack/testserver.mjs on a recorded archive and checks what it serves.
 //
 // fsaunpack is a helper outside the extension, with its own package.json and npm
@@ -86,12 +87,12 @@ server.stderr.on('data', (chunk) => log += chunk);
 
 const failures = [];
 try {
-  await new Promise((resolve, reject) => {
+  await /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('the server did not start within 20 s')), 20000);
     server.once('exit', (code) => reject(new Error(`the server exited with code ${code}`)));
     const check = () => /Listening on port/.test(log) ? (clearTimeout(timer), resolve()) : setTimeout(check, 100);
     check();
-  });
+  }));
 
   const get = async (pathname) => {
     const response = await fetch(`http://127.0.0.1:${port}${pathname}`);
