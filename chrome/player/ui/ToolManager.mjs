@@ -3,12 +3,14 @@ import {Sortable} from '../modules/sortable.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {DOMElements} from './DOMElements.mjs';
+import {MediaKeys} from './MediaKeys.mjs';
 
 /** @typedef {Element & {_toolSkipClick: boolean}} ToolElement */
 export class ToolManager {
   constructor(client, interfaceController) {
     this.interfaceController = interfaceController;
     this.client = client;
+    this.mediaKeys = new MediaKeys(client);
     this.userIsReordering = false;
     this.specialReorderModeEnabled = false;
   }
@@ -153,6 +155,8 @@ export class ToolManager {
     // The next button only with a next video; the autoplay switch always (his wish, 2026-10-11:
     // it went with the next button, and was never there where FastStream found no next link).
     /** @type {Element} */ (DOMElements.nextVideo).classList.toggle('hidden', !this.client.hasNextVideo());
+    // The keyboard's next- and previous-track keys go where those buttons go.
+    this.mediaKeys.update();
 
     // The audio-track list's button: only where there is a track to choose (2026-10-10; it
     // opened the audio settings until they went).

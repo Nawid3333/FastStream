@@ -130,6 +130,7 @@ const CHECKED = [
   'chrome/player/ui/FrameStepper.mjs',
   'chrome/player/ui/InterfaceController.mjs',
   'chrome/player/ui/KeybindManager.mjs',
+  'chrome/player/ui/MediaKeys.mjs',
   'chrome/player/ui/OnScreenDisplay.mjs',
   'chrome/player/ui/OptionsWindow.mjs',
   'chrome/player/ui/PointerMoves.mjs',
