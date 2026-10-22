@@ -1,19 +1,54 @@
 // @ts-check
+
+/**
+ * A node of the audio graph: a Web Audio node, or a virtual one that stands for the nodes
+ * connected to it.
+ * @typedef {AudioNode|VirtualAudioNode} GraphNode
+ */
+
+/**
+ * A connection of a virtual node: the node at its other end, and the output and input
+ * index it was made with (undefined where connect() was given none).
+ * @typedef {[GraphNode, number|undefined, number|undefined]} Connection
+ */
+
+/**
+ * A Web Audio node a virtual one stands for, with the index of its output (or input) the
+ * connection uses.
+ * @typedef {[AudioNode, number|undefined]} RealEnd
+ */
+
 export class VirtualAudioNode {
+  /**
+   * @param {string} name - For debugging.
+   */
   constructor(name) {
     this.name = name;
+    /** @type {Connection[]} */
     this.inputNodes = [];
+    /** @type {Connection[]} */
     this.outputNodes = [];
   }
 
+  /**
+   * @param {GraphNode} node
+   * @return {node is VirtualAudioNode}
+   */
   static isVirtualAudioNode(node) {
     return node instanceof VirtualAudioNode;
   }
 
+  /**
+   * The Web Audio nodes whose output reaches this node.
+   * @param {GraphNode} node
+   * @param {number} [outputIndex]
+   * @return {RealEnd[]}
+   */
   static getRealInputNodes(node, outputIndex) {
     if (!VirtualAudioNode.isVirtualAudioNode(node)) {
       return [[node, outputIndex]];
     } else {
+      /** @type {RealEnd[]} */
       const realInputNodes = [];
       node.inputNodes.forEach(([inputNode, nextOutputIndex, nextInputIndex]) => {
         if (outputIndex !== undefined && nextInputIndex !== undefined && outputIndex !== nextInputIndex) {
@@ -25,10 +60,17 @@ export class VirtualAudioNode {
     }
   }
 
+  /**
+   * The Web Audio nodes this node's output reaches.
+   * @param {GraphNode} node
+   * @param {number} [inputIndex]
+   * @return {RealEnd[]}
+   */
   static getRealOutputNodes(node, inputIndex) {
     if (!VirtualAudioNode.isVirtualAudioNode(node)) {
       return [[node, inputIndex]];
     } else {
+      /** @type {RealEnd[]} */
       const realOutputNodes = [];
       node.outputNodes.forEach(([outputNode, nextOutputIndex, nextInputIndex]) => {
         if (inputIndex !== undefined && nextOutputIndex !== undefined && inputIndex !== nextOutputIndex) {
@@ -40,6 +82,10 @@ export class VirtualAudioNode {
     }
   }
 
+  /**
+   * @param {RealEnd[]} inputNodes
+   * @param {RealEnd[]} outputNodes
+   */
   static connectOverlap(inputNodes, outputNodes) {
     inputNodes.forEach(([inputNode, outputIndex]) => {
       outputNodes.forEach(([outputNode, inputIndex]) => {
@@ -52,11 +98,16 @@ export class VirtualAudioNode {
     });
   }
 
+  /**
+   * @param {RealEnd[]} inputNodes
+   * @param {RealEnd[]} outputNodes
+   */
   static disconnectOverlap(inputNodes, outputNodes) {
     inputNodes.forEach(([inputNode, outputIndex]) => {
       outputNodes.forEach(([outputNode, inputIndex]) => {
         try {
-          inputNode.disconnect(outputNode, outputIndex, inputIndex);
+          // An index left undefined is read as 0 here (WebIDL), the default connect() used.
+          inputNode.disconnect(outputNode, /** @type {number} */ (outputIndex), /** @type {number} */ (inputIndex));
         } catch (e) {
           console.error(e);
         }
@@ -64,14 +115,31 @@ export class VirtualAudioNode {
     });
   }
 
+  /**
+   * @param {GraphNode} otherNode
+   * @param {number} [outputIndex]
+   * @param {number} [inputIndex]
+   * @return {number} The connection's place in inputNodes, or -1.
+   */
   indexConnectedFrom(otherNode, outputIndex, inputIndex) {
     return this.inputNodes.findIndex(([node, outputIndex2, inputIndex2]) => node === otherNode && outputIndex2 === outputIndex && inputIndex2 === inputIndex);
   }
 
+  /**
+   * @param {GraphNode} otherNode
+   * @param {number} [outputIndex]
+   * @param {number} [inputIndex]
+   * @return {number} The connection's place in outputNodes, or -1.
+   */
   indexConnectedTo(otherNode, outputIndex, inputIndex) {
     return this.outputNodes.findIndex(([node, outputIndex2, inputIndex2]) => node === otherNode && outputIndex2 === outputIndex && inputIndex2 === inputIndex);
   }
 
+  /**
+   * @param {GraphNode} otherNode
+   * @param {number} [outputIndex]
+   * @param {number} [inputIndex]
+   */
   connect(otherNode, outputIndex, inputIndex) {
     if (this.indexConnectedTo(otherNode, outputIndex, inputIndex) !== -1) {
       return;
@@ -87,6 +155,11 @@ export class VirtualAudioNode {
     VirtualAudioNode.connectOverlap(inputNodes, outputNodes);
   }
 
+  /**
+   * @param {GraphNode} otherNode
+   * @param {number} [outputIndex]
+   * @param {number} [inputIndex]
+   */
   connectFrom(otherNode, outputIndex, inputIndex) {
     if (this.indexConnectedFrom(otherNode, outputIndex, inputIndex) !== -1) {
       return;
@@ -102,6 +175,11 @@ export class VirtualAudioNode {
     VirtualAudioNode.connectOverlap(inputNodes, outputNodes);
   }
 
+  /**
+   * @param {GraphNode} otherNode
+   * @param {number} [outputIndex]
+   * @param {number} [inputIndex]
+   */
   disconnect(otherNode, outputIndex, inputIndex) {
     const index = this.indexConnectedTo(otherNode, outputIndex, inputIndex);
     if (index === -1) {
@@ -122,6 +200,11 @@ export class VirtualAudioNode {
     VirtualAudioNode.disconnectOverlap(inputNodes, outputNodes);
   }
 
+  /**
+   * @param {GraphNode} otherNode
+   * @param {number} [outputIndex]
+   * @param {number} [inputIndex]
+   */
   disconnectFrom(otherNode, outputIndex, inputIndex) {
     const index = this.indexConnectedFrom(otherNode, outputIndex, inputIndex);
     if (index === -1) {

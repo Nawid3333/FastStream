@@ -316,7 +316,7 @@ export class TabHolder {
     this.mpvHostOutdated = false;
     // Which video decoder the mpv this tab handed its stream to uses (MpvBackend's
     // MpvDecoder), for the toolbar button's tooltip; null until mpv has said.
-    /** @type {?Object} */
+    /** @type {?import('./MpvBackend.mjs').MpvDecoder} */
     this.mpvDecoder = null;
     // The latest decoder question in flight: an older answer is dropped.
     /** @type {?Object} */

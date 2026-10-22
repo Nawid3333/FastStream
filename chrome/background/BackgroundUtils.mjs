@@ -5,6 +5,15 @@ import {MpvBackend} from './MpvBackend.mjs';
 
 const PlayerURL = chrome.runtime.getURL('player/index.html');
 
+/** @typedef {import('./TabTracker.mjs').TabHolder} TabHolder */
+
+/**
+ * The field updateTabIcon sets on a TabHolder that TabTracker.mjs does not declare.
+ * @typedef {Object} TabIconExtras
+ * @property {ReturnType<typeof setTimeout>} [tabIconTimeout] - Clears the "Off" badge a
+ *     second after it went up.
+ */
+
 export class BackgroundUtils {
   /**
    * The answers content.js gives OPEN_PLAYER when a player is on its way: the frame is
@@ -39,6 +48,10 @@ export class BackgroundUtils {
     return URLUtils.getModeFromExtension(msg.ext) || null;
   }
 
+  /**
+   * @param {string} message - Names the message in the warning.
+   * @param {boolean} [suppress] - No warning: an error that is expected.
+   */
   static checkMessageError(message, suppress = false) {
     if (chrome.runtime.lastError) {
       if (!suppress) console.warn(`Unable to send message '${message}'`, chrome.runtime.lastError);
@@ -100,6 +113,10 @@ export class BackgroundUtils {
     });
   }
 
+  /**
+   * @param {TabHolder & TabIconExtras} tab
+   * @param {boolean} [skipNotify] - Off without the "Off" badge for a second.
+   */
   static updateTabIcon(tab, skipNotify) {
     clearTimeout(tab.tabIconTimeout);
     if (tab.isOn && tab.isMpv) {
@@ -202,10 +219,18 @@ export class BackgroundUtils {
     });
   }
 
+  /**
+   * @param {string} ext - A file extension or type (background.mjs urlType).
+   * @return {boolean}
+   */
   static isSubtitles(ext) {
     return ext === 'vtt' || ext === 'srt';
   }
 
+  /**
+   * @param {string} url
+   * @return {boolean}
+   */
   static isUrlPlayerUrl(url) {
     return url.substring(0, PlayerURL.length) === PlayerURL;
   }
@@ -223,8 +248,11 @@ export class BackgroundUtils {
     if (!oldUrl || !newUrl || oldUrl === newUrl) {
       return false;
     }
+    /** @param {string} url */
     const hash = (url) => (url.includes('#') ? url.slice(url.indexOf('#') + 1) : '');
+    /** @param {string} url */
     const strip = (url) => url.split('#')[0];
+    /** @param {string} url */
     const isRoute = (url) => hash(url).startsWith('/') || hash(url).startsWith('!');
     return strip(oldUrl) === strip(newUrl) && !isRoute(oldUrl) && !isRoute(newUrl);
   }
