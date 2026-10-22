@@ -262,6 +262,15 @@ describe('FastStream playback', function() {
       }
       if (stream.hlsFixture) {
         await expectEveryHlsSegmentListed(stream.hlsFixture);
+        // hls.js transmuxes in modules/hls.worker.js (workerPath), and when that worker
+        // cannot load or throws, it turns enableWorker off and transmuxes on the main thread
+        // instead: the video still plays. So playing proves nothing about the worker; this does.
+        const transmux = await browser.execute(() => {
+          const hls = window.fastStream.player.hls;
+          const main = hls.streamController.transmuxer;
+          return {enableWorker: hls.config.enableWorker, worker: !!main?.workerContext, inline: !!main?.transmuxer};
+        });
+        expect(transmux).toEqual({enableWorker: true, worker: true, inline: false});
       }
     });
   }

@@ -43,11 +43,12 @@ const VENDOR = [
     patched: true,
   },
   {
+    // hls.js's own worker bundle, for HLSPlayer's workerPath; unpatched: the patch's
+    // outputSamples is read only from hls2mp4's main-thread Transmuxer (hls.mjs).
     name: 'hls.js',
-    from: 'node_modules/hls.js/dist/hls.js',
+    from: 'node_modules/hls.js/dist/hls.worker.js',
     to: 'chrome/player/modules/hls.worker.js',
-    patched: true,
-    transform: toClassicWorker,
+    transform: normaliseText,
   },
   {
     name: 'dashjs',
@@ -305,39 +306,6 @@ function toGifModule(src) {
 function normaliseText(src) {
   const lf = src.replace(/\r\n/g, '\n').replace(/\r/g, '');
   return lf.endsWith('\n') ? lf : lf + '\n';
-}
-
-/**
- * Turns hls.js's UMD build into a standalone classic worker script.
- *
- * hls.js normally builds its own worker at runtime from a `blob:` URL, but
- * Manifest V3's extension CSP blocks blob workers, so HLSPlayer.mjs sets the
- * `workerPath` config option (official hls.js API) to a real file in the
- * package instead. That file is what this produces.
- *
- * The transform is deliberately the same one hls.js applies to itself: its
- * UMD bundle is wrapped in a `__HLS_WORKER_BUNDLE__(__IN_WORKER__)` function
- * that self-invokes with `false` on the main thread, and hls.js's blob path
- * re-invokes that same function with `true` behind a tiny CommonJS/AMD shim.
- * So: prepend the shim, flip the final `(false)` to `(true)`, and drop the
- * sourcemap reference to a .map we do not ship.
- *
- * @param {string} src contents of hls.js's UMD dist build
- * @return {string} a classic worker script
- */
-function toClassicWorker(src) {
-  const body = src.replace(/\n\/\/# sourceMappingURL=.*\s*$/, '\n');
-  const tail = '})(false);\n';
-  if (!body.endsWith(tail)) {
-    throw new Error(
-        'hls.js UMD build does not end with the expected worker-bundle ' +
-        `self-invocation; got ${JSON.stringify(body.slice(-40))}. The ` +
-        'upstream build layout changed - re-check this transform.',
-    );
-  }
-  return 'var exports={};var module={exports:exports};' +
-    'function define(f){f()};define.amd=true;\n' +
-    body.slice(0, -tail.length) + '})(true);\n';
 }
 
 /**
