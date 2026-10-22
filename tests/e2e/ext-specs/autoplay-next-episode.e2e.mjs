@@ -299,6 +299,21 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
         !window.fastStream.state.windowedFullscreen), {timeout: 10000, timeoutMsg: 'the player still fills the page'});
   });
 
+  // The countdown set in the options is the player's: it never reached it, which counted 5 s
+  // whatever was set, and 0 never turned the banner off (found while typing, 2026-10-22).
+  it('counts down for as long as the options say', async function() {
+    await setOptions({autoEnableURLs: [SITE], autoplayNext: true, autoplayCountdown: 12});
+    try {
+      await browser.url(`${SITE}/ep1`);
+      await intoPlayer('the first episode');
+      await browser.waitUntil(() => browser.execute(() => !!window.fastStream?.player), {timeout: 30000});
+      expect(await browser.execute(() => window.fastStream.options.autoplayCountdown)).toBe(12);
+    } finally {
+      await browser.switchFrame(null);
+      await setOptions({autoEnableURLs: [SITE], autoplayNext: true});
+    }
+  });
+
   // His report, 2026-10-22: a skip to the end sometimes did not go on. Measured: a paused video
   // put 0.3 s before its end stayed there, and a click on the bar's last pixel put it there
   // (a second short of a 24-minute episode's end), where a drag past the bar reached the end.

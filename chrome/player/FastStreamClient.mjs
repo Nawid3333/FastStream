@@ -100,6 +100,7 @@ export class FastStreamClient extends EventEmitter {
       previewEnabled: true,
       decodingAwareQuality: true,
       autoplayNext: false,
+      autoplayCountdown: 5,
       singleClickAction: ClickActions.HIDE_CONTROLS,
       doubleClickAction: ClickActions.PLAY_PAUSE,
       tripleClickAction: ClickActions.FULLSCREEN,
@@ -412,6 +413,9 @@ export class FastStreamClient extends EventEmitter {
     } else {
       this.options.autoplayNext = options.autoplayNext;
     }
+    // The next-episode banner's countdown (ProgressBar): it never came here, so it counted 5 s
+    // whatever was set, and 0 never turned the banner off.
+    this.options.autoplayCountdown = /** @type {{autoplayCountdown: number}} */ (options).autoplayCountdown;
 
     this.options.videoZoom = options.videoZoom;
     this.options.videoAspectRatio = options.videoAspectRatio || AspectRatios.AUTO;
