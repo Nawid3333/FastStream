@@ -895,6 +895,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (sender.tab?.id !== undefined) {
       create.openerTabId = sender.tab.id;
       create.index = sender.tab.index + 1;
+      // The click on the button was the first into the player's iframe: content.js armed
+      // the popup guard for this tab, which then closed the tab opened here as a popup -
+      // the button seemed to do nothing. This tab is no page's popup.
+      const opener = Tabs.getTab(sender.tab.id);
+      if (opener) opener.popupGuardArmedUntil = 0;
     }
     chrome.tabs.create(create).catch((e) => console.error('Opening the permissions page failed', e));
     sendResponse(true);
@@ -1180,9 +1185,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (senderTab.cookieStoreId && senderTab.cookieStoreId !== 'firefox-default') {
       chrome.tabs.create({
         url: BackgroundUtils.getPlayerUrl(),
+        // The playing tab's window, not the last focused one: Firefox refuses a private
+        // tab's cookie store in a normal window (and a container's in a private one), and
+        // the save was answered null when the user had switched windows meanwhile.
+        windowId: senderTab.windowId,
         cookieStoreId: senderTab.cookieStoreId,
         active: false,
       }, (tabobj2) => {
+        void chrome.runtime.lastError; // refused: answered below, no unchecked error
         if (!tabobj2) {
           sendResponse(null);
           return;
@@ -1653,13 +1663,13 @@ async function loadOptions(newOptions) {
   }
 
   if (Options.playMP4URLs) {
-    setupRedirectRule(1, ['mp4']);
+    setupRedirectRule(1, ['mp4'], () => Options.playMP4URLs);
   } else {
     removeRule(1);
   }
 
   if (Options.playStreamURLs) {
-    setupRedirectRule(2, ['m3u8', 'mpd']);
+    setupRedirectRule(2, ['m3u8', 'mpd'], () => Options.playStreamURLs);
   } else {
     removeRule(2);
   }
@@ -1668,7 +1678,7 @@ async function loadOptions(newOptions) {
 }
 
 
-async function setupRedirectRule(ruleID, filetypes) {
+async function setupRedirectRule(ruleID, filetypes, wanted = () => true) {
   const excludedRequestDomains = [(new URL(BackgroundUtils.getPlayerUrl())).hostname];
 
   for (const domain of AutoEnableList.excludedDomains()) {
@@ -1683,6 +1693,9 @@ async function setupRedirectRule(ruleID, filetypes) {
     console.error('No player address key', e);
     return '';
   });
+  // Turned off meanwhile (a second options load, its removeRule done during the wait): not
+  // added again behind it.
+  if (!wanted()) return;
 
   /** @type {chrome.declarativeNetRequest.Rule} */
   const rule = {
@@ -1694,8 +1707,10 @@ async function setupRedirectRule(ruleID, filetypes) {
     condition: {
       // exclude self
       excludedRequestDomains,
-      // only match m3u8 or mpds, up to a query or a fragment
-      regexFilter: '^.+\\.(' + filetypes.join('|') + ')([?#].*)?$',
+      // only match m3u8 or mpds, up to a query or a fragment: the extension ends the path.
+      // `.+` also ran through the `?`, and a query whose last value names a stream (a search
+      // for index.m3u8, an embed page's file=...) put that search or embed page in the player.
+      regexFilter: '^[^?#]*\\.(' + filetypes.join('|') + ')([?#].*)?$',
       resourceTypes: ['main_frame'],
     },
   };
@@ -4014,11 +4029,19 @@ chrome.webRequest.onHeadersReceived.addListener(
           // stream itself - a proxy link opened in a tab or an iframe - is not HTML, and
           // Firefox plays it in that load, with no request of its own to detect.
           return;
-        } else {
+        } else if (details.type === 'xmlhttprequest' || details.type === 'other' ||
+            details.type === 'main_frame' || details.type === 'sub_frame') {
+          // The query names the stream for a proxy a player fetches it through, and for a
+          // page load answered with the stream itself (not HTML, above). Nothing else: a
+          // tracking pixel, script or beacon often names the media URL it reports on in its
+          // query, and was taken for the stream - opened in the player, sent to mpv ahead of
+          // the real manifest.
           mode = modeFromQuery(url);
           if (!mode) {
             return;
           }
+        } else {
+          return;
         }
       }
 

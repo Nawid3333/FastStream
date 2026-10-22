@@ -316,3 +316,19 @@ describe('background.mjs', () => {
     expect(source).not.toMatch(/exclude_domain|urlStr\[0\] === '[!~-]'/);
   });
 });
+
+describe('an entry that is only "www."', () => {
+  it('matches no page, not every one', () => {
+    // A site begun and left at "www.": after its www. there was nothing, and the empty site
+    // matched every http(s) page - the whole web on the MPV allowlist (glm's review,
+    // 2026-10-22). A scheme alone still means every page of it.
+    const list = new UrlMatchList();
+    list.setEntries(['www.']);
+    expect(list.matches('https://example.com/')).toBe(false);
+    expect(list.matches('https://www.example.com/')).toBe(false);
+    list.setEntries(['https://www.']);
+    expect(list.matches('https://example.com/')).toBe(false);
+    list.setEntries(['https://']);
+    expect(list.matches('https://example.com/')).toBe(true);
+  });
+});

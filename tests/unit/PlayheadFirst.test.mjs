@@ -32,6 +32,13 @@ describe('PlayheadFirst', () => {
     expect(downloadingOutside(fragments, 100, 5, 30).map((fragment) => fragment.start)).toEqual([0, 90, 140, 300]);
     expect(downloadingOutside(null, 100, 5, 30)).toEqual([]);
   });
+
+  it('leaves a download whose times are not parsed yet (-1, the default of a fragment)', () => {
+    // -1 is finite: the first fragment of an MP4 resumed at 100 read as behind the
+    // playhead, and its download was cancelled.
+    const unparsed = {start: -1, end: -1, status: DownloadStatus.DOWNLOAD_INITIATED};
+    expect(downloadingOutside([unparsed], 100, 5, 30)).toEqual([]);
+  });
 });
 
 describe('DownloadManager.cancelIfCheap', () => {

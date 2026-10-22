@@ -28,6 +28,9 @@ describe('MemoryBudget', () => {
     // Only as many as it takes.
     expect(chooseToRelease(held, 300, KEEP_ON_DISK_WINDOW, 15).map((fragment) => fragment.start)).toEqual([0, 100]);
     expect(chooseToRelease(held, 300, KEEP_ON_DISK_WINDOW, 0)).toEqual([]);
+    // Not one whose times are not parsed yet (-1): it read as the furthest behind.
+    expect(chooseToRelease([{start: -1, end: -1, bytes: 10}, at(0)], 300, KEEP_ON_DISK_WINDOW, 15)
+        .map((fragment) => fragment.start)).toEqual([0]);
   });
 
   it('lets go of all but the next seconds when the window alone is too big', () => {

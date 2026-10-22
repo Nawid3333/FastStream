@@ -318,7 +318,7 @@ jobs:
               fi
             else
               main_ci=$(gh run list --workflow ci.yml --branch main --event push --limit 1 --json conclusion,url \
-                --jq '.[0] | "\(if .conclusion == "" then "still running" else .conclusion end), \(.url)"' || echo 'unknown')
+                --jq '.[0] | "\(if (.conclusion // "") == "" then "still running" else .conclusion end), \(.url)"' || echo 'unknown')
               # shellcheck disable=SC2016 # backticks are Markdown
               {
                 if [ "$conclusion" = timed_out ]; then

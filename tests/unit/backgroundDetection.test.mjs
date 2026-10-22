@@ -194,3 +194,21 @@ describe('request headers', () => {
     expect(sources[0].headers).toEqual([{name: 'Referer', value: 'https://site.test/'}]);
   });
 });
+
+describe('a stream named in a request\'s query', () => {
+  it('is no stream from a tracking pixel or a script, and one through a proxy', async () => {
+    // Every kind of request reached the query fallback: an analytics pixel reporting the
+    // media URL it watched (v=https://cdn/.../master.m3u8) was taken for the stream -
+    // opened in the player, and sent to mpv ahead of the real manifest.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await bg.request({tabId: 1, type: 'image', url: 'https://analytics.test/pixel?c=1&v=https://cdn.test/x/master.m3u8'},
+        {responseHeaders: [{name: 'Content-Type', value: 'image/gif'}]});
+    await bg.request({tabId: 1, type: 'script', url: 'https://analytics.test/watch.js?src=https://cdn.test/y/master.m3u8'},
+        {responseHeaders: [{name: 'Content-Type', value: 'text/javascript'}]});
+    await bg.request({tabId: 1, type: 'xmlhttprequest', url: 'https://cdn.test/proxy?url=https://cdn.test/z/index.m3u8'},
+        {responseHeaders: [{name: 'Content-Type', value: 'application/octet-stream'}]});
+    const sources = await sourcesForPlayer();
+    expect(sources.map((s) => s.url)).toEqual(['https://cdn.test/proxy?url=https://cdn.test/z/index.m3u8']);
+  });
+});

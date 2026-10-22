@@ -987,6 +987,18 @@ export class FastStreamClient extends EventEmitter {
       await this.resetPlayer();
       this.restoreCarriedDecodeFailures(source);
       this.source = source;
+      // A time the source came with is where it starts, and nothing plays before it is
+      // applied: the place a player built again after an error was at (recoverPlayer), where
+      // Firefox's own player takes over (playDirectly), a page's timestamp. Autoplay, and the
+      // rebuild's resume, started the new player from 0 at once, and the time came a second
+      // or more later, after the remembered-time lookup and the init hook's next poll: a film
+      // built again an hour in played its opening, then jumped back (kinoger, 2026-10-12).
+      // Armed here, before the awaits that build the player: resetPlayer just cleared it,
+      // and a canplay during them autoplayed from 0 all the same.
+      const startTime = timeFromURL || 0;
+      const playOnStart = autoPlay || !!start.play;
+      this.startPending = startTime ? source : null;
+      this.state.autoPlayTriggered = false;
       // Only once the last player is torn down: its failure is not this source's.
       this.fallbacks = fallbacks;
       // Came it through Firefox VPN, which leaves FastStream's requests out? (VpnPrompt.mjs)
@@ -1060,17 +1072,6 @@ export class FastStreamClient extends EventEmitter {
 
       this.interfaceController.updateToolVisibility();
 
-      // A time the source came with is where it starts, and nothing plays before it is
-      // applied: the place a player built again after an error was at (recoverPlayer), where
-      // Firefox's own player takes over (playDirectly), a page's timestamp. Autoplay, and the
-      // rebuild's resume, started the new player from 0 at once, and the time came a second
-      // or more later, after the remembered-time lookup and the init hook's next poll: a film
-      // built again an hour in played its opening, then jumped back (kinoger, 2026-10-12).
-      const startTime = timeFromURL || 0;
-      const playOnStart = autoPlay || !!start.play;
-      this.startPending = startTime ? source : null;
-
-      this.state.autoPlayTriggered = false;
       if (playOnStart && !startTime) {
         this.play().then(() => {
           this.state.autoPlayTriggered = true;

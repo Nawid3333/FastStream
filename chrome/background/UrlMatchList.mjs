@@ -227,7 +227,13 @@ export class UrlMatchList {
       return false;
     }
     const withoutWww = (text) => text.replace(/^www\./, '');
-    const site = withoutWww(match.slice(entryScheme ? entryScheme.length : 0));
+    const written = match.slice(entryScheme ? entryScheme.length : 0);
+    const site = withoutWww(written);
+    // "www." alone (a site begun and not finished) is no page, not every one; a scheme alone
+    // ("https://") is every page of it, on purpose.
+    if (site === '' && written !== '') {
+      return false;
+    }
     const page = withoutWww(normalizedUrl.slice(/** @type {string} */ (urlScheme).length));
     if (!page.startsWith(site)) {
       return false;

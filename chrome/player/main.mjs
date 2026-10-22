@@ -308,26 +308,24 @@ async function setup() {
     });
   };
 
-  window.addEventListener('beforeunload', () => {
-    if (window.fastStream) {
-      window.fastStream.destroy();
-      delete window.fastStream;
-    }
-    sendFrameRemoved();
-  });
-  // A page that takes the player's iframe out itself (a re-render) runs no beforeunload
-  // in it, and the background kept the frame as a player's: it dropped that frame's
-  // streams and opened no player on the page, until a navigation. The document's
-  // pagehide still runs. Not a persisted one: that page is only hidden, and may come back.
+  // At pagehide, not beforeunload: Firefox fires beforeunload for navigations that never
+  // happen too (a link answered with a download or a 204, "Stay on page"), and the player
+  // was torn down in a page that stayed - dead until a reload. A page that takes the
+  // player's iframe out itself (a re-render) runs no unload event in it either, and the
+  // background kept the frame as a player's: it dropped that frame's streams and opened no
+  // player on the page, until a navigation; the document's pagehide still runs. Not a
+  // persisted one: that page is only hidden, and may come back.
   window.addEventListener('pagehide', (e) => {
     if (!e.persisted) {
+      if (window.fastStream) {
+        window.fastStream.destroy();
+        delete window.fastStream;
+      }
       sendFrameRemoved();
     }
   });
-  // The client went at beforeunload, which also comes for a page Firefox then keeps in the
-  // back-forward cache (gone first, the page can be cached: a live player kept it out).
-  // Back then gave back a player without its client: dead. One in a page that embeds it
-  // starts again; one that content.js put in a page is taken down with the page's own
+  // A page that comes back from the back-forward cache without its client is dead: it
+  // starts again. One that content.js put in a page is taken down with the page's own
   // REMOVE_PLAYERS (its URL has the opener), and a player tab is never cached.
   window.addEventListener('pageshow', (e) => {
     if (e.persisted && !window.fastStream && !new URLSearchParams(window.location.search).has('opener')) {

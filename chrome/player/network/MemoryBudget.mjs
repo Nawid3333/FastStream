@@ -96,9 +96,11 @@ export function chooseToRelease(held, time, keep, bytes) {
  * @return {F[]}
  */
 function releaseOutside(held, time, keep, bytes) {
-  const behind = held.filter((fragment) => fragment.end < time - keep.behind)
+  // Not a fragment whose times are not parsed yet (-1): it read as the furthest behind and
+  // went first, though playback may need it next.
+  const behind = held.filter((fragment) => fragment.end >= 0 && fragment.end < time - keep.behind)
       .sort((a, b) => a.end - b.end);
-  const ahead = held.filter((fragment) => fragment.start > time + keep.ahead)
+  const ahead = held.filter((fragment) => fragment.start >= 0 && fragment.start > time + keep.ahead)
       .sort((a, b) => b.start - a.start);
   /** @type {F[]} */
   const chosen = [];

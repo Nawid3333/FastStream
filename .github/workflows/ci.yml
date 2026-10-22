@@ -159,7 +159,12 @@ jobs:
       - name: Upload extension bundles
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: faststream-bundles
+          # runner-images.yml calls this workflow twice in one run, and an artifact's name
+          # belongs to the run: upload-artifact refuses a second upload of one (409), which
+          # failed the second call over nothing its image did. A called run names its
+          # artifacts after its images; any other run has no inputs and keeps the plain
+          # names (auto-release.yml and update-prs.yml download faststream-bundles).
+          name: faststream-bundles${{ inputs.linux-runner && format('-{0}-{1}', inputs.linux-runner, inputs.windows-runner) || '' }}
           path: built/*.zip
           if-no-files-found: error
           retention-days: 7
@@ -367,7 +372,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-retried-${{ matrix.os }}-${{ matrix.suite }}-${{ matrix.shard }}
+          name: e2e-retried-${{ matrix.os }}-${{ matrix.suite }}-${{ matrix.shard }}${{ inputs.linux-runner && format('-{0}-{1}', inputs.linux-runner, inputs.windows-runner) || '' }}
           path: logs/retried.jsonl
           if-no-files-found: ignore
           retention-days: 14
@@ -390,7 +395,7 @@ jobs:
         if: failure() || cancelled() || hashFiles('logs/retried.jsonl') != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-logs-${{ matrix.os }}-${{ matrix.suite }}-${{ matrix.shard }}
+          name: e2e-logs-${{ matrix.os }}-${{ matrix.suite }}-${{ matrix.shard }}${{ inputs.linux-runner && format('-{0}-{1}', inputs.linux-runner, inputs.windows-runner) || '' }}
           path: logs/
           if-no-files-found: ignore
           retention-days: 30
@@ -403,7 +408,7 @@ jobs:
         if: ${{ !cancelled() && matrix.os == 'Windows' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-moz-logs-windows-${{ matrix.suite }}-${{ matrix.shard }}
+          name: e2e-moz-logs-windows-${{ matrix.suite }}-${{ matrix.shard }}${{ inputs.linux-runner && format('-{0}-{1}', inputs.linux-runner, inputs.windows-runner) || '' }}
           path: logs-moz/
           if-no-files-found: ignore
           retention-days: 7
