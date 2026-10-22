@@ -25,11 +25,14 @@ mkdir -p "$dst"
 # generated reencoder/mediabunny.mjs and webm.mjs stayed and failed lint on both distros.
 # --delete-excluded: an exclude also protects the copy's matching files from deletion, so a
 # generated file ignored in both trees (a recut renames styp-<hash>.mjs) stayed in the copy
-# for good and went into every local build. The P rules keep what stays between runs; they
-# come before the .gitignore merge, which names node_modules too (the first match counts).
-# The vendored modules go with the rest, as CI has none until build:keep makes them.
+# for good and went into every local build. The P rules keep what stays between runs (they
+# only protect from deletion; the excludes after them keep the same out of the transfer: a
+# worktree's .git is a file naming a Windows folder). They come before the .gitignore merge,
+# which names node_modules too (the first match counts). The vendored modules go with the
+# rest, as CI has none until build:keep makes them.
 rsync -a --delete-after --delete-excluded --filter='P .git/' --filter='P node_modules/' \
-  --filter='P tests/e2e/fixtures/' --filter=':- .gitignore' "$src/" "$dst/"
+  --filter='P tests/e2e/fixtures/' --exclude=.git --exclude=node_modules --exclude=tests/e2e/fixtures \
+  --filter=':- .gitignore' "$src/" "$dst/"
 cd "$dst"
 mkdir -p tests/e2e/fixtures
 find tests/e2e/fixtures -mindepth 1 -maxdepth 1 ! -name sample.mp4 -exec rm -rf {} +

@@ -11,9 +11,10 @@ const PLAYER = 'moz-extension://faststream/player/index.html?opener=page-1';
 /**
  * Loads main.mjs into a stand-in page, with a client playing at the given second.
  * @param {number} time - Where the client plays.
+ * @param {boolean} [inFrame] - A player in a page's frame (else a player tab).
  * @return {Promise<{fire: Function, client: Object, replace: Function}>}
  */
-async function loadPlayerPage(time) {
+async function loadPlayerPage(time, inFrame = true) {
   vi.resetModules();
   vi.useFakeTimers();
   const listeners = new Map();
@@ -24,6 +25,7 @@ async function loadPlayerPage(time) {
     top: {},
     addEventListener: (type, handler) => listeners.set(type, handler),
   });
+  if (!inFrame) window.top = window;
   vi.stubGlobal('document', {body: {}});
   vi.stubGlobal('MutationObserver', class {
     observe() {}
@@ -90,6 +92,16 @@ describe('the player page at beforeunload', () => {
     const {fire, replace} = await loadPlayerPage(50);
     fire('beforeunload', {});
     fire('pagehide', {persisted: false});
+    vi.advanceTimersByTime(10000);
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('does not load again in a player tab: a slow navigation there is the user choosing', async () => {
+    // An address typed into a player tab whose answer took over 3 s: loading again then
+    // cancelled the navigation the user asked for.
+    const {fire, client, replace} = await loadPlayerPage(50, false);
+    fire('beforeunload', {});
+    expect(client.destroy).toHaveBeenCalledTimes(1);
     vi.advanceTimersByTime(10000);
     expect(replace).not.toHaveBeenCalled();
   });

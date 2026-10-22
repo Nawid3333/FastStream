@@ -357,6 +357,32 @@ describe('playMpv', () => {
     }
   });
 
+  it('starts no second mpv when the other helper’s is busy after the wait', async () => {
+    // The other helper's mpv is up but opening its slow stream (no answer in time): a second
+    // mpv on the same pipe would leave that one without it.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
+    try {
+      const lockFile = launchLockFile(basePipe, dir);
+      const other = takeLaunchLock(lockFile);
+      const io = stand();
+      io.lockFile = lockFile;
+      const sleep = io.sleep;
+      io.sleep = async (ms) => {
+        await sleep(ms);
+        if (io.record.slept >= 1000) other.release();
+      };
+      const ipcRequest = io.ipcRequest;
+      io.ipcRequest = (commands, timeoutMs, replyTimeoutMs, pipe) => io.record.slept >= 1000 ?
+        Promise.resolve({ok: false, busy: true, error: 'mpv did not answer in time'}) :
+        ipcRequest(commands, timeoutMs, replyTimeoutMs, pipe);
+      const result = await playMpv('mpv.exe', play(), {ipcToken: token}, io);
+      expect(result).toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
+      expect(io.record.started).toEqual([]);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
+  });
+
   it('lets go of the launch lock once its own start is done, or failed', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
     try {

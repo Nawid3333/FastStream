@@ -22,7 +22,10 @@ describe('release.yml', () => {
     const assets = release.match(/assets=\(\n([\s\S]*?)\n\s*\)/);
     expect(assets).not.toBeNull();
     expect(assets[1]).toContain('built/native-host.sha256');
-    // written before it is published
-    expect(release.indexOf('> ../built/native-host.sha256')).toBeLessThan(release.indexOf('built/native-host.sha256\n'));
+    // The step that writes it comes before the one that publishes it.
+    const writes = release.indexOf('- name: List the helper\'s files with their SHA-256');
+    const publishes = release.indexOf('- name: Publish release');
+    expect(writes).toBeGreaterThan(-1);
+    expect(publishes).toBeGreaterThan(writes);
   });
 });

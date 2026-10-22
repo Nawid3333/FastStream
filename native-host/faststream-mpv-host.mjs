@@ -2578,6 +2578,12 @@ export async function playMpv(mpvPath, play, config, io = {}) {
     if (loaded.refused) {
       return {ok: false, error: `the open mpv refused the stream (${loaded.error}): close it and send again`};
     }
+    // Running but busy (opening the other helper's slow stream): a second mpv on its pipe
+    // would leave that one without it, as the first ask above says.
+    if (loaded.busy) {
+      debugLog(config, 'busy', {});
+      return {ok: false, error: 'mpv is busy and did not answer: try again in a moment'};
+    }
     // That start came to nothing: this helper starts one.
     lock = takeLaunchLock(lockFile, io.lock);
     if (!lock.taken) {

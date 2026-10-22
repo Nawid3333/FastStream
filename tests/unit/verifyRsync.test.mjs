@@ -45,6 +45,8 @@ describe('verify.sh\'s copy of the working tree', () => {
       fs.mkdirSync(path.join(src, 'tests', 'e2e'), {recursive: true});
       fs.writeFileSync(path.join(src, 'tests', 'e2e', 'spec.mjs'), 'spec\n');
       fs.writeFileSync(path.join(src, '.gitignore'), 'gen/\nnode_modules/\n');
+      // A worktree's .git is a file naming its repository's folder: it stays out of the copy.
+      fs.writeFileSync(path.join(src, '.git'), 'gitdir: C:/somewhere/.git/worktrees/x\n');
       // Of another size than the copy's: rsync -a passes over a file of the same size and time.
       fs.writeFileSync(path.join(src, 'keep.txt'), 'the new text\n');
       for (const dir of ['gen', 'node_modules/pkg', '.git', 'tests/e2e/fixtures']) {
@@ -65,7 +67,7 @@ describe('verify.sh\'s copy of the working tree', () => {
       expect(fs.existsSync(path.join(dst, 'legacy.mjs'))).toBe(false);
       expect(fs.existsSync(path.join(dst, 'gen', 'styp-OLD.mjs'))).toBe(false);
       // What stays between runs, node_modules although .gitignore names it.
-      expect(fs.existsSync(path.join(dst, '.git', 'HEAD'))).toBe(true);
+      expect(fs.readFileSync(path.join(dst, '.git', 'HEAD'), 'utf8')).toBe('ref: refs/heads/main\n');
       expect(fs.existsSync(path.join(dst, 'node_modules', 'pkg', 'index.js'))).toBe(true);
       expect(fs.existsSync(path.join(dst, 'tests', 'e2e', 'fixtures', 'sample.mp4'))).toBe(true);
     } finally {

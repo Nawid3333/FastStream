@@ -314,6 +314,8 @@ async function setup() {
   // live player keeps the page out of it. The player left dead in a page that stayed loads
   // again a moment later, at the second it was at (the page's faststream-timestamp), once
   // content.js has named its page again (LeaveSettledMs); a page that really goes clears it.
+  // Only a player in a page's frame: a player tab's own leave is the user's (an address typed
+  // there), and loading again there would cancel a navigation that took over StayedMs.
   const StayedMs = 3000;
   let stayTimer = null;
   window.addEventListener('beforeunload', () => {
@@ -324,6 +326,9 @@ async function setup() {
     }
     sendFrameRemoved();
     clearTimeout(stayTimer);
+    if (window.top === window) {
+      return;
+    }
     stayTimer = setTimeout(() => {
       const url = new URL(window.location.href);
       if (Number.isFinite(time) && time >= 1) {
