@@ -1017,8 +1017,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!senderTab) {
     return;
   }
-  const tab = Tabs.getTabOrCreate(senderTab.id);
-  const frame = tab.getFrameOrCreate(sender.frameId);
+  // TabTracker's maps are not typed: these are a TabHolder and one of its FrameHolders.
+  const tab = /** @type {TabHolder & TabExtras} */ (Tabs.getTabOrCreate(senderTab.id));
+  const frame = /** @type {FrameHolder & FrameExtras} */ (tab.getFrameOrCreate(sender.frameId));
 
   if (msg.type === MessageTypes.PLAYER_LOADED) {
     const opener = playerOpener(msg.url || sender.url);
@@ -1205,7 +1206,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const tab2 = Tabs.getTabOrCreate(tabobj2.id);
         // Answered once: by the player's HANDLE_DOWNLOAD answer, or by the timeout below.
         let answered = false;
-        const answer = (value) => {
+        const answer = /** @param {boolean|null|undefined} value - The player's answer (true: its download started), or null. */ (value) => {
           if (answered) return false;
           answered = true;
           sendResponse(value);
@@ -1341,6 +1342,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   sendResponse('ok');
 });
 
+/**
+ * Has the frames from a player up to the one that acts (finalFrame) go fullscreen, windowed
+ * fullscreen or miniplayer together.
+ * @param {FrameHolder} playerFrame
+ * @param {FrameHolder} finalFrame - A frame above it.
+ * @param {{type: string, force?: boolean, size?: number, styles?: Object<string, string>, autoExit?: boolean}} data -
+ *   The message for finalFrame, without the frames.
+ * @return {Promise<*>} What finalFrame answered ('enter', 'exit', ...), or 'error'.
+ */
 async function cascadedFullscreen(playerFrame, finalFrame, data) {
   const trace = traceFrames(playerFrame, finalFrame);
   if (trace.length < 2) {
@@ -1388,6 +1398,12 @@ async function cascadedFullscreen(playerFrame, finalFrame, data) {
   return result;
 }
 
+/**
+ * @param {FrameHolder} frame - The player's.
+ * @param {{force?: boolean}} msg - Its REQUEST_FULLSCREEN.
+ * @param {(response?: *) => void} sendResponse
+ * @return {true|undefined} True when it answers later.
+ */
 function handleFullscreenRequest(frame, msg, sendResponse) {
   if (frame.frameId === 0) {
     sendResponse('error');
@@ -1482,6 +1498,12 @@ function tellPageCarried(tab, active) {
   });
 }
 
+/**
+ * @param {FrameHolder} frame - The player's.
+ * @param {{force?: boolean}} msg - Its REQUEST_WINDOWED_FULLSCREEN.
+ * @param {(response?: *) => void} sendResponse
+ * @return {true|undefined} True when it answers later.
+ */
 function handleWindowedFullscreenRequest(frame, msg, sendResponse) {
   if (frame.frameId === 0) {
     sendResponse('error');
@@ -1502,6 +1524,13 @@ function handleWindowedFullscreenRequest(frame, msg, sendResponse) {
   return true;
 }
 
+/**
+ * @param {FrameHolder & FrameExtras} frame - The player's.
+ * @param {{force?: boolean, size: number, styles: Object<string, string>, autoExit: boolean}} msg -
+ *   Its REQUEST_MINIPLAYER (InterfaceController).
+ * @param {(response?: *) => void} sendResponse
+ * @return {true|undefined} True when it answers later.
+ */
 function handleMiniplayerRequest(frame, msg, sendResponse) {
   if (frame.frameId === 0) {
     sendResponse('error');
@@ -1529,6 +1558,10 @@ function handleMiniplayerRequest(frame, msg, sendResponse) {
   return true;
 }
 
+/**
+ * @param {FrameHolder} frame - A player's.
+ * @return {Promise<?FrameHolder>} The nearest frame above it that may go fullscreen.
+ */
 async function getFrameWithFullscreenPermission(frame) {
   let currentFrame = frame.parent;
   while (currentFrame) {
@@ -1542,6 +1575,11 @@ async function getFrameWithFullscreenPermission(frame) {
   return null;
 }
 
+/**
+ * @param {FrameHolder} frame
+ * @param {FrameHolder} toFrame - A frame above it.
+ * @return {Array<FrameHolder>} The frames from frame up to toFrame, both included.
+ */
 function traceFrames(frame, toFrame) {
   if (frame === toFrame) {
     return [frame];
@@ -1558,11 +1596,17 @@ function traceFrames(frame, toFrame) {
   return frames;
 }
 
+/**
+ * @param {FrameHolder} frame
+ */
 async function checkIsFullscreenAllowed(frame) {
   return askFrame(frame.tab.tabId, {type: MessageTypes.TOGGLE_FULLSCREEN, queryPermissions: true},
       {frameId: frame.frameId}, 'check_fullscreen');
 }
 
+/**
+ * @param {FrameHolder} frame
+ */
 function checkURLMatch(frame) {
   const url = frame.url;
   const ext = CustomSourcePatternsMatcher.match(url);
@@ -1577,6 +1621,11 @@ function checkURLMatch(frame) {
 }
 
 
+/**
+ * @param {FrameHolder & FrameExtras} frame - A player's.
+ * @return {Promise<?FrameHolder>} The frame of the page it plays for: the first above it
+ *     that it does not fill; null for none.
+ */
 async function getPageFrame(frame) {
   let currentFrame = frame;
   while (currentFrame && currentFrame.parent) {
@@ -1596,6 +1645,9 @@ async function getPageFrame(frame) {
   return null;
 }
 
+/**
+ * @param {FrameHolder} frame - One with a parent.
+ */
 async function checkIsFull(frame) {
   return askFrame(frame.tab.tabId, {type: MessageTypes.IS_FULL, frameId: frame.frameId},
       {frameId: frame.parent.frameId}, 'is_full');
@@ -1646,9 +1698,13 @@ function getMediaInfoFromTab(tab) {
   return guessMediaInfo(tab.title || '', hostname);
 }
 
+/**
+ * @param {Object} [newOptions] - The options, merged over DefaultOptions (Utils, which calls
+ *     them an Object); read from the storage when not given.
+ */
 async function loadOptions(newOptions) {
   newOptions = newOptions || await Utils.getOptionsFromStorage();
-  Options = newOptions;
+  Options = /** @type {PlayerOptions} */ (newOptions);
 
   AutoEnableList.setEntries(Options.autoEnableURLs);
 
@@ -1683,6 +1739,11 @@ async function loadOptions(newOptions) {
 }
 
 
+/**
+ * @param {number} ruleID
+ * @param {string[]} filetypes - The extensions it redirects.
+ * @param {() => boolean} [wanted] - Whether it is still wanted after the wait for the key.
+ */
 async function setupRedirectRule(ruleID, filetypes, wanted = () => true) {
   const excludedRequestDomains = [(new URL(BackgroundUtils.getPlayerUrl())).hostname];
 
@@ -1725,6 +1786,9 @@ async function setupRedirectRule(ruleID, filetypes, wanted = () => true) {
   });
 }
 
+/**
+ * @param {number} ruleID
+ */
 async function removeRule(ruleID) {
   return chrome.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: [ruleID],
@@ -1746,6 +1810,11 @@ async function loadCustomPatterns() {
   }
 }
 
+/**
+ * @param {MultiRegexMatcher} matcher
+ * @param {string} fileStr - The patterns, one per line.
+ * @param {boolean} [isPrimary]
+ */
 async function loadCustomPatternsFile(matcher, fileStr, isPrimary = false) {
   const {patterns, errors} = parseCustomSourcePatterns(fileStr);
   for (const {line, text, reason} of errors) {
@@ -1760,6 +1829,11 @@ async function loadCustomPatternsFile(matcher, fileStr, isPrimary = false) {
   }
 }
 
+/**
+ * @param {string} url - A subtitle file's.
+ * @param {FrameHolder} frame - The frame that asked for it.
+ * @param {*} headers - Its request's headers, as detected.
+ */
 function handleSubtitles(url, frame, headers) {
   const subtitles = frame.getSubtitles();
   if (subtitles.find((a) => {
@@ -1777,6 +1851,10 @@ function handleSubtitles(url, frame, headers) {
   });
 }
 
+/**
+ * @param {FrameHolder} frame
+ * @param {string} url
+ */
 function getSourceFromURL(frame, url) {
   return frame.getSources().find((a) => {
     return a.url === url;
@@ -1886,6 +1964,8 @@ function modeFromQuery(url) {
 
 /** @typedef {import('./TabTracker.mjs').FrameHolder} FrameHolder */
 /** @typedef {import('./TabTracker.mjs').TabHolder} TabHolder */
+/** @typedef {import('./TabTracker.mjs').TrackedSource} TrackedSource */
+/** @typedef {import('./TabTracker.mjs').TrackedSubtitle} TrackedSubtitle */
 
 /**
  * The fields this file sets on a TabHolder that TabTracker.mjs does not declare.
@@ -1894,7 +1974,7 @@ function modeFromQuery(url) {
  * @property {boolean} [regexMatched] - A list (the MPV Allowlist, the auto-enable list) or
  *     the player page turned the tab on, not the user.
  * @property {boolean} [mpvMatched] - The MPV Allowlist started MPV on the tab's site.
- * @property {?{url: string, filename: string, resolve: (value: *) => boolean}} [downloadInfo] -
+ * @property {?{url: string, filename: string, resolve: (value: boolean|null|undefined) => boolean}} [downloadInfo] -
  *     The save a player opened in this tab is for (DOWNLOAD in a container): resolve
  *     answers the page that asked.
  */
@@ -1904,6 +1984,23 @@ function modeFromQuery(url) {
  * @typedef {Object} FrameExtras
  * @property {FrameHolder} [pageFrame] - The frame of the page the player plays for
  *     (acceptPlayer).
+ * @property {Promise<void>} [linkPromise] - Its introduction to its parent frame's content
+ *     script (getPageFrame).
+ * @property {ReturnType<typeof setTimeout>} [openTimeout] - The wait before a stream found in
+ *     it opens the player (onSourceRecieved).
+ */
+
+/**
+ * A stream as a player is handed it (collectSources): with its frame, how far above the
+ * player's that is, and, once sendSources read them, its length and its page's qualities.
+ * @typedef {TrackedSource & {depth: number, frameId: number, duration?: number|null,
+ *   qualities?: Array<{url: string, label: string, height: number}>}} CollectedSource
+ */
+
+/**
+ * How an autoplay next goes on: what the next episode's player starts with (the player's
+ * REQUEST_PLAYLIST_NAVIGATION), or MPV autoplay's (goToEpisode).
+ * @typedef {{autoPlay?: boolean, fullscreenState?: string, disableLoadProgress?: boolean, mpvNext?: boolean}} Continuation
  */
 
 /**
@@ -1970,7 +2067,9 @@ function recoverSources(tab) {
  * one is (onSourceRecieved), which opens the player: after the page's <track> captions
  * are read, and after Options.replaceDelay, as for a stream the page asks for now.
  * @param {FrameHolder} frame - The frame that answered.
- * @param {{url?: string, document?: string, resources?: Array<Object>}} msg - Its LOADED_MEDIA.
+ * @param {{url?: string, document?: string,
+ *   resources?: Array<{url: string, media: boolean, cors?: boolean, time: number}>}} msg - Its
+ *   LOADED_MEDIA (content.js loadedMedia, or one video's).
  */
 function recoverFrameSources(frame, msg) {
   // The answer of a page since navigated away from: the frame's streams are the next one's.
@@ -2049,8 +2148,16 @@ function pageHeaders(pageUrl, url, media) {
   return headers;
 }
 
+/**
+ * The subtitles and streams of a player's frame, or of the nearest frame above it that has
+ * streams, each with its frame and how far up it is.
+ * @param {FrameHolder} frame - The player's.
+ * @param {boolean} [remove] - Whether they are taken out of the frames.
+ */
 function collectSources(frame, remove = false) {
+  /** @type {Array<TrackedSubtitle & {depth: number, frameId: number}>} */
   const subtitles = [];
+  /** @type {Array<CollectedSource>} */
   const sources = [];
 
   let currentFrame = frame;
@@ -2126,7 +2233,7 @@ async function noteProblem(tabId, problem) {
  * Notes a next episode whose page brought no video within a minute (ProblemLog): the
  * continuation is still there, as nothing took it (its sources, or mpv's stream).
  * @param {TabHolder} tab
- * @param {Object} continuation
+ * @param {Continuation} continuation
  * @param {'player'|'mpv'} mode
  */
 function watchNextEpisodeArrives(tab, continuation, mode) {
@@ -2190,10 +2297,13 @@ function startPagePlayers(tab) {
   tab.pagePlayerStarter = setInterval(ask, StartPagePlayerEveryMs);
 }
 
+/**
+ * @param {FrameHolder} frame - A player's, which asked for its sources.
+ */
 async function sendSources(frame) {
   const continuationOptions = frame.tab.continuationOptions;
   frame.tab.continuationOptions = null;
-  const send = (subtitles, sources, video) => {
+  const send = /** @param {Array<Object>} subtitles @param {Array<Object>} sources @param {?Object} video */ (subtitles, sources, video) => {
     chrome.tabs.sendMessage(frame.tab.tabId, {
       type: MessageTypes.SOURCES,
       subtitles: subtitles,
@@ -2249,6 +2359,9 @@ async function sendSources(frame) {
   send(subtitles, sources, video);
 }
 
+/**
+ * @param {FrameHolder} frame
+ */
 async function scrapeCaptionsTags(frame) {
   const tabId = frame.tab.tabId;
   const frameId = frame.frameId;
@@ -2349,6 +2462,9 @@ function askFrame(tabId, message, target, label, waitMs = FrameAnswerWaitMs) {
   });
 }
 
+/**
+ * @param {FrameHolder} frame
+ */
 async function getVideoSize(frame) {
   return askFrame(frame.tab.tabId, {type: MessageTypes.GET_VIDEO_SIZE}, {frameId: frame.frameId}, 'get_video_size');
 }
@@ -2469,6 +2585,9 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
   });
 }
 
+/**
+ * @param {FrameHolder} frame
+ */
 async function openPlayer(frame) {
   if (frame.playerOpening || frame.hasPlayer()) {
     return;
@@ -2506,13 +2625,16 @@ async function openPlayer(frame) {
   });
 }
 
+/**
+ * @param {FrameHolder} frame - The frame a stream was detected in.
+ */
 async function sendSourcesToMainFramePlayers(frame) {
   // query all tabs
   const tabs = await BackgroundUtils.queryTabs();
   // Only to player tabs on the same side of private browsing as the page: a private
   // window's streams, with the requests' cookies, showed in an ordinary window's player
   // tab, and the other way round. A tab no longer open says nothing of its side.
-  const from = tabs.find((t) => t.id === frame.tab.tabId);
+  const from = tabs.find(/** @param {chrome.tabs.Tab} t */ (t) => t.id === frame.tab.tabId);
   if (!from) {
     return;
   }
@@ -2541,6 +2663,13 @@ async function sendSourcesToMainFramePlayers(frame) {
   }
 }
 
+/**
+ * @param {{url: string, requestId: string|number, customHeaders?: *, time?: number}} details - The
+ *   request's (webRequest's), or one made up for a stream the page told: requestId -1, its
+ *   headers as customHeaders.
+ * @param {FrameHolder & FrameExtras} frame - The frame it is for.
+ * @param {string} mode - A PlayerModes value.
+ */
 async function onSourceRecieved(details, frame, mode) {
   // Read the cached request headers before anything else. deleteHeaderCache is
   // a second onHeadersReceived listener, so it runs the moment this function
@@ -2660,7 +2789,7 @@ async function openPlayersWithSources(tab, foundBefore = Infinity) {
 
   let framesWithSources = [];
   for (const frame of tab.getFrames()) {
-    if (!frame.isPlayer && frame.getSources().some((source) => !(source.time >= foundBefore))) {
+    if (!frame.isPlayer && frame.getSources().some(/** @param {TrackedSource} source */ (source) => !(source.time >= foundBefore))) {
       framesWithSources.push(frame);
     }
   }
@@ -3578,6 +3707,7 @@ async function sendPendingPlay(tab, first) {
  * @return {Promise<Object|null>} The source, or null when none is detected yet.
  */
 async function findPlayedSource(tab, frameId, src, video) {
+  /** @type {TrackedSource|null|undefined} */
   let byUrl = null;
   if (/^https?:\/\//i.test(src)) {
     for (const frame of tab.getFrames()) {

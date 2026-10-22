@@ -49,6 +49,20 @@ function isFileSource(source) {
   return source.mode === PlayerModes.ACCELERATED_MP4 || source.mode === PlayerModes.DIRECT;
 }
 
+/**
+ * A stream a frame's page asked for, as background.mjs keeps it (addSource): its request's
+ * headers as detected, when it was detected, and, for a redirected one, the address the
+ * page asked for.
+ * @typedef {{url: string, mode: string, headers: *, time: number, requestedUrl?: string}} TrackedSource
+ */
+
+/**
+ * A subtitle of a frame's page: a file it asked for (background.mjs handleSubtitles), or one
+ * of its <track> elements as content.js read it, with its text (takeScrapedCaptions).
+ * @typedef {{source: string, label: string, headers: *, time: number}|
+ *   {source: string, label: string, data: string, language: string}} TrackedSubtitle
+ */
+
 export class FrameHolder {
   constructor(tab, frameId) {
     this.tab = tab;
@@ -56,9 +70,9 @@ export class FrameHolder {
     this.parent = null;
     this.children = new Set();
     // Set by reset(), as the rest of a frame's page state.
-    /** @type {Array<Object>} */
+    /** @type {Array<TrackedSubtitle>} */
     this.trackedSubtitles = [];
-    /** @type {Array<Object>} */
+    /** @type {Array<TrackedSource>} */
     this.trackedSources = [];
     this.reset();
   }
@@ -73,6 +87,8 @@ export class FrameHolder {
     this.isPlayer = false;
     this.trackedSubtitles = [];
     this.trackedSources = [];
+    // A string from the constructor on, which runs this.
+    /** @type {string} */
     this.url = '';
     /**
      * The name content.js gave the page it shows (FRAME_ADDED); null when unknown.
@@ -151,9 +167,7 @@ export class FrameHolder {
 
   /**
    * Keeps a stream the page asked for, within the limits (trimTracked).
-   * @param {{url: string, mode: string, headers: *, time: number, requestedUrl?: string}} source -
-   *   The source: its request's headers as detected, when it was detected, and, for a
-   *   redirected one, the address first asked for (background.mjs addSource).
+   * @param {TrackedSource} source
    */
   addSource(source) {
     this.trackedSources.push(source);
