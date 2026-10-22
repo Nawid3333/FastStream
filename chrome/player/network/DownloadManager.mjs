@@ -516,6 +516,17 @@ export class DownloadManager {
   }
 
   /**
+   * Downloads running now, each on a connection of its own: the "3C" of the download line.
+   * Not the downloaders there are: a player short of video runs fewer (PlayheadFirst), one
+   * that leaves the network to another or has everything runs none.
+   * @return {number}
+   */
+  runningCount() {
+    if (!this.downloaders) return 0;
+    return this.downloaders.filter((downloader) => downloader.entry).length;
+  }
+
+  /**
    * Downloads running or waiting in the queue.
    * @return {number}
    */

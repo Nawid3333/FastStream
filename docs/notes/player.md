@@ -486,6 +486,12 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
 - **Result**, same measurement, three background players: HLS 4.4 s (alone 3.9 s), MP4 3.4 s
   (alone 3.1 s), no stalls; the background players resumed about 13-20 s after the seek and
   buffered to the end.
+- **The download line counts the connections again (2026-10-22, the owner's wish):**
+  "3C ↓9.6 Mbit/s 50%", as upstream showed until 2026-10-09, now with the speed in Mbit/s
+  (`DownloadStatusText.mjs`). The count is the downloads running at that moment
+  (`DownloadManager.runningCount`), not the downloaders there (upstream's): those are what the
+  speed comes from - two while `PlayheadFirst` holds them, none while the player yields or has
+  everything.
 - **`recoverPlayer`.** An error after the source had shown something (a fatal hls.js error, the
   `<video>` element's `MediaError`, `MP4Player`'s stall watchdog) ended it for good, and only a
   tab reload - which downloaded everything again - played it again. Seeks were the usual

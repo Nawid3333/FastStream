@@ -126,6 +126,7 @@ const CHECKED = [
   'chrome/player/preload.mjs',
   'chrome/player/ui/ClickSequence.mjs',
   'chrome/player/ui/DOMElements.mjs',
+  'chrome/player/ui/DownloadStatusText.mjs',
   'chrome/player/ui/FineTimeControls.mjs',
   'chrome/player/ui/FrameStepper.mjs',
   'chrome/player/ui/InterfaceController.mjs',
