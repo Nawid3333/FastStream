@@ -12,6 +12,49 @@ import {DOMElements} from '../DOMElements.mjs';
 import {createPagesBar} from '../components/PagesBar.mjs';
 import {chooseTitles, describeSubtitle, titleQuery, titlesFromFeatures, titlesFromSubtitles} from './SubtitleSearchTitles.mjs';
 
+/** @typedef {import('./SubtitleSearchTitles.mjs').TitleCandidate} TitleCandidate */
+
+/**
+ * The search window's elements (setupUI).
+ * @typedef {Object} SearchUI
+ * @property {HTMLDivElement} searchContainer - The fields and the search button.
+ * @property {HTMLInputElement} search
+ * @property {HTMLInputElement} seasonInput
+ * @property {HTMLInputElement} episodeInput
+ * @property {HTMLInputElement} languageInput
+ * @property {HTMLInputElement} yearInput
+ * @property {HTMLDivElement} title - The title the results are for, and the other titles found.
+ * @property {HTMLDivElement} results
+ * @property {HTMLDivElement} pages - The bar of the title's pages.
+ */
+
+/**
+ * A subtitle's attributes in the API's answer, those this file reads (describeSubtitle
+ * reads more).
+ * @typedef {Object} SubtitleAttributes
+ * @property {Array<{file_id: number}>} files
+ * @property {string} language
+ * @property {string} url - Its page on the OpenSubtitles site.
+ * @property {?{name: string}} [uploader]
+ * @property {{movie_name?: string}} [feature_details]
+ */
+
+/**
+ * A subtitle in the API's answer (GET /subtitles), with what a click keeps on it.
+ * @typedef {Object} SubtitleItem
+ * @property {SubtitleAttributes} attributes
+ * @property {boolean} [downloading] - Its download is running (download()).
+ * @property {?string} [cached_download_link] - The link POST /download gave for it.
+ */
+
+/**
+ * The API's answer to GET /subtitles: one page of subtitles.
+ * @typedef {Object} SubtitlesAnswer
+ * @property {Array<SubtitleItem>} data
+ * @property {number} page
+ * @property {number} total_pages
+ */
+
 const API_KEY = 'jolY3ZCVYguxFxl8CkIKl52zpHJT2eTw';
 const API = 'https://api.opensubtitles.com/api/v1/';
 
@@ -48,9 +91,13 @@ function titleLabel(title) {
  * title first, then lists that title's subtitles, the most downloaded first (SubtitleSearchTitles).
  */
 export class OpenSubtitlesSearch extends EventEmitter {
+  /**
+   * @param {string} version - The extension's, for the User-Agent the API asks for.
+   */
   constructor(version) {
     super();
-    this.subui = {};
+    // Filled in by setupUI(), below.
+    this.subui = /** @type {SearchUI} */ ({});
     this.version = version;
     this.searchCount = 0;
     // Bumped when the player's subtitles are cleared (a new video): a download started
@@ -169,7 +216,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
   readInputs() {
     // The first number in the field: "S2" or "Season 2" was no number, and the search went
     // on as one for a movie.
-    const number = (input) => {
+    const number = /** @param {HTMLInputElement} input */ (input) => {
       // With its sign: "-1" is no number to search for, and not 1 (review).
       const value = parseInt(/** @type {string} */ (/-?\d+/.exec(input.value)?.[0]), 10);
       return Number.isFinite(value) && value >= 0 ? value : null;
@@ -220,13 +267,29 @@ export class OpenSubtitlesSearch extends EventEmitter {
   }
 
   /**
+   * Asks the OpenSubtitles API for subtitles.
+   * @overload
+   * @param {'subtitles'} path
+   * @param {Object<string, string|number|undefined>} query
+   * @return {Promise<SubtitlesAnswer>}
+   */
+  /**
+   * Asks the OpenSubtitles API for titles (titlesFromFeatures reads them).
+   * @overload
+   * @param {'features'} path
+   * @param {Object<string, string|number|undefined>} query
+   * @return {Promise<{data: Array<Object>}>}
+   */
+  /**
    * Asks the OpenSubtitles API.
-   * @param {string} path - 'subtitles' or 'features'.
-   * @param {Object<string, string>} query
-   * @return {Promise<Object>} Its answer, with results (data).
+   * @param {'subtitles'|'features'} path
+   * @param {Object<string, string|number|undefined>} query - An empty or undefined value is
+   *     left out.
+   * @return {Promise<SubtitlesAnswer|{data: Array<Object>}>} Its answer, with results (data).
    */
   async request(path, query) {
     // In alphabetical order, as the API asks (it redirects other orders).
+    /** @type {Object<string, string>} */
     const sorted = {};
     Object.keys(query).sort().forEach((key) => {
       if (query[key] !== '' && query[key] !== undefined && query[key] !== null) sorted[key] = String(query[key]);
@@ -248,7 +311,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
       ],
     })).response;
     // An empty list is no error.
-    const errors = [].concat(response?.errors ?? []).filter(Boolean);
+    const errors = /** @type {Array<string>} */ ([]).concat(response?.errors ?? []).filter(Boolean);
     if (errors.length) {
       throw new SearchError(errors.join(', '));
     }
@@ -308,7 +371,9 @@ export class OpenSubtitlesSearch extends EventEmitter {
     this.showMessage(Localize.getMessage('player_opensubtitles_searching'));
 
     const episode = input.season !== null || input.episode !== null;
+    /** @type {{query: string, languages: string, type?: string, season_number?: number|'', episode_number?: number|'', year?: string}} */
     const textSearch = {query: input.query, languages: input.language};
+    /** @type {{query: string, type?: string, year?: string}} */
     const titleSearch = {query: input.query};
     if (episode) {
       Object.assign(textSearch, {type: 'episode', season_number: input.season ?? '', episode_number: input.episode ?? ''});
@@ -346,8 +411,8 @@ export class OpenSubtitlesSearch extends EventEmitter {
   /**
    * Shows one title's subtitles, the most downloaded first, and the other titles to switch to.
    * None in the language asked for: those in every language, saying so.
-   * @param {Object} title - A TitleCandidate.
-   * @param {Array<Object>} others - The other titles found.
+   * @param {TitleCandidate} title
+   * @param {Array<TitleCandidate>} others - The other titles found.
    * @param {{language: string, season: ?number, episode: ?number}} input
    * @param {string} language - The language to ask for ('' for all).
    * @param {number} page
@@ -398,9 +463,9 @@ export class OpenSubtitlesSearch extends EventEmitter {
 
   /**
    * The bar of a title's pages of subtitles, none for one page.
-   * @param {Object} title
-   * @param {Array<Object>} others
-   * @param {Object} input
+   * @param {TitleCandidate} title
+   * @param {Array<TitleCandidate>} others
+   * @param {{language: string, season: ?number, episode: ?number}} input
    * @param {string} language
    * @param {number} page - The page shown.
    * @param {number} pages
@@ -416,8 +481,8 @@ export class OpenSubtitlesSearch extends EventEmitter {
 
   /**
    * The title the results are for, and the other titles found, one click away.
-   * @param {Object} title
-   * @param {Array<Object>} others
+   * @param {TitleCandidate} title
+   * @param {Array<TitleCandidate>} others
    * @param {{language: string, season: ?number, episode: ?number}} input
    */
   showTitleHeader(title, others, input) {
@@ -464,7 +529,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
   /**
    * One subtitle of the results: its release name (which version of the video it was made
    * for), how often it was downloaded, and what kind it is. A click loads it.
-   * @param {Object} item - A subtitle from the API.
+   * @param {SubtitleItem} item - A subtitle from the API.
    */
   addResult(item) {
     // One result without a file to download ended the list there.
@@ -498,7 +563,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
     if (shown.fps) parts.push(`${shown.fps} fps`);
     if (shown.uploader) parts.push(shown.uploader);
     meta.textContent = parts.join(' · ');
-    const badge = (key, short) => {
+    const badge = /** @param {string} key - Its locale message. @param {string} short */ (key, short) => {
       const element = document.createElement('span');
       element.classList.add('subtitle-result-badge');
       element.textContent = short;
@@ -516,7 +581,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
 
   /**
    * Downloads a subtitle and adds it to the video.
-   * @param {Object} item - A subtitle from the API.
+   * @param {SubtitleItem} item - A subtitle from the API.
    */
   async download(item) {
     const details = item.attributes.feature_details || {};
@@ -533,6 +598,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
     try {
       let link = item.cached_download_link;
       if (!link) {
+        /** @type {{link?: string, remaining?: number|null, reset_time?: string}} */
         const data = (await RequestUtils.request(/** @type {any} */ ({
           type: 'POST',
           url: API + 'download',
@@ -647,11 +713,15 @@ export class OpenSubtitlesSearch extends EventEmitter {
     if (info.name) {
       this.subui.search.value = info.name;
     }
-    this.subui.yearInput.value = info.year ?? '';
-    this.subui.seasonInput.value = info.season ?? '';
-    this.subui.episodeInput.value = info.episode ?? '';
+    // A number is written as its digits: the field's value takes it as a string.
+    this.subui.yearInput.value = /** @type {string} */ (info.year ?? '');
+    this.subui.seasonInput.value = /** @type {string} */ (info.season ?? '');
+    this.subui.episodeInput.value = /** @type {string} */ (info.episode ?? '');
   }
 
+  /**
+   * @param {string} value - A language code.
+   */
   setLanguageInputValue(value) {
     this.subui.languageInput.value = value;
   }
