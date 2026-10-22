@@ -25,7 +25,7 @@
   "chrome/player/modules/dash2mp4/mp4merger.mjs": 73,
   "chrome/player/modules/eventemitter.mjs": 27,
   "chrome/player/modules/hls2mp4/hls2mp4.mjs": 73,
-  "chrome/player/modules/hls2mp4/transmuxer.mjs": 32,
+  "chrome/player/modules/hls2mp4/transmuxer.mjs": 31,
   "chrome/player/modules/remux/mp4-writer.mjs": 17,
   "chrome/player/modules/remux/remuxer.mjs": 9,
   "chrome/player/network/DownloadEntry.mjs": 20,
