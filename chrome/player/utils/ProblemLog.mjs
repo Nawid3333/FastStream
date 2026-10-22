@@ -6,6 +6,7 @@
 const StorageKey = 'siteProblems';
 const MaxEntries = 50;
 
+/** @typedef {{id: string, protocol: string, host: string, path: string, kind: string, mode: 'player'|'mpv', count: number, first: number, last: number}} ProblemEntry */
 /** What went wrong, as the options page names it. */
 export const ProblemKinds = Object.freeze({
   // No next episode found in the page: the last one, or a site FastStream cannot read yet.
