@@ -308,18 +308,37 @@ async function setup() {
     });
   };
 
+  // Firefox fires beforeunload for navigations that never happen too: a link answered with
+  // a download or a 204, a "Leave page?" answered Stay (content.js has the same). The client
+  // goes at beforeunload all the same, before Firefox decides on the back-forward cache: a
+  // live player keeps the page out of it. The player left dead in a page that stayed loads
+  // again a moment later, at the second it was at (the page's faststream-timestamp), once
+  // content.js has named its page again (LeaveSettledMs); a page that really goes clears it.
+  const StayedMs = 3000;
+  let stayTimer = null;
   window.addEventListener('beforeunload', () => {
+    const time = window.fastStream?.source ? window.fastStream.currentTime : 0;
     if (window.fastStream) {
       window.fastStream.destroy();
       delete window.fastStream;
     }
     sendFrameRemoved();
+    clearTimeout(stayTimer);
+    stayTimer = setTimeout(() => {
+      const url = new URL(window.location.href);
+      if (Number.isFinite(time) && time >= 1) {
+        url.searchParams.set('faststream-timestamp', String(Math.floor(time)));
+      }
+      window.location.replace(url.toString());
+    }, StayedMs);
   });
   // A page that takes the player's iframe out itself (a re-render) runs no beforeunload
   // in it, and the background kept the frame as a player's: it dropped that frame's
   // streams and opened no player on the page, until a navigation. The document's
   // pagehide still runs. Not a persisted one: that page is only hidden, and may come back.
   window.addEventListener('pagehide', (e) => {
+    clearTimeout(stayTimer);
+    stayTimer = null;
     if (!e.persisted) {
       sendFrameRemoved();
     }
