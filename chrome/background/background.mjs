@@ -1998,6 +1998,13 @@ function modeFromQuery(url) {
  */
 
 /**
+ * What a page's video plays, as content.js tells it (playedVideo, replacedVideo): its file's
+ * URL ('' for a blob:), its length in seconds (null when not known), its currentSrc as it is,
+ * and where it plays in seconds.
+ * @typedef {{src: string, duration: ?number, playing?: string, time?: number}} PlayedVideo
+ */
+
+/**
  * How an autoplay next goes on: what the next episode's player starts with (the player's
  * REQUEST_PLAYLIST_NAVIGATION), or MPV autoplay's (goToEpisode).
  * @typedef {{autoPlay?: boolean, fullscreenState?: string, disableLoadProgress?: boolean, mpvNext?: boolean}} Continuation
@@ -2961,10 +2968,11 @@ async function pickNextEpisodeForMpv(tab) {
 /**
  * Every stream detected in a tab's frames, once each.
  * @param {TabHolder} tab
- * @return {Array<Object>}
+ * @return {Array<TrackedSource>}
  */
 function tabSources(tab) {
   const seen = new Set();
+  /** @type {Array<TrackedSource>} */
   const sources = [];
   for (const frame of tab.getFrames()) {
     for (const source of frame.getSources()) {
@@ -3015,11 +3023,13 @@ function autoplayCountdownSeconds() {
 /**
  * Stores one option the background changed itself (mpv's autoplay switch), and tells an open
  * options page, as its own saves do.
- * @param {string} key
- * @param {*} value
+ * @template {keyof PlayerOptions} K
+ * @param {K} key
+ * @param {PlayerOptions[K]} value
  */
 async function saveOption(key, value) {
-  const options = await Utils.getOptionsFromStorage();
+  // Merged over DefaultOptions (Utils, which calls them an Object).
+  const options = /** @type {PlayerOptions} */ (await Utils.getOptionsFromStorage());
   options[key] = value;
   await Utils.setConfig('options', JSON.stringify(options));
   await loadOptions(options);
@@ -3041,12 +3051,13 @@ async function saveOption(key, value) {
  */
 function sendOptionsToTabs(time) {
   ensureOptions().then(() => BackgroundUtils.queryTabs()).then((tabs) => {
-    tabs.forEach((tab) => {
+    tabs.forEach(/** @param {chrome.tabs.Tab} tab */ (tab) => {
       if (Tabs.getTab(tab.id)) {
-        chrome.tabs.sendMessage(tab.id, {
+        // A number: the tracker found a tab by it.
+        chrome.tabs.sendMessage(/** @type {number} */ (tab.id), {
           type: MessageTypes.UPDATE_OPTIONS,
           time,
-        }, (response) => {
+        }, /** @param {unknown} response - Not read. */ (response) => {
           BackgroundUtils.checkMessageError('options', true);
         });
       }
@@ -3140,7 +3151,7 @@ function watchMpvFor(tab, url, qualities = null) {
 function isSentStream(path, url, qualities = null) {
   if (typeof path !== 'string' || typeof url !== 'string') return false;
   const playing = path.split('#')[0];
-  const parsedWithoutHash = (candidate) => {
+  const parsedWithoutHash = /** @param {string} candidate */ (candidate) => {
     try {
       const parsed = new URL(candidate);
       parsed.hash = '';
@@ -3155,8 +3166,9 @@ function isSentStream(path, url, qualities = null) {
 
 /**
  * What the host says about the watched mpv.
- * @param {Object} state - The watch (mpvWatch).
- * @param {Object} event - watching, path, ended, request or closed.
+ * @param {MpvWatch} state - The watch (mpvWatch).
+ * @param {import('./MpvBackend.mjs').MpvWatchEvent} event - watching, path, ended, request,
+ *   decoder or closed.
  */
 function onMpvWatchEvent(state, event) {
   if (event.type === 'closed') {
@@ -3222,7 +3234,7 @@ const MpvPageNavigateMs = 5000;
  * 'series_end' when the first frame that knows says the series ends here (no other frame is
  * asked: a hoster's links are other videos), 'next' when it has a next episode, null when no
  * frame can tell.
- * @param {Object} tab
+ * @param {TabHolder} tab
  * @return {Promise<?string>}
  */
 async function nextEpisodeInPage(tab) {
@@ -3323,7 +3335,7 @@ let mpvAutoplayToggles = Promise.resolve();
  * from: the page's own link, as the in-page player's next button does it, top frame first.
  * The next page's player is started if it waits for a click (startPagePlayers), and its
  * stream goes to mpv by itself, into the same window. mpv says what happens.
- * @param {Object} state - The watch (mpvWatch).
+ * @param {MpvWatch} state - The watch (mpvWatch).
  * @param {'next'|'previous'} direction
  */
 async function goToEpisode(state, direction) {
@@ -3496,7 +3508,7 @@ function followMpvDecoder(tab, result) {
 
 /**
  * @param {TabHolder} tab
- * @param {?Object} decoder - MpvBackend's MpvDecoder, or null.
+ * @param {?import('./MpvBackend.mjs').MpvDecoder} decoder
  */
 function setMpvDecoder(tab, decoder) {
   // The answer takes up to MpvDecoderWaitMs, and the tab is often closed by then: the
@@ -3533,7 +3545,7 @@ async function tabTitle(tabId) {
  * @param {TabHolder} tab - The tab the video is in.
  * @param {number} frameId - Frame the video is in.
  * @param {string} src - The video element's currentSrc.
- * @param {?Object} video - What it plays (content.js playedVideo).
+ * @param {?PlayedVideo} video - What it plays.
  */
 function autoOpenKnownLater(tab, frameId, src, video) {
   // The page the play came from, as onUserPlay checks it: within the wait the tab can show
@@ -3573,9 +3585,9 @@ function autoOpenKnownLater(tab, frameId, src, video) {
  * page (a URL change without a load, which lets the page's MPV send again) still
  * has the last one's streams, and the play came before the new one's.
  *
- * @param {Object} sender - The message sender: its tab and frameId.
+ * @param {chrome.runtime.MessageSender} sender - The message sender: its tab and frameId.
  * @param {string} src - The video element's currentSrc.
- * @param {?Object} video - What it plays (content.js playedVideo).
+ * @param {?PlayedVideo} video - What it plays.
  */
 async function onUserPlay(sender, src, video) {
   await ensureOptions();
@@ -3585,7 +3597,7 @@ async function onUserPlay(sender, src, video) {
   }
 
   const tab = Tabs.getTab(sender.tab.id);
-  const waiting = (onPlay) => !!tab && tab.isOn && tab.isMpv && tab.mpvOnPlay === onPlay &&
+  const waiting = /** @param {boolean} onPlay */ (onPlay) => !!tab && tab.isOn && tab.isMpv && tab.mpvOnPlay === onPlay &&
     (onPlay || !tab.mpvAutoOpened);
   if (!tab || !waiting(tab.mpvOnPlay)) {
     return;
@@ -3703,8 +3715,8 @@ async function sendPendingPlay(tab, first) {
  * @param {TabHolder} tab - The tab the video is in.
  * @param {number} frameId - Frame the video is in.
  * @param {string} src - The video element's currentSrc.
- * @param {?Object} video - What it plays (content.js playedVideo).
- * @return {Promise<Object|null>} The source, or null when none is detected yet.
+ * @param {?PlayedVideo} video - What it plays.
+ * @return {Promise<?TrackedSource>} The source, or null when none is detected yet.
  */
 async function findPlayedSource(tab, frameId, src, video) {
   /** @type {TrackedSource|null|undefined} */
@@ -3718,7 +3730,8 @@ async function findPlayedSource(tab, frameId, src, video) {
     }
   }
 
-  const frame = tab.getFrame(frameId);
+  // TabTracker's map is not typed: one of the tab's frames, or none.
+  const frame = /** @type {FrameHolder|undefined} */ (tab.getFrame(frameId));
   const others = frame ? frame.getSources().filter((source) => source !== byUrl) : [];
   if (byUrl && others.length === 0) {
     return byUrl;
@@ -3769,9 +3782,9 @@ async function findPlayedSource(tab, frameId, src, video) {
  * piece of a stream (PIECE_LENGTH), of which mpv plays a few seconds: a frame whose
  * manifest went undetected, or was detected by a background since stopped, has only those.
  *
- * @param {Array<Object>} sources - Detected sources.
- * @param {?Object} [video] - What the page's video plays (content.js playedVideo).
- * @return {Object|null} One of them, or null when there are none.
+ * @param {Array<TrackedSource>} sources - Detected sources.
+ * @param {?PlayedVideo} [video] - What the page's video plays.
+ * @return {?TrackedSource} One of them, or null when there are none.
  */
 function newestOfLongest(sources, video = null) {
   const lengths = Lengths.lengthsOf(sources);
@@ -3834,7 +3847,7 @@ function sendPageMediaHold(tab) {
  * later, deliberate play of a video already sent (after closing mpv).
  *
  * @param {TabHolder} tab - The tab the video is in.
- * @param {Object} source - Detected source: url and request headers.
+ * @param {{url: string, headers: *}} source - Detected source: url and request headers.
  * @param {?{time?: number, duration?: ?number}} [video] - The page's video as it played
  *   (content.js playedVideo): mpv starts where it was. It started at 0:00, and the page,
  *   paused at the user's place, kept it.
@@ -3948,7 +3961,7 @@ function openMpvWithSources(tab) {
 async function pageQualityChoice(tab, url) {
   if (!tab) return null;
   for (const frame of tab.getFrames()) {
-    const source = frame.getSources().find((s) => s.url === url || s.requestedUrl === url);
+    const source = frame.getSources().find(/** @param {TrackedSource} s */ (s) => s.url === url || s.requestedUrl === url);
     if (!source) continue;
     const list = listForSource(source, await getPageQualities(tab, frame.frameId));
     if (!list) continue;

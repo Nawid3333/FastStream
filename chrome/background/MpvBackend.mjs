@@ -106,6 +106,17 @@ const PrivateNeedsNewerHostError = 'a private window\'s stream needs mpv helper 
  * @property {?number} height
  */
 
+/**
+ * What a watch of mpv tells (watch): {type: 'watching'}, {type: 'path', path},
+ * {type: 'ended', path}, {type: 'request', action}, {type: 'decoder', decoder} (the relay's
+ * decoder-replies, read) and {type: 'closed', reason} last (MpvRelayWatch). A watch over a
+ * helper before host 15 (legacyWatch) passes the host's own messages on as they came: the
+ * same types but decoder, with whatever the host put in them; mpv's path is its property's
+ * value as mpv sent it.
+ * @typedef {{type: 'watching'}|{type: 'path'|'ended', path: *}|{type: 'request', action: *}|
+ *   {type: 'closed', reason: *}|{type: 'decoder', decoder: ?MpvDecoder}} MpvWatchEvent
+ */
+
 // mpv's video-format names as people know them.
 const FormatNames = new Map([
   ['av1', 'AV1'],
@@ -752,8 +763,8 @@ export class MpvBackend {
    * The thin helper only relays mpv's lines; what counts as an end is MpvRelayWatch.mjs's.
    * An older helper (or one not known yet that turns out older: it answers "unknown message")
    * is followed with its own watch message, and the events are the same either way.
-   * @param {(message: Object) => void} onEvent - Each message: watching, path, ended,
-   *   request, closed (last; also for a host too old to watch, which answers ok: false).
+   * @param {(message: MpvWatchEvent) => void} onEvent - Each message: watching, path, ended,
+   *   request, decoder, closed (last; also for a host too old to watch, which answers ok: false).
    * @return {import('./MpvRelayWatch.mjs').MpvWatcher}
    */
   watch(onEvent) {
