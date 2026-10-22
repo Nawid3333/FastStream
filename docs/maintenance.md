@@ -34,7 +34,6 @@ merged themselves.
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
 | actionlint and zizmor images | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | "ready to merge" when it changes only those files: CI ran every workflow file through the new checks | the PR |
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
-| adapted copies of other projects' code (StreamSaver) | `vendored-updates.yml` (daily) checks the upstream file each came from (`tools/vendored-sources.json`) | nothing to merge: the copies are changed here, so a person ports upstream's changes | an issue per copy and upstream change, "Vendored source changed upstream: <name> (...)", with the commits; it closes once `tools/vendored-sources.json` has the copy at that commit |
 | security alerts | a Dependabot alert on the Security tab, and a Dependabot PR that fixes it (the rows above), skipping both 3-day waits; `security-alerts.yml` (daily) watches for an alert with no such PR | as the PR's row says | GitHub's alert email; for an alert over 6 hours old with no Dependabot PR, an issue per package, "Security alert: <package>", closed once its alerts are fixed on `main` or dismissed |
 
 Dependabot proposes a release once it is 3 days old (`cooldown` in `.github/dependabot.yml`;
@@ -279,22 +278,18 @@ image pinned in a form Dependabot does not update:
 
 ## Vendored files
 
-Some files the extension ships come from another project without a package manager:
-`vendored-updates.yml` (daily) watches them.
+One file the extension ships comes from another project without a package manager:
+`vendored-updates.yml` (daily) watches it.
 
 - **vtt.js** (`chrome/player/modules/vtt.mjs`, from dash.js): a dash.js release that changes
   the file opens an issue, "vtt.js changed in dash.js <tag>". Move the tag in
   `tools/verify-vtt.mjs` and run `pnpm run verify:vtt`, which says where FastStream's changes
   no longer apply.
-- **The adapted copies** listed in `tools/vendored-sources.json` (StreamSaver; knob, fft.js
-  and the voice detector's code went with the audio settings and the speech detector,
-  2026-10-10): when upstream changes the file one came from after its `ref`,
-  an issue, "Vendored source changed upstream: <name> (<repo> <commit>)", lists the commits.
-  Port what matters, then move the `ref` to the commit you reviewed.
 
-Each closes itself once its pin reaches the release; a newer release closes the older one.
-If the workflow itself fails, it opens "Vendored updates workflow failed (vtt.js)" or
-"(sources)".
+The issue closes itself once the pin reaches the release; a newer release closes the older one.
+If the workflow itself fails, it opens "Vendored updates workflow failed (vtt.js)".
+(Until 2026-10-22 it also watched StreamSaver.js for `StreamSaver.mjs`, whose body is now
+FastStream's own: an upstream change had nothing to port.)
 
 ## A token for workflow updates
 
