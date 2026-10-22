@@ -72,13 +72,15 @@ export function readZip(buffer) {
 
 /**
  * What is wrong with a release's updates.json.
- * @param {Object} json - updates.json as fetched through update_url.
+ * @typedef {{version: string, update_link: string, update_hash: string, applications?: {gecko?: {strict_min_version?: string}}}} UpdateEntry
+ * @typedef {{addons?: Object<string, {updates: UpdateEntry[]}>}} UpdatesJson
+ * @param {UpdatesJson} json - updates.json as fetched through update_url.
  * @param {Object} release
  * @param {string} release.id - The add-on id Firefox looks up.
  * @param {string} release.version - The release's version.
  * @param {string} release.repo - owner/repo.
  * @param {string} release.tag - The release's tag.
- * @return {{problems: string[], entry?: Object|undefined}} No problems when it is right.
+ * @return {{problems: string[], entry?: UpdateEntry|undefined}} No problems when it is right.
  */
 export function checkUpdatesJson(json, {id, version, repo, tag}) {
   const updates = json?.addons?.[id]?.updates;

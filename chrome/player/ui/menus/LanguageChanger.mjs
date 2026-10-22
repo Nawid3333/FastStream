@@ -3,6 +3,7 @@ import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 
+/** @typedef {import('../../players/Levels.mjs').VideoLevel | import('../../players/Levels.mjs').AudioLevel} Level */
 export class LanguageChanger extends EventEmitter {
   constructor() {
     super();
@@ -135,6 +136,10 @@ export class LanguageChanger extends EventEmitter {
     });
   }
 
+  /**
+   * @param {Map<string, Level> | undefined} levels - A player's levels by their id.
+   * @return {Map<string, Level[]>}
+   */
   groupLevelsByLanguage(levels) {
     const languageMap = new Map();
     // None yet (a player still loading): the quality menu checks for that, and this threw.
@@ -148,6 +153,7 @@ export class LanguageChanger extends EventEmitter {
     return languageMap;
   }
 
+  /** @param {import('../../FastStreamClient.mjs').FastStreamClient} client */
   updateLanguageTracks(client) {
     const videoLevels = client.getVideoLevels();
     const audioLevels = client.getAudioLevels();
@@ -174,6 +180,7 @@ export class LanguageChanger extends EventEmitter {
     languageTable.classList.add('language_table');
     /** @type {HTMLElement} */ (DOMElements.languageMenu).appendChild(languageTable);
 
+    /** @type {string[]} */
     const languages = [];
     const hasVideoLanguages = videoLanguageMap.size > 1;
     const hasAudioLanguages = audioLanguageMap.size > 1;

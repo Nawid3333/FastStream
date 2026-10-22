@@ -35,6 +35,10 @@ export class StatusManager {
     this.registerStatusLevel(StatusTypes.MPV, 1);
   }
 
+  /**
+   * @param {string} key
+   * @param {number=} channel
+   */
   registerStatusLevel(key, channel) {
     const level = {
       key,
@@ -47,6 +51,12 @@ export class StatusManager {
     this.statusMessages.set(key, level);
   }
 
+  /**
+   * @param {string} key
+   * @param {string|null} message - null clears the level's message.
+   * @param {string=} type
+   * @param {number=} expiry
+   */
   setStatusMessage(key, message, type, expiry) {
     const level = this.statusMessages.get(key);
     if (!level) {

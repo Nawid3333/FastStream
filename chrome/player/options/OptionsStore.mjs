@@ -8,6 +8,7 @@ import {MessageTypes} from '../enums/MessageTypes.mjs';
  * Centralized options store with load/save, merge and change subscriptions.
  */
 export class OptionsStore {
+  /** @type {Object|null} */
   static #options = null;
   static #listeners = new Set();
   /** @type {number|null} */
@@ -43,6 +44,7 @@ export class OptionsStore {
 
   /**
    * Replace entire options object and persist/broadcast.
+   * @param {Object} newOptions
    */
   static async replace(newOptions) {
     this.#options = Utils.mergeOptions(DefaultOptions, newOptions || {});
@@ -51,6 +53,7 @@ export class OptionsStore {
 
   /**
    * Merge a partial set of options, persist and broadcast.
+   * @param {Object} partial
    */
   static async set(partial) {
     const merged = {...(this.#options ?? DefaultOptions), ...(partial || {})};

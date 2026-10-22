@@ -12,12 +12,13 @@ import {SILENT_MAX_PLAYBACK_RATE} from '../../options/KeybindUtils.mjs';
 const RateSaveDelayMs = 500;
 
 export class PlaybackRateChanger extends EventEmitter {
+  /** @param {import('../../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     super();
     this.client = client;
     this.stayOpen = false;
     this.playbackRate = 1;
-    this.playbackElements = [];
+    this.playbackElements = /** @type {HTMLElement[]} */ ([]);
     this.onSilenceSkipperUIOpenHandle = this.onSilenceSkipperUIOpen.bind(this);
     this.onSilenceSkipperUICloseHandle = this.onSilenceSkipperUIClose.bind(this);
     this.onAudioMouseDownHandle = this.onAudioMouseDown.bind(this);
@@ -69,13 +70,13 @@ export class PlaybackRateChanger extends EventEmitter {
   }
 
   async loadState() {
-    const state = await Utils.loadAndParseOptions('playbackRateConfig', {
+    const state = /** @type {{playbackRate: number, silenceSkipSpeed: number, silenceThreshold: number}} */ (await Utils.loadAndParseOptions('playbackRateConfig', {
       playbackRate: 1,
       silenceSkipSpeed: this.maxPlaybackRate,
       silenceThreshold: 0,
       // audioPaddingStart: 0.25,
       // audioPaddingEnd: 0.25,
-    });
+    }));
 
     // Through the setter's cap of 8 on purpose: a silent 16x left by the 16x key starts the
     // next video at 8x, with sound.
@@ -87,6 +88,7 @@ export class PlaybackRateChanger extends EventEmitter {
     // this.audioPaddingEnd = state.audioPaddingEnd;
   }
 
+  /** @param {MouseEvent} e */
   onAudioMouseDown(e) {
     e.stopPropagation();
     e.preventDefault();
@@ -97,6 +99,7 @@ export class PlaybackRateChanger extends EventEmitter {
     const startY = e.clientY;
     const startThreshold = this.silenceThreshold;
     const fineTimeControls = this.client.interfaceController.fineTimeControls;
+    /** @param {MouseEvent} e */
     const onAudioMouseMove = (e) => {
       // No button held: it was let go where this drag never heard of it.
       if (e.buttons === 0) {
@@ -108,6 +111,7 @@ export class PlaybackRateChanger extends EventEmitter {
       this.updateSilenceSkipper();
     };
 
+    /** @param {MouseEvent} [e] */
     const onAudioMouseUp = (e) => {
       /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mousemove', onAudioMouseMove);
       /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseup', onAudioMouseUp);
@@ -196,6 +200,7 @@ export class PlaybackRateChanger extends EventEmitter {
     }
   }
 
+  /** @param {number} time */
   shouldSkipSilence(time) {
     const minDB = AudioUtils.VOLUME_FLOOR_DB;
     const maxDB = AudioUtils.VOLUME_CEILING_DB;
@@ -210,7 +215,7 @@ export class PlaybackRateChanger extends EventEmitter {
     for (let i = minIndex; i < maxIndex; i++) {
       if (volumeBuffer[i] === undefined) continue;
       hasData = true;
-      const volume = Utils.clamp((volumeBuffer[i] - minDB) / dbRange, 0, 1);
+      const volume = Utils.clamp((/** @type {number} */ (volumeBuffer[i]) - minDB) / dbRange, 0, 1);
       if (volume >= this.silenceThreshold) {
         return false;
       }
@@ -272,7 +277,7 @@ export class PlaybackRateChanger extends EventEmitter {
   }
 
   setupOptionsUI() {
-    this.ui = {};
+    this.ui = /** @type {{thresholdBar: HTMLElement}} */ ({});
     this.ui.thresholdBar = WebUtils.create('div', '', 'threshold_bar');
   }
   openUI(dontSetStayVisible = false) {
@@ -424,6 +429,7 @@ export class PlaybackRateChanger extends EventEmitter {
     this.loadState();
   }
 
+  /** @param {number} shift */
   shiftPlaybackRate(shift) {
     // Faster from the 16x key's silent rate, past the menu's last entry: it stays (taken
     // down to 8x, it went slower).
@@ -431,6 +437,7 @@ export class PlaybackRateChanger extends EventEmitter {
     this.setPlaybackRate(Math.round((this.playbackRate + shift) * 10) / 10);
   }
 
+  /** @param {number} rate */
   setPlaybackRate(rate, noEmit = false) {
     // The client's rate shown as it is: past the menu's last entry only from a speed preset
     // (the 16x key, silent), which the menu marks at its top.

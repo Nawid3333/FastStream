@@ -59,6 +59,9 @@ function notLoopbackAddress() {
 function reachable(host, port) {
   return new Promise((resolve) => {
     const socket = net.connect(port, host);
+    /**
+     * @param {boolean} answer - Whether the connection was established.
+     */
     const done = (answer) => {
       socket.destroy();
       resolve(answer);
@@ -94,11 +97,19 @@ try {
     check();
   }));
 
+  /**
+   * @param {string} pathname
+   */
   const get = async (pathname) => {
     const response = await fetch(`http://127.0.0.1:${port}${pathname}`);
     return {status: response.status, cors: response.headers.get('access-control-allow-origin'),
       rateLimit: response.headers.get('ratelimit-policy'), body: Buffer.from(await response.arrayBuffer())};
   };
+  /**
+   * @param {string} pathname
+   * @param {number} status
+   * @param {string|Buffer} [body] - Expected payload; left out when only the status is checked.
+   */
   const expect = async (pathname, status, body) => {
     const got = await get(pathname);
     if (got.status !== status) failures.push(`${pathname}: HTTP ${got.status}, expected ${status}`);

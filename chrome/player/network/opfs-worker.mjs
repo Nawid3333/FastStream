@@ -49,6 +49,7 @@ async function getFsBlobRoot() {
  *     unreadable: it has one that could not be read, while its owner writes it (a sync
  *     access handle locks the file, and a File read after the owner wrote again fails) -
  *     a live session.
+ * @param {string} name
  */
 async function readHeartbeat(name) {
   let fileHandle;
@@ -91,6 +92,7 @@ function sessionCreatedTime(name) {
  * players starting together deleted each other's brand-new session that way (its blobs
  * then stayed in RAM, and its saves failed). And a heartbeat that is there but cannot be
  * read is its owner writing it.
+ * @param {string} ownName
  */
 async function prune(ownName) {
   const stale = [];
@@ -178,6 +180,10 @@ async function init() {
   }, HEARTBEAT_MS);
 }
 
+/**
+ * @param {string} identifier
+ * @param {ArrayBuffer|ArrayBufferView} data
+ */
 async function setFile(identifier, data) {
   const fileHandle = await /** @type {FileSystemDirectoryHandle} */ (sessionDir).getFileHandle(identifier, {create: true});
   const accessHandle = await fileHandle.createSyncAccessHandle();
@@ -193,6 +199,9 @@ async function setFile(identifier, data) {
   accessHandle.close();
 }
 
+/**
+ * @param {string} identifier
+ */
 async function getFile(identifier) {
   const fileHandle = await /** @type {FileSystemDirectoryHandle} */ (sessionDir).getFileHandle(identifier);
   const accessHandle = await fileHandle.createSyncAccessHandle();
@@ -206,6 +215,9 @@ async function getFile(identifier) {
   }
 }
 
+/**
+ * @param {string} identifier
+ */
 async function deleteFile(identifier) {
   try {
     await /** @type {FileSystemDirectoryHandle} */ (sessionDir).removeEntry(identifier);
@@ -248,12 +260,19 @@ async function destroy() {
  * 'saveEnd' flushes and closes, leaving the file readable from the main
  * thread via getFile. 'saveAbort' discards everything.
  */
+/**
+ * @param {string} identifier
+ */
 async function saveBegin(identifier) {
   const fileHandle = await /** @type {FileSystemDirectoryHandle} */ (sessionDir).getFileHandle(identifier, {create: true});
   const accessHandle = await fileHandle.createSyncAccessHandle();
   saveStreams.set(identifier, {handle: accessHandle, offset: 0});
 }
 
+/**
+ * @param {string} identifier
+ * @param {ArrayBuffer|ArrayBufferView} data
+ */
 async function saveAppend(identifier, data) {
   const stream = saveStreams.get(identifier);
   if (!stream) {
@@ -263,6 +282,9 @@ async function saveAppend(identifier, data) {
   stream.offset += data.byteLength;
 }
 
+/**
+ * @param {string} identifier
+ */
 async function saveEnd(identifier) {
   const stream = saveStreams.get(identifier);
   if (!stream) {
@@ -277,6 +299,9 @@ async function saveEnd(identifier) {
   }
 }
 
+/**
+ * @param {string} identifier
+ */
 async function saveAbort(identifier) {
   const stream = saveStreams.get(identifier);
   if (stream) {

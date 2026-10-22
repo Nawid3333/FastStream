@@ -29,7 +29,7 @@ class Search {
   }
   buildSections() {
     return Array.from(document.querySelectorAll('[data-search-section]'), (section) => {
-      const items = Array.from(section.querySelectorAll('.search-target-remove, .search-target-remove-keybind'));
+      const items = /** @type {HTMLElement[]} */ (Array.from(section.querySelectorAll('.search-target-remove, .search-target-remove-keybind')));
       return {
         element: section,
         countEl: section.querySelector('.section-count'),
@@ -76,6 +76,7 @@ export function resetSearch() {
 }
 
 // Searches with a given string query, returns the list of indexes from the search dictionary that hit
+/** @param {string} query */
 export function searchWithQuery(query) {
   resetSearch();
   if (query === '') {
@@ -103,6 +104,10 @@ export function searchWithQuery(query) {
   return rez;
 }
 
+/**
+ * @param {Search} instance
+ * @param {string} query
+ */
 function renderSectionCounts(instance, query) {
   const filtering = query !== '';
   document.body.classList.toggle('search-active', filtering);
@@ -128,6 +133,7 @@ function renderSectionCounts(instance, query) {
   });
 }
 
+/** @param {HTMLElement} el */
 function isElementVisible(el) {
   return el.getClientRects().length > 0 || el.offsetParent !== null;
 }
