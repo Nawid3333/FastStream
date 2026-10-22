@@ -899,7 +899,7 @@ export default class MP4Player extends EventEmitter {
     }
     // A removal still queued takes away what `buffered` shows (removalPending, #265).
     if (!VideoUtils.isBuffered(this.buffered, target) ||
-        removalPending([/** @type {SourceBufferWrapper|null} */ (this.videoSourceBuffer), /** @type {SourceBufferWrapper|null} */ (this.audioSourceBuffer)], target)) {
+        removalPending(/** @type {Array<SourceBufferWrapper|null>} */ ([this.videoSourceBuffer, this.audioSourceBuffer]), target)) {
       this.resetHLS();
     }
   }
