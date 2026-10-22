@@ -2,14 +2,15 @@
 import {EncodedAudioPacketSource, EncodedVideoPacketSource, Mp4OutputFormat, Output, StreamTarget} from './mediabunny.mjs';
 import {TimestampRebaser} from './TimestampRebaser.mjs';
 /**
- * A Mediabunny encoded packet: one piece of a track's encoded data. Mediabunny's
- * own types aren't reachable here (its module ships no declarations to load), so
- * this lays out the members this file uses.
- *
- * @typedef {Object} EncodedPacket
- * @property {number} microsecondTimestamp the packet's timestamp, in microseconds
- * @property {(overrides?: {timestamp?: number}) => EncodedPacket} clone a copy of
- *     the packet, with fields of the given object overriding it
+ * A Mediabunny encoded packet: one piece of a track's encoded data (mediabunny.d.mts gives
+ * Mediabunny's own types).
+ * @typedef {import('./mediabunny.mjs').EncodedPacket} EncodedPacket
+ */
+
+/**
+ * A piece of the file (store): what of it is written, its bytes, and once it is full the
+ * blob manager's identifier of them in their place.
+ * @typedef {{filledRanges: Array<[number, number]>, data: Uint8Array|string, flushed: boolean}} Piece
  */
 // The file is kept in RAM in pieces of this size, and each piece that is full moves to
 // the blob manager (disk).
@@ -23,7 +24,8 @@ const PIECE_SIZE = 16 * 1024 * 1024;
  */
 export class MP4Writer {
   /**
-   * @param {Object} blobManager the FSBlob full pieces move to
+   * @param {Object} blobManager the FSBlob full pieces move to (an Object here: as an
+   *     FSBlob, getBlob's undefined for a blob it lost goes into the file's Blob, assemble)
    * @param {{video: ?string, audio: ?string}} tracks each track's codec as Mediabunny
    *     names it ('vp9', 'opus', ...), or null for a track the file does not have
    * @param {number} [pieceSize] how much to keep in RAM at a time, for the tests
@@ -31,12 +33,17 @@ export class MP4Writer {
   constructor(blobManager, tracks, pieceSize = PIECE_SIZE) {
     this.blobManager = blobManager;
     this.pieceSize = pieceSize;
+    /** @type {Array<Piece>} */
     this.pieces = [];
     this.error = null;
     // One packet at a time, in the order they came: the muxer takes a track's packets in
     // decode order.
     this.muxing = Promise.resolve();
 
+    /**
+     * @type {{video?: import('./mediabunny.mjs').EncodedVideoPacketSource,
+     *   audio?: import('./mediabunny.mjs').EncodedAudioPacketSource}}
+     */
     this.sources = {};
     if (tracks.video) {
       this.sources.video = new EncodedVideoPacketSource(/** @type {import('./mediabunny.mjs').VideoCodec} */ (tracks.video));
@@ -184,12 +191,15 @@ export class MP4Writer {
       const offset = start - i * pieceSize;
       const length = end - start;
 
-      piece.data.set(data.subarray(start - startPos, end - startPos), offset);
+      // Its bytes: not flushed (above).
+      /** @type {Uint8Array} */ (piece.data).set(data.subarray(start - startPos, end - startPos), offset);
       piece.filledRanges.push([offset, offset + length]);
 
       // Merge filled ranges
+      /** @type {Array<[number, number]>} */
       const newFilledRanges = [];
       const ranges = piece.filledRanges;
+      /** @type {[number, number]|undefined} */
       let last;
       ranges.sort(function(a, b) {
         return a[0]-b[0] || a[1]-b[1];
