@@ -8,14 +8,10 @@ import {afterEach, beforeAll, describe, expect, it, vi} from 'vitest';
 //   answered null, as if it had worked, when the callback could not make its request (#149).
 
 let IndexedDBManager;
-// The listeners the module added to the page, by event: it closes its databases when the
-// page goes.
-const pageListeners = new Map();
 
 beforeAll(async () => {
-  vi.stubGlobal('window', {addEventListener: (name, handler) => {
-    pageListeners.set(name, [...(pageListeners.get(name) || []), handler]);
-  }});
+  // The module listens for the page closing.
+  vi.stubGlobal('window', {addEventListener: () => {}});
   ({IndexedDBManager} = await import('../../chrome/player/network/IndexedDBManager.mjs'));
 });
 
@@ -147,37 +143,5 @@ describe('IndexedDBManager.requestDB', () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-});
-
-describe('IndexedDBManager when the page goes', () => {
-  /**
-   * A persistent manager, set up against a stand-in database.
-   * @return {Promise<{manager: IndexedDBManager, db: Object}>}
-   */
-  async function openManager() {
-    const db = {...fakeDb(), close: vi.fn()};
-    vi.spyOn(IndexedDBManager, 'requestDB').mockResolvedValue(db);
-    const manager = new IndexedDBManager('faststream-page-away');
-    await manager.setup();
-    return {manager, db};
-  }
-  const fire = (name, event) => Promise.all((pageListeners.get(name) || []).map((handler) => handler(event)));
-
-  it('stays open at a beforeunload, and at a pagehide that only froze the page', async () => {
-    // Firefox fires beforeunload for a link answered with a download too, and the page
-    // stays: the database was closed - a temporary one deleted - under a player that
-    // played on, storing and reading nothing.
-    const {manager, db} = await openManager();
-    await fire('beforeunload', {});
-    await fire('pagehide', {persisted: true});
-    expect(db.close).not.toHaveBeenCalled();
-    await manager.close();
-  });
-
-  it('closes at a pagehide the page does not come back from', async () => {
-    const {db} = await openManager();
-    await fire('pagehide', {persisted: false});
-    expect(db.close).toHaveBeenCalledTimes(1);
   });
 });

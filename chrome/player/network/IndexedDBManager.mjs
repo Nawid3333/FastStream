@@ -258,12 +258,7 @@ export class IndexedDBManager {
   }
 }
 
-// At pagehide, not beforeunload: Firefox fires beforeunload for navigations that never
-// happen too (a link answered with a download, "Stay on page"), and the database was
-// closed - a temporary one deleted - under a player that played on, storing and reading
-// nothing. A persisted pagehide only froze the page for the back-forward cache: it stays.
-window.addEventListener('pagehide', async (event)=>{
-  if (event?.persisted) return;
+window.addEventListener('beforeunload', async ()=>{
   await Promise.all(closeQueue.map((manager)=>{
     return manager.close();
   }));
