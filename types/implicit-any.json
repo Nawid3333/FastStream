@@ -53,7 +53,6 @@
   "chrome/player/players/vm/VMPlayer.mjs": 7,
   "chrome/player/ui/FineTimeControls.mjs": 30,
   "chrome/player/ui/InterfaceController.mjs": 41,
-  "chrome/player/ui/ProgressBar.mjs": 1,
   "chrome/player/ui/SaveManager.mjs": 13,
   "chrome/player/ui/SourcesBrowser.mjs": 17,
   "chrome/player/ui/ToolManager.mjs": 6,

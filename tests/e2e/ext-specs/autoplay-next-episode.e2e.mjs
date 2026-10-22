@@ -299,6 +299,47 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
         !window.fastStream.state.windowedFullscreen), {timeout: 10000, timeoutMsg: 'the player still fills the page'});
   });
 
+  // The countdown set in the options is the player's: it never reached it, which counted 5 s
+  // whatever was set, and 0 never turned the banner off (found while typing, 2026-10-22).
+  it('counts down for as long as the options say', async function() {
+    await setOptions({autoEnableURLs: [SITE], autoplayNext: true, autoplayCountdown: 12});
+    try {
+      await browser.url(`${SITE}/ep1`);
+      await intoPlayer('the first episode');
+      await browser.waitUntil(() => browser.execute(() => !!window.fastStream?.player), {timeout: 30000});
+      expect(await browser.execute(() => window.fastStream.options.autoplayCountdown)).toBe(12);
+    } finally {
+      await browser.switchFrame(null);
+      await setOptions({autoEnableURLs: [SITE], autoplayNext: true});
+    }
+  });
+
+  // His report, 2026-10-22: a skip to the end sometimes did not go on. Measured: a paused video
+  // put 0.3 s before its end stayed there, and a click on the bar's last pixel put it there
+  // (a second short of a 24-minute episode's end), where a drag past the bar reached the end.
+  it('goes on to the next episode after a click on the bar\'s end, also paused', async function() {
+    await browser.url(`${SITE}/ep1`);
+    await intoPlayer('the first episode');
+    await browser.waitUntil(() => browser.execute(() => (window.fastStream?.player?.getVideo?.()?.readyState || 0) >= 2 &&
+        window.fastStream.hasNextVideo()), {timeout: 30000, timeoutMsg: 'the player never found the next episode'});
+    // The keyboard's next-track key goes there as well: Firefox took the player's handler, in
+    // the page's frame (MediaKeys; a key itself cannot be pressed from here).
+    expect(await browser.execute(() => window.fastStream.interfaceController.toolManager.mediaKeys.offered.nexttrack)).toBe(true);
+    const at = await browser.execute(async () => {
+      await window.fastStream.pause();
+      // The bar's last pixel, pressed and let go as a click there.
+      const bar = /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_controls_progress_container'));
+      const rect = bar.getBoundingClientRect();
+      const x = rect.left + rect.width - 1;
+      const y = rect.top + rect.height / 2;
+      bar.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0, clientX: x, clientY: y}));
+      document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, button: 0, clientX: x, clientY: y}));
+      return {time: window.fastStream.currentTime, duration: window.fastStream.duration};
+    });
+    console.log(`      clicked the bar's end: ${JSON.stringify(at)}`);
+    await onPage('/ep2');
+  });
+
   it('stops after the series\' last episode, says so, and never goes on to another series', async function() {
     const step = stepLog();
     await browser.url('about:blank');
