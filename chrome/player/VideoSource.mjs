@@ -159,7 +159,13 @@ export class VideoSource {
     }
   }
 
+  /**
+   * The headers without those the browser sets itself, names in lower case.
+   * @param {Object<string, string>} headers - Header name to value.
+   * @return {Object<string, string>} A new object.
+   */
   filterHeaders(headers) {
+    /** @type {Object<string, string>} */
     const filteredHeaders = {};
     for (const key in headers) {
       if (headerBlacklist.includes(key.toLowerCase())) {
