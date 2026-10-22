@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {DASHLoaderFactory as dashLoaderFactory} from '../../chrome/player/players/dash/DashLoader.mjs';
+import {DashFragment} from '../../chrome/player/players/dash/DashFragment.mjs';
 
 // DashLoader hands dash.js's requests to FastStream's download manager, passing each URL
 // through decodeURI (since the dash.js 5 upgrade). decodeURI throws on a `%` that is not
@@ -48,6 +49,48 @@ describe('DashLoader URLs', () => {
 
   it('still decodes a URL decodeURI can decode, as before', () => {
     expect(loadManifest('http://127.0.0.1/my%20show.mpd').url).toBe('http://127.0.0.1/my show.mpd');
+  });
+});
+
+describe('DashLoader and DashFragment, one segment through both paths', () => {
+  // dash.js can ask for a segment before the store has it: the "Fragment not found"
+  // fallback downloads it, keyed by the URL it decoded, while every later request for it
+  // goes through the store (DashFragment.getContext, the URL as dash.js has it). A manifest
+  // that writes seg%20one.m4s had the same bytes downloaded and stored twice.
+  const SEGMENT_URL = 'http://127.0.0.1/seg%20one.m4s';
+
+  /**
+   * A request dash.js makes for segment 7 of the video representation.
+   * @param {string} url - The segment's address, as the manifest writes it.
+   * @return {Object}
+   */
+  function dashRequest(url) {
+    return {
+      url,
+      method: 'GET',
+      headers: {},
+      customData: {
+        request: {type: 'MediaSegment', index: 7, startTime: 14, responseType: 'arraybuffer',
+          url, representation: {id: 'v1', adaptation: {type: 'video'}}},
+        onSuccess: vi.fn(),
+        onFail: vi.fn(),
+        onAbort: vi.fn(),
+      },
+    };
+  }
+
+  it('names the segment as the store does, so its bytes are not downloaded twice', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const getFile = vi.fn(() => ({abort() {}}));
+    const player = {
+      source: {headers: {}},
+      // The store does not have the segment yet: the race the fallback is for.
+      client: {getFragment: () => null, getFragments: () => []},
+      getClient: () => ({downloadManager: {getFile}}),
+    };
+    dashLoaderFactory(player)().load(dashRequest(SEGMENT_URL));
+    const stored = new DashFragment({...dashRequest(SEGMENT_URL).customData.request, level: 'video-v1', duration: 4});
+    expect(getFile.mock.calls[0][0].url).toBe(stored.getContext().url);
   });
 });
 

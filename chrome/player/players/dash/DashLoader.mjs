@@ -155,7 +155,10 @@ export function DASHLoaderFactory(player) {
         delete httpRequest.headers.Range;
       }
       const context = {
-        url: decodeUrl(httpRequest.url),
+        // A segment as the store names it (DashFragment.getContext: the URL as dash.js has
+        // it): decoded here, the one the store did not have yet was stored under another
+        // name, and fetched and stored again once the store had it (seg%20one.m4s).
+        url: isSegment ? httpRequest.url : decodeUrl(httpRequest.url),
         method: httpRequest.method || 'GET',
         responseType: request.responseType,
         rangeStart: rangeStart,
