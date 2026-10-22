@@ -8,8 +8,34 @@ import Transmuxer from './transmuxer.mjs';
 // The clock MPEG-TS timestamps count in.
 const TS_CLOCK = 90000;
 
+/**
+ * What hls.js remuxed from one fragment for one track (MP4Remuxer, one of the internals
+ * FastStream's patch exports): hls.js's RemuxedTrack, its mdat in data2 (optional in hls.js's
+ * types, always there for a track MP4Remuxer remuxed), and the samples (hls.js's Mp4Sample,
+ * which its types do not describe) that patches/hls.js@*.patch adds.
+ * @typedef {import('../hls.mjs').RemuxedTrack & {data2: Uint8Array<ArrayBuffer>, outputSamples: Array<*>}} RemuxedFragment
+ */
+
+/**
+ * One fragment's part of a track (pushChunk): its samples, where its mdat goes in the file,
+ * and its times on the stream's clock, in seconds.
+ * @typedef {{id: number, samples: Array<*>, offset: number, originalOffset: number,
+ *   startDTS: number, endDTS: number, startPTS: number, endPTS: number}} TrackChunk
+ */
+
+/**
+ * A track the file is written from (makeTrack): the track hls.js's demuxer describes (TSDemuxer,
+ * an internal its types do not describe, so its fields - timescale, pps, sps and the rest
+ * MP4Generator reads - stay unchecked), with what this file adds.
+ * @typedef {Object<string, *> & {samples: Array<*>, chunks: Array<TrackChunk>, use64Offsets: boolean,
+ *   nextChunkId: number, elst: Array<{media_time: number, segment_duration: number}>}} Mp4Track
+ */
+
 
 export class HLS2MP4 extends EventEmitter {
+  /**
+   * @param {(cancel: () => void) => void} [registerCancel] - Hands over what cancels the save.
+   */
   constructor(registerCancel) {
     super();
     this.blobManager = new FSBlob();
@@ -24,6 +50,11 @@ export class HLS2MP4 extends EventEmitter {
     this.cancelled = true;
   }
 
+  /**
+   * @param {ArrayLike<*>} a
+   * @param {ArrayLike<*>} b
+   * @return {boolean} Whether they hold the same values, in the same order.
+   */
   arrayEquals(a, b) {
     let i;
 
@@ -69,19 +100,20 @@ export class HLS2MP4 extends EventEmitter {
         this.videoTrack = this.makeTrack(result.videoTrack);
       }
 
-      result.videoTrack.pps.forEach((pps) => {
-        if (!this.videoTrack.pps.find((p) => {
+      // Set above; a callback does not keep that.
+      result.videoTrack.pps.forEach(/** @param {Uint8Array} pps */ (pps) => {
+        if (!/** @type {Mp4Track} */ (this.videoTrack).pps.find(/** @param {Uint8Array} p */ (p) => {
           return this.arrayEquals(p, pps);
         })) {
-          this.videoTrack.pps.push(pps);
+          /** @type {Mp4Track} */ (this.videoTrack).pps.push(pps);
         }
       });
 
-      result.videoTrack.sps.forEach((sps) => {
-        if (!this.videoTrack.sps.find((s) => {
+      result.videoTrack.sps.forEach(/** @param {Uint8Array} sps */ (sps) => {
+        if (!/** @type {Mp4Track} */ (this.videoTrack).sps.find(/** @param {Uint8Array} s */ (s) => {
           return this.arrayEquals(s, sps);
         })) {
-          this.videoTrack.sps.push(sps);
+          /** @type {Mp4Track} */ (this.videoTrack).sps.push(sps);
         }
       });
 
@@ -120,8 +152,8 @@ export class HLS2MP4 extends EventEmitter {
   }
 
   /**
-   * @param {Object} demuxedTrack the track hls.js's demuxer describes
-   * @return {Object} the track the file is written from
+   * @param {Object<string, *>} demuxedTrack the track hls.js's demuxer describes
+   * @return {Mp4Track} the track the file is written from
    */
   makeTrack(demuxedTrack) {
     return {
@@ -136,8 +168,8 @@ export class HLS2MP4 extends EventEmitter {
 
   /**
    * Adds what hls.js remuxed from one fragment to a track, and keeps its data.
-   * @param {Object} track
-   * @param {Object} remuxed hls.js's result for the track: its samples, times and mdat
+   * @param {Mp4Track} track
+   * @param {RemuxedFragment} remuxed hls.js's result for the track: its samples, times and mdat
    * @param {number} initPTS where the stream's clock was at the transmuxer's time 0, in
    *     seconds. The level and the audio rendition each have a transmuxer, which counts
    *     from its own stream's first timestamp: the chunks keep the stream's clock instead,
@@ -171,7 +203,7 @@ export class HLS2MP4 extends EventEmitter {
    * does for DASH. The samples are written one after the other, so a hole was closed up:
    * the track after it played early, and the other track, with its holes elsewhere (an audio
    * rendition has fragments of its own) or none, was out of step with it from there on.
-   * @param {Object} track
+   * @param {Mp4Track} track
    * @param {number} startDTS where the fragment after the hole starts, on the stream's clock,
    *     in seconds
    */
@@ -188,6 +220,13 @@ export class HLS2MP4 extends EventEmitter {
     }
   }
 
+  /**
+   * @param {import('../hls.mjs').Level} level - The level saved.
+   * @param {?Uint8Array} levelInitData - Its init segment, if it has one.
+   * @param {import('../hls.mjs').MediaPlaylist|undefined} audioLevel - The audio rendition
+   *     selected, if any.
+   * @param {?Uint8Array} audioInitData - Its init segment, if it has one.
+   */
   setup(level, levelInitData, audioLevel, audioInitData) {
     if (!level.details) {
       throw new Error('level.details is null');
@@ -213,11 +252,14 @@ export class HLS2MP4 extends EventEmitter {
 
     this.prevFrag = null;
     this.prevFragAudio = null;
+    /** @type {?Array<string>} The blob store's ids of the chunks' mdats, in order. */
     this.datas = [];
+    /** @type {number} Where the next mdat goes, after the init segment. */
     this.datasOffset = 0;
   }
 
   async finalize() {
+    /** @type {Array<Mp4Track>} */
     const tracks = [];
     const videoTrack = this.videoTrack;
     const audioTrack = this.audioTrack;
@@ -235,7 +277,7 @@ export class HLS2MP4 extends EventEmitter {
     // with the first frame shown by either track, as MP4Merger's does.
     // The clock is 33 bits of 90 kHz and wraps every 26.5 hours: a track that starts across
     // the wrap from the first one is brought to the same side of it.
-    const startOf = (track) => normalizePts(track.chunks[0].startPTS * TS_CLOCK, tracks[0].chunks[0].startPTS * TS_CLOCK) / TS_CLOCK;
+    const startOf = /** @param {Mp4Track} track */ (track) => normalizePts(track.chunks[0].startPTS * TS_CLOCK, tracks[0].chunks[0].startPTS * TS_CLOCK) / TS_CLOCK;
     let minStart = Infinity;
 
     for (let i = 0; i < tracks.length; i++) {
@@ -327,6 +369,18 @@ export class HLS2MP4 extends EventEmitter {
       type: 'video/mp4',
     });
   }
+  /**
+   * @param {import('../hls.mjs').Level} level - The level saved.
+   * @param {?Uint8Array} levelInitData - Its init segment, if it has one.
+   * @param {import('../hls.mjs').MediaPlaylist|undefined} audioLevel - The audio rendition
+   *     selected, if any.
+   * @param {?Uint8Array} audioInitData - Its init segment, if it has one.
+   * @param {Array<{track: number, fragment: import('../../players/hls/HLSFragment.mjs').HLSFragment,
+   *   getEntry: () => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}>} zippedFragments -
+   *   The fragments of both tracks (0 the level, 1 the audio rendition), by time, each with
+   *   what reads its data (HLSPlayer.saveVideo).
+   * @return {Promise<Blob>} The MP4 file.
+   */
   async convert(level, levelInitData, audioLevel, audioInitData, zippedFragments) {
     try {
       this.setup(level, levelInitData, audioLevel, audioInitData);
@@ -365,6 +419,9 @@ export class HLS2MP4 extends EventEmitter {
     }
   }
 
+  /**
+   * @param {boolean} [immediate] - Closes the blob store too (release()): after a failure.
+   */
   destroy(immediate) {
     if (this.transmuxer) this.transmuxer.destroy();
     if (this.transmuxerAudio) this.transmuxerAudio.destroy();

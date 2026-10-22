@@ -5,6 +5,7 @@ import {EnvUtils} from './EnvUtils.mjs';
 import {URLUtils} from './URLUtils.mjs';
 
 
+/** @typedef {Object<string, (string|null|undefined)>} QueryParams */
 export const SpecialHeaders = [
   'origin',
   'referer',
@@ -32,6 +33,7 @@ export class RequestResult {
     this.status = 0;
     this.statusText = '';
     this.responseURL = '';
+    /** @type {*} */
     this.response = null;
     /** @type {?Headers} */
     this.headers = null;
@@ -77,12 +79,13 @@ export class RequestResult {
 async function readWithProgress(response, onProgress) {
   const total = Number(response.headers.get('Content-Length')) || 0;
   const reader = /** @type {ReadableStream<Uint8Array>} */ (response.body).getReader();
+  /** @type {BlobPart[]} */
   const chunks = [];
   let loaded = 0;
   for (;;) {
     const {done, value} = await reader.read();
     if (done) break;
-    chunks.push(value);
+    chunks.push(/** @type {Uint8Array<ArrayBuffer>} */ (value));
     loaded += value.byteLength;
     onProgress({loaded, total, lengthComputable: total > 0});
   }
@@ -95,11 +98,12 @@ async function readWithProgress(response, onProgress) {
 export class RequestUtils {
   /**
    * Splits headers into special and regular headers for custom handling.
-   * @param {Object} headers - The headers object.
+   * @param {Object<string, (string|boolean)>} headers - The headers object.
    * @return {Object} An object with customHeaderCommands and regularHeaders.
    */
   static splitSpecialHeaders(headers) {
     const customHeaderCommands = [];
+    /** @type {Object<string, (string|boolean)>} */
     const regularHeaders = {};
     for (const header in headers) {
       if (!Object.hasOwn(headers, header)) continue;
@@ -122,17 +126,17 @@ export class RequestUtils {
    * @param {string} options.url - The request URL.
    * @param {string} [options.method] - HTTP method (GET, POST, etc.).
    * @param {string} [options.type] - Alias for method.
-   * @param {Object} [options.headers] - Headers to set.
-   * @param {Object} [options.query] - Query parameters.
+   * @param {Object<string, string>} [options.headers] - Headers to set.
+   * @param {QueryParams} [options.query] - Query parameters.
    * @param {string} [options.responseType] - Response type: '' or 'text', 'json',
    *   'arraybuffer' or 'blob'.
-   * @param {Object} [options.range] - Byte range for partial requests.
+   * @param {{start: number, end: number}} [options.range] - Byte range for partial requests.
    * @param {(progress: {loaded: number, total: number, lengthComputable: boolean}) => void} [options.onProgress] - Progress callback, with {loaded, total,
    *   lengthComputable} for each piece of the body.
    * @param {boolean} [options.usePlusForSpaces] - Use plus for spaces in query.
    * @param {any} [options.data] - Data to send in the request body.
    * @param {any} [options.body] - Alias for data.
-   * @param {Array} [options.header_commands] - Custom header commands for extension.
+   * @param {Array<Object>} [options.header_commands] - Custom header commands for extension.
    * @return {Promise<RequestResult>} Resolves with what the request got, failed or not.
    */
   static async request(options) {
@@ -143,12 +147,12 @@ export class RequestUtils {
     let query = '';
     if (options.query) {
       query = '?' + Object.keys(options.query).filter((key) => {
-        return options.query[key] !== undefined && options.query[key] !== null && options.query[key] !== '';
+        return /** @type {QueryParams} */ (options.query)[key] !== undefined && /** @type {QueryParams} */ (options.query)[key] !== null && /** @type {QueryParams} */ (options.query)[key] !== '';
       }).map((key) => {
         if (options.usePlusForSpaces) {
-          return encodeURIComponent(key) + '=' + encodeURIComponent(options.query[key]).replace(/%20/g, '+');
+          return encodeURIComponent(key) + '=' + encodeURIComponent(/** @type {Object<string, string>} */ (options.query)[key]).replace(/%20/g, '+');
         }
-        return encodeURIComponent(key) + '=' + encodeURIComponent(options.query[key]);
+        return encodeURIComponent(key) + '=' + encodeURIComponent(/** @type {Object<string, string>} */ (options.query)[key]);
       }).join('&');
     }
     const headers = new Headers();
@@ -213,7 +217,7 @@ export class RequestUtils {
   }
   /**
    * Makes a simple HTTP request and returns what it got.
-   * @param {Object|string} details - Request details or URL string.
+   * @param {{url: string, method?: string, type?: string, headers?: Object<string, string>, query?: QueryParams, responseType?: string, range?: {start: number, end: number}, onProgress?: (progress: {loaded: number, total: number, lengthComputable: boolean}) => void, usePlusForSpaces?: boolean, data?: *, body?: *, header_commands?: Array<Object>}|string} details - Request details or URL string.
    * @param {Function} [callback] - Optional callback(error, xhr, body): body is the
    *   responseText, or with a details.responseType other than text, the response.
    * @return {Promise<RequestResult|undefined>} Resolves with request()'s result, undefined when
@@ -273,7 +277,7 @@ export class RequestUtils {
       throw new Error('Bad status code');
     }
 
-    const headers = URLUtils.headersStringToObj(headersXHR.getAllResponseHeaders());
+    const headers = /** @type {Object<string, string>} */ (URLUtils.headersStringToObj(headersXHR.getAllResponseHeaders()));
     const range = headers['content-range'];
     if (!range) {
       throw new Error('No content-range header');
@@ -287,7 +291,7 @@ export class RequestUtils {
 
     const fragCount = Math.ceil(contentLength / fragSize);
     const buffer = new LargeBuffer(contentLength, fragCount);
-    await buffer.initialize(async (i) => {
+    await buffer.initialize(/** @type {(i: number) => Promise<Uint8Array>} */ (async (i) => {
       if (i >= fragCount) {
         throw new Error('Fragment index ' + i + ' out of range');
       }
@@ -305,7 +309,7 @@ export class RequestUtils {
         throw new Error('Bad status code');
       }
       return new Uint8Array(xhr.response);
-    });
+    }));
 
     return buffer;
   }

@@ -2,9 +2,20 @@
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {cachedAnswer} from '../DecodingCapabilities.mjs';
 
+/**
+ * What DashPlayer.probeRepresentation notes of a representation, by level id.
+ * @typedef {{probe: ?(import('../DecodingCapabilities.mjs').VideoProbe|import('../DecodingCapabilities.mjs').AudioProbe), frameRate?: number,
+ *   videoRange?: import('../DecodingCapabilities.mjs').VideoRange}} RepresentationDetails
+ */
+
 export class DashTrackUtils {
+  /**
+   * @param {import('../../modules/dash.mjs').Representation} rep
+   * @return {string} Its level id: "<type>-<representation id>".
+   */
   static getLevelFromRepresentation(rep) {
-    const type = rep.adaptation.type;
+    // A representation dash.js plays is one of an adaptation.
+    const type = /** @type {NonNullable<typeof rep.adaptation>} */ (rep.adaptation).type;
     const id = rep.id;
     return `${type}-${id}`;
   }
@@ -14,7 +25,7 @@ export class DashTrackUtils {
    * stream processor before its first representation (at the start, or a period change).
    * The players' "no level" was -1 for the one, which FastStreamClient took for a level
    * and wrote over the level an archive had asked for; the other threw.
-   * @param {Object} dash - dash.js's MediaPlayer.
+   * @param {?import('../../modules/dash.mjs').MediaPlayerClass} dash - dash.js's MediaPlayer.
    * @param {string} type - 'video' or 'audio'.
    * @return {?string}
    */
@@ -24,6 +35,10 @@ export class DashTrackUtils {
     return rep ? this.getLevelFromRepresentation(rep) : null;
   }
 
+  /**
+   * @param {string} levelId - "<type>-<representation id>".
+   * @return {string|{type: string, id: string}} Its parts, or the id itself without a type.
+   */
   static deconstructLevel(levelId) {
     const parts = levelId.split('-');
     if (parts.length < 2) {
@@ -35,8 +50,8 @@ export class DashTrackUtils {
   }
 
   /**
-   * @param {Array<Object>} tracks - dash.js MediaInfo objects.
-   * @param {?Map<string, Object>} [details] - DashPlayer.representationDetails.
+   * @param {Array<import('../../modules/dash.mjs').MediaInfo>} tracks - dash.js MediaInfo objects.
+   * @param {?Map<string, RepresentationDetails>} [details] - DashPlayer.representationDetails.
    * @return {Map<string, VideoLevel>}
    */
   static getVideoLevelList(tracks, details = null) {
@@ -59,7 +74,7 @@ export class DashTrackUtils {
           bitrate: data.bandwidth,
           mimeType: track.mimeType,
           language: track.lang,
-          videoCodec: this.mimeCodecToCodec(track.codec),
+          videoCodec: this.mimeCodecToCodec(/** @type {string} */ (track.codec)),
           track: track,
           frameRate: details?.get(levelId)?.frameRate,
           videoRange: details?.get(levelId)?.videoRange,
@@ -70,6 +85,10 @@ export class DashTrackUtils {
     return map;
   }
 
+  /**
+   * @param {string} mimeCodec
+   * @return {?string} The codecs part, or null without one.
+   */
   static mimeCodecToCodec(mimeCodec) {
     // mimeCodec format: video/mp4; codecs="avc1.42E01E, mp4a.40.2"
     const parts = mimeCodec.split(';');
@@ -88,8 +107,8 @@ export class DashTrackUtils {
   }
 
   /**
-   * @param {Array<Object>} tracks - dash.js MediaInfo objects.
-   * @param {?Map<string, Object>} [details] - DashPlayer.representationDetails.
+   * @param {Array<import('../../modules/dash.mjs').MediaInfo>} tracks - dash.js MediaInfo objects.
+   * @param {?Map<string, RepresentationDetails>} [details] - DashPlayer.representationDetails.
    * @return {Map<string, AudioLevel>}
    */
   static getAudioLevelList(tracks, details = null) {
@@ -110,7 +129,7 @@ export class DashTrackUtils {
           bitrate: data.bandwidth,
           mimeType: track.mimeType,
           language: track.lang,
-          audioCodec: this.mimeCodecToCodec(track.codec),
+          audioCodec: this.mimeCodecToCodec(/** @type {string} */ (track.codec)),
           track: track,
           decoding: cachedAnswer(details?.get(levelId)?.probe ?? null),
         }));

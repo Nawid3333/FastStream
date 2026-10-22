@@ -161,7 +161,8 @@ describe('KeybindManager wiring', () => {
     // Only the menu saved its speed: a preset or Shift+arrow went at the next video (the
     // owner's choice, 2026-10-22: as mpv remembers every speed).
     for (const action of ['IncreasePlaybackRate', 'DecreasePlaybackRate', 'ResetPlaybackRate']) {
-      const handler = source.match(new RegExp(`this\\.on\\('${action}', \\(e\\) => \\{([\\s\\S]*?)\\n    \\}\\);`));
+      // (the handler's parameter may carry its JSDoc type: /** @param {KeyboardEvent} e */)
+      const handler = source.match(new RegExp(`this\\.on\\('${action}', (?:/\\*\\*[^*]*\\*/ )?\\(e\\) => \\{([\\s\\S]*?)\\n    \\}\\);`));
       expect(handler?.[1], action).toContain('this.rememberSpeed();');
     }
     expect(source).toMatch(/const action = speedPresetAction\(preset\);[\s\S]*?this\.rememberSpeed\(\);\s*\}\);\s*\}/);

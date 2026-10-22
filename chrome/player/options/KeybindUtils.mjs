@@ -1,6 +1,11 @@
 // @ts-check
 import {DefaultKeybinds, KeybindsWithModifiers} from './defaults/DefaultKeybinds.mjs';
 
+/**
+ * The properties of the saved options that the keybinds migration touches, as they are
+ * held in storage or merged over the defaults.
+ * @typedef {{keybinds?: Object<string, string>, keybindsVersion?: number, seekStepSize?: number}} SavedOptions
+ */
 // Everything about keybinds that needs no DOM, so it can be tested in Node and shared by
 // the player (KeybindManager), the options page and the code that loads saved options.
 
@@ -247,6 +252,7 @@ export function conflictPartners(keybinds) {
 }
 
 // How a key a binding names is shown: the character it types, or the key's own name.
+/** @type {Object<string, string>} */
 const KeyDisplayNames = {
   ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
   Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Backslash: '\\',
@@ -340,8 +346,8 @@ export function isTextEntryTarget(target) {
  * Version 3 also moves a saved seekStepSize that still holds the old default of 2 to the
  * new default, since the arrows are what it sets.
  *
- * @param {Object} options - The saved options merged over the defaults; changed in place.
- * @param {Object|null} stored - The options as they were saved, before the defaults were
+ * @param {SavedOptions} options - The saved options merged over the defaults; changed in place.
+ * @param {SavedOptions|null} stored - The options as they were saved, before the defaults were
  *   filled in, or null when nothing was saved.
  * @return {Object} The same options, with keybindsVersion set.
  */
@@ -350,14 +356,18 @@ export function migrateKeybinds(options, stored) {
     return options;
   }
 
-  const storedVersion = Number.isInteger(stored?.keybindsVersion) ? stored.keybindsVersion : 1;
+  const storedVersion = Number.isInteger(stored?.keybindsVersion) ? /** @type {{keybindsVersion: number}} */ (stored).keybindsVersion : 1;
   if (stored && storedVersion < KEYBINDS_VERSION && options.keybinds && typeof options.keybinds === 'object') {
-    const saved = stored.keybinds && typeof stored.keybinds === 'object' ? stored.keybinds : {};
+    const saved = stored.keybinds && typeof stored.keybinds === 'object' ? stored.keybinds : /** @type {Object<string, string>} */ ({});
     const keybinds = options.keybinds;
 
     // Gives an action a key only if no press would then fire it and another action: the
     // key itself taken, or, for an action that ignores extra modifiers (Save video on
     // Shift+D), another's Ctrl+Shift+D.
+    /**
+     * @param {string} action - The keybind action name.
+     * @param {string} key - The key string to try to bind it to.
+     */
     const assign = (action, key) => {
       keybinds[action] = key;
       if (key !== 'None' && findKeybindConflicts(keybinds).some(({actions}) => actions.includes(action))) {
@@ -372,7 +382,7 @@ export function migrateKeybinds(options, stored) {
       }
       for (const [action, oldKey] of Object.entries(moved)) {
         if (saved[action] === oldKey) {
-          assign(action, DefaultKeybinds[action]);
+          assign(action, /** @type {Object<string, string>} */ (DefaultKeybinds)[action]);
         }
       }
       for (const action of added) {

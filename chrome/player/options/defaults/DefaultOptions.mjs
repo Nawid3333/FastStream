@@ -13,7 +13,7 @@ export const DefaultOptions = {
   playMP4URLs: false,
   playStreamURLs: false,
   mpvMode: false,
-  mpvAllowlist: [],
+  mpvAllowlist: /** @type {string[]} */ ([]),
   mpvPath: '',
   mpvFullscreen: false,
   mpvPausePage: true,
@@ -34,9 +34,10 @@ export const DefaultOptions = {
   autoplayCountdown: 5,
   defaultQuality: `Auto`,
   colorTheme: ColorThemes.DEFAULT,
-  autoEnableURLs: [],
+  autoEnableURLs: /** @type {string[]} */ ([]),
   customSourcePatterns: ``,
-  keybinds: DefaultKeybinds,
+  // Action to key string; saved ones may name actions DefaultKeybinds no longer has.
+  keybinds: /** @type {Object<string, string>} */ (DefaultKeybinds),
   keybindsVersion: KEYBINDS_VERSION,
   // Saved with the options: those saved before carry none, and their maximum size may be a
   // bare number read as bytes (Utils.migrateSizes).

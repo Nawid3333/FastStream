@@ -10,14 +10,24 @@ const MAX_CODEC_SITES = 200;
 // is no codec's fault.
 const VIDEO_DECODE_FAILURES_TO_DROP = 2;
 
+/** @typedef {import('./Levels.mjs').VideoLevel} VideoLevel */
+/** @typedef {import('./Levels.mjs').AudioLevel} AudioLevel */
+
 export class LevelManager {
+  /**
+   * @param {import('../FastStreamClient.mjs').FastStreamClient} client
+   */
   constructor(client) {
     this.client = client;
 
+    /** @type {string|number|null} */
     this.currentVideoLevelID = null;
+    /** @type {string|number|null} */
     this.currentAudioLevelID = null;
 
+    /** @type {?string} */
     this.currentVideoLanguage = null;
+    /** @type {?string} */
     this.currentAudioLanguage = null;
 
     this.prioritizedVideoContainer = 'mp4';
@@ -28,6 +38,7 @@ export class LevelManager {
     // anywhere but where it was picked and, where it did, overrode every other site.
     /** @type {Object<string, string>} */
     this.videoCodecFamilyBySite = {};
+    /** @type {?string} */
     this.prioritizedAudioCodec = null;
 
     this.shouldPreferDRCAudio = true;
@@ -136,29 +147,47 @@ export class LevelManager {
     return !!family && (this.videoDecodeFailures.get(family) || 0) >= VIDEO_DECODE_FAILURES_TO_DROP;
   }
 
+  /**
+   * @param {string|number} levelID
+   */
   setCurrentVideoLevelID(levelID) {
     this.currentVideoLevelID = levelID;
   }
 
+  /**
+   * @param {string|number} levelID
+   */
   setCurrentAudioLevelID(levelID) {
     this.currentAudioLevelID = levelID;
   }
 
+  /**
+   * @param {string} language - Language code.
+   */
   setCurrentVideoLanguage(language) {
     this.currentVideoLanguage = language;
     this.savePreferences();
   }
 
+  /**
+   * @param {string} language - Language code.
+   */
   setCurrentAudioLanguage(language) {
     this.currentAudioLanguage = language;
     this.savePreferences();
   }
 
+  /**
+   * @param {string} container - The subtype of a MIME type, e.g. 'mp4'.
+   */
   setPrioritizedVideoContainer(container) {
     this.prioritizedVideoContainer = container;
     this.savePreferences();
   }
 
+  /**
+   * @param {string} container - The subtype of a MIME type, e.g. 'mp4'.
+   */
   setPrioritizedAudioContainer(container) {
     this.prioritizedAudioContainer = container;
     this.savePreferences();
@@ -191,8 +220,8 @@ export class LevelManager {
    * from such a click outranked the hardware decoder (rankHeightGroup) at every height on
    * that site, so one click on a 360p that only came in H.264 got the software-decoded
    * H.264 1080p over the hardware HEVC one from then on.
-   * @param {Object} level - The version picked.
-   * @param {Array<Object>} [versions] - The versions of its size it was picked from.
+   * @param {VideoLevel} level - The version picked.
+   * @param {Array<VideoLevel>} [versions] - The versions of its size it was picked from.
    */
   rememberVideoChoice(level, versions = [level]) {
     const mimeType = (level.mimeType || '').split('/');
@@ -208,7 +237,7 @@ export class LevelManager {
   /**
    * Whether picking one of these versions is a choice between codecs: they come in more
    * than one codec family (a version whose codec is not known does not count).
-   * @param {Array<Object>} versions
+   * @param {Array<VideoLevel>} versions
    * @return {boolean}
    */
   static isCodecChoice(versions) {
@@ -236,7 +265,8 @@ export class LevelManager {
    * @return {?string}
    */
   getSiteKey() {
-    const source = this.client?.source;
+    // FastStreamClient's docs call its source an Object; every setSource() is handed a VideoSource.
+    const source = /** @type {import('../VideoSource.mjs').VideoSource|null|undefined} */ (this.client?.source);
     if (!source) {
       return null;
     }
@@ -270,13 +300,13 @@ export class LevelManager {
    * higher first. Only what is known moves a version ahead of today's choice (the higher
    * bitrate): frame rate and codec efficiency count only between versions decoded in
    * hardware, and a version without an answer sits between a hardware and a software one.
-   * @param {Object} level
+   * @param {VideoLevel} level
    * @param {boolean} hdrScreen
    * @return {Array<number>}
    */
   videoRankKey(level, hdrScreen) {
     const decoding = level.decoding || null;
-    const known = (value) => value === true ? 2 : (decoding ? 0 : 1);
+    const known = /** @param {boolean|undefined} value - One of the decoding answers. */ (value) => value === true ? 2 : (decoding ? 0 : 1);
     const isHdr = !!level.videoRange && level.videoRange !== 'SDR';
     const hdrUsable = isHdr && hdrScreen && decoding?.supported === true;
     const hardware = decoding?.powerEfficient === true;
@@ -297,8 +327,8 @@ export class LevelManager {
    * Orders the versions that share the first one's height (the height being picked) by
    * videoRankKey; the rest stay behind them as matchQuality left them. Nothing is removed,
    * and no version of another height moves ahead: the resolution stays the user's choice.
-   * @param {Array<Object>} levels - As matchQuality returns them.
-   * @return {Array<Object>}
+   * @param {Array<VideoLevel>} levels - As matchQuality returns them.
+   * @return {Array<VideoLevel>}
    */
   rankHeightGroup(levels) {
     if (levels.length < 2) {
@@ -325,11 +355,17 @@ export class LevelManager {
     return [...group, ...rest];
   }
 
+  /**
+   * @param {string} codec - An audio level's codec.
+   */
   setPrioritizedAudioCodec(codec) {
     this.prioritizedAudioCodec = codec;
     this.savePreferences();
   }
 
+  /**
+   * @param {boolean} prefer
+   */
   setShouldPreferDRCAudio(prefer) {
     this.shouldPreferDRCAudio = prefer;
     this.savePreferences();
@@ -365,6 +401,11 @@ export class LevelManager {
     }
   }
 
+  /**
+   * @param {Array<VideoLevel>} levels
+   * @param {number} desiredHeight - In pixels; Infinity for the highest.
+   * @return {Array<VideoLevel>}
+   */
   matchQuality(levels, desiredHeight) {
     // Prefer the smallest level that still meets or exceeds the target
     // height - never settle for a lower resolution than requested if a
@@ -372,7 +413,9 @@ export class LevelManager {
     // 1440p target with 1080p/4K available should land on 4K, not 1080p).
     // Only fall back to a lower resolution when nothing meets the target,
     // in which case the highest of those remaining is the closest possible.
+    /** @type {Array<VideoLevel>} */
     const atOrAbove = [];
+    /** @type {Array<VideoLevel>} */
     const below = [];
     levels.forEach((level) => {
       if (level.height >= desiredHeight) {
@@ -402,6 +445,11 @@ export class LevelManager {
     return [...atOrAbove, ...below];
   }
 
+  /**
+   * @param {VideoLevel|(AudioLevel & {videoCodec?: undefined})} level - An AudioLevel has no
+   *     videoCodec.
+   * @return {boolean}
+   */
   isLevelContainerPrioritized(level) {
     if (!level || !level.mimeType) {
       return false;
@@ -423,14 +471,19 @@ export class LevelManager {
     }
   }
 
+  /**
+   * @param {string} codec
+   * @return {boolean}
+   */
   isCodecSupported(codec) {
     return true;
   }
 
   /**
-   * @param {Array<Object>} availableLevels
+   * @param {Array<VideoLevel>} availableLevels
    * @param {?number} [desiredHeight]
    * @param {boolean} [ignoreCurrent]
+   * @return {?VideoLevel}
    */
   pickVideoLevel(availableLevels, desiredHeight = null, ignoreCurrent = false) {
     // Check if current level is still valid
@@ -488,6 +541,11 @@ export class LevelManager {
     return availableLevels[0] || null;
   }
 
+  /**
+   * @param {Array<AudioLevel>} availableLevels
+   * @param {boolean} [ignoreCurrent]
+   * @return {?AudioLevel}
+   */
   pickAudioLevel(availableLevels, ignoreCurrent = false) {
     // Check if current level is still valid
     if (!ignoreCurrent && this.currentAudioLevelID !== null) {
@@ -548,8 +606,13 @@ export class LevelManager {
     return availableLevels[0] || null;
   }
 
+  /**
+   * @param {Array<VideoLevel>} availableLevels
+   * @return {Array<VideoLevel>}
+   */
   filterVideoLevelsByLanguage(availableLevels) {
     const lang = this.getVideoLanguage();
+    /** @type {Array<{level: VideoLevel, matchLevel: number}>} */
     const matched = [];
     availableLevels.forEach((level) => {
       const matchLevel = Localize.getLanguageMatchLevel(level.language, lang);
@@ -568,8 +631,13 @@ export class LevelManager {
     return matched.filter((item) => item.matchLevel === best).map((item) => item.level);
   }
 
+  /**
+   * @param {Array<AudioLevel>} availableLevels
+   * @return {Array<AudioLevel>}
+   */
   filterAudioLevelsByLanguage(availableLevels) {
     const lang = this.getAudioLanguage();
+    /** @type {Array<{level: AudioLevel, matchLevel: number}>} */
     const matched = [];
     availableLevels.forEach((level) => {
       const matchLevel = Localize.getLanguageMatchLevel(level.language, lang);

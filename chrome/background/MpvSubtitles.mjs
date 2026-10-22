@@ -2,6 +2,7 @@
 import {SubtitleUtils} from '../player/utils/SubtitleUtils.mjs';
 import {StreamLengths} from './StreamLengths.mjs';
 
+/** @typedef {import('../player/SubtitleTrack.mjs').SubtitleTrack} SubtitleTrack */
 // The host takes at most this many tracks (MaxSubtitles in native-host/faststream-mpv-host.mjs).
 export const MAX_TRACKS = 8;
 // The most of a page's tracks read for one send: some may fail or hold no cue.
@@ -20,7 +21,7 @@ export const MAX_FILE_BYTES = 2 * 1024 * 1024;
  * @param {string} text - The file.
  * @param {string} label - The track's label.
  * @param {string} language - Its language.
- * @return {Promise<{cues: Array}>} The track.
+ * @return {Promise<SubtitleTrack>} The track.
  */
 async function loadTrack(text, label, language) {
   const {SubtitleTrack} = await import('../player/SubtitleTrack.mjs');
@@ -44,7 +45,7 @@ export class MpvSubtitles {
    * @param {(url: string, commands: Array<Object>) => Promise<*>} [options.setHeaders] -
    *   Makes the background's next request to a URL carry the page's Origin and Referer,
    *   which a fetch() cannot set: a declarativeNetRequest rule, as StreamLengths' reads get.
-   * @param {(text: string, label: string, language: string) => Promise<{cues: Array}>}
+   * @param {(text: string, label: string, language: string) => Promise<SubtitleTrack>}
    *   [options.loadTrack] - Reads a file into a track.
    */
   constructor({
@@ -58,7 +59,7 @@ export class MpvSubtitles {
   }
 
   /**
-   * @param {Array<Object>} subs - The page's tracks, as the background holds them:
+   * @param {Array<{source?: string, data?: string, headers?: Array<{name: string, value: string}>, label?: string, language?: string}>} subs - The page's tracks, as the background holds them:
    *   {source?, data?, headers?, label?, language?}. A <track> element's come with their
    *   text (data); a detected request's with its URL and headers.
    * @return {Promise<Array<{label: string, srt: string}>>} Those with cues, in the page's

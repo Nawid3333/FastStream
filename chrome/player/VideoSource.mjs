@@ -83,7 +83,8 @@ export class VideoSource {
    * remembered time goes by the list's first file, whichever is played (it went by the URL
    * played, and a hoster's redirect target, the same for every film on its CDN node, shared
    * one remembered time between them).
-   * @param {?Array<{url: string, label: string, height: number}>} qualities
+   * @param {?Array<{url: string, label: string, height: number}>|undefined} qualities - None
+   *     when the page offered none.
    */
   setQualities(qualities) {
     if (!Array.isArray(qualities) || qualities.length < 2) {
@@ -159,7 +160,13 @@ export class VideoSource {
     }
   }
 
+  /**
+   * The headers without those the browser sets itself, names in lower case.
+   * @param {Object<string, string>} headers - Header name to value.
+   * @return {Object<string, string>} A new object.
+   */
   filterHeaders(headers) {
+    /** @type {Object<string, string>} */
     const filteredHeaders = {};
     for (const key in headers) {
       if (headerBlacklist.includes(key.toLowerCase())) {

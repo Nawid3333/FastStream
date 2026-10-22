@@ -1,5 +1,22 @@
 // @ts-check
 export class VideoLevel {
+  /**
+   * @param {Object} level - What the player knows of this version of the video.
+   * @param {string} level.id
+   * @param {number} [level.width]
+   * @param {number} [level.height]
+   * @param {number} [level.bitrate]
+   * @param {?string} [level.mimeType]
+   * @param {?string} [level.language]
+   * @param {?string} [level.videoCodec]
+   * @param {?string} [level.audioCodec]
+   * @param {*} [level.track] - The player's own object for it, whichever library made it: a
+   *     dash.js MediaInfo, an hls.js Level, mp4box's track info.
+   * @param {string} [level.label]
+   * @param {number} [level.frameRate]
+   * @param {import('./DecodingCapabilities.mjs').VideoRange} [level.videoRange]
+   * @param {?import('./DecodingCapabilities.mjs').DecodingInfo} [level.decoding]
+   */
   constructor({
     id,
     width,
@@ -38,6 +55,16 @@ export class VideoLevel {
 }
 
 export class AudioLevel {
+  /**
+   * @param {Object} level - What the player knows of this version of the audio.
+   * @param {string} level.id
+   * @param {number} [level.bitrate]
+   * @param {?string} [level.mimeType]
+   * @param {?string} [level.language]
+   * @param {?string} [level.audioCodec]
+   * @param {*} [level.track] - The player's own object for it, as VideoLevel's.
+   * @param {?import('./DecodingCapabilities.mjs').DecodingInfo} [level.decoding]
+   */
   constructor({
     id,
     bitrate,

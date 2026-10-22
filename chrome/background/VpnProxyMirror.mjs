@@ -323,7 +323,7 @@ export class VpnProxyMirror {
     const key = host ? this.hosts.get(VpnProxyMirror.hostKey(details.incognito, host))?.key : undefined;
     const seen = key ? this.proxies.get(key) : undefined;
     if (!seen || !CopyableTypes.includes(seen.type)) return undefined;
-    /** @type {Object} */
+    /** @type {SeenProxy} */
     const answer = {type: seen.type, host: seen.host, port: seen.port};
     if (seen.proxyAuthorizationHeader) answer.proxyAuthorizationHeader = seen.proxyAuthorizationHeader;
     if (seen.connectionIsolationKey) answer.connectionIsolationKey = seen.connectionIsolationKey;
@@ -365,6 +365,10 @@ export class VpnProxyMirror {
     if (!api || !urls.length) return;
     this.listenerUrls = urls;
     try {
+      /**
+       * @param {{url: string, tabId?: number, incognito?: boolean, originUrl?: string,
+       *   documentUrl?: string}} details
+       */
       const listener = (details) => this.proxyFor(details);
       api.onRequest.addListener(listener, {urls});
       this.listeners = [listener];
@@ -374,6 +378,10 @@ export class VpnProxyMirror {
       // out. (A listener registers once, so each host gets its own.)
       console.warn('Could not listen for proxy requests to all hosts at once', e);
       for (const url of urls) {
+        /**
+         * @param {{url: string, tabId?: number, incognito?: boolean, originUrl?: string,
+         *   documentUrl?: string}} details
+         */
         const listener = (details) => this.proxyFor(details);
         try {
           api.onRequest.addListener(listener, {urls: [url]});

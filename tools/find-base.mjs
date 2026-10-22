@@ -42,7 +42,9 @@ import fs from 'node:fs';
 import {fingerprint} from './ast-compare.mjs';
 
 const args = process.argv.slice(2);
+/** @type {string[]} */
 const positional = [];
+/** @type {Object<string, string>} */
 const opts = {};
 // Two fixed option names only: anything else falls through to the positional list, so
 // an argv value never becomes an object key (CodeQL js/remote-property-injection).
@@ -72,6 +74,7 @@ if (!localPath) {
  * @return {Promise<any>} the parsed response
  */
 async function api(url) {
+  /** @type {Object<string, string>} */
   const headers = {'accept': 'application/vnd.github+json'};
   if (process.env.GITHUB_TOKEN) {
     headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
@@ -99,6 +102,7 @@ async function candidates() {
   // --repo/--path cannot send the request anywhere else (CodeQL js/request-forgery).
   if (!/^[\w.-]+\/[\w.-]+$/.test(opts.repo)) throw new Error(`${opts.repo}: not an owner/repo pair`);
   if (!/^[\w./-]+\.[a-z]+$/.test(opts.path)) throw new Error(`${opts.path}: not a file path`);
+  /** @param {string} ref */
   const raw = (ref) =>
     `https://raw.githubusercontent.com/${opts.repo}/${ref}/${opts.path}`;
 
@@ -109,7 +113,7 @@ async function candidates() {
           `https://api.github.com/repos/${opts.repo}/tags` +
           `?per_page=100&page=${page}`);
       if (!tags.length) break;
-      out.push(...tags.map((t) => ({label: t.name, url: raw(t.name)})));
+      out.push(...tags.map((/** @type {{name: string}} */ t) => ({label: t.name, url: raw(t.name)})));
     }
     return out;
   }
@@ -120,7 +124,7 @@ async function candidates() {
         `https://api.github.com/repos/${opts.repo}/commits` +
         `?path=${encodeURIComponent(opts.path)}&per_page=100&page=${page}`);
     if (!commits.length) break;
-    out.push(...commits.map((c) => ({
+    out.push(...commits.map((/** @type {{sha: string, commit: {author: {date: string}}}} */ c) => ({
       label: `${c.sha.slice(0, 8)} ${c.commit.author.date.slice(0, 10)}`,
       url: raw(c.sha),
     })));
@@ -169,7 +173,7 @@ for (const c of list) {
 rows.sort((a, b) => {
   if (a.note) return 1;
   if (b.note) return -1;
-  return a.delta - b.delta || b.prefix - a.prefix;
+  return /** @type {number} */ (a.delta) - /** @type {number} */ (b.delta) || /** @type {number} */ (b.prefix) - /** @type {number} */ (a.prefix);
 });
 
 for (const r of rows.slice(0, 25)) {

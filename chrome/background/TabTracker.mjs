@@ -49,6 +49,20 @@ function isFileSource(source) {
   return source.mode === PlayerModes.ACCELERATED_MP4 || source.mode === PlayerModes.DIRECT;
 }
 
+/**
+ * A stream a frame's page asked for, as background.mjs keeps it (addSource): its request's
+ * headers as detected, when it was detected, and, for a redirected one, the address the
+ * page asked for.
+ * @typedef {{url: string, mode: string, headers: *, time: number, requestedUrl?: string}} TrackedSource
+ */
+
+/**
+ * A subtitle of a frame's page: a file it asked for (background.mjs handleSubtitles), or one
+ * of its <track> elements as content.js read it, with its text (takeScrapedCaptions).
+ * @typedef {{source: string, label: string, headers: *, time: number}|
+ *   {source: string, label: string, data: string, language: string}} TrackedSubtitle
+ */
+
 export class FrameHolder {
   constructor(tab, frameId) {
     this.tab = tab;
@@ -56,9 +70,9 @@ export class FrameHolder {
     this.parent = null;
     this.children = new Set();
     // Set by reset(), as the rest of a frame's page state.
-    /** @type {Array<Object>} */
+    /** @type {Array<TrackedSubtitle>} */
     this.trackedSubtitles = [];
-    /** @type {Array<Object>} */
+    /** @type {Array<TrackedSource>} */
     this.trackedSources = [];
     this.reset();
   }
@@ -73,6 +87,8 @@ export class FrameHolder {
     this.isPlayer = false;
     this.trackedSubtitles = [];
     this.trackedSources = [];
+    // A string from the constructor on, which runs this.
+    /** @type {string} */
     this.url = '';
     /**
      * The name content.js gave the page it shows (FRAME_ADDED); null when unknown.
@@ -151,7 +167,7 @@ export class FrameHolder {
 
   /**
    * Keeps a stream the page asked for, within the limits (trimTracked).
-   * @param {{url: string, mode: string}} source - The source.
+   * @param {TrackedSource} source
    */
   addSource(source) {
     this.trackedSources.push(source);
@@ -160,7 +176,9 @@ export class FrameHolder {
 
   /**
    * Keeps a subtitle file the page asked for, within the limits (trimTracked).
-   * @param {{source: string}} subtitle - The subtitle.
+   * @param {{source: string, headers: *, label: string, time: number}} subtitle - The subtitle:
+   *   its URL, its request's headers, its file name, when it was detected (background.mjs
+   *   handleSubtitles).
    */
   addSubtitle(subtitle) {
     this.trackedSubtitles.push(subtitle);
@@ -261,7 +279,7 @@ export class TabHolder {
     this.mpvNextPickTimer = undefined;
     // A fullscreen carried over to the next episode (background.mjs setCarriedFullscreen):
     // the window's state before it went fullscreen, to go back to, and the player that asked.
-    /** @type {?string} */
+    /** @type {chrome.windows.Window['state']|null} */
     this.windowStateBefore = null;
     /** @type {?number} */
     this.carriedFullscreenFrameId = null;
@@ -320,6 +338,8 @@ export class TabHolder {
     // a new hostname) still names the page it replaced. The names this reset drops can be
     // live ones. The reset before a reload knows better (resetForReload).
     this.frames.clear();
+    // A number from the constructor on, which runs this.
+    /** @type {number} */
     this.playerCount = 0;
     // The frames that played are gone with the frames: a new page's frame that came back
     // with one of their ids counted as a playing player and held the page's media paused.
