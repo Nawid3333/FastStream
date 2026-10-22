@@ -50,6 +50,7 @@ const CHECKED = [
   'chrome/player/network/PlayerPeers.mjs',
   'chrome/player/network/PlayheadFirst.mjs',
   'chrome/player/network/SpeedTracker.mjs',
+  'chrome/player/network/StandardDownloader.mjs',
   'chrome/player/options/KeybindUtils.mjs',
   'chrome/player/options/MpvSuggestion.mjs',
   'chrome/player/options/OptionsStore.mjs',
@@ -117,6 +118,7 @@ const CHECKED = [
   'chrome/player/utils/URLUtils.mjs',
   'chrome/player/utils/UpdateChecker.mjs',
   'chrome/player/utils/VideoTransformUtils.mjs',
+  'chrome/player/utils/VideoUtils.mjs',
   'native-host/faststream-mpv-host.mjs',
 ];
 

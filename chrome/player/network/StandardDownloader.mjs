@@ -1,3 +1,4 @@
+// @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {SpeedTracker} from './SpeedTracker.mjs';
 import {FetchLoader} from './FetchLoader.mjs';
@@ -9,6 +10,8 @@ export class StandardDownloader {
   constructor(manager) {
     this.speedTracker = new SpeedTracker();
     this.manager = manager;
+    // A FetchLoader, or the stand-in for one while its request is being made (download).
+    /** @type {*} */
     this.loader = null;
     this.entry = null;
     this.stats = null;
