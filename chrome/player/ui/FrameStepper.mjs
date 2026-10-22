@@ -95,7 +95,7 @@ export class FrameStepper {
     if (typeof video.requestVideoFrameCallback !== 'function') {
       return;
     }
-  /** @type {(now: number, metadata: VideoFrameCallbackMetadata) => void} */
+    /** @type {(now: number, metadata: VideoFrameCallbackMetadata) => void} */
     const onFrame = (now, metadata) => {
       if (this.video !== video) {
         return;

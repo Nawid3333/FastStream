@@ -148,10 +148,10 @@ export class AudioQualityChanger extends EventEmitter {
     });
   }
 
- /**
+  /**
   * @param {{getLevelManager: () => {filterAudioLevelsByLanguage: (levels: AudioLevel[]) => AudioLevel[]}, getAudioLevels: () => Map<string, AudioLevel>, getCurrentAudioLevelID: () => string}} client
   */
- updateQualityLevels(client) {
+  updateQualityLevels(client) {
     const audioLevels = client.getLevelManager().filterAudioLevelsByLanguage(Array.from(client.getAudioLevels().values()));
     this.hasChoice = !!audioLevels && audioLevels.length > 1;
     /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).classList.toggle('hidden', !this.hasChoice);
