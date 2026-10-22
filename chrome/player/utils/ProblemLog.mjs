@@ -15,8 +15,22 @@ export const ProblemKinds = Object.freeze({
 });
 
 /**
+ * A site's problem of one kind, as the list keeps it.
+ * @typedef {Object} ProblemEntry
+ * @property {string} id - Its host and kind.
+ * @property {string} [protocol] - Not in an entry noted before it was kept.
+ * @property {string} host
+ * @property {string} path - The page's path, without its query.
+ * @property {string} kind - One of ProblemKinds.
+ * @property {'player'|'mpv'} mode
+ * @property {number} count
+ * @property {number} first - When it was first noted (ms since 1970).
+ * @property {number} last - When it was last noted.
+ */
+
+/**
  * The list as stored.
- * @return {Promise<Array<Object>>}
+ * @return {Promise<Array<ProblemEntry>>}
  */
 export async function readProblems() {
   // The callback form: every page that reads it has it (the options page's tests too).
@@ -91,7 +105,7 @@ export function clearProblems() {
 
 /**
  * Writes the list.
- * @param {Array<Object>} list
+ * @param {Array<ProblemEntry>} list
  * @return {Promise<void>}
  */
 function store(list) {
@@ -101,7 +115,7 @@ function store(list) {
 /**
  * The GitHub issue a report opens, for the user to check and submit: the site, what went
  * wrong, the versions. English, for the repository.
- * @param {Object} entry - One of the list.
+ * @param {ProblemEntry} entry - One of the list.
  * @param {{version: string, browser: string}} about
  * @return {string} The new-issue address.
  */

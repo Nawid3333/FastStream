@@ -21,7 +21,9 @@ import {AspectRatios} from './defaults/AspectRatios.mjs';
 import {ColorThemes} from './defaults/ColorThemes.mjs';
 import {MpvSuggestion} from './MpvSuggestion.mjs';
 
-let Options = {};
+// Empty until the saved options are read (loadOptions): the select menus below are built
+// before, and read none.
+let Options = /** @type {typeof DefaultOptions} */ ({});
 const playStreamURLs = /** @type {HTMLInputElement} */ (document.getElementById('playstreamurls'));
 const playMP4URLs = /** @type {HTMLInputElement} */ (document.getElementById('playmp4urls'));
 const downloadAll = /** @type {HTMLInputElement} */ (document.getElementById('downloadall'));
@@ -52,23 +54,23 @@ const autoplayCountdown = /** @type {HTMLInputElement} */ (document.getElementBy
 const problemsList = /** @type {HTMLElement} */ (document.getElementById('problemslist'));
 const clearProblemsButton = /** @type {HTMLButtonElement} */ (document.getElementById('clearproblems'));
 const blockPopupsWhilePlaying = /** @type {HTMLInputElement} */ (document.getElementById('blockpopupswhileplaying'));
-const qualityMenu = document.getElementById('quality');
+const qualityMenu = /** @type {HTMLElement} */ (document.getElementById('quality'));
 const importButton = /** @type {HTMLElement} */ (document.getElementById('import'));
 const exportButton = /** @type {HTMLElement} */ (document.getElementById('export'));
-const clickAction = document.getElementById('clickaction');
-const dblclickAction = document.getElementById('dblclickaction');
-const tplclickAction = document.getElementById('tplclickaction');
-const visChangeAction = document.getElementById('vischangeaction');
+const clickAction = /** @type {HTMLElement} */ (document.getElementById('clickaction'));
+const dblclickAction = /** @type {HTMLElement} */ (document.getElementById('dblclickaction'));
+const tplclickAction = /** @type {HTMLElement} */ (document.getElementById('tplclickaction'));
+const visChangeAction = /** @type {HTMLElement} */ (document.getElementById('vischangeaction'));
 const customSourcePatterns = /** @type {HTMLTextAreaElement} */ (document.getElementById('customSourcePatterns'));
 const showWhenMiniSelected = /** @type {HTMLElement} */ (document.getElementById('showWhenMiniSelected'));
 const storeProgress = /** @type {HTMLInputElement} */ (document.getElementById('storeprogress'));
 const miniSize = /** @type {HTMLInputElement} */ (document.getElementById('minisize'));
-const miniPos = document.getElementById('minipos');
+const miniPos = /** @type {HTMLElement} */ (document.getElementById('minipos'));
 const previewEnabled = /** @type {HTMLInputElement} */ (document.getElementById('previewenabled'));
 const decodingAwareQuality = /** @type {HTMLInputElement} */ (document.getElementById('decodingawarequality'));
 const replaceDelay = /** @type {HTMLInputElement} */ (document.getElementById('replacedelay'));
-const colorTheme = document.getElementById('colortheme');
-const videoAspectRatio = document.getElementById('videoAspectRatio');
+const colorTheme = /** @type {HTMLElement} */ (document.getElementById('colortheme'));
+const videoAspectRatio = /** @type {HTMLElement} */ (document.getElementById('videoAspectRatio'));
 const optionsSearchBar = /** @type {HTMLInputElement} */ (document.getElementById('searchbar'));
 const optionsResetButton = /** @type {HTMLElement} */ (document.getElementById('resetsearch'));
 const maxdownloaders = /** @type {HTMLInputElement} */ (document.getElementById('maxdownloaders'));
@@ -146,9 +148,14 @@ if (!EnvUtils.isExtension()) {
   autoplayCountdown.disabled = true;
 }
 
+/**
+ * Shows the options on the page.
+ * @param {Object} newOptions - The saved options merged over DefaultOptions (OptionsStore and
+ *     Utils, which call them an Object).
+ */
 async function loadOptions(newOptions) {
   newOptions = newOptions || OptionsStore.get();
-  Options = newOptions;
+  Options = /** @type {typeof DefaultOptions} */ (newOptions);
 
   downloadAll.checked = !!Options.downloadAll;
   maxSize.disabled = !downloadAll.checked;
@@ -168,7 +175,8 @@ async function loadOptions(newOptions) {
   decodingAwareQuality.checked = Options.decodingAwareQuality !== false;
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   autoplayNext.checked = !!Options.autoplayNext;
-  autoplayCountdown.value = Options.autoplayCountdown;
+  // A number: the field's value takes it as text.
+  autoplayCountdown.value = /** @type {string} */ (/** @type {unknown} */ (Options.autoplayCountdown));
   blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
   showSpeed(Options.maxSpeed);
   showSize(maxSize, maxSizeUnit, Options.maxVideoSize);
@@ -181,8 +189,8 @@ async function loadOptions(newOptions) {
   // A part of the player, shown in percent: 0.25 left users typing 25, which was 100%.
   miniSize.value = /** @type {any} */ (Math.round(Options.miniSize * 1000) / 10);
   storeProgress.checked = !!Options.storeProgress;
-  replaceDelay.value = Options.replaceDelay;
-  maxdownloaders.value = Options.maximumDownloaders;
+  replaceDelay.value = /** @type {string} */ (/** @type {unknown} */ (Options.replaceDelay));
+  maxdownloaders.value = /** @type {string} */ (/** @type {unknown} */ (Options.maximumDownloaders));
 
   setSelectMenuValue(clickAction, Options.singleClickAction);
   setSelectMenuValue(dblclickAction, Options.doubleClickAction);
@@ -210,7 +218,8 @@ async function loadOptions(newOptions) {
     const rangeInput = /** @type {HTMLInputElement & {value: any}} */ (option.querySelector('input.range'));
     const unit = option.dataset.unit || '%';
     const unitMultiplier = parseInt(/** @type {string} */ (option.dataset.multiplier || 100));
-    const optionKey = /** @type {string} */ (option.dataset.option);
+    // The two .video-option rows of options.html.
+    const optionKey = /** @type {'videoZoom'|'videoDelay'} */ (option.dataset.option);
     const val = Math.round(Options[optionKey] * unitMultiplier);
     rangeInput.value = val;
     numberInput.value = val + unit;
@@ -233,6 +242,13 @@ async function loadOptions(newOptions) {
 }
 
 /**
+ * @param {HTMLElement} container - The menu's place, which names it (data-i18n-label).
+ * @param {string[]} options - The values to choose from.
+ * @param {string|undefined} selected - The value chosen. Undefined from the calls below, which run
+ *     before the options are read: loadOptions chooses then (setSelectMenuValue).
+ * @param {?string} localPrefix - The locale messages' prefix for the values; null shows them
+ *     as they are.
+ * @param {(e: Event & {target: HTMLSelectElement}) => void} callback - On a change.
  * @param {((option: string) => string)|null} [labelOf]
  */
 function createSelectMenu(container, options, selected, localPrefix, callback, labelOf = null) {
@@ -257,6 +273,10 @@ function createSelectMenu(container, options, selected, localPrefix, callback, l
   container.appendChild(select);
 }
 
+/**
+ * @param {HTMLElement} container - As createSelectMenu took it.
+ * @param {string} value
+ */
 function setSelectMenuValue(container, value) {
   const select = container.querySelector('select');
   if (!select) {
@@ -314,7 +334,7 @@ createSelectMenu(qualityMenu, Object.values(DefaultQualities), Options.defaultQu
 });
 
 document.querySelectorAll('.option').forEach((option) => {
-  option.addEventListener('click', (e) => {
+  option.addEventListener('click', /** @param {MouseEvent & {target: Element}} e */ (e) => {
     // A unit picker beside a number takes its own clicks.
     if (e.target.tagName !== 'INPUT' && !e.target.closest('select')) {
       const input = option.querySelector('input');
@@ -345,7 +365,8 @@ document.querySelectorAll('.option').forEach((option) => {
   const unit = option.dataset.unit || '%';
   const unitMultiplier = parseInt(/** @type {string} */ (option.dataset.multiplier || 100));
 
-  const optionKey = /** @type {string} */ (option.dataset.option);
+  // The two .video-option rows of options.html.
+  const optionKey = /** @type {'videoZoom'|'videoDelay'} */ (option.dataset.option);
 
   function numberInputChanged() {
     const text = numberInput.value.replace(unit, '').trim();
@@ -363,6 +384,9 @@ document.querySelectorAll('.option').forEach((option) => {
   // writes the storage and makes every player read the options again (review of
   // 2026-10-14). The video still follows the drag; letting go saves at once.
   let pendingSave = 0;
+  /**
+   * @param {Event} e - The slider's change or input.
+   */
   function rangeInputChanged(e) {
     numberInput.value = rangeInput.value + unit;
     Options[optionKey] = parseInt(rangeInput.value) / unitMultiplier;
@@ -423,6 +447,9 @@ function refreshKeybindConflicts() {
   });
 }
 
+/**
+ * @param {string} keybind - The action.
+ */
 function createKeybindElement(keybind) {
   const containerElement = document.createElement('div');
   containerElement.classList.add('keybind-container');
@@ -575,7 +602,7 @@ mpvAutoplayNextToggle.addEventListener('change', () => {
  * @return {boolean} True when they are the same mpv.
  */
 function samePath(typed, found) {
-  const norm = (p) => p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+  const norm = /** @param {string} p */ (p) => p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
   // A folder: mpv.exe in it on Windows, mpv on Linux (/usr/bin for /usr/bin/mpv said "found
   // at another path").
   return norm(typed) === norm(found) || norm(typed) + '\\mpv.exe' === norm(found) ||
@@ -747,6 +774,7 @@ function showSpeed(bytesPerSecond) {
 
 // What a limit of 0, or no limit, does, under the field: both are easy to set without
 // meaning to, and their effect is not visible on the page.
+/** @type {Object<string, {zero: string, none?: string}>} By the field's id. */
 const LIMIT_HINTS = {
   maxspeed: {zero: 'options_general_targetspeed_zero'},
   maxsize: {zero: 'options_general_maxsize_zero'},
@@ -818,7 +846,7 @@ maxSpeed.addEventListener('change', (e) => {
   if (value !== null) optionChanged();
 });
 
-const onMaxSizeChange = (e) => {
+const onMaxSizeChange = /** @param {Event} e */ (e) => {
   const value = readLimit(maxSize, Number(maxSizeUnit.value));
   if (value !== null) Options.maxVideoSize = value;
   if (e.isTrusted) showSize(maxSize, maxSizeUnit, Options.maxVideoSize, true);
@@ -832,7 +860,7 @@ maxSizeUnit.addEventListener('change', onMaxSizeChange);
 // (a private window, or "Keep video on disk" off, lets it go). Empty: no limit, all of it
 // in RAM. 0: none in RAM: straight to disk, or, where nothing goes to disk, nothing is
 // downloaded ahead of playback.
-const onRamBudgetChange = (e) => {
+const onRamBudgetChange = /** @param {Event} e */ (e) => {
   const value = readLimit(ramBudget, Number(ramBudgetUnit.value));
   if (value !== null) Options.ramBudget = value;
   if (e.isTrusted) showSize(ramBudget, ramBudgetUnit, Options.ramBudget, true);
@@ -883,7 +911,7 @@ function showSeconds(input, seconds) {
 
 // Whole seconds; an empty field is no limit (-1), and anything else that is no number keeps
 // the value saved (an empty field read as 0 kept nothing buffered).
-for (const [input, option] of /** @type {[HTMLInputElement, string][]} */ ([[bufferAhead, 'bufferAhead'], [bufferBehind, 'bufferBehind']])) {
+for (const [input, option] of /** @type {[HTMLInputElement, 'bufferAhead'|'bufferBehind'][]} */ ([[bufferAhead, 'bufferAhead'], [bufferBehind, 'bufferBehind']])) {
   input.addEventListener('change', (e) => {
     const text = input.value.trim().replace(',', '.');
     const seconds = text === '' ? -1 : Number(text);
