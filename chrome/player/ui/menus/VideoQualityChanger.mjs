@@ -4,6 +4,8 @@ import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {getCodecDisplayName, getDecodingLabel} from '../../players/DecodingCapabilities.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 
+/** @typedef {import('../../players/Levels.mjs').VideoLevel} VideoLevel */
+
 const DECODING_MESSAGES = {
   hardware: {badge: 'player_quality_hw', title: 'player_quality_hw_title'},
   software: {badge: 'player_quality_sw', title: 'player_quality_sw_title'},
@@ -11,7 +13,7 @@ const DECODING_MESSAGES = {
 
 /**
  * "HW" or "SW" after a quality: whether Firefox decodes that version in hardware.
- * @param {Object} level
+ * @param {?VideoLevel|undefined} level - None when no version was picked.
  * @return {HTMLElement|null} null when Firefox gave no answer.
  */
 function makeDecodingBadge(level) {
@@ -27,7 +29,7 @@ function makeDecodingBadge(level) {
 }
 
 /**
- * @param {Object} level
+ * @param {?VideoLevel|undefined} level - None when no version was picked.
  * @return {string|null} The tooltip line saying how the version is decoded.
  */
 function decodingTitle(level) {
@@ -157,6 +159,10 @@ export class VideoQualityChanger extends EventEmitter {
     });
   }
 
+  /**
+   * @param {Array<VideoLevel>} levels
+   * @return {Map<string, Array<VideoLevel>>} By label and size, as "<label> <width>x<height>".
+   */
   groupLevelsByDimensions(levels) {
     const map = new Map();
     levels.forEach((level) => {
@@ -171,6 +177,7 @@ export class VideoQualityChanger extends EventEmitter {
     return map;
   }
 
+  /** @param {import('../../FastStreamClient.mjs').FastStreamClient} client */
   updateQualityLevels(client) {
     // The page's own qualities when it offers its file in several (FastStreamClient.getMenuVideoLevels).
     const videoLevels = client.getMenuVideoLevels();
@@ -414,7 +421,7 @@ export class VideoQualityChanger extends EventEmitter {
         continue;
       }
 
-      if (qualityList[quality]) {
+      if (/** @type {Object<string, boolean>} */ (qualityList)[quality]) {
         element.style.display = 'inline-block';
       } else {
         element.style.display = '';

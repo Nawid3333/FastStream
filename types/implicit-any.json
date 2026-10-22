@@ -54,7 +54,6 @@
   "chrome/player/ui/audio/AbstractAudioModule.mjs": 2,
   "chrome/player/ui/audio/VirtualAudioNode.mjs": 42,
   "chrome/player/ui/menus/LoopMenu.mjs": 10,
-  "chrome/player/ui/menus/VideoQualityChanger.mjs": 15,
   "chrome/player/ui/subtitles/SubtitlesManager.mjs": 21,
   "chrome/player/ui/subtitles/SubtitlesSettingsManager.mjs": 11,
   "chrome/player/utils/BlobManager.mjs": 1,
