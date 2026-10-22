@@ -15,6 +15,7 @@ import {WebUtils} from '../utils/WebUtils.mjs';
 import {ClickSequence} from './ClickSequence.mjs';
 import {PointerMoves} from './PointerMoves.mjs';
 import {DOMElements} from './DOMElements.mjs';
+import {downloadStatusText} from './DownloadStatusText.mjs';
 import {FineTimeControls} from './FineTimeControls.mjs';
 import {AudioQualityChanger} from './menus/AudioQualityChanger.mjs';
 import {LanguageChanger} from './menus/LanguageChanger.mjs';
@@ -321,14 +322,10 @@ export class InterfaceController {
       this.lastSpeed = newSpeed;
     }
 
-    // In Mbit/s, the unit of the speed setting and of speed tests: MB/s here beside a limit in
-    // Mbit/s read 8 times too low. The downloader count ("3C") meant nothing to a user.
-    let speed = this.lastSpeed; // bytes per second
-    speed = Math.round(speed * 8 / 1000 / 1000 * 10) / 10; // Mbit per second
-
     if (total === 0 || loaded < total) {
       this.shownDownloadComplete = false;
-      this.setStatusMessage('download', `↓${speed} Mbit/s ${percentDone}%`, 'success');
+      // "3C": the connections downloading now, as upstream showed (the owner's wish, 2026-10-22).
+      this.setStatusMessage('download', downloadStatusText(this.client.downloadManager.runningCount(), this.lastSpeed, percentDone), 'success');
     } else if (!this.shownDownloadComplete) {
       this.shownDownloadComplete = true;
       this.setStatusMessage('download', Localize.getMessage('player_fragment_allbuffered'), 'success', 2000);

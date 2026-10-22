@@ -40,7 +40,7 @@
     while paused (unless the fine time controls are open), and `play()` starts it again
     (player-controls.e2e.mjs counts the updates).
   - Downloads (#359): a video starts with three downloaders and the speed test decides per
-    two samples: playable 0.45 s after the player appears instead of 0.68 s, six
+    two samples (per sample since 2026-10-22: "How many at once while short"): playable 0.45 s after the player appears instead of 0.68 s, six
     connections at 1.8 s instead of 3.3 s, the full preload no faster (the line is the
     limit). An HTTP 429 or 503 halves the downloaders (one stays), stops the test and holds
     every download for its Retry-After (30 s at most); the player starts its next video with
@@ -486,6 +486,37 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
 - **Result**, same measurement, three background players: HLS 4.4 s (alone 3.9 s), MP4 3.4 s
   (alone 3.1 s), no stalls; the background players resumed about 13-20 s after the seek and
   buffered to the end.
+- **How many at once while short (2026-10-22).** The two of `PlayheadFirst` held whatever the
+  server, and most video hosts limit each connection: there one more download beside the next
+  one does not slow it. And the speed test's round needs every downloader heard: with the third
+  idle it never closed, so the test stood still while the player was short. Measured in the
+  headless e2e Firefox on the web build, a local server capping each connection, a 15-minute
+  720p video at 3.1 Mbit/s (HLS in 4 s segments, and MP4), 60 s per run: at 500 kB/s per
+  connection six downloaders came at 37 s (HLS; upstream 47 s), two downloads running until the
+  player was 20 s ahead; at 200 kB/s per connection (half the video's rate) the player never got
+  10 s ahead and ran two downloads for the whole video, stalling - 94 s of video delivered in
+  100 s, upstream (one downloader at the start, no `PlayheadFirst`) 141 s.
+  `DownloadManager.urgentParallel()` now: every downloader while the speed test runs, and
+  afterwards when each downloader the test added brought at least half its share of speed
+  (`perConnection`, a server that limits each connection); two on a line the downloads share
+  (one more added nothing or little), after a 429/503 until a probe finds more, and when the
+  test could not tell. Every step must gain: a one-off jump (other players stepping aside in the
+  middle of the test) does not count. The test decides after each sample, not two (with the
+  rates of each connection jumping ±30% every second, three runs of each: six at 14 s instead of
+  25 s, the same verdict). Same runs, after: six downloaders at 14 s (HLS) and 9 s (MP4) at
+  500 kB/s per connection; seconds of video delivered after 10/30/60 s 30/171/388 instead of
+  19/90/300 (HLS) and 40/189/410 instead of 20/111/334 (MP4); at 200 kB/s per connection 249 s
+  in 100 s instead of 94. A line the downloads share (1.5 MB/s for all): the same throughput
+  (it is the line), and `PlayheadFirst`'s seek measurement above again (three paused players
+  loading, seek to 5:00): 2.69 and 2.68 s, before 2.70 and 2.70 s; two downloads at the seek,
+  as before. A server answering 429 above three connections: two slow-downs in 60 s before and
+  after, each halving, the Retry-After held, the probe after the calm period as before.
+- **The download line counts the connections again (2026-10-22, the owner's wish):**
+  "3C ↓9.6 Mbit/s 50%", as upstream showed until 2026-10-09, now with the speed in Mbit/s
+  (`DownloadStatusText.mjs`). The count is the downloads running at that moment
+  (`DownloadManager.runningCount`), not the downloaders there (upstream's): those are what the
+  speed comes from - two while `PlayheadFirst` holds them, none while the player yields or has
+  everything.
 - **`recoverPlayer`.** An error after the source had shown something (a fatal hls.js error, the
   `<video>` element's `MediaError`, `MP4Player`'s stall watchdog) ended it for good, and only a
   tab reload - which downloaded everything again - played it again. Seeks were the usual

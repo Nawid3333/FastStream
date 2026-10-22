@@ -3,6 +3,7 @@ import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {FSBlob} from '../modules/FSBlob.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {DownloadEntry} from './DownloadEntry.mjs';
+import {URGENT_PARALLEL} from './PlayheadFirst.mjs';
 import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 
 export class DownloadManager {
@@ -11,12 +12,14 @@ export class DownloadManager {
 
   // The speed test. A video started with one downloader and added one each time three
   // speed samples showed a gain: on a Vimeo video at 15 MB/s it took 3.3 s, a third of
-  // the video, to reach six (2026-10-06). It starts with three now and decides after two
-  // samples; a server that asks to slow down (SlowDownStatuses) halves them at once.
+  // the video, to reach six (2026-10-06). It starts with three now and decides after each
+  // sample (two until 2026-10-22: on a server giving each connection 500 kB/s, ±30% each
+  // second, six came at 14 s instead of 25 s, in 3 of 3 runs, the test's verdict the same);
+  // a server that asks to slow down (SlowDownStatuses) halves them at once.
   /** Downloaders a video starts with, the limit allowing; one after a server throttled. */
   static StartDownloaders = 3;
   /** Speed samples averaged before the test adds a downloader. */
-  static SamplesPerStep = 2;
+  static SamplesPerStep = 1;
   /** HTTP answers that ask to slow down: too many requests, overloaded. */
   static SlowDownStatuses = [429, 503];
   /** The longest a server's Retry-After holds every download back. */
@@ -49,6 +52,11 @@ export class DownloadManager {
     this.speedTestSeen = new Set();
     this.testing = true;
     this.lastSpeed = 0;
+    // What the speed test found: true when each downloader it added brought about its share of
+    // speed (a server that limits each connection), false when one did not (a line they share),
+    // null before it could tell. A player short of video runs that many at once (urgentParallel).
+    /** @type {boolean|null} */
+    this.perConnection = null;
     this.lastFailed = 0;
     // True while stopDownloaders() stops downloaders on purpose.
     this.stopping = false;
@@ -292,6 +300,8 @@ export class DownloadManager {
     this.testing = false;
     this.droppedDownloaders = 0;
     this.downloaders.push(new StandardDownloader(this));
+    // The user's choice (the add-downloader key): all of them run, short of video too.
+    this.perConnection = true;
     this.client.predownloadFragments();
     this.queueNext();
   }
@@ -326,6 +336,8 @@ export class DownloadManager {
     this.throttled = true;
     this.testing = false;
     this.probing = false;
+    // Short of video, two at most again until a probe finds that more add speed.
+    this.perConnection = null;
     this.droppedDownloaders = 0;
     this.lastFailed = now;
     this.slowDowns++;
@@ -516,6 +528,33 @@ export class DownloadManager {
   }
 
   /**
+   * Downloads running now, each on a connection of its own: the "3C" of the download line.
+   * Not the downloaders there are: a player short of video runs fewer (PlayheadFirst), one
+   * that leaves the network to another or has everything runs none.
+   * @return {number}
+   */
+  runningCount() {
+    if (!this.downloaders) return 0;
+    return this.downloaders.filter((downloader) => downloader.entry).length;
+  }
+
+  /**
+   * How many downloads a player short of video runs at once (PlayheadFirst). Downloads that
+   * share one line slow each other, and the fragment playback needs next arrives no sooner
+   * than those beside it: two (URGENT_PARALLEL). A server that limits each connection is
+   * another matter: one more beside it does not slow it. Two were all a player ever ran while
+   * short, and its speed test, with a downloader idle, never finished a round: on a server
+   * giving each connection less than the video's rate it stayed short, on two, for the whole
+   * video (measured 2026-10-22). So all the downloaders while the speed test runs (it needs
+   * them all), and afterwards too when each one it added brought its share (perConnection).
+   * @return {number}
+   */
+  urgentParallel() {
+    if (!this.downloaders) return URGENT_PARALLEL;
+    return this.testing || this.perConnection ? Math.max(URGENT_PARALLEL, this.downloaders.length) : URGENT_PARALLEL;
+  }
+
+  /**
    * Downloads running or waiting in the queue.
    * @return {number}
    */
@@ -680,6 +719,13 @@ export class DownloadManager {
               this.speedTestBuffer = [];
 
               if (speed > this.lastSpeed) {
+                // Each one added so far brought at least half its share (the first sample has
+                // nothing to compare with): a line they share gains little or nothing, and a
+                // gain from elsewhere (other players stepping aside) comes once, not at each step.
+                if (this.lastSpeed > 0) {
+                  const share = speed >= this.lastSpeed * (1 + 0.5 / (this.downloaders.length - 1));
+                  this.perConnection = this.perConnection !== false && share;
+                }
                 if (this.downloaders.length < this.downloaderLimit()) {
                   console.log('Adding downloader, speed: ' + speed);
                   this.downloaders.push(new StandardDownloader(this));
@@ -692,6 +738,7 @@ export class DownloadManager {
               } else {
                 console.log('Speed test finished, speed: ' + speed);
                 this.testing = false;
+                this.perConnection = false;
                 this.endProbe(true);
               }
             }
@@ -760,6 +807,7 @@ export class DownloadManager {
     this.speedTestBuffer = [];
     this.speedTestSeen = new Set();
     this.lastSpeed = 0;
+    this.perConnection = null;
 
     this.failed = 0;
     this.holdUntil = 0;
