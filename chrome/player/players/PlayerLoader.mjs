@@ -17,7 +17,7 @@ export class PlayerLoader {
    * out to be.
    *
    * @param {string} mode a PlayerModes value
-   * @param {object} client the FastStreamClient
+   * @param {import('../FastStreamClient.mjs').FastStreamClient} client the FastStreamClient
    * @param {object} options passed through to the player
    * @return {Promise<object>} the constructed player
    */

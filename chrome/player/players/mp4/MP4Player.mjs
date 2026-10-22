@@ -18,6 +18,18 @@ import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
  * mp4box's trak box, reached through ISOFile: mp4box does not export its class by name.
  * @typedef {ISOFile['moov']['traks'][number]} TrakBox
  */
+/** @typedef {import('../../modules/mp4box/mp4box.all.mjs').Movie} Movie */
+/** @typedef {import('../../modules/mp4box/mp4box.all.mjs').Track} Track */
+/** @typedef {import('../../modules/mp4box/mp4box.all.mjs').MP4BoxBuffer} MP4BoxBuffer */
+/** @typedef {import('../../network/DownloadEntry.mjs').DownloadEntry} DownloadEntry */
+/** @typedef {import('../../network/FetchLoader.mjs').FetchLoader['stats']} LoadStats */
+/**
+ * A track of the file as this player reads it (onMetadataParsed): mp4box's trak box and
+ * track, its samples, and its keyframes by time (sortSamples), sorted again when a
+ * fragmented file's samples grow (refreshSampleIndex).
+ * @typedef {{trak: TrakBox|undefined, track: Track, samples: Array<Sample>,
+ *   sortedSamples: Array<Sample>, sortedCount: number}} PlayedTrack
+ */
 import {keyframeOffset, sampledDuration} from './SampleIndex.mjs';
 import {SegmentAppender} from './SegmentAppender.mjs';
 import {SourceBufferWrapper, removalPending} from './SourceBufferWrapper.mjs';
@@ -45,6 +57,11 @@ function warnRefused(e) {
 }
 
 export default class MP4Player extends EventEmitter {
+  /**
+   * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean, isAnalyzer?: boolean}} [config] -
+   *   What the player is for (PlayerLoader.createPlayer's callers).
+   */
   constructor(client, config) {
     super();
     this.client = client;
@@ -72,13 +89,16 @@ export default class MP4Player extends EventEmitter {
 
     this.loaded = false;
 
+    /** @type {Array<PlayedTrack>} */
     this.videoTracks = [];
+    /** @type {Array<PlayedTrack>} */
     this.audioTracks = [];
 
 
     this.currentVideoTrack = 0;
     this.currentAudioTrack = this.isPreview ? null : 0;
 
+    /** @type {Array<MP4Fragment>} */
     this.currentFragments = [];
     // Failed ranges' retries: fragment -> {count, at}.
     this.rangeRetries = new Map();
@@ -128,14 +148,15 @@ export default class MP4Player extends EventEmitter {
   }
 
   makeSourceBuffers() {
-    const videoTrack = this.metaData.videoTracks[this.currentVideoTrack];
+    // Only setupHLS calls this, once the metadata is in.
+    const videoTrack = /** @type {Movie} */ (this.metaData).videoTracks[this.currentVideoTrack];
     if (videoTrack) {
       const videoCodec = 'video/mp4; codecs=\"' + videoTrack.codec + '\"';
       this.videoSourceBuffer = new SourceBufferWrapper(this.mediaSource, videoCodec);
     }
 
     if (this.currentAudioTrack !== null) {
-      const audioTrack = this.metaData.audioTracks[this.currentAudioTrack];
+      const audioTrack = /** @type {Movie} */ (this.metaData).audioTracks[this.currentAudioTrack];
       if (audioTrack) {
         let fixedCodec = audioTrack.codec;
         if (fixedCodec === 'Opus') {
@@ -147,6 +168,7 @@ export default class MP4Player extends EventEmitter {
     }
   }
 
+  /** @param {number} id - The track's. */
   freeSamples(id) {
     // return;
     // samples_stored: patches/mp4box@*.patch.
@@ -170,20 +192,22 @@ export default class MP4Player extends EventEmitter {
 
     this.mp4box.fragmentedTracks.length = 0;
 
-    const videoTrack = this.metaData.videoTracks[this.currentVideoTrack];
-    const audioTrack = this.metaData.audioTracks[/** @type {number} */ (this.currentAudioTrack)];
+    // Only onMetadataParsed calls this, once the metadata is in.
+    const videoTrack = /** @type {Movie} */ (this.metaData).videoTracks[this.currentVideoTrack];
+    const audioTrack = /** @type {Movie} */ (this.metaData).audioTracks[/** @type {number} */ (this.currentAudioTrack)];
 
     this.mp4box.onSegment = (id, user, buffer, sampleNumber, last) => {
       // console.log(id, sampleNumber)
       // A file can have no video track (audio only) or no audio track.
       // The samples are released once the segment is queued: one the SourceBuffer refuses
       // is handled by the appender, which loads again from the playhead.
+      // makeSourceBuffers made a SourceBuffer for each track it found.
       if (videoTrack?.id === id) {
-        this.segmentAppender.append(this.videoSourceBuffer, buffer);
+        this.segmentAppender.append(/** @type {SourceBufferWrapper} */ (this.videoSourceBuffer), buffer);
 
         this.freeSamples(id);
       } else if (audioTrack?.id === id) {
-        this.segmentAppender.append(this.audioSourceBuffer, buffer);
+        this.segmentAppender.append(/** @type {SourceBufferWrapper} */ (this.audioSourceBuffer), buffer);
 
         this.freeSamples(id);
       } else {
@@ -259,6 +283,10 @@ export default class MP4Player extends EventEmitter {
     }));
   }
 
+  /**
+   * @param {Array<Sample>} samples
+   * @return {Array<Sample>} Its keyframes, by composition time.
+   */
   sortSamples(samples) {
     samples = samples.filter((sample) => {
       return sample.is_sync;
@@ -294,6 +322,7 @@ export default class MP4Player extends EventEmitter {
     this.initializeFragments();
   }
 
+  /** @param {Movie} info - mp4box's description of the file (onReady). */
   onMetadataParsed(info) {
     this.metaData = info;
     this.estimateTotalSizeFromMetadats();
@@ -345,6 +374,7 @@ export default class MP4Player extends EventEmitter {
     return this.video;
   }
 
+  /** @param {import('../../VideoSource.mjs').VideoSource} source */
   async setSource(source) {
     if (this.source) {
       throw new Error('Source already set');
@@ -418,6 +448,7 @@ export default class MP4Player extends EventEmitter {
     }
 
     const wrappers = [this.videoSourceBuffer, this.audioSourceBuffer].filter(Boolean);
+    /** @param {SourceBufferWrapper} wrapper */
     const busy = (wrapper) => wrapper.updating || wrapper.sourceBuffer.updating || wrapper.toDo.length > 0;
     if (wrappers.length === 0 || wrappers.some(busy)) {
       return;
@@ -489,7 +520,8 @@ export default class MP4Player extends EventEmitter {
     const levels = this.videoTracks.length ? this.getVideoLevels() :
       new Map(this.audioTracks.length ? [[this.getCurrentVideoLevelID(), null]] : []);
     levels.forEach((level, l) => {
-      const frags = this.client.getFragments(l.toString());
+      // The player's ranges: setSource made the first under this level.
+      const frags = /** @type {Array<MP4Fragment>} */ (this.client.getFragments(l.toString()));
       let currentFragment = frags[0];
       currentFragment.start = 0;
       const indexes = this.getIndexes(l);
@@ -512,6 +544,10 @@ export default class MP4Player extends EventEmitter {
     });
   }
 
+  /**
+   * @param {number} start - Seconds.
+   * @param {number} end - Seconds.
+   */
   removeFromBuffers(start, end) {
     start = Math.max(0, start);
     end = Math.min(/** @type {MediaSource} */ (this.mediaSource).duration, Math.max(end, start));
@@ -589,7 +625,7 @@ export default class MP4Player extends EventEmitter {
 
     const len = frags.length;
     for (let i = currentFragment.sn; i < Math.min(currentFragment.sn + this.options.maxFragmentsBuffered, len); i++) {
-      const frag = this.client.getFragment(this.getCurrentVideoLevelID(), i);
+      const frag = /** @type {?MP4Fragment} */ (this.client.getFragment(this.getCurrentVideoLevelID(), i));
       if (!frag) {
         this.running = false;
         this.emit(DefaultPlayerEvents.ERROR, 'No next fragment');
@@ -618,6 +654,11 @@ export default class MP4Player extends EventEmitter {
 
       if (!this.currentFragments.includes(frag)) {
         const loader = this.loader = this.fragmentRequester.requestFragment(frag, {
+          /**
+           * @param {DownloadEntry} entry
+           * @param {MP4BoxBuffer} data - The range, its place in the file its fileStart
+           *   (MP4FragmentRequester).
+           */
           onSuccess: (entry, data) => {
             if (this.loader === loader) {
               this.loader = null;
@@ -647,7 +688,8 @@ export default class MP4Player extends EventEmitter {
             // say): the rest would be parsed as this range's, and the offsets would no longer
             // match. Only the range is this fragment's.
             if (data?.byteLength > frag.rangeEnd - frag.rangeStart) {
-              const range = data.slice(0, frag.rangeEnd - frag.rangeStart);
+              // An MP4BoxBuffer once its fileStart is set, the line below.
+              const range = /** @type {MP4BoxBuffer} */ (data.slice(0, frag.rangeEnd - frag.rangeStart));
               range.fileStart = data.fileStart;
               data = range;
             }
@@ -699,9 +741,16 @@ export default class MP4Player extends EventEmitter {
             }
             this.runLoad();
           },
+          /**
+           * @param {LoadStats} stats
+           * @param {ReturnType<MP4Fragment['getContext']>} context - The range's request.
+           * @param {ArrayBuffer} data
+           * @param {null} xhr - FetchLoader has none.
+           */
           onProgress: (stats, context, data, xhr) => {
 
           },
+          /** @param {DownloadEntry} entry */
           onFail: (entry) => {
             if (this.loader === loader) {
               this.loader = null;
@@ -712,6 +761,7 @@ export default class MP4Player extends EventEmitter {
               this.endsAt(frag.rangeStart);
             }
           },
+          /** @param {DownloadEntry} entry */
           onAbort: (entry) => {
             if (this.loader === loader) {
               this.loader = null;
@@ -757,19 +807,36 @@ export default class MP4Player extends EventEmitter {
     return false;
   }
 
+  /**
+   * @param {MP4Fragment} fragment
+   * @param {number} priority - In the download manager's queue, higher first (a save's -1).
+   * @return {Promise<void>}
+   */
   downloadFragment(fragment, priority) {
     return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
       this.fragmentRequester.requestFragment(fragment, {
         skipProcess: true,
+        /**
+         * @param {DownloadEntry} entry
+         * @param {undefined} data - None: skipProcess.
+         */
         onSuccess: (entry, data) => {
           resolve();
         },
+        /**
+         * @param {LoadStats} stats
+         * @param {ReturnType<MP4Fragment['getContext']>} context - The range's request.
+         * @param {ArrayBuffer} data
+         * @param {null} xhr - FetchLoader has none.
+         */
         onProgress: (stats, context, data, xhr) => {
 
         },
+        /** @param {DownloadEntry} entry */
         onFail: (entry) => {
           reject(new Error('Failed to download fragment'));
         },
+        /** @param {DownloadEntry} e - The entry. */
         onAbort: (e) => {
           reject(new Error('Aborted download'));
         },
@@ -864,6 +931,7 @@ export default class MP4Player extends EventEmitter {
     this.emit(DefaultPlayerEvents.PLAY_DIRECTLY, reason);
   }
 
+  /** @param {boolean} [noLoad] - Leaves the loading to the caller. */
   resetHLS(noLoad) {
     if (!this.metaData) return;
     this.segmentAppender.reloaded();
@@ -964,9 +1032,11 @@ export default class MP4Player extends EventEmitter {
     return this.getIdentifier(AUDIO_TRACK, this.currentAudioTrack);
   }
 
+  /** @param {string} levelID */
   setCurrentVideoLevelID(levelID) { // not implemented yet
   }
 
+  /** @param {string} levelID */
   setCurrentAudioLevelID(levelID) { // not implemented yet
   }
 
@@ -1025,11 +1095,19 @@ export default class MP4Player extends EventEmitter {
 
     const index = Math.floor(startOffset / FRAGMENT_SIZE);
 
-    return this.client.getFragment(this.getCurrentVideoLevelID(), index);
+    // The player's ranges are MP4Fragments (makeFragment above).
+    return /** @type {?MP4Fragment} */ (this.client.getFragment(this.getCurrentVideoLevelID(), index));
   }
 
+  /**
+   * The earliest time a sample in a byte range is shown.
+   * @param {Array<Sample>} samples - A track's, in file order.
+   * @param {number} offset - Where the range starts, in bytes.
+   * @param {number} end - Where it ends.
+   * @return {?number} Seconds; null when no sample starts in the range.
+   */
   getMinTimeFromOffset(samples, offset, end) {
-    let index = Utils.binarySearch(samples, offset, (offset, sample) => {
+    let index = Utils.binarySearch(samples, offset, /** @param {number} offset @param {Sample} sample */ (offset, sample) => {
       return offset - sample.offset;
     });
 
@@ -1083,10 +1161,18 @@ export default class MP4Player extends EventEmitter {
     };
   }
 
+  /**
+   * Writes the file's ranges into the stream SaveManager opened.
+   * @param {{filestream: WritableStream<Uint8Array>, partialSave: boolean,
+   *   registerCancel: (cancel: () => void) => void, onProgress: (progress: number) => void}} options -
+   *   SaveManager's: an MP4 is streamed (canSave's canStream), so it opened the stream.
+   * @return {Promise<{extension: string, blob: null}>}
+   */
   async saveVideo(options) {
     const filestream = options.filestream;
     const writer = filestream.getWriter();
-    const frags = this.client.getFragments(this.getCurrentVideoLevelID());
+    // There: canSave allows no save without them.
+    const frags = /** @type {Array<MP4Fragment>} */ (this.client.getFragments(this.getCurrentVideoLevelID()));
     const emptyTemplate = new Uint8Array(FRAGMENT_SIZE);
 
     let lastFrag = 0;
@@ -1180,10 +1266,19 @@ export default class MP4Player extends EventEmitter {
   }
 
 
+  /**
+   * @param {number} trackID - VIDEO_TRACK or AUDIO_TRACK.
+   * @param {?number} levelID - The track's index; null for a preview's audio, which has none.
+   * @return {string}
+   */
   getIdentifier(trackID, levelID) {
     return `${trackID}:${levelID}`;
   }
 
+  /**
+   * @param {string} identifier - getIdentifier's.
+   * @return {{trackID: number, levelID: number}}
+   */
   getIndexes(identifier) {
     const parts = identifier.split(':');
     return {

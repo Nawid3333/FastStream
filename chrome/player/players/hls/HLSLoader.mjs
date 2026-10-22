@@ -8,10 +8,22 @@ import {storeIndex} from './HLSFragmentStore.mjs';
 // forever, and the player never showed an error.
 const SEGMENT_FAILURES_BEFORE_ERROR = 3;
 
+/** @typedef {import('../../modules/hls.mjs').Fragment} HlsFragment */
+/** @typedef {import('../../modules/hls.mjs').FragmentLoaderContext} FragmentLoaderContext */
+/** @typedef {import('../../network/DownloadEntry.mjs').DownloadEntry} DownloadEntry */
+/** @typedef {import('../../network/FetchLoader.mjs').FetchLoader['stats']} LoadStats */
+
+/**
+ * What hls.js asks a loader to load (load): a playlist (no frag), a media segment (its
+ * frag) or a key (its frag and keyInfo).
+ * @typedef {import('../../modules/hls.mjs').LoaderContext & {frag?: HlsFragment,
+ *   keyInfo?: import('../../modules/hls.mjs').KeyLoaderInfo}} HlsLoadContext
+ */
+
 /**
  * Whether two hls.js fragments name the same bytes.
- * @param {Object} a - An hls.js fragment.
- * @param {Object} b - Another.
+ * @param {HlsFragment} a - An hls.js fragment.
+ * @param {HlsFragment} b - Another.
  * @return {boolean}
  */
 function isSameSegment(a, b) {
@@ -39,8 +51,8 @@ function withoutQuery(url) {
  * only when both differ - its address without the query, and its place in the stream
  * (start, duration): hls.js moves a live segment's start once it read its timestamps, so
  * the place alone would take every kept segment for another.
- * @param {Object} stored - The stored fragment's hls.js fragment.
- * @param {Object} frag - The request's.
+ * @param {HlsFragment} stored - The stored fragment's hls.js fragment.
+ * @param {HlsFragment} frag - The request's.
  * @return {boolean}
  */
 function isSamePlace(stored, frag) {
@@ -109,15 +121,21 @@ function isSamePlace(stored, frag) {
       @param context {object} - loader context
 
    */
+/**
+ * @param {import('./HLSPlayer.mjs').default} player - The player whose loads it serves.
+ */
 export function HLSLoaderFactory(player) {
   // Failures in a row, per segment, for this player; a success forgets them.
+  /** @type {Map<string, number>} */
   const segmentFailures = new Map();
 
   return class HLSLoader {
     constructor() {
       // The shape of hls.js's LoadStats, since hls.js reads it before any download has
       // reported: a seek during a fragment load asks stats.loading.first, which threw on
-      // {} and cut hls.js's seek handling short.
+      // {} and cut hls.js's seek handling short. copyStats brings a download's in, with
+      // FetchLoader's error when it failed.
+      /** @type {import('../../modules/hls.mjs').LoaderStats & {error?: {code: number, text: string}}} */
       this.stats = {
         aborted: false,
         loaded: 0,
@@ -150,19 +168,35 @@ export function HLSLoaderFactory(player) {
       this.callbacks.onError?.(error, this.context, null, this.stats);
     }
 
+    /**
+     * @param {LoadStats} stats - A download's (FetchLoader's, kept on its DownloadEntry; an
+     *   archive keeps a copy).
+     */
     copyStats(stats) {
       for (const key in stats) {
         if (Object.hasOwn(stats, key)) {
-          this.stats[key] = stats[key];
+          // Each of its own fields, whatever it is.
+          /** @type {Object<string, *>} */ (this.stats)[key] = /** @type {Object<string, *>} */ (stats)[key];
         }
       }
     }
 
+    /**
+     * hls.js's Loader.load.
+     * @param {HlsLoadContext} context
+     * @param {import('../../modules/hls.mjs').LoaderConfiguration} config
+     * @param callbacks - hls.js's LoaderCallbacks; left untyped, as onAbort is called with a
+     *   fourth argument (null) that hls.js's type of it does not take.
+     */
     load(context, config, callbacks) {
       const isFragment = context.frag !== undefined && context.keyInfo === undefined;
 
       this.callbacks = callbacks;
+      // Set here, before the loading below reads them; null once destroyed. hls.js's Loader
+      // has its context as T | null.
+      /** @type {?import('../../modules/hls.mjs').LoaderConfiguration} */
       this.config = config;
+      /** @type {?HlsLoadContext} */
       this.context = context;
 
       if (isFragment) {
@@ -173,27 +207,28 @@ export function HLSLoaderFactory(player) {
     }
 
     loadFragmentInternal() {
+      // A media segment's load (load's isFragment): the context load set has its frag.
       try {
-        let sn = this.context.frag.sn;
-        if (this.context.frag.sn === 'initSegment') {
+        let sn = /** @type {FragmentLoaderContext} */ (this.context).frag.sn;
+        if (/** @type {FragmentLoaderContext} */ (this.context).frag.sn === 'initSegment') {
           sn = -1;
         }
-        const identifier = player.getIdentifier(this.context.frag.trackID, this.context.frag.level);
+        const identifier = player.getIdentifier(/** @type {FragmentLoaderContext} */ (this.context).frag.trackID, /** @type {FragmentLoaderContext} */ (this.context).frag.level);
         // A segment is stored at its place in the level, not at its sequence number
-        // (HLSFragmentStore).
-        const index = sn === -1 ? -1 : storeIndex(player.client.getFragments(identifier), sn);
+        // (HLSFragmentStore). A number by here: 'initSegment' is -1.
+        const index = sn === -1 ? -1 : storeIndex(player.client.getFragments(identifier), /** @type {number} */ (sn));
         let frag = index === null ? null : player.client.getFragment(identifier, index);
         // One init segment is kept per level, but a playlist can change its EXT-X-MAP:
         // the kept one is only this request's if it is the same segment.
-        if (frag && sn === -1 && !isSameSegment(frag.getFrag(), this.context.frag)) {
+        if (frag && sn === -1 && !isSameSegment(frag.getFrag(), /** @type {FragmentLoaderContext} */ (this.context).frag)) {
           frag = null;
         }
         // A kept media segment only for its own place (isSamePlace).
-        if (frag && sn !== -1 && !isSamePlace(frag.getFrag(), this.context.frag)) {
+        if (frag && sn !== -1 && !isSamePlace(frag.getFrag(), /** @type {FragmentLoaderContext} */ (this.context).frag)) {
           frag = null;
         }
         if (!frag) {
-          console.error('Fragment not found', identifier, this.context.frag);
+          console.error('Fragment not found', identifier, /** @type {FragmentLoaderContext} */ (this.context).frag);
           this.loadNonFragmentInternal();
           return;
         }
@@ -202,6 +237,12 @@ export function HLSLoaderFactory(player) {
         const segmentKey = identifier + ':' + sn;
 
         const loader = player.fragmentRequester.requestFragment(frag, {
+          /**
+           * @param {{url: string, data: ArrayBuffer|string}} response
+           * @param {LoadStats} stats
+           * @param {ReturnType<import('./HLSFragment.mjs').HLSFragment['getContext']>} context
+           * @param {null} xhr - FetchLoader has none.
+           */
           onSuccess: (response, stats, context, xhr) => {
             segmentFailures.delete(segmentKey);
             this.copyStats(stats);
@@ -213,10 +254,17 @@ export function HLSLoaderFactory(player) {
               activeRequests.splice(index, 1);
             }
           },
+          /**
+           * @param {LoadStats} stats
+           * @param {ReturnType<import('./HLSFragment.mjs').HLSFragment['getContext']>} context
+           * @param {ArrayBuffer|string} data
+           * @param {null} xhr - FetchLoader has none.
+           */
           onProgress: (stats, context, data, xhr) => {
             this.copyStats(stats);
             if (this.callbacks?.onProgress) this.callbacks.onProgress(stats, this.context, data, xhr);
           },
+          /** @param {DownloadEntry} entry */
           onFail: (entry) => {
             setTimeout(() => {
               this.copyStats(entry.stats);
@@ -228,6 +276,7 @@ export function HLSLoaderFactory(player) {
               activeRequests.splice(index, 1);
             }
           },
+          /** @param {DownloadEntry} entry */
           onAbort: (entry) => {
             this.copyStats(entry.stats);
             this.stats.aborted = true;
@@ -255,13 +304,20 @@ export function HLSLoaderFactory(player) {
 
     loadNonFragmentInternal() {
       // A playlist, not a key or a fragment. hls.js loads one again to see what is new.
-      const isPlaylist = this.context.frag === undefined;
+      // The context load set.
+      const isPlaylist = /** @type {HlsLoadContext} */ (this.context).frag === undefined;
       const downloadManager = player.getClient().downloadManager;
+      /**
+       * The download: hls.js's context and config, the source's headers over the context's,
+       * and what decrypts a segment FastStream decrypts (below).
+       * @type {HlsLoadContext & {config: ?import('../../modules/hls.mjs').LoaderConfiguration,
+       *   headers: Object<string, string>, postProcessor?: Function}}
+       */
       const details = {
-        ...this.context,
+        .../** @type {HlsLoadContext} */(this.context),
         config: this.config,
         headers: {
-          ...this.context.headers,
+          .../** @type {HlsLoadContext} */(this.context).headers,
           ...player.source.headers,
         },
       };
@@ -270,7 +326,8 @@ export function HLSLoaderFactory(player) {
       // started its numbering again), or the init segment of a changed EXT-X-MAP - comes
       // here still encrypted, and hls.js decrypts none of it: its own decryption was taken
       // over as well. It went to hls.js as it was, and the stream broke off from there.
-      const decrypt = isPlaylist ? null : player.fragmentRequester?.decryptionFor(this.context.frag, details.headers);
+      // Not a playlist: a key's context or a media segment's, each with its frag.
+      const decrypt = isPlaylist ? null : player.fragmentRequester?.decryptionFor(/** @type {import('../../modules/hls.mjs').KeyLoaderContext|FragmentLoaderContext} */ (this.context).frag, details.headers);
       if (decrypt) {
         details.postProcessor = decrypt;
       }
@@ -287,6 +344,10 @@ export function HLSLoaderFactory(player) {
       }
       const failureKey = details.url + ':' + (details.rangeStart ?? '') + '-' + (details.rangeEnd ?? '');
       this.loader = downloadManager.getFile(details, {
+        /**
+         * @param {DownloadEntry} entry
+         * @param {null} [xhr] - FetchLoader has none; none at all for a stored copy.
+         */
         onSuccess: async (entry, xhr) => {
           segmentFailures.delete(failureKey);
           this.copyStats(entry.stats);
@@ -314,10 +375,17 @@ export function HLSLoaderFactory(player) {
             }, this.stats, this.context, null);
           }
         },
+        /**
+         * @param {LoadStats} stats
+         * @param {Awaited<ReturnType<DownloadEntry['getRequest']>>} context2 - The request.
+         * @param {ArrayBuffer|string} data
+         * @param {null} xhr - FetchLoader has none.
+         */
         onProgress: (stats, context2, data, xhr) => {
           this.copyStats(stats);
           if (this.callbacks?.onProgress) this.callbacks.onProgress(stats, this.context, data, xhr);
         },
+        /** @param {DownloadEntry} entry */
         onFail: (entry) => {
           setTimeout(() => {
             this.copyStats(entry.stats);
@@ -333,6 +401,7 @@ export function HLSLoaderFactory(player) {
             }
           }, 1000);
         },
+        /** @param {DownloadEntry} entry */
         onAbort: (entry) => {
           this.copyStats(entry.stats);
           this.stats.aborted = true;

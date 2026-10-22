@@ -27,6 +27,25 @@
  */
 
 /**
+ * A title in the API's answer to GET /features, what titlesFromFeatures reads of it (types as
+ * in the answers in tests/unit/fixtures/opensubtitles). Each field may be missing: searched
+ * with a type, an entry has no feature_type, and the item's type says it.
+ * @typedef {{type: string, attributes: {feature_id?: string, feature_type?: string, title?: string,
+ *   original_title?: ?string, year?: string, imdb_id?: ?number,
+ *   subtitles_counts?: Object<string, number>}}} FeatureItem
+ */
+
+/**
+ * A subtitle's attributes in the API's answer to GET /subtitles, what this file reads of them
+ * (types as in the answers in tests/unit/fixtures/opensubtitles); each may be missing.
+ * @typedef {{release?: string, download_count?: number, language?: string,
+ *   uploader?: ?{name?: string}, fps?: number, hearing_impaired?: boolean,
+ *   ai_translated?: boolean, machine_translated?: boolean, from_trusted?: ?boolean,
+ *   feature_details?: {feature_type?: string, title?: string, movie_name?: string, year?: number,
+ *     imdb_id?: number, parent_title?: string, parent_feature_id?: number}}} SubtitleAttributes
+ */
+
+/**
  * A title as compared: accents, case and punctuation left out.
  * @param {*} text
  * @return {string}
@@ -46,7 +65,7 @@ function withoutArticle(title) {
 
 /**
  * The titles a title search (GET /features) found.
- * @param {Array<Object>} features - Its data.
+ * @param {Array<FeatureItem>} features - Its data.
  * @param {string} [language] - The language asked for: its subtitles are counted.
  * @return {TitleCandidate[]}
  */
@@ -64,7 +83,7 @@ export function titlesFromFeatures(features, language = '') {
     // one in its own spelling, when it is the same.
     const name = a.original_title && normalizeTitle(a.original_title) === normalizeTitle(a.title) ? a.original_title : (a.title || '');
     // Searched with a type, an entry has none of its own: the item's type says it.
-    const type = a.feature_type || {tvshow: 'Tvshow', movie: 'Movie', episode: 'Episode'}[item.type];
+    const type = a.feature_type || /** @type {Object<string, string>} */ ({tvshow: 'Tvshow', movie: 'Movie', episode: 'Episode'})[item.type];
     if (type === 'Tvshow' && a.feature_id) {
       out.push({key: `show:${a.feature_id}`, kind: 'show', title: name, year, imdbId: null,
         showId: Number(a.feature_id), subtitles, order: index});
@@ -78,7 +97,7 @@ export function titlesFromFeatures(features, language = '') {
 
 /**
  * The titles a text search for subtitles (GET /subtitles?query=) found, one per movie or show.
- * @param {Array<Object>} subtitles - Its data.
+ * @param {Array<{attributes: SubtitleAttributes}>} subtitles - Its data.
  * @return {TitleCandidate[]}
  */
 export function titlesFromSubtitles(subtitles) {
@@ -201,6 +220,7 @@ export function chooseTitles(fromText, fromTitles, wanted, {most = 6, minMatch =
   if (!ranked.length) {
     return null;
   }
+  /** @param {TitleCandidate} title */
   const label = (title) => `${normalizeTitle(title.title)}|${title.year ?? ''}`;
   const seen = new Set([label(ranked[0])]);
   const others = [];
@@ -237,7 +257,7 @@ export function titleQuery(title, {language = '', season = null, episode = null,
 /**
  * What a subtitle's row shows: its release name (which version of the video it was made for),
  * how often it was downloaded, and what kind it is.
- * @param {Object} attributes - A subtitle's, from the API.
+ * @param {SubtitleAttributes} attributes - A subtitle's, from the API.
  * @return {{release: string, downloads: number, language: string, uploader: string,
  *   fps: ?number, hearingImpaired: boolean, machine: boolean, trusted: boolean}}
  */

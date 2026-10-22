@@ -18,9 +18,10 @@ const TrackedLimit = 200;
 
 /**
  * Brings a list of a frame's streams or subtitles, just added to, back to the limits above.
- * @param {Array<Object>} list - The list; its last entry is the new one.
- * @param {(entry: Object) => string} urlOf - An entry's URL.
- * @param {(entry: Object) => boolean} isFile - Whether an entry is a file (one piece of a
+ * @template T - TrackedSource or TrackedSubtitle.
+ * @param {Array<T>} list - The list; its last entry is the new one.
+ * @param {(entry: T) => string} urlOf - An entry's URL.
+ * @param {(entry: T) => boolean} isFile - Whether an entry is a file (one piece of a
  *   stream, possibly), not a manifest.
  */
 function trimTracked(list, urlOf, isFile) {
@@ -42,7 +43,7 @@ function trimTracked(list, urlOf, isFile) {
 }
 
 /**
- * @param {Object} source - A detected source.
+ * @param {TrackedSource} source - A detected source.
  * @return {boolean} Whether it is a file (MP4 or a direct one), not a manifest.
  */
 function isFileSource(source) {
@@ -64,6 +65,10 @@ function isFileSource(source) {
  */
 
 export class FrameHolder {
+  /**
+   * @param {TabHolder} tab - The tab the frame is in.
+   * @param {number} frameId - The browser's id of the frame (0 for the top frame).
+   */
   constructor(tab, frameId) {
     this.tab = tab;
     this.frameId = frameId;
@@ -132,11 +137,13 @@ export class FrameHolder {
     this.handedToPlayer = null;
   }
 
+  /** @param {FrameHolder} childFrame */
   removeChildFrame(childFrame) {
     this.children.delete(childFrame);
     childFrame.parent = null;
   }
 
+  /** @param {FrameHolder} parentFrame */
   setParentFrame(parentFrame) {
     parentFrame.children.add(this);
     this.parent = parentFrame;
@@ -233,6 +240,10 @@ function sameHostname(a, b) {
 }
 
 export class TabHolder {
+  /**
+   * @param {TabTracker} tracker - The tracker that holds it.
+   * @param {number} tabId - The browser's id of the tab.
+   */
   constructor(tracker, tabId) {
     this.tracker = tracker;
     this.tabId = tabId;
@@ -249,13 +260,15 @@ export class TabHolder {
     // (rememberRequestHeaders). The tab's, not a frame's, and not cleared by reset(): a
     // request can be sent before the page that made it named itself (a preload, 103
     // Early Hints) or before the reset on a new site, and answered after, and a stream
-    // found without the Referer its CDN checks got a 403 in the player.
-    /** @type {Map<string, *>} */
+    // found without the Referer its CDN checks got a 403 in the player. Kept by webRequest's
+    // id, a string; background.mjs also looks up -1, a stream the page told, and finds none.
+    /** @type {Map<string|number, *>} */
     this.requestHeaders = new Map();
     // The address each redirected request was first made to, by request id (noteRedirect): a
     // page's player lists a file by that address (a hoster's get_file/... link), and the
-    // stream is detected at the end of the redirect (a CDN's address with a token).
-    /** @type {Map<string, string>} */
+    // stream is detected at the end of the redirect (a CDN's address with a token). Kept by
+    // webRequest's id, a string; looked up with -1 too, as requestHeaders.
+    /** @type {Map<string|number, string>} */
     this.redirectOrigins = new Map();
 
     this.isOn = false;
@@ -344,6 +357,8 @@ export class TabHolder {
     // The frames that played are gone with the frames: a new page's frame that came back
     // with one of their ids counted as a playing player and held the page's media paused.
     this.playingPlayers.clear();
+    // How the autoplay next going on in the tab goes on (background.mjs), null when none.
+    /** @type {?import('./background.mjs').Continuation} */
     this.continuationOptions = null;
     // regexMatched/mpvMatched are deliberately NOT cleared here: the
     // leave-a-site detection in the onUpdated handler relies on them
@@ -352,11 +367,14 @@ export class TabHolder {
     this.mpvSentUrls.clear();
     // A user's play whose stream has not been detected yet, and the last
     // stream a play sent, which keeps a player that calls play() twice from
-    // opening a second window.
+    // opening a second window. A number from the constructor on, which runs this.
+    /** @type {number} */
     this.mpvPlayPendingUntil = 0;
+    /** @type {?{url: string, time: number}} */
     this.mpvLastPlaySend = null;
     // What that play plays (content.js's playedVideo): a stream plainly another length is
     // not its stream.
+    /** @type {?import('./background.mjs').PlayedVideo} */
     this.mpvPlayedVideo = null;
     // While a stream is checked for such a play, the streams detected meanwhile, to be
     // checked next (background.mjs sendPendingPlay); null otherwise.
@@ -392,9 +410,11 @@ export class TabHolder {
    * @param {string} url - The URL the tab went to.
    */
   resetForNewSite(url) {
+    /** @type {Array<FrameHolder>} */
     const kept = [];
     const zero = this.frames.get(0);
     if (zero && zero.documentKey && sameHostname(zero.url, url)) {
+      /** @param {FrameHolder} frame */
       const collect = (frame) => {
         kept.push(frame);
         frame.children.forEach(collect);
@@ -441,7 +461,8 @@ export class TabHolder {
 
   /**
    * The address a request was first made to, when it was redirected.
-   * @param {string} requestId
+   * @param {string|number} requestId - webRequest's id; -1, a stream the page told (a
+   *   request background.mjs made up), finds none.
    * @return {?string}
    */
   redirectOrigin(requestId) {
@@ -451,17 +472,21 @@ export class TabHolder {
   getFrames() {
     return this.frames.values();
   }
+  /** @param {number|undefined} frameId - undefined (a frame not named) finds none. */
   getFrame(frameId) {
     return this.frames.get(frameId);
   }
+  /** @param {number} frameId */
   getFrameOrCreate(frameId) {
     return this.getFrame(frameId) || this.createFrame(frameId);
   }
+  /** @param {number} frameId */
   createFrame(frameId) {
     const newFrame = new FrameHolder(this, frameId);
     this.frames.set(frameId, newFrame);
     return newFrame;
   }
+  /** @param {number} frameId */
   removeFrame(frameId) {
     this.frames.delete(frameId);
   }
@@ -528,6 +553,7 @@ export class TabHolder {
    * @param {FrameHolder} frame - The frame whose page goes.
    */
   markDocumentGone(frame) {
+    /** @param {FrameHolder} f */
     const mark = (f) => {
       // The pages inside first, so a page is newer than its frames' pages: the oldest go
       // when there are too many, and a page marked before its frames went first when all
@@ -591,14 +617,14 @@ export class TabHolder {
     this.goneDocuments.delete(frame.documentKey);
     frame.restoredFromCache = true;
     // FrameHolder.reset() sets both lists, which the checker cannot see from here.
-    const sources = /** @type {Array<Object>} */ (frame.getSources());
+    const sources = /** @type {Array<TrackedSource>} */ (frame.getSources());
     for (const source of kept.sources) {
       // FRAME_ADDED keeps a source the frame already had at the page's URL.
       if (!sources.some((s) => s.url === source.url)) {
         sources.push(source);
       }
     }
-    const subtitles = /** @type {Array<Object>} */ (frame.getSubtitles());
+    const subtitles = /** @type {Array<TrackedSubtitle>} */ (frame.getSubtitles());
     for (const subtitle of kept.subtitles) {
       if (!subtitles.includes(subtitle)) {
         subtitles.push(subtitle);
@@ -715,6 +741,8 @@ export class TabTracker {
    * @return {Promise<void>}
    */
   async restoreTabStates() {
+    // Everything in the session's storage: a tab's state under its key, whatever else there.
+    /** @type {Object<string, *>} */
     let stored;
     try {
       stored = await chrome.storage.session.get(null);
@@ -748,20 +776,24 @@ export class TabTracker {
     }
   }
 
+  /** @param {number} tabId */
   createTab(tabId) {
     const newTab = new TabHolder(this, tabId);
     this.tabs.set(tabId, newTab);
     return newTab;
   }
 
+  /** @param {number|undefined} tabId - undefined (a tab without an id) finds none. */
   getTab(tabId) {
     return this.tabs.get(tabId);
   }
 
+  /** @param {number} tabId */
   getTabOrCreate(tabId) {
     return this.getTab(tabId) || this.createTab(tabId);
   }
 
+  /** @param {number} tabId */
   removeTab(tabId) {
     this.tabs.delete(tabId);
     chrome.storage.session.remove(TabStateKeyPrefix + tabId).catch(() => {});
@@ -778,11 +810,19 @@ export class TabTracker {
     this.getTab(tabId)?.requestHeaders.delete(requestId);
   }
 
+  /**
+   * @param {number} tabId
+   * @param {number} frameId
+   */
   getFrame(tabId, frameId) {
     const tab = this.getTab(tabId);
     return tab && tab.getFrame(frameId);
   }
 
+  /**
+   * @param {number} tabId
+   * @param {number} frameId
+   */
   getFrameOrCreate(tabId, frameId) {
     const tab = this.getTabOrCreate(tabId);
     return tab.getFrameOrCreate(frameId);

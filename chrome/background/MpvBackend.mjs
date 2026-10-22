@@ -117,6 +117,13 @@ const PrivateNeedsNewerHostError = 'a private window\'s stream needs mpv helper 
  *   {type: 'closed', reason: *}|{type: 'decoder', decoder: ?MpvDecoder}} MpvWatchEvent
  */
 
+/**
+ * What relayWatch (MpvRelayWatch.mjs) tells: the events of a watch but decoder, and in its
+ * place the decoder properties' values whenever one changed, as the ipc message's replies.
+ * @typedef {{type: 'watching'}|{type: 'path'|'ended', path: string}|{type: 'request', action: string}|
+ *   {type: 'closed', reason: string}|{type: 'decoder-replies', replies: Array<{error: string, data?: *}>}} RelayEvent
+ */
+
 // mpv's video-format names as people know them.
 const FormatNames = new Map([
   ['av1', 'AV1'],
@@ -137,9 +144,27 @@ function messageBytes(message) {
 }
 
 /**
+ * The open message for a helper before host 15 (openMessage): the helper builds mpv's URL,
+ * title and the rest from it.
+ * @typedef {{type: 'open', url: string, contentType?: string, pageUrl?: string, title?: string,
+ *   start?: number, mpvPath?: string, fullscreen?: boolean, singleInstance?: boolean,
+ *   headers?: Array<{name: string, value: string}>,
+ *   qualities?: Array<{url: string, label: string, height: number}>,
+ *   subtitles?: Array<{label: string, srt: string}>}} OpenMessage
+ */
+
+/**
+ * The play message for the thin helper, host 15 (playMessage): the start in seconds as text,
+ * the header fields as `Name: value` lines (relayHeaderFields).
+ * @typedef {{type: 'play', target: string, title: string, start?: string, headers?: Array<string>,
+ *   mpvPath?: string, fullscreen?: boolean, newWindow?: boolean,
+ *   subtitles?: Array<{label: string, srt: string}>}} PlayMessage
+ */
+
+/**
  * Adds the subtitles that fit under the host's limit to a message, in order: one that does
  * not fit is left out, and the stream still goes. Last, so the rest of the message counts.
- * @param {Object} message - The open or play message, all else in it.
+ * @param {OpenMessage|PlayMessage} message - The open or play message, all else in it.
  * @param {*} subtitles - The player's or the page's tracks: [{label, srt}].
  */
 function addSubtitles(message, subtitles) {
@@ -150,6 +175,7 @@ function addSubtitles(message, subtitles) {
       .filter((s) => s && typeof s.srt === 'string' && s.srt.trim())
       .slice(0, 8)
       .map((s) => ({label: typeof s.label === 'string' ? cutText(s.label, 100) : '', srt: s.srt}));
+  /** @type {Array<{label: string, srt: string}>} */
   const fitting = [];
   message.subtitles = fitting;
   for (const subtitle of candidates) {
@@ -168,17 +194,27 @@ function addSubtitles(message, subtitles) {
  * Follows mpv over a port to a helper before host 15 (host 7's watch message): the helper
  * itself tells the end of a file and the keys for the next or the previous episode.
  * @param {*} port - A connectNative port, nothing sent on it yet.
- * @param {(message: Object) => void} onEvent - watching, path, ended, request, closed.
+ * @param {(message: MpvWatchEvent) => void} onEvent - watching, path, ended, request, closed.
  * @return {import('./MpvRelayWatch.mjs').MpvWatcher}
  */
 function legacyWatch(port, onEvent) {
   let stopped = false;
+  /**
+   * Ends the watch the first time it is called, and tells the watcher why; with a null
+   * reason (stop()) no 'closed' event goes.
+   * @param {string|null} reason - The host's error or close reason, or why the port went.
+   * @return {boolean} Whether this call ended it.
+   */
   const end = (reason) => {
     if (stopped) return false;
     stopped = true;
     if (reason) onEvent({type: 'closed', reason});
     return true;
   };
+  /**
+   * @param {{type: 'notify', title: string, detail: string, seconds?: number}|{type: 'hide'}|
+   *   {type: 'state', autoplay: boolean}} message - For the host's watch (host 9 and 11).
+   */
   const post = (message) => {
     if (stopped) return;
     try {
@@ -187,7 +223,8 @@ function legacyWatch(port, onEvent) {
       // The host went meanwhile: onDisconnect says so.
     }
   };
-  port.onMessage.addListener((message) => {
+  // The host's message as it came: checked here before use.
+  port.onMessage.addListener((/** @type {*} */ message) => {
     if (stopped || !message || typeof message !== 'object') return;
     if (message.ok === false) {
       // A host before 7: "unknown message", and it exits.
@@ -276,7 +313,7 @@ export class MpvBackend {
       return;
     }
     this.capabilities = Array.isArray(response.capabilities) ?
-      response.capabilities.filter((capability) => typeof capability === 'string') : [];
+      response.capabilities.filter((/** @type {*} */ capability) => typeof capability === 'string') : [];
   }
 
   /**
@@ -478,8 +515,9 @@ export class MpvBackend {
    * Opens a stream URL in mpv via the native messaging host: a play message, built here,
    * for the thin helper (host 15); the open message, as before, for an older helper.
    * @param {string} url - The stream URL to play.
-   * @param {Object} [tab] - TabHolder the source was detected in, used to
-   *   deduplicate repeated detections of the same URL.
+   * @param {import('./TabTracker.mjs').TabHolder|null} [tab] - TabHolder the source was
+   *   detected in, used to deduplicate repeated detections of the same URL; null for a
+   *   send no tab dedupes (the player's button, the MPV key's play).
    * @param {Array<{name: string, value: string}>} [headers] - Optional
    *   Referer/Origin headers to relay.
    * @param {string} [contentType] - 'anime' or 'movie', from the MPV
@@ -489,10 +527,10 @@ export class MpvBackend {
    *   playback position by. Only http(s) URLs are relayed.
    * @param {string} [pageTitle] - The tab's title, which mpv shows for the stream
    *   (window, taskbar, top bar); without one the host shows the stream's host name.
-   * @param {{startTime?: number, subtitles?: Array<{label: string, srt: string}>,
+   * @param {{startTime?: number, private?: boolean, subtitles?: Array<{label: string, srt: string}>,
    *   qualities?: Array<{url: string, label: string, height: number}>}} [extras]
-   *   - Where the browser's player was, the subtitles it shows (the player's button), and the
-   *   qualities the page's player offers the file in.
+   *   - Where the browser's player was, whether the tab is a private window's, the subtitles
+   *   it shows (the player's button), and the qualities the page's player offers the file in.
    * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean,
    *   focus?: string, foreground?: string, reused?: boolean}>}
    *   Host response; noHost when the host itself could not be reached, hostOutdated when
@@ -621,13 +659,13 @@ export class MpvBackend {
    * The open message for a helper before host 15: the helper builds mpv's URL, title and
    * the rest from it.
    * @param {MpvStream} stream
-   * @return {?Object} The message; null when even without subtitles it is over the host's
+   * @return {?OpenMessage} The message; null when even without subtitles it is over the host's
    *   limit (a stream address near Firefox's own URL limit, 1 MB, made the host quit unread,
    *   which said "is the helper installed?", and every later detection of the stream tried
    *   again; glm's review, 2026-10-13).
    */
   openMessage({url, headers, contentType, pageUrl, pageTitle, extras}) {
-    /** @type {Object} */
+    /** @type {OpenMessage} */
     const message = {
       type: 'open',
       url: url,
@@ -694,7 +732,7 @@ export class MpvBackend {
    * The options page's mpv path goes along as in the open message: the helper takes it by
    * the same rule (an mpv executable, or the folder it is in; else its config.json's).
    * @param {MpvStream} stream
-   * @return {Promise<{message?: Object, error?: string}>}
+   * @return {Promise<{message?: PlayMessage, error?: string}>}
    */
   async playMessage({url, headers, contentType, pageUrl, pageTitle, extras}) {
     const tags = {
@@ -715,7 +753,7 @@ export class MpvBackend {
       return {error: TooLongError};
     }
 
-    /** @type {Object} */
+    /** @type {PlayMessage} */
     const message = {
       type: 'play',
       target,
@@ -783,10 +821,12 @@ export class MpvBackend {
         current?.stop();
       },
     };
+    /** @param {MpvWatchEvent} event */
     const emit = (event) => {
       if (event.type === 'closed' && this.watcher === handle) this.watcher = null;
       onEvent(event);
     };
+    /** @param {boolean} relay - Over the thin helper's relay (host 15), else host 7's watch. */
     const start = (relay) => {
       /** @type {*} */
       let port;
@@ -797,7 +837,7 @@ export class MpvBackend {
         emit({type: 'closed', reason: String(e)});
         return;
       }
-      current = relay ? relayWatch(port, (event) => {
+      current = relay ? relayWatch(port, (/** @type {RelayEvent} */ event) => {
         // mpv's decoder, observed over the relay: read as decoderStatus reads it.
         if (event.type === 'decoder-replies') {
           emit({type: 'decoder', decoder: MpvBackend.readDecoder(MpvBackend.decoderFromReplies(event.replies))});
@@ -915,7 +955,15 @@ export class MpvBackend {
     if (typeof api !== 'string' || !api) {
       return null;
     }
+    /**
+     * @param {*} v - A property's value as mpv sent it.
+     * @return {?string}
+     */
     const text = (v) => (typeof v === 'string' && v ? v : null);
+    /**
+     * @param {*} v - A property's value as mpv sent it.
+     * @return {?number}
+     */
     const size = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
     return {
       hardware: api !== 'no',
@@ -936,7 +984,15 @@ export class MpvBackend {
     if (!value || typeof value !== 'object' || typeof value.api !== 'string' || !value.api) {
       return null;
     }
+    /**
+     * @param {*} v - A field of the host's answer, as it sent it.
+     * @return {?string}
+     */
     const text = (v) => (typeof v === 'string' && v ? v.slice(0, 40) : null);
+    /**
+     * @param {*} v - A field of the host's answer, as it sent it.
+     * @return {?number}
+     */
     const size = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.round(v) : null);
     return {
       hardware: value.api !== 'no',
@@ -976,7 +1032,7 @@ export class MpvBackend {
    * @return {Promise<{ok: boolean, mpv?: boolean, path?: string, error?: string, hostOutdated?: boolean}>}
    */
   async testConnection() {
-    /** @type {Object} */
+    /** @type {{type: 'ping', mpvPath?: string}} */
     const pingMessage = {
       type: 'ping',
     };
