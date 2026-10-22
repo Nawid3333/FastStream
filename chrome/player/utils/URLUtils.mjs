@@ -15,6 +15,9 @@ ModesMap.set('vmpatch', PlayerModes.ACCELERATED_VM);
  * Utility functions for working with URLs and extracting identifiers.
  */
 export class URLUtils {
+  /**
+  * @param {string} urlStr
+  */
   static is_url(urlStr) {
     try {
       new URL(urlStr);
@@ -24,6 +27,9 @@ export class URLUtils {
     }
   }
 
+  /**
+  * @param {string} url
+  */
   static get_url_params(url) {
     try {
       const urlObj = new URL(url);
@@ -37,6 +43,10 @@ export class URLUtils {
     }
   }
 
+  /**
+  * @param {string} url
+  * @param {string} name
+  */
   static get_param(url, name) {
     try {
       const urlObj = new URL(url);
@@ -45,6 +55,9 @@ export class URLUtils {
       return null;
     }
   }
+  /**
+  * @param {string} url
+  */
   static strip_queryhash(url) {
     return url.split(/[#?]/)[0];
   }
@@ -52,6 +65,10 @@ export class URLUtils {
   // A plain url.includes(domain) also matches an attacker host that merely
   // contains the domain as a substring, e.g. evil.com/vimeo.com or
   // vimeo.com.evil.com. This checks the actual hostname instead.
+  /**
+  * @param {string} url
+  * @param {string} domain
+  */
   static hostnameMatches(url, domain) {
     try {
       const hostname = new URL(url).hostname;
@@ -68,6 +85,10 @@ export class URLUtils {
   // The source as an absolute URL when it has one of those protocols, else null. A source
   // can come from the player's address or the sources browser's text field, so a
   // `javascript:` one must not reach `video.src`.
+  /**
+  * @param {string} url
+  * @param {string} base
+  */
   static playableUrl(url, base) {
     let parsed;
     try {
@@ -78,6 +99,9 @@ export class URLUtils {
     return URLUtils.PlayableProtocols.includes(parsed.protocol) ? parsed.href : null;
   }
 
+  /**
+  * @param {string} url
+  */
   static get_url_extension(url) {
     // The last path segment's extension only: a dot in the host or in a folder is none.
     // https://e.com/stream has no extension (it gave 'com/stream'), and a bare host
@@ -92,16 +116,25 @@ export class URLUtils {
     return dot === -1 ? '' : name.substring(dot + 1).trim().toLowerCase();
   }
 
+  /**
+  * @param {string} ext
+  */
   static getModeFromExtension(ext) {
     return ModesMap.get(ext);
   }
 
+  /**
+  * @param {string} url
+  */
   static getModeFromURL(url) {
     const ext = URLUtils.get_url_extension(url);
     return URLUtils.getModeFromExtension(ext) || PlayerModes.DIRECT;
   }
 
 
+  /**
+  * @param {string} str
+  */
   static validateHeadersString(str) {
     const lines = str.split('\n');
     for (let i = 0; i < lines.length; i++) {
@@ -122,6 +155,9 @@ export class URLUtils {
     return true;
   }
 
+  /**
+  * @param {Object<string, string>} obj
+  */
   static objToHeadersString(obj) {
     let str = '';
     for (const name in obj) {
@@ -139,7 +175,11 @@ export class URLUtils {
     return str;
   }
 
+  /**
+  * @param {string} str
+  */
   static headersStringToObj(str) {
+    /** @type {Object<string, string>} */
     const obj = {};
     const lines = str.split('\n');
     for (let i = 0; i < lines.length; i++) {
