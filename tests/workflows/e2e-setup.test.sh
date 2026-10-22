@@ -79,6 +79,10 @@ echo "apt-get $*" >> "$FIX/calls"
 [ -e "$FIX/apt-fails" ] && exit 100
 if [ "$1" = install ]; then
   cp "$STUBS/pulseaudio" "$STUBS/pactl" "$FIX/bin/"
+  # With -o Dir::Cache::Archives=<folder>, a downloaded package is left there, as apt does.
+  for arg in "$@"; do
+    case "$arg" in Dir::Cache::Archives=*) : > "${arg#*=}/ffmpeg_7.0_amd64.deb" ;; esac
+  done
 fi
 EOF
 cat > "$here/stubs/sleep" <<'EOF'
@@ -247,7 +251,11 @@ check '... the update too' contains "$FIX/calls" 'sudo timeout -k 10 120 apt-get
 check 'logs the version' contains "$FIX/out" 'ffmpeg version'
 check 'no Chocolatey' lacks "$FIX/calls" 'choco'
 check 'adds nothing to PATH' test ! -s "$FIX/path"
-check 'saves nothing' test ! -s "$FIX/output"
+# A mirror that sent less than a package a second failed three runs (2026-10-22).
+check 'keeps the packages in the folder the cache saves' contains "$FIX/calls" \
+  "pulseaudio-utils -o Dir::Cache::Archives=$FIX/home/apt-e2e"
+check '... with the partial/ folder apt needs' test -d "$FIX/home/apt-e2e/partial"
+check 'a miss asks the save step to save them' contains "$FIX/output" 'save=true'
 # A mirror that stopped sending held the step for 19 minutes (2026-10-06).
 check 'sets apt to give up on a stalled download' contains "$FIX/calls" 'sudo tee /etc/apt/apt.conf.d/99-faststream-e2e-timeouts'
 check '... after 30 s without data' contains "$FIX/tee-99-faststream-e2e-timeouts" 'Acquire::http::Timeout "30";'
@@ -262,6 +270,15 @@ check 'waited 30 s' contains "$FIX/calls" 'sleep 30'
 check 'then updated again' test "$(grep -c '^apt-get update$' "$FIX/calls")" -eq 1
 check 'installed once' test "$(grep -c '^apt-get install' "$FIX/calls")" -eq 1
 check 'logs the version' contains "$FIX/out" 'ffmpeg version'
+
+ffmpeg_scenario 'Linux, a cache hit: apt installs from the restored packages, nothing saved' Linux true
+check 'succeeds' test "$status" -eq 0
+check 'installs from the cached folder' contains "$FIX/calls" "-o Dir::Cache::Archives=$FIX/home/apt-e2e"
+check 'saves nothing' test ! -s "$FIX/output"
+
+ffmpeg_scenario 'Linux, apt that keeps failing: nothing saved' Linux '' apt-fails
+check 'tried three times' test "$(grep -c '^apt-get update' "$FIX/calls")" -eq 3
+check 'saves nothing' test ! -s "$FIX/output"
 
 ffmpeg_scenario 'Windows, a cache hit: the cached programs, no Chocolatey' Windows true cache-has
 check 'succeeds' test "$status" -eq 0
