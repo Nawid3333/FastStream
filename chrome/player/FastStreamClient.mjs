@@ -37,7 +37,7 @@ import {describePlayerError, isNetworkFailure} from './utils/PlayerErrorUtils.mj
 import {isDecodeError, isSamePlace, pastBrokenMedia} from './utils/BrokenMedia.mjs';
 import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
-import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGENT_PARALLEL} from './network/PlayheadFirst.mjs';
+import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate} from './network/PlayheadFirst.mjs';
 import {SILENT_MAX_PLAYBACK_RATE} from './options/KeybindUtils.mjs';
 import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
 import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
@@ -1589,7 +1589,7 @@ export class FastStreamClient extends EventEmitter {
       }
 
       // (A live stream's fragments are placed on its own clock: no window there.)
-      if (this.concentrating && (this.downloadManager.activeCount() >= URGENT_PARALLEL ||
+      if (this.concentrating && (this.downloadManager.activeCount() >= this.downloadManager.urgentParallel() ||
           (!this.isLive() && nextDownload.start > this.state.currentTime + KEEP_AHEAD_S))) {
         break;
       }

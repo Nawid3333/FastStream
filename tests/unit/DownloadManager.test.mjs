@@ -321,7 +321,7 @@ describe('DownloadManager', () => {
 
   // The speed test started a video with one downloader and added one per three speed
   // samples: 3.3 s, a third of a Vimeo video, before it had six (2026-10-06). It starts
-  // with three and decides per two samples; a server that answers 429 or 503 gets half.
+  // with three and decides per sample; a server that answers 429 or 503 gets half.
   describe('a fast start that backs off when a server asks', () => {
     const client = (maximumDownloaders = 6) => ({
       options: {maximumDownloaders}, resetFailed: vi.fn(), predownloadFragments: vi.fn(),
@@ -362,14 +362,19 @@ describe('DownloadManager', () => {
       expect(held.holdUntil).toBe(0);
     });
 
-    it('adds a downloader after two speed samples that show a gain', () => {
+    it('adds a downloader after each speed sample that shows a gain', () => {
+      // Each round (every downloader heard) is a sample; two were averaged until 2026-10-22,
+      // which doubled the time to six downloaders.
       const manager = new DownloadManager(client());
       manager.downloaders = [finished(), finished(), finished()];
-      const round = () => manager.downloaders.slice(0, 3).forEach((d) => manager.onDownloaderFinished(d, {status: DownloadStatus.DOWNLOAD_COMPLETE}));
-      round();
-      expect(manager.downloaders).toHaveLength(3);
+      const round = () => manager.downloaders.slice().forEach((d) => manager.onDownloaderFinished(d, {status: DownloadStatus.DOWNLOAD_COMPLETE}));
       round();
       expect(manager.downloaders).toHaveLength(4);
+      manager.downloaders.forEach((d) => {
+        d.getSpeed = () => 2e6;
+      });
+      round();
+      expect(manager.downloaders).toHaveLength(5);
     });
 
     it('still decides when a sample came with no speed (a cache hit)', () => {
@@ -397,7 +402,81 @@ describe('DownloadManager', () => {
       manager.onDownloaderFinished(a, failedEntry);
       expect(manager.downloaders).toEqual([b, c]);
       manager.onDownloaderFinished(c, {status: DownloadStatus.DOWNLOAD_COMPLETE});
-      expect(manager.speedTestBuffer).toHaveLength(1);
+      // The round closed: its sample decided, and a downloader came in for the one dropped.
+      expect(manager.downloaders).toHaveLength(3);
+    });
+
+    describe('how many run at once while the player is short of video (urgentParallel)', () => {
+      // PlayheadFirst ran two at most whatever the speed test found. On a server that limits
+      // each connection that was all a player short of video ever ran, and the speed test could
+      // not finish a round with its third downloader idle: a server giving each connection less
+      // than the video's rate kept the player short, on two, for the whole video (2026-10-22).
+
+      /** The speed test's rounds, the total speed a function of how many downloaders there are. */
+      const runTest = (manager, total) => {
+        for (let i = 0; i < 40 && manager.testing; i++) {
+          const count = manager.downloaders.length;
+          manager.downloaders.slice().forEach((d) => {
+            d.getSpeed = () => total(count) / count;
+            manager.onDownloaderFinished(d, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+          });
+        }
+      };
+      const fresh = () => {
+        const manager = new DownloadManager(client());
+        manager.downloaders = [finished(), finished(), finished()];
+        return manager;
+      };
+
+      it('runs all its downloaders while the speed test measures them', () => {
+        expect(fresh().urgentParallel()).toBe(3);
+      });
+
+      it('runs all of them on a server that limits each connection', () => {
+        const manager = fresh();
+        runTest(manager, (count) => count * 2e5);
+        expect(manager.downloaders).toHaveLength(6);
+        expect(manager.urgentParallel()).toBe(6);
+      });
+
+      it('runs two on a line the downloads share, where one more added nothing', () => {
+        const manager = fresh();
+        runTest(manager, () => 1.5e6);
+        expect(manager.testing).toBe(false);
+        expect(manager.urgentParallel()).toBe(2);
+      });
+
+      it('runs two where one more brought less than half its share', () => {
+        const manager = fresh();
+        // 500 kB/s per connection on a 1.6 MB/s line: the fourth adds a little, the fifth nothing.
+        runTest(manager, (count) => Math.min(count * 5e5, 1.6e6));
+        expect(manager.downloaders).toHaveLength(5);
+        expect(manager.urgentParallel()).toBe(2);
+      });
+
+      it('runs two where each one more added a little, up to the limit (a line they share)', () => {
+        const manager = fresh();
+        runTest(manager, (count) => 1.5e6 + count * 1e4);
+        expect(manager.downloaders).toHaveLength(6);
+        expect(manager.testing).toBe(false);
+        expect(manager.urgentParallel()).toBe(2);
+      });
+
+      it('runs two after a gain that came from elsewhere, once (other players stepping aside)', () => {
+        const manager = fresh();
+        // The line's speed doubles as the fourth is added, then stays.
+        runTest(manager, (count) => (count >= 4 ? 3e6 : 1.5e6));
+        expect(manager.testing).toBe(false);
+        expect(manager.urgentParallel()).toBe(2);
+      });
+
+      it('runs two again once a server asks to slow down, until a probe finds more', () => {
+        const manager = fresh();
+        runTest(manager, (count) => count * 2e5);
+        manager.slowDown(0);
+        expect(manager.downloaders).toHaveLength(3);
+        expect(manager.urgentParallel()).toBe(2);
+      });
     });
 
     it('hears a real 429 through FetchLoader and StandardDownloader, with its Retry-After', async () => {
@@ -676,7 +755,7 @@ describe('DownloadManager', () => {
       expect(manager.probing).toBe(true);
       expect(manager.testing).toBe(true);
 
-      // The speed test then adds a downloader per two samples while the total speed rises:
+      // The speed test then adds a downloader per sample while the total speed rises:
       // with the same speed per downloader, up to the limit, where the probe has found the
       // rate the server takes.
       for (let i = 0; i < 40 && manager.testing; i++) {

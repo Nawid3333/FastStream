@@ -1070,6 +1070,32 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
     expect(predownloadOnce({maxSpeed: 0, speed: 5e5})).toBe(0);
   });
 
+  it('short of video, runs as many downloads at once as the download manager allows', () => {
+    // Two at most (PlayheadFirst's URGENT_PARALLEL), whatever the speed test had found: on a
+    // server that limits each connection, a player short of video stayed on two.
+    const started = (urgentParallel) => {
+      vi.stubGlobal('navigator', {onLine: true});
+      const client = makeClient({maxSpeed: -1});
+      const waiting = Array.from({length: 8}, (_, i) => ({start: i * 4, end: i * 4 + 4, canFree: () => true, getContext: () => ({})}));
+      client.getNextToDownload = () => waiting.shift() || null;
+      client.getVideoAhead = () => 2;
+      client.concentrating = true;
+      client.needsUserInteraction = () => false;
+      client.interfaceController.saveManager = {makingDownload: false};
+      let running = 0;
+      client.downloadManager = {yielding: false, memoryFull: false, getSpeed: () => 0,
+        canGetFile: () => true, activeCount: () => running, urgentParallel: () => urgentParallel};
+      client.player = {duration: 1400, downloadFragment: vi.fn(() => {
+        running++;
+        return Promise.resolve();
+      })};
+      client.predownloadFragments();
+      return running;
+    };
+    expect(started(2)).toBe(2);
+    expect(started(5)).toBe(5);
+  });
+
   it('downloads ahead with no speed limit, and under a limit it has not reached', () => {
     expect(predownloadOnce({maxSpeed: -1, speed: 1e9})).toBe(1);
     expect(predownloadOnce({maxSpeed: 125000, speed: 1000})).toBe(1);
