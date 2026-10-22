@@ -217,6 +217,11 @@ export class SaveManager {
     return !!video?.videoWidth && !!video?.videoHeight && video.readyState >= 2;
   }
 
+  /**
+   * Called with the click or the key press that asked for it (KeybindManager), which it
+   * does not read.
+   * @type {(e?: Event) => Promise<void>}
+   */
   async saveScreenshot() {
     if (!this.client.player) {
       await AlertPolyfill.alert(Localize.getMessage('player_nosource_alert'), 'error');
