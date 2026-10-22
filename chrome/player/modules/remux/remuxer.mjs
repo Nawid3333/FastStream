@@ -1,5 +1,7 @@
+// @ts-check
 import {EventEmitter} from '../eventemitter.mjs';
 import {FSBlob} from '../FSBlob.mjs';
+// @ts-ignore - mediabunny.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {ALL_FORMATS, BlobSource, EncodedPacketSink, Input} from './mediabunny.mjs';
 import {MP4Writer} from './mp4-writer.mjs';
 
