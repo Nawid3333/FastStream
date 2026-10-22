@@ -1,3 +1,4 @@
+// @ts-check
 import {EventEmitter} from '../eventemitter.mjs';
 import {MP4Merger} from './mp4merger.mjs';
 

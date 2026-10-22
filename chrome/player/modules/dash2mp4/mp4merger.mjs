@@ -1,4 +1,6 @@
+// @ts-check
 import {EventEmitter} from '../eventemitter.mjs';
+// @ts-ignore - mp4box is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {createFile, DataStream, Endianness} from '../mp4box/mp4box.all.mjs';
 import {MP4} from '../hls2mp4/MP4Generator.mjs';
 import {FSBlob} from '../FSBlob.mjs';
@@ -9,14 +11,14 @@ import {BlobManager} from '../../utils/BlobManager.mjs';
  * ArrayBuffer. FileReader can return either shape depending on platform/
  * storage backend (OPFS-backed Blobs have been observed yielding views),
  * and OPFS saveAppend needs a plain buffer to transfer.
- * @param {ArrayBuffer|TypedArray} data
+ * @param {ArrayBuffer|ArrayBufferView} data
  * @return {ArrayBuffer}
  */
 function toStandaloneBuffer(data) {
   if (data instanceof ArrayBuffer) {
     return data.slice(0);
   }
-  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  return /** @type {ArrayBuffer} */ (data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
 }
 
 const VideoCodecs = ['avc1', 'avc2', 'avc3', 'avc4', 'av01', 'dav1', 'hvc1', 'hev1', 'hvt1', 'lhe1', 'dvh1', 'dvhe', 'vvc1', 'vvi1', 'vvs1', 'vvcN', 'vp08', 'vp09', 'avs3', 'j2ki', 'mjp2', 'mjpg', 'uncv'];
@@ -157,7 +159,7 @@ export class MP4Merger extends EventEmitter {
       // The mdat is copied whole, so each track's samples keep their distance into it.
       // In a muxed fragment one track's samples follow the other's rather than starting
       // right after the box header, which is why this is measured and not assumed.
-      const offset = this.datasOffset + (samplesList.samples[0].offset - mdat.start);
+      const offset = /** @type {number} */ (this.datasOffset) + (samplesList.samples[0].offset - mdat.start);
 
       track.chunks.push({
         id: track.nextChunkId++,
@@ -176,7 +178,7 @@ export class MP4Merger extends EventEmitter {
     // through blobManager.getBlob(), which would answer undefined for a slice. Upstream
     // stores `blobManager.saveBlob(slice)` here; taking that line as it stands produces a
     // file with a valid header and no media in it.
-    this.datas.push(blob.slice(mdat.start, mdat.start + mdat.size));
+    /** @type {Array<*>} */ (this.datas).push(blob.slice(mdat.start, mdat.start + mdat.size));
     this.datasOffset += mdat.size;
   }
 
@@ -396,17 +398,17 @@ export class MP4Merger extends EventEmitter {
             new Uint8Array(toStandaloneBuffer(initSeg)));
         // ...then every mdat chunk, in fragment order. This runs after the progress has
         // reached 100 %, and for a large video takes a while: a cancel still ends it.
-        for (const slice of this.datas) {
+        for (const slice of /** @type {Array<*>} */ (this.datas)) {
           if (this.cancelled) {
             throw new Error('Cancelled');
           }
-          const buf = await BlobManager.getDataFromBlob(slice, 'arraybuffer');
+          const buf = /** @type {ArrayBuffer} */ (await BlobManager.getDataFromBlob(slice, 'arraybuffer'));
           await this.opfs.saveAppend(this.saveIdentifier,
               new Uint8Array(toStandaloneBuffer(buf)));
         }
         await this.opfs.saveEnd(this.saveIdentifier);
-        const file = await this.opfs.getSavedFile(this.saveIdentifier);
-        this.datas.length = 0;
+        const file = await this.opfs.getSavedFile(/** @type {string} */ (this.saveIdentifier));
+        /** @type {Array<*>} */ (this.datas).length = 0;
         return file;
       } catch (e) {
         await this.opfs.saveAbort(this.saveIdentifier).catch(() => {});
@@ -427,7 +429,7 @@ export class MP4Merger extends EventEmitter {
     // full of the string "undefined" instead of a video - invisible because
     // Firefox always took the OPFS path, until OPFS stopped being available
     // (a private window) and this became the path that runs.
-    return new Blob([initSeg, ...this.datas], {
+    return new Blob([initSeg, .../** @type {Array<*>} */ (this.datas)], {
       type: 'video/mp4',
     });
   }
@@ -493,7 +495,8 @@ export class MP4Merger extends EventEmitter {
    */
   release() {
     const blobManager = this.blobManager;
-    this.blobManager = null;
+    // The last use of it: nothing reads the store once it is released.
+    this.blobManager = /** @type {any} */ (null);
     blobManager?.close();
   }
 }
