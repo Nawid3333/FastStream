@@ -331,7 +331,7 @@ describe('playMpv', () => {
     // the first helper to be done, so its own stream also comes after the first one.
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
     try {
-      const lockFile = launchLockFile(basePipe, dir);
+      const lockFile = launchLockFile({ipcToken: token}, dir);
       const other = takeLaunchLock(lockFile);
       expect(other.taken).toBe(true);
       const io = stand();
@@ -365,7 +365,7 @@ describe('playMpv', () => {
     // mpv on the same pipe would leave that one without it.
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
     try {
-      const lockFile = launchLockFile(basePipe, dir);
+      const lockFile = launchLockFile({ipcToken: token}, dir);
       const other = takeLaunchLock(lockFile);
       const io = stand();
       io.lockFile = lockFile;
@@ -390,7 +390,7 @@ describe('playMpv', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
     try {
       const io = stand({pipeUpAfter: 2});
-      io.lockFile = launchLockFile(basePipe, dir);
+      io.lockFile = launchLockFile({ipcToken: token}, dir);
       expect((await playMpv('mpv.exe', play(), {ipcToken: token}, io)).ok).toBe(true);
       expect(io.record.started).toHaveLength(1);
       expect(launchLockHeld(io.lockFile)).toBe(false);
@@ -889,7 +889,7 @@ describe('the launch lock', () => {
   it('is one helper’s at a time, and holds no longer once let go, old, or its process gone', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
     try {
-      const file = launchLockFile('test-pipe', dir);
+      const file = launchLockFile({}, dir);
       const first = takeLaunchLock(file);
       expect(first.taken).toBe(true);
       expect(takeLaunchLock(file).taken).toBe(false);

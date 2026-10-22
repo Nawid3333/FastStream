@@ -1803,7 +1803,7 @@ export async function launchMpv(mpvPath, message, config, io = {}) {
     // goes to that mpv once its pipe answers. Its own stream came on its command line, so
     // this one, loaded after, replaces it, as the later send should.
     if (!existing.ok && !existing.refused && !existing.busy) {
-      const lockFile = io.lockFile || launchLockFile(pipe);
+      const lockFile = io.lockFile || launchLockFile(config);
       lock = takeLaunchLock(lockFile, io.lock);
       if (!lock.taken) {
         debugLog(config, 'launch-wait', {});
@@ -2343,12 +2343,15 @@ export const LaunchLockMs = PipeWaitMs + 5000;
  * The launch lock's file for a pipe, in the helper's own folder: only this user writes there.
  * In the temp folder - /tmp on Linux without $XDG_RUNTIME_DIR, shared - another account could
  * make the file first and keep every mpv from starting.
- * @param {string} pipe - The helper's pipe (ipcPipeFor).
+ * Named after config.json's ipcToken, which names the helper's pipe too (ipcPipeFor): one
+ * lock per pipe.
+ * @param {Object} config - The parsed config.json.
  * @param {string} [dir] - Its folder (tests).
  * @return {string}
  */
-export function launchLockFile(pipe, dir = __dirname) {
-  const id = crypto.createHash('sha256').update(pipe).digest('hex').slice(0, 16);
+export function launchLockFile(config, dir = __dirname) {
+  const token = config && typeof config.ipcToken === 'string' && /^[0-9a-f]{32}$/.test(config.ipcToken) ? config.ipcToken : '';
+  const id = crypto.createHash('sha256').update('faststream-mpv-launch:' + token).digest('hex').slice(0, 16);
   return path.join(dir, `faststream-mpv-launch-${id}.lock`);
 }
 
@@ -2564,7 +2567,7 @@ export async function playMpv(mpvPath, play, config, io = {}) {
   // Another helper is starting an mpv on this pipe (LaunchLockMs): this stream goes to that
   // mpv once that helper is done with it - loaded before, its own stream would come after
   // this one and replace it.
-  const lockFile = play.newWindow ? null : (io.lockFile || launchLockFile(basePipe));
+  const lockFile = play.newWindow ? null : (io.lockFile || launchLockFile(config));
   let lock = lockFile ? takeLaunchLock(lockFile, io.lock) : null;
   if (lockFile && lock && !lock.taken) {
     debugLog(config, 'launch-wait', {});
