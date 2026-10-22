@@ -1,3 +1,4 @@
+// @ts-check
 import {SubtitleTrack} from '../SubtitleTrack.mjs';
 import {VideoSource} from '../VideoSource.mjs';
 import {PlayerModes} from '../enums/PlayerModes.mjs';
@@ -16,13 +17,19 @@ import {DOMElements} from './DOMElements.mjs';
 import {StatusTypes} from './StatusManager.mjs';
 
 /**
+ * streamSaver as it is called here: StreamSaver.mjs's JSDoc lists options and size as
+ * required, but createWriteStream fills in options and ignores size (deprecated).
+ * @typedef {{createWriteStream: (filename: string, options?: object, size?: number) => WritableStream<Uint8Array>}} StreamSaverApi
+ */
+
+/**
  * Revokes a save's URL once every download of it is over, then closes the blob store its
  * file reads from (when it has one). A complete video saved again downloads the same URL
  * again: with only the newest download followed, its end revoked the URL and closed the
  * store under an older one still reading it (paused in the downloads panel).
  * @param {string} url
  * @param {Array<*>} downloads - What each Utils.downloadURL of it resolved with.
- * @param {?function(): void} release
+ * @param {(() => void)|null} release
  * @return {Promise<void>} Not awaited: the save is done before its download is.
  */
 async function releaseWhenDownloaded(url, downloads, release) {
@@ -52,29 +59,29 @@ export class SaveManager {
   }
 
   setupUI() {
-    DOMElements.playerContainer.addEventListener('drop', this.onFileDrop.bind(this), false);
+    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('drop', this.onFileDrop.bind(this), false);
 
-    DOMElements.download.addEventListener('click', this.saveVideo.bind(this));
+    /** @type {HTMLElement} */ (DOMElements.download).addEventListener('click', this.saveVideo.bind(this));
 
-    DOMElements.download.addEventListener('contextmenu', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.download).addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.saveVideo(e, true);
     });
 
-    WebUtils.setupTabIndex(DOMElements.download);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.download));
 
-    DOMElements.mpv.addEventListener('click', this.openInMpv.bind(this));
-    DOMElements.mpv.addEventListener('contextmenu', (e) => {
+    /** @type {HTMLElement} */ (DOMElements.mpv).addEventListener('click', this.openInMpv.bind(this));
+    /** @type {HTMLElement} */ (DOMElements.mpv).addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.cycleMpvContentType();
     });
-    WebUtils.setupTabIndex(DOMElements.mpv);
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.mpv));
     this.updateMpvContentBadge();
 
-    DOMElements.screenshot.addEventListener('click', this.saveScreenshot.bind(this));
-    WebUtils.setupTabIndex(DOMElements.screenshot);
+    /** @type {HTMLElement} */ (DOMElements.screenshot).addEventListener('click', this.saveScreenshot.bind(this));
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.screenshot));
   }
 
   /**
@@ -176,25 +183,25 @@ export class SaveManager {
    * @return {void}
    */
   updateMpvContentBadge() {
-    const banner = DOMElements.mpvContentBanner;
+    const banner = /** @type {?HTMLElement} */ (DOMElements.mpvContentBanner);
     if (this.mpvContentType === 'anime') {
       if (banner) {
         banner.textContent = 'A';
         banner.style.display = '';
       }
-      WebUtils.setLabels(DOMElements.mpv, Localize.getMessage('player_mpv_content_anime'));
+      WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.mpv), Localize.getMessage('player_mpv_content_anime'));
     } else if (this.mpvContentType === 'movie') {
       if (banner) {
         banner.textContent = 'M';
         banner.style.display = '';
       }
-      WebUtils.setLabels(DOMElements.mpv, Localize.getMessage('player_mpv_content_movie'));
+      WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.mpv), Localize.getMessage('player_mpv_content_movie'));
     } else {
       if (banner) {
         banner.textContent = '';
         banner.style.display = 'none';
       }
-      WebUtils.setLabels(DOMElements.mpv, Localize.getMessage('player_mpv_content_unset'));
+      WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.mpv), Localize.getMessage('player_mpv_content_unset'));
     }
   }
 
@@ -236,7 +243,7 @@ export class SaveManager {
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
+      const ctx = /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d'));
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
@@ -273,7 +280,7 @@ export class SaveManager {
     if (this.makingDownload) {
       if (this.downloadCancel) {
         this.downloadCancel();
-        DOMElements.saveNotifBanner.style.color = 'gold';
+        /** @type {HTMLElement} */ (DOMElements.saveNotifBanner).style.color = 'gold';
         this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_cancelling'), 'info');
       } else {
         await AlertPolyfill.alert(Localize.getMessage('player_savevideo_inprogress_alert'), 'error');
@@ -330,7 +337,7 @@ export class SaveManager {
       if (!name) {
         return;
       }
-      filestream = streamSaver.createWriteStream(name + '.' + saveExtension);
+      filestream = /** @type {StreamSaverApi} */ (streamSaver).createWriteStream(name + '.' + saveExtension);
     }
 
     // The file kept is of the quality and audio track it was made of: saved again after a
@@ -344,8 +351,8 @@ export class SaveManager {
       this.makingDownload = true;
       this.askingToSave = false;
       this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_start'), 'info');
-      DOMElements.saveNotifBanner.style.display = '';
-      DOMElements.saveNotifBanner.style.color = '';
+      /** @type {HTMLElement} */ (DOMElements.saveNotifBanner).style.display = '';
+      /** @type {HTMLElement} */ (DOMElements.saveNotifBanner).style.color = '';
       try {
         const start = performance.now();
         this.pendingSave = player.saveVideo({
@@ -379,7 +386,7 @@ export class SaveManager {
         this.makingDownload = false;
         this.downloadCancel = null;
         this.pendingSave = null;
-        DOMElements.saveNotifBanner.style.display = 'none';
+        /** @type {HTMLElement} */ (DOMElements.saveNotifBanner).style.display = 'none';
 
         if (e.message === 'Cancelled') {
           console.error(e);
@@ -397,7 +404,7 @@ export class SaveManager {
         return;
       }
 
-      DOMElements.saveNotifBanner.style.display = 'none';
+      /** @type {HTMLElement} */ (DOMElements.saveNotifBanner).style.display = 'none';
       this.downloadCancel = null;
       this.makingDownload = false;
 
@@ -461,7 +468,7 @@ export class SaveManager {
 
   async dumpBuffer(name) {
     const entries = this.client.downloadManager.getCompletedEntries();
-    const filestream = streamSaver.createWriteStream(name + '.fsa');
+    const filestream = /** @type {StreamSaverApi} */ (streamSaver).createWriteStream(name + '.fsa');
     try {
       await FastStreamArchiveUtils.writeFSAToStream(filestream, this.client.player, entries, (progress)=>{
         this.setStatusMessage('save-video', Localize.getMessage('player_archiver_progress', [Math.floor(progress * 100)]), 'info');
@@ -500,6 +507,7 @@ export class SaveManager {
       'xml',
     ];
 
+    /** @type {?VideoSource} */
     let newSource = null;
     let newEntries = null;
     for (let i = 0; i < files.length; i++) {

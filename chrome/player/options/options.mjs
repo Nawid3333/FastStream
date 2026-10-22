@@ -1,3 +1,4 @@
+// @ts-check
 import {DefaultKeybinds} from './defaults/DefaultKeybinds.mjs';
 import {conflictPartners, keyDisplayName, keybindLabel} from './KeybindUtils.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
@@ -74,19 +75,19 @@ const maxdownloaders = /** @type {HTMLInputElement} */ (document.getElementById(
 autoEnableURLSInput.setAttribute('autocapitalize', 'off');
 autoEnableURLSInput.setAttribute('autocomplete', 'off');
 autoEnableURLSInput.setAttribute('autocorrect', 'off');
-autoEnableURLSInput.setAttribute('spellcheck', false);
+autoEnableURLSInput.setAttribute('spellcheck', /** @type {any} */ (false));
 autoEnableURLSInput.placeholder = 'https://example.com/movie/\n~^https:\\/\\/example\\.com\\/(movie|othermovie)\\/';
 
 mpvAllowlistInput.setAttribute('autocapitalize', 'off');
 mpvAllowlistInput.setAttribute('autocomplete', 'off');
 mpvAllowlistInput.setAttribute('autocorrect', 'off');
-mpvAllowlistInput.setAttribute('spellcheck', false);
+mpvAllowlistInput.setAttribute('spellcheck', /** @type {any} */ (false));
 mpvAllowlistInput.placeholder = 'netflix.com\ncrunchyroll.com @anime\nhttps://example.com/films/\n~^https:\\/\\/example\\.com\\/movie\\/';
 
 customSourcePatterns.setAttribute('autocapitalize', 'off');
 customSourcePatterns.setAttribute('autocomplete', 'off');
 customSourcePatterns.setAttribute('autocorrect', 'off');
-customSourcePatterns.setAttribute('spellcheck', false);
+customSourcePatterns.setAttribute('spellcheck', /** @type {any} */ (false));
 customSourcePatterns.placeholder = '# This is a comment. Use the following format.\n[file extension] /[regex]/[flags]';
 
 // Initialize store and then load page controls
@@ -98,10 +99,10 @@ let optionsLoaded = false;
 // options are read (MPV mode may be on) and the page was seen (the options page is an
 // iframe in every player too, and most of those are never opened).
 const mpvSuggestion = EnvUtils.isExtension() ? new MpvSuggestion({
-  box: document.getElementById('mpvsuggestbox'),
-  text: document.getElementById('mpvsuggesttext'),
-  enableButton: document.getElementById('mpvsuggestyes'),
-  dismissLink: document.getElementById('mpvsuggestno'),
+  box: /** @type {HTMLElement} */ (document.getElementById('mpvsuggestbox')),
+  text: /** @type {HTMLElement} */ (document.getElementById('mpvsuggesttext')),
+  enableButton: /** @type {HTMLElement} */ (document.getElementById('mpvsuggestyes')),
+  dismissLink: /** @type {HTMLElement} */ (document.getElementById('mpvsuggestno')),
   isMpvModeOn: () => !!Options.mpvMode,
   turnOnMpvMode: () => {
     mpvModeToggle.checked = true;
@@ -175,10 +176,10 @@ async function loadOptions(newOptions) {
   showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
   showSeconds(bufferAhead, Options.bufferAhead);
   showSeconds(bufferBehind, Options.bufferBehind);
-  seekStepSize.value = Math.round(Options.seekStepSize * 100) / 100;
+  seekStepSize.value = /** @type {any} */ (Math.round(Options.seekStepSize * 100) / 100);
   customSourcePatterns.value = Options.customSourcePatterns || '';
   // A part of the player, shown in percent: 0.25 left users typing 25, which was 100%.
-  miniSize.value = Math.round(Options.miniSize * 1000) / 10;
+  miniSize.value = /** @type {any} */ (Math.round(Options.miniSize * 1000) / 10);
   storeProgress.checked = !!Options.storeProgress;
   replaceDelay.value = Options.replaceDelay;
   maxdownloaders.value = Options.maximumDownloaders;
@@ -208,7 +209,7 @@ async function loadOptions(newOptions) {
     const numberInput = /** @type {HTMLInputElement} */ (option.querySelector('input.number'));
     const rangeInput = /** @type {HTMLInputElement & {value: any}} */ (option.querySelector('input.range'));
     const unit = option.dataset.unit || '%';
-    const unitMultiplier = parseInt(/** @type {string} */ (option.dataset.multiplier) || 100);
+    const unitMultiplier = parseInt(/** @type {string} */ (option.dataset.multiplier || 100));
     const optionKey = /** @type {string} */ (option.dataset.option);
     const val = Math.round(Options[optionKey] * unitMultiplier);
     rangeInput.value = val;
@@ -338,11 +339,11 @@ document.querySelectorAll('.option').forEach((option) => {
   }
 });
 
-document.querySelectorAll('.video-option').forEach((option) => {
+/** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.video-option')).forEach((option) => {
   const numberInput = /** @type {HTMLInputElement} */ (option.querySelector('input.number'));
   const rangeInput = /** @type {HTMLInputElement & {value: any}} */ (option.querySelector('input.range'));
   const unit = option.dataset.unit || '%';
-  const unitMultiplier = parseInt(/** @type {string} */ (option.dataset.multiplier) || 100);
+  const unitMultiplier = parseInt(/** @type {string} */ (option.dataset.multiplier || 100));
 
   const optionKey = /** @type {string} */ (option.dataset.option);
 
@@ -414,7 +415,7 @@ function renderKeybinds() {
 function refreshKeybindConflicts() {
   const partners = conflictPartners(Options.keybinds);
   /** @type {NodeListOf<HTMLElement>} */ (keybindsList.querySelectorAll('.keybind-container')).forEach((container) => {
-    const others = partners.get(container.dataset.keybind);
+    const others = partners.get(/** @type {string} */ (container.dataset.keybind));
     const warning = /** @type {HTMLElement} */ (container.querySelector('.keybind-warning'));
     container.classList.toggle('keybind-conflict', !!others);
     warning.hidden = !others;
@@ -1030,7 +1031,7 @@ importButton.addEventListener('click', () => {
   picker.type = 'file';
   picker.accept = '.json';
   picker.addEventListener('change', async (e) => {
-    const file = /** @type {HTMLInputElement} */ (e.target).files[0];
+    const file = /** @type {HTMLInputElement & {files: FileList}} */ (e.target).files[0];
     if (!file) return;
     let newOptionsObj;
     try {

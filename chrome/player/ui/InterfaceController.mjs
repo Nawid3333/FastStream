@@ -1,5 +1,7 @@
+// @ts-check
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {PlayerModes} from '../enums/PlayerModes.mjs';
+// @ts-ignore - coloris.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {Coloris} from '../modules/coloris.mjs';
 import {Localize} from '../modules/Localize.mjs';
 import {ClickActions} from '../options/defaults/ClickActions.mjs';
@@ -45,7 +47,7 @@ function isKeyboardFocus(element) {
 /**
  * Chromium's Document Picture-in-Picture API, which TypeScript's DOM types do not have.
  * The nested window is read only after the API itself was found to be there.
- * @typedef {Window & {documentPictureInPicture: {window: Window}}} PipWindow
+ * @typedef {Window & typeof globalThis & {documentPictureInPicture: {window: Window}}} PipWindow
  */
 export class InterfaceController {
   constructor(client) {
@@ -408,7 +410,7 @@ export class InterfaceController {
       // Keyboard focus only (:focus-visible): a click on a button focuses it too, and the bar
       // then stayed up while it kept the focus - after a click on fullscreen, until the
       // video was played or paused by a click on it.
-      this.focusingControls = isKeyboardFocus(e.target);
+      this.focusingControls = isKeyboardFocus(/** @type {?Element} */ (e.target));
       this.showControlBar();
       // Kept while focus is there (queueControlsHide looks again until it may go): focus
       // can leave without a focusout (isFocusInControls), and then nothing else asked (#383).
@@ -700,7 +702,7 @@ export class InterfaceController {
       }
 
       // Ignore if user is over an element contained by .tools_container_left
-      if (/** @type {HTMLElement} */ (DOMElements.leftToolsContainer).contains(e.target)) {
+      if (/** @type {HTMLElement} */ (DOMElements.leftToolsContainer).contains(/** @type {?Node} */ (e.target))) {
         return;
       }
 
@@ -745,7 +747,8 @@ export class InterfaceController {
           }
         }
         break;
-      case VisChangeActions.PIP:
+      // VisChangeActions has no PIP at present (commented out there), so this reads undefined.
+      case /** @type {Record<string, string|undefined>} */ (VisChangeActions).PIP:
         if (!isVisible) {
           await this.enterPip();
         } else {
@@ -902,6 +905,8 @@ export class InterfaceController {
   }
 
   async enterDocumentPip() {
+    /** @type {Window} */
+    // @ts-ignore - Chromium's global documentPictureInPicture is not in TypeScript's DOM types.
     const pipWindow = await documentPictureInPicture.requestWindow({
       width: /** @type {HTMLElement} */ (DOMElements.playerContainer).clientWidth,
       height: /** @type {HTMLElement} */ (DOMElements.playerContainer).clientHeight,
@@ -914,13 +919,10 @@ export class InterfaceController {
 
     // Copy style sheets over from the initial document
     // so that the player looks the same.
-    /**
-     * A style sheet of this document, copied over as CSS text when its rules can be read,
-     * else as a link to it; the fallback link takes the media query text and the URL as
-     * plain strings.
-     * @param {CSSStyleSheet & {media: string, href: string}} styleSheet
-     */
-    [...document.styleSheets].forEach((styleSheet) => {
+    // A style sheet of this document, copied over as CSS text when its rules can be read,
+    // else as a link to it; the fallback link takes the media query text and the URL as
+    // plain strings (the link's media setter stringifies the MediaList).
+    [...document.styleSheets].forEach(/** @param {CSSStyleSheet & {media: string, href: string}} styleSheet */ (styleSheet) => {
       try {
         const cssRules = [...styleSheet.cssRules]
             .map((rule) => rule.cssText)
@@ -949,7 +951,7 @@ export class InterfaceController {
   destroy() {
     // Its hide check looks again for as long as the bar is up (queueControlsHide).
     this.destroyed = true;
-    clearTimeout(/** @type {number} */ (this.hideControlBarTimeout));
+    clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.hideControlBarTimeout));
     this.saveManager.destroy();
   }
 
@@ -1004,7 +1006,7 @@ export class InterfaceController {
   }
   onControlsMouseLeave() {
     this.mouseOverControls = false;
-    if (document.activeElement && /** @type {HTMLElement} */ (DOMElements.controlsContainer).contains(document.activeElement)) document.activeElement.blur();
+    if (document.activeElement && /** @type {HTMLElement} */ (DOMElements.controlsContainer).contains(document.activeElement)) /** @type {HTMLElement} */ (document.activeElement).blur();
     this.queueControlsHide();
   }
   onPlayerMouseMove(event) {
@@ -1047,7 +1049,7 @@ export class InterfaceController {
   }
 
   queueControlsHide(time) {
-    clearTimeout(/** @type {number} */ (this.hideControlBarTimeout));
+    clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.hideControlBarTimeout));
     this.hideControlBarTimeout = null;
     if (this.destroyed) return;
     this.hideControlBarTimeout = setTimeout(() => {
@@ -1080,7 +1082,7 @@ export class InterfaceController {
   }
 
   hideControlBar() {
-    clearTimeout(/** @type {number} */ (this.hideControlBarTimeout));
+    clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.hideControlBarTimeout));
     this.hideControlBarTimeout = null;
     this.controlsVisible = false;
     /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.remove('controls_visible');

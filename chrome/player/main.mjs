@@ -1,3 +1,4 @@
+// @ts-check
 
 import {MessageTypes} from './enums/MessageTypes.mjs';
 import {PlayerModes} from './enums/PlayerModes.mjs';
@@ -14,6 +15,19 @@ import {URLUtils} from './utils/URLUtils.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {VideoSource} from './VideoSource.mjs';
 
+/**
+ * The player's window: it holds the client from setup() until beforeunload deletes it,
+ * marked optionsApplied for the tests once loadOptions() gave it the saved options.
+ * @typedef {Window & typeof globalThis & {fastStream: FastStreamClient & {optionsApplied?: boolean}}} FastStreamWindow
+ */
+
+/**
+ * A stream as the SOURCES message carries it (the background's tracked sources), with its
+ * depth, length and the page's qualities for it when known.
+ * @typedef {{url: string, mode: string, headers?: *, time?: number, depth?: number,
+ *   duration?: number|null, qualities?: ?Array<{url: string, label: string, height: number}>}} SentSource
+ */
+
 let OPTIONS = null;
 let optionSendTime = null;
 if (EnvUtils.isExtension()) {
@@ -29,29 +43,29 @@ if (EnvUtils.isExtension()) {
           // player has no content script left, so the player answers.
           sendResponse(true);
           return;
-        } else if (request.type === MessageTypes.SOURCES && window.fastStream) {
+        } else if (request.type === MessageTypes.SOURCES && /** @type {FastStreamWindow} */ (window).fastStream) {
           // Answered whatever happens: the background waits for it.
           recieveSources(request, sendResponse).catch((e) => {
             console.error('Taking the sources failed', e);
             sendResponse('sources_recieved');
           });
           return true;
-        } else if (request.type === MessageTypes.VPN_ALLOWED && window.fastStream) {
-          window.fastStream.vpnPrompt.onAllowed();
-        } else if (request.type === MessageTypes.EXIT_CARRIED_FULLSCREEN && window.fastStream) {
+        } else if (request.type === MessageTypes.VPN_ALLOWED && /** @type {FastStreamWindow} */ (window).fastStream) {
+          /** @type {FastStreamWindow} */ (window).fastStream.vpnPrompt.onAllowed();
+        } else if (request.type === MessageTypes.EXIT_CARRIED_FULLSCREEN && /** @type {FastStreamWindow} */ (window).fastStream) {
           // Escape in the page around a carried fullscreen (content.js).
-          window.fastStream.interfaceController.exitCarriedFullscreen();
+          /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.exitCarriedFullscreen();
         } else if (request.type === MessageTypes.UPDATE_OPTIONS) {
           if (request.time !== optionSendTime) {
             optionSendTime = request.time;
             loadOptions();
           }
-        } else if (request.type === MessageTypes.MESSAGE_FROM_PAGE && window.fastStream) {
+        } else if (request.type === MessageTypes.MESSAGE_FROM_PAGE && /** @type {FastStreamWindow} */ (window).fastStream) {
           const data = request.data;
           if (data.type === 'fullscreen-state') {
-            window.fastStream.interfaceController.setFullscreenStatus(data.value);
+            /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.setFullscreenStatus(data.value);
           } else if (data.type === 'miniplayer-state') {
-            window.fastStream.interfaceController.setMiniplayerStatus(data.value);
+            /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.setMiniplayerStatus(data.value);
           }
           sendResponse('recieved');
           return;
@@ -59,7 +73,7 @@ if (EnvUtils.isExtension()) {
           console.log('Downloading', request);
           const url = request.url;
           const filename = request.filename;
-          Utils.downloadURL(url, filename, true).then((response) => {
+          /** @type {Promise<*>} */ (Utils.downloadURL(url, filename, true)).then((response) => {
             sendResponse(response);
           }).catch((e) => {
             // The background waits for an answer, and takes null as none (its own timeout's).
@@ -91,10 +105,11 @@ async function recieveSources(request, sendResponse) {
   }
 
   if (continuationOptions.disableLoadProgress) {
-    window.fastStream.options.disableLoadProgress = true;
+    /** @type {FastStreamWindow} */ (window).fastStream.options.disableLoadProgress = true;
   }
 
   let subs = request.subtitles;
+  /** @type {SentSource[]} */
   const sources = request.sources;
 
   if (sources.length === 0) {
@@ -109,20 +124,21 @@ async function recieveSources(request, sendResponse) {
 
   // Sources are ordered by time, so the first is the oldest; the lowest depth wins, then a
   // streaming one, and among MP4 files the newest (StreamPick.pick).
+  /** @type {?SentSource} */
   let autoSetSource = StreamPick.pick(candidates);
 
   // Playlists of stills are all there is (the seek bar's thumbnails): listed, to choose by
   // hand, but nothing to play by itself.
-  if (window.fastStream.source || !request.autoSetSource || autoSetSource.duration === STILLS_LENGTH) {
+  if (/** @type {FastStreamWindow} */ (window).fastStream.source || !request.autoSetSource || autoSetSource.duration === STILLS_LENGTH) {
     autoSetSource = null;
   }
 
   if (autoSetSource) {
-    window.fastStream.clearSubtitles();
+    /** @type {FastStreamWindow} */ (window).fastStream.clearSubtitles();
   }
 
   if (autoSetSource && request.forceAutoplay) {
-    window.fastStream.setAutoPlay(true);
+    /** @type {FastStreamWindow} */ (window).fastStream.setAutoPlay(true);
   }
 
   /**
@@ -136,7 +152,7 @@ async function recieveSources(request, sendResponse) {
   const toVideoSource = (s, played) => {
     let url = s.url;
     if (played && s.qualities) {
-      const best = pickQuality(s.qualities, desiredHeight(window.fastStream.options.defaultQuality));
+      const best = pickQuality(s.qualities, desiredHeight(/** @type {FastStreamWindow} */ (window).fastStream.options.defaultQuality));
       if (best) url = best.url;
     }
     const source = new VideoSource(url, s.headers, s.mode);
@@ -152,7 +168,7 @@ async function recieveSources(request, sendResponse) {
 
   sources.forEach((s) => {
     const isAutoSet = s === autoSetSource;
-    window.fastStream.addSource(toVideoSource(s, isAutoSet), isAutoSet, isAutoSet ? fallbacks : []);
+    /** @type {FastStreamWindow} */ (window).fastStream.addSource(toVideoSource(s, isAutoSet), isAutoSet, isAutoSet ? fallbacks : []);
   });
 
   if (subs) {
@@ -165,7 +181,7 @@ async function recieveSources(request, sendResponse) {
         try {
           track.loadText(sub.data);
           if (track.cues.length > 0) {
-            window.fastStream.loadSubtitleTrack(track, request.autoSetSource);
+            /** @type {FastStreamWindow} */ (window).fastStream.loadSubtitleTrack(track, request.autoSetSource);
           }
         } catch (e) {
           console.error(e);
@@ -180,11 +196,11 @@ async function recieveSources(request, sendResponse) {
   if (fullscreenState === 'fullscreen') {
     // Firefox refuses a fullscreen nobody clicked for (the page went on by itself), and the
     // episode played windowed: the browser window goes fullscreen instead.
-    window.fastStream.interfaceController.carryFullscreen();
+    /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.carryFullscreen();
   } else if (fullscreenState === 'pip') {
-    window.fastStream.interfaceController.pipToggle(true);
+    /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.pipToggle(true);
   } else if (fullscreenState === 'windowed') {
-    window.fastStream.interfaceController.toggleWindowedFullscreen(true);
+    /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.toggleWindowedFullscreen(true);
   }
 
   // The keyboard into this player after FastStream went on to it by itself (his report,
@@ -213,7 +229,7 @@ async function sortSubtitles(subs) {
   }
 
   await Promise.all(subs.map((sub) => {
-    return new Promise((resolve, reject)=>{
+    return /** @type {Promise<void>} */ (new Promise((resolve, reject)=>{
       chrome.i18n.detectLanguage(sub.data, (result) => {
         const langCandidates = result.languages.map((lang) => {
           return {
@@ -233,7 +249,7 @@ async function sortSubtitles(subs) {
 
         resolve();
       });
-    });
+    }));
   }));
 
   subs.sort((a, b) => {
@@ -246,20 +262,19 @@ async function sortSubtitles(subs) {
 async function loadOptions() {
   try {
     OPTIONS = await Utils.getOptionsFromStorage();
-    window.fastStream.setOptions(OPTIONS);
+    /** @type {FastStreamWindow} */ (window).fastStream.setOptions(OPTIONS);
     // Marked for tests: the client exists before its options do, and the first
     // ones can be clobbered by this call seconds after a test forced them.
-    window.fastStream.optionsApplied = true;
+    /** @type {FastStreamWindow} */ (window).fastStream.optionsApplied = true;
   } catch (e) {
     console.error(e);
   }
 }
 
 async function setup() {
-  if (!window.fastStream) {
-    /** @type {FastStreamClient} */
-    window.fastStream = new FastStreamClient();
-    await window.fastStream.setup();
+  if (!/** @type {FastStreamWindow} */ (window).fastStream) {
+    /** @type {FastStreamWindow} */ (window).fastStream = new FastStreamClient();
+    await /** @type {FastStreamWindow} */ (window).fastStream.setup();
   }
 
   await loadOptions();
@@ -270,16 +285,16 @@ async function setup() {
       type: MessageTypes.PLAYER_LOADED,
       url: window.location.href,
       isExt: true,
-      parentFrameId: urlParams.has('parent_frame_id') ? parseInt(urlParams.get('parent_frame_id')) : undefined,
+      parentFrameId: urlParams.has('parent_frame_id') ? parseInt(/** @type {string} */ (urlParams.get('parent_frame_id'))) : undefined,
     }).then((data) => {
       if (!data) {
         return;
       }
-      window.fastStream.setMediaInfo(data.mediaInfo);
-      window.fastStream.setNeedsUserInteraction(!data.isMainPlayer);
+      /** @type {FastStreamWindow} */ (window).fastStream.setMediaInfo(data.mediaInfo);
+      /** @type {FastStreamWindow} */ (window).fastStream.setNeedsUserInteraction(!data.isMainPlayer);
 
       console.log('Recieved data', data);
-      window.fastStream.setupPoll();
+      /** @type {FastStreamWindow} */ (window).fastStream.setupPoll();
 
       chrome.runtime.sendMessage({
         type: MessageTypes.REQUEST_SOURCES,
@@ -288,11 +303,11 @@ async function setup() {
   } else {
     // if in iframe, require interaction
     if (window.self !== window.top) {
-      window.fastStream.setNeedsUserInteraction(true);
+      /** @type {FastStreamWindow} */ (window).fastStream.setNeedsUserInteraction(true);
     }
   }
 
-  const version = window.fastStream.version;
+  const version = /** @type {FastStreamWindow} */ (window).fastStream.version;
   Utils.printWelcome(version);
 
   // Tells the background this player's frame is gone, once. Only the extension has a
@@ -321,10 +336,10 @@ async function setup() {
   /** @type {any} */
   let stayTimer = null;
   window.addEventListener('beforeunload', () => {
-    const time = window.fastStream?.source ? window.fastStream.currentTime : 0;
-    if (window.fastStream) {
-      window.fastStream.destroy();
-      delete window.fastStream;
+    const time = /** @type {FastStreamWindow} */ (window).fastStream?.source ? /** @type {FastStreamWindow} */ (window).fastStream.currentTime : 0;
+    if (/** @type {FastStreamWindow} */ (window).fastStream) {
+      /** @type {FastStreamWindow} */ (window).fastStream.destroy();
+      delete /** @type {Window & {fastStream?: FastStreamClient}} */ (window).fastStream;
     }
     sendFrameRemoved();
     clearTimeout(stayTimer);
@@ -356,7 +371,7 @@ async function setup() {
   // starts again; one that content.js put in a page is taken down with the page's own
   // REMOVE_PLAYERS (its URL has the opener), and a player tab is never cached.
   window.addEventListener('pageshow', (e) => {
-    if (e.persisted && !window.fastStream && !new URLSearchParams(window.location.search).has('opener')) {
+    if (e.persisted && !/** @type {FastStreamWindow} */ (window).fastStream && !new URLSearchParams(window.location.search).has('opener')) {
       window.location.reload();
     }
   });
@@ -384,7 +399,7 @@ async function setup() {
     const source = new VideoSource(url, {}, mode);
     source.parseHeadersParam(!EnvUtils.isExtension() || await isAddressFromRedirect(window.location.search));
 
-    window.fastStream.addSource(source, true).catch((e) => console.error('Opening the stream in the address failed', e));
+    /** @type {FastStreamWindow} */ (window).fastStream.addSource(source, true).catch((e) => console.error('Opening the stream in the address failed', e));
   }
 
   if (!EnvUtils.isExtension()) {
