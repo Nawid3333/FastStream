@@ -30,19 +30,29 @@ runs:
     # Windows e2e jobs. The key is the ISO week, so a newer ffmpeg arrives within a week:
     # the jobs that miss install it through Chocolatey as before, and the first to finish
     # saves it (the others are refused the same key, a warning). Linux keeps apt: Firefox
-    # decodes through the system's libavcodec, not a program in a folder.
+    # decodes through the system's libavcodec, not a program in a folder. But the packages
+    # apt fetches are kept the same way, a week per runner image, so the mirror only has
+    # to send its package lists and what changed that week: on 2026-10-22 it sent less
+    # than a package a second, and three runs failed with three 300 s attempts each.
     - name: This week's ffmpeg cache key
-      if: runner.os == 'Windows'
       id: ffmpeg-key
       shell: bash
-      run: echo "key=e2e-ffmpeg-windows-$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+      run: |
+        if [ "$RUNNER_OS" = Windows ]; then
+          echo "key=e2e-ffmpeg-windows-$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+          echo "path=~/ffmpeg-e2e" >> "$GITHUB_OUTPUT"
+        else
+          echo "key=e2e-apt-${ImageOS:-linux}-$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+          # The packages only: apt's lock file and partial/ are root's, which the save
+          # (not root) could not read.
+          echo "path=~/apt-e2e/*.deb" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: Restore ffmpeg from the cache
-      if: runner.os == 'Windows'
       id: ffmpeg-cache
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: ~/ffmpeg-e2e
+        path: ${{ steps.ffmpeg-key.outputs.path }}
         key: ${{ steps.ffmpeg-key.outputs.key }}
 
     # Linux: Firefox decodes H.264/AAC through the system ffmpeg; without it every stream
@@ -74,17 +84,25 @@ runs:
             # it is a failed attempt like any other.
             printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "3";\n' |
               sudo tee /etc/apt/apt.conf.d/99-faststream-e2e-timeouts > /dev/null
+            # apt takes the packages from, and downloads them to, the folder the cache keeps.
+            archives="$HOME/apt-e2e"
+            mkdir -p "$archives/partial"
           fi
           for attempt in 1 2 3; do
             if [ "$RUNNER_OS" = Windows ]; then
               choco install ffmpeg -y --no-progress && break
             else
               sudo timeout -k 10 120 apt-get update &&
-                sudo timeout -k 10 300 apt-get install -y --no-install-recommends ffmpeg pulseaudio pulseaudio-utils && break
+                sudo timeout -k 10 300 apt-get install -y --no-install-recommends ffmpeg pulseaudio pulseaudio-utils \
+                  -o Dir::Cache::Archives="$archives" && break
             fi
             echo "::warning::Installing ffmpeg failed (attempt $attempt of 3); trying again in 30 s."
             sleep 30
           done
+          # A miss saves this week's packages for the jobs after it.
+          if [ "$RUNNER_OS" != Windows ] && [ "$CACHE_HIT" != true ] && compgen -G "$archives/*.deb" > /dev/null; then
+            echo "save=true" >> "$GITHUB_OUTPUT"
+          fi
           if [ "$RUNNER_OS" = Windows ]; then
             # The programs themselves for the cache, not Chocolatey's shims to them, from where
             # Chocolatey is (ChocolateyInstall, on the runner C:\ProgramData\chocolatey).
@@ -107,12 +125,12 @@ runs:
         ffmpeg -hide_banner -version | sed -n 1p
 
     - name: Save ffmpeg to the cache
-      if: runner.os == 'Windows' && steps.ffmpeg.outputs.save == 'true'
+      if: steps.ffmpeg.outputs.save == 'true'
       # Jobs that missed the same week race to save it; a refused save fails no job.
       continue-on-error: true
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: ~/ffmpeg-e2e
+        path: ${{ steps.ffmpeg-key.outputs.path }}
         key: ${{ steps.ffmpeg-key.outputs.key }}
 
     # sample.mp4, which every e2e fixture is made from, comes from test-videos.co.uk, which
