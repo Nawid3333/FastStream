@@ -73,20 +73,24 @@ export class HLS2MP4 extends EventEmitter {
   }
 
   /**
-   * @param {Object} fragment
-   * @param {Object|undefined} previous the fragment of the same track before it
+   * @param {import('../../players/hls/HLSFragment.mjs').HLSFragment} fragment
+   * @param {import('../../players/hls/HLSFragment.mjs').HLSFragment} [previous] the fragment
+   *     of the same track before it
    * @return {boolean} whether fragments of the same timeline are missing between the two (a
    *     partial save): the stream's clock runs on across them, unlike at a discontinuity.
    */
   isAfterHole(fragment, previous) {
-    return !!previous && fragment.cc === previous.cc && fragment.sn > previous.sn + 1;
+    // The wrapper has no cc; the discontinuity counter is on hls.js's own fragment. sn, its
+    // number, the wrapper carries itself.
+    return !!previous && fragment.getFrag().cc === previous.getFrag().cc && fragment.sn > previous.sn + 1;
   }
 
   async pushFragment(fragData) {
     const entry = await fragData.getEntry();
     const data = await entry.getDataFromBlob();
     const fragment = fragData.fragment;
-    const isDiscontinuity = !this.prevFrag || fragment.sn !== this.prevFrag.fragment.sn + 1 || fragment.cc !== this.prevFrag.fragment.cc;
+    // The wrapper has no cc; the discontinuity counter is on hls.js's own fragment (getFrag()).
+    const isDiscontinuity = !this.prevFrag || fragment.sn !== this.prevFrag.fragment.sn + 1 || fragment.getFrag().cc !== this.prevFrag.fragment.getFrag().cc;
     const afterHole = this.isAfterHole(fragment, this.prevFrag?.fragment);
 
     if (isDiscontinuity) {
@@ -135,7 +139,8 @@ export class HLS2MP4 extends EventEmitter {
     const entry = await fragData.getEntry();
     const data = await entry.getDataFromBlob();
     const fragment = fragData.fragment;
-    const isDiscontinuity = !this.prevFragAudio || fragment.sn !== this.prevFragAudio.fragment.sn + 1 || fragment.cc !== this.prevFragAudio.fragment.cc;
+    // The wrapper has no cc; the discontinuity counter is on hls.js's own fragment (getFrag()).
+    const isDiscontinuity = !this.prevFragAudio || fragment.sn !== this.prevFragAudio.fragment.sn + 1 || fragment.getFrag().cc !== this.prevFragAudio.fragment.getFrag().cc;
     const afterHole = this.isAfterHole(fragment, this.prevFragAudio?.fragment);
 
     if (isDiscontinuity) {
