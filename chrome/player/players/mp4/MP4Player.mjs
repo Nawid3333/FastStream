@@ -3,7 +3,6 @@ import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
 import {EmitterCancel, EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
-// @ts-ignore
 import {createFile} from '../../modules/mp4box/mp4box.all.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';

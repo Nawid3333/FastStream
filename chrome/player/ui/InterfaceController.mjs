@@ -1,7 +1,6 @@
 // @ts-check
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {PlayerModes} from '../enums/PlayerModes.mjs';
-// @ts-ignore - coloris.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {Coloris} from '../modules/coloris.mjs';
 import {Localize} from '../modules/Localize.mjs';
 import {ClickActions} from '../options/defaults/ClickActions.mjs';

@@ -1,5 +1,4 @@
 // @ts-check
-// @ts-ignore - sortable.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {Sortable} from '../modules/sortable.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';

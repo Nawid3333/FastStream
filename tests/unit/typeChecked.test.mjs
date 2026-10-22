@@ -222,11 +222,12 @@ function isChecked(file) {
 }
 
 // The vendored libraries: tools/sync-vendor.mjs writes them at build time, so .gitignore
-// names each (a folder with a trailing slash). Not the whole modules folder: FastStream's
-// own modules (FSBlob, the analyzers, remux) sit beside them.
+// names each (a folder with a trailing slash, or `/*` when a file in it is kept). Not the
+// whole modules folder: FastStream's own modules (FSBlob, the analyzers, remux) sit beside them.
 const vendored = fs.readFileSync(path.join(root, '.gitignore'), 'utf8').split(/\r?\n/)
-    .map((line) => line.trim()).filter((line) => line.startsWith('chrome/'));
+    .map((line) => line.trim().replace(/\/\*$/, '/')).filter((line) => line.startsWith('chrome/'));
 const isVendored = (rel, isDir) => vendored.some((entry) => (entry.endsWith('/') ? isDir && `${rel}/` === entry : rel === entry));
+const isVendoredFile = (rel) => vendored.some((entry) => (entry.endsWith('/') ? rel.startsWith(entry) : rel === entry));
 
 /**
  * Every first-party script under a folder, vendored modules left out.
@@ -255,5 +256,23 @@ describe('type-checked files', () => {
   it('are all listed here, so none drops out unnoticed', () => {
     const checked = [...scripts('chrome'), ...scripts('native-host'), ...scripts('tools')].filter(isChecked).sort();
     expect(checked).toEqual([...CHECKED].sort());
+  });
+
+  it('see a declaration beside every vendored library they import', () => {
+    // Absent until the build copies it, a vendored library was an untyped import; once
+    // there, TypeScript read its JavaScript, guessed types the code does not fit, and the
+    // check failed in a built checkout only. The declaration beside it is what both see.
+    const missing = [];
+    for (const file of [...scripts('chrome'), ...scripts('native-host')]) {
+      const text = fs.readFileSync(path.join(root, file), 'utf8');
+      for (const [, spec] of text.matchAll(/^\s*import\b[^'"]*['"](\.[^'"]+\.mjs)['"]/gm)) {
+        const target = path.posix.join(path.posix.dirname(file), spec);
+        const declaration = target.replace(/\.mjs$/, '.d.mts');
+        if (isVendoredFile(target) && !fs.existsSync(path.join(root, declaration))) {
+          missing.push(`${file} imports ${target}: no ${declaration}`);
+        }
+      }
+    }
+    expect(missing).toEqual([]);
   });
 });
