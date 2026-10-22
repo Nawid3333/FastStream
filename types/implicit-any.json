@@ -1,6 +1,5 @@
 {
   "chrome/background/BackgroundUtils.mjs": 8,
-  "chrome/background/MpvBackend.mjs": 43,
   "chrome/background/MpvRelayWatch.mjs": 1,
   "chrome/background/MultiRegexMatcher.mjs": 5,
   "chrome/background/NetRequestRuleManager.mjs": 9,
