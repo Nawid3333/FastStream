@@ -1,3 +1,4 @@
+// @ts-check
 import {EventEmitter} from '../modules/eventemitter.mjs';
 import {Localize} from '../modules/Localize.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
@@ -79,7 +80,7 @@ export class VolumeControls extends EventEmitter {
     this.updateVolumeBar(volume);
 
     if (!dontSave) {
-      clearTimeout(/** @type {number} */ (this.saveTimer));
+      clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.saveTimer));
       this.saveTimer = setTimeout(() => this.saveVolumeNow(), VolumeSaveDelayMs);
     }
 

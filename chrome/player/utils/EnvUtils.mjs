@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Utility functions for environment and platform detection.
  */
@@ -117,6 +118,6 @@ export class EnvUtils {
       return 2 * 1024 * 1024 * 1024;
     }
     const estimate = await window.navigator.storage.estimate().catch(() => ({quota: 2 * 1024 * 1024 * 1024, usage: 0}));
-    return estimate.quota - estimate.usage;
+    return /** @type {number} */ (estimate.quota) - /** @type {number} */ (estimate.usage);
   }
 }

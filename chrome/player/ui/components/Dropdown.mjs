@@ -1,3 +1,4 @@
+// @ts-check
 import {WebUtils} from '../../utils/WebUtils.mjs';
 
 /**
@@ -44,7 +45,7 @@ export function createDropdown(defaultChoice, title, items, call, editableCallba
       const value = span.textContent;
       // Nothing rebuilds the dropdown after an edit, so its list and label follow it here.
       renameDropdownChoice(container, value);
-      editableCallback(container.dataset.val, value);
+      editableCallback(/** @type {string} */ (container.dataset.val), value);
       e.stopPropagation();
     });
 

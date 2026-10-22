@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The URL as Firefox requests it: a raw "é" or space goes out percent-encoded. The rule has
  * to match that form, and Firefox refuses a rule whose urlFilter is not ASCII.
@@ -144,7 +145,7 @@ export class RuleManager {
       // refused - every rule after it too, until the event page restarted.
       await chrome.declarativeNetRequest.updateSessionRules({
         removeRuleIds: [ruleObj.id],
-        addRules: [ruleObj],
+        addRules: /** @type {chrome.declarativeNetRequest.Rule[]} */ ([ruleObj]),
       });
     } catch (e) {
       // Roll back the optimistic insertion above so bookkeeping

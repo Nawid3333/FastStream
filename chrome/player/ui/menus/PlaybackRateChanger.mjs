@@ -1,3 +1,4 @@
+// @ts-check
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {Localize} from '../../modules/Localize.mjs';
 import {Utils} from '../../utils/Utils.mjs';
@@ -41,7 +42,7 @@ export class PlaybackRateChanger extends EventEmitter {
 
   /** Saves the state once RateSaveDelayMs have passed without another change. */
   scheduleSave() {
-    clearTimeout(/** @type {number} */ (this.saveTimer));
+    clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.saveTimer));
     this.saveTimer = setTimeout(() => this.saveStateNow(), RateSaveDelayMs);
   }
 
@@ -53,7 +54,7 @@ export class PlaybackRateChanger extends EventEmitter {
 
   async saveState() {
     // Saved now, with whatever a waiting save would have written.
-    clearTimeout(/** @type {number} */ (this.saveTimer));
+    clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.saveTimer));
     this.saveTimer = null;
     const state = {
       playbackRate: this.silenceSkipperActive ? this.regularSpeed : this.playbackRate,

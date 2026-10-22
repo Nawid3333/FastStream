@@ -1,3 +1,4 @@
+// @ts-check
 import {DefaultKeybinds} from '../options/defaults/DefaultKeybinds.mjs';
 import {
   FIXED_SEEKS, SEEK_PERCENTS, SILENT_MAX_PLAYBACK_RATE, SPEED_PRESETS, actionsForKey, applySpeedPreset, describePlaybackRate,
@@ -150,7 +151,7 @@ export class KeybindManager extends EventEmitter {
     // (Shift+arrows) are deliberately not tracked as revert targets: they are
     // adjustments, not presets - the next preset press simply reverts to whatever they
     // left active. The rules live in applySpeedPreset.
-    /** @type {Record<string, number>} */
+    /** @type {Record<string, number|undefined>} */
     this.presetRevertMemory = {};
     for (const preset of SPEED_PRESETS) {
       const action = speedPresetAction(preset);

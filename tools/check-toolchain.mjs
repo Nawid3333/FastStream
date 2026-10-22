@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Finds the development-toolchain updates for .github/workflows/toolchain-updates.yml,
 // which turns each into a pull request "Toolchain update: <name> <version>" with CI
 // started on it. Node never runs inside the extension - it builds and tests it - so none
@@ -160,7 +161,7 @@ async function updates() {
   const nextMajor = newestOfMajor(doc, major + 1, now);
 
   const result = [
-    {name: 'Node.js', current: String(nodeCurrent), latest: String(nodeLts), behind: nodeLts > nodeCurrent,
+    {name: 'Node.js', current: String(nodeCurrent), latest: String(nodeLts), behind: nodeLts > /** @type {number} */ (nodeCurrent),
       routine: true, note: `newest LTS is ${nodeLts}; .nvmrc names ${nodeCurrent}`},
     {name: 'pnpm', current: pnpmCurrent, latest: sameMajor, behind: compareVersions(sameMajor, pnpmCurrent) > 0,
       routine: true, note: `newest ${major}.x at least ${MIN_AGE_DAYS} days old is ${sameMajor}; pinned ${pin}`},

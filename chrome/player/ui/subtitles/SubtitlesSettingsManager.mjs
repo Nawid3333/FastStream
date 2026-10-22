@@ -1,3 +1,5 @@
+// @ts-check
+// @ts-ignore - coloris.mjs is vendored at build time (tools/sync-vendor.mjs), absent when CI type-checks.
 import {Coloris} from '../../modules/coloris.mjs';
 import {DefaultSubtitlesSettings, SubtitleSettingsConfigData} from '../../options/defaults/DefaultSubtitlesSettings.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';

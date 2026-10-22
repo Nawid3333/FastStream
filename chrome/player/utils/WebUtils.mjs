@@ -1,3 +1,4 @@
+// @ts-check
 import {EnvUtils} from './EnvUtils.mjs';
 
 /**
@@ -169,7 +170,7 @@ export class WebUtils {
   static replaceChildrenPerformant(parent, children) {
     const newChildrenSet = new Set(children);
     Array.from(parent.children).forEach((child) => {
-      if (!newChildrenSet.has(child)) {
+      if (!newChildrenSet.has(/** @type {HTMLElement} */ (child))) {
         parent.removeChild(child);
       }
     });
