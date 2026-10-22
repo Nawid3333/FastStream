@@ -7,7 +7,8 @@
 // launches mpv on the user's machine.
 //
 // Messages of host 15, the thin helper (docs/notes/mpv.md, "Host 15: the thin helper"):
-//   {type: 'play', target, title?, start?, headers?, subtitles?, fullscreen?, newWindow?}
+//   {type: 'play', target, title?, start?, headers?, subtitles?, fullscreen?, newWindow?,
+//     mpvPath?}
 //     -> {ok, error?, reused?, focus?, foreground?} (checkPlayMessage, playMpv): target is
 //     the whole URL for mpv, built by the extension; mpv is started with helper-fixed
 //     arguments only, and the stream goes to it over its pipe.
@@ -86,7 +87,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 18;
+export const HostVersion = 19;
 
 // The messages of the thin helper (host 15) this host understands, sent with every answer
 // so that the extension knows what it may ask for without a version table of its own. A
@@ -1780,9 +1781,35 @@ export async function launchMpv(mpvPath, message, config, io = {}) {
   // Reuse the window we already own, rather than stacking up players. Only
   // instances started with our pipe answer, so an mpv the user opened
   // themselves is never loaded into.
+  /** @type {?ReturnType<typeof takeLaunchLock>} */
+  let lock = null;
   if (message.singleInstance) {
-    const existing = await loadIntoExisting(message, headerFields, title,
+    const tryExisting = () => loadIntoExisting(message, headerFields, title,
         (commands) => ipcRequest(commands, undefined, undefined, pipe), extras);
+    let existing = await tryExisting();
+    // Another helper is starting an mpv on this pipe (LaunchLockMs, playMpv): this stream
+    // goes to that mpv once its pipe answers. Its own stream came on its command line, so
+    // this one, loaded after, replaces it, as the later send should.
+    if (!existing.ok && !existing.refused && !existing.busy) {
+      const lockFile = io.lockFile || launchLockFile(pipe);
+      lock = takeLaunchLock(lockFile, io.lock);
+      if (!lock.taken) {
+        debugLog(config, 'launch-wait', {});
+        const sleep = io.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+        const now = io.now || Date.now;
+        const until = now() + LaunchLockMs;
+        while (!existing.ok && !existing.refused && launchLockHeld(lockFile, io.lock) && now() < until) {
+          await sleep(PipeWaitPollMs);
+          existing = await tryExisting();
+        }
+        if (!existing.ok && !existing.refused && !existing.busy) {
+          lock = takeLaunchLock(lockFile, io.lock);
+          if (!lock.taken) {
+            return {ok: false, error: 'another mpv is starting and did not take the stream: try again in a moment'};
+          }
+        }
+      }
+    }
     if (existing.ok) {
       let focused;
       // The window is raised through PowerShell, which only Windows has.
@@ -1853,8 +1880,15 @@ export async function launchMpv(mpvPath, message, config, io = {}) {
   // On Windows mpv has to be started by someone outside this process's job
   // object, or the browser kills it the moment this host exits. See
   // launchViaWmi.
+  // The launch lock (above) waits on the mpv started from then on: this helper ends now,
+  // and the next send waits for that mpv's pipe while it runs.
+  const settleLock = (result) => {
+    if (result.ok && Number.isInteger(result.pid)) lock?.hand(result.pid);
+    else lock?.release();
+    return result;
+  };
   if (platform === 'win32') {
-    const result = await (io.start || launchViaWmi)(mpvPath, args);
+    const result = settleLock(await (io.start || launchViaWmi)(mpvPath, args));
     if (result.ok) {
       debugLog(config, 'wmi-created',
           {pid: result.pid, focus: result.focus,
@@ -1871,7 +1905,7 @@ export async function launchMpv(mpvPath, message, config, io = {}) {
     return {ok: false, error: 'Could not start mpv: ' + result.error};
   }
 
-  return (io.start || launchDirect)(mpvPath, args);
+  return settleLock(await (io.start || launchDirect)(mpvPath, args));
 }
 
 /**
@@ -2169,7 +2203,8 @@ export function allowedIpcCommand(command) {
   return ipcCommandRefusal(command) === null;
 }
 
-// The longest target play takes (bytes, UTF-8): a stream URL and its fragment tags, of which
+// The longest target play takes (bytes, UTF-8, as JSON writes it: mpv's path line carries
+// it so to the extension, MaxRelayLineBytes): a stream URL and its fragment tags, of which
 // the page's quality list (fs-quality=) is the longest, in a message of MaxMessageBytes.
 export const MaxTargetBytes = 512 * 1024;
 const MaxTitleChars = 1000;
@@ -2220,7 +2255,7 @@ export function checkPlayMessage(message) {
   if (typeof target !== 'string' || !isStreamUrl(target)) {
     return refuse('mpv is only given http(s) streams');
   }
-  if (Buffer.byteLength(target, 'utf8') > MaxTargetBytes) {
+  if (Buffer.byteLength(JSON.stringify(target), 'utf8') - 2 > MaxTargetBytes) {
     return refuse('the stream URL is too long for mpv');
   }
   if (!isPlainText(target, Infinity)) {
@@ -2283,6 +2318,105 @@ export function checkPlayMessage(message) {
 // How long a new mpv gets to open its pipe (play), and how often the helper looks.
 export const PipeWaitMs = 15000;
 const PipeWaitPollMs = 200;
+
+// One helper at a time starts an mpv on the helper's pipe. Each send is a helper process of
+// its own, and two within one start (a second tab, a second click) both found no mpv there:
+// each started one, and the second could not open the pipe - it played on without one,
+// out of reach of every later send, key and end detection. The lock is a file only one
+// process can create, naming the process it waits on (the helper, then the mpv it started);
+// it no longer holds once that process is gone, or after LaunchLockMs.
+export const LaunchLockMs = PipeWaitMs + 5000;
+
+/**
+ * The launch lock's file for a pipe, in the user's temp folder.
+ * @param {string} pipe - The helper's pipe (ipcPipeFor).
+ * @param {string} [dir] - Its folder (tests).
+ * @return {string}
+ */
+export function launchLockFile(pipe, dir = os.tmpdir()) {
+  const id = crypto.createHash('sha256').update(pipe).digest('hex').slice(0, 16);
+  return path.join(dir, `faststream-mpv-launch-${id}.lock`);
+}
+
+/**
+ * Whether a process runs.
+ * @param {number} pid
+ * @return {boolean}
+ */
+function processAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    // EPERM: it runs, as someone this process may not signal.
+    return !!e && e.code === 'EPERM';
+  }
+}
+
+/**
+ * Whether the launch lock holds: its file is there, younger than LaunchLockMs, and the
+ * process it names still runs.
+ * @param {string} file - launchLockFile.
+ * @param {{now?: function(): number, alive?: function(number): boolean}} [io] - Stand-ins.
+ * @return {boolean}
+ */
+export function launchLockHeld(file, io = {}) {
+  try {
+    if ((io.now || Date.now)() - fs.statSync(file).mtimeMs >= LaunchLockMs) return false;
+    const pid = Number(JSON.parse(fs.readFileSync(file, 'utf8')).pid);
+    return !Number.isInteger(pid) || (io.alive || processAlive)(pid);
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Takes the launch lock, unless another helper holds it.
+ * @param {string} file - launchLockFile.
+ * @param {{now?: function(): number, alive?: function(number): boolean}} [io] - Stand-ins.
+ * @return {{taken: boolean, hand: function(number): void, release: function(): void}} hand
+ *   names the process to wait on from then on (the mpv started); release lets the lock go.
+ */
+export function takeLaunchLock(file, io = {}) {
+  const none = {hand: () => {}, release: () => {}};
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      fs.writeFileSync(file, JSON.stringify({pid: process.pid}), {flag: 'wx'});
+      let released = false;
+      return {
+        taken: true,
+        hand: (pid) => {
+          if (released) return;
+          try {
+            fs.writeFileSync(file, JSON.stringify({pid}));
+          } catch (e) {
+            // Without the lock the next send only starts an mpv of its own, as before.
+          }
+        },
+        release: () => {
+          if (released) return;
+          released = true;
+          try {
+            fs.unlinkSync(file);
+          } catch (e) {
+            // Gone already.
+          }
+        },
+      };
+    } catch (e) {
+      // A temp folder that takes no file: start as before, unlocked.
+      if (!e || e.code !== 'EEXIST') return {taken: true, ...none};
+      if (launchLockHeld(file, io)) return {taken: false, ...none};
+      try {
+        // Left by a helper that died, or an mpv that is gone: taken over.
+        fs.unlinkSync(file);
+      } catch (e2) {
+        // Another helper took it over first.
+      }
+    }
+  }
+  return {taken: false, ...none};
+}
 
 /**
  * Play's new mpv's whole command line after the executable: fixed by the helper, nothing
@@ -2405,51 +2539,94 @@ export async function playMpv(mpvPath, play, config, io = {}) {
     }
   }
 
-  if (!mpvPath) {
-    return {ok: false, error: mpvNotFoundError(play.mpvPath)};
-  }
-  const pipe = play.newWindow ?
-    basePipe + '-' + (io.randomHex ? io.randomHex() : crypto.randomBytes(8).toString('hex')) : basePipe;
-  const args = freshMpvArgs(pipe, play.fullscreen);
-  debugLog(config, 'spawn', {mpvPath, args});
-  // On Windows mpv has to be started by someone outside this process's job object, or the
-  // browser kills it the moment this host exits (launchViaWmi); no direct spawn as a fallback.
-  /** @type {{ok: boolean, error?: string, pid?: number, focus?: string, foreground?: string}} */
-  const started = await (io.start || (platform === 'win32' ? launchViaWmi : launchDirect))(mpvPath, args);
-  if (!started.ok) {
-    debugLog(config, 'start-failed', started);
-    return {ok: false, error: platform === 'win32' ? 'Could not start mpv: ' + started.error : String(started.error)};
-  }
-  debugLog(config, 'started', {pid: started.pid, focus: started.focus, foreground: started.foreground});
-
-  const answered = await waitForPipe((commands) => ipcRequest(commands, 1000, 3000, pipe), PipeWaitMs, io.sleep, io.now);
-  // --idle=once keeps an mpv that never loaded a file open for good: one that stays silent
-  // or refuses the stream would be an empty window after the error (glm's review of host
-  // 15). Only the one started here, by its own pid; a late answer is left alone, since mpv
-  // may well have the stream.
-  const end = () => {
-    if (started.pid) {
-      (io.stop || stopMpv)(started.pid);
+  // Another helper is starting an mpv on this pipe (LaunchLockMs): this stream goes to that
+  // mpv once that helper is done with it - loaded before, its own stream would come after
+  // this one and replace it.
+  const lockFile = play.newWindow ? null : (io.lockFile || launchLockFile(basePipe));
+  let lock = lockFile ? takeLaunchLock(lockFile, io.lock) : null;
+  if (lock && !lock.taken) {
+    debugLog(config, 'launch-wait', {});
+    const sleep = io.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    const now = io.now || Date.now;
+    const until = now() + LaunchLockMs;
+    while (launchLockHeld(lockFile, io.lock) && now() < until) {
+      await sleep(PipeWaitPollMs);
     }
-  };
-  if (!answered) {
-    debugLog(config, 'pipe-silent', {pipe});
-    end();
-    return {ok: false, error: `mpv started, but did not answer on its pipe within ${PipeWaitMs / 1000} s`};
-  }
-  // --fullscreen is on the command line already.
-  const loaded = await load(pipe, false);
-  if (!loaded.ok) {
-    debugLog(config, 'load-failed', loaded);
+    const loaded = await load(basePipe, play.fullscreen);
+    if (loaded.ok) {
+      let focused;
+      if (loaded.pid && platform === 'win32') {
+        focused = await focus(loaded.pid);
+      }
+      debugLog(config, 'reused', {pid: loaded.pid, focus: focused});
+      return {ok: true, reused: true, ...focusOutcome(focused || '')};
+    }
     if (loaded.refused) {
-      end();
+      return {ok: false, error: `the open mpv refused the stream (${loaded.error}): close it and send again`};
     }
-    return {ok: false, error: loaded.refused ?
-      `the new mpv refused the stream (${loaded.error})` :
-      'the new mpv did not take the stream: try again in a moment'};
+    // That start came to nothing: this helper starts one.
+    lock = takeLaunchLock(lockFile, io.lock);
+    if (!lock.taken) {
+      return {ok: false, error: 'another mpv is starting and did not take the stream: try again in a moment'};
+    }
   }
-  // How raising the window went, as the legacy open says it (Windows only).
-  return {ok: true, ...(platform === 'win32' ? focusFields(started) : {})};
+  try {
+    return await startAndLoad();
+  } finally {
+    lock?.release();
+  }
+
+  /**
+   * Starts an mpv on the pipe and loads the stream into it.
+   * @return {Promise<{ok: boolean, error?: string, focus?: string, foreground?: string}>}
+   */
+  async function startAndLoad() {
+    if (!mpvPath) {
+      return {ok: false, error: mpvNotFoundError(play.mpvPath)};
+    }
+    const pipe = play.newWindow ?
+      basePipe + '-' + (io.randomHex ? io.randomHex() : crypto.randomBytes(8).toString('hex')) : basePipe;
+    const args = freshMpvArgs(pipe, play.fullscreen);
+    debugLog(config, 'spawn', {mpvPath, args});
+    // On Windows mpv has to be started by someone outside this process's job object, or the
+    // browser kills it the moment this host exits (launchViaWmi); no direct spawn as a fallback.
+    /** @type {{ok: boolean, error?: string, pid?: number, focus?: string, foreground?: string}} */
+    const started = await (io.start || (platform === 'win32' ? launchViaWmi : launchDirect))(mpvPath, args);
+    if (!started.ok) {
+      debugLog(config, 'start-failed', started);
+      return {ok: false, error: platform === 'win32' ? 'Could not start mpv: ' + started.error : String(started.error)};
+    }
+    debugLog(config, 'started', {pid: started.pid, focus: started.focus, foreground: started.foreground});
+
+    const answered = await waitForPipe((commands) => ipcRequest(commands, 1000, 3000, pipe), PipeWaitMs, io.sleep, io.now);
+    // --idle=once keeps an mpv that never loaded a file open for good: one that stays silent
+    // or refuses the stream would be an empty window after the error (glm's review of host
+    // 15). Only the one started here, by its own pid; a late answer is left alone, since mpv
+    // may well have the stream.
+    const end = () => {
+      if (started.pid) {
+        (io.stop || stopMpv)(started.pid);
+      }
+    };
+    if (!answered) {
+      debugLog(config, 'pipe-silent', {pipe});
+      end();
+      return {ok: false, error: `mpv started, but did not answer on its pipe within ${PipeWaitMs / 1000} s`};
+    }
+    // --fullscreen is on the command line already.
+    const loaded = await load(pipe, false);
+    if (!loaded.ok) {
+      debugLog(config, 'load-failed', loaded);
+      if (loaded.refused) {
+        end();
+      }
+      return {ok: false, error: loaded.refused ?
+        `the new mpv refused the stream (${loaded.error})` :
+        'the new mpv did not take the stream: try again in a moment'};
+    }
+    // How raising the window went, as the legacy open says it (Windows only).
+    return {ok: true, ...(platform === 'win32' ? focusFields(started) : {})};
+  }
 }
 
 /**
@@ -2529,8 +2706,10 @@ export function checkRelayMessage(message) {
 }
 
 // The longest line of mpv's the relay passes on (bytes, UTF-8): a native message to the
-// extension may be 1 MB, and none of the events FastStream reads comes near this.
-export const MaxRelayLineBytes = 256 * 1024;
+// extension may be 1 MB (MaxMessageBytes, with room for the message around the line). Over
+// a stream's longest target (MaxTargetBytes), so the path event of every stream play took
+// arrives: at 256 KB the path of a longer one was dropped, and end detection never saw it.
+export const MaxRelayLineBytes = 1000 * 1024;
 // How much of the end of a line over MaxRelayLineBytes is kept to find its request_id in.
 const RequestIdWindow = 256;
 
@@ -2798,8 +2977,10 @@ async function handleMessage() {
     return;
   }
 
-  // Host 15: one stream into mpv, with helper-fixed arguments only (playMpv). No mpvPath from
-  // the message: the extension never names the program the helper starts.
+  // Host 15: one stream into mpv, with helper-fixed arguments only (playMpv). The message
+  // may name the options page's mpv path; resolveMpvPath takes it only as one of the mpv
+  // candidates it checks (an existing executable named mpv), so the extension never makes
+  // the helper start another program.
   if (message.type === 'play') {
     const checked = checkPlayMessage(message);
     if (!checked.ok) {
