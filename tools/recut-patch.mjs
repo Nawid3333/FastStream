@@ -56,8 +56,28 @@ const root = path.resolve(__dirname, '..');
 
 // --- arguments -------------------------------------------------------------------
 
+/**
+ * The command line, parsed.
+ * @typedef {Object} RecutOptions
+ * @property {Map<string, string>} map - --map: a file's path in the old release to its path
+ *     in the new one.
+ * @property {boolean} apply
+ * @property {boolean} json
+ * @property {boolean} [resume]
+ * @property {string} [from] - --from: the release to start from; always with patch.
+ * @property {string} [patch] - --patch: the patch file to start from.
+ * @property {string} [out]
+ * @property {string} pkg
+ * @property {string} to - The new version.
+ */
+
+/**
+ * @param {string[]} argv - The arguments after the script's path.
+ * @return {RecutOptions}
+ */
 function parseArgs(argv) {
-  const opts = {map: new Map(), apply: false, json: false};
+  // pkg and to are set below, from the two arguments that are not options.
+  const opts = /** @type {RecutOptions} */ ({map: new Map(), apply: false, json: false});
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -89,6 +109,10 @@ function parseArgs(argv) {
   return opts;
 }
 
+/**
+ * @param {string} msg
+ * @return {never} It exits.
+ */
 function usage(msg) {
   console.error(`recut-patch: ${msg}\n` +
     'usage: node tools/recut-patch.mjs <package> <new-version> [--apply] [--out <dir> [--resume]]\n' +
@@ -98,6 +122,12 @@ function usage(msg) {
 
 // --- helpers -----------------------------------------------------------------------
 
+/**
+ * @param {string} cmd
+ * @param {string[]} args
+ * @param {{cwd?: string}} [opts]
+ * @return {import('node:child_process').SpawnSyncReturns<string>}
+ */
 function run(cmd, args, opts = {}) {
   const base = /** @type {{encoding: 'utf8', maxBuffer: number}} */ ({encoding: 'utf8', maxBuffer: 1 << 30, ...opts});
   // npm and pnpm are .cmd shims on Windows, which Node only starts through a shell - and
@@ -112,6 +142,12 @@ function run(cmd, args, opts = {}) {
   return r;
 }
 
+/**
+ * @param {string} cmd
+ * @param {string[]} args
+ * @param {{cwd?: string}} [opts]
+ * @return {string} Its stdout.
+ */
 function must(cmd, args, opts = {}) {
   const r = run(cmd, args, opts);
   if (r.status !== 0) {
@@ -120,9 +156,22 @@ function must(cmd, args, opts = {}) {
   return r.stdout;
 }
 
-const norm = (s) => s.replace(/\r\n/g, '\n').replace(/\r/g, '');
+const norm = /** @param {string} s @return {string} */ (s) => s.replace(/\r\n/g, '\n').replace(/\r/g, '');
 
-/** The current patch for a package, from pnpm-workspace.yaml's patchedDependencies. */
+/**
+ * The patch being moved onto the new release.
+ * @typedef {Object} PatchInUse
+ * @property {string} version - The release it is cut against.
+ * @property {string} patch - Its file, relative to the repository.
+ * @property {string} [line] - Its line in pnpm-workspace.yaml (currentPatch(); not with --from).
+ * @property {string} [text] - The patch file's text, which main() reads.
+ */
+
+/**
+ * The current patch for a package, from pnpm-workspace.yaml's patchedDependencies.
+ * @param {string} pkg
+ * @return {PatchInUse}
+ */
 function currentPatch(pkg) {
   const yaml = fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8');
   const entry = patchedDependencies(yaml).find(({name}) => name === pkg);
@@ -137,6 +186,9 @@ function currentPatch(pkg) {
  * package.json's git spec for a library installed from GitHub (Coloris:
  * `github:mdbassit/Coloris#v0.25.0`), pointed at another version's tag; undefined for a
  * library from the npm registry.
+ * @param {string} pkg
+ * @param {string} version
+ * @return {string|undefined}
  */
 function gitSpec(pkg, version) {
   const pj = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -145,7 +197,13 @@ function gitSpec(pkg, version) {
   return m ? m[1] + version : undefined;
 }
 
-/** Downloads and unpacks a release from npm (or GitHub); returns the package directory. */
+/**
+ * Downloads and unpacks a release from npm (or GitHub); returns the package directory.
+ * @param {string} pkg
+ * @param {string} version
+ * @param {string} dir - Where to unpack it.
+ * @return {Promise<string>}
+ */
 async function fetchRelease(pkg, version, dir) {
   fs.mkdirSync(dir, {recursive: true});
   const git = gitSpec(pkg, version);
@@ -182,6 +240,10 @@ async function fetchRelease(pkg, version, dir) {
   return pkgDir;
 }
 
+/**
+ * @param {string} from
+ * @param {string} to
+ */
 function copyDir(from, to) {
   fs.cpSync(from, to, {recursive: true});
 }
@@ -190,19 +252,23 @@ function copyDir(from, to) {
  * Applies one file's hunks of a unified diff, the way pnpm does. `git apply` is stricter
  * than pnpm about one thing pnpm's own patches do: dropping a file's last line when it
  * has no final newline, without the "\ No newline at end of file" marker.
+ * @param {string} original - The file's text.
+ * @param {Hunk[]} hunks - The file's, from parseDiff.
+ * @param {string} label - The file, for an error.
+ * @return {string}
  */
 function applyHunks(original, hunks, label) {
   const hadEol = original.endsWith('\n');
   const lines = original.split('\n');
   if (hadEol) lines.pop();
-  const same = (a, b) => a === b || a.replace(/\r$/, '') === b.replace(/\r$/, '');
+  const same = /** @param {string} a @param {string} b */ (a, b) => a === b || a.replace(/\r$/, '') === b.replace(/\r$/, '');
   const out = [];
   let pos = 0;
   let eol = hadEol;
   for (const h of hunks) {
     const old = h.lines.filter((l) => l.op !== '+').map((l) => l.text);
     const want = h.oldCount === 0 ? h.oldStart : h.oldStart - 1;
-    const fits = (at) => at >= pos && at + old.length <= lines.length && old.every((l, i) => same(lines[at + i], l));
+    const fits = /** @param {number} at - A line index. */ (at) => at >= pos && at + old.length <= lines.length && old.every((l, i) => same(lines[at + i], l));
     let at = -1;
     for (let d = 0; d <= lines.length && at < 0; d++) {
       if (fits(want + d)) at = want + d;
@@ -226,10 +292,27 @@ function applyHunks(original, hunks, label) {
   return out.join('\n') + (eol && out.length ? '\n' : '');
 }
 
-/** Splits a unified diff into {file, hunks} per file. */
+/**
+ * One hunk of a unified diff.
+ * @typedef {Object} Hunk
+ * @property {number} oldStart
+ * @property {number} oldCount
+ * @property {Array<{op: ' '|'-'|'+', text: string}>} lines
+ * @property {boolean} [newNoEol] - The new side's last line has no newline.
+ * @property {boolean} [oldNoEol] - The old side's last line has no newline.
+ */
+
+/**
+ * Splits a unified diff into {file, hunks} per file.
+ * @param {string} patchText
+ * @return {Array<{file: string, hunks: Hunk[]}>}
+ */
 function parseDiff(patchText) {
+  /** @type {Array<{file: string, hunks: Hunk[]}>} */
   const files = [];
+  /** @type {{file: string, hunks: Hunk[]}|undefined} */
   let file;
+  /** @type {Hunk|undefined} */
   let hunk;
   let last;
   for (const line of patchText.split('\n')) {
@@ -263,7 +346,11 @@ function parseDiff(patchText) {
   return files;
 }
 
-/** Paths a unified diff touches (a/ side). */
+/**
+ * Paths a unified diff touches (a/ side).
+ * @param {string} patchText
+ * @return {string[]}
+ */
 function patchedFiles(patchText) {
   return [...patchText.matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)].map((m) => {
     if (m[1] !== m[2]) throw new Error(`the patch renames ${m[1]} to ${m[2]}; not supported`);
@@ -271,7 +358,12 @@ function patchedFiles(patchText) {
   });
 }
 
-/** Finds a file's counterpart in the new release when a content hash renamed it. */
+/**
+ * Finds a file's counterpart in the new release when a content hash renamed it.
+ * @param {string} rel - Its path in the old release.
+ * @param {string} theirsDir - The new release's directory.
+ * @return {{candidates: string[], match?: string}} match: the one candidate, if one.
+ */
 function renamedCounterpart(rel, theirsDir) {
   const dir = path.dirname(rel);
   const m = /^(.*?)-[A-Za-z0-9_-]{6,}(\.[a-z]+)$/.exec(path.basename(rel));
@@ -284,6 +376,13 @@ function renamedCounterpart(rel, theirsDir) {
 
 // --- three-way merges ----------------------------------------------------------------
 
+/**
+ * @param {string} ours
+ * @param {string} base
+ * @param {string} theirs
+ * @param {string} label - What is merged, for an error.
+ * @return {{text: string, conflicts: number}} conflicts: how many git merge-file marked.
+ */
 function mergeText(ours, base, theirs, label) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'recut-merge-'));
   try {
@@ -300,18 +399,22 @@ function mergeText(ours, base, theirs, label) {
 /**
  * Splits a webpack debug bundle into its runtime head, modules keyed by source path,
  * and runtime tail. Returns null for anything that is not one.
+ * @param {string} text
+ * @return {?WebpackParts}
  */
 function splitWebpack(text) {
   const lines = text.split('\n');
+  /** @type {Array<[number, string]>} Each module's first line, and its source path. */
   const starts = [];
   lines.forEach((l, i) => {
     const m = /^\/\*\*\*\/ "(.+)":$/.exec(l);
     if (m) starts.push([i, m[1]]);
   });
   if (starts.length < 2) return null;
-  const last = starts.at(-1)[0];
+  const last = /** @type {[number, string]} */ (starts.at(-1))[0];
   const end = lines.findIndex((l, i) => i > last && /^\/\*{6}\/ \t?\}\);?$/.test(l));
   if (end < 0) return null;
+  /** @type {Map<string, string>} */
   const modules = new Map();
   starts.forEach(([i, p], k) => {
     const j = k + 1 < starts.length ? starts[k + 1][0] : end;
@@ -322,10 +425,25 @@ function splitWebpack(text) {
     tail: lines.slice(end).join('\n')};
 }
 
+/**
+ * A webpack debug bundle, cut up by splitWebpack.
+ * @typedef {Object} WebpackParts
+ * @property {string} head - The runtime before the modules.
+ * @property {Map<string, string>} modules - Source path to the module's text.
+ * @property {string[]} order - The source paths, as the bundle lists them.
+ * @property {string} tail - The runtime after the modules.
+ */
+
+/**
+ * @param {WebpackParts} b - Base.
+ * @param {WebpackParts} o - Ours.
+ * @param {WebpackParts} t - Theirs.
+ * @param {string} label
+ */
 function mergeWebpack(b, o, t, label) {
   /** @type {{theirs: number, ours: number, same: number, merged: string[], conflicts: string[], removedUpstream: string[]}} */
   const report = {theirs: 0, ours: 0, same: 0, merged: [], conflicts: [], removedUpstream: []};
-  const part = (name, bv, ov, tv) => {
+  const part = /** @param {string} name @param {string} bv @param {string} ov @param {string} tv */ (name, bv, ov, tv) => {
     if (ov === bv) return tv;
     if (tv === bv || ov === tv) return ov;
     const m = mergeText(ov + '\n', bv + '\n', tv + '\n', `${label} ${name}`);
@@ -335,7 +453,7 @@ function mergeWebpack(b, o, t, label) {
   const out = [];
   const head = part('<webpack head>', b.head, o.head, t.head);
   for (const p of t.order) {
-    const bv = b.modules.get(p); const ov = o.modules.get(p); const tv = t.modules.get(p);
+    const bv = b.modules.get(p); const ov = o.modules.get(p); const tv = /** @type {string} t.order lists its modules. */ (t.modules.get(p));
     if (ov === bv) {
       out.push(tv); report.theirs++; continue;
     }
@@ -379,6 +497,9 @@ function mergeWebpack(b, o, t, label) {
 /**
  * Applies the line changes between norm(raw) and target onto raw, so every untouched
  * line keeps its bytes - stray CRs included - and the patch holds only real changes.
+ * @param {string} raw - The new release's file.
+ * @param {string} target - The merge, CRs taken out (norm).
+ * @return {string}
  */
 function spliceOnto(raw, target) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'recut-splice-'));
@@ -413,12 +534,19 @@ function spliceOnto(raw, target) {
  * the stock new release has nor the current patch already brought in (those were
  * reviewed when that patch was cut: dash.js's _getL3DBootstrapTracks, whose only caller
  * FastStream removed, is one).
+ * @param {string} merged
+ * @param {string} stock - The new release's file.
+ * @param {string} label
+ * @param {string} oldBase - The release the current patch is cut against.
+ * @param {string} oldOurs - That release, patched.
+ * @return {Promise<string[]>}
  */
 async function checkJavaScript(merged, stock, label, oldBase, oldOurs) {
   const problems = [];
   const acorn = await import('acorn');
+  /** @type {'module'|'script'} */
   let sourceType = 'module';
-  const parse = (text, type) => acorn.parse(text, {ecmaVersion: 'latest', sourceType: type, allowHashBang: true});
+  const parse = /** @param {string} text @param {'module'|'script'} type */ (text, type) => acorn.parse(text, {ecmaVersion: 'latest', sourceType: type, allowHashBang: true});
   try {
     parse(stock, 'module');
   } catch {
@@ -442,8 +570,9 @@ async function checkJavaScript(merged, stock, label, oldBase, oldOurs) {
       rules: {'no-undef': 'error', 'no-unused-vars': ['error', {args: 'none', caughtErrors: 'none', vars: 'local'}]},
     }],
   });
-  const names = async (text) => {
+  const names = /** @param {string} text */ async (text) => {
     const [r] = await eslint.lintText(text, {filePath: path.join(root, '__recut-check__.mjs')});
+    /** @type {Map<string, number>} */
     const counts = new Map();
     for (const m of r.messages.filter((x) => x.ruleId)) {
       const key = `${m.ruleId}: ${m.message}`;
@@ -479,9 +608,27 @@ async function checkJavaScript(merged, stock, label, oldBase, oldOurs) {
  * @property {boolean} [resumed]
  * @property {boolean} [landed]
  */
+
+/**
+ * What a run found, per file, and the problems that keep --apply from going on.
+ * @typedef {Object} RecutResult
+ * @property {string} package
+ * @property {string} from
+ * @property {string} to
+ * @property {string} work - The working directory.
+ * @property {MergedFile[]} files
+ * @property {string[]} problems
+ * @property {{from: string, to: string}[]} renamed - Files a content hash renamed.
+ */
+
+/**
+ * @return {Promise<number>} The exit status.
+ */
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
-  const cur = opts.from ? {version: opts.from, patch: opts.patch} : currentPatch(opts.pkg);
+  // --from comes with --patch (parseArgs).
+  /** @type {PatchInUse} */
+  const cur = opts.from ? {version: opts.from, patch: /** @type {string} */ (opts.patch)} : currentPatch(opts.pkg);
   const patchPath = path.resolve(root, cur.patch);
   const patchText = fs.readFileSync(patchPath, 'utf8');
   cur.text = patchText; // --apply puts it back if the install fails
@@ -497,7 +644,7 @@ async function main() {
   const work = opts.out ? path.resolve(opts.out) :
     fs.mkdtempSync(path.join(os.tmpdir(), `recut-${opts.pkg.replace(/[^\w.-]+/g, '_')}-${opts.to}-`));
   if (!opts.resume) fs.rmSync(path.join(work, 'merged'), {recursive: true, force: true});
-  const log = (s) => opts.json || console.log(s);
+  const log = /** @param {string} s */ (s) => opts.json || console.log(s);
   log(`${opts.pkg}: re-cutting ${path.relative(root, patchPath)} (${cur.version}) onto ${opts.to}\n  working in ${work}`);
 
   const baseDir = await fetchRelease(opts.pkg, cur.version, path.join(work, 'base'));
@@ -522,7 +669,7 @@ async function main() {
     }
   }
 
-  /** @type {{package: string, from: string, to: string, work: string, files: MergedFile[], problems: string[], renamed: {from: string, to: string}[]}} */
+  /** @type {RecutResult} */
   const result = {package: opts.pkg, from: cur.version, to: opts.to, work, files: [], problems: [], renamed: []};
   for (const rel of files) {
     const base = fs.readFileSync(path.join(baseDir, rel), 'utf8');
@@ -613,7 +760,8 @@ async function main() {
     log(`\nClean. Run again with --apply to take ${opts.pkg} ${opts.to}.`);
     return 0;
   }
-  return applyUpdate(opts, cur, result, work);
+  // --apply takes the current patch (parseArgs), which has its line; its text is read above.
+  return applyUpdate(opts, /** @type {PatchInUse & {line: string, text: string}} */ (cur), result, work);
 }
 
 /**
@@ -624,6 +772,7 @@ async function main() {
  * @return {string[]} The names that were on the list.
  */
 function dropDependabotIgnores(names, file = path.join(root, '.github/dependabot.yml')) {
+  /** @type {string[]} */
   const dropped = [];
   const kept = fs.readFileSync(file, 'utf8').split('\n').filter((line) => {
     const entry = /^\s*- dependency-name: '([^']+)'\s*$/.exec(line);
@@ -644,7 +793,7 @@ function dropDependabotIgnores(names, file = path.join(root, '.github/dependabot
  * @return {string}
  */
 function bumpPackageJson(text, pkg, from, to) {
-  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const esc = /** @param {string} s */ (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   // A registry range keeps its prefix (hls.js was "^1.7.3"); a git spec moves to the new
   // version's tag.
   const verRe = new RegExp(`("${esc(pkg)}":\\s*"(?:[~^]?|(?:github:|git\\+|git:)[^#"]+#v?))${esc(from)}"`);
@@ -652,6 +801,14 @@ function bumpPackageJson(text, pkg, from, to) {
   return text.replace(verRe, `$1${to}"`);
 }
 
+/**
+ * --apply: takes the new release, with the merged patch.
+ * @param {RecutOptions} opts
+ * @param {PatchInUse & {line: string, text: string}} cur - The current patch.
+ * @param {RecutResult} result - A clean run's.
+ * @param {string} work - The working directory.
+ * @return {number} The exit status.
+ */
 function applyUpdate(opts, cur, result, work) {
   const {pkg, to} = opts;
   const from = cur.version;
