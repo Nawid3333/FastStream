@@ -1,3 +1,4 @@
+// @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
@@ -898,7 +899,7 @@ export default class MP4Player extends EventEmitter {
     }
     // A removal still queued takes away what `buffered` shows (removalPending, #265).
     if (!VideoUtils.isBuffered(this.buffered, target) ||
-        removalPending([(this.videoSourceBuffer), /** @type {SourceBufferWrapper|null} */ (this.audioSourceBuffer)], target)) {
+        removalPending([/** @type {SourceBufferWrapper|null} */ (this.videoSourceBuffer), /** @type {SourceBufferWrapper|null} */ (this.audioSourceBuffer)], target)) {
       this.resetHLS();
     }
   }
@@ -920,7 +921,7 @@ export default class MP4Player extends EventEmitter {
     const track = this.metaData.videoTracks[0];
     const result = new Map();
     const id = this.getCurrentVideoLevelID();
-    result.set(id, new VideoLevel(/** @type {ConstructorParameters<typeof VideoLevel>[0]} */ ({
+    result.set(id, new VideoLevel(/** @type {Exclude<ConstructorParameters<typeof VideoLevel>[0], undefined>} */ ({
       id: id,
       width: track.track_width,
       height: track.track_height,
@@ -937,7 +938,7 @@ export default class MP4Player extends EventEmitter {
     const track = this.metaData.audioTracks[0];
     const result = new Map();
     const id = this.getCurrentAudioLevelID();
-    result.set(id, new AudioLevel(/** @type {ConstructorParameters<typeof AudioLevel>[0]} */ ({
+    result.set(id, new AudioLevel(/** @type {Exclude<ConstructorParameters<typeof AudioLevel>[0], undefined>} */ ({
       id: id,
       bitrate: track.bitrate,
       mimeType: 'audio/mp4',

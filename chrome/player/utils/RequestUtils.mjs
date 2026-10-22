@@ -1,3 +1,4 @@
+// @ts-check
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {LargeBuffer} from '../modules/LargeBuffer.mjs';
 import {EnvUtils} from './EnvUtils.mjs';
@@ -75,7 +76,7 @@ export class RequestResult {
  */
 async function readWithProgress(response, onProgress) {
   const total = Number(response.headers.get('Content-Length')) || 0;
-  const reader = response.body.getReader();
+  const reader = /** @type {ReadableStream<Uint8Array>} */ (response.body).getReader();
   const chunks = [];
   let loaded = 0;
   for (;;) {
@@ -120,12 +121,13 @@ export class RequestUtils {
    * @param {Object} options - Request options.
    * @param {string} options.url - The request URL.
    * @param {string} [options.method] - HTTP method (GET, POST, etc.).
+   * @param {string} [options.type] - Alias for method.
    * @param {Object} [options.headers] - Headers to set.
    * @param {Object} [options.query] - Query parameters.
    * @param {string} [options.responseType] - Response type: '' or 'text', 'json',
    *   'arraybuffer' or 'blob'.
    * @param {Object} [options.range] - Byte range for partial requests.
-   * @param {Function} [options.onProgress] - Progress callback, with {loaded, total,
+   * @param {(progress: {loaded: number, total: number, lengthComputable: boolean}) => void} [options.onProgress] - Progress callback, with {loaded, total,
    *   lengthComputable} for each piece of the body.
    * @param {boolean} [options.usePlusForSpaces] - Use plus for spaces in query.
    * @param {any} [options.data] - Data to send in the request body.
