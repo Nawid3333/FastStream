@@ -1,3 +1,4 @@
+// @ts-check
 import {storeIndex} from './HLSFragmentStore.mjs';
 
 // How many times in a row one segment may fail before hls.js hears an error. Until then a
@@ -76,24 +77,24 @@ function isSamePlace(stored, frag) {
       @callback onSuccessCallback
       @param response {object} - response data
       @param response.url {string} - response URL (which might have been redirected)
-      @param response.data {string/arraybuffer/sharedarraybuffer} - response data (reponse type should be as per context.responseType)
-      @param stats {LoadStats} - loading stats
+      @param response.data {string|ArrayBuffer|SharedArrayBuffer} - response data (reponse type should be as per context.responseType)
+      @param stats {object} - loading stats (hls.js's LoadStats)
       @param stats.aborted {boolean} - must be set to true once the request has been aborted
       @param stats.loaded {number} - nb of loaded bytes
       @param stats.total {number} - total nb of bytes
       @param stats.retry {number} - number of retries performed
       @param stats.chunkCount {number} - number of chunk progress events
       @param stats.bwEstimate {number} - download bandwidth in bits/s
-      @param stats.loading { start: 0, first: 0, end: 0 }
-      @param stats.parsing { start: 0, end: 0 }
-      @param stats.buffering { start: 0, first: 0, end: 0 }
+      @param stats.loading {{start: number, first: number, end: number}}
+      @param stats.parsing {{start: number, end: number}}
+      @param stats.buffering {{start: number, first: number, end: number}}
       @param context {object} - loader context
       @param networkDetails {object} - loader network details (the xhr for default loaders)
 
       @callback onProgressCallback
-      @param stats {LoadStats} - loading stats
+      @param stats {object} - loading stats (hls.js's LoadStats)
       @param context {object} - loader context
-      @param data {string/arraybuffer/sharedarraybuffer} - onProgress data (should be defined only if context.progressData === true)
+      @param data {string|ArrayBuffer|SharedArrayBuffer} - onProgress data (should be defined only if context.progressData === true)
       @param networkDetails {object} - loader network details (the xhr for default loaders)
 
       @callback onErrorCallback
@@ -104,7 +105,7 @@ function isSamePlace(stored, frag) {
       @param networkDetails {object} - loader network details (the xhr for default loaders)
 
       @callback onTimeoutCallback
-      @param stats {LoadStats} - loading stats
+      @param stats {object} - loading stats (hls.js's LoadStats)
       @param context {object} - loader context
 
    */

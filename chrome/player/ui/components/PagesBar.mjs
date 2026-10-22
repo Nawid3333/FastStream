@@ -1,5 +1,8 @@
+// @ts-check
 import {WebUtils} from '../../utils/WebUtils.mjs';
 
+// textContent and contentEditable take a number or a boolean as its string (the DOM converts
+// it): the casts below say so to the type checker.
 export function createPagesBar(page, totalPages, callback) {
   /** @type {(tag: string, attrs: any, className: string) => HTMLElement} */
   const create = WebUtils.create;
@@ -14,7 +17,7 @@ export function createPagesBar(page, totalPages, callback) {
   const list = create('div', null, 'page-bar');
   if (start > 1) {
     const el = create('div', null, 'page-marker');
-    el.textContent = 1;
+    el.textContent = /** @type {*} */ (1);
     el.addEventListener('click', () => {
       callback(1);
     });
@@ -30,16 +33,16 @@ export function createPagesBar(page, totalPages, callback) {
   for (let i = start; i <= max; i++) {
     ((i) => {
       const el = create('div', null, 'page-marker');
-      el.textContent = i;
+      el.textContent = /** @type {*} */ (i);
       if (i === page) {
         el.classList.add('selected');
-        el.contentEditable = true;
+        el.contentEditable = /** @type {*} */ (true);
         el.addEventListener('blur', () => {
-          el.textContent = i;
-          window.getSelection().removeAllRanges();
+          el.textContent = /** @type {*} */ (i);
+          /** @type {Selection} */ (window.getSelection()).removeAllRanges();
         });
         el.addEventListener('focus', () => {
-          window.getSelection().selectAllChildren(el);
+          /** @type {Selection} */ (window.getSelection()).selectAllChildren(el);
         });
         el.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
@@ -47,7 +50,7 @@ export function createPagesBar(page, totalPages, callback) {
             if (page > 0 && page <= total) {
               callback(parseInt(el.textContent));
             } else {
-              el.textContent = i;
+              el.textContent = /** @type {*} */ (i);
             }
           }
           e.stopPropagation();
@@ -70,7 +73,7 @@ export function createPagesBar(page, totalPages, callback) {
     }
 
     const el = create('div', null, 'page-marker');
-    el.textContent = total;
+    el.textContent = /** @type {*} */ (total);
     el.addEventListener('click', () => {
       callback(total);
     });
