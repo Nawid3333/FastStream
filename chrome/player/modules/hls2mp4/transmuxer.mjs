@@ -18,6 +18,9 @@ import {normalizePts} from './ptsNormalize.mjs';
 // back out of it, so the exact values only need to be well-typed, not
 // individually meaningful, other than duration, which is worth keeping real
 // since box generation downstream can consult it.
+/**
+ * @param {?number} [duration] - The level's, in seconds; null or none: 0.
+ */
 function makeChunkMeta(duration) {
   return new ChunkMetadata(0, 0, 1, 0, -1, false, duration || 0, false);
 }
@@ -36,6 +39,9 @@ const muxConfig = [{
   remux: MP4Remuxer,
 }];
 
+// The logger hls.js's demuxers and remuxers get (hls.js's ILogger, but trace, which they do
+// not call).
+/** @type {Omit<import('../hls.mjs').ILogger, 'trace'>} */
 const Logger = {
   debug: (msg, ...args) => {
     console.debug(`[Transmuxer] ${msg}`, ...args);
@@ -54,6 +60,11 @@ const Logger = {
   },
 };
 export default class Transmuxer {
+  /**
+   * @param {{audioCodec?: string, videoCodec?: string, initSegmentData?: Uint8Array|[],
+   *   duration?: number, defaultInitPts?: number}} transmuxConfig - HLS2MP4.setup's: the
+   *   level's or rendition's codecs and length, its init segment (or an empty array), and 0.
+   */
   constructor(transmuxConfig) {
     // What the remuxer may produce. The output is an MP4 file, not something this
     // browser's MSE has to take, so MP3 always goes in as MP3 in MP4: asked of
@@ -79,7 +90,7 @@ export default class Transmuxer {
       get: (obj, prop) => {
         // console.log("get", prop)
         if (prop in obj) {
-          return obj[prop];
+          return /** @type {Record<string|symbol, *>} */ (obj)[prop];
         } else {
           console.log('get', prop);
           return null;
@@ -101,6 +112,12 @@ export default class Transmuxer {
 
   get observer() {
     return {
+      /**
+       * hls.js's emit(event, name, data), as its demuxers call it (an error, say).
+       * @param {import('../hls.mjs').Events} event
+       * @param {import('../hls.mjs').Events} name - The event again.
+       * @param {Object} data - The event's data.
+       */
       emit: (event, name, data) => {
         console.log(event, name, data);
       },
@@ -110,6 +127,10 @@ export default class Transmuxer {
     };
   }
 
+  /**
+   * @param {Uint8Array} data - The first fragment's, to probe.
+   * @return {Error|undefined} An error when no demuxer takes it.
+   */
   configureTransmuxer(data) {
     const {
       config,
@@ -145,6 +166,10 @@ export default class Transmuxer {
     }
   }
 
+  /**
+   * @param {Uint8Array} data - A fragment.
+   * @param {boolean} discontinuity - Whether it does not follow the last one pushed.
+   */
   pushData(data, discontinuity) {
     const uintData = new Uint8Array(data);
 
@@ -177,6 +202,9 @@ export default class Transmuxer {
     return remuxed;
   }
 
+  /**
+   * @param {?number} defaultInitPts - transmuxConfig's (0, or null without one).
+   */
   resetInitialTimestamp(defaultInitPts) {
     const {demuxer, remuxer} = this;
     if (!demuxer || !remuxer) {
@@ -193,6 +221,12 @@ export default class Transmuxer {
     demuxer.resetContiguity();
     remuxer.resetNextTimestamp();
   }
+  /**
+   * @param {?Uint8Array|[]} initSegmentData - transmuxConfig's.
+   * @param {?string|undefined} audioCodec
+   * @param {?string|undefined} videoCodec
+   * @param {?number} trackDuration - Seconds.
+   */
   resetInitSegment(initSegmentData, audioCodec, videoCodec, trackDuration) {
     const {demuxer, remuxer} = this;
     if (!demuxer || !remuxer) {
@@ -216,6 +250,11 @@ export default class Transmuxer {
       this.remuxer = undefined;
     }
   }
+  /**
+   * @param {*} videoTrack - TSDemuxer's (an hls.js internal its types do not describe).
+   * @param {*} audioTrack - Likewise.
+   * @param {number} timeOffset - Seconds.
+   */
   remux(videoTrack, audioTrack, timeOffset) {
     const id3Track = {
       'type': 'id3',
@@ -242,6 +281,11 @@ export default class Transmuxer {
     return this.remuxer.remux(audioTrack, videoTrack, id3Track, textTrack, timeOffset, true, false, 3,
         makeChunkMeta(this.transmuxConfig.duration));
   }
+  /**
+   * @param {Array<{pts: number}>} videoSamples - TSDemuxer's video samples (hls.js's
+   *   VideoSample, which its types do not describe), of which this reads pts.
+   * @return {number}
+   */
   getVideoStartPts(videoSamples) {
     let rolloverDetected = false;
     const startPTS = videoSamples.reduce((minPTS, sample) => {
@@ -261,6 +305,7 @@ export default class Transmuxer {
     }
     return startPTS;
   }
+  /** @param {Uint8Array} data - A fragment. */
   demux(data) {
     // 3rd positional arg (chunkMeta) used to be harmless as `false` here --
     // TSDemuxer.demux only reads chunkMeta.iframe, and false.iframe reads as
