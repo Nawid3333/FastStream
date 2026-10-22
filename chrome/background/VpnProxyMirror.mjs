@@ -41,6 +41,15 @@ const MaxHosts = 200;
 const PageLoadTypes = ['main_frame', 'sub_frame', 'script', 'stylesheet', 'image', 'font', 'media'];
 
 /**
+ * The proxy a request took, as webRequest reports it (details.proxyInfo, Firefox only, which
+ * @types/chrome lacks); null or absent for a request that went directly. Firefox 157 gave
+ * Firefox VPN's with every field below, and username and proxyDNS, which are not read here
+ * (tests/unit/VpnProxyMirror.test.mjs); a proxy of the network settings has no token.
+ * @typedef {{type: string, host: string, port: number, proxyAuthorizationHeader?: string,
+ *   connectionIsolationKey?: string, failoverTimeout?: number}} ProxyInfo
+ */
+
+/**
  * @typedef {Object} SeenProxy
  * @property {string} type
  * @property {string} host
@@ -118,7 +127,7 @@ export class VpnProxyMirror {
   /**
    * The proxy a request took, as remembered settings and their key; null when it went
    * directly. Its newest token is kept for every request that goes through that proxy.
-   * @param {?Object|undefined} info - webRequest's details.proxyInfo.
+   * @param {?ProxyInfo|undefined} info - webRequest's details.proxyInfo.
    * @return {?string} The proxy's key.
    */
   rememberProxy(info) {
@@ -148,7 +157,7 @@ export class VpnProxyMirror {
    * fetches (noteSource, own requests): with the VPN on, every page request has a proxy,
    * and a listener for all their hosts would hold up every request.
    * @param {{url: string, tabId: number, frameId?: number, type?: string, incognito?: boolean,
-   *   originUrl?: string, documentUrl?: string, proxyInfo?: ?Object}} details
+   *   originUrl?: string, documentUrl?: string, proxyInfo?: ?ProxyInfo}} details
    */
   noteRequest(details) {
     const host = hostOf(details.url);
@@ -190,7 +199,7 @@ export class VpnProxyMirror {
   /**
    * A stream detected from a page's request: its host goes the way that request went.
    * @param {{url: string, tabId: number, incognito?: boolean, originUrl?: string,
-   *   documentUrl?: string, proxyInfo?: ?Object}} details
+   *   documentUrl?: string, proxyInfo?: ?ProxyInfo}} details
    */
   noteSource(details) {
     const host = hostOf(details.url);

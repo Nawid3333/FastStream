@@ -4,7 +4,6 @@
   "chrome/background/MultiRegexMatcher.mjs": 5,
   "chrome/background/NetRequestRuleManager.mjs": 9,
   "chrome/background/UrlMatchList.mjs": 13,
-  "chrome/background/VpnProxyMirror.mjs": 10,
   "chrome/player/FastStreamClient.mjs": 165,
   "chrome/player/SubtitleTrack.mjs": 12,
   "chrome/player/VideoSource.mjs": 7,
