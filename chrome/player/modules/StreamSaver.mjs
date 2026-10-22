@@ -12,6 +12,18 @@ export const streamSaver = {
 // concurrent saves colliding on one file and corrupting both.
 let saveCounter = 0;
 
+/**
+ * Where a save's chunks go: one OPFS file, or blobs in the blob store.
+ * @typedef {{write: (chunk: Uint8Array) => Promise<void>, close: () => Promise<void>,
+ *   abort: () => Promise<void>}} SaveSink
+ */
+
+/**
+ * @param {string} filename
+ * @param {{writableStrategy?: QueuingStrategy<Uint8Array>}} opts
+ * @param {number} [size] - Not used.
+ * @return {WritableStream<Uint8Array>}
+ */
 function createWriteStreamBlob(filename, opts, size) {
   // Firefox extension pages have no ServiceWorker (navigator.serviceWorker
   // is undefined on moz-extension://), so the "streaming" transport is
@@ -33,7 +45,7 @@ function createWriteStreamBlob(filename, opts, size) {
   // The blob store itself is made then too: a save that failed before its first
   // write (a direct download's bad status code) left one, with its OPFS worker
   // and heartbeat, running until the tab closed.
-  /** @type {Promise<{write: Function, close: Function, abort: Function}>|null} */
+  /** @type {Promise<SaveSink>|null} */
   let sinkPromise = null;
   const getSink = () => {
     if (!sinkPromise) {
@@ -88,7 +100,7 @@ async function closeWhenDownloaded(blobManager, url, download) {
  * matter the video size.
  * @param {string} filename
  * @param {FSBlob} blobManager one whose OPFS backend is live
- * @return {{write: Function, close: Function, abort: Function}}
+ * @return {SaveSink}
  */
 function createOPFSSink(filename, blobManager) {
   const opfs = /** @type {NonNullable<typeof blobManager.opfsManager>} */ (blobManager.opfsManager);
@@ -145,14 +157,16 @@ const MEMORY_SINK_PENDING = 8;
  * Kept as close to the original upstream behavior as possible.
  * @param {string} filename
  * @param {FSBlob} blobManager
- * @return {{write: Function, close: Function, abort: Function}}
+ * @return {SaveSink}
  */
 function createMemorySink(filename, blobManager) {
+  /** @type {string[]} The blob store's identifiers of the chunks, in order. */
   const blobs = [];
   // Chunks the blob store is still moving to disk. write() used to return at
   // once, so a fast producer (a direct download read as fast as the network
   // gives it) had the whole file in RAM as Blobs before the Cache backend took
   // them; it now waits once MEMORY_SINK_PENDING are on their way.
+  /** @type {Promise<unknown>[]} */
   const pending = [];
   return {
     async write(chunk) {
@@ -207,8 +221,9 @@ function createMemorySink(filename, blobManager) {
  * nothing could reach them to notice.
  *
  * @param  {string} filename filename that should be used
- * @param  {object} options  [description]
- * @param  {number} size     deprecated
+ * @param  {{writableStrategy?: QueuingStrategy<Uint8Array>}} [options] The stream's
+ *     queuing strategy; no caller passes one.
+ * @param  {number} [size]     deprecated
  * @return {WritableStream<Uint8Array>}
  */
 function createWriteStream(filename, options, size) {
