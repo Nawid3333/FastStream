@@ -1,7 +1,9 @@
 // @ts-check
 export class MultiRegexMatcher {
   constructor() {
+    /** @type {{regex: RegExp, output: *}[]} */
     this.compiledRegexes = [];
+    /** @type {{regex: string, flags: string, output: *}[]} */
     this.uncompiledRegexes = [];
   }
 
@@ -10,6 +12,11 @@ export class MultiRegexMatcher {
     this.uncompiledRegexes.length = 0;
   }
 
+  /**
+   * @param {string} regex
+   * @param {string} flags
+   * @param {*} output
+   */
   addRegex(regex, flags, output) {
     // The empty regex matches every string: added by mistake, it would route every URL
     // to this output.
