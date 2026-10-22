@@ -1,6 +1,41 @@
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 
 /**
+ * A downloaded fragment's stored entry for a save, its data downloaded again once when it
+ * is gone. A stored download can lose its data after it completed (DownloadEntry: its
+ * onDataLost drops the entry) while the fragment still says downloaded, and a save read it
+ * bare: it failed there every time, where the loaders download such a fragment again.
+ * @param {function(): ?Object} entryOf - The download manager's entry of the fragment now.
+ * @param {function(): Promise<void>} downloadAgain - Downloads the fragment once more.
+ * @return {Promise<{getData: () => Promise<*>, getDataFromBlob: (type?: string) => Promise<*>}>}
+ *   Reads that download it again when the entry is gone, or went while it was read.
+ */
+export async function savedEntry(entryOf, downloadAgain) {
+  const fresh = async () => {
+    await downloadAgain();
+    const entry = entryOf();
+    if (!entry) throw new Error('The stored download is gone');
+    return entry;
+  };
+  let entry = entryOf() || await fresh();
+  const read = async (how) => {
+    try {
+      return await how(entry);
+    } catch (e) {
+      // Only data the store lost: getDataFromBlob reported it and the entry was dropped.
+      // Anything else would fail the same way after a new download.
+      if (entryOf() === entry) throw e;
+      entry = await fresh();
+      return how(entry);
+    }
+  };
+  return {
+    getData: () => read((e) => e.getData()),
+    getDataFromBlob: (type) => read((e) => e.getDataFromBlob(type)),
+  };
+}
+
+/**
  * Downloads a save's fragments a few ahead of the one being converted.
  *
  * A save reads its fragments one after the other, and a fragment it did not have yet was
@@ -51,6 +86,30 @@ export class SaveFragmentFetcher {
         this.downloads.delete(index);
       }
     }
+  }
+
+  /**
+   * A fragment's entry once it is downloaded (get), its data downloaded again once when the
+   * store lost it (savedEntry).
+   * @param {number} index
+   * @param {function(): ?Object} entryOf - The download manager's entry of the fragment now.
+   * @return {ReturnType<typeof savedEntry>}
+   */
+  async entry(index, entryOf) {
+    await this.get(index);
+    return savedEntry(entryOf, async () => {
+      if (this.cancelled) {
+        throw new Error('Cancelled');
+      }
+      const download = {promise: null, loader: null, reject: null};
+      download.promise = this.download(this.fragments[index], download);
+      this.downloads.set(index, download);
+      try {
+        await download.promise;
+      } finally {
+        this.downloads.delete(index);
+      }
+    });
   }
 
   /**

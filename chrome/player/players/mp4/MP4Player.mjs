@@ -13,7 +13,7 @@ import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
 import {keyframeOffset, sampledDuration} from './SampleIndex.mjs';
 import {SegmentAppender} from './SegmentAppender.mjs';
 import {SourceBufferWrapper, removalPending} from './SourceBufferWrapper.mjs';
-import {SaveFragmentFetcher} from '../SaveFragmentFetcher.mjs';
+import {SaveFragmentFetcher, savedEntry} from '../SaveFragmentFetcher.mjs';
 import {StallWatchdog, bufferedAhead} from './StallWatchdog.mjs';
 const FRAGMENT_SIZE = 1000000;
 // How far past the back buffer a SourceBuffer may run before it is trimmed, in seconds.
@@ -1119,7 +1119,10 @@ export default class MP4Player extends EventEmitter {
           await fetcher.get(i);
         }
         if (frag.status === DownloadStatus.DOWNLOAD_COMPLETE) {
-          const entry = this.client.downloadManager.getEntry(frag.getContext());
+          // Downloaded again when the store lost it (savedEntry): a partial save reads the
+          // ranges it has without the fetcher.
+          const entry = await savedEntry(() => this.client.downloadManager.getEntry(frag.getContext()),
+              () => this.downloadFragment(frag, -1));
           await writer.write(new Uint8Array(await entry.getDataFromBlob()));
         } else {
           await writer.write(emptyTemplate);

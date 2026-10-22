@@ -10,7 +10,7 @@ import {VideoUtils} from '../../utils/VideoUtils.mjs';
 import {storeIndex, storeLevel} from './HLSFragmentStore.mjs';
 import {HLSFragmentRequester} from './HLSFragmentRequester.mjs';
 import {HLSLoaderFactory} from './HLSLoader.mjs';
-import {SaveFragmentFetcher} from '../SaveFragmentFetcher.mjs';
+import {SaveFragmentFetcher, savedEntry} from '../SaveFragmentFetcher.mjs';
 
 // hls.js watches for a fragment loading too slowly and drops quality
 // mid-fragment (AbrController._abandonRulesCheck). That heuristic fights
@@ -158,7 +158,10 @@ export default class HLSPlayer extends EventEmitter {
     if (init.status !== DownloadStatus.DOWNLOAD_COMPLETE) {
       await this.downloadFragment(init, -1);
     }
-    return new Uint8Array(await this.client.downloadManager.getEntry(init.getContext()).getDataFromBlob());
+    // Downloaded again when the store lost it (savedEntry).
+    const entry = await savedEntry(() => this.client.downloadManager.getEntry(init.getContext()),
+        () => this.downloadFragment(init, -1));
+    return new Uint8Array(await entry.getDataFromBlob());
   }
 
   async saveVideo(options) {
@@ -201,9 +204,9 @@ export default class HLSPlayer extends EventEmitter {
     zippedFragments.forEach((data, index) => {
       data.fragment.addReference(ReferenceTypes.SAVER);
       data.getEntry = async () => {
-        await fetcher.get(index);
+        const entry = await fetcher.entry(index, () => this.client.downloadManager.getEntry(data.fragment.getContext()));
         data.fragment.removeReference(ReferenceTypes.SAVER);
-        return this.client.downloadManager.getEntry(data.fragment.getContext());
+        return entry;
       };
     });
 

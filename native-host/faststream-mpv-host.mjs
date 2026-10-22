@@ -1754,9 +1754,12 @@ export function streamTitle(message) {
  * @param {{ipcRequest?: typeof mpvIpcRequest, focus?: typeof focusPid,
  *   start?: (mpvPath: string, args: Array<string>) => Promise<{ok: boolean, error?: string,
  *     pid?: number, focus?: string, foreground?: string}>,
- *   platform?: string}} [io] - Stand-ins for tests: the IPC transport, the window focus,
- *   the launch of a new mpv (launchViaWmi on Windows, launchDirect elsewhere), and
- *   process.platform. The real ones by default.
+ *   platform?: string, sleep?: (ms: number) => Promise<void>, now?: () => number,
+ *   lockFile?: string, lock?: {now?: () => number, alive?: (pid: number) => boolean}}} [io] -
+ *   Stand-ins for tests: the IPC transport, the window focus, the launch of a new mpv
+ *   (launchViaWmi on Windows, launchDirect elsewhere), process.platform, the clock of the
+ *   wait for another helper's launch and the launch lock's file and clock. The real ones by
+ *   default.
  * @return {Promise<{ok: boolean, error?: string, reused?: boolean, focus?: string,
  *   foreground?: string}>} The reply for the extension; focus and foreground on Windows
  *   (see the message list at the top of this file).
@@ -2357,7 +2360,7 @@ function processAlive(pid) {
  * Whether the launch lock holds: its file is there, younger than LaunchLockMs, and the
  * process it names still runs.
  * @param {string} file - launchLockFile.
- * @param {{now?: function(): number, alive?: function(number): boolean}} [io] - Stand-ins.
+ * @param {{now?: () => number, alive?: (pid: number) => boolean}} [io] - Stand-ins.
  * @return {boolean}
  */
 export function launchLockHeld(file, io = {}) {
@@ -2373,8 +2376,8 @@ export function launchLockHeld(file, io = {}) {
 /**
  * Takes the launch lock, unless another helper holds it.
  * @param {string} file - launchLockFile.
- * @param {{now?: function(): number, alive?: function(number): boolean}} [io] - Stand-ins.
- * @return {{taken: boolean, hand: function(number): void, release: function(): void}} hand
+ * @param {{now?: () => number, alive?: (pid: number) => boolean}} [io] - Stand-ins.
+ * @return {{taken: boolean, hand: (pid: number) => void, release: () => void}} hand
  *   names the process to wait on from then on (the mpv started); release lets the lock go.
  */
 export function takeLaunchLock(file, io = {}) {
@@ -2490,9 +2493,11 @@ export function stopMpv(pid) {
  *   start?: (mpvPath: string, args: Array<string>) => Promise<{ok: boolean, error?: string,
  *     pid?: number, focus?: string, foreground?: string}>,
  *   platform?: string, sleep?: (ms: number) => Promise<void>, now?: () => number,
- *   randomHex?: () => string, subtitleBase?: string, stop?: (pid: number) => void}} [io] -
+ *   randomHex?: () => string, subtitleBase?: string, stop?: (pid: number) => void,
+ *   lockFile?: string, lock?: {now?: () => number, alive?: (pid: number) => boolean}}} [io] -
  *   Stand-ins for tests, as launchMpv's, and the clock of the pipe wait, the new pipe's
- *   suffix, the folder the subtitle files go under and the end of a started mpv (stopMpv).
+ *   suffix, the folder the subtitle files go under, the end of a started mpv (stopMpv) and
+ *   the launch lock's file and clock (launchLockFile, launchLockHeld).
  * @return {Promise<{ok: boolean, error?: string, reused?: boolean, focus?: string,
  *   foreground?: string}>} The answer for the extension, as the legacy open's.
  */
@@ -2544,7 +2549,7 @@ export async function playMpv(mpvPath, play, config, io = {}) {
   // this one and replace it.
   const lockFile = play.newWindow ? null : (io.lockFile || launchLockFile(basePipe));
   let lock = lockFile ? takeLaunchLock(lockFile, io.lock) : null;
-  if (lock && !lock.taken) {
+  if (lockFile && lock && !lock.taken) {
     debugLog(config, 'launch-wait', {});
     const sleep = io.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     const now = io.now || Date.now;

@@ -259,3 +259,30 @@ describe('MP4Player.saveVideo, a partial save', () => {
     expect(network.requests).toEqual([]);
   });
 });
+
+// A stored download can lose its data after it completed (DownloadEntry: onDataLost drops
+// the entry) while its fragment still says downloaded. The loaders download such a fragment
+// again; a save read the store bare and failed there every time.
+describe('saveVideo, a downloaded fragment whose stored data is gone', () => {
+  it.each(PLAYERS)('%s downloads it again and saves its bytes', async (name, Player) => {
+    const network = makeNetwork();
+    const frags = Array.from({length: COUNT}, (_, sn) => new TestFragment(sn));
+    frags.forEach((frag) => {
+      frag.status = DownloadStatus.DOWNLOAD_COMPLETE;
+    });
+    const player = makePlayer(network, frags, Player);
+    let gone = true;
+    player.client.downloadManager.getEntry = ({sn}) => sn === 2 && gone ? undefined :
+      {getDataFromBlob: async () => new Uint8Array([sn]).buffer};
+    const written = [];
+    const saving = Player.prototype.saveVideo.call(player, {filestream: {
+      getWriter: () => ({write: async (data) => written.push(...data), close: async () => {}, abort: async () => {}}),
+    }});
+    saving.catch(() => {});
+    for (let i = 0; i < 50 && !network.requests.length; i++) await settle();
+    expect(network.requests.map((r) => r.fragment.sn)).toEqual([2]);
+    gone = false;
+    network.requests[0].succeed();
+    expect(await output(await saving, written)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+});
