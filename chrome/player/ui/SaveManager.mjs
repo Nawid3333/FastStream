@@ -16,15 +16,18 @@ import {DOMElements} from './DOMElements.mjs';
 import {StatusTypes} from './StatusManager.mjs';
 
 /**
- * Revokes a save's URL once its download is over, then closes the blob store its file
- * reads from (when it has one).
+ * Revokes a save's URL once every download of it is over, then closes the blob store its
+ * file reads from (when it has one). A complete video saved again downloads the same URL
+ * again: with only the newest download followed, its end revoked the URL and closed the
+ * store under an older one still reading it (paused in the downloads panel).
  * @param {string} url
- * @param {*} download - What Utils.downloadURL resolved with.
+ * @param {Array<*>} downloads - What each Utils.downloadURL of it resolved with.
  * @param {?function(): void} release
  * @return {Promise<void>} Not awaited: the save is done before its download is.
  */
-async function releaseWhenDownloaded(url, download, release) {
-  await Utils.revokeWhenDownloaded(url, download);
+async function releaseWhenDownloaded(url, downloads, release) {
+  await Promise.all(downloads.map((download) => Utils.whenDownloaded(download)));
+  URL.revokeObjectURL(url);
   release?.();
 }
 
@@ -34,6 +37,8 @@ export class SaveManager {
     this.downloadURL = null;
     // What Utils.downloadURL answered for the last download of downloadURL.
     this.downloadURLDownload = undefined;
+    // ... and for each of its downloads: the URL goes once all of them are over.
+    this.downloadURLDownloads = [];
     // Closes the blob store the file behind downloadURL reads from, if it has one.
     this.downloadURLRelease = null;
     this.reuseDownloadURL = false;
@@ -425,6 +430,7 @@ export class SaveManager {
       }
 
       this.downloadURLDownload = await Utils.downloadURL(url, name + '.' + saveExtension);
+      this.downloadURLDownloads.push(this.downloadURLDownload);
       // null: Firefox refused the download (no room, a folder it cannot write to), and after
       // "Save complete" nothing said so.
       if (this.downloadURLDownload === null) {
@@ -443,12 +449,13 @@ export class SaveManager {
   releaseDownloadURL() {
     const release = this.downloadURLRelease;
     if (this.downloadURL) {
-      releaseWhenDownloaded(this.downloadURL, this.downloadURLDownload, release);
+      releaseWhenDownloaded(this.downloadURL, this.downloadURLDownloads, release);
     } else {
       release?.();
     }
     this.downloadURL = null;
     this.downloadURLDownload = undefined;
+    this.downloadURLDownloads = [];
     this.downloadURLRelease = null;
   }
 

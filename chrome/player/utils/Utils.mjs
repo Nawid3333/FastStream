@@ -361,9 +361,20 @@ export class Utils {
    *     reads from (a save's OPFS session) can be let go then too.
    */
   static revokeWhenDownloaded(url, download) {
+    return Utils.whenDownloaded(download, () => URL.revokeObjectURL(url));
+  }
+
+  /**
+   * Waits until a download no longer reads its URL (revokeWhenDownloaded): Firefox says it
+   * is over, or a minute after a link click, or 30 minutes at most.
+   * @param {*} download - What downloadURL resolved with: the download's id, or not.
+   * @param {function(): void} [atOver] - Run at that moment, before the promise settles.
+   * @return {Promise<void>}
+   */
+  static whenDownloaded(download, atOver = () => {}) {
     const {promise: over, resolve: revoked} = Promise.withResolvers();
     const revoke = () => {
-      URL.revokeObjectURL(url);
+      atOver();
       revoked();
     };
     const downloads = globalThis.chrome?.downloads;
