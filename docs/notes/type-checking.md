@@ -46,6 +46,11 @@ is lowered with `pnpm run typecheck:strict -- --update`, so a typed file cannot 
 unnoticed. `tests/unit/checkImplicitAny.test.mjs` covers the rules (each broken once, and
 caught), and an untyped parameter planted in a file at 0 failed the check with its line.
 
+The mpv host (`native-host/faststream-mpv-host.mjs`, 76 untyped places) is left out on
+purpose: any change to it raises `HostVersion` and `RequiredHostVersion`, and the add-on
+then has every user reinstall the helper, for comments that change no behaviour. It is
+typed the next time it changes for a real reason; until then the ratchet holds its count.
+
 What the review of glm-5.3-flash's typing answers found (2026-10-22): its types pass
 the checks and can still be false. It wrote its own shape for another file's class (a
 `Client` with the members one file uses) where the real class is the type
