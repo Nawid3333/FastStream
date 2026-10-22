@@ -1,4 +1,5 @@
 import {spawnSync} from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -127,13 +128,14 @@ describe('newestWsl', () => {
 describe('update-local.ps1', () => {
   const script = path.resolve(import.meta.dirname, '../../tools/update-local.ps1');
   const helper = path.resolve(import.meta.dirname, '../../tools/update-local-lib.ps1');
+  const elevated = path.resolve(import.meta.dirname, '../../tools/install-node-elevated.ps1');
 
-  it.each([script, helper])('%s is plain ASCII, as Windows PowerShell 5.1 reads a file without a BOM in the ANSI code page', (file) => {
+  it.each([script, helper, elevated])('%s is plain ASCII, as Windows PowerShell 5.1 reads a file without a BOM in the ANSI code page', (file) => {
     const text = fs.readFileSync(file, 'utf8');
     expect([...text].filter((c) => c.charCodeAt(0) > 127)).toEqual([]);
   });
 
-  it.runIf(process.platform === 'win32').each([script, helper])('%s parses in Windows PowerShell', (file) => {
+  it.runIf(process.platform === 'win32').each([script, helper, elevated])('%s parses in Windows PowerShell', (file) => {
     const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
       `$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile('${file}', [ref]$null, [ref]$e); $e.Count`],
     {encoding: 'utf8', windowsHide: true});
@@ -393,4 +395,96 @@ describe('update-local.ps1', () => {
       fs.rmSync(dir, {recursive: true, force: true});
     }
   }, 30000);
+
+  // The elevated installer of the Node.js step: the UAC prompt goes to it, and
+  // msiexec runs inside it, after two checks that bind to its own copy of the staged MSI in
+  // a folder only Administrators and SYSTEM can write. Run from here it installs nothing: a
+  // file that fails a check ends it with its own exit code, before any msiexec. Without the
+  // fix there is no file at that path, so every test in this describe fails: the ASCII and
+  // parse lists hit a missing file, the runs answer with powershell.exe's script-not-found
+  // error instead of 51 and 52, and update-local.ps1 has no helper to name and starts
+  // msiexec with RunAs itself.
+  describe('install-node-elevated.ps1', () => {
+    // Setting a folder's owner to Administrators and reading the folder back needs a token
+    // with Administrators enabled, as the agent's processes have it on GitHub's Windows
+    // runner; under the UAC-filtered token of an ordinary interactive shell the owner write
+    // is not allowed: from there the tests that need it skip, and they run on the runner.
+    const skipUnlessElevatable = (ctx) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-elevate-probe-'));
+      try {
+        const probe = path.join(dir, 'p');
+        const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+          `$ErrorActionPreference = 'Stop'; New-Item -ItemType Directory -Path '${probe}' | Out-Null; ` +
+          `$a = Get-Acl -LiteralPath '${probe}'; ` +
+          `$a.SetOwner((New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544'))); ` +
+          `Set-Acl -LiteralPath '${probe}' -AclObject $a; 'yes'`],
+          {encoding: 'utf8', windowsHide: true, timeout: 30000});
+        if (r.stdout.trim() !== 'yes') { ctx.skip(); }
+      } finally {
+        fs.rmSync(dir, {recursive: true, force: true});
+      }
+    };
+
+    // The flow the defect is about: the prompt goes to the helper that re-checks, msiexec
+    // is reached only through it, and the helper itself asks for nothing.
+    it('update-local.ps1 asks for admin rights for install-node-elevated.ps1, and reaches msiexec only through it', () => {
+      const text = fs.readFileSync(script, 'utf8');
+      expect(text).toMatch(/install-node-elevated\.ps1/);
+      for (const line of text.split(/\r?\n/).filter((line) => line.includes('-Verb RunAs'))) {
+        expect(line).toContain('powershell.exe');
+        expect(line).not.toContain('msiexec');
+      }
+      expect(fs.readFileSync(elevated, 'utf8')).not.toMatch(/-Verb RunAs/);
+    });
+
+    // Run for real, in Windows PowerShell 5.1 as update-local.ps1 starts it: first against
+    // an SHA-256 the staged file cannot match (exit 51, before anything else), then with the
+    // matching one, so the signature check runs on the copy and refuses it (exit 52). The
+    // checks bind to the file msiexec is pointed at, not to the one in %ProgramData%.
+    it.runIf(process.platform === 'win32')('refuses its copy on the SHA-256, then on the OpenJS signature', (ctx) => {
+      skipUnlessElevatable(ctx);
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-elevated-install-'));
+      try {
+        const body = 'a few bytes that are no MSI either way; the checks are what runs';
+        const msi = path.join(dir, 'node-v22.23.3-x64.msi');
+        fs.writeFileSync(msi, body);
+        const sha = crypto.createHash('sha256').update(body).digest('hex');
+        const run = (expected) => spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+          '-File', elevated, '-Msi', msi, '-Sha256', expected],
+          {encoding: 'utf8', windowsHide: true, timeout: 30000});
+        expect(run('0'.repeat(64)).status).toBe(51);
+        expect(run(sha).status).toBe(52);
+      } finally {
+        fs.rmSync(dir, {recursive: true, force: true});
+      }
+    }, 30000);
+
+    // The folder the checks and msiexec share, read back by SID: no entry for the user's
+    // own SID, and an owner that is no longer the user, since the owner could otherwise
+    // rewrite the rules and grant itself back in.
+    it.runIf(process.platform === 'win32')('New-AdminOnlyDirectory admits only Administrators and SYSTEM, and is owned by Administrators', (ctx) => {
+      skipUnlessElevatable(ctx);
+      const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-admin-only-'));
+      try {
+        const dir = path.join(parent, 'staging');
+        const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+          `$ErrorActionPreference = 'Stop'; . '${helper}'; New-AdminOnlyDirectory '${dir}'; $a = Get-Acl -LiteralPath '${dir}'; ` +
+          `[pscustomobject]@{owner = $a.Owner.Translate([System.Security.Principal.SecurityIdentifier]).Value; ` +
+          `protected = $a.AreAccessRulesProtected; rules = @($a.Access | ForEach-Object { '{0} {1} {2} {3}' -f ` +
+          `$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value, $_.FileSystemRights, ` +
+          `$_.AccessControlType, $_.IsInherited })} | ConvertTo-Json -Compress`],
+          {encoding: 'utf8', windowsHide: true, timeout: 30000});
+        expect(r.stderr).toBe('');
+        const acl = JSON.parse(r.stdout);
+        expect(acl.owner).toBe('S-1-5-32-544');
+        expect(acl.protected).toBe(true);
+        expect(acl.rules.sort()).toEqual([
+          'S-1-5-18 FullControl Allow False', // SYSTEM
+          'S-1-5-32-544 FullControl Allow False', // Administrators
+        ].sort());
+      } finally {
+        fs.rmSync(parent, {recursive: true, force: true});
+      }
+    }, 30000);
+  });
 });

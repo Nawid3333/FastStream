@@ -154,15 +154,18 @@ Invoke-Step 'Node.js' {
         if (-not $Apply) { Add-Due "Node.js ${have}: $want is out (nodejs.org/dist/v$want/); -Apply installs it"; return }
         $base = "https://nodejs.org/dist/v$want"
         $file = "node-v$want-x64.msi"
-        # Per-run staging directory whose ACL admits only this user, Administrators and
-        # SYSTEM: %TEMP% is writable by any process running as this user, and one of them
-        # could swap the MSI between the hash check and the elevated msiexec. The elevated
-        # installer must verify a file nobody else could have replaced after the check.
+        # Per-run stage for the download. Its ACL (New-PrivateDirectory) keeps the other
+        # users of this PC out, but a process running as this user holds the write access it
+        # has in %TEMP%, and as the owner it could rewrite the ACL: the file here is only
+        # read by the checks below. What gets installed is the copy that
+        # install-node-elevated.ps1, the script the UAC prompt is for, checks again under an
+        # ACL that names only Administrators and SYSTEM.
         $work = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) ('FastStream\node-' + [guid]::NewGuid().ToString('N'))
         $msi = Join-Path $work $file
         Invoke-Change "Node.js $have -> $want (nodejs.org installer; Windows asks for admin rights)" {
-            # Only this user (writes and hashes the file), Administrators and SYSTEM
-            # (msiexec runs as one of them) may write there; it goes again however this ends.
+            # Only this user (it downloads and checks the file), Administrators and SYSTEM
+            # may write there; it goes again however this ends, also when the UAC prompt
+            # below is declined.
             Invoke-InPrivateDirectory $work {
                 $ProgressPreference = 'SilentlyContinue'
                 Invoke-WebRequest -UseBasicParsing -TimeoutSec 600 -Uri "$base/$file" -OutFile $msi
@@ -178,9 +181,23 @@ Invoke-Step 'Node.js' {
                 if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'OpenJS Foundation') {
                     throw "$file is not signed by the OpenJS Foundation ($($signature.Status))"
                 }
-                $process = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\msiexec.exe') -ArgumentList "/i `"$msi`" /passive /norestart" -Verb RunAs -Wait -PassThru
-                # 3010: installed, a restart completes it.
-                if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) { throw "the installer ended with $($process.ExitCode)" }
+                # The one UAC prompt goes to the helper, not to msiexec: it copies the file
+                # into a folder only Administrators and SYSTEM can write and re-checks the
+                # copy's SHA-256 and signature inside the elevated process, so the msiexec it
+                # starts installs the file these checks read - not whatever a process running
+                # as this user has put at $msi since.
+                $helper = Join-Path $PSScriptRoot 'install-node-elevated.ps1'
+                $process = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -ArgumentList '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', "`"$helper`"", '-Msi', "`"$msi`"", '-Sha256', $expected -Verb RunAs -Wait -PassThru
+                # 3010: installed, a restart completes it. The helper's own exit codes name
+                # the check that failed on its copy, and msiexec's own codes are none of
+                # these; until msiexec runs, nothing is installed.
+                $check = @{
+                    50 = 'the staged installer was gone by the time the helper went to copy it'
+                    51 = 'the copy the helper made does not match the SHA-256 checked above'
+                    52 = 'the copy the helper made is not signed by the OpenJS Foundation'
+                }[$process.ExitCode]
+                if ($check) { throw "Node.js $have -> $want was not installed: $check" }
+                if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) { throw "the elevated installer ended with $($process.ExitCode)" }
             }
         }
     }
