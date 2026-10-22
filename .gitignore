@@ -40,9 +40,5 @@ lint-*.json
 # vitest --coverage output.
 coverage/
 
-# Stryker (pnpm run test:mutation): its reports and its sandboxes
-reports/mutation/
-.stryker-tmp/
-
 # The helper's launch lock (faststream-mpv-host.mjs launchLockFile), next to it while mpv starts.
 native-host/faststream-mpv-launch-*.lock

@@ -34,8 +34,7 @@ the new hashes). The installer counts because `update-local.ps1` tells an instal
 from the repository's by the host file alone; a raised `HostVersion` changes that file. The
 extension changes with it, so such a push releases, Firefox updates the extension, and
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
-`install.ps1`) has run. The hash check is skipped in Stryker's sandbox, whose copy of
-the host holds every mutant.
+`install.ps1`) has run.
 
 **The thin helper (host 15, 2026-10-13).** The host changed 14 times in 10 days, each one a
 reinstall by hand, because policy lived in it. The owner chose to move the policy into the

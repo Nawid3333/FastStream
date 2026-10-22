@@ -47,7 +47,7 @@ import path from 'node:path';
 import * as url from 'node:url';
 import {spawnSync} from 'node:child_process';
 
-import {LOCKSTEP, patchedDependencies} from './check-patched-updates.mjs';
+import {patchedDependencies} from './check-patched-updates.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // This repository, always. An environment variable could point it elsewhere until 2026-10-06;
@@ -618,7 +618,7 @@ async function main() {
 
 /**
  * Takes names off .github/dependabot.yml's ignore list, so Dependabot updates them again:
- * a library whose patch is dropped, and the packages that moved with it (LOCKSTEP).
+ * a library whose patch is dropped.
  * @param {string[]} names
  * @param {string} [file] - The Dependabot config.
  * @return {string[]} The names that were on the list.
@@ -636,8 +636,7 @@ function dropDependabotIgnores(names, file = path.join(root, '.github/dependabot
 }
 
 /**
- * package.json with a library moved from one version to another, and the packages that must
- * stay at its version with it (LOCKSTEP).
+ * package.json with a library moved from one version to another.
  * @param {string} text - package.json.
  * @param {string} pkg
  * @param {string} from
@@ -650,13 +649,7 @@ function bumpPackageJson(text, pkg, from, to) {
   // version's tag.
   const verRe = new RegExp(`("${esc(pkg)}":\\s*"(?:[~^]?|(?:github:|git\\+|git:)[^#"]+#v?))${esc(from)}"`);
   if (!verRe.test(text)) throw new Error(`package.json has no "${pkg}" at ${from}`);
-  let out = text.replace(verRe, `$1${to}"`);
-  for (const companion of LOCKSTEP[pkg] || []) {
-    const companionRe = new RegExp(`("${esc(companion)}":\\s*")[^"]+"`);
-    if (!companionRe.test(out)) throw new Error(`package.json has no "${companion}", which moves with ${pkg}`);
-    out = out.replace(companionRe, `$1${to}"`);
-  }
-  return out;
+  return text.replace(verRe, `$1${to}"`);
 }
 
 function applyUpdate(opts, cur, result, work) {
@@ -694,8 +687,8 @@ function applyUpdate(opts, cur, result, work) {
     fs.copyFileSync(path.join(work, 'merged', f.file), path.join(edit, f.file));
   }
   if (result.files.every((f) => f.landed)) {
-    // Dependabot takes the library back, and what moves with it.
-    const handedBack = dropDependabotIgnores([pkg, ...(LOCKSTEP[pkg] || [])]);
+    // Dependabot takes the library back.
+    const handedBack = dropDependabotIgnores([pkg]);
     console.log(`Every change has landed in ${pkg} ${to}: the patch is dropped` +
       (handedBack.length ? `, and Dependabot updates ${handedBack.join(' and ')} again (.github/dependabot.yml)` : '') +
       `. Remove any \`patched: true\` marks for ${pkg} in tools/sync-vendor.mjs.`);

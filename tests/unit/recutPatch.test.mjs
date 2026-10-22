@@ -160,32 +160,18 @@ describe('checkJavaScript', () => {
   });
 });
 
-// The update pull request for a patched library also moves what must stay at its version
-// (LOCKSTEP: Stryker's core with its vitest runner), and once the patch is dropped hands
-// both back to Dependabot. Left apart, Stryker would run a runner its core was not made for.
+// The update pull request for a patched library moves it, and only it, to the new version.
 describe('bumpPackageJson', () => {
-  const pj = JSON.stringify({devDependencies: {
-    '@stryker-mutator/core': '10.0.0', '@stryker-mutator/vitest-runner': '10.0.0', 'hls.js': '^1.7.3',
-  }}, null, 2);
+  const pj = JSON.stringify({devDependencies: {'dashjs': '5.2.1', 'hls.js': '^1.7.3'}}, null, 2);
 
-  it('moves Stryker\'s core with its vitest runner', () => {
-    const out = JSON.parse(bumpPackageJson(pj, '@stryker-mutator/vitest-runner', '10.0.0', '10.1.0'));
-    expect(out.devDependencies['@stryker-mutator/vitest-runner']).toBe('10.1.0');
-    expect(out.devDependencies['@stryker-mutator/core']).toBe('10.1.0');
-    expect(out.devDependencies['hls.js']).toBe('^1.7.3');
-  });
-
-  it('moves a library without companions alone, and keeps its range prefix', () => {
+  it('moves the library alone, and keeps its range prefix', () => {
     const out = JSON.parse(bumpPackageJson(pj, 'hls.js', '1.7.3', '1.8.0'));
     expect(out.devDependencies['hls.js']).toBe('^1.8.0');
-    expect(out.devDependencies['@stryker-mutator/core']).toBe('10.0.0');
+    expect(out.devDependencies['dashjs']).toBe('5.2.1');
   });
 
-  it('refuses when the library is not at the version its patch is cut against, or a companion is missing', () => {
+  it('refuses when the library is not at the version its patch is cut against', () => {
     expect(() => bumpPackageJson(pj, 'hls.js', '1.7.2', '1.8.0')).toThrow(/no "hls.js" at 1.7.2/);
-    const noCore = JSON.stringify({devDependencies: {'@stryker-mutator/vitest-runner': '10.0.0'}});
-    expect(() => bumpPackageJson(noCore, '@stryker-mutator/vitest-runner', '10.0.0', '10.1.0'))
-        .toThrow(/no "@stryker-mutator\/core", which moves with/);
   });
 });
 
@@ -196,14 +182,14 @@ describe('dropDependabotIgnores', () => {
       const file = path.join(dir, 'dependabot.yml');
       fs.writeFileSync(file, [
         '    ignore:',
-        '      - dependency-name: \'@stryker-mutator/core\'',
-        '      - dependency-name: \'@stryker-mutator/vitest-runner\'',
+        '      - dependency-name: \'dashjs\'',
+        '      - dependency-name: \'gif.js\'',
         '      - dependency-name: \'hls.js\'',
         '  # - dependency-name: \'commented\'',
         '',
       ].join('\n'));
-      expect(dropDependabotIgnores(['@stryker-mutator/vitest-runner', '@stryker-mutator/core', 'not-there'], file))
-          .toEqual(['@stryker-mutator/core', '@stryker-mutator/vitest-runner']);
+      expect(dropDependabotIgnores(['gif.js', 'dashjs', 'not-there'], file))
+          .toEqual(['dashjs', 'gif.js']);
       expect(fs.readFileSync(file, 'utf8')).toBe([
         '    ignore:',
         '      - dependency-name: \'hls.js\'',

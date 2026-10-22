@@ -192,8 +192,8 @@ jobs:
             done
             exit 0
           fi
-          # A suite that runs out of its time ends cancelled, not failed (as in
-          # mutation-tests.yml): a Firefox that hangs the suites said nothing.
+          # A suite that runs out of its time ends cancelled, not failed: a Firefox that
+          # hangs the suites said nothing.
           if [ "$RESULT" != failure ] && [ "$RESULT" != cancelled ]; then
             echo "e2e result: $RESULT - nothing to report."
             exit 0

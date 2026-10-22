@@ -327,8 +327,7 @@
   start: gh can give a log with every step "UNKNOWN STEP"). Without
   E2E_SHARD a config runs all its spec files (local `pnpm run verify`). The private
   browsing suite (one spec file) runs in the first extension group only. A run is 18 jobs
-  at once of the account's 20, so more groups would only queue; the weekly mutation run
-  (Mondays, 7 jobs for hours) leaves 13, and a push during it runs in two waves.
+  at once of the account's 20, so more groups would only queue.
   `fail-fast: false`, so one failing group does not cancel the others and their lists of
   retried specs. Per-job artifacts: `e2e-retried-<os>-<suite>-<group>`,
   `e2e-logs-<os>-<suite>-<group>`; `e2e-moz-logs-windows-<suite>-<group>` only from the Windows
@@ -647,37 +646,8 @@
 - All of it was dry-run with a stub `gh` against the real upstream history (sync: adopted
   -> closed, push -> no rebuild, new release named, comment only on upstream movement;
   patched libraries: open once, no duplicates, close when caught up or unpatched).
-- **`mutation-tests.yml`** (Mondays 06:40 UTC), 2026-10-01, T4: Stryker
-  (`stryker.config.mjs`, `pnpm run test:mutation`) over 25 pure-logic modules with unit
-  tests (10 small ones added 2026-10-03, #253; the config says which wait, and why). A report, not a gate: the run summary gets a table per file
-  (`tools/mutation-report.mjs`), the HTML report is the `mutation-reports` artifact, and when
-  the unit tests missed mutants (survived, or no test reaches them), one issue "Mutation
-  testing: week to <date>" lists them, assigned + @mention; next week's replaces it, a week
-  with all caught closes it. **The command runner**, not the vitest one: every mutant runs the
-  whole unit suite (`__STRYKER_ACTIVE_MUTANT__`), about 1.2 s each with 4 workers locally - on
-  CI a mutant the tests miss runs the whole ~18 s suite, and one job per area ran out of its
-  240 minutes at 51-74% with no report (#349, 2026-10-05): since then the three areas are
-  seven shards (`PARTS` in the config, split by file size), each in a job of 350 minutes, and
-  a shard that runs out of time (it ends cancelled) is reported as a failure. **Since
-  2026-10-06 the vitest runner** with per-test coverage: a mutant runs only the tests that
-  reached its code, in a Vitest that stays up (143 mutants in 31 s locally, ~12.5 tests a
-  mutant). Its 10.0.0 release (August 2026) predates vitest 5, which joins a test's suite
-  chain with ' > ', so its test filter matched nothing and every mutant "survived"
-  (stryker-js #6210); FastStream carries the fix, stryker-js PR #6214, as a pnpm patch
-  (`patches/@stryker-mutator__vitest-runner@10.0.0.patch`, the compiled files). When a
-  release has it, the Patched libraries workflow opens the pull request that drops the patch,
-  moves @stryker-mutator/core along (LOCKSTEP in `tools/check-patched-updates.mjs`: the runner
-  requires its core's exact version) and hands both back to Dependabot, whose `stryker` group
-  then keeps all of Stryker's packages in one pull request. A test that runs a module as a
-  process of its own (mpvHostVersion's host; the Windows-only installer and update-local
-  tests) does not see a mutant there. Compared mutant by mutant (command-runner run
-  37384050152, 4.7 hours; vitest-runner run 37393654214, 10 minutes): 11,313 of 11,370 alike.
-  The rest: each tool's entry line (`if (process.argv[1] ...`) a crashed run where the command
-  runner caught, two swapped on one line of SubtitleUtils - and the mpv host's message loop
-  (`main()`, `sendMessage()`), 24 mutants with no test reaching them. So the host is an area of
-  its own on the command runner (`COMMAND_AREAS`, `host-1`, about an hour and a half), and core,
-  network and tools are one vitest-runner shard each: four jobs. The sandbox leaves out `tsconfig.json`: Stryker rewrites it through
-  TypeScript's JS API, which TypeScript 7 does not have. `tests/workflows/mutation-tests.test.sh`.
-  Baseline, 2026-10-01 (73 min locally): 71.8% of 3,614 mutants caught; the weakest are the
-  mpv host (47.7%), MpvBackend (58.4%), SubtitleUtils (63.2%) and TabTracker (68.4%), the
-  best SubtitleSyncUtils (96%), MultiRegexMatcher, UrlMatchList and StreamPick (92%).
+- **`mutation-tests.yml`** (2026-10-01 to 2026-10-22): Stryker over the unit-tested modules,
+  weekly. Removed with Stryker: its reports (about 4,700 mutants not caught, 64.6% to 68%)
+  were closed by hand each week and no fix came from them, while it carried a 131-line patch
+  of its vitest runner, an override and 34 MB of packages. The fixes kept their own check: a
+  hand-made mutation of each one, which its test must catch.

@@ -37,10 +37,6 @@ const RECORDED = {
   installer: 'db3b8027b508556b8af66eb4b8188460c2a5a6e1feb32d32b490f2e234b29b3a',
 };
 
-// Stryker runs this suite on a copy of the host with every mutant written into it
-// (.stryker-tmp/sandbox-*), which is never the recorded file.
-const inMutationSandbox = root.split(path.sep).includes('.stryker-tmp');
-
 /**
  * A file's SHA-256, its line ends read as LF (a Windows checkout may have CRLF).
  * @param {string} file - The file.
@@ -52,7 +48,7 @@ function sha256Of(file) {
 }
 
 describe('the mpv host\'s version', () => {
-  it.skipIf(inMutationSandbox)('is raised with every change to the host or its installer', () => {
+  it('is raised with every change to the host or its installer', () => {
     const next = HostVersion === RECORDED.version ? HostVersion + 1 : HostVersion;
     expect({version: HostVersion, host: sha256Of(hostFile), installer: sha256Of(installerFile)},
         'native-host/faststream-mpv-host.mjs or install.ps1 changed. A PC keeps running its ' +
