@@ -16,6 +16,7 @@ export class DashFragment extends Fragment {
     this.end = request.startTime + this.duration;
   }
 
+  /** @override */
   getContext() {
     /** @type {number|undefined} */
     let rangeStart = undefined;

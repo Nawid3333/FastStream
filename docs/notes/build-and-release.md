@@ -150,8 +150,9 @@ the change went in.
 
 ## AMO lint (firefox-amo, current: 0 errors / 2 warnings, needs `--self-hosted`)
 
-Verified 2026-10-10: both `firefox-amo` and `firefox-github` are **0 errors,
-0 notices, 2 warnings**. (`firefox-github` had a 4th until 2026-09-24, see
+Verified 2026-10-10, and again on 2026-10-23 after the strict typing (#530-#556): both
+`firefox-amo` and `firefox-github` are **0 errors, 0 notices, 2 warnings** (`vtt.mjs` line
+1181, `dash.mjs` line 81180). (`firefox-github` had a 4th until 2026-09-24, see
 below; both had a 3rd, ONNX Runtime's `vad/ort.wasm.mjs`, until the speech
 detector went on 2026-10-10.)
 

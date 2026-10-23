@@ -102,7 +102,7 @@ export class DownloadEntry {
   /** @param {DownloadWatcher} watcher */
   removeWatcher(watcher) {
     const ind = this.watchers.indexOf(watcher);
-    if (ind != -1) this.watchers.splice(ind, 1);
+    if (ind !== -1) this.watchers.splice(ind, 1);
   }
 
   /**

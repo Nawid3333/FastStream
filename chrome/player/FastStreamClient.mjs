@@ -468,7 +468,7 @@ export class FastStreamClient extends EventEmitter {
     this.options.maximumDownloaders = options.maximumDownloaders;
 
     if (sessionStorage && sessionStorage.getItem('autoplayNext') !== null) {
-      this.options.autoplayNext = sessionStorage.getItem('autoplayNext') == 'true';
+      this.options.autoplayNext = sessionStorage.getItem('autoplayNext') === 'true';
     } else {
       this.options.autoplayNext = options.autoplayNext;
     }
@@ -1419,6 +1419,7 @@ export class FastStreamClient extends EventEmitter {
         return fragment;
       }
     }
+    return undefined;
   }
 
   /**
@@ -1434,6 +1435,7 @@ export class FastStreamClient extends EventEmitter {
         return fragment;
       }
     }
+    return undefined;
   }
 
   /**
@@ -2500,7 +2502,7 @@ export class FastStreamClient extends EventEmitter {
    * Saves the current playback position for undo/redo.
    */
   savePosition() {
-    if (!this.pastSeeks.length || this.pastSeeks[this.pastSeeks.length - 1] != this.state.currentTime) {
+    if (!this.pastSeeks.length || this.pastSeeks[this.pastSeeks.length - 1] !== this.state.currentTime) {
       this.pastSeeks.push(this.state.currentTime);
     }
     if (this.pastSeeks.length > 50) {

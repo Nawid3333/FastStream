@@ -1,7 +1,7 @@
 # The addons-linter warnings, one by one
 
 `pnpm run lint:amo` reports **0 errors, 0 notices, 2 warnings** against
-`build_firefox_amo`, verified 2026-10-10. It was 3 from 2026-09-11 (re-verified
+`build_firefox_amo`, verified 2026-10-10 and again 2026-10-23. It was 3 from 2026-09-11 (re-verified
 after the Coloris 0.21.1→0.25.0 re-port) until the speech detector went on
 2026-10-10, and with it ONNX Runtime's `ort.wasm.mjs` and its warning. Every one of
 the 2 warnings is listed here with what it is and why the file has not been

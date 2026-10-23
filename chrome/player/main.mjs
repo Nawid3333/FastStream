@@ -94,6 +94,7 @@ if (EnvUtils.isExtension()) {
         }
 
         sendResponse('ok');
+        return undefined;
       });
 
   setInterval(() => {

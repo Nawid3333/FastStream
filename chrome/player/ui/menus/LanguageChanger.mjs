@@ -225,8 +225,9 @@ export class LanguageChanger extends EventEmitter {
       const trackElements = ([videoTracks, audioTracks]).map((tracks, i) => {
         const type = (i === 0) ? 'video' : 'audio';
 
-        if (type === 'video' && !hasVideoLanguages) return;
-        if (type === 'audio' && !hasAudioLanguages) return;
+        // None for a type without languages, nor for a filler (skipped on the click below).
+        if (type === 'video' && !hasVideoLanguages) return undefined;
+        if (type === 'audio' && !hasAudioLanguages) return undefined;
 
         if (tracks.length === 0) {
           // filler element to keep layout consistent
@@ -234,7 +235,7 @@ export class LanguageChanger extends EventEmitter {
           filler.classList.add('language_track');
           filler.classList.add('language_track_filler');
           languageElement.appendChild(filler);
-          return;
+          return undefined;
         }
 
 

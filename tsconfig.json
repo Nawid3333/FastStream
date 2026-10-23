@@ -28,6 +28,10 @@
     "noEmit": true,
 
     "strict": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
 
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

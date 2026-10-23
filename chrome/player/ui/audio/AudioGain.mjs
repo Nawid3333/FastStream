@@ -8,7 +8,10 @@ export class AudioGain extends AbstractAudioModule {
     this.gain = 1;
   }
 
-  /** @param {AudioContext} audioContext */
+  /**
+   * @param {AudioContext} audioContext
+   * @override
+   */
   setupNodes(audioContext) {
     super.setupNodes(audioContext);
     this.gainNode = null;
