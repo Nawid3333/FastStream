@@ -31,7 +31,7 @@
   "chrome/player/players/mp4/MP4Fragment.mjs": 5,
   "chrome/player/players/mp4/MP4FragmentRequester.mjs": 13,
   "chrome/player/players/mp4/SourceBufferWrapper.mjs": 8,
-  "chrome/player/ui/InterfaceController.mjs": 41,
+  "chrome/player/ui/InterfaceController.mjs": 5,
   "chrome/player/ui/SourcesBrowser.mjs": 6,
   "chrome/player/ui/audio/AbstractAudioModule.mjs": 1,
   "chrome/player/ui/menus/LoopMenu.mjs": 1,
