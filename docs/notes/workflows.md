@@ -324,7 +324,13 @@
   each to the group with the least so far; a spec file not in it counts as the median.
   Refresh it from a run's logs: `node tools/e2e-spec-weights.mjs <CI run id>` (each weight
   moves halfway to the run's time, timed from WebdriverIO's "Execution of" line, not the step's
-  start: gh can give a log with every step "UNKNOWN STEP"). Without
+  start: gh can give a log with every step "UNKNOWN STEP"). Refreshed on 2026-10-23 from
+  four green runs (39879683023, 39880280436, 39881236737, 39959410952): new spec files had
+  counted as the median, and Windows playback 2/3 was the longest job in three of the four
+  (542, 512 and 600 s, the other groups 338-554 s). Taken by the new weights, the longest
+  playback group goes from 369 to 323 s and the longest extension group (ext-specs and
+  classic-specs together) from 325 to 306 s; one run's group times vary by more than that
+  (338 to 600 s for the same group), so the gain shows only on average. Without
   E2E_SHARD a config runs all its spec files (local `pnpm run verify`). The private
   browsing suite (one spec file) runs in the first extension group only. A run is 18 jobs
   at once of the account's 20, so more groups would only queue.
