@@ -210,7 +210,7 @@ export class SourcesBrowser {
     headersInput.setAttribute('autocapitalize', 'off');
     headersInput.setAttribute('autocomplete', 'off');
     headersInput.setAttribute('autocorrect', 'off');
-    headersInput.setAttribute('spellcheck', false);
+    headersInput.setAttribute('spellcheck', 'false');
     headersInput.name = Localize.getMessage('player_source_headers_label');
     headersInput.placeholder = Localize.getMessage('player_source_headers_placeholder');
     headersInput.ariaLabel = headersInput.placeholder;

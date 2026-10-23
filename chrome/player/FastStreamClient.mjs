@@ -260,8 +260,9 @@ export class FastStreamClient extends EventEmitter {
     this.pastSeeks = [];
     /** @type {number[]} The times undone seeks went back from (redoSeek). */
     this.pastUnseeks = [];
-    // Each level's fragments (Fragment) by their sn, by the level's ID. Not typed so: it is
-    // also read with a level ID that is null (none played), which an index type refuses.
+    // Each level's fragments (Fragment) by their sn, by the level's ID (HLSFragmentStore adds
+    // a level's snBase). It is also read with a level ID of null (none played): see the casts.
+    /** @type {Object<string, Array<Fragment> & {snBase?: number}>} */
     this.fragmentsStore = {};
     // The source (recoverySourceURL) playDirectly handed to Firefox's own player.
     /** @type {string|null} */
@@ -435,7 +436,9 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Sets player options and updates UI and filters.
-   * @param {Object} options - Player options.
+   * @param {typeof import('./options/defaults/DefaultOptions.mjs').DefaultOptions & {toolSettings?: Object<string, ToolSetting>}} options -
+   *   The saved options over the defaults (Utils.getOptionsFromStorage), which carry no tool
+   *   settings: those are loaded on their own (loadToolSettings).
    */
   setOptions(options) {
     this.options.storeProgress = options.storeProgress;
@@ -677,7 +680,8 @@ export class FastStreamClient extends EventEmitter {
     const levels = type === 'video' ? this.getVideoLevels() : this.getAudioLevels();
     if (!levels) return;
     const currentLevelID = type === 'video' ? this.getCurrentVideoLevelID() : this.getCurrentAudioLevelID();
-    const currentLevel = levels.get(currentLevelID);
+    // No level (null) finds none.
+    const currentLevel = levels.get(/** @type {string} */ (currentLevelID));
     const matchingLevels = Array.from(levels.values()).filter((level) => level.language === language);
     if (matchingLevels.length === 0) {
       console.warn('No matching levels for language', language, type, levels);
@@ -691,8 +695,9 @@ export class FastStreamClient extends EventEmitter {
     }
 
     const chosen = type === 'video' ?
-      this.levelManager.pickVideoLevel(matchingLevels, currentLevel?.height) :
-      this.levelManager.pickAudioLevel(matchingLevels);
+      // The video levels when the type is video, the audio levels otherwise.
+      this.levelManager.pickVideoLevel(/** @type {import('./players/Levels.mjs').VideoLevel[]} */ (matchingLevels), /** @type {import('./players/Levels.mjs').VideoLevel|undefined} */ (currentLevel)?.height) :
+      this.levelManager.pickAudioLevel(/** @type {import('./players/Levels.mjs').AudioLevel[]} */ (matchingLevels));
 
     console.log('changeLanguage chosen level', chosen, type, language);
     if (chosen) {
@@ -743,7 +748,8 @@ export class FastStreamClient extends EventEmitter {
     if (!levels) return;
 
     const currentVideoLevelID = this.getCurrentVideoLevelID();
-    const level = levels.get(currentVideoLevelID);
+    // No level (null) finds none.
+    const level = levels.get(/** @type {string} */ (currentVideoLevelID));
     if (!level) return;
 
     if (this.source?.loadedFromArchive) {
@@ -924,20 +930,7 @@ export class FastStreamClient extends EventEmitter {
       return;
     }
 
-    /**
-     * A video player as PlayerLoader.createPlayer builds it; what a preview
-     * player's build here needs of one.
-     * @typedef {Object} PreviewPlayer
-     * @property {() => Promise<void>} setup
-     * @property {(source: Object) => Promise<void>} setSource
-     * @property {() => void} destroy
-     * @property {() => HTMLVideoElement} getVideo
-     * @property {number} currentTime
-     * @property {TimeRanges} buffered
-     * @property {(levelID: string|number|null) => void} setCurrentVideoLevelID
-     * @property {(levelID: string|number|null) => void} setCurrentAudioLevelID
-     */
-    const previewPlayer = /** @type {PreviewPlayer} */ (await this.playerLoader.createPlayer(source.mode, this, {
+    const previewPlayer = (await this.playerLoader.createPlayer(source.mode, this, {
       isPreview: true,
     }));
 
@@ -2335,7 +2328,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Binds event listeners to the preview player.
-   * @param {Object} player
+   * @param {Player} player
    */
   bindPreviewPlayer(player) {
     this.previewContext = player.createContext();
@@ -2625,7 +2618,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets available video quality levels.
-   * @return {Map}
+   * @return {Map<string, import('./players/Levels.mjs').VideoLevel>} By level id.
    */
   getVideoLevels() {
     return this.player?.getVideoLevels() || new Map();
@@ -2633,7 +2626,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets available audio quality levels.
-   * @return {Map}
+   * @return {Map<string, import('./players/Levels.mjs').AudioLevel>} By level id.
    */
   getAudioLevels() {
     return this.player?.getAudioLevels() || new Map();
@@ -2700,7 +2693,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * The video levels the quality menu offers: the page's qualities, else the player's own.
-   * @return {Map}
+   * @return {Map<string, import('./players/Levels.mjs').VideoLevel>}
    */
   getMenuVideoLevels() {
     return this.getPageQualityLevels() || this.getVideoLevels();
@@ -2779,15 +2772,16 @@ export class FastStreamClient extends EventEmitter {
     const audioChanged = audioLevelID !== null && (audioLevelID !== previousAudioLevelID);
 
     if (videoChanged) {
-      if (this.options.freeUnusedChannels && this.fragmentsStore[previousVideoLevelID]) {
-        this.freeLevel(this.fragmentsStore[previousVideoLevelID]);
+      // A level ID of null (none played) reads the key "null", which no level has: none.
+    if (this.options.freeUnusedChannels && this.fragmentsStore[/** @type {string} */ (previousVideoLevelID)]) {
+        this.freeLevel(this.fragmentsStore[/** @type {string} */ (previousVideoLevelID)]);
       }
       this.levelManager.setCurrentVideoLevelID(videoLevelID);
     }
 
     if (audioChanged) {
-      if (this.options.freeUnusedChannels && this.fragmentsStore[previousAudioLevelID]) {
-        this.freeLevel(this.fragmentsStore[previousAudioLevelID]);
+      if (this.options.freeUnusedChannels && this.fragmentsStore[/** @type {string} */ (previousAudioLevelID)]) {
+        this.freeLevel(this.fragmentsStore[/** @type {string} */ (previousAudioLevelID)]);
       }
       this.levelManager.setCurrentAudioLevelID(audioLevelID);
     }
@@ -3003,7 +2997,8 @@ export class FastStreamClient extends EventEmitter {
    * @return {Array<Fragment>|undefined} By sn; none when no level plays or it has none yet.
    */
   get fragments() {
-    return this.fragmentsStore[this.getCurrentVideoLevelID()];
+    // A level ID of null (none played) reads the key "null", which no level has: none.
+    return this.fragmentsStore[/** @type {string} */ (this.getCurrentVideoLevelID())];
   }
 
   /**
@@ -3011,7 +3006,8 @@ export class FastStreamClient extends EventEmitter {
    * @return {Array<Fragment>|undefined} By sn; none when no level plays or it has none yet.
    */
   get audioFragments() {
-    return this.fragmentsStore[this.getCurrentAudioLevelID()];
+    // A level ID of null (none played) reads the key "null", which no level has: none.
+    return this.fragmentsStore[/** @type {string} */ (this.getCurrentAudioLevelID())];
   }
 
   /**
@@ -3034,11 +3030,12 @@ export class FastStreamClient extends EventEmitter {
    * Gets fragments for a given level.
    * @param {string|number|null} level - null (none played, as a DashPlayer's level ID can
    *   be) finds none.
-   * @return {Array|undefined} The level's Fragments by sn; none for a level with none yet.
+   * @return {Array<Fragment>|undefined} The level's Fragments by sn; none for a level with none yet.
    *   (Array<Fragment> is true, and fails HLSFragmentStore, which takes them as HLSFragments.)
    */
   getFragments(level) {
-    return this.fragmentsStore[level];
+    // A level ID of null (none played) reads the key "null", which no level has: none.
+    return this.fragmentsStore[/** @type {string} */ (level)];
   }
 
   /**

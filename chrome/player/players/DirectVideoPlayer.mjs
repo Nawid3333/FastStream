@@ -300,11 +300,11 @@ export default class DirectVideoPlayer extends EventEmitter {
     return null;
   }
 
-  /** @param {string} levelID - A direct video has one level: nothing to change. */
+  /** @param {string|number|null} levelID - A direct video has one level: nothing to change. */
   setCurrentVideoLevelID(levelID) {
   }
 
-  /** @param {string} levelID - As setCurrentVideoLevelID. */
+  /** @param {string|number|null} levelID - As setCurrentVideoLevelID. */
   setCurrentAudioLevelID(levelID) {
   }
 }

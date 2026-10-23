@@ -12,12 +12,13 @@ import {EnvUtils} from './EnvUtils.mjs';
 export class Utils {
   /**
    * Loads player options from storage.
-   * @return {Promise<Object>} The loaded options object.
+   * @return {Promise<typeof DefaultOptions>} The saved options over the defaults: the defaults' keys,
+   *   each of its default's type (mergeOptions).
    */
   static async getOptionsFromStorage() {
     const stored = await Utils.readStoredConfig('options');
-    return Utils.migrateClickActions(
-        Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored), stored), stored);
+    return /** @type {typeof DefaultOptions} */ (Utils.migrateClickActions(
+        Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored), stored), stored));
   }
 
   /**

@@ -68,7 +68,8 @@ export default class MP4Player extends EventEmitter {
 
     this.isPreview = config?.isPreview || false;
     this.isAudioOnly = config?.isAudioOnly || false;
-    this.video = document.createElement(this.isAudioOnly ? 'audio' : 'video');
+    // An <audio> for an audio-only player, used only as a media element (sound, time).
+    this.video = /** @type {HTMLVideoElement} */ (document.createElement(this.isAudioOnly ? 'audio' : 'video'));
 
     this.mp4box = createFile(false);
 
@@ -1032,11 +1033,11 @@ export default class MP4Player extends EventEmitter {
     return this.getIdentifier(AUDIO_TRACK, this.currentAudioTrack);
   }
 
-  /** @param {string} levelID */
+  /** @param {string|number|null} levelID - What the client has (none: null); unused. */
   setCurrentVideoLevelID(levelID) { // not implemented yet
   }
 
-  /** @param {string} levelID */
+  /** @param {string|number|null} levelID - What the client has (none: null); unused. */
   setCurrentAudioLevelID(levelID) { // not implemented yet
   }
 

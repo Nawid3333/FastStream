@@ -82,7 +82,7 @@ export function storeLevel(client, levelDetails, identifierOf) {
   });
 
   if (levelDetails.live && fragments.length) {
-    const store = client.getFragments(identifierOf(fragments[0].level));
+    const store = /** @type {FragmentStore|undefined} */ (client.getFragments(identifierOf(fragments[0].level)));
     const windowStart = storeIndex(store, fragments[0].sn);
     if (windowStart !== null) {
       // A store: storeIndex finds no place without one.

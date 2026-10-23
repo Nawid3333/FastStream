@@ -34,6 +34,8 @@ import {VideoSource} from './VideoSource.mjs';
  * @typedef {{label: string, language: string, data: string, score?: number}} SubtitleData
  */
 
+// The saved options over the defaults, once loaded.
+/** @type {typeof import('./options/defaults/DefaultOptions.mjs').DefaultOptions|null} */
 let OPTIONS = null;
 /** @type {number|null} */ let optionSendTime = null;
 if (EnvUtils.isExtension()) {

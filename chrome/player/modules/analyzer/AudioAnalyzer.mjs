@@ -16,18 +16,25 @@ const AnalyzerStatus = {
 };
 
 export class AudioAnalyzer extends EventEmitter {
+  /** @param {import('../../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     super();
     this.client = client;
     this.outputRate = 10;
+    // The volume measured, by frame (outputRate a second).
+    /** @type {Array<number>} */
     this.volumeBuffer = [];
 
+    // Whoever needs the volume or the background analysis, kept by identity.
+    /** @type {Array<object>} */
     this.volumeNeededBy = [];
+    /** @type {Array<object>} */
     this.backgroundNeededBy = [];
 
     this.analyzerNodes = new Map();
 
     this.backgroundAnalyzerStatus = AnalyzerStatus.IDLE;
+    /** @type {DoneRange[]} */
     this.backgroundDoneRanges = [];
     // The video and audio levels the background analysis is made of (setLevel).
     this.analyzedLevels = null;
@@ -36,6 +43,10 @@ export class AudioAnalyzer extends EventEmitter {
     this.backgroundStarts = 0;
   }
 
+  /**
+   * @param {number} time - Seconds.
+   * @param {number} volume
+   */
   onVolumeFrameProcessed(time, volume) {
     const frame = Math.floor(time * this.outputRate);
     // The first ~20 ms of playback come stamped just before 0, and frame -1 became a
@@ -66,6 +77,7 @@ export class AudioAnalyzer extends EventEmitter {
     this.emit('volume', time, volume, interp);
   }
 
+  /** @param {object} dependent */
   addVolumeDependent(dependent) {
     if (this.volumeNeededBy.includes(dependent)) return;
     this.volumeNeededBy.push(dependent);
@@ -73,6 +85,7 @@ export class AudioAnalyzer extends EventEmitter {
     this.sendConfigToAnalyzerNodes();
   }
 
+  /** @param {object} dependent */
   removeVolumeDependent(dependent) {
     const index = this.volumeNeededBy.indexOf(dependent);
     if (index !== -1) {
@@ -82,11 +95,13 @@ export class AudioAnalyzer extends EventEmitter {
     this.sendConfigToAnalyzerNodes();
   }
 
+  /** @param {object} dependent */
   addBackgroundDependent(dependent) {
     if (this.backgroundNeededBy.includes(dependent)) return;
     this.backgroundNeededBy.push(dependent);
   }
 
+  /** @param {object} dependent */
   removeBackgroundDependent(dependent) {
     const index = this.backgroundNeededBy.indexOf(dependent);
     if (index !== -1) {
@@ -132,6 +147,12 @@ export class AudioAnalyzer extends EventEmitter {
     return this.outputRate;
   }
 
+  /**
+   * @param {HTMLVideoElement} videoElement - The main player's.
+   * @param {import('../../ui/audio/VirtualAudioNode.mjs').VirtualAudioNode} audioOutputNode - Its sound.
+   * @param {AudioContext} audioContext
+   * @param {() => number} getTime - The time its sound is at.
+   */
   setupAnalyzerNodeForMainPlayer(videoElement, audioOutputNode, audioContext, getTime) {
     if (this.analyzerNodes.has('main')) {
       this.analyzerNodes.get('main').destroy();
@@ -173,9 +194,10 @@ export class AudioAnalyzer extends EventEmitter {
     // new video) make this start stale: only the latest one may keep its player. Two
     // starts for the same source used to both keep theirs, and the first ran on for good.
     const start = ++this.backgroundStarts;
+    /** @type {import('../../FastStreamClient.mjs').Player|undefined} */
     let backgroundAnalyzerPlayer;
     try {
-      backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (completed) => {
+      backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (/** @type {boolean} */ completed) => {
         // Only the running player's end counts: a stale player, destroyed below, cleared
         // the running one's place, and nothing could stop that one any more.
         if (this.backgroundAnalyzerPlayer !== backgroundAnalyzerPlayer) {
@@ -221,6 +243,12 @@ export class AudioAnalyzer extends EventEmitter {
     this.client.interfaceController.updateMarkers();
   }
 
+  /**
+   * @param {import('../../VideoSource.mjs').VideoSource} source
+   * @param {DoneRange[]} doneRanges - What of it is analyzed already.
+   * @param {(completed: boolean) => void} onDone
+   * @return {Promise<import('../../FastStreamClient.mjs').Player>}
+   */
   async loadPlayer(source, doneRanges, onDone) {
     const player = await this.client.playerLoader.createPlayer(source.mode, this.client, {
       isAnalyzer: true,
@@ -236,6 +264,13 @@ export class AudioAnalyzer extends EventEmitter {
     }
   }
 
+  /**
+   * @param {import('../../FastStreamClient.mjs').Player} player - An audio-only analyzer player.
+   * @param {import('../../VideoSource.mjs').VideoSource} source
+   * @param {DoneRange[]} doneRanges
+   * @param {(completed: boolean) => void} onDone
+   * @return {Promise<import('../../FastStreamClient.mjs').Player>}
+   */
   async setupPlayer(player, source, doneRanges, onDone) {
     await player.setup();
 
@@ -271,7 +306,7 @@ export class AudioAnalyzer extends EventEmitter {
 
     const onLoadMeta = () => {
       player.off(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
-      this.runAnalyzerInBackground(player, doneRanges, (completed)=>{
+      this.runAnalyzerInBackground(player, doneRanges, (/** @type {boolean} */ completed)=>{
         release();
         onDone(completed);
       });
@@ -289,7 +324,9 @@ export class AudioAnalyzer extends EventEmitter {
   }
 
   /**
+   * @param {import('../../FastStreamClient.mjs').Player} player
    * @param {DoneRange[]} doneRanges
+   * @param {(completed: boolean) => void} onDone
    */
   runAnalyzerInBackground(player, doneRanges, onDone) {
     const offsetTarget = -35;
@@ -297,7 +334,6 @@ export class AudioAnalyzer extends EventEmitter {
     let offset = this.client.isRegionBuffered(time + offsetTarget, time) ? offsetTarget : 0;
     player.currentTime = Math.max(time + offset, 0);
     player.playbackRate = 8; // Firefox mutes audio above 8x
-    player.loop = true;
     player.play();
 
     let destroyed = false;
@@ -310,6 +346,7 @@ export class AudioAnalyzer extends EventEmitter {
     });
 
 
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
     let pauseTimeout;
 
     if (!doneRanges) {
@@ -477,6 +514,10 @@ export class AudioAnalyzer extends EventEmitter {
     this.stopBackgroundAnalyzer();
   }
 
+  /**
+   * @param {string|number|null} videoLevel - The client's level now.
+   * @param {string|number|null} audioLevel - Its audio track now; null for none.
+   */
   setLevel(videoLevel, audioLevel) {
     let changedVideo;
     let changedAudio;
