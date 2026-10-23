@@ -6,20 +6,39 @@ import {FetchLoader} from './FetchLoader.mjs';
 // The priority the playback libraries' requests have (HLSLoader, DashLoader, MP4Player).
 export const PLAYBACK_PRIORITY = 1000;
 
+/** @typedef {import('./DownloadEntry.mjs').DownloadEntry} DownloadEntry */
+/** @typedef {import('./FetchLoader.mjs').LoaderStats} LoaderStats */
+/** @typedef {import('./FetchLoader.mjs').LoaderRequest} LoaderRequest */
+
+/**
+ * Runs one download at a time for the download manager. It is its FetchLoader's callbacks
+ * (LoaderCallbacks): onSuccess, onError and onTimeout get FetchLoader's request where they
+ * name an entry, and do not read it.
+ */
 export class StandardDownloader {
+  /** @param {import('./DownloadManager.mjs').DownloadManager} manager */
   constructor(manager) {
     this.speedTracker = new SpeedTracker();
     this.manager = manager;
     // A FetchLoader, or the stand-in for one while its request is being made (download).
     /** @type {*} */
     this.loader = null;
+    /** @type {DownloadEntry|null} */
     this.entry = null;
+    // The last stats FetchLoader gave (updateSpeed); null until this download's first.
+    /** @type {(LoaderStats & {lastUpdate?: number})|null} */
     this.stats = null;
     // True while entry.onSuccess is awaited: a slow-down must not take this downloader
     // away mid-delivery, or the finished data would be discarded.
     this.delivering = false;
   }
 
+  /**
+   * Whether this downloader is free for a download.
+   * @param {import('./DownloadEntry.mjs').DownloadRequest} [details] - The download; not read.
+   *   DownloadManager.queueNext passes an entry's `details`, which no entry has (undefined).
+   * @return {boolean}
+   */
   canHandle(details) {
     return this.loader === null;
   }
@@ -37,6 +56,7 @@ export class StandardDownloader {
     return this.speedTracker.getSpeed();
   }
 
+  /** @param {DownloadEntry} entry - The download to run; this downloader must be free. */
   run(entry) {
     if (this.loader != null) {
       throw new Error('Downloader is busy.');
@@ -84,7 +104,9 @@ export class StandardDownloader {
       // this downloader may be running the next one, which failing `this.entry` failed.
       if (!shouldContinue) return;
       console.error('Failed to get request for entry:', err);
-      this.entry.onFail(this.loader.stats, this.entry, null);
+      // Still this download's: whatever took it away stopped the stand-in first
+      // (shouldContinue).
+      /** @type {DownloadEntry} */ (this.entry).onFail(this.loader.stats, /** @type {DownloadEntry} */ (this.entry), null);
       this.cleanup();
     });
   }
@@ -137,15 +159,24 @@ export class StandardDownloader {
     this.abort();
   }
 
+  /** @param {LoaderStats & {lastUpdate?: number}} stats - FetchLoader's, given lastUpdate here. */
   updateSpeed(stats) {
     this.stats = stats;
     stats.lastUpdate = performance.now();
     this.speedTracker.update(stats.loaded, stats.loading.start, stats.lastUpdate);
   }
 
+  /**
+   * @param {import('./FetchLoader.mjs').LoaderResponse} response
+   * @param {LoaderStats} stats
+   * @param {LoaderRequest} entry - FetchLoader's request, unused.
+   * @param {null} xhr - FetchLoader has none.
+   */
   async onSuccess(response, stats, entry, xhr) {
     this.updateSpeed(stats);
-    const current = this.entry;
+    // Running: whatever takes the download away (abort, retire, cleanup) stops the
+    // FetchLoader first, and a stopped one calls nothing.
+    const current = /** @type {DownloadEntry} */ (this.entry);
     this.delivering = true;
     try {
       await current.onSuccess(response, stats, current, xhr);
@@ -162,17 +193,33 @@ export class StandardDownloader {
     }
   }
 
+  /**
+   * @param {LoaderStats} stats - Their error among them.
+   * @param {LoaderRequest} entry - FetchLoader's request, unused.
+   * @param {null} xhr - FetchLoader has none.
+   */
   onError(stats, entry, xhr) {
     this.updateSpeed(stats);
     this.entry?.onFail(stats, this.entry, xhr);
     this.cleanup();
   }
 
+  /**
+   * @param {LoaderStats} stats
+   * @param {LoaderRequest} context - FetchLoader's request.
+   * @param {ArrayBuffer|string} data - The answer's body.
+   * @param {null} xhr - FetchLoader has none.
+   */
   onProgress(stats, context, data, xhr) {
     this.updateSpeed(stats);
     this.entry?.onProgress(stats, context, data, xhr);
   }
 
+  /**
+   * @param {LoaderStats} stats
+   * @param {LoaderRequest} entry - FetchLoader's request, unused.
+   * @param {null} xhr - FetchLoader has none.
+   */
   onTimeout(stats, entry, xhr) {
     this.updateSpeed(stats);
     this.entry?.onFail(stats, this.entry, xhr);

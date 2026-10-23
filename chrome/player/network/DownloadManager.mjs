@@ -6,6 +6,8 @@ import {DownloadEntry} from './DownloadEntry.mjs';
 import {URGENT_PARALLEL} from './PlayheadFirst.mjs';
 import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 
+/** @typedef {import('./DownloadEntry.mjs').DownloadRequest} DownloadRequest */
+
 export class DownloadManager {
   /** How long no download may fail before a downloader dropped for a failure comes back. */
   static FailureRecoveryMs = 10000;
@@ -32,12 +34,19 @@ export class DownloadManager {
    * the Retry-After hold but do not halve again. */
   static SlowDownSettleMs = 2000;
 
+  /** @param {import('../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     this.client = client;
+    // Waiting for a downloader, the highest priority first.
+    /** @type {DownloadEntry[]} */
     this.queue = [];
 
+    // Every download by its identifier (getIdentifier), finished or not. Left untyped: as a
+    // Map<string, DownloadEntry>, getEntry gives undefined for one never asked for, and
+    // savedEntry's entryOf (SaveFragmentFetcher) takes an entry or null only.
     this.storage = new Map();
 
+    /** @type {StandardDownloader[]} */
     this.downloaders = [];
     this.paused = false;
     // The next reset() keeps the downloads (keepStorageOnce).
@@ -46,9 +55,11 @@ export class DownloadManager {
     this.yielding = false;
     // ...and holding even its own playback's requests: it is paused (setYield).
     this.holdingPlayback = false;
+    // The speed test's samples of the total speed, until SamplesPerStep are averaged.
+    /** @type {number[]} */
     this.speedTestBuffer = [];
     // The downloaders heard with a speed in this round of the speed test.
-    /** @type {Set<Object>} */
+    /** @type {Set<StandardDownloader>} */
     this.speedTestSeen = new Set();
     this.testing = true;
     this.lastSpeed = 0;
@@ -79,6 +90,7 @@ export class DownloadManager {
     // Downloaders a slow-down took away while they delivered a finished download: out of
     // this.downloaders, but a reset, pause or destroy must still stop them, or an old
     // video's piece reaches a player torn down meanwhile.
+    /** @type {Set<StandardDownloader>} */
     this.retiring = new Set();
 
     this.failed = 0;
@@ -91,7 +103,9 @@ export class DownloadManager {
     this.memoryFull = false;
   }
 
+  /** @return {DownloadEntry[]} The finished downloads. */
   getCompletedEntries() {
+    /** @type {DownloadEntry[]} */
     const entries = [];
     this.storage.forEach((entry) => {
       if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE) {
@@ -101,12 +115,17 @@ export class DownloadManager {
     return entries;
   }
 
+  /** @param {DownloadEntry[]} entries - Downloads to keep, an archive's (SaveManager). */
   setEntries(entries) {
     entries.forEach((entry) => {
       this.setEntry(entry);
     });
   }
 
+  /**
+   * Hands a finished download's Blob to the store, and has the entry read it from there.
+   * @param {DownloadEntry} entry
+   */
   async archiveEntryData(entry) {
     if (entry.status !== DownloadStatus.DOWNLOAD_COMPLETE || entry.storeRaw || typeof entry.data === 'function') {
       return;
@@ -121,6 +140,10 @@ export class DownloadManager {
     };
   }
 
+  /**
+   * Keeps a download under its identifier, its data handed to the store once it is done.
+   * @param {DownloadEntry} entry
+   */
   setEntry(entry) {
     const identifier = this.getIdentifier(entry);
     // Its stored data cannot be read any more (DownloadEntry.getDataFromBlob): forgotten,
@@ -134,6 +157,7 @@ export class DownloadManager {
 
     // A save that failed (a full disk) leaves the data in memory, as before - without an
     // unhandled rejection, which neither caller awaited.
+    /** @param {DownloadEntry} done - The finished entry. */
     const archive = (done) => this.archiveEntryData(done).catch((e) => console.warn('Could not archive a download', e));
     if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE) {
       archive(entry);
@@ -144,6 +168,13 @@ export class DownloadManager {
     this.storage.set(identifier, entry);
   }
 
+  /**
+   * Whether a download would be answered now: stored, or a downloader free for it.
+   * @param details - The request (a DownloadRequest: a fragment's getContext()). Left
+   *   untyped: FastStreamClient passes a Fragment's getContext(), which the base class
+   *   types void (players/Fragment.mjs only throws there).
+   * @return {boolean}
+   */
   canGetFile(details) {
     const key = this.getIdentifier(details);
     const storedEntry = this.storage.get(key);
@@ -163,6 +194,11 @@ export class DownloadManager {
     });
   }
 
+  /**
+   * A download, finished or not; undefined if it was never asked for.
+   * @param details - The request (a DownloadRequest: a fragment's getContext()). Left
+   *   untyped as canGetFile's is: cancelIfCheap passes on what FastStreamClient gives it.
+   */
   getEntry(details) {
     const key = this.getIdentifier(details);
     return this.storage.get(key);
@@ -172,7 +208,7 @@ export class DownloadManager {
    * Drops a finished stored copy, so the next getFile fetches the file again. A manifest a
    * player loads a second time is a live one being refreshed, and its stored copy is the
    * old window. A copy still downloading is left alone.
-   * @param {Object} details - The request (url, range and response type).
+   * @param {DownloadRequest} details - The request (url, range and response type).
    */
   forgetCompletedFile(details) {
     if (this.getEntry(details)?.status === DownloadStatus.DOWNLOAD_COMPLETE) {
@@ -180,6 +216,11 @@ export class DownloadManager {
     }
   }
 
+  /**
+   * Stops and forgets a download, and lets its stored data go.
+   * @param details - The request (a DownloadRequest: a fragment's getContext()). Left
+   *   untyped as canGetFile's is, for the same caller.
+   */
   removeFile(details) {
     const key = this.getIdentifier(details);
     const storedEntry = this.storage.get(key);
@@ -205,6 +246,15 @@ export class DownloadManager {
     this.blobStore = /** @type {any} */ (null);
   }
 
+  /**
+   * Asks for a download: a stored one answers at once (onSuccess), one already asked for is
+   * joined, and a new one is queued by priority.
+   * @param {import('./DownloadEntry.mjs').DownloadDetails} details
+   * @param {import('./DownloadEntry.mjs').DownloadCallbacks} callbacks
+   * @param {number} [priority] - Higher first; 0 by default, a save's -1, playback's
+   *   PLAYBACK_PRIORITY.
+   * @return {import('./DownloadEntry.mjs').DownloadWatcher} This request's hold on it.
+   */
   getFile(details, callbacks, priority) {
     priority = priority || 0;
     const key = this.getIdentifier(details);
@@ -319,7 +369,8 @@ export class DownloadManager {
    * test probes again (onDownloaderFinished): downloads go as fast as the server allows.
    * It went "for good" until 2026-10-06; the user wanted the speed back. A next video
    * starts with one downloader until a probe ends without one.
-   * @param {number} [retryAfter] - The wait the server asked for, in ms.
+   * @param {number|null} [retryAfter] - The wait the server asked for, in ms; null when it
+   *   named none (FetchLoader's onSlowDown, through StandardDownloader).
    */
   slowDown(retryAfter) {
     if (!this.downloaders) return; // destroyed
@@ -478,6 +529,7 @@ export class DownloadManager {
     if (yieldChanged && yielding) {
       // The downloads ahead: queued ones leave the queue, running ones under half done stop.
       // Not a save's (priority below 0: the user asked for it), not what playback waits for.
+      /** @param {DownloadEntry} entry */
       const cancellable = (entry) => {
         const priority = entry.priority || 0;
         return priority >= 0 && priority < PLAYBACK_PRIORITY;
@@ -645,6 +697,11 @@ export class DownloadManager {
     this.stopDownloaders(retiring);
   }
 
+  /**
+   * A downloader is done with a download, however it ended (StandardDownloader.cleanup).
+   * @param {StandardDownloader} downloader
+   * @param {DownloadEntry} entry - The download it ran.
+   */
   onDownloaderFinished(downloader, entry) {
     this.retiring.delete(downloader);
     if (this.paused || !this.downloaders || this.stopping) return;
@@ -652,7 +709,8 @@ export class DownloadManager {
     const failed = entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted;
     // A 429/503 was already signalled when the answer came (StandardDownloader.onSlowDown ->
     // slowDown). It is not an ordinary failure: no lastFailed and no downloader dropped.
-    const slowDownStatus = failed && DownloadManager.SlowDownStatuses.includes(downloader.stats?.error?.code);
+    // (A download without an error has no code: includes(undefined) is false.)
+    const slowDownStatus = failed && /** @type {(number|undefined)[]} */ (DownloadManager.SlowDownStatuses).includes(downloader.stats?.error?.code);
     if (slowDownStatus) {
       // handled by slowDown() when the answer arrived
     } else if (navigator.onLine && failed) {
@@ -787,7 +845,8 @@ export class DownloadManager {
       }
 
       const downloader = this.downloaders.find((downloader) => {
-        return downloader.canHandle(this.queue[index].details);
+        // An entry has no details: canHandle is given undefined, and reads nothing.
+        return downloader.canHandle(/** @type {DownloadEntry & {details?: undefined}} */ (this.queue[index]).details);
       });
       if (!downloader) return;
 
@@ -796,6 +855,13 @@ export class DownloadManager {
     }
   }
 
+  /**
+   * The key a download is stored under: its URL, byte range and response type.
+   * @param details - A DownloadRequest (a DownloadEntry is one). Left untyped as
+   *   canGetFile's is: ramBytesOf, isSpilling, isInRam and spill pass on what
+   *   FastStreamClient gives them, a Fragment's getContext().
+   * @return {string}
+   */
   getIdentifier(details) {
     const url = details.url;
     const rangeStart = details.rangeStart;
@@ -852,6 +918,7 @@ export class DownloadManager {
 
   }
 
+  /** @param {boolean} value - Keep the downloads at every reset() (a loaded archive's). */
   resetOverride(value) {
     this.dontClearStorage = value;
   }
