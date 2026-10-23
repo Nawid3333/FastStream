@@ -1,4 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {HLSFragment} from '../../chrome/player/players/hls/HLSFragment.mjs';
 import {
   ParameterSets, StreamTypes, TS_CLOCK, ac3Frame, audioUnits, h264AccessUnit, hevcAccessUnit, mp3Frame,
   muxSegment, videoUnits,
@@ -56,7 +57,9 @@ afterEach(() => {
 });
 
 /**
- * One fragment as HLSPlayer.saveVideo hands it over.
+ * One fragment as HLSPlayer.saveVideo hands it over: an HLSFragment around the hls.js
+ * fragment of the level, which carries sn, the EXT-X-DISCONTINUITY counter cc, its
+ * duration and its level.
  * @param {number} track 0 for the level, 1 for the audio rendition
  * @param {Object} fragment {sn, cc, start}
  * @param {Uint8Array} data the segment
@@ -65,7 +68,12 @@ afterEach(() => {
 function fragment(track, fragment, data) {
   return {
     track,
-    fragment,
+    fragment: new HLSFragment({
+      sn: fragment.sn,
+      cc: fragment.cc,
+      duration: 0,
+      levelIdentifier: track,
+    }, fragment.start, fragment.start),
     getEntry: async () => ({getDataFromBlob: async () => data.buffer}),
   };
 }
