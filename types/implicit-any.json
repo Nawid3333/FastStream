@@ -1,8 +1,8 @@
 {
   "chrome/player/FastStreamClient.mjs": 53,
-  "chrome/player/modules/FSBlob.mjs": 10,
   "chrome/player/modules/analyzer/AudioAnalyzer.mjs": 32,
   "chrome/player/modules/analyzer/PreviewFrameExtractor.mjs": 20,
+  "chrome/player/modules/remux/mp4-writer.mjs": 1,
   "chrome/player/network/DownloadEntry.mjs": 2,
   "chrome/player/network/DownloadManager.mjs": 4,
   "chrome/player/players/SyncedAudioPlayer.mjs": 19,

@@ -32,7 +32,12 @@ export class FSBlob {
    *   is let go of and downloaded again when needed (FastStreamClient.enforceMemoryBudget).
    */
   constructor({memoryOnly = false} = {}) {
+    // Each blob by its identifier: the Blob in RAM, what a backend gave back for it (OPFS a
+    // File, IndexedDB a Blob read from disk), or IN_CACHE.
+    /** @type {Map<string, Blob|typeof IN_CACHE>} */
     this.blobStore = new Map();
+    // Each blob's write to a backend (offloadBlob): true when it got there.
+    /** @type {Map<string, Promise<boolean>>} */
     this.blobStorePromises = new Map();
     this.memoryOnly = memoryOnly;
     // The blobs held in RAM, with their sizes: a deferred save keeps its blob here until
@@ -162,6 +167,11 @@ export class FSBlob {
     this.cache = cache;
   }
 
+  /**
+   * @param {string} identifier
+   * @param {Blob} blob
+   * @return {Promise<boolean>} Whether the blob reached the backend.
+   */
   async saveBlobInOPFSAsync(identifier, blob) {
     // Setup is already settled and the backend re-checked by offloadBlob().
     try {
@@ -185,6 +195,11 @@ export class FSBlob {
     }
   }
 
+  /**
+   * @param {string} identifier
+   * @param {Blob} blob
+   * @return {Promise<boolean>} Whether the blob reached the backend.
+   */
   async saveBlobInIndexedDBAsync(identifier, blob) {
     try {
       // Store file
@@ -195,7 +210,8 @@ export class FSBlob {
       // Delete file to orphan it
       await /** @type {IndexedDBManager} */ (this.indexedDBManager).deleteFile(identifier);
 
-      return this.replaceIfStill(identifier, blob, file);
+      // The Blob just stored, read back from the database.
+      return this.replaceIfStill(identifier, blob, /** @type {Blob} */ (file));
     } catch (e) {
       // A single write failing (e.g. quota exceeded mid-session) doesn't
       // mean IndexedDB is broken for everything else - leave
@@ -206,6 +222,11 @@ export class FSBlob {
     }
   }
 
+  /**
+   * @param {string} identifier
+   * @param {Blob} blob
+   * @return {Promise<boolean>} Whether the blob reached the backend.
+   */
   async saveBlobUsingCache(identifier, blob) {
     const identifierURL = this.getIdentifierURL(identifier);
     // One cache for the put and the check: clear() replaces this.cache meanwhile.
@@ -245,7 +266,7 @@ export class FSBlob {
    * put the old data back, or took the new one out of the RAM count.
    * @param {string} identifier
    * @param {Blob} blob - What was written.
-   * @param {*} stored - What now stands for it (a File, IN_CACHE).
+   * @param {Blob|typeof IN_CACHE} stored - What now stands for it (a File, IN_CACHE).
    * @return {boolean} Whether it took its place.
    */
   replaceIfStill(identifier, blob, stored) {
@@ -255,6 +276,11 @@ export class FSBlob {
     return true;
   }
 
+  /**
+   * The Cache API's key of a blob.
+   * @param {string} identifier
+   * @return {string}
+   */
   getIdentifierURL(identifier) {
     return 'https://faststream.online/blob-cache?identifier=' + encodeURIComponent(identifier);
   }
@@ -342,7 +368,8 @@ export class FSBlob {
    */
   async spill(identifier) {
     if (this.memoryOnly || !this.inRam.has(identifier) || this.spilling.has(identifier)) return false;
-    const blob = this.blobStore.get(identifier);
+    // Held in RAM (inRam has it): the Blob itself.
+    const blob = /** @type {Blob} */ (this.blobStore.get(identifier));
     this.spilling.add(identifier);
     try {
       const promise = this.offloadBlob(identifier, blob).catch((e) => {
@@ -392,17 +419,33 @@ export class FSBlob {
     return this.inRam.has(identifier);
   }
 
+  /**
+   * Saves a blob without waiting for it (whenStored waits).
+   * @param {Blob} blob
+   * @return {string} Its identifier.
+   */
   saveBlob(blob) {
     const identifier = this.nextIdentifier();
     this.saveBlobAsync(blob, identifier);
     return identifier;
   }
 
+  /**
+   * Saves data as a blob, as saveBlob does.
+   * @param {Uint8Array} data - A chunk of a file being saved (StreamSaver's memory sink).
+   * @return {string} Its identifier.
+   */
   createBlob(data) {
-    const blob = new Blob([data], {type: 'application/octet-stream'});
+    // Over an ArrayBuffer, not shared memory: a saved file's bytes.
+    const blob = new Blob([/** @type {Uint8Array<ArrayBuffer>} */ (data)], {type: 'application/octet-stream'});
     return this.saveBlob(blob);
   }
 
+  /**
+   * Lets a blob go, from RAM and from the backend.
+   * @param {string} identifier
+   * @return {Promise<boolean>} true, whether or not the backend could drop its copy.
+   */
   async deleteBlob(identifier) {
     this.blobStore.delete(identifier);
     this.inRam.delete(identifier);
