@@ -439,6 +439,26 @@ describe('DownloadManager', () => {
         expect(manager.urgentParallel()).toBe(6);
       });
 
+      it('runs all of them on a server that limits each connection, one failed during the test', () => {
+        // A downloader dropped for a failure left a round with fewer than the last sample's: its
+        // gain was read as one more's share, and with one left that was 0.5 / 0, so "they share
+        // the line" stuck for the rest of the video (glm's review of #540, 2026-10-23).
+        const manager = new DownloadManager(client());
+        manager.downloaders = [finished()];
+        manager.downloaders[0].getSpeed = () => 2e5;
+        manager.onDownloaderFinished(manager.downloaders[0], {status: DownloadStatus.DOWNLOAD_COMPLETE});
+        const [first, second] = manager.downloaders;
+        expect(second).toBeDefined();
+        // The first fails (dropped), and the one left is a little faster than the first sample.
+        manager.onDownloaderFinished(first, failedEntry);
+        expect(manager.downloaders).toEqual([second]);
+        second.getSpeed = () => 2.2e5;
+        manager.onDownloaderFinished(second, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+        runTest(manager, (count) => count * 2.2e5);
+        expect(manager.downloaders).toHaveLength(6);
+        expect(manager.urgentParallel()).toBe(6);
+      });
+
       it('runs two on a line the downloads share, where one more added nothing', () => {
         const manager = fresh();
         runTest(manager, () => 1.5e6);

@@ -52,6 +52,8 @@ export class DownloadManager {
     this.speedTestSeen = new Set();
     this.testing = true;
     this.lastSpeed = 0;
+    // How many downloaders lastSpeed was measured with.
+    this.lastSpeedCount = 0;
     // What the speed test found: true when each downloader it added brought about its share of
     // speed (a server that limits each connection), false when one did not (a line they share),
     // null before it could tell. A player short of video runs that many at once (urgentParallel).
@@ -722,12 +724,17 @@ export class DownloadManager {
                 // Each one added so far brought at least half its share (the first sample has
                 // nothing to compare with): a line they share gains little or nothing, and a
                 // gain from elsewhere (other players stepping aside) comes once, not at each step.
-                if (this.lastSpeed > 0) {
-                  const share = speed >= this.lastSpeed * (1 + 0.5 / (this.downloaders.length - 1));
+                // Only a round with exactly one more than the last sample's tells: after one was
+                // dropped for a failure, a gain was read as one more's share, and with one left
+                // the share was 0.5 / 0, so "they share the line" stuck for the rest of the video
+                // (glm's review of #540, 2026-10-23).
+                if (this.lastSpeed > 0 && this.downloaders.length === this.lastSpeedCount + 1) {
+                  const share = speed >= this.lastSpeed * (1 + 0.5 / this.lastSpeedCount);
                   this.perConnection = this.perConnection !== false && share;
                 }
                 if (this.downloaders.length < this.downloaderLimit()) {
                   console.log('Adding downloader, speed: ' + speed);
+                  this.lastSpeedCount = this.downloaders.length;
                   this.downloaders.push(new StandardDownloader(this));
                   this.lastSpeed = speed;
                 } else {

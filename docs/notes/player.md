@@ -501,7 +501,11 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   (`perConnection`, a server that limits each connection); two on a line the downloads share
   (one more added nothing or little), after a 429/503 until a probe finds more, and when the
   test could not tell. Every step must gain: a one-off jump (other players stepping aside in the
-  middle of the test) does not count. The test decides after each sample, not two (with the
+  middle of the test) does not count. Only a sample with exactly one downloader more than the
+  last one's is judged (`lastSpeedCount`): one dropped for a failure in between made the next
+  gain read as one more's share, and with a single one left that share was 0.5 / 0, so "they
+  share the line" stuck for the rest of the video (glm's review, 2026-10-23; the unit test went
+  from 6 downloaders run at once to 2 without the fix). The test decides after each sample, not two (with the
   rates of each connection jumping ±30% every second, three runs of each: six at 14 s instead of
   25 s, the same verdict). Same runs, after: six downloaders at 14 s (HLS) and 9 s (MP4) at
   500 kB/s per connection; seconds of video delivered after 10/30/60 s 30/171/388 instead of

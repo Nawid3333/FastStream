@@ -30,6 +30,9 @@ function pages(file) {
     // A page whose video plays at once: FastStream takes it.
     '/ep1': `<!doctype html><title>episode 1</title>
 <video preload="auto" style="${style}" src="${file}?ep=1"></video>${next('ep2')}`,
+    // The same video as WebM, which FastStream plays as it is (DirectVideoPlayer, no MSE).
+    '/webm': `<!doctype html><title>a WebM video</title>
+<video preload="auto" style="${style}" src="${file.replace(/\.mp4$/, '.webm')}"></video>`,
     // A JW Player as a hoster has it: idle, nothing loaded, until its play().
     '/ep2': `<!doctype html><title>episode 2</title>
 <div id="jw" style="${style}"><video style="${style}"></video></div>${next('ep3')}
@@ -338,6 +341,44 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
     });
     console.log(`      clicked the bar's end: ${JSON.stringify(at)}`);
     await onPage('/ep2');
+  });
+
+  // glm's review of #538 (2026-10-23) said a click on the bar's end of a PLAYING video, which
+  // puts it at exactly its end, started it again on letting go: HTML's play() starts media that
+  // has ended from the beginning. Measured: it does not, in either player - Firefox does not
+  // count a video sought to its end while paused as ended. This keeps it so. Autoplay off, so
+  // nothing else moves it.
+  it('ends a playing video after a click on the bar\'s end, and does not start it again', async function() {
+    await setOptions({autoEnableURLs: [SITE], autoplayNext: false});
+    try {
+      // An MP4 (MP4Player, through MSE) and a WebM (DirectVideoPlayer, the file itself).
+      for (const page of ['/ep1', '/webm']) {
+        await browser.url(`${SITE}${page}`);
+        await intoPlayer(page);
+        await browser.waitUntil(() => browser.execute(() => (window.fastStream?.player?.getVideo?.()?.readyState || 0) >= 2),
+            {timeout: 30000, timeoutMsg: `${page}: the video never loaded`});
+        await browser.execute(() => window.fastStream.play());
+        await browser.waitUntil(() => browser.execute(() => window.fastStream.state.playing),
+            {timeout: 10000, timeoutMsg: `${page}: the video never played`});
+        await browser.execute(() => {
+          const bar = /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_controls_progress_container'));
+          const rect = bar.getBoundingClientRect();
+          const x = rect.left + rect.width - 1;
+          const y = rect.top + rect.height / 2;
+          bar.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0, clientX: x, clientY: y}));
+          document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, button: 0, clientX: x, clientY: y}));
+        });
+        await browser.pause(1500);
+        const after = await browser.execute(() => ({player: window.fastStream.player.constructor.name,
+          time: window.fastStream.currentTime, duration: window.fastStream.duration}));
+        console.log(`      ${page}, 1.5 s after the click: ${JSON.stringify(after)}`);
+        // Started again, it would be about 1.5 s in.
+        expect(after.time).toBeGreaterThan(after.duration - 0.25);
+      }
+    } finally {
+      await browser.switchFrame(null);
+      await setOptions({autoEnableURLs: [SITE], autoplayNext: true});
+    }
   });
 
   it('stops after the series\' last episode, says so, and never goes on to another series', async function() {
