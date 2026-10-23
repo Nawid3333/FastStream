@@ -16,7 +16,7 @@ import {DOMElements} from './DOMElements.mjs';
  */
 export class VpnPrompt {
   /**
-   * @param {Object} client - The FastStreamClient.
+   * @param {import('../FastStreamClient.mjs').FastStreamClient} client - The FastStreamClient.
    */
   constructor(client) {
     this.client = client;
@@ -42,10 +42,10 @@ export class VpnPrompt {
   async check(source) {
     this.hide();
     this.source = source;
-    if (!EnvUtils.isExtension() || !source?.url) return;
+    if (!EnvUtils.isExtension() || !/** @type {{url: string}} */ (source)?.url) return;
     let status;
     try {
-      status = await chrome.runtime.sendMessage({type: MessageTypes.VPN_STATUS, url: source.url});
+      status = await chrome.runtime.sendMessage({type: MessageTypes.VPN_STATUS, url: /** @type {{url: string}} */ (source).url});
     } catch (e) {
       return;
     }

@@ -15,6 +15,7 @@ if (!EnvUtils.isWebAudioSupported()) {
 const VolumeSaveDelayMs = 500;
 
 export class VolumeControls extends EventEmitter {
+  /** @param {import('../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     super();
     this.client = client;
@@ -61,6 +62,7 @@ export class VolumeControls extends EventEmitter {
     this.loadVolumeState();
   }
 
+  /** @param {number} volume */
   setVolume(volume, dontSave = false) {
     if (volume < 0) {
       volume = 0;
@@ -95,6 +97,7 @@ export class VolumeControls extends EventEmitter {
     }
   }
 
+  /** @param {MouseEvent} event */
   onVolumeBarMouseDown(event) {
     // Only the left button drags. A right-click's context menu takes the mouseup, and the
     // volume then followed the mouse until the next click.
@@ -102,6 +105,7 @@ export class VolumeControls extends EventEmitter {
       return;
     }
 
+    /** @param {number} volumeBarX */
     const shiftVolume = (volumeBarX) => {
       const totalWidth = /** @type {HTMLElement} */ (DOMElements.volumeControlBar).clientWidth;
 
@@ -120,13 +124,14 @@ export class VolumeControls extends EventEmitter {
       }
     };
 
+    /** @param {MouseEvent|TouchEvent} event */
     const onVolumeBarMouseMove = (event) => {
       // No button held: it was let go where this drag never heard of it.
-      if (event.type === 'mousemove' && event.buttons === 0) {
+      if (event.type === 'mousemove' && /** @type {MouseEvent} */ (event).buttons === 0) {
         stopDrag();
         return;
       }
-      const currentX = event.clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.volumeContainer)) - 10;
+      const currentX = /** @type {MouseEvent} */ (event).clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.volumeContainer)) - 10;
       shiftVolume(currentX);
     };
 
@@ -138,10 +143,11 @@ export class VolumeControls extends EventEmitter {
       document.removeEventListener('mouseup', onVolumeBarMouseUp);
     };
 
+    /** @param {MouseEvent|TouchEvent} event */
     const onVolumeBarMouseUp = (event) => {
       stopDrag();
 
-      const currentX = event.clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.volumeContainer)) - 10;
+      const currentX = /** @type {MouseEvent} */ (event).clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.volumeContainer)) - 10;
 
       if (!isNaN(currentX)) {
         shiftVolume(currentX);
@@ -159,6 +165,7 @@ export class VolumeControls extends EventEmitter {
     event.stopPropagation();
   }
 
+  /** @param {number} volume */
   updateVolumeBar(volume) {
     const currentVolumeTag = /** @type {HTMLElement} */ (DOMElements.currentVolume);
     const muteButtonTag = /** @type {HTMLElement} */ (DOMElements.muteBtn);
@@ -192,7 +199,7 @@ export class VolumeControls extends EventEmitter {
     const state = await Utils.loadAndParseOptions('volumeState', {
       volume: 1,
     });
-    this.setVolume(state.volume, true);
+    this.setVolume(/** @type {{volume: number}} */ (state).volume, true);
   }
 
   /** Saves a volume change still waiting for its delay. */

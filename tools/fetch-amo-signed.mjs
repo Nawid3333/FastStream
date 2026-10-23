@@ -29,6 +29,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+// @ts-ignore - web-ext/util/submit-addon resolves to untyped JavaScript with no published
+// declarations (TS7016), so JwtApiAuth has no real type that can be written here by comment
 import {JwtApiAuth} from 'web-ext/util/submit-addon';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

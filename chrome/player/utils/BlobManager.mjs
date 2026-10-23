@@ -5,7 +5,7 @@
 export class BlobManager {
   /**
    * Creates a blob from data and MIME type.
-   * @param {Array} data - The data to store in the blob.
+  * @param {Array<BlobPart>} data - The data to store in the blob.
    * @param {string} mimeType - The MIME type of the blob.
    * @return {Blob} The created blob.
    */
