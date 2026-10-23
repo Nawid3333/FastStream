@@ -1,12 +1,10 @@
 {
   "chrome/player/FastStreamClient.mjs": 53,
   "chrome/player/modules/FSBlob.mjs": 10,
-  "chrome/player/modules/SecureMemory.mjs": 14,
   "chrome/player/modules/analyzer/AudioAnalyzer.mjs": 32,
   "chrome/player/modules/analyzer/PreviewFrameExtractor.mjs": 20,
   "chrome/player/network/DownloadEntry.mjs": 2,
   "chrome/player/network/DownloadManager.mjs": 4,
-  "chrome/player/network/IndexedDBManager.mjs": 39,
   "chrome/player/players/SyncedAudioPlayer.mjs": 19,
   "chrome/player/players/dash/DashFragmentRequester.mjs": 1,
   "chrome/player/players/hls/HLSPlayer.mjs": 2,
