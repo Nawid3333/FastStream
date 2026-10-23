@@ -33,10 +33,7 @@ class FastStreamAbrController extends /** @type {any} */ (AbrController) {
 
 export default class HLSPlayer extends EventEmitter {
   /**
-   * @param client - The FastStreamClient. Left untyped: HLSLoader takes the Fragment its
-   *   getFragment gives for an HLSFragment (getFrag), and hands getFile a postProcessor typed
-   *   Function, which DownloadDetails does not take; and currentFragment's findLast is ES2023,
-   *   past tsconfig's lib.
+   * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
    * @param {{isPreview?: boolean, isAudioOnly?: boolean, isAnalyzer?: boolean}} [config] -
    *   What the player is for (PlayerLoader.createPlayer's callers).
    */
@@ -190,8 +187,9 @@ export default class HLSPlayer extends EventEmitter {
    *   SaveManager's: no stream for an HLS save (canSave says nothing of streaming).
    */
   async saveVideo(options) {
-    const fragments = this.client.getFragments(this.getCurrentVideoLevelID()) || [];
-    const audioFragments = this.client.getFragments(this.getCurrentAudioLevelID()) || [];
+    // An HLS player's store holds HLSFragments.
+    const fragments = /** @type {import('./HLSFragmentStore.mjs').FragmentStore} */ (this.client.getFragments(this.getCurrentVideoLevelID()) || []);
+    const audioFragments = /** @type {import('./HLSFragmentStore.mjs').FragmentStore} */ (this.client.getFragments(this.getCurrentAudioLevelID()) || []);
 
     let zippedFragments = Utils.zipTimedFragments([fragments, audioFragments]);
 
@@ -424,8 +422,7 @@ export default class HLSPlayer extends EventEmitter {
   }
 
   /**
-   * @param source - The VideoSource. Left untyped: typed, this.source is VideoSource|null
-   *   (null until here), and HLSLoader reads player.source.headers unguarded.
+   * @param {import('../../VideoSource.mjs').VideoSource} source
    */
   async setSource(source) {
     this.source = source;
@@ -647,7 +644,8 @@ export default class HLSPlayer extends EventEmitter {
     const frag = /** @type {any} */ (this.hls).streamController.currentFrag;
     if (!frag) return null;
     const identifier = this.getIdentifier(0, frag.level);
-    const fragments = this.client.getFragments(identifier);
+    // An HLS player's store holds HLSFragments.
+    const fragments = /** @type {import('./HLSFragmentStore.mjs').FragmentStore|undefined} */ (this.client.getFragments(identifier));
     const time = this.currentTime;
     // (A store has holes where segments were forgotten: HLSFragmentStore.)
     const atTime = fragments?.find((/** @type {HLSFragment|undefined} */ fragment) => fragment && time >= fragment.start && time < fragment.end);
@@ -656,7 +654,7 @@ export default class HLSPlayer extends EventEmitter {
     const before = fragments?.findLast((/** @type {HLSFragment|undefined} */ fragment) => fragment && fragment.start <= time);
     if (before) return before;
     const index = storeIndex(fragments, frag.sn);
-    return index === null ? null : this.client.getFragment(identifier, index);
+    return index === null ? null : /** @type {HLSFragment|null|undefined} */ (this.client.getFragment(identifier, index));
   }
 
   getCurrentAudioLevelID() {
@@ -678,7 +676,7 @@ export default class HLSPlayer extends EventEmitter {
    *   no fragment there.
    */
   get currentAudioFragment() {
-    const frags = this.client.getFragments(this.getCurrentAudioLevelID());
+    const frags = /** @type {import('./HLSFragmentStore.mjs').FragmentStore|undefined} */ (this.client.getFragments(this.getCurrentAudioLevelID()));
     if (!frags) return null;
 
     const time = this.currentTime;

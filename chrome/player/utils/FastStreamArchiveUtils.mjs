@@ -50,7 +50,8 @@ export class FastStreamArchiveUtils {
   static async writeFSA(writer, player, entries, progressCallback) {
     const sourceObj = {};
     if (player) {
-      const source = player.getSource();
+      // A player saved has its source.
+      const source = /** @type {import('../VideoSource.mjs').VideoSource} */ (player.getSource());
       sourceObj.url = source.url;
       sourceObj.identifier = source.identifier;
       sourceObj.mode = source.mode;

@@ -101,7 +101,9 @@ export class HLSFragmentRequester {
       }, {
         /** @param {DownloadEntry} entry */
         onSuccess: async (entry) => {
-          resolve(await entry.getData());
+          // Raw arraybuffer: the key's bytes (from an archive a Uint8Array view, which the key
+          // import takes as well).
+          resolve(/** @type {ArrayBuffer} */ (await entry.getData()));
         },
         /** @param {DownloadEntry} err - The key's entry. */
         onFail: (err) => {
@@ -160,7 +162,8 @@ export class HLSFragmentRequester {
 
     const headers = {
       ...config.headers,
-      ...this.player.source.headers,
+      // Set: fragments are asked for once the player has its source.
+      ...(/** @type {import('../../VideoSource.mjs').VideoSource} */ (this.player.source)).headers,
     };
     const decrypt = this.decryptionFor(frag, headers);
 
@@ -198,7 +201,7 @@ export class HLSFragmentRequester {
         /** @type {(response: {url: string, data: ArrayBuffer|undefined}, stats: LoaderStats, context: SegmentContext, xhr: null) => void} */ (callbacks.onSuccess)({
           url: entry.url,
           data: data,
-        }, entry.stats, context, null);
+        }, /** @type {LoaderStats} */ (entry.stats), context, null); // set on success
       },
       /**
        * @param {LoaderStats} stats

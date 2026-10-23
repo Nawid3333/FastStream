@@ -199,12 +199,17 @@ export class LoopMenu extends EventEmitter {
     this.updateUI();
   }
 
+  /**
+   * @param {string} timecode - [[h:]m:]s, as typed in the loop's fields.
+   * @return {number} Seconds.
+   */
   timecodeToSeconds(timecode) {
     // A decimal comma, as French and German write it: "10,5" was 10.
     const split = timecode.replace(',', '.').split(':');
-    const seconds = parseFloat(split.pop());
-    const minutes = parseInt(split.pop() || 0);
-    const hours = parseInt(split.pop() || 0);
+    // split gives at least one part.
+    const seconds = parseFloat(/** @type {string} */ (split.pop()));
+    const minutes = parseInt(split.pop() || '0');
+    const hours = parseInt(split.pop() || '0');
     return hours * 3600 + minutes * 60 + seconds;
   }
 

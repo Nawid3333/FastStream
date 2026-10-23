@@ -69,6 +69,9 @@ export class DownloadEntry {
     /** @type {DownloadDetails['postProcessor']|null} */
     this.postProcessor = details.postProcessor;
 
+    // The answer: as it came for storeRaw (text or an ArrayBuffer; an archive's raw bytes), else
+    // a Blob, and once the download manager stored it, what gets it back (archiveEntryData).
+    /** @type {string|ArrayBuffer|Uint8Array|Blob|null|(() => ReturnType<import('../modules/FSBlob.mjs').FSBlob['getBlob']>)} */
     this.data = null;
     this.dataSize = 0;
     /** @type {Object<string, string>|null} */
@@ -163,10 +166,7 @@ export class DownloadEntry {
 
   /**
    * The download's answer, from its downloader (StandardDownloader.onSuccess).
-   * @param response - FetchLoader's answer (LoaderResponse). Left untyped: typed, this
-   *   entry's data and responseURL take its types, and two readers expect narrower ones -
-   *   FastStreamArchiveUtils.parseFSA reads data set from an untyped archive buffer as an
-   *   ArrayBuffer, DashLoader passes responseURL on as a string (it is null until the end).
+   * @param {import('./FetchLoader.mjs').LoaderResponse} response - FetchLoader's answer.
    * @param {LoaderStats} stats
    * @param {DownloadEntry} entry - This entry.
    * @param {null} xhr - FetchLoader has none.
@@ -220,10 +220,8 @@ export class DownloadEntry {
 
   /**
    * The download failed, from its downloader (StandardDownloader).
-   * @param stats - FetchLoader's (LoaderStats); undefined when the request could not be
-   *   made (a preProcessor that threw), before there was a FetchLoader. Left untyped: typed,
-   *   this entry's stats are LoaderStats|undefined (set only here, in onSuccess and in
-   *   onAbort), and HLSLoader's copyStats takes LoaderStats only.
+   * @param {LoaderStats|undefined} stats - FetchLoader's; undefined when the request could not be
+   *   made (a preProcessor that threw), before there was a FetchLoader.
    * @param {DownloadEntry} entry - This entry.
    * @param {null} xhr - FetchLoader has none.
    */
@@ -310,7 +308,8 @@ export class DownloadEntry {
       if (data === undefined || data === null) {
         throw DATA_GONE;
       }
-      return await BlobManager.getDataFromBlob(data, as);
+      // A stored download's: a Blob (a raw one is read with getData).
+      return await BlobManager.getDataFromBlob(/** @type {Blob} */ (data), as);
     } catch (e) {
       // Only storage that lost it: data that is not there, or the browser refusing to read
       // it (a DOMException: NotFoundError, NotReadableError, AbortError for a File whose

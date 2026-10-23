@@ -50,12 +50,11 @@ function isKeyboardFocus(element) {
  * @typedef {Window & typeof globalThis & {documentPictureInPicture: {window: Window}}} PipWindow
  */
 export class InterfaceController {
-  // client stays untyped for now: as the FastStreamClient it is, three places here fail -
-  // sessionStorage.setItem given a boolean (toggleAutoplayNext), state.documentPip, which the
-  // client's state does not declare, and AudioQualityChanger.updateQualityLevels, whose
-  // own made-up client type does not fit the real one.
+  /** @param {import('../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     this.client = client;
+    // The client's state, with the flag this keeps there for a Document Picture-in-Picture window.
+    /** @type {import('../FastStreamClient.mjs').FastStreamClient['state'] & {documentPip?: boolean}} */
     this.state = client.state;
     this.hidden = false;
     this.lastTime = 0;
@@ -192,9 +191,12 @@ export class InterfaceController {
     return closedSomething;
   }
 
-  // Untyped for now: message is a string, or null or nothing to clear the line, and
-  // StatusManager.setStatusMessage's type leaves out the nothing that callers pass. With
-  // JSDoc for the others, message would also become required.
+  /**
+   * @param {string} key - The status level (StatusManager).
+   * @param {string|null} [message] - null or none clears the level's message.
+   * @param {string} [type] - info by default.
+   * @param {number} [expiry] - Milliseconds it shows; none for as long as it is set.
+   */
   setStatusMessage(key, message, type, expiry) {
     this.statusManager.setStatusMessage(key, message, type, expiry);
   }
@@ -733,7 +735,7 @@ export class InterfaceController {
 
   toggleAutoplayNext() {
     this.client.options.autoplayNext = !this.client.options.autoplayNext;
-    sessionStorage.setItem('autoplayNext', this.client.options.autoplayNext);
+    sessionStorage.setItem('autoplayNext', String(this.client.options.autoplayNext));
     this.updateAutoNextIndicator();
   }
 

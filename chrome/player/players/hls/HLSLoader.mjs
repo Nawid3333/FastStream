@@ -177,8 +177,8 @@ export function HLSLoaderFactory(player) {
     }
 
     /**
-     * @param {LoadStats} stats - A download's (FetchLoader's, kept on its DownloadEntry; an
-     *   archive keeps a copy).
+     * @param {LoadStats|undefined} stats - A download's (FetchLoader's, kept on its
+     *   DownloadEntry; an archive keeps a copy); none (a request never made) copies nothing.
      */
     copyStats(stats) {
       for (const key in stats) {
@@ -223,8 +223,9 @@ export function HLSLoaderFactory(player) {
         const identifier = player.getIdentifier(/** @type {FragmentLoaderContext} */ (this.context).frag.trackID, /** @type {FragmentLoaderContext} */ (this.context).frag.level);
         // A segment is stored at its place in the level, not at its sequence number
         // (HLSFragmentStore). A number by here: 'initSegment' is -1.
-        const index = sn === -1 ? -1 : storeIndex(player.client.getFragments(identifier), /** @type {number} */ (sn));
-        let frag = index === null ? null : player.client.getFragment(identifier, index);
+        // An HLS player's store holds HLSFragments.
+        const index = sn === -1 ? -1 : storeIndex(/** @type {import('./HLSFragmentStore.mjs').FragmentStore|undefined} */ (player.client.getFragments(identifier)), /** @type {number} */ (sn));
+        let frag = index === null ? null : /** @type {import('./HLSFragment.mjs').HLSFragment|null|undefined} */ (player.client.getFragment(identifier, index));
         // One init segment is kept per level, but a playlist can change its EXT-X-MAP:
         // the kept one is only this request's if it is the same segment.
         if (frag && sn === -1 && !isSameSegment(frag.getFrag(), /** @type {FragmentLoaderContext} */ (this.context).frag)) {
@@ -318,14 +319,15 @@ export function HLSLoaderFactory(player) {
        * The download: hls.js's context and config, the source's headers over the context's,
        * and what decrypts a segment FastStream decrypts (below).
        * @type {HlsLoadContext & {config: ?import('../../modules/hls.mjs').LoaderConfiguration,
-       *   headers: Object<string, string>, postProcessor?: Function}}
+       *   headers: Object<string, string>, postProcessor?: (entry: DownloadEntry, response: import('../../network/FetchLoader.mjs').LoaderResponse) => Promise<import('../../network/FetchLoader.mjs').LoaderResponse>}}
        */
       const details = {
         .../** @type {HlsLoadContext} */(this.context),
         config: this.config,
         headers: {
           .../** @type {HlsLoadContext} */(this.context).headers,
-          ...player.source.headers,
+          // Set: hls.js loads once the player has its source.
+          ...(/** @type {import('../../VideoSource.mjs').VideoSource} */ (player.source)).headers,
         },
       };
       // A segment FastStream decrypts itself (HLSFragmentRequester.takeOverDecryption) that

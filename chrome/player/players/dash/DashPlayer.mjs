@@ -438,7 +438,7 @@ export default class DashPlayer extends EventEmitter {
     return DashTrackUtils.getCurrentLevel(this.dash, 'video');
   }
 
-  /** @param {string|number} id - A level's (LevelManager's); only a string names a DASH one. */
+  /** @param {string|number|null} id - A level's (LevelManager's); only a string names a DASH one. */
   setCurrentVideoLevelID(id) {
     if (typeof id !== 'string') return;
     try {
@@ -452,7 +452,7 @@ export default class DashPlayer extends EventEmitter {
     return DashTrackUtils.getCurrentLevel(this.dash, 'audio');
   }
 
-  /** @param {string|number} id - A level's (LevelManager's); only a string names a DASH one. */
+  /** @param {string|number|null} id - A level's (LevelManager's); only a string names a DASH one. */
   setCurrentAudioLevelID(id) {
     if (typeof id !== 'string') return;
     try {
@@ -529,8 +529,9 @@ export default class DashPlayer extends EventEmitter {
    * @return {Promise<{extension: string, blob: Blob, release: () => void}>}
    */
   async saveVideo(options) {
-    const videoFragments = this.client.getFragments(this.getCurrentVideoLevelID()) || [];
-    const audioFragments = this.client.getFragments(this.getCurrentAudioLevelID()) || [];
+    // A DASH player's store holds DashFragments.
+    const videoFragments = /** @type {Array<DashFragment>} */ (this.client.getFragments(this.getCurrentVideoLevelID()) || []);
+    const audioFragments = /** @type {Array<DashFragment>} */ (this.client.getFragments(this.getCurrentAudioLevelID()) || []);
 
     let zippedFragments = Utils.zipTimedFragments([videoFragments, audioFragments]);
 

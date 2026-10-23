@@ -1,6 +1,12 @@
 // @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 
+/**
+ * What a fragment's bytes are downloaded from (getContext): its URL, its byte range when it is
+ * one part of a file, and the response type.
+ * @typedef {{url: string, rangeStart: number|undefined, rangeEnd: number|undefined, responseType: string}} FragmentContext
+ */
+
 export class Fragment {
   /**
    * @param {string|number} level - The level (or track) it belongs to, as the client keys it.
@@ -41,6 +47,7 @@ export class Fragment {
     return this.references.length <= 0;
   }
 
+  /** @return {FragmentContext} */
   getContext() {
     throw new Error('Not implemented');
   }

@@ -53,7 +53,7 @@ export class StatusManager {
 
   /**
    * @param {string} key
-   * @param {string|null} message - null clears the level's message.
+   * @param {string|null} [message] - null or none clears the level's message.
    * @param {string=} type
    * @param {number=} expiry
    */

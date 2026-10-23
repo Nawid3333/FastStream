@@ -4,7 +4,7 @@ import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 
-/** @typedef {{id: string, bitrate: number, mimeType?: string, audioCodec?: string, language?: string}} AudioLevel */
+/** @typedef {import('../../players/Levels.mjs').AudioLevel} AudioLevel */
 export class AudioQualityChanger extends EventEmitter {
   constructor() {
     super();
@@ -149,7 +149,7 @@ export class AudioQualityChanger extends EventEmitter {
   }
 
   /**
-  * @param {{getLevelManager: () => {filterAudioLevelsByLanguage: (levels: AudioLevel[]) => AudioLevel[]}, getAudioLevels: () => Map<string, AudioLevel>, getCurrentAudioLevelID: () => string}} client
+  * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
   */
   updateQualityLevels(client) {
     const audioLevels = client.getLevelManager().filterAudioLevelsByLanguage(Array.from(client.getAudioLevels().values()));

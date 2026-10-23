@@ -56,6 +56,7 @@ export class SourcesBrowser {
 
   /** @param {ListedSource} source - Given its row here: nothing reads it before. */
   setupSourceListing(source) {
+    /** @type {HTMLTextAreaElement} */
     // eslint-disable-next-line prefer-const
     let headersInput;
     const sourceContainer = WebUtils.create('div', /** @type {any} */ (null), 'linkui-source');
@@ -210,7 +211,7 @@ export class SourcesBrowser {
     headersInput.setAttribute('autocapitalize', 'off');
     headersInput.setAttribute('autocomplete', 'off');
     headersInput.setAttribute('autocorrect', 'off');
-    headersInput.setAttribute('spellcheck', false);
+    headersInput.setAttribute('spellcheck', 'false');
     headersInput.name = Localize.getMessage('player_source_headers_label');
     headersInput.placeholder = Localize.getMessage('player_source_headers_placeholder');
     headersInput.ariaLabel = headersInput.placeholder;

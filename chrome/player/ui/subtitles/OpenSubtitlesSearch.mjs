@@ -704,7 +704,8 @@ export class OpenSubtitlesSearch extends EventEmitter {
 
   /**
    * Fills the search in from what the tab's title tells (MediaTitle.guessMediaInfo).
-   * @param {?{name?: string, year?: ?number, season?: ?number, episode?: ?number}} info
+   * @param {{name?: string, year?: ?number, season?: ?number, episode?: ?number}|null|undefined} info - None
+   *   leaves the search as it is.
    */
   setMediaInfo(info) {
     if (!info) {

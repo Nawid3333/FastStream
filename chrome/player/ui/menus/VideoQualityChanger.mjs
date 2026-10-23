@@ -390,7 +390,8 @@ export class VideoQualityChanger extends EventEmitter {
     });
 
 
-    const current = videoLevels.get(currentVideoLevelID);
+    // No level (null) finds none.
+    const current = videoLevels.get(/** @type {string} */ (currentVideoLevelID));
     if (!current) {
       console.warn('No current level');
       return;

@@ -12,12 +12,13 @@ import {EnvUtils} from './EnvUtils.mjs';
 export class Utils {
   /**
    * Loads player options from storage.
-   * @return {Promise<Object>} The loaded options object.
+   * @return {Promise<typeof DefaultOptions>} The saved options over the defaults: the defaults' keys,
+   *   each of its default's type (mergeOptions).
    */
   static async getOptionsFromStorage() {
     const stored = await Utils.readStoredConfig('options');
-    return Utils.migrateClickActions(
-        Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored), stored), stored);
+    return /** @type {typeof DefaultOptions} */ (Utils.migrateClickActions(
+        Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored), stored), stored));
   }
 
   /**
@@ -154,13 +155,15 @@ export class Utils {
   }
 
   /**
-   * Gets the byte size of a string, ArrayBuffer, or Blob.
-   * @param {string|ArrayBuffer|Blob} data - The data to measure.
+   * Gets the byte size of a string, an ArrayBuffer or a view of one, or a Blob.
+   * @param {string|ArrayBuffer|Uint8Array|Blob} data - The data to measure.
    * @return {number} The byte size.
    */
   static getDataByteSize(data) {
     if (typeof data === 'string') return data.length * 2;
     if (data instanceof ArrayBuffer) return data.byteLength;
+    // An archive's raw entry is a view (LargeBuffer.read): it counted 0.
+    if (ArrayBuffer.isView(data)) return data.byteLength;
     if (data instanceof Blob) return data.size;
     return 0;
   }
@@ -300,7 +303,7 @@ export class Utils {
 
   /**
    * Resolves when an event occurs or a timeout is reached.
-   * @param {{on: (event: string, callback: () => void) => void, off: (event: string, callback: Function|undefined) => void}} context - Event context (must support on/off).
+   * @param {import('../modules/eventemitter.mjs').EventEmitter} context - What emits the event (a player).
    * @param {string} event - Event name.
    * @param {number} timeout - Timeout in ms.
    * @return {Promise<boolean>} True if event occurred, false if timed out.
@@ -312,7 +315,8 @@ export class Utils {
     let timeoutId;
     const cleanup = () => {
       clearTimeout(timeoutId);
-      context.off(event, callback);
+      // Set: the promise sets it before anything can call this.
+      context.off(event, /** @type {() => void} */ (callback));
     };
 
     return new Promise((resolve, reject) => {

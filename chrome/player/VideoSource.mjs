@@ -63,6 +63,8 @@ export class VideoSource {
     } else {
       /** @type {string} */
       this.url = source;
+      // Set either way: here or by fromFile.
+      /** @type {string} */
       this.identifier = this.url.split(/[?#]/)[0];
     }
     this.mode = mode || PlayerModes.DIRECT;

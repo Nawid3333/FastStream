@@ -17,15 +17,21 @@ const AnalyzerStatus = {
 const SHOULD_STORE_AS_BLOB = true;
 
 export class PreviewFrameExtractor extends EventEmitter {
+  /** @param {import('../../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     super();
     this.client = client;
     this.outputRateInv = 2;
+    // The frames taken, one per outputRateInv seconds: a data URL, or an object URL of its Blob.
+    /** @type {Array<{url: string, blob?: Blob}>} */
     this.frameBuffer = [];
 
+    // Whoever needs the frames, kept by identity.
+    /** @type {Array<object>} */
     this.backgroundNeededBy = [];
 
     this.backgroundAnalyzerStatus = AnalyzerStatus.IDLE;
+    /** @type {DoneRange[]} */
     this.backgroundDoneRanges = [];
     this.backgroundAnalyzerEnabled = true;
     // Counts the starts: only the latest one may keep its player (AudioAnalyzer's).
@@ -43,6 +49,7 @@ export class PreviewFrameExtractor extends EventEmitter {
     return this.outputRateInv;
   }
 
+  /** @param {object} dependent */
   addBackgroundDependent(dependent) {
     if (this.backgroundNeededBy.includes(dependent)) return;
     this.backgroundNeededBy.push(dependent);
@@ -50,6 +57,7 @@ export class PreviewFrameExtractor extends EventEmitter {
     this.updateBackground();
   }
 
+  /** @param {object} dependent */
   removeBackgroundDependent(dependent) {
     const index = this.backgroundNeededBy.indexOf(dependent);
     if (index !== -1) {
@@ -113,11 +121,13 @@ export class PreviewFrameExtractor extends EventEmitter {
     // this start stale: both passed the source check below, and the first player went on
     // seeking, downloading and drawing frames with the tool closed (review of 2026-10-14).
     const start = ++this.backgroundStarts;
+    /** @type {import('../../FastStreamClient.mjs').Player|undefined} */
     let backgroundAnalyzerPlayer;
     // Set by an end that came before the load returned the player (its video had no size).
+    /** @type {boolean|null} */
     let endedWhileLoading = null;
     try {
-      backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (completed) => {
+      backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (/** @type {boolean} */ completed) => {
         // Before the load returned, the check below compared two unset values and passed,
         // and the return then kept the dead player as the running one, which blocked every
         // later start (glm's second look, 2026-10-13).
@@ -179,6 +189,11 @@ export class PreviewFrameExtractor extends EventEmitter {
     this.client.interfaceController.updateMarkers();
   }
 
+  /**
+   * @param {import('../../VideoSource.mjs').VideoSource} source
+   * @param {DoneRange[]} doneRanges - What of it has its frames already.
+   * @param {(completed: boolean) => void} onDone
+   */
   async loadPlayer(source, doneRanges, onDone) {
     const player = await this.client.playerLoader.createPlayer(source.mode, this.client, {
       isAnalyzer: true,
@@ -194,7 +209,7 @@ export class PreviewFrameExtractor extends EventEmitter {
 
       const onLoadMeta = () => {
         player.off(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
-        this.runAnalyzerInBackground(player, doneRanges, (completed)=>{
+        this.runAnalyzerInBackground(player, doneRanges, (/** @type {boolean} */ completed)=>{
           onDone(completed);
         });
       };
@@ -215,7 +230,9 @@ export class PreviewFrameExtractor extends EventEmitter {
   }
 
   /**
+   * @param {import('../../FastStreamClient.mjs').Player} player
    * @param {DoneRange[]} doneRanges
+   * @param {(completed: boolean) => void} onDone
    */
   runAnalyzerInBackground(player, doneRanges, onDone) {
     const offsetTarget = -35;
@@ -223,7 +240,6 @@ export class PreviewFrameExtractor extends EventEmitter {
     let offset = this.client.isRegionBuffered(time + offsetTarget, time) ? offsetTarget : 0;
     player.currentTime = Math.max(time + offset, 0);
     player.volume = 0;
-    player.muted = true;
 
     const video = player.getVideo();
     const videoWidth = video.videoWidth;
@@ -249,6 +265,7 @@ export class PreviewFrameExtractor extends EventEmitter {
       return;
     }
 
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
     let pauseTimeout;
 
     if (!doneRanges) {
@@ -434,6 +451,10 @@ export class PreviewFrameExtractor extends EventEmitter {
     this.updateBackground();
   }
 
+  /**
+   * @param {string|number|null} level - The client's level now.
+   * @param {string|number|null} audioLevel - Its audio track now; null for none.
+   */
   setLevel(level, audioLevel) {
     if (this.backgroundAnalyzerPlayer) {
       this.backgroundAnalyzerPlayer.setCurrentVideoLevelID(level);
