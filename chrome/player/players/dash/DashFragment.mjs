@@ -8,7 +8,8 @@ export class DashFragment extends Fragment {
    *   the level and index DashPlayer gave it.
    */
   constructor(request) {
-    super(request.level, request.index);
+    // DashPlayer gives the request its level before it makes the fragment.
+    super(/** @type {string} */ (request.level), request.index);
     this.request = request;
     this.duration = request.duration;
     this.start = request.startTime;

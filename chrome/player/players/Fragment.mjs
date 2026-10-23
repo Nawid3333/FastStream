@@ -2,6 +2,10 @@
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 
 export class Fragment {
+  /**
+   * @param {string|number} level - The level (or track) it belongs to, as the client keys it.
+   * @param {number} sn - Its number in the level; -1 for an init segment.
+   */
   constructor(level, sn) {
     this.sn = sn;
     this.level = level;
@@ -9,16 +13,23 @@ export class Fragment {
     this.start = -1;
     this.end = -1;
     this.duration = 0;
+    // What still needs it (ReferenceTypes); it can be freed when nothing does.
+    /** @type {Array<number>} */
     this.references = [];
     this.dataSize = null;
   }
 
+  /**
+   * @param {number} id - A ReferenceTypes value.
+   * @param {boolean} [duplicate] - Counts it again if it is there already.
+   */
   addReference(id, duplicate = false) {
     if (duplicate || !this.references.includes(id)) {
       this.references.push(id);
     }
   }
 
+  /** @param {number} id - A ReferenceTypes value. */
   removeReference(id) {
     const index = this.references.indexOf(id);
     if (index !== -1) {

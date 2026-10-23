@@ -27,6 +27,7 @@ export class Remuxer extends EventEmitter {
     this.blobManager = new FSBlob();
     this.cancelled = false;
     this.destroyed = false;
+    /** @type {Array<Input>} */
     this.inputs = [];
     this.writer = null;
     if (registerCancel) {
@@ -65,8 +66,9 @@ export class Remuxer extends EventEmitter {
 
   /**
    * The track's codec and the decoder config its first packet carries into the file.
-   * @param {Object} track a Mediabunny input track
-   * @return {Promise<{codec: string, decoderConfig: Object}>}
+   * @param {import('./mediabunny.mjs').InputVideoTrack|import('./mediabunny.mjs').InputAudioTrack} track a
+   *     Mediabunny input track
+   * @return {Promise<{codec: string, decoderConfig: VideoDecoderConfig|AudioDecoderConfig}>}
    */
   async describe(track) {
     const codec = await track.getCodec();
@@ -90,8 +92,8 @@ export class Remuxer extends EventEmitter {
    * @param {string} audioMimeType unused, as videoMimeType
    * @param {number} audioDuration in seconds; 0 when there is no separate audio
    * @param {ArrayBuffer|Blob} audioInitSegment
-   * @param {Object[]} zippedFragments the saved fragments in order; track 0 is the video,
-   *     1 the audio
+   * @param {Array<{track: number, getEntry: () => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}>} zippedFragments
+   *     the saved fragments in order, each with what reads its data; track 0 is the video, 1 the audio
    * @return {Promise<Blob>} the MP4
    */
   async convert(videoMimeType, videoDuration, videoInitSegment, audioMimeType, audioDuration, audioInitSegment, zippedFragments) {
@@ -136,6 +138,10 @@ export class Remuxer extends EventEmitter {
       // The two tracks go in together, the packet with the smaller timestamp first, so the
       // muxer does not hold one whole track back waiting for the other. Each track's
       // packets stay in their decode order.
+      /**
+       * @param {AsyncGenerator<import('./mediabunny.mjs').EncodedPacket, void, unknown>|null} packets
+       * @return {Promise<IteratorResult<import('./mediabunny.mjs').EncodedPacket, void>>|{done: true, value?: undefined}}
+       */
       const next = (packets) => packets ? packets.next() : {done: true};
       const videoPackets = videoTrack ? new EncodedPacketSink(videoTrack).packets() : null;
       const audioPackets = audioTrack ? new EncodedPacketSink(audioTrack).packets() : null;
@@ -151,7 +157,8 @@ export class Remuxer extends EventEmitter {
       while (!videoHead.done || !audioHead.done) {
         this.checkCancelled();
         const takeVideo = !videoHead.done && (audioHead.done || videoHead.value.timestamp <= audioHead.value.timestamp);
-        const packet = takeVideo ? videoHead.value : audioHead.value;
+        // The one taken is not done: the loop runs while one is not, and takeVideo picks it.
+        const packet = /** @type {import('./mediabunny.mjs').EncodedPacket} */ (takeVideo ? videoHead.value : audioHead.value);
 
         // Waits until the file has taken it: reading runs no further ahead than writing.
         if (takeVideo) {

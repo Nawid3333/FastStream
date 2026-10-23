@@ -15,7 +15,9 @@ export class HLSFragment extends Fragment {
    *   the client knows it by; hls.js's sn for an init segment.
    */
   constructor(frag, start, end, index = frag.sn) {
-    super(frag.levelIdentifier, index);
+    // An init segment comes with hls.js's own: no levelIdentifier, and 'initSegment' for its
+    // sn (the client keeps it at -1). Neither is read of an init segment.
+    super(/** @type {string} */ (frag.levelIdentifier), /** @type {number} */ (index));
     this.hlsFrag = frag;
     this.duration = frag.duration;
     this.start = start;

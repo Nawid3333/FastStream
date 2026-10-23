@@ -39,6 +39,7 @@ const credentialHeaders = ['cookie', 'authorization', 'proxy-authorization'];
  * @return {Object<string, string>} A new object.
  */
 export function withoutCredentials(headers) {
+  /** @type {Object<string, string>} */
   const kept = {};
   for (const key in headers) {
     if (Object.hasOwn(headers, key) && !credentialHeaders.includes(key.toLowerCase())) {
@@ -50,16 +51,24 @@ export function withoutCredentials(headers) {
 
 
 export class VideoSource {
+  /**
+   * @param {string|File} source - The stream's URL, or a file the user opened.
+   * @param {Object<string, string>|Array<{name: string, value?: string}>|null|undefined} headers - The
+   *   request's headers: by name, or as the browser listed them (name and value).
+   * @param {string} [mode] - A PlayerModes value; DIRECT when none is given.
+   */
   constructor(source, headers, mode) {
     if (source instanceof File) {
       this.fromFile(source);
     } else {
+      /** @type {string} */
       this.url = source;
       this.identifier = this.url.split(/[?#]/)[0];
     }
     this.mode = mode || PlayerModes.DIRECT;
 
     if (Array.isArray(headers)) {
+      /** @type {Object<string, string>} */
       this.headers = {};
       headers.forEach((header) => {
         if (header.name && header.value) {
@@ -71,6 +80,8 @@ export class VideoSource {
     }
 
     this.headers = this.filterHeaders(this.headers);
+    // The quality and audio track to start with (a reload keeps what the user had), or null.
+    /** @type {?{level?: string|number, audioLevel?: string|number}} */
     this.defaultLevelInfo = null;
     this.loadedFromArchive = false;
     // The qualities the page's own player offers this file in, as files of their own
@@ -146,6 +157,7 @@ export class VideoSource {
     return url;
   }
 
+  /** @param {File} file */
   fromFile(file) {
     this.url = URL.createObjectURL(file);
     this.identifier = file.name;
@@ -156,7 +168,8 @@ export class VideoSource {
   destroy() {
     if (this.shouldRevoke) {
       URL.revokeObjectURL(this.url);
-      this.url = null;
+      // Gone: a destroyed source is not used again (the client destroys the one it replaced).
+      /** @type {{url: ?string}} */ (this).url = null;
     }
   }
 
@@ -177,6 +190,7 @@ export class VideoSource {
     return filteredHeaders;
   }
 
+  /** @param {VideoSource} other */
   equals(other) {
     if (this.url !== other.url) {
       return false;
