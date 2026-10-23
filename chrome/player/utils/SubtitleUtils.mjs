@@ -107,6 +107,7 @@ export class SubtitleUtils {
    * @return {string} The translated string.
    */
   static translateXMLEntities(str) {
+    /** @type {Object<string, string>} */
     const entitiesList = {
       '&amp;': '&',
       '&gt;': '>',
@@ -207,6 +208,7 @@ export class SubtitleUtils {
    */
   static formatTimestamp(sec, separator) {
     const total = Math.max(0, Math.round(sec * 1000));
+    /** @type {(n: number, width: number) => string} */
     const pad = (n, width) => String(n).padStart(width, '0');
     const seconds = Math.floor(total / 1000);
     return pad(Math.floor(seconds / 3600), 2) + ':' + pad(Math.floor(seconds / 60) % 60, 2) + ':' +
@@ -233,7 +235,7 @@ export class SubtitleUtils {
 
   /**
    * Converts an array of cues to SRT subtitle format.
-   * @param {Array} cues - Array of cues.
+   * @param {Array<{startTime: number, endTime: number, text: string}>} cues - Array of cues.
    * @return {string} SRT subtitle data.
    */
   static cuesToSrt(cues) {
@@ -317,7 +319,9 @@ export class SubtitleUtils {
    */
   static splitAtCueStarts(block) {
     const lines = block.split('\n');
+    /** @type {string[]} */
     const cues = [];
+    /** @type {(from: number, to: number) => void} */
     const push = (from, to) => {
       const cue = lines.slice(from, to);
       while (cue.length > 0 && cue[cue.length - 1].trim() === '') {
@@ -353,7 +357,7 @@ export class SubtitleUtils {
 
   /**
    * Converts a single SRT caption to a formatted string.
-   * @param {Object} caption - SRT caption object.
+   * @param {string} caption - One SRT cue's text: its number, timestamp and text lines.
    * @return {string} Formatted caption string.
    */
   static convertSrtCue(caption) {
@@ -404,6 +408,7 @@ export class SubtitleUtils {
    * @return {string} Formatted subtitle text.
    */
   static convertSubtitleFormatting(text) {
+    /** @type {Object<string, string>} */
     const alignmentSettings = {
       1: 'line:95% position:0% align:start',
       2: 'line:95% position:50% align:center',

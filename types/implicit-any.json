@@ -3,7 +3,6 @@
   "chrome/player/FastStreamClient.mjs": 165,
   "chrome/player/SubtitleTrack.mjs": 12,
   "chrome/player/VideoSource.mjs": 7,
-  "chrome/player/main.mjs": 3,
   "chrome/player/modules/FSBlob.mjs": 10,
   "chrome/player/modules/Localize.mjs": 13,
   "chrome/player/modules/SecureMemory.mjs": 14,
@@ -40,11 +39,9 @@
   "chrome/player/ui/audio/AbstractAudioModule.mjs": 1,
   "chrome/player/ui/menus/LoopMenu.mjs": 10,
   "chrome/player/ui/subtitles/SubtitlesManager.mjs": 21,
-  "chrome/player/ui/subtitles/SubtitlesSettingsManager.mjs": 11,
   "chrome/player/utils/FastStreamArchiveUtils.mjs": 7,
-  "chrome/player/utils/SubtitleFetch.mjs": 10,
-  "chrome/player/utils/SubtitleUtils.mjs": 11,
-  "chrome/player/utils/Utils.mjs": 41,
+  "chrome/player/utils/SubtitleUtils.mjs": 1,
+  "chrome/player/utils/Utils.mjs": 2,
   "native-host/faststream-mpv-host.mjs": 1,
   "tools/sign-amo.mjs": 1
 }

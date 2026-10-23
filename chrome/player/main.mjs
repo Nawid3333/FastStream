@@ -103,7 +103,7 @@ if (EnvUtils.isExtension()) {
 
 /**
  * @param {{sources: SentSource[], video?: ?{src?: string, duration?: number|null},
- *   subtitles?: Array<Object>, autoSetSource?: boolean, forceAutoplay?: boolean,
+ *   subtitles?: Array<import('./utils/SubtitleFetch.mjs').SentSubtitle>, autoSetSource?: boolean, forceAutoplay?: boolean,
  *   continuationOptions: {autoPlay?: boolean,
  *   disableLoadProgress?: boolean, fullscreenState?: string}}} request - The SOURCES
  * message, from the background's runtime listener or the page's iframe messager.
@@ -122,6 +122,7 @@ async function recieveSources(request, sendResponse) {
     /** @type {FastStreamWindow} */ (window).fastStream.options.disableLoadProgress = true;
   }
 
+  /** @type {import('./utils/SubtitleFetch.mjs').SentSubtitle[]|SubtitleData[]|undefined} */
   let subs = request.subtitles;
   /** @type {SentSource[]} */
   const sources = request.sources;
