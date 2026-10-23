@@ -23,15 +23,23 @@ function extensionHost() {
 }
 
 export class RuleEntry {
+  /** @param {number} id - The session rule's id. */
   constructor(id) {
     this.id = id;
     this.expiresAt = Date.now() + 1000 * 5;
   }
 }
 
+/**
+ * A rule the manager holds, with how often its removal failed (filterRules).
+ * @typedef {RuleEntry & {removeAttempts?: number}} HeldRule
+ */
+
 export class RuleManager {
   constructor() {
     this.idStart = 10 + Math.floor(Math.random() * 1000) * 1000;
+    // By id, ascending (getInsertionIndex).
+    /** @type {Array<HeldRule>} */
     this.rules = [];
     this.isLoopRunning = false;
     // The rules a last event page left, cleared before any new one is added (addHeaderRule):
@@ -39,6 +47,10 @@ export class RuleManager {
     this.initialClear = this.dumpRules().catch((e) => console.warn('Could not clear the header rules left from before', e));
   }
 
+  /**
+   * @param {number} id
+   * @return {number} Where a rule of that id goes in the list.
+   */
   getInsertionIndex(id) {
     // use binary search
     let min = 0;
@@ -74,6 +86,7 @@ export class RuleManager {
 
   async filterRules() {
     const now = Date.now();
+    /** @type {Array<HeldRule>} */
     const removed = [];
     this.rules = this.rules.filter((rule) => {
       if (rule.expiresAt < now) {
@@ -103,6 +116,11 @@ export class RuleManager {
     }
   }
 
+  /**
+   * @param {string} url - The request URL the rule applies to.
+   * @param {number} tabId - The tab whose requests it changes; TAB_ID_NONE for the extension's own.
+   * @param {FSHeaderCommand[]} requestHeaderCommands - The headers to set or remove.
+   */
   async addHeaderRule(url, tabId, requestHeaderCommands) {
     await this.initialClear;
     const rule = new RuleEntry(this.getNextID());

@@ -42,7 +42,7 @@ export class MpvSubtitles {
   /**
    * @param {Object} [options]
    * @param {(url: string, init: Object) => Promise<Response>} [options.fetch] - fetch().
-   * @param {(url: string, commands: Array<Object>) => Promise<*>} [options.setHeaders] -
+   * @param {(url: string, commands: FSHeaderCommand[]) => Promise<unknown>} [options.setHeaders] -
    *   Makes the background's next request to a URL carry the page's Origin and Referer,
    *   which a fetch() cannot set: a declarativeNetRequest rule, as StreamLengths' reads get.
    * @param {(text: string, label: string, language: string) => Promise<SubtitleTrack>}
@@ -106,6 +106,7 @@ export class MpvSubtitles {
     if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
       return '';
     }
+    /** @type {FSHeaderCommand[]} */
     const commands = (Array.isArray(headers) ? headers : []).filter((header) => {
       const name = String(header?.name || '').toLowerCase();
       return (name === 'origin' || name === 'referer') && typeof header.value === 'string' && header.value;

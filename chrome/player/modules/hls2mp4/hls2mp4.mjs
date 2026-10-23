@@ -31,6 +31,13 @@ const TS_CLOCK = 90000;
  *   nextChunkId: number, elst: Array<{media_time: number, segment_duration: number}>}} Mp4Track
  */
 
+/**
+ * A fragment to save, of the level (track 0) or the audio rendition (1), with what reads its
+ * data (HLSPlayer.saveVideo).
+ * @typedef {{track: number, fragment: import('../../players/hls/HLSFragment.mjs').HLSFragment,
+ *   getEntry: () => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}} ZippedFragment
+ */
+
 
 export class HLS2MP4 extends EventEmitter {
   /**
@@ -85,6 +92,7 @@ export class HLS2MP4 extends EventEmitter {
     return !!previous && fragment.getFrag().cc === previous.getFrag().cc && fragment.sn > previous.sn + 1;
   }
 
+  /** @param {ZippedFragment} fragData - A fragment of the level. */
   async pushFragment(fragData) {
     const entry = await fragData.getEntry();
     const data = await entry.getDataFromBlob();
@@ -135,6 +143,7 @@ export class HLS2MP4 extends EventEmitter {
     }
   }
 
+  /** @param {ZippedFragment} fragData - A fragment of the audio rendition. */
   async pushFragmentAudio(fragData) {
     const entry = await fragData.getEntry();
     const data = await entry.getDataFromBlob();
@@ -370,7 +379,8 @@ export class HLS2MP4 extends EventEmitter {
       return this.blobManager.getBlob(data);
     }));
 
-    return new Blob([initSeg, ...dataChunks], {
+    // Its own pieces, staged for this save: none is gone before it ends.
+    return new Blob([initSeg, .../** @type {Blob[]} */ (dataChunks)], {
       type: 'video/mp4',
     });
   }
@@ -380,10 +390,7 @@ export class HLS2MP4 extends EventEmitter {
    * @param {import('../hls.mjs').MediaPlaylist|undefined} audioLevel - The audio rendition
    *     selected, if any.
    * @param {?Uint8Array} audioInitData - Its init segment, if it has one.
-   * @param {Array<{track: number, fragment: import('../../players/hls/HLSFragment.mjs').HLSFragment,
-   *   getEntry: () => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}>} zippedFragments -
-   *   The fragments of both tracks (0 the level, 1 the audio rendition), by time, each with
-   *   what reads its data (HLSPlayer.saveVideo).
+   * @param {Array<ZippedFragment>} zippedFragments - The fragments of both tracks, by time.
    * @return {Promise<Blob>} The MP4 file.
    */
   async convert(level, levelInitData, audioLevel, audioInitData, zippedFragments) {

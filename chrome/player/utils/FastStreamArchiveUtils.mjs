@@ -16,7 +16,7 @@ export class FastStreamArchiveUtils {
   /**
    * Writes FastStream archive data to a stream.
    * @param {WritableStream} filestream - The writable stream.
-   * @param {Object} player - The player instance.
+   * @param {import('../FastStreamClient.mjs').Player|null} player - The player instance, if any.
    * @param {Array<DownloadEntry>} entries - The download entries.
    * @param {Function} [progressCallback] - Optional progress callback.
    * @return {Promise<void>} Resolves once the stream has finished the file.
@@ -41,7 +41,8 @@ export class FastStreamArchiveUtils {
   /**
    * Writes the archive: the header, then each entry's header and data.
    * @param {WritableStreamDefaultWriter} writer
-   * @param {Object} player
+   * @param {import('../FastStreamClient.mjs').Player|null} player - The player whose source and levels go in,
+   *   if any.
    * @param {Array<DownloadEntry>} entries
    * @param {Function} [progressCallback]
    * @return {Promise<void>}
@@ -91,6 +92,7 @@ export class FastStreamArchiveUtils {
       }
 
       const dataSize = data.byteLength;
+      /** @type {Object<string, string>} */
       const newHeaders = {};
       const headersWhitelist = ['content-range'];
       for (const header in entry.responseHeaders) {
@@ -134,8 +136,8 @@ export class FastStreamArchiveUtils {
    * live until parseFSA is done. Revoked any earlier, every chunk past the first two failed,
    * and any archive over 500 MB could not be opened.
    * @param {File|Blob} file - The .fsa file.
-   * @param {Function} [progressCallback] - Called with the share of entries read.
-   * @param {Object} [downloadManager] - Receives the entries' data.
+   * @param {(share: number) => void} [progressCallback] - Called with the share of entries read.
+   * @param {import('../network/DownloadManager.mjs').DownloadManager} [downloadManager] - Receives the entries' data.
    * @return {Promise<Object>} What parseFSA returns.
    */
   static async parseFSAFile(file, progressCallback, downloadManager) {
@@ -148,6 +150,12 @@ export class FastStreamArchiveUtils {
     }
   }
 
+  /**
+   * Reads an archive: its header, then each entry.
+   * @param {import('../modules/LargeBuffer.mjs').LargeBuffer} largeBuffer - The archive's bytes.
+   * @param {(share: number) => void} [progressCallback] - Called with the share of entries read.
+   * @param {import('../network/DownloadManager.mjs').DownloadManager} [downloadManager] - Receives the entries' data.
+   */
   static async parseFSA(largeBuffer, progressCallback, downloadManager) {
     const entries = [];
 

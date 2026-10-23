@@ -99,9 +99,11 @@ export class RequestUtils {
   /**
    * Splits headers into special and regular headers for custom handling.
    * @param {Object<string, (string|boolean)>} headers - The headers object.
-   * @return {Object} An object with customHeaderCommands and regularHeaders.
+   * @return {{customHeaderCommands: FSHeaderCommand[], regularHeaders: Object<string, (string|boolean)>}} The
+   *   special headers as commands for a header rule, and the rest.
    */
   static splitSpecialHeaders(headers) {
+    /** @type {FSHeaderCommand[]} */
     const customHeaderCommands = [];
     /** @type {Object<string, (string|boolean)>} */
     const regularHeaders = {};
@@ -112,7 +114,8 @@ export class RequestUtils {
         if (headers[header] === false) {
           customHeaderCommands.push({operation: 'remove', header});
         } else {
-          customHeaderCommands.push({operation: 'set', header, value: headers[header]});
+          // false removes a header; any other is its text.
+          customHeaderCommands.push({operation: 'set', header, value: /** @type {string} */ (headers[header])});
         }
       } else {
         regularHeaders[header] = headers[header];
@@ -291,7 +294,7 @@ export class RequestUtils {
 
     const fragCount = Math.ceil(contentLength / fragSize);
     const buffer = new LargeBuffer(contentLength, fragCount);
-    await buffer.initialize(/** @type {(i: number) => Promise<Uint8Array>} */ (async (i) => {
+    await buffer.initialize(/** @type {(i: number) => Promise<Uint8Array<ArrayBuffer>>} */ (async (i) => {
       if (i >= fragCount) {
         throw new Error('Fragment index ' + i + ' out of range');
       }

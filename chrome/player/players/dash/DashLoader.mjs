@@ -52,8 +52,7 @@ function isSameRequest(a, b) {
 
 
 /**
- * @param player - The DashPlayer. Left untyped: request() asks it for preProcessFragment and
- *   postProcessFragment, which no player has.
+ * @param {import('./DashFragmentRequester.mjs').HookedDashPlayer} player
  */
 export function DASHLoaderFactory(player) {
   // Failures in a row, per segment, for this player; a success forgets them.
@@ -94,7 +93,8 @@ export function DASHLoaderFactory(player) {
         }
 
         const level = DashTrackUtils.getLevelFromRepresentation(representation);
-        let frag = player.client.getFragment(level, segmentIndex);
+        // A DASH player's store holds DashFragments.
+        let frag = /** @type {import('./DashFragment.mjs').DashFragment|null|undefined} */ (player.client.getFragment(level, segmentIndex));
         // The store is keyed by representation id and segment index, and in a manifest of
         // several periods neither is unique: ids need only differ within a period, and the
         // indexes start again in each. The next period's segment 0 got the stored one of
@@ -182,7 +182,7 @@ export function DASHLoaderFactory(player) {
 
       if (request.range) {
         // StringUtils documents its answer as an Object.
-        const [start, end] = /** @type {[number, number]|[undefined, undefined]} */ (StringUtils.parseHTTPRange(request.range));
+        const [start, end] = StringUtils.parseHTTPRange(request.range);
         if (start === undefined) {
           console.warn('Failed to parse range', request.range);
         } else {
@@ -208,7 +208,8 @@ export function DASHLoaderFactory(player) {
         },
         headers: {
           ...httpRequest.headers,
-          ...player.source.headers,
+          // Set: fragments are asked for only once the player has its source.
+          ...(/** @type {import('../../VideoSource.mjs').VideoSource} */ (player.source)).headers,
         },
       };
 

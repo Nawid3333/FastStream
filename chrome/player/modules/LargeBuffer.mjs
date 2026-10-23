@@ -15,10 +15,10 @@ export class LargeBuffer {
   }
 
   /**
-   * @param {(index: number) => Promise<Uint8Array>} getBufferFn - Fetches a chunk by its index.
+   * @param {(index: number) => Promise<Uint8Array<ArrayBuffer>>} getBufferFn - Fetches a chunk by its index.
    */
   async initialize(getBufferFn) {
-    /** @type {(index: number) => Promise<Uint8Array>} */
+    /** @type {(index: number) => Promise<Uint8Array<ArrayBuffer>>} */
     this.getBuffer = getBufferFn;
     this.nextPreloadedBuffer = this.getBuffer(this.bufferIndex);
     return this.nextBuffer();
@@ -37,7 +37,7 @@ export class LargeBuffer {
 
   /**
    * @param {number} length - Bytes to read.
-   * @return {Promise<Uint8Array[]>} Views of the chunks that hold them, in order.
+   * @return {Promise<Uint8Array<ArrayBuffer>[]>} Views of the chunks that hold them, in order.
    */
   async getParts(length) {
     // Lengths come from the file itself (an archive's headers): a negative one, or one

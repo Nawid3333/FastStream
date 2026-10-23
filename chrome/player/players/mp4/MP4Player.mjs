@@ -152,7 +152,7 @@ export default class MP4Player extends EventEmitter {
     const videoTrack = /** @type {Movie} */ (this.metaData).videoTracks[this.currentVideoTrack];
     if (videoTrack) {
       const videoCodec = 'video/mp4; codecs=\"' + videoTrack.codec + '\"';
-      this.videoSourceBuffer = new SourceBufferWrapper(this.mediaSource, videoCodec);
+      this.videoSourceBuffer = new SourceBufferWrapper(/** @type {MediaSource} */ (this.mediaSource), videoCodec);
     }
 
     if (this.currentAudioTrack !== null) {
@@ -163,7 +163,7 @@ export default class MP4Player extends EventEmitter {
           fixedCodec = 'opus';
         }
         const audioCodec = 'audio/mp4; codecs=\"' + fixedCodec + '\"';
-        this.audioSourceBuffer = new SourceBufferWrapper(this.mediaSource, audioCodec);
+        this.audioSourceBuffer = new SourceBufferWrapper(/** @type {MediaSource} */ (this.mediaSource), audioCodec);
       }
     }
   }
@@ -331,7 +331,7 @@ export default class MP4Player extends EventEmitter {
     const l = this.getCurrentVideoLevelID();
     for (let i = 0; i < max; i++) {
       if (!this.client.getFragment(l, i)) {
-        this.client.makeFragment(l, i, new MP4Fragment(l, i, this.source, i * FRAGMENT_SIZE, Math.min((i + 1) * FRAGMENT_SIZE, this.fileLength)));
+        this.client.makeFragment(l, i, new MP4Fragment(l, i, /** @type {import('../../VideoSource.mjs').VideoSource} */ (this.source), i * FRAGMENT_SIZE, Math.min((i + 1) * FRAGMENT_SIZE, this.fileLength)));
       }
     }
     if (info.videoTracks[this.currentVideoTrack]) {
@@ -489,7 +489,7 @@ export default class MP4Player extends EventEmitter {
     const levelID = this.getCurrentVideoLevelID();
     for (let i = 1; i < max; i++) {
       if (!this.client.getFragment(levelID, i)) {
-        this.client.makeFragment(levelID, i, new MP4Fragment(levelID, i, this.source, i * FRAGMENT_SIZE, Math.min((i + 1) * FRAGMENT_SIZE, this.fileLength)));
+        this.client.makeFragment(levelID, i, new MP4Fragment(levelID, i, /** @type {import('../../VideoSource.mjs').VideoSource} */ (this.source), i * FRAGMENT_SIZE, Math.min((i + 1) * FRAGMENT_SIZE, this.fileLength)));
       }
     }
   }
@@ -734,7 +734,7 @@ export default class MP4Player extends EventEmitter {
                 const maxIndex = Math.max(frag.sn + 1, Math.floor(nextParsePosition / FRAGMENT_SIZE));
                 for (let fragIndex = 1; fragIndex <= maxIndex; fragIndex++) {
                   if (!this.client.getFragment(levelID, fragIndex)) {
-                    this.client.makeFragment(levelID, fragIndex, new MP4Fragment(levelID, fragIndex, this.source, fragIndex * FRAGMENT_SIZE, (fragIndex + 1) * FRAGMENT_SIZE));
+                    this.client.makeFragment(levelID, fragIndex, new MP4Fragment(levelID, fragIndex, /** @type {import('../../VideoSource.mjs').VideoSource} */ (this.source), fragIndex * FRAGMENT_SIZE, (fragIndex + 1) * FRAGMENT_SIZE));
                   }
                 }
               }

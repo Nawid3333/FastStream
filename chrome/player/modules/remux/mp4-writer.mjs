@@ -24,8 +24,7 @@ const PIECE_SIZE = 16 * 1024 * 1024;
  */
 export class MP4Writer {
   /**
-   * @param {Object} blobManager the FSBlob full pieces move to (an Object here: as an
-   *     FSBlob, getBlob's undefined for a blob it lost goes into the file's Blob, assemble)
+   * @param {import('../FSBlob.mjs').FSBlob} blobManager the FSBlob full pieces move to
    * @param {{video: ?string, audio: ?string}} tracks each track's codec as Mediabunny
    *     names it ('vp9', 'opus', ...), or null for a track the file does not have
    * @param {number} [pieceSize] how much to keep in RAM at a time, for the tests
@@ -51,8 +50,9 @@ export class MP4Writer {
     if (tracks.audio) {
       this.sources.audio = new EncodedAudioPacketSource(/** @type {import('./mediabunny.mjs').AudioCodec} */ (tracks.audio));
     }
+    // It hands back one of the tracks it was given: the keys of sources.
     this.rebaser = new TimestampRebaser(Object.keys(this.sources), (track, timestamp, item) => {
-      this.mux(track, timestamp, item);
+      this.mux(/** @type {'video'|'audio'} */ (track), timestamp, item);
     });
 
     this.output = new Output({
@@ -84,7 +84,7 @@ export class MP4Writer {
   /**
    * Adds a packet.
    *
-   * @param {string} track 'video' or 'audio'
+   * @param {'video'|'audio'} track
    * @param {EncodedPacket} packet the next of its track, in decode order
    * @param {Object} [meta] the first packet of a track carries its decoder config:
    *     `{decoderConfig}`
@@ -111,7 +111,7 @@ export class MP4Writer {
   /**
    * Queues a packet the rebaser passed on.
    *
-   * @param {string} track 'video' or 'audio'
+   * @param {'video'|'audio'} track
    * @param {number} timestamp the packet's, moved, in microseconds
    * @param {{packet: EncodedPacket, meta: Object}} item
    */
@@ -119,7 +119,8 @@ export class MP4Writer {
     const moved = packet.clone({timestamp: timestamp / 1e6});
     const source = this.sources[track];
     this.muxing = this.muxing
-        .then(() => this.error ? undefined : source.add(moved, meta))
+        // A packet comes only for a track the file has: one with a source.
+        .then(() => this.error ? undefined : /** @type {NonNullable<typeof source>} */ (source).add(moved, meta))
         .catch((e) => this.fail(e));
   }
 
@@ -234,17 +235,19 @@ export class MP4Writer {
 
     const data = await Promise.all(this.pieces.map((piece, i) => {
       if (piece.flushed) {
-        return this.blobManager.getBlob(piece.data);
+        // Flushed: its data is the blob manager's identifier.
+        return this.blobManager.getBlob(/** @type {string} */ (piece.data));
       } else if (i === this.pieces.length - 1) {
         // Last piece: up to where it was filled
         const end = piece.filledRanges[piece.filledRanges.length - 1][1];
-        return piece.data.slice(0, end);
+        return /** @type {Uint8Array} */ (piece.data).slice(0, end);
       } else {
         throw new Error('MP4Writer: a piece before the last was never filled');
       }
     }));
 
-    return new Blob(data, {
+    // Its own pieces, staged for this file: none is gone before it is assembled.
+    return new Blob(/** @type {BlobPart[]} */ (data), {
       type: 'video/mp4',
     });
   }

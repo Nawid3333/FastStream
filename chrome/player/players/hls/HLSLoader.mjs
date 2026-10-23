@@ -21,6 +21,14 @@ const SEGMENT_FAILURES_BEFORE_ERROR = 3;
  */
 
 /**
+ * hls.js's LoaderCallbacks for such a load. onAbort is called with a fourth argument (null),
+ * which hls.js's own takes no notice of.
+ * @typedef {import('../../modules/hls.mjs').LoaderCallbacks<HlsLoadContext> & {
+ *   onAbort?: (stats: import('../../modules/hls.mjs').LoaderStats, context: HlsLoadContext, networkDetails: null, extra: null) => void
+ * }} HlsLoaderCallbacks
+ */
+
+/**
  * Whether two hls.js fragments name the same bytes.
  * @param {HlsFragment} a - An hls.js fragment.
  * @param {HlsFragment} b - Another.
@@ -161,11 +169,11 @@ export function HLSLoaderFactory(player) {
       if (!this.callbacks) return;
       if (failures < SEGMENT_FAILURES_BEFORE_ERROR) {
         this.stats.aborted = true;
-        this.callbacks.onAbort?.(this.stats, this.context, null, null);
+        this.callbacks.onAbort?.(this.stats, /** @type {HlsLoadContext} */ (this.context), null, null);
         return;
       }
       const error = this.stats.error || {code: 0, text: 'Download failed'};
-      this.callbacks.onError?.(error, this.context, null, this.stats);
+      this.callbacks.onError?.(error, /** @type {HlsLoadContext} */ (this.context), null, this.stats);
     }
 
     /**
@@ -185,8 +193,7 @@ export function HLSLoaderFactory(player) {
      * hls.js's Loader.load.
      * @param {HlsLoadContext} context
      * @param {import('../../modules/hls.mjs').LoaderConfiguration} config
-     * @param callbacks - hls.js's LoaderCallbacks; left untyped, as onAbort is called with a
-     *   fourth argument (null) that hls.js's type of it does not take.
+     * @param {HlsLoaderCallbacks} callbacks - hls.js's.
      */
     load(context, config, callbacks) {
       const isFragment = context.frag !== undefined && context.keyInfo === undefined;
@@ -247,7 +254,7 @@ export function HLSLoaderFactory(player) {
             segmentFailures.delete(segmentKey);
             this.copyStats(stats);
             if (this.callbacks) {
-              this.callbacks.onSuccess(response, this.stats, this.context, xhr);
+              this.callbacks.onSuccess(response, this.stats, /** @type {HlsLoadContext} */ (this.context), xhr);
             }
             const index = activeRequests.indexOf(loader);
             if (index > -1) {
@@ -262,7 +269,7 @@ export function HLSLoaderFactory(player) {
            */
           onProgress: (stats, context, data, xhr) => {
             this.copyStats(stats);
-            if (this.callbacks?.onProgress) this.callbacks.onProgress(stats, this.context, data, xhr);
+            if (this.callbacks?.onProgress) this.callbacks.onProgress(stats, /** @type {HlsLoadContext} */ (this.context), data, xhr);
           },
           /** @param {DownloadEntry} entry */
           onFail: (entry) => {
@@ -280,7 +287,7 @@ export function HLSLoaderFactory(player) {
           onAbort: (entry) => {
             this.copyStats(entry.stats);
             this.stats.aborted = true;
-            if (this.callbacks?.onAbort) this.callbacks.onAbort(this.stats, this.context, null, null);
+            if (this.callbacks?.onAbort) this.callbacks.onAbort(this.stats, /** @type {HlsLoadContext} */ (this.context), null, null);
 
             const index = activeRequests.indexOf(loader);
             if (index > -1) {
@@ -298,7 +305,7 @@ export function HLSLoaderFactory(player) {
       } catch (e) {
         console.error(e);
         // The load has to end one way or another: hls.js waited for this one forever.
-        this.callbacks?.onError?.({code: 0, text: String(/** @type {Error|undefined} */ (e)?.message || e)}, this.context, null, this.stats);
+        this.callbacks?.onError?.({code: 0, text: String(/** @type {Error|undefined} */ (e)?.message || e)}, /** @type {HlsLoadContext} */ (this.context), null, this.stats);
       }
     }
 
@@ -361,7 +368,7 @@ export function HLSLoaderFactory(player) {
             console.warn('Could not read a stored download', e);
             if (!this.callbacks) return;
             if (isPlaylist) {
-              this.callbacks.onError?.({code: 0, text: 'Stored copy unreadable'}, this.context, null, this.stats);
+              this.callbacks.onError?.({code: 0, text: 'Stored copy unreadable'}, /** @type {HlsLoadContext} */ (this.context), null, this.stats);
             } else {
               this.reportFailure(failureKey);
             }
@@ -372,7 +379,7 @@ export function HLSLoaderFactory(player) {
             this.callbacks.onSuccess({
               url: entry.url,
               data: data,
-            }, this.stats, this.context, null);
+            }, this.stats, /** @type {HlsLoadContext} */ (this.context), null);
           }
         },
         /**
@@ -383,7 +390,7 @@ export function HLSLoaderFactory(player) {
          */
         onProgress: (stats, context2, data, xhr) => {
           this.copyStats(stats);
-          if (this.callbacks?.onProgress) this.callbacks.onProgress(stats, this.context, data, xhr);
+          if (this.callbacks?.onProgress) this.callbacks.onProgress(stats, /** @type {HlsLoadContext} */ (this.context), data, xhr);
         },
         /** @param {DownloadEntry} entry */
         onFail: (entry) => {
@@ -395,7 +402,7 @@ export function HLSLoaderFactory(player) {
               // reached nobody, and the player waited forever. As an error, hls.js retries
               // the playlist, and fails the player once it gives up.
               const error = this.stats.error || {code: 0, text: 'Download failed'};
-              this.callbacks.onError?.(error, this.context, null, this.stats);
+              this.callbacks.onError?.(error, /** @type {HlsLoadContext} */ (this.context), null, this.stats);
             } else {
               this.reportFailure(failureKey);
             }
@@ -405,7 +412,7 @@ export function HLSLoaderFactory(player) {
         onAbort: (entry) => {
           this.copyStats(entry.stats);
           this.stats.aborted = true;
-          if (this.callbacks?.onAbort) this.callbacks.onAbort(this.stats, this.context, null, null);
+          if (this.callbacks?.onAbort) this.callbacks.onAbort(this.stats, /** @type {HlsLoadContext} */ (this.context), null, null);
         },
       });
     }

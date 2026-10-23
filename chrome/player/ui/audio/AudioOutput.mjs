@@ -45,7 +45,7 @@ export class AudioOutput extends AbstractAudioModule {
     this.discardChannelCount();
     this.getInputChannelCount().then((count) => {
       try {
-        this.audioContext.destination.channelCount = Utils.clamp(count, 2, this.audioContext.destination.maxChannelCount);
+        /** @type {AudioContext} */ (this.audioContext).destination.channelCount = Utils.clamp(count, 2, /** @type {AudioContext} */ (this.audioContext).destination.maxChannelCount);
       } catch (e) {
       }
     }).catch((e) => {

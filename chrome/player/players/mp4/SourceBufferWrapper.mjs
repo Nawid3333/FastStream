@@ -1,7 +1,18 @@
 // @ts-check
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 
+/**
+ * A queued operation on the SourceBuffer, with its promise's resolve and reject: an append of
+ * bytes, or a removal of a time range, in seconds.
+ * @typedef {{resolve: (value: void) => void, reject: (reason?: unknown) => void} & ({type: 'append', buffer: BufferSource} |
+ *   {type: 'remove', start: number, end: number})} SourceBufferOp
+ */
+
 export class SourceBufferWrapper extends EventEmitter {
+  /**
+   * @param {MediaSource} mediaSource
+   * @param {string} codec - The MIME type with its codecs, as isTypeSupported takes it.
+   */
   constructor(mediaSource, codec) {
     super();
     if (!MediaSource.isTypeSupported(codec)) {
@@ -10,7 +21,9 @@ export class SourceBufferWrapper extends EventEmitter {
     this.sourceBuffer = mediaSource.addSourceBuffer(codec);
     this.updating = false;
     // The removal running, as its operation ({start, end}), or null (hasPendingRemove).
+    /** @type {?(SourceBufferOp & {type: 'remove'})} */
     this.removing = null;
+    /** @type {Array<SourceBufferOp>} */
     this.toDo = [];
     this.sourceBuffer.addEventListener('updateend', () => {
       this.updating = false;
@@ -28,6 +41,7 @@ export class SourceBufferWrapper extends EventEmitter {
    * @return {boolean}
    */
   hasPendingRemove(time) {
+    /** @param {?{start: number, end: number}} op */
     const covers = (op) => !!op && time >= op.start && time <= op.end;
     return covers(this.removing) || this.toDo.some((op) => op.type === 'remove' && covers(op));
   }
@@ -42,6 +56,10 @@ export class SourceBufferWrapper extends EventEmitter {
     }
   }
 
+  /**
+   * @param {BufferSource} buffer
+   * @return {Promise<void>} Resolves once the SourceBuffer took it.
+   */
   appendBuffer(buffer) {
     return new Promise((resolve, reject) => {
       this.do({
@@ -53,6 +71,11 @@ export class SourceBufferWrapper extends EventEmitter {
     });
   }
 
+  /**
+   * @param {number} start - In seconds.
+   * @param {number} end - In seconds.
+   * @return {Promise<void>} Resolves once the range is gone.
+   */
   remove(start, end) {
     return new Promise((resolve, reject) => {
       this.do({
@@ -92,6 +115,7 @@ export class SourceBufferWrapper extends EventEmitter {
       this.toDo.splice(0, 1);
     }
   }
+  /** @param {SourceBufferOp} obj */
   do(obj) {
     this.toDo.push(obj);
     if (!this.updating) this.sourceBufferDo();

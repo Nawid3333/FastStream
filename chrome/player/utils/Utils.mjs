@@ -306,7 +306,10 @@ export class Utils {
    * @return {Promise<boolean>} True if event occurred, false if timed out.
    */
   static timeoutableEvent(context, event, timeout) {
-    /** @type {(() => void)|undefined} */ let callback; /** @type {number|undefined} */ let timeoutId;
+    /** @type {(() => void)|undefined} */
+    let callback;
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    let timeoutId;
     const cleanup = () => {
       clearTimeout(timeoutId);
       context.off(event, callback);

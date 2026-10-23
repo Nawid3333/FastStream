@@ -18,9 +18,7 @@ import {SaveFragmentFetcher, savedEntry} from '../SaveFragmentFetcher.mjs';
 
 export default class DashPlayer extends EventEmitter {
   /**
-   * @param client - The FastStreamClient. Left untyped: its getFragments is documented for a
-   *   string or a number, and this asks it for the level getCurrentLevel answers, null when
-   *   dash.js plays none (the store answers undefined).
+   * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
    * @param {{isPreview?: boolean, isAudioOnly?: boolean, isAnalyzer?: boolean}} [config] -
    *   What the player is for (PlayerLoader.createPlayer's callers).
    */
