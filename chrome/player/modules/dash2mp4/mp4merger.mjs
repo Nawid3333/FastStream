@@ -337,10 +337,6 @@ export class MP4Merger extends EventEmitter {
       }
     }
 
-    // Never set to a fragment here, nor read (hls2mp4's fields of the same name are): null
-    // only, a type TypeScript takes for an implicit any whatever the JSDoc says.
-    this.prevFrag = null;
-    this.prevFragAudio = null;
     // The fragments' mdats, as slices of their Blobs; null once destroyed.
     /** @type {?Array<Blob>} */
     this.datas = [];
@@ -556,7 +552,6 @@ export class MP4Merger extends EventEmitter {
 
     this.videoTrack = null;
     this.audioTrack = null;
-    this.prevFrag = null;
     this.datas = null;
     this.datasOffset = 0;
 
