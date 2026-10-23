@@ -76,6 +76,51 @@ const EndStallMs = 3000;
  * @property {() => void} destroy
  * @property {() => HTMLVideoElement} getVideo
  */
+/** @typedef {import('./options/defaults/ToolSettings.mjs').ToolSetting} ToolSetting */
+/** @typedef {import('./VideoSource.mjs').VideoSource} VideoSource */
+
+/**
+ * The client's options: its own defaults (the constructor), most of them replaced by the
+ * stored ones once they come (setOptions), which also brings the three optional ones.
+ * @typedef {Object} ClientOptions
+ * @property {boolean} autoPlay
+ * @property {number} maxSpeed - The downloads' speed limit: 0 downloads nothing ahead, below 0
+ *     is no limit.
+ * @property {number} maxVideoSize - Bytes.
+ * @property {number} ramBudget - Bytes, for all players together.
+ * @property {boolean} bufferToDisk
+ * @property {number} bufferAhead - Seconds; Infinity for no limit.
+ * @property {number} bufferBehind - Seconds; Infinity for no limit.
+ * @property {boolean} freeFragments
+ * @property {boolean} downloadAll
+ * @property {boolean} freeUnusedChannels
+ * @property {boolean} storeProgress
+ * @property {boolean} disableLoadProgress
+ * @property {boolean} previewEnabled
+ * @property {boolean} decodingAwareQuality
+ * @property {boolean} autoplayNext
+ * @property {number} autoplayCountdown - Seconds.
+ * @property {string} singleClickAction - A ClickActions value.
+ * @property {string} doubleClickAction - A ClickActions value.
+ * @property {string} tripleClickAction - A ClickActions value.
+ * @property {string} visChangeAction - A VisChangeActions value.
+ * @property {number} miniSize
+ * @property {string} miniPos - A MiniplayerPositions value.
+ * @property {number} videoZoom
+ * @property {string} videoAspectRatio - An AspectRatios value.
+ * @property {number} seekStepSize - Seconds.
+ * @property {string} defaultQuality
+ * @property {Object<string, ToolSetting>} toolSettings - By the tool's name.
+ * @property {number} videoDelay - Milliseconds.
+ * @property {number} videoFlip - 0 to 3 (VideoTransformUtils).
+ * @property {number} videoRotate - Quarter turns, 0 to 3.
+ * @property {number} maximumDownloaders
+ * @property {number} maxPlaybackRate
+ * @property {boolean} [autoEnableBestSubtitles]
+ * @property {boolean} [mpvMode]
+ * @property {boolean} [mpvPausePage]
+ */
+
 export class FastStreamClient extends EventEmitter {
   /**
    * Constructs a FastStreamClient instance.
@@ -84,6 +129,7 @@ export class FastStreamClient extends EventEmitter {
     super();
     this.version = EnvUtils.getVersion();
 
+    /** @type {ClientOptions} */
     this.options = {
       autoPlay: false,
       maxSpeed: -1,
@@ -111,7 +157,7 @@ export class FastStreamClient extends EventEmitter {
       videoAspectRatio: AspectRatios.AUTO,
       seekStepSize: 0.2,
       defaultQuality: 'Auto',
-      toolSettings: Utils.mergeOptions(DefaultToolSettings, {}),
+      toolSettings: /** @type {Object<string, ToolSetting>} */ (Utils.mergeOptions(DefaultToolSettings, {})),
       videoDelay: 0,
       videoFlip: 0,
       videoRotate: 0,
@@ -185,11 +231,12 @@ export class FastStreamClient extends EventEmitter {
     this.player = null;
     this.syncedAudioPlayer = null;
     this.previewPlayer = null;
+    /** @type {Promise<void>|null} The source change running (setSource), if any. */
     this.sourceChange = null;
     // Counts the sources asked for, and holds the streams to try should the latest one
     // fail before it shows anything (setSource()).
     this.sourceRequests = 0;
-    /** @type {{request: number, sources: Object[], next?: Object}} */
+    /** @type {{request: number, sources: VideoSource[], next?: VideoSource}} */
     this.fallbacks = {request: 0, sources: []};
     // A source's decode failures, kept over its own reload (reloadWithoutFailedCodec).
     this.carriedDecodeFailures = null;
@@ -247,7 +294,8 @@ export class FastStreamClient extends EventEmitter {
 
     try {
       Utils.loadAndParseOptions('toolSettings', DefaultToolSettings).then((settings) => {
-        this.options.toolSettings = settings;
+        // The stored settings over DefaultToolSettings: its shape.
+        this.options.toolSettings = /** @type {Object<string, ToolSetting>} */ (settings);
         this.interfaceController.updateToolVisibility();
       }).catch((e) => console.error('Loading the tool settings failed', e));
     } catch (e) {
@@ -800,11 +848,11 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Adds a new source and optionally sets it as current.
-   * @param {Object} source - Source object.
+   * @param {VideoSource} source - Source object.
    * @param {boolean} [setSource=false]
-   * @param {Object[]} [fallbacks=[]] - When it is set: the streams to try in turn should it
+   * @param {VideoSource[]} [fallbacks=[]] - When it is set: the streams to try in turn should it
    *   fail before it shows anything.
-   * @return {Promise<Object>} The added source.
+   * @return {Promise<VideoSource>} The added source.
    */
   async addSource(source, setSource = false, fallbacks = []) {
     source = source.copy();
@@ -937,8 +985,9 @@ export class FastStreamClient extends EventEmitter {
    * context over the other's, so a source that is asked for while one is being set waits
    * its turn.
    *
-   * @param {Object} source - Source object.
-   * @param {Object[]} [fallbacks=[]] - The streams to try in turn should it fail before it
+   * @param {Object} source - A VideoSource. Typed Object while VpnPrompt, which hands its
+   *   source back here, types it so (VpnPrompt.check); cast where it is used.
+   * @param {VideoSource[]} [fallbacks=[]] - The streams to try in turn should it fail before it
    *   shows anything: the others the player picked it from. None for a source chosen by
    *   hand, and a later request drops those of every earlier one.
    * @param {{play?: boolean}} [start={}] - play: it plays once it has started, autoplay or
@@ -949,10 +998,10 @@ export class FastStreamClient extends EventEmitter {
     const request = ++this.sourceRequests;
     // A source loaded anew in its own player may be handed over again (a later reload of the
     // same URL); the hand-over's source is DIRECT and keeps the guard.
-    if (source?.mode !== PlayerModes.DIRECT) {
+    if (/** @type {VideoSource} */ (source)?.mode !== PlayerModes.DIRECT) {
       this.playedDirectly = null;
     }
-    const run = () => this.setSourceInternal(source, {request, sources: fallbacks.slice()}, start);
+    const run = () => this.setSourceInternal(/** @type {VideoSource} */ (source), {request, sources: fallbacks.slice()}, start);
     const change = this.sourceChange ? this.sourceChange.then(run, run) : run();
 
     this.sourceChange = change;
@@ -967,8 +1016,8 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Sets the current source and initializes the player, one at a time.
-   * @param {Object} source - Source object.
-   * @param {{request: number, sources: Object[]}} fallbacks - Which request this is, and the
+   * @param {VideoSource} source - Source object.
+   * @param {{request: number, sources: VideoSource[]}} fallbacks - Which request this is, and the
    *   streams to try should it fail before it shows anything.
    * @param {{play?: boolean}} [start={}] - See setSource().
    * @return {Promise<void>}
@@ -1778,7 +1827,7 @@ export class FastStreamClient extends EventEmitter {
   /**
    * After the reset of a source change: the same source again after a codec failed to
    * decode keeps that failure (reloadWithoutFailedCodec); any other source starts with none.
-   * @param {Object} source - The source being set.
+   * @param {VideoSource} source - The source being set.
    */
   restoreCarriedDecodeFailures(source) {
     const carried = this.carriedDecodeFailures;

@@ -1,4 +1,12 @@
 // @ts-check
+
+/**
+ * Where a tool of the control bar goes (ToolManager), kept by the tool's name: its bar
+ * ('left', 'right', or 'extra', the more menu) and its place there, lowest first. `enabled`
+ * is the format before locations, which ToolManager still reads (on the right, or extra).
+ * @typedef {{location: string, priority: number, enabled?: boolean}} ToolSetting
+ */
+
 export const DefaultToolSettings = {
   'playpause': {
     'location': 'left',

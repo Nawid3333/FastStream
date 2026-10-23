@@ -1,6 +1,6 @@
 {
   "chrome/background/NetRequestRuleManager.mjs": 9,
-  "chrome/player/FastStreamClient.mjs": 165,
+  "chrome/player/FastStreamClient.mjs": 122,
   "chrome/player/VideoSource.mjs": 7,
   "chrome/player/modules/FSBlob.mjs": 10,
   "chrome/player/modules/Localize.mjs": 13,
@@ -33,8 +33,7 @@
   "chrome/player/players/mp4/SourceBufferWrapper.mjs": 8,
   "chrome/player/ui/FineTimeControls.mjs": 30,
   "chrome/player/ui/InterfaceController.mjs": 41,
-  "chrome/player/ui/SourcesBrowser.mjs": 16,
-  "chrome/player/ui/ToolManager.mjs": 6,
+  "chrome/player/ui/SourcesBrowser.mjs": 6,
   "chrome/player/ui/audio/AbstractAudioModule.mjs": 1,
   "chrome/player/ui/menus/LoopMenu.mjs": 1,
   "chrome/player/ui/subtitles/SubtitlesManager.mjs": 21,
