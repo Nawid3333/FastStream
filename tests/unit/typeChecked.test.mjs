@@ -186,7 +186,6 @@ const CHECKED = [
   'chrome/player/utils/WebUtils.mjs',
   'native-host/faststream-mpv-host.mjs',
   'tools/ast-compare.mjs',
-  'tools/check-implicit-any.mjs',
   'tools/check-patched-updates.mjs',
   'tools/check-toolchain.mjs',
   'tools/check-update-path.mjs',

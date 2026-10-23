@@ -131,8 +131,7 @@ export class SubtitleTrack {
 
     // toWellFormed: the parser's decoder, decodeURIComponent(encodeURIComponent(text)),
     // throws "URI malformed" on a lone surrogate, which a page's string can hold.
-    // (tsconfig's lib, ES2022, has no String.prototype.toWellFormed; Firefox has, since 119.)
-    parser.parse(/** @type {string & {toWellFormed(): string}} */ (text).toWellFormed());
+    parser.parse(text.toWellFormed());
     parser.flush();
   }
 

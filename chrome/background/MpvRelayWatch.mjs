@@ -122,7 +122,7 @@ function noticeText(text) {
  *
  * @param {*} port - A connectNative port to the helper (postMessage, onMessage, onDisconnect,
  *   disconnect), nothing sent on it yet.
- * @param {(event: Object) => void} onEvent - Gets each event.
+ * @param {(event: import('./MpvBackend.mjs').RelayEvent) => void} onEvent - Gets each event.
  * @param {{onLegacy?: () => void, decoderProperties?: Array<string>}} [options] - onLegacy:
  *   the helper answered "unknown message", one from before host 15. The watch then ends
  *   without a 'closed' event, for the caller to follow mpv the old way. decoderProperties: mpv

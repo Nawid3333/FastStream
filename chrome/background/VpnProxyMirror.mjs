@@ -89,7 +89,7 @@ export class VpnProxyMirror {
     /** @type {Map<string, SeenProxy>} proxy key -> its newest settings */
     this.proxies = new Map();
     this.permitted = false;
-    /** @type {Array<(details: Object) => (Object|undefined)>} */
+    /** @type {Array<(details: Parameters<VpnProxyMirror['proxyFor']>[0]) => ReturnType<VpnProxyMirror['proxyFor']>>} */
     this.listeners = [];
     // The hosts' match patterns the listeners were registered for (the refused ones too).
     /** @type {string[]} */
