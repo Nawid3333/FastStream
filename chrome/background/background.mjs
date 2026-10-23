@@ -1021,6 +1021,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // tab's content script names its tab and frame.
   const tab = /** @type {TabHolder & TabExtras} */ (Tabs.getTabOrCreate(/** @type {number} */ (senderTab.id)));
   const frame = /** @type {FrameHolder & FrameExtras} */ (tab.getFrameOrCreate(/** @type {number} */ (sender.frameId)));
+  restorePlayerFrame(tab, frame, sender);
 
   if (msg.type === MessageTypes.PLAYER_LOADED) {
     const opener = playerOpener(msg.url || sender.url);
@@ -1098,6 +1099,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const removed = msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame;
     const wasPlaying = !!removed && tab.playingPlayers.delete(removed.frameId);
     tab.forgetRemovedFrame(removed, msg.document);
+    if (removed && removed.frameId in tab.playerPageFrames) {
+      delete tab.playerPageFrames[removed.frameId];
+      Tabs.saveTabState(tab);
+    }
     // A player that goes lets the page's media go, also one this background no longer
     // knew to be playing (it was restarted meanwhile).
     if (wasPlaying || BackgroundUtils.isUrlPlayerUrl(sender.url || '')) {
@@ -1295,24 +1300,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === MessageTypes.REQUEST_MINIPLAYER) {
     return handleMiniplayerRequest(frame, msg, sendResponse);
   } else if (msg.type === MessageTypes.REQUEST_PLAYLIST_NAVIGATION) {
-    const pageFrame = frame.pageFrame;
-    if (!pageFrame) {
-      sendResponse('error');
-      return;
-    }
-
-    chrome.tabs.sendMessage(pageFrame.tab.tabId, {
-      type: MessageTypes.PLAYLIST_NAVIGATION,
-      direction: msg.direction,
-    }, {
-      frameId: pageFrame.frameId,
-    }, (response) => {
-      BackgroundUtils.checkMessageError('playlist_navigation');
-      if (response === 'clicked') {
-        tab.continuationOptions = msg.continuationOptions;
-        if (msg.continuationOptions?.autoPlay) watchNextEpisodeArrives(tab, msg.continuationOptions, 'player');
+    // Once the kept tab state is back (ensureOptions): the end's request is often what wakes an
+    // event page Firefox unloaded while the episode played, and it came before the player's page
+    // frame was restored (measured, 2026-10-23: 'error' within 20 ms).
+    ensureOptions().then(() => {
+      restorePlayerFrame(tab, frame, sender);
+      const pageFrame = frame.pageFrame;
+      if (!pageFrame) {
+        sendResponse('error');
+        return;
       }
-      sendResponse(response);
+
+      chrome.tabs.sendMessage(pageFrame.tab.tabId, {
+        type: MessageTypes.PLAYLIST_NAVIGATION,
+        direction: msg.direction,
+      }, {
+        frameId: pageFrame.frameId,
+      }, (response) => {
+        BackgroundUtils.checkMessageError('playlist_navigation');
+        if (response === 'clicked') {
+          tab.continuationOptions = msg.continuationOptions;
+          if (msg.continuationOptions?.autoPlay) watchNextEpisodeArrives(tab, msg.continuationOptions, 'player');
+        }
+        sendResponse(response);
+      });
+    }).catch((e) => {
+      console.error('Going on to the next episode failed', e);
+      sendResponse('error');
     });
     return true;
   } else if (msg.type === MessageTypes.REPORT_AUTOPLAY_PROBLEM) {
@@ -1322,19 +1336,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     return;
   } else if (msg.type === MessageTypes.REQUEST_PLAYLIST_POLL) {
-    const pageFrame = frame.pageFrame;
-    if (!pageFrame || frame.frameId === 0) {
-      sendResponse('error');
-      return;
-    }
+    // As the request for the next episode: once the kept tab state is back.
+    ensureOptions().then(() => {
+      restorePlayerFrame(tab, frame, sender);
+      const pageFrame = frame.pageFrame;
+      if (!pageFrame || frame.frameId === 0) {
+        sendResponse('error');
+        return;
+      }
 
-    chrome.tabs.sendMessage(pageFrame.tab.tabId, {
-      type: MessageTypes.PLAYLIST_POLL,
-    }, {
-      frameId: pageFrame.frameId,
-    }, (response) => {
-      BackgroundUtils.checkMessageError('playlist_poll');
-      sendResponse(response);
+      chrome.tabs.sendMessage(pageFrame.tab.tabId, {
+        type: MessageTypes.PLAYLIST_POLL,
+      }, {
+        frameId: pageFrame.frameId,
+      }, (response) => {
+        BackgroundUtils.checkMessageError('playlist_poll');
+        sendResponse(response);
+      });
+    }).catch((e) => {
+      console.error('Asking the page for its next episode failed', e);
+      sendResponse('error');
     });
     return true;
   } else {
@@ -1647,6 +1668,36 @@ async function getPageFrame(frame) {
   }
 
   return null;
+}
+
+/**
+ * Keeps the frame a player goes on in (acceptPlayer) with the tab's state, for a background that
+ * Firefox starts anew while the player plays (restorePlayerFrame).
+ * @param {TabHolder} tab
+ * @param {FrameHolder & FrameExtras} frame - The player's.
+ */
+function keepPlayerPageFrame(tab, frame) {
+  if (!frame.pageFrame) return;
+  tab.playerPageFrames = {...tab.playerPageFrames, [frame.frameId]: frame.pageFrame.frameId};
+  Tabs.saveTabState(tab);
+}
+
+/**
+ * A player this background did not see load (Firefox unloaded the idle event page while it
+ * played): its frame is a player's again, with its page frame as the tab's state kept it
+ * (keepPlayerPageFrame). Without that the end's next episode, and its poll, found no page
+ * frame and were answered 'error': the countdown stopped at "1 s" (his report, 2026-10-23).
+ * Only for FastStream's player page, which alone names the frame it plays in to this map.
+ * @param {TabHolder} tab
+ * @param {FrameHolder & FrameExtras} frame - The sender's.
+ * @param {chrome.runtime.MessageSender} sender
+ */
+function restorePlayerFrame(tab, frame, sender) {
+  if (frame.pageFrame || !BackgroundUtils.isUrlPlayerUrl(sender.url || '')) return;
+  const pageFrameId = tab.playerPageFrames[frame.frameId];
+  if (typeof pageFrameId !== 'number') return;
+  frame.isPlayer = true;
+  frame.pageFrame = tab.getFrameOrCreate(pageFrameId);
 }
 
 /**
@@ -2587,6 +2638,7 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
     } else {
       frame.pageFrame = tab.getFrameOrCreate(0);
     }
+    keepPlayerPageFrame(tab, frame);
 
     const response = {
       mediaInfo: getMediaInfoFromTab(sender?.tab),
@@ -2598,6 +2650,7 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
     // The player waits for this answer before it starts; the top frame stands in.
     console.error('Finding the page frame of a player failed', e);
     frame.pageFrame = tab.getFrameOrCreate(0);
+    keepPlayerPageFrame(tab, frame);
     sendResponse({
       mediaInfo: getMediaInfoFromTab(sender?.tab),
       isMainPlayer,

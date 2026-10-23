@@ -357,6 +357,12 @@ export class TabHolder {
     // The frames that played are gone with the frames: a new page's frame that came back
     // with one of their ids counted as a playing player and held the page's media paused.
     this.playingPlayers.clear();
+    // The frame each of the tab's players goes on in, by the player's frame id: the page whose
+    // links lead to the next episode (background.mjs acceptPlayer). Kept with the tab's state:
+    // Firefox unloads the idle event page while an episode plays, and the end's next episode
+    // then came to a background that knew no frame.
+    /** @type {Object<string, number>} */
+    this.playerPageFrames = {};
     // How the autoplay next going on in the tab goes on (background.mjs), null when none.
     /** @type {?import('./background.mjs').Continuation} */
     this.continuationOptions = null;
@@ -698,12 +704,14 @@ const TabStateKeyPrefix = 'tabState:';
 // host went at the wake; mpvDecoder, or its tooltip forgot which decoder mpv uses. And a play still waiting for its
 // stream (mpvPlayPendingUntil, mpvPlayedVideo) and the last one sent (mpvLastPlaySend,
 // which keeps a player's second play() from opening a second window). mpvTurnedOff, or the
-// MPV Allowlist started MPV again on the site the user had turned it off on. The rest of
+// MPV Allowlist started MPV again on the site the user had turned it off on. playerPageFrames,
+// or a player's end found no page to go on to the next episode in (his report, 2026-10-23:
+// the countdown stopped at "1 s"; measured, the event page unloads after 30 s). The rest of
 // a TabHolder - frames, detected sources - describes the current page and is rebuilt as
 // that page makes requests.
 const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened',
   'mpvError', 'mpvHostOutdated', 'mpvDecoder', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend',
-  'mpvTurnedOff', 'windowStateBefore', 'carriedFullscreenFrameId', 'carryAwaited'];
+  'mpvTurnedOff', 'windowStateBefore', 'carriedFullscreenFrameId', 'carryAwaited', 'playerPageFrames'];
 
 export class TabTracker {
   constructor() {

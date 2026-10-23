@@ -67,6 +67,12 @@ const PREVIEW_RELOAD_LIMIT = 3;
 // How long a stream may stay stuck in its last seconds before autoplay takes it as ended
 // (watchEndStall).
 const EndStallMs = 3000;
+// How long a request for the next video waits for the background's answer (nextVideo), and how
+// long after one that did not go on the end asks again, at most how many times
+// (autoplayNextVideo): the countdown stopped at "1 s" when the only one failed (2026-10-23).
+const NextAnswerMs = 5000;
+const AutoNextRetryMs = 2000;
+const AutoNextTries = 5;
 
 /** @typedef {import('./options/defaults/ToolSettings.mjs').ToolSetting} ToolSetting */
 /** @typedef {import('./VideoSource.mjs').VideoSource} VideoSource */
@@ -319,7 +325,10 @@ export class FastStreamClient extends EventEmitter {
   pollPrevNext() {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({type: MessageTypes.REQUEST_PLAYLIST_POLL}, (response) => {
-        if (!response) {
+        // Not the page's answer: 'error' when the background knows no page for this player (an
+        // event page Firefox started anew). It said nothing about the next video, and taken for
+        // "none" it turned autoplay off for the rest of the video.
+        if (!response || typeof response !== 'object') {
           resolve(null);
           return;
         }
@@ -2043,6 +2052,7 @@ export class FastStreamClient extends EventEmitter {
     // A lookup for the last video is not this one's (loadProgressData).
     this.progressLoad = null;
     this.autoNextRequested = false;
+    this.resetAutoNext();
     // A stall watched at the old video's end is none of the new one's.
     this.cancelEndStall();
     this.state.bufferBehind = this.options.bufferBehind;
@@ -2304,6 +2314,10 @@ export class FastStreamClient extends EventEmitter {
       if (this.interfaceController.isUserSeeking()) return;
 
       this.updateTime(this.currentTime);
+      // Near the end each time update watches for a stop there (watchEndStall), not only a
+      // `waiting`: a video that stood still in its last second with neither a wait nor an end
+      // told showed "1 s" for good.
+      this.watchEndStall();
     });
 
 
@@ -2392,6 +2406,7 @@ export class FastStreamClient extends EventEmitter {
 
     // Played again: its end may go on to the next video again (autoplayNextVideo).
     this.autoNextRequested = false;
+    this.resetAutoNext();
 
     // A pause() (or another play()) made while this waits wins: this one went on after
     // it, showing "playing" over a paused video, and with a delay set, starting the
@@ -2911,8 +2926,46 @@ export class FastStreamClient extends EventEmitter {
     if (!this.options.autoplayNext || !this.hasNextVideo()) return false;
     if (this.autoNextRequested) return true;
     this.autoNextRequested = true;
+    this.autoNextTries = (this.autoNextTries || 0) + 1;
     this.nextVideo();
     return true;
+  }
+
+  /**
+   * The background did not go on to the next video for the end's request (nextVideo): an event
+   * page Firefox unloaded while the video played and started anew, a request that got no answer,
+   * a page whose link was not there yet. While the video stays at its end, the end asks again in
+   * a moment, AutoNextTries times in all; the banner goes on by hand after that too.
+   */
+  retryAutoNext() {
+    if (!this.autoNextRequested) return; // a request by hand: the user's to make again
+    this.autoNextRequested = false;
+    clearTimeout(this.autoNextRetryTimer);
+    if ((this.autoNextTries || 0) >= AutoNextTries) return;
+    this.autoNextRetryTimer = setTimeout(() => {
+      this.autoNextRetryTimer = undefined;
+      if (this.isAtTheEnd()) this.autoplayNextVideo();
+    }, AutoNextRetryMs);
+  }
+
+  /**
+   * Whether the video is at its end: ended, or in its last second (where the end's `waiting`
+   * asks), and not being sought - the user went back from it, or forward to it themselves.
+   * @return {boolean}
+   */
+  isAtTheEnd() {
+    const video = this.player?.getVideo?.();
+    if (!video || video.seeking) return false;
+    return video.ended === true || (this.duration > 5 && this.duration - this.currentTime < 1);
+  }
+
+  /** Forgets the last end's requests, their retries and tries: a new source, or played again. */
+  resetAutoNext() {
+    clearTimeout(this.autoNextRetryTimer);
+    this.autoNextRetryTimer = undefined;
+    this.autoNextTries = 0;
+    if (this.nextRequest) clearTimeout(this.nextRequest.timer);
+    this.nextRequest = null;
   }
 
   /**
@@ -2936,8 +2989,30 @@ export class FastStreamClient extends EventEmitter {
    * Navigates to the next video in the playlist.
    */
   nextVideo() {
-    if (!this.hasNextVideo()) return;
-    if (EnvUtils.isExtension()) {
+    if (!this.hasNextVideo() || !EnvUtils.isExtension()) return;
+    // One request at a time: a second one while the page goes on (the banner clicked while the
+    // end's request is on its way) had a next button that counts clicks skip an episode.
+    if (this.nextRequest) return;
+    /** @type {{timer?: ReturnType<typeof setTimeout>}} */
+    const request = {};
+    this.nextRequest = request;
+    /** @param {*} answer - The background's: 'clicked', 'series_end', 'no_button', 'error', or none. */
+    const answered = (answer) => {
+      if (this.nextRequest !== request) return;
+      clearTimeout(request.timer);
+      this.nextRequest = null;
+      if (answer === 'clicked') return;
+      if (answer === 'series_end') {
+        // The page says the series ends here: autoplay stops, as at an end without a next one.
+        this.state.hasNextVideo = false;
+        this.state.seriesEnd = true;
+        this.autoNextRequested = false;
+        return;
+      }
+      this.retryAutoNext();
+    };
+    request.timer = setTimeout(() => answered(undefined), NextAnswerMs);
+    try {
       chrome.runtime.sendMessage({
         type: MessageTypes.REQUEST_PLAYLIST_NAVIGATION,
         direction: 'next',
@@ -2946,9 +3021,14 @@ export class FastStreamClient extends EventEmitter {
           autoPlay: true,
           disableLoadProgress: true,
         },
-      }, ()=>{
-
+      }, (answer) => {
+        // No background to answer (the message's port closed): an answer of nothing.
+        void chrome.runtime.lastError;
+        answered(answer);
       });
+    } catch (e) {
+      // The extension was reloaded under this player: no request went.
+      answered(undefined);
     }
   }
 

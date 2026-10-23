@@ -153,6 +153,31 @@ that navigated to the player). The e2e harness runs with
 stop the background with `extension.terminateBackground()` from the chrome context
 (`toolbar-state`, `toolbar-off-race`, `mpv-suspend`).
 
+**An open player does not always keep it running (measured 2026-10-23).** His report: on
+serienstream.to the player's autoplay countdown stopped at "1 s" and went on only when its
+banner was clicked. With `extensions.background.idle.timeout` at 5000 (the live config's
+harness, which does not set `idle.enabled`: the line above is about the classic one), the
+background unloaded and started anew during an episode's quiet last seconds with the player
+open on the page (the version banner of a new start in the driver log), on Firefox 158.0.1.
+Whether the 30 s default does the same was not measured; in his own session the background
+unloaded every ~33 s while no player was open. What the end then met: the player's page frame
+(`frame.pageFrame`, found when it loaded) was gone with the old background, so the end's
+request for the next episode was answered `'error'`, and the player never asked again. On
+local pages framing VOE's real last segments in a hoster frame: stuck 2 of 2 before.
+- `TabHolder.playerPageFrames` (player frame id -> page frame id) is kept in
+  `PersistedTabFields`; `restorePlayerFrame` puts a player's frame back for its own messages
+  (FastStream's player page only; a frame the page removed is dropped from the map).
+- REQUEST_PLAYLIST_NAVIGATION and REQUEST_PLAYLIST_POLL wait for `ensureOptions()`: the
+  end's request is what wakes the event page, and it came before `restoreTabStates` had read
+  storage.session (answered `'error'` within 20 ms, measured).
+- The player (`FastStreamClient.nextVideo`) reads the answer: one request at a time, a
+  failed or missing one (`'error'`, `'no_button'`, none in 5 s) asks again 2 s later while the
+  video stays at its end, 5 tries in all; `'series_end'` stops. A poll answered `'error'` no
+  longer turns autoplay off. Near the end every time update arms the stall watch, not only a
+  `waiting`.
+After: went on at the end's first request, 3 of 3. `backgroundAutoplayNext.test.mjs` and
+`FastStreamClient.test.mjs` ("autoplay of the next video") hold each case; each failed before.
+
 **Tab state has to outlive the event page (2026-09-24).** Firefox unloads the
 background after ~30 idle seconds, and every `TabHolder` goes with it. A reload
 then woke a fresh background with no record of the user's toolbar choice, so an
