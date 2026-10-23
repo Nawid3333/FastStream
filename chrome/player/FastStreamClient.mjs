@@ -544,9 +544,10 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Loads and activates a subtitle track.
-   * @param {Object} subtitleTrack
+   * @param {import('./SubtitleTrack.mjs').SubtitleTrack} subtitleTrack
    * @param {boolean} [autoset=false]
-   * @return {Promise<void>}
+   * @return {import('./SubtitleTrack.mjs').SubtitleTrack} The track listed: the same one listed
+   *   before, or this one (SubtitlesManager.loadTrackAndActivateBest).
    */
   loadSubtitleTrack(subtitleTrack, autoset = false) {
     return this.interfaceController.subtitlesManager.loadTrackAndActivateBest(subtitleTrack, autoset);

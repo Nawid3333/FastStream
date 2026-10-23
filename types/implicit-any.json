@@ -35,7 +35,7 @@
   "chrome/player/ui/SourcesBrowser.mjs": 6,
   "chrome/player/ui/audio/AbstractAudioModule.mjs": 1,
   "chrome/player/ui/menus/LoopMenu.mjs": 1,
-  "chrome/player/ui/subtitles/SubtitlesManager.mjs": 21,
+  "chrome/player/ui/subtitles/SubtitlesManager.mjs": 2,
   "chrome/player/utils/FastStreamArchiveUtils.mjs": 7,
   "chrome/player/utils/SubtitleUtils.mjs": 1,
   "chrome/player/utils/Utils.mjs": 2,

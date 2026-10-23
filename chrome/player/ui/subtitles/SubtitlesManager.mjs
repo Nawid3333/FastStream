@@ -15,14 +15,18 @@ import {SubtitlesSettingsManager, SubtitlesSettingsManagerEvents} from './Subtit
 import {SubtitleSyncer} from './SubtitleSyncer.mjs';
 
 export class SubtitlesManager extends EventEmitter {
+  /** @param {import('../../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     super();
     this.client = client;
 
+    /** @type {Array<SubtitleTrack>} */
     this.tracks = [];
+    /** @type {Array<SubtitleTrack>} The tracks shown, in the order they were switched on. */
     this.activeTracks = [];
     this.isTestSubtitleActive = false;
 
+    /** @type {Array<{trackElement: HTMLDivElement, update: () => void}>} A row by track. */
     this.subtitleTrackListElements = [];
     this.subtitleTrackDisplayElements = [];
 
@@ -38,6 +42,13 @@ export class SubtitlesManager extends EventEmitter {
     this.setupUI();
   }
 
+  /**
+   * Lists a track, and shows it if it is the best one in the default language.
+   * @param {SubtitleTrack} subtitleTrack
+   * @param {boolean} [autoset=false] - Whether it may be shown by itself (with
+   *     autoEnableBestSubtitles): it came with a source the player set itself.
+   * @return {SubtitleTrack} The track listed: the same one listed before, or this one.
+   */
   loadTrackAndActivateBest(subtitleTrack, autoset = false) {
     const returnedTrack = this.addTrack(subtitleTrack);
     if (returnedTrack !== subtitleTrack) {
@@ -67,6 +78,10 @@ export class SubtitlesManager extends EventEmitter {
     return returnedTrack;
   }
 
+  /**
+   * @param {SubtitleTrack} track
+   * @return {SubtitleTrack} The track listed: the same one listed before, or this one.
+   */
   addTrack(track) {
     const existing = this.tracks.find((t) => t.equals(track));
     if (existing) {
@@ -82,6 +97,7 @@ export class SubtitlesManager extends EventEmitter {
     return track;
   }
 
+  /** @param {SubtitleTrack} track - One of the tracks listed. */
   activateTrack(track) {
     if (this.tracks.indexOf(track) === -1) {
       console.error('Cannot activate track that is not loaded', track);
@@ -94,6 +110,7 @@ export class SubtitlesManager extends EventEmitter {
     }
   }
 
+  /** @param {SubtitleTrack} track */
   deactivateTrack(track) {
     const ind = this.activeTracks.indexOf(track);
     if (ind !== -1) {
@@ -130,6 +147,7 @@ export class SubtitlesManager extends EventEmitter {
     this.subtitleSyncer.stop();
   }
 
+  /** @param {SubtitleTrack} track */
   removeTrack(track) {
     let ind = this.tracks.indexOf(track);
     if (ind !== -1) this.tracks.splice(ind, 1);
@@ -139,11 +157,13 @@ export class SubtitlesManager extends EventEmitter {
     this.subtitleSyncer.toggleTrack(track, true);
   }
 
+  /** @param {import('./SubtitlesSettingsManager.mjs').SubtitlesSettings} settings */
   onSettingsChanged(settings) {
     // Only when the default language changes: any other setting (the font size) put it back
     // over a language typed into the search.
     const first = this.lastDefaultLanguage === undefined;
     if (settings.defaultLanguage !== this.lastDefaultLanguage) {
+      /** @type {string|undefined} The default language last applied; none before the first settings. */
       this.lastDefaultLanguage = settings.defaultLanguage;
       // The first time (the player starting) only into an empty field: a language the last
       // search used, restored from the session, stays.
@@ -155,10 +175,12 @@ export class SubtitlesManager extends EventEmitter {
     this.renderSubtitles();
   }
 
+  /** @param {SubtitleTrack} track - One OpenSubtitles gave. */
   onSubtitleTrackDownloaded(track) {
     this.activateTrack(this.addTrack(track));
   }
 
+  /** @param {MouseEvent|KeyboardEvent} e - A click, or Enter on the button. */
   onCaptionsButtonInteract(e) {
     if (e.shiftKey) {
       this.openSubtitlesSearch.toggleUI();
@@ -275,11 +297,14 @@ export class SubtitlesManager extends EventEmitter {
 
       if (url) {
         AlertPolyfill.toast('info', Localize.getMessage('player_subtitles_addtrack_downloading'));
-        RequestUtils.requestSimple({url, responseType: 'arraybuffer'}, (err, req, body) => {
+        // requestSimple's callback: what failed, if anything; the answer, none when the
+        // request threw; the body, an ArrayBuffer here, false on a failure.
+        RequestUtils.requestSimple({url, responseType: 'arraybuffer'}, (/** @type {Error|undefined} */ err, /** @type {import('../../utils/RequestUtils.mjs').RequestResult|undefined} */ req, /** @type {ArrayBuffer|false} */ body) => {
           if (!err && body) {
             try {
               const track = new SubtitleTrack(Localize.getMessage('player_subtitles_url_track'), null);
-              track.loadText(SubtitleUtils.decodeSubtitleBytes(body, req.getResponseHeader('Content-Type')));
+              // No error: the request answered.
+              track.loadText(SubtitleUtils.decodeSubtitleBytes(body, /** @type {import('../../utils/RequestUtils.mjs').RequestResult} */ (req).getResponseHeader('Content-Type')));
               // A web page (a login, an error page) added an empty track, and said "added".
               track.checkHasCues();
 
@@ -348,6 +373,10 @@ export class SubtitlesManager extends EventEmitter {
     });
   }
 
+  /**
+   * Makes a track's row in the subtitles menu.
+   * @param {number} i - The track's place in the list.
+   */
   createTrackEntryElements(i) {
     const trackElement = document.createElement('div');
     trackElement.classList.add('subtitle-track-element');
@@ -550,6 +579,7 @@ export class SubtitlesManager extends EventEmitter {
     this.renderSubtitles();
   }
 
+  /** @param {HTMLElement} trackContainer */
   applyStyles(trackContainer) {
     return this.settingsManager.applyStyles(trackContainer);
   }
@@ -560,6 +590,10 @@ export class SubtitlesManager extends EventEmitter {
     });
   }
 
+  /**
+   * Makes the box an active track's cues are shown in, over the video.
+   * @param {number} i - The track's place among the active ones.
+   */
   createSubtitleDisplayElements(i) {
     const trackContainer = document.createElement('div');
     trackContainer.className = 'subtitle-track';
@@ -574,6 +608,7 @@ export class SubtitlesManager extends EventEmitter {
 
     let yStart = 0;
 
+    /** @param {MouseEvent} e */
     const mouseup = (e) => {
       /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mousemove', mousemove);
       /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseup', mouseup);
@@ -581,6 +616,7 @@ export class SubtitlesManager extends EventEmitter {
       e.stopPropagation();
     };
 
+    /** @param {MouseEvent} e */
     const mousemove = (e) => {
       // No button held: it was let go where this drag never heard of it.
       if (e.buttons === 0) {
