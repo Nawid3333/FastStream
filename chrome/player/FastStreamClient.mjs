@@ -68,14 +68,6 @@ const PREVIEW_RELOAD_LIMIT = 3;
 // (watchEndStall).
 const EndStallMs = 3000;
 
-/**
- * A player built by PlayerLoader: the members of one that this client uses.
- * @typedef {Object} LoadedPlayer
- * @property {() => Promise<void>} setup
- * @property {(source: Object) => Promise<void>} setSource
- * @property {() => void} destroy
- * @property {() => HTMLVideoElement} getVideo
- */
 /** @typedef {import('./options/defaults/ToolSettings.mjs').ToolSetting} ToolSetting */
 /** @typedef {import('./VideoSource.mjs').VideoSource} VideoSource */
 /** @typedef {import('./players/Fragment.mjs').Fragment} Fragment */
