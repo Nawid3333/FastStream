@@ -35,6 +35,7 @@ export class SubtitlesSettingsManager extends EventEmitter {
     } catch (e) {
       console.error(e);
     }
+    return undefined;
   }
 
   setupSettingsUI() {

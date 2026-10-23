@@ -47,6 +47,10 @@ module.exports = [
 
       // Best practices
       'curly': [2, 'multi-line'],
+      // Since 2026-10-23: == only against null (smart), and a map/filter callback returns on
+      // every path. Every place they found compared the same types or returned on purpose.
+      'eqeqeq': [2, 'smart'],
+      'array-callback-return': 2,
       'guard-for-in': 2,
       'no-caller': 2,
       'no-extend-native': 2,

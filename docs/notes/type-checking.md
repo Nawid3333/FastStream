@@ -68,6 +68,16 @@ Conventions the typing settled on, for code written from here:
   declaration of a line is not seen.
 - `tsconfig.json`'s lib is ES2024: Firefox 153, the floor, has all of it.
 
+Beyond `strict`, `tsconfig.json` has `noImplicitReturns` (a function that returns a value
+returns one on every path: six ended without, each meaning undefined, and say so now),
+`noImplicitOverride` (a method that overrides one has `@override`), `noFallthroughCasesInSwitch`
+and `noUnusedLocals` (both at 0 already). Measured and left off, as style more than bugs:
+`noUnusedParameters` (249, callback parameters), `noPropertyAccessFromIndexSignature` (177),
+`exactOptionalPropertyTypes` (58), `noUncheckedIndexedAccess` (687). ESLint has `eqeqeq`
+(smart: `==` only against null) and `array-callback-return` since the same day; the 13
+comparisons and 4 callbacks they found compared the same types, or returned nothing on
+purpose, and were changed to say so.
+
 The mpv host (`native-host/faststream-mpv-host.mjs`) was typed on 2026-10-23 (76 to 1
 untyped places) with `HostVersion` 20 and `RequiredHostVersion` left at 19: a change
 that alters no behaviour raises only the host's own version, so installed helpers go on

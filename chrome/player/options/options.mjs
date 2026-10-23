@@ -1021,7 +1021,7 @@ optionsSearchBar.placeholder = Localize.getMessage('options_search_placeholder')
 // Once per change of the text, pasted or dropped too. keydown and keyup searched twice per
 // key, keydown for the text before the key.
 optionsSearchBar.addEventListener('input', () => {
-  if (optionsSearchBar.value == '') {
+  if (optionsSearchBar.value === '') {
     resetSearch();
   } else {
     searchWithQuery(optionsSearchBar.value);

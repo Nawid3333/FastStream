@@ -16,6 +16,7 @@ export class MP4Fragment extends Fragment {
     this.rangeEnd = rangeEnd;
   }
 
+  /** @override */
   getContext() {
     return {
       url: this.source.url,

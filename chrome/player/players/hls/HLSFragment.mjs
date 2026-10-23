@@ -28,6 +28,7 @@ export class HLSFragment extends Fragment {
     return this.hlsFrag;
   }
 
+  /** @override */
   getContext() {
     return {
       url: this.hlsFrag.url,

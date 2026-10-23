@@ -164,6 +164,7 @@ export default class Transmuxer {
       this.demuxer = new Demuxer(observer, config, typeSupported, Logger);
       this.probe = Demuxer.probe;
     }
+    return undefined;
   }
 
   /**

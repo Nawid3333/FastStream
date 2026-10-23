@@ -874,7 +874,7 @@ export class InterfaceController {
 
   /** @param {boolean} [force] - In or out; toggles without. */
   pipToggle(force) {
-    if (force !== undefined && !!force == this.isInPip()) {
+    if (force !== undefined && !!force === this.isInPip()) {
       return;
     }
     if (this.isInPip()) {

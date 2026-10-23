@@ -43,6 +43,7 @@ export default class VMPlayer extends HLSPlayer {
 
   /**
    * @param {import('../../VideoSource.mjs').VideoSource} source - The Vimeo source to play.
+   * @override
    */
   async setSource(source) {
     try {
@@ -110,6 +111,7 @@ export default class VMPlayer extends HLSPlayer {
     await super.setSource(this.source);
   }
 
+  /** @override */
   destroy() {
     if (this.source) {
       URL.revokeObjectURL(this.source.url);
@@ -117,6 +119,7 @@ export default class VMPlayer extends HLSPlayer {
     super.destroy();
   }
 
+  /** @override */
   getSource() {
     return this.source;
   }

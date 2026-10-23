@@ -25,6 +25,7 @@ export class AudioOutput extends AbstractAudioModule {
 
   /**
    * @param {AudioContext} audioContext - the audio context the output nodes run in.
+   * @override
    */
   setupNodes(audioContext) {
     super.setupNodes(audioContext);

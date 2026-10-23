@@ -543,10 +543,10 @@
                 // The check for a page element that collapsed (makeSoftIntoHard) sees only
                 // players that linked up. One that has not yet (a slow start) gets it when it
                 // does, in the link handler; it used to get none.
-                if (i == 4 && replacedPlayerQueue.includes(pobj)) {
+                if (i === 4 && replacedPlayerQueue.includes(pobj)) {
                   pobj.convertDue = true;
                 }
-                updateReplacedPlayers(i == 4 ? pobj : null);
+                updateReplacedPlayers(i === 4 ? pobj : null);
               }, i * 250);
             })(i);
           }
@@ -1285,7 +1285,7 @@
           placeholder.style.setProperty('background-color', 'black', 'important');
         } else {
           const final_size = updateReplacedPlayer(old, iframe, softReplace);
-          if (convert == iframeObj.replacedData &&final_size <= 100 && softReplace) {
+          if (convert === iframeObj.replacedData &&final_size <= 100 && softReplace) {
             makeSoftIntoHard(iframeObj.replacedData);
             updateReplacedPlayer(old, iframe, false);
           }
@@ -1999,7 +1999,7 @@
     const cstyle = window.getComputedStyle(child);
     const cwidth = parseInt(cstyle.width) || 0;
     const cheight = parseInt(cstyle.height) || 0;
-    if (child.tagName == element.tagName && (cwidth == width || cheight == height) && cstyle.display == style.display && cstyle.position == style.position) {
+    if (child.tagName === element.tagName && (cwidth === width || cheight === height) && cstyle.display === style.display && cstyle.position === style.position) {
       return true;
     }
     return false;
@@ -2285,6 +2285,7 @@
         if (textContent.match(/episode\s*\d+/i)) {
           return true;
         }
+        return false;
       });
     }
 
