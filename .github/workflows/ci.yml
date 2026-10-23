@@ -205,11 +205,13 @@ jobs:
   # group a job of its own, all side by side. One after another, a platform's suites took
   # 30 minutes on Linux and 45 on Windows (CI run 37347420774); a job a suite, 17 (run
   # 37382065299: each Windows suite about 15 minutes, the setup about 2). The groups are
-  # of about the same running time (E2E_SHARD, tests/e2e/shardSpecs.mjs): three a suite on
-  # Windows and two on Linux, where the suites take about two thirds of the time, so each
-  # job takes about 5 to 7.5 minutes. More groups would not help: a run is 14 jobs, of
-  # the account's 20 at once. Each job builds the extension itself, in seconds, rather
-  # than wait for `verify`'s. fail-fast off: one failing group would cancel the others,
+  # of about the same running time (E2E_SHARD, tests/e2e/shardSpecs.mjs): four a suite on
+  # Windows and two on Linux, where the suites take about two thirds of the time. With three
+  # on Windows a run took about 7.5 minutes, bound by the slowest Windows group (5:42 of specs
+  # and 1:31 of setup, 2026-10-23). The fourth (his choice, 2026-10-24) makes a run, with
+  # CodeQL's two jobs and the dependency review, 20 jobs of the account's 20 at once: while
+  # another CI runs on the account, a job waits for a runner. Each job builds the extension
+  # itself, in seconds, rather than wait for `verify`'s. fail-fast off: one failing group would cancel the others,
   # and with them their lists of retried specs. auto-release.yml waits for the whole
   # workflow, so a release ships only when every one passes.
   #
@@ -218,7 +220,7 @@ jobs:
   # whole extension suite ran on it a second time, five jobs that tested the same code twice
   # (his request, 2026-10-13: a leaner suite).
   e2e:
-    name: e2e (${{ matrix.os }}, ${{ matrix.suite }}${{ matrix.suite != 'github' && format(' {0}/{1}', matrix.shard, matrix.os == 'Windows' && 3 || 2) || ' smoke' }})
+    name: e2e (${{ matrix.os }}, ${{ matrix.suite }}${{ matrix.suite != 'github' && format(' {0}/{1}', matrix.shard, matrix.os == 'Windows' && 4 || 2) || ' smoke' }})
     runs-on: ${{ matrix.os == 'Windows' && (inputs.windows-runner || 'windows-latest') || (inputs.linux-runner || 'ubuntu-latest') }}
     timeout-minutes: 20
     strategy:
@@ -229,16 +231,20 @@ jobs:
         # in a private window (seconds). github: the GitHub self-host build installed, its
         # smoke set.
         suite: [playback, extension, github]
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
         exclude:
           - os: Linux
             shard: 3
+          - os: Linux
+            shard: 4
           - suite: github
             shard: 2
           - suite: github
             shard: 3
+          - suite: github
+            shard: 4
     env:
-      E2E_SHARD: ${{ matrix.shard }}/${{ matrix.os == 'Windows' && 3 || 2 }}
+      E2E_SHARD: ${{ matrix.shard }}/${{ matrix.os == 'Windows' && 4 || 2 }}
     defaults:
       run:
         shell: bash

@@ -317,7 +317,8 @@
   #350's run 37382065299; each Windows suite about 15, the longest spec file,
   content-cleanup, 127 s). Then each suite was cut into groups of about the same running
   time, `E2E_SHARD=<i>/<n>` (`tests/e2e/shardSpecs.mjs`): three a suite on Windows, two on
-  Linux, so each job takes about 5 to 7.5 minutes, the run about 7.5. WebdriverIO's own
+  Linux, so each job takes about 5 to 7.5 minutes, the run about 7.5; four on Windows since
+  2026-10-24 (below). WebdriverIO's own
   `--shard` cuts by the number of files, and the long spec files sit together (527 s and
   402 s for the halves of the Windows extension suite); the groups here come from each
   spec file's time on the Windows runner, `tests/e2e/specWeights.json`, the longest first,
@@ -332,8 +333,13 @@
   classic-specs together) from 325 to 306 s; one run's group times vary by more than that
   (338 to 600 s for the same group), so the gain shows only on average. Without
   E2E_SHARD a config runs all its spec files (local `pnpm run verify`). The private
-  browsing suite (one spec file) runs in the first extension group only. A run is 18 jobs
-  at once of the account's 20, so more groups would only queue.
+  browsing suite (one spec file) runs in the first extension group only. A run was 18 jobs
+  at once of the account's 20 (with CodeQL's two and the dependency review).
+- **Four groups on Windows (2026-10-24, his choice).** Measured on PRs #558 and #559: the run
+  took 7:30-7:44, bound by the slowest Windows group (extension 1/3: 1:31 of setup, 5:42 of
+  specs, 0:21 private browsing); every job started within 4 s. A fourth group a suite on
+  Windows makes a run 20 jobs of the account's 20: while another CI runs on the account
+  (mpv-config, KytyPS5), a job waits for a runner, which the start times in a run show.
   `fail-fast: false`, so one failing group does not cancel the others and their lists of
   retried specs. Per-job artifacts: `e2e-retried-<os>-<suite>-<group>`,
   `e2e-logs-<os>-<suite>-<group>`; `e2e-moz-logs-windows-<suite>-<group>` only from the Windows
