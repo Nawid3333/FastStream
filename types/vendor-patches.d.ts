@@ -128,6 +128,12 @@ declare module 'hls.js' {
      */
     levelIdentifier?: string;
     trackID?: number;
+    /**
+     * FastStream's own: HLSFragmentRequester.takeOverDecryption keeps here the key of a
+     * segment whose decryption it took over from hls.js, and the keys hls.js had for it.
+     */
+    fs_oldcryptdata?: LevelKey;
+    fs_oldlevelKeys?: Fragment['levelkeys'];
   }
 
   interface LevelDetails {

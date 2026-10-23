@@ -216,7 +216,8 @@ export class MP4Writer {
 
       // Check if the piece is full
       if (piece.filledRanges.length === 1 && piece.filledRanges[0][0] === 0 && piece.filledRanges[0][1] === pieceSize) {
-        piece.data = this.blobManager.createBlob(piece.data);
+        // Full but not yet flushed: its data is still its bytes.
+        piece.data = this.blobManager.createBlob(/** @type {Uint8Array} */ (piece.data));
         piece.flushed = true;
       }
     }

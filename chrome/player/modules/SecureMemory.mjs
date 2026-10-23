@@ -1,7 +1,19 @@
 // @ts-check
 import {IndexedDBManager} from '../network/IndexedDBManager.mjs';
 
+/**
+ * A record's two keys (getHashes): where it is stored, and what encrypts it.
+ * @typedef {{identifierHash: ArrayBuffer, keyHash: ArrayBuffer}} Hashes
+ */
+
+/**
+ * What setFile stores under a record's identifierHash: its encrypted JSON (the IV first, then
+ * AES-GCM's output) and when it was written (pruneOld).
+ * @typedef {{encryptedData: Uint8Array, time: number}} StoredRecord
+ */
+
 export class SecureMemory {
+  /** @param {string} dbName - The IndexedDB database it keeps its records in. */
   constructor(dbName) {
     this.indexedDbManager = new IndexedDBManager(dbName);
   }
@@ -18,6 +30,12 @@ export class SecureMemory {
     return true;
   }
 
+  /**
+   * A key derived from the message and the salt (PBKDF2, 600,000 rounds of SHA-256).
+   * @param {string} message
+   * @param {Uint8Array} salt - One of getSalt's.
+   * @return {Promise<ArrayBuffer>} The key's 32 bytes.
+   */
   static async hash(message, salt) {
     // use pbkdf2 to hash the message
     // @ts-expect-error - TextEncoder takes no argument (it is always UTF-8): the browser ignores it.
@@ -39,6 +57,7 @@ export class SecureMemory {
       // derived this way, and passing the bytes themselves would make every one of them
       // unreadable (unusableRecord), so changing it needs a new record format.
       // tests/unit/SecureMemory.test.mjs pins it.
+      // @ts-expect-error - encode() takes a string: the bytes go in as that decimal list (above).
       salt: encoder.encode(salt),
       iterations: 600000,
     };
@@ -54,6 +73,11 @@ export class SecureMemory {
     return await crypto.subtle.exportKey('raw', derivedKey);
   }
 
+  /**
+   * @param {ArrayBuffer} key - A record's keyHash.
+   * @param {string} value
+   * @return {Promise<Uint8Array>} A fresh 12-byte IV, then AES-GCM's output.
+   */
   static async encrypt(key, value) {
     const keyBuffer = await crypto.subtle.importKey(
         'raw',
@@ -80,6 +104,11 @@ export class SecureMemory {
     return result;
   }
 
+  /**
+   * @param {ArrayBuffer} key - A record's keyHash.
+   * @param {Uint8Array} value - What encrypt made.
+   * @return {Promise<string>}
+   */
   static async decrypt(key, value) {
     const keyBuffer = await crypto.subtle.importKey(
         'raw',
@@ -100,17 +129,27 @@ export class SecureMemory {
     return decoder.decode(decrypted);
   }
 
+  /**
+   * @param {number} length - In bytes.
+   * @return {Promise<Uint8Array<ArrayBuffer>>}
+   */
   static async randomBuffer(length) {
     const randomValues = new Uint8Array(length);
     crypto.getRandomValues(randomValues);
     return randomValues;
   }
 
+  /**
+   * The salt stored under the name, made (128 random bytes) if there is none yet.
+   * @param {string} name - 'identifier_salt' or 'key_salt'.
+   * @return {Promise<Uint8Array>}
+   */
   async getSalt(name) {
     const db = this.indexedDbManager.getDatabase();
     const salt = await IndexedDBManager.getValue(db, 'metadata', name);
     if (salt) {
-      return salt;
+      // The bytes a getSalt stored (randomBuffer), as below.
+      return /** @type {Uint8Array} */ (salt);
     }
     // Added, not put: on a fresh profile two players starting together both found no
     // salt, and the second overwrote the first, so the first tab's saved positions could
@@ -123,7 +162,7 @@ export class SecureMemory {
     if (!stored) {
       throw new Error(`The ${name} was neither added nor found`);
     }
-    return stored;
+    return /** @type {Uint8Array} */ (stored);
   }
 
   async setup() {
@@ -132,18 +171,30 @@ export class SecureMemory {
     this.keySalt = await this.getSalt('key_salt');
   }
 
+  /**
+   * @param {string} identifier - What the record is for (a video source's identifier).
+   * @return {Promise<Hashes>}
+   */
   async getHashes(identifier) {
     // Side by side: each is 600,000 rounds of PBKDF2, and the video's start (autoplay, the
     // seek to the time in its URL) waits for both.
+    // (The salts are there: the client asks only once setup() is done.)
     const [identifierHash, keyHash] = await Promise.all([
-      SecureMemory.hash(identifier, this.identifierSalt),
-      SecureMemory.hash(identifier, this.keySalt),
+      SecureMemory.hash(identifier, /** @type {Uint8Array} */ (this.identifierSalt)),
+      SecureMemory.hash(identifier, /** @type {Uint8Array} */ (this.keySalt)),
     ]);
     return {identifierHash, keyHash};
   }
 
+  /**
+   * Stores a record, encrypted.
+   * @param {Hashes|null|undefined} hashes - The record's (getHashes). FastStreamClient keeps
+   *   its as maybe none, though it saves only once a read gave it some; none rejects.
+   * @param {unknown} data - Anything JSON.stringify takes.
+   */
   async setFile(hashes, data) {
-    const {identifierHash, keyHash} = hashes;
+    // None throws here, and the call rejects (above).
+    const {identifierHash, keyHash} = /** @type {Hashes} */ (hashes);
     const encryptedData = await SecureMemory.encrypt(keyHash, JSON.stringify(data));
     return this.indexedDbManager.setFile(identifierHash, {
       encryptedData,
@@ -151,6 +202,12 @@ export class SecureMemory {
     });
   }
 
+  /**
+   * A record, decrypted.
+   * @param {Hashes} hashes - The record's (getHashes).
+   * @return {Promise<*>} What setFile was given, as JSON.parse gives it back (any JSON value);
+   *   null for no record.
+   */
   async getFile(hashes) {
     const {identifierHash, keyHash} = hashes;
     const data = await this.indexedDbManager.getFile(identifierHash);
@@ -158,7 +215,8 @@ export class SecureMemory {
       return null;
     }
 
-    const {encryptedData} = data;
+    // What setFile stored.
+    const {encryptedData} = /** @type {StoredRecord} */ (data);
     if (encryptedData) {
       try {
         const data = await SecureMemory.decrypt(keyHash, encryptedData);
@@ -184,12 +242,14 @@ export class SecureMemory {
   async pruneOld(cutoff) {
     try {
       const db = this.indexedDbManager.getDatabase();
-      const transaction = db.transaction(['files'], 'readwrite');
+      // None (closed) throws here as a closed one does, and is caught below.
+      const transaction = /** @type {IDBDatabase} */ (db).transaction(['files'], 'readwrite');
       const store = transaction.objectStore('files');
       const request = store.openCursor();
       await /** @type {Promise<void>} */ (new Promise((resolve, reject)=>{
         request.onsuccess = (event)=>{
-          const cursor = event.target.result;
+          // The event's target is the request.
+          const cursor = /** @type {IDBRequest<IDBCursorWithValue|null>} */ (event.target).result;
           if (cursor) {
             const {time} = cursor.value;
             if (time < cutoff) {

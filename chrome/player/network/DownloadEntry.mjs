@@ -6,7 +6,49 @@ import {Utils} from '../utils/Utils.mjs';
 // What getDataFromBlob throws when the stored data is not there at all.
 const DATA_GONE = new Error('The stored download is gone');
 
+/** @typedef {import('./FetchLoader.mjs').LoaderStats} LoaderStats */
+/** @typedef {import('./FetchLoader.mjs').LoaderResponse} LoaderResponse */
+
+/**
+ * What a download asks FetchLoader for (getRequest), or a preProcessor's change of it: the
+ * URL, the byte range (none without a rangeEnd: FetchLoader sends no Range header then), the
+ * response type ('arraybuffer', or text) and the headers.
+ * @typedef {{url: string, rangeStart?: number, rangeEnd?: number, responseType?: string,
+ *   headers?: Object<string, string>}} DownloadRequest
+ */
+
+/**
+ * A download's settings (DownloadManager.getFile's config): FetchLoader's retry and timeout
+ * settings over StandardDownloader's defaults. Whatever else the caller's config holds (an
+ * hls.js LoaderConfiguration's loadPolicy, a fragment request's headers) comes along unread.
+ * @typedef {Partial<import('./FetchLoader.mjs').LoaderConfig> & Object<string, *>} DownloadConfig
+ */
+
+/**
+ * A download as DownloadManager.getFile is asked for it: the request, whether the answer is
+ * stored as it came (storeRaw: a key) or as a Blob, the settings, and what changes the
+ * request before it goes out and the answer before it is stored.
+ * @typedef {DownloadRequest & {storeRaw?: boolean, config?: DownloadConfig|null,
+ *   preProcessor?: (entry: DownloadEntry, request: DownloadRequest) => Promise<DownloadRequest>,
+ *   postProcessor?: (entry: DownloadEntry, response: LoaderResponse) => Promise<LoaderResponse>}} DownloadDetails
+ */
+
+/**
+ * What a download tells each of its watchers (DownloadManager.getFile): the entry once it is
+ * stored (no xhr for a copy that was stored already; FetchLoader has none either),
+ * FetchLoader's progress with the request, the entry of a failed or an aborted one.
+ * @typedef {{onSuccess: (entry: DownloadEntry, xhr?: null) => void,
+ *   onProgress?: (stats: LoaderStats, request: DownloadRequest, data: ArrayBuffer|string, xhr: null) => void,
+ *   onFail?: (entry: DownloadEntry) => void, onAbort?: (entry: DownloadEntry) => void}} DownloadCallbacks
+ */
+
+/**
+ * One request's hold on a download (DownloadManager.getFile): abort() gives it up.
+ * @typedef {{entry: DownloadEntry, abort: () => void, callbacks: DownloadCallbacks}} DownloadWatcher
+ */
+
 export class DownloadEntry {
+  /** @param {DownloadDetails} details */
   constructor(details) {
     this.status = DownloadStatus.WAITING;
     this.priority = 0;
@@ -21,17 +63,24 @@ export class DownloadEntry {
 
     this.config = details.config || {};
 
+    // Null once the download is over (cleanup).
+    /** @type {DownloadDetails['preProcessor']|null} */
     this.preProcessor = details.preProcessor;
+    /** @type {DownloadDetails['postProcessor']|null} */
     this.postProcessor = details.postProcessor;
 
     this.data = null;
     this.dataSize = 0;
+    /** @type {Object<string, string>|null} */
     this.responseHeaders = null;
     // The HTTP status of the answer (FetchLoader): 200 to a range request is the whole file.
     this.responseStatus = 0;
 
+    /** @type {import('./StandardDownloader.mjs').StandardDownloader|null} */
     this.downloader = null;
+    /** @type {DownloadWatcher[]} */
     this.watchers = [];
+    /** @type {((entry: DownloadEntry) => void)|null} */
     this.transferFile = null;
 
     this.responseURL = null;
@@ -42,10 +91,12 @@ export class DownloadEntry {
     this.onDataLost = null;
   }
 
+  /** @param {DownloadWatcher} watcher */
   addWatcher(watcher) {
     this.watchers.push(watcher);
   }
 
+  /** @param {DownloadWatcher} watcher */
   removeWatcher(watcher) {
     const ind = this.watchers.indexOf(watcher);
     if (ind != -1) this.watchers.splice(ind, 1);
@@ -56,7 +107,7 @@ export class DownloadEntry {
    * longer here was already told how the download ended (the watchers go once it is over), or
    * gave up before: its abort is too late. It told it "aborted" after "done", and aborted the
    * finished entry - a stored fragment marked failed, and downloaded again.
-   * @param {Object} watcher
+   * @param {DownloadWatcher} watcher
    */
   abortWatcher(watcher) {
     if (!this.watchers.includes(watcher)) return;
@@ -90,6 +141,7 @@ export class DownloadEntry {
     this.abort();
   }
 
+  /** @return {Promise<DownloadRequest>} The request, as the preProcessor (if any) changed it. */
   async getRequest() {
     const request = {
       url: this.url,
@@ -109,6 +161,16 @@ export class DownloadEntry {
     return request;
   }
 
+  /**
+   * The download's answer, from its downloader (StandardDownloader.onSuccess).
+   * @param response - FetchLoader's answer (LoaderResponse). Left untyped: typed, this
+   *   entry's data and responseURL take its types, and two readers expect narrower ones -
+   *   FastStreamArchiveUtils.parseFSA reads data set from an untyped archive buffer as an
+   *   ArrayBuffer, DashLoader passes responseURL on as a string (it is null until the end).
+   * @param {LoaderStats} stats
+   * @param {DownloadEntry} entry - This entry.
+   * @param {null} xhr - FetchLoader has none.
+   */
   async onSuccess(response, stats, entry, xhr) {
     if (!this.downloader) {
       console.error('DownloadEntry.onSuccess called after abort');
@@ -151,10 +213,20 @@ export class DownloadEntry {
     this.cleanup();
   }
 
+  /** @param {(entry: DownloadEntry) => void} transferFile - Told of the finished entry. */
   setTransferFunction(transferFile) {
     this.transferFile = transferFile;
   }
 
+  /**
+   * The download failed, from its downloader (StandardDownloader).
+   * @param stats - FetchLoader's (LoaderStats); undefined when the request could not be
+   *   made (a preProcessor that threw), before there was a FetchLoader. Left untyped: typed,
+   *   this entry's stats are LoaderStats|undefined (set only here, in onSuccess and in
+   *   onAbort), and HLSLoader's copyStats takes LoaderStats only.
+   * @param {DownloadEntry} entry - This entry.
+   * @param {null} xhr - FetchLoader has none.
+   */
   onFail(stats, entry, xhr) {
     this.status = DownloadStatus.DOWNLOAD_FAILED;
     this.stats = stats;
@@ -163,6 +235,12 @@ export class DownloadEntry {
     this.cleanup();
   }
 
+  /**
+   * The download was stopped on purpose: abort() calls it with nothing, StandardDownloader.abort
+   * with FetchLoader's stats (if it had begun), the entry and an xhr (always undefined:
+   * FetchLoader has none), as onFail is called. Only the stats are read.
+   * @type {(stats?: LoaderStats, entry?: DownloadEntry, xhr?: null) => void}
+   */
   onAbort(stats) {
     if (stats) this.stats = stats;
     this.status = DownloadStatus.DOWNLOAD_FAILED;
@@ -175,8 +253,9 @@ export class DownloadEntry {
    * Calls one callback of every watcher. A watcher that throws is logged, and neither
    * keeps the others from hearing nor the entry from being cleaned up: the downloader
    * would otherwise never be freed, and a save waiting on the same entry never answered.
-   * @param {string} name - The callback, e.g. 'onSuccess'.
-   * @param {...*} args - Its arguments.
+   * @param {'onSuccess'|'onFail'|'onAbort'} name - The callback.
+   * @param {[entry: DownloadEntry, xhr?: null]} args - Its arguments: this entry, and for
+   *   onSuccess FetchLoader's xhr (null).
    */
   notifyWatchers(name, ...args) {
     // A copy: a callback that removes a watcher (abortWatcher) made forEach skip the next one,
@@ -190,6 +269,14 @@ export class DownloadEntry {
     });
   }
 
+  /**
+   * FetchLoader's progress, from the downloader (StandardDownloader.onProgress).
+   * @param {LoaderStats} stats
+   * @param {DownloadRequest} context - The request.
+   * @param {ArrayBuffer|string} data - The answer's body: FetchLoader tells its progress
+   *   once, when the whole of it has come.
+   * @param {null} xhr - FetchLoader has none.
+   */
   onProgress(stats, context, data, xhr) {
     // Guarded as notifyWatchers is: a progress callback that threw ended the downloader's
     // progress handling, and the entry and the downloader stayed busy for good.
