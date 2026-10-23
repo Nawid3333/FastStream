@@ -47,6 +47,6 @@
   "chrome/player/utils/SubtitleFetch.mjs": 10,
   "chrome/player/utils/SubtitleUtils.mjs": 11,
   "chrome/player/utils/Utils.mjs": 41,
-  "native-host/faststream-mpv-host.mjs": 76,
+  "native-host/faststream-mpv-host.mjs": 1,
   "tools/sign-amo.mjs": 1
 }

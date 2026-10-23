@@ -46,10 +46,10 @@ is lowered with `pnpm run typecheck:strict -- --update`, so a typed file cannot 
 unnoticed. `tests/unit/checkImplicitAny.test.mjs` covers the rules (each broken once, and
 caught), and an untyped parameter planted in a file at 0 failed the check with its line.
 
-The mpv host (`native-host/faststream-mpv-host.mjs`, 76 untyped places) is left out on
-purpose: any change to it raises `HostVersion` and `RequiredHostVersion`, and the add-on
-then has every user reinstall the helper, for comments that change no behaviour. It is
-typed the next time it changes for a real reason; until then the ratchet holds its count.
+The mpv host (`native-host/faststream-mpv-host.mjs`) was typed on 2026-10-23 (76 to 1
+untyped places) with `HostVersion` 20 and `RequiredHostVersion` left at 19: a change
+that alters no behaviour raises only the host's own version, so installed helpers go on
+working and nobody is asked to reinstall for comments (the owner's choice).
 
 ### The libraries' own types (2026-10-22)
 

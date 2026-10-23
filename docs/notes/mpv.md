@@ -27,10 +27,12 @@ to it, and the result carries `hostOutdated`. That shows as "!" on the toolbar b
 in MPV mode with what to run in the tooltip (`tab.mpvHostOutdated`, persisted like
 `mpvError`, whose reason comes first), in the player's "Sent to mpv" message, and after
 "Test mpv connection". This replaced `mpv-host-changed.yml`'s e-mail. **Every change to
-the host file or to `install.ps1` raises both numbers by one**:
-`tests/unit/mpvHostVersion.test.mjs` records both files' SHA-256 beside the version and
-fails until `HostVersion`, `RequiredHostVersion` and the record agree (the failure prints
-the new hashes). The installer counts because `update-local.ps1` tells an installed host
+the host file or to `install.ps1` raises `HostVersion` by one**, and `RequiredHostVersion`
+with it only when the extension needs the new host (since 2026-10-23: a change that alters
+no behaviour, such as the host's types, has every installed host go on working, and nobody
+is asked to reinstall): `tests/unit/mpvHostVersion.test.mjs` records both files' SHA-256
+beside the version, fails until `HostVersion` and the record agree (the failure prints the
+new hashes), and checks `RequiredHostVersion <= HostVersion`. The installer counts because `update-local.ps1` tells an installed host
 from the repository's by the host file alone; a raised `HostVersion` changes that file. The
 extension changes with it, so such a push releases, Firefox updates the extension, and
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
