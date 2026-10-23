@@ -78,6 +78,7 @@ const EndStallMs = 3000;
  */
 /** @typedef {import('./options/defaults/ToolSettings.mjs').ToolSetting} ToolSetting */
 /** @typedef {import('./VideoSource.mjs').VideoSource} VideoSource */
+/** @typedef {import('./players/Fragment.mjs').Fragment} Fragment */
 
 /**
  * The client's options: its own defaults (the constructor), most of them replaced by the
@@ -251,12 +252,18 @@ export class FastStreamClient extends EventEmitter {
     // Counts play() and pause() calls: the later one wins (play()).
     this.playPauseTurn = 0;
     // The audio context startAudio() is waiting on, if any.
+    /** @type {AudioContext|null} */
     this.startingAudioContext = null;
     this.saveSeek = true;
+    /** @type {number[]} The times sought from, the last one last (undoSeek). */
     this.pastSeeks = [];
+    /** @type {number[]} The times undone seeks went back from (redoSeek). */
     this.pastUnseeks = [];
+    // Each level's fragments (Fragment) by their sn, by the level's ID. Not typed so: it is
+    // also read with a level ID that is null (none played), which an index type refuses.
     this.fragmentsStore = {};
     // The source (recoverySourceURL) playDirectly handed to Firefox's own player.
+    /** @type {string|null} */
     this.playedDirectly = null;
     // The source whose own time is still to be applied: nothing plays before it is
     // (setSourceInternal).
@@ -343,7 +350,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Determines if all fragments should be downloaded.
-   * @return {boolean}
+   * @return {boolean|undefined} Falsy for no: undefined without a source (loadedFromArchive).
    */
   shouldDownloadAll() {
     return (this.options.downloadAll && this.hasDownloadSpace) || this.source?.loadedFromArchive;
@@ -399,7 +406,7 @@ export class FastStreamClient extends EventEmitter {
   resetFailed() {
     for (const levelID in this.fragmentsStore) {
       if (Object.hasOwn(this.fragmentsStore, levelID)) {
-        this.fragmentsStore[levelID].forEach((fragment) => {
+        this.fragmentsStore[levelID].forEach((/** @type {Fragment} */ fragment) => {
           if (fragment.status === DownloadStatus.DOWNLOAD_FAILED) {
             fragment.status = DownloadStatus.WAITING;
           }
@@ -813,6 +820,7 @@ export class FastStreamClient extends EventEmitter {
           // ago would suddenly lose most of its buffer the next time
           // freeFragments() runs (see FastStreamClient.freeFragments).
           // With nothing on disk, nothing is pinned: the RAM budget could not let go of it.
+          /** @param {Fragment} frag */
           const grandfather = (frag) => {
             if (frag && frag.status === DownloadStatus.DOWNLOAD_COMPLETE) {
               frag.addReference(ReferenceTypes.GRANDFATHERED);
@@ -1354,7 +1362,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the next fragment to download (video or audio).
-   * @return {Object|null} Next fragment.
+   * @return {Fragment|null|undefined} Next fragment; none when nothing waits.
    */
   getNextToDownload() {
     const currentFragment = this.currentFragment;
@@ -1382,8 +1390,8 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the next fragment to download for a track.
-   * @param {Object} currentFragment
-   * @return {Object|null}
+   * @param {Fragment|null} currentFragment - The track's fragment playing, if any.
+   * @return {Fragment|null|undefined} None when nothing of the track waits.
    */
   getNextToDownloadTrack(currentFragment) {
     if (!currentFragment) {
@@ -1404,9 +1412,9 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the next waiting fragment forward from index.
-   * @param {Array} fragments
+   * @param {Array<Fragment>} fragments - A level's, by sn.
    * @param {number} index
-   * @return {Object|null}
+   * @return {Fragment|undefined}
    */
   getNextForward(fragments, index) {
     for (let i = index; i < fragments.length; i++) {
@@ -1419,9 +1427,9 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the next waiting fragment backward from index.
-   * @param {Array} fragments
+   * @param {Array<Fragment>} fragments - A level's, by sn.
    * @param {number} index
-   * @return {Object|null}
+   * @return {Fragment|undefined}
    */
   getNextBackward(fragments, index) {
     for (let i = index - 1; i >= 0; i--) {
@@ -1709,8 +1717,8 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets reserved fragments that are waiting to be downloaded.
-   * @param {Array|undefined} fragments - None for a level with no fragments yet.
-   * @return {Array} Reserved fragments.
+   * @param {Array<Fragment>|undefined} fragments - None for a level with no fragments yet.
+   * @return {Array<Fragment>} Reserved fragments.
    */
   getWaitingReservedFragments(fragments) {
     if (!fragments) return [];
@@ -1721,7 +1729,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Frees fragments that are complete and can be released.
-   * @param {Array} fragments
+   * @param {Array<Fragment>} fragments - A level's, by sn.
    */
   freeFragments(fragments) {
     for (let i = 0; i < fragments.length; i++) {
@@ -1736,7 +1744,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Frees a single fragment.
-   * @param {Object} fragment
+   * @param {Fragment} fragment
    */
   freeFragment(fragment) {
     this.downloadManager.removeFile(fragment.getContext());
@@ -1747,7 +1755,8 @@ export class FastStreamClient extends EventEmitter {
    * Gets a fragment by level and sequence number.
    * @param {string|number} level
    * @param {number} sn - Sequence number.
-   * @return {Object|null}
+   * @return {Fragment|null|undefined} null for a level with none yet; none for an sn not
+   *   made.
    */
   getFragment(level, sn) {
     if (!this.fragmentsStore[level]) {
@@ -1760,7 +1769,7 @@ export class FastStreamClient extends EventEmitter {
    * Stores a fragment in the fragments store.
    * @param {string|number} level
    * @param {number} sn
-   * @param {Object} frag
+   * @param {Fragment} frag - The player's own kind (HLSFragment, DashFragment, MP4Fragment).
    */
   makeFragment(level, sn, frag) {
     if (!this.fragmentsStore[level]) {
@@ -2074,6 +2083,7 @@ export class FastStreamClient extends EventEmitter {
     // A preview build still running is the old video's: the next video joined it, the build
     // discarded itself over the changed source, and the next video had no seek preview.
     this.previewPlayerSetup = null;
+    /** @type {number[]} When the preview player was built again after an error (Date.now()). */
     this.previewReloads = [];
 
     if (this.syncedAudioPlayer) {
@@ -2104,6 +2114,7 @@ export class FastStreamClient extends EventEmitter {
     this.state.buffering = false;
 
     this.storageAvailable = 0;
+    /** @type {boolean|undefined} Whether the whole video fits in the room kept for it (updateHasDownloadSpace); none before the first reset. */
     this.hasDownloadSpace = true;
     this.previousLevel = -1;
     this.previousAudioLevel = -1;
@@ -2461,7 +2472,8 @@ export class FastStreamClient extends EventEmitter {
       // Through the setter, so a separate audio track follows at once; not saved, or
       // the undo would be a seek to undo.
       this.setSeekSave(false);
-      this.currentTime = this.pastSeeks.pop();
+      // Not empty: checked above.
+      this.currentTime = /** @type {number} */ (this.pastSeeks.pop());
       this.setSeekSave(true);
       this.interfaceController.updateMarkers();
     }
@@ -2474,7 +2486,8 @@ export class FastStreamClient extends EventEmitter {
     if (this.player && this.pastUnseeks.length) {
       this.pastSeeks.push(this.player.currentTime);
       this.setSeekSave(false);
-      this.currentTime = this.pastUnseeks.pop();
+      // Not empty: checked above.
+      this.currentTime = /** @type {number} */ (this.pastUnseeks.pop());
       this.setSeekSave(true);
       this.interfaceController.updateMarkers();
     }
@@ -2791,7 +2804,7 @@ export class FastStreamClient extends EventEmitter {
    * writing (SAVER): freed, they were downloaded a second time. The other pins go with the
    * level: the analyzers start again on the new one, and nothing would ever free them later,
    * since only the playing level is freed as it plays.
-   * @param {Array} fragments - The level's fragments.
+   * @param {Array<Fragment>} fragments - The level's fragments.
    */
   freeLevel(fragments) {
     fragments.forEach((fragment) => {
@@ -2977,7 +2990,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the current video fragments.
-   * @return {Array|undefined}
+   * @return {Array<Fragment>|undefined} By sn; none when no level plays or it has none yet.
    */
   get fragments() {
     return this.fragmentsStore[this.getCurrentVideoLevelID()];
@@ -2985,7 +2998,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the current audio fragments.
-   * @return {Array|undefined}
+   * @return {Array<Fragment>|undefined} By sn; none when no level plays or it has none yet.
    */
   get audioFragments() {
     return this.fragmentsStore[this.getCurrentAudioLevelID()];
@@ -2993,7 +3006,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the current video fragment.
-   * @return {Object|null}
+   * @return {Fragment|null}
    */
   get currentFragment() {
     return this.player?.currentFragment || null;
@@ -3001,7 +3014,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the current audio fragment.
-   * @return {Object|null}
+   * @return {Fragment|null}
    */
   get currentAudioFragment() {
     return this.player?.currentAudioFragment || null;
@@ -3009,8 +3022,10 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets fragments for a given level.
-   * @param {string|number} level
-   * @return {Array|undefined}
+   * @param {string|number|null} level - null (none played, as a DashPlayer's level ID can
+   *   be) finds none.
+   * @return {Array|undefined} The level's Fragments by sn; none for a level with none yet.
+   *   (Array<Fragment> is true, and fails HLSFragmentStore, which takes them as HLSFragments.)
    */
   getFragments(level) {
     return this.fragmentsStore[level];
