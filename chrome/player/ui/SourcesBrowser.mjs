@@ -11,29 +11,50 @@ import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {createDropdown} from './components/Dropdown.mjs';
 
+/**
+ * A source's row in the list (setupSourceListing).
+ * @typedef {{container: HTMLElement, url: HTMLInputElement, mode: HTMLElement,
+ *     headersBtn: HTMLElement, setBtn: HTMLElement, deleteBtn: HTMLElement}} SourceListing
+ */
+
+/**
+ * A source in the list, with its row (setupSourceListing).
+ * @typedef {VideoSource & {sourceBrowserElements: SourceListing}} ListedSource
+ */
+
 export class SourcesBrowser {
+  /** @param {import('../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     this.client = client;
 
+    /** @type {Array<ListedSource>} */
     this.sources = [];
     this.setupUI();
     this.addSource(new VideoSource('', null, PlayerModes.AUTO), true);
   }
 
+  /**
+   * Lists a source, unless the same one is listed already.
+   * @param {VideoSource} source
+   * @param {boolean} [force=false] - Lists it even so.
+   * @return {VideoSource} The one listed: the same source listed before, or this one.
+   */
   addSource(source, force = false) {
     const existing = this.sources.find((s) => s.equals(source));
     if (existing && !force) {
       return existing;
     }
 
-    this.sources.push(source);
+    // Its row is made next, before anything reads the list (setupSourceListing).
+    this.sources.push(/** @type {ListedSource} */ (source));
 
-    this.setupSourceListing(source);
+    this.setupSourceListing(/** @type {ListedSource} */ (source));
     this.updateSources();
 
     return source;
   }
 
+  /** @param {ListedSource} source - Given its row here: nothing reads it before. */
   setupSourceListing(source) {
     // eslint-disable-next-line prefer-const
     let headersInput;
@@ -51,6 +72,7 @@ export class SourcesBrowser {
     });
     sourceContainer.appendChild(sourceURL);
 
+    /** @type {Object<string, string>} Each mode's name by its PlayerModes value. */
     const modes = {};
 
     if (source.mode === PlayerModes.AUTO) {

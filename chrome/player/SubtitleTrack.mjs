@@ -3,16 +3,35 @@ import {Localize} from './modules/Localize.mjs';
 import {WebVTT} from './modules/vtt.mjs';
 import {SubtitleUtils} from './utils/SubtitleUtils.mjs';
 
+/**
+ * A track's cue, with the DOM trees the subtitle code caches on it: `dom` for the video
+ * (SubtitlesManager.renderSubtitles), `dom2` for the resync timeline (SubtitleSyncer).
+ * @typedef {VTTCue & {dom?: Node|null, dom2?: Node|null}} TrackCue
+ */
+
 export class SubtitleTrack {
+  /**
+   * @param {string} label - The track's name in the subtitles menu.
+   * @param {string|null} [language] - Its language, where one is known.
+   */
   constructor(label, language) {
     this.label = label;
     this.language = language;
+    // The parser makes the window's own cues and regions (vtt.js's shims only where the
+    // browser has none); the resync tool adds cues of its own (SubtitleSyncer).
+    /** @type {Array<TrackCue>} */
     this.cues = [];
+    /** @type {Array<VTTRegion>} */
     this.regions = [];
     // the sum of every whole-track shift, shown by the resync tool
     this.shiftTotal = 0;
   }
 
+  /**
+   * Fetches a subtitle file and reads its cues into the track.
+   * @param {string} url
+   * @return {Promise<void>}
+   */
   loadURL(url) {
     return fetch(url).then((response) => {
       // An error page (404) was read as a subtitle file without cues: the reason was lost
@@ -38,6 +57,10 @@ export class SubtitleTrack {
     }
   }
 
+  /**
+   * Moves every cue by the same time.
+   * @param {number} time - Seconds, later when positive.
+   */
   shift(time) {
     this.cues.forEach((cue) => {
       cue.startTime += time;
@@ -46,6 +69,10 @@ export class SubtitleTrack {
     this.shiftTotal += time;
   }
 
+  /**
+   * @param {TrackCue} cue - The first cue to move, one of the track's.
+   * @param {number} time - Seconds, later when positive.
+   */
   shiftAfter(cue, time) {
     // only shift cues that are the given cue or come after it. This allows users to shift a single cue without affecting cues that come before it.
     let shift = false;
@@ -60,6 +87,10 @@ export class SubtitleTrack {
     });
   }
 
+  /**
+   * Reads a subtitle file's text (WebVTT, SubRip or TTML) into the track's cues.
+   * @param {string} text
+   */
   loadText(text) {
     // A byte order mark hid the WEBVTT signature (and '<?xml') from the checks below and
     // from the parser: no cue. The page's own subtitles come in as the page wrote them.
@@ -79,11 +110,11 @@ export class SubtitleTrack {
 
     // eslint-disable-next-line new-cap
     const parser = new WebVTT.Parser(window, WebVTT.StringDecoder());
-    parser.onRegion = (region) => {
+    parser.onRegion = (/** @type {VTTRegion} */ region) => {
       this.regions.push(region);
     };
 
-    parser.oncue = (cue) => {
+    parser.oncue = (/** @type {VTTCue} */ cue) => {
       this.cues.push(cue);
     };
 
@@ -93,13 +124,15 @@ export class SubtitleTrack {
       });
     };
 
-    parser.onparsingerror = (error) => {
+    // vtt.js's ParsingError: an Error with the code of what was malformed.
+    parser.onparsingerror = (/** @type {Error & {code: number}} */ error) => {
       console.error(error);
     };
 
     // toWellFormed: the parser's decoder, decodeURIComponent(encodeURIComponent(text)),
     // throws "URI malformed" on a lone surrogate, which a page's string can hold.
-    parser.parse(text.toWellFormed());
+    // (tsconfig's lib, ES2022, has no String.prototype.toWellFormed; Firefox has, since 119.)
+    parser.parse(/** @type {string & {toWellFormed(): string}} */ (text).toWellFormed());
     parser.flush();
   }
 

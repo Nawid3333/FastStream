@@ -50,6 +50,10 @@ function isKeyboardFocus(element) {
  * @typedef {Window & typeof globalThis & {documentPictureInPicture: {window: Window}}} PipWindow
  */
 export class InterfaceController {
+  // client stays untyped for now: as the FastStreamClient it is, three places here fail -
+  // sessionStorage.setItem given a boolean (toggleAutoplayNext), state.documentPip, which the
+  // client's state does not declare, and AudioQualityChanger.updateQualityLevels, whose
+  // own made-up client type does not fit the real one.
   constructor(client) {
     this.client = client;
     this.state = client.state;
@@ -72,14 +76,15 @@ export class InterfaceController {
     this.subtitlesManager = new SubtitlesManager(this.client);
 
     this.playbackRateChanger = new PlaybackRateChanger(this.client);
-    this.playbackRateChanger.on('rateChanged', (rate) => {
+    this.playbackRateChanger.on('rateChanged', (/** @type {number} */ rate) => {
       this.client.playbackRate = rate;
     });
     this.playbackRateChanger.setupUI();
 
     this.videoQualityChanger = new VideoQualityChanger();
     this.videoQualityChanger.setupUI();
-    this.videoQualityChanger.on('qualityChanged', (level, savePriority, versions) => {
+    // The version picked, whether to remember the choice, and the versions of its size.
+    this.videoQualityChanger.on('qualityChanged', (/** @type {import('../players/Levels.mjs').VideoLevel} */ level, /** @type {boolean} */ savePriority, /** @type {Array<import('../players/Levels.mjs').VideoLevel>} */ versions) => {
       if (savePriority) {
         // Its container, and its codec only if the click chose between codecs.
         this.client.getLevelManager().rememberVideoChoice(level, versions);
@@ -89,7 +94,7 @@ export class InterfaceController {
 
     this.audioQualityChanger = new AudioQualityChanger();
     this.audioQualityChanger.setupUI();
-    this.audioQualityChanger.on('qualityChanged', (level) => {
+    this.audioQualityChanger.on('qualityChanged', (/** @type {import('../players/Levels.mjs').AudioLevel} */ level) => {
       const mimeType = (level.mimeType || '').split('/');
       if (mimeType.length > 1) {
         this.client.getLevelManager().setPrioritizedAudioContainer(mimeType[1]);
@@ -107,7 +112,8 @@ export class InterfaceController {
 
     this.languageChanger = new LanguageChanger();
     this.languageChanger.setupUI();
-    this.languageChanger.on('languageChanged', (type, language, tracks) => {
+    // 'video' or 'audio', the language, and that type's tracks in it.
+    this.languageChanger.on('languageChanged', (/** @type {string} */ type, /** @type {string} */ language, /** @type {Array<import('../players/Levels.mjs').VideoLevel|import('../players/Levels.mjs').AudioLevel>} */ tracks) => {
       this.client.changeLanguage(type, language);
     });
 
@@ -131,7 +137,7 @@ export class InterfaceController {
     this.progressBar.setupUI();
 
     this.volumeControls = new VolumeControls(this.client);
-    this.volumeControls.on('volume', (volume)=>{
+    this.volumeControls.on('volume', (/** @type {number} */ volume)=>{
       this.client.setVolume(volume);
     });
     this.volumeControls.setupUI();
@@ -164,6 +170,11 @@ export class InterfaceController {
     this.playbackRateChanger.closeSilenceSkipperUI();
   }
 
+  /**
+   * @param {boolean|{target: Element|null}} [e] - true keeps the extra tools open; a menu's
+   *     'open' event keeps them open when its button is among them.
+   * @return {boolean} Whether a menu was open.
+   */
   closeAllMenus(e) {
     let closedSomething = false;
     if (e !== true && (!e || (e.target && !/** @type {HTMLElement} */ (DOMElements.extraTools).contains(e.target)))) {
@@ -181,6 +192,9 @@ export class InterfaceController {
     return closedSomething;
   }
 
+  // Untyped for now: message is a string, or null or nothing to clear the line, and
+  // StatusManager.setStatusMessage's type leaves out the nothing that callers pass. With
+  // JSDoc for the others, message would also become required.
   setStatusMessage(key, message, type, expiry) {
     this.statusManager.setStatusMessage(key, message, type, expiry);
   }
@@ -242,12 +256,14 @@ export class InterfaceController {
     this.timeUpdated();
   }
 
+  /** @param {string} reason - The message shown. */
   failedToLoad(reason) {
     this.failed = true;
     this.setStatusMessage('error', reason, 'error');
     this.setBuffering(false);
   }
 
+  /** @param {boolean} isBuffering */
   setBuffering(isBuffering) {
     if (this.failed) {
       isBuffering = false;
@@ -266,16 +282,19 @@ export class InterfaceController {
     }
   }
 
+  /** @param {HTMLVideoElement} video - A player's video element. */
   dressVideo(video) {
     video.setAttribute('playsinline', 'playsinline');
     video.disableRemotePlayback = true;
   }
 
+  /** @param {HTMLVideoElement} video - The player's video element. */
   addVideo(video) {
     this.dressVideo(video);
     /** @type {HTMLElement} */ (DOMElements.videoContainer).appendChild(video);
   }
 
+  /** @param {HTMLVideoElement} video - The seek preview player's video element. */
   addPreviewVideo(video) {
     this.dressVideo(video);
     /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).style.display = '';
@@ -340,6 +359,7 @@ export class InterfaceController {
   }
 
   setupDOM() {
+    /** @param {Event} e - A keydown, mousedown or touchstart. */
     const interactHandler = (e) => {
       this.client.userInteracted();
     };
@@ -674,6 +694,7 @@ export class InterfaceController {
       console.warn('Coloris failed to initialize', e);
     }
 
+    /** @param {MouseEvent} e */
     const mouseUpHandler = (e) => {
       /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mousemove', mouseMoveHandler);
       // With capture, as it was added: without, the remove did nothing, and each drag left one more.
@@ -681,6 +702,7 @@ export class InterfaceController {
       /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseleave', mouseUpHandler);
     };
 
+    /** @param {MouseEvent} e */
     const mouseMoveHandler = (e) => {
       const currentY = Math.min(Math.max(e.clientY - WebUtils.getOffsetTop(/** @type {HTMLElement} */ (DOMElements.progressContainer)), -100), 100);
       const isExpanded = /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.contains('expanded');
@@ -715,6 +737,7 @@ export class InterfaceController {
     this.updateAutoNextIndicator();
   }
 
+  /** @param {boolean} isVisible - Whether the page is visible now. */
   async handleVisibilityChange(isVisible) {
     if (this.client.needsUserInteraction()) { // Don't do anything if the user needs to interact with the player
       return;
@@ -758,6 +781,7 @@ export class InterfaceController {
         break;
     }
 
+    /** @type {boolean|undefined} The visibility last acted on; none before the first change. */
     this.lastPageVisibility = isVisible;
   }
 
@@ -771,6 +795,7 @@ export class InterfaceController {
     this.handleVisibilityChange(isVisible).catch((e) => console.warn('The visibility action failed', e));
   }
 
+  /** @param {boolean} [force] - In or out; toggles without. */
   requestMiniplayer(force) {
     if (EnvUtils.isExtension()) {
       // Check if source is vimeo, then dont do miniplayer
@@ -779,6 +804,7 @@ export class InterfaceController {
       }
 
 
+      /** @type {{top?: string, left?: string, right?: string, bottom?: string}} The corner it goes to. */
       const styles = {};
       switch (this.client.options.miniPos) {
         case MiniplayerPositions.TOP_LEFT:
@@ -819,6 +845,7 @@ export class InterfaceController {
     }
   }
 
+  /** @param {boolean} isMini */
   setMiniplayerStatus(isMini) {
     if (isMini) {
       this.requestMiniplayer(true);
@@ -843,6 +870,7 @@ export class InterfaceController {
     }
   }
 
+  /** @param {boolean} [force] - In or out; toggles without. */
   pipToggle(force) {
     if (force !== undefined && !!force == this.isInPip()) {
       return;
@@ -918,7 +946,7 @@ export class InterfaceController {
     // A style sheet of this document, copied over as CSS text when its rules can be read,
     // else as a link to it; the fallback link takes the media query text and the URL as
     // plain strings (the link's media setter stringifies the MediaList).
-    [...document.styleSheets].forEach(/** @param {CSSStyleSheet & {media: string, href: string}} styleSheet */ (styleSheet) => {
+    /** @type {Array<CSSStyleSheet & {media: string, href: string}>} */ ([...document.styleSheets]).forEach((styleSheet) => {
       try {
         const cssRules = [...styleSheet.cssRules]
             .map((rule) => rule.cssText)
@@ -1005,6 +1033,7 @@ export class InterfaceController {
     if (document.activeElement && /** @type {HTMLElement} */ (DOMElements.controlsContainer).contains(document.activeElement)) /** @type {HTMLElement} */ (document.activeElement).blur();
     this.queueControlsHide();
   }
+  /** @param {MouseEvent} event - A mousemove over the player. */
   onPlayerMouseMove(event) {
     if (!this.pointerMoves.moved(event)) {
       return;
@@ -1044,6 +1073,7 @@ export class InterfaceController {
     return this.mouseOverControls;
   }
 
+  /** @param {number} [time] - Milliseconds until it hides; 2000 without. */
   queueControlsHide(time) {
     clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.hideControlBarTimeout));
     this.hideControlBarTimeout = null;
@@ -1148,6 +1178,7 @@ export class InterfaceController {
     this.audioQualityChanger.updateQualityLevels(this.client);
   }
 
+  /** @param {number} volume - 0 to 3, 1 as the video is. */
   setVolume(volume) {
     this.volumeControls.setVolume(volume);
   }
@@ -1171,6 +1202,7 @@ export class InterfaceController {
     this.progressBar.updateNextVideoBanner();
   }
 
+  /** @param {boolean} [force] - In or out; toggles without. */
   toggleWindowedFullscreen(force) {
     chrome.runtime.sendMessage({
       type: MessageTypes.REQUEST_WINDOWED_FULLSCREEN,
@@ -1207,6 +1239,10 @@ export class InterfaceController {
     });
   }
 
+  /**
+   * @param {boolean} [force] - In or out; toggles without.
+   * @return {Promise<void>}
+   */
   async fullscreenToggle(force) {
     // A carried fullscreen is left like a real one (a click here could not enter one).
     if (this.state.carriedFullscreen) {
@@ -1245,6 +1281,7 @@ export class InterfaceController {
     this.setFullscreenStatus(document.fullscreenElement);
   }
 
+  /** @param {Element|boolean|null} status - Fullscreen when truthy: the fullscreen element, or the background's answer. */
   setFullscreenStatus(status) {
     const fullScreenButton = /** @type {HTMLElement} */ (DOMElements.fullscreen);
     if (status) {

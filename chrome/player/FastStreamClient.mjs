@@ -68,14 +68,61 @@ const PREVIEW_RELOAD_LIMIT = 3;
 // (watchEndStall).
 const EndStallMs = 3000;
 
+/** @typedef {import('./options/defaults/ToolSettings.mjs').ToolSetting} ToolSetting */
+/** @typedef {import('./VideoSource.mjs').VideoSource} VideoSource */
+/** @typedef {import('./players/Fragment.mjs').Fragment} Fragment */
+
 /**
- * A player built by PlayerLoader: the members of one that this client uses.
- * @typedef {Object} LoadedPlayer
- * @property {() => Promise<void>} setup
- * @property {(source: Object) => Promise<void>} setSource
- * @property {() => void} destroy
- * @property {() => HTMLVideoElement} getVideo
+ * A player PlayerLoader.createPlayer builds, one for each mode.
+ * @typedef {import('./players/DirectVideoPlayer.mjs').default|import('./players/mp4/MP4Player.mjs').default|
+ *     import('./players/hls/HLSPlayer.mjs').default|import('./players/dash/DashPlayer.mjs').default|
+ *     import('./players/vm/VMPlayer.mjs').default} Player
  */
+
+/** @typedef {ReturnType<Player['createContext']>} PlayerContext A player's listeners, gone together. */
+
+/**
+ * The client's options: its own defaults (the constructor), most of them replaced by the
+ * stored ones once they come (setOptions), which also brings the three optional ones.
+ * @typedef {Object} ClientOptions
+ * @property {boolean} autoPlay
+ * @property {number} maxSpeed - The downloads' speed limit: 0 downloads nothing ahead, below 0
+ *     is no limit.
+ * @property {number} maxVideoSize - Bytes.
+ * @property {number} ramBudget - Bytes, for all players together.
+ * @property {boolean} bufferToDisk
+ * @property {number} bufferAhead - Seconds; Infinity for no limit.
+ * @property {number} bufferBehind - Seconds; Infinity for no limit.
+ * @property {boolean} freeFragments
+ * @property {boolean} downloadAll
+ * @property {boolean} freeUnusedChannels
+ * @property {boolean} storeProgress
+ * @property {boolean} disableLoadProgress
+ * @property {boolean} previewEnabled
+ * @property {boolean} decodingAwareQuality
+ * @property {boolean} autoplayNext
+ * @property {number} autoplayCountdown - Seconds.
+ * @property {string} singleClickAction - A ClickActions value.
+ * @property {string} doubleClickAction - A ClickActions value.
+ * @property {string} tripleClickAction - A ClickActions value.
+ * @property {string} visChangeAction - A VisChangeActions value.
+ * @property {number} miniSize
+ * @property {string} miniPos - A MiniplayerPositions value.
+ * @property {number} videoZoom
+ * @property {string} videoAspectRatio - An AspectRatios value.
+ * @property {number} seekStepSize - Seconds.
+ * @property {string} defaultQuality
+ * @property {Object<string, ToolSetting>} toolSettings - By the tool's name.
+ * @property {number} videoDelay - Milliseconds.
+ * @property {number} videoFlip - 0 to 3 (VideoTransformUtils).
+ * @property {number} videoRotate - Quarter turns, 0 to 3.
+ * @property {number} maximumDownloaders
+ * @property {number} maxPlaybackRate
+ * @property {boolean} [autoEnableBestSubtitles]
+ * @property {boolean} [mpvMode]
+ * @property {boolean} [mpvPausePage]
+ */
+
 export class FastStreamClient extends EventEmitter {
   /**
    * Constructs a FastStreamClient instance.
@@ -84,6 +131,7 @@ export class FastStreamClient extends EventEmitter {
     super();
     this.version = EnvUtils.getVersion();
 
+    /** @type {ClientOptions} */
     this.options = {
       autoPlay: false,
       maxSpeed: -1,
@@ -111,7 +159,7 @@ export class FastStreamClient extends EventEmitter {
       videoAspectRatio: AspectRatios.AUTO,
       seekStepSize: 0.2,
       defaultQuality: 'Auto',
-      toolSettings: Utils.mergeOptions(DefaultToolSettings, {}),
+      toolSettings: /** @type {Object<string, ToolSetting>} */ (Utils.mergeOptions(DefaultToolSettings, {})),
       videoDelay: 0,
       videoFlip: 0,
       videoRotate: 0,
@@ -185,11 +233,12 @@ export class FastStreamClient extends EventEmitter {
     this.player = null;
     this.syncedAudioPlayer = null;
     this.previewPlayer = null;
+    /** @type {Promise<void>|null} The source change running (setSource), if any. */
     this.sourceChange = null;
     // Counts the sources asked for, and holds the streams to try should the latest one
     // fail before it shows anything (setSource()).
     this.sourceRequests = 0;
-    /** @type {{request: number, sources: Object[], next?: Object}} */
+    /** @type {{request: number, sources: VideoSource[], next?: VideoSource}} */
     this.fallbacks = {request: 0, sources: []};
     // A source's decode failures, kept over its own reload (reloadWithoutFailedCodec).
     this.carriedDecodeFailures = null;
@@ -204,12 +253,18 @@ export class FastStreamClient extends EventEmitter {
     // Counts play() and pause() calls: the later one wins (play()).
     this.playPauseTurn = 0;
     // The audio context startAudio() is waiting on, if any.
+    /** @type {AudioContext|null} */
     this.startingAudioContext = null;
     this.saveSeek = true;
+    /** @type {number[]} The times sought from, the last one last (undoSeek). */
     this.pastSeeks = [];
+    /** @type {number[]} The times undone seeks went back from (redoSeek). */
     this.pastUnseeks = [];
+    // Each level's fragments (Fragment) by their sn, by the level's ID. Not typed so: it is
+    // also read with a level ID that is null (none played), which an index type refuses.
     this.fragmentsStore = {};
     // The source (recoverySourceURL) playDirectly handed to Firefox's own player.
+    /** @type {string|null} */
     this.playedDirectly = null;
     // The source whose own time is still to be applied: nothing plays before it is
     // (setSourceInternal).
@@ -247,7 +302,8 @@ export class FastStreamClient extends EventEmitter {
 
     try {
       Utils.loadAndParseOptions('toolSettings', DefaultToolSettings).then((settings) => {
-        this.options.toolSettings = settings;
+        // The stored settings over DefaultToolSettings: its shape.
+        this.options.toolSettings = /** @type {Object<string, ToolSetting>} */ (settings);
         this.interfaceController.updateToolVisibility();
       }).catch((e) => console.error('Loading the tool settings failed', e));
     } catch (e) {
@@ -295,7 +351,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Determines if all fragments should be downloaded.
-   * @return {boolean}
+   * @return {boolean|undefined} Falsy for no: undefined without a source (loadedFromArchive).
    */
   shouldDownloadAll() {
     return (this.options.downloadAll && this.hasDownloadSpace) || this.source?.loadedFromArchive;
@@ -351,7 +407,7 @@ export class FastStreamClient extends EventEmitter {
   resetFailed() {
     for (const levelID in this.fragmentsStore) {
       if (Object.hasOwn(this.fragmentsStore, levelID)) {
-        this.fragmentsStore[levelID].forEach((fragment) => {
+        this.fragmentsStore[levelID].forEach((/** @type {Fragment} */ fragment) => {
           if (fragment.status === DownloadStatus.DOWNLOAD_FAILED) {
             fragment.status = DownloadStatus.WAITING;
           }
@@ -496,9 +552,10 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Loads and activates a subtitle track.
-   * @param {Object} subtitleTrack
+   * @param {import('./SubtitleTrack.mjs').SubtitleTrack} subtitleTrack
    * @param {boolean} [autoset=false]
-   * @return {Promise<void>}
+   * @return {import('./SubtitleTrack.mjs').SubtitleTrack} The track listed: the same one listed
+   *   before, or this one (SubtitlesManager.loadTrackAndActivateBest).
    */
   loadSubtitleTrack(subtitleTrack, autoset = false) {
     return this.interfaceController.subtitlesManager.loadTrackAndActivateBest(subtitleTrack, autoset);
@@ -764,6 +821,7 @@ export class FastStreamClient extends EventEmitter {
           // ago would suddenly lose most of its buffer the next time
           // freeFragments() runs (see FastStreamClient.freeFragments).
           // With nothing on disk, nothing is pinned: the RAM budget could not let go of it.
+          /** @param {Fragment} frag */
           const grandfather = (frag) => {
             if (frag && frag.status === DownloadStatus.DOWNLOAD_COMPLETE) {
               frag.addReference(ReferenceTypes.GRANDFATHERED);
@@ -800,11 +858,11 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Adds a new source and optionally sets it as current.
-   * @param {Object} source - Source object.
+   * @param {VideoSource} source - Source object.
    * @param {boolean} [setSource=false]
-   * @param {Object[]} [fallbacks=[]] - When it is set: the streams to try in turn should it
+   * @param {VideoSource[]} [fallbacks=[]] - When it is set: the streams to try in turn should it
    *   fail before it shows anything.
-   * @return {Promise<Object>} The added source.
+   * @return {Promise<VideoSource>} The added source.
    */
   async addSource(source, setSource = false, fallbacks = []) {
     source = source.copy();
@@ -937,8 +995,9 @@ export class FastStreamClient extends EventEmitter {
    * context over the other's, so a source that is asked for while one is being set waits
    * its turn.
    *
-   * @param {Object} source - Source object.
-   * @param {Object[]} [fallbacks=[]] - The streams to try in turn should it fail before it
+   * @param {Object} source - A VideoSource. Typed Object while VpnPrompt, which hands its
+   *   source back here, types it so (VpnPrompt.check); cast where it is used.
+   * @param {VideoSource[]} [fallbacks=[]] - The streams to try in turn should it fail before it
    *   shows anything: the others the player picked it from. None for a source chosen by
    *   hand, and a later request drops those of every earlier one.
    * @param {{play?: boolean}} [start={}] - play: it plays once it has started, autoplay or
@@ -949,10 +1008,10 @@ export class FastStreamClient extends EventEmitter {
     const request = ++this.sourceRequests;
     // A source loaded anew in its own player may be handed over again (a later reload of the
     // same URL); the hand-over's source is DIRECT and keeps the guard.
-    if (source?.mode !== PlayerModes.DIRECT) {
+    if (/** @type {VideoSource} */ (source)?.mode !== PlayerModes.DIRECT) {
       this.playedDirectly = null;
     }
-    const run = () => this.setSourceInternal(source, {request, sources: fallbacks.slice()}, start);
+    const run = () => this.setSourceInternal(/** @type {VideoSource} */ (source), {request, sources: fallbacks.slice()}, start);
     const change = this.sourceChange ? this.sourceChange.then(run, run) : run();
 
     this.sourceChange = change;
@@ -967,8 +1026,8 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Sets the current source and initializes the player, one at a time.
-   * @param {Object} source - Source object.
-   * @param {{request: number, sources: Object[]}} fallbacks - Which request this is, and the
+   * @param {VideoSource} source - Source object.
+   * @param {{request: number, sources: VideoSource[]}} fallbacks - Which request this is, and the
    *   streams to try should it fail before it shows anything.
    * @param {{play?: boolean}} [start={}] - See setSource().
    * @return {Promise<void>}
@@ -1161,7 +1220,7 @@ export class FastStreamClient extends EventEmitter {
         }
       });
     } catch (e) {
-      AlertPolyfill.errorSendToDeveloper(e);
+      AlertPolyfill.errorSendToDeveloper(/** @type {Error} */ (e));
       console.error(e);
       // The player built here, whose setup or setSource threw, was never handed the source:
       // destroyed, as buildPreviewPlayer destroys its own - left in this.player, its video
@@ -1204,8 +1263,9 @@ export class FastStreamClient extends EventEmitter {
       const hook = () => {
         if (!this.duration || !this.currentVideo || this.currentVideo.readyState === 0) return;
         clearInterval(interval);
-        this.context.off(DefaultPlayerEvents.DURATIONCHANGE, hook);
-        this.context.off(DefaultPlayerEvents.LOADEDMETADATA, hook);
+        // A video plays: its player was bound (bindPlayer), and the context with it.
+        /** @type {PlayerContext} */ (this.context).off(DefaultPlayerEvents.DURATIONCHANGE, hook);
+        /** @type {PlayerContext} */ (this.context).off(DefaultPlayerEvents.LOADEDMETADATA, hook);
         resolve();
       };
 
@@ -1214,10 +1274,11 @@ export class FastStreamClient extends EventEmitter {
       // later source got one.
       this.initHookInterval = interval;
 
-      this.context.on(DefaultPlayerEvents.DURATIONCHANGE, hook);
+      // Set: setSourceInternal binds the player just before.
+      /** @type {PlayerContext} */ (this.context).on(DefaultPlayerEvents.DURATIONCHANGE, hook);
       // The moment the element has its metadata, before its first frame: MP4Player's duration
       // comes before that (readyState still 0), and the hook then waited for its next poll.
-      this.context.on(DefaultPlayerEvents.LOADEDMETADATA, hook);
+      /** @type {PlayerContext} */ (this.context).on(DefaultPlayerEvents.LOADEDMETADATA, hook);
       hook();
     });
   }
@@ -1248,7 +1309,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Reads the remembered time of a player's source.
-   * @param {Object} player
+   * @param {Player} player
    * @return {Promise<void>}
    */
   async readProgressData(player) {
@@ -1276,7 +1337,7 @@ export class FastStreamClient extends EventEmitter {
       // that failed (IndexedDB having a moment) says nothing about the record, and saving
       // this video's time from 0 about a second later overwrote an intact one: keep no
       // progress for this video instead.
-      progressData = hashes && e?.unusableRecord ? {lastTime: 0} : null;
+      progressData = hashes && /** @type {(Error & {unusableRecord?: boolean})|undefined} */ (e)?.unusableRecord ? {lastTime: 0} : null;
     }
     if (this.player !== player) return;
     this.progressHashesCache = hashes;
@@ -1304,7 +1365,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the next fragment to download (video or audio).
-   * @return {Object|null} Next fragment.
+   * @return {Fragment|null|undefined} Next fragment; none when nothing waits.
    */
   getNextToDownload() {
     const currentFragment = this.currentFragment;
@@ -1332,8 +1393,8 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the next fragment to download for a track.
-   * @param {Object} currentFragment
-   * @return {Object|null}
+   * @param {Fragment|null} currentFragment - The track's fragment playing, if any.
+   * @return {Fragment|null|undefined} None when nothing of the track waits.
    */
   getNextToDownloadTrack(currentFragment) {
     if (!currentFragment) {
@@ -1354,9 +1415,9 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the next waiting fragment forward from index.
-   * @param {Array} fragments
+   * @param {Array<Fragment>} fragments - A level's, by sn.
    * @param {number} index
-   * @return {Object|null}
+   * @return {Fragment|undefined}
    */
   getNextForward(fragments, index) {
     for (let i = index; i < fragments.length; i++) {
@@ -1369,9 +1430,9 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the next waiting fragment backward from index.
-   * @param {Array} fragments
+   * @param {Array<Fragment>} fragments - A level's, by sn.
    * @param {number} index
-   * @return {Object|null}
+   * @return {Fragment|undefined}
    */
   getNextBackward(fragments, index) {
     for (let i = index - 1; i >= 0; i--) {
@@ -1599,7 +1660,7 @@ export class FastStreamClient extends EventEmitter {
       }
 
       hasDownloaded = true;
-      this.player.downloadFragment(nextDownload).catch((e) => {
+      this.player.downloadFragment(nextDownload).catch((/** @type {unknown} */ e) => {
 
       });
       nextDownload = this.getNextToDownload();
@@ -1631,7 +1692,7 @@ export class FastStreamClient extends EventEmitter {
         if (!this.downloadManager.canGetFile(fragment.getContext())) {
           return false;
         }
-        this.player.downloadFragment(fragment).catch((e) => {
+        this.player.downloadFragment(fragment).catch((/** @type {unknown} */ e) => {
 
         });
         hasDownloaded = true;
@@ -1647,7 +1708,7 @@ export class FastStreamClient extends EventEmitter {
       if (!this.downloadManager.canGetFile(fragment.getContext())) {
         return false;
       }
-      this.player.downloadFragment(fragment).catch((e) => {
+      this.player.downloadFragment(fragment).catch((/** @type {unknown} */ e) => {
 
       });
       hasDownloaded = true;
@@ -1659,8 +1720,8 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets reserved fragments that are waiting to be downloaded.
-   * @param {Array|undefined} fragments - None for a level with no fragments yet.
-   * @return {Array} Reserved fragments.
+   * @param {Array<Fragment>|undefined} fragments - None for a level with no fragments yet.
+   * @return {Array<Fragment>} Reserved fragments.
    */
   getWaitingReservedFragments(fragments) {
     if (!fragments) return [];
@@ -1671,7 +1732,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Frees fragments that are complete and can be released.
-   * @param {Array} fragments
+   * @param {Array<Fragment>} fragments - A level's, by sn.
    */
   freeFragments(fragments) {
     for (let i = 0; i < fragments.length; i++) {
@@ -1686,7 +1747,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Frees a single fragment.
-   * @param {Object} fragment
+   * @param {Fragment} fragment
    */
   freeFragment(fragment) {
     this.downloadManager.removeFile(fragment.getContext());
@@ -1697,7 +1758,8 @@ export class FastStreamClient extends EventEmitter {
    * Gets a fragment by level and sequence number.
    * @param {string|number} level
    * @param {number} sn - Sequence number.
-   * @return {Object|null}
+   * @return {Fragment|null|undefined} null for a level with none yet; none for an sn not
+   *   made.
    */
   getFragment(level, sn) {
     if (!this.fragmentsStore[level]) {
@@ -1710,7 +1772,7 @@ export class FastStreamClient extends EventEmitter {
    * Stores a fragment in the fragments store.
    * @param {string|number} level
    * @param {number} sn
-   * @param {Object} frag
+   * @param {Fragment} frag - The player's own kind (HLSFragment, DashFragment, MP4Fragment).
    */
   makeFragment(level, sn, frag) {
     if (!this.fragmentsStore[level]) {
@@ -1761,7 +1823,7 @@ export class FastStreamClient extends EventEmitter {
    * good (DashPlayer.takeCodecReload): the new player picks without it, as its failures are
    * carried over the reset that would forget them (setSourceInternal). At most once per
    * codec family (LevelManager.noteVideoDecodeFailure), so it cannot loop.
-   * @param {Object} player - The player whose error it is: no reload for one already replaced.
+   * @param {Player} player - The player whose error it is: no reload for one already replaced.
    * @return {boolean} Whether it loads the source again.
    */
   reloadWithoutFailedCodec(player) {
@@ -1778,7 +1840,7 @@ export class FastStreamClient extends EventEmitter {
   /**
    * After the reset of a source change: the same source again after a codec failed to
    * decode keeps that failure (reloadWithoutFailedCodec); any other source starts with none.
-   * @param {Object} source - The source being set.
+   * @param {VideoSource} source - The source being set.
    */
   restoreCarriedDecodeFailures(source) {
     const carried = this.carriedDecodeFailures;
@@ -1797,7 +1859,7 @@ export class FastStreamClient extends EventEmitter {
    * new MediaSource plays again (hls.js's recoverMediaError, Shaka's resetMediaSource do the
    * same). At most RECOVERY_LIMIT times in RECOVERY_WINDOW_MS, so a stream that is really
    * broken still ends in the error, with its reason.
-   * @param {Object} player - The player whose error it is.
+   * @param {Player} player - The player whose error it is.
    * @param {*} reason - The error.
    * @return {boolean} Whether it builds the player again.
    */
@@ -1879,7 +1941,7 @@ export class FastStreamClient extends EventEmitter {
    * it cannot loop. What is lost there: FastStream's own buffering ahead, the RAM budget and
    * saving the parts already downloaded - it plays, where it ended in an error or downloaded
    * terabytes.
-   * @param {Object} player - The player that hands it over.
+   * @param {Player} player - The player that hands it over.
    * @param {string} reason
    * @return {boolean} Whether it plays it directly.
    */
@@ -1929,6 +1991,10 @@ export class FastStreamClient extends EventEmitter {
     }
   }
 
+  /**
+   * The load error: the message, the downloads stopped.
+   * @param {string} reason - The message shown.
+   */
   failedToLoad(reason) {
     this.downloadManager.removeAllDownloaders();
     this.interfaceController.failedToLoad(reason);
@@ -2024,6 +2090,7 @@ export class FastStreamClient extends EventEmitter {
     // A preview build still running is the old video's: the next video joined it, the build
     // discarded itself over the changed source, and the next video had no seek preview.
     this.previewPlayerSetup = null;
+    /** @type {number[]} When the preview player was built again after an error (Date.now()). */
     this.previewReloads = [];
 
     if (this.syncedAudioPlayer) {
@@ -2054,6 +2121,7 @@ export class FastStreamClient extends EventEmitter {
     this.state.buffering = false;
 
     this.storageAvailable = 0;
+    /** @type {boolean|undefined} Whether the whole video fits in the room kept for it (updateHasDownloadSpace); none before the first reset. */
     this.hasDownloadSpace = true;
     this.previousLevel = -1;
     this.previousAudioLevel = -1;
@@ -2072,8 +2140,10 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
-   * Binds event listeners to the main player.
-   * @param {Object} player
+   * Binds event listeners to the main player. The media events come with nothing
+   * (VideoUtils.addPassthroughEventListenersToVideo); ERROR with what the player had: a
+   * message, the video's error event, hls.js's or dash.js's error.
+   * @param {Player} player
    */
   bindPlayer(player) {
     this.context = player.createContext();
@@ -2082,11 +2152,11 @@ export class FastStreamClient extends EventEmitter {
       this.updateQualityLevels();
     });
 
-    this.context.on(DefaultPlayerEvents.ABORT, (event) => {
+    this.context.on(DefaultPlayerEvents.ABORT, (/** @type {undefined} */ event) => {
 
     });
 
-    this.context.on(DefaultPlayerEvents.CANPLAY, (event) => {
+    this.context.on(DefaultPlayerEvents.CANPLAY, (/** @type {undefined} */ event) => {
       this.player.playbackRate = this.state.playbackRate;
 
       // Done only once it has started, as at the other two attempts: marked first, a play()
@@ -2100,24 +2170,24 @@ export class FastStreamClient extends EventEmitter {
       }
     });
 
-    this.context.on(DefaultPlayerEvents.CANPLAYTHROUGH, (event) => {
+    this.context.on(DefaultPlayerEvents.CANPLAYTHROUGH, (/** @type {undefined} */ event) => {
 
     });
 
-    this.context.on(DefaultPlayerEvents.COMPLETE, (event) => {
+    this.context.on(DefaultPlayerEvents.COMPLETE, (/** @type {undefined} */ event) => {
 
     });
 
-    this.context.on(DefaultPlayerEvents.DURATIONCHANGE, (event) => {
+    this.context.on(DefaultPlayerEvents.DURATIONCHANGE, (/** @type {undefined} */ event) => {
       this.updateDuration();
       this.interfaceController.updateFragmentsLoaded();
     });
 
-    this.context.on(DefaultPlayerEvents.EMPTIED, (event) => {
+    this.context.on(DefaultPlayerEvents.EMPTIED, (/** @type {undefined} */ event) => {
     });
 
 
-    this.context.on(DefaultPlayerEvents.ENDED, (event) => {
+    this.context.on(DefaultPlayerEvents.ENDED, (/** @type {undefined} */ event) => {
       this.pause();
       // The end with autoplay on and no next episode: autoplay stops and says why (his wish,
       // 2026-10-11) - the series' last episode (content.js isSeriesEnd), or a page FastStream
@@ -2138,17 +2208,18 @@ export class FastStreamClient extends EventEmitter {
 
     // A source this player cannot load (MP4Player, a server that ignores Range): Firefox's own
     // player plays it, once per source.
-    this.context.on(DefaultPlayerEvents.PLAY_DIRECTLY, (reason) => {
+    this.context.on(DefaultPlayerEvents.PLAY_DIRECTLY, (/** @type {string} */ reason) => {
       if (!this.playDirectly(player, reason)) {
         const message = Localize.getMessage('player_error_load');
         this.failedToLoad(message + ' (' + reason + ')');
       }
     });
 
-    this.context.on(DefaultPlayerEvents.ERROR, (reason) => {
+    this.context.on(DefaultPlayerEvents.ERROR, (/** @type {unknown} */ reason) => {
       console.error('ERROR', reason);
       // A video codec that just failed to decode for good: the same source again, without it.
-      if (player.takeCodecReload?.() && this.reloadWithoutFailedCodec(player)) {
+      // Only a DashPlayer has takeCodecReload.
+      if (/** @type {Player & {takeCodecReload?: () => boolean}} */ (player).takeCodecReload?.() && this.reloadWithoutFailedCodec(player)) {
         return;
       }
       if (this.tryNextSource()) {
@@ -2166,11 +2237,11 @@ export class FastStreamClient extends EventEmitter {
       this.failedToLoad(detail ? message + ' (' + detail + ')' : message);
     });
 
-    this.context.on(DefaultPlayerEvents.NEED_KEY, (event) => {
+    this.context.on(DefaultPlayerEvents.NEED_KEY, (/** @type {undefined} */ event) => {
       this.failedToLoad(Localize.getMessage('player_error_drm'));
     });
 
-    this.context.on(DefaultPlayerEvents.LOADEDDATA, (event) => {
+    this.context.on(DefaultPlayerEvents.LOADEDDATA, (/** @type {undefined} */ event) => {
       // It shows something: a failure from now on is the stream's, not a wrong pick.
       this.fallbacks.sources = [];
       // This player's: an old one's late event is not the new source's.
@@ -2182,12 +2253,12 @@ export class FastStreamClient extends EventEmitter {
     });
 
 
-    this.context.on(DefaultPlayerEvents.LOADEDMETADATA, (event) => {
+    this.context.on(DefaultPlayerEvents.LOADEDMETADATA, (/** @type {undefined} */ event) => {
       this.interfaceController.updateQualityLevels();
     });
 
 
-    this.context.on(DefaultPlayerEvents.PAUSE, (event) => {
+    this.context.on(DefaultPlayerEvents.PAUSE, (/** @type {undefined} */ event) => {
       this.cancelEndStall();
       this.interfaceController.pause();
       this.reportPlaying(false);
@@ -2195,58 +2266,58 @@ export class FastStreamClient extends EventEmitter {
     });
 
 
-    this.context.on(DefaultPlayerEvents.PLAY, (event) => {
+    this.context.on(DefaultPlayerEvents.PLAY, (/** @type {undefined} */ event) => {
       this.interfaceController.play();
       this.reportPlaying(true);
       this.updatePeers();
     });
 
 
-    this.context.on(DefaultPlayerEvents.PLAYING, (event) => {
+    this.context.on(DefaultPlayerEvents.PLAYING, (/** @type {undefined} */ event) => {
       this.cancelEndStall();
       this.interfaceController.setBuffering(false);
     });
 
 
-    this.context.on(DefaultPlayerEvents.PROGRESS, (event) => {
+    this.context.on(DefaultPlayerEvents.PROGRESS, (/** @type {undefined} */ event) => {
     });
 
 
-    this.context.on(DefaultPlayerEvents.RATECHANGE, (event) => {
+    this.context.on(DefaultPlayerEvents.RATECHANGE, (/** @type {undefined} */ event) => {
     });
 
 
-    this.context.on(DefaultPlayerEvents.SEEKED, (event) => {
+    this.context.on(DefaultPlayerEvents.SEEKED, (/** @type {undefined} */ event) => {
       this.interfaceController.updateFragmentsLoaded();
     });
 
 
-    this.context.on(DefaultPlayerEvents.SEEKING, (event) => {
+    this.context.on(DefaultPlayerEvents.SEEKING, (/** @type {undefined} */ event) => {
       this.cancelEndStall();
     });
 
 
-    this.context.on(DefaultPlayerEvents.STALLED, (event) => {
+    this.context.on(DefaultPlayerEvents.STALLED, (/** @type {undefined} */ event) => {
     });
 
 
-    this.context.on(DefaultPlayerEvents.SUSPEND, (event) => {
+    this.context.on(DefaultPlayerEvents.SUSPEND, (/** @type {undefined} */ event) => {
     });
 
 
-    this.context.on(DefaultPlayerEvents.TIMEUPDATE, (event) => {
+    this.context.on(DefaultPlayerEvents.TIMEUPDATE, (/** @type {undefined} */ event) => {
       if (this.interfaceController.isUserSeeking()) return;
 
       this.updateTime(this.currentTime);
     });
 
 
-    this.context.on(DefaultPlayerEvents.VOLUMECHANGE, (event) => {
+    this.context.on(DefaultPlayerEvents.VOLUMECHANGE, (/** @type {undefined} */ event) => {
 
     });
 
 
-    this.context.on(DefaultPlayerEvents.WAITING, (event) => {
+    this.context.on(DefaultPlayerEvents.WAITING, (/** @type {undefined} */ event) => {
       // In the last second, the next video instead of a wait - when there is one: with none,
       // this returned before the indicator, and the last video froze there with nothing
       // shown (glm's second look, 2026-10-13).
@@ -2274,21 +2345,21 @@ export class FastStreamClient extends EventEmitter {
       player.setCurrentAudioLevelID(this.getCurrentAudioLevelID());
     });
 
-    this.previewContext.on(DefaultPlayerEvents.FRAGMENT_UPDATE, (fragment) => {
+    this.previewContext.on(DefaultPlayerEvents.FRAGMENT_UPDATE, (/** @type {Fragment} */ fragment) => {
       this.interfaceController.updateFragmentsLoaded();
     });
 
-    this.previewContext.on(DefaultPlayerEvents.SEEKED, (event) => {
+    this.previewContext.on(DefaultPlayerEvents.SEEKED, (/** @type {undefined} */ event) => {
       this.updatePreview();
     });
 
 
-    this.previewContext.on(DefaultPlayerEvents.SEEKING, (event) => {
+    this.previewContext.on(DefaultPlayerEvents.SEEKING, (/** @type {undefined} */ event) => {
       this.updatePreview();
     });
 
 
-    this.previewContext.on(DefaultPlayerEvents.ERROR, (e) => {
+    this.previewContext.on(DefaultPlayerEvents.ERROR, (/** @type {unknown} */ e) => {
       console.log('Preview player error', e);
       // Still null while the preview player is being built: it is only stored once its
       // source has loaded, and a source that fails to load is exactly what gets here.
@@ -2411,7 +2482,8 @@ export class FastStreamClient extends EventEmitter {
       // Through the setter, so a separate audio track follows at once; not saved, or
       // the undo would be a seek to undo.
       this.setSeekSave(false);
-      this.currentTime = this.pastSeeks.pop();
+      // Not empty: checked above.
+      this.currentTime = /** @type {number} */ (this.pastSeeks.pop());
       this.setSeekSave(true);
       this.interfaceController.updateMarkers();
     }
@@ -2424,7 +2496,8 @@ export class FastStreamClient extends EventEmitter {
     if (this.player && this.pastUnseeks.length) {
       this.pastSeeks.push(this.player.currentTime);
       this.setSeekSave(false);
-      this.currentTime = this.pastUnseeks.pop();
+      // Not empty: checked above.
+      this.currentTime = /** @type {number} */ (this.pastUnseeks.pop());
       this.setSeekSave(true);
       this.interfaceController.updateMarkers();
     }
@@ -2741,7 +2814,7 @@ export class FastStreamClient extends EventEmitter {
    * writing (SAVER): freed, they were downloaded a second time. The other pins go with the
    * level: the analyzers start again on the new one, and nothing would ever free them later,
    * since only the playing level is freed as it plays.
-   * @param {Array} fragments - The level's fragments.
+   * @param {Array<Fragment>} fragments - The level's fragments.
    */
   freeLevel(fragments) {
     fragments.forEach((fragment) => {
@@ -2927,7 +3000,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the current video fragments.
-   * @return {Array|undefined}
+   * @return {Array<Fragment>|undefined} By sn; none when no level plays or it has none yet.
    */
   get fragments() {
     return this.fragmentsStore[this.getCurrentVideoLevelID()];
@@ -2935,7 +3008,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the current audio fragments.
-   * @return {Array|undefined}
+   * @return {Array<Fragment>|undefined} By sn; none when no level plays or it has none yet.
    */
   get audioFragments() {
     return this.fragmentsStore[this.getCurrentAudioLevelID()];
@@ -2943,7 +3016,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the current video fragment.
-   * @return {Object|null}
+   * @return {Fragment|null}
    */
   get currentFragment() {
     return this.player?.currentFragment || null;
@@ -2951,7 +3024,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets the current audio fragment.
-   * @return {Object|null}
+   * @return {Fragment|null}
    */
   get currentAudioFragment() {
     return this.player?.currentAudioFragment || null;
@@ -2959,8 +3032,10 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Gets fragments for a given level.
-   * @param {string|number} level
-   * @return {Array|undefined}
+   * @param {string|number|null} level - null (none played, as a DashPlayer's level ID can
+   *   be) finds none.
+   * @return {Array|undefined} The level's Fragments by sn; none for a level with none yet.
+   *   (Array<Fragment> is true, and fails HLSFragmentStore, which takes them as HLSFragments.)
    */
   getFragments(level) {
     return this.fragmentsStore[level];

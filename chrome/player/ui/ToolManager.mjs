@@ -5,8 +5,13 @@ import {Utils} from '../utils/Utils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {MediaKeys} from './MediaKeys.mjs';
 
-/** @typedef {Element & {_toolSkipClick: boolean}} ToolElement */
+/** @typedef {HTMLElement & {_toolSkipClick: boolean}} ToolElement */
+/** @typedef {import('../options/defaults/ToolSettings.mjs').ToolSetting} ToolSetting */
 export class ToolManager {
+  /**
+   * @param {import('../FastStreamClient.mjs').FastStreamClient} client
+   * @param {import('./InterfaceController.mjs').InterfaceController} interfaceController
+   */
   constructor(client, interfaceController) {
     this.interfaceController = interfaceController;
     this.client = client;
@@ -30,7 +35,7 @@ export class ToolManager {
         this.userIsReordering = true;
         clearTimeout(this.reorderTimeout);
       },
-      onEnd: (evt)=>{
+      onEnd: (/** @type {Event} */ evt)=>{
         this.userIsReordering = false;
         this.checkToolsAndSave();
       },
@@ -68,6 +73,7 @@ export class ToolManager {
 
     tools.forEach((el) => {
       el._toolSkipClick = false;
+      /** @param {MouseEvent} e */
       const reorderMouseDown = (e) => {
         // check if left mouse button was pressed
         if (e.button !== 0) return;
@@ -193,8 +199,11 @@ export class ToolManager {
       return;
     }
 
+    /** @type {Array<[HTMLElement, ToolSetting]>} */
     const leftToolPairs = [];
+    /** @type {Array<[HTMLElement, ToolSetting]>} */
     const rightToolPairs = [];
+    /** @type {Array<[HTMLElement, ToolSetting]>} */
     const extraToolPairs = [];
 
     for (const [tool, element] of Object.entries(toolElements)) {
@@ -245,15 +254,20 @@ export class ToolManager {
     }
 
     if (/** @type {HTMLElement} */ (DOMElements.leftToolsContainer).children.length === 0 && /** @type {HTMLElement} */ (DOMElements.rightToolsContainer).children.length === 0) {
-      this.moveMoreTool(DOMElements.extraTools, DOMElements.rightToolsContainer);
+      this.moveMoreTool(/** @type {HTMLElement} */ (DOMElements.extraTools), /** @type {HTMLElement} */ (DOMElements.rightToolsContainer));
     } else if (/** @type {HTMLElement} */ (DOMElements.extraTools).children.length === 0) {
-      this.moveMoreTool(DOMElements.rightToolsContainer, DOMElements.extraTools);
-      this.moveMoreTool(DOMElements.leftToolsContainer, DOMElements.extraTools);
+      this.moveMoreTool(/** @type {HTMLElement} */ (DOMElements.rightToolsContainer), /** @type {HTMLElement} */ (DOMElements.extraTools));
+      this.moveMoreTool(/** @type {HTMLElement} */ (DOMElements.leftToolsContainer), /** @type {HTMLElement} */ (DOMElements.extraTools));
     }
   }
 
+  /**
+   * Moves the "more" tool from one tool bar to another.
+   * @param {HTMLElement} source - The tool bar it may be in.
+   * @param {HTMLElement} dest - The tool bar it goes to.
+   */
   moveMoreTool(source, dest) {
-    const more = Array.from(source.children).find((el) => el.dataset.tool === 'more');
+    const more = Array.from(source.children).find((el) => /** @type {HTMLElement} */ (el).dataset.tool === 'more');
     if (more) {
       more.remove();
       dest.appendChild(more);

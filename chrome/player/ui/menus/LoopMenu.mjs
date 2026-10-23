@@ -7,6 +7,7 @@ import {Utils} from '../../utils/Utils.mjs';
 import {GIF} from '../../modules/gif/gif.mjs';
 
 export class LoopMenu extends EventEmitter {
+  /** @param {import('../../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     super();
 
@@ -22,6 +23,7 @@ export class LoopMenu extends EventEmitter {
       start: '00:00:00.000',
       end: '',
     };
+    /** @type {Object<string, HTMLInputElement>} By the time's name: start, end. */
     this.timeInputs = {};
 
     this.loopHandler = this.checkLoopLoop.bind(this);
@@ -40,7 +42,8 @@ export class LoopMenu extends EventEmitter {
         this.gif.abort();
         this.gif = null;
       }
-      this.client.setPlaybackRate(this.previousPlaybackRate, true);
+      // Set by recordGif, before any recording starts.
+      this.client.setPlaybackRate(/** @type {number} */ (this.previousPlaybackRate), true);
     }
     this.recordingGif = false;
     this.loopEnabled = false;
@@ -50,6 +53,10 @@ export class LoopMenu extends EventEmitter {
     this.updateLoopAndGif();
   }
 
+  /**
+   * @param {number} time - Seconds.
+   * @return {string} As hh:mm:ss.mmm.
+   */
   currentTimeToTimecode(time) {
     const hours = Math.floor(time / 3600);
     const minutes = Math.floor(time / 60) % 60;
@@ -91,7 +98,7 @@ export class LoopMenu extends EventEmitter {
 
     const timeSettings = this.loopTimeSettings;
 
-    for (const [name, value] of Object.entries(timeSettings)) {
+    for (const [name, value] of /** @type {Array<['start'|'end', string]>} */ (Object.entries(timeSettings))) {
       const option = document.createElement('div');
       option.classList.add('option');
 
@@ -328,6 +335,7 @@ export class LoopMenu extends EventEmitter {
     this.gifLoop();
   }
 
+  /** @param {boolean} [abort] - The GIF is dropped, not made of what was recorded. */
   stopGifRecording(abort) {
     this.recordingGif = false;
     if (abort && this.gif) {
@@ -353,7 +361,9 @@ export class LoopMenu extends EventEmitter {
     if (currentTime >= loopStart) {
       const lastRecorded = /** @type {number | null} */ (this.lastTimeRecorded);
 
-      if (currentTime >= this.loopEnd || (lastRecorded !== null && currentTime < lastRecorded)) {
+      // A number while the recording runs. Null only once updateLoopAndGif stopped it (the
+      // loop switched off, or times that make no loop): this frame then ends it below anyway.
+      if (currentTime >= /** @type {number} */ (this.loopEnd) || (lastRecorded !== null && currentTime < lastRecorded)) {
         reachedEnd = true;
       } else if (lastRecorded === null || currentTime - lastRecorded > 1/30) {
         if (lastRecorded !== null && this.gif) {
@@ -376,7 +386,7 @@ export class LoopMenu extends EventEmitter {
       this.loopEnabled = this.loopEnabled && !!this.loopWasEnabled;
       this.loopWasEnabled = false;
       this.client.pause();
-      this.client.setPlaybackRate(this.previousPlaybackRate, true);
+      this.client.setPlaybackRate(/** @type {number} */ (this.previousPlaybackRate), true);
       this.updateLoopAndGif();
       this.finishGif();
       return;
@@ -395,12 +405,13 @@ export class LoopMenu extends EventEmitter {
     const gif = this.gif;
     if (gif) {
       this.client.interfaceController.setStatusMessage('save-gif', Localize.getMessage('loop_menu_gif_end'), 'info', 5000);
-      gif.on('progress', (p) => {
+      // gif.js: the share of the frames rendered, 0 to 1; then the GIF.
+      gif.on('progress', (/** @type {number} */ p) => {
         if (this.gif === gif) {
           this.client.interfaceController.setStatusMessage('save-gif', Localize.getMessage('loop_menu_gif_progress', [Math.round(p * 1000) / 10]), 'info');
         }
       });
-      gif.on('finished', (blob) => {
+      gif.on('finished', (/** @type {Blob} */ blob) => {
         this.client.interfaceController.setStatusMessage('save-gif', Localize.getMessage('loop_menu_gif_finished'), 'info', 5000);
         gif.abort();
         console.log('gif finished');
@@ -432,7 +443,8 @@ export class LoopMenu extends EventEmitter {
     const currentTime = this.client.currentTime;
 
     if (this.gifLoopRunning) {
-      if (currentTime >= this.loopEnd) {
+      // A loop that is on and valid with a player: updateLoopAndGif set both times.
+      if (currentTime >= /** @type {number} */ (this.loopEnd)) {
         this.stopGifRecording();
       }
       return;
@@ -445,11 +457,12 @@ export class LoopMenu extends EventEmitter {
   keepWithinLoop() {
     if (!this.client.player || !this.loopEnabled || !this.loopRangeValid || this.gifLoopRunning) return;
     const currentTime = this.client.currentTime;
-    if (currentTime >= this.loopEnd) {
-      this.client.currentTime = this.loopStart;
+    // A loop that is on and valid with a player: updateLoopAndGif set both times.
+    if (currentTime >= /** @type {number} */ (this.loopEnd)) {
+      this.client.currentTime = /** @type {number} */ (this.loopStart);
     } else if (/** @type {number} */ (this.loopStart) > 0) {
       if (currentTime < /** @type {number} */ (this.loopStart)) {
-        this.client.currentTime = this.loopStart;
+        this.client.currentTime = /** @type {number} */ (this.loopStart);
       }
     }
   }
