@@ -91,6 +91,7 @@ export class FastStreamArchiveUtils {
       }
 
       const dataSize = data.byteLength;
+      /** @type {Object<string, string>} */
       const newHeaders = {};
       const headersWhitelist = ['content-range'];
       for (const header in entry.responseHeaders) {
@@ -134,8 +135,8 @@ export class FastStreamArchiveUtils {
    * live until parseFSA is done. Revoked any earlier, every chunk past the first two failed,
    * and any archive over 500 MB could not be opened.
    * @param {File|Blob} file - The .fsa file.
-   * @param {Function} [progressCallback] - Called with the share of entries read.
-   * @param {Object} [downloadManager] - Receives the entries' data.
+   * @param {(share: number) => void} [progressCallback] - Called with the share of entries read.
+   * @param {import('../network/DownloadManager.mjs').DownloadManager} [downloadManager] - Receives the entries' data.
    * @return {Promise<Object>} What parseFSA returns.
    */
   static async parseFSAFile(file, progressCallback, downloadManager) {
@@ -148,6 +149,12 @@ export class FastStreamArchiveUtils {
     }
   }
 
+  /**
+   * Reads an archive: its header, then each entry.
+   * @param {import('../modules/LargeBuffer.mjs').LargeBuffer} largeBuffer - The archive's bytes.
+   * @param {(share: number) => void} [progressCallback] - Called with the share of entries read.
+   * @param {import('../network/DownloadManager.mjs').DownloadManager} [downloadManager] - Receives the entries' data.
+   */
   static async parseFSA(largeBuffer, progressCallback, downloadManager) {
     const entries = [];
 

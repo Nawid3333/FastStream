@@ -291,7 +291,7 @@ export class RequestUtils {
 
     const fragCount = Math.ceil(contentLength / fragSize);
     const buffer = new LargeBuffer(contentLength, fragCount);
-    await buffer.initialize(/** @type {(i: number) => Promise<Uint8Array>} */ (async (i) => {
+    await buffer.initialize(/** @type {(i: number) => Promise<Uint8Array<ArrayBuffer>>} */ (async (i) => {
       if (i >= fragCount) {
         throw new Error('Fragment index ' + i + ' out of range');
       }

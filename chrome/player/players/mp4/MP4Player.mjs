@@ -152,7 +152,7 @@ export default class MP4Player extends EventEmitter {
     const videoTrack = /** @type {Movie} */ (this.metaData).videoTracks[this.currentVideoTrack];
     if (videoTrack) {
       const videoCodec = 'video/mp4; codecs=\"' + videoTrack.codec + '\"';
-      this.videoSourceBuffer = new SourceBufferWrapper(this.mediaSource, videoCodec);
+      this.videoSourceBuffer = new SourceBufferWrapper(/** @type {MediaSource} */ (this.mediaSource), videoCodec);
     }
 
     if (this.currentAudioTrack !== null) {
@@ -163,7 +163,7 @@ export default class MP4Player extends EventEmitter {
           fixedCodec = 'opus';
         }
         const audioCodec = 'audio/mp4; codecs=\"' + fixedCodec + '\"';
-        this.audioSourceBuffer = new SourceBufferWrapper(this.mediaSource, audioCodec);
+        this.audioSourceBuffer = new SourceBufferWrapper(/** @type {MediaSource} */ (this.mediaSource), audioCodec);
       }
     }
   }

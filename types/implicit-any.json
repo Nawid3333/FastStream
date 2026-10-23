@@ -12,7 +12,6 @@
   "chrome/player/network/IndexedDBManager.mjs": 39,
   "chrome/player/network/StandardDownloader.mjs": 20,
   "chrome/player/players/DirectVideoPlayer.mjs": 14,
-  "chrome/player/players/SaveFragmentFetcher.mjs": 7,
   "chrome/player/players/SyncedAudioPlayer.mjs": 19,
   "chrome/player/players/dash/DashFragmentRequester.mjs": 1,
   "chrome/player/players/dash/DashLoader.mjs": 1,
@@ -20,11 +19,10 @@
   "chrome/player/players/hls/HLSFragmentRequester.mjs": 23,
   "chrome/player/players/hls/HLSPlayer.mjs": 36,
   "chrome/player/players/mp4/MP4FragmentRequester.mjs": 13,
-  "chrome/player/players/mp4/SourceBufferWrapper.mjs": 8,
   "chrome/player/ui/InterfaceController.mjs": 5,
   "chrome/player/ui/SourcesBrowser.mjs": 6,
   "chrome/player/ui/menus/LoopMenu.mjs": 1,
   "chrome/player/ui/subtitles/SubtitlesManager.mjs": 2,
-  "chrome/player/utils/FastStreamArchiveUtils.mjs": 7,
+  "chrome/player/utils/FastStreamArchiveUtils.mjs": 3,
   "chrome/player/utils/SubtitleUtils.mjs": 1
 }
