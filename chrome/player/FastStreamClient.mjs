@@ -81,6 +81,15 @@ const EndStallMs = 3000;
 /** @typedef {import('./players/Fragment.mjs').Fragment} Fragment */
 
 /**
+ * A player PlayerLoader.createPlayer builds, one for each mode.
+ * @typedef {import('./players/DirectVideoPlayer.mjs').default|import('./players/mp4/MP4Player.mjs').default|
+ *     import('./players/hls/HLSPlayer.mjs').default|import('./players/dash/DashPlayer.mjs').default|
+ *     import('./players/vm/VMPlayer.mjs').default} Player
+ */
+
+/** @typedef {ReturnType<Player['createContext']>} PlayerContext A player's listeners, gone together. */
+
+/**
  * The client's options: its own defaults (the constructor), most of them replaced by the
  * stored ones once they come (setOptions), which also brings the three optional ones.
  * @typedef {Object} ClientOptions
@@ -1262,8 +1271,9 @@ export class FastStreamClient extends EventEmitter {
       const hook = () => {
         if (!this.duration || !this.currentVideo || this.currentVideo.readyState === 0) return;
         clearInterval(interval);
-        this.context.off(DefaultPlayerEvents.DURATIONCHANGE, hook);
-        this.context.off(DefaultPlayerEvents.LOADEDMETADATA, hook);
+        // A video plays: its player was bound (bindPlayer), and the context with it.
+        /** @type {PlayerContext} */ (this.context).off(DefaultPlayerEvents.DURATIONCHANGE, hook);
+        /** @type {PlayerContext} */ (this.context).off(DefaultPlayerEvents.LOADEDMETADATA, hook);
         resolve();
       };
 
@@ -1272,10 +1282,11 @@ export class FastStreamClient extends EventEmitter {
       // later source got one.
       this.initHookInterval = interval;
 
-      this.context.on(DefaultPlayerEvents.DURATIONCHANGE, hook);
+      // Set: setSourceInternal binds the player just before.
+      /** @type {PlayerContext} */ (this.context).on(DefaultPlayerEvents.DURATIONCHANGE, hook);
       // The moment the element has its metadata, before its first frame: MP4Player's duration
       // comes before that (readyState still 0), and the hook then waited for its next poll.
-      this.context.on(DefaultPlayerEvents.LOADEDMETADATA, hook);
+      /** @type {PlayerContext} */ (this.context).on(DefaultPlayerEvents.LOADEDMETADATA, hook);
       hook();
     });
   }
@@ -1306,7 +1317,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Reads the remembered time of a player's source.
-   * @param {Object} player
+   * @param {Player} player
    * @return {Promise<void>}
    */
   async readProgressData(player) {
@@ -1657,7 +1668,7 @@ export class FastStreamClient extends EventEmitter {
       }
 
       hasDownloaded = true;
-      this.player.downloadFragment(nextDownload).catch((e) => {
+      this.player.downloadFragment(nextDownload).catch((/** @type {unknown} */ e) => {
 
       });
       nextDownload = this.getNextToDownload();
@@ -1689,7 +1700,7 @@ export class FastStreamClient extends EventEmitter {
         if (!this.downloadManager.canGetFile(fragment.getContext())) {
           return false;
         }
-        this.player.downloadFragment(fragment).catch((e) => {
+        this.player.downloadFragment(fragment).catch((/** @type {unknown} */ e) => {
 
         });
         hasDownloaded = true;
@@ -1705,7 +1716,7 @@ export class FastStreamClient extends EventEmitter {
       if (!this.downloadManager.canGetFile(fragment.getContext())) {
         return false;
       }
-      this.player.downloadFragment(fragment).catch((e) => {
+      this.player.downloadFragment(fragment).catch((/** @type {unknown} */ e) => {
 
       });
       hasDownloaded = true;
@@ -1820,7 +1831,7 @@ export class FastStreamClient extends EventEmitter {
    * good (DashPlayer.takeCodecReload): the new player picks without it, as its failures are
    * carried over the reset that would forget them (setSourceInternal). At most once per
    * codec family (LevelManager.noteVideoDecodeFailure), so it cannot loop.
-   * @param {Object} player - The player whose error it is: no reload for one already replaced.
+   * @param {Player} player - The player whose error it is: no reload for one already replaced.
    * @return {boolean} Whether it loads the source again.
    */
   reloadWithoutFailedCodec(player) {
@@ -1856,7 +1867,7 @@ export class FastStreamClient extends EventEmitter {
    * new MediaSource plays again (hls.js's recoverMediaError, Shaka's resetMediaSource do the
    * same). At most RECOVERY_LIMIT times in RECOVERY_WINDOW_MS, so a stream that is really
    * broken still ends in the error, with its reason.
-   * @param {Object} player - The player whose error it is.
+   * @param {Player} player - The player whose error it is.
    * @param {*} reason - The error.
    * @return {boolean} Whether it builds the player again.
    */
@@ -1938,7 +1949,7 @@ export class FastStreamClient extends EventEmitter {
    * it cannot loop. What is lost there: FastStream's own buffering ahead, the RAM budget and
    * saving the parts already downloaded - it plays, where it ended in an error or downloaded
    * terabytes.
-   * @param {Object} player - The player that hands it over.
+   * @param {Player} player - The player that hands it over.
    * @param {string} reason
    * @return {boolean} Whether it plays it directly.
    */
@@ -1988,6 +1999,10 @@ export class FastStreamClient extends EventEmitter {
     }
   }
 
+  /**
+   * The load error: the message, the downloads stopped.
+   * @param {string} reason - The message shown.
+   */
   failedToLoad(reason) {
     this.downloadManager.removeAllDownloaders();
     this.interfaceController.failedToLoad(reason);
@@ -2133,8 +2148,10 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
-   * Binds event listeners to the main player.
-   * @param {Object} player
+   * Binds event listeners to the main player. The media events come with nothing
+   * (VideoUtils.addPassthroughEventListenersToVideo); ERROR with what the player had: a
+   * message, the video's error event, hls.js's or dash.js's error.
+   * @param {Player} player
    */
   bindPlayer(player) {
     this.context = player.createContext();
@@ -2143,11 +2160,11 @@ export class FastStreamClient extends EventEmitter {
       this.updateQualityLevels();
     });
 
-    this.context.on(DefaultPlayerEvents.ABORT, (event) => {
+    this.context.on(DefaultPlayerEvents.ABORT, (/** @type {undefined} */ event) => {
 
     });
 
-    this.context.on(DefaultPlayerEvents.CANPLAY, (event) => {
+    this.context.on(DefaultPlayerEvents.CANPLAY, (/** @type {undefined} */ event) => {
       this.player.playbackRate = this.state.playbackRate;
 
       // Done only once it has started, as at the other two attempts: marked first, a play()
@@ -2161,24 +2178,24 @@ export class FastStreamClient extends EventEmitter {
       }
     });
 
-    this.context.on(DefaultPlayerEvents.CANPLAYTHROUGH, (event) => {
+    this.context.on(DefaultPlayerEvents.CANPLAYTHROUGH, (/** @type {undefined} */ event) => {
 
     });
 
-    this.context.on(DefaultPlayerEvents.COMPLETE, (event) => {
+    this.context.on(DefaultPlayerEvents.COMPLETE, (/** @type {undefined} */ event) => {
 
     });
 
-    this.context.on(DefaultPlayerEvents.DURATIONCHANGE, (event) => {
+    this.context.on(DefaultPlayerEvents.DURATIONCHANGE, (/** @type {undefined} */ event) => {
       this.updateDuration();
       this.interfaceController.updateFragmentsLoaded();
     });
 
-    this.context.on(DefaultPlayerEvents.EMPTIED, (event) => {
+    this.context.on(DefaultPlayerEvents.EMPTIED, (/** @type {undefined} */ event) => {
     });
 
 
-    this.context.on(DefaultPlayerEvents.ENDED, (event) => {
+    this.context.on(DefaultPlayerEvents.ENDED, (/** @type {undefined} */ event) => {
       this.pause();
       // The end with autoplay on and no next episode: autoplay stops and says why (his wish,
       // 2026-10-11) - the series' last episode (content.js isSeriesEnd), or a page FastStream
@@ -2199,17 +2216,18 @@ export class FastStreamClient extends EventEmitter {
 
     // A source this player cannot load (MP4Player, a server that ignores Range): Firefox's own
     // player plays it, once per source.
-    this.context.on(DefaultPlayerEvents.PLAY_DIRECTLY, (reason) => {
+    this.context.on(DefaultPlayerEvents.PLAY_DIRECTLY, (/** @type {string} */ reason) => {
       if (!this.playDirectly(player, reason)) {
         const message = Localize.getMessage('player_error_load');
         this.failedToLoad(message + ' (' + reason + ')');
       }
     });
 
-    this.context.on(DefaultPlayerEvents.ERROR, (reason) => {
+    this.context.on(DefaultPlayerEvents.ERROR, (/** @type {unknown} */ reason) => {
       console.error('ERROR', reason);
       // A video codec that just failed to decode for good: the same source again, without it.
-      if (player.takeCodecReload?.() && this.reloadWithoutFailedCodec(player)) {
+      // Only a DashPlayer has takeCodecReload.
+      if (/** @type {Player & {takeCodecReload?: () => boolean}} */ (player).takeCodecReload?.() && this.reloadWithoutFailedCodec(player)) {
         return;
       }
       if (this.tryNextSource()) {
@@ -2227,11 +2245,11 @@ export class FastStreamClient extends EventEmitter {
       this.failedToLoad(detail ? message + ' (' + detail + ')' : message);
     });
 
-    this.context.on(DefaultPlayerEvents.NEED_KEY, (event) => {
+    this.context.on(DefaultPlayerEvents.NEED_KEY, (/** @type {undefined} */ event) => {
       this.failedToLoad(Localize.getMessage('player_error_drm'));
     });
 
-    this.context.on(DefaultPlayerEvents.LOADEDDATA, (event) => {
+    this.context.on(DefaultPlayerEvents.LOADEDDATA, (/** @type {undefined} */ event) => {
       // It shows something: a failure from now on is the stream's, not a wrong pick.
       this.fallbacks.sources = [];
       // This player's: an old one's late event is not the new source's.
@@ -2243,12 +2261,12 @@ export class FastStreamClient extends EventEmitter {
     });
 
 
-    this.context.on(DefaultPlayerEvents.LOADEDMETADATA, (event) => {
+    this.context.on(DefaultPlayerEvents.LOADEDMETADATA, (/** @type {undefined} */ event) => {
       this.interfaceController.updateQualityLevels();
     });
 
 
-    this.context.on(DefaultPlayerEvents.PAUSE, (event) => {
+    this.context.on(DefaultPlayerEvents.PAUSE, (/** @type {undefined} */ event) => {
       this.cancelEndStall();
       this.interfaceController.pause();
       this.reportPlaying(false);
@@ -2256,58 +2274,58 @@ export class FastStreamClient extends EventEmitter {
     });
 
 
-    this.context.on(DefaultPlayerEvents.PLAY, (event) => {
+    this.context.on(DefaultPlayerEvents.PLAY, (/** @type {undefined} */ event) => {
       this.interfaceController.play();
       this.reportPlaying(true);
       this.updatePeers();
     });
 
 
-    this.context.on(DefaultPlayerEvents.PLAYING, (event) => {
+    this.context.on(DefaultPlayerEvents.PLAYING, (/** @type {undefined} */ event) => {
       this.cancelEndStall();
       this.interfaceController.setBuffering(false);
     });
 
 
-    this.context.on(DefaultPlayerEvents.PROGRESS, (event) => {
+    this.context.on(DefaultPlayerEvents.PROGRESS, (/** @type {undefined} */ event) => {
     });
 
 
-    this.context.on(DefaultPlayerEvents.RATECHANGE, (event) => {
+    this.context.on(DefaultPlayerEvents.RATECHANGE, (/** @type {undefined} */ event) => {
     });
 
 
-    this.context.on(DefaultPlayerEvents.SEEKED, (event) => {
+    this.context.on(DefaultPlayerEvents.SEEKED, (/** @type {undefined} */ event) => {
       this.interfaceController.updateFragmentsLoaded();
     });
 
 
-    this.context.on(DefaultPlayerEvents.SEEKING, (event) => {
+    this.context.on(DefaultPlayerEvents.SEEKING, (/** @type {undefined} */ event) => {
       this.cancelEndStall();
     });
 
 
-    this.context.on(DefaultPlayerEvents.STALLED, (event) => {
+    this.context.on(DefaultPlayerEvents.STALLED, (/** @type {undefined} */ event) => {
     });
 
 
-    this.context.on(DefaultPlayerEvents.SUSPEND, (event) => {
+    this.context.on(DefaultPlayerEvents.SUSPEND, (/** @type {undefined} */ event) => {
     });
 
 
-    this.context.on(DefaultPlayerEvents.TIMEUPDATE, (event) => {
+    this.context.on(DefaultPlayerEvents.TIMEUPDATE, (/** @type {undefined} */ event) => {
       if (this.interfaceController.isUserSeeking()) return;
 
       this.updateTime(this.currentTime);
     });
 
 
-    this.context.on(DefaultPlayerEvents.VOLUMECHANGE, (event) => {
+    this.context.on(DefaultPlayerEvents.VOLUMECHANGE, (/** @type {undefined} */ event) => {
 
     });
 
 
-    this.context.on(DefaultPlayerEvents.WAITING, (event) => {
+    this.context.on(DefaultPlayerEvents.WAITING, (/** @type {undefined} */ event) => {
       // In the last second, the next video instead of a wait - when there is one: with none,
       // this returned before the indicator, and the last video froze there with nothing
       // shown (glm's second look, 2026-10-13).
@@ -2335,21 +2353,21 @@ export class FastStreamClient extends EventEmitter {
       player.setCurrentAudioLevelID(this.getCurrentAudioLevelID());
     });
 
-    this.previewContext.on(DefaultPlayerEvents.FRAGMENT_UPDATE, (fragment) => {
+    this.previewContext.on(DefaultPlayerEvents.FRAGMENT_UPDATE, (/** @type {Fragment} */ fragment) => {
       this.interfaceController.updateFragmentsLoaded();
     });
 
-    this.previewContext.on(DefaultPlayerEvents.SEEKED, (event) => {
+    this.previewContext.on(DefaultPlayerEvents.SEEKED, (/** @type {undefined} */ event) => {
       this.updatePreview();
     });
 
 
-    this.previewContext.on(DefaultPlayerEvents.SEEKING, (event) => {
+    this.previewContext.on(DefaultPlayerEvents.SEEKING, (/** @type {undefined} */ event) => {
       this.updatePreview();
     });
 
 
-    this.previewContext.on(DefaultPlayerEvents.ERROR, (e) => {
+    this.previewContext.on(DefaultPlayerEvents.ERROR, (/** @type {unknown} */ e) => {
       console.log('Preview player error', e);
       // Still null while the preview player is being built: it is only stored once its
       // source has loaded, and a source that fails to load is exactly what gets here.
