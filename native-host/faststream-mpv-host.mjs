@@ -87,7 +87,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 20;
+export const HostVersion = 21;
 
 // The messages of the thin helper (host 15) this host understands, sent with every answer
 // so that the extension knows what it may ask for without a version table of its own. A
@@ -1981,7 +1981,7 @@ export function launchDirect(mpvPath, args) {
         resolve({ok: false, error: `mpv quit right after it started (${signal || 'exit code ' + code}): check the mpv path, and mpv.conf for an option mpv refuses`});
       });
     } catch (e) {
-      resolve({ok: false, error: String(e.message || e)});
+      resolve({ok: false, error: String(/** @type {Error} */ (e).message || e)});
     }
   });
 }
@@ -2376,7 +2376,7 @@ function processAlive(pid) {
     return true;
   } catch (e) {
     // EPERM: it runs, as someone this process may not signal.
-    return !!e && e.code === 'EPERM';
+    return !!e && /** @type {NodeJS.ErrnoException} */ (e).code === 'EPERM';
   }
 }
 
@@ -2438,7 +2438,7 @@ export function takeLaunchLock(file, io = {}) {
       };
     } catch (e) {
       // A temp folder that takes no file: start as before, unlocked.
-      if (!e || e.code !== 'EEXIST') return {taken: true, ...none};
+      if (!e || /** @type {NodeJS.ErrnoException} */ (e).code !== 'EEXIST') return {taken: true, ...none};
       if (launchLockHeld(file, io)) return {taken: false, ...none};
       try {
         // Left by a helper that died, or an mpv that is gone: taken over.
@@ -3079,7 +3079,7 @@ async function handleMessage() {
       await sendMessage({ok: false, error: mpvNotFoundError((/** @type {{mpvPath?: string}} */ (message)).mpvPath)});
       return;
     }
-    const result = await launchMpv(mpvPath, message, config);
+    const result = await launchMpv(mpvPath, /** @type {OpenMessage} */ (message), config);
     debugLog(config, 'launched', {mpvPath, url: (/** @type {{url: string}} */ (message)).url, result});
     await sendMessage(result);
     return;

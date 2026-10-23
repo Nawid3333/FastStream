@@ -106,7 +106,7 @@ export class StreamLengths {
       this.masterOf.set(variant.url, master);
     }
     if (this.masters.size > MAX_KNOWN) {
-      const [oldest, info] = this.masters.entries().next().value;
+      const [oldest, info] = /** @type {[string, {variants: Array<{url: string, bandwidth: number, height: number}>, renditions: boolean}]} */ (this.masters.entries().next().value);
       this.masters.delete(oldest);
       for (const variant of info.variants) {
         if (this.masterOf.get(variant.url) === oldest) this.masterOf.delete(variant.url);
@@ -179,7 +179,7 @@ export class StreamLengths {
     });
     this.known.set(source.url, entry);
     if (this.known.size > MAX_KNOWN) {
-      this.known.delete(this.known.keys().next().value);
+      this.known.delete(/** @type {string} */ (this.known.keys().next().value));
     }
     return entry.promise;
   }

@@ -398,7 +398,7 @@ export class Utils {
       downloads.onChanged.removeListener(changed);
       revoke();
     };
-    /** @type {(delta: {id: number, state?: {current: string, previous: string}}) => void} */
+    /** @type {(delta: chrome.downloads.DownloadDelta) => void} */
     const changed = (delta) => {
       if (delta.id === download && delta.state && delta.state.current !== 'in_progress') {
         finish();

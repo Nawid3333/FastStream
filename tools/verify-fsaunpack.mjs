@@ -131,7 +131,7 @@ try {
     failures.push(`the server answers on ${outside}, not only on 127.0.0.1`);
   }
 } catch (e) {
-  failures.push(e.message);
+  failures.push(/** @type {Error} */ (e).message);
 } finally {
   // Windows keeps a running process's files; remove them once it is gone.
   const exited = server.exitCode !== null || server.signalCode !== null ? Promise.resolve() : new Promise((resolve) => server.once('exit', resolve));

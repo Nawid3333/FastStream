@@ -44,7 +44,7 @@ export class WebUtils {
   /**
    * Creates a DOM element with optional style and class.
    * @param {string} [type='div'] - The type of element to create.
-   * @param {string} [style] - The style to apply to the element.
+   * @param {string|null} [style] - The style to apply to the element.
    * @param {string} [cl] - The class name to apply to the element.
   * @return {HTMLElement} The created element.
    */

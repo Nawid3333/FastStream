@@ -398,7 +398,7 @@ function main() {
       try {
         return Buffer.compare(fs.readFileSync(dst), data) === 0;
       } catch (e) {
-        if (e.code === 'ENOENT') return false;
+        if (/** @type {NodeJS.ErrnoException} */ (e).code === 'ENOENT') return false;
         throw e;
       }
     })();

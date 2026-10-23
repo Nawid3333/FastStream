@@ -175,7 +175,7 @@ export class FetchLoader {
         }
       }
     } catch (e) {
-      this.stats.error = {code: 0, text: e.message};
+      this.stats.error = {code: 0, text: /** @type {Error} */ (e).message};
       this.callbacks?.forEach((callbacks) => {
         callbacks.onError(this.stats, request, null);
       });
@@ -236,7 +236,7 @@ export class FetchLoader {
         // tearing down the previous attempt) - not a network failure.
         return;
       }
-      this.handleLoadFailure(0, e.message);
+      this.handleLoadFailure(0, /** @type {Error} */ (e).message);
       return;
     }
 
@@ -273,7 +273,7 @@ export class FetchLoader {
       if (isStale()) {
         return;
       }
-      this.handleLoadFailure(0, e.message);
+      this.handleLoadFailure(0, /** @type {Error} */ (e).message);
       return;
     }
 

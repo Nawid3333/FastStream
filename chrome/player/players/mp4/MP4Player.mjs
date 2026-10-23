@@ -186,7 +186,7 @@ export default class MP4Player extends EventEmitter {
     try {
       this.makeSourceBuffers();
     } catch (e) {
-      this.emit(DefaultPlayerEvents.ERROR, 'Failed to create SourceBuffers: ' + e.message);
+      this.emit(DefaultPlayerEvents.ERROR, 'Failed to create SourceBuffers: ' + /** @type {Error} */ (e).message);
       return;
     }
 
@@ -428,7 +428,7 @@ export default class MP4Player extends EventEmitter {
       console.error(e);
       if (this.running) {
         this.running = false;
-        this.emit(DefaultPlayerEvents.ERROR, 'Playback stopped: ' + (e?.message || e));
+        this.emit(DefaultPlayerEvents.ERROR, 'Playback stopped: ' + (/** @type {Error|undefined} */ (e)?.message || e));
       }
       return;
     }
@@ -447,7 +447,7 @@ export default class MP4Player extends EventEmitter {
       return;
     }
 
-    const wrappers = [this.videoSourceBuffer, this.audioSourceBuffer].filter(Boolean);
+    const wrappers = /** @type {SourceBufferWrapper[]} */ ([this.videoSourceBuffer, this.audioSourceBuffer].filter(Boolean));
     /** @param {SourceBufferWrapper} wrapper */
     const busy = (wrapper) => wrapper.updating || wrapper.sourceBuffer.updating || wrapper.toDo.length > 0;
     if (wrappers.length === 0 || wrappers.some(busy)) {

@@ -365,6 +365,6 @@ self.addEventListener('message', async (event) => {
     }
     self.postMessage({id, ok: true, result}, transfer || []);
   } catch (e) {
-    self.postMessage({id, ok: false, error: e?.message || String(e)});
+    self.postMessage({id, ok: false, error: /** @type {Error|undefined} */ (e)?.message || String(e)});
   }
 });

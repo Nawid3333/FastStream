@@ -154,7 +154,7 @@ for (const c of list) {
   try {
     fp = fingerprint(src);
   } catch (e) {
-    rows.push({label: c.label, note: `unparseable: ${e.message}`});
+    rows.push({label: c.label, note: `unparseable: ${/** @type {Error} */ (e).message}`});
     continue;
   }
   let i = 0;

@@ -447,14 +447,14 @@ setup().catch((e)=>{
 // When it is added, move the player to the right
 const observer = new MutationObserver((mutations) => {
   mutations.forEach((mutation) => {
-    mutation.addedNodes.forEach((/** @type {Element} */ node) => {
-      if (node.id === 'wave_sidebar_container' || node.id === 'waveordercontainer') {
+    mutation.addedNodes.forEach((/** @type {Node} */ node) => {
+      if (/** @type {Element} */ (node).id === 'wave_sidebar_container' || /** @type {Element} */ (node).id === 'waveordercontainer') {
         doWaveFix();
       }
     });
 
-    mutation.removedNodes.forEach((/** @type {Element} */ node) => {
-      if (node.id === 'wave_sidebar_container') {
+    mutation.removedNodes.forEach((/** @type {Node} */ node) => {
+      if (/** @type {Element} */ (node).id === 'wave_sidebar_container') {
         undoWaveFix();
       }
     });

@@ -414,7 +414,7 @@ export class SaveManager {
         this.pendingSave = null;
         /** @type {HTMLElement} */ (DOMElements.saveNotifBanner).style.display = 'none';
 
-        if (e.message === 'Cancelled') {
+        if (/** @type {Error} */ (e).message === 'Cancelled') {
           console.error(e);
           this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_cancelled'), 'info', 2000);
         } else {
@@ -507,7 +507,7 @@ export class SaveManager {
     } catch (e) {
       console.error(e);
       this.setStatusMessage('save-video', Localize.getMessage('player_archiver_fail'), 'error', 2000);
-      AlertPolyfill.errorSendToDeveloper(e);
+      AlertPolyfill.errorSendToDeveloper(/** @type {Error} */ (e));
     }
   }
 
@@ -623,7 +623,7 @@ export class SaveManager {
 
     // One file that cannot be read is left out: its error dropped every caption of the drop,
     // and the video dropped with them never started.
-    (await Promise.all(captions.map(async (file) => {
+    /** @type {SubtitleTrack[]} */ ((await Promise.all(captions.map(async (file) => {
       const track = new SubtitleTrack(file.name);
       try {
         await track.loadURL(file.url);
@@ -637,7 +637,7 @@ export class SaveManager {
         window.URL.revokeObjectURL(file.url);
       }
       return track;
-    }))).filter(Boolean).forEach((/** @type {SubtitleTrack} */ track) => {
+    }))).filter(Boolean)).forEach((/** @type {SubtitleTrack} */ track) => {
       // A track: filter(Boolean) left no null.
       const returnedTrack = this.client.loadSubtitleTrack(track);
       this.client.interfaceController.subtitlesManager.activateTrack(returnedTrack);

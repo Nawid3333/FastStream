@@ -30,7 +30,7 @@ export class DASH2MP4 extends EventEmitter {
         'Unsupported trafs count!',
         'Sample duration is zero!',
       ];
-      if (!mergerErrors.includes(e.message)) {
+      if (!mergerErrors.includes(/** @type {Error} */ (e).message)) {
         throw e;
       }
 

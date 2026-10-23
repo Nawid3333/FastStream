@@ -123,7 +123,7 @@ export function checkXpi(xpi, {id, version, hash, minVersion}) {
   try {
     files = readZip(xpi);
   } catch (e) {
-    return [...problems, `the xpi is not a readable zip: ${e.message}`];
+    return [...problems, `the xpi is not a readable zip: ${/** @type {Error} */ (e).message}`];
   }
   // AMO signs with both: the PKCS#7 signature and the COSE one newer Firefox checks.
   for (const signature of ['META-INF/mozilla.rsa', 'META-INF/cose.sig']) {
@@ -135,7 +135,7 @@ export function checkXpi(xpi, {id, version, hash, minVersion}) {
   try {
     manifest = JSON.parse(/** @type {() => Buffer} */ (files.get('manifest.json'))().toString('utf8'));
   } catch (e) {
-    return [...problems, `the xpi has no readable manifest.json: ${e.message}`];
+    return [...problems, `the xpi has no readable manifest.json: ${/** @type {Error} */ (e).message}`];
   }
   const gecko = manifest.browser_specific_settings?.gecko || {};
   if (manifest.version !== version) {
@@ -205,7 +205,7 @@ export async function download(url, {
       }
       trouble = `HTTP ${response.status}`;
     } catch (e) {
-      trouble = e.message;
+      trouble = /** @type {Error} */ (e).message;
     }
     if (attempt === 3) {
       throw new Unreachable(`${url}: ${trouble}`);
@@ -236,7 +236,7 @@ async function main() {
     try {
       json = JSON.parse(updates.body.toString('utf8'));
     } catch (e) {
-      problems.push(`updates.json is not JSON: ${e.message}`);
+      problems.push(`updates.json is not JSON: ${/** @type {Error} */ (e).message}`);
     }
     if (json) {
       const checked = checkUpdatesJson(json, {id, version, repo, tag});

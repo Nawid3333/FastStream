@@ -98,7 +98,7 @@ export class MP4Writer {
         // Whole microseconds: seconds would gather float error in the subtraction.
         this.rebaser.push(track, packet.microsecondTimestamp, {packet, meta});
       } catch (e) {
-        this.fail(e);
+        this.fail(/** @type {Error} */ (e));
       }
     }
     return this.muxing.then(() => {

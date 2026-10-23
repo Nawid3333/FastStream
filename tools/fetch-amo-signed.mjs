@@ -113,7 +113,7 @@ export async function waitForSigned(check, {
         throw error;
       }
       state = 'error';
-      log(`Asking AMO failed: ${error.message}`);
+      log(`Asking AMO failed: ${/** @type {Error} */ (error).message}`);
     }
     if (state === 'signed' || state === 'rejected' || state === 'missing') {
       return state;
