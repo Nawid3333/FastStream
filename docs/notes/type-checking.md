@@ -32,19 +32,41 @@ Since 2026-10-22 (#523) every own script under `chrome/`, `native-host/` and `to
 `// @ts-check`: 192 files, counted that day with `head -2 | grep @ts-check` over
 `git ls-files`, the vendored libraries left out.
 
-### noImplicitAny, file by file (2026-10-22)
+### strict (2026-10-23)
 
-`noImplicitAny` stays off in `tsconfig.json`: with it, 2725 places were untyped on
-2026-10-22 once the first 29 files were typed, each a value TypeScript checks as `any`. They are typed with comments only
-(JSDoc and `/** @type {T} */ (x)` casts), proven by hashing each file's syntax tree
-before and after (positions and comments left out, so only comments may change).
-`pnpm run typecheck:strict` (`tools/check-implicit-any.mjs`, a step of CI's lint job) is
-the ratchet: it runs `tsc --noEmit --noImplicitAny` and compares each file's error count
-with `types/implicit-any.json`. A count above the record fails, and so does a file the
-record leaves out (at 0, or new) with any error; a count below it fails until the record
-is lowered with `pnpm run typecheck:strict -- --update`, so a typed file cannot go back
-unnoticed. `tests/unit/checkImplicitAny.test.mjs` covers the rules (each broken once, and
-caught), and an untyped parameter planted in a file at 0 failed the check with its line.
+`tsconfig.json` has `"strict": true` since 2026-10-23: `pnpm run typecheck` (CI's lint job)
+fails on any value TypeScript would check as `any`, a caught value read without saying what
+it is, a callback typed narrower than what calls it, and the rest of `--strict`. Every
+opted-in file (`// @ts-check`, below) is held to it, so new code is typed as it is written.
+
+How it got there, for the record. On 2026-10-22 there were 2809 untyped places and, beyond
+them, 51 more `--strict` errors. They were typed file by file in batches (#530, #535, #539,
+#541, #543, #547, #548, #550-#555), almost all with comments only: JSDoc and
+`/** @type {T} */ (x)` casts, proven by hashing each file's syntax tree before and after
+(positions and comments left out, so only comments may change). Until the count reached 0, a
+ratchet (`tools/check-implicit-any.mjs` against a recorded count per file, removed with the
+switch) let a file's count only fall. A handful of code lines changed where no comment could
+say the truth, each doing what it did before (#555: `String()` for a `setItem`, `'0'` and
+`'false'` where the browser converted a number or a boolean, two property writes no player
+had), and one bug was fixed on the way (`getDataByteSize` measured a `Uint8Array` as 0).
+
+Conventions the typing settled on, for code written from here:
+- A value of one of the extension's classes gets that class (`import('./X.mjs').X`), never a
+  shape made up for one file's needs; glm-5.3-flash's answers did that, and such shapes were
+  wrong (a `Map` typed as an array, a player as an `HTMLVideoElement`).
+- A cast states something true at that point, with the reason beside it when that is not
+  obvious: "set: fragments are asked for once the player has its source", "a level ID of
+  null reads the key \"null\", which no level has".
+- The five players share one API: `createPlayer` returns the client's `Player` union; each
+  declares its element `HTMLVideoElement` (an `<audio>` for an audio-only player, used only as
+  a media element); level setters take `string|number|null`, what the client passes.
+- A caught value is `unknown`: cast to `Error` where the code reads it as one, to
+  `NodeJS.ErrnoException` for `.code`, to `Error|undefined` where it already guards.
+- In a JS file, a field only ever `null` is widened to `any` whatever its JSDoc says (give it
+  its real type, or drop it if it is never read); a field set only in a method gets
+  `| undefined` unless that assignment carries a `@type`; a `@type` before the second
+  declaration of a line is not seen.
+- `tsconfig.json`'s lib is ES2024: Firefox 153, the floor, has all of it.
 
 The mpv host (`native-host/faststream-mpv-host.mjs`) was typed on 2026-10-23 (76 to 1
 untyped places) with `HostVersion` 20 and `RequiredHostVersion` left at 19: a change
