@@ -532,6 +532,22 @@ before the minute is up. A failed open was never silent: mpv-config's `source-in
 one for a FastStream stream (`end-file` error). `backgroundMpv.test.mjs`: an ad, then the
 episode; a stream of a few minutes alone.
 
+**The next page's sound alone (2026-10-23).** His report: MPV autoplay on serienstream.to
+(VOE) played the next episode in mpv as sound only, every time; the first episode, sent as the
+page's first stream, played with its picture. Measured on the site: VOE's master lists one
+720p variant (`index-v1-a1.m3u8`) and the sound in German and French as renditions with
+playlists of their own (`EXT-X-MEDIA:TYPE=AUDIO,...,URI="index-a1.m3u8"`), and the page's
+player (started as `startPagePlayers` does, in a headless Firefox over WebDriver BiDi) asked
+for the master, then for the variant and the German playlist within the same 10 ms. All three
+run 2605.783 s (`StreamLength.fromHls` on the real playlists), so `newestOfLongest` took the
+German playlist, and `hlsQualityChoice`, which knew only the variants as the master's, sent it
+as it was: mpv found one audio track and no video. `StreamLengths.noteMaster` now keeps the
+renditions' playlists as the master's too (`hlsVariants`' `media`), and each goes as the
+master, as a variant of a master with audio of its own already did. `backgroundMpv.test.mjs`:
+the master, its variant, then the sound's playlist on the next page (red before: mpv got
+`index-a1.m3u8`); `StreamLengths.test.mjs`: audio and subtitles playlists, and that they go
+with the oldest master.
+
 **Debugging.** Add `"debug": true` to
 `%LOCALAPPDATA%\FastStreamMpvHost\config.json` (no reinstall needed, the host
 reads it per message) and it appends JSONL to `faststream-mpv-host.log` next

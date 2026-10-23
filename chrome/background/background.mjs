@@ -3990,9 +3990,12 @@ async function pageQualityChoice(tab, url) {
  * was loading - its "Auto" pick, often not the highest - and mpv knew no other quality (his
  * report, 2026-10-14): the master and its variant run as long as each other, and of streams
  * that tie the newest goes. A master whose variants cannot play alone (audio or subtitles of
- * their own) goes as the master: mpv takes its highest bitrate by itself (hls-bitrate=max).
+ * their own) goes as the master: mpv takes its highest bitrate by itself (hls-bitrate=max). So
+ * does the playlist of such audio or subtitles, which the page's player asks for last, and
+ * which has no picture (VOE, 2026-10-23: mpv played the next episode as sound only).
  * @param {?TabHolder} tab - The tab the stream was found in, if any.
- * @param {string} url - The stream: a master playlist, or a variant of one.
+ * @param {string} url - The stream: a master playlist, or a variant of one, or the playlist of
+ *   one's audio or subtitles.
  * @return {Promise<?{url: string, list: ?Array<Object>}>} What to send instead, and the list;
  *   null to send the stream as it is.
  */

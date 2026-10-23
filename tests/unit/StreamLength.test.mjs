@@ -304,10 +304,16 @@ describe('StreamLength.fromHls', () => {
     expect(StreamLength.hlsVariants(master)).toEqual({
       variants: [{uri: '720p/index.m3u8?token=a', bandwidth: 1280000, height: 720}, {uri: '360p/index.m3u8', bandwidth: 640000, height: 0}],
       renditions: false,
+      media: [],
     });
-    // An audio rendition with a playlist of its own; one without a URI is in the variants.
+    // Audio and subtitles with playlists of their own, which it lists; audio without a URI is
+    // in the variants.
     expect(StreamLength.hlsVariants('#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="en",URI="audio/en.m3u8"\n' +
-      '#EXT-X-STREAM-INF:BANDWIDTH=1,RESOLUTION=1x2,AUDIO="aud"\nv.m3u8\n').renditions).toBe(true);
+      '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub",NAME="de,URI=x",URI = "subs/de.m3u8?t=1"\n' +
+      '#EXT-X-STREAM-INF:BANDWIDTH=1,RESOLUTION=1x2,AUDIO="aud"\nv.m3u8\n')).toMatchObject({
+      renditions: true,
+      media: ['audio/en.m3u8', 'subs/de.m3u8?t=1'],
+    });
     expect(StreamLength.hlsVariants('#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="en",DEFAULT=YES\n' +
       '#EXT-X-STREAM-INF:BANDWIDTH=1,RESOLUTION=1x2,AUDIO="aud"\nv.m3u8\n').renditions).toBe(false);
     // A media playlist, or no playlist at all.

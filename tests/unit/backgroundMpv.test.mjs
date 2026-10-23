@@ -20,15 +20,18 @@ afterEach(() => {
 });
 
 /**
- * The network: each playlist with its length, answered after a delay.
- * @param {Object<string, number>} lengths - Seconds by URL.
+ * The network: each playlist with its length, or a master playlist's text, answered after a
+ * delay.
+ * @param {Object<string, number|string>} lengths - Seconds, or the playlist itself, by URL.
  * @param {number} [delayMs] - How long each answer takes.
  * @return {function(string): Promise<Object>} fetch() for loadBackground.
  */
 function playlists(lengths, delayMs = 300) {
   return (url) => new Promise((resolve) => {
     setTimeout(() => {
-      resolve(url in lengths ? response(hlsPlaylist(lengths[url])) : response('', 404));
+      const known = lengths[url];
+      resolve(known === undefined ? response('', 404) :
+        response(typeof known === 'string' ? known : hlsPlaylist(known)));
     }, delayMs);
   });
 }
@@ -1568,6 +1571,17 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
   // A hoster's preroll, and a stream of a few minutes (a trailer, a preview).
   const AD = 'https://ads.test/pre/master.m3u8';
   const SHORT = 'https://cdn.test/short/master.m3u8';
+  // A master with one video variant and the sound in two languages, each a playlist of its
+  // own (VOE's, 2026-10-23), and those three playlists.
+  const LANGS = 'https://cdn.test/langs/master.m3u8';
+  const LANGS_VIDEO = 'https://cdn.test/langs/index-v1-a1.m3u8';
+  const LANGS_DE = 'https://cdn.test/langs/index-a1.m3u8';
+  const LANGS_FR = 'https://cdn.test/langs/index-a2.m3u8';
+  const LANGS_MASTER = '#EXTM3U\n' +
+    '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio0",NAME="Deutsch",LANGUAGE="de",AUTOSELECT=NO,DEFAULT=NO,URI="index-a1.m3u8"\n' +
+    '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio0",NAME="Français",LANGUAGE="fr",AUTOSELECT=NO,DEFAULT=NO,URI="index-a2.m3u8"\n' +
+    '#EXT-X-STREAM-INF:BANDWIDTH=1307594,RESOLUTION=1280x720,CODECS="avc1.64001f,mp4a.40.2",AUDIO="audio0"\n' +
+    'index-v1-a1.m3u8\n';
   let navigations;
   let polls;
 
@@ -1584,7 +1598,8 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     bg = await loadBackground({
       options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvAutoplayNext: true, autoplayCountdown: 0, ...options},
       tabs: [{id: 1, url: EP1}],
-      fetch: playlists({[S1]: 1400, [S2]: 1400, [AD]: 30, [SHORT]: 90}),
+      fetch: playlists({[S1]: 1400, [S2]: 1400, [AD]: 30, [SHORT]: 90,
+        [LANGS]: LANGS_MASTER, [LANGS_VIDEO]: 1400, [LANGS_DE]: 1400, [LANGS_FR]: 1400}),
       onTabMessage: ({frameId, message}) => {
         // The page's video: in the top frame here (startPagePlayers asks the largest).
         if (message.type === 'GET_VIDEO_SIZE') return frameId === 0 ? 640 * 360 : 0;
@@ -1861,6 +1876,26 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     await bg.request({tabId: 1, url: S2, frameId: 6});
     await bg.wait(3000);
     expect(bg.toMpv()).toEqual([S1, S2]);
+  });
+
+  // serienstream.to's VOE hoster (his report, 2026-10-23): the next episode played in mpv as
+  // sound only, every time. The page's player asks for the master, its variant and then the
+  // German sound's own playlist (measured on the site), all as long as each other; of streams
+  // that tie the newest goes, and the sound's playlist went to mpv as it was.
+  it('sends the next page\'s master, not the sound\'s playlist its player loaded last', async () => {
+    const port = await onEpisode1();
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.frameAdded(1, 6, 'https://hoster.test/e/2', 'hoster2');
+    await bg.request({tabId: 1, url: LANGS, frameId: 6});
+    await bg.wait(200);
+    await bg.request({tabId: 1, url: LANGS_VIDEO, frameId: 6});
+    await bg.wait(10);
+    await bg.request({tabId: 1, url: LANGS_DE, frameId: 6});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([S1, LANGS]);
   });
 
   it('sends a stream of a few minutes when nothing longer came before the minute is nearly up', async () => {

@@ -20,6 +20,13 @@ const MAX_ACTIVE = 4;
 const MAX_KNOWN = 300;
 
 /**
+ * A master playlist read: its variants, whether it has audio or subtitles of their own, and
+ * their playlists (absolute URLs).
+ * @typedef {{variants: Array<{url: string, bandwidth: number, height: number}>, renditions: boolean,
+ *   media: Array<string>}} MasterInfo
+ */
+
+/**
  * How long each detected stream plays, read in the background from its manifest or from
  * the start of its file, with the headers the page's own request had. Each URL is read
  * once.
@@ -38,9 +45,9 @@ export class StreamLengths {
     this.setHeaders = setHeaders;
     /** @type {Map<string, {duration: (number|null|undefined), promise: Promise<number|null>}>} */
     this.known = new Map();
-    // The HLS master playlists read (by the URL detected), with their variants (absolute URLs),
-    // and each variant's master: hlsQualities.
-    /** @type {Map<string, {variants: Array<{url: string, bandwidth: number, height: number}>, renditions: boolean}>} */
+    // The HLS master playlists read (by the URL detected), with their variants and their audio's
+    // and subtitles' playlists (absolute URLs), and the master of each: hlsQualities.
+    /** @type {Map<string, MasterInfo>} */
     this.masters = new Map();
     /** @type {Map<string, string>} */
     this.masterOf = new Map();
@@ -54,9 +61,10 @@ export class StreamLengths {
    * variant it is, lists them (largest first, one per height, the highest bandwidth of each).
    * @param {string} url - A detected stream.
    * @return {?{master: string, list: ?Array<{url: string, label: string, height: number}>}}
-   *   Null for a URL that is no master read and no variant of one; list null when the master
-   *   names fewer than two heights, or lists audio or subtitles of their own, which a variant
-   *   played alone goes without (then only the master plays them).
+   *   Null for a URL that is no master read, and no variant or audio or subtitles playlist of
+   *   one; list null when the master names fewer than two heights, or lists audio or subtitles
+   *   of their own, which a variant played alone goes without (then only the master plays
+   *   them, and the picture, which their own playlists have not).
    */
   hlsQualities(url) {
     const master = this.masters.has(url) ? url : this.masterOf.get(url);
@@ -82,7 +90,11 @@ export class StreamLengths {
   }
 
   /**
-   * Keeps the variants of a master playlist read (hlsQualities).
+   * Keeps the variants of a master playlist read, and its audio's and subtitles' playlists
+   * (hlsQualities). The page's player asks for those after the variant's, and they run as long
+   * as the video: of streams that tie the newest goes, and VOE's German sound went to mpv on
+   * its own, which played no picture (serienstream.to, 2026-10-23). Such a playlist goes as
+   * its master, as a variant of a master with audio or subtitles of their own does.
    * @param {string} master - The URL it was detected at.
    * @param {string} text - The playlist.
    * @param {string} base - The URL it came from (after redirects): its variants' URIs are
@@ -101,15 +113,23 @@ export class StreamLengths {
         // No URL: left out.
       }
     }
-    this.masters.set(master, {variants, renditions: parsed.renditions});
-    for (const variant of variants) {
-      this.masterOf.set(variant.url, master);
+    const media = [];
+    for (const uri of parsed.media) {
+      try {
+        media.push(new URL(uri, base).href);
+      } catch (e) {
+        // No URL: left out.
+      }
+    }
+    this.masters.set(master, {variants, renditions: parsed.renditions, media});
+    for (const url of [...variants.map((variant) => variant.url), ...media]) {
+      this.masterOf.set(url, master);
     }
     if (this.masters.size > MAX_KNOWN) {
-      const [oldest, info] = /** @type {[string, {variants: Array<{url: string, bandwidth: number, height: number}>, renditions: boolean}]} */ (this.masters.entries().next().value);
+      const [oldest, info] = /** @type {[string, MasterInfo]} */ (this.masters.entries().next().value);
       this.masters.delete(oldest);
-      for (const variant of info.variants) {
-        if (this.masterOf.get(variant.url) === oldest) this.masterOf.delete(variant.url);
+      for (const url of [...info.variants.map((variant) => variant.url), ...info.media]) {
+        if (this.masterOf.get(url) === oldest) this.masterOf.delete(url);
       }
     }
   }
