@@ -714,9 +714,11 @@ describe('FastStreamClient, autoplay of the next video', () => {
     expect(navigations()).toBe(1);
   });
 
-  it('still goes to the next video each time it is asked by hand', () => {
+  it('still goes to the next video each time it is asked by hand', async () => {
     const {client} = atTheEnd();
+    answerNavigations('clicked', 'clicked');
     client.nextVideo();
+    await settle();
     client.nextVideo();
     expect(navigations()).toBe(2);
   });
@@ -731,7 +733,132 @@ describe('FastStreamClient, autoplay of the next video', () => {
     expect(client.interfaceController.setBuffering).toHaveBeenCalledWith(true);
     expect(navigations()).toBe(0);
   });
+
+  // His report (2026-10-23, serienstream.to): the countdown stopped at "1 s" and went on only
+  // when its banner was clicked. The end asked once, and whatever the answer - an event page
+  // Firefox had unloaded and started anew ('error'), no answer, no link found yet - it never
+  // asked again.
+  it('asks again while it stays at the end when the background could not go on', async () => {
+    vi.useFakeTimers();
+    const {player} = atTheEnd();
+    answerNavigations('error', 'clicked');
+    player.emit(DefaultPlayerEvents.ENDED);
+    await settle();
+    expect(navigations()).toBe(1);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(navigations()).toBe(2);
+    // 'clicked': the page goes on, and nothing more is asked.
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(navigations()).toBe(2);
+  });
+
+  it('asks again when its request gets no answer', async () => {
+    vi.useFakeTimers();
+    const {player} = atTheEnd();
+    answerNavigations(NO_ANSWER, undefined, 'clicked');
+    player.emit(DefaultPlayerEvents.ENDED);
+    await settle();
+    await vi.advanceTimersByTimeAsync(5000 + 3000);
+    expect(navigations()).toBe(2);
+    // An answer of nothing (the message's port closed, chrome.runtime.lastError) too.
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(navigations()).toBe(3);
+  });
+
+  it('gives up asking after a few tries, and the banner still goes on', async () => {
+    vi.useFakeTimers();
+    const {client, player} = atTheEnd();
+    answerNavigations('no_button', 'no_button', 'no_button', 'no_button', 'no_button', 'no_button', 'no_button', 'clicked');
+    player.emit(DefaultPlayerEvents.ENDED);
+    await settle();
+    await vi.advanceTimersByTimeAsync(60000);
+    const asked = navigations();
+    expect(asked).toBeGreaterThan(1);
+    expect(asked).toBeLessThanOrEqual(6);
+    client.nextVideo();
+    expect(navigations()).toBe(asked + 1);
+  });
+
+  it('asks nothing more once the user went back from the end, or the series ends there', async () => {
+    vi.useFakeTimers();
+    let {client, player} = atTheEnd();
+    answerNavigations('error');
+    player.emit(DefaultPlayerEvents.ENDED);
+    await settle();
+    player._currentTime = 600;
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(navigations()).toBe(1);
+
+    chrome.runtime.sendMessage.mockClear();
+    ({client, player} = atTheEnd());
+    answerNavigations('series_end');
+    player.emit(DefaultPlayerEvents.ENDED);
+    await settle();
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(navigations()).toBe(1);
+    expect(client.hasNextVideo()).toBe(false);
+  });
+
+  it('goes on when its time stands still in the last seconds with no wait and no end told', async () => {
+    // The end's stall watch was armed only by a `waiting`: a video that stopped in its last second
+    // without one, and without `ended`, showed "1 s" for good.
+    vi.useFakeTimers();
+    const {player} = atTheEnd();
+    answerNavigations('clicked');
+    player.emit(DefaultPlayerEvents.TIMEUPDATE);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(navigations()).toBe(0);
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(navigations()).toBe(1);
+  });
+
+  it('does not go on while its time runs in the last seconds, nor when paused there', async () => {
+    vi.useFakeTimers();
+    const {player} = atTheEnd();
+    player._currentTime = 1195;
+    for (let i = 0; i < 8; i++) {
+      player._currentTime += 0.25;
+      player.emit(DefaultPlayerEvents.TIMEUPDATE);
+      await vi.advanceTimersByTimeAsync(250);
+    }
+    player.video.paused = true;
+    player.emit(DefaultPlayerEvents.TIMEUPDATE);
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(navigations()).toBe(0);
+  });
+
+  it('sends one request when the banner is clicked while the end\'s request is on its way', async () => {
+    // A second request while the page goes on: a next button that counts clicks skips an episode.
+    const {client, player} = atTheEnd();
+    answerNavigations(NO_ANSWER);
+    player.emit(DefaultPlayerEvents.ENDED);
+    await settle();
+    client.nextVideo();
+    expect(navigations()).toBe(1);
+  });
+
+  it('keeps the next video it knew when a poll is answered with an error', async () => {
+    // The background answers 'error' when it knows no page for the player (an event page Firefox
+    // started anew): the poll took that for "no next video", and autoplay was off from then on.
+    const {client} = atTheEnd();
+    chrome.runtime.sendMessage.mockImplementation((message, callback) => {
+      if (message.type === MessageTypes.REQUEST_PLAYLIST_POLL) callback('error');
+    });
+    await client.pollPrevNext();
+    expect(client.hasNextVideo()).toBe(true);
+  });
 });
+
+// The background's answers to the player's requests for the next video, one per request, in
+// order; NO_ANSWER for one it never answers. Polls are answered with nothing.
+const NO_ANSWER = Symbol('no answer');
+function answerNavigations(...answers) {
+  chrome.runtime.sendMessage.mockImplementation((message, callback) => {
+    if (message.type !== MessageTypes.REQUEST_PLAYLIST_NAVIGATION) return;
+    const answer = answers.length > 0 ? answers.shift() : NO_ANSWER;
+    if (answer !== NO_ANSWER) queueMicrotask(() => callback?.(answer));
+  });
+}
 
 describe('FastStreamClient, the page\'s own media', () => {
   // While the player plays, the background has the page around it hold its own media
