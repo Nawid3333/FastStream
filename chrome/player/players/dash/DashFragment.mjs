@@ -31,7 +31,8 @@ export class DashFragment extends Fragment {
       }
     }
     return {
-      url: this.request.url,
+      // A segment's request has its URL.
+      url: /** @type {string} */ (this.request.url),
       rangeStart: rangeStart,
       rangeEnd: rangeEnd,
       responseType: 'arraybuffer',
