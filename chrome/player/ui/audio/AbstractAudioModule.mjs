@@ -14,6 +14,7 @@ export class AbstractAudioModule extends EventEmitter {
     this.name = name || 'AbstractAudioModule';
   }
 
+  /** @param {AudioContext} audioContext - The context the module's nodes run in. */
   setupNodes(audioContext) {
     this.audioContext = audioContext;
     this.inputNode = new VirtualAudioNode(this.name + ' input');

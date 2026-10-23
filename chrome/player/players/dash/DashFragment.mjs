@@ -3,6 +3,10 @@ import {StringUtils} from '../../utils/StringUtils.mjs';
 import {Fragment} from '../Fragment.mjs';
 
 export class DashFragment extends Fragment {
+  /**
+   * @param {import('../../modules/dash.mjs').FragmentRequest} request - dash.js's request for it, with
+   *   the level and index DashPlayer gave it.
+   */
   constructor(request) {
     super(request.level, request.index);
     this.request = request;
@@ -12,7 +16,9 @@ export class DashFragment extends Fragment {
   }
 
   getContext() {
+    /** @type {number|undefined} */
     let rangeStart = undefined;
+    /** @type {number|undefined} */
     let rangeEnd = undefined;
     if (this.request.range) {
       const [start, end] = StringUtils.parseHTTPRange(this.request.range);

@@ -141,9 +141,10 @@ export class StringUtils {
   }
 
   /**
-   * Parses an HTTP Range header string to an object.
+   * Parses an HTTP Range header string.
    * @param {string} range - HTTP Range string.
-   * @return {Object} Parsed range object.
+   * @return {[number, number] | [undefined, undefined]} Its first and last byte (NaN for an
+   *   open end); both undefined when it does not parse.
    */
   static parseHTTPRange(range) {
     const match = range.match(/(\d+)-(\d+)?/);

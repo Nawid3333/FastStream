@@ -182,7 +182,7 @@ export function DASHLoaderFactory(player) {
 
       if (request.range) {
         // StringUtils documents its answer as an Object.
-        const [start, end] = /** @type {[number, number]|[undefined, undefined]} */ (StringUtils.parseHTTPRange(request.range));
+        const [start, end] = StringUtils.parseHTTPRange(request.range);
         if (start === undefined) {
           console.warn('Failed to parse range', request.range);
         } else {
