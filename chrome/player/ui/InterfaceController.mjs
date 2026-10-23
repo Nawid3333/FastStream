@@ -946,7 +946,7 @@ export class InterfaceController {
     // A style sheet of this document, copied over as CSS text when its rules can be read,
     // else as a link to it; the fallback link takes the media query text and the URL as
     // plain strings (the link's media setter stringifies the MediaList).
-    [...document.styleSheets].forEach(/** @param {CSSStyleSheet & {media: string, href: string}} styleSheet */ (styleSheet) => {
+    /** @type {Array<CSSStyleSheet & {media: string, href: string}>} */ ([...document.styleSheets]).forEach((styleSheet) => {
       try {
         const cssRules = [...styleSheet.cssRules]
             .map((rule) => rule.cssText)

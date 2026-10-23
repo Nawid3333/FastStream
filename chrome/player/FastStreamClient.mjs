@@ -1220,7 +1220,7 @@ export class FastStreamClient extends EventEmitter {
         }
       });
     } catch (e) {
-      AlertPolyfill.errorSendToDeveloper(e);
+      AlertPolyfill.errorSendToDeveloper(/** @type {Error} */ (e));
       console.error(e);
       // The player built here, whose setup or setSource threw, was never handed the source:
       // destroyed, as buildPreviewPlayer destroys its own - left in this.player, its video
@@ -1337,7 +1337,7 @@ export class FastStreamClient extends EventEmitter {
       // that failed (IndexedDB having a moment) says nothing about the record, and saving
       // this video's time from 0 about a second later overwrote an intact one: keep no
       // progress for this video instead.
-      progressData = hashes && e?.unusableRecord ? {lastTime: 0} : null;
+      progressData = hashes && /** @type {(Error & {unusableRecord?: boolean})|undefined} */ (e)?.unusableRecord ? {lastTime: 0} : null;
     }
     if (this.player !== player) return;
     this.progressHashesCache = hashes;

@@ -312,7 +312,7 @@ export class SubtitlesManager extends EventEmitter {
 
               AlertPolyfill.toast('success', Localize.getMessage('player_subtitles_addtrack_success'));
             } catch (e) {
-              AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), e?.message);
+              AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), /** @type {Error|undefined} */ (e)?.message);
             }
           } else {
             AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), err?.message);
