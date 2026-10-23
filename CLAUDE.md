@@ -145,8 +145,9 @@ mpv host's installed copy, WSL): `docs/notes/local-pc.md`.
 - **SPLICER only processes `.mjs` and `.js`.** Code moved into a `.ts` file silently stops
   being spliced. Stay on `.mjs` plus JSDoc.
 - **A change to `native-host/faststream-mpv-host.mjs` or `install.ps1` raises the host's
-  version**: `HostVersion` there, `RequiredHostVersion` in `MpvBackend.mjs`, and the record
-  in `tests/unit/mpvHostVersion.test.mjs`, which fails until they agree.
+  version**: `HostVersion` there and the record in `tests/unit/mpvHostVersion.test.mjs`,
+  which fails until they agree; `RequiredHostVersion` in `MpvBackend.mjs` too only when the
+  extension needs the new host (a change with no new behaviour leaves it: no reinstall).
 - **A file with `// @ts-check` keeps it**, and is listed in
   `tests/unit/typeChecked.test.mjs`. `types/messages.d.ts` gets a message only after its
   real payload was read.

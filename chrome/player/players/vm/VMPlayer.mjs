@@ -5,6 +5,10 @@ import {RequestUtils} from '../../utils/RequestUtils.mjs';
 import HLSPlayer from '../hls/HLSPlayer.mjs';
 
 export default class VMPlayer extends HLSPlayer {
+  /**
+   * @param {import('../../FastStreamClient.mjs').FastStreamClient} client - The player client the player talks through.
+   * @param {*} options - The player's options, passed unchanged to the base player.
+   */
   constructor(client, options) {
     super(client, options);
   }
@@ -37,6 +41,9 @@ export default class VMPlayer extends HLSPlayer {
     return 'https://player.vimeo.com/video/' + encodeURIComponent(path[1]) + (path[2] ? '/config' : '') + query;
   }
 
+  /**
+   * @param {import('../../VideoSource.mjs').VideoSource} source - The Vimeo source to play.
+   */
   async setSource(source) {
     try {
       const requestUrl = VMPlayer.vimeoRequestUrl(source.url);
@@ -48,13 +55,13 @@ export default class VMPlayer extends HLSPlayer {
       const isEmbed = !new URL(requestUrl).pathname.endsWith('/config');
       const hc = [];
       if (Array.isArray(source.headers)) {
-        source.headers.forEach((h) => {
+        source.headers.forEach(/** @type {(h: {name: string, value: string}) => void} */ ((h) => {
           hc.push({
             operation: 'set',
             header: h.name,
             value: h.value,
           });
-        });
+        }));
       } else {
         for (const key in source.headers) {
           if (Object.hasOwn(source.headers, key)) {
@@ -114,6 +121,9 @@ export default class VMPlayer extends HLSPlayer {
     return this.source;
   }
 
+  /**
+   * @param {string} html - The HTML of the Vimeo player page.
+   */
   extractVimeoHlsUrlFromIframePlayer(html) {
     const config = this.extractJsonConfig(html, 'window.playerConfig =');
 
@@ -124,6 +134,10 @@ export default class VMPlayer extends HLSPlayer {
     return config?.request?.files?.hls;
   }
 
+  /**
+   * @param {string} html - The HTML to search for the JSON config.
+   * @param {string} prefix - The text that marks where the JSON starts.
+   */
   extractJsonConfig(html, prefix) {
     const startIndex = html.indexOf(prefix);
     if (startIndex === -1) return null;

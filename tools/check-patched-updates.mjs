@@ -67,6 +67,9 @@ export function unappliedPatches(vendor, yaml, installed) {
  * @return {number} Negative when a is older, 0 when equal, positive when newer.
  */
 export function compareVersions(a, b) {
+  /**
+  * @param {string} v
+  */
   const parts = (v) => String(v).replace(/^v/i, '').split(/[.-]/).map((p) => parseInt(p, 10) || 0);
   const pa = parts(a);
   const pb = parts(b);
@@ -77,7 +80,11 @@ export function compareVersions(a, b) {
   return 0;
 }
 
+/**
+ * @param {string} url
+ */
 async function getJson(url) {
+  /** @type {Object<string, string>} */
   const headers = {'accept': 'application/json', 'user-agent': 'faststream-check-patched-updates'};
   if (url.startsWith('https://api.github.com/') && process.env.GH_TOKEN) {
     headers.authorization = `Bearer ${process.env.GH_TOKEN}`;
@@ -111,6 +118,11 @@ export function githubRepo(spec) {
   return {owner: github[1], repo: github[2]};
 }
 
+/**
+ * @param {string} name - The package name.
+ * @param {string} spec - Its specifier in package.json.
+ * @return {Promise<{latest: string, url: string}>}
+ */
 async function latestRelease(name, spec) {
   // Both hosts are pinned; the name comes from this repo's package.json
   // (CodeQL js/request-forgery).

@@ -22,7 +22,10 @@
 import fs from 'node:fs';
 import * as acorn from 'acorn';
 
-/** Wraps a bare statement in a block, so `curly` cannot cause a mismatch. */
+/**
+ * Wraps a bare statement in a block, so `curly` cannot cause a mismatch.
+ * @param {any} n an AST node, array of nodes, or primitive
+ */
 function block(n) {
   if (!n || typeof n !== 'object' || Array.isArray(n)) return n;
   if (n.type === 'BlockStatement') return n;
@@ -75,6 +78,7 @@ export function normalise(node) {
   }
 
   if (node && typeof node === 'object') {
+    /** @type {{[key: string]: any}} */
     const out = {};
     // Sorted so that a node this function rebuilds cannot differ from an
     // equivalent one merely by key order.
@@ -160,6 +164,9 @@ export function fingerprint(src) {
  */
 export function declarations(src) {
   const out = new Map();
+  /**
+   * @param {any[]} body an array of AST statement nodes
+   */
   const walk = (body) => {
     for (const node of body) {
       if (node.type === 'ExportNamedDeclaration' ||
@@ -213,6 +220,9 @@ export function declarations(src) {
  */
 export function prototypeAssignments(src) {
   const out = new Map();
+  /**
+   * @param {any} node an AST expression node
+   */
   const pathOf = (node) => {
     if (!node || node.type !== 'MemberExpression') return null;
     const parts = [];

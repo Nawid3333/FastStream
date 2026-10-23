@@ -3,6 +3,9 @@ import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {VirtualAudioNode} from './VirtualAudioNode.mjs';
 
 export class AbstractAudioModule extends EventEmitter {
+  /**
+   * @param {string} name
+   */
   constructor(name) {
     super();
     this.audioContext = null;

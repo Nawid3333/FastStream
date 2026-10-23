@@ -16,8 +16,8 @@ import {Capabilities, HostVersion, withHostVersion} from '../../native-host/fast
 // that is older than the host it was released with.
 //
 // That only works while the version moves with the host, so this file is the ratchet: a
-// change to the host or its installer fails it until HostVersion, RequiredHostVersion and
-// RECORDED agree.
+// change to the host or its installer fails it until HostVersion and RECORDED agree.
+// RequiredHostVersion follows only when the extension needs what the new host does.
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '../..');
 const hostFile = path.join(root, 'native-host/faststream-mpv-host.mjs');
@@ -28,12 +28,12 @@ const installerFile = path.join(root, 'native-host/install.ps1');
 // manifest, config.json) is part of the host a PC has, and update-local.ps1 tells an
 // installed host from the repository's by the host file alone: raising HostVersion changes
 // that file, so a change to install.ps1 reaches the PC the same way. After a change to
-// either: raise HostVersion in the host and RequiredHostVersion in
-// chrome/background/MpvBackend.mjs by one, then put the new values here (a failure prints
-// the hashes).
+// either: raise HostVersion in the host by one, and RequiredHostVersion in
+// chrome/background/MpvBackend.mjs with it when the extension needs the new host; then put
+// the new values here (a failure prints the hashes).
 const RECORDED = {
-  version: 19,
-  host: 'e29a8f4398ec221ae204bd2fbf674edf9d456d703f73ceb2260e80a4002bed32',
+  version: 20,
+  host: '9284b9810ff7f4842d8bbd7ef9b679818be82e7fddd9e2b7ca657699125578ab',
   installer: 'db3b8027b508556b8af66eb4b8188460c2a5a6e1feb32d32b490f2e234b29b3a',
 };
 
@@ -52,15 +52,16 @@ describe('the mpv host\'s version', () => {
     const next = HostVersion === RECORDED.version ? HostVersion + 1 : HostVersion;
     expect({version: HostVersion, host: sha256Of(hostFile), installer: sha256Of(installerFile)},
         'native-host/faststream-mpv-host.mjs or install.ps1 changed. A PC keeps running its ' +
-        'installed copy, so the version has to move: set HostVersion in the host and ' +
-        `RequiredHostVersion in chrome/background/MpvBackend.mjs to ${next}, then run this test ` +
+        'installed copy, so the version has to move: set HostVersion in the host to ' +
+        `${next} (and RequiredHostVersion in chrome/background/MpvBackend.mjs too if the extension needs it), then run this test ` +
         'again and record the version and the hashes it prints in RECORDED').toEqual(RECORDED);
   });
 
-  it('is the one the extension asks for', () => {
-    // Lower, and an extension release would call the host it ships beside outdated;
-    // higher, and a changed host would never be asked for.
-    expect(RequiredHostVersion).toBe(HostVersion);
+  it('is at least the one the extension asks for', () => {
+    // Higher than the host, and an extension release would call the host it ships beside
+    // outdated. Lower is a host change the extension does not need (comments, 2026-10-23):
+    // installed hosts keep working, and nobody is asked to reinstall for it.
+    expect(RequiredHostVersion).toBeLessThanOrEqual(HostVersion);
     expect(Number.isInteger(HostVersion) && HostVersion >= 1).toBe(true);
   });
 
