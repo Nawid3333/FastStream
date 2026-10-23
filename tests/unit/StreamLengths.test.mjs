@@ -163,6 +163,41 @@ describe('StreamLengths', () => {
     expect(lengths.hlsQualities('https://cdn.example/b/master.m3u8')).toEqual({master: 'https://cdn.example/b/master.m3u8', list: null});
   });
 
+  it('takes a playlist of the master\'s audio or subtitles for the master, which alone plays it with a picture', async () => {
+    // The page's player asks for the sound's playlist after the variant's, as long as the
+    // video: sent alone, mpv played the sound alone (VOE, 2026-10-23).
+    const {fetch} = server({
+      'https://cdn.example/a/master.m3u8': {
+        redirect: 'https://edge.example/a/master.m3u8?sig=1',
+        body: '#EXTM3U\n' +
+          '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="Deutsch",DEFAULT=NO,URI="index-a1.m3u8?sig=1"\n' +
+          '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="English",DEFAULT=YES\n' +
+          '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Deutsch",URI = "subs/de.m3u8"\n' +
+          '#EXT-X-STREAM-INF:BANDWIDTH=1300000,RESOLUTION=1280x720,AUDIO="aac",SUBTITLES="subs"\nindex-v1-a1.m3u8?sig=1\n',
+      },
+      'https://edge.example/a/index-v1-a1.m3u8?sig=1': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'},
+    });
+    const lengths = new StreamLengths({fetch});
+    await lengths.probe({url: 'https://cdn.example/a/master.m3u8', mode: HLS});
+    const master = {master: 'https://cdn.example/a/master.m3u8', list: null};
+    expect(lengths.hlsQualities('https://edge.example/a/index-a1.m3u8?sig=1')).toEqual(master);
+    expect(lengths.hlsQualities('https://edge.example/a/subs/de.m3u8')).toEqual(master);
+    expect(lengths.hlsQualities('https://edge.example/a/index-v1-a1.m3u8?sig=1')).toEqual(master);
+  });
+
+  it('forgets the oldest master past its limit, its audio\'s playlist with it', async () => {
+    const {fetch} = server(Object.fromEntries(Array.from({length: 301}, (_, i) => [`https://cdn.example/${i}/master.m3u8`, {
+      body: '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="Deutsch",URI="de.m3u8"\n' +
+        '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="aac"\nvideo.m3u8\n',
+    }])));
+    const lengths = new StreamLengths({fetch});
+    for (let i = 0; i <= 300; i++) {
+      await lengths.probe({url: `https://cdn.example/${i}/master.m3u8`, mode: HLS});
+    }
+    expect(lengths.hlsQualities('https://cdn.example/0/de.m3u8')).toBeNull();
+    expect(lengths.hlsQualities('https://cdn.example/1/de.m3u8')).toEqual({master: 'https://cdn.example/1/master.m3u8', list: null});
+  });
+
   it('reads a DASH stream\'s length', async () => {
     const {fetch} = server({'https://cdn.example/a.mpd': {body: '<MPD type="static" mediaPresentationDuration="PT24M"></MPD>'}});
     const lengths = new StreamLengths({fetch});

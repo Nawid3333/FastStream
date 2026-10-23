@@ -104,10 +104,11 @@ export class StreamLength {
    * then had.
    * @param {string} text - The playlist.
    * @return {?{variants: Array<{uri: string, bandwidth: number, height: number}>,
-   *   renditions: boolean}} Each variant as written in it (uri relative to the playlist's URL),
-   *   its BANDWIDTH and the height of its RESOLUTION (0 when it names none); renditions: it
-   *   lists audio or subtitles of their own (EXT-X-MEDIA with a URI), which a variant played
-   *   alone goes without. Null for text that is no master playlist.
+   *   renditions: boolean, media: Array<string>}} Each variant as written in it (uri relative
+   *   to the playlist's URL), its BANDWIDTH and the height of its RESOLUTION (0 when it names
+   *   none); renditions: it lists audio or subtitles of their own (EXT-X-MEDIA with a URI),
+   *   which a variant played alone goes without; media: their playlists, as written in it.
+   *   Null for text that is no master playlist.
    */
   static hlsVariants(text) {
     const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).map((line) => line.trim());
@@ -117,11 +118,16 @@ export class StreamLength {
     }
 
     const variants = [];
+    /** @type {Array<string>} */
+    const media = [];
     let renditions = false;
     for (let i = first + 1; i < lines.length; i++) {
       const line = lines[i];
-      if (line.startsWith('#EXT-X-MEDIA:') && /(^|,)\s*URI\s*=/i.test(line.slice('#EXT-X-MEDIA:'.length))) {
+      const mediaAttributes = line.startsWith('#EXT-X-MEDIA:') ? line.slice('#EXT-X-MEDIA:'.length) : null;
+      if (mediaAttributes !== null && /(^|,)\s*URI\s*=/i.test(mediaAttributes)) {
         renditions = true;
+        const uri = /(?:^|,)\s*URI\s*=\s*"([^"]+)"/i.exec(mediaAttributes)?.[1];
+        if (uri) media.push(uri);
       } else if (line.startsWith('#EXT-X-STREAM-INF:')) {
         const uri = lines.slice(i + 1).find((next) => next !== '' && !next.startsWith('#'));
         if (!uri) continue;
@@ -131,7 +137,7 @@ export class StreamLength {
         variants.push({uri, bandwidth, height});
       }
     }
-    return variants.length > 0 ? {variants, renditions} : null;
+    return variants.length > 0 ? {variants, renditions, media} : null;
   }
 
   /**
