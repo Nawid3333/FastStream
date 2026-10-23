@@ -38,6 +38,69 @@ permissions:
   contents: read
 
 jobs:
+  # A push to main that merged a pull request: when that pull request's last green run of
+  # this workflow tested this very tree, the e2e jobs and the Windows unit tests do not run
+  # again (his choice, 2026-10-24: they held each release back about 8 minutes after the
+  # merge). The workflow lint and `verify` still run, and verify's build is the one
+  # auto-release.yml compares with the last release. Anything short of the proof in the
+  # step, or any look that fails, runs everything as before; a pull request's run, a
+  # dispatch and a run runner-images.yml calls never ask.
+  tested-in-pr:
+    name: Tested in its pull request?
+    if: github.event_name == 'push' && github.workflow == 'CI' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read        # this workflow's runs on the pull request's last commit
+      pull-requests: read  # the pull request this commit merged
+    outputs:
+      skip: ${{ steps.decide.outputs.skip }}
+    steps:
+      - name: Was this tree tested green in its pull request?
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          # A run older than this tested Firefox, Node and the runner image as they were then.
+          MAX_AGE_HOURS: '6'
+        run: |
+          set -uo pipefail
+          # skip=yes only when every look below succeeded and proved it; any other end: no.
+          skip=no
+          trap 'echo "skip=$skip" >> "$GITHUB_OUTPUT"' EXIT
+          fail() {
+            echo "Everything runs: $1." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+          commit=$(gh api "repos/$GH_REPO/commits/$SHA") || fail "the commit could not be read"
+          tree=$(jq -r '.commit.tree.sha' <<< "$commit")
+          parents=$(jq -r '.parents | length' <<< "$commit")
+          [ "$parents" = 1 ] || fail "the commit has $parents parents, not the one of a squash merge"
+          parent=$(jq -r '.parents[0].sha' <<< "$commit")
+          pr=$(gh api "repos/$GH_REPO/commits/$SHA/pulls" --jq '[.[] | select(.merged_at != null and .merge_commit_sha == env.SHA and .base.ref == "main" and .head.repo.full_name == env.GH_REPO)] | first // empty | "\(.number) \(.head.sha)"') ||
+            fail "its pull request could not be read"
+          [ -n "$pr" ] || fail "no pull request of this repository was merged as this commit"
+          number=${pr% *}
+          head=${pr#* }
+          head_tree=$(gh api "repos/$GH_REPO/commits/$head" --jq '.commit.tree.sha') ||
+            fail "the last commit of #$number could not be read"
+          [ -n "$tree" ] && [ "$head_tree" = "$tree" ] || fail "the tree of #$number's last commit is not this commit's"
+          # The pull request's run tested GitHub's merge of its last commit with main as main
+          # was then. That merge is the last commit itself when main's commit before this one
+          # (and so main as it was at the run) is among its ancestors.
+          behind=$(gh api "repos/$GH_REPO/compare/$parent...$head" --jq '.behind_by') ||
+            fail "#$number could not be compared with main"
+          [ "$behind" = 0 ] || fail "the last commit of #$number lacks $behind commit(s) of main"
+          since=$(date -u -d "$MAX_AGE_HOURS hours ago" +%Y-%m-%dT%H:%M:%SZ)
+          run=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?event=pull_request&head_sha=$head&per_page=20" \
+            --jq "[.workflow_runs[] | select(.status == \"completed\" and .conclusion == \"success\" and .head_repository.full_name == env.GH_REPO and .updated_at >= \"$since\")] | first // empty | .html_url") ||
+            fail "the runs of #$number could not be read"
+          [ -n "$run" ] || fail "the last commit of #$number has no green run of this workflow from the last $MAX_AGE_HOURS hours"
+          skip=yes
+          echo "Tested in #$number: $run passed on its last commit, whose tree ($tree) is this commit's. The e2e jobs and the Windows unit tests do not run again; the workflow lint and verify do." |
+            tee -a "$GITHUB_STEP_SUMMARY"
+
   # Every workflow file: syntax, ${{ }} expressions, action inputs, and every
   # run: script through the shellcheck bundled in the image. A broken
   # workflow otherwise only shows up when it next runs - for auto-release.yml
@@ -174,6 +237,9 @@ jobs:
   # PowerShell - and `verify` runs on Linux.
   unit-windows:
     name: Unit tests (Windows)
+    needs: tested-in-pr
+    # Also when tested-in-pr was skipped (any run but a push to main) or failed.
+    if: ${{ !cancelled() && needs.tested-in-pr.outputs.skip != 'yes' }}
     runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
     timeout-minutes: 15
     defaults:
@@ -218,6 +284,9 @@ jobs:
   # whole extension suite ran on it a second time, five jobs that tested the same code twice
   # (his request, 2026-10-13: a leaner suite).
   e2e:
+    needs: tested-in-pr
+    # Also when tested-in-pr was skipped (any run but a push to main) or failed.
+    if: ${{ !cancelled() && needs.tested-in-pr.outputs.skip != 'yes' }}
     name: e2e (${{ matrix.os }}, ${{ matrix.suite }}${{ matrix.suite != 'github' && format(' {0}/{1}', matrix.shard, matrix.os == 'Windows' && 3 || 2) || ' smoke' }})
     runs-on: ${{ matrix.os == 'Windows' && (inputs.windows-runner || 'windows-latest') || (inputs.linux-runner || 'ubuntu-latest') }}
     timeout-minutes: 20
