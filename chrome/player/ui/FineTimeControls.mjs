@@ -6,7 +6,15 @@ import {StringUtils} from '../utils/StringUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {AudioUtils} from '../utils/AudioUtils.mjs';
 
+/**
+ * A tool that has the timeline open (the precise seek, the silence skipper, the subtitle
+ * syncer): the last one pushed is shown, and is opened again when the one above it goes.
+ * Its settings are always {}: no caller passes any.
+ * @typedef {{onOpen: () => void, onClose: () => void, settings: {}}} TimelineState
+ */
+
 export class FineTimeControls extends EventEmitter {
+  /** @param {import('../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     super();
     this.client = client;
@@ -20,11 +28,18 @@ export class FineTimeControls extends EventEmitter {
     this.audioSilencePaddingStart = 0;
     this.audioSilencePaddingEnd = 0;
 
+    /** @type {Array<TimelineState>} */
     this.stateStack = [];
 
     this.setup();
   }
 
+  /**
+   * Opens the timeline for a tool, over the one that has it.
+   * @param {() => void} onOpen - Shows the tool; also what the tool is known by.
+   * @param {() => void} onClose - Hides it.
+   * @param {{}} [settings]
+   */
   pushState(onOpen, onClose, settings = {}) {
     if (this.stateStack.length > 0) {
       this.stateStack[this.stateStack.length - 1].onClose();
@@ -38,6 +53,10 @@ export class FineTimeControls extends EventEmitter {
     this.start();
   }
 
+  /**
+   * @param {() => void} onOpen - The tool, as pushState took it.
+   * @return {boolean} Whether it had the timeline.
+   */
   removeState(onOpen) {
     const index = this.stateStack.findIndex((state) => state.onOpen === onOpen);
     if (index === -1) {
@@ -64,10 +83,16 @@ export class FineTimeControls extends EventEmitter {
     if (this.stateStack.length === 0) {
       return;
     }
-    this.stateStack = [this.stateStack.pop()];
+    // Not empty: checked above.
+    this.stateStack = /** @type {Array<TimelineState>} */ ([this.stateStack.pop()]);
     this.removeState(this.stateStack[0].onOpen);
   }
 
+  /**
+   * Shows a tool that has the timeline over the others.
+   * @param {() => void} onOpen - The tool, as pushState took it.
+   * @return {boolean} Whether it has the timeline.
+   */
   prioritizeState(onOpen) {
     const index = this.stateStack.findIndex((state) => state.onOpen === onOpen);
     if (index === -1) {
@@ -83,6 +108,10 @@ export class FineTimeControls extends EventEmitter {
     return true;
   }
 
+  /**
+   * @param {() => void} onOpen - The tool, as pushState took it.
+   * @return {boolean} Whether it is the one shown.
+   */
   isStateActive(onOpen) {
     if (this.stateStack.length === 0) {
       return false;
@@ -127,6 +156,7 @@ export class FineTimeControls extends EventEmitter {
     let grabStartTime = 0;
     let shouldPlay = false;
 
+    /** @param {MouseEvent} e */
     const mouseDown = (e) => {
       // check if left mouse button is pressed
       if (e.button !== 0) return;
@@ -154,13 +184,19 @@ export class FineTimeControls extends EventEmitter {
     // this document (a drag keeps the mouse events in the frame it started in, wherever
     // the button is released), and on a move with no button held, for a mouseup that never
     // came at all.
+    /**
+     * @param {MouseEvent|null} e - The release, or the move with no button held.
+     * @param {boolean} seek - Seeks to where the grab ended.
+     * @param {boolean} [resume=true] - Plays on, if it played before the grab.
+     */
     const endGrab = (e, seek, resume = true) => {
       if (!isGrabbing) return;
       isGrabbing = false;
       this.isSeeking = false;
       if (this.client.player && seek) {
         const video = this.client.player.getVideo();
-        const delta = e.clientX - grabStart;
+        // A seek comes with its mouse event: only reset's end, which does not seek, has none.
+        const delta = /** @type {MouseEvent} */ (e).clientX - grabStart;
         const time = grabStartTime - (delta / this.ui.timelineTicks.clientWidth * video.duration);
         this.client.setSeekSave(false);
         this.client.currentTime = time;
@@ -199,6 +235,12 @@ export class FineTimeControls extends EventEmitter {
     });
   }
 
+  /**
+   * The audio analyzer's 'volume' event: the canvas showing that time is drawn again.
+   * @param {number} time - Seconds.
+   * @param {number} volume - The volume measured there.
+   * @param {number} [interpolated=0] - How many frames before it were filled in.
+   */
   onAnalyzerFrameProcessed(time, volume, interpolated = 0) {
     const frame = Math.floor(time / 10);
     const shouldDoPreviousFrame = interpolated > 0 && (time - frame * 10) < 2;
@@ -226,7 +268,7 @@ export class FineTimeControls extends EventEmitter {
   }
 
   resetAudio() {
-    /** @type {{index: number, element: HTMLCanvasElement, ctx: any, cachedWidth: number, cachedHeight?: number}[]} */
+    /** @type {{index: number, element: HTMLCanvasElement, ctx: CanvasRenderingContext2D, cachedWidth: number, cachedHeight?: number}[]} */
     this.canvasElements = [];
     this.ui.timelineAudioCanvasContainer.replaceChildren();
   }
@@ -268,6 +310,11 @@ export class FineTimeControls extends EventEmitter {
     this.renderTimeline();
   }
 
+  /**
+   * @param {number} duration - The video's, in seconds.
+   * @param {number} maxTime - The last whole second shown.
+   * @param {number} minTime - The first whole second shown.
+   */
   renderTicks(duration, maxTime, minTime) {
     const hasArr = new Array(maxTime - minTime).fill(false);
 
@@ -311,6 +358,11 @@ export class FineTimeControls extends EventEmitter {
     }
   }
 
+  /**
+   * @param {number} duration - The video's, in seconds.
+   * @param {number} minTime - The first whole second shown.
+   * @param {number} maxTime - The last whole second shown.
+   */
   renderVideoFrames(duration, minTime, maxTime) {
     const frameExtractor = this.client.frameExtractor;
     const frameBuffer = frameExtractor.getFrameBuffer();
@@ -384,9 +436,11 @@ export class FineTimeControls extends EventEmitter {
 
 
     if (isCurrentFrameValid) {
-      if (currentFrame === this.lastFrameRenderIndex && Math.abs(this.lastFrameRenderTime - currentTime) < 0.0435) { // 1/23
+      // The index matched: a frame was drawn, and its time set with it.
+      if (currentFrame === this.lastFrameRenderIndex && Math.abs(/** @type {number} */ (this.lastFrameRenderTime) - currentTime) < 0.0435) { // 1/23
         return;
       }
+      /** @type {number|undefined} The frame drawn last; none before the first. */
       this.lastFrameRenderIndex = currentFrame;
       this.lastFrameRenderTime = currentTime;
       const aspect = video.videoWidth / video.videoHeight;
@@ -405,6 +459,11 @@ export class FineTimeControls extends EventEmitter {
     }
   }
 
+  /**
+   * @param {number} duration - The video's, in seconds.
+   * @param {number} minTime - The first whole second shown.
+   * @param {number} maxTime - The last whole second shown.
+   */
   renderAudio(duration, minTime, maxTime) {
     const minCanvIndex = Math.floor(minTime / 10);
     const maxCanvIndex = Math.ceil(maxTime / 10);
@@ -445,6 +504,8 @@ export class FineTimeControls extends EventEmitter {
     const maxDB = AudioUtils.VOLUME_CEILING_DB;
     const dbRange = maxDB - minDB;
 
+    // Each frame's silence: set, and read below, only while a silence threshold is set.
+    /** @type {boolean[]} */
     let silencedBitset;
     if (this.audioSilenceThreshold !== null) {
       silencedBitset = new Array(endFrame - startFrame).fill(true);
@@ -522,6 +583,10 @@ export class FineTimeControls extends EventEmitter {
     });
   }
 
+  /**
+   * @param {number} clientX - A mouse position over the timeline.
+   * @return {number} The video's time there, in seconds.
+   */
   mousePositionToTime(clientX) {
     const video = this.client.player.getVideo();
     const rect = this.ui.timelineTicks.getBoundingClientRect();
@@ -558,6 +623,7 @@ export class FineTimeControls extends EventEmitter {
     this.emit('render', minTime, maxTime);
   }
 
+  /** @param {boolean} value - Whether the timeline shows the video's frames. */
   shouldRenderFrames(value) {
     if (this.renderFrames === value) return;
     this.renderFrames = value;
@@ -571,6 +637,13 @@ export class FineTimeControls extends EventEmitter {
     }
   }
 
+  /**
+   * Marks the audio's silent stretches on the timeline (the silence skipper).
+   * @param {number|null} threshold - The volume, 0 to 1 between the analyzer's floor and
+   *     ceiling, below which it is silent; null marks none.
+   * @param {number} [paddingStart] - Seconds before a sound that count as sound.
+   * @param {number} [paddingEnd] - Seconds after a sound that count as sound.
+   */
   setAudioSilenceThreshold(threshold, paddingStart, paddingEnd) {
     this.audioSilenceThreshold = threshold;
     this.audioSilencePaddingStart = paddingStart || 0;
