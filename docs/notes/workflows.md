@@ -54,6 +54,24 @@
   job would have checked out that commit with a write token, pushed it and released it.
   When `main` has moved past the commit while CI ran, it stops with a notice (2026-09-28):
   the later push's run releases both, and pushing the bump would only be refused.
+- **Main's CI after a merge already tested in its pull request** (2026-10-24, his choice:
+  measured on #558/#559, the push run on main took ~8 minutes and the release waited for it).
+  `ci.yml`'s first job, `tested-in-pr`, runs only on a push to main by CI itself. It answers
+  skip=yes only when all of this holds:
+  - the commit is a squash merge (one parent) of a pull request of this repository into main;
+  - its tree is the tree of that pull request's last commit;
+  - main's commit before it is an ancestor of that last commit (`compare ... behind_by` 0),
+    so the merge the pull request's run tested is that last commit itself;
+  - that commit has a green `ci.yml` run on `pull_request` from the last 6 hours.
+  Then the e2e jobs and the Windows unit tests are skipped. The workflow lint and `verify` still
+  run, and verify's `faststream-bundles` is what auto-release compares and releases from, so
+  `auto-release.yml` is unchanged: it still releases from a green push run on main. Any failed
+  look, or anything else, is skip=no and runs everything; the e2e jobs' and unit-windows' `if:
+  !cancelled() && ... != 'yes'` also runs them when the job is skipped (a pull request's run, a
+  dispatch, runner-images.yml's call) or fails. What is no longer done on such a push: the same
+  tree's e2e suites a second time, minutes later, on a runner fetched anew.
+  `tests/workflows/ci-tested-in-pr.test.sh` covers each condition; runner-images.yml's calls grant
+  `pull-requests: read`, which GitHub requires of a caller even for a job that is skipped there.
 - **Two ways `main`'s changes went unreleased with no one told** (fixed 2026-09-30).
   (1) A late CI run can cancel the run of `main`'s newest commit: on 2026-09-29 GitHub
   delivered the push of 3b74403c a second time, after `main` had moved to 477bcd59;
