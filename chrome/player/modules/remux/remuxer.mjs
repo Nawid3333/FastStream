@@ -86,12 +86,12 @@ export class Remuxer extends EventEmitter {
   /**
    * Copies the streams into one MP4.
    *
-   * @param {string} videoMimeType unused: Mediabunny reads the container from the data
+   * @param {string|null|undefined} videoMimeType unused: Mediabunny reads the container from the data
    * @param {number} videoDuration in seconds; 0 when there is no video
-   * @param {ArrayBuffer|Blob} videoInitSegment
-   * @param {string} audioMimeType unused, as videoMimeType
+   * @param {?(ArrayBuffer|Blob)} videoInitSegment - null without one
+   * @param {string|null|undefined} audioMimeType unused, as videoMimeType
    * @param {number} audioDuration in seconds; 0 when there is no separate audio
-   * @param {ArrayBuffer|Blob} audioInitSegment
+   * @param {?(ArrayBuffer|Blob)} audioInitSegment - null without one
    * @param {Array<{track: number, getEntry: () => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}>} zippedFragments
    *     the saved fragments in order, each with what reads its data; track 0 is the video, 1 the audio
    * @return {Promise<Blob>} the MP4

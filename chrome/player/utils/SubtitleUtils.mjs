@@ -257,9 +257,10 @@ export class SubtitleUtils {
    * checked, which also holds when an edit or shift left the track out of order. It runs
    * on each time update (a few times a second); measured in Node, 1,500 cues (a film) take
    * about 0.002 ms, 10,000 about 0.01 ms.
-   * @param {Array<{startTime: number, endTime: number}>} cues - The track's cues.
+   * @template {{startTime: number, endTime: number}} T
+   * @param {Array<T>} cues - The track's cues.
    * @param {number} time - The time, in seconds.
-   * @return {Array} The cues that start at or before the time and end at or after it, in
+   * @return {Array<T>} The cues that start at or before the time and end at or after it, in
    *   the track's order.
    */
   static cuesAt(cues, time) {

@@ -155,7 +155,7 @@ export class FetchLoader {
     try {
       const headers = request.headers;
       if (headers) {
-        const {customHeaderCommands, regularHeaders} = /** @type {{customHeaderCommands: *[], regularHeaders: Object<string, string>}} */ (RequestUtils.splitSpecialHeaders(headers));
+        const {customHeaderCommands, regularHeaders} = /** @type {{customHeaderCommands: FSHeaderCommand[], regularHeaders: Object<string, string>}} */ (RequestUtils.splitSpecialHeaders(headers));
         for (const header in regularHeaders) {
           if (!Object.hasOwn(regularHeaders, header)) continue;
           fetchHeaders[header] = regularHeaders[header];

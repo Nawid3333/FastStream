@@ -13,7 +13,7 @@ const MinCueDuration = 0.1;
 /**
  * A cue with the DOM trees the subtitle code caches on it: `dom` for the video,
  * `dom2` for the resync timeline.
- * @typedef {VTTCue & {dom?: Node|null, dom2?: Node|null}} SyncCue
+ * @typedef {import('../../SubtitleTrack.mjs').TrackCue} SyncCue
  */
 
 /**

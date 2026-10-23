@@ -28,7 +28,7 @@ export class StreamLengths {
   /**
    * @param {Object} [options]
    * @param {(url: string, init: *) => Promise<Response>} [options.fetch] - fetch().
-   * @param {(url: string, commands: Array<Object>) => Promise<*>} [options.setHeaders] - Makes the
+   * @param {(url: string, commands: FSHeaderCommand[]) => Promise<unknown>} [options.setHeaders] - Makes the
    *   background's next requests to a URL carry the page's Referer, Origin and cookies,
    *   which a fetch() cannot set: a declarativeNetRequest rule, as the player's own
    *   requests get.
@@ -259,7 +259,7 @@ export class StreamLengths {
         delete headers[name];
       }
     }
-    const request = /** @type {{customHeaderCommands: Array<Object>, regularHeaders: Object}} */ (RequestUtils.splitSpecialHeaders(headers));
+    const request = RequestUtils.splitSpecialHeaders(headers);
 
     if (source.mode === PlayerModes.ACCELERATED_HLS) {
       let url = source.url;
@@ -311,7 +311,7 @@ export class StreamLengths {
   /**
    * Fetches the start of a URL.
    * @param {string} url - What to fetch.
-   * @param {{customHeaderCommands: Array<Object>, regularHeaders: Object}} request - The
+   * @param {ReturnType<typeof RequestUtils.splitSpecialHeaders>} request - The
    *   page's headers: those the rule sets, and the rest.
    * @param {Array<number>|null} range - The bytes to ask for, [start, end), or null for
    *   up to MAX_TEXT_BYTES from the start.

@@ -16,7 +16,7 @@ export class FastStreamArchiveUtils {
   /**
    * Writes FastStream archive data to a stream.
    * @param {WritableStream} filestream - The writable stream.
-   * @param {Object} player - The player instance.
+   * @param {import('../FastStreamClient.mjs').Player|null} player - The player instance, if any.
    * @param {Array<DownloadEntry>} entries - The download entries.
    * @param {Function} [progressCallback] - Optional progress callback.
    * @return {Promise<void>} Resolves once the stream has finished the file.
@@ -41,7 +41,8 @@ export class FastStreamArchiveUtils {
   /**
    * Writes the archive: the header, then each entry's header and data.
    * @param {WritableStreamDefaultWriter} writer
-   * @param {Object} player
+   * @param {import('../FastStreamClient.mjs').Player|null} player - The player whose source and levels go in,
+   *   if any.
    * @param {Array<DownloadEntry>} entries
    * @param {Function} [progressCallback]
    * @return {Promise<void>}

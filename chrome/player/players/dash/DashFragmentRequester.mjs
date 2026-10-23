@@ -5,6 +5,17 @@ import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 /** @typedef {import('../../network/DownloadEntry.mjs').DownloadEntry} DownloadEntry */
 
 /**
+ * The DashPlayer, with the hooks a player may have to change a fragment's request or answer;
+ * no player has them now, so both are optional.
+ * @typedef {import('./DashPlayer.mjs').default & {
+ *   preProcessFragment?: (entry: DownloadEntry, request: Awaited<ReturnType<DownloadEntry['getRequest']>>,
+ *     startTime: number, isInit: boolean) => Promise<Awaited<ReturnType<DownloadEntry['getRequest']>>>,
+ *   postProcessFragment?: (entry: DownloadEntry, response: import('../../network/FetchLoader.mjs').LoaderResponse,
+ *     startTime: number, isInit: boolean) => Promise<import('../../network/FetchLoader.mjs').LoaderResponse>
+ * }} HookedDashPlayer
+ */
+
+/**
  * What a fragment's request tells (requestFragment): the download's entry once it is
  * stored, with its data unless skipProcess asked for none; FetchLoader's progress, with the
  * fragment's context; the entry of a failed or an aborted one.
@@ -18,8 +29,7 @@ import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 
 export class DashFragmentRequester {
   /**
-   * @param player - The DashPlayer. Left untyped: requestFragment asks it for
-   *   preProcessFragment and postProcessFragment, which no player has.
+   * @param {HookedDashPlayer} player
    */
   constructor(player) {
     this.player = player;
@@ -49,7 +59,8 @@ export class DashFragmentRequester {
       config,
       headers: {
         ...config.headers,
-        ...this.player.source.headers,
+        // Set: fragments are asked for only once the player has its source.
+        ...(/** @type {import('../../VideoSource.mjs').VideoSource} */ (this.player.source)).headers,
       },
       /**
        * @param {DownloadEntry} entry

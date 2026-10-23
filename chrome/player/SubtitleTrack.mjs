@@ -6,7 +6,7 @@ import {SubtitleUtils} from './utils/SubtitleUtils.mjs';
 /**
  * A track's cue, with the DOM trees the subtitle code caches on it: `dom` for the video
  * (SubtitlesManager.renderSubtitles), `dom2` for the resync timeline (SubtitleSyncer).
- * @typedef {VTTCue & {dom?: Node|null, dom2?: Node|null}} TrackCue
+ * @typedef {VTTCue & {dom?: HTMLElement|null, dom2?: HTMLElement|null}} TrackCue
  */
 
 export class SubtitleTrack {
