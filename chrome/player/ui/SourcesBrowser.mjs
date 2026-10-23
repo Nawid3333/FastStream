@@ -56,6 +56,7 @@ export class SourcesBrowser {
 
   /** @param {ListedSource} source - Given its row here: nothing reads it before. */
   setupSourceListing(source) {
+    /** @type {HTMLTextAreaElement} */
     // eslint-disable-next-line prefer-const
     let headersInput;
     const sourceContainer = WebUtils.create('div', /** @type {any} */ (null), 'linkui-source');

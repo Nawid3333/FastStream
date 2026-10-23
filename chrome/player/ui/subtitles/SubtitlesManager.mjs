@@ -28,6 +28,9 @@ export class SubtitlesManager extends EventEmitter {
 
     /** @type {Array<{trackElement: HTMLDivElement, update: () => void}>} A row by track. */
     this.subtitleTrackListElements = [];
+    // Each active track's box on the video, in the tracks' order.
+    // Each in a wrapper of its own; a box keeps the filler shown while no cue is (renderSubtitles).
+    /** @type {Array<HTMLElement & {fillerCue?: HTMLElement}>} */
     this.subtitleTrackDisplayElements = [];
 
     this.settingsManager = new SubtitlesSettingsManager();
@@ -682,7 +685,8 @@ export class SubtitlesManager extends EventEmitter {
 
     let totalTrackHeight = 0;
     for (let i = 0; i < trackElements.length; i++) {
-      const trackWrapper = trackElements[i].parentElement;
+      // Its wrapper: a box is put in one when it is made.
+      const trackWrapper = /** @type {HTMLElement} */ (trackElements[i].parentElement);
       const marginBottom = parseInt(trackWrapper.style.marginBottom);
       totalTrackHeight += trackWrapper.offsetHeight + marginBottom;
     }
@@ -690,7 +694,7 @@ export class SubtitlesManager extends EventEmitter {
     let shrinkAmount = Math.max(totalTrackHeight - playerHeight, 0);
     // shrink margin-bottom from topmost track downwards
     for (let i = 0; i < trackElements.length && shrinkAmount > 0; i++) {
-      const trackWrapper = trackElements[i].parentElement;
+      const trackWrapper = /** @type {HTMLElement} */ (trackElements[i].parentElement);
       const marginBottom = parseInt(trackWrapper.style.marginBottom) || 0;
       const newMarginBottom = Math.max(marginBottom - shrinkAmount, 5);
       trackWrapper.style.marginBottom = newMarginBottom + 'px';
@@ -710,7 +714,7 @@ export class SubtitlesManager extends EventEmitter {
     // Remove extra elements
     for (let i = cachedElements.length - 1; i >= trackLen; i--) {
       const el = cachedElements[i];
-      el.parentElement.remove();
+      /** @type {HTMLElement} */ (el.parentElement).remove();
       cachedElements.splice(i, 1);
     }
 
@@ -744,12 +748,13 @@ export class SubtitlesManager extends EventEmitter {
       }
 
       if (!toAdd.length) {
-        trackContainer.style.opacity = 0;
+        trackContainer.style.opacity = '0';
 
         // Remove all children except one. An empty one is not kept: it may be a cue's own
         // element (a tag-only cue, `<v Bob></v>`), which took the '|' and showed it the
         // next time the cue came.
-        let fillerCue = trackContainer.children[0];
+        // The box holds cues' divs.
+        let fillerCue = /** @type {HTMLElement|undefined} */ (trackContainer.children[0]);
         if (!fillerCue?.textContent) {
           fillerCue = trackContainer.fillerCue ??= document.createElement('div');
           fillerCue.textContent = '|';

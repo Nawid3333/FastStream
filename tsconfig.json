@@ -21,7 +21,7 @@
     "module": "ESNext",
     "target": "ES2022",
     "moduleResolution": "bundler",
-    "lib": ["ES2022", "ES2024.Promise", "DOM", "DOM.Iterable", "WebWorker"],
+    "lib": ["ES2024", "DOM", "DOM.Iterable", "WebWorker"],
 
     "allowJs": true,
     "checkJs": false,

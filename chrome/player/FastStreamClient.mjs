@@ -1315,7 +1315,7 @@ export class FastStreamClient extends EventEmitter {
     /** @type {{lastTime: number}|null} */
     let progressData = null;
     try {
-      hashes = await /** @type {SecureMemory} */ (this.progressMemory).getHashes(player.getSource().identifier);
+      hashes = await /** @type {SecureMemory} */ (this.progressMemory).getHashes(/** @type {VideoSource} */ (player.getSource()).identifier);
       if (this.player !== player) return;
       progressData = (await /** @type {SecureMemory} */ (this.progressMemory).getFile(hashes)) || {
         lastTime: 0,
@@ -2125,7 +2125,7 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Sets media info and updates subtitles manager.
-   * @param {Object} info
+   * @param {?{name?: string, year?: ?number, season?: ?number, episode?: ?number}} info - What the page's title tells (the background's guessMediaInfo).
    */
   setMediaInfo(info) {
     this.mediaInfo = info;
@@ -2773,7 +2773,7 @@ export class FastStreamClient extends EventEmitter {
 
     if (videoChanged) {
       // A level ID of null (none played) reads the key "null", which no level has: none.
-    if (this.options.freeUnusedChannels && this.fragmentsStore[/** @type {string} */ (previousVideoLevelID)]) {
+      if (this.options.freeUnusedChannels && this.fragmentsStore[/** @type {string} */ (previousVideoLevelID)]) {
         this.freeLevel(this.fragmentsStore[/** @type {string} */ (previousVideoLevelID)]);
       }
       this.levelManager.setCurrentVideoLevelID(videoLevelID);

@@ -115,7 +115,7 @@ export function DASHLoaderFactory(player) {
         const loader = player.fragmentRequester.requestFragment(frag, /** @type {import('./DashFragmentRequester.mjs').FragmentCallbacks} */ ({
           onSuccess: (entry, data) => {
             segmentFailures.delete(segmentKey);
-            httpRequest.customData.onSuccess(data, entry.responseURL);
+            httpRequest.customData.onSuccess(data, /** @type {string} */ (entry.responseURL)); // set on success
             const index = activeRequests.indexOf(loader);
             if (index > -1) {
               activeRequests.splice(index, 1);
@@ -268,7 +268,7 @@ export function DASHLoaderFactory(player) {
             httpRequest.customData.onFail(entry);
             return;
           }
-          httpRequest.customData.onSuccess(data, entry.responseURL);
+          httpRequest.customData.onSuccess(data, /** @type {string} */ (entry.responseURL)); // set on success
         },
         /**
          * @param {LoadStats} stats

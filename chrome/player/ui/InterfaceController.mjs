@@ -53,6 +53,8 @@ export class InterfaceController {
   /** @param {import('../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     this.client = client;
+    // The client's state, with the flag this keeps there for a Document Picture-in-Picture window.
+    /** @type {import('../FastStreamClient.mjs').FastStreamClient['state'] & {documentPip?: boolean}} */
     this.state = client.state;
     this.hidden = false;
     this.lastTime = 0;

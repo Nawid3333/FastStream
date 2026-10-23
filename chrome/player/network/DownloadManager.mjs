@@ -133,7 +133,8 @@ export class DownloadManager {
 
     const identifier = this.getIdentifier(entry);
     // Kept in RAM; the client writes it to disk only when the RAM budget needs it to.
-    await this.blobStore.saveBlobAsync(entry.data, identifier, {deferred: true});
+    // Complete, not raw, not stored yet: its data is the Blob onSuccess made.
+    await this.blobStore.saveBlobAsync(/** @type {Blob} */ (entry.data), identifier, {deferred: true});
 
     entry.data = () => {
       return this.blobStore.getBlob(identifier);
@@ -170,9 +171,7 @@ export class DownloadManager {
 
   /**
    * Whether a download would be answered now: stored, or a downloader free for it.
-   * @param details - The request (a DownloadRequest: a fragment's getContext()). Left
-   *   untyped: FastStreamClient passes a Fragment's getContext(), which the base class
-   *   types void (players/Fragment.mjs only throws there).
+   * @param {DownloadRequest} details - The request (a fragment's getContext()).
    * @return {boolean}
    */
   canGetFile(details) {
@@ -196,8 +195,7 @@ export class DownloadManager {
 
   /**
    * A download, finished or not; undefined if it was never asked for.
-   * @param details - The request (a DownloadRequest: a fragment's getContext()). Left
-   *   untyped as canGetFile's is: cancelIfCheap passes on what FastStreamClient gives it.
+   * @param {DownloadRequest} details - The request (a fragment's getContext()).
    */
   getEntry(details) {
     const key = this.getIdentifier(details);
@@ -218,8 +216,7 @@ export class DownloadManager {
 
   /**
    * Stops and forgets a download, and lets its stored data go.
-   * @param details - The request (a DownloadRequest: a fragment's getContext()). Left
-   *   untyped as canGetFile's is, for the same caller.
+   * @param {DownloadRequest} details - The request (a fragment's getContext()).
    */
   removeFile(details) {
     const key = this.getIdentifier(details);
@@ -560,7 +557,7 @@ export class DownloadManager {
    * playback waits for (priority 1000 and up), not one at least half done, not one being
    * delivered. A queued one leaves the queue. Its fragment goes back to waiting
    * (DownloadEntry.abort tells the watchers) and is downloaded again when it is wanted.
-   * @param {Object} details - The request (a fragment's getContext()).
+   * @param {DownloadRequest} details - The request (a fragment's getContext()).
    * @return {boolean} Whether it was cancelled.
    */
   cancelIfCheap(details) {
@@ -626,7 +623,7 @@ export class DownloadManager {
   }
 
   /**
-   * @param {Object} details - A fragment's getContext().
+   * @param {DownloadRequest} details - A fragment's getContext().
    * @return {number} Bytes of its downloaded data held in RAM.
    */
   ramBytesOf(details) {
@@ -642,7 +639,7 @@ export class DownloadManager {
   }
 
   /**
-   * @param {Object} details - A fragment's getContext().
+   * @param {DownloadRequest} details - A fragment's getContext().
    * @return {boolean} Whether its downloaded data is being written to disk now (spill).
    */
   isSpilling(details) {
@@ -650,7 +647,7 @@ export class DownloadManager {
   }
 
   /**
-   * @param {Object} details - A fragment's getContext().
+   * @param {DownloadRequest} details - A fragment's getContext().
    * @return {boolean} Whether its downloaded data is held in RAM.
    */
   isInRam(details) {
@@ -659,7 +656,7 @@ export class DownloadManager {
 
   /**
    * Writes a downloaded fragment's data to disk and lets the RAM copy go.
-   * @param {Object} details - A fragment's getContext().
+   * @param {DownloadRequest} details - A fragment's getContext().
    * @return {Promise<boolean>}
    */
   spill(details) {
@@ -857,9 +854,7 @@ export class DownloadManager {
 
   /**
    * The key a download is stored under: its URL, byte range and response type.
-   * @param details - A DownloadRequest (a DownloadEntry is one). Left untyped as
-   *   canGetFile's is: ramBytesOf, isSpilling, isInRam and spill pass on what
-   *   FastStreamClient gives them, a Fragment's getContext().
+   * @param {DownloadRequest} details - A request (a DownloadEntry, a fragment's getContext()).
    * @return {string}
    */
   getIdentifier(details) {

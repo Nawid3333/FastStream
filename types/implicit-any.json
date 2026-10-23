@@ -1,13 +1,1 @@
-{
-  "chrome/player/FastStreamClient.mjs": 53,
-  "chrome/player/modules/analyzer/AudioAnalyzer.mjs": 32,
-  "chrome/player/modules/analyzer/PreviewFrameExtractor.mjs": 20,
-  "chrome/player/network/DownloadEntry.mjs": 2,
-  "chrome/player/network/DownloadManager.mjs": 4,
-  "chrome/player/players/SyncedAudioPlayer.mjs": 19,
-  "chrome/player/players/hls/HLSPlayer.mjs": 2,
-  "chrome/player/ui/InterfaceController.mjs": 5,
-  "chrome/player/ui/SourcesBrowser.mjs": 6,
-  "chrome/player/ui/menus/LoopMenu.mjs": 1,
-  "chrome/player/ui/subtitles/SubtitlesManager.mjs": 2
-}
+{}
