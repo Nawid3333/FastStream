@@ -15,10 +15,11 @@ const NOT_FOR_THE_ELEMENT = new Set(['range', 'if-range', 'accept-encoding', 'ho
 /**
  * The background's header commands (SET_HEADERS) that give the element's requests a source's
  * headers: the value false removes a header.
- * @param {?Object<string, string|boolean>} headers
- * @return {Array<Object>}
+ * @param {Object<string, string|boolean>|null|undefined} headers
+ * @return {FSHeaderCommand[]}
  */
 export function elementHeaderCommands(headers) {
+  /** @type {FSHeaderCommand[]} */
   const commands = [];
   for (const header in headers || {}) {
     if (!Object.hasOwn(/** @type {Object<string, string|boolean>} */ (headers), header)) continue;
@@ -36,7 +37,8 @@ const MEDIA_EXTENSIONS = new Set(['mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'og
 
 /**
  * The file extension to save a direct source as.
- * @param {?Object} source
+ * @param {{identifier?: string, url?: string}|null|undefined} source - The player's source (its
+ *   file name or URL), if it has one.
  * @return {string}
  */
 export function saveExtension(source) {
@@ -45,6 +47,11 @@ export function saveExtension(source) {
 }
 
 export default class DirectVideoPlayer extends EventEmitter {
+  /**
+   * @param {import('../FastStreamClient.mjs').FastStreamClient} client
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean, isAnalyzer?: boolean}} [config] - What the
+   *   player is for (PlayerLoader.createPlayer's callers).
+   */
   constructor(client, config) {
     super();
     this.client = client;
@@ -72,6 +79,7 @@ export default class DirectVideoPlayer extends EventEmitter {
     return this.video;
   }
 
+  /** @param {import('../VideoSource.mjs').VideoSource} source */
   async setSource(source) {
     this.source = source;
     const url = URLUtils.playableUrl(source.url, document.baseURI);
@@ -90,7 +98,7 @@ export default class DirectVideoPlayer extends EventEmitter {
 
   /**
    * Asks the background to set the source's headers on the requests for its URL.
-   * @param {Object} source
+   * @param {?import('../VideoSource.mjs').VideoSource} source
    * @param {string} url - The URL the element loads.
    */
   async setHeaderRule(source, url) {
@@ -174,6 +182,11 @@ export default class DirectVideoPlayer extends EventEmitter {
     };
   }
 
+  /**
+   * Downloads the file again into the stream SaveManager opened.
+   * @param {{filestream: WritableStream<Uint8Array>, partialSave?: boolean,
+   *   registerCancel?: (cancel: () => void) => void, onProgress?: (progress: number) => void}} options
+   */
   async saveVideo(options) {
     const controller = new AbortController();
     if (options?.registerCancel) {
@@ -182,19 +195,22 @@ export default class DirectVideoPlayer extends EventEmitter {
       });
     }
 
+    /** @type {Object<string, string>} */
     const fetchHeaders = {};
     const headers = this.source?.headers;
     if (headers) {
       const {customHeaderCommands, regularHeaders} = RequestUtils.splitSpecialHeaders(headers);
       for (const header in regularHeaders) {
         if (!Object.hasOwn(regularHeaders, header)) continue;
-        fetchHeaders[header] = regularHeaders[header];
+        // Its text: only special headers are false (removed).
+        fetchHeaders[header] = /** @type {string} */ (regularHeaders[header]);
       }
 
       if (customHeaderCommands.length && EnvUtils.isExtension()) {
         await chrome.runtime.sendMessage({
           type: MessageTypes.SET_HEADERS,
-          url: this.source.url,
+          // Set: a video is saved once it has its source.
+          url: /** @type {import('../VideoSource.mjs').VideoSource} */ (this.source).url,
           commands: customHeaderCommands,
         });
       }
@@ -202,7 +218,7 @@ export default class DirectVideoPlayer extends EventEmitter {
 
     let response;
     try {
-      response = await fetch(this.source.url, {
+      response = await fetch(/** @type {import('../VideoSource.mjs').VideoSource} */ (this.source).url, {
         headers: fetchHeaders,
         credentials: 'same-origin',
         signal: controller.signal,
@@ -219,11 +235,13 @@ export default class DirectVideoPlayer extends EventEmitter {
     }
 
     const writer = options.filestream.getWriter();
-    const total = parseInt(response.headers.get('content-length'), 10) || 0;
+    // Without the header, parseInt reads null as NaN, and the total is 0.
+    const total = parseInt(/** @type {string} */ (response.headers.get('content-length')), 10) || 0;
     let loaded = 0;
 
     try {
-      const reader = response.body.getReader();
+      // A GET answer has a body.
+      const reader = /** @type {ReadableStream<Uint8Array>} */ (response.body).getReader();
       while (true) {
         const {done, value} = await reader.read();
         if (done) break;
@@ -282,9 +300,11 @@ export default class DirectVideoPlayer extends EventEmitter {
     return null;
   }
 
+  /** @param {string} levelID - A direct video has one level: nothing to change. */
   setCurrentVideoLevelID(levelID) {
   }
 
+  /** @param {string} levelID - As setCurrentVideoLevelID. */
   setCurrentAudioLevelID(levelID) {
   }
 }

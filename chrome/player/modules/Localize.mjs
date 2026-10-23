@@ -1,16 +1,26 @@
 // @ts-check
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 
+// Each key's text in every language, in the order of LANGUAGES (the web build fills it in).
+/** @type {Object<string, string[]>} */
 const TranslationMap = {
   // SPLICER:WEB:INSERT_LOCALE
 };
 
+/** @type {Map<string, number>} */
 const translationMapCache = new Map();
 
 export class Localize {
+  /**
+   * @param {string} key - The message's name in messages.json.
+   * @param {Array<string|number|undefined>} [substitutions] - What goes in for $1, $2, ...; one
+   *   left undefined leaves its $n.
+   * @return {string} The text, or the key when there is none.
+   */
   static getMessage(key, substitutions) {
     if (EnvUtils.isExtension()) {
-      return chrome.i18n.getMessage(key, substitutions) || key;
+      // Firefox's i18n turns each substitution into a string itself.
+      return chrome.i18n.getMessage(key, /** @type {string[]|undefined} */ (substitutions)) || key;
     }
 
     if (!Object.hasOwn(TranslationMap, key)) {
@@ -51,6 +61,10 @@ export class Localize {
     return navigator.language;
   }
 
+  /**
+   * @param {string} chosenLanguage
+   * @return {number} Its place in LANGUAGES; -1 without a map.
+   */
   static getTranslationMapIndexCached(chosenLanguage) {
     const cached = translationMapCache.get(chosenLanguage);
     if (cached !== undefined) {
@@ -61,12 +75,17 @@ export class Localize {
     return index;
   }
 
+  /**
+   * @param {string} chosenLanguage
+   * @return {number} The best match's place in LANGUAGES, English's without a match, -1 without a map.
+   */
   static getTranslationMapIndex(chosenLanguage) {
     const languages = TranslationMap['LANGUAGES'];
     if (!languages) {
       return -1;
     }
 
+    /** @type {Array<{index: number, matchLevel: number}>} */
     const matches = [];
     languages.forEach((lang, index) => {
       const matchLevel = Localize.getLanguageMatchLevel(chosenLanguage, lang);
@@ -86,6 +105,11 @@ export class Localize {
     return matches[0].index;
   }
 
+  /**
+   * @param {string|null|undefined} lang1 - A language tag (en-US, en_GB); none matches nothing.
+   * @param {string|null|undefined} lang2
+   * @return {number} How many of their leading parts are the same.
+   */
   static getLanguageMatchLevel(lang1, lang2) {
     if (!lang1 || !lang2) {
       return 0; // no match
