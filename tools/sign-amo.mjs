@@ -87,7 +87,7 @@ export async function signOrCollect({sign, check, deadline, now = Date.now, wait
       if (!isNetworkError(error)) {
         throw error;
       }
-      log(`\nSigning was interrupted (${error.message}). Asking AMO for the version ` +
+      log(`\nSigning was interrupted (${/** @type {Error} */ (error).message}). Asking AMO for the version ` +
         `itself until ${new Date(deadline).toISOString()}...`);
       const state = await waitForSigned(check, {deadline, now, log, ...wait});
       if (state === 'missing' && upload === 1 && deadline - now() >= MIN_UPLOAD_TIME) {

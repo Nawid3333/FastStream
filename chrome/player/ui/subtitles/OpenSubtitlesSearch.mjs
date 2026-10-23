@@ -698,7 +698,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
       this.emit(OpenSubtitlesSearchEvents.TRACK_DOWNLOADED, track);
       AlertPolyfill.toast('success', Localize.getMessage('player_subtitles_addtrack_success'));
     } catch (e) {
-      AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), e?.message);
+      AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), /** @type {Error|undefined} */ (e)?.message);
     }
   }
 

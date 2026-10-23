@@ -298,7 +298,7 @@ export function HLSLoaderFactory(player) {
       } catch (e) {
         console.error(e);
         // The load has to end one way or another: hls.js waited for this one forever.
-        this.callbacks?.onError?.({code: 0, text: String(e?.message || e)}, this.context, null, this.stats);
+        this.callbacks?.onError?.({code: 0, text: String(/** @type {Error|undefined} */ (e)?.message || e)}, this.context, null, this.stats);
       }
     }
 

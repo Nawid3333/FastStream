@@ -160,7 +160,7 @@ export class SaveFragmentFetcher {
       } catch (e) {
         // A download the manager gave up (a downloader taken away) is asked for again, as
         // the save always did.
-        if (e.message !== 'Aborted download') {
+        if (/** @type {Error} */ (e).message !== 'Aborted download') {
           throw e;
         }
       } finally {

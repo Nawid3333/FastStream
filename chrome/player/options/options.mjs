@@ -269,7 +269,7 @@ function createSelectMenu(container, options, selected, localPrefix, callback, l
     }
     select.appendChild(optionElement);
   }
-  select.addEventListener('change', callback);
+  select.addEventListener('change', /** @type {EventListener} */ (callback));
   container.appendChild(select);
 }
 
@@ -334,9 +334,9 @@ createSelectMenu(qualityMenu, Object.values(DefaultQualities), Options.defaultQu
 });
 
 document.querySelectorAll('.option').forEach((option) => {
-  option.addEventListener('click', /** @param {MouseEvent & {target: Element}} e */ (e) => {
+  option.addEventListener('click', /** @param {Event} e */ (e) => {
     // A unit picker beside a number takes its own clicks.
-    if (e.target.tagName !== 'INPUT' && !e.target.closest('select')) {
+    if (/** @type {Element} */ (e.target).tagName !== 'INPUT' && !/** @type {Element} */ (e.target).closest('select')) {
       const input = option.querySelector('input');
       if (input) {
         if (input.type === 'checkbox') {

@@ -77,7 +77,7 @@ async function main() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       releases = ubuntuReleases(await response.text());
     } catch (e) {
-      console.error(`Could not read which Ubuntu releases CI runs on from ${RUNNER_IMAGES}: ${e.message}`);
+      console.error(`Could not read which Ubuntu releases CI runs on from ${RUNNER_IMAGES}: ${/** @type {Error} */ (e).message}`);
       console.error('Name the WSL distros instead: --distro Ubuntu-24.04');
       return 1;
     }

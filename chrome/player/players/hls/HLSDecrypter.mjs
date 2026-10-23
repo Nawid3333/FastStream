@@ -75,7 +75,7 @@ export class HLSDecrypter {
     // be read reaches no one: what was waiting waited forever (the segment stayed
     // "downloading", and a save holding it hung). It is failed, and the next decrypt starts
     // a new worker.
-    /** @param {ErrorEvent} event */
+    /** @param {Event & {message?: string}} event */
     const crashed = (event) => {
       console.error('The decrypter worker failed', event);
       if (this.encryptionWorker === worker) {

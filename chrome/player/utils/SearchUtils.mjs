@@ -8,7 +8,7 @@ class Search {
   static SearchInstance = null;
   constructor() {
     /** @type {Fuse<string>} */
-    this.Fuse = new Fuse([], {
+    this.Fuse = new Fuse(/** @type {string[]} */ ([]), {
       useExtendedSearch: true,
       threshold: 0.4,
     });

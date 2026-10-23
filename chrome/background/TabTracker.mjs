@@ -441,7 +441,7 @@ export class TabHolder {
     this.requestHeaders.delete(requestId);
     this.requestHeaders.set(requestId, headers);
     while (this.requestHeaders.size > RequestHeaderLimit) {
-      this.requestHeaders.delete(this.requestHeaders.keys().next().value);
+      this.requestHeaders.delete(/** @type {string|number} */ (this.requestHeaders.keys().next().value));
     }
   }
 
@@ -455,7 +455,7 @@ export class TabHolder {
     if (this.redirectOrigins.has(requestId)) return;
     this.redirectOrigins.set(requestId, url);
     while (this.redirectOrigins.size > RedirectOriginLimit) {
-      this.redirectOrigins.delete(this.redirectOrigins.keys().next().value);
+      this.redirectOrigins.delete(/** @type {string|number} */ (this.redirectOrigins.keys().next().value));
     }
   }
 

@@ -555,7 +555,7 @@ async function checkJavaScript(merged, stock, label, oldBase, oldOurs) {
   try {
     parse(merged, sourceType);
   } catch (e) {
-    return [`${label}: does not parse (${e.message})`];
+    return [`${label}: does not parse (${/** @type {Error} */ (e).message})`];
   }
 
   const {ESLint} = await import('eslint');

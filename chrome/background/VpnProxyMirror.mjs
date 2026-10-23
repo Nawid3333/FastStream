@@ -237,7 +237,7 @@ export class VpnProxyMirror {
       // throughBrowserVpn): a run of them must not push out the hosts the mirror serves.
       const uncopyable = Array.from(this.hosts).find(([, entry]) =>
         !CopyableTypes.includes(this.proxies.get(entry.key)?.type || ''));
-      this.hosts.delete(uncopyable ? uncopyable[0] : this.hosts.keys().next().value);
+      this.hosts.delete(uncopyable ? uncopyable[0] : /** @type {string} */ (this.hosts.keys().next().value));
     }
     this.updateListener();
   }

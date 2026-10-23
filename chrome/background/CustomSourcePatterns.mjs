@@ -48,7 +48,7 @@ export function parseCustomSourcePatterns(text) {
     try {
       new RegExp(regex, flags);
     } catch (e) {
-      errors.push({line: i + 1, text: line, reason: 'invalid regex: ' + e.message});
+      errors.push({line: i + 1, text: line, reason: 'invalid regex: ' + /** @type {Error} */ (e).message});
       continue;
     }
     // The type is the file extension the URL would have had: m3u8, mpd, mp4, webm, m3u,
