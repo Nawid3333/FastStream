@@ -4,13 +4,22 @@ import {RequestUtils} from './RequestUtils.mjs';
 import {SubtitleUtils} from './SubtitleUtils.mjs';
 
 /**
+ * A subtitle track as the SOURCES message carries it: one found by its request has the
+ * request's headers and a label from the file name (background.mjs handleSubtitles), one
+ * read from the page's <track> elements its language and often its text already
+ * (takeScrapedCaptions).
+ * @typedef {{source: string, headers?: Array<{name: string, value?: string}>, data?: string,
+ *   label: string, language?: string}} SentSubtitle
+ */
+
+/**
  * Fetches the text of the page's subtitle tracks that came as a URL (the background's
  * SOURCES), with the page's Origin and Referer. A track that cannot be fetched is left
  * out: requestSimple answers a network error with no request at all, and reading its
  * status threw - every track was lost, the page's fullscreen state was not taken over,
  * and the background never got its answer (main.mjs recieveSources, until 2026-10-05).
- * @param {Array<Object>} subs - The tracks: {source, headers, data?, label, language}.
- * @return {Promise<Array<Object>>} Those with their text (data).
+ * @param {SentSubtitle[]} subs - The tracks.
+ * @return {Promise<SentSubtitle[]>} Those with their text (data).
  */
 export async function loadSubtitles(subs) {
   await Promise.all(subs.map(async (sub) => {

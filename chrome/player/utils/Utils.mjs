@@ -27,9 +27,9 @@ export class Utils {
    * since, in the MB/GB picker (0.5 MB), is meant. A size or speed limit of 0 saved before
    * becomes no limit, as 1.3.82.75 made it for everyone who updated through it: the size was
    * read as none, and the speed still read ahead in bursts. 0 is none now, for a 0 chosen since.
-   * @param {Object} options - Saved options merged over the defaults; changed in place.
-   * @param {Object|null} stored - The options as saved, before the defaults were filled in.
-   * @return {Object} The same options, with sizesVersion set.
+   * @param {Object<string, *>} options - Saved options merged over the defaults; changed in place.
+   * @param {Object<string, *>|null} stored - The options as saved, before the defaults were filled in.
+   * @return {Object<string, *>} The same options, with sizesVersion set.
    */
   static migrateSizes(options, stored) {
     if (stored && !Number.isInteger(stored.sizesVersion)) {
@@ -50,8 +50,8 @@ export class Utils {
    * click's wait (the owner's "the click to pause reacts late", 2026-10-13). All three still
    * as they were then move to today's defaults, once (clickActionsVersion); a set the user
    * changed in any part is theirs and stays.
-   * @param {Object} options - Saved options merged over the defaults; changed in place.
-   * @param {Object|null} stored - The options as saved, before the defaults were filled in.
+   * @param {Object<string, *>} options - Saved options merged over the defaults; changed in place.
+   * @param {Object<string, *>|null} stored - The options as saved, before the defaults were filled in.
    * @return {Object} The same options, with clickActionsVersion set.
    */
   static migrateClickActions(options, stored) {
@@ -72,7 +72,7 @@ export class Utils {
    * KeybindUtils.migrateKeybinds for the rules.
    * @param {Object} options - Saved options merged over the defaults; changed in place.
    * @param {Object|null} stored - The options as saved, before the defaults were filled in.
-   * @return {Object} The same options.
+   * @return {Object<string, *>} The same options.
    */
   static migrateKeybinds(options, stored) {
     return migrateKeybinds(options, stored);
@@ -88,11 +88,12 @@ export class Utils {
 
   /**
    * Merges default options with new options.
-   * @param {Object} defaultOptions - The default options.
-   * @param {Object} newOptions - The new options to merge.
+   * @param {Object<string, *>} defaultOptions - The default options.
+   * @param {Object<string, *>} newOptions - The new options to merge.
    * @return {Object} The merged options object.
    */
   static mergeOptions(defaultOptions, newOptions) {
+    /** @type {Object<string, *>} */
     const options = {};
     for (const prop in defaultOptions) {
       if (Object.hasOwn(defaultOptions, prop)) {
@@ -117,7 +118,8 @@ export class Utils {
 
   /**
    * Performs a binary search on an array.
-   * @param {Array} array - The array to search.
+   * @template T
+   * @param {Array<T>} array - The array to search.
    * @param {*} el - The element to search for.
    * @param {Function} compareFn - Comparison function.
    * @return {number} The index of a matching element; when there is none, -(the index it
@@ -167,9 +169,10 @@ export class Utils {
    * Zips timed fragments from multiple tracks into a sorted array.
    * @param {Map<*, Array<{start: number}>>|Array<Array<{start: number}>>} tracks - Each track's
    *   fragments: a Map by track, or an array (the track is then its index).
-   * @return {Array} Sorted array of zipped fragments.
+   * @return {Array<*>} Sorted array of zipped fragments.
    */
   static zipTimedFragments(tracks) {
+    /** @type {{track: *, fragment: {start: number}}[]} */
     const zippedFragments = [];
     tracks.forEach((fragments, track) => {
       fragments.forEach((fragment) => {
@@ -192,7 +195,7 @@ export class Utils {
    * five downloaded, or no time between them. An MP4's ranges start on whole seconds, so
    * on a high-bitrate one the first few share a second and last 0 s; that gave Infinity, a
    * false "not enough storage" warning, and every downloaded fragment kept for the session.
-   * @param {Array<Object>} fragments - Fragments with dataSize (null until downloaded)
+   * @param {Array<{dataSize: number|null, duration: number}|null>} fragments - Fragments with dataSize (null until downloaded)
    *     and duration.
    * @return {?number} Bits per second.
    */
@@ -214,7 +217,7 @@ export class Utils {
   /**
    * Loads and parses options from storage, merging with defaults.
    * @param {string} key - Storage key.
-   * @param {Object} defaultOptions - Default options object.
+   * @param {Object<string, *>} defaultOptions - Default options object.
    * @return {Promise<Object>} Merged options object.
    */
   static async loadAndParseOptions(key, defaultOptions) {
@@ -224,7 +227,7 @@ export class Utils {
   /**
    * Reads a saved config as it was saved, before any defaults are filled in.
    * @param {string} key - Storage key.
-   * @return {Promise<Object|null>} The saved object, or null when nothing usable was saved.
+   * @return {Promise<Object<string, *>|null>} The saved object, or null when nothing usable was saved.
    */
   static async readStoredConfig(key) {
     const settingsStr = await Utils.getConfig(key);
@@ -297,13 +300,13 @@ export class Utils {
 
   /**
    * Resolves when an event occurs or a timeout is reached.
-   * @param {Object} context - Event context (must support on/off).
+   * @param {{on: (event: string, callback: () => void) => void, off: (event: string, callback: Function|undefined) => void}} context - Event context (must support on/off).
    * @param {string} event - Event name.
    * @param {number} timeout - Timeout in ms.
    * @return {Promise<boolean>} True if event occurred, false if timed out.
    */
   static timeoutableEvent(context, event, timeout) {
-    let callback; let timeoutId;
+    /** @type {(() => void)|undefined} */ let callback; /** @type {number|undefined} */ let timeoutId;
     const cleanup = () => {
       clearTimeout(timeoutId);
       context.off(event, callback);
@@ -395,6 +398,7 @@ export class Utils {
       downloads.onChanged.removeListener(changed);
       revoke();
     };
+    /** @type {(delta: {id: number, state?: {current: string, previous: string}}) => void} */
     const changed = (delta) => {
       if (delta.id === download && delta.state && delta.state.current !== 'in_progress') {
         finish();

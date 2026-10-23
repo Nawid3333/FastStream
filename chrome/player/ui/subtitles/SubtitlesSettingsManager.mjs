@@ -6,6 +6,7 @@ import {DOMElements} from '../DOMElements.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {Localize} from '../../modules/Localize.mjs';
 import {SubtitleUtils} from '../../utils/SubtitleUtils.mjs';
+/** @typedef {{ [key: string]: string, fontFamily: string, fontWeight: string, fontSize: string, color: string, background: string, outlineColor: string, outlineWidth: string, defaultLanguage: string, bottomMargin: string }} SubtitlesSettings */
 
 export const SubtitlesSettingsManagerEvents = {
   SETTINGS_CHANGED: 'settingsChanged',
@@ -14,6 +15,7 @@ export const SubtitlesSettingsManagerEvents = {
 export class SubtitlesSettingsManager extends EventEmitter {
   constructor() {
     super();
+    /** @type {SubtitlesSettings} */
     this.settings = {...DefaultSubtitlesSettings};
 
     this.on(SubtitlesSettingsManagerEvents.SETTINGS_CHANGED, ()=>{
@@ -56,20 +58,27 @@ export class SubtitlesSettingsManager extends EventEmitter {
     this.updateSettingsUI();
   }
 
+  /**
+   * @param {HTMLElement} element
+   */
   applyStyles(element) {
     const settings = this.getSettings();
     for (const key in settings) {
       if (!Object.hasOwn(settings, key)) continue;
-      const config = SubtitleSettingsConfigData[key];
+      const config = /** @type {Object<string, {type?: string, property?: string, isColor?: boolean}>} */ (SubtitleSettingsConfigData)[key];
       if (!config) continue;
 
       if (config.type === 'css') {
-        element.style[config.property] = config.property === 'font-size' ? SubtitleUtils.withUnit(settings[key]) : settings[key];
+        /** @type {CSSStyleDeclaration & { [name: string]: string }} */ (element.style)[/** @type {string} */ (config.property)] = config.property === 'font-size' ? SubtitleUtils.withUnit(settings[key]) : settings[key];
       }
     }
     this.applyOutline(element, settings);
   }
 
+  /**
+   * @param {HTMLElement} element
+   * @param {SubtitlesSettings} settings
+   */
   applyOutline(element, settings) {
     element.style.textShadow = '';
     const outlineWidth = settings.outlineWidth;
@@ -96,7 +105,7 @@ export class SubtitlesSettingsManager extends EventEmitter {
     /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).replaceChildren();
     for (const key in this.settings) {
       if (!Object.hasOwn(this.settings, key)) continue;
-      const config = SubtitleSettingsConfigData[key];
+      const config = /** @type {Object<string, {type?: string, property?: string, isColor?: boolean}>} */ (SubtitleSettingsConfigData)[key];
       if (!config) continue;
 
       const option = document.createElement('div');
@@ -145,7 +154,7 @@ export class SubtitlesSettingsManager extends EventEmitter {
   }
 
   async loadSettings() {
-    this.settings = await Utils.getSubtitlesSettingsFromStorage();
+    this.settings = /** @type {SubtitlesSettings} */ (await Utils.getSubtitlesSettingsFromStorage());
     this.updateSettingsUI();
     this.emit(SubtitlesSettingsManagerEvents.SETTINGS_CHANGED, this.settings);
   }
