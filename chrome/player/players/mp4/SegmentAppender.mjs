@@ -33,7 +33,7 @@ export class SegmentAppender {
 
   /**
    * Appends a media segment.
-   * @param {Object} wrapper - The SourceBufferWrapper.
+   * @param {import('./SourceBufferWrapper.mjs').SourceBufferWrapper} wrapper - The SourceBufferWrapper.
    * @param {ArrayBuffer} buffer
    */
   append(wrapper, buffer) {

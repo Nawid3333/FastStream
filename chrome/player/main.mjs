@@ -187,7 +187,7 @@ async function recieveSources(request, sendResponse) {
 
   if (subs) {
     subs = await loadSubtitles(subs);
-    subs = await sortSubtitles(subs);
+    subs = await sortSubtitles(/** @type {SubtitleData[]} */ (subs));
 
     try {
       subs.forEach((sub, i) => {

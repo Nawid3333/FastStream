@@ -143,7 +143,7 @@ export class SaveManager {
         this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent'), 'info', 2000);
         // mpv has the stream now, so stop playing it here too: otherwise both
         // players run at once and the user has to come back just to pause.
-        if (this.client.options.mpvPausePage) {
+        if (/** @type {{mpvPausePage?: boolean}} */ (this.client.options).mpvPausePage) {
           this.client.pause().catch(() => {});
         }
       } else if (reason) {
