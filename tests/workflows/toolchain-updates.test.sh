@@ -160,7 +160,8 @@ weekly_ublock() {
   check 'its version, file and SHA-256, nothing else' test "$(origin diff main "$b" | grep -c '^[-+] ')" = 6
   check 'the new SHA-256' bash -c 'git -C "$0" show "$1:tools/setup-dev-profile.mjs" | grep -qF "    sha256: '"'"'$2'"'"',"' "$T/origin.git" "$b" "$sha"
   check 'the new file' bash -c 'git -C "$0" show "$1:tools/setup-dev-profile.mjs" | grep -qF "file/5100000/ublock_origin-1.76.0.xpi"' "$T/origin.git" "$b"
-  check 'downloaded first' has_call 'curl https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi'
+  check 'downloaded' has_call 'curl https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi'
+  check 'before the pull request' test "$(grep -n '^curl ' "$STATE/gh.log" | cut -d: -f1)" -lt "$(grep -n '^pr create' "$STATE/gh.log" | cut -d: -f1)"
   check 'commit message' test "$(origin log -1 --format=%s "$b")" = 'build: uBlock Origin 1.75.0 -> 1.76.0'
   check 'pull request' has_call "pr create --base main --head $b --title Toolchain update: uBlock Origin 1.76.0 --label dependencies"
   check 'CI started once' test "$(n_calls "^workflow run ci.yml --ref $b\$")" = 1
@@ -180,6 +181,53 @@ ublock_wrong_file() {
   check 'says why' grep -qF "does not have AMO's SHA-256" "$T/out"
   check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
   check 'no pull request' bash -c '! grep -q "^pr create" "$0"' "$STATE/gh.log"
+}
+
+ublock_download_fails() {
+  # AMO does not serve the file: nothing is pushed, and the run is red.
+  setup
+  plan "[$(ublock_update 1.76.0 "$(printf 'a%.0s' {1..64})")]" '[]'
+  run_step
+  check 'fails, not stopped by the timeout' test "$rc" -eq 1
+  check 'tried' has_call 'curl https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi'
+  check 'says why' grep -qF 'uBlock Origin 1.76.0: https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi could not be downloaded.' "$T/out"
+  check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
+  check 'no pull request' bash -c '! grep -q "^pr create" "$0"' "$STATE/gh.log"
+}
+
+ublock_repair_main_has_it() {
+  # An open one conflicts with main, which has its version by now (moved by hand): the plan
+  # closes it; it is not rebuilt.
+  setup
+  (
+    cd "$T/work" || exit 1
+    git checkout -q -b toolchain/ublock-origin-1.76.0
+    sed -i "s/version: '1.75.0'/version: '1.76.0'/" tools/setup-dev-profile.mjs
+    git commit -q -am old && git push -q origin toolchain/ublock-origin-1.76.0
+    git checkout -q main
+    sed -i "s/version: '1.75.0'/version: '1.76.0'/; s/sha256: '[0-9a-f]*'/sha256: '$(printf 'd%.0s' {1..64})'/" tools/setup-dev-profile.mjs
+    git commit -q -am 'uBlock Origin 1.76.0 by hand' && git push -q origin main
+  )
+  old=$(origin rev-parse toolchain/ublock-origin-1.76.0)
+  open_pr 9 'Toolchain update: uBlock Origin 1.76.0' toolchain/ublock-origin-1.76.0 "$old"
+  echo CONFLICTING > "$STATE/pr-9-mergeable"
+  run_step
+  check 'exit 0: no red run' test "$rc" -eq 0
+  check 'not rebuilt' test "$(origin rev-parse toolchain/ublock-origin-1.76.0)" = "$old"
+  check 'says why' grep -qF 'main has uBlock Origin 1.76.0 by now' "$T/out"
+}
+
+unread_source_fails_after() {
+  # A source the checker could not read (AMO, say): the other tracks go ahead, then the run
+  # fails and names it.
+  setup
+  plan "[$(pnpm_update 11.27.1)]" '[]'
+  jq '. + {errors: ["uBlock Origin: https://addons.mozilla.org/x: HTTP 503"]}' "$STATE/plan.json" > "$STATE/p" && mv "$STATE/p" "$STATE/plan.json"
+  run_step
+  check 'fails' test "$rc" -eq 1
+  check 'pnpm raised all the same' has_call 'pr create --base main --head toolchain/pnpm-11.27.1'
+  check 'and its CI started' has_call 'workflow run ci.yml --ref toolchain/pnpm-11.27.1'
+  check 'names what it could not read' grep -qF '::error::Could not read uBlock Origin: https://addons.mozilla.org/x: HTTP 503' "$T/out"
 }
 
 ublock_no_file() {
@@ -551,7 +599,10 @@ weekly_node
 weekly_two
 weekly_ublock
 ublock_wrong_file
+ublock_download_fails
 ublock_no_file
+ublock_repair_main_has_it
+unread_source_fails_after
 ublock_repair_not_newest
 ublock_repair_rebuilds
 unexpected_file

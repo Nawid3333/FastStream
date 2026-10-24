@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 // js-yaml 5 has no default export, only named ones; this form reads 4 and 5 alike.
 import * as yaml from 'js-yaml';
-import {describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 import {
-  addonVersion, applyAddon, latestLtsMajor, MIN_AGE_DAYS, newestAddon, newestOfMajor, plan, projectNodeMajor,
+  addonVersion, applyAddon, getJson, latestLtsMajor, MIN_AGE_DAYS, newestAddon, newestOfMajor, plan, projectNodeMajor,
   TITLE_PREFIX, UBLOCK,
 } from '../../tools/check-toolchain.mjs';
 import {ADDONS} from '../../tools/setup-dev-profile.mjs';
@@ -308,8 +308,11 @@ describe('plan', () => {
   it('gives uBlock Origin one track: a newer release replaces an open one, catching up closes it', () => {
     const ublock = (current, latest) => ({name: 'uBlock Origin', current, latest, behind: latest !== current});
     const open = [{number: 80, title: t('uBlock Origin 1.75.1')}];
-    const {raise, close} = plan([ublock('1.75.0', '1.76.0')], open, new Set([open[0].title]));
+    const file = {url: 'https://addons.mozilla.org/firefox/downloads/file/1/ublock_origin-1.76.0.xpi', sha256: 'a'.repeat(64)};
+    const {raise, close} = plan([{...ublock('1.75.0', '1.76.0'), file}], open, new Set([open[0].title]));
     expect(raise.map((update) => update.title)).toEqual([t('uBlock Origin 1.76.0')]);
+    // The recipe takes the file from the raised entry.
+    expect(raise[0].file).toEqual(file);
     expect(close).toEqual([{number: 80, comment: 'Superseded by uBlock Origin 1.76.0, which has its own pull request.'}]);
     expect(plan([ublock('1.75.1', '1.75.1')], open, new Set()).close[0].comment).toBe('The project now uses uBlock Origin 1.75.1. Closing.');
     // Its next major is no second track, as pnpm's is: 2.0.0 replaces an open 1.x.
@@ -385,10 +388,69 @@ describe('uBlock Origin in tools/setup-dev-profile.mjs', () => {
 
   it('refuses an entry it cannot find once, and a release that is not plainly one', () => {
     expect(() => applyAddon(text, 'nobody@example.com', next)).toThrow(/nowhere/);
-    expect(() => applyAddon(text.replace(`id: '${UBLOCK.id}'`, `id: '${UBLOCK.id}', id: '${UBLOCK.id}'`), UBLOCK.id, next))
-        .toThrow(/twice/);
+    const entry = /\n {2}\{\n[^]*?\n {2}\},\n/.exec(text)?.[0] || '';
+    expect(entry).toContain(UBLOCK.id);
+    expect(() => applyAddon(text.replace(entry, entry + entry.slice(1)), UBLOCK.id, next)).toThrow(/more than once/);
     expect(() => applyAddon(text, UBLOCK.id, {...next, version: '1.76.0\''})).toThrow(/not a release/);
     expect(() => applyAddon(text, UBLOCK.id, {...next, url: 'https://evil.example/x.xpi'})).toThrow(/not a release/);
     expect(() => applyAddon(text, UBLOCK.id, {...next, sha256: 'B'.repeat(64)})).toThrow(/not a release/);
+  });
+
+  it('is not misled by a brace or the id in a comment', () => {
+    // A `}` in a comment inside the entry, and the id named in a comment above the array.
+    const commented = text
+        .replace(`    id: '${UBLOCK.id}',\n`, `    id: '${UBLOCK.id}',\n    // moved on from } the old pin\n`)
+        .replace('export const ADDONS = [\n', `// was: id: '${UBLOCK.id}', {\nexport const ADDONS = [\n`);
+    const {text: written, was} = applyAddon(commented, UBLOCK.id, next);
+    expect(was).toBe(addonVersion(text, UBLOCK.id));
+    expect(written).toContain('    // moved on from } the old pin\n');
+    expect(written).toContain(`// was: id: '${UBLOCK.id}', {\n`);
+    expect(addonVersion(written, UBLOCK.id)).toBe('1.76.0');
+  });
+
+  it('refuses an entry written another way, rather than guess', () => {
+    expect(() => applyAddon(text.replace(/version: '([^']*)'/, 'version: "$1"'), UBLOCK.id, next)).toThrow(/0 version lines/);
+  });
+});
+
+describe('getJson', () => {
+  const answer = (status, body = '{"ok": true}') => new Response(body, {status});
+  const wait = vi.fn(async () => {});
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    wait.mockClear();
+  });
+
+  it('asks again after no answer, a 5xx, a 429 or an answer that is not JSON', async () => {
+    const fetch = vi.fn()
+        .mockRejectedValueOnce(new TypeError('fetch failed'))
+        .mockResolvedValueOnce(answer(503))
+        .mockResolvedValueOnce(answer(200, '{"ok": tr'));
+    vi.stubGlobal('fetch', fetch);
+    await expect(getJson('https://example.com/a', {wait})).rejects.toThrow(/JSON/);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(wait.mock.calls).toEqual([[5000], [10000]]);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(answer(429)).mockResolvedValueOnce(answer(200)));
+    await expect(getJson('https://example.com/a', {wait})).resolves.toEqual({ok: true});
+  });
+
+  it('does not ask again after a 404, and names the URL and status', async () => {
+    const fetch = vi.fn().mockResolvedValue(answer(404));
+    vi.stubGlobal('fetch', fetch);
+    await expect(getJson('https://example.com/b', {wait})).rejects.toThrow('https://example.com/b: HTTP 404');
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up after three tries', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(answer(502)));
+    await expect(getJson('https://example.com/c', {wait})).rejects.toThrow('https://example.com/c: HTTP 502');
+    expect(wait).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks with a time limit', async () => {
+    const fetch = vi.fn().mockResolvedValue(answer(200));
+    vi.stubGlobal('fetch', fetch);
+    await getJson('https://example.com/d', {wait});
+    expect(fetch.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
   });
 });

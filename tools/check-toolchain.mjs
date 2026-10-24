@@ -129,21 +129,46 @@ export function newestAddon(page, now, minAgeDays = MIN_AGE_DAYS) {
 }
 
 /**
- * The object literal of one add-on in tools/setup-dev-profile.mjs's ADDONS, found by its id.
- * @param {string} text - The file.
- * @param {string} id
- * @return {{start: number, end: number}} The span from its `{` to its `}`.
+ * One field line of an add-on's entry, as the file writes them: `    key: 'value',`.
+ * @param {string} key
+ * @return {RegExp} Groups: indent, value, line end.
  */
-function addonEntry(text, id) {
-  const needle = `id: '${id}'`;
-  const at = text.indexOf(needle);
-  if (at < 0 || text.indexOf(needle, at + 1) >= 0) {
-    throw new Error(`tools/setup-dev-profile.mjs names the add-on ${id} ${at < 0 ? 'nowhere' : 'twice'}`);
+const fieldLine = (key) => new RegExp(`^(\\s*)${key}: '([^']*)',(\\r?)$`);
+
+/**
+ * One add-on's entry in tools/setup-dev-profile.mjs's ADDONS, found by its id line: its field
+ * lines, between its `{` and `}` lines. Line by line, inside the array only, so a brace or an
+ * id in a comment can neither move the entry nor be taken for it.
+ * @param {string[]} lines - The file's lines.
+ * @param {string} id
+ * @return {Object<string, number>} Each field's line index, by key.
+ */
+function addonFields(lines, id) {
+  const where = 'ADDONS in tools/setup-dev-profile.mjs';
+  const array = lines.findIndex((line) => /^export const ADDONS = \[\r?$/.test(line));
+  const end = lines.findIndex((line, i) => i > array && /^\];?\r?$/.test(line));
+  if (array < 0 || end < 0) throw new Error('tools/setup-dev-profile.mjs has no `export const ADDONS = [` ... `];`');
+  const ids = [];
+  for (let i = array + 1; i < end; i++) {
+    if (lines[i].trim() === `id: '${id}',`) ids.push(i);
   }
-  const start = text.lastIndexOf('{', at);
-  const end = text.indexOf('}', at);
-  if (start < 0 || end < 0) throw new Error(`the entry of ${id} in tools/setup-dev-profile.mjs has no braces`);
-  return {start, end};
+  if (ids.length !== 1) throw new Error(`${where} names the add-on ${id} ${ids.length ? 'more than once' : 'nowhere'}`);
+  let first = ids[0];
+  while (first > array && lines[first].trim() !== '{') first--;
+  let last = ids[0];
+  while (last < end && !/^},?$/.test(lines[last].trim())) last++;
+  if (first === array || last === end) throw new Error(`${where}: the entry of ${id} has no { and } lines of its own`);
+  /** @type {Object<string, number>} */
+  const fields = {};
+  for (const key of ['version', 'url', 'sha256']) {
+    const found = [];
+    for (let i = first + 1; i < last; i++) {
+      if (fieldLine(key).test(lines[i])) found.push(i);
+    }
+    if (found.length !== 1) throw new Error(`${where}: the entry of ${id} has ${found.length} ${key} lines, not one`);
+    fields[key] = found[0];
+  }
+  return fields;
 }
 
 /**
@@ -153,15 +178,13 @@ function addonEntry(text, id) {
  * @return {string}
  */
 export function addonVersion(text, id) {
-  const {start, end} = addonEntry(text, id);
-  const match = /\bversion: '([^']*)'/.exec(text.slice(start, end));
-  if (!match) throw new Error(`the entry of ${id} in tools/setup-dev-profile.mjs has no version`);
-  return match[1];
+  const lines = text.split('\n');
+  return /** @type {RegExpExecArray} */ (fieldLine('version').exec(lines[addonFields(lines, id).version]))[2];
 }
 
 /**
- * tools/setup-dev-profile.mjs with one add-on's version, url and sha256 replaced and nothing
- * else changed. Each of the three must be in its entry exactly once.
+ * tools/setup-dev-profile.mjs with one add-on's version, url and sha256 lines rewritten and
+ * nothing else changed.
  * @param {string} text - The file.
  * @param {string} id
  * @param {{version: string, url: string, sha256: string}} release
@@ -172,15 +195,13 @@ export function applyAddon(text, id, {version, url, sha256}) {
     throw new Error(`not a release to write: ${version} ${url} ${sha256}`);
   }
   const was = addonVersion(text, id);
-  const {start, end} = addonEntry(text, id);
-  let entry = text.slice(start, end);
+  const lines = text.split('\n');
+  const fields = addonFields(lines, id);
   for (const [key, value] of Object.entries({version, url, sha256})) {
-    const field = new RegExp(`\\b${key}: '[^']*'`, 'g');
-    const count = (entry.match(field) || []).length;
-    if (count !== 1) throw new Error(`the entry of ${id} has ${count} ${key} fields, not one`);
-    entry = entry.replace(field, `${key}: '${value}'`);
+    // A function, not a replacement string: no `$` in a value is read as a pattern.
+    lines[fields[key]] = lines[fields[key]].replace(fieldLine(key), (_, indent, _old, end) => `${indent}${key}: '${value}',${end}`);
   }
-  return {text: text.slice(0, start) + entry + text.slice(end), was};
+  return {text: lines.join('\n'), was};
 }
 
 /**
@@ -228,71 +249,111 @@ export function plan(updates, open, used, {raising = true} = {}) {
   return {raise, close};
 }
 
-/** @param {string} url */
-async function getJson(url) {
+/**
+ * A JSON answer, asked up to three times: no answer, none within a minute, a 5xx or 429, or an
+ * answer that is not JSON is asked again. A 4xx other than 429 is the request's own fault, and
+ * asking again would change nothing.
+ * @param {string} url
+ * @param {{wait?: (ms: number) => Promise<void>}} [options] - wait: the pause between tries.
+ * @return {Promise<any>}
+ */
+export async function getJson(url, {wait = (/** @type {number} */ ms) => new Promise((resolve) => setTimeout(resolve, ms))} = {}) {
   /** @type {Record<string, string>} */
   const headers = {'accept': 'application/json', 'user-agent': 'faststream-check-toolchain'};
   if (url.startsWith('https://api.github.com/') && process.env.GH_TOKEN) {
     headers.authorization = `Bearer ${process.env.GH_TOKEN}`;
   }
-  // Tried three times: one failed request fails the whole weekly run, and no answer is never
-  // taken for "no update". A 4xx other than 429 is the request's own fault and is not repeated.
   for (let attempt = 1; ; attempt++) {
+    /** @type {Response|null} */
     let response = null;
+    /** @type {Error} */
+    let error;
     try {
-      response = await fetch(url, {headers});
-    } catch (error) {
-      if (attempt === 3) throw error;
+      response = await fetch(url, {headers, signal: AbortSignal.timeout(60 * 1000)});
+      if (response.ok) return await response.json();
+      error = new Error(`${url}: HTTP ${response.status}`);
+    } catch (caught) {
+      error = /** @type {Error} */ (caught);
     }
-    if (response?.ok) return response.json();
-    if (response && ((response.status < 500 && response.status !== 429) || attempt === 3)) {
-      throw new Error(`${url}: HTTP ${response.status}`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, attempt * 5000));
+    const final = response !== null && !response.ok && response.status < 500 && response.status !== 429;
+    if (final || attempt === 3) throw error;
+    console.error(`${url}: ${error.message}; asking again`);
+    await wait(attempt * 5000);
   }
 }
 
-/** The updates, one per track, each {name, current, latest, behind, routine, note[, file]}. */
+/**
+ * @typedef {{name: string, current: string, latest: string, behind: boolean, routine: boolean, note: string,
+ *     file?: {url: string, sha256: string}}} Update
+ */
+
+/**
+ * The updates, one per track, and what could not be read. Each source is read on its own: one
+ * that fails (AMO down, say) leaves its track out and is named in `errors`, and the others go
+ * ahead; the workflow then still fails the run, so the owner hears of it. A track left out is
+ * neither raised nor closed (plan() leaves an open one alone).
+ * @return {Promise<{list: Update[], errors: string[]}>}
+ */
 async function updates() {
-  const workflows = path.join(root, '.github', 'workflows');
-  const texts = fs.readdirSync(workflows).filter((f) => f.endsWith('.yml'))
-      .map((f) => fs.readFileSync(path.join(workflows, f), 'utf8'));
-  texts.push(fs.readFileSync(path.join(root, '.nvmrc'), 'utf8'));
-  const nodeCurrent = projectNodeMajor(texts);
-  const nodeLts = latestLtsMajor(await getJson('https://nodejs.org/dist/index.json'));
-
-  const pin = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).packageManager || '';
-  const pnpmCurrent = (/^pnpm@(\d+\.\d+\.\d+)/.exec(pin) || [])[1];
-  if (!pnpmCurrent) throw new Error(`package.json packageManager is "${pin}", not pnpm@<x.y.z>`);
-  const major = parseInt(pnpmCurrent, 10);
-  const doc = await getJson('https://registry.npmjs.org/pnpm');
+  /** @type {Update[]} */
+  const list = [];
+  /** @type {string[]} */
+  const errors = [];
   const now = Date.now();
-  const sameMajor = newestOfMajor(doc, major, now) || pnpmCurrent;
-  const nextMajor = newestOfMajor(doc, major + 1, now);
+  /**
+   * @param {string} name
+   * @param {() => Promise<Update[]>} read
+   */
+  const track = async (name, read) => {
+    try {
+      list.push(...await read());
+    } catch (error) {
+      errors.push(`${name}: ${/** @type {Error} */ (error).message}`);
+    }
+  };
 
-  /** @type {Array<{name: string, current: string, latest: string, behind: boolean, routine: boolean, note: string,
-   *     file?: {url: string, sha256: string}}>} */
-  const result = [
-    {name: 'Node.js', current: String(nodeCurrent), latest: String(nodeLts), behind: nodeLts > /** @type {number} */ (nodeCurrent),
-      routine: true, note: `newest LTS is ${nodeLts}; .nvmrc names ${nodeCurrent}`},
-    {name: 'pnpm', current: pnpmCurrent, latest: sameMajor, behind: compareVersions(sameMajor, pnpmCurrent) > 0,
-      routine: true, note: `newest ${major}.x at least ${MIN_AGE_DAYS} days old is ${sameMajor}; pinned ${pin}`},
-  ];
-  if (nextMajor) {
-    result.push({name: 'pnpm', current: pnpmCurrent, latest: nextMajor, behind: true, routine: true,
-      note: `pnpm ${major + 1} is out: ${nextMajor}; pinned ${pin}`});
-  }
+  await track('Node.js', async () => {
+    const workflows = path.join(root, '.github', 'workflows');
+    const texts = fs.readdirSync(workflows).filter((f) => f.endsWith('.yml'))
+        .map((f) => fs.readFileSync(path.join(workflows, f), 'utf8'));
+    texts.push(fs.readFileSync(path.join(root, '.nvmrc'), 'utf8'));
+    const nodeCurrent = projectNodeMajor(texts);
+    const nodeLts = latestLtsMajor(await getJson('https://nodejs.org/dist/index.json'));
+    return [{name: 'Node.js', current: String(nodeCurrent), latest: String(nodeLts),
+      behind: nodeLts > /** @type {number} */ (nodeCurrent), routine: true, note: `newest LTS is ${nodeLts}; .nvmrc names ${nodeCurrent}`}];
+  });
 
-  const profile = fs.readFileSync(path.join(root, 'tools', 'setup-dev-profile.mjs'), 'utf8');
-  const addonCurrent = addonVersion(profile, UBLOCK.id);
-  // Newest first; a page of 25 reaches back months for an add-on that releases monthly.
-  const addon = newestAddon(await getJson(`https://addons.mozilla.org/api/v5/addons/addon/${UBLOCK.slug}/versions/?page_size=25`), now);
-  if (!addon) throw new Error(`AMO lists no public release of ${UBLOCK.name} at least ${MIN_AGE_DAYS} days old`);
-  result.push({name: UBLOCK.name, current: addonCurrent, latest: addon.version,
-    behind: compareVersions(addon.version, addonCurrent) > 0, routine: true,
-    note: `newest on AMO at least ${MIN_AGE_DAYS} days old is ${addon.version}; tools/setup-dev-profile.mjs pins ${addonCurrent}`,
-    file: {url: addon.url, sha256: addon.sha256}});
-  return result;
+  await track('pnpm', async () => {
+    const pin = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).packageManager || '';
+    const pnpmCurrent = (/^pnpm@(\d+\.\d+\.\d+)/.exec(pin) || [])[1];
+    if (!pnpmCurrent) throw new Error(`package.json packageManager is "${pin}", not pnpm@<x.y.z>`);
+    const major = parseInt(pnpmCurrent, 10);
+    const doc = await getJson('https://registry.npmjs.org/pnpm');
+    const sameMajor = newestOfMajor(doc, major, now) || pnpmCurrent;
+    const nextMajor = newestOfMajor(doc, major + 1, now);
+    /** @type {Update[]} */
+    const tracks = [{name: 'pnpm', current: pnpmCurrent, latest: sameMajor, behind: compareVersions(sameMajor, pnpmCurrent) > 0,
+      routine: true, note: `newest ${major}.x at least ${MIN_AGE_DAYS} days old is ${sameMajor}; pinned ${pin}`}];
+    if (nextMajor) {
+      tracks.push({name: 'pnpm', current: pnpmCurrent, latest: nextMajor, behind: true, routine: true,
+        note: `pnpm ${major + 1} is out: ${nextMajor}; pinned ${pin}`});
+    }
+    return tracks;
+  });
+
+  await track(UBLOCK.name, async () => {
+    const profile = fs.readFileSync(path.join(root, 'tools', 'setup-dev-profile.mjs'), 'utf8');
+    const addonCurrent = addonVersion(profile, UBLOCK.id);
+    // Newest first; a page of 25 reaches back months for an add-on that releases monthly.
+    const page = await getJson(`https://addons.mozilla.org/api/v5/addons/addon/${UBLOCK.slug}/versions/?page_size=25`);
+    const addon = newestAddon(page, now);
+    if (!addon) throw new Error(`AMO lists no public release at least ${MIN_AGE_DAYS} days old on its first page`);
+    return [{name: UBLOCK.name, current: addonCurrent, latest: addon.version,
+      behind: compareVersions(addon.version, addonCurrent) > 0, routine: true,
+      note: `newest on AMO at least ${MIN_AGE_DAYS} days old is ${addon.version}; tools/setup-dev-profile.mjs pins ${addonCurrent}`,
+      file: {url: addon.url, sha256: addon.sha256}}];
+  });
+  return {list, errors};
 }
 
 async function main() {
@@ -310,21 +371,24 @@ async function main() {
     console.log(addonVersion(fs.readFileSync(process.argv[pinned + 2], 'utf8'), process.argv[pinned + 1]));
     return;
   }
-  const list = await updates();
+  const {list, errors} = await updates();
   const plan_ = process.argv.indexOf('--plan');
   if (plan_ >= 0) {
+    // The workflow acts on the tracks it has, then fails on `errors`.
     const open = JSON.parse(fs.readFileSync(process.argv[plan_ + 1], 'utf8'));
     const used = new Set(fs.readFileSync(process.argv[plan_ + 2], 'utf8').split(/\r?\n/).filter(Boolean));
-    console.log(JSON.stringify({...plan(list, open, used, {raising: !process.argv.includes('--close-only')}), updates: list}));
+    console.log(JSON.stringify({...plan(list, open, used, {raising: !process.argv.includes('--close-only')}), updates: list, errors}));
     return;
   }
   if (process.argv.includes('--json')) {
     for (const update of list) console.log(JSON.stringify(update));
-    return;
+  } else {
+    for (const {name, current, latest, behind, note} of list) {
+      console.log(`${behind ? 'UPDATE' : 'ok    '}  ${name.padEnd(13)} ${current.padEnd(8)} -> ${latest.padEnd(8)} ${note}`);
+    }
   }
-  for (const {name, current, latest, behind, note} of list) {
-    console.log(`${behind ? 'UPDATE' : 'ok    '}  ${name.padEnd(13)} ${current.padEnd(8)} -> ${latest.padEnd(8)} ${note}`);
-  }
+  for (const error of errors) console.error(`could not read ${error}`);
+  if (errors.length) process.exitCode = 1;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

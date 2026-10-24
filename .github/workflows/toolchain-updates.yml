@@ -80,7 +80,8 @@ jobs:
           # checkout keeps none in .git/config. The header is the one actions/checkout uses.
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           authgit() { git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" "$@"; }
-          node tools/check-toolchain.mjs
+          # For the log; a source it cannot read fails the run at the end, once the rest is done.
+          node tools/check-toolchain.mjs || true
 
           # This workflow's open pull requests and issues, and every title it ever used: the issues
           # endpoint lists pull requests too, and pages through all of them. Lists, filtered
@@ -140,7 +141,10 @@ jobs:
                 fi
                 # The file the entry will name, as AMO serves it now, against AMO's SHA-256: the
                 # developer's profile setup checks the same, and fails on a mismatch.
-                curl -fsSL --retry 2 --max-time 300 -o "$RUNNER_TEMP/addon.xpi" "$url"
+                if ! curl -fsSL --retry 2 --max-time 300 -o "$RUNNER_TEMP/addon.xpi" "$url"; then
+                  echo "uBlock Origin $2: $url could not be downloaded." >&2
+                  exit 1
+                fi
                 if [ "$(sha256sum "$RUNNER_TEMP/addon.xpi" | cut -d ' ' -f 1)" != "$sha" ]; then
                   echo "uBlock Origin $2: $url does not have AMO's SHA-256 $sha." >&2
                   exit 1
@@ -299,7 +303,9 @@ jobs:
                 # no longer names is replaced by a newer pull request, which the plan raises.
                 update=$(jq -c --arg n "$name" --arg v "$version" '[.updates[]? | select(.name == $n and .latest == $v)][0] // empty' "$RUNNER_TEMP/plan.json")
                 if [ "$name" = 'uBlock Origin' ] && [ -z "$update" ]; then
-                  echo "#$number conflicts with main, and $name $version is not the newest any more: left for the plan to replace."
+                  # Its file is known only for the newest release. A newer pull request replaces it;
+                  # one whose replacement was closed by hand stays, and only a person can move it.
+                  echo "#$number conflicts with main, and $name $version is not the newest any more: it cannot be rebuilt here. A newer pull request replaces it; if that one was closed by hand, close #$number too, or bring it up to date by hand."
                   continue
                 fi
                 build "$name" "$version" "$branch" "$update"
@@ -311,6 +317,14 @@ jobs:
                 start_ci "$branch"
               fi
             done 3< "$RUNNER_TEMP/mine.jsonl"
+          fi
+
+          # A source the checker could not read (nodejs.org, the npm registry, AMO) left its track
+          # out of the plan, and the others went ahead: the run fails only now, so the owner
+          # hears of it (the report below).
+          if [ "$(jq '.errors // [] | length' "$RUNNER_TEMP/plan.json")" != 0 ]; then
+            jq -r '.errors[] | "::error::Could not read \(.)"' "$RUNNER_TEMP/plan.json"
+            exit 1
           fi
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
