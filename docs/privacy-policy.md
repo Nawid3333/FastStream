@@ -89,6 +89,7 @@ log on (`README-MPV.md`).
 | `downloads` | Saves a video or subtitle file when *you* click download. Nothing is downloaded without your action. |
 | `nativeMessaging` | Only for the optional mpv mode: talks to the mpv helper on your own computer (see "The mpv helper" above). Unused unless you install the helper and turn MPV mode on. |
 | `cookies` | Only to read the container ID (`cookieStoreId`) of the tab you started from, so that a download opened from a Firefox Container tab stays in that same container. The add-on never reads, writes, or transmits cookie values. |
+| `menus` | FastStream's items in the right-click menu of web pages: play the page's video in FastStream or MPV, or open a link in a new tab with FastStream or MPV on. The menu reads nothing of the page but the link you clicked on. |
 | `contextualIdentities` | Only in the unsigned development zip, not in the signed release. Nothing uses it today: upstream added it for container downloads, waiting for a Firefox API that does not exist yet (Mozilla bug 1917842). |
 | `<all_urls>` | FastStream is a general-purpose video player - it cannot know in advance which site you will play a video on. It activates on a page only when you invoke it or when a supported video is detected. |
 

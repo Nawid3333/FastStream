@@ -1277,6 +1277,30 @@
     "options_general_lowerondroppedframes": {
         "message": "Videoqualität senken, wenn dieser Computer nicht alle Bilder rechtzeitig anzeigen kann (der Player informiert dich jedes Mal)"
     },
+    "menu_play_in_faststream": {
+        "message": "In FastStream abspielen"
+    },
+    "menu_faststream_off": {
+        "message": "FastStream ausschalten"
+    },
+    "menu_play_in_mpv": {
+        "message": "In MPV abspielen"
+    },
+    "menu_mpv_off": {
+        "message": "MPV ausschalten"
+    },
+    "menu_link_in_faststream": {
+        "message": "Link in FastStream öffnen"
+    },
+    "menu_link_in_mpv": {
+        "message": "Link in MPV öffnen"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "Elemente zum Rechtsklick-Menü hinzufügen"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "Fügt FastStream-Elemente zum Rechtsklick-Menü von Webseiten hinzu: das Video der Seite in FastStream oder MPV abspielen oder einen Link in einem neuen Tab mit aktiviertem FastStream oder MPV öffnen. Firefox zeigt hierfür keine Warnung an."
+    },
     "player_audio_output_label": {
         "message": "Audioausgabe"
     },

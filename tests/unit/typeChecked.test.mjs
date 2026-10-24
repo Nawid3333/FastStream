@@ -12,6 +12,7 @@ const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '../
 
 const CHECKED = [
   'chrome/background/BackgroundUtils.mjs',
+  'chrome/background/ContextMenu.mjs',
   'chrome/background/CustomSourcePatterns.mjs',
   'chrome/background/DownloadFilename.mjs',
   'chrome/background/KeyShortcut.mjs',

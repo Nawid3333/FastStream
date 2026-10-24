@@ -1277,6 +1277,30 @@
     "options_general_lowerondroppedframes": {
         "message": "Снижать качество видео, если этот компьютер не успевает отображать все кадры (плеер будет уведомлять об этом)"
     },
+    "menu_play_in_faststream": {
+        "message": "Воспроизвести в FastStream"
+    },
+    "menu_faststream_off": {
+        "message": "Выключить FastStream"
+    },
+    "menu_play_in_mpv": {
+        "message": "Воспроизвести в MPV"
+    },
+    "menu_mpv_off": {
+        "message": "Выключить MPV"
+    },
+    "menu_link_in_faststream": {
+        "message": "Открыть ссылку в FastStream"
+    },
+    "menu_link_in_mpv": {
+        "message": "Открыть ссылку в MPV"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "Добавление пунктов в контекстное меню"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "Добавляет пункты FastStream в контекстное меню веб-страниц: воспроизвести видео со страницы в FastStream или MPV или открыть ссылку в новой вкладке с включенным FastStream или MPV. Firefox не выводит предупреждений об этом."
+    },
     "player_audio_output_label": {
         "message": "Вывод звука"
     },

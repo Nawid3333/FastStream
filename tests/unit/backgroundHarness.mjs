@@ -129,6 +129,9 @@ export async function loadBackground({
     local: {},
     badges: new Map(),
     titles: new Map(),
+    // The right-click menu's items as made and updated (menus), by id; and its refreshes.
+    menuItems: new Map(),
+    menuRefreshes: 0,
     dynamicRules: [],
     sessionRuleUpdates: [],
     reloaded: [],
@@ -232,6 +235,25 @@ export async function loadBackground({
       setIcon: () => {},
     },
     commands: {onCommand: event(), getAll: async () => []},
+    menus: {
+      create: (props) => {
+        if (bg.menuItems.has(props.id)) throw new Error(`menus: an item ${props.id} is there already`);
+        bg.menuItems.set(props.id, {...props});
+        return props.id;
+      },
+      update: async (id, props) => {
+        if (!bg.menuItems.has(id)) throw new Error(`menus: no item ${id}`);
+        Object.assign(bg.menuItems.get(id), props);
+      },
+      removeAll: async () => {
+        bg.menuItems.clear();
+      },
+      refresh: async () => {
+        bg.menuRefreshes++;
+      },
+      onClicked: event(),
+      onShown: event(),
+    },
     windows: {
       get: async (windowId) => ({id: windowId, state: bg.windowState}),
       update: async (windowId, info) => {
@@ -476,6 +498,30 @@ export async function loadBackground({
   bg.command = async (command, tabId) => {
     const tab = bg.tabs.find((t) => t.id === tabId) || {id: tabId};
     for (const listener of chrome.commands.onCommand.listeners) listener(command, {...tab});
+    await settle();
+  };
+
+  /**
+   * The right-click menu opens in a tab (menus.onShown): its items are named for the tab.
+   * @param {number} tabId - The tab.
+   * @return {Promise<void>}
+   */
+  bg.menuShown = async (tabId) => {
+    const tab = bg.tabs.find((t) => t.id === tabId) || {id: tabId};
+    for (const listener of chrome.menus.onShown.listeners) await listener({contexts: ['page'], menuIds: [...bg.menuItems.keys()]}, {...tab});
+    await settle();
+  };
+
+  /**
+   * An item of the right-click menu is clicked in a tab (menus.onClicked).
+   * @param {string} menuItemId - The item.
+   * @param {number} tabId - The tab.
+   * @param {Object} [info] - The rest of what Firefox tells (linkUrl, ...).
+   * @return {Promise<void>}
+   */
+  bg.menuClick = async (menuItemId, tabId, info = {}) => {
+    const tab = bg.tabs.find((t) => t.id === tabId) || {id: tabId};
+    for (const listener of chrome.menus.onClicked.listeners) listener({menuItemId, ...info}, {...tab});
     await settle();
   };
 
