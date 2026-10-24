@@ -1126,6 +1126,32 @@ node_other_file_waits() {
   check 'names the file' grep -qF 'it changes package.json, not only .nvmrc' <(last_comment)
 }
 
+ublock_ready() {
+  # uBlock Origin's entry in the dev profile, CI green and the build unchanged: ready to merge.
+  setup
+  export BRANCH='toolchain/ublock-origin-1.76.0'
+  pr app/github-actions
+  prview '["tools/setup-dev-profile.mjs"]' "[$(commit 'github-actions[bot]' 'build: uBlock Origin 1.75.0 -> 1.76.0')]"
+  echo '{"check_runs":[]}' > "$STATE/checkruns.json"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'ready to merge' ready
+  check 'build compared' has_call 'release download'
+  check 'no lockfile read' bash -c '! grep -q pnpm-lock.yaml "$0"' "$STATE/gh.log"
+  check 'no dependency review asked' bash -c '! grep -q check-runs "$0"' "$STATE/gh.log"
+  check 'the toolchain hint' grep -qF 'toolchain-updates.yml raises the next one' <(last_comment)
+}
+
+ublock_other_file_waits() {
+  setup
+  export BRANCH='toolchain/ublock-origin-1.76.0'
+  pr app/github-actions
+  prview '["tools/setup-dev-profile.mjs","tools/launch-ff.mjs"]' "[$(commit 'github-actions[bot]' 'build: uBlock Origin 1.75.0 -> 1.76.0')]"
+  run_step
+  check 'not called ready' not_ready
+  check 'names the file' grep -qF 'it changes tools/launch-ff.mjs, not only tools/setup-dev-profile.mjs' <(last_comment)
+}
+
 docker_ready() {
   setup
   export BRANCH='dependabot/docker/actionlint-1234'
@@ -2038,6 +2064,17 @@ migration_toolchain_node() {
   check 'its branch' grep -qF '`migrate/node.js-26`' <(issue_of 700 body)
 }
 
+migration_toolchain_ublock() {
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2 BRANCH='toolchain/ublock-origin-1.76.0'
+  pr app/github-actions
+  pr_title 'Toolchain update: uBlock Origin 1.76.0'
+  run_step
+  check 'from its title' test "$(issue_of 700 title)" = 'Migration: uBlock Origin 1.76.0'
+  check 'its branch' grep -qF '`migrate/ublock-origin-1.76.0`' <(issue_of 700 body)
+  check 'the toolchain workflow takes it' grep -qF 'toolchain-updates.yml closes #42' <(issue_of 700 body)
+}
+
 migration_patched() {
   setup
   export CONCLUSION=failure RUN_ATTEMPT=2 BRANCH='patched/hls.js-1.8.0'
@@ -2227,6 +2264,8 @@ pnpm_major_lockfile_waits
 pnpm_by_dependabot_author
 node_ready
 node_other_file_waits
+ublock_ready
+ublock_other_file_waits
 actions_waits
 actions_ready_with_token
 actions_behind_updates_with_token
@@ -2304,6 +2343,7 @@ migration_group
 migration_scoped_name
 migration_toolchain_pnpm
 migration_toolchain_node
+migration_toolchain_ublock
 migration_patched
 migration_already_held
 migration_takes_over_open_issue_by_title

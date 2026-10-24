@@ -11,6 +11,10 @@ name: Toolchain updates
 #     in package.json, and nothing else. Routine: ready to merge once CI passes and nothing
 #     the extension ships has changed.
 #   - pnpm, the next major: the same change, handled the same way.
+#   - uBlock Origin, which tools/setup-dev-profile.mjs puts into the developer's Firefox
+#     profile: the newest public release on AMO at least 3 days old. Its entry there (version,
+#     file, SHA-256) and nothing else; nothing in CI downloads the file, so this run downloads
+#     it and checks it against AMO's SHA-256 before pushing. Routine.
 # The weekly run also rebuilds an open one on main when main has moved into conflict with
 # it, and starts CI on one whose head has none.
 # A title is never used twice, as a pull request or an issue, open or closed: closing one
@@ -100,13 +104,14 @@ jobs:
           start=$(git rev-parse HEAD)
 
           # The one change an update makes, committed on its branch off main and pushed: .nvmrc
-          # for Node, packageManager for pnpm. Nothing from npm runs here, beside this job's write
-          # token: CI installs the lockfile as it is with the new pnpm (frozen), so a pnpm that
-          # wants it rewritten fails CI, and that reaches the owner. Sets $was (the version
-          # before) and $what (the change, for the pull request).
+          # for Node, packageManager for pnpm, uBlock Origin's entry in setup-dev-profile.mjs.
+          # Nothing from npm runs here, beside this job's write token: CI installs the lockfile as
+          # it is with the new pnpm (frozen), so a pnpm that wants it rewritten fails CI, and that
+          # reaches the owner. Sets $was (the version before) and $what (the change, for the pull
+          # request). <update> is the checker's entry for it (uBlock Origin's file comes in it).
           # shellcheck disable=SC2016 # the backticks in $what are Markdown
-          build() { # <name> <version> <branch>
-            local allowed changed file
+          build() { # <name> <version> <branch> [<update>]
+            local allowed changed file url sha
             git checkout -q -f -B "$3" "$start"
             case $1 in
               Node.js)
@@ -125,6 +130,24 @@ jobs:
                 "
                 allowed='package.json'
                 what='`packageManager` in `package.json`'
+                ;;
+              'uBlock Origin')
+                url=$(jq -r '.file.url // empty' <<< "${4:-null}")
+                sha=$(jq -r '.file.sha256 // empty' <<< "${4:-null}")
+                if [ -z "$url" ] || [ -z "$sha" ]; then
+                  echo "The plan gives no file for uBlock Origin $2." >&2
+                  exit 1
+                fi
+                # The file the entry will name, as AMO serves it now, against AMO's SHA-256: the
+                # developer's profile setup checks the same, and fails on a mismatch.
+                curl -fsSL --retry 2 --max-time 300 -o "$RUNNER_TEMP/addon.xpi" "$url"
+                if [ "$(sha256sum "$RUNNER_TEMP/addon.xpi" | cut -d ' ' -f 1)" != "$sha" ]; then
+                  echo "uBlock Origin $2: $url does not have AMO's SHA-256 $sha." >&2
+                  exit 1
+                fi
+                was=$(node tools/check-toolchain.mjs --apply-addon uBlock0@raymondhill.net "$2" "$url" "$sha")
+                allowed='tools/setup-dev-profile.mjs'
+                what='uBlock Origin'"'"'s entry in `tools/setup-dev-profile.mjs`'
                 ;;
               *)
                 echo "No recipe for $1." >&2
@@ -154,11 +177,16 @@ jobs:
             case $1 in
               Node.js) git show "$start:.nvmrc" | tr -d '[:space:]' ;;
               pnpm) git show "$start:package.json" | jq -r '.packageManager // "" | ltrimstr("pnpm@")' ;;
+              'uBlock Origin')
+                git show "$start:tools/setup-dev-profile.mjs" > "$RUNNER_TEMP/profile.main.mjs"
+                node tools/check-toolchain.mjs --addon-version uBlock0@raymondhill.net "$RUNNER_TEMP/profile.main.mjs"
+                ;;
             esac
           }
           branch_of() { # <name> <version>
             case $1 in
               Node.js) echo "toolchain/node-$2" ;;
+              'uBlock Origin') echo "toolchain/ublock-origin-$2" ;;
               *) echo "toolchain/$1-$2" ;;
             esac
           }
@@ -181,7 +209,7 @@ jobs:
               latest=$(jq -r .latest <<< "$update")
               title=$(jq -r .title <<< "$update")
               branch=$(branch_of "$name" "$latest")
-              build "$name" "$latest" "$branch"
+              build "$name" "$latest" "$branch" "$update"
               # The backticks are Markdown for the body, not command substitution.
               # shellcheck disable=SC2016
               {
@@ -191,6 +219,9 @@ jobs:
                   printf 'Routine: `update-prs.yml` tells @%s once CI has run whether it is ready to merge, and the merge is theirs.\n' "$OWNER"
                 else
                   printf 'A decision: `update-prs.yml` tells @%s when CI is green or red, and the merge is theirs. Closing this pull request skips %s %s for good.\n' "$OWNER" "$name" "$latest"
+                fi
+                if [ "$name" = 'uBlock Origin' ]; then
+                  printf '\nNothing in CI downloads the add-on: this run downloaded %s and checked it against the SHA-256 AMO gives for it, the check `pnpm run profile:setup` makes too.\n' "$(jq -r .file.url <<< "$update")"
                 fi
                 if [ "$name" = pnpm ]; then
                   printf '\nThe lockfile is left as it is. Should this pnpm want it rewritten, CI fails at the install: run `pnpm install` with it and push `pnpm-lock.yaml` here (the pull request then waits for you).\n'
@@ -244,7 +275,7 @@ jobs:
               rest=$(jq -r --arg p "$PREFIX" '.title | ltrimstr($p)' <<< "$pr")
               name=${rest% *}
               version=${rest##* }
-              case $name in Node.js|pnpm) ;; *) continue ;; esac
+              case $name in Node.js|pnpm|'uBlock Origin') ;; *) continue ;; esac
               if [ "$branch" != "$(branch_of "$name" "$version")" ]; then continue; fi
               case " ${raised[*]} " in *" $branch "*) continue ;; esac
               state=UNKNOWN
@@ -264,7 +295,14 @@ jobs:
                   echo "#$number: main has $name $version by now; the next run closes it."
                   continue
                 fi
-                build "$name" "$version" "$branch"
+                # The checker's entry for this version (uBlock Origin's file comes in it); one it
+                # no longer names is replaced by a newer pull request, which the plan raises.
+                update=$(jq -c --arg n "$name" --arg v "$version" '[.updates[]? | select(.name == $n and .latest == $v)][0] // empty' "$RUNNER_TEMP/plan.json")
+                if [ "$name" = 'uBlock Origin' ] && [ -z "$update" ]; then
+                  echo "#$number conflicts with main, and $name $version is not the newest any more: left for the plan to replace."
+                  continue
+                fi
+                build "$name" "$version" "$branch" "$update"
                 echo "#$number conflicted with main: rebuilt on it."
                 start_ci "$branch"
               elif [ "$(gh run list --workflow ci.yml --commit "$(jq -r .headRefOid <<< "$pr")" --limit 20 --json status,conclusion \

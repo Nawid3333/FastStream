@@ -17,14 +17,24 @@
 //     came by hand on 2026-10-11; pmOnFail: ignore (pnpm-workspace.yaml) keeps its
 //     pnpm-lock.yaml one YAML document, which GitHub's dependency graph needs
 //     (dependabot/dependabot-core#15904).
+//   - uBlock Origin, which tools/setup-dev-profile.mjs puts into the developer's Firefox
+//     profile: the newest public release on AMO at least MIN_AGE_DAYS old. Dependabot cannot
+//     see an add-on pin, and nothing in CI downloads it, so the workflow downloads the file
+//     and checks it against AMO's SHA-256 before it pushes anything. Routine.
 //
 // Usage: node tools/check-toolchain.mjs [--json | --plan <open.json> <titles.txt>]
 //   (none)   one line per update, for reading.
-//   --json   one {name, current, latest, behind, routine, note} object per line.
-//   --plan   what the workflow is to do, as one JSON object {raise: [...], close: [...]}.
+//   --json   one {name, current, latest, behind, routine, note[, file]} object per line.
+//   --plan   what the workflow is to do, as one JSON object {raise: [...], close: [...],
+//            updates: [...]} (updates: every track, for rebuilding an open pull request).
 //            open.json: [{number, title}] - the open pull requests and issues whose titles
 //            start with TITLE_PREFIX. titles.txt: every title ever used, one per line, open
 //            or closed, pull request or issue.
+//   --apply-addon <id> <version> <url> <sha256>
+//            writes that add-on's entry in tools/setup-dev-profile.mjs and prints the version
+//            it had (the workflow's recipe; no network).
+//   --addon-version <id> <file>
+//            prints the version a copy of tools/setup-dev-profile.mjs pins for that add-on.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -89,6 +99,90 @@ export function newestOfMajor(doc, major, now, minAgeDays = MIN_AGE_DAYS) {
   return eligible.sort(compareVersions).pop() || null;
 }
 
+/** The add-on tools/setup-dev-profile.mjs installs, as AMO and its manifest name it. */
+export const UBLOCK = {id: 'uBlock0@raymondhill.net', slug: 'ublock-origin', name: 'uBlock Origin'};
+
+/** A plain AMO download, the only kind the recipe writes into a JavaScript string. */
+const AMO_FILE = /^https:\/\/addons\.mozilla\.org\/firefox\/downloads\/file\/\d+\/[\w.-]+\.xpi$/;
+
+/**
+ * The newest release of an add-on on AMO that is old enough to try: a public file on the
+ * listed channel (what addons.mozilla.org offers), a plain version number, and a download
+ * of AMO's own with its SHA-256.
+ * @param {{results?: Array<{version: string, channel?: string, file?: {created?: string,
+ *     status?: string, hash?: string, url?: string}}>}} page - /api/v5/addons/addon/<slug>/versions/.
+ * @param {number} now - Date.now().
+ * @param {number} [minAgeDays]
+ * @return {{version: string, url: string, sha256: string}|null}
+ */
+export function newestAddon(page, now, minAgeDays = MIN_AGE_DAYS) {
+  const cutoff = now - minAgeDays * 24 * 60 * 60 * 1000;
+  const eligible = (page.results || []).filter(({version, channel, file}) =>
+    channel === 'listed' && file?.status === 'public' &&
+    /^\d+(\.\d+){1,3}$/.test(version) &&
+    /^sha256:[0-9a-f]{64}$/.test(file.hash || '') &&
+    AMO_FILE.test(file.url || '') &&
+    Date.parse(file.created || '') <= cutoff);
+  const newest = eligible.sort((a, b) => compareVersions(a.version, b.version)).pop();
+  if (!newest?.file?.url || !newest.file.hash) return null;
+  return {version: newest.version, url: newest.file.url, sha256: newest.file.hash.slice('sha256:'.length)};
+}
+
+/**
+ * The object literal of one add-on in tools/setup-dev-profile.mjs's ADDONS, found by its id.
+ * @param {string} text - The file.
+ * @param {string} id
+ * @return {{start: number, end: number}} The span from its `{` to its `}`.
+ */
+function addonEntry(text, id) {
+  const needle = `id: '${id}'`;
+  const at = text.indexOf(needle);
+  if (at < 0 || text.indexOf(needle, at + 1) >= 0) {
+    throw new Error(`tools/setup-dev-profile.mjs names the add-on ${id} ${at < 0 ? 'nowhere' : 'twice'}`);
+  }
+  const start = text.lastIndexOf('{', at);
+  const end = text.indexOf('}', at);
+  if (start < 0 || end < 0) throw new Error(`the entry of ${id} in tools/setup-dev-profile.mjs has no braces`);
+  return {start, end};
+}
+
+/**
+ * The version one add-on's entry pins.
+ * @param {string} text - tools/setup-dev-profile.mjs.
+ * @param {string} id
+ * @return {string}
+ */
+export function addonVersion(text, id) {
+  const {start, end} = addonEntry(text, id);
+  const match = /\bversion: '([^']*)'/.exec(text.slice(start, end));
+  if (!match) throw new Error(`the entry of ${id} in tools/setup-dev-profile.mjs has no version`);
+  return match[1];
+}
+
+/**
+ * tools/setup-dev-profile.mjs with one add-on's version, url and sha256 replaced and nothing
+ * else changed. Each of the three must be in its entry exactly once.
+ * @param {string} text - The file.
+ * @param {string} id
+ * @param {{version: string, url: string, sha256: string}} release
+ * @return {{text: string, was: string}}
+ */
+export function applyAddon(text, id, {version, url, sha256}) {
+  if (!/^\d+(\.\d+){1,3}$/.test(version) || !AMO_FILE.test(url) || !/^[0-9a-f]{64}$/.test(sha256)) {
+    throw new Error(`not a release to write: ${version} ${url} ${sha256}`);
+  }
+  const was = addonVersion(text, id);
+  const {start, end} = addonEntry(text, id);
+  let entry = text.slice(start, end);
+  for (const [key, value] of Object.entries({version, url, sha256})) {
+    const field = new RegExp(`\\b${key}: '[^']*'`, 'g');
+    const count = (entry.match(field) || []).length;
+    if (count !== 1) throw new Error(`the entry of ${id} has ${count} ${key} fields, not one`);
+    entry = entry.replace(field, `${key}: '${value}'`);
+  }
+  return {text: text.slice(0, start) + entry + text.slice(end), was};
+}
+
 /**
  * What to do about the updates: raise each one that is behind and whose title was never
  * used (closing one by hand is how an update is skipped, for good), and close the open
@@ -122,10 +216,10 @@ export function plan(updates, open, used, {raising = true} = {}) {
       close.push({number, comment: `The project now uses ${name} ${current}. Closing.`});
       continue;
     }
-    // Node has one track, its LTS majors. pnpm has two: its pinned major, and the next.
+    // Node and uBlock Origin have one track each. pnpm has two: its pinned major, and the next.
     /** @param {string} version_ */
     const onPinnedMajor = (version_) => parseInt(version_, 10) === parseInt(current, 10);
-    const track = tracks.find((update) => name === 'Node.js' ||
+    const track = tracks.find((update) => name !== 'pnpm' ||
         onPinnedMajor(update.latest) === onPinnedMajor(version));
     if (track && compareVersions(track.latest, version) > 0 && live.has(title(track))) {
       close.push({number, comment: `Superseded by ${name} ${track.latest}, which has its own pull request.`});
@@ -141,12 +235,24 @@ async function getJson(url) {
   if (url.startsWith('https://api.github.com/') && process.env.GH_TOKEN) {
     headers.authorization = `Bearer ${process.env.GH_TOKEN}`;
   }
-  const response = await fetch(url, {headers});
-  if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
-  return response.json();
+  // Tried three times: one failed request fails the whole weekly run, and no answer is never
+  // taken for "no update". A 4xx other than 429 is the request's own fault and is not repeated.
+  for (let attempt = 1; ; attempt++) {
+    let response = null;
+    try {
+      response = await fetch(url, {headers});
+    } catch (error) {
+      if (attempt === 3) throw error;
+    }
+    if (response?.ok) return response.json();
+    if (response && ((response.status < 500 && response.status !== 429) || attempt === 3)) {
+      throw new Error(`${url}: HTTP ${response.status}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, attempt * 5000));
+  }
 }
 
-/** The updates, one per track, each {name, current, latest, behind, routine, note}. */
+/** The updates, one per track, each {name, current, latest, behind, routine, note[, file]}. */
 async function updates() {
   const workflows = path.join(root, '.github', 'workflows');
   const texts = fs.readdirSync(workflows).filter((f) => f.endsWith('.yml'))
@@ -164,6 +270,8 @@ async function updates() {
   const sameMajor = newestOfMajor(doc, major, now) || pnpmCurrent;
   const nextMajor = newestOfMajor(doc, major + 1, now);
 
+  /** @type {Array<{name: string, current: string, latest: string, behind: boolean, routine: boolean, note: string,
+   *     file?: {url: string, sha256: string}}>} */
   const result = [
     {name: 'Node.js', current: String(nodeCurrent), latest: String(nodeLts), behind: nodeLts > /** @type {number} */ (nodeCurrent),
       routine: true, note: `newest LTS is ${nodeLts}; .nvmrc names ${nodeCurrent}`},
@@ -174,16 +282,40 @@ async function updates() {
     result.push({name: 'pnpm', current: pnpmCurrent, latest: nextMajor, behind: true, routine: true,
       note: `pnpm ${major + 1} is out: ${nextMajor}; pinned ${pin}`});
   }
+
+  const profile = fs.readFileSync(path.join(root, 'tools', 'setup-dev-profile.mjs'), 'utf8');
+  const addonCurrent = addonVersion(profile, UBLOCK.id);
+  // Newest first; a page of 25 reaches back months for an add-on that releases monthly.
+  const addon = newestAddon(await getJson(`https://addons.mozilla.org/api/v5/addons/addon/${UBLOCK.slug}/versions/?page_size=25`), now);
+  if (!addon) throw new Error(`AMO lists no public release of ${UBLOCK.name} at least ${MIN_AGE_DAYS} days old`);
+  result.push({name: UBLOCK.name, current: addonCurrent, latest: addon.version,
+    behind: compareVersions(addon.version, addonCurrent) > 0, routine: true,
+    note: `newest on AMO at least ${MIN_AGE_DAYS} days old is ${addon.version}; tools/setup-dev-profile.mjs pins ${addonCurrent}`,
+    file: {url: addon.url, sha256: addon.sha256}});
   return result;
 }
 
 async function main() {
+  const apply = process.argv.indexOf('--apply-addon');
+  if (apply >= 0) {
+    const [id, version, url, sha256] = process.argv.slice(apply + 1, apply + 5);
+    const file = path.join(root, 'tools', 'setup-dev-profile.mjs');
+    const {text, was} = applyAddon(fs.readFileSync(file, 'utf8'), id, {version, url, sha256});
+    fs.writeFileSync(file, text);
+    console.log(was);
+    return;
+  }
+  const pinned = process.argv.indexOf('--addon-version');
+  if (pinned >= 0) {
+    console.log(addonVersion(fs.readFileSync(process.argv[pinned + 2], 'utf8'), process.argv[pinned + 1]));
+    return;
+  }
   const list = await updates();
   const plan_ = process.argv.indexOf('--plan');
   if (plan_ >= 0) {
     const open = JSON.parse(fs.readFileSync(process.argv[plan_ + 1], 'utf8'));
     const used = new Set(fs.readFileSync(process.argv[plan_ + 2], 'utf8').split(/\r?\n/).filter(Boolean));
-    console.log(JSON.stringify(plan(list, open, used, {raising: !process.argv.includes('--close-only')})));
+    console.log(JSON.stringify({...plan(list, open, used, {raising: !process.argv.includes('--close-only')}), updates: list}));
     return;
   }
   if (process.argv.includes('--json')) {
@@ -191,7 +323,7 @@ async function main() {
     return;
   }
   for (const {name, current, latest, behind, note} of list) {
-    console.log(`${behind ? 'UPDATE' : 'ok    '}  ${name.padEnd(8)} ${current.padEnd(8)} -> ${latest.padEnd(8)} ${note}`);
+    console.log(`${behind ? 'UPDATE' : 'ok    '}  ${name.padEnd(13)} ${current.padEnd(8)} -> ${latest.padEnd(8)} ${note}`);
   }
 }
 

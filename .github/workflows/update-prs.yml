@@ -26,7 +26,8 @@ name: Update PRs
 #               every one of these holds: opened by that bot and only its commits on it; it
 #               changes only what that kind of update changes (package.json and
 #               pnpm-lock.yaml; fsaunpack's two files; .nvmrc; workflow files; the two
-#               Dockerfiles; a re-cut's files); its dependency review passed; every package
+#               Dockerfiles; a re-cut's files; tools/setup-dev-profile.mjs for uBlock
+#               Origin); its dependency review passed; every package
 #               version it adds to the lockfile is 3 days old on the npm registry
 #               (Dependabot's cooldown holds back only what it bumps; a security fix is not
 #               held back); and the branch holds the newest main, so what he merges is
@@ -226,6 +227,7 @@ jobs:
             dependabot/docker/*) kind=docker ;;
             toolchain/pnpm-*) kind=pnpm ;;
             toolchain/node-*) kind=node ;;
+            toolchain/ublock-origin-*) kind=ublock ;;
             patched/*) kind=patched ;;
             *) kind=other ;;
           esac
@@ -250,7 +252,7 @@ jobs:
               dependabot) printf 'Several packages can move together in one Dependabot pull request; `@dependabot ignore <package> minor version` drops one of them. `@dependabot rebase` builds it anew on main.\n' ;;
               actions) printf 'Dependabot moves the pinned commit and its version comment together; the release notes are linked above.\n' ;;
               docker) printf 'Dependabot moves the tag and the digest in the Dockerfile together. `@dependabot ignore this minor version` (or `this major version`) skips it.\n' ;;
-              pnpm|node) printf 'Closing this pull request skips this version for good; toolchain-updates.yml raises the next one.\n' ;;
+              pnpm|node|ublock) printf 'Closing this pull request skips this version for good; toolchain-updates.yml raises the next one.\n' ;;
               patched) printf 'How to take it by hand: `docs/updating-patched-libraries.md`. Closing this pull request skips this version for good.\n' ;;
               *) ;;
             esac
@@ -346,7 +348,7 @@ jobs:
             migrate() {
               local what slug updates count group list park take rerun found
               case $kind in
-                pnpm|node|patched)
+                pnpm|node|ublock|patched)
                   # The title less its prefix: "pnpm 12.15.0", "Node.js 26", "hls.js 1.7.4".
                   what=$(jq -r '.title | sub("^(Toolchain update|Patched library update): "; "")' <<< "$pr")
                   slug=$what
@@ -494,7 +496,7 @@ jobs:
           fi
           case $kind in
             dependabot|actions|docker) bot='dependabot[bot]' ;;
-            pnpm|node|patched) bot='github-actions[bot]' ;;
+            pnpm|node|ublock|patched) bot='github-actions[bot]' ;;
             *) reasons+=("branch $BRANCH is not one this workflow checks") ;;
           esac
           if [ "$kind" = actions ] && [ -z "${MERGE_TOKEN:-}" ]; then
@@ -584,6 +586,9 @@ jobs:
               node)
                 files=$(jq -r '.files[].path | select(. != ".nvmrc")' "$RUNNER_TEMP/pr.json")
                 only='.nvmrc' ;;
+              ublock)
+                files=$(jq -r '.files[].path | select(. != "tools/setup-dev-profile.mjs")' "$RUNNER_TEMP/pr.json")
+                only='tools/setup-dev-profile.mjs' ;;
               actions)
                 files=$(jq -r '.files[].path | select((startswith(".github/workflows/") or startswith(".github/actions/")) | not)' "$RUNNER_TEMP/pr.json")
                 only='workflow and action files' ;;

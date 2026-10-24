@@ -10,6 +10,7 @@ checks=0
 fails=0
 TDIRS=()
 REAL_NODE=$(command -v node)
+REPO=$(cd "$(dirname "$0")/../.." && pwd)
 cleanup() { rm -rf "$STEP" "${TDIRS[@]}"; }
 trap cleanup EXIT
 
@@ -76,13 +77,28 @@ EOF
 #!/usr/bin/env bash
 if [ "\${1-}" = tools/check-toolchain.mjs ]; then
   printf 'node %s\n' "\$*" >> "\$STATE/gh.log"
+  # The recipes' own calls read and write files only: the work tree's copy runs for real.
+  case "\${2-}" in --apply-addon|--addon-version) exec "$REAL_NODE" "\$@" ;; esac
   if [ "\${2-}" = --plan ]; then cp "\$3" "\$STATE/open.seen"; cp "\$4" "\$STATE/titles.seen"; cat "\$STATE/plan.json"; else echo 'UPDATE  (canned)'; fi
   exit 0
 fi
 exec "$REAL_NODE" "\$@"
 EOF
   printf '#!/usr/bin/env bash\necho "$*" >> "$STATE/sleeps"\n' > "$BIN/sleep"
-  chmod +x "$BIN/gh" "$BIN/node" "$BIN/sleep"
+  # The add-on's download: the bytes in $STATE/addon.xpi, the URL logged.
+  cat > "$BIN/curl" <<'EOF'
+#!/usr/bin/env bash
+out=''
+prev=''
+for a in "$@"; do
+  if [ "$prev" = -o ]; then out=$a; fi
+  prev=$a
+done
+printf 'curl %s\n' "${!#}" >> "$STATE/gh.log"
+[ -f "$STATE/addon.xpi" ] || { echo 'curl: (22) 404' >&2; exit 22; }
+cp "$STATE/addon.xpi" "$out"
+EOF
+  chmod +x "$BIN/gh" "$BIN/node" "$BIN/sleep" "$BIN/curl"
 }
 
 setup() {
@@ -104,6 +120,9 @@ setup() {
     cd "$T/work" || exit 1
     printf '{\n  "name": "fs",\n  "devDependencies": {\n    "x": "1.0.0"\n  },\n  "packageManager": "pnpm@11.22.0"\n}\n' > package.json
     echo 22 > .nvmrc
+    # The recipes' own scripts, as main has them.
+    mkdir tools
+    cp "$REPO/tools/check-toolchain.mjs" "$REPO/tools/check-patched-updates.mjs" "$REPO/tools/setup-dev-profile.mjs" tools/
     git add -A && git commit -q -m init && git remote add origin "$T/origin.git" && git push -q origin main
   )
   echo '[]' > "$STATE/prs.json"
@@ -121,8 +140,102 @@ run_step() {
   (cd "$T/work" && env -u GIT_AUTHOR_NAME -u GIT_AUTHOR_EMAIL -u GIT_COMMITTER_NAME -u GIT_COMMITTER_EMAIL timeout 60 bash -e "$STEP") > "$T/out" 2>&1 || rc=$?
 }
 branch_diff() { origin diff --name-only "main...$1"; }
+ublock_update() { # <latest> <sha256>
+  jq -cn --arg l "$1" --arg s "$2" '{name: "uBlock Origin", current: "1.75.0", latest: $l, behind: true, routine: true, note: "n",
+    title: "Toolchain update: uBlock Origin \($l)", file: {url: "https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-\($l).xpi", sha256: $s}}'
+}
 
 # --- Scenarios.
+
+weekly_ublock() {
+  setup
+  printf 'an add-on\n' > "$STATE/addon.xpi"
+  sha=$(sha256sum "$STATE/addon.xpi" | cut -d ' ' -f 1)
+  plan "[$(ublock_update 1.76.0 "$sha")]" '[]'
+  run_step
+  b=toolchain/ublock-origin-1.76.0
+  check 'exit 0' test "$rc" -eq 0
+  check 'branch pushed' origin show-ref -q --verify "refs/heads/$b"
+  check 'only the profile setup' test "$(branch_diff "$b")" = tools/setup-dev-profile.mjs
+  check 'its version, file and SHA-256, nothing else' test "$(origin diff main "$b" | grep -c '^[-+] ')" = 6
+  check 'the new SHA-256' bash -c 'git -C "$0" show "$1:tools/setup-dev-profile.mjs" | grep -qF "    sha256: '"'"'$2'"'"',"' "$T/origin.git" "$b" "$sha"
+  check 'the new file' bash -c 'git -C "$0" show "$1:tools/setup-dev-profile.mjs" | grep -qF "file/5100000/ublock_origin-1.76.0.xpi"' "$T/origin.git" "$b"
+  check 'downloaded first' has_call 'curl https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi'
+  check 'commit message' test "$(origin log -1 --format=%s "$b")" = 'build: uBlock Origin 1.75.0 -> 1.76.0'
+  check 'pull request' has_call "pr create --base main --head $b --title Toolchain update: uBlock Origin 1.76.0 --label dependencies"
+  check 'CI started once' test "$(n_calls "^workflow run ci.yml --ref $b\$")" = 1
+  check 'names the change' grep -qF "changes only uBlock Origin's entry in \`tools/setup-dev-profile.mjs\`" "$STATE/created.body"
+  check 'says the file was checked' grep -qF 'checked it against the SHA-256 AMO gives for it' "$STATE/created.body"
+  check 'no lockfile hint' bash -c '! grep -qF "lockfile" "$0"' "$STATE/created.body"
+  check 'main untouched' test "$(origin rev-list --count main)" = 1
+}
+
+ublock_wrong_file() {
+  # AMO serves other bytes than its SHA-256 says: nothing is pushed, and the run is red.
+  setup
+  printf 'other bytes\n' > "$STATE/addon.xpi"
+  plan "[$(ublock_update 1.76.0 "$(printf 'a%.0s' {1..64})")]" '[]'
+  run_step
+  check 'fails, not stopped by the timeout' test "$rc" -eq 1
+  check 'says why' grep -qF "does not have AMO's SHA-256" "$T/out"
+  check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
+  check 'no pull request' bash -c '! grep -q "^pr create" "$0"' "$STATE/gh.log"
+}
+
+ublock_no_file() {
+  setup
+  plan "[$(ublock_update 1.76.0 x | jq -c 'del(.file)')]" '[]'
+  run_step
+  check 'fails, not stopped by the timeout' test "$rc" -eq 1
+  check 'says why' grep -qF 'The plan gives no file for uBlock Origin 1.76.0.' "$T/out"
+  check 'nothing downloaded' bash -c '! grep -q "^curl" "$0"' "$STATE/gh.log"
+  check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
+}
+
+ublock_repair_not_newest() {
+  # An open one conflicts with main, and the checker names a newer release by now: it is
+  # left for the plan, which raises the newer one; nothing is rebuilt without its file.
+  setup
+  (
+    cd "$T/work" || exit 1
+    git checkout -q -b toolchain/ublock-origin-1.76.0
+    sed -i "s/version: '1.75.0'/version: '1.76.0'/" tools/setup-dev-profile.mjs
+    git commit -q -am old && git push -q origin toolchain/ublock-origin-1.76.0
+    git checkout -q main
+  )
+  old=$(origin rev-parse toolchain/ublock-origin-1.76.0)
+  open_pr 9 'Toolchain update: uBlock Origin 1.76.0' toolchain/ublock-origin-1.76.0 "$old"
+  echo CONFLICTING > "$STATE/pr-9-mergeable"
+  jq --argjson u "$(ublock_update 1.77.0 "$(printf 'a%.0s' {1..64})")" '. + {updates: [$u]}' "$STATE/plan.json" > "$STATE/p" && mv "$STATE/p" "$STATE/plan.json"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not rebuilt' test "$(origin rev-parse toolchain/ublock-origin-1.76.0)" = "$old"
+  check 'says why' grep -qF 'uBlock Origin 1.76.0 is not the newest any more' "$T/out"
+}
+
+ublock_repair_rebuilds() {
+  # An open one conflicts with main, and is still the newest: rebuilt on main with its file.
+  setup
+  printf 'an add-on\n' > "$STATE/addon.xpi"
+  sha=$(sha256sum "$STATE/addon.xpi" | cut -d ' ' -f 1)
+  (
+    cd "$T/work" || exit 1
+    git checkout -q -b toolchain/ublock-origin-1.76.0
+    sed -i "s/version: '1.75.0'/version: '1.76.0'/" tools/setup-dev-profile.mjs
+    git commit -q -am old && git push -q origin toolchain/ublock-origin-1.76.0
+    git checkout -q main
+    echo x > later.txt && git add later.txt && git commit -q -m later && git push -q origin main
+  )
+  old=$(origin rev-parse toolchain/ublock-origin-1.76.0)
+  open_pr 9 'Toolchain update: uBlock Origin 1.76.0' toolchain/ublock-origin-1.76.0 "$old"
+  echo CONFLICTING > "$STATE/pr-9-mergeable"
+  jq --argjson u "$(ublock_update 1.76.0 "$sha")" '. + {updates: [$u]}' "$STATE/plan.json" > "$STATE/p" && mv "$STATE/p" "$STATE/plan.json"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'rebuilt on main' test "$(origin rev-parse toolchain/ublock-origin-1.76.0~1)" = "$(origin rev-parse main)"
+  check 'with its file' bash -c 'git -C "$0" show toolchain/ublock-origin-1.76.0:tools/setup-dev-profile.mjs | grep -qF "    sha256: '"'"'$1'"'"',"' "$T/origin.git" "$sha"
+  check 'CI started' has_call 'workflow run ci.yml --ref toolchain/ublock-origin-1.76.0'
+}
 
 unexpected_file() {
   setup
@@ -436,6 +549,11 @@ repair_leaves_strangers() {
 weekly_pnpm
 weekly_node
 weekly_two
+weekly_ublock
+ublock_wrong_file
+ublock_no_file
+ublock_repair_not_newest
+ublock_repair_rebuilds
 unexpected_file
 push_closes_only
 close_states

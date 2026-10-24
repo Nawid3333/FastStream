@@ -2,7 +2,11 @@ import fs from 'node:fs';
 // js-yaml 5 has no default export, only named ones; this form reads 4 and 5 alike.
 import * as yaml from 'js-yaml';
 import {describe, expect, it} from 'vitest';
-import {latestLtsMajor, MIN_AGE_DAYS, newestOfMajor, plan, projectNodeMajor, TITLE_PREFIX} from '../../tools/check-toolchain.mjs';
+import {
+  addonVersion, applyAddon, latestLtsMajor, MIN_AGE_DAYS, newestAddon, newestOfMajor, plan, projectNodeMajor,
+  TITLE_PREFIX, UBLOCK,
+} from '../../tools/check-toolchain.mjs';
+import {ADDONS} from '../../tools/setup-dev-profile.mjs';
 
 // The toolchain check opens and closes pull requests on these numbers; a wrong one either
 // nags about a Node the project already uses or stays quiet about a new LTS.
@@ -299,5 +303,92 @@ describe('plan', () => {
     const updates = [node('22', '22'), pnpm('11.22.0', '11.22.0')];
     const open = [{number: 5, title: t('Yarn 4.0.0')}, {number: 72, title: t('pnpm 11.28.0')}];
     expect(plan(updates, open, new Set()).close).toEqual([]);
+  });
+
+  it('gives uBlock Origin one track: a newer release replaces an open one, catching up closes it', () => {
+    const ublock = (current, latest) => ({name: 'uBlock Origin', current, latest, behind: latest !== current});
+    const open = [{number: 80, title: t('uBlock Origin 1.75.1')}];
+    const {raise, close} = plan([ublock('1.75.0', '1.76.0')], open, new Set([open[0].title]));
+    expect(raise.map((update) => update.title)).toEqual([t('uBlock Origin 1.76.0')]);
+    expect(close).toEqual([{number: 80, comment: 'Superseded by uBlock Origin 1.76.0, which has its own pull request.'}]);
+    expect(plan([ublock('1.75.1', '1.75.1')], open, new Set()).close[0].comment).toBe('The project now uses uBlock Origin 1.75.1. Closing.');
+    // Its next major is no second track, as pnpm's is: 2.0.0 replaces an open 1.x.
+    expect(plan([ublock('1.75.0', '2.0.0')], open, new Set([open[0].title])).close.map((item) => item.number)).toEqual([80]);
+  });
+});
+
+describe('uBlock Origin on AMO', () => {
+  const day = 24 * 60 * 60 * 1000;
+  const now = Date.parse('2026-10-24T12:00:00Z');
+  const hash = (c) => `sha256:${c.repeat(64)}`;
+  const release = (version, daysOld, file = {}) => ({version, channel: 'listed', file: {
+    created: new Date(now - daysOld * day).toISOString(), status: 'public', hash: hash('a'),
+    url: `https://addons.mozilla.org/firefox/downloads/file/${version.replace(/\D/g, '')}/ublock_origin-${version}.xpi`, ...file}});
+
+  it('takes the newest public listed release that is MIN_AGE_DAYS old, with its file and SHA-256', () => {
+    const page = {results: [release('1.77.0', 1), release('1.76.0', 4), release('1.75.0', 30)]};
+    expect(newestAddon(page, now)).toEqual({version: '1.76.0', sha256: 'a'.repeat(64),
+      url: 'https://addons.mozilla.org/firefox/downloads/file/1760/ublock_origin-1.76.0.xpi'});
+    expect(newestAddon(page, now + 2 * day).version).toBe('1.77.0');
+    expect(MIN_AGE_DAYS).toBe(3);
+  });
+
+  it('compares versions as numbers, whatever order AMO lists them in', () => {
+    expect(newestAddon({results: [release('1.9.0', 10), release('1.10.0', 9)]}, now).version).toBe('1.10.0');
+  });
+
+  it('skips what is not a public listed release with a plain AMO download', () => {
+    const bad = [
+      {...release('1.80.0', 10), channel: 'unlisted'},
+      release('1.81.0', 10, {status: 'disabled'}),
+      release('1.82.0b3', 10),
+      release('1.83.0', 10, {hash: 'sha1:abc'}),
+      release('1.84.0', 10, {url: 'https://example.com/ublock_origin-1.84.0.xpi'}),
+      release('1.85.0', 10, {url: 'https://addons.mozilla.org/firefox/downloads/file/1/x%27.xpi'}),
+      release('1.86.0', 10, {created: undefined}),
+    ];
+    expect(newestAddon({results: [...bad, release('1.75.0', 30)]}, now).version).toBe('1.75.0');
+    expect(newestAddon({results: bad}, now)).toBeNull();
+    expect(newestAddon({}, now)).toBeNull();
+  });
+});
+
+describe('uBlock Origin in tools/setup-dev-profile.mjs', () => {
+  const text = fs.readFileSync('tools/setup-dev-profile.mjs', 'utf8');
+  const next = {version: '1.76.0', url: 'https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi',
+    sha256: 'b'.repeat(64)};
+
+  it('reads the version the profile installs', () => {
+    expect(addonVersion(text, UBLOCK.id)).toBe(ADDONS.find((addon) => addon.id === UBLOCK.id)?.version);
+  });
+
+  it('replaces its version, url and sha256, and nothing else', () => {
+    const {text: written, was} = applyAddon(text, UBLOCK.id, next);
+    expect(was).toBe(addonVersion(text, UBLOCK.id));
+    expect(addonVersion(written, UBLOCK.id)).toBe('1.76.0');
+    const changed = (a, b) => a.split('\n').filter((line, i) => line !== b.split('\n')[i]);
+    expect(written.split('\n')).toHaveLength(text.split('\n').length);
+    expect(changed(written, text)).toEqual([
+      '    version: \'1.76.0\',',
+      `    url: '${next.url}',`,
+      `    sha256: '${'b'.repeat(64)}',`,
+    ]);
+  });
+
+  it('finds the entry by its id wherever it is, and touches no other add-on', () => {
+    const other = `  {\n    id: 'other@example.com',\n    version: '2.0.0',\n    url: 'https://example.com/o.xpi',\n    sha256: '${'c'.repeat(64)}',\n  },\n`;
+    const two = text.replace('export const ADDONS = [\n', `export const ADDONS = [\n${other}`);
+    const {text: written} = applyAddon(two, UBLOCK.id, next);
+    expect(written).toContain(other);
+    expect(addonVersion(written, 'other@example.com')).toBe('2.0.0');
+  });
+
+  it('refuses an entry it cannot find once, and a release that is not plainly one', () => {
+    expect(() => applyAddon(text, 'nobody@example.com', next)).toThrow(/nowhere/);
+    expect(() => applyAddon(text.replace(`id: '${UBLOCK.id}'`, `id: '${UBLOCK.id}', id: '${UBLOCK.id}'`), UBLOCK.id, next))
+        .toThrow(/twice/);
+    expect(() => applyAddon(text, UBLOCK.id, {...next, version: '1.76.0\''})).toThrow(/not a release/);
+    expect(() => applyAddon(text, UBLOCK.id, {...next, url: 'https://evil.example/x.xpi'})).toThrow(/not a release/);
+    expect(() => applyAddon(text, UBLOCK.id, {...next, sha256: 'B'.repeat(64)})).toThrow(/not a release/);
   });
 });
