@@ -30,6 +30,9 @@ function pages(file) {
     // A page whose video plays at once: FastStream takes it.
     '/ep1': `<!doctype html><title>episode 1</title>
 <video preload="auto" style="${style}" src="${file}?ep=1"></video>${next('ep2')}`,
+    // An episode whose title names its series, season and episode, as a site's does.
+    '/named': `<!doctype html><title>Example Series - Season 1 Episode 3 | A Series Site</title>
+<video preload="auto" style="${style}" src="${file}?ep=named"></video>`,
     // The same video as WebM, which FastStream plays as it is (DirectVideoPlayer, no MSE).
     '/webm': `<!doctype html><title>a WebM video</title>
 <video preload="auto" style="${style}" src="${file.replace(/\.mp4$/, '.webm')}"></video>`,
@@ -315,6 +318,59 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
       await browser.switchFrame(null);
       await setOptions({autoEnableURLs: [SITE], autoplayNext: true});
     }
+  });
+
+  // His report, 2026-10-24: the system's media overlay (Windows' media flyout) named only
+  // "FastStream". The player's Media Session, which Firefox gives the overlay while the
+  // player's video plays, names the video, shows a frame of it and has a time line and seek
+  // keys (MediaKeys).
+  it('gives the system\'s media overlay the video\'s name and a frame of it', async function() {
+    await browser.url(`${SITE}/named`);
+    await intoPlayer('the named episode');
+    try {
+      await browser.waitUntil(() => browser.execute(() => (navigator.mediaSession.metadata?.artwork?.length || 0) > 0),
+          {timeout: 30000});
+    } catch (e) {
+      const state = await browser.execute(() => {
+        const keys = window.fastStream?.interfaceController?.toolManager?.mediaKeys;
+        const video = window.fastStream?.player?.getVideo?.();
+        return {metadata: navigator.mediaSession.metadata && {title: navigator.mediaSession.metadata.title},
+          info: keys?.info, artwork: keys?.artwork, taken: window.fastStream?.artworkTaken, mediaInfo: window.fastStream?.mediaInfo,
+          video: video && {readyState: video.readyState, width: video.videoWidth, paused: video.paused, src: String(video.currentSrc).slice(0, 40)}};
+      });
+      throw new Error(`the overlay never got a picture of the video: ${JSON.stringify(state)}`);
+    }
+    const overlay = await browser.execute(() => {
+      const meta = /** @type {MediaMetadata} */ (navigator.mediaSession.metadata);
+      return {
+        title: meta.title,
+        artist: meta.artist,
+        artwork: meta.artwork.map((art) => ({blob: art.src.startsWith('blob:'), sizes: art.sizes, type: art.type})),
+      };
+    });
+    expect(overlay).toEqual({
+      title: 'Example Series',
+      artist: 'S01E03',
+      artwork: [{blob: true, sizes: expect.stringMatching(/^320x\d+$/), type: 'image/jpeg'}],
+    });
+    // The picture is a frame of the video, not an empty one: it decodes to its size.
+    const decoded = await browser.execute(async () => {
+      const art = /** @type {MediaMetadata} */ (navigator.mediaSession.metadata).artwork[0];
+      const bitmap = await createImageBitmap(await (await fetch(art.src)).blob());
+      return `${bitmap.width}x${bitmap.height}`;
+    });
+    expect(decoded).toBe(overlay.artwork[0].sizes);
+    // Once it plays, the overlay's seek keys are the player's too: Firefox took each handler.
+    const firstPicture = await browser.execute(() => navigator.mediaSession.metadata.artwork[0].src);
+    await browser.execute(() => window.fastStream.play());
+    await browser.waitUntil(() => browser.execute(() => window.fastStream.interfaceController.toolManager.mediaKeys.seekOffered),
+        {timeout: 15000, timeoutMsg: 'the seek keys were never offered once the video played'});
+    expect(await browser.execute(() => window.fastStream.interfaceController.toolManager.mediaKeys.offered))
+        .toMatchObject({seekbackward: true, seekforward: true, seekto: true});
+    // A few seconds in, a later frame replaces the first, which is often black.
+    await browser.waitUntil(() => browser.execute((first) => window.fastStream.artworkTaken === true &&
+        navigator.mediaSession.metadata?.artwork?.[0]?.src !== first, firstPicture),
+    {timeout: 20000, timeoutMsg: 'the picture was never taken again a few seconds in'});
   });
 
   // His report, 2026-10-22: a skip to the end sometimes did not go on. Measured: a paused video
