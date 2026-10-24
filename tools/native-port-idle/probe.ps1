@@ -15,9 +15,10 @@ param(
   [int]$WaitMs = 40000
 )
 $ErrorActionPreference = 'Stop'
-$work = Join-Path ([IO.Path]::GetTempPath()) "faststream-idle-probe-$PID"
-New-Item -ItemType Directory -Force $work | Out-Null
 $node = (Get-Command node).Source
+# The folder host.mjs and run.mjs use, as node names it.
+$work = & $node -e "console.log(require('path').join(require('os').tmpdir(), 'faststream-idle-probe'))"
+New-Item -ItemType Directory -Force $work | Out-Null
 $cmd = Join-Path $work 'probe-host.cmd'
 "@echo off`r`n`"$node`" `"$(Join-Path $PSScriptRoot 'host.mjs')`" %*`r`n" | Set-Content -LiteralPath $cmd -Encoding ascii -NoNewline
 $manifest = Join-Path $work 'faststream.idle.probe.json'
@@ -25,6 +26,7 @@ $manifest = Join-Path $work 'faststream.idle.probe.json'
    type = 'stdio'; allowed_extensions = @('idle-probe@faststream.test') } | ConvertTo-Json | Set-Content -LiteralPath $manifest -Encoding ascii
 $zip = Join-Path $work 'idle-probe.zip'
 $xpi = Join-Path $work 'idle-probe.xpi'
+Remove-Item $zip, $xpi -ErrorAction SilentlyContinue
 Compress-Archive -Path (Join-Path $PSScriptRoot 'ext\*') -DestinationPath $zip
 Move-Item $zip $xpi
 $key = 'HKCU:\Software\Mozilla\NativeMessagingHosts\faststream.idle.probe'
@@ -32,7 +34,7 @@ try {
   New-Item -Path $key -Force | Out-Null
   Set-ItemProperty -Path $key -Name '(default)' -Value $manifest
   foreach ($mode in $Modes) {
-    & $node (Join-Path $PSScriptRoot 'run.mjs') $xpi $mode $TimeoutMs $WaitMs
+    & $node (Join-Path $PSScriptRoot 'run.mjs') $mode $TimeoutMs $WaitMs
     if ($LASTEXITCODE -ne 0) { throw "the probe failed in mode $mode" }
     ''
   }

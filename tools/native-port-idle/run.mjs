@@ -1,16 +1,19 @@
 // probe.ps1's driver: a headless Firefox with a throwaway profile, the idle timeout given, and the probe
 // add-on, waits, and prints what the probe host logged: when the event page's port closed.
-//   node run.mjs <xpi> <mode> <timeoutMs> <waitMs>
+//   node run.mjs <mode> <timeoutMs> <waitMs>
+// The add-on and the host's log are in the probe's work folder (probe.ps1 makes it).
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import {remote} from 'webdriverio';
 
-const [xpi, mode, timeoutMs, waitMs] = process.argv.slice(2);
-const logFile = path.join(path.dirname(xpi), `probe-${mode}-${timeoutMs}.log`);
+const [mode, timeoutMs, waitMs] = process.argv.slice(2);
+const work = path.join(os.tmpdir(), 'faststream-idle-probe');
+const xpi = path.join(work, 'idle-probe.xpi');
+const logFile = path.join(work, 'probe.log');
 fs.rmSync(logFile, {force: true});
 process.env.PROBE_MODE = mode;
-process.env.PROBE_LOG = logFile;
 
 const browser = await remote({
   logLevel: 'error',
