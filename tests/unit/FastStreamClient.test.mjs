@@ -29,7 +29,7 @@ vi.mock('../../chrome/player/utils/VideoTransformUtils.mjs', () => ({VideoTransf
 vi.mock('../../chrome/player/utils/Utils.mjs', () => ({Utils: {mergeOptions: (a) => a}}));
 vi.mock('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs', () => ({AudioAnalyzer: class {}}));
 vi.mock('../../chrome/player/modules/analyzer/PreviewFrameExtractor.mjs', () => ({PreviewFrameExtractor: class {}}));
-vi.mock('../../chrome/player/ui/StatusManager.mjs', () => ({StatusTypes: {INFO: 'info', REQINTERACTION: 'reqinteraction'}}));
+vi.mock('../../chrome/player/ui/StatusManager.mjs', () => ({StatusTypes: {INFO: 'info', REQINTERACTION: 'reqinteraction', QUALITY: 'quality'}}));
 vi.mock('../../chrome/player/utils/InterfaceUtils.mjs', () => ({InterfaceUtils: {}}));
 vi.mock('../../chrome/player/ui/audio/VirtualAudioNode.mjs', () => ({VirtualAudioNode: class {}}));
 vi.mock('../../chrome/player/players/SyncedAudioPlayer.mjs', () => ({
@@ -58,6 +58,8 @@ const {DISK_ONLY_ROOM_BYTES} = await import('../../chrome/player/network/MemoryB
 const {MessageTypes} = await import('../../chrome/player/enums/MessageTypes.mjs');
 const {Fragment} = await import('../../chrome/player/players/Fragment.mjs');
 const {LevelManager} = await import('../../chrome/player/players/LevelManager.mjs');
+const {DroppedFrameWatch} = await import('../../chrome/player/players/DroppedFrameWatch.mjs');
+const {Localize} = await import('../../chrome/player/modules/Localize.mjs');
 
 /** A player as the player loader makes one, with what the client reads and sets on it. */
 class FakePlayer extends EventEmitter {
@@ -182,6 +184,8 @@ function makeClient(options = {}) {
     audioContext: null,
     audioSource: null,
     progressMemory: null,
+    droppedFrameWatch: new DroppedFrameWatch(),
+    droppedSampledAt: 0,
     interfaceController: {
       saveManager: null,
       reset: vi.fn(),
@@ -1650,5 +1654,169 @@ describe('tryNextSource', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('FastStreamClient, frames this computer drops', () => {
+  // A version too heavy for the computer drops a share of its frames for as long as it plays:
+  // the player steps down a quality, and says so each time (his wish, 2026-10-24: never a
+  // lower quality the user did not notice).
+  const LEVELS = [
+    {id: '1080', height: 1080, width: 1920, bitrate: 5e6},
+    {id: '720', height: 720, width: 1280, bitrate: 2.5e6},
+  ];
+
+  /**
+   * A client playing the 1080p version of a two-version stream, whose video reports the
+   * frames counted so far.
+   * @param {Object} [options]
+   * @return {{client: FastStreamClient, player: FakePlayer, counts: {total: number, dropped: number}}}
+   */
+  function playing(options = {}) {
+    const client = makeClient({lowerOnDroppedFrames: true, ...options});
+    const player = new FakePlayer(makeSource('http://127.0.0.1/a.m3u8'));
+    const counts = {total: 0, dropped: 0};
+    Object.assign(player.video, {
+      paused: false, seeking: false, readyState: 4,
+      getVideoPlaybackQuality: () => ({totalVideoFrames: counts.total, droppedVideoFrames: counts.dropped}),
+    });
+    player.getVideoLevels = () => new Map(LEVELS.map((level) => [level.id, level]));
+    player.videoLevel = '1080';
+    player.setCurrentVideoLevelID = vi.fn((id) => {
+      player.videoLevel = id;
+    });
+    client.player = player;
+    client.droppedFrameWatch = new DroppedFrameWatch();
+    client.droppedSampledAt = 0;
+    return {client, player, counts};
+  }
+
+  /**
+   * Plays `seconds` at 30 frames a second, of which a share is dropped, with the client's
+   * time updates four times a second.
+   */
+  function play({client, counts}, seconds, dropRatio = 0.3) {
+    for (let i = 0; i < seconds * 4; i++) {
+      vi.advanceTimersByTime(250);
+      counts.total += 7.5;
+      counts.dropped += 7.5 * dropRatio;
+      client.watchDroppedFrames();
+    }
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({toFake: ['Date']});
+    vi.setSystemTime(1_000_000);
+    vi.stubGlobal('document', {visibilityState: 'visible'});
+  });
+
+  it('steps down a quality and says so, naming the version to choose again', () => {
+    const playback = playing();
+    const message = vi.spyOn(Localize, 'getMessage');
+    play(playback, 20);
+    expect(playback.player.setCurrentVideoLevelID).toHaveBeenCalledTimes(1);
+    expect(playback.player.setCurrentVideoLevelID).toHaveBeenCalledWith('720');
+    expect(message).toHaveBeenCalledWith('player_quality_lowered', ['720p', '30', '1080p']);
+    expect(playback.client.interfaceController.setStatusMessage)
+        .toHaveBeenCalledWith('quality', 'player_quality_lowered', 'warning', 15000);
+  });
+
+  it('keeps the version a computer shows well enough', () => {
+    const playback = playing();
+    play(playback, 60, 0.1);
+    expect(playback.player.setCurrentVideoLevelID).not.toHaveBeenCalled();
+    expect(playback.client.interfaceController.setStatusMessage).not.toHaveBeenCalled();
+  });
+
+  it('does nothing with the setting off', () => {
+    const playback = playing({lowerOnDroppedFrames: false});
+    play(playback, 60);
+    expect(playback.player.setCurrentVideoLevelID).not.toHaveBeenCalled();
+  });
+
+  it('does not count a fast speed, which drops frames by design', () => {
+    const playback = playing();
+    playback.player.playbackRate = 2;
+    play(playback, 60);
+    expect(playback.player.setCurrentVideoLevelID).not.toHaveBeenCalled();
+  });
+
+  it('does not count a hidden tab, which shows no frames', () => {
+    const playback = playing();
+    vi.stubGlobal('document', {visibilityState: 'hidden'});
+    play(playback, 60);
+    expect(playback.player.setCurrentVideoLevelID).not.toHaveBeenCalled();
+  });
+
+  it('counts a hidden tab whose video plays in picture-in-picture', () => {
+    const playback = playing();
+    vi.stubGlobal('document', {visibilityState: 'hidden'});
+    playback.client.interfaceController.isInPip = () => true;
+    play(playback, 20);
+    expect(playback.player.setCurrentVideoLevelID).toHaveBeenCalledWith('720');
+  });
+
+  it('starts the stretch again at a seek, a change of speed and a stall', async () => {
+    // Firefox's counts run on through them: one between two samples would be counted.
+    const client = makeClient();
+    const player = await setSource(client, makeSource('http://127.0.0.1/a.m3u8'));
+    const interrupt = vi.spyOn(client.droppedFrameWatch, 'interrupt');
+    for (const event of [DefaultPlayerEvents.SEEKING, DefaultPlayerEvents.SEEKED, DefaultPlayerEvents.RATECHANGE,
+      DefaultPlayerEvents.WAITING, DefaultPlayerEvents.PLAYING]) {
+      interrupt.mockClear();
+      player.emit(event);
+      expect(interrupt, event).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('does not count a paused or a seeking video', () => {
+    const paused = playing();
+    paused.player.video.paused = true;
+    play(paused, 60);
+    expect(paused.player.setCurrentVideoLevelID).not.toHaveBeenCalled();
+    const seeking = playing();
+    seeking.player.video.seeking = true;
+    play(seeking, 60);
+    expect(seeking.player.setCurrentVideoLevelID).not.toHaveBeenCalled();
+  });
+
+  it('says nothing and changes nothing with no lower version', () => {
+    const playback = playing();
+    playback.player.videoLevel = '720';
+    play(playback, 60);
+    expect(playback.player.setCurrentVideoLevelID).not.toHaveBeenCalled();
+    expect(playback.client.interfaceController.setStatusMessage).not.toHaveBeenCalled();
+  });
+
+  it('leaves a version the user chose by hand, however many frames it drops', () => {
+    const playback = playing();
+    playback.client.droppedFrameWatch.userChose('1080');
+    play(playback, 60);
+    expect(playback.player.setCurrentVideoLevelID).not.toHaveBeenCalled();
+  });
+
+  it('keeps a version picked by hand when the player plays another of the page\'s files', async () => {
+    // A page quality plays in a player built anew (playPageQuality), whose reset forgot the
+    // pick at once: the next stretch stepped it down again.
+    const playback = playing();
+    const {client} = playback;
+    client.source = makeSource('http://127.0.0.1/720.mp4', {qualities: [
+      {url: 'http://127.0.0.1/360.mp4', height: 360}, {url: 'http://127.0.0.1/720.mp4', height: 720},
+    ]});
+    client.setSource = vi.fn(async () => client.resetPlayer());
+    client.droppedFrameWatch.userChose('page-quality:0');
+    client.playPageQuality(0);
+    await settle();
+    expect(client.setSource).toHaveBeenCalledTimes(1);
+    expect(client.droppedFrameWatch.chosen).toBe('page-quality:0');
+  });
+
+  it('starts over with the next video', async () => {
+    const playback = playing();
+    playback.client.droppedFrameWatch.userChose('1080');
+    await playback.client.resetPlayer();
+    playback.client.player = playback.player;
+    play(playback, 20);
+    expect(playback.player.setCurrentVideoLevelID).toHaveBeenCalledWith('720');
   });
 });

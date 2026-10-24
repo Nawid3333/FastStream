@@ -1270,5 +1270,11 @@
     },
     "mpv_episode_series_end": {
         "message": "le dernier épisode de la série : la lecture automatique s'arrête"
+    },
+    "player_quality_lowered": {
+        "message": "Qualité réduite à $1 : cet ordinateur a perdu $2% des images à $3. Choisissez $3 dans le menu de qualité pour la maintenir."
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "Baisser la qualité vidéo lorsque cet ordinateur ne peut pas afficher toutes les images à temps (le lecteur vous en informe à chaque fois)"
     }
 }

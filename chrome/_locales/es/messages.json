@@ -1270,5 +1270,11 @@
     },
     "mpv_episode_series_end": {
         "message": "el último episodio de la serie: la reproducción automática se detiene"
+    },
+    "player_quality_lowered": {
+        "message": "Calidad reducida a $1: este ordenador ha perdido el $2% de los fotogramas en $3. Elige $3 en el menú de calidad para mantenerla."
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "Bajar la calidad del video cuando este ordenador no pueda mostrar todos los fotogramas a tiempo (el reproductor te avisará cada vez)"
     }
 }

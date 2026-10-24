@@ -88,6 +88,8 @@ export class InterfaceController {
         // Its container, and its codec only if the click chose between codecs.
         this.client.getLevelManager().rememberVideoChoice(level, versions);
       }
+      // Chosen by hand: the dropped-frames watch leaves it as chosen.
+      this.client.droppedFrameWatch?.userChose(level.id);
       this.client.setCurrentVideoLevelID(level.id);
     });
 
