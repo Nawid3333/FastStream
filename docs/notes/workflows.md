@@ -160,7 +160,14 @@
   an update nor is closed or rebuilt; `patched-libraries.yml` filters the same way. A
   failed run opens one issue "Toolchain updates workflow failed". Node 24 was skipped on
   purpose (issue #11 closed); Node 26 arrives as a PR when it becomes LTS (late
-  October 2026). The decision logic is `plan()` in `tools/check-toolchain.mjs`,
+  October 2026). uBlock Origin, which `tools/setup-dev-profile.mjs` puts into the
+  developer's Firefox profile (2026-10-24; Dependabot cannot see an add-on pin): AMO's
+  newest public listed release at least 3 days old, on `toolchain/ublock-origin-<version>`,
+  changing only its entry there. Nothing in CI downloads the add-on, so the run downloads
+  the file and checks it against AMO's SHA-256 before it pushes; a mismatch is a red run
+  and no pull request. The plan's output carries every track (`updates`), so an open one
+  that conflicts with `main` is rebuilt with its file, or left for the plan to replace
+  when a newer release is out. The decision logic is `plan()` in `tools/check-toolchain.mjs`,
   unit-tested. Dependencies stay pinned by the lockfile on purpose (patches, AMO
   reproducibility); Dependabot's weekly grouped PRs are how they move, each release
   proposed once it is 3 days old (`cooldown` in `.github/dependabot.yml`, the owner's call
