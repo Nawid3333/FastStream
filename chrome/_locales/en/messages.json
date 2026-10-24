@@ -1276,5 +1276,29 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "Lower the video quality when this computer cannot show all frames in time (the player tells you each time)"
+    },
+    "menu_play_in_faststream": {
+        "message": "Play in FastStream"
+    },
+    "menu_faststream_off": {
+        "message": "Turn FastStream off"
+    },
+    "menu_play_in_mpv": {
+        "message": "Play in MPV"
+    },
+    "menu_mpv_off": {
+        "message": "Stop playing in MPV"
+    },
+    "menu_link_in_faststream": {
+        "message": "Open link in FastStream"
+    },
+    "menu_link_in_mpv": {
+        "message": "Open link in MPV"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "Add items to the right-click menu"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "Adds FastStream's items to the right-click menu of web pages: play the page's video in FastStream or MPV, or open a link in a new tab with FastStream or MPV on. Firefox shows no warning for it."
     }
 }

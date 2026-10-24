@@ -1276,5 +1276,29 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "Videokwaliteit verlagen wanneer deze computer niet alle frames op tijd kan weergeven (de speler meldt dit telkens)"
+    },
+    "menu_play_in_faststream": {
+        "message": "Afspelen in FastStream"
+    },
+    "menu_faststream_off": {
+        "message": "FastStream uitschakelen"
+    },
+    "menu_play_in_mpv": {
+        "message": "Afspelen in MPV"
+    },
+    "menu_mpv_off": {
+        "message": "MPV uitschakelen"
+    },
+    "menu_link_in_faststream": {
+        "message": "Link openen in FastStream"
+    },
+    "menu_link_in_mpv": {
+        "message": "Link openen in MPV"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "Items toevoegen aan het rechtermuismenu"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "Voegt items van FastStream toe aan het rechtermuismenu van webpagina's: de video van de pagina afspelen in FastStream of MPV, of een link openen in een nieuw tabblad met FastStream of MPV aan. Firefox toont hiervoor geen waarschuwing."
     }
 }

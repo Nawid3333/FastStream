@@ -1276,5 +1276,29 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "當此電腦無法及時顯示所有影格時降低影片品質（播放器每次都會通知您）"
+    },
+    "menu_play_in_faststream": {
+        "message": "使用 FastStream 播放"
+    },
+    "menu_faststream_off": {
+        "message": "關閉 FastStream"
+    },
+    "menu_play_in_mpv": {
+        "message": "使用 MPV 播放"
+    },
+    "menu_mpv_off": {
+        "message": "關閉 MPV"
+    },
+    "menu_link_in_faststream": {
+        "message": "在 FastStream 中開啟連結"
+    },
+    "menu_link_in_mpv": {
+        "message": "在 MPV 中開啟連結"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "向右鍵選單添加項目"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "向網頁的右鍵選單添加 FastStream 項目：在 FastStream 或 MPV 中播放分頁影片，或在開啟 FastStream 或 MPV 的情況下在新分頁中開啟連結。Firefox 對此不會顯示警告。"
     }
 }
