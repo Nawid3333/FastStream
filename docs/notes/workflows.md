@@ -116,7 +116,12 @@
   publish, checks the update path; see "AMO signing no longer depends on a timer" and
   "Every release is checked to reach Firefox" above.
 - **`live-streams.yml`** (Mondays; 2026-09-28): `pnpm run test:live` on Linux and Windows,
-  one issue while it fails. Also on a PR that changes the live suite or the e2e setup.
+  one issue while it fails. Also on a PR that changes the live suite or the e2e setup, and on
+  the player libraries' rolling update PR (dispatched there; 2026-10-24), where a last job,
+  hand-off, starts `update-prs.yml` again with the CI run on the same commit once that run
+  passed: CI does not play the libraries, and `update-prs.yml` calls that PR ready only once
+  the live suite passed on its commit too (`always()`: a failed or timed-out run is decided on
+  as well; a cancelled one is started again only while its commit has fewer than two).
 - **`.github/actions/e2e-setup`** (2026-09-28): ffmpeg, the e2e port reservation and the
   Firefox to test (`firefox-version`, exported as `FIREFOX_BINARY`), for every e2e job - the
   four copies differed already. Each download (Chocolatey, apt, Mozilla) is retried before
@@ -167,7 +172,19 @@
   the file and checks it against AMO's SHA-256 before it pushes; a mismatch is a red run
   and no pull request. The plan's output carries every track (`updates`), so an open one
   that conflicts with `main` is rebuilt with its file, or left for the plan to replace
-  when a newer release is out. The decision logic is `plan()` in `tools/check-toolchain.mjs`,
+  when a newer release is out. The player libraries the live suite plays
+  (`tests/e2e/live-specs/player-libraries.json`; 2026-10-24; a Dependabot entry for that
+  folder was ruled out, since Dependabot's npm fetcher takes `pnpm-lock.yaml` and
+  `pnpm-workspace.yaml` from a parent folder when the folder has none) come as ONE rolling PR,
+  "Toolchain update: player libraries" on `toolchain/player-libraries`, rebuilt in place on
+  `main` when the set changes: each library at its newest release of its pinned major (the
+  caret range) that is 3 days old and fits the ranges they declare on each other and on the
+  repository's hls.js (`playerTargets()`: xgplayer-hls asks for its exact xgplayer,
+  hls-video-element for a custom-media-element). The PR's body marks its set; closed unmerged
+  by hand, that set is skipped (this workflow's own close takes the marker out first). A newer
+  major is not taken: the issue "Player libraries: newer majors" lists them, keyed by name and
+  major, so it stays closed once closed until another major comes. CI and the live suite are
+  started on each new head. The decision logic is `plan()` in `tools/check-toolchain.mjs`,
   unit-tested. Dependencies stay pinned by the lockfile on purpose (patches, AMO
   reproducibility); Dependabot's weekly grouped PRs are how they move, each release
   proposed once it is 3 days old (`cooldown` in `.github/dependabot.yml`, the owner's call

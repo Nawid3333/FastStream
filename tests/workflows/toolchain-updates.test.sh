@@ -63,13 +63,43 @@ case "$1 $2" in
         [ -f "$STATE/pr-$n-commits.json" ] || echo '{"commits":[{"authors":[{"login":"github-actions[bot]"}]}]}' > "$STATE/pr-$n-commits.json"
         jqout "$STATE/pr-$n-commits.json"
         ;;
+      body)
+        [ -f "$STATE/pr-$n-body" ] || { echo "no pull request $n" >&2; exit 1; }
+        cat "$STATE/pr-$n-body"
+        ;;
       *) echo "stub gh: unhandled: $*" >&2; exit 99 ;;
     esac
     ;;
   'issue view') cat "$STATE/issue-$3-state" ;;
   'pr close'|'issue close') if [ -f "$STATE/close-$3-fails" ]; then echo 'already merged' >&2; exit 1; fi ;;
-  'run list') f="$STATE/runs-$(opt --commit "$@")"; [ -s "$f" ] || echo '[]' > "$f"; jqout "$f" ;;
-  'api --paginate') jqout "$STATE/all.json" ;;
+  'pr edit') cp "$(opt --body-file "$@")" "$STATE/pr-$3-edited" ;;
+  'issue create')
+    opt --title "$@" > "$STATE/issue-created.title"
+    cp "$(opt --body-file "$@")" "$STATE/issue-created.body"
+    echo 'https://github.com/me/fs/issues/50'
+    ;;
+  'issue edit') cp "$(opt --body-file "$@")" "$STATE/issue-$3-edited" ;;
+  'issue reopen') : ;;
+  'run list')
+    # The live suite's runs apart from CI's: one commit can have a CI run and no live one.
+    case $(opt --workflow "$@") in
+      live-streams.yml) f="$STATE/live-runs-$(opt --commit "$@")" ;;
+      *) f="$STATE/runs-$(opt --commit "$@")" ;;
+    esac
+    [ -s "$f" ] || echo '[]' > "$f"
+    jqout "$f"
+    ;;
+  'api --paginate')
+    case "$3" in
+      # The rolling branch's closed pull requests.
+      *'/pulls?state=closed&head='*) f="$STATE/closed-prs.json"; [ -s "$f" ] || echo '[]' > "$f"; jqout "$f" ;;
+      # The issues this workflow's token opened: GitHub filters by creator, as here.
+      *'/issues?state=all&creator=github-actions%5Bbot%5D&'*)
+        jq '[.[] | select(.user.login == "github-actions[bot]")]' "$STATE/issues.rest.json" > "$STATE/issues.mine.json"
+        jqout "$STATE/issues.mine.json" ;;
+      *) jqout "$STATE/all.json" ;;
+    esac
+    ;;
   *) echo "stub gh: unhandled: $*" >&2; exit 99 ;;
 esac
 EOF
@@ -78,7 +108,7 @@ EOF
 if [ "\${1-}" = tools/check-toolchain.mjs ]; then
   printf 'node %s\n' "\$*" >> "\$STATE/gh.log"
   # The recipes' own calls read and write files only: the work tree's copy runs for real.
-  case "\${2-}" in --apply-addon|--addon-version) exec "$REAL_NODE" "\$@" ;; esac
+  case "\${2-}" in --apply-addon|--addon-version|--apply-players) exec "$REAL_NODE" "\$@" ;; esac
   if [ "\${2-}" = --plan ]; then cp "\$3" "\$STATE/open.seen"; cp "\$4" "\$STATE/titles.seen"; cat "\$STATE/plan.json"; else echo 'UPDATE  (canned)'; fi
   exit 0
 fi
@@ -121,12 +151,16 @@ setup() {
     printf '{\n  "name": "fs",\n  "devDependencies": {\n    "x": "1.0.0"\n  },\n  "packageManager": "pnpm@11.22.0"\n}\n' > package.json
     echo 22 > .nvmrc
     # The recipes' own scripts, as main has them.
-    mkdir tools
+    mkdir -p tools tests/e2e/live-specs
     cp "$REPO/tools/check-toolchain.mjs" "$REPO/tools/check-patched-updates.mjs" "$REPO/tools/setup-dev-profile.mjs" tools/
+    # The player libraries, as main has them: two, at old releases.
+    printf '{\n  "plyr": "3.8.5",\n  "dplayer": "1.27.1"\n}\n' > tests/e2e/live-specs/player-libraries.json
     git add -A && git commit -q -m init && git remote add origin "$T/origin.git" && git push -q origin main
   )
   echo '[]' > "$STATE/prs.json"
   echo '[]' > "$STATE/issues.json"
+  echo '[]' > "$STATE/issues.rest.json"
+  echo '[]' > "$STATE/closed-prs.json"
   echo '[{"title": "Toolchain update: Node.js 24", "user": {"login": "github-actions[bot]"}}, {"title": "chore: release", "user": {"login": "Nawid3333"}}, {"title": "Toolchain update: Node.js 30", "user": {"login": "stranger"}}]' > "$STATE/all.json"
   plan '[]' '[]'
   printf '\n=== %s ===\n' "$scenario"
@@ -146,6 +180,243 @@ ublock_update() { # <latest> <sha256>
 }
 
 # --- Scenarios.
+
+players_new_set() {
+  # A new set: the rolling pull request is raised off main, holding only the player libraries.
+  setup
+  players_plan "$A" "$CHANGES"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'branch pushed' origin show-ref -q --verify refs/heads/toolchain/player-libraries
+  check 'only the player libraries' test "$(branch_diff toolchain/player-libraries)" = "$PFILE"
+  check 'at the set' test "$(origin show "toolchain/player-libraries:$PFILE")" = "$(printf '{\n  "plyr": "3.8.6",\n  "dplayer": "1.27.2"\n}')"
+  check 'off main' test "$(origin rev-parse toolchain/player-libraries~1)" = "$(origin rev-parse main)"
+  check 'commit message' test "$(origin log -1 --format=%s toolchain/player-libraries)" = 'build: player libraries (plyr 3.8.6, dplayer 1.27.2)'
+  check 'as github-actions[bot]' test "$(origin log -1 --format=%an toolchain/player-libraries)" = 'github-actions[bot]'
+  check 'pull request' has_call 'pr create --base main --head toolchain/player-libraries --title Toolchain update: player libraries --label dependencies'
+  check 'its marker' grep -qF "<!-- player-libraries: $A -->" "$STATE/created.body"
+  check 'the change table' grep -qF '| [plyr](https://www.npmjs.com/package/plyr?activeTab=versions) | 3.8.5 | 3.8.6 |' "$STATE/created.body"
+  check 'names the live suite' grep -qF '`live-streams.yml`' "$STATE/created.body"
+  check 'says it releases nothing' grep -qF 'a merge then releases nothing' "$STATE/created.body"
+  check 'CI started once' test "$(n_calls '^workflow run ci.yml --ref toolchain/player-libraries$')" = 1
+  check 'live suite started once' test "$(n_calls '^workflow run live-streams.yml --ref toolchain/player-libraries$')" = 1
+  check 'started before the pull request' test "$(grep -n '^workflow run live-streams.yml' "$STATE/gh.log" | cut -d: -f1)" -lt "$(grep -n '^pr create' "$STATE/gh.log" | cut -d: -f1)"
+  check 'main untouched' test "$(origin rev-list --count main)" = 1
+}
+
+players_same_set_both_ran() {
+  # The same set, open and mergeable, with a run of each on its head: nothing done.
+  setup
+  players_open "$A"
+  echo '[{"status": "completed", "conclusion": "success"}]' > "$STATE/runs-$head"
+  echo '[{"status": "in_progress", "conclusion": null}]' > "$STATE/live-runs-$head"
+  players_plan "$A" "$CHANGES"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not rebuilt' test "$(origin rev-parse toolchain/player-libraries)" = "$head"
+  check 'nothing started or edited' bash -c '! grep -qE "^(workflow run|pr edit|pr create)" "$0"' "$STATE/gh.log"
+}
+
+players_same_set_starts_live() {
+  # CI decided on its head, the live suite never ran there (or only a cancelled run did).
+  setup
+  players_open "$A"
+  echo '[{"status": "completed", "conclusion": "success"}]' > "$STATE/runs-$head"
+  echo '[{"status": "completed", "conclusion": "cancelled"}]' > "$STATE/live-runs-$head"
+  players_plan "$A" "$CHANGES"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'the live suite started once' test "$(n_calls '^workflow run live-streams.yml --ref toolchain/player-libraries$')" = 1
+  check 'CI not again' bash -c '! grep -q "workflow run ci.yml" "$0"' "$STATE/gh.log"
+  check 'not rebuilt' test "$(origin rev-parse toolchain/player-libraries)" = "$head"
+}
+
+players_same_set_starts_ci() {
+  setup
+  players_open "$A"
+  echo '[{"status": "completed", "conclusion": "failure"}]' > "$STATE/live-runs-$head"
+  players_plan "$A" "$CHANGES"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'CI started once' test "$(n_calls '^workflow run ci.yml --ref toolchain/player-libraries$')" = 1
+  check 'a failed live run is not started again here' bash -c '! grep -q "workflow run live-streams.yml" "$0"' "$STATE/gh.log"
+}
+
+players_changed_set() {
+  # The set changed: rebuilt in place, force-pushed, its text moved to the new marker.
+  setup
+  players_open "$B"
+  players_plan "$A" "[$(player plyr 3.8.5 3.8.7)]"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'rebuilt off main' test "$(origin rev-parse toolchain/player-libraries~1)" = "$(origin rev-parse main)"
+  check 'the head moved' test "$(origin rev-parse toolchain/player-libraries)" != "$head"
+  check 'at the new set' test "$(origin log -1 --format=%s toolchain/player-libraries)" = 'build: player libraries (plyr 3.8.7)'
+  check 'its text edited' grep -qF "<!-- player-libraries: $A -->" "$STATE/pr-9-edited"
+  check 'CI started' test "$(n_calls '^workflow run ci.yml --ref toolchain/player-libraries$')" = 1
+  check 'the live suite started' test "$(n_calls '^workflow run live-streams.yml --ref toolchain/player-libraries$')" = 1
+  check 'runs started before the text' test "$(grep -n '^workflow run live-streams.yml' "$STATE/gh.log" | cut -d: -f1)" -lt "$(grep -n '^pr edit 9' "$STATE/gh.log" | cut -d: -f1)"
+  check 'no new pull request' bash -c '! grep -q "^pr create" "$0"' "$STATE/gh.log"
+}
+
+players_conflicting() {
+  setup
+  players_open "$A"
+  echo CONFLICTING > "$STATE/pr-9-mergeable"
+  players_plan "$A" "$CHANGES"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'rebuilt off main' test "$(origin rev-parse toolchain/player-libraries~1)" = "$(origin rev-parse main)"
+  check 'says why' grep -qF "rebuilt on main for the set $A." "$T/out"
+}
+
+players_other_commits() {
+  setup
+  players_open "$B"
+  echo '{"commits":[{"authors":[{"login":"github-actions[bot]"}]},{"authors":[{"login":"nawid"}]}]}' > "$STATE/pr-9-commits.json"
+  players_plan "$A" "$CHANGES"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'left as it was' test "$(origin rev-parse toolchain/player-libraries)" = "$head"
+  check 'nothing started or edited' bash -c '! grep -qE "^(workflow run|pr edit|pr create)" "$0"' "$STATE/gh.log"
+  check 'says why' grep -qF "holds someone else's commits: left to them" "$T/out"
+}
+
+players_caught_up() {
+  # Not behind: closed with its branch, its marker taken out first (a skip keeps its marker).
+  setup
+  players_open "$A"
+  players_plan "$A" '[]' '[]' '[]' false
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'marker out first' test "$(grep -n '^pr edit 9 --body-file' "$STATE/gh.log" | cut -d: -f1)" -lt "$(grep -n '^pr close 9' "$STATE/gh.log" | cut -d: -f1)"
+  check 'reads caught up' grep -qF '<!-- player-libraries: caught up -->' "$STATE/pr-9-edited"
+  check 'no longer names the set' bash -c '! grep -qF "$1" "$0"' "$STATE/pr-9-edited" "$A"
+  check 'closed with its branch' has_call 'pr close 9 --delete-branch --comment Every player library is at its newest release of its major on main, as far as the ranges they declare allow. Closing.'
+}
+
+players_caught_up_others() {
+  # Caught up, but someone pushed to it: left, branch and all.
+  setup
+  players_open "$A"
+  echo '{"commits":[{"authors":[{"login":"nawid"}]}]}' > "$STATE/pr-9-commits.json"
+  players_plan "$A" '[]' '[]' '[]' false
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not closed' bash -c '! grep -qE "^(pr close|pr edit)" "$0"' "$STATE/gh.log"
+  check 'says why' grep -qF "main has caught up, but it holds someone else's commits" "$T/out"
+}
+
+players_skipped() {
+  setup
+  players_closed
+  players_plan "$A" "$CHANGES"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'asks for the closed ones of the branch' has_call 'api --paginate repos/me/fs/pulls?state=closed&head=me:toolchain/player-libraries&per_page=100'
+  check 'not raised again' bash -c '! grep -q "^pr create" "$0"' "$STATE/gh.log"
+  check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
+  check 'says why' grep -qF 'was offered and closed unmerged: skipped.' "$T/out"
+}
+
+players_next_set() {
+  # Another set: the skip was for that set only, and a merged one never skips.
+  setup
+  players_closed
+  players_plan "$B" "[$(player dplayer 1.27.1 1.27.2)]"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'raised for the next set' grep -qF "<!-- player-libraries: $B -->" "$STATE/created.body"
+}
+
+players_no_players() {
+  setup
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'says so' grep -qF 'The plan names no player libraries.' "$T/out"
+  check 'nothing of it asked' bash -c '! grep -qE "pulls\?state=closed|creator=" "$0"' "$STATE/gh.log"
+}
+
+players_malformed() {
+  # A set of another shape is refused, never read as "caught up".
+  setup
+  players_open "$A"
+  jq '. + {players: {behind: "no"}}' "$STATE/plan.json" > "$STATE/p" && mv "$STATE/p" "$STATE/plan.json"
+  run_step
+  check 'fails' test "$rc" -eq 1
+  check 'says why' grep -qF "The plan's player libraries are not a set this workflow reads" "$T/out"
+  check 'the pull request untouched' bash -c '! grep -qE "^(pr close|pr edit)" "$0"' "$STATE/gh.log"
+}
+
+players_apply_refuses() {
+  # A version that would go back: the run is red, nothing pushed or started.
+  setup
+  players_plan "$A" "[$(player plyr 3.8.5 3.8.4)]"
+  run_step
+  check 'fails, not stopped by the timeout' test "$rc" -eq 1
+  check 'says why' grep -qF 'plyr would go back from 3.8.5 to 3.8.4' "$T/out"
+  check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
+  check 'nothing started' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
+}
+
+players_majors_issue() {
+  setup
+  players_plan "$A" "$CHANGES" "[$(major plyr 3.8.5 4.0.1)]"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'the pull request names it' grep -qF 'plyr 4.0.1 (pinned 3.8.5)' "$STATE/created.body"
+  check 'asks for its own issues, all of them' has_call 'api --paginate repos/me/fs/issues?state=all&creator=github-actions%5Bbot%5D&per_page=100'
+  check 'issue created' has_call 'issue create --title Player libraries: newer majors --assignee nawid'
+  check 'the table' grep -qF '| [plyr](https://www.npmjs.com/package/plyr?activeTab=versions) | 3.8.5 | 4.0.1 |' "$STATE/issue-created.body"
+  check 'its marker' grep -qF '<!-- player-majors: plyr 4 -->' "$STATE/issue-created.body"
+}
+
+players_majors_same_key() {
+  # A newer release within a major already listed changes nothing.
+  setup
+  majors_issue open 'plyr 4'
+  players_plan "$A" '[]' "[$(major plyr 3.8.5 4.0.2)]" '[]' false
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not touched' bash -c '! grep -qE "^issue (edit|reopen|create|close)" "$0"' "$STATE/gh.log"
+}
+
+players_majors_closed_same_key() {
+  setup
+  majors_issue closed 'plyr 4'
+  players_plan "$A" '[]' "[$(major plyr 3.8.5 4.0.1)]" '[]' false
+  run_step
+  check 'stays closed' bash -c '! grep -qE "^issue (edit|reopen|create|close)" "$0"' "$STATE/gh.log"
+}
+
+players_majors_new() {
+  setup
+  majors_issue closed 'plyr 4'
+  players_plan "$A" '[]' "[$(major plyr 3.8.5 4.0.1), $(major dplayer 1.27.1 2.0.0)]" '[]' false
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'reopened' has_call 'issue reopen 40'
+  check 'with the new marker' grep -qF '<!-- player-majors: dplayer 2, plyr 4 -->' "$STATE/issue-40-edited"
+  check 'no second issue' bash -c '! grep -q "^issue create" "$0"' "$STATE/gh.log"
+}
+
+players_majors_none() {
+  setup
+  majors_issue open 'plyr 4'
+  players_plan "$A" '[]' '[]' '[]' false
+  run_step
+  check 'closed' has_call 'issue close 40 --comment No player library has a newer major than its pin now. Closing.'
+}
+
+players_majors_stranger() {
+  # One with that title by someone else is not this workflow's: left open, and not reused.
+  setup
+  majors_issue open 'plyr 4' someone
+  players_plan "$A" '[]' "[$(major plyr 3.8.5 4.0.1)]" '[]' false
+  run_step
+  check 'theirs untouched' bash -c '! grep -qE "^issue (edit|reopen|close) 40" "$0"' "$STATE/gh.log"
+  check 'one of its own' has_call 'issue create --title Player libraries: newer majors'
+}
 
 weekly_ublock() {
   setup
@@ -401,7 +672,49 @@ open_pr() { # <number> <title> <branch> <head sha> [author login] [cross-reposit
   jq --argjson n "$1" --arg t "$2" --arg b "$3" --arg h "$4" --arg a "${5:-app/github-actions}" --argjson x "${6:-false}" \
     '. + [{number: $n, title: $t, headRefName: $b, headRefOid: $h, author: {login: $a}, isCrossRepository: $x}]' \
     "$STATE/prs.json" > "$STATE/p" && mv "$STATE/p" "$STATE/prs.json"
+  [ -f "$STATE/pr-$1-body" ] || : > "$STATE/pr-$1-body"
 }
+
+# The player libraries' rolling pull request.
+A=aaaaaaaa1111
+B=bbbbbbbb2222
+players_plan() { # <state> <changes> [majors] [held] [behind]: the plan's "players", its target from main's file
+  local pins
+  pins=$(git -C "$T/work" show main:tests/e2e/live-specs/player-libraries.json)
+  jq --arg s "$1" --argjson c "$2" --argjson m "${3:-[]}" --argjson h "${4:-[]}" --argjson b "${5:-true}" --argjson pins "$pins" \
+    '. + {players: {state: $s, behind: $b, changes: $c, majors: $m, held: $h,
+      target: ($pins | with_entries(.key as $k | .value = ([$c[] | select(.name == $k) | .to][0] // .value)))}}' \
+    "$STATE/plan.json" > "$STATE/p" && mv "$STATE/p" "$STATE/plan.json"
+}
+player() { jq -cn --arg n "$1" --arg f "$2" --arg t "$3" '{name: $n, from: $f, to: $t}'; }
+major() { jq -cn --arg n "$1" --arg c "$2" --arg l "$3" '{name: $n, current: $c, latest: $l}'; }
+players_body() { printf 'The player libraries the live suite plays.\n<!-- player-libraries: %s -->\n' "$1" > "$STATE/pr-9-body"; }
+players_branch() { # <plyr> <dplayer>: toolchain/player-libraries on origin, holding those
+  (
+    cd "$T/work" || exit 1
+    git checkout -q -B toolchain/player-libraries
+    printf '{\n  "plyr": "%s",\n  "dplayer": "%s"\n}\n' "$1" "$2" > tests/e2e/live-specs/player-libraries.json
+    git commit -q -am "build: player libraries" && git push -q -f origin toolchain/player-libraries
+    git checkout -q main
+  )
+}
+players_open() { # the rolling pull request open, as #9, on a branch with these versions, marked <state>
+  players_branch 3.8.6 1.27.2
+  head=$(origin rev-parse toolchain/player-libraries)
+  open_pr 9 'Toolchain update: player libraries' toolchain/player-libraries "$head"
+  players_body "$1"
+}
+players_closed() { # closed ones on the branch: $A closed unmerged, $B merged
+  jq -n --arg a "$A" --arg b "$B" '[{merged_at: null, user: {login: "github-actions[bot]"}, body: "old <!-- player-libraries: \($a) -->"},
+    {merged_at: "2026-01-01T10:00:00Z", user: {login: "github-actions[bot]"}, body: "old <!-- player-libraries: \($b) -->"}]' > "$STATE/closed-prs.json"
+}
+majors_issue() { # <state open|closed> <key> [author login]: the newer-majors issue, as GitHub's REST lists it
+  jq -n --arg s "$1" --arg k "$2" --arg a "${3:-github-actions[bot]}" \
+    '[{number: 40, title: "Player libraries: newer majors", state: $s, user: {login: $a}, pull_request: null, body: "Old text\n<!-- player-majors: \($k) -->"}]' \
+    > "$STATE/issues.rest.json"
+}
+CHANGES="[$(player plyr 3.8.5 3.8.6), $(player dplayer 1.27.1 1.27.2)]"
+PFILE=tests/e2e/live-specs/player-libraries.json
 old_branch() { # <branch> <packageManager>: a stale branch on origin, off an older main
   (
     cd "$T/work" || exit 1
@@ -597,6 +910,26 @@ repair_leaves_strangers() {
 weekly_pnpm
 weekly_node
 weekly_two
+players_new_set
+players_same_set_both_ran
+players_same_set_starts_live
+players_same_set_starts_ci
+players_changed_set
+players_conflicting
+players_other_commits
+players_caught_up
+players_caught_up_others
+players_skipped
+players_next_set
+players_no_players
+players_malformed
+players_apply_refuses
+players_majors_issue
+players_majors_same_key
+players_majors_closed_same_key
+players_majors_new
+players_majors_none
+players_majors_stranger
 weekly_ublock
 ublock_wrong_file
 ublock_download_fails

@@ -228,6 +228,13 @@ jobs:
               echo 'The plan names no player libraries.'
               return 0
             fi
+            # A set of any other shape is the checker's bug: acting on it could close a good pull
+            # request as "caught up". The run fails instead, and the owner hears of it.
+            if ! jq -e '(.state | type == "string" and test("^[0-9a-f]{12}$")) and (.behind | type == "boolean") and
+                 (.target | type == "object") and ([.changes, .majors, .held] | all(type == "array"))' "$players" > /dev/null; then
+              echo "The plan's player libraries are not a set this workflow reads: $(head -c 300 "$players")" >&2
+              exit 1
+            fi
             state=$(jq -r .state "$players")
             mine=$(jq -c --arg b "$pbranch" '[.[] | select(.headRefName == $b and .author.login == "app/github-actions" and (.isCrossRepository | not))][0] // empty' \
               "$RUNNER_TEMP/prs.json")
@@ -271,8 +278,15 @@ jobs:
               git checkout -q -f "$start"
             }
 
+            others=0
+            if [ -n "$number" ]; then
+              others=$(gh pr view "$number" --json commits \
+                --jq '[.commits[] | select([.authors[].login] | all(. == "github-actions[bot]") | not)] | length')
+            fi
             if [ "$(jq -r .behind "$players")" != true ]; then
-              if [ -n "$number" ]; then
+              if [ -n "$number" ] && [ "$others" != 0 ]; then
+                echo "#$number: main has caught up, but it holds someone else's commits: left to them."
+              elif [ -n "$number" ]; then
                 # Its marker goes first: a closed pull request that still has one was skipped.
                 gh pr view "$number" --json body --jq .body |
                   sed -E 's/<!-- player-libraries: [0-9a-f]+ -->/<!-- player-libraries: caught up -->/' > "$RUNNER_TEMP/closing.md"
@@ -282,50 +296,57 @@ jobs:
               fi
             elif [ -n "$number" ]; then
               body=$(gh pr view "$number" --json body --jq .body)
-              others=$(gh pr view "$number" --json commits \
-                --jq '[.commits[] | select([.authors[].login] | all(. == "github-actions[bot]") | not)] | length')
               if [ "$others" != 0 ]; then
                 echo "#$number holds someone else's commits: left to them."
               elif ! grep -qF -- "<!-- player-libraries: $state -->" <<< "$body" ||
                    [ "$(gh pr view "$number" --json mergeable --jq .mergeable)" = CONFLICTING ]; then
+                # Pushed, the new head gets its runs first: they are what decides it.
                 build_players
-                gh pr edit "$number" --body-file "$RUNNER_TEMP/players.md" > /dev/null
-                echo "#$number: rebuilt on main for the set $state."
                 start_ci "$pbranch"
                 start_live "$pbranch"
+                gh pr edit "$number" --body-file "$RUNNER_TEMP/players.md" > /dev/null ||
+                  echo "::warning::#$number was rebuilt, but its text could not be updated; the next run tries again."
+                echo "#$number: rebuilt on main for the set $state."
               else
-                # The same set, and it merges: a head without a run that decides gets one.
+                # The same set, and it merges: a head without a run that decides gets one (for the
+                # live suite: one still going, or one that ended other than cancelled).
                 if [ "$(gh run list --workflow ci.yml --commit "$head" --limit 20 --json status,conclusion \
                      --jq '[.[] | select(.status != "completed" or .conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out")] | length')" = 0 ]; then
                   echo "#$number has no CI run on its head that decides: starting one."
                   start_ci "$pbranch"
                 fi
-                if [ "$(gh run list --workflow live-streams.yml --commit "$head" --limit 20 --json status --jq length)" = 0 ]; then
+                if [ "$(gh run list --workflow live-streams.yml --commit "$head" --limit 20 --json status,conclusion \
+                     --jq '[.[] | select(.status != "completed" or .conclusion != "cancelled")] | length')" = 0 ]; then
                   echo "#$number has no live suite run on its head: starting one."
                   start_live "$pbranch"
                 fi
               fi
-            elif gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=closed&head=${GITHUB_REPOSITORY%%/*}:$pbranch&per_page=100" \
-                   --jq '.[] | select(.merged_at == null and .user.login == "github-actions[bot]") | .body // ""' |
-                 grep -qF -- "<!-- player-libraries: $state -->"; then
-              echo "The player libraries' set $state was offered and closed unmerged: skipped."
             else
-              build_players
-              gh pr create --base main --head "$pbranch" --title "$ptitle" --label dependencies \
-                --body-file "$RUNNER_TEMP/players.md"
-              start_ci "$pbranch"
-              start_live "$pbranch"
+              # Read whole first: a lookup that fails must fail the run, not read as "not skipped".
+              gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=closed&head=${GITHUB_REPOSITORY%%/*}:$pbranch&per_page=100" \
+                --jq '.[] | select(.merged_at == null and .user.login == "github-actions[bot]") | .body // ""' > "$RUNNER_TEMP/closed.txt"
+              if grep -qF -- "<!-- player-libraries: $state -->" "$RUNNER_TEMP/closed.txt"; then
+                echo "The player libraries' set $state was offered and closed unmerged: skipped."
+              else
+                build_players
+                start_ci "$pbranch"
+                start_live "$pbranch"
+                gh pr create --base main --head "$pbranch" --title "$ptitle" --label dependencies --body-file "$RUNNER_TEMP/players.md" ||
+                  { sleep 30; gh pr create --base main --head "$pbranch" --title "$ptitle" --label dependencies --body-file "$RUNNER_TEMP/players.md"; }
+              fi
             fi
 
             # --- Newer majors: one issue while any is out. Its marker names the majors (not the
             # versions), so a newer release of a major already listed changes nothing, and one
             # closed by hand stays closed until another major comes.
             mkey=$(jq -r '[.majors[] | "\(.name) \(.latest | split(".")[0])"] | sort | join(", ")' "$players")
-            gh issue list --state all --limit 200 --json number,title,state,body,author > "$RUNNER_TEMP/issues.all.json"
-            issue=$(jq -c --arg t "$mtitle" '[.[] | select(.title == $t and .author.login == "app/github-actions")] | sort_by(.number) | last // empty' \
-              "$RUNNER_TEMP/issues.all.json")
+            # Every issue this workflow's token opened, open or closed, however many the repository
+            # has: one past a listing's first page would be opened a second time.
+            gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=all&creator=github-actions%5Bbot%5D&per_page=100" \
+              --jq '.[] | select(.pull_request == null) | {number, title, state, body}' > "$RUNNER_TEMP/issues.mine.jsonl"
+            issue=$(jq -cs --arg t "$mtitle" '[.[] | select(.title == $t)] | sort_by(.number) | last // empty' "$RUNNER_TEMP/issues.mine.jsonl")
             if [ -z "$mkey" ]; then
-              if [ -n "$issue" ] && [ "$(jq -r .state <<< "$issue")" = OPEN ]; then
+              if [ -n "$issue" ] && [ "$(jq -r .state <<< "$issue")" = open ]; then
                 gh issue close "$(jq -r .number <<< "$issue")" --comment 'No player library has a newer major than its pin now. Closing.' ||
                   echo '::warning::Could not close the newer-majors issue; the next run tries again.'
               fi
@@ -341,7 +362,7 @@ jobs:
             if [ -z "$issue" ]; then
               gh issue create --title "$mtitle" --assignee "$OWNER" --body-file "$RUNNER_TEMP/majors.md" > /dev/null
             elif ! jq -r '.body // ""' <<< "$issue" | grep -qF -- "<!-- player-majors: $mkey -->"; then
-              if [ "$(jq -r .state <<< "$issue")" != OPEN ]; then gh issue reopen "$(jq -r .number <<< "$issue")" > /dev/null; fi
+              if [ "$(jq -r .state <<< "$issue")" != open ]; then gh issue reopen "$(jq -r .number <<< "$issue")" > /dev/null; fi
               gh issue edit "$(jq -r .number <<< "$issue")" --body-file "$RUNNER_TEMP/majors.md" > /dev/null
             fi
           }

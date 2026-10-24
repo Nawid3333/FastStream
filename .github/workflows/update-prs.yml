@@ -872,9 +872,14 @@ jobs:
           # on the branch cancels it (live-streams.yml's concurrency). A cancelled one (a run that
           # times out reads as cancelled) is started again only while the commit has fewer than
           # two, so one that always times out cannot loop.
+          # Runs that cannot be listed are a reason, not this run's end: the live suite's hand-off
+          # may have been the last thing to start this workflow for the commit.
+          if [ "$kind" = players ] && [ ${#reasons[@]} = 0 ] &&
+             ! gh run list --workflow live-streams.yml --commit "$SHA" --limit 50 --json databaseId,status,conclusion,url \
+                 --jq 'sort_by(.databaseId) | reverse' > "$RUNNER_TEMP/live.json"; then
+            reasons+=('its live suite runs (live-streams.yml) could not be listed: run Update PRs again on this branch, with the CI run above')
+          fi
           if [ "$kind" = players ] && [ ${#reasons[@]} = 0 ]; then
-            gh run list --workflow live-streams.yml --commit "$SHA" --limit 50 --json databaseId,status,conclusion,url \
-              --jq 'sort_by(.databaseId) | reverse' > "$RUNNER_TEMP/live.json"
             live_runs=$(jq length "$RUNNER_TEMP/live.json")
             live_status=$(jq -r '.[0].status // ""' "$RUNNER_TEMP/live.json")
             live_conclusion=$(jq -r '.[0].conclusion // ""' "$RUNNER_TEMP/live.json")
