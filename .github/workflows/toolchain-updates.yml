@@ -231,7 +231,7 @@ jobs:
             # A set of any other shape is the checker's bug: acting on it could close a good pull
             # request as "caught up". The run fails instead, and the owner hears of it.
             if ! jq -e '(.state | type == "string" and test("^[0-9a-f]{12}$")) and (.behind | type == "boolean") and
-                 (.target | type == "object") and ([.changes, .newMajors, .kept, .held] | all(type == "array"))' "$players" > /dev/null; then
+                 (.target | type == "object") and ([.changes, .newMajors, .kept, .held, (.unresolved // []), (.holdProblems // [])] | all(type == "array"))' "$players" > /dev/null; then
               echo "The plan's player libraries are not a set this workflow reads: $(head -c 300 "$players")" >&2
               exit 1
             fi

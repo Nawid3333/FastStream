@@ -440,6 +440,17 @@ players_malformed_no_majors() {
   check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
 }
 
+players_malformed_hold_problems() {
+  # holdProblems that is not a list is the checker's bug too: refused with the set, never
+  # printed one character an error.
+  setup
+  players_plan "$A" "$CHANGES" '[]' '[]' true '[]' '"video.js: a string"'
+  run_step
+  check 'fails' test "$rc" -eq 1
+  check 'says why' grep -qF "The plan's player libraries are not a set this workflow reads" "$T/out"
+  check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
+}
+
 weekly_ublock() {
   setup
   printf 'an add-on\n' > "$STATE/addon.xpi"
@@ -948,6 +959,7 @@ players_new_major
 players_kept
 players_hold_problem
 players_malformed_no_majors
+players_malformed_hold_problems
 weekly_ublock
 ublock_wrong_file
 ublock_download_fails

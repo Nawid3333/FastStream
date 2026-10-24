@@ -26,8 +26,9 @@
 //     old that fits the ranges they declare on each other and on hls.js (the repository's
 //     own pin), a new major included: the live suite plays each page before the pull request
 //     is ready, and a page a major breaks keeps it red until the page is changed. MAJOR_HOLDS
-//     keeps a library on its major on purpose, each hold with its reason and an end date. The
-//     workflow keeps ONE rolling pull request for the set (see playerTargets()).
+//     keeps a library on its major on purpose, each hold with its reason, while the held line
+//     still gets releases. The workflow keeps ONE rolling pull request for the set (see
+//     playerTargets()).
 //
 // Usage: node tools/check-toolchain.mjs [--json | --plan <open.json> <titles.txt>]
 //   (none)   one line per update, for reading.
@@ -452,25 +453,26 @@ export function aboveHold(doc, below, now, minAgeDays = MIN_AGE_DAYS) {
 /**
  * What is wrong with a hold, if anything: a library player-libraries.json does not pin, a pin
  * already at or above the bound, or a held line that has stopped getting releases (its
- * newest is older than the hold's staleAfterDays).
+ * newest is older than the hold's staleAfterDays, or has no date the registry gives).
  * @param {string} name
  * @param {Hold} hold
  * @param {string|undefined} pin
- * @param {RegistryDoc|null} doc
+ * @param {RegistryDoc|null} doc - Null when it could not be read: the run reports that itself.
  * @param {number} now - Date.now().
  * @return {string|null}
  */
 export function holdProblem(name, hold, pin, doc, now) {
   if (pin === undefined) return `MAJOR_HOLDS holds ${name}, which ${PLAYER_LIBRARIES} does not pin: drop the hold`;
   if (compareVersions(pin, hold.below) >= 0) return `${name} is pinned at ${pin}, not below its hold's ${hold.below}: drop the hold`;
-  const kept = Object.keys(doc?.versions || {}).filter((version) =>
-    PLAIN_VERSION.test(version) && compareVersions(version, hold.below) < 0 && !doc?.versions[version].deprecated);
+  if (!doc?.versions) return null;
+  const kept = Object.keys(doc.versions).filter((version) =>
+    PLAIN_VERSION.test(version) && compareVersions(version, hold.below) < 0 && !doc.versions[version].deprecated);
   const newest = kept.sort(compareVersions).pop();
-  const released = newest ? Date.parse(/** @type {RegistryDoc} */ (doc).time[newest]) : NaN;
-  if (!(now - released <= hold.staleAfterDays * DAY_MS)) {
+  const when = newest ? String(doc.time?.[newest] || '') : '';
+  if (!(now - Date.parse(when) <= hold.staleAfterDays * DAY_MS)) {
     return `${name} below ${hold.below} has had no release for over ${hold.staleAfterDays} days (newest ${newest || 'none'}` +
-      `${newest ? `, ${/** @type {RegistryDoc} */ (doc).time[newest].slice(0, 10)}` : ''}): is it still supported? ` +
-      `Look at its hold in MAJOR_HOLDS (${hold.reason})`;
+      `${newest ? `, ${when.slice(0, 10) || 'no date'}` : ''}): is it still supported? Look at its hold in MAJOR_HOLDS ` +
+      `(${hold.reason}), and drop it or give it a longer staleAfterDays`;
   }
   return null;
 }

@@ -746,6 +746,16 @@ describe('holdProblem', () => {
   it('names a held line with no release at all', () => {
     expect(holdProblem('video.js', hold, '8.0.0', {versions: {}, time: {}}, NOW)).toMatch(/newest none/);
   });
+
+  it('names a held line whose newest has no date, rather than throwing', () => {
+    const doc = docOf(NOW, {'8.24.1': {age: 30}, '8.24.2': {age: 30}});
+    delete doc.time['8.24.2'];
+    expect(holdProblem('video.js', hold, '8.24.1', doc, NOW)).toMatch(/\(newest 8\.24\.2, no date\)/);
+  });
+
+  it('says nothing of a line it could not read: the run reports the read', () => {
+    expect(holdProblem('video.js', hold, '8.24.1', null, NOW)).toBeNull();
+  });
 });
 
 describe('MAJOR_HOLDS', () => {
@@ -831,6 +841,9 @@ describe('playerTargets', () => {
     expect(plan.kept).toEqual([{name: 'video.js', version: '8.24.2', latest: '10.1.0', below: '9.0.0', reason: 'its 10 is no player'}]);
     expect(plan.held).toEqual([]);
     expect(plan.holdProblems).toEqual([]);
+    // Nothing above the bound old enough yet: nothing kept out, and nothing to say.
+    const young = {'video.js': docOf(NOW, {'8.24.1': {age: 40}, '10.2.0': {age: 1}}), 'plyr': docs.plyr};
+    expect(playerTargets(pins, young, {}, NOW, MIN_AGE_DAYS, holds).kept).toEqual([]);
   });
 
   it('reports a hold to look at again, and a hold the pin has passed holds nothing', () => {
