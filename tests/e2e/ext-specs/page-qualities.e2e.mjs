@@ -2,7 +2,7 @@
 // player plays the one the quality setting asks for, lists them all, and switches between
 // them where the video is.
 //
-// kinoger.com's fsst hoster (2026-10-12): a Playerjs set up with
+// a film site's hoster (2026-10-12): a Playerjs set up with
 // `file: "[360p]<its get_file link>,[720p]<link>,[1080p]<link>"` and
 // `default_quality: "360p"`, in an iframe of another site. The page's video asks for the 360p
 // file; the hoster answers each get_file link with a redirect to its CDN. FastStream saw that
@@ -26,7 +26,7 @@ import {inExtensionPage} from '../extension-page.mjs';
 import {byteRange, sendFile} from '../serveFile.mjs';
 
 const PORT = 41962;
-// The site, and the hoster in its iframe: another origin, as kinoger's is.
+// The site, and the hoster in its iframe: another origin, as that film site's is.
 const SITE = `http://127.0.0.1:${PORT}`;
 const HOSTER = `http://localhost:${PORT}`;
 const FIXTURES = path.resolve(import.meta.dirname, '../fixtures');

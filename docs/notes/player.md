@@ -165,9 +165,9 @@ the one after its end (without `endsAt`: 11 ranges past the end and no end, or 6
 
 ## AAC in a channel layout of its own, on Windows (2026-10-12)
 
-Reported on kinoger.com (fsst.online, now incvideo1.online: one MP4 per quality, `[360p]url,...`
+Reported on a film site (its hoster: one MP4 per quality, `[360p]url,...`
 in a Playerjs page; the site itself is behind Cloudflare's challenge, the hoster is not): the
-player buffered and never played. Measured on "Die Akte Jane" (fsst 975054), all three qualities:
+player buffered and never played. Measured on a film (one file on that hoster), all three qualities:
 33 s buffered, `readyState` 1, 0 frames for minutes - and the same in Firefox's own player
 (`PlayerModes.DIRECT`), so not FastStream's MSE path.
 
@@ -197,13 +197,13 @@ player buffered and never played. Measured on "Die Akte Jane" (fsst 975054), all
   `mp4-files.e2e.mjs` plays 160 s of 6.0 AAC as the machine's ffmpeg writes it and relabelled as
   the film had it - on main both sat at 0 with `readyState` 1 on Windows. Short files hide it: a
   20 s clip played, because its audio reached the end of the stream and Firefox went on without.
-- **The same hoster's stereo files** (Foundation S01E01, 499 MB) played clean for 12 minutes in the
+- **The same hoster's stereo files** (an episode, 499 MB) played clean for 12 minutes in the
   test Firefox: the whole file downloaded in about 50 s, seeks to 40:00 and back, 4x - no stall,
   no nudge, no rebuild, 4 dropped frames of 11,970 at 1x.
 
 ## The qualities a page's own player offers (2026-10-12)
 
-His report (kinoger "Matchbox", the fsst hoster): the player showed one quality and played the
+His report (a film on a film site, its hoster): the player showed one quality and played the
 lowest, though the page's player offers three; MPV mode sent the lowest too. The hoster's
 Playerjs is set up with `file: "[360p]<get_file link>,[720p]...,[1080p]..."` and
 `default_quality: "360p"`; the page's video asks for the 360p link, which answers with a 302 to
@@ -240,7 +240,7 @@ video's `loadedmetadata`, and the CDN's address) and played the CDN's.
   `backgroundMpv.test.mjs` (the hoster's redirect; two fail without the pick), and
   `page-qualities.e2e.mjs`: the hoster rebuilt locally (a cross-origin frame, the file string,
   302s to a "CDN") - the 720p file plays, the menu offers both, a switch at 4 s goes on at 4 s.
-  Live, on the real hoster (fsst 975054): 1080p (1920x816) played, 360p/720p/1080p listed, the
+  Live, on the real hoster (the same file): 1080p (1920x816) played, 360p/720p/1080p listed, the
   switch to 720p went on from where it was.
 
 ## Player core: what the loaders tell the libraries (2026-09-28)
@@ -532,7 +532,7 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   load error with its reason (`player-recovery.e2e.mjs`). Not for a network failure
   (`isNetworkFailure`: a new player asks the same server for the same fragment): the full web
   e2e run caught that, `mp4-loading.e2e.mjs`'s error came a minute late.
-  - **Nothing of the start plays first (2026-10-12, kinoger).** The new player started at 0:00
+  - **Nothing of the start plays first (2026-10-12, a film site).** The new player started at 0:00
     at once (autoplay, and `recoverPlayer`'s own `play()` once `setSource` resolved), and its
     time came after the remembered-time lookup (two 600,000-round PBKDF2 hashes) and the init
     hook's next 1 s poll: the user saw the film start from the beginning, then jump back. A

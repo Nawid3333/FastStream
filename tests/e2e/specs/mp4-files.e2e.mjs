@@ -20,7 +20,7 @@
 //   range never needs it, so this is the long fixture, sought far into.
 // - Sound in a channel layout of its own (6.0 AAC, whose PCE Windows' decoder takes and gives
 //   nothing back for, AacLayout.mjs): the video waited for its first audio, at 0:00 for good -
-//   a film on kinoger, 2026-10-12. Two of them: 6.0 as this ffmpeg writes it (Lavc62.30 and older
+//   a film on a film site, 2026-10-12. Two of them: 6.0 as this ffmpeg writes it (Lavc62.30 and older
 //   put the front centre after the front pair), and the same relabelled the way the film's encoder
 //   had it (a lone side channel too), which does not depend on the ffmpeg. Long enough that
 //   MP4Player does not append all of the audio at once: a stream ended early, Firefox goes on
@@ -96,7 +96,7 @@ function aacConfigRange(bytes) {
 }
 
 /**
- * Copies ffmpeg's 6.0 file with its PCE relabelled the way the kinoger film's encoder
+ * Copies ffmpeg's 6.0 file with its PCE relabelled the way the film's encoder
  * (Lavc62.4.100) wrote it: the front pair and the centre, a lone side channel, the back pair.
  * The same four elements, so the same length: changed in place.
  * @param {string} name - The copy, under fixtures/mp4-shapes/.
@@ -347,7 +347,7 @@ describe('MP4 files of other shapes', function() {
     expect(state.failed).toBe(false);
   });
 
-  it('plays an MP4 whose 6.0 AAC has a lone side channel, as the kinoger film had', async function() {
+  it('plays an MP4 whose 6.0 AAC has a lone side channel, as the reported film had', async function() {
     expect(windowsAacLayout(aacConfig('long-6.0-film.mp4'))).not.toBe(null);
     const state = await playFor(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/long-6.0-film.mp4`);
     expect(state.currentTime).toBeGreaterThan(1);

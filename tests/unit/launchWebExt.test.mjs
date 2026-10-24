@@ -9,8 +9,8 @@ import {webExtSpawn} from '../../tools/rebuild.mjs';
 // died with spawn ENOENT after the whole rebuild (#165).
 
 const root = path.resolve(import.meta.dirname, '..', '..');
-const winDir = ['V:', 'Faststream modernisation', 'wt', 'build_firefox_github'].join(path.win32.sep);
-const winProfile = ['V:', 'Faststream modernisation', 'wt', '.dev-profile'].join(path.win32.sep);
+const winDir = ['V:', 'work', 'wt', 'build_firefox_github'].join(path.win32.sep);
+const winProfile = ['V:', 'work', 'wt', '.dev-profile'].join(path.win32.sep);
 
 describe('webExtSpawn', () => {
   for (const platform of ['linux', 'darwin']) {

@@ -93,7 +93,7 @@ export class StreamLengths {
    * Keeps the variants of a master playlist read, and its audio's and subtitles' playlists
    * (hlsQualities). The page's player asks for those after the variant's, and they run as long
    * as the video: of streams that tie the newest goes, and VOE's German sound went to mpv on
-   * its own, which played no picture (serienstream.to, 2026-10-23). Such a playlist goes as
+   * its own, which played no picture (a series site, 2026-10-23). Such a playlist goes as
    * its master, as a variant of a master with audio or subtitles of their own does.
    * @param {string} master - The URL it was detected at.
    * @param {string} text - The playlist.

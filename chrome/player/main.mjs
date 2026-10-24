@@ -162,7 +162,7 @@ async function recieveSources(request, sendResponse) {
   /**
    * A detected stream as a source, with the qualities its page's player offers it in
    * (page-qualities.js). The one played is the quality the user's setting asks for: the page
-   * asked for its own default, the lowest on kinoger's fsst hoster.
+   * asked for its own default, the lowest on a film site's hoster.
    * @param {SentSource} s - The stream, as the background sent it.
    * @param {boolean} played - Whether it is the one the player plays.
    * @return {VideoSource}

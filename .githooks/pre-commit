@@ -1,0 +1,6 @@
+#!/bin/sh
+# The commit guard (tools/privacy-check.mjs staged): nothing personal goes into this public
+# repository. On in every clone that ran pnpm install (package.json prepare).
+# A deliberate exception: git commit --no-verify
+command -v node >/dev/null 2>&1 || { echo "Commit refused: the privacy guard needs node on PATH (or: git commit --no-verify)." >&2; exit 1; }
+exec node "$(git rev-parse --show-toplevel)/tools/privacy-check.mjs" staged

@@ -45,7 +45,7 @@ describe('guessMediaInfo', () => {
     ['Dark S01E01 Geheimnisse | Netflix', 'netflix.com', show('Dark', 1, 1)],
     ['Dark 1x01 - Geheimnisse | Netflix', 'netflix.com', show('Dark', 1, 1)],
     ['One Piece - Episode 12 | Crunchyroll', 'crunchyroll.com', show('One Piece', null, 12)],
-    ['One Piece Episode 12 German Sub | AniWorld', 'aniworld.to', show('One Piece', null, 12)],
+    ['Example Series Episode 12 German Sub | AnimeSite', 'anime-site.example', show('Example Series', null, 12)],
     ['The Office S03E12 - The Return | Amazon Prime Video', 'primevideo.com', show('The Office', 3, 12)],
     ['Stranger Things 4x09 - The Piggyback | Netflix', 'netflix.com', show('Stranger Things', 4, 9)],
     ['Watch The Bear Season 2 Episode 3 Online', 'example.com', show('The Bear', 2, 3)],

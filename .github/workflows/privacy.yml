@@ -1,0 +1,46 @@
+name: Privacy
+
+# The repository is public, and so is everything in it: every tracked file, every commit's
+# message and identities, every branch name, every Actions log. This keeps anything personal
+# out (tools/privacy-check.mjs ci): a user folder path, a private claude.ai link, an e-mail
+# address but a noreply or public one, a word from the PRIVATE_WORDS secret (real name, user
+# and PC names, private paths, titles of what the owner watches and where), an identity that
+# is not a GitHub noreply address. Each finding names the place and the rule, never the text.
+# The same checks run before a commit and a push leaves a clone (.githooks, switched on by
+# pnpm install), with the clone's .git/info/private-words: keep the two lists the same.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: privacy-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  privacy:
+    name: Nothing personal
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # the commits base..head
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - name: Every tracked file, the new commits and the branch name
+        env:
+          PRIVATE_WORDS: ${{ secrets.PRIVATE_WORDS }}
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: node tools/privacy-check.mjs ci "$BASE" "$HEAD_SHA" "$BRANCH"

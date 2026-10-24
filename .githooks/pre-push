@@ -1,0 +1,6 @@
+#!/bin/sh
+# The push guard (tools/privacy-check.mjs push): every commit a push sends, its message and
+# the name the remote gets, also those made without the commit guard. git hands the refs on
+# stdin, which the check reads. A deliberate exception: git push --no-verify
+command -v node >/dev/null 2>&1 || { echo "Push refused: the privacy guard needs node on PATH (or: git push --no-verify)." >&2; exit 1; }
+exec node "$(git rev-parse --show-toplevel)/tools/privacy-check.mjs" push "$1"

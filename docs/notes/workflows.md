@@ -660,6 +660,13 @@
   (every save uses them since 9ef061b1; the ServiceWorker transport it was taken for is gone,
   `StreamSaver.mjs`'s `createWriteStream` comment says why), so an upstream change had
   nothing to port, and the job, its list and `tests/workflows/vendored-sources.test.sh` went.
+- **`privacy.yml`** (2026-10-24, the owner's ask): every pull request and push to `main` runs
+  `tools/privacy-check.mjs ci` over every tracked file, the new commits (messages, identities,
+  what each adds) and the branch name, with the `PRIVATE_WORDS` secret; it names the place and
+  the rule, never the text, since the log is public. The same tool is the commit and push
+  guard in `.githooks` (`pnpm install`'s `prepare` turns them on). Its first run followed a
+  clean-up of the files: the sites and titles of the owner's reports became made-up names,
+  his private paths and a private claude.ai link went. The history before it still holds them.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
   Since 2026-09-30 it also runs on `workflow_dispatch`, which `patched-libraries.yml` sends
   next to CI's: its PRs are opened by the workflow token, so the `pull_request` run waits

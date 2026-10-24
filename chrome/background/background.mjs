@@ -2317,7 +2317,7 @@ function watchNextEpisodeArrives(tab, continuation, mode) {
 /**
  * Asks the next episode's page, in a tab FastStream went on in by itself (the player's
  * autoplay next), to start its own player, until its stream came. A hoster's player sat
- * idle there until it was clicked (serienstream.to's VOE, 2026-10-11): FastStream had
+ * idle there until it was clicked (a series site's VOE, 2026-10-11): FastStream had
  * nothing to play, and the user had to click, then FastStream played. Every 2 s for 20 s:
  * the page's player may come later than the page. Only the frame with the tab's largest
  * video is asked (a video ad in another frame is no episode), and each page does it once
@@ -2988,7 +2988,7 @@ function autoOpenInMpv(tab, url, headers) {
  * openMpvWithSources picks, once the lengths of what the page loaded are read. Its first
  * stream went at once before, and here this extension started the page's player itself
  * (startPagePlayers): a hoster's player may load an ad's stream first, which went to mpv under
- * the episode's title, and the episode's own, detected after, was dropped (aniworld, season 1
+ * the episode's title, and the episode's own, detected after, was dropped (an anime site, season 1
  * to 2, his report 2026-10-13: mpv showed the title on a black picture). Each detection
  * starts the pick again. One known to run under StreamPick's SHORT_S (an ad, a trailer, a
  * preview) waits for a longer one until MpvNextPickGraceMs before the minute is up, and goes
@@ -4109,7 +4109,7 @@ async function openInMpv(tabId, url, ...rest) {
   const detected = url;
   // The page's player offers this file in other qualities too (page-qualities.js): mpv gets
   // the one the user's quality setting asks for, and the list. MPV mode sent the page's
-  // default, the lowest on kinoger's fsst hoster. Not for the player's button, which sends the
+  // default, the lowest on a film site's hoster. Not for the player's button, which sends the
   // one it plays and its own list (extras.qualities).
   if (tabId !== undefined && tabId >= 0 && !(rest[5] && 'qualities' in rest[5])) {
     const choice = await pageQualityChoice(Tabs.getTab(tabId), url);

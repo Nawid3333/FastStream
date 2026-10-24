@@ -154,7 +154,7 @@ stop the background with `extension.terminateBackground()` from the chrome conte
 (`toolbar-state`, `toolbar-off-race`, `mpv-suspend`).
 
 **An open player does not always keep it running (measured 2026-10-23).** His report: on
-serienstream.to the player's autoplay countdown stopped at "1 s" and went on only when its
+a series site the player's autoplay countdown stopped at "1 s" and went on only when its
 banner was clicked. With `extensions.background.idle.timeout` at 5000 (the live config's
 harness, which does not set `idle.enabled`: the line above is about the classic one), the
 background unloaded and started anew during an episode's quiet last seconds with the player
@@ -543,10 +543,10 @@ real watch on the pinned mpv: on that stream the host 13 watch told no end, host
 as the skip landed; skips through a file told one end, at the end.
 
 **The next page's stream: the longest, not the first (2026-10-14).** His report (2026-10-13):
-MPV autoplay from aniworld's season 1 to season 2 showed episode 1's title in mpv on a black
+MPV autoplay from an anime site's season 1 to season 2 showed episode 1's title in mpv on a black
 picture. Checked then: every episode there has the same four hosters, VOE first; VOE's file is
 one HLS master that plays in mpv with no Referer (so neither the page-quality swap nor the
-headers), and the season's first episode is the URL aniworld itself uses. What remained: the
+headers), and the season's first episode is the URL the site itself uses. What remained: the
 allowlist's MPV sent the first stream a page detected, and on the next page this extension
 starts the page's player itself (`startPagePlayers`), whose hoster may load an ad's stream
 first; every later one, the episode's, was dropped (`mpvAutoOpened`). While
@@ -557,7 +557,7 @@ before the minute is up. A failed open was never silent: mpv-config's `source-in
 one for a FastStream stream (`end-file` error). `backgroundMpv.test.mjs`: an ad, then the
 episode; a stream of a few minutes alone.
 
-**The next page's sound alone (2026-10-23).** His report: MPV autoplay on serienstream.to
+**The next page's sound alone (2026-10-23).** His report: MPV autoplay on a series site
 (VOE) played the next episode in mpv as sound only, every time; the first episode, sent as the
 page's first stream, played with its picture. Measured on the site: VOE's master lists one
 720p variant (`index-v1-a1.m3u8`) and the sound in German and French as renditions with

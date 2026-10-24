@@ -28,7 +28,7 @@ broken intermediate state. See `docs/modernisation-checkpoint.md`.
    remote), not from `dev/mv3-modernization` itself — the PR must be a clean
    diff against Andrew's tree, not against our modernization work.
 2. Cherry-pick or hand-port just the relevant change onto that branch.
-3. Push it, then in `V:\Faststream modernisation\FastStream` (the pristine
+3. Push it, then in a second clone of FastStream (the pristine
    clone of `Andrews54757/FastStream`, `origin` pointed straight at Andrew's
    repo) pull the candidate branch and merge it into a local `main` to prove
    it applies cleanly and builds/tests green on Andrew's actual tree, not

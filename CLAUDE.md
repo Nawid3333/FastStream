@@ -99,6 +99,17 @@ mpv host's installed copy, WSL): `docs/notes/local-pc.md`.
 
 ## Rules
 
+- **The repository is public, and nothing personal goes into it** (the owner, 2026-10-24):
+  not into a file, a commit message, a branch name, a pull request, an issue or an Actions
+  log. No user folder path (`C:\Users\<name>`) or private drive path, no real name or e-mail
+  address (only noreply ones), no private claude.ai link, and no title of what the owner
+  watches nor the site he watched it on: a test made from his report uses made-up names
+  (`series-site.example`, `example-series`). `tools/privacy-check.mjs` guards it three
+  times: before a commit and before a push (`.githooks`, switched on by `pnpm install`), with
+  the clone's own `.git/info/private-words`, and in CI (`privacy.yml`: every tracked file,
+  the new commits, the branch name) with the `PRIVATE_WORDS` secret. A new word goes into
+  both, and into mpv-config's pair as well (the same list). Nothing checks a pull request's
+  or issue's text: write it the same way.
 - **Never hand-edit `chrome/player/modules/*`** — vendored third-party code
   (dash.mjs 3.3 MB, hls.mjs 1.5 MB). Excluded from eslint and
   tsconfig; they stall the language server otherwise. Those two and a dozen more are

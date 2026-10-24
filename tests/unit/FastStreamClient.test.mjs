@@ -532,7 +532,7 @@ describe('FastStreamClient, a source that comes with its own time', () => {
   // Autoplay, and the resume of a player built again after an error, played the new player
   // from 0 at once; its time came once the remembered-time lookup and the wait for the
   // player were done, a second or more later. A film built again an hour in played its
-  // opening, then jumped back (kinoger, 2026-10-12).
+  // opening, then jumped back (a film site, 2026-10-12).
 
   /**
    * Records what the client plays, and at which time of its player.
@@ -734,7 +734,7 @@ describe('FastStreamClient, autoplay of the next video', () => {
     expect(navigations()).toBe(0);
   });
 
-  // His report (2026-10-23, serienstream.to): the countdown stopped at "1 s" and went on only
+  // His report (2026-10-23, a series site): the countdown stopped at "1 s" and went on only
   // when its banner was clicked. The end asked once, and whatever the answer - an event page
   // Firefox had unloaded and started anew ('error'), no answer, no link found yet - it never
   // asked again.
@@ -1402,7 +1402,7 @@ describe('FastStreamClient, "Buffer behind" changed while a video plays', () => 
 });
 
 describe('FastStreamClient, the qualities a page\'s player offers its file in', () => {
-  // kinoger's fsst hoster: one MP4 per quality (page-qualities.js lists them). The quality
+  // a film site's hoster: one MP4 per quality (page-qualities.js lists them). The quality
   // menu offers them; the player's own levels, which the analyzers and downloads go by, stay.
   const QUALITIES = [
     {url: 'https://h.test/1_360p.mp4/', label: '360p', height: 360},

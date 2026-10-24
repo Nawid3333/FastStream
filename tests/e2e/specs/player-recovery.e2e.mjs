@@ -6,7 +6,7 @@
 // decode what a seek appends late (bug 2069633), and only a new MediaSource plays again.
 // Here the error is the player's own event, the way every player reports one.
 //
-// The new player plays nothing before it is at that time (2026-10-12, kinoger): it started
+// The new player plays nothing before it is at that time (2026-10-12, a film site): it started
 // from 0 at once, and was sought to the time a second or more later, so a film built again an
 // hour in played its opening, then jumped back.
 
@@ -176,7 +176,7 @@ describe('A player error after the video played', function() {
   });
 
   it('builds an MP4 again where it was, playing nothing of its start first', async function() {
-    // MP4Player, as the kinoger film played in it: its first range is in the store, so the
+    // MP4Player, as the reported film played in it: its first range is in the store, so the
     // new player had a picture of 0:00 at once.
     await playAt(100, globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/long-av.mp4');
     await playerError();

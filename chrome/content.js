@@ -1837,7 +1837,7 @@
    * Starts the page's own player, when it waits for a click before it loads its video. The
    * background asks for it after FastStream went on to the next episode by itself (the
    * player's autoplay next): a hoster's player sat idle on the next episode's page
-   * (serienstream.to's VOE, a JW Player, 2026-10-11), FastStream had nothing to play, and
+   * (a series site's VOE, a JW Player, 2026-10-11), FastStream had nothing to play, and
    * the user had to click. Started here, it loads its stream, FastStream takes that, and
    * its own player plays it: an extension page may play sound without a click.
    * Once per page: the background asks again every 2 s, and a page whose player does not
@@ -2114,7 +2114,7 @@
   }
 
   /**
-   * The page's links, by how far they may be trusted as an episode's (2026-10-11, aniworld.cc:
+   * The page's links, by how far they may be trusted as an episode's (2026-10-11, an anime site:
    * after a season's last episode, autoplay went on to another series):
    * - site: to this site;
    * - series: of them, those of this page's series where its address names one

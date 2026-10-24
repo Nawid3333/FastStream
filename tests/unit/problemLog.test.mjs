@@ -22,9 +22,9 @@ beforeEach(() => {
 
 describe('ProblemLog', () => {
   it('notes a site and what went wrong, without the query, and counts it up', async () => {
-    await recordProblem({url: 'https://s.to/serie/x/episode-5?token=secret', kind: ProblemKinds.NO_NEXT, mode: 'mpv'}, 1000);
-    await recordProblem({url: 'https://s.to/serie/x/episode-6?token=other', kind: ProblemKinds.NO_NEXT, mode: 'player'}, 2000);
-    expect(await readProblems()).toEqual([{id: 's.to no_next', protocol: 'https:', host: 's.to', path: '/serie/x/episode-6', kind: 'no_next',
+    await recordProblem({url: 'https://series-site.example/serie/x/episode-5?token=secret', kind: ProblemKinds.NO_NEXT, mode: 'mpv'}, 1000);
+    await recordProblem({url: 'https://series-site.example/serie/x/episode-6?token=other', kind: ProblemKinds.NO_NEXT, mode: 'player'}, 2000);
+    expect(await readProblems()).toEqual([{id: 'series-site.example no_next', protocol: 'https:', host: 'series-site.example', path: '/serie/x/episode-6', kind: 'no_next',
       mode: 'player', count: 2, first: 1000, last: 2000}]);
     expect(JSON.stringify(store)).not.toContain('secret');
   });
@@ -67,13 +67,13 @@ describe('ProblemLog', () => {
   });
 
   it('builds a GitHub issue to check: the site, what happened, where, the versions', async () => {
-    await recordProblem({url: 'https://s.to/serie/x/episode-5', kind: ProblemKinds.NO_STREAM, mode: 'mpv'}, Date.UTC(2026, 9, 11));
+    await recordProblem({url: 'https://series-site.example/serie/x/episode-5', kind: ProblemKinds.NO_STREAM, mode: 'mpv'}, Date.UTC(2026, 9, 11));
     const [entry] = await readProblems();
     const url = new URL(issueUrl(entry, {version: '1.3.82.90', browser: 'Firefox 157'}));
     expect(url.origin + url.pathname).toBe('https://github.com/Nawid3333/FastStream/issues/new');
-    expect(url.searchParams.get('title')).toBe('Autoplay: s.to - next episode brought no video');
+    expect(url.searchParams.get('title')).toBe('Autoplay: series-site.example - next episode brought no video');
     const body = url.searchParams.get('body');
-    expect(body).toContain('**Page:** https://s.to/serie/x/episode-5');
+    expect(body).toContain('**Page:** https://series-site.example/serie/x/episode-5');
     expect(body).toContain('**Where:** MPV mode');
     expect(body).toContain('**FastStream:** 1.3.82.90');
     expect(body).toContain('GitHub issues are public');

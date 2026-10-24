@@ -1085,7 +1085,7 @@ export class FastStreamClient extends EventEmitter {
       // Firefox's own player takes over (playDirectly), a page's timestamp. Autoplay, and the
       // rebuild's resume, started the new player from 0 at once, and the time came a second
       // or more later, after the remembered-time lookup and the init hook's next poll: a film
-      // built again an hour in played its opening, then jumped back (kinoger, 2026-10-12).
+      // built again an hour in played its opening, then jumped back (a film site, 2026-10-12).
       // Armed here, before the awaits that build the player: resetPlayer just cleared it,
       // and a canplay during them autoplayed from 0 all the same.
       const startTime = timeFromURL || 0;

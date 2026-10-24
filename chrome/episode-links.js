@@ -149,7 +149,7 @@ const EpisodeLinks = (() => {
   const NAMED_PART = new RegExp(`^(.+?[-_])${SEASON_EPISODE}(?:\\.[a-z0-9]+)?$`, 'iu');
 
   /**
-   * The part of a page's address that names its series (2026-10-11, aniworld.cc: after a
+   * The part of a page's address that names its series (2026-10-11, an anime site: after a
    * season's last episode, autoplay went to another series): the path up to its first season
    * or episode segment, or up to the episode in a segment that names the show too.
    * @param {string} href - The page.
