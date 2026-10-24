@@ -794,9 +794,9 @@ export class MpvBackend {
    * Follows the mpv the host started (host 7's watch; over the thin helper's relay since host
    * 15): the end of its file and its keys for the next or the previous episode come as they
    * happen, for MPV autoplay (2026-10-11). One at a time: a second watch ends the first. While
-   * the port is open, Firefox keeps this background page running (an event page is not
-   * unloaded while a native messaging port is open), so the end is heard however long the
-   * episode runs.
+   * the port is open, Firefox keeps this background page running, with nothing sent over it
+   * (measured on Firefox 158: 12 minutes at the 30 s idle timeout, tools/native-port-idle and
+   * docs/notes/mpv.md), so the end is heard however long the episode runs.
    *
    * The thin helper only relays mpv's lines; what counts as an end is MpvRelayWatch.mjs's.
    * An older helper (or one not known yet that turns out older: it answers "unknown message")
