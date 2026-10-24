@@ -15,6 +15,15 @@ name: Toolchain updates
 #     profile: the newest public release on AMO at least 3 days old. Its entry there (version,
 #     file, SHA-256) and nothing else; nothing in CI downloads the file, so this run downloads
 #     it and checks it against AMO's SHA-256 before pushing. Routine.
+#   - The player libraries the live suite plays (tests/e2e/live-specs/player-libraries.json):
+#     ONE rolling pull request, "Toolchain update: player libraries" on
+#     toolchain/player-libraries, rebuilt in place on main whenever the set changes. Each
+#     library goes to its newest release of its pinned major at least 3 days old that fits
+#     the ranges the others declare on it. CI and the live suite (live-streams.yml, which
+#     plays them; CI does not) are started on each new head, and update-prs.yml calls it
+#     ready only once both passed. Closing it skips that set: it comes again only with
+#     another. A newer major is a decision, not taken here: one issue, "Player libraries:
+#     newer majors", lists them, and stays closed once closed until another major comes.
 # The weekly run also rebuilds an open one on main when main has moved into conflict with
 # it, and starts CI on one whose head has none.
 # A title is never used twice, as a pull request or an issue, open or closed: closing one
@@ -199,6 +208,143 @@ jobs:
           start_ci() { # <branch>
             gh workflow run ci.yml --ref "$1" || { sleep 30; gh workflow run ci.yml --ref "$1"; }
           }
+          start_live() { # <branch>: the live suite, the one that plays the player libraries
+            gh workflow run live-streams.yml --ref "$1" || { sleep 30; gh workflow run live-streams.yml --ref "$1"; }
+          }
+
+          # The player libraries' rolling pull request and the newer-majors issue, from the plan's
+          # "players": {behind, state, target, changes, majors, held}. The pull request's body
+          # names its set by a marker, which this workflow's own closes take out: a closed,
+          # unmerged one that still has it was skipped by hand, and that set is not offered
+          # again. Only this workflow's own pull request and issue count, never anyone else's.
+          # shellcheck disable=SC2016 # the backticks are Markdown
+          players_section() {
+            local pbranch=toolchain/player-libraries ptitle="${PREFIX}player libraries"
+            local pfile=tests/e2e/live-specs/player-libraries.json players state mine number head body others
+            local mtitle='Player libraries: newer majors' mkey issue
+            players=$RUNNER_TEMP/players.json
+            jq -c '.players // empty' "$RUNNER_TEMP/plan.json" > "$players"
+            if [ ! -s "$players" ]; then
+              echo 'The plan names no player libraries.'
+              return 0
+            fi
+            state=$(jq -r .state "$players")
+            mine=$(jq -c --arg b "$pbranch" '[.[] | select(.headRefName == $b and .author.login == "app/github-actions" and (.isCrossRepository | not))][0] // empty' \
+              "$RUNNER_TEMP/prs.json")
+            number=$(jq -r '.number // empty' <<< "${mine:-null}")
+            head=$(jq -r '.headRefOid // empty' <<< "${mine:-null}")
+
+            # The pull request's text, for a new one and a rebuilt one alike.
+            {
+              printf 'The player libraries the live suite plays (`%s`), each at its newest release of its pinned major that is at least 3 days old and fits the ranges the others declare on it:\n\n' "$pfile"
+              printf '| Library | Now | Then |\n| --- | --- | --- |\n'
+              jq -r '.changes[] | "| [\(.name)](https://www.npmjs.com/package/\(.name)?activeTab=versions) | \(.from) | \(.to) |"' "$players"
+              if [ "$(jq '.held | length' "$players")" != 0 ]; then
+                printf '\nHeld back, for a range another library declares:\n\n'
+                jq -r '.held[] | "- \(.name) \(.version): \(.why)"' "$players"
+              fi
+              if [ "$(jq '.majors | length' "$players")" != 0 ]; then
+                printf '\nNot taken here, a decision each (the issue "%s" lists them): ' "$mtitle"
+                jq -r '[.majors[] | "\(.name) \(.latest) (pinned \(.current))"] | join(", ")' "$players"
+              fi
+              printf '\nCI and the live suite (`live-streams.yml`: every library plays its page on its own, then FastStream takes it over, on Linux and on Windows) have been started on it. `update-prs.yml` tells @%s once both have run whether it is ready to merge, and the merge is theirs.\n\n' "$OWNER"
+              printf 'This pull request is rebuilt in place when the set changes. Closing it skips this set; it comes again with the next one.\n'
+              printf '\nNothing here is part of the extension: its build should come out unchanged, and a merge then releases nothing (auto-release.yml compares the builds).\n'
+              printf '\n<sub>Opened by %s</sub>\n<!-- player-libraries: %s -->\n' "$RUN_URL" "$state"
+            } > "$RUNNER_TEMP/players.md"
+
+            # One commit on main: the set, nothing else. --apply-players refuses a library the
+            # file does not name, a version that is not x.y.z, and any that would go back.
+            build_players() {
+              local changed
+              git checkout -q -f -B "$pbranch" "$start"
+              node tools/check-toolchain.mjs --apply-players "$players" > /dev/null
+              changed=$(git status --porcelain --untracked-files=all | cut -c4-)
+              if [ "$changed" != "$pfile" ]; then
+                echo "The player libraries' update changes ${changed:-nothing}, not only $pfile." >&2
+                git status --porcelain >&2
+                exit 1
+              fi
+              git add -- "$pfile"
+              git commit -q -m "build: player libraries ($(jq -r '[.changes[] | "\(.name) \(.to)"] | join(", ")' "$players"))"
+              authgit push -q -f origin "$pbranch"
+              git checkout -q -f "$start"
+            }
+
+            if [ "$(jq -r .behind "$players")" != true ]; then
+              if [ -n "$number" ]; then
+                # Its marker goes first: a closed pull request that still has one was skipped.
+                gh pr view "$number" --json body --jq .body |
+                  sed -E 's/<!-- player-libraries: [0-9a-f]+ -->/<!-- player-libraries: caught up -->/' > "$RUNNER_TEMP/closing.md"
+                gh pr edit "$number" --body-file "$RUNNER_TEMP/closing.md" > /dev/null
+                gh pr close "$number" --delete-branch --comment 'Every player library is at its newest release of its major on main, as far as the ranges they declare allow. Closing.' ||
+                  echo "::warning::Could not close #$number (merged meanwhile?); the next run tries again."
+              fi
+            elif [ -n "$number" ]; then
+              body=$(gh pr view "$number" --json body --jq .body)
+              others=$(gh pr view "$number" --json commits \
+                --jq '[.commits[] | select([.authors[].login] | all(. == "github-actions[bot]") | not)] | length')
+              if [ "$others" != 0 ]; then
+                echo "#$number holds someone else's commits: left to them."
+              elif ! grep -qF -- "<!-- player-libraries: $state -->" <<< "$body" ||
+                   [ "$(gh pr view "$number" --json mergeable --jq .mergeable)" = CONFLICTING ]; then
+                build_players
+                gh pr edit "$number" --body-file "$RUNNER_TEMP/players.md" > /dev/null
+                echo "#$number: rebuilt on main for the set $state."
+                start_ci "$pbranch"
+                start_live "$pbranch"
+              else
+                # The same set, and it merges: a head without a run that decides gets one.
+                if [ "$(gh run list --workflow ci.yml --commit "$head" --limit 20 --json status,conclusion \
+                     --jq '[.[] | select(.status != "completed" or .conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out")] | length')" = 0 ]; then
+                  echo "#$number has no CI run on its head that decides: starting one."
+                  start_ci "$pbranch"
+                fi
+                if [ "$(gh run list --workflow live-streams.yml --commit "$head" --limit 20 --json status --jq length)" = 0 ]; then
+                  echo "#$number has no live suite run on its head: starting one."
+                  start_live "$pbranch"
+                fi
+              fi
+            elif gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=closed&head=${GITHUB_REPOSITORY%%/*}:$pbranch&per_page=100" \
+                   --jq '.[] | select(.merged_at == null and .user.login == "github-actions[bot]") | .body // ""' |
+                 grep -qF -- "<!-- player-libraries: $state -->"; then
+              echo "The player libraries' set $state was offered and closed unmerged: skipped."
+            else
+              build_players
+              gh pr create --base main --head "$pbranch" --title "$ptitle" --label dependencies \
+                --body-file "$RUNNER_TEMP/players.md"
+              start_ci "$pbranch"
+              start_live "$pbranch"
+            fi
+
+            # --- Newer majors: one issue while any is out. Its marker names the majors (not the
+            # versions), so a newer release of a major already listed changes nothing, and one
+            # closed by hand stays closed until another major comes.
+            mkey=$(jq -r '[.majors[] | "\(.name) \(.latest | split(".")[0])"] | sort | join(", ")' "$players")
+            gh issue list --state all --limit 200 --json number,title,state,body,author > "$RUNNER_TEMP/issues.all.json"
+            issue=$(jq -c --arg t "$mtitle" '[.[] | select(.title == $t and .author.login == "app/github-actions")] | sort_by(.number) | last // empty' \
+              "$RUNNER_TEMP/issues.all.json")
+            if [ -z "$mkey" ]; then
+              if [ -n "$issue" ] && [ "$(jq -r .state <<< "$issue")" = OPEN ]; then
+                gh issue close "$(jq -r .number <<< "$issue")" --comment 'No player library has a newer major than its pin now. Closing.' ||
+                  echo '::warning::Could not close the newer-majors issue; the next run tries again.'
+              fi
+              return 0
+            fi
+            {
+              printf '@%s A newer major of a player library the live suite plays (`%s`) is out. The rolling pull request "%s" takes only releases of the pinned majors: each of these is a decision, since its page in `tests/e2e/live-specs/players.e2e.mjs` may need changing, and sites may keep the old major for long.\n\n' "$OWNER" "$pfile" "$ptitle"
+              printf '| Library | Pinned | Newest |\n| --- | --- | --- |\n'
+              jq -r '.majors[] | "| [\(.name)](https://www.npmjs.com/package/\(.name)?activeTab=versions) | \(.current) | \(.latest) |"' "$players"
+              printf '\nTo take one: move its pin in `%s`, adapt its page, and run the live suite. Closing this issue keeps it closed until another major comes out; it closes itself once no newer major is left.\n' "$pfile"
+              printf '\n<sub>%s</sub>\n<!-- player-majors: %s -->\n' "$RUN_URL" "$mkey"
+            } > "$RUNNER_TEMP/majors.md"
+            if [ -z "$issue" ]; then
+              gh issue create --title "$mtitle" --assignee "$OWNER" --body-file "$RUNNER_TEMP/majors.md" > /dev/null
+            elif ! jq -r '.body // ""' <<< "$issue" | grep -qF -- "<!-- player-majors: $mkey -->"; then
+              if [ "$(jq -r .state <<< "$issue")" != OPEN ]; then gh issue reopen "$(jq -r .number <<< "$issue")" > /dev/null; fi
+              gh issue edit "$(jq -r .number <<< "$issue")" --body-file "$RUNNER_TEMP/majors.md" > /dev/null
+            fi
+          }
 
           # --- Raise each update: its branch, a pull request, CI.
           raised=()
@@ -317,6 +463,10 @@ jobs:
                 start_ci "$branch"
               fi
             done 3< "$RUNNER_TEMP/mine.jsonl"
+
+            # --- The player libraries: one rolling pull request, rebuilt in place (above).
+            # $start is the main just fetched; prs.json the open pull requests read above.
+            players_section
           fi
 
           # A source the checker could not read (nodejs.org, the npm registry, AMO) left its track

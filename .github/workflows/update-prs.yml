@@ -27,7 +27,9 @@ name: Update PRs
 #               changes only what that kind of update changes (package.json and
 #               pnpm-lock.yaml; fsaunpack's two files; .nvmrc; workflow files; the two
 #               Dockerfiles; a re-cut's files; tools/setup-dev-profile.mjs for uBlock
-#               Origin); its dependency review passed; every package
+#               Origin; tests/e2e/live-specs/player-libraries.json for the player
+#               libraries, whose live suite must have passed on the commit too: CI does not
+#               play them); its dependency review passed; every package
 #               version it adds to the lockfile is 3 days old on the npm registry
 #               (Dependabot's cooldown holds back only what it bumps; a security fix is not
 #               held back); and the branch holds the newest main, so what he merges is
@@ -228,6 +230,7 @@ jobs:
             toolchain/pnpm-*) kind=pnpm ;;
             toolchain/node-*) kind=node ;;
             toolchain/ublock-origin-*) kind=ublock ;;
+            toolchain/player-libraries) kind=players ;;
             patched/*) kind=patched ;;
             *) kind=other ;;
           esac
@@ -253,6 +256,7 @@ jobs:
               actions) printf 'Dependabot moves the pinned commit and its version comment together; the release notes are linked above.\n' ;;
               docker) printf 'Dependabot moves the tag and the digest in the Dockerfile together. `@dependabot ignore this minor version` (or `this major version`) skips it.\n' ;;
               pnpm|node|ublock) printf 'Closing this pull request skips this version for good; toolchain-updates.yml raises the next one.\n' ;;
+              players) printf 'toolchain-updates.yml rebuilds this pull request in place when a newer release comes. Closing it skips this set of versions; the next set comes as a pull request of its own.\n' ;;
               patched) printf 'How to take it by hand: `docs/updating-patched-libraries.md`. Closing this pull request skips this version for good.\n' ;;
               *) ;;
             esac
@@ -348,7 +352,7 @@ jobs:
             migrate() {
               local what slug updates count group list park take rerun found
               case $kind in
-                pnpm|node|ublock|patched)
+                pnpm|node|ublock|players|patched)
                   # The title less its prefix: "pnpm 12.15.0", "Node.js 26", "hls.js 1.7.4".
                   what=$(jq -r '.title | sub("^(Toolchain update|Patched library update): "; "")' <<< "$pr")
                   slug=$what
@@ -356,6 +360,11 @@ jobs:
                   park="closing #$number skips this version for good; the next one comes as a pull request of its own"
                   if [ "$kind" = patched ]; then take=patched-libraries.yml; else take=toolchain-updates.yml; fi
                   take="$take closes #$number"
+                  # One rolling pull request: rebuilt in place, never replaced by another.
+                  if [ "$kind" = players ]; then
+                    park="closing #$number skips this set of versions; the next set comes as a pull request of its own"
+                    take="toolchain-updates.yml rebuilds #$number on it at its next run"
+                  fi
                   ;;
                 *)
                   # What Dependabot's newest commit updates, "<name> <version>" a line, from the
@@ -496,7 +505,7 @@ jobs:
           fi
           case $kind in
             dependabot|actions|docker) bot='dependabot[bot]' ;;
-            pnpm|node|ublock|patched) bot='github-actions[bot]' ;;
+            pnpm|node|ublock|players|patched) bot='github-actions[bot]' ;;
             *) reasons+=("branch $BRANCH is not one this workflow checks") ;;
           esac
           if [ "$kind" = actions ] && [ -z "${MERGE_TOKEN:-}" ]; then
@@ -589,6 +598,9 @@ jobs:
               ublock)
                 files=$(jq -r '.files[].path | select(. != "tools/setup-dev-profile.mjs")' "$RUNNER_TEMP/pr.json")
                 only='tools/setup-dev-profile.mjs' ;;
+              players)
+                files=$(jq -r '.files[].path | select(. != "tests/e2e/live-specs/player-libraries.json")' "$RUNNER_TEMP/pr.json")
+                only='tests/e2e/live-specs/player-libraries.json' ;;
               actions)
                 files=$(jq -r '.files[].path | select((startswith(".github/workflows/") or startswith(".github/actions/")) | not)' "$RUNNER_TEMP/pr.json")
                 only='workflow and action files' ;;
@@ -845,8 +857,43 @@ jobs:
                 fi
                 # A push with the owner's token starts CI on its own; this token's starts none.
                 if [ "$update_token" = "$GH_TOKEN" ]; then gh workflow run ci.yml --ref "$BRANCH"; fi
+                # Nothing starts the live suite on a push: it is started here whoever pushed.
+                if [ "$kind" = players ]; then gh workflow run live-streams.yml --ref "$BRANCH"; fi
                 exit 0
               fi
+            fi
+          fi
+
+          # --- The player libraries: CI does not play them, the live suite (live-streams.yml) does,
+          # so it must have passed on this very commit too. Asked last, once everything else holds
+          # and the branch holds main: a run started earlier would be for a head about to be
+          # replaced. Its run ends in live-streams.yml's hand-off, which starts this workflow again.
+          # One still going (any status but completed) is never started again: a second dispatch
+          # on the branch cancels it (live-streams.yml's concurrency). A cancelled one (a run that
+          # times out reads as cancelled) is started again only while the commit has fewer than
+          # two, so one that always times out cannot loop.
+          if [ "$kind" = players ] && [ ${#reasons[@]} = 0 ]; then
+            gh run list --workflow live-streams.yml --commit "$SHA" --limit 50 --json databaseId,status,conclusion,url \
+              --jq 'sort_by(.databaseId) | reverse' > "$RUNNER_TEMP/live.json"
+            live_runs=$(jq length "$RUNNER_TEMP/live.json")
+            live_status=$(jq -r '.[0].status // ""' "$RUNNER_TEMP/live.json")
+            live_conclusion=$(jq -r '.[0].conclusion // ""' "$RUNNER_TEMP/live.json")
+            live_url=$(jq -r '.[0].url // ""' "$RUNNER_TEMP/live.json")
+            start_live() {
+              if gh workflow run live-streams.yml --ref "$BRANCH"; then
+                reasons+=('its live suite (live-streams.yml), which plays these libraries in Firefox, was started on it just now: its end decides again')
+              else
+                reasons+=('its live suite (live-streams.yml) has not run on it, and could not be started: start it from the Actions tab on this branch; its end decides again')
+              fi
+            }
+            if [ "$live_runs" = 0 ]; then
+              start_live
+            elif [ "$live_status" != completed ]; then
+              reasons+=("its live suite (live-streams.yml) is still running on it ($live_url): its end decides again")
+            elif [ "$live_conclusion" = cancelled ] && [ "$live_runs" -lt 2 ]; then
+              start_live
+            elif [ "$live_conclusion" != success ]; then
+              reasons+=("its live suite (live-streams.yml) ended $live_conclusion on it ($live_url): a public stream or site the suite uses may be down, or a library no longer plays as its page expects. Run it again (its end decides again), or look at the failed case in its log")
             fi
           fi
 

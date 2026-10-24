@@ -13,7 +13,9 @@ name: Real streams
 # Not part of CI, on purpose: it depends on third-party servers, and an outage there must
 # not hold back a release. A scheduled failure opens one issue, assigned to the owner with
 # an @mention; the next green scheduled run closes it. It also runs on a pull request that
-# changes this suite or its setup, and by hand.
+# changes this suite or its setup, and by hand; and on the player libraries' update pull
+# request (toolchain-updates.yml dispatches it there), which update-prs.yml calls ready only
+# once this suite passed on its commit.
 
 on:
   schedule:
@@ -88,6 +90,64 @@ jobs:
           path: logs/
           if-no-files-found: ignore
           retention-days: 30
+
+  # The player libraries' rolling update pull request (toolchain-updates.yml, branch
+  # toolchain/player-libraries): CI does not play them, this suite does, and update-prs.yml
+  # calls it ready only once this suite passed on its commit. This suite ends after CI, so its
+  # end starts update-prs.yml again, by workflow_dispatch with the CI run on this commit (a run
+  # the repository's token started sends no workflow_run). Only when that CI run passed: one
+  # still running or red decides through ci.yml's own hand-off. always(): a failed or
+  # timed-out run must be decided on too; one cancelled for a newer run of this branch leaves
+  # an extra decision that finds the newer one still running. Tried three times like ci.yml's
+  # hand-off, whose issue it shares when GitHub refuses all three.
+  hand-off:
+    name: Hand over to update-prs
+    needs: live
+    if: always() && (github.head_ref || github.ref_name) == 'toolchain/player-libraries'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write  # start update-prs.yml
+      issues: write   # say so when it cannot
+    steps:
+      - name: Start update-prs.yml for the CI run on this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'Update PRs hand-off failed'
+        run: |
+          set -euo pipefail
+          ci=$(gh run list --workflow ci.yml --commit "$SHA" --limit 50 --json databaseId,status,conclusion \
+            --jq 'sort_by(.databaseId) | reverse | .[0] // empty')
+          if [ -z "$ci" ]; then
+            echo "No CI run on ${SHA:0:8}: the one that comes decides through its own hand-off."
+            exit 0
+          fi
+          read -r run_id status conclusion < <(jq -r '"\(.databaseId) \(.status) \(.conclusion // "-")"' <<< "$ci")
+          if [ "$status" != completed ] || [ "$conclusion" != success ]; then
+            echo "CI run $run_id on ${SHA:0:8} is $status $conclusion: its own hand-off decides."
+            exit 0
+          fi
+          start() { gh workflow run update-prs.yml --ref main -f run_id="$run_id" -f branch="$BRANCH"; }
+          if start || { sleep 30; start; } || { sleep 120; start; }; then
+            exit 0
+          fi
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s GitHub refused three times again, after the live suite on %s (%s): start update-prs.yml by hand with run_id %s and branch %s.\n' \
+              "$OWNER" "$BRANCH" "$SELF_URL" "$run_id" "$BRANCH" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md" || true
+          else
+            printf '@%s GitHub refused three times to start update-prs.yml after the live suite on %s (%s), so that pull request waits without a word. Start it from the Actions tab: Update PRs, Run workflow, run_id %s and branch %s. Close this issue once it has run.\n' \
+              "$OWNER" "$BRANCH" "$SELF_URL" "$run_id" "$BRANCH" > "$RUNNER_TEMP/body.md"
+            gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md" || true
+          fi
+          exit 1
 
   report:
     needs: live
