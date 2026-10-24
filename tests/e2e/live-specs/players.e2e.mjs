@@ -58,6 +58,22 @@ const VIDEO = 'id="v" muted autoplay playsinline controls preload="auto" width="
 const BOX = '<div id="v" style="width: 800px; height: 450px"></div>';
 
 /**
+ * A Video.js 10 page as its CDN guide writes one: the player, its default skin, and one media
+ * element, each from @videojs/cdn's script-tag build (its entries load their shared chunks by
+ * relative URL, all served from the same package).
+ * @param {string} media - The media element: video, hls-video, hlsjs-video or dash-video.
+ * @param {string} src - The stream.
+ * @return {string}
+ */
+const videojs10 = (media, src) => doc(`<script type="module" src="/npm/@videojs/cdn/video.js"></script>
+    ${media === 'video' ? '' : `<script type="module" src="/npm/@videojs/cdn/media/${media}.js"></script>`}`,
+`<video-player>
+      <video-skin style="display: block; width: 800px; aspect-ratio: 16 / 9">
+        <${media} src="${src}" muted autoplay playsinline></${media}>
+      </video-skin>
+    </video-player>`);
+
+/**
  * Each library, the formats it plays, the streams it gets when not STREAMS', and its page
  * for a stream (`src` the stream, `type` its format).
  * @type {Object<string, {formats: string[], streams?: Object<string, string>,
@@ -75,6 +91,19 @@ const PLAYERS = {
           const player = videojs('v', {muted: true, autoplay: 'muted'});
           player.src({src: ${JSON.stringify(src)}, type: ${JSON.stringify(MIME[type])}});
         </script>`),
+  },
+  // Video.js 10, a rebuild that is not video.js on npm (that package holds only errors from
+  // 10 on): HLS through <hls-video>, its own lightweight engine, DASH through <dash-video>
+  // (dash.js inside), an MP4 through a plain <video>. Its media elements keep their <video>
+  // in a shadow root.
+  videojs10: {
+    formats: ['hls', 'dash', 'mp4'],
+    page: (src, type) => videojs10(type === 'mp4' ? 'video' : `${type}-video`, src),
+  },
+  // <hlsjs-video>: the same player with the hls.js it bundles, the more compatible HLS choice.
+  videojs10hlsjs: {
+    formats: ['hls'],
+    page: (src) => videojs10('hlsjs-video', src),
   },
   shaka: {
     formats: ['hls', 'dash'],

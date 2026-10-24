@@ -72,16 +72,19 @@ on the first fix. A test that switches into a frame must switch back before
 **The player libraries sites use** (2026-10-07): `tests/e2e/live-specs/players.e2e.mjs`, in
 the same `test:live` run and the same weekly workflow. Most sites play through a player
 library, not bare hls.js or dash.js, and each wraps, moves or hides the `<video>` in its
-own way. 11 libraries (16 packages, with the parts some of them load), each the official
+own way. 12 libraries (17 packages, with the parts some of them load), each the official
 release at an exact version pinned in `tests/e2e/live-specs/player-libraries.json`, which `toolchain-updates.yml` moves on one
 rolling pull request that the live suite runs on (since 2026-10-24; in the spec until then),
 each fetched from the npm registry (checked against the registry's integrity and held in memory for the
 run, about 66 MB of tarballs; until 2026-10-07 they were cached on disk in
 `tests/e2e/fixtures/live-libs`, read back unchecked, and CodeQL js/http-to-file-access
-flagged the write): video.js (HLS, DASH, MP4), Shaka (HLS, DASH), Plyr,
+flagged the write): video.js 8 (HLS, DASH, MP4), Video.js 10 (`@videojs/cdn`, since
+2026-10-24: HLS through its own engine in `<hls-video>` and through the hls.js it bundles in
+`<hlsjs-video>`, DASH through `<dash-video>`, MP4), Shaka (HLS, DASH), Plyr,
 Clappr, MediaElement, Vidstack (a web component), Media Chrome with `<hls-video>` (its
 `<video>` in a shadow root, as Mux's players have it), DPlayer, Artplayer, xgplayer (its
-own HLS code, not hls.js), OpenPlayerJS - HLS on all, DASH on two, MP4 on nine: 22 cases.
+own HLS code, not hls.js), OpenPlayerJS - HLS on all, DASH on three, MP4 on ten: 26 cases
+(the four Video.js 10 ones first passed both passes on 2026-10-24, Windows, Firefox 158).
 Each page starts its player muted, as a visitor's click does. Two passes, so a failure
 says whose it is: each page first plays on its own with FastStream not enabled there
 (the page and the library are right), then, auto-enabled, FastStream must replace each
