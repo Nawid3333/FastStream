@@ -1270,5 +1270,11 @@
     },
     "mpv_episode_series_end": {
         "message": "serinin son bölümü: otomatik oynatma durur"
+    },
+    "player_quality_lowered": {
+        "message": "Kalite $1 değerine düşürüldü: bu bilgisayar $3 çözünürlüğünde karelerin %$2'sini düşürdü. Bu kalitede kalmak için kalite menüsünden $3 seçin."
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "Bu bilgisayar tüm kareleri zamanında gösteremediğinde video kalitesini düşür (oynatıcı her seferinde sizi bilgilendirir)"
     }
 }
