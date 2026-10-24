@@ -873,10 +873,13 @@ jobs:
           # is started again only while the commit has fewer than two, so one that always times
           # out cannot loop.
           # Runs that cannot be listed are a reason, not this run's end: the live suite's hand-off
-          # may have been the last thing to start this workflow for the commit.
+          # may have been the last thing to start this workflow for the commit. A run that never ran
+          # does not count: the pull_request runs of a pull request this repository's token opened
+          # wait for an approval (action_required), and come after the runs started on its branch.
           if [ "$kind" = players ] && [ ${#reasons[@]} = 0 ] &&
              ! gh run list --workflow live-streams.yml --commit "$SHA" --limit 50 --json databaseId,status,conclusion,url \
-                 --jq 'sort_by(.databaseId) | reverse' > "$RUNNER_TEMP/live.json"; then
+                 --jq '[.[] | select(.conclusion != "action_required" and .conclusion != "skipped")] | sort_by(.databaseId) | reverse' \
+                 > "$RUNNER_TEMP/live.json"; then
             reasons+=('its live suite runs (live-streams.yml) could not be listed: run Update PRs again on this branch, with the CI run above')
           fi
           if [ "$kind" = players ] && [ ${#reasons[@]} = 0 ]; then

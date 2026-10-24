@@ -313,14 +313,15 @@ jobs:
                 echo "#$number: rebuilt on main for the set $state."
               else
                 # The same set, and it merges: a head without a run that decides gets one (for the
-                # live suite: one still going, or one that ended other than cancelled or timed out).
+                # live suite: one still going, or one that ended other than cancelled or timed out; a
+                # pull_request run waiting for an approval, action_required, never ran).
                 if [ "$(gh run list --workflow ci.yml --commit "$head" --limit 20 --json status,conclusion \
                      --jq '[.[] | select(.status != "completed" or .conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out")] | length')" = 0 ]; then
                   echo "#$number has no CI run on its head that decides: starting one."
                   start_ci "$pbranch"
                 fi
                 if [ "$(gh run list --workflow live-streams.yml --commit "$head" --limit 20 --json status,conclusion \
-                     --jq '[.[] | select(.status != "completed" or (.conclusion != "cancelled" and .conclusion != "timed_out"))] | length')" = 0 ]; then
+                     --jq '[.[] | select(.status != "completed" or (.conclusion | IN("cancelled", "timed_out", "action_required", "skipped") | not))] | length')" = 0 ]; then
                   echo "#$number has no live suite run on its head: starting one."
                   start_live "$pbranch"
                 fi

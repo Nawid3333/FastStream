@@ -1212,6 +1212,29 @@ players_live_running() {
   check 'says it runs' grep -qF 'is still running on it (https://github.com/me/fs/actions/runs/7): its end decides again' <(last_comment)
 }
 
+players_live_never_ran() {
+  # The pull_request run of a pull request this repository's token opened waits for an approval
+  # and never runs (action_required), and is newer than the run started on the branch: the one
+  # that ran decides (FastStream #567, the first rolling pull request, had both).
+  setup
+  players_setup
+  live_runs '[{"databaseId": 9, "status": "completed", "conclusion": "action_required", "url": "u9"}, {"databaseId": 7, "status": "completed", "conclusion": "success", "url": "u7"}]'
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'ready to merge' ready
+  check 'starts nothing' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
+}
+
+players_live_only_never_ran() {
+  # Only a run that never ran: the live suite is started.
+  setup
+  players_setup
+  live_runs '[{"databaseId": 9, "status": "completed", "conclusion": "action_required", "url": "u9"}]'
+  run_step
+  check 'not called ready' not_ready
+  check 'starts the live suite' has_call 'workflow run live-streams.yml --ref toolchain/player-libraries'
+}
+
 players_live_cancelled_once() {
   setup
   players_setup
@@ -2429,6 +2452,8 @@ players_live_cancelled_once
 players_live_cancelled_twice
 players_live_timed_out_once
 players_live_timed_out_twice
+players_live_never_ran
+players_live_only_never_ran
 players_live_failed
 players_live_unlisted
 players_live_asked_last
