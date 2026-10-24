@@ -27,7 +27,7 @@
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -310,34 +310,44 @@ function hooks() {
   console.log('The privacy guards are on in this clone (core.hooksPath .githooks).');
 }
 
-/** @type {Map<string, (args: string[]) => string[]|void>} */
-const MODES = new Map(/** @type {Array<[string, (args: string[]) => string[]|void]>} */ ([
-  ['staged', () => staged()],
-  ['push', (/** @type {string[]} */ args) => push(args[0] || 'origin', fs.readFileSync(0, 'utf8'))],
-  ['ci', (/** @type {string[]} */ args) => ci(args[0] || '', args[1] || 'HEAD', args[2] || '')],
-  ['hooks', () => hooks()],
-]));
+/**
+ * The modes, by name: how many arguments each takes at most, what it runs, and how a refusal
+ * starts.
+ * @type {Map<string, {max: number, run: (args: string[]) => string[]|void, refused: string}>}
+ */
+const MODES = new Map([
+  ['staged', {max: 0, run: () => staged(), refused: 'Commit refused'}],
+  ['push', {max: 2, run: (/** @type {string[]} */ args) => push(args[0] || 'origin', fs.readFileSync(0, 'utf8')), refused: 'Push refused'}],
+  ['ci', {max: 3, run: (/** @type {string[]} */ args) => ci(args[0] || '', args[1] || 'HEAD', args[2] || ''), refused: 'Found'}],
+  ['hooks', {max: 0, run: () => hooks(), refused: ''}],
+]);
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const [mode, ...args] = process.argv.slice(2);
-  const run = MODES.get(mode);
-  if (!run) {
+function main() {
+  const [name, ...args] = process.argv.slice(2);
+  const mode = MODES.get(name || '');
+  if (!mode || args.length > mode.max) {
     console.error('usage: node tools/privacy-check.mjs staged | push <remote> | ci <base> <head> [branch] | hooks');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   let out;
   try {
-    out = run(args) || [];
+    out = mode.run(args) || [];
   } catch (error) {
     // a check that could not run is no pass: unchecked is not clean
     console.error(`The privacy check could not run: ${/** @type {Error} */ (error).message}`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   if (out.length) {
-    const what = mode === 'staged' ? 'Commit refused' : mode === 'push' ? 'Push refused' : 'Found';
-    console.error(`${what}: the repository is public, and this would publish something personal:`);
-    for (const message of out) console.error(mode === 'ci' ? `::error::${message}` : `  ${message}`);
-    if (mode !== 'ci') console.error('A deliberate exception: --no-verify.');
-    process.exit(1);
+    const ci = name === 'ci';
+    console.error(`${mode.refused}: the repository is public, and this would publish something personal:`);
+    for (const message of out) console.error(ci ? `::error::${message}` : `  ${message}`);
+    if (!ci) console.error('A deliberate exception: --no-verify.');
+    process.exitCode = 1;
   }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
 }
