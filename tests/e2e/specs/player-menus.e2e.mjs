@@ -99,9 +99,11 @@ describe('Player menus', function() {
   // closed", which loaded the same two streams this case loads, one each: the quality
   // button is tried on the first, the audio button on the second. Every assertion of the
   // three is here.
-  it('shows the audio button only where there is a track to choose, and opens its list; the quality and audio buttons let the arrow keys through once their lists are closed', async function() {
+  it('shows the audio button where there is a track or an output to choose, and opens its list; the quality and audio buttons let the arrow keys through once their lists are closed', async function() {
     // It opened the audio settings window until that went (2026-10-10); it is the
-    // audio-track list's button now, and a list of one track offers nothing.
+    // audio-track list's button now, and a list of one track offers nothing - but for the
+    // audio output, which a Firefox with selectAudioOutput lets the list choose too
+    // (AudioOutputDevice), under its tracks.
     await openEmptyPlayer();
     const state = () => browser.execute(() => {
       const button = document.querySelector('.mainplayer .fluid_button_soundwave');
@@ -109,14 +111,22 @@ describe('Player menus', function() {
         shown: !button.classList.contains('hidden') && button.offsetWidth > 0,
         label: button.ariaLabel,
         open: window.fastStream.interfaceController.audioQualityChanger.isOpen(),
-        tracks: document.querySelector('.mainplayer .fluid_audio_sources_list').children.length,
+        // The track rows: those before the output part's header.
+        tracks: (() => {
+          const rows = Array.from(document.querySelector('.mainplayer .fluid_audio_sources_list').children);
+          const header = rows.findIndex((row) => row.classList.contains('fluid_audio_source_list_header'));
+          return header < 0 ? rows.length : header;
+        })(),
+        outputs: document.querySelectorAll('.mainplayer .fluid_audio_source_list_header').length > 0,
+        canChooseOutput: !!window.fastStream.audioOutputDevice?.isSupported(),
       };
     });
     await addSource(hlsUrl());
     await waitForPicture();
     const one = await settle(state, (s) => s.tracks === 1);
     console.log('      one track:', JSON.stringify(one));
-    expect(one.shown).toBe(false);
+    expect(one.shown).toBe(one.canChooseOutput);
+    expect(one.outputs).toBe(one.canChooseOutput);
 
     // The arrow keys on the quality button moved a highlight in the hidden list, and Enter
     // then switched the quality.
