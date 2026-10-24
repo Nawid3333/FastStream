@@ -393,63 +393,62 @@ players_apply_refuses() {
   check 'nothing started' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
 }
 
-players_majors_issue() {
+players_new_major() {
+  # A new major is taken like any release, and the pull request names it: its page may need a
+  # change. No issue is raised for it.
   setup
-  players_plan "$A" "$CHANGES" "[$(major plyr 3.8.5 4.0.1)]"
+  players_plan "$A" "[$(player plyr 3.8.5 4.0.1), $(player dplayer 1.27.1 1.27.2)]" "[$(player plyr 3.8.5 4.0.1)]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'the pull request names it' grep -qF 'plyr 4.0.1 (pinned 3.8.5)' "$STATE/created.body"
-  check 'asks for its own issues, all of them' has_call 'api --paginate repos/me/fs/issues?state=all&creator=github-actions%5Bbot%5D&per_page=100'
-  check 'issue created' has_call 'issue create --title Player libraries: newer majors --assignee nawid'
-  check 'the table' grep -qF '| [plyr](https://www.npmjs.com/package/plyr?activeTab=versions) | 3.8.5 | 4.0.1 |' "$STATE/issue-created.body"
-  check 'its marker' grep -qF '<!-- player-majors: plyr 4 -->' "$STATE/issue-created.body"
+  check 'at the set' test "$(origin show "toolchain/player-libraries:$PFILE")" = "$(printf '{\n  "plyr": "4.0.1",\n  "dplayer": "1.27.2"\n}')"
+  check 'names the new major' grep -qF 'A new major, whose page in `tests/e2e/live-specs/players.e2e.mjs` may need a change (the live suite shows it): plyr 3.8.5 to 4.0.1' "$STATE/created.body"
+  check 'no issue' bash -c '! grep -qE "^issue (create|edit|reopen|close)|creator=" "$0"' "$STATE/gh.log"
 }
 
-players_majors_same_key() {
-  # A newer release within a major already listed changes nothing.
+players_kept() {
+  # A library a hold keeps on its major: the text says what is out and why.
   setup
-  majors_issue open 'plyr 4'
-  players_plan "$A" '[]' "[$(major plyr 3.8.5 4.0.2)]" '[]' false
+  players_plan "$A" "[$(player plyr 3.8.5 3.8.6)]" '[]' '[]' true \
+    '[{"name": "dplayer", "version": "1.27.2", "latest": "2.0.0", "below": "2.0.0", "reason": "its 2 holds no player"}]'
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not touched' bash -c '! grep -qE "^issue (edit|reopen|create|close)" "$0"' "$STATE/gh.log"
+  check 'the kept one' grep -qF -- '- dplayer stays below 2.0.0 (2.0.0 is out): its 2 holds no player' "$STATE/created.body"
+  check 'no new major named' bash -c '! grep -qF "A new major" "$0"' "$STATE/created.body"
+  check 'nothing reads null' bash -c '! grep -qw null "$0"' "$STATE/created.body"
 }
 
-players_majors_closed_same_key() {
+players_hold_problem() {
+  # A hold to look at again: the set goes ahead, then the run fails and names it, not as a
+  # source it could not read.
   setup
-  majors_issue closed 'plyr 4'
-  players_plan "$A" '[]' "[$(major plyr 3.8.5 4.0.1)]" '[]' false
+  players_plan "$A" "$CHANGES" '[]' '[]' true '[]' '["video.js below 9.0.0 has had no release for over 365 days (newest 8.24.2, 2026-10-06): look at it"]'
   run_step
-  check 'stays closed' bash -c '! grep -qE "^issue (edit|reopen|create|close)" "$0"' "$STATE/gh.log"
+  check 'fails' test "$rc" -eq 1
+  check 'the set raised all the same' has_call 'pr create --base main --head toolchain/player-libraries'
+  check 'names it' grep -qF '::error::video.js below 9.0.0 has had no release for over 365 days' "$T/out"
+  check 'not as unread' bash -c '! grep -qF "Could not read video.js" "$0"' "$T/out"
 }
 
-players_majors_new() {
+players_malformed_no_majors() {
+  # A set from an older checker, without newMajors and kept, is refused, never half read.
   setup
-  majors_issue closed 'plyr 4'
-  players_plan "$A" '[]' "[$(major plyr 3.8.5 4.0.1), $(major dplayer 1.27.1 2.0.0)]" '[]' false
+  players_plan "$A" "$CHANGES"
+  jq '.players |= del(.newMajors, .kept)' "$STATE/plan.json" > "$STATE/p" && mv "$STATE/p" "$STATE/plan.json"
   run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'reopened' has_call 'issue reopen 40'
-  check 'with the new marker' grep -qF '<!-- player-majors: dplayer 2, plyr 4 -->' "$STATE/issue-40-edited"
-  check 'no second issue' bash -c '! grep -q "^issue create" "$0"' "$STATE/gh.log"
+  check 'fails' test "$rc" -eq 1
+  check 'says why' grep -qF "The plan's player libraries are not a set this workflow reads" "$T/out"
+  check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
 }
 
-players_majors_none() {
+players_malformed_hold_problems() {
+  # holdProblems that is not a list is the checker's bug too: refused with the set, never
+  # printed one character an error.
   setup
-  majors_issue open 'plyr 4'
-  players_plan "$A" '[]' '[]' '[]' false
+  players_plan "$A" "$CHANGES" '[]' '[]' true '[]' '"video.js: a string"'
   run_step
-  check 'closed' has_call 'issue close 40 --comment No player library has a newer major than its pin now. Closing.'
-}
-
-players_majors_stranger() {
-  # One with that title by someone else is not this workflow's: left open, and not reused.
-  setup
-  majors_issue open 'plyr 4' someone
-  players_plan "$A" '[]' "[$(major plyr 3.8.5 4.0.1)]" '[]' false
-  run_step
-  check 'theirs untouched' bash -c '! grep -qE "^issue (edit|reopen|close) 40" "$0"' "$STATE/gh.log"
-  check 'one of its own' has_call 'issue create --title Player libraries: newer majors'
+  check 'fails' test "$rc" -eq 1
+  check 'says why' grep -qF "The plan's player libraries are not a set this workflow reads" "$T/out"
+  check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
 }
 
 weekly_ublock() {
@@ -712,16 +711,16 @@ open_pr() { # <number> <title> <branch> <head sha> [author login] [cross-reposit
 # The player libraries' rolling pull request.
 A=aaaaaaaa1111
 B=bbbbbbbb2222
-players_plan() { # <state> <changes> [majors] [held] [behind]: the plan's "players", its target from main's file
+players_plan() { # <state> <changes> [newMajors] [held] [behind] [kept] [holdProblems]: the plan's "players", its target from main's file
   local pins
   pins=$(git -C "$T/work" show main:tests/e2e/live-specs/player-libraries.json)
-  jq --arg s "$1" --argjson c "$2" --argjson m "${3:-[]}" --argjson h "${4:-[]}" --argjson b "${5:-true}" --argjson pins "$pins" \
-    '. + {players: {state: $s, behind: $b, changes: $c, majors: $m, held: $h,
+  jq --arg s "$1" --argjson c "$2" --argjson m "${3:-[]}" --argjson h "${4:-[]}" --argjson b "${5:-true}" --argjson kp "${6:-[]}" \
+    --argjson p "${7:-[]}" --argjson pins "$pins" \
+    '. + {players: {state: $s, behind: $b, changes: $c, newMajors: $m, kept: $kp, held: $h, holdProblems: $p,
       target: ($pins | with_entries(.key as $k | .value = ([$c[] | select(.name == $k) | .to][0] // .value)))}}' \
     "$STATE/plan.json" > "$STATE/p" && mv "$STATE/p" "$STATE/plan.json"
 }
 player() { jq -cn --arg n "$1" --arg f "$2" --arg t "$3" '{name: $n, from: $f, to: $t}'; }
-major() { jq -cn --arg n "$1" --arg c "$2" --arg l "$3" '{name: $n, current: $c, latest: $l}'; }
 players_body() { printf 'The player libraries the live suite plays.\n<!-- player-libraries: %s -->\n' "$1" > "$STATE/pr-9-body"; }
 players_branch() { # <plyr> <dplayer>: toolchain/player-libraries on origin, holding those
   (
@@ -741,11 +740,6 @@ players_open() { # the rolling pull request open, as #9, on a branch with these 
 players_closed() { # closed ones on the branch: $A closed unmerged, $B merged
   jq -n --arg a "$A" --arg b "$B" '[{merged_at: null, user: {login: "github-actions[bot]"}, body: "old <!-- player-libraries: \($a) -->"},
     {merged_at: "2026-01-01T10:00:00Z", user: {login: "github-actions[bot]"}, body: "old <!-- player-libraries: \($b) -->"}]' > "$STATE/closed-prs.json"
-}
-majors_issue() { # <state open|closed> <key> [author login]: the newer-majors issue, as GitHub's REST lists it
-  jq -n --arg s "$1" --arg k "$2" --arg a "${3:-github-actions[bot]}" \
-    '[{number: 40, title: "Player libraries: newer majors", state: $s, user: {login: $a}, pull_request: null, body: "Old text\n<!-- player-majors: \($k) -->"}]' \
-    > "$STATE/issues.rest.json"
 }
 CHANGES="[$(player plyr 3.8.5 3.8.6), $(player dplayer 1.27.1 1.27.2)]"
 PFILE=tests/e2e/live-specs/player-libraries.json
@@ -961,12 +955,11 @@ players_next_set
 players_no_players
 players_malformed
 players_apply_refuses
-players_majors_issue
-players_majors_same_key
-players_majors_closed_same_key
-players_majors_new
-players_majors_none
-players_majors_stranger
+players_new_major
+players_kept
+players_hold_problem
+players_malformed_no_majors
+players_malformed_hold_problems
 weekly_ublock
 ublock_wrong_file
 ublock_download_fails

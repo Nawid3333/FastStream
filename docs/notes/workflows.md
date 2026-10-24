@@ -177,14 +177,19 @@
   folder was ruled out, since Dependabot's npm fetcher takes `pnpm-lock.yaml` and
   `pnpm-workspace.yaml` from a parent folder when the folder has none) come as ONE rolling PR,
   "Toolchain update: player libraries" on `toolchain/player-libraries`, rebuilt in place on
-  `main` when the set changes or it conflicts with `main`: each library at its newest release of its pinned major (the
-  caret range) that is 3 days old and fits the ranges they declare on each other and on the
-  repository's hls.js (`playerTargets()`: xgplayer-hls asks for its exact xgplayer,
-  hls-video-element for a custom-media-element). The PR's body marks its set; closed unmerged
-  by hand, that set is skipped (this workflow's own close takes the marker out first). A newer
-  major is not taken: the issue "Player libraries: newer majors" lists them, keyed by name and
-  major, so it stays closed once closed until another major comes. CI and the live suite are
-  started on each new head. The tracks' decision logic is `plan()` in
+  `main` when the set changes or it conflicts with `main`: each library at its newest release
+  that is 3 days old and fits the ranges they declare on each other and on the repository's
+  hls.js (`playerTargets()`: xgplayer-hls asks for its exact xgplayer, hls-video-element for a
+  custom-media-element), a new major included since 2026-10-24 (until then an issue, "Player
+  libraries: newer majors", listed them for a decision by hand: "everything gets handled by
+  workflows", the owner). The PR names a new major, since its page may need a change, and the
+  live suite shows whether it does. `MAJOR_HOLDS` keeps a library below a version on purpose,
+  with its reason: video.js below 9, because video.js 10 on npm holds no player, only errors
+  pointing to Video.js 10 (`@videojs/cdn`, pinned and played as a library of its own). A hold
+  stands while the held line gets releases: the run fails once its newest is older than
+  `staleAfterDays` (a year), or once the pin has passed it. The PR's body marks its set;
+  closed unmerged by hand, that set is skipped (this workflow's own close takes the marker out
+  first). CI and the live suite are started on each new head. The tracks' decision logic is `plan()` in
   `tools/check-toolchain.mjs`, the players' set `playerTargets()` beside it, both unit-tested. Dependencies stay pinned by the lockfile on purpose (patches, AMO
   reproducibility); Dependabot's weekly grouped PRs are how they move, each release
   proposed once it is 3 days old (`cooldown` in `.github/dependabot.yml`, the owner's call

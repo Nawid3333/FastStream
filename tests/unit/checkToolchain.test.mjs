@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import * as yaml from 'js-yaml';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {
-  addonVersion, applyAddon, applyPlayers, caretCandidates, getJson, latestLtsMajor, MIN_AGE_DAYS, newerMajor, newestAddon,
-  newestOfMajor, plan, PLAYER_LIBRARIES, playerState, playerTargets, projectNodeMajor, relation, TITLE_PREFIX, UBLOCK,
+  aboveHold, addonVersion, applyAddon, applyPlayers, getJson, holdProblem, latestLtsMajor, MAJOR_HOLDS, MIN_AGE_DAYS,
+  newestAddon, newestOfMajor, pinCandidates, plan, PLAYER_LIBRARIES, playerState, playerTargets, projectNodeMajor, relation,
+  TITLE_PREFIX, UBLOCK,
 } from '../../tools/check-toolchain.mjs';
 import {ADDONS} from '../../tools/setup-dev-profile.mjs';
 
@@ -602,16 +603,16 @@ describe('relation', () => {
   });
 });
 
-describe('caretCandidates, more', () => {
+describe('pinCandidates, more', () => {
   it('lists the candidates newest first, as numbers', () => {
     const doc = docOf(NOW, {'1.4.0': {}, '1.5.0': {}, '1.10.0': {}, '1.6.0': {}});
-    expect(caretCandidates(doc, '1.4.0', NOW)).toEqual(['1.10.0', '1.6.0', '1.5.0', '1.4.0']);
+    expect(pinCandidates(doc, '1.4.0', NOW)).toEqual(['1.10.0', '1.6.0', '1.5.0', '1.4.0']);
   });
 
   it('takes a release exactly MIN_AGE_DAYS old, and a younger one with a shorter wait', () => {
     const doc = docOf(NOW, {'1.4.0': {}, '1.4.1': {age: MIN_AGE_DAYS}, '1.4.2': {age: 1}});
-    expect(caretCandidates(doc, '1.4.0', NOW)).toEqual(['1.4.1', '1.4.0']);
-    expect(caretCandidates(doc, '1.4.0', NOW, 1)).toEqual(['1.4.2', '1.4.1', '1.4.0']);
+    expect(pinCandidates(doc, '1.4.0', NOW)).toEqual(['1.4.1', '1.4.0']);
+    expect(pinCandidates(doc, '1.4.0', NOW, 1)).toEqual(['1.4.2', '1.4.1', '1.4.0']);
   });
 });
 
@@ -667,8 +668,8 @@ describe('playerTargets, more', () => {
   });
 });
 
-describe('caretCandidates', () => {
-  it('keeps plain, non-deprecated, aged versions inside a 1.x pin\u2019s caret, newest first, pin last', () => {
+describe('pinCandidates', () => {
+  it('keeps plain, non-deprecated, aged versions above the pin, a new major too, newest first, pin last', () => {
     const doc = docOf(NOW, {
       '1.2.0': {age: 30}, // below the pin
       '1.4.0': {age: 30}, // the pin itself
@@ -676,62 +677,97 @@ describe('caretCandidates', () => {
       '1.6.0': {age: 30, deprecated: true},
       '1.7.0-rc.0': {age: 30}, // prerelease: compareVersions cannot be trusted on it
       '1.8.0': {age: 1}, // too young
-      '2.0.0': {age: 30}, // NEW MAJOR, above the caret range
+      '2.0.0': {age: 30}, // a new major: taken
+      '3.0.0-beta.1': {age: 30}, // a prerelease of the next one: not
     });
-    expect(caretCandidates(doc, '1.4.0', NOW)).toEqual(['1.5.0', '1.4.0']);
+    expect(pinCandidates(doc, '1.4.0', NOW)).toEqual(['2.0.0', '1.5.0', '1.4.0']);
   });
 
-  it('uses the 0.y rule for 0.x pins', () => {
-    const doc = docOf(NOW, {
-      '0.2.9': {age: 30}, // below the pin
-      '0.3.5': {age: 30}, // the pin
-      '0.3.6': {age: 30},
-      '0.3.6-beta.1': {age: 30}, // prerelease
-      '0.3.7': {age: 1}, // too young
-      '0.4.0': {age: 30}, // same 0.x family boundary: outside the caret range
-    });
-    expect(caretCandidates(doc, '0.3.5', NOW)).toEqual(['0.3.6', '0.3.5']);
+  it('stops below a hold\u2019s bound, and at the pin when nothing below it is newer', () => {
+    const doc = docOf(NOW, {'1.4.0': {}, '1.5.0': {}, '1.9.9': {}, '2.0.0': {}, '2.1.0': {}});
+    expect(pinCandidates(doc, '1.4.0', NOW, MIN_AGE_DAYS, '2.0.0')).toEqual(['1.9.9', '1.5.0', '1.4.0']);
+    expect(pinCandidates(doc, '1.4.0', NOW, MIN_AGE_DAYS, '1.5.0')).toEqual(['1.4.0']);
   });
 
-  it('uses the 0.0.z rule for 0.0.x pins: ^0.0.4 is 0.0.4 alone, so 0.0.5 is a new major', () => {
-    const doc = docOf(NOW, {
-      '0.0.3': {age: 30}, // below the pin
-      '0.0.4': {age: 30}, // the pin
-      '0.0.5': {age: 30}, // outside the caret range
-      '0.0.6': {age: 1}, // too young
-      '0.1.0': {age: 30}, // outside the caret range
-    });
-    expect(caretCandidates(doc, '0.0.4', NOW)).toEqual(['0.0.4']);
-    expect(newerMajor(doc, '0.0.4', NOW)).toBe('0.1.0');
+  it('takes the next 0.y and 0.0.z lines as it takes a major', () => {
+    const zero = docOf(NOW, {'0.2.9': {}, '0.3.5': {}, '0.3.6': {}, '0.3.6-beta.1': {}, '0.3.7': {age: 1}, '0.4.0': {}});
+    expect(pinCandidates(zero, '0.3.5', NOW)).toEqual(['0.4.0', '0.3.6', '0.3.5']);
+    const zeroZero = docOf(NOW, {'0.0.3': {}, '0.0.4': {}, '0.0.5': {}, '0.0.6': {age: 1}, '0.1.0': {}});
+    expect(pinCandidates(zeroZero, '0.0.4', NOW)).toEqual(['0.1.0', '0.0.5', '0.0.4']);
   });
 
   it('always offers the pin as the floor, even when it is deprecated or too young', () => {
     const deprecated = docOf(NOW, {'2.1.0': {age: 30, deprecated: true}});
-    expect(caretCandidates(deprecated, '2.1.0', NOW)).toEqual(['2.1.0']);
+    expect(pinCandidates(deprecated, '2.1.0', NOW)).toEqual(['2.1.0']);
     const young = docOf(NOW, {'3.0.0': {age: 1}});
-    expect(caretCandidates(young, '3.0.0', NOW)).toEqual(['3.0.0']);
+    expect(pinCandidates(young, '3.0.0', NOW)).toEqual(['3.0.0']);
   });
 });
 
-describe('newerMajor', () => {
-  it('returns the newest eligible release above the caret range, or null', () => {
+describe('aboveHold', () => {
+  it('returns the newest eligible release at or above the bound', () => {
     const doc = docOf(NOW, {
-      '1.9.9': {age: 30}, // inside the caret range
+      '1.9.9': {age: 30}, // below the bound
       '2.0.0-rc.0': {age: 30}, // prerelease
-      '2.0.0': {age: 30}, // the caret\u2019s exclusive edge still counts as above it
+      '2.0.0': {age: 30}, // the bound itself counts as above it
       '2.1.0': {age: 30},
       '2.5.0': {age: 1}, // too young
       '3.0.0': {age: 30, deprecated: true},
     });
-    expect(newerMajor(doc, '1.2.3', NOW)).toBe('2.1.0');
-    expect(newerMajor(doc, '1.9.9', NOW)).toBe('2.1.0');
-    const zero = docOf(NOW, {'0.3.5': {age: 30}, '0.3.9': {age: 30}, '0.4.0': {age: 30}});
-    expect(newerMajor(zero, '0.3.5', NOW)).toBe('0.4.0'); // 0.3.9 sits inside, 0.4.0 is the new major
+    expect(aboveHold(doc, '2.0.0', NOW)).toBe('2.1.0');
+    expect(aboveHold(doc, '2.1.0', NOW)).toBe('2.1.0');
   });
 
-  it('returns null when nothing eligible sits above the caret range', () => {
-    const only = docOf(NOW, {'1.2.3': {age: 30}, '1.3.0': {age: 1}});
-    expect(newerMajor(only, '1.2.3', NOW)).toBeNull();
+  it('returns null when nothing eligible sits at or above the bound', () => {
+    const only = docOf(NOW, {'1.2.3': {age: 30}, '2.0.0': {age: 1}});
+    expect(aboveHold(only, '2.0.0', NOW)).toBeNull();
+  });
+});
+
+describe('holdProblem', () => {
+  const hold = {below: '9.0.0', staleAfterDays: 365, reason: 'why'};
+
+  it('has none while the held line still gets releases', () => {
+    const doc = docOf(NOW, {'8.24.1': {age: 400}, '8.24.2': {age: 364}, '10.0.0': {age: 30}});
+    expect(holdProblem('video.js', hold, '8.24.1', doc, NOW)).toBeNull();
+  });
+
+  it('names a held line whose newest release is older than staleAfterDays, deprecated ones not counted', () => {
+    const doc = docOf(NOW, {'8.24.1': {age: 366}, '8.25.0': {age: 10, deprecated: true}, '10.0.0': {age: 30}});
+    expect(holdProblem('video.js', hold, '8.24.1', doc, NOW)).toMatch(/video\.js below 9\.0\.0 has had no release for over 365 days \(newest 8\.24\.1, .*why/);
+  });
+
+  it('names a hold on a library the file does not pin, and one the pin has passed', () => {
+    const doc = docOf(NOW, {'9.1.0': {}});
+    expect(holdProblem('video.js', hold, undefined, null, NOW)).toMatch(/does not pin: drop the hold/);
+    expect(holdProblem('video.js', hold, '9.1.0', doc, NOW)).toMatch(/pinned at 9\.1\.0, not below its hold's 9\.0\.0/);
+  });
+
+  it('names a held line with no release at all', () => {
+    expect(holdProblem('video.js', hold, '8.0.0', {versions: {}, time: {}}, NOW)).toMatch(/newest none/);
+  });
+
+  it('names a held line whose newest has no date, rather than throwing', () => {
+    const doc = docOf(NOW, {'8.24.1': {age: 30}, '8.24.2': {age: 30}});
+    delete doc.time['8.24.2'];
+    expect(holdProblem('video.js', hold, '8.24.1', doc, NOW)).toMatch(/\(newest 8\.24\.2, no date\)/);
+  });
+
+  it('says nothing of a line it could not read: the run reports the read', () => {
+    expect(holdProblem('video.js', hold, '8.24.1', null, NOW)).toBeNull();
+  });
+});
+
+describe('MAJOR_HOLDS', () => {
+  it('holds only libraries the live suite pins, each below its bound, with a reason and a wait', () => {
+    const pins = JSON.parse(fs.readFileSync(PLAYER_LIBRARIES, 'utf8'));
+    for (const [name, hold] of MAJOR_HOLDS) {
+      expect(Object.hasOwn(pins, name)).toBe(true);
+      expect(hold.below).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(Number(pins[name].split('.')[0])).toBeLessThan(Number(hold.below.split('.')[0]));
+      expect(hold.reason.length).toBeGreaterThan(20);
+      expect(hold.staleAfterDays).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -748,7 +784,7 @@ describe('playerState', () => {
 });
 
 describe('playerTargets', () => {
-  it('leaves everything alone when no caret candidate and no new major is eligible', () => {
+  it('leaves everything alone when no candidate is eligible', () => {
     const pins = {'video.js': '8.24.1'};
     const docs = {
       'video.js': docOf(NOW, {
@@ -758,29 +794,72 @@ describe('playerTargets', () => {
         '9.0.0': {age: 1},
       }),
     };
-    const plan = playerTargets(pins, docs, {}, NOW);
+    const plan = playerTargets(pins, docs, {}, NOW, MIN_AGE_DAYS, new Map());
     expect(plan.target).toEqual({'video.js': '8.24.1'});
     expect(plan.changes).toEqual([]);
-    expect(plan.majors).toEqual([]);
+    expect(plan.newMajors).toEqual([]);
+    expect(plan.kept).toEqual([]);
     expect(plan.unresolved).toEqual([]);
+    expect(plan.holdProblems).toEqual([]);
   });
 
-  it('moves independent packages to their newest caret candidates, in pins order, and reports majors', () => {
-    const pins = {plyr: '3.8.5', dplayer: '1.27.1', mediaelement: '7.1.0'};
+  it('moves independent packages to their newest candidates, in pins order, a new major too', () => {
+    const pins = {plyr: '3.8.5', dplayer: '1.27.1', mediaelement: '7.1.0', vidstack: '0.3.5'};
     const docs = {
       plyr: docOf(NOW, {'3.8.5': {age: 40}, '3.9.0': {age: 40}, '4.0.0': {age: 1}}),
       dplayer: docOf(NOW, {'1.27.1': {age: 40}, '1.27.2': {age: 5}}),
       mediaelement: docOf(NOW, {'7.1.0': {age: 40}, '7.2.0': {age: 1}, '8.0.0': {age: 40}}),
+      vidstack: docOf(NOW, {'0.3.5': {age: 40}, '0.4.0': {age: 40}}),
     };
     const plan = playerTargets(pins, docs, {}, NOW);
     expect(Object.keys(plan.target)).toEqual(Object.keys(pins)); // keeps the pins\u2019 key order
-    expect(plan.target).toEqual({plyr: '3.9.0', dplayer: '1.27.2', mediaelement: '7.1.0'});
+    expect(plan.target).toEqual({plyr: '3.9.0', dplayer: '1.27.2', mediaelement: '8.0.0', vidstack: '0.4.0'});
     expect(plan.changes).toEqual([
       {name: 'plyr', from: '3.8.5', to: '3.9.0'},
       {name: 'dplayer', from: '1.27.1', to: '1.27.2'},
+      {name: 'mediaelement', from: '7.1.0', to: '8.0.0'},
+      {name: 'vidstack', from: '0.3.5', to: '0.4.0'},
     ]);
-    expect(plan.majors).toEqual([{name: 'mediaelement', current: '7.1.0', latest: '8.0.0'}]);
+    // The ones that leave the pin's caret range: 0.3 to 0.4 is a new major for npm too.
+    expect(plan.newMajors).toEqual([
+      {name: 'mediaelement', from: '7.1.0', to: '8.0.0'},
+      {name: 'vidstack', from: '0.3.5', to: '0.4.0'},
+    ]);
     expect(plan.unresolved).toEqual([]);
+  });
+
+  it('keeps a held library below its bound, and says what it keeps out and why', () => {
+    const pins = {'video.js': '8.24.1', 'plyr': '3.8.5'};
+    const docs = {
+      'video.js': docOf(NOW, {'8.24.1': {age: 40}, '8.24.2': {age: 20}, '10.1.0': {age: 20}, '10.2.0': {age: 1}}),
+      'plyr': docOf(NOW, {'3.8.5': {age: 40}, '4.0.0': {age: 20}}),
+    };
+    const holds = new Map([['video.js', {below: '9.0.0', staleAfterDays: 365, reason: 'its 10 is no player'}]]);
+    const plan = playerTargets(pins, docs, {}, NOW, MIN_AGE_DAYS, holds);
+    expect(plan.target).toEqual({'video.js': '8.24.2', 'plyr': '4.0.0'});
+    expect(plan.newMajors).toEqual([{name: 'plyr', from: '3.8.5', to: '4.0.0'}]);
+    expect(plan.kept).toEqual([{name: 'video.js', version: '8.24.2', latest: '10.1.0', below: '9.0.0', reason: 'its 10 is no player'}]);
+    expect(plan.held).toEqual([]);
+    expect(plan.holdProblems).toEqual([]);
+    // Nothing above the bound old enough yet: nothing kept out, and nothing to say.
+    const young = {'video.js': docOf(NOW, {'8.24.1': {age: 40}, '10.2.0': {age: 1}}), 'plyr': docs.plyr};
+    expect(playerTargets(pins, young, {}, NOW, MIN_AGE_DAYS, holds).kept).toEqual([]);
+  });
+
+  it('reports a hold to look at again, and a hold the pin has passed holds nothing', () => {
+    const pins = {'video.js': '9.1.0'};
+    const docs = {'video.js': docOf(NOW, {'9.1.0': {age: 40}, '10.0.0': {age: 20}})};
+    const holds = new Map([
+      ['video.js', {below: '9.0.0', staleAfterDays: 365, reason: 'r'}],
+      ['plyr', {below: '4.0.0', staleAfterDays: 365, reason: 'r'}],
+    ]);
+    const plan = playerTargets(pins, docs, {}, NOW, MIN_AGE_DAYS, holds);
+    expect(plan.target).toEqual({'video.js': '10.0.0'});
+    expect(plan.kept).toEqual([]);
+    expect(plan.holdProblems).toEqual([
+      expect.stringMatching(/video\.js is pinned at 9\.1\.0, not below its hold's 9\.0\.0/),
+      expect.stringMatching(/holds plyr, which .* does not pin/),
+    ]);
   });
 
   it('keeps both xgplayer packages at 3.0.26 when the peer is exact and hls lags behind', () => {
@@ -789,7 +868,7 @@ describe('playerTargets', () => {
       'xgplayer': docOf(NOW, {
         '3.0.26': {age: 40},
         '3.0.27': {age: 4}, // eligible on its own, but the exact peer pulls it back down
-        '4.0.0': {age: 40}, // NEW MAJOR: only reported
+        '4.0.0': {age: 40}, // a new major, pulled down the same way
       }),
       'xgplayer-hls': docOf(NOW, {
         '3.0.26': {age: 40, peer: {xgplayer: '3.0.26'}},
@@ -799,8 +878,8 @@ describe('playerTargets', () => {
     const plan = playerTargets(pins, docs, {}, NOW);
     expect(plan.target).toEqual({'xgplayer': '3.0.26', 'xgplayer-hls': '3.0.26'});
     expect(plan.changes).toEqual([]);
-    expect(plan.majors).toEqual([{name: 'xgplayer', current: '3.0.26', latest: '4.0.0'}]);
-    expect(plan.held).toEqual([{name: 'xgplayer', version: '3.0.26', newest: '3.0.27'}]);
+    expect(plan.newMajors).toEqual([]);
+    expect(plan.held).toEqual([{name: 'xgplayer', version: '3.0.26', newest: '4.0.0'}]);
     expect(plan.unresolved).toEqual([]);
   });
 

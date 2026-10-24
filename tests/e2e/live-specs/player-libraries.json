@@ -1,5 +1,6 @@
 {
   "video.js": "8.24.2",
+  "@videojs/cdn": "10.1.0",
   "shaka-player": "5.3.1",
   "plyr": "3.8.5",
   "@clappr/player": "0.14.8",
