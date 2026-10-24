@@ -238,6 +238,11 @@ check 'succeeds' test "$status" -eq 0
 check 'no plan' test ! -e "$RUNNER_TEMP/plan-bundle"
 check 'and no answer for the next jobs' lacks "$FIX/output" 'has_plan'
 
+scenario 'o8 closed by hand, but its marker is gone -> said, not swallowed' "$main_step" \
+  FX_ALERTS="$(arr "$m60")" "$held" FX_OVERRIDE_PRS="$(arr "$(op 9 closed null 'someone edited the text')")"
+check 'succeeds' test "$status" -eq 0
+check 'warns that the close records nothing' contains "$FIX/out" '#9 was closed without merging, but its text lost its alerts marker'
+
 # --- The daily run: raising.
 
 scenario 's1 no alert -> nothing' "$main_step"

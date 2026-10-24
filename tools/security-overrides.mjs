@@ -850,46 +850,67 @@ export function unfloored(lockText, floored) {
 //   node tools/security-overrides.mjs verify <dir>
 //     reads <dir>/plan.json, <dir>/pnpm-lock.yaml (pnpm's new one) and <dir>/before.lock.yaml
 //     (main's); prints the problems and exits 1 when there are any.
-async function main() {
+/**
+ * `plan <alerts.json> <out-dir>`, in a checkout of main.
+ * @param {string} alertsFile
+ * @param {string} out
+ */
+async function runPlan(alertsFile, out) {
   const fs = await import('node:fs');
   const path = await import('node:path');
   const {execFileSync} = await import('node:child_process');
-  const [command, ...args] = process.argv.slice(2);
-  if (command === 'plan' && args.length === 2) {
-    const [alertsFile, out] = args;
-    const {plan, routing, workspace} = planBundle({
-      alerts: JSON.parse(fs.readFileSync(alertsFile, 'utf8')),
-      lockText: fs.readFileSync('pnpm-lock.yaml', 'utf8'),
-      workspaceText: fs.readFileSync('pnpm-workspace.yaml', 'utf8'),
-      today: new Date().toISOString().slice(0, 10),
-      baseSha: execFileSync('git', ['rev-parse', 'HEAD'], {encoding: 'utf8'}).trim(),
-    });
-    fs.mkdirSync(out, {recursive: true});
-    fs.writeFileSync(path.join(out, 'plan.json'), `${JSON.stringify(plan, null, 2)}\n`);
-    fs.writeFileSync(path.join(out, 'routing.json'), `${JSON.stringify(routing, null, 2)}\n`);
-    if (workspace !== null) fs.writeFileSync(path.join(out, 'pnpm-workspace.yaml'), workspace);
-    console.log(`plan: ${plan.floors.length} floor(s) for ${routing.handled.length} alert(s), ${routing.declined.length} declined`);
+  const {plan, routing, workspace} = planBundle({
+    alerts: JSON.parse(fs.readFileSync(alertsFile, 'utf8')),
+    lockText: fs.readFileSync('pnpm-lock.yaml', 'utf8'),
+    workspaceText: fs.readFileSync('pnpm-workspace.yaml', 'utf8'),
+    today: new Date().toISOString().slice(0, 10),
+    baseSha: execFileSync('git', ['rev-parse', 'HEAD'], {encoding: 'utf8'}).trim(),
+  });
+  fs.mkdirSync(out, {recursive: true});
+  fs.writeFileSync(path.join(out, 'plan.json'), `${JSON.stringify(plan, null, 2)}\n`);
+  fs.writeFileSync(path.join(out, 'routing.json'), `${JSON.stringify(routing, null, 2)}\n`);
+  if (workspace !== null) fs.writeFileSync(path.join(out, 'pnpm-workspace.yaml'), workspace);
+  console.log(`plan: ${plan.floors.length} floor(s) for ${routing.handled.length} alert(s), ${routing.declined.length} declined`);
+}
+
+/**
+ * `verify <dir>`: plan.json, pnpm's new pnpm-lock.yaml and main's before.lock.yaml in <dir>.
+ * @param {string} dir
+ */
+async function runVerify(dir) {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const plan = JSON.parse(fs.readFileSync(path.join(dir, 'plan.json'), 'utf8'));
+  const lockText = fs.readFileSync(path.join(dir, 'pnpm-lock.yaml'), 'utf8');
+  const {problems} = verifyBundle(plan, lockText);
+  const floored = plan.floors.map((/** @type {Floor} */ floor) => floor.name);
+  if (unfloored(fs.readFileSync(path.join(dir, 'before.lock.yaml'), 'utf8'), floored) !== unfloored(lockText, floored)) {
+    problems.push('the lockfile changed more than the floored packages (run `pnpm install` on main first, perhaps)');
+  }
+  for (const problem of problems) console.error(`- ${problem}`);
+  if (problems.length) {
+    process.exitCode = 1;
+  } else {
+    console.log(`verify: the ${plan.handled.length} alert(s) taken are fixed, and only the floored packages moved`);
+  }
+}
+
+/** The commands, by name, with the number of arguments each takes. */
+/** @type {Map<string, {count: number, run: (args: string[]) => Promise<void>}>} */
+const COMMANDS = new Map([
+  ['plan', {count: 2, run: (args) => runPlan(args[0], args[1])}],
+  ['verify', {count: 1, run: (args) => runVerify(args[0])}],
+]);
+
+async function main() {
+  const [name, ...args] = process.argv.slice(2);
+  const command = COMMANDS.get(name || '');
+  if (!command || args.length !== command.count) {
+    console.error('usage: node tools/security-overrides.mjs plan <alerts.json> <out-dir> | verify <dir>');
+    process.exitCode = 2;
     return;
   }
-  if (command === 'verify' && args.length === 1) {
-    const [dir] = args;
-    const plan = JSON.parse(fs.readFileSync(path.join(dir, 'plan.json'), 'utf8'));
-    const lockText = fs.readFileSync(path.join(dir, 'pnpm-lock.yaml'), 'utf8');
-    const {problems} = verifyBundle(plan, lockText);
-    const floored = plan.floors.map((/** @type {Floor} */ floor) => floor.name);
-    if (unfloored(fs.readFileSync(path.join(dir, 'before.lock.yaml'), 'utf8'), floored) !== unfloored(lockText, floored)) {
-      problems.push('the lockfile changed more than the floored packages (run `pnpm install` on main first, perhaps)');
-    }
-    for (const problem of problems) console.error(`- ${problem}`);
-    if (problems.length) {
-      process.exitCode = 1;
-    } else {
-      console.log(`verify: the ${plan.handled.length} alert(s) taken are fixed, and only the floored packages moved`);
-    }
-    return;
-  }
-  console.error('usage: node tools/security-overrides.mjs plan <alerts.json> <out-dir> | verify <dir>');
-  process.exitCode = 2;
+  await command.run(args);
 }
 
 if (process.argv[1] && import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1]).href) {

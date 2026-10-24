@@ -87,7 +87,6 @@ jobs:
       # this job pushes, so no credential is left behind in .git/config either.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -198,6 +197,12 @@ jobs:
             | {alert: (tonumber),
                reason: "the owner closed the override pull request without merging, so this one is yours to fix by hand"}
           ] | unique_by(.alert)' "$T/override-prs.json" > "$T/declined-owner.json"
+          jq -r '.[] | select(.state == "closed" and .merged_at == null and .author == "github-actions[bot]"
+                 and ((.body | contains("<!-- security-overrides: closed-by-run -->")) | not)
+                 and ((.body | contains("<!-- alerts: ")) | not)) | .number' "$T/override-prs.json" |
+            while read -r n; do
+              echo "::warning::#$n was closed without merging, but its text lost its alerts marker: its alerts are not handed back as issues."
+            done
 
           # The route pool: the same per-alert gates the due computation below applies (open,
           # over 6 hours old, package not named by an open Dependabot pull request), minus
@@ -391,16 +396,10 @@ jobs:
         with:
           name: plan
           path: plan
-      - name: Read the plan's base commit
-        id: planmeta
-        run: |
-          set -euo pipefail
-          echo "base_sha=$(jq -r .base_sha plan/plan.json)" >> "$GITHUB_OUTPUT"
-      # Exactly the commit the plan was computed against, so the resolutions verified here
-      # are the ones publish will push.
+      # The run's own commit, as check's: the plan was computed on it, and no ref is taken from
+      # the artifact (data from another job is not trusted with a checkout).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ steps.planmeta.outputs.base_sha }}
           persist-credentials: false
 
       # The pnpm package.json pins (packageManager): another would rewrite the whole lockfile.
@@ -420,6 +419,10 @@ jobs:
           # verify compares everything but the floored packages with it.
           mkdir -p result
           cp plan/plan.json plan/routing.json plan/old-pr.json result/
+          if [ "$(jq -r .base_sha plan/plan.json)" != "$(git rev-parse HEAD)" ]; then
+            echo "The plan was made on $(jq -r .base_sha plan/plan.json), this checkout is $(git rev-parse HEAD)." >&2
+            exit 1
+          fi
           cp pnpm-lock.yaml result/before.lock.yaml
 
           if jq -e '.floors | length > 0' plan/plan.json > /dev/null; then
@@ -443,17 +446,9 @@ jobs:
               class=transient
             fi
             echo "pnpm install failed ($class); see result/install.log."
-            # Attribute the failure to floors the error names, matched by name or selector.
-            # A miss demotes every claimed alert (the safe direction); a false match only
-            # widens the demote by one package.
-            jq -c '.floors[]' result/plan.json \
-              | while read -r spec; do
-                  name=$(jq -r .name <<<"$spec"); selector=$(jq -r .selector <<<"$spec")
-                  if grep -qF -- "$name" result/install.log || grep -qF -- "$selector" result/install.log; then
-                    printf '%s\n' "$spec"
-                  fi
-                done > "$T/attributed.jsonl"
-            [ -s "$T/attributed.jsonl" ] || jq -c '.floors[]' result/plan.json > "$T/attributed.jsonl"
+            # Every floor goes back: no lockfile came out, so none of this run's floors can be
+            # published today, and an alert left out here would get neither a PR nor an issue.
+            jq -c '.floors[]' result/plan.json > "$T/attributed.jsonl"
             jq -n --arg class "$class" --slurpfile f "$T/attributed.jsonl" '
               {failure_class: $class,
                failed: [$f[0][] | {package: .name, selector: .selector, floor: .floor, alerts: .alerts,
@@ -574,6 +569,8 @@ jobs:
           if [ "$main_sha" != "$base_sha" ]; then
             # Not a failure: the next run plans on the new main. (Its alerts got no issue today.)
             echo "::warning::main moved while this run ran ($base_sha -> $main_sha); leaving the floors to the next run."
+            printf 'main moved while this run planned (%s -> %s): the floors for alerts %s wait for the next run.\n' \
+              "${base_sha:0:8}" "${main_sha:0:8}" "$(jq -r '.handled | map(tostring) | join(" ")' result/plan.json)" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           base_tree=$(gh api "repos/$GH_REPO/commits/$base_sha" --jq .commit.tree.sha)
@@ -596,7 +593,9 @@ jobs:
 
           old_head=$(gh api "repos/$GH_REPO/git/ref/heads/$BRANCH" --jq .object.sha 2>/dev/null) || old_head=''
 
-          if [ "$tree" = "$base_tree" ] && [ -n "$old_head" ]; then
+          branch_tree=''
+          if [ -n "$old_head" ]; then branch_tree=$(gh api "repos/$GH_REPO/git/commits/$old_head" --jq .tree.sha); fi
+          if [ -n "$old_head" ] && [ "$branch_tree" = "$tree" ]; then
             # The tree does not change and the branch already carries the floors (a new alert
             # joined an existing floor): no commit, no push, no new CI run. The pull request
             # body below still moves with the claims.
@@ -705,7 +704,7 @@ jobs:
           while IFS=$'\t' read -r package list reason; do
             jq -r --arg p "$package" --arg list "$list" --arg base "$ALERTS_URL" '
               ($list | split(" ") | map(tonumber)) as $l
-              | .[] | select(.package == $p and (.number as $n | any($l[]; . == $n)))
+              | .alerts[] | select(.package == $p and (.number as $n | any($l[]; . == $n)))
               | "| [\(.number)](\($base)/\(.number)) | \(.severity) | `\(.manifest)` | `\(.range)` | \(.patched // "none yet") | \((.summary // "") | gsub("[\r\n]+"; " ") | gsub("\\|"; "\\|") | gsub("<"; "&lt;")) |"' \
               result/plan.json > "$T/rows.md"
             {
