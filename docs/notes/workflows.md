@@ -589,6 +589,27 @@
   swapped in too. Since 2026-10-20 a second job, `watch` (daily and by hand, not on a push),
   looks after the update pull requests: see "Update guards" above. Each job asks for its own
   permissions (zizmor flags a workflow-wide `issues: write` once there are two jobs).
+  Since 2026-10-24 it tries the fix itself where an override floor makes it, as #564 did by
+  hand (`tools/security-overrides.mjs`, its plan replayed on the state before #564 writes the
+  same four floors, and its lockfile came out the same, the order of two keys in its overrides
+  copy aside). Three jobs: `check` plans the floors (`plan`: a floor per package and major the
+  lockfile holds vulnerable, `^` the newest first patched version; declined, with the reason in
+  the issue, when there is no patched version, the fix is a new major, the package is pnpm-
+  patched, a parent-scoped or unreadable override governs it, or `main` has the floor already
+  while the lockfile is still vulnerable) and keeps the alerts it takes out of the issues (out
+  of both `$new` and `$list`: a listed alert is never raised again); `install` (only
+  `contents: read`, no token in it) runs `pnpm install --lockfile-only --ignore-scripts
+  --no-frozen-lockfile` with the floors and `verify`: every alert taken is fixed, every floor
+  holds, and nothing but the floored packages moved; `publish`, the only writer, builds the
+  commit through the API on the planned main (main moved meanwhile: the next day), keeps ONE
+  rolling PR on `security/overrides` and starts CI and the dependency review on it (not when
+  a run that ran covers its head: a `pull_request` run of a PR this token opened waits for an
+  approval, `action_required`). A PR closed unmerged by hand declines its alerts (issues);
+  this workflow's own closes carry `<!-- security-overrides: closed-by-run -->`. pnpm saying no
+  version fits (`ERR_PNPM_NO_MATCHING_VERSION`, `ETARGET`) demotes those alerts to issues;
+  any other install failure fails the run (the report job opens "Security override route
+  failed"). The fsaunpack lockfile stays on the issue route. `update-prs.yml` reports on the
+  PR as the kind `security`.
 - **The Security tab's count also holds CodeQL code scanning** (2026-10-03). GitHub's
   default setup runs it on every push to `main` (Actions shows it as "CodeQL",
   `dynamic/github-code-scanning/codeql`; there is no workflow file), JavaScript and

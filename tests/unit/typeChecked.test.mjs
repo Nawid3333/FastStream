@@ -201,6 +201,7 @@ const CHECKED = [
   'tools/newest-release.mjs',
   'tools/rebuild.mjs',
   'tools/recut-patch.mjs',
+  'tools/security-overrides.mjs',
   'tools/setup-dev-profile.mjs',
   'tools/sign-amo.mjs',
   'tools/splicer.mjs',

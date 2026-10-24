@@ -630,7 +630,8 @@ jobs:
             result/plan.json > "$T/pr-floors.md"
           marker=$(jq -r '.handled | map(tostring) | join(" ")' result/routing.json)
           {
-            printf '@%s These alerts can be fixed without touching any package.json: flooring each package in `pnpm-workspace.yaml` `overrides` makes pnpm resolve the lockfile to the youngest version that satisfies every range it is pinned by. Only the packages below move.\n\n' "$OWNER"
+            # shellcheck disable=SC2016 # backticks are Markdown
+            printf '@%s These alerts can be fixed without touching any package.json: a floor for each package in the `overrides` of `pnpm-workspace.yaml` makes pnpm take the newest release that floor allows, in place of the ranges its dependents ask for. Only the packages below move.\n\n' "$OWNER"
             printf '| Alert | Severity | In | Vulnerable | Fixed in | Advisory |\n| --- | --- | --- | --- | --- | --- |\n'
             cat "$T/pr-rows.md"
             printf '\n| Package | Selector | Change | From | Floor |\n| --- | --- | --- | --- | --- |\n'
@@ -714,6 +715,7 @@ jobs:
               cat "$T/rows.md"
               printf '\nWhy: %s\n\n' "$reason"
               printf 'The run that failed is at %s; its "result" artifact holds the full package-manager log.\n\n' "$RUN_URL"
+              # shellcheck disable=SC2016 # backticks are Markdown
               printf 'To fix it by hand, on a branch: `pnpm update %s` for `pnpm-lock.yaml`, then check that `git diff` changes nothing but that package, and open a pull request. `docs/maintenance.md` has the details.\n\n' "$package"
               printf '<!-- alerts: %s -->\n' "$list"
             } > "$T/body.md"

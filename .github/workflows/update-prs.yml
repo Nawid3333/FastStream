@@ -1,8 +1,10 @@
 name: Update PRs
 
 # Reports on an update pull request once CI has run on it, and never merges it. The update
-# pull requests come from Dependabot (dependabot/*), toolchain-updates.yml (toolchain/*)
-# and patched-libraries.yml (patched/*). (Upstream sync pull requests ended on 2026-10-09:
+# pull requests come from Dependabot (dependabot/*), toolchain-updates.yml (toolchain/*),
+# patched-libraries.yml (patched/*) and security-alerts.yml (security/overrides: override
+# floors for alerts Dependabot cannot fix; only pnpm-workspace.yaml and pnpm-lock.yaml may
+# change, its dependency review must pass, and a security fix waits no 3 days). (Upstream sync pull requests ended on 2026-10-09:
 # the fork no longer merges upstream; upstream-watch.yml reports its commits.) Before this,
 # each sat until the owner looked; a red one told nobody, since GitHub emails a failed run
 # only to whoever started it, and that was a bot.
@@ -109,7 +111,8 @@ jobs:
        github.event.workflow_run.actor.login != 'github-actions[bot]' &&
        (startsWith(github.event.workflow_run.head_branch, 'dependabot/') ||
         startsWith(github.event.workflow_run.head_branch, 'toolchain/') ||
-        startsWith(github.event.workflow_run.head_branch, 'patched/')))
+        startsWith(github.event.workflow_run.head_branch, 'patched/') ||
+        startsWith(github.event.workflow_run.head_branch, 'security/')))
     runs-on: ubuntu-latest
     # UPDATE_PRS_TOKEN is a secret of the "update-prs" environment, which only main may use
     # (Settings, Environments): a workflow file on any other branch cannot read it (#163).
@@ -156,7 +159,7 @@ jobs:
           if ! jq -e --arg repo "$GH_REPO" --arg branch "$BRANCH" '
               (.path | split("@")[0]) == ".github/workflows/ci.yml" and
               .head_repository.full_name == $repo and .head_branch == $branch and
-              (.head_branch | test("^(dependabot|toolchain|patched)/"))' \
+              (.head_branch | test("^(dependabot|toolchain|patched|security)/"))' \
               "$RUNNER_TEMP/run.json" > /dev/null; then
             echo "Run $RUN_ID is not a CI run of this repository's update branch $BRANCH." >&2
             exit 1
@@ -231,6 +234,7 @@ jobs:
             toolchain/node-*) kind=node ;;
             toolchain/ublock-origin-*) kind=ublock ;;
             toolchain/player-libraries) kind=players ;;
+            security/overrides) kind=security ;;
             patched/*) kind=patched ;;
             *) kind=other ;;
           esac
@@ -257,6 +261,7 @@ jobs:
               docker) printf 'Dependabot moves the tag and the digest in the Dockerfile together. `@dependabot ignore this minor version` (or `this major version`) skips it.\n' ;;
               pnpm|node|ublock) printf 'Closing this pull request skips this version for good; toolchain-updates.yml raises the next one.\n' ;;
               players) printf 'toolchain-updates.yml rebuilds this pull request in place when a newer release comes. Closing it skips this set of versions; the next set comes as a pull request of its own.\n' ;;
+              security) printf 'security-alerts.yml rebuilds this pull request in place every day from the open alerts. Closing it without merging hands its alerts back to you as "Security alert" issues.\n' ;;
               patched) printf 'How to take it by hand: `docs/updating-patched-libraries.md`. Closing this pull request skips this version for good.\n' ;;
               *) ;;
             esac
@@ -352,7 +357,7 @@ jobs:
             migrate() {
               local what slug updates count group list park take rerun found
               case $kind in
-                pnpm|node|ublock|players|patched)
+                pnpm|node|ublock|players|security|patched)
                   # The title less its prefix: "pnpm 12.15.0", "Node.js 26", "hls.js 1.7.4".
                   what=$(jq -r '.title | sub("^(Toolchain update|Patched library update): "; "")' <<< "$pr")
                   slug=$what
@@ -364,6 +369,10 @@ jobs:
                   if [ "$kind" = players ]; then
                     park="closing #$number skips this set of versions; the next set comes as a pull request of its own"
                     take="toolchain-updates.yml rebuilds #$number on it at its next run"
+                  fi
+                  if [ "$kind" = security ]; then
+                    park="closing #$number without merging hands its alerts back to you as issues"
+                    take="security-alerts.yml rebuilds #$number on it at its next daily run"
                   fi
                   ;;
                 *)
@@ -505,7 +514,7 @@ jobs:
           fi
           case $kind in
             dependabot|actions|docker) bot='dependabot[bot]' ;;
-            pnpm|node|ublock|players|patched) bot='github-actions[bot]' ;;
+            pnpm|node|ublock|players|security|patched) bot='github-actions[bot]' ;;
             *) reasons+=("branch $BRANCH is not one this workflow checks") ;;
           esac
           if [ "$kind" = actions ] && [ -z "${MERGE_TOKEN:-}" ]; then
@@ -548,10 +557,11 @@ jobs:
               reasons+=("main has $library $current already")
             fi
           fi
-          # A patched-library pull request changes the lockfile, and its own pull_request runs
-          # wait for an approval, so patched-libraries.yml starts the dependency review on the
-          # branch, next to CI. A review that did not pass is named.
-          if [ "$kind" = patched ]; then
+          # A patched-library or override pull request changes the lockfile, and its own
+          # pull_request runs wait for an approval, so patched-libraries.yml and
+          # security-alerts.yml start the dependency review on the branch, next to CI. A review
+          # that did not pass is named.
+          if [ "$kind" = patched ] || [ "$kind" = security ]; then
             review=$(review_of "$SHA")
             if [ "$review" != success ]; then reasons+=("its dependency review (\"Review dependency changes\", started on this branch) is $review"); fi
           fi
@@ -601,6 +611,9 @@ jobs:
               players)
                 files=$(jq -r '.files[].path | select(. != "tests/e2e/live-specs/player-libraries.json")' "$RUNNER_TEMP/pr.json")
                 only='tests/e2e/live-specs/player-libraries.json' ;;
+              security)
+                files=$(jq -r '.files[].path | select(. != "pnpm-workspace.yaml" and . != "pnpm-lock.yaml")' "$RUNNER_TEMP/pr.json")
+                only='pnpm-workspace.yaml and pnpm-lock.yaml' ;;
               actions)
                 files=$(jq -r '.files[].path | select((startswith(".github/workflows/") or startswith(".github/actions/")) | not)' "$RUNNER_TEMP/pr.json")
                 only='workflow and action files' ;;
@@ -859,6 +872,8 @@ jobs:
                 if [ "$update_token" = "$GH_TOKEN" ]; then gh workflow run ci.yml --ref "$BRANCH"; fi
                 # Nothing starts the live suite on a push: it is started here whoever pushed.
                 if [ "$kind" = players ]; then gh workflow run live-streams.yml --ref "$BRANCH"; fi
+                # Nor the dependency review that decides an override pull request.
+                if [ "$kind" = security ]; then gh workflow run dependency-review.yml --ref "$BRANCH"; fi
                 exit 0
               fi
             fi
