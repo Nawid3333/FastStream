@@ -1271,6 +1271,12 @@
     "mpv_episode_series_end": {
         "message": "episod terakhir siri: main automatik berhenti"
     },
+    "player_quality_lowered": {
+        "message": "Kualiti diturunkan kepada $1: komputer ini menggugurkan $2% bingkai pada $3. Pilih $3 dalam menu kualiti untuk mengekalkannya."
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "Turunkan kualiti video apabila komputer ini tidak dapat memaparkan semua bingkai tepat pada masanya (pemain akan memberitahu anda setiap kali)"
+    },
     "menu_play_in_faststream": {
         "message": "Mainkan dalam FastStream"
     },

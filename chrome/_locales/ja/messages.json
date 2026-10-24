@@ -1271,6 +1271,12 @@
     "mpv_episode_series_end": {
         "message": "シリーズの最終話：自動再生が停止します"
     },
+    "player_quality_lowered": {
+        "message": "品質が $1 に下げられました：このコンピュータは $3 でフレームの $2% をドロップしました。維持したい場合は品質メニューで $3 を選択してください。"
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "コンピュータがすべてのフレームを時間内に表示できない場合にビデオ品質を下げる（その都度プレーヤーが通知します）"
+    },
     "menu_play_in_faststream": {
         "message": "FastStream で再生"
     },

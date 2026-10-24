@@ -1271,6 +1271,12 @@
     "mpv_episode_series_end": {
         "message": "本剧最后一集：自动播放停止"
     },
+    "player_quality_lowered": {
+        "message": "质量已降低至 $1：此电脑在 $3 时丢帧 $2%。请在质量菜单中选择 $3 以保持该质量。"
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "当此电脑无法及时显示所有帧时降低视频质量（播放器每次都会通知您）"
+    },
     "menu_play_in_faststream": {
         "message": "使用 FastStream 播放"
     },

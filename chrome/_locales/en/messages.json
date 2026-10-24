@@ -1271,6 +1271,12 @@
     "mpv_episode_series_end": {
         "message": "the last episode of the series: autoplay stops"
     },
+    "player_quality_lowered": {
+        "message": "Quality lowered to $1: this computer dropped $2% of the frames at $3. Choose $3 in the quality menu to keep it."
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "Lower the video quality when this computer cannot show all frames in time (the player tells you each time)"
+    },
     "menu_play_in_faststream": {
         "message": "Play in FastStream"
     },

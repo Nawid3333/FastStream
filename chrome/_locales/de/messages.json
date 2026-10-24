@@ -1271,6 +1271,12 @@
     "mpv_episode_series_end": {
         "message": "die letzte Folge der Serie: Autoplay stoppt"
     },
+    "player_quality_lowered": {
+        "message": "Qualität auf $1 gesenkt: Dieser Computer hat $2% der Bilder bei $3 ausgelassen. Wähle $3 im Qualitätsmenü, um dabei zu bleiben."
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "Videoqualität senken, wenn dieser Computer nicht alle Bilder rechtzeitig anzeigen kann (der Player informiert dich jedes Mal)"
+    },
     "menu_play_in_faststream": {
         "message": "In FastStream abspielen"
     },

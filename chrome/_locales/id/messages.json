@@ -1271,6 +1271,12 @@
     "mpv_episode_series_end": {
         "message": "episode terakhir dari seri: putar otomatis berhenti"
     },
+    "player_quality_lowered": {
+        "message": "Kualitas diturunkan ke $1: komputer ini menjatuhkan $2% frame pada $3. Pilih $3 di menu kualitas untuk mempertahankannya."
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "Turunkan kualitas video ketika komputer ini tidak dapat menampilkan semua frame tepat waktu (pemutar akan memberi tahu Anda setiap saat)"
+    },
     "menu_play_in_faststream": {
         "message": "Putar di FastStream"
     },

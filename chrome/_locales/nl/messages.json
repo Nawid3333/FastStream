@@ -1271,6 +1271,12 @@
     "mpv_episode_series_end": {
         "message": "de laatste aflevering van de serie: autoplay stopt"
     },
+    "player_quality_lowered": {
+        "message": "Kwaliteit verlaagd naar $1: deze computer miste $2% van de frames bij $3. Kies $3 in het kwaliteitsmenu om daarbij te blijven."
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "Videokwaliteit verlagen wanneer deze computer niet alle frames op tijd kan weergeven (de speler meldt dit telkens)"
+    },
     "menu_play_in_faststream": {
         "message": "Afspelen in FastStream"
     },

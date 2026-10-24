@@ -14,6 +14,7 @@ import {DOMElements} from './ui/DOMElements.mjs';
 import {AudioOutput} from './ui/audio/AudioOutput.mjs';
 import {EnvUtils} from './utils/EnvUtils.mjs';
 import {Localize} from './modules/Localize.mjs';
+import {DroppedFrameWatch, lowerLevel, qualityLabel} from './players/DroppedFrameWatch.mjs';
 import {ClickActions} from './options/defaults/ClickActions.mjs';
 import {VisChangeActions} from './options/defaults/VisChangeActions.mjs';
 import {MiniplayerPositions} from './options/defaults/MiniplayerPositions.mjs';
@@ -64,6 +65,8 @@ const RECOVERY_WINDOW_MS = 120000;
 // time was built anew every second for as long as the video was open; one that plays on
 // between rare errors is built again after each.
 const PREVIEW_RELOAD_LIMIT = 3;
+// How often the dropped frames are counted (watchDroppedFrames).
+const DROPPED_SAMPLE_MS = 1000;
 // How long a stream may stay stuck in its last seconds before autoplay takes it as ended
 // (watchEndStall).
 const EndStallMs = 3000;
@@ -106,6 +109,7 @@ const AutoNextTries = 5;
  * @property {boolean} disableLoadProgress
  * @property {boolean} previewEnabled
  * @property {boolean} decodingAwareQuality
+ * @property {boolean} lowerOnDroppedFrames - Step a version down when this computer drops its frames (watchDroppedFrames).
  * @property {boolean} autoplayNext
  * @property {number} autoplayCountdown - Seconds.
  * @property {string} singleClickAction - A ClickActions value.
@@ -153,6 +157,7 @@ export class FastStreamClient extends EventEmitter {
       disableLoadProgress: false,
       previewEnabled: true,
       decodingAwareQuality: true,
+      lowerOnDroppedFrames: true,
       autoplayNext: false,
       autoplayCountdown: 5,
       singleClickAction: ClickActions.HIDE_CONTROLS,
@@ -239,6 +244,9 @@ export class FastStreamClient extends EventEmitter {
     this.player = null;
     this.syncedAudioPlayer = null;
     this.previewPlayer = null;
+    /** Steps the video down when this computer drops its frames (watchDroppedFrames). */
+    this.droppedFrameWatch = new DroppedFrameWatch();
+    this.droppedSampledAt = 0;
     /** @type {Promise<void>|null} The source change running (setSource), if any. */
     this.sourceChange = null;
     // Counts the sources asked for, and holds the streams to try should the latest one
@@ -510,6 +518,7 @@ export class FastStreamClient extends EventEmitter {
     this.options.defaultQuality = options.defaultQuality;
     // Read by LevelManager at the next pick; what is playing keeps its version.
     this.options.decodingAwareQuality = options.decodingAwareQuality !== false;
+    this.options.lowerOnDroppedFrames = options.lowerOnDroppedFrames !== false;
 
     this.updateVideoTransform();
 
@@ -1931,6 +1940,7 @@ export class FastStreamClient extends EventEmitter {
     // The next reset keeps what was downloaded: the new player asks for the same
     // fragments, and the stored ones answer at once.
     this.downloadManager.keepStorageOnce();
+    this.droppedFrameWatch.keepChoiceOnce();
     // It plays on once at its time: played as soon as it was set, it played from 0 first.
     this.setSource(again, this.fallbacks.sources, {play: wasPlaying})
         .catch((e) => console.warn('Could not resume after building the player again', e));
@@ -2119,6 +2129,7 @@ export class FastStreamClient extends EventEmitter {
 
     this.audioAnalyzer.reset();
     this.frameExtractor.reset();
+    this.droppedFrameWatch.reset();
 
     promises.push(this.downloadManager.reset());
     this.interfaceController.reset();
@@ -2133,6 +2144,44 @@ export class FastStreamClient extends EventEmitter {
     this.getLevelManager().reset();
 
     await Promise.all(promises);
+  }
+
+  /**
+   * Steps the video down a quality when this computer drops too many of its frames
+   * (DroppedFrameWatch: a fifth of them over 10 s of steady playback), and says so in the
+   * status line: the quality is never lowered unnoticed, and the message names the version to
+   * choose again to keep it. Sampled once a second at the time updates; off with the option
+   * lowerOnDroppedFrames.
+   */
+  watchDroppedFrames() {
+    if (!this.options.lowerOnDroppedFrames) return;
+    const video = this.player?.getVideo();
+    if (!video || typeof video.getVideoPlaybackQuality !== 'function') return;
+    const now = Date.now();
+    if (now - this.droppedSampledAt < DROPPED_SAMPLE_MS) return;
+    this.droppedSampledAt = now;
+    const quality = video.getVideoPlaybackQuality();
+    const rate = this.playbackRate;
+    const levelId = this.getMenuVideoLevelID();
+    const due = this.droppedFrameWatch.sample({
+      now,
+      total: quality.totalVideoFrames,
+      dropped: quality.droppedVideoFrames,
+      levelId,
+      // A hidden tab shows no frames, but one in picture-in-picture does.
+      steady: !video.paused && !video.seeking && video.readyState >= 3 && rate >= 0.5 && rate <= 1.25 &&
+        (globalThis.document?.visibilityState !== 'hidden' || this.interfaceController.isInPip()),
+    });
+    if (!due) return;
+    const levels = [...this.getMenuVideoLevels().values()];
+    const current = levels.find((level) => level.id === levelId);
+    const lower = current ? lowerLevel(levels, current) : null;
+    if (!current || !lower) return;
+    const percent = String(Math.round(due.ratio * 100));
+    console.warn(`[DroppedFrames] ${percent}% of ${due.frames} frames dropped at ${current.height}p: stepping down to ${lower.height}p`);
+    this.setCurrentVideoLevelID(lower.id);
+    this.interfaceController.setStatusMessage(StatusTypes.QUALITY, Localize.getMessage('player_quality_lowered',
+        [qualityLabel(levels, lower), percent, qualityLabel(levels, current)]), 'warning', 15000);
   }
 
   /**
@@ -2281,6 +2330,7 @@ export class FastStreamClient extends EventEmitter {
     this.context.on(DefaultPlayerEvents.PLAYING, (/** @type {undefined} */ event) => {
       this.cancelEndStall();
       this.interfaceController.setBuffering(false);
+      this.droppedFrameWatch.interrupt();
     });
 
 
@@ -2289,16 +2339,19 @@ export class FastStreamClient extends EventEmitter {
 
 
     this.context.on(DefaultPlayerEvents.RATECHANGE, (/** @type {undefined} */ event) => {
+      this.droppedFrameWatch.interrupt();
     });
 
 
     this.context.on(DefaultPlayerEvents.SEEKED, (/** @type {undefined} */ event) => {
       this.interfaceController.updateFragmentsLoaded();
+      this.droppedFrameWatch.interrupt();
     });
 
 
     this.context.on(DefaultPlayerEvents.SEEKING, (/** @type {undefined} */ event) => {
       this.cancelEndStall();
+      this.droppedFrameWatch.interrupt();
     });
 
 
@@ -2314,6 +2367,7 @@ export class FastStreamClient extends EventEmitter {
       if (this.interfaceController.isUserSeeking()) return;
 
       this.updateTime(this.currentTime);
+      this.watchDroppedFrames();
       // Near the end each time update watches for a stop there (watchEndStall), not only a
       // `waiting`: a video that stood still in its last second with neither a wait nor an end
       // told showed "1 s" for good.
@@ -2335,6 +2389,7 @@ export class FastStreamClient extends EventEmitter {
       }
       this.watchEndStall();
       this.interfaceController.setBuffering(true);
+      this.droppedFrameWatch.interrupt();
     });
 
     this.context.on(DefaultPlayerEvents.FRAGMENT_UPDATE, () => {
@@ -2762,6 +2817,8 @@ export class FastStreamClient extends EventEmitter {
       }
     }
     console.log('Playing the page\'s ' + (entry.label || entry.height + 'p') + ' instead');
+    // The same video in another file: a version picked by hand stays picked.
+    this.droppedFrameWatch.keepChoiceOnce();
     this.setSource(next, [], {play: wasPlaying}).catch((e) => console.warn('Could not switch the quality', e));
   }
 
