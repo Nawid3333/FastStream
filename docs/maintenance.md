@@ -38,7 +38,7 @@ merged themselves.
 | actionlint and zizmor images | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | "ready to merge" when it changes only those files: CI ran every workflow file through the new checks | the PR |
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
 | security alerts | a Dependabot alert on the Security tab, and a Dependabot PR that fixes it (the rows above), skipping both 3-day waits; `security-alerts.yml` (daily) watches for an alert with no such PR | as the PR's row says | GitHub's alert email; for an alert over 6 hours old with no Dependabot PR, an issue per package, "Security alert: <package>", closed once its alerts are fixed on `main` or dismissed |
-| security alerts Dependabot cannot fix, when an override floor fixes them | ONE rolling PR from `security-alerts.yml` (daily) on `security/overrides`, "Security fixes: override floors": a floor per package and major in `pnpm-workspace.yaml`'s `overrides` (raised, or added with a comment), and `pnpm-lock.yaml` rewritten for it (`--lockfile-only --ignore-scripts`, in a job with no write token), checked to fix every alert it takes and to move nothing else; CI and the dependency review are started on it | "ready to merge" when CI and the dependency review pass and it changes only those two files; no 3-day wait (a security fix). An alert it cannot take (no patched version, the fix a new major, a floor `main` has already, a parent-scoped override) gets the issue above, with the reason. Closing the PR unmerged hands its alerts to you as issues | the PR |
+| security alerts Dependabot cannot fix, when an override floor fixes them | ONE rolling PR from `security-alerts.yml` (daily) on `security/overrides`, "Security fixes: override floors": a floor per package and major in `pnpm-workspace.yaml`'s `overrides` (raised, or added with a comment), and `pnpm-lock.yaml` rewritten for it (`--lockfile-only --ignore-scripts`, in a job with no write token), checked to fix every alert it takes and to move nothing else; CI and the dependency review are started on it | "ready to merge" when CI and the dependency review pass and it changes only those two files; no 3-day wait (a security fix). An alert it cannot take (no patched version, the fix a new major, a floor `main` has already, a parent-scoped override, two overrides reaching the same major) gets the issue above, with the reason. Closing the PR unmerged hands its alerts to you as issues | the PR |
 
 Dependabot proposes a release once it is 3 days old (`cooldown` in `.github/dependabot.yml`;
 your call of 2026-10-20, after none from 2026-10-11). Green CI cannot see a compromised
@@ -294,6 +294,44 @@ The issue closes itself once the pin reaches the release; a newer release closes
 If the workflow itself fails, it opens "Vendored updates workflow failed (vtt.js)".
 (Until 2026-10-22 it also watched StreamSaver.js for `StreamSaver.mjs`, whose body is now
 FastStream's own: an upstream change had nothing to port.)
+
+## Quiet upstreams: what stays, and why
+
+Checked on 2026-10-24: every direct dependency's newest release, its npm deprecation, and its
+source repository (archived or not, last commit, open issues). Everything not named here is
+current and actively maintained. Look again when one of these changes.
+
+- **gif.js** (shipped: the loop menu's GIF): no release since 0.2.0 (2016), no commit since
+  2019. It stays. Its input is only the player's own canvas, so its state carries no security
+  risk, and no maintained encoder makes GIFs as close to the video. Measured on two 1-second
+  scenes of Tears of Steel (30 frames, 1280x534), one thread each. PSNR is of the decoded GIF
+  (omggif) against the frames; higher is closer to the video:
+
+  | Encoder | ms per frame | Size | PSNR |
+  |---|---|---|---|
+  | gif.js 0.2.0 (as the player sets it: quality 4, no dither) | 215 / 275 | 9.7 / 9.6 MB | 42.7 / 36.7 dB |
+  | gifenc 1.0.3 | 20 / 110 | 6.7 / 8.1 MB | 39.3 / 34.9 dB |
+  | modern-gif 2.1.0 | 101 / 176 | 6.4 / 5.1 MB | 40.7 / 32.3 dB |
+
+  - gifenc is the most used encoder (about 390,000 downloads a week). It is faster and
+    smaller, but it loses 1.8-3.4 dB, and it has had no release since 2021 either.
+  - modern-gif is the only active one, with one maintainer and about 7,000 downloads a week.
+    It uses one palette for every frame, and on the colourful scene it loses 4.4 dB.
+- **Coloris** (shipped: the subtitle colour fields): its last release was 2025-06, but its
+  maintainer still answers issues (2025-11, 2026-09). It is finished, not abandoned. Firefox's
+  own `<input type="color">` has no alpha channel, which the subtitle colours need.
+- **eslint 9.39.4**, inside addons-linter (`web-ext lint`): npm marks it unsupported.
+  addons-linter pins it exactly, so that it lints as addons.mozilla.org does, and its
+  maintainers have turned eslint 10 down since 2026-06. An override would make our lint differ
+  from AMO's. FastStream's own eslint is 10.
+- **whatwg-encoding** (deprecated, its repository archived): gone since 2026-10-24.
+  - The override `encoding-sniffer@0: ^1.0.2` in `pnpm-workspace.yaml` brings in the release
+    that uses @exodus/bytes instead. cheerio's own main branch made the same move.
+  - Before and after: addons-linter printed the same, and cheerio decoded 7 encodings the same.
+- **The live suite's players**: plyr and vidstack are deprecated (security fixes only;
+  vidstack's until January 2028), and DPlayer's last release is from 2023. They stay as long
+  as sites run them: their pages check FastStream against what sites use, and nothing of
+  theirs ships. Video.js 10, which replaces both, has pages of its own.
 
 ## A token for workflow updates
 

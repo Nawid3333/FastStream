@@ -1,6 +1,6 @@
 dash
 
-https://reference.dashif.org/dash.js/v4.4.0/samples/getting-started/auto-load-single-video-src.html  
+https://reference.dashif.org/dash.js/latest/samples/getting-started/auto-load-single-video-src.html  
 
 hls
 

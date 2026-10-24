@@ -328,7 +328,7 @@ Comparing **ASTs** rather than text separates the two, and is the right tool
 here: it ignores whitespace, comments and quote style, so what remains is only
 what can actually change behaviour.
 
-| Library | Version | Real change beyond lint autofix | Status |
+| Library | Version when migrated (package.json pins the current one) | Real change beyond lint autofix | Status |
 |---|---|---|---|
 | pako | 3.0.2 | - | **removed 2026-10-09**: Firefox's own `CompressionStream` (`chrome/player/utils/Compression.mjs`), same zlib format; that went on 2026-10-10 with the intro/outro finder, its only user |
 | fuse.js | 7.5.0 | none at all | **migrated** |

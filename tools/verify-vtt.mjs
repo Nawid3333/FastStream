@@ -28,10 +28,10 @@ const vendored = path.join(root, 'chrome/player/modules/vtt.mjs');
 
 // Pinned by tag rather than branch so this cannot start failing because
 // upstream moved. The file is byte-identical across dash.js v4.7.4 through
-// v5.1.0, so the tag choice is not load-bearing - it is pinned for
+// v5.2.1, so the tag choice is not load-bearing - it is pinned for
 // determinism, not because only this tag matches.
 const UPSTREAM =
-  'https://raw.githubusercontent.com/Dash-Industry-Forum/dash.js/v5.1.0/' +
+  'https://raw.githubusercontent.com/Dash-Industry-Forum/dash.js/v5.2.1/' +
   'contrib/videojs-vtt.js/vtt.js';
 
 /**
@@ -118,7 +118,7 @@ upstream += EXPORT_LINE;
 const result = compare(fs.readFileSync(vendored, 'utf8'), upstream);
 if (result.equal) {
   console.log(
-      '\nvtt.mjs is dash.js contrib/videojs-vtt.js/vtt.js (v5.1.0) plus the ' +
+      '\nvtt.mjs is dash.js contrib/videojs-vtt.js/vtt.js (v5.2.1) plus the ' +
       'changes above.\nVerified: the two parse to the same program.',
   );
 } else {

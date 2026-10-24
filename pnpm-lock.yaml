@@ -8,6 +8,7 @@ overrides:
   adm-zip: ^0.6.1
   serialize-javascript: ^7.1.3
   extract-zip: npm:@electron-internal/extract-zip@^1.0.5
+  encoding-sniffer@0: ^1.0.2
   undici@6: ^6.28.1
   undici@7: ^7.30.1
   undici@8: ^8.12.2
@@ -363,6 +364,15 @@ packages:
   '@eslint/plugin-kit@0.7.3':
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
+  '@exodus/bytes@1.16.0':
+    resolution: {integrity: sha512-IcpW84uEn3N7ETtNZMlxKhfl6Pec8rUNGOTBtWbK1FKhJxIFAptZyVrvVRVBimAJxJCgc3PxepxkdWWG4DVzfA==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
+    peerDependencies:
+      '@noble/hashes': ^1.8.0 || ^2.0.0
+    peerDependenciesMeta:
+      '@noble/hashes':
+        optional: true
 
   '@fluent/syntax@0.19.0':
     resolution: {integrity: sha512-5D2qVpZrgpjtqU4eNOcWGp1gnUCgjfM+vKGE2y03kKN6z5EBhtx0qdRFbg8QuNNj8wXNoX93KJoYb+NqoxswmQ==}
@@ -1594,8 +1604,9 @@ packages:
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
 
-  encoding-sniffer@0.2.1:
-    resolution: {integrity: sha512-5gvq20T6vfpekVtqrYQsSCFZ1wEg5+wW0/QaZMWkFr6BqD3NfKs0rLCx4rrVlSWJeZb5NBJgVLswK/w2MWU+Gw==}
+  encoding-sniffer@1.0.2:
+    resolution: {integrity: sha512-dlQ0jlnDJ2ElE1Ky4crYX0pPEPxQY9F2j+ZMIXlBedLJToEfDed9pvPqXg4fZnuu4qVBbcIrZVeg3S4aibTYGw==}
+    engines: {node: '>=20.19.0'}
 
   entities@4.5.0:
     resolution: {integrity: sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw==}
@@ -1945,10 +1956,6 @@ packages:
   human-signals@8.0.1:
     resolution: {integrity: sha512-eKCa6bwnJhvxj14kZk5NCPc6Hb6BdsU9DZcOnmQKSnO1VKrfV0zCvtttPZUsBvjmNDn8rpcJfpwSYnHBjc95MQ==}
     engines: {node: '>=18.18.0'}
-
-  iconv-lite@0.6.3:
-    resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
-    engines: {node: '>=0.10.0'}
 
   iconv-lite@0.7.3:
     resolution: {integrity: sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ==}
@@ -3081,11 +3088,6 @@ packages:
       puppeteer-core:
         optional: true
 
-  whatwg-encoding@3.1.1:
-    resolution: {integrity: sha512-6qN4hJdMwfYBtE3YBTTHhoeuUrDBPZmbQaxWAqSALV/MeEnR5z1xd8UKud2RAkFoPkmB+hli1TZSnyi84xz1vQ==}
-    engines: {node: '>=18'}
-    deprecated: Use @exodus/bytes instead for a more spec-conformant and faster implementation
-
   whatwg-mimetype@4.0.0:
     resolution: {integrity: sha512-QaKxh0eNIi2mE9p2vEdzfagOKHCcj1pJ56EEHGQOVxp8r9/iszLUUV7v89x9O1p/T+NlTM5W7jW6+cz4Fq1YVg==}
     engines: {node: '>=18'}
@@ -3390,6 +3392,8 @@ snapshots:
     dependencies:
       '@eslint/core': 1.2.1
       levn: 0.4.1
+
+  '@exodus/bytes@1.16.0': {}
 
   '@fluent/syntax@0.19.0': {}
 
@@ -3914,6 +3918,7 @@ snapshots:
       webdriverio: 10.1.0(supports-color@8.1.1)(yauzl@3.4.0)
       yargs: 18.2.0
     transitivePeerDependencies:
+      - '@noble/hashes'
       - '@types/node'
       - '@wdio/electron-service'
       - '@wdio/visual-service'
@@ -3974,6 +3979,7 @@ snapshots:
       split2: 4.2.0
       stream-buffers: 3.0.3
     transitivePeerDependencies:
+      - '@noble/hashes'
       - '@wdio/electron-service'
       - '@wdio/visual-service'
       - appium
@@ -4039,6 +4045,7 @@ snapshots:
       webdriver: 10.1.0(supports-color@8.1.1)(yauzl@3.4.0)
       webdriverio: 10.1.0(supports-color@8.1.1)(yauzl@3.4.0)
     transitivePeerDependencies:
+      - '@noble/hashes'
       - '@wdio/electron-service'
       - '@wdio/visual-service'
       - appium
@@ -4074,6 +4081,7 @@ snapshots:
       expect-webdriverio: 8.0.0(@wdio/types@10.1.0)(webdriverio@10.1.0(supports-color@8.1.1)(yauzl@3.4.0))
       tsx: 4.23.15
     transitivePeerDependencies:
+      - '@noble/hashes'
       - bare-abort-controller
       - bare-buffer
       - bufferutil
@@ -4090,6 +4098,7 @@ snapshots:
       '@wdio/utils': 10.1.0(supports-color@8.1.1)(yauzl@3.4.0)
       webdriverio: 10.1.0(supports-color@8.1.1)(yauzl@3.4.0)
     transitivePeerDependencies:
+      - '@noble/hashes'
       - bare-abort-controller
       - bare-buffer
       - bufferutil
@@ -4179,6 +4188,7 @@ snapshots:
       yargs: 17.7.3
       yauzl: 3.4.0
     transitivePeerDependencies:
+      - '@noble/hashes'
       - express
       - jiti
       - safe-compare
@@ -4394,13 +4404,15 @@ snapshots:
       dom-serializer: 2.0.0
       domhandler: 5.0.3
       domutils: 3.2.2
-      encoding-sniffer: 0.2.1
+      encoding-sniffer: 1.0.2
       htmlparser2: 10.1.0
       parse5: 7.3.0
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
       undici: 7.30.1
       whatwg-mimetype: 4.0.0
+    transitivePeerDependencies:
+      - '@noble/hashes'
 
   chokidar@5.0.0:
     dependencies:
@@ -4636,10 +4648,11 @@ snapshots:
 
   emoji-regex@8.0.0: {}
 
-  encoding-sniffer@0.2.1:
+  encoding-sniffer@1.0.2:
     dependencies:
-      iconv-lite: 0.6.3
-      whatwg-encoding: 3.1.1
+      '@exodus/bytes': 1.16.0
+    transitivePeerDependencies:
+      - '@noble/hashes'
 
   entities@4.5.0: {}
 
@@ -5052,10 +5065,6 @@ snapshots:
       - supports-color
 
   human-signals@8.0.1: {}
-
-  iconv-lite@0.6.3:
-    dependencies:
-      safer-buffer: 2.1.2
 
   iconv-lite@0.7.3:
     dependencies:
@@ -6124,6 +6133,7 @@ snapshots:
       yargs: 17.7.3
       zip-dir: 2.0.0
     transitivePeerDependencies:
+      - '@noble/hashes'
       - express
       - jiti
       - safe-compare
@@ -6176,6 +6186,7 @@ snapshots:
       urlpattern-polyfill: 10.1.0
       webdriver: 10.1.0(supports-color@8.1.1)(yauzl@3.4.0)
     transitivePeerDependencies:
+      - '@noble/hashes'
       - bare-abort-controller
       - bare-buffer
       - bufferutil
@@ -6185,10 +6196,6 @@ snapshots:
       - supports-color
       - utf-8-validate
       - yauzl
-
-  whatwg-encoding@3.1.1:
-    dependencies:
-      iconv-lite: 0.6.3
 
   whatwg-mimetype@4.0.0: {}
 

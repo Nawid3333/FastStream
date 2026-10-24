@@ -81,7 +81,7 @@ const PREFS = [
 const BOOKMARKS = [
   {
     name: 'DASH test',
-    url: 'https://reference.dashif.org/dash.js/v4.4.0/samples/getting-started/auto-load-single-video-src.html',
+    url: 'https://reference.dashif.org/dash.js/latest/samples/getting-started/auto-load-single-video-src.html',
   },
   {
     name: 'HLS test',
