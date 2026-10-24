@@ -8,7 +8,7 @@
 //   - lists the front centre after the front pair, as ffmpeg writes its 6.0, or
 //   - has a lone side channel, which Windows has no speaker for (an older ffmpeg's 6.0).
 // Firefox waits for the first audio before it shows the first frame: a film with such sound sat
-// at 0:00 with minutes buffered, in Firefox's own player too (kinoger's fsst hoster, a 6.0 track
+// at 0:00 with minutes buffered, in Firefox's own player too (a film site's hoster, a 6.0 track
 // written by Lavc62.4.100, 2026-10-12). Relabelled - the front centre first, a lone side channel
 // at the back centre - it decodes, each of its six channels sample for sample as ffmpeg decodes
 // the original (measured in Firefox 157 through WebCodecs, which uses the same decoder; layouts

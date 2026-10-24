@@ -199,6 +199,7 @@ const CHECKED = [
   'tools/launch-ff-fresh.mjs',
   'tools/launch-ff.mjs',
   'tools/newest-release.mjs',
+  'tools/privacy-check.mjs',
   'tools/rebuild.mjs',
   'tools/recut-patch.mjs',
   'tools/security-overrides.mjs',

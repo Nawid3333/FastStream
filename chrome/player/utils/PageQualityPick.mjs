@@ -2,7 +2,7 @@
 
 // Which of the qualities a page's own player offers as files of their own (page-qualities.js)
 // is played: by FastStream's player, and by mpv. The page plays its default, often the lowest
-// (kinoger's fsst hoster: Playerjs with default_quality "360p" and 720p and 1080p files beside
+// (a film site's hoster: Playerjs with default_quality "360p" and 720p and 1080p files beside
 // it); the user's quality setting decides here, as it does among an HLS or DASH stream's levels.
 
 /**

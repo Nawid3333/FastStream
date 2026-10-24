@@ -91,13 +91,13 @@ describe('the next episode\'s link', () => {
   });
 });
 
-// His report (2026-10-11, aniworld.cc): after a season's last episode, autoplay went on to
+// His report (2026-10-11, an anime site): after a season's last episode, autoplay went on to
 // another series. The next episode stays in the series: its next season's first, or none.
 describe('the next episode, within the series', () => {
-  const SERIES = 'https://site.example/anime/stream/girlfriends';
+  const SERIES = 'https://site.example/anime/stream/example-series';
 
   /**
-   * A season's episode page as aniworld.cc has it: the seasons, the season's episodes, and
+   * A season's episode page as an anime site has it: the seasons, the season's episodes, and
    * other series after them (a "similar anime" list).
    * @param {number} season
    * @param {number} episode
@@ -107,11 +107,11 @@ describe('the next episode, within the series', () => {
   function seasonPage(season, episode, seasons = 3) {
     const page = episodePage();
     Object.assign(page.p.window.location, {href: `${SERIES}/staffel-${season}/episode-${episode}`,
-      pathname: `/anime/stream/girlfriends/staffel-${season}/episode-${episode}`});
+      pathname: `/anime/stream/example-series/staffel-${season}/episode-${episode}`});
     for (let s = 1; s <= seasons; s++) page.link(`${SERIES}/staffel-${s}`, `Staffel ${s}`);
     for (let e = 1; e <= 12; e++) page.link(`${SERIES}/staffel-${season}/episode-${e}`, String(e));
-    page.link('https://site.example/anime/stream/kaiju-girl', 'KAIJU GIRL CARAMELISE');
-    page.link('https://site.example/anime/stream/yowayowa-sensei', 'Yowayowa Sensei');
+    page.link('https://site.example/anime/stream/another-series', 'ANOTHER SERIES');
+    page.link('https://site.example/anime/stream/third-series', 'Third Series');
     return page;
   }
 
@@ -136,7 +136,7 @@ describe('the next episode, within the series', () => {
 
   it('does not take a "next episode" link of another series either', async () => {
     const {link, next, assigned} = seasonPage(3, 12);
-    link('https://site.example/anime/stream/kaiju-girl/staffel-1/episode-1', 'Next episode');
+    link('https://site.example/anime/stream/another-series/staffel-1/episode-1', 'Next episode');
     expect(await next()).toBe('series_end');
     expect(assigned).toEqual([]);
   });
@@ -146,7 +146,7 @@ describe('the next episode, within the series', () => {
     // season, past the rest of this one.
     const page = episodePage();
     Object.assign(page.p.window.location, {href: `${SERIES}/staffel-3/episode-5`,
-      pathname: '/anime/stream/girls/staffel-3/episode-5'});
+      pathname: '/anime/stream/example-series/staffel-3/episode-5'});
     page.link(`${SERIES}/staffel-4`, 'Staffel 4');
     page.link(`${SERIES}/staffel-3/episode-4`, '4');
     page.link(`${SERIES}/staffel-3/episode-6`, '6', {target: '_blank'});
@@ -159,7 +159,7 @@ describe('the next episode, within the series', () => {
     // Episode 13 removed: the list has 1-12 and 14-20, and a season 4.
     const page = episodePage();
     Object.assign(page.p.window.location, {href: `${SERIES}/staffel-3/episode-12`,
-      pathname: '/anime/stream/girls/staffel-3/episode-12'});
+      pathname: '/anime/stream/example-series/staffel-3/episode-12'});
     page.link(`${SERIES}/staffel-4`, 'Staffel 4');
     for (const e of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16]) page.link(`${SERIES}/staffel-3/episode-${e}`, String(e));
     expect(await page.next()).toBe('clicked');
@@ -169,7 +169,7 @@ describe('the next episode, within the series', () => {
   it('goes on to the next season\'s lowest episode where a site numbers on across seasons (glm\'s review)', async () => {
     const page = episodePage();
     Object.assign(page.p.window.location, {href: `${SERIES}/staffel-1/episode-12`,
-      pathname: '/anime/stream/girls/staffel-1/episode-12'});
+      pathname: '/anime/stream/example-series/staffel-1/episode-12'});
     for (let e = 1; e <= 12; e++) page.link(`${SERIES}/staffel-1/episode-${e}`, String(e));
     page.link(`${SERIES}/staffel-2`, 'Staffel 2');
     page.link(`${SERIES}/staffel-2/episode-14`, '14');
@@ -181,7 +181,7 @@ describe('the next episode, within the series', () => {
   it('goes on to the next season\'s episode 1, not to a "continue watching" episode of it (glm\'s review)', async () => {
     const page = episodePage();
     Object.assign(page.p.window.location, {href: `${SERIES}/staffel-3/episode-12`,
-      pathname: '/anime/stream/girls/staffel-3/episode-12'});
+      pathname: '/anime/stream/example-series/staffel-3/episode-12'});
     for (let e = 1; e <= 12; e++) page.link(`${SERIES}/staffel-3/episode-${e}`, String(e));
     page.link(`${SERIES}/staffel-4`, 'Staffel 4');
     page.link(`${SERIES}/staffel-4/episode-5`, 'Weiterschauen: Staffel 4, Folge 5');
@@ -194,7 +194,7 @@ describe('the next episode, within the series', () => {
     // 5 and 6, after a gap) tell the page lists it, and the list, not the button, goes on.
     const page = episodePage();
     Object.assign(page.p.window.location, {href: `${SERIES}/staffel-3/episode-1`,
-      pathname: '/anime/stream/girls/staffel-3/episode-1'});
+      pathname: '/anime/stream/example-series/staffel-3/episode-1'});
     page.link(`${SERIES}/staffel-3/episode-1`, '1');
     page.link(`${SERIES}/staffel-3/episode-5`, '5');
     page.link(`${SERIES}/staffel-3/episode-6`, '6');
@@ -213,7 +213,7 @@ describe('the next episode, within the series', () => {
   it('presses the "next episode" button where the page links one other episode only, no list (deepseek\'s third round)', async () => {
     const page = episodePage();
     Object.assign(page.p.window.location, {href: `${SERIES}/staffel-3/episode-1`,
-      pathname: '/anime/stream/girls/staffel-3/episode-1'});
+      pathname: '/anime/stream/example-series/staffel-3/episode-1'});
     page.link(`${SERIES}/staffel-3/episode-5`, 'Latest: episode 5');
     const button = page.p.document.createElement('button');
     button.textContent = 'Next episode';

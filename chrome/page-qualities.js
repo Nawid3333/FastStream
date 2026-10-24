@@ -2,7 +2,7 @@
 // The qualities a page's own player offers as files of their own (one MP4 per resolution), for
 // content.js. The page asks for one of them - its player's default, often the lowest - and that
 // one request is all FastStream used to see: its player showed one quality and played that, and
-// MPV mode sent it (kinoger.com's fsst hoster: Playerjs with `default_quality: "360p"` and
+// MPV mode sent it (a film site's hoster: Playerjs with `default_quality: "360p"` and
 // `file: "[360p]url,[720p]url,[1080p]url"`, his report 2026-10-12). HLS and DASH need none of
 // this: their master playlist lists the qualities.
 //

@@ -1861,7 +1861,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(bg.ports).toHaveLength(1);
   });
 
-  // aniworld, season 1 to 2 (his report, 2026-10-13): mpv showed the next episode's title on
+  // an anime site, season 1 to 2 (his report, 2026-10-13): mpv showed the next episode's title on
   // a black picture. The next page's player, started by this extension, may load an ad's
   // stream first; it went to mpv at once, and the episode's own, detected after, was dropped.
   it('sends the next page\'s longest stream, not an ad its player loaded first', async () => {
@@ -1878,7 +1878,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(bg.toMpv()).toEqual([S1, S2]);
   });
 
-  // serienstream.to's VOE hoster (his report, 2026-10-23): the next episode played in mpv as
+  // a series site's VOE hoster (his report, 2026-10-23): the next episode played in mpv as
   // sound only, every time. The page's player asks for the master, its variant and then the
   // German sound's own playlist (measured on the site), all as long as each other; of streams
   // that tie the newest goes, and the sound's playlist went to mpv as it was.
@@ -2063,7 +2063,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
   });
 
   it('stops at the series\' last episode and says so, asking no hoster frame', async () => {
-    // His report (2026-10-11, aniworld.cc): after a season's last episode autoplay went on to
+    // His report (2026-10-11, an anime site): after a season's last episode autoplay went on to
     // another series. The page says its series ended (content.js isSeriesEnd): no other
     // frame is asked (a hoster's links are other videos), and it is no problem to note.
     const port = await onEpisode1({}, 'series_end');
@@ -2133,7 +2133,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
 });
 
 describe('MPV mode and a page that offers its file in several qualities', () => {
-  // kinoger's fsst hoster (2026-10-12): a Playerjs with default_quality "360p" and 720p and
+  // a film site's hoster (2026-10-12): a Playerjs with default_quality "360p" and 720p and
   // 1080p files beside it. The page's <video> asks for its default, which the hoster
   // redirects to its CDN, and MPV mode sent that: the lowest.
   const HOSTER = 'https://hoster.test/embed/1/';

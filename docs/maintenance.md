@@ -387,3 +387,24 @@ or `update-prs` is listed already, click it instead of **New environment**.)
 4. Then **Settings**, **Secrets and variables**, **Actions**, **Repository secrets**: delete
    `AMO_API_KEY`, `AMO_API_SECRET` and `UPDATE_PRS_TOKEN` there. Until they are deleted, any
    branch's workflow can still read those copies.
+
+## Nothing personal (the privacy guard)
+
+The repository is public, its history, branch names, pull requests and Actions logs too.
+`tools/privacy-check.mjs` keeps out user folder paths, private claude.ai links, e-mail
+addresses (but noreply and public ones), identities that are not a GitHub noreply address,
+and the words of a private list: real name, user and PC names, private paths, and titles of
+what you watch and the sites you watch them on.
+
+- **Before a commit and a push**, in every clone that ran `pnpm install` (its `prepare` sets
+  `core.hooksPath .githooks`), with the clone's own `.git/info/private-words` (one word per
+  line, never committed). A deliberate exception: `--no-verify`.
+- **In CI**, `privacy.yml` on every pull request and push to `main`: every tracked file, the
+  new commits and the branch name, with the `PRIVATE_WORDS` repository secret (**Settings**,
+  **Secrets and variables**, **Actions**). Its log names the file, line and rule, never the
+  text. A fork's or Dependabot's pull request gets no secret: the words are not checked
+  there, and the run says so.
+
+A new word goes into both lists, and into mpv-config's pair as well: the two repositories
+keep the same list. Nothing checks a pull request's or an issue's own text: write it the
+same way.

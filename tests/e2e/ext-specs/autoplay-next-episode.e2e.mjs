@@ -1,5 +1,5 @@
 // Autoplay next, on to an episode whose page waits for a click before its player loads
-// anything (his report, 2026-10-11, serienstream.to: the next episode came, and he had to
+// anything (his report, 2026-10-11, a series site: the next episode came, and he had to
 // click it). The hoster there is a JW Player, idle until played; another kind loads its
 // video on a click on it. After FastStream went to the next episode by itself, it starts the
 // page's player (content.js startPagePlayer, background.mjs startPagePlayers), takes the
@@ -16,7 +16,7 @@ const SITE = `http://127.0.0.1:${PORT}`;
 let server;
 
 const next = (to) => `<p><a href="/${to}" style="display: inline-block; width: 120px; height: 24px">Next episode</a></p>`;
-const SERIES = '/anime/stream/girls';
+const SERIES = '/anime/stream/example-series';
 const en = JSON.parse(fs.readFileSync(new URL('../../../chrome/_locales/en/messages.json', import.meta.url), 'utf8'));
 const style = 'width: 640px; height: 360px; display: block';
 
@@ -93,7 +93,7 @@ function pages(file) {
     video.play().catch(() => {});
   });
 </script>`,
-    // A series as aniworld.cc has it (his report, 2026-10-11: after a season's last episode,
+    // A series as an anime site has it (his report, 2026-10-11: after a season's last episode,
     // autoplay went on to another series): its season, its episodes, then other series.
     [`${SERIES}/staffel-1/episode-1`]: seriesPage(file, 1),
     [`${SERIES}/staffel-1/episode-2`]: seriesPage(file, 2),
@@ -103,7 +103,7 @@ function pages(file) {
 }
 
 /**
- * An episode of a two-episode series, as aniworld.cc lays it out.
+ * An episode of a two-episode series, as an anime site lays it out.
  * @param {string} file - The video.
  * @param {number} episode
  * @return {string}

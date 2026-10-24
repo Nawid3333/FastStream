@@ -3,7 +3,7 @@ import {describe, expect, it} from 'vitest';
 import {relabelEsdsAacLayout, windowsAacLayout} from '../../chrome/player/players/mp4/AacLayout.mjs';
 
 // AAC with a channel layout of its own (a PCE) that Windows' decoder takes and gives nothing back
-// for: a film on kinoger's fsst hoster sat at 0:00 for good. The configs below are the real ones:
+// for: a film on a film site's hoster sat at 0:00 for good. The configs below are the real ones:
 // the film's (Lavc62.4.100), and a 6.0 track a 2026 ffmpeg writes (Lavc62.30.100). What decodes after
 // the relabelling was measured in Firefox 157 through WebCodecs (AacLayout.mjs).
 

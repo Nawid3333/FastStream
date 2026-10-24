@@ -1,4 +1,4 @@
-# FastStream modernisation — checkpoint
+# FastStream: modernisation checkpoint
 
 > **Read this first (2026-10-03).** This file is the record of the modernisation
 > (2026-09-07 to 2026-09-30). The dated notes at the top are current as of their
@@ -51,7 +51,7 @@ lived on `dev/mv3-modernization` and `main` mirrored upstream; `Mpv-feature`
 carried the MPV work and was **merged** on 2026-09-09
 **Base:** upstream `d5fe931` (V1.3.77)
 **CI:** green — https://github.com/Nawid3333/FastStream/actions
-**Plan doc:** https://claude.ai/code/artifact/830a4dd8-e6ab-4429-a4ac-b5541f9a3224
+**Plan doc:** a private planning page (not published)
 
 Everything in this checkpoint reflects a verified state: the full suite
 (lint, typecheck, 58 unit tests, all 4 builds, both addons-linter runs, e2e
@@ -249,7 +249,7 @@ Also in `Faststream version 4/tests/manual-playback-urls.txt`.
 ## Commands
 
 ```bash
-cd "V:\Faststream modernisation\Faststream version 4"
+cd "<your clone of FastStream>"
 
 pnpm install
 pnpm run build          # 3 targets -> built/firefox-*.zip + built/web
@@ -422,7 +422,7 @@ player, on allowlisted sites. Started as a WIP commit that was end-to-end
 broken; now verified working on a real site from a **clean install** of the
 native host.
 
-**State on 2026-09-09:** works on aniworld — auto-detect, single mpv window,
+**State on 2026-09-09:** works on an anime site — auto-detect, single mpv window,
 correct headers, fullscreen, focus, episode switching. Verified from a fresh
 `install.ps1` run (install dir and registry key deleted first), not from the
 hand-copied host used during development.

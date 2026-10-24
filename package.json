@@ -7,6 +7,8 @@
     "node": ">=22"
   },
   "scripts": {
+    "prepare": "node tools/privacy-check.mjs hooks",
+    "privacy": "node tools/privacy-check.mjs ci",
     "vendor:sync": "node tools/sync-vendor.mjs",
     "build": "node tools/sync-vendor.mjs && node localescript.mjs && node build.mjs",
     "build:keep": "node tools/sync-vendor.mjs && node localescript.mjs && node build.mjs --keep",

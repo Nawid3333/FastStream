@@ -10,7 +10,7 @@ const context = vm.createContext({URL});
 vm.runInContext(pageQualitiesSource, context, {filename: 'chrome/page-qualities.js'});
 const PageQualities = vm.runInContext('PageQualities', context);
 
-const BASE = 'https://www.incvideo1.online/embed/975054/';
+const BASE = 'https://www.film-hoster.example/embed/100001/';
 
 /**
  * An element with attributes and children, as much as the scanner reads.
@@ -46,28 +46,28 @@ function documentOf(videos, scripts = []) {
   };
 }
 
-// The fsst hoster's page (incvideo1.online), as it was on 2026-10-12: four Playerjs set-ups,
+// The hoster's page (film-hoster.example), as it was on 2026-10-12: four Playerjs set-ups,
 // one per kind of device, each with the same file string.
-const FSST_FILE = '[360p]https://www.incvideo1.online/get_file/9/0b57/975000/975054/975054_360p.mp4/,' +
-  '[720p]https://www.incvideo1.online/get_file/9/64bf/975000/975054/975054_720p.mp4/,' +
-  '[1080p]https://www.incvideo1.online/get_file/9/48f1/975000/975054/975054.mp4/';
-const FSST_SCRIPT = `
+const HOSTER_FILE = '[360p]https://www.film-hoster.example/get_file/9/0b57/100000/100001/100001_360p.mp4/,' +
+  '[720p]https://www.film-hoster.example/get_file/9/64bf/100000/100001/100001_720p.mp4/,' +
+  '[1080p]https://www.film-hoster.example/get_file/9/48f1/100000/100001/100001.mp4/';
+const HOSTER_SCRIPT = `
   if(isMobile.iOS()){
-    var player = new Playerjs({ id: 'Video975054', subtitle: "",
-      file:"${FSST_FILE}",
+    var player = new Playerjs({ id: 'Video100001', subtitle: "",
+      file:"${HOSTER_FILE}",
       default_quality: "360p", preroll: "//ads.example/vast or //ads2.example/vast" });
   } else {
-    var player = new Playerjs({ id: 'Video975054', subtitle: "",
-      file:"${FSST_FILE}",
+    var player = new Playerjs({ id: 'Video100001', subtitle: "",
+      file:"${HOSTER_FILE}",
       default_quality: "360p" });
   }`;
 
 describe('PageQualities.find', () => {
-  it('reads the fsst hoster\'s Playerjs file string, once', () => {
-    const lists = PageQualities.find(documentOf([], [FSST_SCRIPT]), null, BASE);
+  it('reads a hoster\'s Playerjs file string, once', () => {
+    const lists = PageQualities.find(documentOf([], [HOSTER_SCRIPT]), null, BASE);
     expect(lists).toHaveLength(1);
     expect(lists[0].map((q) => [q.label, q.height])).toEqual([['360p', 360], ['720p', 720], ['1080p', 1080]]);
-    expect(lists[0][2].url).toBe('https://www.incvideo1.online/get_file/9/48f1/975000/975054/975054.mp4/');
+    expect(lists[0][2].url).toBe('https://www.film-hoster.example/get_file/9/48f1/100000/100001/100001.mp4/');
   });
 
   it('reads a <source> list by the attribute each player uses', () => {
