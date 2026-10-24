@@ -384,6 +384,37 @@ time updates (`watchDroppedFrames`).
   count is stood in for (a third dropped): 720p stepped down to 360p with the message, and
   720p picked again stayed. Red without each part. Not measured: a real slow computer.
 
+## The audio output (2026-10-24)
+
+His wish: the sound on another device than the system's default (headphones, say).
+`AudioOutputDevice.mjs`; the audio button's list has an "Audio output" part: Default output,
+the device chosen, "Choose an output...".
+- **How**: all of the player's sound runs through Web Audio, and Firefox has no
+  `AudioContext.setSinkId`. For a chosen device the graph's end goes into a
+  `MediaStreamAudioDestinationNode`, whose stream a hidden `<audio>` plays with
+  `setSinkId(device)`; the graph moves over only once that plays. For the default output
+  nothing changes: the graph ends at the context's destination, as before.
+- **Measured on Firefox 158** (extension pages; the harness answers the chooser with
+  `media.navigator.permission.disabled`):
+  - `selectAudioOutput` and the element's `setSinkId` exist; in a page's iframe only with
+    `allow="speaker-selection"` (else `NotAllowedError`, "Document's Permissions Policy does
+    not allow..."). content.js gives the player's iframe that token.
+  - `selectAudioOutput` needs a click, also with a known `deviceId` (`InvalidStateError`
+    without one).
+  - A device is usable only in the document it was chosen in: the next video's player
+    (a new document) gets `NotFoundError` for the saved id.
+- **So**: the choice is kept (`chrome.storage.local`, `audioOutputDevice`), and each new
+  video starts on the default output and says so in the status line: "click here to play it
+  on <device>". The click opens Firefox's chooser with that device picked (or nothing picked,
+  when it is gone). A device unplugged while it plays (`devicechange`, gone from
+  `enumerateDevices`) sends the sound back to the default output, with the same notice.
+- **Not established**: whether a real prompt can be remembered so that the chooser no longer
+  shows; the latency the detour adds (A/V sync); whether more than two channels get through it.
+- **Tests**: `AudioOutputDevice.test.mjs` (20, drafted by glm-5.3-flash and checked; each
+  review fix red without it), `statusLevels.test.mjs` (the clickable status message),
+  `audio-output.e2e.mjs` in a page's iframe (chooses, the next video's notice and its click,
+  back to the default; skips on a machine with no audio output).
+
 ## Firefox VPN (2026-10-06)
 
 Reported on a VOE page: "Failed to load video!" in the player and "could not open the stream"

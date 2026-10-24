@@ -147,6 +147,7 @@ const CHECKED = [
   'chrome/player/ui/audio/AbstractAudioModule.mjs',
   'chrome/player/ui/audio/AudioGain.mjs',
   'chrome/player/ui/audio/AudioOutput.mjs',
+  'chrome/player/ui/audio/AudioOutputDevice.mjs',
   'chrome/player/ui/audio/VirtualAudioNode.mjs',
   'chrome/player/ui/components/Dropdown.mjs',
   'chrome/player/ui/components/PagesBar.mjs',

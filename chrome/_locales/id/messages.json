@@ -1300,5 +1300,26 @@
     },
     "perms_page_breakdown_perm10d": {
         "message": "Menambahkan item FastStream ke menu klik kanan halaman web: putar video halaman di FastStream atau MPV, atau buka tautan di tab baru dengan FastStream atau MPV aktif. Firefox tidak menampilkan peringatan untuk hal ini."
+    },
+    "player_audio_output_label": {
+        "message": "Output audio"
+    },
+    "player_audio_output_default": {
+        "message": "Output default"
+    },
+    "player_audio_output_choose": {
+        "message": "Pilih output…"
+    },
+    "player_audio_output_device": {
+        "message": "Output yang dipilih"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 tidak tersedia: suara diputar melalui output default. Pilih kembali di menu audio."
+    },
+    "player_audio_output_refused": {
+        "message": "Halaman ini tidak mengizinkan pemutar memilih output audio."
+    },
+    "player_audio_output_again": {
+        "message": "Suara diputar melalui output default: klik di sini untuk memutarnya di $1."
     }
 }

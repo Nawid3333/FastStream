@@ -16,6 +16,8 @@ export const StatusTypes = {
   MPV: 'mpv',
   // A quality the player lowered by itself (FastStreamClient.watchDroppedFrames).
   QUALITY: 'quality',
+  // The audio output chosen, not applied (AudioOutputDevice): one click applies it.
+  AUDIO_OUTPUT: 'audio-output',
 };
 
 export class StatusManager {
@@ -36,6 +38,7 @@ export class StatusManager {
     this.registerStatusLevel(StatusTypes.COPY, 1);
     this.registerStatusLevel(StatusTypes.MPV, 1);
     this.registerStatusLevel(StatusTypes.QUALITY, 1);
+    this.registerStatusLevel(StatusTypes.AUDIO_OUTPUT, 1);
   }
 
   /**
@@ -50,6 +53,8 @@ export class StatusManager {
       expiry: 0,
       channel: channel || 0,
       maxWidth: 0,
+      /** @type {?(() => void)} */
+      onClick: null,
     };
     this.statusMessages.set(key, level);
   }
@@ -59,8 +64,10 @@ export class StatusManager {
    * @param {string|null} [message] - null or none clears the level's message.
    * @param {string=} type
    * @param {number=} expiry
+   * @param {?(() => void)} [onClick] - What a click on it does (it shows as clickable);
+   *   without, a click goes on to the player, as before.
    */
-  setStatusMessage(key, message, type, expiry) {
+  setStatusMessage(key, message, type, expiry, onClick = null) {
     const level = this.statusMessages.get(key);
     if (!level) {
       throw new Error(`Unknown status level ${key}`);
@@ -69,6 +76,7 @@ export class StatusManager {
     level.message = message;
     level.type = type || 'info';
     level.expiry = expiry ? (Date.now() + expiry) : 0;
+    level.onClick = message ? onClick : null;
     this.updateStatusMessage();
   }
 
@@ -98,7 +106,12 @@ export class StatusManager {
       element.style.display = '';
       element.textContent = toDisplay.message;
       element.title = toDisplay.message;
-      element.className = `status_message ${toDisplay.type}`;
+      element.className = `status_message ${toDisplay.type}${toDisplay.onClick ? ' clickable' : ''}`;
+      const onClick = toDisplay.onClick;
+      element.onclick = onClick ? (e) => {
+        e.stopPropagation();
+        onClick();
+      } : null;
     });
 
     if (displayCount > 1) {

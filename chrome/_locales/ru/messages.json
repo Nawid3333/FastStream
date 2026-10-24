@@ -1300,5 +1300,26 @@
     },
     "perms_page_breakdown_perm10d": {
         "message": "Добавляет пункты FastStream в контекстное меню веб-страниц: воспроизвести видео со страницы в FastStream или MPV или открыть ссылку в новой вкладке с включенным FastStream или MPV. Firefox не выводит предупреждений об этом."
+    },
+    "player_audio_output_label": {
+        "message": "Вывод звука"
+    },
+    "player_audio_output_default": {
+        "message": "Вывод по умолчанию"
+    },
+    "player_audio_output_choose": {
+        "message": "Выбрать вывод…"
+    },
+    "player_audio_output_device": {
+        "message": "Выбранное устройство вывода"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 недоступно: звук выводится по умолчанию. Выберите его снова в меню звука."
+    },
+    "player_audio_output_refused": {
+        "message": "Эта страница не позволяет плееру выбрать устройство вывода звука."
+    },
+    "player_audio_output_again": {
+        "message": "Звук выводится по умолчанию: нажмите здесь, чтобы вывести его через $1."
     }
 }

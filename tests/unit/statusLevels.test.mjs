@@ -8,7 +8,10 @@ import {describe, expect, it, vi} from 'vitest';
 // which its own tests did not see (they stand in for the status line). Every key the
 // player's code gives it is one StatusManager registers.
 
-vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({DOMElements: {}}));
+const {elements} = vi.hoisted(() => ({
+  elements: [0, 1].map(() => ({style: {}, textContent: '', title: '', className: '', onclick: null})),
+}));
+vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({DOMElements: {statusMessages: elements}}));
 
 const {StatusManager, StatusTypes} = await import('../../chrome/player/ui/StatusManager.mjs');
 
@@ -36,5 +39,23 @@ describe('status levels', () => {
     }
     expect(used.length).toBeGreaterThan(20);
     expect(used.filter(({key}) => !known.has(key))).toEqual([]);
+  });
+
+  it('runs a message\'s own click, and only then keeps the click from the player', () => {
+    // The audio output's "click here to play it on ..." (AudioOutputDevice): a click on the
+    // status line, which otherwise goes on to the video.
+    const manager = new StatusManager();
+    const onClick = vi.fn();
+    manager.setStatusMessage(StatusTypes.AUDIO_OUTPUT, 'click here', 'warning', 0, onClick);
+    const shown = elements[1];
+    expect(shown.className).toBe('status_message warning clickable');
+    const event = {stopPropagation: vi.fn()};
+    shown.onclick(event);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(event.stopPropagation).toHaveBeenCalled();
+
+    manager.setStatusMessage(StatusTypes.AUDIO_OUTPUT, 'no click', 'info');
+    expect(shown.onclick).toBe(null);
+    expect(shown.className).toBe('status_message info');
   });
 });

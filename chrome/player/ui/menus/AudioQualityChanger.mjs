@@ -10,8 +10,15 @@ export class AudioQualityChanger extends EventEmitter {
     super();
     this.stayOpen = false;
     this.enabled = false;
-    // More than one track: the button shows only then.
+    // More than one track: the button shows then, and whenever the audio output can be
+    // chosen (setOutputDevice).
     this.hasChoice = false;
+    /** @type {?import('../audio/AudioOutputDevice.mjs').AudioOutputDevice} */
+    this.outputDevice = null;
+    /** @type {?((e: *) => void)} A refused choice or a failed switch is said here. */
+    this.onOutputError = null;
+    /** @type {Array<HTMLElement>} The output part's rows, kept to draw the part again in place. */
+    this.outputItems = [];
   }
 
   openUI(dontSetStayVisible = false) {
@@ -111,7 +118,8 @@ export class AudioQualityChanger extends EventEmitter {
       const index = candidates.indexOf(current);
       if (e.key === 'ArrowDown') {
         current.classList.remove('candidate');
-        const next = (index < candidates.length - 1) ? candidates[index + 1] : candidates[0];
+        // The output part's header is no choice of its own: the walk steps over it.
+        const next = this.nextItem(candidates, index, 1);
         next.classList.add('candidate');
         // scroll into view
         next.scrollIntoView({block: 'nearest'});
@@ -119,7 +127,7 @@ export class AudioQualityChanger extends EventEmitter {
         e.stopPropagation();
       } else if (e.key === 'ArrowUp') {
         current.classList.remove('candidate');
-        const next = (index > 0) ? candidates[index - 1] : candidates[candidates.length - 1];
+        const next = this.nextItem(candidates, index, -1);
         next.classList.add('candidate');
         // scroll into view
         next.scrollIntoView({block: 'nearest'});
@@ -153,13 +161,23 @@ export class AudioQualityChanger extends EventEmitter {
   */
   updateQualityLevels(client) {
     const audioLevels = client.getLevelManager().filterAudioLevelsByLanguage(Array.from(client.getAudioLevels().values()));
+    const canChooseOutput = !!this.outputDevice?.isSupported();
     this.hasChoice = !!audioLevels && audioLevels.length > 1;
-    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).classList.toggle('hidden', !this.hasChoice);
-    // With one track the button hides, and an open list stayed open under no button.
-    if (!this.hasChoice) {
+    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).classList.toggle('hidden', !this.hasChoice && !canChooseOutput);
+    // With one track (and no output to choose) the button hides, and an open list stayed
+    // open under no button.
+    if (!this.hasChoice && !canChooseOutput) {
       this.closeUI();
     }
     if (!audioLevels || audioLevels.length < 1) {
+      if (canChooseOutput) {
+        // No tracks, but the output is a choice: the last video's tracks go, the output
+        // part stays.
+        this.enabled = true;
+        /** @type {HTMLElement} */ (DOMElements.audioSourceList).replaceChildren();
+        this.renderOutputs();
+        return;
+      }
       this.enabled = false;
       // An open list kept the previous video's tracks (final review, 2026-10-10).
       /** @type {HTMLElement} */ (DOMElements.audioSourceList).replaceChildren();
@@ -232,5 +250,93 @@ export class AudioQualityChanger extends EventEmitter {
 
       /** @type {HTMLElement} */ (DOMElements.audioSourceList).appendChild(levelelement);
     });
+
+    this.renderOutputs();
+  }
+
+  /**
+   * The device the output part chooses with (AudioOutputDevice), and where its failures go.
+   * @param {import('../audio/AudioOutputDevice.mjs').AudioOutputDevice} device
+   * @param {(e: *) => void} onError
+   */
+  setOutputDevice(device, onError) {
+    this.outputDevice = device;
+    this.onOutputError = onError;
+    this.renderOutputs();
+  }
+
+  /**
+   * The "Audio output" part, after the tracks: a header, the system's default output, the
+   * device chosen (when there is one), and "Choose an output..." for Firefox's own chooser.
+   * The row playing is marked as a track's is. Drawn again in place, the tracks untouched.
+   */
+  renderOutputs() {
+    this.outputItems.forEach((element) => element.remove());
+    this.outputItems = [];
+    const device = this.outputDevice;
+    if (!device?.isSupported()) return;
+    const list = /** @type {HTMLElement} */ (DOMElements.audioSourceList);
+    const header = document.createElement('div');
+    header.classList.add('fluid_audio_source_list_header');
+    header.textContent = Localize.getMessage('player_audio_output_label');
+    // No choice of its own: a click on it is no click on the video either.
+    header.addEventListener('click', (e) => e.stopPropagation());
+    this.outputItems.push(header);
+    this.outputItems.push(this.makeOutputItem(Localize.getMessage('player_audio_output_default'), !device.playing,
+        () => device.useDefault()));
+    if (device.choice) {
+      const chosen = device.choice;
+      this.outputItems.push(this.makeOutputItem(chosen.label || chosen.deviceId, device.playing === chosen,
+          // Not playing (gone or not allowed at the start): the chooser again, with it picked.
+          () => (device.playing === chosen ? Promise.resolve() : device.choose())));
+    }
+    this.outputItems.push(this.makeOutputItem(Localize.getMessage('player_audio_output_choose'), false,
+        () => device.choose()));
+    this.outputItems.forEach((element) => list.appendChild(element));
+    // A list with the output part is one to open, tracks or none.
+    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).classList.remove('hidden');
+    this.enabled = true;
+  }
+
+  /**
+   * A row of the output part, built as a track's. Its click runs the switch in the click
+   * itself (Firefox's chooser needs the user's click), draws the part again when it is done,
+   * and gives a failure to onOutputError.
+   * @param {string} label
+   * @param {boolean} active
+   * @param {() => Promise<*>} action
+   * @return {HTMLElement}
+   */
+  makeOutputItem(label, active, action) {
+    const item = document.createElement('div');
+    item.classList.add('fluid_audio_source_list_item');
+    if (active) item.classList.add('source_active');
+    const text = document.createElement('span');
+    text.textContent = active ? label + ' ' + Localize.getMessage('player_quality_current') : label;
+    item.appendChild(text);
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      action().then(() => this.renderOutputs(), (error) => {
+        this.renderOutputs();
+        this.onOutputError?.(error);
+      });
+    });
+    return item;
+  }
+
+  /**
+   * The row above or below one, wrapping, past the output part's header.
+   * @param {Array<Element>} candidates
+   * @param {number} index
+   * @param {number} step - 1 down, -1 up.
+   * @return {Element}
+   */
+  nextItem(candidates, index, step) {
+    const count = candidates.length;
+    let next = (index + step + count) % count;
+    while (next !== index && candidates[next].classList.contains('fluid_audio_source_list_header')) {
+      next = (next + step + count) % count;
+    }
+    return candidates[next];
   }
 }

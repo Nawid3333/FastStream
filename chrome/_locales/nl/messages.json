@@ -1300,5 +1300,26 @@
     },
     "perms_page_breakdown_perm10d": {
         "message": "Voegt items van FastStream toe aan het rechtermuismenu van webpagina's: de video van de pagina afspelen in FastStream of MPV, of een link openen in een nieuw tabblad met FastStream of MPV aan. Firefox toont hiervoor geen waarschuwing."
+    },
+    "player_audio_output_label": {
+        "message": "Audio-uitvoer"
+    },
+    "player_audio_output_default": {
+        "message": "Standaarduitvoer"
+    },
+    "player_audio_output_choose": {
+        "message": "Kies een uitvoer…"
+    },
+    "player_audio_output_device": {
+        "message": "De gekozen uitvoer"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 is niet beschikbaar: het geluid wordt via de standaarduitvoer afgespeeld. Kies het apparaat opnieuw in het audiomenu."
+    },
+    "player_audio_output_refused": {
+        "message": "Deze pagina staat de speler niet toe om de audio-uitvoer te kiezen."
+    },
+    "player_audio_output_again": {
+        "message": "Het geluid wordt via de standaarduitvoer afgespeeld: klik hier om het via $1 af te spelen."
     }
 }

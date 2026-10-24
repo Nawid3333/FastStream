@@ -1300,5 +1300,26 @@
     },
     "perms_page_breakdown_perm10d": {
         "message": "向网页的右键菜单添加 FastStream 项目：在 FastStream 或 MPV 中播放页面视频，或在开启 FastStream 或 MPV 的情况下在新标签页中打开链接。Firefox 对此不会显示警告。"
+    },
+    "player_audio_output_label": {
+        "message": "音频输出"
+    },
+    "player_audio_output_default": {
+        "message": "默认输出"
+    },
+    "player_audio_output_choose": {
+        "message": "选择输出设备…"
+    },
+    "player_audio_output_device": {
+        "message": "所选输出设备"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 不可用：声音将通过默认输出播放。请在音频菜单中重新选择。"
+    },
+    "player_audio_output_refused": {
+        "message": "此页面不允许播放器选择音频输出。"
+    },
+    "player_audio_output_again": {
+        "message": "声音通过默认输出播放：点击此处通过 $1 播放。"
     }
 }

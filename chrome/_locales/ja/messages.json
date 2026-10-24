@@ -1300,5 +1300,26 @@
     },
     "perms_page_breakdown_perm10d": {
         "message": "ウェブページの右クリックメニューに FastStream の項目を追加します。ページの動画を FastStream または MPV で再生したり、FastStream または MPV を有効にした状態でリンクを新しいタブで開いたりできます。これについて Firefox は警告を表示しません。"
+    },
+    "player_audio_output_label": {
+        "message": "オーディオ出力"
+    },
+    "player_audio_output_default": {
+        "message": "デフォルトの出力"
+    },
+    "player_audio_output_choose": {
+        "message": "出力先を選択…"
+    },
+    "player_audio_output_device": {
+        "message": "選択された出力先"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 が利用できません：音声をデフォルトの出力で再生します。オーディオメニューで再度選択してください。"
+    },
+    "player_audio_output_refused": {
+        "message": "このページでは、プレーヤーによるオーディオ出力の選択が許可されていません。"
+    },
+    "player_audio_output_again": {
+        "message": "音声はデフォルトの出力で再生されています：$1で再生するにはここをクリックしてください。"
     }
 }

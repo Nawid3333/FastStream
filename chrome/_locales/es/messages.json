@@ -1300,5 +1300,26 @@
     },
     "perms_page_breakdown_perm10d": {
         "message": "Añade elementos de FastStream al menú contextual de las páginas web: reproducir el vídeo de la página en FastStream o MPV, o abrir un enlace en una pestaña nueva con FastStream o MPV activado. Firefox no muestra ninguna advertencia por esto."
+    },
+    "player_audio_output_label": {
+        "message": "Salida de audio"
+    },
+    "player_audio_output_default": {
+        "message": "Salida predeterminada"
+    },
+    "player_audio_output_choose": {
+        "message": "Elegir una salida…"
+    },
+    "player_audio_output_device": {
+        "message": "La salida elegida"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 no está disponible: el sonido se reproduce en la salida predeterminada. Vuelve a elegir el dispositivo en el menú de audio."
+    },
+    "player_audio_output_refused": {
+        "message": "Esta página no permite que el reproductor elija la salida de audio."
+    },
+    "player_audio_output_again": {
+        "message": "El sonido se reproduce en la salida predeterminada: haz clic aquí para reproducirlo en $1."
     }
 }

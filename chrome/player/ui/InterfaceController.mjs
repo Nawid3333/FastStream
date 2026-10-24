@@ -26,6 +26,7 @@ import {OptionsWindow} from './OptionsWindow.mjs';
 import {ProgressBar} from './ProgressBar.mjs';
 import {SaveManager} from './SaveManager.mjs';
 import {StatusManager, StatusTypes} from './StatusManager.mjs';
+import {isPolicyRefusal} from './audio/AudioOutputDevice.mjs';
 import {SubtitlesManager} from './subtitles/SubtitlesManager.mjs';
 import {ToolManager} from './ToolManager.mjs';
 import {VolumeControls} from './VolumeControls.mjs';
@@ -198,9 +199,10 @@ export class InterfaceController {
    * @param {string|null} [message] - null or none clears the level's message.
    * @param {string} [type] - info by default.
    * @param {number} [expiry] - Milliseconds it shows; none for as long as it is set.
+   * @param {?(() => void)} [onClick] - What a click on it does.
    */
-  setStatusMessage(key, message, type, expiry) {
-    this.statusManager.setStatusMessage(key, message, type, expiry);
+  setStatusMessage(key, message, type, expiry, onClick = null) {
+    this.statusManager.setStatusMessage(key, message, type, expiry, onClick);
   }
 
   tick() {
@@ -1180,6 +1182,32 @@ export class InterfaceController {
   updateQualityLevels() {
     this.videoQualityChanger.updateQualityLevels(this.client);
     this.audioQualityChanger.updateQualityLevels(this.client);
+  }
+
+  /**
+   * The audio list's output part, for the device the client's sound goes to now. A choice
+   * refused by the page (its permissions policy) or a device that cannot play is said in the
+   * status line; the sound stays where it was.
+   */
+  updateAudioOutputs() {
+    const device = this.client.audioOutputDevice;
+    if (!device) return;
+    if (this.audioQualityChanger.outputDevice === device) {
+      this.audioQualityChanger.renderOutputs();
+      return;
+    }
+    this.audioQualityChanger.setOutputDevice(device, (/** @type {*} */ e) => this.audioOutputRefused(e));
+  }
+
+  /**
+   * A choice of output the page refused (its permissions policy) or a device that could not
+   * play: said, and the sound stays where it was.
+   * @param {*} e
+   */
+  audioOutputRefused(e) {
+    console.warn('The audio output was not changed', e);
+    this.setStatusMessage(StatusTypes.AUDIO_OUTPUT, isPolicyRefusal(e) ? Localize.getMessage('player_audio_output_refused') :
+      Localize.getMessage('player_audio_output_failed', [Localize.getMessage('player_audio_output_device')]), 'warning', 10000);
   }
 
   /** @param {number} volume - 0 to 3, 1 as the video is. */

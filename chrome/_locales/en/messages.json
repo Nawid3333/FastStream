@@ -1300,5 +1300,26 @@
     },
     "perms_page_breakdown_perm10d": {
         "message": "Adds FastStream's items to the right-click menu of web pages: play the page's video in FastStream or MPV, or open a link in a new tab with FastStream or MPV on. Firefox shows no warning for it."
+    },
+    "player_audio_output_label": {
+        "message": "Audio output"
+    },
+    "player_audio_output_default": {
+        "message": "Default output"
+    },
+    "player_audio_output_choose": {
+        "message": "Choose an output…"
+    },
+    "player_audio_output_device": {
+        "message": "The chosen output"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 is not available: the sound plays on the default output. Choose the device again in the audio menu."
+    },
+    "player_audio_output_refused": {
+        "message": "This page does not let the player choose the audio output."
+    },
+    "player_audio_output_again": {
+        "message": "The sound plays on the default output: click here to play it on $1."
     }
 }

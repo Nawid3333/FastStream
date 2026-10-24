@@ -160,6 +160,9 @@ export const config = {
         // firefox-vpn.e2e.mjs) is granted without the doorhanger, which WebDriver cannot
         // answer. The click is still required: Firefox refuses a request without one.
         'extensions.webextOptionalPermissionPrompts': false,
+        // Firefox's chooser of audio outputs (selectAudioOutput, audio-output.e2e.mjs) is
+        // answered with the first device, which WebDriver could not pick. A click is still needed.
+        'media.navigator.permission.disabled': true,
         // Pins the extension origin so the specs can address its pages.
         'extensions.webextensions.uuids':
           JSON.stringify({[EXTENSION_ID]: EXTENSION_UUID}),

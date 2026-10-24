@@ -1300,5 +1300,26 @@
     },
     "perms_page_breakdown_perm10d": {
         "message": "Ajoute des éléments de FastStream au menu contextuel des pages web : lire la vidéo de la page dans FastStream ou MPV, ou ouvrir un lien dans un nouvel onglet avec FastStream ou MPV activé. Firefox n'affiche aucun avertissement à ce sujet."
+    },
+    "player_audio_output_label": {
+        "message": "Sortie audio"
+    },
+    "player_audio_output_default": {
+        "message": "Sortie par défaut"
+    },
+    "player_audio_output_choose": {
+        "message": "Choisir une sortie…"
+    },
+    "player_audio_output_device": {
+        "message": "La sortie choisie"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 n'est pas disponible : le son est diffusé sur la sortie par défaut. Choisissez à nouveau l'appareil dans le menu audio."
+    },
+    "player_audio_output_refused": {
+        "message": "Cette page n'autorise pas le lecteur à choisir la sortie audio."
+    },
+    "player_audio_output_again": {
+        "message": "Le son est diffusé sur la sortie par défaut : cliquez ici pour le diffuser sur $1."
     }
 }
