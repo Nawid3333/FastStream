@@ -1,9 +1,9 @@
 {
-  "video.js": "8.24.1",
-  "shaka-player": "5.2.12",
+  "video.js": "8.24.2",
+  "shaka-player": "5.3.1",
   "plyr": "3.8.5",
-  "@clappr/player": "0.14.7",
-  "@clappr/hlsjs-playback": "3.1.2",
+  "@clappr/player": "0.14.8",
+  "@clappr/hlsjs-playback": "3.1.3",
   "mediaelement": "7.1.0",
   "vidstack": "1.15.7",
   "media-chrome": "4.19.3",
