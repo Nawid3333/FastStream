@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {ubuntuReleases} from '../../tools/verify-linux.mjs';
+import {defaultDistros, ubuntuReleases} from '../../tools/verify-linux.mjs';
 
 // verify:linux picks its WSL distros from GitHub's runner image table. A wrong pick tests
 // locally on a release CI does not run on, and a push that passed here fails there.
@@ -44,5 +44,18 @@ describe('ubuntuReleases', () => {
 
   it('refuses a table without an ubuntu-latest row, rather than guess', () => {
     expect(() => ubuntuReleases(table(row('Ubuntu 24.04', 'x64', '`ubuntu-24.04`')))).toThrow(/ubuntu-latest/);
+  });
+});
+
+describe('defaultDistros', () => {
+  it('runs on the newest release alone, not on the one ubuntu-latest still gives', () => {
+    const distros = defaultDistros(ubuntuReleases(table(...september2026)));
+    expect(distros.map((distro) => distro.name)).toEqual(['Ubuntu-26.04']);
+    expect(distros[0].role).toContain('--distro Ubuntu-24.04');
+  });
+
+  it('runs on the same one once ubuntu-latest has moved to it', () => {
+    const moved = table(row('Ubuntu 26.04', 'x64', '`ubuntu-latest` or `ubuntu-26.04`'), row('Ubuntu 24.04', 'x64', '`ubuntu-24.04`'));
+    expect(defaultDistros(ubuntuReleases(moved))).toEqual([{name: 'Ubuntu-26.04', role: 'the newest image, which ubuntu-latest gives'}]);
   });
 });

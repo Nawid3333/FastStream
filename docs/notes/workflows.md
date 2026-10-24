@@ -22,11 +22,12 @@
   -sc_threshold 0`; the B-frame one is copied from `sample.mp4`). Before a push, run
   both halves of CI here: `pnpm run verify` (Windows), and **`pnpm run verify:linux`**,
   which runs CI's Linux verify job and its workflows job (actionlint, zizmor, and the `run:`
-  scripts' tests in `tests/workflows`) in WSL, once on each Ubuntu
-  release CI uses: the one `ubuntu-latest` gives and the newest GitHub offers (24.04 and
-  26.04 until `ubuntu-latest` has moved, rolled out Oct 19 - Nov 19 2026), read from the runner image table
-  `runner-images.yml` reads, so the pair follows GitHub; a release WSL lacks is
-  installed, `--distro Ubuntu-26.04` picks one. Every run first brings the distro up to
+  scripts' tests in `tests/workflows`) in WSL, on the newest Ubuntu release GitHub offers,
+  read from the runner image table `runner-images.yml` reads, so it follows GitHub; a release
+  WSL lacks is installed. The one `ubuntu-latest` gives until it moves there (24.04, rolled
+  out to 26.04 Oct 19 - Nov 19 2026) is CI's on every push and no longer a second local
+  distro (the owner, 2026-10-24); `--distro Ubuntu-24.04` runs it here when a failure there
+  needs reproducing. Every run first brings the distro up to
   date, as a freshly built runner image is: `tools/linux/setup.sh` runs apt update +
   full-upgrade, installs the newest release of the Node major `.nvmrc` names
   (so it moves with CI) with the `packageManager` pnpm through its npm (not corepack, which

@@ -10,11 +10,11 @@
 // distro up to date (apt upgrade, the newest Node of .nvmrc's major, and Firefox) and provisions it like
 // the runner, then tools/linux/verify.sh runs on a copy of the working tree.
 //
-// It runs on each Ubuntu release CI does, read from the list runner-images.yml reads: the
-// one ubuntu-latest gives, which every push runs on, and the newest one GitHub offers,
-// which ubuntu-latest moves to next and which runner-images.yml tests daily. A release WSL
-// does not have yet is installed. --distro names the distros to use instead. On Linux
-// itself it runs verify.sh on the machine as it is.
+// It runs on the newest Ubuntu release GitHub offers, read from the list runner-images.yml
+// reads: the one ubuntu-latest moves to next, or has moved to already. The one ubuntu-latest
+// gives until then is CI's own on every push, so it is not kept here as a second distro (the
+// owner, 2026-10-24); --distro names the distros to use instead, that one included. A release
+// WSL does not have yet is installed. On Linux itself it runs verify.sh on the machine as it is.
 
 import {spawnSync} from 'node:child_process';
 import path from 'node:path';
@@ -78,13 +78,10 @@ async function main() {
       releases = ubuntuReleases(await response.text());
     } catch (e) {
       console.error(`Could not read which Ubuntu releases CI runs on from ${RUNNER_IMAGES}: ${/** @type {Error} */ (e).message}`);
-      console.error('Name the WSL distros instead: --distro Ubuntu-24.04');
+      console.error('Name the WSL distros instead: --distro Ubuntu-26.04');
       return 1;
     }
-    distros = [{name: `Ubuntu-${releases.latest}`, role: 'ubuntu-latest, where every push runs'}];
-    if (releases.newest !== releases.latest) {
-      distros.push({name: `Ubuntu-${releases.newest}`, role: 'the newest image, which ubuntu-latest moves to next'});
-    }
+    distros = defaultDistros(releases);
   }
 
   const results = [];
@@ -117,7 +114,17 @@ async function main() {
   return results.every((r) => r.endsWith(': passed')) ? 0 : 1;
 }
 
-export {ubuntuReleases};
+/**
+ * The WSL distros to run on when none is named: the newest release alone.
+ * @param {{latest: string, newest: string}} releases
+ * @return {Array<{name: string, role: string}>}
+ */
+function defaultDistros({latest, newest}) {
+  return [{name: `Ubuntu-${newest}`, role: latest === newest ? 'the newest image, which ubuntu-latest gives' :
+    `the newest image, which ubuntu-latest moves to next (it gives ${latest} until then: CI runs that on every push; --distro Ubuntu-${latest} runs it here)`}];
+}
+
+export {defaultDistros, ubuntuReleases};
 
 // Run as a command; imported (tests/unit/verifyLinux.test.mjs), it only exports the above.
 if (process.argv[1] && path.resolve(process.argv[1]) === url.fileURLToPath(import.meta.url)) {
