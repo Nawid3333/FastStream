@@ -121,8 +121,10 @@ jobs:
           TITLE: 'Update PRs hand-off failed'
         run: |
           set -euo pipefail
+          # Not a run that never ran: a pull request this repository's token opened gets pull_request
+          # runs that wait for an approval (action_required), newer than the one started on its branch.
           ci=$(gh run list --workflow ci.yml --commit "$SHA" --limit 50 --json databaseId,status,conclusion \
-            --jq 'sort_by(.databaseId) | reverse | .[0] // empty')
+            --jq '[.[] | select(.conclusion != "action_required" and .conclusion != "skipped")] | sort_by(.databaseId) | reverse | .[0] // empty')
           if [ -z "$ci" ]; then
             echo "No CI run on ${SHA:0:8}: the one that comes decides through its own hand-off."
             exit 0

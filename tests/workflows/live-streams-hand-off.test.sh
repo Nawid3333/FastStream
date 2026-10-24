@@ -75,6 +75,12 @@ check 'starts update-prs.yml once, with the newest CI run and the branch' \
 check 'once' test "$(starts)" -eq 1
 check 'opens no issue' lacks "$FIX/calls" 'issue'
 
+export CI_RUNS='[{"databaseId": 777, "status": "completed", "conclusion": "success"}, {"databaseId": 781, "status": "completed", "conclusion": "action_required"}]'
+scenario 'a newer pull_request run waits for an approval and never ran'
+check 'succeeds' test "$status" -eq 0
+check 'starts update-prs.yml with the CI run that ran' \
+  contains "$FIX/calls" "workflow run update-prs.yml --ref main -f run_id=777 -f branch=$BRANCH"
+
 export CI_RUNS='[{"databaseId": 777, "status": "completed", "conclusion": "success"}, {"databaseId": 780, "status": "in_progress", "conclusion": null}]'
 scenario 'CI runs again on the commit'
 check 'succeeds' test "$status" -eq 0
