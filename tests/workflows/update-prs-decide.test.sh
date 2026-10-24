@@ -1318,6 +1318,55 @@ players_behind_starts_both() {
   check 'and the live suite' has_call 'workflow run live-streams.yml --ref toolchain/player-libraries'
 }
 
+security_setup() { # security-alerts.yml's override pull request, CI green on it
+  export BRANCH='security/overrides'
+  pr app/github-actions
+  prview '["pnpm-workspace.yaml","pnpm-lock.yaml"]' "[$(commit 'github-actions[bot]' 'Security floors: undici')]"
+}
+
+security_ready() {
+  # Only the two files, its dependency review passed, the build unchanged: ready to merge.
+  setup
+  security_setup
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'ready to merge' ready
+  check 'asks for the dependency review on this commit' has_call "api repos/me/fs/commits/$sha/check-runs?check_name=Review%20dependency%20changes"
+  check 'no 3-day wait: no lockfile ages read' bash -c '! grep -q "registry.npmjs.org" "$0"' "$STATE/curl.log"
+  check 'build compared' has_call 'release download'
+  check 'the security hint' grep -qF 'Closing it without merging hands its alerts back to you' <(last_comment)
+}
+
+security_review_missing_waits() {
+  setup
+  security_setup
+  echo '{"check_runs":[]}' > "$STATE/checkruns.json"
+  run_step
+  check 'not called ready' not_ready
+  check 'names the review' grep -qF 'its dependency review ("Review dependency changes", started on this branch) is missing' <(last_comment)
+}
+
+security_other_file_waits() {
+  setup
+  export BRANCH='security/overrides'
+  pr app/github-actions
+  prview '["pnpm-workspace.yaml","pnpm-lock.yaml","package.json"]' "[$(commit 'github-actions[bot]' 'Security floors: undici')]"
+  run_step
+  check 'not called ready' not_ready
+  check 'names the file' grep -qF 'it changes package.json, not only pnpm-workspace.yaml and pnpm-lock.yaml' <(last_comment)
+}
+
+security_behind_starts_review() {
+  setup
+  security_setup
+  echo 2 > "$STATE/behind"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'updates the branch' has_call "api -X PUT repos/me/fs/pulls/42/update-branch -f expected_head_sha=$sha"
+  check 'starts CI' has_call 'workflow run ci.yml --ref security/overrides'
+  check 'and the dependency review' has_call 'workflow run dependency-review.yml --ref security/overrides'
+}
+
 docker_ready() {
   setup
   export BRANCH='dependabot/docker/actionlint-1234'
@@ -2444,6 +2493,10 @@ node_ready
 node_other_file_waits
 ublock_ready
 ublock_other_file_waits
+security_ready
+security_review_missing_waits
+security_other_file_waits
+security_behind_starts_review
 players_ready
 players_no_live_run_starts_one
 players_live_start_refused

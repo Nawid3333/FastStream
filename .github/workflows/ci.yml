@@ -501,7 +501,8 @@ jobs:
       !cancelled() && github.actor == 'github-actions[bot]' &&
       (startsWith(github.head_ref || github.ref_name, 'dependabot/') ||
        startsWith(github.head_ref || github.ref_name, 'toolchain/') ||
-       startsWith(github.head_ref || github.ref_name, 'patched/'))
+       startsWith(github.head_ref || github.ref_name, 'patched/') ||
+       startsWith(github.head_ref || github.ref_name, 'security/'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

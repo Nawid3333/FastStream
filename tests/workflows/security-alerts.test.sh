@@ -52,6 +52,8 @@ case "$1 $2" in
         fi ;;
       "repos/$GH_REPO/issues?state=all&per_page=100") answer "$FX_ISSUES" ;;
       "repos/$GH_REPO/pulls?state=open&per_page=100") answer "$FX_PULLS" ;;
+      # The override route's rolling branch, every pull request on it, open or closed.
+      "repos/$GH_REPO/pulls?head=${GH_REPO%%/*}:security/overrides&state=all&per_page=100") answer "$FX_OVERRIDE_PRS" ;;
       *) echo "stub gh: unexpected api path $3" >&2; exit 2 ;;
     esac ;;
   "api repos/$GH_REPO/dependabot/alerts/"*)
@@ -80,11 +82,29 @@ if [ "\$*" = '-u +%s' ]; then echo "\$NOW"; else exec $(command -v date) "\$@"; 
 EOF
 chmod +x "$here/bin/gh" "$here/bin/sleep" "$here/bin/date"
 
+# The check job's checkout: the real planner, and a lockfile and workspace file of a scenario's
+# own (FX_LOCK), committed (the plan records the commit it was made on).
+work=$here/work
+mkdir -p "$work/tools"
+cp "$(dirname "$0")/../../tools/security-overrides.mjs" "$work/tools/"
+printf 'overrides:\n  adm-zip: ^0.6.1\nallowBuilds:\n  esbuild: true\n' > "$work/pnpm-workspace.yaml"
+printf "lockfileVersion: '9.0'\n" > "$work/pnpm-lock.yaml"
+git -C "$work" init -q && git -C "$work" add -A &&
+  git -C "$work" -c user.name=t -c user.email=t@t commit -q -m checkout
+# lock <name@version>...: a lockfile holding those packages.
+lock() {
+  printf "lockfileVersion: '9.0'\n\npackages:\n\n"
+  for p in "$@"; do printf '  %s:\n    resolution: {integrity: sha512-A}\n\n' "$p"; done
+  printf 'snapshots:\n\n'
+  for p in "$@"; do printf '  %s: {}\n\n' "$p"; done
+}
+
 # The workflow's env: blocks, as GitHub would set them.
 export GH_TOKEN=stub
 export GH_REPO='Nawid3333/FastStream' OWNER='Nawid3333' PREFIX='Security alert: '
 export RUN_URL='https://github.com/Nawid3333/FastStream/actions/runs/1'
 export TITLE='Security alerts workflow failed'
+export BRANCH=security/overrides
 base=https://github.com/Nawid3333/FastStream/security/dependabot
 
 export NOW=1790000000              # 2026-09-21T14:13:20Z
@@ -139,7 +159,10 @@ scenario() {
   : > "$LOG"
   (
     export EVENT=schedule FX_ALERTS='[]' FX_ALERTS2='[]' FX_FROM_CALL='' FX_ISSUES='[]' FX_PULLS='[]' FX_OPEN='[]'
+    export FX_OVERRIDE_PRS='[]' FX_LOCK="$(lock)" GITHUB_OUTPUT="$FIX/output"
     for kv in "$@"; do export "${kv?}"; done
+    printf '%s\n' "$FX_LOCK" > "$work/pnpm-lock.yaml"
+    cd "$work" || exit 1
     PATH="$here/bin:$PATH" run_step "$step"
   ) > "$FIX/out" 2>&1
   status=$?
@@ -149,6 +172,76 @@ b43=$(al 43 brace-expansion $old)
 b44=$(al 44 brace-expansion $old)
 b45=$(al 45 brace-expansion $old)
 ip52=$(al 52 ip-address $old)
+
+# --- The override route: an alert the planner can floor goes to the pull request, not an issue.
+
+# op <number> <state> <merged_at|null> <body>: a pull request on security/overrides, as the API returns it.
+op() {
+  jq -nc --argjson n "$1" --arg s "$2" --argjson m "$3" --arg b "$4" \
+    '{number: $n, state: $s, merged_at: $m, user: {login: "github-actions[bot]"}, head: {sha: "abc"}, body: $b}'
+}
+m60=$(al 60 minimist $old)
+m61=$(al 61 minimist $old pnpm-lock.yaml '')
+held='FX_LOCK='"$(lock minimist@1.2.2)"
+
+scenario 'o1 an alert the planner can floor -> the pull request takes it, no issue' "$main_step" \
+  FX_ALERTS="$(arr "$m60")" "$held"
+check 'succeeds' test "$status" -eq 0
+check 'opens no issue' lacks "$LOG" 'CREATE'
+check 'says there is a plan' contains "$FIX/output" 'has_plan=true'
+check 'the plan takes alert 60' contains "$RUNNER_TEMP/plan-bundle/routing.json" '"handled": [
+    60
+  ]'
+check 'the floor, in the edited workspace file' contains "$RUNNER_TEMP/plan-bundle/pnpm-workspace.yaml" '  minimist: ^1.2.3'
+check 'and no open pull request to describe' contains "$RUNNER_TEMP/plan-bundle/old-pr.json" '"number": 0'
+
+scenario 'o2 one alert taken, one declined, same package -> the issue lists only the declined one' "$main_step" \
+  FX_ALERTS="$(arr "$m60" "$m61")" "$held"
+check 'succeeds' test "$status" -eq 0
+check 'opens one issue' count "$LOG" 'CREATE [' 1
+check 'its marker lists only 61' contains "$LOG" '<!-- alerts: 61 -->'
+check 'says why it is not automatic' contains "$LOG" "- [alert 61]($base/61): no first patched version"
+check 'the plan takes 60' contains "$FIX/output" 'has_plan=true'
+
+scenario 'o3 the owner closed the pull request unmerged -> its alerts come back as issues' "$main_step" \
+  FX_ALERTS="$(arr "$m60")" "$held" FX_OVERRIDE_PRS="$(arr "$(op 7 closed null "$(marker 60)")")"
+check 'succeeds' test "$status" -eq 0
+check 'opens the issue' count "$LOG" 'CREATE [' 1
+check 'listing 60' contains "$LOG" '<!-- alerts: 60 -->'
+check 'and why' contains "$LOG" 'the owner closed the override pull request without merging'
+check 'no plan' contains "$FIX/output" 'has_plan=false'
+
+scenario 'o4 a pull request this workflow closed declines nothing' "$main_step" \
+  FX_ALERTS="$(arr "$m60")" "$held" \
+  FX_OVERRIDE_PRS="$(arr "$(op 7 closed null "$(marker 60)
+<!-- security-overrides: closed-by-run -->")")"
+check 'succeeds' test "$status" -eq 0
+check 'opens no issue' lacks "$LOG" 'CREATE'
+check 'the plan takes it again' contains "$FIX/output" 'has_plan=true'
+
+scenario 'o5 an alert an issue lists already stays with the issue' "$main_step" \
+  FX_ALERTS="$(arr "$m60")" "$held" FX_ISSUES="$(arr "$(is 12 closed 'Security alert: minimist' "$(marker 60)")")"
+check 'succeeds' test "$status" -eq 0
+check 'raises nothing again' lacks "$LOG" 'CREATE'
+check 'no plan' contains "$FIX/output" 'has_plan=false'
+
+scenario 'o6 the open pull request alerts are read for their state, not for routing' "$main_step" \
+  FX_ALERTS="$(arr "$m60")" "$held" FX_OVERRIDE_PRS="$(arr "$(op 8 open null "$(marker 60)")")" STATE_60=open
+check 'succeeds' test "$status" -eq 0
+check 'still takes 60' contains "$FIX/output" 'has_plan=true'
+check 'records the open pull request and its alert' contains "$RUNNER_TEMP/plan-bundle/old-pr.json" '"number": 8'
+check '(with its state)' contains "$RUNNER_TEMP/plan-bundle/old-pr.json" '"state": "open"'
+
+scenario 'o7 on a push -> no plan at all' "$main_step" \
+  EVENT=push FX_ALERTS="$(arr "$m60")" "$held"
+check 'succeeds' test "$status" -eq 0
+check 'no plan' test ! -e "$RUNNER_TEMP/plan-bundle"
+check 'and no answer for the next jobs' lacks "$FIX/output" 'has_plan'
+
+scenario 'o8 closed by hand, but its marker is gone -> said, not swallowed' "$main_step" \
+  FX_ALERTS="$(arr "$m60")" "$held" FX_OVERRIDE_PRS="$(arr "$(op 9 closed null 'someone edited the text')")"
+check 'succeeds' test "$status" -eq 0
+check 'warns that the close records nothing' contains "$FIX/out" '#9 was closed without merging, but its text lost its alerts marker'
 
 # --- The daily run: raising.
 

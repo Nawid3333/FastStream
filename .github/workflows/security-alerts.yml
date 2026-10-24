@@ -17,6 +17,27 @@ name: Security alerts
 # `<!-- alerts: ... -->` line in its body records them, and an alert an issue has listed,
 # open or closed, is never raised again.
 #
+# A third route: when the fix is mechanical - the alert is on pnpm-lock.yaml, a patched
+# version exists, and the package can be floored in pnpm-workspace.yaml's `overrides` - the
+# workflow makes the fix itself, in three jobs. "check" (below) plans the floors and reads
+# the repo; it writes only its issues. "install" resolves pnpm-lock.yaml with the floors
+# applied, in a job whose token has contents: read and nothing else - it edits the
+# security-critical manifests and must not be able to push, merge, dispatch or write. The
+# third job, "publish", is the only writer: it force-pushes the branch security/overrides,
+# keeps one rolling pull request open on it ("Security fixes: override floors"), and starts
+# ci.yml on the branch by dispatch (a GITHUB_TOKEN push starts no workflow, so the dispatch
+# is CI's only path there). Alerts the plan declines - cross-major holds, no patched
+# version, manifest elsewhere - stay on the issue route above, with the reason in the issue
+# body. Alerts whose floor pnpm provably cannot resolve are demoted from the run's pull
+# request into "Security alert: <package>" issues, with the reason and the alerts marker.
+# A transient install failure (network, registry outage) takes no action anywhere: nothing
+# is committed, nothing demoted, and the next run re-routes from scratch. An empty plan
+# closes an open rolling pull request with the fate of each of its alerts (the states are
+# recorded by check; publish has no alerts scope to fetch them itself). Closing the pull
+# request by hand without merging declines its alerts (they are raised as issues); a close
+# by this workflow marks the body <!-- security-overrides: closed-by-run --> so the next run
+# does not read it as a decline.
+#
 # The second job, "watch" (daily and by hand, not on a push), looks after the open update
 # pull requests: it opens "Update pull requests piling up" when a Dependabot entry nears its
 # open-pull-requests-limit or an update has been red for over 14 days, closes the migration
@@ -41,21 +62,39 @@ concurrency:
 
 jobs:
   check:
-    name: Check the open Dependabot alerts
+    name: Check the open Dependabot alerts and plan the floors
     permissions:
-      vulnerability-alerts: read  # list the Dependabot alerts
-      pull-requests: read  # see which packages an open Dependabot pull request updates
+      contents: read         # checkout main: the plan is computed off the real lockfile
+      vulnerability-alerts: read  # list the Dependabot alerts (and read a rolling PR alert's state)
+      pull-requests: read  # see which packages an open Dependabot pull request updates,
+                           # and read the rolling override pull requests on security/overrides
       issues: write  # open, update and close the "Security alert" issues
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      # A string; '' when the plan never ran (push). Every downstream gate reads it with
+      # == 'true', so '' means "no plan" - never compare with != 'true'.
+      has_plan: ${{ steps.route.outputs.has_plan }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
       OWNER: ${{ github.repository_owner }}
       EVENT: ${{ github.event_name }}
       PREFIX: 'Security alert: '
+      BRANCH: security/overrides
     steps:
+      # The plan reads pnpm-lock.yaml and pnpm-workspace.yaml off a real tree. Nothing in
+      # this job pushes, so no credential is left behind in .git/config either.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
       - name: Open, update and close the issues
+        id: route
         run: |
           set -euo pipefail
           T=$RUNNER_TEMP
@@ -131,18 +170,118 @@ jobs:
             --jq '.[] | select(.user.login == "dependabot[bot]") | (.title | capture("^Bump (?<p>\\S+) from ") | .p), ((.body // "") | (split("<details>")[0] // "") | scan("\\[([^\\]\\[]+)\\]\\(") | .[0]), ((.body // "") | scan("(?m)^Updates `([^`]+)` from ") | .[0])' \
             | jq -R -s 'split("\n") | map(select(. != "")) | unique' > "$T/pr-packages.json"
 
-          # Per package: the alerts that are due (over 6 hours old, no pull request), the
-          # ones no issue has listed yet, and the open issue, if there is one.
-          jq -r --slurpfile i "$T/issues.json" --slurpfile w "$T/pr-packages.json" --argjson now "$(date -u +%s)" '
+          # --- the override route: floors in pnpm-workspace.yaml, pnpm-lock.yaml only -------
+          # This step only plans (read the repo, write its issues). The manifest edit is
+          # resolved and verified by the tokenless "install" job, and "publish" - the only
+          # writer - force-pushes the branch and keeps one rolling pull request open on it.
+          #
+          # Every pull request on the rolling branch, open or closed. Match the author too:
+          # somebody else's security/overrides branch must not be adopted (and pushed over).
+          # The open pull request's body is an OUTPUT of this workflow, never routing input:
+          # reading its marker would empty the plan, close the PR, re-route its alerts and
+          # reopen it - an open/close oscillation. Only closed-without-merging bodies are
+          # decline inputs, and only when this workflow did not close them itself (the
+          # closed-by-run marker): those alerts belong to the owner and go to issues.
+          gh api --paginate "repos/$GH_REPO/pulls?head=${GH_REPO%%/*}:$BRANCH&state=all&per_page=100" \
+            --jq '.[] | {number, state, merged_at, author: .user.login, head_sha: .head.sha, body: (.body // "")}' \
+            | jq -s . > "$T/override-prs.json"
+
+          # The declines: closed by a human, unmerged, not marked closed-by-run. (The marker
+          # is what keeps a run-closed PR from being read as an owner decline when a
+          # Dependabot PR that had superseded it later dies.)
+          jq -c '[
+            .[] | select(.state == "closed" and .merged_at == null and .author == "github-actions[bot]"
+                 and ((.body | contains("<!-- security-overrides: closed-by-run -->")) | not))
+            | (.body | scan("<!-- alerts: ([0-9 ]+) -->") | .[0]) as $ns
+            | $ns | splits(" +") | select(. != "")
+            | {alert: (tonumber),
+               reason: "the owner closed the override pull request without merging, so this one is yours to fix by hand"}
+          ] | unique_by(.alert)' "$T/override-prs.json" > "$T/declined-owner.json"
+          jq -r '.[] | select(.state == "closed" and .merged_at == null and .author == "github-actions[bot]"
+                 and ((.body | contains("<!-- security-overrides: closed-by-run -->")) | not)
+                 and ((.body | contains("<!-- alerts: ")) | not)) | .number' "$T/override-prs.json" |
+            while read -r n; do
+              echo "::warning::#$n was closed without merging, but its text lost its alerts marker: its alerts are not handed back as issues."
+            done
+
+          # The route pool: the same per-alert gates the due computation below applies (open,
+          # over 6 hours old, package not named by an open Dependabot pull request), minus
+          # what the ledger already owns. An alert an issue has listed, open or closed, is
+          # never raised again - so the robot must not claim it either, or issue and pull
+          # request would both claim it, and the PR would shed it on the next run.
+          jq --slurpfile i "$T/issues.json" --slurpfile w "$T/pr-packages.json" --slurpfile o "$T/declined-owner.json" --argjson now "$(date -u +%s)" '
             [.[] | select((.created_at | fromdateiso8601) < $now - 21600)
+                 | select(.package as $p | any($w[0][]; . == $p) | not)
+                 | select((.number as $n | any($i[0][].listed[]; . == $n)) | not)
+                 | select((.number as $n | any($o[0][]; .alert == $n)) | not)]' \
+            "$T/alerts.json" > "$T/alerts-route.json"
+
+          # Plan the floors: what is claimable, each floor's alerts, declines with reasons,
+          # the base commit. Files only - the API calls are the ones above, in this step.
+          mkdir -p "$T/plan-bundle"
+          node tools/security-overrides.mjs plan "$T/alerts-route.json" "$T/plan-bundle"
+
+          # Fold the owner declines into routing.json: two decline ledgers, one set of
+          # consumers (the issue prose below). Belt and braces: the handled list must never
+          # hold an alert an owner declined.
+          jq --slurpfile o "$T/declined-owner.json" '
+            . + {handled: (((.handled | map(tonumber)) - [$o[0][].alert]) | unique),
+                 declined: (((.declined // []) + $o[0]) | unique_by(.alert))}' \
+            "$T/plan-bundle/routing.json" > "$T/routing.json"
+          mv "$T/routing.json" "$T/plan-bundle/routing.json"
+
+          # The open rolling pull request's alerts, each with its state recorded now, so
+          # publish can write per-alert fates when it closes the PR on an empty plan.
+          # Publish's token has no vulnerability-alerts scope; fetching there would 403.
+          # (The open PR's marker is read to DESCRIBE its alerts in that fate comment only;
+          # it never steers routing.)
+          jq -c '([.[] | select(.state == "open" and .author == "github-actions[bot]")][0]) // null' \
+            "$T/override-prs.json" > "$T/open-override-pr.json"
+          prnumber=$(jq -r '.number // 0' "$T/open-override-pr.json")
+          if [ "$prnumber" != 0 ]; then
+            : > "$T/oldpr-alerts.jsonl"
+            for n in $(jq -r '.body | scan("<!-- alerts: ([0-9 ]+) -->") | .[0]' "$T/open-override-pr.json"); do
+              if state=$(gh api "repos/$GH_REPO/dependabot/alerts/$n" --jq .state); then :; else
+                echo "::warning::alert $n's state could not be read; its fate comment will say so." >&2
+                state=unknown
+              fi
+              jq -cn --argjson n "$n" --arg state "$state" '{n: $n, state: $state}' >> "$T/oldpr-alerts.jsonl"
+            done
+            jq -s --argjson number "$prnumber" \
+              --arg head_sha "$(jq -r '.head_sha // ""' "$T/open-override-pr.json")" \
+              '{number: $number, head_sha: $head_sha, alerts: .}' \
+              "$T/oldpr-alerts.jsonl" > "$T/plan-bundle/old-pr.json"
+          else
+            echo '{"number": 0, "head_sha": "", "alerts": []}' > "$T/plan-bundle/old-pr.json"
+          fi
+
+          if [ "$(jq '.handled | length' "$T/plan-bundle/routing.json")" -gt 0 ]; then
+            echo "has_plan=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_plan=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Per package: the alerts that are due (over 6 hours old, no pull request), the
+          # ones no issue has listed yet, and the open issue, if there is one. $handled
+          # carries the alert numbers this run's plan claims for the pull request; they must
+          # be dropped from BOTH $new and $list: dropping them from $new alone would still
+          # write them into the open issue's <!-- alerts: ... --> marker, which claims an
+          # alert for the issue for good (an alert an issue lists is never raised again) and
+          # sheds it from the pull request on the next run. The routing ledger itself never
+          # rides in the TSV: a fifth column here is swallowed by read's four variables into
+          # $list, the marker stops matching, and the ledger loses those numbers - a
+          # corruption hidden inside an HTML comment.
+          jq -r --slurpfile i "$T/issues.json" --slurpfile w "$T/pr-packages.json" --slurpfile h "$T/plan-bundle/routing.json" --argjson now "$(date -u +%s)" '
+            ($h[0].handled | map(tonumber)) as $handled
+            | [.[] | select((.created_at | fromdateiso8601) < $now - 21600)
                  | select(.package as $p | any($w[0][]; . == $p) | not)]
             | group_by(.package)[]
             | .[0].package as $p
             | [.[].number] as $due
-            | ($due - [$i[0][] | select(.package == $p) | .listed[]]) as $new
+            | ($due - [$i[0][] | select(.package == $p) | .listed[]] - $handled) as $new
             | select($new | length > 0)
             | ([$i[0][] | select(.package == $p and .state == "open") | .number][0] // 0) as $open
-            | ([$i[0][] | select(.number == $open) | .listed[]] + $due | unique) as $list
+            | ([$i[0][] | select(.number == $open) | .listed[]] + ($due - $handled) | unique) as $list
             | [$p, $open, ($new | map(tostring) | join(" ")), ($list | map(tostring) | join(" "))] | @tsv' \
             "$T/alerts.json" > "$T/due.tsv"
 
@@ -155,6 +294,19 @@ jobs:
               | .[] | select(.package == $p and (.number as $n | any($l[]; . == $n)))
               | "| [\(.number)](\($base)/\(.number)) | \(.severity) | `\(.manifest)` | `\(.range)` | \(.patched // "none yet") | \((.summary // "") | gsub("[\r\n]+"; " ") | gsub("\\|"; "\\|") | gsub("<"; "&lt;")) |"' \
               "$T/alerts.json" > "$T/rows.md"
+
+            # Why the robot did not take some of these alerts, from routing.json (never from
+            # the TSV - see the due computation above). The section follows only the current
+            # run's declines: once an alert is listed by an issue it leaves the route pool,
+            # so its old reason is history, not bookkeeping.
+            jq -r --arg list "$list" --arg base "$ALERTS" '
+              ($list | split(" ") | map(select(. != "") | tonumber)) as $l
+              | [.declined[]
+                 | select(.alert as $n | any($l[]; . == $n))
+                 | "- [alert \(.alert)](\($base)/\(.alert)): \(.reason | gsub("[\r\n]+"; " ") | gsub("\\|"; "\\|") | gsub("<"; "&lt;"))"]
+              | select(length > 0) | .[]' \
+              "$T/plan-bundle/routing.json" > "$T/why.md"
+
             {
               # shellcheck disable=SC2016 # backticks are Markdown
               printf '@%s Dependabot has open security alerts for `%s` and no pull request that fixes them:\n\n' "$OWNER" "$package"
@@ -163,6 +315,12 @@ jobs:
               cat <<EOF
 
           Dependabot opens a pull request for a security fix when it can; when it cannot, the failed "Dependabot Updates" run on the Actions tab says why (a package the lockfile holds at several majors fails, as brace-expansion did on 2026-09-30). To fix it by hand, on a branch: \`pnpm update $package\` for \`pnpm-lock.yaml\`, or \`npm update $package\` in \`fsaunpack/\` for its lockfile, then check that \`git diff\` changes nothing but that package, and open a pull request. \`docs/maintenance.md\` has the details.
+          EOF
+              if [ -s "$T/why.md" ]; then
+                printf '\n**Why these are not automatic**\n\n'
+                cat "$T/why.md"
+              fi
+              cat <<EOF
 
           This issue closes itself once none of these alerts is open: fixed on \`main\`, or dismissed on the Security tab. Closing it by hand skips them: an alert this issue lists is not raised again, though a new one for \`$package\` is.
 
@@ -181,6 +339,18 @@ jobs:
               echo "Opened $url ($package: alerts $list)"
             fi
           done < "$T/due.tsv"
+
+      - name: Share the plan bundle with install and publish
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        # Every non-push run uploads the bundle, idle or not: publish's empty-plan close path
+        # reads plan.json and old-pr.json from it, and downloading a missing artifact would
+        # hard-fail the route jobs on every idle day. Needs to live only until publish has
+        # read it. Nothing on push: the route takes no action on push.
+        if: github.event_name != 'push'
+        with:
+          name: plan
+          path: ${{ runner.temp }}/plan-bundle/
+          retention-days: 1
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
       # whoever last changed the cron line): one issue while it is open, assigned and
@@ -205,6 +375,476 @@ jobs:
           fi
           printf '@%s security-alerts.yml failed: %s\n\nThe run log names the failed command. Until it is fixed, a Dependabot alert with no pull request raises no issue. Close this issue once it is fixed; a later failure opens a new one.\n' \
             "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+
+  # The plan's floors are tried here: pnpm resolves the lockfile with the overrides applied,
+  # and the module verifies the result against the plan. The job deliberately has no token
+  # above contents: read, no GH_TOKEN/PREFIX env, nothing to talk to the API with: it edits
+  # the security-critical manifests, and a stray `gh` call could not succeed if it tried.
+  install:
+    name: Try the floors in a lockfile-only install
+    needs: check
+    if: needs.check.outputs.has_plan == 'true'
+    permissions:
+      contents: read   # the only scope minted to this job; checkout's token is not persisted
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      failure_class: ${{ steps.try.outputs.failure_class }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: plan
+          path: plan
+      # The run's own commit, as check's: the plan was computed on it, and no ref is taken from
+      # the artifact (data from another job is not trusted with a checkout).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The pnpm package.json pins (packageManager): another would rewrite the whole lockfile.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+      - name: Try the floored install and verify the result
+        id: try
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          # The result bundle is assembled first, so even a step that crashes later leaves the
+          # plan for publish's demote and close paths to read. main's lockfile goes along:
+          # verify compares everything but the floored packages with it.
+          mkdir -p result
+          cp plan/plan.json plan/routing.json plan/old-pr.json result/
+          if [ "$(jq -r .base_sha plan/plan.json)" != "$(git rev-parse HEAD)" ]; then
+            echo "The plan was made on $(jq -r .base_sha plan/plan.json), this checkout is $(git rev-parse HEAD)." >&2
+            exit 1
+          fi
+          cp pnpm-lock.yaml result/before.lock.yaml
+
+          if jq -e '.floors | length > 0' plan/plan.json > /dev/null; then
+            [ -f plan/pnpm-workspace.yaml ] || { echo 'plan.json has floors but the bundle carries no edited pnpm-workspace.yaml' >&2; exit 1; }
+            cp plan/pnpm-workspace.yaml pnpm-workspace.yaml
+          fi
+
+          # --lockfile-only: metadata resolution only, no package code ever lands.
+          # --no-frozen-lockfile: pnpm freezes the lockfile whenever CI is set, and a floored
+          # tree is exactly the case that check refuses - without the flag the failure is
+          # misread as transient and the route reds every day.
+          if ! out=$(pnpm install --lockfile-only --ignore-scripts --no-frozen-lockfile 2>&1); then
+            printf '%s\n' "$out" > result/install.log
+            # Deterministic means the registry provably holds no version that fits: it will
+            # fail tomorrow too, so the alerts go to issues. Anything else is transient - a
+            # network blip must not demote an alert for good, so the class decides only
+            # between "demote" and "walk away for today".
+            if grep -Eq 'ERR_PNPM_NO_MATCHING_VERSION|ETARGET|No matching version found' result/install.log; then
+              class=deterministic
+            else
+              class=transient
+            fi
+            echo "pnpm install failed ($class); see result/install.log."
+            # Every floor goes back: no lockfile came out, so none of this run's floors can be
+            # published today, and an alert left out here would get neither a PR nor an issue.
+            jq -c '.floors[]' result/plan.json > "$T/attributed.jsonl"
+            jq -n --arg class "$class" --slurpfile f "$T/attributed.jsonl" '
+              {failure_class: $class,
+               failed: [$f[0][] | {package: .name, selector: .selector, floor: .floor, alerts: .alerts,
+                        reason: ("pnpm cannot resolve the floor for `" + .name + "` (" + .selector + "): nothing published satisfies it. Fix the package by hand, or wait for a release that fits the floor.")}]}' \
+              > result/report.json
+            echo "failure_class=$class" >> "$GITHUB_OUTPUT"
+            # A transient failure decides nothing, but the alerts this run took got no issue
+            # either: the job fails, so the report below tells the owner, every day it happens.
+            if [ "$class" = transient ]; then
+              echo '::error::pnpm install failed for a reason that may pass (network, registry); the next run tries again.' >&2
+              exit 1
+            fi
+            exit 0
+          fi
+
+          cp pnpm-lock.yaml result/pnpm-lock.yaml
+          cp pnpm-workspace.yaml result/pnpm-workspace.yaml
+          echo 'The floored tree resolved; the diff:'
+          git diff --stat
+          git diff -- pnpm-lock.yaml pnpm-workspace.yaml > result/diff.patch
+
+          # verify reads plan.json and the new lockfile and nothing else - no git, no API, no
+          # network: this job's token has nothing beyond contents: read, and a verify that
+          # reached for the alerts would simply red a job that cannot succeed at it. Problems
+          # here are module/plan bugs, not alert facts, so they fail the run (the route's
+          # report opens an issue) instead of demoting anything.
+          node tools/security-overrides.mjs verify result
+          # The report publish reads: failure_class '' means "publish".
+          echo '{"failure_class": "", "failed": []}' > result/report.json
+          echo "failure_class=" >> "$GITHUB_OUTPUT"
+      - name: Share the install result with publish
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        # always(): the bundle is publish's and the failure report's evidence even when the
+        # step crashed after assembling it.
+        if: always()
+        with:
+          name: result
+          path: result/
+          retention-days: 1
+
+  # The only writer. Never runs on push (the route takes no action there, and an always()-
+  # alone gate would close the rolling PR on every lockfile push to main), runs when prepare
+  # succeeded even if install was skipped (an empty plan must still close yesterday's PR
+  # with per-alert fates), and does not run when install failed (a crashed install is not a
+  # plan to publish; the report job tells the owner).
+  publish:
+    name: Publish the floors
+    needs: [check, install]
+    if: always() && github.event_name != 'push' && needs.check.result == 'success' && (needs.install.result == 'success' || needs.install.result == 'skipped')
+    permissions:
+      contents: write        # force-push security/overrides
+      pull-requests: write   # create/edit/close the rolling pull request
+      actions: write         # start ci.yml on the branch (a GITHUB_TOKEN push starts nothing)
+      issues: write          # demote issues with the alerts marker on deterministic failures
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      PREFIX: 'Security alert: '
+      BRANCH: security/overrides
+      ALERTS_URL: https://github.com/${{ github.repository }}/security/dependabot
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        # Exists on every non-push run: even the empty-plan close path reads plan.json,
+        # routing.json and old-pr.json from it.
+        with:
+          name: plan
+          path: plan
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.install.result == 'success'
+        with:
+          name: result
+          path: result
+      - name: Decide what publish has to do
+        id: decide
+        run: |
+          set -euo pipefail
+          # install skipped means the plan claimed nothing: the only business left is closing
+          # a rolling pull request left open from a previous run.
+          if [ ! -f result/report.json ]; then
+            if [ "$(jq '.floors | length' plan/plan.json)" -ne 0 ]; then
+              echo '::error::the plan has floors but install was skipped; refusing to guess what happened.' >&2
+              exit 1
+            fi
+            echo "mode=close" >> "$GITHUB_OUTPUT"
+            echo 'Nothing was claimed this run; close path.'
+            exit 0
+          fi
+          class=$(jq -r '.failure_class // ""' result/report.json)
+          case $class in
+            '')
+              echo "mode=publish" >> "$GITHUB_OUTPUT" ;;
+            deterministic)
+              echo "mode=demote" >> "$GITHUB_OUTPUT" ;;
+            transient)
+              # By design a transient failure takes no action anywhere - no push, no issue,
+              # no ledger entry - so a network blip cannot permanently demote an alert.
+              echo "mode=noop" >> "$GITHUB_OUTPUT"
+              echo 'Transient failure; tomorrow runs again from scratch.' ;;
+            *)
+              echo "::error::unknown failure class '$class' in the install report." >&2
+              exit 1 ;;
+          esac
+      - name: Push the branch and mind the rolling pull request
+        if: steps.decide.outputs.mode == 'publish'
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+
+          # Refuse when main moved while this run planned: the lockfile was resolved against
+          # exactly that commit, and pushing it onto a newer main would silently drop whoever
+          # merged in the meantime. The next daily run replans on the new main; nothing is
+          # lost by stepping aside, and a red run is the honest signal if this happens often.
+          main_sha=$(gh api "repos/$GH_REPO/commits/main" --jq .sha)
+          base_sha=$(jq -r .base_sha result/plan.json)
+          if [ "$main_sha" != "$base_sha" ]; then
+            # Not a failure: the next run plans on the new main. (Its alerts got no issue today.)
+            echo "::warning::main moved while this run ran ($base_sha -> $main_sha); leaving the floors to the next run."
+            printf 'main moved while this run planned (%s -> %s): the floors for alerts %s wait for the next run.\n' \
+              "${base_sha:0:8}" "${main_sha:0:8}" "$(jq -r '.handled | map(tostring) | join(" ")' result/plan.json)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          base_tree=$(gh api "repos/$GH_REPO/commits/$base_sha" --jq .commit.tree.sha)
+
+          # The commit is built through the API: no git credential is ever materialized in
+          # this job, and the lockfile (+ the edited workspace when the plan wrote one) are
+          # the only entries that may change.
+          lock_blob=$(jq -cn --rawfile c result/pnpm-lock.yaml '{content: $c, encoding: "utf-8"}' \
+            | gh api "repos/$GH_REPO/git/blobs" --input - --jq .sha)
+          entries=$(jq -cn --arg sha "$lock_blob" \
+            '[{path: "pnpm-lock.yaml", mode: "100644", type: "blob", sha: $sha}]')
+          if [ -f result/pnpm-workspace.yaml ]; then
+            ws_blob=$(jq -cn --rawfile c result/pnpm-workspace.yaml '{content: $c, encoding: "utf-8"}' \
+              | gh api "repos/$GH_REPO/git/blobs" --input - --jq .sha)
+            entries=$(jq -cn --argjson e "$entries" --arg sha "$ws_blob" \
+              '$e + [{path: "pnpm-workspace.yaml", mode: "100644", type: "blob", sha: $sha}]')
+          fi
+          tree=$(jq -cn --argjson entries "$entries" --arg base "$base_tree" '{tree: $entries, base_tree: $base}' \
+            | gh api "repos/$GH_REPO/git/trees" --input - --jq .sha)
+
+          old_head=$(gh api "repos/$GH_REPO/git/ref/heads/$BRANCH" --jq .object.sha 2>/dev/null) || old_head=''
+
+          branch_tree=''
+          if [ -n "$old_head" ]; then branch_tree=$(gh api "repos/$GH_REPO/git/commits/$old_head" --jq .tree.sha); fi
+          if [ -n "$old_head" ] && [ "$branch_tree" = "$tree" ]; then
+            # The tree does not change and the branch already carries the floors (a new alert
+            # joined an existing floor): no commit, no push, no new CI run. The pull request
+            # body below still moves with the claims.
+            pushed=no
+            head_sha=$old_head
+          else
+            message=$(jq -r '"Security floors: " + ([.floors[].name] | unique | join(", "))' result/plan.json)
+            head_sha=$(jq -cn --arg tree "$tree" --arg parent "$base_sha" --arg m "$message" \
+              '{tree: $tree, parents: [$parent], message: $m}' \
+              | gh api "repos/$GH_REPO/git/commits" --input - --jq .sha)
+            if [ -n "$old_head" ]; then
+              gh api -X PATCH "repos/$GH_REPO/git/refs/heads/$BRANCH" -f sha="$head_sha" -F force=true --jq .object.sha > /dev/null
+            else
+              gh api "repos/$GH_REPO/git/refs" -f ref="refs/heads/$BRANCH" -f sha="$head_sha" --jq .ref > /dev/null
+            fi
+            pushed=yes
+          fi
+
+          # The claims table and the floors, in the issue table's shape. A summary is another
+          # project's text: | and < are escaped, so a forged "<!-- alerts: ... -->" there
+          # cannot shadow the real marker this body ends with.
+          jq -r --arg base "$ALERTS_URL" '
+            (.handled) as $h
+            | .alerts[]
+            | select(.number as $n | any($h[]; . == $n))
+            | "| [\(.number)](\($base)/\(.number)) | \(.severity) | `\(.manifest)` | `\(.range)` | \(.patched // "none yet") | \((.summary // "") | gsub("[\r\n]+"; " ") | gsub("\\|"; "\\|") | gsub("<"; "&lt;")) |"' \
+            result/plan.json > "$T/pr-rows.md"
+          # Floor fields are the module's own strings, rendered for review.
+          # shellcheck disable=SC2016 # backticks are Markdown
+          jq -r '.floors[] | "| `\(.name)` | `\(.selector)` | \(.action) | \(.from // "-") | `\(.floor)` |"' \
+            result/plan.json > "$T/pr-floors.md"
+          marker=$(jq -r '.handled | map(tostring) | join(" ")' result/routing.json)
+          {
+            # shellcheck disable=SC2016 # backticks are Markdown
+            printf '@%s These alerts can be fixed without touching any package.json: a floor for each package in the `overrides` of `pnpm-workspace.yaml` makes pnpm take the newest release that floor allows, in place of the ranges its dependents ask for. Only the packages below move.\n\n' "$OWNER"
+            printf '| Alert | Severity | In | Vulnerable | Fixed in | Advisory |\n| --- | --- | --- | --- | --- | --- |\n'
+            cat "$T/pr-rows.md"
+            printf '\n| Package | Selector | Change | From | Floor |\n| --- | --- | --- | --- | --- |\n'
+            cat "$T/pr-floors.md"
+            cat <<EOF
+
+          When CI passes on this pull request, merge it - the diff is exactly the floored packages' resolutions in \`pnpm-lock.yaml\`. To take the alerts over by hand instead, close this pull request without merging: the workflow raises them as \`Security alert: <package>\` issues and leaves them to you.
+
+          This body is rewritten by each daily run; the alert-numbers comment at its end is the workflow's bookkeeping, not something to edit.
+          EOF
+            printf '<!-- alerts: %s -->\n' "$marker"
+          } > "$T/pr-body.md"
+          # Nothing in this body or in any comment here may ever carry an
+          # <!-- update-prs-recheck: --> marker: that marker is what makes watch start
+          # update-prs.yml on a pull request.
+
+          pr_number=$(jq -r '.number // 0' plan/old-pr.json)
+          if [ "$pr_number" != 0 ]; then
+            if ! lstate=$(gh pr view "$pr_number" --json state --jq .state); then lstate=GONE; fi
+          else
+            lstate=NONE
+          fi
+          if [ "$pr_number" != 0 ] && [ "$lstate" = OPEN ]; then
+            # Re-assert the fixed title: it is this route's marker, and it must never start
+            # with "Security alert: " - that is the issue ledger's namespace.
+            gh pr edit "$pr_number" --title 'Security fixes: override floors' --body-file "$T/pr-body.md" > /dev/null
+            echo "Updated PR #$pr_number (push $pushed, head ${head_sha:0:8})."
+          else
+            url=$(gh pr create --head "$BRANCH" --title 'Security fixes: override floors' --body-file "$T/pr-body.md")
+            echo "Opened $url"
+          fi
+
+          # Start CI when no run of ci.yml exists for exactly this head: a GITHUB_TOKEN push
+          # starts nothing, so the dispatch is the only CI path here - and a dispatch that
+          # failed last run (after the push) must be retried even though the head has not
+          # moved since.
+          # A pull_request run of a pull request this token opened waits for an approval and never
+          # runs (action_required): it covers nothing.
+          runs=$(HEAD_SHA="$head_sha" gh run list --workflow ci.yml --branch "$BRANCH" --limit 20 --json headSha,conclusion \
+                   --jq '[.[] | select(.headSha == env.HEAD_SHA and .conclusion != "action_required" and .conclusion != "skipped")] | length') || runs=0
+          if [ "$runs" -eq 0 ]; then
+            gh workflow run ci.yml --ref "$BRANCH"
+            # What the lockfile brings in, before the merge: the same review a pull_request run gets.
+            gh workflow run dependency-review.yml --ref "$BRANCH"
+            echo "Dispatched ci.yml and dependency-review.yml on $BRANCH (head ${head_sha:0:8})."
+          else
+            echo "ci.yml covers head ${head_sha:0:8} already; not dispatching."
+          fi
+      - name: Demote the alerts pnpm refused
+        if: steps.decide.outputs.mode == 'demote'
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          # One issue per package, in the exact shape the daily loop writes: the title is
+          # what the ledger matches on, and the <!-- alerts: ... --> marker is what makes a
+          # demote permanent - an alert an issue lists (open or closed) is never raised
+          # again. A demote issue without the marker would re-route its alerts every day,
+          # rewriting the body and losing the failure reason each time.
+          jq -r '[.failed[] | {package, alerts, reason}]
+            | group_by(.package)[]
+            | [.[0].package,
+               ([.[].alerts[]] | unique | map(tostring) | join(" ")),
+               ([.[].reason] | unique | join("; "))]
+            | @tsv' result/report.json > "$T/demote.tsv"
+          if [ ! -s "$T/demote.tsv" ]; then
+            echo '::error::a deterministic failure demoted nothing; check the install step attribution.' >&2
+            exit 1
+          fi
+          while IFS=$'\t' read -r package list reason; do
+            jq -r --arg p "$package" --arg list "$list" --arg base "$ALERTS_URL" '
+              ($list | split(" ") | map(tonumber)) as $l
+              | .alerts[] | select(.package == $p and (.number as $n | any($l[]; . == $n)))
+              | "| [\(.number)](\($base)/\(.number)) | \(.severity) | `\(.manifest)` | `\(.range)` | \(.patched // "none yet") | \((.summary // "") | gsub("[\r\n]+"; " ") | gsub("\\|"; "\\|") | gsub("<"; "&lt;")) |"' \
+              result/plan.json > "$T/rows.md"
+            {
+              # shellcheck disable=SC2016 # backticks are Markdown
+              printf '@%s A floor was planned for `%s`, but the package manager would not install it, so these alerts come back to you:\n\n' "$OWNER" "$package"
+              printf '| Alert | Severity | In | Vulnerable | Fixed in | Advisory |\n| --- | --- | --- | --- | --- | --- |\n'
+              cat "$T/rows.md"
+              printf '\nWhy: %s\n\n' "$reason"
+              printf 'The run that failed is at %s; its "result" artifact holds the full package-manager log.\n\n' "$RUN_URL"
+              # shellcheck disable=SC2016 # backticks are Markdown
+              printf 'To fix it by hand, on a branch: `pnpm update %s` for `pnpm-lock.yaml`, then check that `git diff` changes nothing but that package, and open a pull request. `docs/maintenance.md` has the details.\n\n' "$package"
+              printf '<!-- alerts: %s -->\n' "$list"
+            } > "$T/body.md"
+            number=$(PACKAGE="$package" gh issue list --state open --limit 200 --json number,title \
+              --jq '[.[] | select(.title == (env.PREFIX + env.PACKAGE))][0].number // empty')
+            if [ -n "$number" ]; then
+              # The same bookkeeping the daily loop does for a new alert on an open issue:
+              # merge the numbers into the marker, sorted, then a short comment. A body
+              # without a marker is repaired here rather than trusted: a ledger entry that
+              # lists nothing is the corruption nobody can see.
+              old=$(gh issue view "$number" --json body --jq .body | sed -n 's/.*<!-- alerts: \([0-9 ]\{1,\}\) -->.*/\1/p' | head -1)
+              merged=$(jq -rn --arg old "$old" --arg new "$list" '
+                (($old | split(" ") | map(select(. != "") | tonumber))
+                 + ($new | split(" ") | map(tonumber)))
+                | unique | map(tostring) | join(" ")')
+              gh issue view "$number" --json body --jq .body > "$T/issue-body.md"
+              if [ -n "$old" ]; then
+                sed -i "s/<!-- alerts: $old -->/<!-- alerts: $merged -->/" "$T/issue-body.md"
+              else
+                printf '\n<!-- alerts: %s -->\n' "$merged" >> "$T/issue-body.md"
+              fi
+              gh issue edit "$number" --body-file "$T/issue-body.md" > /dev/null
+              links=$(for n in $list; do printf '[alert %s](%s/%s) ' "$n" "$ALERTS_URL" "$n"; done)
+              gh issue comment "$number" --body "@$OWNER ${links% }could not be installed automatically: $reason. The list above now includes them."
+              echo "Demoted alerts $list onto #$number ($package)"
+            else
+              url=$(gh issue create --title "$PREFIX$package" --assignee "$OWNER" --body-file "$T/body.md")
+              echo "Demoted alerts $list to $url ($package)"
+            fi
+          done < "$T/demote.tsv"
+
+          # The rolling pull request, if open, must not outlive the demote: its floors are
+          # the thing that failed. Mark the body closed-by-run BEFORE closing: this close is
+          # the workflow's own doing, not an owner decline, and the next run must not read
+          # it as one - the issues above own these alerts now.
+          num=$(jq -r '.number // 0' plan/old-pr.json)
+          if [ "$num" != 0 ]; then
+            if ! lstate=$(gh pr view "$num" --json state --jq .state); then lstate=GONE; fi
+            if [ "$lstate" = OPEN ]; then
+              gh pr view "$num" --json body --jq .body > "$T/pr-body.md"
+              if ! grep -q 'security-overrides: closed-by-run' "$T/pr-body.md"; then
+                printf '\n<!-- security-overrides: closed-by-run -->\n' >> "$T/pr-body.md"
+                gh pr edit "$num" --body-file "$T/pr-body.md" > /dev/null
+              fi
+              gh pr close "$num" --comment 'The floors for these alerts could not be installed; they are raised as "Security alert: <package>" issues instead. Closing this from the run is bookkeeping, not a decline.'
+              echo "Closed PR #$num (run-closed)."
+            else
+              echo "PR #$num is $lstate already; nothing to close."
+            fi
+          else
+            echo 'No rolling pull request open; nothing to close.'
+          fi
+      - name: Close the rolling pull request on an empty plan
+        if: steps.decide.outputs.mode == 'close'
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          num=$(jq -r '.number // 0' plan/old-pr.json)
+          if [ "$num" = 0 ]; then
+            echo 'No rolling pull request open; nothing to close.'
+            exit 0
+          fi
+          # The owner may have closed or merged it while this run ran; neither is a failure.
+          if ! lstate=$(gh pr view "$num" --json state --jq .state); then lstate=GONE; fi
+          if [ "$lstate" != OPEN ]; then
+            echo "PR #$num is $lstate already; nothing to close."
+            exit 0
+          fi
+          # Per-alert fates from the states check recorded (publish has no
+          # vulnerability-alerts scope - fetching .state here would 403), with the merged
+          # routing ledger for the ones still open.
+          jq -r --arg base "$ALERTS_URL" --slurpfile r plan/routing.json '
+            .alerts[]
+            | (.n) as $a
+            | (([$r[0].declined[] | select(.alert == $a)][0].reason) // "") as $why
+            | if   .state == "fixed"     then "- [alert \($a)](\($base)/\($a)): fixed on main."
+              elif .state == "dismissed" then "- [alert \($a)](\($base)/\($a)): dismissed."
+              elif .state == "unknown"   then "- [alert \($a)](\($base)/\($a)): its state could not be read while this run planned."
+              elif $why != ""            then "- [alert \($a)](\($base)/\($a)): still open - \($why)."
+              else "- [alert \($a)](\($base)/\($a)): still open - it is out of the automatic plan; it will be raised as an issue if nothing else fixes it."
+              end' plan/old-pr.json > "$T/fates.md"
+          {
+            printf 'Closing this pull request from the run: nothing is automatable this run. Closing here is bookkeeping, not a decline. Where each alert stands:\n\n'
+            if [ -s "$T/fates.md" ]; then cat "$T/fates.md"; else printf '(its body no longer lists alerts)\n'; fi
+          } > "$T/comment.md"
+          gh pr view "$num" --json body --jq .body > "$T/pr-body.md"
+          if ! grep -q 'security-overrides: closed-by-run' "$T/pr-body.md"; then
+            printf '\n<!-- security-overrides: closed-by-run -->\n' >> "$T/pr-body.md"
+            gh pr edit "$num" --body-file "$T/pr-body.md" > /dev/null
+          fi
+          gh pr close "$num" --comment "$(cat "$T/comment.md")"
+          echo "Closed PR #$num (empty plan; run-closed). The branch is left in place: the next non-empty plan force-pushes it back into shape."
+      # The per-job failure reporters (check, watch) need issues: write, which install must
+      # never hold; one extra job reports both route jobs - one mechanism, never two, or a
+      # failure opens two issues for one thing.
+  report:
+    name: Report a route failure
+    needs: [check, install, publish]
+    if: failure() && (needs.install.result == 'failure' || needs.publish.result == 'failure')
+    permissions:
+      issues: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Report the route's own failure
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'Security override route failed'
+        run: |
+          set -euo pipefail
+          failed=''
+          if [ "${{ needs.install.result }}" = failure ]; then failed="$failed install"; fi
+          if [ "${{ needs.publish.result }}" = failure ]; then failed="$failed publish"; fi
+          # One issue while it is open, a comment on it for each later failure - the pattern
+          # the check job's reporter uses.
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
+            exit 0
+          fi
+          {
+            printf '@%s The override route failed (job(s):%s): %s\n\n' "$OWNER" "$failed" "$RUN_URL"
+            printf '%s\n' "The run log names the failed command. This failure takes no action on any alert by design: the alerts the failed run's plan had claimed are recorded nowhere, so the next run offers them again from scratch - a transient registry failure must not demote an alert for good. Until it is fixed, no override pull request can move, and the alerts it would have taken raise nothing that day. Close this issue once it is fixed; a later failure opens a new one."
+          } > "$RUNNER_TEMP/body.md"
           gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
 
   # The update pull requests, once a day. Dependabot fails quietly in another way too: once an
