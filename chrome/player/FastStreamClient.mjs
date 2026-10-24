@@ -64,6 +64,8 @@ const RECOVERY_WINDOW_MS = 120000;
 // time was built anew every second for as long as the video was open; one that plays on
 // between rare errors is built again after each.
 const PREVIEW_RELOAD_LIMIT = 3;
+// How far into a video the overlay's picture is taken again (takeArtwork), past a black start.
+const ARTWORK_AFTER_S = 5;
 // How long a stream may stay stuck in its last seconds before autoplay takes it as ended
 // (watchEndStall).
 const EndStallMs = 3000;
@@ -239,6 +241,10 @@ export class FastStreamClient extends EventEmitter {
     this.player = null;
     this.syncedAudioPlayer = null;
     this.previewPlayer = null;
+    /** Whether the overlay has its last picture of the current video (takeArtwork). */
+    this.artworkTaken = false;
+    /** @type {?number} Where the overlay's first picture was taken, in the video. */
+    this.artworkAt = null;
     /** @type {Promise<void>|null} The source change running (setSource), if any. */
     this.sourceChange = null;
     // Counts the sources asked for, and holds the streams to try should the latest one
@@ -2119,6 +2125,10 @@ export class FastStreamClient extends EventEmitter {
 
     this.audioAnalyzer.reset();
     this.frameExtractor.reset();
+    // The overlay's picture and time line are the video's; the next one takes its own.
+    this.mediaKeys()?.reset();
+    this.artworkTaken = false;
+    this.artworkAt = null;
 
     promises.push(this.downloadManager.reset());
     this.interfaceController.reset();
@@ -2142,6 +2152,33 @@ export class FastStreamClient extends EventEmitter {
   setMediaInfo(info) {
     this.mediaInfo = info;
     this.interfaceController.subtitlesManager.mediaInfoSet();
+    this.mediaKeys()?.setInfo(info);
+  }
+
+  /**
+   * The overlay's picture of the video (MediaKeys.setArtwork): the first frame decoded, so
+   * there is one at once, then a frame ARTWORK_AFTER_S into it, as a video's first frame is
+   * often black; then it stays. A paused video keeps its first.
+   */
+  takeArtwork() {
+    const video = this.player?.getVideo();
+    if (this.artworkTaken || !video || video.readyState < 2 || !video.videoWidth) return;
+    if (this.artworkAt === null) {
+      this.artworkAt = video.currentTime;
+    } else if (Math.abs(video.currentTime - this.artworkAt) < ARTWORK_AFTER_S) {
+      return;
+    } else {
+      this.artworkTaken = true;
+    }
+    this.mediaKeys()?.setArtwork(video);
+  }
+
+  /**
+   * The media keys and the system's media overlay (ToolManager's), once the interface is up.
+   * @return {?import('./ui/MediaKeys.mjs').MediaKeys}
+   */
+  mediaKeys() {
+    return this.interfaceController?.toolManager?.mediaKeys || null;
   }
 
   /**
@@ -2186,6 +2223,7 @@ export class FastStreamClient extends EventEmitter {
     this.context.on(DefaultPlayerEvents.DURATIONCHANGE, (/** @type {undefined} */ event) => {
       this.updateDuration();
       this.interfaceController.updateFragmentsLoaded();
+      this.mediaKeys()?.updatePosition();
     });
 
     this.context.on(DefaultPlayerEvents.EMPTIED, (/** @type {undefined} */ event) => {
@@ -2255,6 +2293,8 @@ export class FastStreamClient extends EventEmitter {
       }
       // Made only where Web Audio is (constructor), as every other use checks
       this.audioOutput?.updateChannelCount();
+      // A frame is decoded: the overlay's first picture.
+      this.takeArtwork();
     });
 
 
@@ -2268,6 +2308,7 @@ export class FastStreamClient extends EventEmitter {
       this.interfaceController.pause();
       this.reportPlaying(false);
       this.updatePeers();
+      this.mediaKeys()?.updatePosition();
     });
 
 
@@ -2275,12 +2316,16 @@ export class FastStreamClient extends EventEmitter {
       this.interfaceController.play();
       this.reportPlaying(true);
       this.updatePeers();
+      this.mediaKeys()?.updatePosition();
     });
 
 
     this.context.on(DefaultPlayerEvents.PLAYING, (/** @type {undefined} */ event) => {
       this.cancelEndStall();
       this.interfaceController.setBuffering(false);
+      this.mediaKeys()?.offerSeeking();
+      this.mediaKeys()?.updatePosition();
+      this.takeArtwork();
     });
 
 
@@ -2289,11 +2334,13 @@ export class FastStreamClient extends EventEmitter {
 
 
     this.context.on(DefaultPlayerEvents.RATECHANGE, (/** @type {undefined} */ event) => {
+      this.mediaKeys()?.updatePosition();
     });
 
 
     this.context.on(DefaultPlayerEvents.SEEKED, (/** @type {undefined} */ event) => {
       this.interfaceController.updateFragmentsLoaded();
+      this.mediaKeys()?.updatePosition();
     });
 
 
@@ -2314,6 +2361,10 @@ export class FastStreamClient extends EventEmitter {
       if (this.interfaceController.isUserSeeking()) return;
 
       this.updateTime(this.currentTime);
+      // Firefox runs the overlay's time line on by itself; set again now and then, it follows
+      // a stall or a drift.
+      this.mediaKeys()?.updatePosition(false);
+      this.takeArtwork();
       // Near the end each time update watches for a stop there (watchEndStall), not only a
       // `waiting`: a video that stood still in its last second with neither a wait nor an end
       // told showed "1 s" for good.
