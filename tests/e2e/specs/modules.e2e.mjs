@@ -476,7 +476,7 @@ describe('the colour picker', function() {
 
   it('coloris opens inside the player and sets a colour', async function() {
     // coloris.mjs is generated from a git dependency the lockfile pins by
-    // commit, plus patches/Coloris@0.21.1.patch. Nothing else in the suite
+    // commit, plus patches/Coloris@<version>.patch. Nothing else in the suite
     // touches the picker, and what that patch does is scope it to a
     // container element instead of the document - so this drives the page's
     // own instance, the one InterfaceController creates with
@@ -508,13 +508,13 @@ describe('the colour picker', function() {
       const boundInputValue = input.value;
 
       // InterfaceController's own Coloris({...}) call configures 6 fixed
-      // swatches. patches/Coloris@0.21.1.patch rewrote how these buttons get
+      // swatches. patches/Coloris@<version>.patch rewrote how these buttons get
       // built (createElement/textContent instead of a joined innerHTML
       // string, for addons-linter's UNSAFE_VAR_ASSIGNMENT), so this checks
       // that rewrite actually renders the same buttons rather than nothing.
       const swatchButtons = Array.from(picker.querySelectorAll('#clr-swatches button'));
 
-      // patches/Coloris@0.21.1.patch also rewrote the picker's own ~40-element
+      // patches/Coloris@<version>.patch also rewrote the picker's own ~40-element
       // skeleton (color area, hue/alpha sliders, the format radios, clear/
       // close buttons, the two hidden a11y label spans) from one big
       // innerHTML template into createElement calls. The rest of this test

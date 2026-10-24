@@ -83,7 +83,7 @@ const VENDOR = [
     // point importing two shared chunks. The browser resolves those imports
     // itself, so the three files are copied as published, side by side, and
     // nothing is bundled here. FastStream's changes are all in the chunk -
-    // patches/mp4box@2.4.1.patch, see docs/vendored-libraries.md.
+    // patches/mp4box@<version>.patch, see docs/vendored-libraries.md.
     //
     // The chunk names carry a content hash and change with every release:
     // checkMp4boxImports fails the sync if the entry point imports anything
@@ -322,7 +322,7 @@ function normaliseText(src) {
  *
  * The behavioural changes - the container rebinding, `bindElement`, and the
  * slider keyboard handlers - are not here. They are in
- * patches/Coloris@0.25.0.patch, so a reviewer reads them as a diff against a
+ * patches/Coloris@<version>.patch, so a reviewer reads them as a diff against a
  * commit the lockfile pins by hash.
  *
  * @param {string} src Coloris's dist/coloris.js
