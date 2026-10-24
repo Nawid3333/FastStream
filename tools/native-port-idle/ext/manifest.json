@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "Idle probe",
+  "version": "1.0",
+  "browser_specific_settings": {"gecko": {"id": "idle-probe@faststream.test", "strict_min_version": "128.0"}},
+  "permissions": ["nativeMessaging"],
+  "background": {"scripts": ["bg.js"]}
+}

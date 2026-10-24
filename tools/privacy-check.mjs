@@ -234,12 +234,17 @@ function push(remote, refs) {
     const [, local, remoteRef, remoteSha] = row.split(' ');
     if (!local || zero.test(local)) continue; // a deletion
     for (const found of findings(remoteRef, words)) out.push(`a pushed branch or tag: its name holds ${found.rule}`);
-    let range;
-    try {
-      git(['cat-file', '-e', `${remoteSha}^{commit}`]);
-      range = zero.test(remoteSha) ? null : [local, `^${remoteSha}`];
-    } catch {
-      range = null;
+    // A branch new to the remote (remote sha all zeros), or one whose remote commit is not
+    // here: every commit not on the remote yet. Asked before git is, which printed "fatal: Not
+    // a valid object name" for the zeros on every first push of a branch.
+    let range = null;
+    if (!zero.test(remoteSha)) {
+      try {
+        git(['cat-file', '-e', `${remoteSha}^{commit}`]);
+        range = [local, `^${remoteSha}`];
+      } catch {
+        range = null;
+      }
     }
     const commits = git(['rev-list', ...(range || [local, '--not', `--remotes=${remote}`])]).split('\n').filter(Boolean);
     for (const sha of commits) out.push(...checkCommit(sha, words, true));

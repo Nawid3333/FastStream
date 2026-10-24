@@ -178,6 +178,22 @@ local pages framing VOE's real last segments in a hoster frame: stuck 2 of 2 bef
 After: went on at the end's first request, 3 of 3. `backgroundAutoplayNext.test.mjs` and
 `FastStreamClient.test.mjs` ("autoplay of the next video") hold each case; each failed before.
 
+**An open port to the helper keeps the event page running (measured 2026-10-24).** MPV
+autoplay's watch (`MpvBackend.watch`) holds one native-messaging port open for as long as mpv
+plays, and during a film nothing goes over it: mpv's lines come only on an end, a pause or a
+key, and the helper's heartbeat goes to mpv, not to the extension. Whether Firefox idles the
+event page out meanwhile (and the port with it, which ends the watch) had been assumed, not
+measured. `tools/native-port-idle/probe.ps1` measures it with a test-only host and a probe
+add-on in a throwaway profile, reading Firefox's own `backgroundState`. Firefox 158.0.1:
+- Control, the host gone after 2 s (no port left): the background stopped 5 s later at a 5 s
+  idle timeout (7.1 s and 7.3 s in two runs).
+- A silent open port, nothing sent either way: running through 10 minutes at a 5 s timeout and
+  12 minutes at Firefox's 30 s default; the port closed only when the session ended.
+
+So the watch keeps the background running however long the episode is, and nothing in the
+extension has to send a keep-alive. It is Firefox's behaviour, and could change: run the probe
+again on a new Firefox (`-Modes drop,silent -WaitMs 600000` for the long run).
+
 **Tab state has to outlive the event page (2026-09-24).** Firefox unloads the
 background after ~30 idle seconds, and every `TabHolder` goes with it. A reload
 then woke a fresh background with no record of the user's toolbar choice, so an
