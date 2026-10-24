@@ -1222,14 +1222,33 @@ players_live_cancelled_once() {
 }
 
 players_live_cancelled_twice() {
-  # A run that times out reads as cancelled: the second one is not started again.
+  # The second cancelled one is not started again.
   setup
   players_setup
   live_runs '[{"databaseId": 7, "status": "completed", "conclusion": "cancelled", "url": "u7"}, {"databaseId": 9, "status": "completed", "conclusion": "cancelled", "url": "u9"}]'
   run_step
   check 'not called ready' not_ready
   check 'not started again' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
-  check 'names the newest' grep -qF 'ended cancelled on it (u9)' <(last_comment)
+  check 'names the newest' grep -qF 'ended cancelled on it again (u9)' <(last_comment)
+}
+
+players_live_timed_out_once() {
+  setup
+  players_setup
+  live_runs '[{"databaseId": 7, "status": "completed", "conclusion": "timed_out", "url": "u7"}]'
+  run_step
+  check 'not called ready' not_ready
+  check 'started again' has_call 'workflow run live-streams.yml --ref toolchain/player-libraries'
+}
+
+players_live_timed_out_twice() {
+  setup
+  players_setup
+  live_runs '[{"databaseId": 7, "status": "completed", "conclusion": "timed_out", "url": "u7"}, {"databaseId": 9, "status": "completed", "conclusion": "timed_out", "url": "u9"}]'
+  run_step
+  check 'not called ready' not_ready
+  check 'not started again' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
+  check 'says to start it by hand, not that a stream is down' grep -qF 'ended timed_out on it again (u9), after one start here: start it again from the Actions tab' <(last_comment)
 }
 
 players_live_failed() {
@@ -2408,6 +2427,8 @@ players_live_start_refused
 players_live_running
 players_live_cancelled_once
 players_live_cancelled_twice
+players_live_timed_out_once
+players_live_timed_out_twice
 players_live_failed
 players_live_unlisted
 players_live_asked_last

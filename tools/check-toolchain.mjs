@@ -452,46 +452,52 @@ export function newerMajor(doc, pin, now, minAgeDays = MIN_AGE_DAYS) {
  */
 export function playerTargets(pins, docs, fixed, now, minAgeDays = MIN_AGE_DAYS) {
   const names = Object.keys(pins);
-  /** @type {Object<string, string[]>} */
-  const ladder = {};
-  /** @type {Object<string, number>} */
-  const step = {};
-  /** @type {Object<string, string>} */
-  const target = {};
+  // Maps, not objects: the names come from files and the registry, and none may reach a
+  // prototype (CodeQL js/remote-property-injection).
+  /** @type {Map<string, string[]>} */
+  const ladder = new Map();
+  /** @type {Map<string, number>} */
+  const step = new Map();
+  /** @type {Map<string, string>} */
+  const target = new Map();
+  /** @type {Map<string, string>} */
+  const fixedVersions = new Map(Object.entries(fixed));
   const majors = [];
   const unresolved = [];
   const reported = new Set();
 
   for (const name of names) {
     const pin = pins[name];
-    const doc = docs[name];
+    const doc = Object.hasOwn(docs, name) ? docs[name] : null;
     if (!doc?.versions) throw new Error(`no registry document for ${name}`);
-    if (!doc.versions[pin]) throw new Error(`the registry has no ${name}@${pin}`);
-    ladder[name] = caretCandidates(doc, pin, now, minAgeDays);
-    step[name] = 0;
-    target[name] = ladder[name][0];
+    if (!Object.hasOwn(doc.versions, pin)) throw new Error(`the registry has no ${name}@${pin}`);
+    const candidates = caretCandidates(doc, pin, now, minAgeDays);
+    ladder.set(name, candidates);
+    step.set(name, 0);
+    target.set(name, candidates[0]);
     const latest = newerMajor(doc, pin, now, minAgeDays);
     if (latest) majors.push({name, current: pin, latest});
   }
 
   /** @param {string} name */
-  const canStep = (name) => Object.hasOwn(ladder, name) && step[name] + 1 < ladder[name].length;
+  const canStep = (name) => ladder.has(name) && /** @type {number} */ (step.get(name)) + 1 < /** @type {string[]} */ (ladder.get(name)).length;
   /** @param {string} name */
   const stepDown = (name) => {
-    step[name] += 1;
-    target[name] = ladder[name][step[name]];
+    const next = /** @type {number} */ (step.get(name)) + 1;
+    step.set(name, next);
+    target.set(name, /** @type {string[]} */ (ladder.get(name))[next]);
   };
 
   let moved = true;
   while (moved) {
     moved = false;
     for (const name of names) {
-      const declared = docs[name].versions[target[name]];
+      const declared = docs[name].versions[/** @type {string} */ (target.get(name))];
       const ranges = {...declared.dependencies, ...declared.peerDependencies};
       for (const [other, range] of Object.entries(ranges)) {
-        const isPin = Object.hasOwn(pins, other);
-        if (!isPin && !Object.hasOwn(fixed, other)) continue; // not one of the set: not ours to meet
-        const verdict = relation(isPin ? target[other] : fixed[other], range);
+        const isPin = target.has(other);
+        if (!isPin && !fixedVersions.has(other)) continue; // not one of the set: not ours to meet
+        const verdict = relation(/** @type {string} */ (isPin ? target.get(other) : fixedVersions.get(other)), range);
         if (verdict === 'in') continue;
         let mover = null;
         if (verdict === 'above' && canStep(other)) {
@@ -509,16 +515,23 @@ export function playerTargets(pins, docs, fixed, now, minAgeDays = MIN_AGE_DAYS)
         const key = `${name}|${other}|${range}`;
         if (verdict !== 'unknown' && !reported.has(key)) {
           reported.add(key);
-          unresolved.push({name, version: target[name], needs: other, range});
+          unresolved.push({name, version: /** @type {string} */ (target.get(name)), needs: other, range});
         }
       }
     }
   }
 
-  const changes = names.filter((name) => target[name] !== pins[name]).map((name) => ({name, from: pins[name], to: target[name]}));
-  const held = names.filter((name) => target[name] !== ladder[name][0]).map((name) => ({name, version: target[name], newest: ladder[name][0]}));
-  return {target, changes, held, majors, unresolved};
+  /** @param {string} name */
+  const at = (name) => /** @type {string} */ (target.get(name));
+  /** @param {string} name */
+  const newest = (name) => /** @type {string[]} */ (ladder.get(name))[0];
+  const changes = names.filter((name) => at(name) !== pins[name]).map((name) => ({name, from: pins[name], to: at(name)}));
+  const held = names.filter((name) => at(name) !== newest(name)).map((name) => ({name, version: at(name), newest: newest(name)}));
+  return {target: Object.fromEntries(names.map((name) => [name, at(name)])), changes, held, majors, unresolved};
 }
+
+/** An npm package name, scoped or not: lower case, no leading dot or underscore. */
+const NPM_NAME = /^(?:@[a-z0-9~-][a-z0-9._~-]*\/)?[a-z0-9~-][a-z0-9._~-]*$/;
 
 /**
  * A short name for a set of versions: the pull request's marker, so that one closed by hand
@@ -708,15 +721,18 @@ async function updates() {
   let players = null;
   try {
     const pins = JSON.parse(fs.readFileSync(path.join(root, PLAYER_LIBRARIES), 'utf8'));
+    for (const name of Object.keys(pins)) {
+      if (!NPM_NAME.test(name)) throw new Error(`${PLAYER_LIBRARIES} names ${JSON.stringify(name)}, not an npm package`);
+    }
     // hls.js is the repository's own pin (pnpm-patched): a library that needs another one waits.
     const devDependencies = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).devDependencies || {};
     const hls = String(devDependencies['hls.js'] || '').replace(/^[\^~]/, '');
-    /** @type {Object<string, RegistryDoc>} */
-    const docs = {};
+    /** @type {[string, RegistryDoc][]} */
+    const fetched = [];
     for (const name of Object.keys(pins)) {
-      docs[name] = await getJson(`https://registry.npmjs.org/${name.replace('/', '%2F')}`);
+      fetched.push([name, await getJson(`https://registry.npmjs.org/${name.replaceAll('/', '%2F')}`)]);
     }
-    const set = playerTargets(pins, docs, hls ? {'hls.js': hls} : {}, now);
+    const set = playerTargets(pins, Object.fromEntries(fetched), hls ? {'hls.js': hls} : {}, now);
     players = {...set, behind: set.changes.length > 0, state: playerState(set.target)};
   } catch (error) {
     errors.push(`player libraries: ${/** @type {Error} */ (error).message}`);

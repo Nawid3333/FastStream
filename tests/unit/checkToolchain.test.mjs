@@ -655,6 +655,16 @@ describe('playerTargets, more', () => {
     expect(playerTargets({plyr: '3.8.5'}, docs, {}, NOW).target).toEqual({plyr: '3.8.5'});
     expect(playerTargets({plyr: '3.8.5'}, docs, {}, NOW, 1).target).toEqual({plyr: '3.8.6'});
   });
+
+  it('keeps a name such as __proto__ a name, never a prototype', () => {
+    // JSON.parse makes "__proto__" an own key, as a file or the registry could.
+    const pins = JSON.parse('{"__proto__": "1.0.0"}');
+    const docs = JSON.parse(`{"__proto__": ${JSON.stringify(docOf(NOW, {'1.0.0': {}, '1.0.1': {}}))}}`);
+    const set = playerTargets(pins, docs, {}, NOW);
+    expect(Object.keys(set.target)).toEqual(['__proto__']);
+    expect(Object.getOwnPropertyDescriptor(set.target, '__proto__')?.value).toBe('1.0.1');
+    expect(set.changes).toEqual([{name: '__proto__', from: '1.0.0', to: '1.0.1'}]);
+  });
 });
 
 describe('caretCandidates', () => {

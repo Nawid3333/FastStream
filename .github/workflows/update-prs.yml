@@ -869,9 +869,9 @@ jobs:
           # and the branch holds main: a run started earlier would be for a head about to be
           # replaced. Its run ends in live-streams.yml's hand-off, which starts this workflow again.
           # One still going (any status but completed) is never started again: a second dispatch
-          # on the branch cancels it (live-streams.yml's concurrency). A cancelled one (a run that
-          # times out reads as cancelled) is started again only while the commit has fewer than
-          # two, so one that always times out cannot loop.
+          # on the branch cancels it (live-streams.yml's concurrency). A cancelled or timed-out one
+          # is started again only while the commit has fewer than two, so one that always times
+          # out cannot loop.
           # Runs that cannot be listed are a reason, not this run's end: the live suite's hand-off
           # may have been the last thing to start this workflow for the commit.
           if [ "$kind" = players ] && [ ${#reasons[@]} = 0 ] &&
@@ -895,8 +895,10 @@ jobs:
               start_live
             elif [ "$live_status" != completed ]; then
               reasons+=("its live suite (live-streams.yml) is still running on it ($live_url): its end decides again")
-            elif [ "$live_conclusion" = cancelled ] && [ "$live_runs" -lt 2 ]; then
+            elif { [ "$live_conclusion" = cancelled ] || [ "$live_conclusion" = timed_out ]; } && [ "$live_runs" -lt 2 ]; then
               start_live
+            elif [ "$live_conclusion" = cancelled ] || [ "$live_conclusion" = timed_out ]; then
+              reasons+=("its live suite (live-streams.yml) ended $live_conclusion on it again ($live_url), after one start here: start it again from the Actions tab on this branch (its end decides again), or look at where it stopped")
             elif [ "$live_conclusion" != success ]; then
               reasons+=("its live suite (live-streams.yml) ended $live_conclusion on it ($live_url): a public stream or site the suite uses may be down, or a library no longer plays as its page expects. Run it again (its end decides again), or look at the failed case in its log")
             fi

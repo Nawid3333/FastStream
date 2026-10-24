@@ -204,6 +204,29 @@ players_new_set() {
   check 'main untouched' test "$(origin rev-list --count main)" = 1
 }
 
+players_held_and_unresolved() {
+  # The text names a library held back by a range, and a range that does not hold on main.
+  setup
+  players_plan "$A" "[$(player dplayer 1.27.1 1.27.2)]" '[]' '[{"name": "plyr", "version": "3.8.5", "newest": "3.8.6"}]'
+  jq '.players.unresolved = [{name: "dplayer", version: "1.27.2", needs: "plyr", range: "^3.9.0"}]' "$STATE/plan.json" > "$STATE/p" && mv "$STATE/p" "$STATE/plan.json"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'the held one' grep -qF -- '- plyr: 3.8.6 is out, and it stays at 3.8.5 until the ranges allow it' "$STATE/created.body"
+  check 'the range that does not hold' grep -qF -- '- dplayer 1.27.2 asks for plyr `^3.9.0`' "$STATE/created.body"
+  check 'nothing reads null' bash -c '! grep -qw null "$0"' "$STATE/created.body"
+}
+
+players_same_set_timed_out() {
+  # A live run that timed out decides nothing: the weekly run starts one.
+  setup
+  players_open "$A"
+  echo '[{"status": "completed", "conclusion": "success"}]' > "$STATE/runs-$head"
+  echo '[{"status": "completed", "conclusion": "timed_out"}]' > "$STATE/live-runs-$head"
+  players_plan "$A" "$CHANGES"
+  run_step
+  check 'the live suite started once' test "$(n_calls '^workflow run live-streams.yml --ref toolchain/player-libraries$')" = 1
+}
+
 players_same_set_both_ran() {
   # The same set, open and mergeable, with a run of each on its head: nothing done.
   setup
@@ -913,6 +936,8 @@ weekly_two
 players_new_set
 players_same_set_both_ran
 players_same_set_starts_live
+players_held_and_unresolved
+players_same_set_timed_out
 players_same_set_starts_ci
 players_changed_set
 players_conflicting

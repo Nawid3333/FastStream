@@ -247,8 +247,12 @@ jobs:
               printf '| Library | Now | Then |\n| --- | --- | --- |\n'
               jq -r '.changes[] | "| [\(.name)](https://www.npmjs.com/package/\(.name)?activeTab=versions) | \(.from) | \(.to) |"' "$players"
               if [ "$(jq '.held | length' "$players")" != 0 ]; then
-                printf '\nHeld back, for a range another library declares:\n\n'
-                jq -r '.held[] | "- \(.name) \(.version): \(.why)"' "$players"
+                printf '\nHeld back, for a range one of these libraries (or our hls.js) declares:\n\n'
+                jq -r '.held[] | "- \(.name): \(.newest) is out, and it stays at \(.version) until the ranges allow it"' "$players"
+              fi
+              if [ "$(jq '.unresolved // [] | length' "$players")" != 0 ]; then
+                printf '\nRanges that do not hold on `main` already (nothing here can move them):\n\n'
+                jq -r '.unresolved[] | "- \(.name) \(.version) asks for \(.needs) `\(.range)`"' "$players"
               fi
               if [ "$(jq '.majors | length' "$players")" != 0 ]; then
                 printf '\nNot taken here, a decision each (the issue "%s" lists them): ' "$mtitle"
@@ -309,14 +313,14 @@ jobs:
                 echo "#$number: rebuilt on main for the set $state."
               else
                 # The same set, and it merges: a head without a run that decides gets one (for the
-                # live suite: one still going, or one that ended other than cancelled).
+                # live suite: one still going, or one that ended other than cancelled or timed out).
                 if [ "$(gh run list --workflow ci.yml --commit "$head" --limit 20 --json status,conclusion \
                      --jq '[.[] | select(.status != "completed" or .conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out")] | length')" = 0 ]; then
                   echo "#$number has no CI run on its head that decides: starting one."
                   start_ci "$pbranch"
                 fi
                 if [ "$(gh run list --workflow live-streams.yml --commit "$head" --limit 20 --json status,conclusion \
-                     --jq '[.[] | select(.status != "completed" or .conclusion != "cancelled")] | length')" = 0 ]; then
+                     --jq '[.[] | select(.status != "completed" or (.conclusion != "cancelled" and .conclusion != "timed_out"))] | length')" = 0 ]; then
                   echo "#$number has no live suite run on its head: starting one."
                   start_live "$pbranch"
                 fi
