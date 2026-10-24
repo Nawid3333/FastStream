@@ -295,6 +295,44 @@ If the workflow itself fails, it opens "Vendored updates workflow failed (vtt.js
 (Until 2026-10-22 it also watched StreamSaver.js for `StreamSaver.mjs`, whose body is now
 FastStream's own: an upstream change had nothing to port.)
 
+## Quiet upstreams: what stays, and why
+
+Checked on 2026-10-24: every direct dependency's newest release, its npm deprecation, and its
+source repository (archived or not, last commit, open issues). Everything not named here is
+current and actively maintained. Look again when one of these changes.
+
+- **gif.js** (shipped: the loop menu's GIF): no release since 0.2.0 (2016), no commit since
+  2019. It stays. Its input is only the player's own canvas, so its state carries no security
+  risk, and no maintained encoder makes GIFs as close to the video. Measured on two 1-second
+  scenes of Tears of Steel (30 frames, 1280x534), one thread each. PSNR is of the decoded GIF
+  (omggif) against the frames; higher is closer to the video:
+
+  | Encoder | ms per frame | Size | PSNR |
+  |---|---|---|---|
+  | gif.js 0.2.0 (as the player sets it: quality 4, no dither) | 215 / 275 | 9.7 / 9.6 MB | 42.7 / 36.7 dB |
+  | gifenc 1.0.3 | 20 / 110 | 6.7 / 8.1 MB | 39.3 / 34.9 dB |
+  | modern-gif 2.1.0 | 101 / 176 | 6.4 / 5.1 MB | 40.7 / 32.3 dB |
+
+  - gifenc is the most used encoder (about 390,000 downloads a week). It is faster and
+    smaller, but it loses 2-3 dB, and it has had no release since 2021 either.
+  - modern-gif is the only active one, with one maintainer and about 7,000 downloads a week.
+    It uses one palette for every frame, and on the colourful scene it loses 4.4 dB.
+- **Coloris** (shipped: the subtitle colour fields): its last release was 2025-06, but its
+  maintainer still answers issues (2025-11, 2026-09). It is finished, not abandoned. Firefox's
+  own `<input type="color">` has no alpha channel, which the subtitle colours need.
+- **eslint 9.39.4**, inside addons-linter (`web-ext lint`): npm marks it unsupported.
+  addons-linter pins it exactly, so that it lints as addons.mozilla.org does, and its
+  maintainers have turned eslint 10 down since 2026-06. An override would make our lint differ
+  from AMO's. FastStream's own eslint is 10.
+- **whatwg-encoding** (deprecated, its repository archived): gone since 2026-10-24.
+  - The override `encoding-sniffer@0: ^1.0.2` in `pnpm-workspace.yaml` brings in the release
+    that uses @exodus/bytes instead. cheerio's own main branch made the same move.
+  - Before and after: addons-linter printed the same, and cheerio decoded 7 encodings the same.
+- **The live suite's players**: plyr and vidstack are deprecated (security fixes only;
+  vidstack's until January 2028), and DPlayer's last release is from 2023. They stay as long
+  as sites run them: their pages check FastStream against what sites use, and nothing of
+  theirs ships. Video.js 10, which replaces both, has pages of its own.
+
 ## A token for workflow updates
 
 GitHub's own token in a workflow may not push a change to a workflow file, so bringing

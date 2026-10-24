@@ -14,6 +14,12 @@ overrides:
   # and its 1.0.5 changelog fixes exactly this symlink-at-final-path-component
   # class of bug. Same package name everywhere it's required, so no code change.
   extract-zip: npm:@electron-internal/extract-zip@^1.0.5
+  # whatwg-encoding is deprecated and its repository archived ("Use @exodus/bytes instead").
+  # addons-linter's cheerio 1.2.0 (its newest, 2026-01) reaches it through encoding-sniffer
+  # ^0.2.1. encoding-sniffer 1.x uses @exodus/bytes instead, and cheerio's main moved to ^1.0.2
+  # on 2026-09-02 (cheeriojs/cheerio#5157) changing nothing but the version, its tests passing.
+  # Only a 0.x request is replaced: a cheerio that asks for 1.x leaves this line inert.
+  encoding-sniffer@0: ^1.0.2
   # Dependabot #30-#42: webdriver (undici ^6.27.0) and addons-linter's cheerio
   # (undici ^7.19.0) both allow the patched undici (6.28.1, 7.29.1), but pnpm
   # keeps the locked 6.28.0 and 7.29.0 even on `pnpm update undici`, and
