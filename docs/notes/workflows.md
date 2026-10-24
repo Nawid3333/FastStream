@@ -595,8 +595,10 @@
   copy aside). Three jobs: `check` plans the floors (`plan`: a floor per package and major the
   lockfile holds vulnerable, `^` the newest first patched version; declined, with the reason in
   the issue, when there is no patched version, the fix is a new major, the package is pnpm-
-  patched, a parent-scoped or unreadable override governs it, or `main` has the floor already
-  while the lockfile is still vulnerable) and keeps the alerts it takes out of the issues (out
+  patched, a parent-scoped or unreadable override governs it, two keys reach the same major,
+  or `main` has the floor already while the lockfile is still vulnerable; a `name@n` key whose
+  value sends major n's requests into the alert's major, such as `encoding-sniffer@0: ^1.0.2`,
+  is raised in place, and `verify` reads it by its value's major) and keeps the alerts it takes out of the issues (out
   of both `$new` and `$list`: a listed alert is never raised again); `install` (only
   `contents: read`, no token in it) runs `pnpm install --lockfile-only --ignore-scripts
   --no-frozen-lockfile` with the floors and `verify`: every alert taken is fixed, every floor

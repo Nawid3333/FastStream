@@ -442,6 +442,30 @@ describe('planFloors', () => {
     expect(out).toBe(WORKSPACE.replace('  basic-ftp: ^6.2.1\n', '  # 2026-10-24: raised to ^6.3.0 (Dependabot #59)\n  basic-ftp: ^6.3.0\n'));
   });
 
+  it('raises in place a key that sends another major\'s requests into the alert\'s major', () => {
+    // encoding-sniffer@0: ^1.0.2 is how the tree came to hold 1.0.2 (cheerio asks for ^0.2.1):
+    // a plain encoding-sniffer key beside it would compete with it.
+    const ws = WORKSPACE.replace('  basic-ftp: ^6.2.1\n', '  basic-ftp: ^6.2.1\n  encoding-sniffer@0: ^1.0.2\n');
+    const alert = mkAlert(91, 'encoding-sniffer', '< 1.0.3', '1.0.3');
+    const plan = planFloors([alert], versions({'encoding-sniffer': ['1.0.2']}), ws, TODAY);
+    expect(plan.declined).toEqual([]);
+    expect(plan.floors).toEqual([
+      {name: 'encoding-sniffer', selector: 'encoding-sniffer@0', floor: '^1.0.3', alerts: [91], action: 'raise', from: '^1.0.2'},
+    ]);
+    const out = applyFloors(ws, plan.floors, byNumber([alert]), TODAY);
+    expect(out).toBe(ws.replace('  encoding-sniffer@0: ^1.0.2\n',
+        '  # 2026-10-24: raised to ^1.0.3 (Dependabot #91)\n  encoding-sniffer@0: ^1.0.3\n'));
+  });
+
+  it('declines when such a key and a plain one both reach the alert\'s major', () => {
+    const ws = WORKSPACE.replace('  basic-ftp: ^6.2.1\n', '  basic-ftp: ^6.2.1\n  encoding-sniffer@0: ^1.0.2\n  encoding-sniffer: ^1.0.2\n');
+    const plan = planFloors([mkAlert(92, 'encoding-sniffer', '< 1.0.3', '1.0.3')], versions({'encoding-sniffer': ['1.0.2']}), ws, TODAY);
+    expect(plan.floors).toEqual([]);
+    expect(plan.declined).toEqual([
+      {alert: 92, reason: 'existing overrides \'encoding-sniffer@0: ^1.0.2\' and \'encoding-sniffer\' both reach major 1'},
+    ]);
+  });
+
   it('groups two alerts on the same package and major into one max floor', () => {
     const al91 = mkAlert(91, 'minimist', '>= 1.1.0, < 1.2.8', '1.2.8');
     const al92 = mkAlert(92, 'minimist', '< 1.2.9', '1.2.9');
@@ -527,6 +551,15 @@ describe('verifyLock', () => {
     // ^0.6.1 caps at 0.7.0, so 0.7.0 violates the floor.
     expect(verifyLock([], versions({'adm-zip': ['0.7.0']}), versions({'adm-zip': ['0.7.0']}), floors)).toEqual([
       'floor \'adm-zip: ^0.6.1\' is not met by adm-zip@0.7.0',
+    ]);
+  });
+
+  it('reads a key that sends major 0\'s requests to 1.x by the major its value names', () => {
+    const floors = [{name: 'encoding-sniffer', selector: 'encoding-sniffer@0', floor: '^1.0.3', alerts: [], action: 'raise'}];
+    // The move from 1.0.2 is the floor's own, not churn; and 1.0.2 left in place does not meet it.
+    expect(verifyLock([], versions({'encoding-sniffer': ['1.0.2']}), versions({'encoding-sniffer': ['1.0.3']}), floors)).toEqual([]);
+    expect(verifyLock([], versions({'encoding-sniffer': ['1.0.2']}), versions({'encoding-sniffer': ['1.0.2']}), floors)).toEqual([
+      'floor \'encoding-sniffer@0: ^1.0.3\' is not met by encoding-sniffer@1.0.2',
     ]);
   });
 
