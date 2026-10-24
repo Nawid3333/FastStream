@@ -1270,5 +1270,29 @@
     },
     "mpv_episode_series_end": {
         "message": "serinin son bölümü: otomatik oynatma durur"
+    },
+    "menu_play_in_faststream": {
+        "message": "FastStream ile oynat"
+    },
+    "menu_faststream_off": {
+        "message": "FastStream'i kapat"
+    },
+    "menu_play_in_mpv": {
+        "message": "MPV ile oynat"
+    },
+    "menu_mpv_off": {
+        "message": "MPV'yi kapat"
+    },
+    "menu_link_in_faststream": {
+        "message": "Bağlantıyı FastStream ile aç"
+    },
+    "menu_link_in_mpv": {
+        "message": "Bağlantıyı MPV ile aç"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "Sağ tık menüsüne öğeler ekle"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "Web sayfalarının sağ tık menüsüne FastStream öğelerini ekler: sayfanın videosunu FastStream veya MPV'de oynatın veya bir bağlantıyı FastStream veya MPV açıkken yeni bir sekmede açın. Firefox bunun için herhangi bir uyarı göstermez."
     }
 }

@@ -1270,5 +1270,29 @@
     },
     "mpv_episode_series_end": {
         "message": "l'ultimo episodio della serie: l'autoplay si interrompe"
+    },
+    "menu_play_in_faststream": {
+        "message": "Riproduci in FastStream"
+    },
+    "menu_faststream_off": {
+        "message": "Disattiva FastStream"
+    },
+    "menu_play_in_mpv": {
+        "message": "Riproduci in MPV"
+    },
+    "menu_mpv_off": {
+        "message": "Disattiva MPV"
+    },
+    "menu_link_in_faststream": {
+        "message": "Apri link in FastStream"
+    },
+    "menu_link_in_mpv": {
+        "message": "Apri link in MPV"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "Aggiungi elementi al menu contestuale"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "Aggiunge elementi di FastStream al menu contestuale delle pagine web: riproduci il video della pagina in FastStream o MPV, oppure apri un link in una nuova scheda con FastStream o MPV attivo. Firefox non mostra alcun avviso per questa operazione."
     }
 }

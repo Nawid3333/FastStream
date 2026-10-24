@@ -1270,5 +1270,29 @@
     },
     "mpv_episode_series_end": {
         "message": "ostatni odcinek serialu: autoodtwarzanie zostaje zatrzymane"
+    },
+    "menu_play_in_faststream": {
+        "message": "Odtwórz w FastStream"
+    },
+    "menu_faststream_off": {
+        "message": "Wyłącz FastStream"
+    },
+    "menu_play_in_mpv": {
+        "message": "Odtwórz w MPV"
+    },
+    "menu_mpv_off": {
+        "message": "Wyłącz MPV"
+    },
+    "menu_link_in_faststream": {
+        "message": "Otwórz link w FastStream"
+    },
+    "menu_link_in_mpv": {
+        "message": "Otwórz link w MPV"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "Dodawanie elementów do menu kontekstowego"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "Dodaje elementy FastStream do menu kontekstowego stron internetowych: odtwórz wideo ze strony w FastStream lub MPV albo otwórz link w nowej karcie z włączonym FastStream lub MPV. Firefox nie wyświetla w tym przypadku żadnego ostrzeżenia."
     }
 }

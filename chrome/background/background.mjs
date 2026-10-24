@@ -10,6 +10,7 @@ import {getAddressKey} from '../player/utils/AddressKey.mjs';
 import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {desiredHeight, listForSource, pickQuality} from '../player/utils/PageQualityPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
+import {createMenus, linkTarget, MenuIds, updateMenus} from './ContextMenu.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
 import {sanitizeDownloadFilename} from './DownloadFilename.mjs';
 import {KeyShortcut} from './KeyShortcut.mjs';
@@ -608,6 +609,79 @@ chrome.commands.onCommand.addListener((command, tabobj) => {
     onToggleMpv(tabobj);
   }
 });
+
+// The right-click menu (ContextMenu.mjs). Made at every start of the background: an event
+// page's items outlive it, so the old ones go first.
+const menus = /** @type {import('./ContextMenu.mjs').Menus|undefined} */ (/** @type {any} */ (chrome).menus || chrome.contextMenus);
+const menuText = (/** @type {string} */ key) => chrome.i18n.getMessage(key) || key;
+if (menus) {
+  ensureOptions().then(() => createMenus(menus, menuText, !!Options.mpvMode))
+      .catch((e) => console.error('The right-click menu was not made', e));
+
+  // Firefox's onShown: the items named for the tab, just before the menu shows.
+  /** @type {any} */ (menus).onShown?.addListener(async (/** @type {any} */ info, /** @type {chrome.tabs.Tab} */ tabobj) => {
+    await ensureOptions();
+    const tab = typeof tabobj?.id === 'number' ? Tabs.getTab(tabobj.id) : null;
+    await updateMenus(menus, {isOn: !!tab?.isOn, isMpv: !!tab?.isMpv, mpvMode: !!Options.mpvMode}, menuText)
+        .catch((e) => console.error('The right-click menu was not updated', e));
+  });
+
+  menus.onClicked.addListener((info, tabobj) => {
+    if (!tabobj || typeof tabobj.id !== 'number') {
+      return;
+    }
+    if (info.menuItemId === MenuIds.PLAYER) {
+      onClicked(tabobj, {playerKey: true});
+    } else if (info.menuItemId === MenuIds.MPV) {
+      onToggleMpv(tabobj);
+    } else if (info.menuItemId === MenuIds.LINK_PLAYER || info.menuItemId === MenuIds.LINK_MPV) {
+      openLinkIn(tabobj, info.linkUrl, info.menuItemId === MenuIds.LINK_MPV)
+          .catch((e) => console.error('Opening the link failed', e));
+    }
+  });
+}
+
+/**
+ * Opens a link in a new tab beside the one it is in, with FastStream on there before its
+ * page loads: the player takes its video, or, for MPV, the first video the user starts there
+ * goes to mpv (the MPV key's way, as inheritMpv does: never a video that starts by itself,
+ * most of which are ads). Opened without an opener, so inheritMpv does not overwrite the
+ * choice with the old tab's mode; in the old tab's container.
+ * @param {chrome.tabs.Tab} tabobj - The tab the link is in.
+ * @param {string|undefined} linkUrl - The link.
+ * @param {boolean} mpv - Open it in MPV.
+ * @return {Promise<void>}
+ */
+async function openLinkIn(tabobj, linkUrl, mpv) {
+  await ensureOptions();
+  const url = linkTarget(linkUrl);
+  if (!url || (mpv && !Options.mpvMode)) {
+    return;
+  }
+  if (!await BackgroundUtils.checkPermissions()) {
+    chrome.tabs.create({
+      url: chrome.runtime.getURL('perms.html'),
+    }).catch((e) => console.error('Opening the permissions page failed', e));
+    return;
+  }
+  const cookieStoreId = /** @type {{cookieStoreId?: string}} */ (tabobj).cookieStoreId;
+  const created = await chrome.tabs.create({
+    url,
+    active: true,
+    ...(typeof tabobj.index === 'number' ? {index: tabobj.index + 1} : {}),
+    ...(typeof tabobj.windowId === 'number' ? {windowId: tabobj.windowId} : {}),
+    ...(cookieStoreId ? {cookieStoreId} : {}),
+  });
+  if (typeof created?.id !== 'number') {
+    return;
+  }
+  const tab = Tabs.getTabOrCreate(created.id);
+  tab.isOn = true;
+  tab.isMpv = mpv;
+  tab.mpvOnPlay = mpv;
+  BackgroundUtils.updateTabIcon(tab);
+  Tabs.saveTabState(tab);
+}
 
 /**
  * A key press the page cancelled, which Firefox therefore never ran as a

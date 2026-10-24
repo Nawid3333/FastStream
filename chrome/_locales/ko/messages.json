@@ -1270,5 +1270,29 @@
     },
     "mpv_episode_series_end": {
         "message": "시리즈의 마지막 에피소드: 자동 재생이 중단됩니다"
+    },
+    "menu_play_in_faststream": {
+        "message": "FastStream에서 재생"
+    },
+    "menu_faststream_off": {
+        "message": "FastStream 끄기"
+    },
+    "menu_play_in_mpv": {
+        "message": "MPV에서 재생"
+    },
+    "menu_mpv_off": {
+        "message": "MPV 끄기"
+    },
+    "menu_link_in_faststream": {
+        "message": "링크를 FastStream에서 열기"
+    },
+    "menu_link_in_mpv": {
+        "message": "링크를 MPV에서 열기"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "우클릭 메뉴에 항목 추가"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "웹 페이지의 우클릭 메뉴에 FastStream 항목을 추가합니다. 페이지의 영상을 FastStream 또는 MPV에서 재생하거나, FastStream 또는 MPV가 켜진 상태로 링크를 새 탭에서 열 수 있습니다. Firefox는 이에 대해 경고를 표시하지 않습니다."
     }
 }

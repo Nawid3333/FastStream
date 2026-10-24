@@ -1270,5 +1270,29 @@
     },
     "mpv_episode_series_end": {
         "message": "シリーズの最終話：自動再生が停止します"
+    },
+    "menu_play_in_faststream": {
+        "message": "FastStream で再生"
+    },
+    "menu_faststream_off": {
+        "message": "FastStream をオフにする"
+    },
+    "menu_play_in_mpv": {
+        "message": "MPV で再生"
+    },
+    "menu_mpv_off": {
+        "message": "MPV をオフにする"
+    },
+    "menu_link_in_faststream": {
+        "message": "リンクを FastStream で開く"
+    },
+    "menu_link_in_mpv": {
+        "message": "リンクを MPV で開く"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "右クリックメニューに項目を追加"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "ウェブページの右クリックメニューに FastStream の項目を追加します。ページの動画を FastStream または MPV で再生したり、FastStream または MPV を有効にした状態でリンクを新しいタブで開いたりできます。これについて Firefox は警告を表示しません。"
     }
 }

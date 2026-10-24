@@ -1270,5 +1270,29 @@
     },
     "mpv_episode_series_end": {
         "message": "本剧最后一集：自动播放停止"
+    },
+    "menu_play_in_faststream": {
+        "message": "使用 FastStream 播放"
+    },
+    "menu_faststream_off": {
+        "message": "关闭 FastStream"
+    },
+    "menu_play_in_mpv": {
+        "message": "使用 MPV 播放"
+    },
+    "menu_mpv_off": {
+        "message": "关闭 MPV"
+    },
+    "menu_link_in_faststream": {
+        "message": "在 FastStream 中打开链接"
+    },
+    "menu_link_in_mpv": {
+        "message": "在 MPV 中打开链接"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "向右键菜单添加项目"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "向网页的右键菜单添加 FastStream 项目：在 FastStream 或 MPV 中播放页面视频，或在开启 FastStream 或 MPV 的情况下在新标签页中打开链接。Firefox 对此不会显示警告。"
     }
 }

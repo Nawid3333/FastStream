@@ -1270,5 +1270,29 @@
     },
     "mpv_episode_series_end": {
         "message": "episode terakhir dari seri: putar otomatis berhenti"
+    },
+    "menu_play_in_faststream": {
+        "message": "Putar di FastStream"
+    },
+    "menu_faststream_off": {
+        "message": "Nonaktifkan FastStream"
+    },
+    "menu_play_in_mpv": {
+        "message": "Putar di MPV"
+    },
+    "menu_mpv_off": {
+        "message": "Nonaktifkan MPV"
+    },
+    "menu_link_in_faststream": {
+        "message": "Buka tautan di FastStream"
+    },
+    "menu_link_in_mpv": {
+        "message": "Buka tautan di MPV"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "Tambah item ke menu klik kanan"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "Menambahkan item FastStream ke menu klik kanan halaman web: putar video halaman di FastStream atau MPV, atau buka tautan di tab baru dengan FastStream atau MPV aktif. Firefox tidak menampilkan peringatan untuk hal ini."
     }
 }

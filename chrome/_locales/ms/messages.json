@@ -1270,5 +1270,29 @@
     },
     "mpv_episode_series_end": {
         "message": "episod terakhir siri: main automatik berhenti"
+    },
+    "menu_play_in_faststream": {
+        "message": "Mainkan dalam FastStream"
+    },
+    "menu_faststream_off": {
+        "message": "Tutup FastStream"
+    },
+    "menu_play_in_mpv": {
+        "message": "Mainkan dalam MPV"
+    },
+    "menu_mpv_off": {
+        "message": "Tutup MPV"
+    },
+    "menu_link_in_faststream": {
+        "message": "Buka pautan dalam FastStream"
+    },
+    "menu_link_in_mpv": {
+        "message": "Buka pautan dalam MPV"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "Tambah item ke menu klik kanan"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "Menambah item FastStream ke menu klik kanan halaman web: mainkan video halaman dalam FastStream atau MPV, atau buka pautan dalam tab baharu dengan FastStream atau MPV dihidupkan. Firefox tidak menunjukkan amaran untuk perkara ini."
     }
 }

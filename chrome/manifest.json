@@ -77,7 +77,8 @@
     "declarativeNetRequest",
     "nativeMessaging",
     "downloads",
-    "cookies"
+    "cookies",
+    "menus"
   ],
   "optional_permissions": [
     "proxy"
