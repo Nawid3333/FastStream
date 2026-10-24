@@ -14,6 +14,8 @@ export const StatusTypes = {
   SUBTITLES: 'subtitles',
   COPY: 'copy',
   MPV: 'mpv',
+  // A quality the player lowered by itself (FastStreamClient.watchDroppedFrames).
+  QUALITY: 'quality',
 };
 
 export class StatusManager {
@@ -33,6 +35,7 @@ export class StatusManager {
     this.registerStatusLevel(StatusTypes.SUBTITLES, 1);
     this.registerStatusLevel(StatusTypes.COPY, 1);
     this.registerStatusLevel(StatusTypes.MPV, 1);
+    this.registerStatusLevel(StatusTypes.QUALITY, 1);
   }
 
   /**

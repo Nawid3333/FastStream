@@ -37,6 +37,7 @@ const CORS = {
   'Access-Control-Expose-Headers': 'Content-Length, Content-Range',
 };
 const fileLink = (quality) => `${HOSTER}/get_file/9/abc/1/1_${quality}.mp4/`;
+const en = JSON.parse(fs.readFileSync(new URL('../../../chrome/_locales/en/messages.json', import.meta.url), 'utf8'));
 
 let server;
 let workDir;
@@ -227,5 +228,50 @@ describe('A page that offers its video in several qualities', function() {
     expect(after.current).toBe('page-quality:0');
     // From where it was (whole seconds), nothing of the start first.
     expect(firstPlayed).toBeGreaterThanOrEqual(Math.floor(before.time));
+  });
+
+  it('lowers the quality when this computer drops the frames, says so, and keeps one picked again', async function() {
+    // His wish (2026-10-24): a version the computer cannot show in time is stepped down, and
+    // never without a word. Firefox's own count stands in for a slow computer: from each
+    // video element's first count, a third of its frames dropped. The watch judges 3 s
+    // stretches after 1 s here, not 10 s after 4 s, to keep within the 40 s file.
+    await browser.url(`${SITE}/?t=${Date.now()}`);
+    await enterPlayer();
+    await browser.execute(() => {
+      const started = new WeakMap();
+      HTMLVideoElement.prototype.getVideoPlaybackQuality = function() {
+        if (!started.has(this)) started.set(this, performance.now());
+        const total = Math.floor((performance.now() - started.get(this)) * 30 / 1000);
+        return {totalVideoFrames: total, droppedVideoFrames: Math.floor(total / 3), corruptedVideoFrames: 0, creationTime: performance.now()};
+      };
+      Object.assign(window.fastStream.droppedFrameWatch, {windowMs: 3000, warmupMs: 1000});
+    });
+    expect((await playerState()).current).toBe('page-quality:1');
+
+    await browser.waitUntil(() => browser.execute(() => window.fastStream.getMenuVideoLevelID() === 'page-quality:0'),
+        {timeout: 30000, interval: 250, timeoutMsg: 'the player never lowered the quality'});
+    const said = en.player_quality_lowered.message.replace('$1', '360p').replace('$2', '33').replaceAll('$3', '720p');
+    await browser.waitUntil(() => browser.execute((said) => Array.from(document.querySelectorAll('.mainplayer .status_message'))
+        .some((el) => el.style.display !== 'none' && el.textContent === said), said),
+    {timeout: 5000, timeoutMsg: `the player did not say "${said}"`});
+
+    // The user picks 720p again in the quality menu: it stays, whatever it drops.
+    await browser.waitUntil(async () => (await playerState()).width === 640,
+        {timeout: 30000, interval: 250, timeoutMsg: 'the 360p file never played'});
+    const picked = await browser.execute(() => {
+      const item = Array.from(document.querySelectorAll('.fluid_video_source_list_item'))
+          .find((el) => el.textContent.trim().startsWith('720p'));
+      item?.click();
+      return !!item;
+    });
+    expect(picked).toBe(true);
+    await browser.waitUntil(async () => (await playerState()).width === 1280,
+        {timeout: 30000, interval: 250, timeoutMsg: 'the 720p file never played again'});
+    // Four times the warm-up and a stretch, playing on.
+    await browser.pause(16000);
+    const state = await playerState();
+    console.log('      after the pick:', JSON.stringify(state));
+    expect(state.current).toBe('page-quality:1');
+    expect(state.width).toBe(1280);
   });
 });

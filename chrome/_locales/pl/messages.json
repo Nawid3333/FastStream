@@ -1270,5 +1270,11 @@
     },
     "mpv_episode_series_end": {
         "message": "ostatni odcinek serialu: autoodtwarzanie zostaje zatrzymane"
+    },
+    "player_quality_lowered": {
+        "message": "Jakość obniżona do $1: ten komputer pominął $2% klatek przy $3. Wybierz $3 w menu jakości, aby ją zachować."
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "Obniżaj jakość wideo, gdy ten komputer nie może wyświetlić wszystkich klatek na czas (odtwarzacz informuje o tym za każdym razem)"
     }
 }

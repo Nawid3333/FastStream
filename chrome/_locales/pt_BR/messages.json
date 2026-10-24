@@ -1270,5 +1270,11 @@
     },
     "mpv_episode_series_end": {
         "message": "o último episódio da série: a reprodução automática é interrompida"
+    },
+    "player_quality_lowered": {
+        "message": "Qualidade reduzida para $1: este computador perdeu $2% dos quadros em $3. Escolha $3 no menu de qualidade para mantê-la."
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "Reduzir a qualidade do vídeo quando este computador não conseguir exibir todos os quadros a tempo (o player avisará cada vez)"
     }
 }

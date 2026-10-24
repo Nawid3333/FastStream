@@ -68,6 +68,7 @@ const miniSize = /** @type {HTMLInputElement} */ (document.getElementById('minis
 const miniPos = /** @type {HTMLElement} */ (document.getElementById('minipos'));
 const previewEnabled = /** @type {HTMLInputElement} */ (document.getElementById('previewenabled'));
 const decodingAwareQuality = /** @type {HTMLInputElement} */ (document.getElementById('decodingawarequality'));
+const lowerOnDroppedFrames = /** @type {HTMLInputElement} */ (document.getElementById('lowerondroppedframes'));
 const replaceDelay = /** @type {HTMLInputElement} */ (document.getElementById('replacedelay'));
 const colorTheme = /** @type {HTMLElement} */ (document.getElementById('colortheme'));
 const videoAspectRatio = /** @type {HTMLElement} */ (document.getElementById('videoAspectRatio'));
@@ -173,6 +174,7 @@ async function loadOptions(newOptions) {
   previewEnabled.checked = !!Options.previewEnabled;
   // On unless turned off: options saved before it existed have no value for it.
   decodingAwareQuality.checked = Options.decodingAwareQuality !== false;
+  lowerOnDroppedFrames.checked = Options.lowerOnDroppedFrames !== false;
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   autoplayNext.checked = !!Options.autoplayNext;
   // A number: the field's value takes it as text.
@@ -683,6 +685,11 @@ previewEnabled.addEventListener('change', () => {
 
 decodingAwareQuality.addEventListener('change', () => {
   Options.decodingAwareQuality = decodingAwareQuality.checked;
+  optionChanged();
+});
+
+lowerOnDroppedFrames.addEventListener('change', () => {
+  Options.lowerOnDroppedFrames = lowerOnDroppedFrames.checked;
   optionChanged();
 });
 

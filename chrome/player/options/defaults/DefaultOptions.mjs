@@ -27,6 +27,9 @@ export const DefaultOptions = {
   // Among versions of the chosen resolution, prefer the one Firefox decodes in hardware,
   // then smooth, higher frame rate and the more efficient codec; playable audio first.
   decodingAwareQuality: true,
+  // A version this computer drops a fifth of the frames of is stepped down, and the player
+  // says so each time.
+  lowerOnDroppedFrames: true,
   autoEnableBestSubtitles: false,
   storeProgress: true,
   autoplayNext: false,

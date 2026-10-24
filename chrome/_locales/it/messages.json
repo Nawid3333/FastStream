@@ -1270,5 +1270,11 @@
     },
     "mpv_episode_series_end": {
         "message": "l'ultimo episodio della serie: l'autoplay si interrompe"
+    },
+    "player_quality_lowered": {
+        "message": "Qualità abbassata a $1: questo computer ha perso il $2% dei fotogrammi a $3. Scegli $3 nel menu qualità per mantenerla."
+    },
+    "options_general_lowerondroppedframes": {
+        "message": "Abbassare la qualità video quando questo computer non riesce a mostrare tutti i fotogrammi in tempo (il player ti avviserà ogni volta)"
     }
 }

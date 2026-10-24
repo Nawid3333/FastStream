@@ -360,6 +360,30 @@ frame rate, codec efficiency (AV1 > VP9 = HEVC > H.264), bitrate.
   `about:support`'s codec table, and the start-up delay the probes add.
 - mpv still picks its own version (`--hls-bitrate`, highest): issue #330.
 
+## A quality lowered when the computer drops frames (2026-10-24)
+
+His wish: a version this computer cannot decode in time is stepped down, and never without a
+word. `DroppedFrameWatch.mjs` reads Firefox's `getVideoPlaybackQuality()` once a second at the
+time updates (`watchDroppedFrames`).
+- **When**: a fifth of the frames dropped over 10 s of steady playback, after a version's first
+  4 s, and only with 100 frames or more in the stretch. Steady means playing at 0.5x-1.25x, not
+  seeking or starving, in a visible tab or in picture-in-picture. A seek, a change of speed, a
+  stall and its end start the stretch again (the counts run on through them).
+- **Where to**: the best version of the next smaller height, else the same height at a lower
+  frame rate (`lowerLevel`); nothing lighter, nothing done and nothing said.
+- **Said**: the status line, 15 s: "Quality lowered to 720p: this computer dropped 30% of the
+  frames at 1080p. Choose 1080p in the quality menu to keep it." A height that comes at two
+  frame rates is named with its rate (720p60).
+- **A version picked by hand** in the quality menu is never stepped down from, also through
+  the new player another of the page's files plays in (`keepChoiceOnce`); a new video forgets
+  it. Nothing steps back up by itself.
+- Off with the option `lowerOnDroppedFrames` ("Lower the video quality when this computer
+  cannot show all frames in time").
+- **Measured:** unit tests (`DroppedFrameWatch.test.mjs`, `FastStreamClient.test.mjs`,
+  `statusLevels.test.mjs`) and `page-qualities.e2e.mjs` in Firefox 158, where the video's
+  count is stood in for (a third dropped): 720p stepped down to 360p with the message, and
+  720p picked again stayed. Red without each part. Not measured: a real slow computer.
+
 ## Firefox VPN (2026-10-06)
 
 Reported on a VOE page: "Failed to load video!" in the player and "could not open the stream"
