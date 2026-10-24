@@ -1276,5 +1276,29 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "Reduzir a qualidade do vídeo quando este computador não conseguir exibir todos os quadros a tempo (o player avisará cada vez)"
+    },
+    "menu_play_in_faststream": {
+        "message": "Reproduzir no FastStream"
+    },
+    "menu_faststream_off": {
+        "message": "Desativar FastStream"
+    },
+    "menu_play_in_mpv": {
+        "message": "Reproduzir no MPV"
+    },
+    "menu_mpv_off": {
+        "message": "Desativar MPV"
+    },
+    "menu_link_in_faststream": {
+        "message": "Abrir link no FastStream"
+    },
+    "menu_link_in_mpv": {
+        "message": "Abrir link no MPV"
+    },
+    "perms_page_breakdown_perm10h": {
+        "message": "Adicionar itens ao menu de contexto"
+    },
+    "perms_page_breakdown_perm10d": {
+        "message": "Adiciona itens do FastStream ao menu de contexto de páginas da web: reproduzir o vídeo da página no FastStream ou MPV, ou abrir um link em uma nova aba com FastStream ou MPV ativado. O Firefox não exibe nenhum aviso sobre isso."
     }
 }
