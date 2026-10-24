@@ -5,7 +5,7 @@ import {describe, expect, it} from 'vitest';
 import source from '../../node_modules/Coloris/dist/coloris.js?raw';
 import {FakeDocument, FakeElement} from './helpers/fakeDom.mjs';
 
-// For tests/unit/, once patches/Coloris@0.25.0.patch has the change (#298) and
+// For tests/unit/, once patches/Coloris@<version>.patch has the change (#298) and
 // node_modules/Coloris is patched again by `pnpm install`. It runs the patched dist file,
 // as tools/sync-vendor.mjs copies it, on the stand-in DOM.
 // - The patch builds the picker (init) inside configure's `parent` case, so an option
