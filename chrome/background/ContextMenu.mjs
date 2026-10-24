@@ -72,7 +72,8 @@ export async function createMenus(menus, getMessage, mpvMode) {
 }
 
 /**
- * Names the items for the tab they show in, and shows them so.
+ * Names the items for the tab they show in, and shows them so. Each item on its own: one
+ * Firefox refuses leaves the others named, and the menu is shown again either way.
  * @param {Menus} menus
  * @param {MenuState} state
  * @param {(key: string) => string} getMessage
@@ -80,7 +81,11 @@ export async function createMenus(menus, getMessage, mpvMode) {
  */
 export async function updateMenus(menus, state, getMessage) {
   for (const item of menuItems(state, getMessage)) {
-    await menus.update(item.id, {title: item.title, visible: item.visible});
+    try {
+      await menus.update(item.id, {title: item.title, visible: item.visible});
+    } catch (e) {
+      console.error('The right-click menu\'s item was not updated', item.id, e);
+    }
   }
   // Firefox's own: a menu already open shows the new titles.
   await menus.refresh?.();

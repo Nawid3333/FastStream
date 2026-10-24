@@ -615,11 +615,13 @@ chrome.commands.onCommand.addListener((command, tabobj) => {
 const menus = /** @type {import('./ContextMenu.mjs').Menus|undefined} */ (/** @type {any} */ (chrome).menus || chrome.contextMenus);
 const menuText = (/** @type {string} */ key) => chrome.i18n.getMessage(key) || key;
 if (menus) {
-  ensureOptions().then(() => createMenus(menus, menuText, !!Options.mpvMode))
+  const menusMade = ensureOptions().then(() => createMenus(menus, menuText, !!Options.mpvMode))
       .catch((e) => console.error('The right-click menu was not made', e));
 
-  // Firefox's onShown: the items named for the tab, just before the menu shows.
+  // Firefox's onShown: the items named for the tab, just before the menu shows. A right-click
+  // can be what started this background: its items are named once they are made anew.
   /** @type {any} */ (menus).onShown?.addListener(async (/** @type {any} */ info, /** @type {chrome.tabs.Tab} */ tabobj) => {
+    await menusMade;
     await ensureOptions();
     const tab = typeof tabobj?.id === 'number' ? Tabs.getTab(tabobj.id) : null;
     await updateMenus(menus, {isOn: !!tab?.isOn, isMpv: !!tab?.isMpv, mpvMode: !!Options.mpvMode}, menuText)
