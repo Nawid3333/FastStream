@@ -35,12 +35,15 @@ export class MediaKeys {
     this.session = session || null;
     this.Metadata = Metadata || null;
     /** What the keys do now: an action not offered is greyed out in the overlay. */
-    this.offered = {nexttrack: false, previoustrack: false};
+    this.offered = {nexttrack: false, previoustrack: false, seekbackward: false, seekforward: false, seekto: false};
     this.seekOffered = false;
     /** @type {?MediaInfo} */
     this.info = null;
     /** @type {?{url: string, width: number, height: number}} The frame shown, an object URL. */
     this.artwork = null;
+    // The frames asked for (setArtwork): one that comes back after a later one, or after its
+    // video went (reset), is not shown.
+    this.captures = 0;
     this.positionSetAt = 0;
   }
 
@@ -86,6 +89,7 @@ export class MediaKeys {
     for (const [action, handler] of handlers) {
       try {
         this.session.setActionHandler(action, handler);
+        this.offered[/** @type {'seekbackward'|'seekforward'|'seekto'} */ (action)] = true;
       } catch (e) {
         // A Firefox without this action: that key stays as it was.
       }
@@ -123,13 +127,14 @@ export class MediaKeys {
     if (!this.session || !this.Metadata || !video.videoWidth || !video.videoHeight) return;
     const width = ARTWORK_WIDTH;
     const height = Math.max(1, Math.round(ARTWORK_WIDTH * video.videoHeight / video.videoWidth));
+    const asked = ++this.captures;
     let blob = null;
     try {
       blob = await capture(video, width, height);
     } catch (e) {
       // A tainted canvas, or no frame decoded yet.
     }
-    if (!blob) return;
+    if (!blob || asked !== this.captures) return;
     this.dropArtwork();
     this.artwork = {url: URL.createObjectURL(blob), width, height};
     this.applyMetadata();
@@ -185,6 +190,7 @@ export class MediaKeys {
    * (setInfo, once the player page has loaded), and the page's next source plays under it.
    */
   reset() {
+    this.captures++;
     this.dropArtwork();
     this.applyMetadata();
     if (!this.session) return;

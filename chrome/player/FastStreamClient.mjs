@@ -2157,15 +2157,23 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * The overlay's picture of the video (MediaKeys.setArtwork): the first frame decoded, so
-   * there is one at once, then a frame ARTWORK_AFTER_S into it, as a video's first frame is
-   * often black; then it stays. A paused video keeps its first.
+   * there is one at once, then a frame ARTWORK_AFTER_S into it (halfway into a shorter video),
+   * as a video's first frame is often black; then it stays. A video that stays at its start
+   * keeps its first.
    */
   takeArtwork() {
     const video = this.player?.getVideo();
     if (this.artworkTaken || !video || video.readyState < 2 || !video.videoWidth) return;
+    const duration = this.duration;
+    const after = Number.isFinite(duration) && duration > 0 ? Math.min(ARTWORK_AFTER_S, duration / 2) : ARTWORK_AFTER_S;
     if (this.artworkAt === null) {
       this.artworkAt = video.currentTime;
-    } else if (Math.abs(video.currentTime - this.artworkAt) < ARTWORK_AFTER_S) {
+    } else if (video.currentTime < this.artworkAt) {
+      // Back before the first (a loop to the start, a seek back): from there again. A loop
+      // took the black first frame as the last picture.
+      this.artworkAt = video.currentTime;
+      return;
+    } else if (video.currentTime - this.artworkAt < after) {
       return;
     } else {
       this.artworkTaken = true;

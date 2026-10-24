@@ -1652,3 +1652,70 @@ describe('tryNextSource', () => {
     }
   });
 });
+
+describe('FastStreamClient, the media overlay\'s picture', () => {
+  // A frame of the video at once, and one ARTWORK_AFTER_S in, past a black start (takeArtwork).
+
+  /**
+   * A client whose video is at `time`, with the overlay's keys stood in for.
+   * @param {number} duration
+   * @return {{client: FastStreamClient, at: (time: number) => void, setArtwork: Function}}
+   */
+  function overlay(duration = 60) {
+    const client = makeClient();
+    const player = new FakePlayer(makeSource('http://127.0.0.1/a.mp4'));
+    player.duration = duration;
+    Object.assign(player.video, {readyState: 2, currentTime: 0});
+    client.player = player;
+    client.artworkTaken = false;
+    client.artworkAt = null;
+    const setArtwork = vi.fn();
+    client.interfaceController.toolManager = {mediaKeys: {setArtwork}};
+    return {
+      client, setArtwork, at: (time) => {
+        player.video.currentTime = time;
+        client.takeArtwork();
+      },
+    };
+  }
+
+  it('takes the first frame, and one 5 s in, then no more', () => {
+    const {at, setArtwork} = overlay();
+    at(0);
+    at(1);
+    at(4.9);
+    expect(setArtwork).toHaveBeenCalledTimes(1);
+    at(5.2);
+    expect(setArtwork).toHaveBeenCalledTimes(2);
+    at(30);
+    expect(setArtwork).toHaveBeenCalledTimes(2);
+  });
+
+  it('takes the second halfway into a video shorter than 10 s', () => {
+    // A 3 s video never got its frame 5 s in: the black first one stayed (glm's review of #576).
+    const {at, setArtwork} = overlay(3);
+    at(0);
+    at(1.4);
+    expect(setArtwork).toHaveBeenCalledTimes(1);
+    at(1.6);
+    expect(setArtwork).toHaveBeenCalledTimes(2);
+  });
+
+  it('waits again after a loop back to the start, not taking its first frame as the last', () => {
+    const {at, setArtwork} = overlay();
+    at(55);
+    at(0.2);
+    expect(setArtwork).toHaveBeenCalledTimes(1);
+    at(5.3);
+    expect(setArtwork).toHaveBeenCalledTimes(2);
+  });
+
+  it('waits 5 s into a live stream, which has no length', () => {
+    const {at, setArtwork} = overlay(Infinity);
+    at(100);
+    at(102);
+    expect(setArtwork).toHaveBeenCalledTimes(1);
+    at(105.5);
+    expect(setArtwork).toHaveBeenCalledTimes(2);
+  });
+});

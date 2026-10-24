@@ -360,10 +360,17 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
       return `${bitmap.width}x${bitmap.height}`;
     });
     expect(decoded).toBe(overlay.artwork[0].sizes);
-    // Once it plays, the overlay's seek keys are the player's too.
+    // Once it plays, the overlay's seek keys are the player's too: Firefox took each handler.
+    const firstPicture = await browser.execute(() => navigator.mediaSession.metadata.artwork[0].src);
     await browser.execute(() => window.fastStream.play());
     await browser.waitUntil(() => browser.execute(() => window.fastStream.interfaceController.toolManager.mediaKeys.seekOffered),
         {timeout: 15000, timeoutMsg: 'the seek keys were never offered once the video played'});
+    expect(await browser.execute(() => window.fastStream.interfaceController.toolManager.mediaKeys.offered))
+        .toMatchObject({seekbackward: true, seekforward: true, seekto: true});
+    // A few seconds in, a later frame replaces the first, which is often black.
+    await browser.waitUntil(() => browser.execute((first) => window.fastStream.artworkTaken === true &&
+        navigator.mediaSession.metadata?.artwork?.[0]?.src !== first, firstPicture),
+    {timeout: 20000, timeoutMsg: 'the picture was never taken again a few seconds in'});
   });
 
   // His report, 2026-10-22: a skip to the end sometimes did not go on. Measured: a paused video

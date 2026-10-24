@@ -181,6 +181,41 @@ describe('MediaKeys, the overlay', () => {
     expect(revoked).toEqual(['blob:frame-1']);
   });
 
+  it('shows no frame that came back after its video went, nor one older than the last asked for', async () => {
+    // A frame of the last episode, read while the next one started, became the next one's
+    // picture (glm's review of #576).
+    vi.stubGlobal('URL', {createObjectURL: vi.fn((blob) => `blob:${blob.name}`), revokeObjectURL: vi.fn()});
+    const session = fullSession();
+    const keys = new MediaKeys(/** @type {*} */ (playingClient()), /** @type {*} */ (session), /** @type {*} */ (FakeMetadata));
+    keys.setInfo({name: 'Example Series', episode: 1});
+    const video = /** @type {*} */ ({videoWidth: 640, videoHeight: 360});
+    /** A capture the test answers, with a blob of that name. */
+    const pending = () => {
+      let answer;
+      const promise = new Promise((resolve) => {
+        answer = (name) => resolve(Object.assign(new Blob(['x']), {name}));
+      });
+      return {capture: () => promise, answer: (name) => answer(name)};
+    };
+    const late = pending();
+    const asked = keys.setArtwork(video, late.capture);
+    keys.reset();
+    late.answer('episode-1');
+    await asked;
+    expect(keys.artwork).toBe(null);
+    expect(session.metadata.artwork).toEqual([]);
+
+    const first = pending();
+    const second = pending();
+    const one = keys.setArtwork(video, first.capture);
+    const two = keys.setArtwork(video, second.capture);
+    second.answer('later');
+    await two;
+    first.answer('earlier');
+    await one;
+    expect(session.metadata.artwork[0].src).toBe('blob:later');
+  });
+
   it('keeps no picture of a video another origin taints, nor of one with no frame yet', async () => {
     const session = fullSession();
     const keys = new MediaKeys(/** @type {*} */ (playingClient()), /** @type {*} */ (session), /** @type {*} */ (FakeMetadata));
@@ -242,6 +277,7 @@ describe('MediaKeys, the overlay', () => {
     keys.offerSeeking();
     keys.offerSeeking();
     expect(session.setActionHandler.mock.calls.map(([action]) => action)).toEqual(['seekbackward', 'seekforward', 'seekto']);
+    expect(keys.offered).toMatchObject({seekbackward: true, seekforward: true, seekto: true});
 
     session.handlers.get('seekforward')({action: 'seekforward'});
     expect(client.currentTime).toBe(110);
@@ -253,6 +289,17 @@ describe('MediaKeys, the overlay', () => {
     expect(client.currentTime).toBe(600);
     expect(client.setSeekSave.mock.calls).toEqual([[false], [true], [false], [true], [false], [true]]);
     expect(session.setPositionState).toHaveBeenLastCalledWith({duration: 1200, playbackRate: 1, position: 600});
+  });
+
+  it('says which seek keys Firefox took', () => {
+    const session = fullSession();
+    session.setActionHandler.mockImplementation((action, handler) => {
+      if (action === 'seekto') throw new TypeError('not supported');
+      session.handlers.set(action, handler);
+    });
+    const keys = new MediaKeys(/** @type {*} */ (playingClient()), /** @type {*} */ (session), /** @type {*} */ (FakeMetadata));
+    keys.offerSeeking();
+    expect(keys.offered).toMatchObject({seekbackward: true, seekforward: true, seekto: false});
   });
 
   it('lets a video\'s picture and time line go with it, and keeps the page\'s name', async () => {
