@@ -462,8 +462,39 @@ describe('planFloors', () => {
     const plan = planFloors([mkAlert(92, 'encoding-sniffer', '< 1.0.3', '1.0.3')], versions({'encoding-sniffer': ['1.0.2']}), ws, TODAY);
     expect(plan.floors).toEqual([]);
     expect(plan.declined).toEqual([
-      {alert: 92, reason: 'existing overrides \'encoding-sniffer@0: ^1.0.2\' and \'encoding-sniffer\' both reach major 1'},
+      {alert: 92, reason: 'existing overrides \'encoding-sniffer@0: ^1.0.2\' and \'encoding-sniffer: ^1.0.2\' all reach major 1'},
     ]);
+  });
+
+  it('declines when two keys of other majors both send their requests into the alert\'s major', () => {
+    const ws = WORKSPACE.replace('  basic-ftp: ^6.2.1\n', '  basic-ftp: ^6.2.1\n  encoding-sniffer@0: ^1.0.2\n  encoding-sniffer@2: ^1.0.2\n');
+    const plan = planFloors([mkAlert(93, 'encoding-sniffer', '< 1.0.3', '1.0.3')], versions({'encoding-sniffer': ['1.0.2']}), ws, TODAY);
+    expect(plan.floors).toEqual([]);
+    expect(plan.declined).toEqual([
+      {alert: 93, reason: 'existing overrides \'encoding-sniffer@0: ^1.0.2\' and \'encoding-sniffer@2: ^1.0.2\' all reach major 1'},
+    ]);
+  });
+
+  it('declines when another major\'s key reaches the alert\'s major with an exact or unreadable value', () => {
+    for (const value of ['1.0.2', 'npm:other@^1.0.0', '"-"']) {
+      const ws = WORKSPACE.replace('  basic-ftp: ^6.2.1\n', `  basic-ftp: ^6.2.1\n  encoding-sniffer@0: ${value}\n`);
+      const plan = planFloors([mkAlert(94, 'encoding-sniffer', '< 1.0.3', '1.0.3')], versions({'encoding-sniffer': ['1.0.2']}), ws, TODAY);
+      expect(plan.floors).toEqual([]);
+      expect(plan.declined).toEqual([
+        {alert: 94, reason: expect.stringMatching(/^existing override 'encoding-sniffer@0: .+' may reach major 1 in a form we cannot raise$/)},
+      ]);
+    }
+    // A key that stays in its own major is no business of this alert's.
+    const own = WORKSPACE.replace('  basic-ftp: ^6.2.1\n', '  basic-ftp: ^6.2.1\n  encoding-sniffer@0: ^0.2.9\n');
+    const plan = planFloors([mkAlert(95, 'encoding-sniffer', '< 1.0.3', '1.0.3')], versions({'encoding-sniffer': ['1.0.2']}), own, TODAY);
+    expect(plan.floors).toEqual([{name: 'encoding-sniffer', selector: 'encoding-sniffer', floor: '^1.0.3', alerts: [95], action: 'add'}]);
+  });
+
+  it('declines a redirect that asks for the fix already while the lockfile is still vulnerable', () => {
+    const ws = WORKSPACE.replace('  basic-ftp: ^6.2.1\n', '  basic-ftp: ^6.2.1\n  encoding-sniffer@0: ^1.0.3\n');
+    const plan = planFloors([mkAlert(96, 'encoding-sniffer', '< 1.0.3', '1.0.3')], versions({'encoding-sniffer': ['1.0.2']}), ws, TODAY);
+    expect(plan.floors).toEqual([]);
+    expect(plan.declined[0].reason).toMatch(/^the override 'encoding-sniffer@0: \^1\.0\.3' on main asks for the fix already/);
   });
 
   it('groups two alerts on the same package and major into one max floor', () => {
@@ -561,6 +592,8 @@ describe('verifyLock', () => {
     expect(verifyLock([], versions({'encoding-sniffer': ['1.0.2']}), versions({'encoding-sniffer': ['1.0.2']}), floors)).toEqual([
       'floor \'encoding-sniffer@0: ^1.0.3\' is not met by encoding-sniffer@1.0.2',
     ]);
+    // A 0.x copy the raise leaves behind or drops is the floor's own major too, not churn.
+    expect(verifyLock([], versions({'encoding-sniffer': ['0.2.1', '1.0.2']}), versions({'encoding-sniffer': ['1.0.3']}), floors)).toEqual([]);
   });
 
   it('flags lockfile churn outside the floors, not churn inside them', () => {

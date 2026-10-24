@@ -466,26 +466,41 @@ export function planFloors(alerts, versions, workspaceText, today) {
 
     // Relevant existing entries: selectorless by name, `name@m` by name + major, and a
     // `name@n` whose value sends major n's requests into this major (`encoding-sniffer@0:
-    // ^1.0.2`): what the tree holds of this major came through it. Other plain majors of the
-    // package are separate floors (one entry per major); path keys ("web-ext>@pkg", '-'
-    // removals) are human artifacts we never touch; a selector we cannot model declines the
-    // group rather than being second-guessed.
+    // ^1.0.2`), which is raised in place. The lockfile does not say which request brought a
+    // copy: one that came another way stays where it is, and verify names it. Other plain
+    // majors of the package are separate floors (one entry per major); path keys
+    // ("web-ext>@pkg", '-' removals) are human artifacts we never touch; a selector or a
+    // value we cannot model declines the group rather than being second-guessed.
     /** @type {WorkspaceEntry | null} */
     let selectorless = null;
     /** @type {WorkspaceEntry | null} */
     let selected = null;
-    /** @type {WorkspaceEntry | null} */
-    let redirect = null;
+    /** @type {WorkspaceEntry[]} */
+    const redirects = [];
     /** @type {string | null} */
     let unmodelable = null;
+    /** @type {WorkspaceEntry | null} */
+    let unraisable = null;
     for (const entry of entries) {
       if (entry.key === name) {
         selectorless = entry;
       } else if (entry.key.startsWith(`${name}@`)) {
         const tail = entry.key.slice(name.length + 1);
-        if (tail === String(major)) selected = entry;
-        else if (!NUMERIC_RE.test(tail)) unmodelable = entry.key;
-        else if (CARET_RE.test(entry.value) && parseXyz(entry.value.slice(1))[0] === major) redirect = entry;
+        if (tail === String(major)) {
+          selected = entry;
+        } else if (!NUMERIC_RE.test(tail)) {
+          unmodelable = entry.key;
+        } else {
+          // Another major's key reaches this one when its value names this major: a caret is
+          // raised in place; an exact version, or a value that names no version, is a person's.
+          const target = CARET_RE.test(entry.value) ? entry.value.slice(1) : entry.value;
+          if (!XYZ_RE.test(target)) {
+            unraisable = entry;
+          } else if (parseXyz(target)[0] === major) {
+            if (CARET_RE.test(entry.value)) redirects.push(entry);
+            else unraisable = entry;
+          }
+        }
       } else if (entry.key.endsWith(`>${name}`) || entry.key.includes(`>${name}@`)) {
         // A parent-scoped key ('web-ext>pkg') wins over a plain one in pnpm: ours would do nothing.
         unmodelable = entry.key;
@@ -502,14 +517,22 @@ export function planFloors(alerts, versions, workspaceText, today) {
       for (const item of ok) declined.push({alert: item.alert, reason});
       continue;
     }
-    if (redirect && (selectorless || selected)) {
-      // Two keys reach this major's requests: which one pnpm applies is not ours to guess.
-      const other = /** @type {WorkspaceEntry} */ (selectorless ?? selected);
+    if (unraisable) {
       for (const item of ok) {
-        declined.push({alert: item.alert, reason: `existing overrides '${redirect.key}: ${redirect.value}' and '${other.key}' both reach major ${major}`});
+        declined.push({alert: item.alert, reason: `existing override '${unraisable.key}: ${unraisable.value}' may reach major ${major} in a form we cannot raise`});
       }
       continue;
     }
+    // Two keys reach this major's requests: which one pnpm applies is not ours to guess.
+    const reaching = [...redirects, ...[selectorless, selected].filter((entry) => entry !== null)];
+    if (redirects.length && reaching.length > 1) {
+      const keys = reaching.map((entry) => `'${/** @type {WorkspaceEntry} */ (entry).key}: ${/** @type {WorkspaceEntry} */ (entry).value}'`);
+      for (const item of ok) {
+        declined.push({alert: item.alert, reason: `existing overrides ${keys.join(' and ')} all reach major ${major}`});
+      }
+      continue;
+    }
+    const redirect = redirects[0] ?? null;
     const matched = selectorless ?? selected ?? redirect;
     if (matched && !CARET_RE.test(matched.value)) {
       // Alias values ('npm:...'), '-' removals and tilted specs stay human territory.
@@ -755,6 +778,8 @@ export function verifyLock(alerts, oldVersions, newVersions, floors) {
       covered.set(floor.name, 'all');
     } else if (covered.get(floor.name) !== 'all') {
       const majors = /** @type {Set<number>} */ (covered.get(floor.name) || new Set());
+      // Its own major and the one its value names: the same for an ordinary floor.
+      majors.add(Number(floor.selector.slice(floor.name.length + 1)));
       majors.add(parseXyz(floor.floor.slice(1))[0]);
       covered.set(floor.name, majors);
     }
