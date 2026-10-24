@@ -3056,7 +3056,7 @@ function tabSources(tab) {
 // episode, goes on to that episode in the tab's page, and its stream goes into the same mpv
 // window, so a series plays episode after episode without the browser. The host (7) follows
 // mpv over a port kept open (MpvBackend.watch), which also keeps this background page from
-// unloading. Host 9 (same day, his wishes): mpv shows episode buttons and an autoplay switch
+// unloading (measured, docs/notes/mpv.md). Host 9 (same day, his wishes): mpv shows episode buttons and an autoplay switch
 // (the mpv setup's faststream-episodes.lua), which this setting drives and the switch flips;
 // an end waits Options.autoplayCountdown seconds, which the switch or a key can cut short,
 // and Space stop.
