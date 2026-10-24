@@ -1276,5 +1276,26 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "Obniżaj jakość wideo, gdy ten komputer nie może wyświetlić wszystkich klatek na czas (odtwarzacz informuje o tym za każdym razem)"
+    },
+    "player_audio_output_label": {
+        "message": "Wyjście audio"
+    },
+    "player_audio_output_default": {
+        "message": "Wyjście domyślne"
+    },
+    "player_audio_output_choose": {
+        "message": "Wybierz wyjście…"
+    },
+    "player_audio_output_device": {
+        "message": "Wybrane wyjście"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 jest niedostępne: dźwięk jest odtwarzany przez wyjście domyślne. Wybierz je ponownie w menu audio."
+    },
+    "player_audio_output_refused": {
+        "message": "Ta strona nie pozwala odtwarzaczowi wybrać wyjścia audio."
+    },
+    "player_audio_output_again": {
+        "message": "Dźwięk jest odtwarzany przez wyjście domyślne: kliknij tutaj, aby odtworzyć go przez $1."
     }
 }

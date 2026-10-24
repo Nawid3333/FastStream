@@ -1276,5 +1276,26 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "Lower the video quality when this computer cannot show all frames in time (the player tells you each time)"
+    },
+    "player_audio_output_label": {
+        "message": "Audio output"
+    },
+    "player_audio_output_default": {
+        "message": "Default output"
+    },
+    "player_audio_output_choose": {
+        "message": "Choose an output…"
+    },
+    "player_audio_output_device": {
+        "message": "The chosen output"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 is not available: the sound plays on the default output. Choose the device again in the audio menu."
+    },
+    "player_audio_output_refused": {
+        "message": "This page does not let the player choose the audio output."
+    },
+    "player_audio_output_again": {
+        "message": "The sound plays on the default output: click here to play it on $1."
     }
 }

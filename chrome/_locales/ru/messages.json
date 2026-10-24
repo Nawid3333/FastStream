@@ -1276,5 +1276,26 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "Снижать качество видео, если этот компьютер не успевает отображать все кадры (плеер будет уведомлять об этом)"
+    },
+    "player_audio_output_label": {
+        "message": "Вывод звука"
+    },
+    "player_audio_output_default": {
+        "message": "Вывод по умолчанию"
+    },
+    "player_audio_output_choose": {
+        "message": "Выбрать вывод…"
+    },
+    "player_audio_output_device": {
+        "message": "Выбранное устройство вывода"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 недоступно: звук выводится по умолчанию. Выберите его снова в меню звука."
+    },
+    "player_audio_output_refused": {
+        "message": "Эта страница не позволяет плееру выбрать устройство вывода звука."
+    },
+    "player_audio_output_again": {
+        "message": "Звук выводится по умолчанию: нажмите здесь, чтобы вывести его через $1."
     }
 }

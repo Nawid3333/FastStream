@@ -1276,5 +1276,26 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "Abbassare la qualità video quando questo computer non riesce a mostrare tutti i fotogrammi in tempo (il player ti avviserà ogni volta)"
+    },
+    "player_audio_output_label": {
+        "message": "Uscita audio"
+    },
+    "player_audio_output_default": {
+        "message": "Uscita predefinita"
+    },
+    "player_audio_output_choose": {
+        "message": "Scegli un'uscita…"
+    },
+    "player_audio_output_device": {
+        "message": "L'uscita scelta"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 non è disponibile: l'audio viene riprodotto sull'uscita predefinita. Scegli di nuovo il dispositivo nel menu audio."
+    },
+    "player_audio_output_refused": {
+        "message": "Questa pagina non permette al lettore di scegliere l'uscita audio."
+    },
+    "player_audio_output_again": {
+        "message": "L'audio viene riprodotto sull'uscita predefinita: clicca qui per riprodurlo su $1."
     }
 }

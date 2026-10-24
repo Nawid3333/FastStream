@@ -12,6 +12,7 @@ import {SourcesBrowser} from './ui/SourcesBrowser.mjs';
 import {PlayerLoader} from './players/PlayerLoader.mjs';
 import {DOMElements} from './ui/DOMElements.mjs';
 import {AudioOutput} from './ui/audio/AudioOutput.mjs';
+import {AudioOutputDevice} from './ui/audio/AudioOutputDevice.mjs';
 import {EnvUtils} from './utils/EnvUtils.mjs';
 import {Localize} from './modules/Localize.mjs';
 import {DroppedFrameWatch, lowerLevel, qualityLabel} from './players/DroppedFrameWatch.mjs';
@@ -228,6 +229,12 @@ export class FastStreamClient extends EventEmitter {
     if (EnvUtils.isWebAudioSupported()) {
       /** @type {AudioOutput} */
       this.audioOutput = new AudioOutput();
+      /** Where the sound goes: the default output, or a device the user chose. */
+      this.audioOutputDevice = new AudioOutputDevice({load: (key) => Utils.getConfig(key), save: (key, value) => Utils.setConfig(key, value)});
+      this.audioOutput.onChannelCount = (count) => this.audioOutputDevice?.setChannelCount(count);
+      this.audioOutputDevice.onGone = (choice) => this.audioOutputFailed(choice, 'player_audio_output_failed');
+      // Chosen, from the notice or the audio list: what the notice said is no longer so.
+      this.audioOutputDevice.onChange = () => this.interfaceController.setStatusMessage(StatusTypes.AUDIO_OUTPUT, null);
       /** @type {AudioContext|null|undefined} */
       this.audioContext = new AudioContext();
       this.audioOutput.setupNodes(this.audioContext);
@@ -994,7 +1001,45 @@ export class FastStreamClient extends EventEmitter {
     });
     this.audioOutput.setupNodes(this.audioContext);
     /** @type {VirtualAudioNode} */ (this.audioOutput.getInputNode()).connectFrom(this.audioOutputNode);
-    /** @type {VirtualAudioNode} */ (this.audioOutput.getOutputNode()).connect(this.audioContext.destination);
+    this.attachAudioOutputDevice();
+  }
+
+  /**
+   * The video's sound to the output the user chose (AudioOutputDevice), or to the default one.
+   * A chosen device that is gone or no longer allowed leaves the default output, and the
+   * status line says so: the sound never moves without a word.
+   */
+  attachAudioOutputDevice() {
+    const output = /** @type {VirtualAudioNode} */ (this.audioOutput.getOutputNode());
+    const device = this.audioOutputDevice;
+    if (!device) {
+      output.connect(/** @type {AudioContext} */ (this.audioContext).destination);
+      return;
+    }
+    device.attach(/** @type {AudioContext} */ (this.audioContext), output).then(({failed}) => {
+      // Firefox lets a page use a device only once chosen in that very page (measured on
+      // Firefox 158: NotFoundError in the next video's), and the chooser only from a click.
+      if (failed) this.audioOutputFailed(failed, 'player_audio_output_again');
+      this.interfaceController.updateAudioOutputs?.();
+    }).catch((e) => console.warn('The audio output was not set', e));
+  }
+
+  /**
+   * The device chosen for the sound does not play it: it plays on the default output, and the
+   * status line says so. A click on it opens Firefox's chooser with that device picked, and
+   * the sound goes there.
+   * @param {import('./ui/audio/AudioOutputDevice.mjs').OutputChoice} choice
+   * @param {string} key - player_audio_output_again (a new video) or _failed (it went away).
+   */
+  audioOutputFailed(choice, key) {
+    const device = this.audioOutputDevice;
+    const name = choice.label || Localize.getMessage('player_audio_output_device');
+    this.interfaceController.setStatusMessage(StatusTypes.AUDIO_OUTPUT, Localize.getMessage(key, [name]), 'warning', 15000, () => {
+      // In the click itself: Firefox's chooser needs it.
+      device?.choose().then(() => this.interfaceController.updateAudioOutputs?.(),
+          (e) => this.interfaceController.audioOutputRefused(e));
+    });
+    this.interfaceController.updateAudioOutputs?.();
   }
 
   /**
@@ -2118,6 +2163,7 @@ export class FastStreamClient extends EventEmitter {
     }
 
     if (this.audioContext) {
+      this.audioOutputDevice?.release();
       this.audioContext.close().catch(()=>{});
       this.audioContext = null;
     }

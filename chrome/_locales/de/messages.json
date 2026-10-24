@@ -1276,5 +1276,26 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "Videoqualität senken, wenn dieser Computer nicht alle Bilder rechtzeitig anzeigen kann (der Player informiert dich jedes Mal)"
+    },
+    "player_audio_output_label": {
+        "message": "Audioausgabe"
+    },
+    "player_audio_output_default": {
+        "message": "Standardausgabe"
+    },
+    "player_audio_output_choose": {
+        "message": "Ausgabe wählen…"
+    },
+    "player_audio_output_device": {
+        "message": "Die gewählte Ausgabe"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 ist nicht verfügbar: Der Ton wird über die Standardausgabe wiedergegeben. Wähle das Gerät im Audiomenü erneut."
+    },
+    "player_audio_output_refused": {
+        "message": "Diese Seite erlaubt es dem Player nicht, die Audioausgabe zu wählen."
+    },
+    "player_audio_output_again": {
+        "message": "Der Ton wird über die Standardausgabe wiedergegeben: klicke hier, um ihn über $1 abzuspielen."
     }
 }

@@ -1276,5 +1276,26 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "当此电脑无法及时显示所有帧时降低视频质量（播放器每次都会通知您）"
+    },
+    "player_audio_output_label": {
+        "message": "音频输出"
+    },
+    "player_audio_output_default": {
+        "message": "默认输出"
+    },
+    "player_audio_output_choose": {
+        "message": "选择输出设备…"
+    },
+    "player_audio_output_device": {
+        "message": "所选输出设备"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 不可用：声音将通过默认输出播放。请在音频菜单中重新选择。"
+    },
+    "player_audio_output_refused": {
+        "message": "此页面不允许播放器选择音频输出。"
+    },
+    "player_audio_output_again": {
+        "message": "声音通过默认输出播放：点击此处通过 $1 播放。"
     }
 }

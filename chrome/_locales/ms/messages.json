@@ -1276,5 +1276,26 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "Turunkan kualiti video apabila komputer ini tidak dapat memaparkan semua bingkai tepat pada masanya (pemain akan memberitahu anda setiap kali)"
+    },
+    "player_audio_output_label": {
+        "message": "Output audio"
+    },
+    "player_audio_output_default": {
+        "message": "Output lalai"
+    },
+    "player_audio_output_choose": {
+        "message": "Pilih output…"
+    },
+    "player_audio_output_device": {
+        "message": "Output yang dipilih"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 tidak tersedia: bunyi dimainkan pada output lalai. Pilih semula dalam menu audio."
+    },
+    "player_audio_output_refused": {
+        "message": "Halaman ini tidak membenarkan pemain memilih output audio."
+    },
+    "player_audio_output_again": {
+        "message": "Bunyi dimainkan pada output lalai: klik di sini untuk memainkannya pada $1."
     }
 }

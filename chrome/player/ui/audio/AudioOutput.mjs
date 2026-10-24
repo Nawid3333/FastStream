@@ -21,6 +21,8 @@ export class AudioOutput extends AbstractAudioModule {
     this.cachedChannelCount = null;
     this.channelCounterPromise = null;
     this.channelCounterNode = null;
+    /** @type {?((count: number) => void)} Told the output's channel count (AudioOutputDevice's detour). */
+    this.onChannelCount = null;
   }
 
   /**
@@ -47,6 +49,7 @@ export class AudioOutput extends AbstractAudioModule {
     this.getInputChannelCount().then((count) => {
       try {
         /** @type {AudioContext} */ (this.audioContext).destination.channelCount = Utils.clamp(count, 2, /** @type {AudioContext} */ (this.audioContext).destination.maxChannelCount);
+        this.onChannelCount?.(/** @type {AudioContext} */ (this.audioContext).destination.channelCount);
       } catch (e) {
       }
     }).catch((e) => {

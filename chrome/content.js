@@ -487,7 +487,9 @@
           newURL.searchParams.set('parent_frame_id', request.frameId);
           iframe.src = newURL.href;
           iframe.allowFullscreen = true;
-          iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+          // speaker-selection: the player's choice of audio output (AudioOutputDevice.mjs); without
+          // it Firefox refuses selectAudioOutput and setSinkId in the frame.
+          iframe.allow = 'autoplay; fullscreen; picture-in-picture; speaker-selection';
           const watcher = pauseAllWithin(document.body);
           // Remove everything from the document
           document.body.appendChild(iframe);
@@ -501,7 +503,9 @@
         // copy styles
         const iframe = document.createElement('iframe');
         iframe.allowFullscreen = true;
-        iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+        // speaker-selection: the player's choice of audio output (AudioOutputDevice.mjs); without
+        // it Firefox refuses selectAudioOutput and setSinkId in the frame.
+        iframe.allow = 'autoplay; fullscreen; picture-in-picture; speaker-selection';
         iframe.style.display = 'none';
         newURL.searchParams.set('parent_frame_id', request.frameId);
         iframe.src = newURL.href;

@@ -1276,5 +1276,26 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "Bu bilgisayar tüm kareleri zamanında gösteremediğinde video kalitesini düşür (oynatıcı her seferinde sizi bilgilendirir)"
+    },
+    "player_audio_output_label": {
+        "message": "Ses çıkışı"
+    },
+    "player_audio_output_default": {
+        "message": "Varsayılan çıkış"
+    },
+    "player_audio_output_choose": {
+        "message": "Bir çıkış seçin…"
+    },
+    "player_audio_output_device": {
+        "message": "Seçilen çıkış"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 kullanılamıyor: ses varsayılan çıkıştan çalıyor. Ses menüsünden tekrar seçin."
+    },
+    "player_audio_output_refused": {
+        "message": "Bu sayfa, oynatıcının ses çıkışını seçmesine izin vermiyor."
+    },
+    "player_audio_output_again": {
+        "message": "Ses varsayılan çıkıştan çalıyor: $1 üzerinden çalmak için buraya tıklayın."
     }
 }

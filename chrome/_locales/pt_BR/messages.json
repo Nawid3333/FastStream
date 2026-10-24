@@ -1276,5 +1276,26 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "Reduzir a qualidade do vídeo quando este computador não conseguir exibir todos os quadros a tempo (o player avisará cada vez)"
+    },
+    "player_audio_output_label": {
+        "message": "Saída de áudio"
+    },
+    "player_audio_output_default": {
+        "message": "Saída padrão"
+    },
+    "player_audio_output_choose": {
+        "message": "Escolher uma saída…"
+    },
+    "player_audio_output_device": {
+        "message": "A saída escolhida"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 não está disponível: o som será reproduzido na saída padrão. Escolha o dispositivo novamente no menu de áudio."
+    },
+    "player_audio_output_refused": {
+        "message": "Esta página não permite que o player escolha a saída de áudio."
+    },
+    "player_audio_output_again": {
+        "message": "O som está sendo reproduzido na saída padrão: clique aqui para reproduzi-lo em $1."
     }
 }

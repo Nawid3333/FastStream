@@ -1276,5 +1276,26 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "當此電腦無法及時顯示所有影格時降低影片品質（播放器每次都會通知您）"
+    },
+    "player_audio_output_label": {
+        "message": "音訊輸出"
+    },
+    "player_audio_output_default": {
+        "message": "預設輸出"
+    },
+    "player_audio_output_choose": {
+        "message": "選擇輸出設備…"
+    },
+    "player_audio_output_device": {
+        "message": "所選輸出設備"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 不可用：聲音將透過預設輸出播放。請在音訊選單中重新選擇。"
+    },
+    "player_audio_output_refused": {
+        "message": "此頁面不允許播放器選擇音訊輸出。"
+    },
+    "player_audio_output_again": {
+        "message": "聲音透過預設輸出播放：點擊此處透過 $1 播放。"
     }
 }

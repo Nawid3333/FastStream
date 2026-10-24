@@ -1276,5 +1276,26 @@
     },
     "options_general_lowerondroppedframes": {
         "message": "Videokwaliteit verlagen wanneer deze computer niet alle frames op tijd kan weergeven (de speler meldt dit telkens)"
+    },
+    "player_audio_output_label": {
+        "message": "Audio-uitvoer"
+    },
+    "player_audio_output_default": {
+        "message": "Standaarduitvoer"
+    },
+    "player_audio_output_choose": {
+        "message": "Kies een uitvoer…"
+    },
+    "player_audio_output_device": {
+        "message": "De gekozen uitvoer"
+    },
+    "player_audio_output_failed": {
+        "message": "$1 is niet beschikbaar: het geluid wordt via de standaarduitvoer afgespeeld. Kies het apparaat opnieuw in het audiomenu."
+    },
+    "player_audio_output_refused": {
+        "message": "Deze pagina staat de speler niet toe om de audio-uitvoer te kiezen."
+    },
+    "player_audio_output_again": {
+        "message": "Het geluid wordt via de standaarduitvoer afgespeeld: klik hier om het via $1 af te spelen."
     }
 }
