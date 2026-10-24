@@ -22,10 +22,13 @@
 //     see an add-on pin, and nothing in CI downloads it, so the workflow downloads the file
 //     and checks it against AMO's SHA-256 before it pushes anything. Routine.
 //   - The player libraries the live suite plays (tests/e2e/live-specs/player-libraries.json),
-//     as one set ("players" in the plan): each at its newest release of its pinned major
-//     (the caret range) at least MIN_AGE_DAYS old that fits the ranges they declare on each
-//     other and on hls.js (the repository's own pin); a newer major is only reported. The
-//     workflow keeps ONE rolling pull request for the set (see playerTargets()).
+//     as one set ("players" in the plan): each at its newest release at least MIN_AGE_DAYS
+//     old that fits the ranges they declare on each other and on hls.js (the repository's
+//     own pin), a new major included: the live suite plays each page before the pull request
+//     is ready, and a page a major breaks keeps it red until the page is changed. MAJOR_HOLDS
+//     keeps a library on its major on purpose, each hold with its reason, while the held line
+//     still gets releases. The workflow keeps ONE rolling pull request for the set (see
+//     playerTargets()).
 //
 // Usage: node tools/check-toolchain.mjs [--json | --plan <open.json> <titles.txt>]
 //   (none)   one line per update, for reading.
@@ -217,6 +220,23 @@ export function applyAddon(text, id, {version, url, sha256}) {
 export const PLAYER_LIBRARIES = 'tests/e2e/live-specs/player-libraries.json';
 
 /**
+ * A library kept below a version on purpose: no release at or above `below` is taken. The
+ * hold stands while the line it keeps still gets releases; once its newest is older than
+ * staleAfterDays, every run fails until the hold is looked at again.
+ * @typedef {{below: string, staleAfterDays: number, reason: string}} Hold
+ */
+
+/** @type {Map<string, Hold>} */
+export const MAJOR_HOLDS = new Map([
+  ['video.js', {
+    below: '9.0.0',
+    staleAfterDays: 365,
+    reason: 'video.js 10 on npm holds no player, only errors pointing to Video.js 10, which ships as @videojs/cdn ' +
+      '(a library and page of its own here); sites keep Video.js 8, and 8.x still gets releases',
+  }],
+]);
+
+/**
  * The slice of an npm registry document the player libraries' plan reads.
  * @typedef {{
  *   versions: Object<string, {dependencies?: Object<string, string>, peerDependencies?: Object<string, string>,
@@ -388,23 +408,23 @@ function bare(version, atom) {
 }
 
 /**
- * The versions a pin may move to: plain, not deprecated, MIN_AGE_DAYS old, inside the pin's
- * caret range and not below it. Newest first, the pin itself last as the floor (even when it
- * is deprecated or young: it is what main has).
+ * The versions a pin may move to: plain, not deprecated, MIN_AGE_DAYS old, above the pin, a
+ * new major included, and below a hold's bound when the library has one. Newest first, the pin
+ * itself last as the floor (even when it is deprecated or young: it is what main has).
  * @param {RegistryDoc} doc
  * @param {string} pin
  * @param {number} now - Date.now().
  * @param {number} [minAgeDays]
+ * @param {string|null} [below] - A hold's bound: nothing at or above it.
  * @return {string[]}
  */
-export function caretCandidates(doc, pin, now, minAgeDays = MIN_AGE_DAYS) {
+export function pinCandidates(doc, pin, now, minAgeDays = MIN_AGE_DAYS, below = null) {
   const cutoff = now - minAgeDays * DAY_MS;
-  const upper = caretUpper(pin.split('.').map(Number)).join('.');
   const offered = Object.keys(doc.versions).filter((version) =>
     PLAIN_VERSION.test(version) && version !== pin &&
     !doc.versions[version].deprecated &&
     compareVersions(version, pin) > 0 &&
-    compareVersions(version, upper) < 0 &&
+    (below === null || compareVersions(version, below) < 0) &&
     Date.parse(doc.time[version]) <= cutoff);
   offered.sort((a, b) => compareVersions(b, a));
   offered.push(pin);
@@ -412,23 +432,49 @@ export function caretCandidates(doc, pin, now, minAgeDays = MIN_AGE_DAYS) {
 }
 
 /**
- * The newest release above the pin's caret range that is old enough: a new major, which is
- * reported and never taken. Null when there is none.
+ * The newest old-enough release at or above a hold's bound: what the hold keeps out. Null
+ * when there is none.
  * @param {RegistryDoc} doc
- * @param {string} pin
+ * @param {string} below
  * @param {number} now - Date.now().
  * @param {number} [minAgeDays]
  * @return {string|null}
  */
-export function newerMajor(doc, pin, now, minAgeDays = MIN_AGE_DAYS) {
+export function aboveHold(doc, below, now, minAgeDays = MIN_AGE_DAYS) {
   const cutoff = now - minAgeDays * DAY_MS;
-  const upper = caretUpper(pin.split('.').map(Number)).join('.');
   const above = Object.keys(doc.versions).filter((version) =>
     PLAIN_VERSION.test(version) &&
     !doc.versions[version].deprecated &&
-    compareVersions(version, upper) >= 0 &&
+    compareVersions(version, below) >= 0 &&
     Date.parse(doc.time[version]) <= cutoff);
   return above.sort(compareVersions).pop() || null;
+}
+
+/**
+ * What is wrong with a hold, if anything: a library player-libraries.json does not pin, a pin
+ * already at or above the bound, or a held line that has stopped getting releases (its
+ * newest is older than the hold's staleAfterDays, or has no date the registry gives).
+ * @param {string} name
+ * @param {Hold} hold
+ * @param {string|undefined} pin
+ * @param {RegistryDoc|null} doc - Null when it could not be read: the run reports that itself.
+ * @param {number} now - Date.now().
+ * @return {string|null}
+ */
+export function holdProblem(name, hold, pin, doc, now) {
+  if (pin === undefined) return `MAJOR_HOLDS holds ${name}, which ${PLAYER_LIBRARIES} does not pin: drop the hold`;
+  if (compareVersions(pin, hold.below) >= 0) return `${name} is pinned at ${pin}, not below its hold's ${hold.below}: drop the hold`;
+  if (!doc?.versions) return null;
+  const kept = Object.keys(doc.versions).filter((version) =>
+    PLAIN_VERSION.test(version) && compareVersions(version, hold.below) < 0 && !doc.versions[version].deprecated);
+  const newest = kept.sort(compareVersions).pop();
+  const when = newest ? String(doc.time?.[newest] || '') : '';
+  if (!(now - Date.parse(when) <= hold.staleAfterDays * DAY_MS)) {
+    return `${name} below ${hold.below} has had no release for over ${hold.staleAfterDays} days (newest ${newest || 'none'}` +
+      `${newest ? `, ${when.slice(0, 10) || 'no date'}` : ''}): is it still supported? Look at its hold in MAJOR_HOLDS ` +
+      `(${hold.reason}), and drop it or give it a longer staleAfterDays`;
+  }
+  return null;
 }
 
 /**
@@ -443,14 +489,19 @@ export function newerMajor(doc, pin, now, minAgeDays = MIN_AGE_DAYS) {
  * @param {Object<string, string>} fixed - The versions the repository pins itself.
  * @param {number} now - Date.now().
  * @param {number} [minAgeDays]
+ * @param {Map<string, Hold>} [holds]
  * @return {{target: Object<string, string>, changes: Array<{name: string, from: string, to: string}>,
+ *     newMajors: Array<{name: string, from: string, to: string}>,
  *     held: Array<{name: string, version: string, newest: string}>,
- *     majors: Array<{name: string, current: string, latest: string}>,
- *     unresolved: Array<{name: string, version: string, needs: string, range: string}>}}
- *     held: a newer candidate that a range keeps out; unresolved: a range that does not hold
- *     even at the pins (main's own state).
+ *     kept: Array<{name: string, version: string, latest: string, below: string, reason: string}>,
+ *     unresolved: Array<{name: string, version: string, needs: string, range: string}>,
+ *     holdProblems: string[]}}
+ *     newMajors: the changes that leave the pin's major (its caret range); held: a newer
+ *     candidate that a range keeps out; kept: a newer release a hold keeps out; unresolved: a
+ *     range that does not hold even at the pins (main's own state); holdProblems: holds to
+ *     look at again (holdProblem()), which the run reports as errors.
  */
-export function playerTargets(pins, docs, fixed, now, minAgeDays = MIN_AGE_DAYS) {
+export function playerTargets(pins, docs, fixed, now, minAgeDays = MIN_AGE_DAYS, holds = MAJOR_HOLDS) {
   const names = Object.keys(pins);
   // Maps, not objects: the names come from files and the registry, and none may reach a
   // prototype (CodeQL js/remote-property-injection).
@@ -462,21 +513,31 @@ export function playerTargets(pins, docs, fixed, now, minAgeDays = MIN_AGE_DAYS)
   const target = new Map();
   /** @type {Map<string, string>} */
   const fixedVersions = new Map(Object.entries(fixed));
-  const majors = [];
+  /** @type {Map<string, string>} */
+  const pinned = new Map(Object.entries(pins));
+  const kept = [];
   const unresolved = [];
   const reported = new Set();
+  const holdProblems = [];
 
+  for (const [name, hold] of holds) {
+    const problem = holdProblem(name, hold, pinned.get(name), Object.hasOwn(docs, name) ? docs[name] : null, now);
+    if (problem) holdProblems.push(problem);
+  }
   for (const name of names) {
     const pin = pins[name];
     const doc = Object.hasOwn(docs, name) ? docs[name] : null;
     if (!doc?.versions) throw new Error(`no registry document for ${name}`);
     if (!Object.hasOwn(doc.versions, pin)) throw new Error(`the registry has no ${name}@${pin}`);
-    const candidates = caretCandidates(doc, pin, now, minAgeDays);
+    const hold = holds.get(name);
+    // A hold the pin has passed already holds nothing (holdProblems says so).
+    const below = hold && compareVersions(pin, hold.below) < 0 ? hold.below : null;
+    const candidates = pinCandidates(doc, pin, now, minAgeDays, below);
     ladder.set(name, candidates);
     step.set(name, 0);
     target.set(name, candidates[0]);
-    const latest = newerMajor(doc, pin, now, minAgeDays);
-    if (latest) majors.push({name, current: pin, latest});
+    const latest = below ? aboveHold(doc, below, now, minAgeDays) : null;
+    if (hold && below && latest) kept.push({name, latest, below, reason: hold.reason});
   }
 
   /** @param {string} name */
@@ -526,8 +587,10 @@ export function playerTargets(pins, docs, fixed, now, minAgeDays = MIN_AGE_DAYS)
   /** @param {string} name */
   const newest = (name) => /** @type {string[]} */ (ladder.get(name))[0];
   const changes = names.filter((name) => at(name) !== pins[name]).map((name) => ({name, from: pins[name], to: at(name)}));
+  const newMajors = changes.filter(({from, to}) => compareVersions(to, caretUpper(from.split('.').map(Number)).join('.')) >= 0);
   const held = names.filter((name) => at(name) !== newest(name)).map((name) => ({name, version: at(name), newest: newest(name)}));
-  return {target: Object.fromEntries(names.map((name) => [name, at(name)])), changes, held, majors, unresolved};
+  return {target: Object.fromEntries(names.map((name) => [name, at(name)])), changes, newMajors, held,
+    kept: kept.map((entry) => ({...entry, version: at(entry.name)})), unresolved, holdProblems};
 }
 
 /** An npm package name, scoped or not: lower case, no leading dot or underscore. */
@@ -781,12 +844,14 @@ async function main() {
     if (set) {
       console.log(`${set.behind ? 'UPDATE' : 'ok    '}  player libraries: ${set.changes.map(
           (/** @type {{name: string, from: string, to: string}} */ c) => `${c.name} ${c.from} -> ${c.to}`).join(', ') || 'all current'}`);
-      for (const major of set.majors) console.log(`        a newer major, not taken: ${major.name} ${major.latest} (pinned ${major.current})`);
+      for (const major of set.newMajors) console.log(`        a new major: ${major.name} ${major.from} -> ${major.to}`);
+      for (const kept of set.kept) console.log(`        kept below ${kept.below} on purpose: ${kept.name} ${kept.latest} (stays ${kept.version})`);
       for (const held of set.held) console.log(`        held back by a range: ${held.name} ${held.newest} (stays ${held.version})`);
     }
   }
   for (const error of errors) console.error(`could not read ${error}`);
-  if (errors.length) process.exitCode = 1;
+  for (const problem of set?.holdProblems || []) console.error(problem);
+  if (errors.length || set?.holdProblems.length) process.exitCode = 1;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
