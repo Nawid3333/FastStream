@@ -216,6 +216,17 @@ players_held_and_unresolved() {
   check 'nothing reads null' bash -c '! grep -qw null "$0"' "$STATE/created.body"
 }
 
+players_same_set_live_never_ran() {
+  # Only a pull_request run waiting for an approval (action_required): it never ran.
+  setup
+  players_open "$A"
+  echo '[{"status": "completed", "conclusion": "success"}]' > "$STATE/runs-$head"
+  echo '[{"status": "completed", "conclusion": "action_required"}]' > "$STATE/live-runs-$head"
+  players_plan "$A" "$CHANGES"
+  run_step
+  check 'the live suite started once' test "$(n_calls '^workflow run live-streams.yml --ref toolchain/player-libraries$')" = 1
+}
+
 players_same_set_timed_out() {
   # A live run that timed out decides nothing: the weekly run starts one.
   setup
@@ -938,6 +949,7 @@ players_same_set_both_ran
 players_same_set_starts_live
 players_held_and_unresolved
 players_same_set_timed_out
+players_same_set_live_never_ran
 players_same_set_starts_ci
 players_changed_set
 players_conflicting
