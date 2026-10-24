@@ -1,10 +1,11 @@
+import {createHash} from 'node:crypto';
 import fs from 'node:fs';
 // js-yaml 5 has no default export, only named ones; this form reads 4 and 5 alike.
 import * as yaml from 'js-yaml';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {
-  addonVersion, applyAddon, getJson, latestLtsMajor, MIN_AGE_DAYS, newestAddon, newestOfMajor, plan, projectNodeMajor,
-  TITLE_PREFIX, UBLOCK,
+  addonVersion, applyAddon, applyPlayers, caretCandidates, getJson, latestLtsMajor, MIN_AGE_DAYS, newerMajor, newestAddon,
+  newestOfMajor, plan, PLAYER_LIBRARIES, playerState, playerTargets, projectNodeMajor, relation, TITLE_PREFIX, UBLOCK,
 } from '../../tools/check-toolchain.mjs';
 import {ADDONS} from '../../tools/setup-dev-profile.mjs';
 
@@ -452,5 +453,546 @@ describe('getJson', () => {
     vi.stubGlobal('fetch', fetch);
     await getJson('https://example.com/d', {wait});
     expect(fetch.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+// The player libraries the live suite plays: the set the rolling pull request offers.
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const NOW = Date.parse('2026-06-01T00:00:00.000Z');
+
+/**
+ * Registry doc with terse entries; `age` is days published before `atNow`
+ * (default 30 clears every MIN_AGE_DAYS check; 1 day never does).
+ * @typedef {{ dependencies?: Record<string, string>, peerDependencies?: Record<string, string>, deprecated?: boolean | string }} DocVersion
+ * @typedef {{ versions: Record<string, DocVersion>, time: Record<string, string> }} Doc
+ * @param {number} atNow
+ * @param {Record<string, { age?: number, deprecated?: boolean, deps?: Record<string, string>, peer?: Record<string, string> }>} entries
+ * @return {Doc}
+ */
+function docOf(atNow, entries) {
+  /** @type {Doc} */
+  const doc = {versions: {}, time: {}};
+  for (const [version, entry] of Object.entries(entries)) {
+    /** @type {DocVersion} */
+    const record = {};
+    if (entry.deps) record.dependencies = entry.deps;
+    if (entry.peer) record.peerDependencies = entry.peer;
+    if (entry.deprecated) record.deprecated = 'unmaintained';
+    doc.versions[version] = record;
+    doc.time[version] = new Date(atNow - (entry.age ?? 30) * DAY_MS).toISOString();
+  }
+  return doc;
+}
+
+describe('relation', () => {
+  // version, range, verdict ÔÇö one row per listed form and verdict
+  /** @type {[string, string, string][]} */
+  const cases = [
+    // exact, '=', 'v'
+    ['1.2.3', '1.2.3', 'in'],
+    ['1.2.2', '1.2.3', 'below'],
+    ['1.2.4', '1.2.3', 'above'],
+    ['1.2.3', '=1.2.3', 'in'],
+    ['1.3.0', '=1.2.3', 'above'],
+    ['1.2.3', 'v1.2.3', 'in'],
+    ['1.2.3', '=v1.2.3', 'in'],
+    // caret, full
+    ['1.5.0', '^1.2.3', 'in'],
+    ['1.2.2', '^1.2.3', 'below'],
+    ['2.0.0', '^1.2.3', 'above'],
+    ['0.3.6', '^0.3.5', 'in'],
+    ['0.3.4', '^0.3.5', 'below'],
+    ['0.4.0', '^0.3.5', 'above'],
+    ['0.0.4', '^0.0.4', 'in'],
+    ['0.0.5', '^0.0.4', 'above'],
+    ['0.0.3', '^0.0.4', 'below'],
+    // caret, short
+    ['1.9.0', '^1.2', 'in'],
+    ['1.0.0', '^1.2', 'below'],
+    ['1.5.0', '^1', 'in'],
+    ['2.0.0', '^1', 'above'],
+    ['0.3.9', '^0.3', 'in'],
+    ['0.4.0', '^0.3', 'above'],
+    // tilde
+    ['1.2.9', '~1.2.3', 'in'],
+    ['1.2.2', '~1.2.3', 'below'],
+    ['1.3.0', '~1.2.3', 'above'],
+    ['1.2.0', '~1.2', 'in'],
+    ['1.1.0', '~1.2', 'below'],
+    ['1.3.0', '~1.2', 'above'],
+    ['1.5.0', '~1', 'in'],
+    ['2.0.0', '~1', 'above'],
+    // comparators
+    ['1.2.3', '>=1.2.3', 'in'],
+    ['1.2.2', '>=1.2.3', 'below'],
+    ['1.2.4', '>1.2.3', 'in'],
+    ['1.2.3', '>1.2.3', 'below'],
+    ['1.9.9', '<2.0.0', 'in'],
+    ['2.0.0', '<2.0.0', 'above'],
+    ['2.0.0', '<=2.0.0', 'in'],
+    ['2.0.1', '<=2.0.0', 'above'],
+    // space-separated AND
+    ['1.5.0', '>=1.2.3 <2.0.0', 'in'],
+    ['1.2.2', '>=1.2.3 <2.0.0', 'below'],
+    ['2.0.0', '>=1.2.3 <2.0.0', 'above'],
+    ['1.5.0', '>1.2.3 <=2.0.0', 'in'],
+    ['1.5.0', '>=1.0.0 latest', 'unknown'],
+    // x, wildcard, bare partial
+    ['1.5.0', '1.x', 'in'],
+    ['2.0.0', '1.x', 'above'],
+    ['0.9.9', '1.x', 'below'],
+    ['1.2.5', '1.2.x', 'in'],
+    ['1.1.9', '1.2.x', 'below'],
+    ['1.3.0', '1.2.x', 'above'],
+    ['1.5.0', '1', 'in'],
+    ['2.0.0', '1', 'above'],
+    ['0.9.0', '1', 'below'],
+    ['0.0.1', '*', 'in'],
+    ['7.7.7', '', 'in'],
+    // '||' alternatives
+    ['1.2.3', '1.2.3 || 3.4.5', 'in'],
+    ['3.4.5', '1.2.3 || 3.4.5', 'in'],
+    ['3.9.0', '1.2.3 || 3.4.5', 'above'],
+    ['1.0.0', '1.2.3 || 3.4.5', 'below'],
+    ['2.0.0', '1.2.3 || 3.4.5', 'unknown'],
+    ['1.5.0', '^1.2.0 || ^2.0.0', 'in'],
+    ['2.5.0', '^1.2.0 || ^2.0.0', 'in'],
+    ['3.0.0', '^1.2.0 || ^2.0.0', 'above'],
+    ['4.0.0', '>=1.2.3 <2.0.0 || >=3.0.0', 'in'],
+    ['2.5.0', '>=1.2.3 <2.0.0 || >=3.0.0', 'unknown'],
+    // unreadable
+    ['1.0.0', 'latest', 'unknown'],
+    ['1.0.0', 'workspace:*', 'unknown'],
+    ['1.0.0', 'npm:x@^1.0.0', 'unknown'],
+    ['1.0.0', 'https://example.com/x.tgz', 'unknown'],
+    ['1.0.0', 'git+ssh://example.com/x.git', 'unknown'],
+    ['1.0.0', '1.2.3 - 1.4.0', 'unknown'],
+    ['1.0.0', '>=latest', 'unknown'],
+    ['1.0.0-rc.0', '<2.0.0', 'unknown'],
+    // A partial bound stands for all it names, as npm reads it: >1.2 is >=1.3.0, <=1.2 is <1.3.0.
+    ['1.2.5', '>1.2', 'below'],
+    ['1.3.0', '>1.2', 'in'],
+    ['1.9.9', '>1', 'below'],
+    ['2.0.0', '>1', 'in'],
+    ['0.4.5', '>0.4', 'below'],
+    ['1.2.9', '<=1.2', 'in'],
+    ['1.3.0', '<=1.2', 'above'],
+    ['1.5.0', '<=1', 'in'],
+    ['2.0.0', '<=1', 'above'],
+    ['1.2.0', '>=1.2', 'in'],
+    ['1.1.9', '>=1.2', 'below'],
+    ['1.1.9', '<1.2', 'in'],
+    ['1.2.0', '<1.2', 'above'],
+    // Mixed sides in one AND: above wins, as the code reads it.
+    ['1.9.0', '1.2.x >=2.0.0', 'above'],
+    // ^0, a caret that cannot be read, numbers of more than one digit, a v on a bound.
+    ['0.9.9', '^0', 'in'],
+    ['1.0.0', '^0', 'above'],
+    ['1.0.0', '^latest', 'unknown'],
+    ['1.0.0', '~workspace:*', 'unknown'],
+    ['15.0.0', '^12.0.0', 'above'],
+    ['12.10.0', '^12.9.0', 'in'],
+    ['1.0.0', '>=10.0.0', 'below'],
+    ['1.5.0', '^v1.2.3', 'in'],
+    ['1.2.2', '>=v1.2.3', 'below'],
+  ];
+  it.each(cases)('%s vs %s is %s', (version, range, verdict) => {
+    expect(relation(version, range)).toBe(verdict);
+  });
+});
+
+describe('caretCandidates, more', () => {
+  it('lists the candidates newest first, as numbers', () => {
+    const doc = docOf(NOW, {'1.4.0': {}, '1.5.0': {}, '1.10.0': {}, '1.6.0': {}});
+    expect(caretCandidates(doc, '1.4.0', NOW)).toEqual(['1.10.0', '1.6.0', '1.5.0', '1.4.0']);
+  });
+
+  it('takes a release exactly MIN_AGE_DAYS old, and a younger one with a shorter wait', () => {
+    const doc = docOf(NOW, {'1.4.0': {}, '1.4.1': {age: MIN_AGE_DAYS}, '1.4.2': {age: 1}});
+    expect(caretCandidates(doc, '1.4.0', NOW)).toEqual(['1.4.1', '1.4.0']);
+    expect(caretCandidates(doc, '1.4.0', NOW, 1)).toEqual(['1.4.2', '1.4.1', '1.4.0']);
+  });
+});
+
+describe('playerTargets, more', () => {
+  it('ignores a range on a package outside the set', () => {
+    const docs = {plyr: docOf(NOW, {'3.8.5': {}, '3.9.0': {deps: {lodash: '^4.17.0'}}})};
+    expect(playerTargets({plyr: '3.8.5'}, docs, {}, NOW).target).toEqual({plyr: '3.9.0'});
+  });
+
+  it('steps down the library that is too new, not the one that declares the range', () => {
+    const docs = {
+      a: docOf(NOW, {'1.0.0': {peer: {b: '1.0.0'}}, '1.1.0': {peer: {b: '1.0.0'}}}),
+      b: docOf(NOW, {'1.0.0': {}, '1.1.0': {}}),
+    };
+    const set = playerTargets({a: '1.0.0', b: '1.0.0'}, docs, {}, NOW);
+    expect(set.target).toEqual({a: '1.1.0', b: '1.0.0'});
+    expect(set.held).toEqual([{name: 'b', version: '1.0.0', newest: '1.1.0'}]);
+  });
+
+  it('steps down the library that needs a newer one, not the one it needs', () => {
+    const docs = {
+      a: docOf(NOW, {'1.0.0': {}, '1.2.0': {deps: {b: '>=2.0.0'}}}),
+      b: docOf(NOW, {'1.0.0': {}, '1.9.0': {}}),
+    };
+    const set = playerTargets({a: '1.0.0', b: '1.0.0'}, docs, {}, NOW);
+    expect(set.target).toEqual({a: '1.0.0', b: '1.9.0'});
+    expect(set.held).toEqual([{name: 'a', version: '1.0.0', newest: '1.2.0'}]);
+  });
+
+  it('reads a peer range over a dependency range on the same package', () => {
+    const docs = {
+      'xgplayer': docOf(NOW, {'3.0.26': {}, '3.0.27': {}}),
+      'xgplayer-hls': docOf(NOW, {'3.0.26': {}, '3.0.27': {deps: {xgplayer: '3.0.26'}, peer: {xgplayer: '^3.0.26'}}}),
+    };
+    expect(playerTargets({'xgplayer': '3.0.26', 'xgplayer-hls': '3.0.26'}, docs, {}, NOW).target)
+        .toEqual({'xgplayer': '3.0.27', 'xgplayer-hls': '3.0.27'});
+  });
+
+  it('passes its wait on', () => {
+    const docs = {plyr: docOf(NOW, {'3.8.5': {}, '3.8.6': {age: 1}})};
+    expect(playerTargets({plyr: '3.8.5'}, docs, {}, NOW).target).toEqual({plyr: '3.8.5'});
+    expect(playerTargets({plyr: '3.8.5'}, docs, {}, NOW, 1).target).toEqual({plyr: '3.8.6'});
+  });
+
+  it('keeps a name such as __proto__ a name, never a prototype', () => {
+    // JSON.parse makes "__proto__" an own key, as a file or the registry could.
+    const pins = JSON.parse('{"__proto__": "1.0.0"}');
+    const docs = JSON.parse(`{"__proto__": ${JSON.stringify(docOf(NOW, {'1.0.0': {}, '1.0.1': {}}))}}`);
+    const set = playerTargets(pins, docs, {}, NOW);
+    expect(Object.keys(set.target)).toEqual(['__proto__']);
+    expect(Object.getOwnPropertyDescriptor(set.target, '__proto__')?.value).toBe('1.0.1');
+    expect(set.changes).toEqual([{name: '__proto__', from: '1.0.0', to: '1.0.1'}]);
+  });
+});
+
+describe('caretCandidates', () => {
+  it('keeps plain, non-deprecated, aged versions inside a 1.x pin\u2019s caret, newest first, pin last', () => {
+    const doc = docOf(NOW, {
+      '1.2.0': {age: 30}, // below the pin
+      '1.4.0': {age: 30}, // the pin itself
+      '1.5.0': {age: 30},
+      '1.6.0': {age: 30, deprecated: true},
+      '1.7.0-rc.0': {age: 30}, // prerelease: compareVersions cannot be trusted on it
+      '1.8.0': {age: 1}, // too young
+      '2.0.0': {age: 30}, // NEW MAJOR, above the caret range
+    });
+    expect(caretCandidates(doc, '1.4.0', NOW)).toEqual(['1.5.0', '1.4.0']);
+  });
+
+  it('uses the 0.y rule for 0.x pins', () => {
+    const doc = docOf(NOW, {
+      '0.2.9': {age: 30}, // below the pin
+      '0.3.5': {age: 30}, // the pin
+      '0.3.6': {age: 30},
+      '0.3.6-beta.1': {age: 30}, // prerelease
+      '0.3.7': {age: 1}, // too young
+      '0.4.0': {age: 30}, // same 0.x family boundary: outside the caret range
+    });
+    expect(caretCandidates(doc, '0.3.5', NOW)).toEqual(['0.3.6', '0.3.5']);
+  });
+
+  it('uses the 0.0.z rule for 0.0.x pins: ^0.0.4 is 0.0.4 alone, so 0.0.5 is a new major', () => {
+    const doc = docOf(NOW, {
+      '0.0.3': {age: 30}, // below the pin
+      '0.0.4': {age: 30}, // the pin
+      '0.0.5': {age: 30}, // outside the caret range
+      '0.0.6': {age: 1}, // too young
+      '0.1.0': {age: 30}, // outside the caret range
+    });
+    expect(caretCandidates(doc, '0.0.4', NOW)).toEqual(['0.0.4']);
+    expect(newerMajor(doc, '0.0.4', NOW)).toBe('0.1.0');
+  });
+
+  it('always offers the pin as the floor, even when it is deprecated or too young', () => {
+    const deprecated = docOf(NOW, {'2.1.0': {age: 30, deprecated: true}});
+    expect(caretCandidates(deprecated, '2.1.0', NOW)).toEqual(['2.1.0']);
+    const young = docOf(NOW, {'3.0.0': {age: 1}});
+    expect(caretCandidates(young, '3.0.0', NOW)).toEqual(['3.0.0']);
+  });
+});
+
+describe('newerMajor', () => {
+  it('returns the newest eligible release above the caret range, or null', () => {
+    const doc = docOf(NOW, {
+      '1.9.9': {age: 30}, // inside the caret range
+      '2.0.0-rc.0': {age: 30}, // prerelease
+      '2.0.0': {age: 30}, // the caret\u2019s exclusive edge still counts as above it
+      '2.1.0': {age: 30},
+      '2.5.0': {age: 1}, // too young
+      '3.0.0': {age: 30, deprecated: true},
+    });
+    expect(newerMajor(doc, '1.2.3', NOW)).toBe('2.1.0');
+    expect(newerMajor(doc, '1.9.9', NOW)).toBe('2.1.0');
+    const zero = docOf(NOW, {'0.3.5': {age: 30}, '0.3.9': {age: 30}, '0.4.0': {age: 30}});
+    expect(newerMajor(zero, '0.3.5', NOW)).toBe('0.4.0'); // 0.3.9 sits inside, 0.4.0 is the new major
+  });
+
+  it('returns null when nothing eligible sits above the caret range', () => {
+    const only = docOf(NOW, {'1.2.3': {age: 30}, '1.3.0': {age: 1}});
+    expect(newerMajor(only, '1.2.3', NOW)).toBeNull();
+  });
+});
+
+describe('playerState', () => {
+  it('hashes the sorted name@version lines to 12 hex characters', () => {
+    const expected = createHash('sha256').update('a@1.0.0\nb@2.0.0').digest('hex').slice(0, 12);
+    expect(playerState({b: '2.0.0', a: '1.0.0'})).toBe(expected);
+    expect(playerState({b: '2.0.0', a: '1.0.0'})).toMatch(/^[0-9a-f]{12}$/);
+  });
+
+  it('changes when the offered set changes', () => {
+    expect(playerState({a: '1.0.0', b: '2.0.0'})).not.toBe(playerState({a: '1.0.1', b: '2.0.0'}));
+  });
+});
+
+describe('playerTargets', () => {
+  it('leaves everything alone when no caret candidate and no new major is eligible', () => {
+    const pins = {'video.js': '8.24.1'};
+    const docs = {
+      'video.js': docOf(NOW, {
+        '8.24.1': {age: 40},
+        '8.24.2': {age: 40, deprecated: true},
+        '8.25.0': {age: 1},
+        '9.0.0': {age: 1},
+      }),
+    };
+    const plan = playerTargets(pins, docs, {}, NOW);
+    expect(plan.target).toEqual({'video.js': '8.24.1'});
+    expect(plan.changes).toEqual([]);
+    expect(plan.majors).toEqual([]);
+    expect(plan.unresolved).toEqual([]);
+  });
+
+  it('moves independent packages to their newest caret candidates, in pins order, and reports majors', () => {
+    const pins = {plyr: '3.8.5', dplayer: '1.27.1', mediaelement: '7.1.0'};
+    const docs = {
+      plyr: docOf(NOW, {'3.8.5': {age: 40}, '3.9.0': {age: 40}, '4.0.0': {age: 1}}),
+      dplayer: docOf(NOW, {'1.27.1': {age: 40}, '1.27.2': {age: 5}}),
+      mediaelement: docOf(NOW, {'7.1.0': {age: 40}, '7.2.0': {age: 1}, '8.0.0': {age: 40}}),
+    };
+    const plan = playerTargets(pins, docs, {}, NOW);
+    expect(Object.keys(plan.target)).toEqual(Object.keys(pins)); // keeps the pins\u2019 key order
+    expect(plan.target).toEqual({plyr: '3.9.0', dplayer: '1.27.2', mediaelement: '7.1.0'});
+    expect(plan.changes).toEqual([
+      {name: 'plyr', from: '3.8.5', to: '3.9.0'},
+      {name: 'dplayer', from: '1.27.1', to: '1.27.2'},
+    ]);
+    expect(plan.majors).toEqual([{name: 'mediaelement', current: '7.1.0', latest: '8.0.0'}]);
+    expect(plan.unresolved).toEqual([]);
+  });
+
+  it('keeps both xgplayer packages at 3.0.26 when the peer is exact and hls lags behind', () => {
+    const pins = {'xgplayer': '3.0.26', 'xgplayer-hls': '3.0.26'};
+    const docs = {
+      'xgplayer': docOf(NOW, {
+        '3.0.26': {age: 40},
+        '3.0.27': {age: 4}, // eligible on its own, but the exact peer pulls it back down
+        '4.0.0': {age: 40}, // NEW MAJOR: only reported
+      }),
+      'xgplayer-hls': docOf(NOW, {
+        '3.0.26': {age: 40, peer: {xgplayer: '3.0.26'}},
+        '3.0.27': {age: 1}, // below MIN_AGE_DAYS, so hls stays on its floor
+      }),
+    };
+    const plan = playerTargets(pins, docs, {}, NOW);
+    expect(plan.target).toEqual({'xgplayer': '3.0.26', 'xgplayer-hls': '3.0.26'});
+    expect(plan.changes).toEqual([]);
+    expect(plan.majors).toEqual([{name: 'xgplayer', current: '3.0.26', latest: '4.0.0'}]);
+    expect(plan.held).toEqual([{name: 'xgplayer', version: '3.0.26', newest: '3.0.27'}]);
+    expect(plan.unresolved).toEqual([]);
+  });
+
+  it('moves both xgplayer packages when both releases are old enough and the peer range allows it', () => {
+    const pins = {'xgplayer': '3.0.26', 'xgplayer-hls': '3.0.26'};
+    const docs = {
+      'xgplayer': docOf(NOW, {'3.0.26': {age: 40}, '3.0.27': {age: 10}}),
+      'xgplayer-hls': docOf(NOW, {
+        '3.0.26': {age: 40, peer: {xgplayer: '3.0.26'}}, // holds either way, so nothing is blocked
+        '3.0.27': {age: 10, peer: {xgplayer: '3.0.27'}},
+      }),
+    };
+    const plan = playerTargets(pins, docs, {}, NOW);
+    expect(plan.target).toEqual({'xgplayer': '3.0.27', 'xgplayer-hls': '3.0.27'});
+    expect(plan.changes).toEqual([
+      {name: 'xgplayer', from: '3.0.26', to: '3.0.27'},
+      {name: 'xgplayer-hls', from: '3.0.26', to: '3.0.27'},
+    ]);
+    expect(plan.unresolved).toEqual([]);
+  });
+
+  it('keeps hls-video-element on its pin while its custom-media-element need is too young', () => {
+    const pins = {'hls-video-element': '1.5.11', 'custom-media-element': '1.4.6', 'media-tracks': '0.3.5'};
+    const fixed = {'hls.js': '1.6.5'};
+    const docs = {
+      'hls-video-element': docOf(NOW, {
+        '1.5.11': {age: 40, deps: {'custom-media-element': '^1.4.6', 'media-tracks': '^0.3.5', 'hls.js': '^1.6.5'}},
+        '1.5.12': {age: 40, deps: {'custom-media-element': '^1.4.7', 'media-tracks': '^0.3.5', 'hls.js': '^1.6.5'}},
+      }),
+      'custom-media-element': docOf(NOW, {'1.4.6': {age: 40}, '1.4.7': {age: 1}}), // 1.4.7 too young
+      'media-tracks': docOf(NOW, {'0.3.5': {age: 40}, '0.3.9': {age: 40}}), // 0.y caret move is free
+    };
+    const plan = playerTargets(pins, docs, fixed, NOW);
+    expect(plan.target).toEqual({
+      'hls-video-element': '1.5.11', // stepped back: its need cannot be met yet
+      'custom-media-element': '1.4.6',
+      'media-tracks': '0.3.9',
+    });
+    expect(plan.changes).toEqual([{name: 'media-tracks', from: '0.3.5', to: '0.3.9'}]);
+    expect(plan.held).toEqual([{name: 'hls-video-element', version: '1.5.11', newest: '1.5.12'}]);
+    expect(plan.unresolved).toEqual([]);
+  });
+
+  it('moves hls-video-element and custom-media-element together once the need is old enough', () => {
+    const pins = {'hls-video-element': '1.5.11', 'custom-media-element': '1.4.6'};
+    const fixed = {'hls.js': '1.6.5'};
+    const docs = {
+      'hls-video-element': docOf(NOW, {
+        '1.5.11': {age: 40, deps: {'custom-media-element': '^1.4.6', 'hls.js': '^1.6.5'}},
+        '1.5.12': {age: 40, deps: {'custom-media-element': '^1.4.7', 'hls.js': '^1.6.5'}},
+      }),
+      'custom-media-element': docOf(NOW, {'1.4.6': {age: 40}, '1.4.7': {age: 4}}), // 4 days clears the gate
+    };
+    const plan = playerTargets(pins, docs, fixed, NOW);
+    expect(plan.target).toEqual({'hls-video-element': '1.5.12', 'custom-media-element': '1.4.7'});
+    expect(plan.changes).toEqual([
+      {name: 'hls-video-element', from: '1.5.11', to: '1.5.12'},
+      {name: 'custom-media-element', from: '1.4.6', to: '1.4.7'},
+    ]);
+    expect(plan.unresolved).toEqual([]);
+  });
+
+  it('keeps the dependent on its pin when the fixed package does not meet its declared range', () => {
+    const pins = {'hls-video-element': '1.5.11'};
+    const fixed = {'hls.js': '1.5.0'}; // the repo pins an older hls.js than 1.5.12 needs
+    const docs = {
+      'hls-video-element': docOf(NOW, {
+        '1.5.11': {age: 40, deps: {'hls.js': '^1.5.0'}}, // met by the fixed version
+        '1.5.12': {age: 40, deps: {'hls.js': '^1.6.5'}}, // not met: the dependent steps back down
+      }),
+    };
+    const plan = playerTargets(pins, docs, fixed, NOW);
+    expect(plan.target).toEqual({'hls-video-element': '1.5.11'});
+    expect(plan.changes).toEqual([]);
+    expect(plan.unresolved).toEqual([]);
+  });
+
+  it('steps a dependent back down instead of taking an update with unreadable needs', () => {
+    const pins = {'hls-video-element': '1.5.11'};
+    const fixed = {'hls.js': '1.6.5'};
+    const docs = {
+      'hls-video-element': docOf(NOW, {
+        '1.5.11': {age: 40, deps: {'hls.js': '^1.6.5'}},
+        '1.5.12': {age: 40, deps: {'hls.js': 'workspace:^'}}, // unreadable: refuse to take it blind
+      }),
+    };
+    const plan = playerTargets(pins, docs, fixed, NOW);
+    expect(plan.target).toEqual({'hls-video-element': '1.5.11'});
+    expect(plan.unresolved).toEqual([]); // unreadable needs that we stepped away from are not a conflict
+  });
+
+  it('ignores unreadable needs that already hold on main', () => {
+    const pins = {'xgplayer': '3.0.26', 'xgplayer-hls': '3.0.26'};
+    const docs = {
+      'xgplayer': docOf(NOW, {'3.0.26': {age: 40}}),
+      'xgplayer-hls': docOf(NOW, {'3.0.26': {age: 40, peer: {xgplayer: 'workspace:*'}}}),
+    };
+    const plan = playerTargets(pins, docs, {}, NOW);
+    expect(plan.target).toEqual(pins);
+    expect(plan.changes).toEqual([]);
+    expect(plan.unresolved).toEqual([]); // 'unknown' on main is the status quo, not a report
+  });
+
+  it('reports a conflict that already exists on main and moves nothing below its pin', () => {
+    const pins = {'hls-video-element': '1.5.11', 'custom-media-element': '1.4.6'};
+    const fixed = {'hls.js': '1.6.5'};
+    const docs = {
+      'hls-video-element': docOf(NOW, {
+        // every published version declares the same unmet need: nowhere to step to, ever
+        '1.5.11': {age: 40, deps: {'custom-media-element': '^1.4.7', 'hls.js': '^1.6.5'}},
+        '1.5.12': {age: 40, deps: {'custom-media-element': '^1.4.7', 'hls.js': '^1.6.5'}},
+      }),
+      'custom-media-element': docOf(NOW, {'1.4.6': {age: 40}, '1.4.7': {age: 1}}),
+    };
+    const plan = playerTargets(pins, docs, fixed, NOW);
+    expect(plan.target).toEqual({'hls-video-element': '1.5.11', 'custom-media-element': '1.4.6'});
+    expect(plan.changes).toEqual([]);
+    expect(plan.unresolved).toEqual([
+      {name: 'hls-video-element', version: '1.5.11', needs: 'custom-media-element', range: '^1.4.7'},
+    ]);
+  });
+
+  it('reports an above-range conflict against a fixed package already present on main', () => {
+    const pins = {'xgplayer-hls': '3.0.26'};
+    const fixed = {xgplayer: '3.1.0'}; // the repo pins a newer xgplayer than the exact peer allows
+    const docs = {
+      'xgplayer-hls': docOf(NOW, {'3.0.26': {age: 40, peer: {xgplayer: '3.0.26'}}}),
+    };
+    const plan = playerTargets(pins, docs, fixed, NOW);
+    expect(plan.target).toEqual({'xgplayer-hls': '3.0.26'});
+    expect(plan.changes).toEqual([]);
+    expect(plan.unresolved).toEqual([
+      {name: 'xgplayer-hls', version: '3.0.26', needs: 'xgplayer', range: '3.0.26'},
+    ]);
+  });
+
+  it('terminates on a cycle of exact peers', () => {
+    const pins = {'xgplayer': '3.0.26', 'xgplayer-hls': '3.0.26'};
+    const docs = {
+      'xgplayer': docOf(NOW, {
+        '3.0.26': {age: 40, peer: {'xgplayer-hls': '3.0.26'}},
+        '3.0.27': {age: 10, peer: {'xgplayer-hls': '3.0.26'}},
+      }),
+      'xgplayer-hls': docOf(NOW, {
+        '3.0.26': {age: 40, peer: {xgplayer: '3.0.26'}},
+        '3.0.27': {age: 10, peer: {xgplayer: '3.0.26'}},
+      }),
+    };
+    const plan = playerTargets(pins, docs, {}, NOW); // both peers drag each other back to the pins
+    expect(plan.target).toEqual({'xgplayer': '3.0.26', 'xgplayer-hls': '3.0.26'});
+    expect(plan.changes).toEqual([]);
+    expect(plan.unresolved).toEqual([]);
+  });
+
+  it('throws when a pin has no registry doc', () => {
+    expect(() => playerTargets({'video.js': '8.24.1'}, {}, {}, NOW)).toThrow(/video\.js/);
+  });
+
+  it('throws when the pin version is missing from its doc', () => {
+    const docs = {'video.js': docOf(NOW, {'8.25.0': {age: 40}})};
+    expect(() => playerTargets({'video.js': '8.24.1'}, docs, {}, NOW)).toThrow(/8\.24\.1/);
+  });
+});
+
+describe('applyPlayers', () => {
+  const text = '{\n  "a": "1.0.0",\n  "@s/b": "0.3.5"\n}\n';
+
+  it('writes the set in the file\'s order and format', () => {
+    expect(applyPlayers(text, {'a': '1.2.0', '@s/b': '0.3.6'})).toBe('{\n  "a": "1.2.0",\n  "@s/b": "0.3.6"\n}\n');
+  });
+
+  it('refuses a library going back, one it does not name or lacks, and what is not x.y.z', () => {
+    expect(() => applyPlayers(text, {'a': '0.9.0', '@s/b': '0.3.5'})).toThrow(/a would go back from 1\.0\.0 to 0\.9\.0/);
+    expect(() => applyPlayers(text, {'a': '1.0.0'})).toThrow(/names a, not a, @s\/b/);
+    expect(() => applyPlayers(text, {'@s/b': '0.3.5', 'a': '1.0.0'})).toThrow(/names/);
+    expect(() => applyPlayers(text, {'a': '1.1.0-rc.1', '@s/b': '0.3.5'})).toThrow(/not x\.y\.z/);
+  });
+});
+
+describe('tests/e2e/live-specs/player-libraries.json', () => {
+  const pins = JSON.parse(fs.readFileSync(PLAYER_LIBRARIES, 'utf8'));
+  const spec = fs.readFileSync('tests/e2e/live-specs/players.e2e.mjs', 'utf8');
+
+  it('pins plain versions, in the format the recipe writes', () => {
+    for (const version of Object.values(pins)) expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(applyPlayers(fs.readFileSync(PLAYER_LIBRARIES, 'utf8'), pins)).toBe(fs.readFileSync(PLAYER_LIBRARIES, 'utf8'));
+  });
+
+  it('names every package the pages load from /npm/, and nothing they do not', () => {
+    // The pages' quoted paths only: the spec's comments name /npm/ paths too.
+    const loaded = new Set([...spec.matchAll(/["']\/npm\/((?:@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*)\//g)].map((match) => match[1]));
+    loaded.delete('hls.js'); // the repository's own pin, served next to them
+    expect([...loaded].sort()).toEqual(Object.keys(pins).sort());
   });
 });

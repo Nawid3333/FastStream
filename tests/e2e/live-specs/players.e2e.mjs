@@ -18,6 +18,7 @@
 // finds videos or streams:
 //   pnpm run build:keep && pnpm run test:live
 
+import fs from 'node:fs';
 import http from 'node:http';
 
 import {browser, expect} from '@wdio/globals';
@@ -30,25 +31,12 @@ import {
 const SITE_PORT = 41960;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
 
-/** The releases the pages load, served at /npm/<package>/<file>. */
-const PACKAGES = {
-  'video.js': '8.24.1',
-  'shaka-player': '5.2.12',
-  'plyr': '3.8.5',
-  '@clappr/player': '0.14.7',
-  '@clappr/hlsjs-playback': '3.1.2',
-  'mediaelement': '7.1.0',
-  'vidstack': '1.15.7',
-  'media-chrome': '4.19.3',
-  'hls-video-element': '1.5.11',
-  'custom-media-element': '1.4.6',
-  'media-tracks': '0.3.5',
-  'dplayer': '1.27.1',
-  'artplayer': '5.4.0',
-  'xgplayer': '3.0.26',
-  'xgplayer-hls': '3.0.26',
-  'openplayerjs': '2.14.12',
-};
+/**
+ * The releases the pages load, served at /npm/<package>/<file>: player-libraries.json, a
+ * file of its own so that toolchain-updates.yml can move them (tools/check-toolchain.mjs).
+ * @type {Object<string, string>}
+ */
+const PACKAGES = JSON.parse(fs.readFileSync(new URL('./player-libraries.json', import.meta.url), 'utf8'));
 
 const MIME = {hls: 'application/x-mpegURL', dash: 'application/dash+xml', mp4: 'video/mp4'};
 
@@ -251,7 +239,8 @@ async function packageFile(rest) {
   const parts = rest.split('/');
   const pkg = parts[0].startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
   const file = parts.slice(pkg.split('/').length).join('/');
-  const version = PACKAGES[pkg] || (pkg === 'hls.js' ? pinnedVersion('hls.js') : null);
+  // Own keys only: a path such as /npm/constructor/x would find Object.prototype's.
+  const version = Object.hasOwn(PACKAGES, pkg) ? PACKAGES[pkg] : (pkg === 'hls.js' ? pinnedVersion('hls.js') : null);
   if (!version) {
     return null;
   }

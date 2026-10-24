@@ -135,6 +135,12 @@ case "$1 $2" in
       # scenario gives it.
       [ -f "$STATE/dispatched.json" ] || echo '[]' > "$STATE/dispatched.json"
       jqout "$STATE/dispatched.json"
+    elif [ "$(opt --workflow "$@")" = live-streams.yml ]; then
+      # The live suite's runs on a commit (the player libraries): none unless a scenario gives them.
+      [ "$(opt --commit "$@")" = "$SHA" ] || { echo "stub gh: live runs for another commit" >&2; exit 98; }
+      [ -f "$STATE/live_list_fails" ] && { echo 'HTTP 502' >&2; exit 1; }
+      [ -f "$STATE/live_runs.json" ] || echo '[]' > "$STATE/live_runs.json"
+      jqout "$STATE/live_runs.json"
     elif c=$(opt --commit "$@"); then
       # CI's runs on a commit: this one alone unless a scenario says otherwise.
       [ "$c" = "$SHA" ] || { echo "stub gh: run list for another commit $c" >&2; exit 98; }
@@ -1152,6 +1158,143 @@ ublock_other_file_waits() {
   check 'names the file' grep -qF 'it changes tools/launch-ff.mjs, not only tools/setup-dev-profile.mjs' <(last_comment)
 }
 
+players_setup() { # the player libraries' rolling pull request, CI green on it
+  export BRANCH='toolchain/player-libraries'
+  pr app/github-actions
+  prview '["tests/e2e/live-specs/player-libraries.json"]' "[$(commit 'github-actions[bot]' 'build: player libraries (shaka-player 5.3.1)')]"
+  echo '{"check_runs":[]}' > "$STATE/checkruns.json"
+}
+live_runs() { echo "$1" > "$STATE/live_runs.json"; }
+
+players_ready() {
+  # CI and the live suite passed on its commit, the build unchanged: ready to merge.
+  setup
+  players_setup
+  live_runs '[{"databaseId": 7, "status": "completed", "conclusion": "success", "url": "https://github.com/me/fs/actions/runs/7"}]'
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'ready to merge' ready
+  check 'asked for the live suite on this commit' has_call "run list --workflow live-streams.yml --commit $sha"
+  check 'started nothing' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
+  check 'build compared' has_call 'release download'
+  check 'no lockfile read' bash -c '! grep -q pnpm-lock.yaml "$0"' "$STATE/gh.log"
+  check 'the rolling hint' grep -qF 'rebuilds this pull request in place when a newer release comes' <(last_comment)
+}
+
+players_no_live_run_starts_one() {
+  setup
+  players_setup
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check 'starts the live suite on the branch' has_call 'workflow run live-streams.yml --ref toolchain/player-libraries'
+  check 'says so' grep -qF 'its live suite (live-streams.yml), which plays these libraries in Firefox, was started on it just now' <(last_comment)
+}
+
+players_live_start_refused() {
+  setup
+  players_setup
+  : > "$STATE/dispatch_fails"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check 'says how to start it' grep -qF 'could not be started: start it from the Actions tab on this branch' <(last_comment)
+}
+
+players_live_running() {
+  # Still running (any status but completed): never started again, which would cancel it.
+  setup
+  players_setup
+  live_runs '[{"databaseId": 7, "status": "waiting", "conclusion": null, "url": "https://github.com/me/fs/actions/runs/7"}]'
+  run_step
+  check 'not called ready' not_ready
+  check 'starts nothing' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
+  check 'says it runs' grep -qF 'is still running on it (https://github.com/me/fs/actions/runs/7): its end decides again' <(last_comment)
+}
+
+players_live_cancelled_once() {
+  setup
+  players_setup
+  live_runs '[{"databaseId": 7, "status": "completed", "conclusion": "cancelled", "url": "u7"}]'
+  run_step
+  check 'not called ready' not_ready
+  check 'started again' has_call 'workflow run live-streams.yml --ref toolchain/player-libraries'
+}
+
+players_live_cancelled_twice() {
+  # The second cancelled one is not started again.
+  setup
+  players_setup
+  live_runs '[{"databaseId": 7, "status": "completed", "conclusion": "cancelled", "url": "u7"}, {"databaseId": 9, "status": "completed", "conclusion": "cancelled", "url": "u9"}]'
+  run_step
+  check 'not called ready' not_ready
+  check 'not started again' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
+  check 'names the newest' grep -qF 'ended cancelled on it again (u9)' <(last_comment)
+}
+
+players_live_timed_out_once() {
+  setup
+  players_setup
+  live_runs '[{"databaseId": 7, "status": "completed", "conclusion": "timed_out", "url": "u7"}]'
+  run_step
+  check 'not called ready' not_ready
+  check 'started again' has_call 'workflow run live-streams.yml --ref toolchain/player-libraries'
+}
+
+players_live_timed_out_twice() {
+  setup
+  players_setup
+  live_runs '[{"databaseId": 7, "status": "completed", "conclusion": "timed_out", "url": "u7"}, {"databaseId": 9, "status": "completed", "conclusion": "timed_out", "url": "u9"}]'
+  run_step
+  check 'not called ready' not_ready
+  check 'not started again' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
+  check 'says to start it by hand, not that a stream is down' grep -qF 'ended timed_out on it again (u9), after one start here: start it again from the Actions tab' <(last_comment)
+}
+
+players_live_failed() {
+  setup
+  players_setup
+  live_runs '[{"databaseId": 9, "status": "completed", "conclusion": "failure", "url": "u9"}, {"databaseId": 7, "status": "completed", "conclusion": "success", "url": "u7"}]'
+  run_step
+  check 'not called ready: the newest decides' not_ready
+  check 'names it' grep -qF 'its live suite (live-streams.yml) ended failure on it (u9): a public stream or site the suite uses may be down' <(last_comment)
+  check 'starts nothing' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
+}
+
+players_live_unlisted() {
+  # The live runs cannot be listed: a reason, and a verdict all the same.
+  setup
+  players_setup
+  : > "$STATE/live_list_fails"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check 'says so' grep -qF 'its live suite runs (live-streams.yml) could not be listed' <(last_comment)
+  check 'starts nothing' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
+}
+
+players_live_asked_last() {
+  # Another reason holds it already: the live suite is not asked, nor started.
+  setup
+  players_setup
+  prview '["tests/e2e/live-specs/player-libraries.json","tests/e2e/live-specs/players.e2e.mjs"]' "[$(commit 'github-actions[bot]' 'build: player libraries')]"
+  run_step
+  check 'not called ready' not_ready
+  check 'names the file' grep -qF 'it changes tests/e2e/live-specs/players.e2e.mjs, not only tests/e2e/live-specs/player-libraries.json' <(last_comment)
+  check 'live suite not asked' bash -c '! grep -q "live-streams.yml" "$0"' "$STATE/gh.log"
+}
+
+players_behind_starts_both() {
+  setup
+  players_setup
+  echo 2 > "$STATE/behind"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'updates the branch' has_call "api -X PUT repos/me/fs/pulls/42/update-branch -f expected_head_sha=$sha"
+  check 'starts CI on it' has_call 'workflow run ci.yml --ref toolchain/player-libraries'
+  check 'and the live suite' has_call 'workflow run live-streams.yml --ref toolchain/player-libraries'
+}
+
 docker_ready() {
   setup
   export BRANCH='dependabot/docker/actionlint-1234'
@@ -2064,6 +2207,18 @@ migration_toolchain_node() {
   check 'its branch' grep -qF '`migrate/node.js-26`' <(issue_of 700 body)
 }
 
+migration_toolchain_players() {
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2 BRANCH='toolchain/player-libraries'
+  pr app/github-actions
+  pr_title 'Toolchain update: player libraries'
+  run_step
+  check 'from its title' test "$(issue_of 700 title)" = 'Migration: player libraries'
+  check 'its branch' grep -qF '`migrate/player-libraries`' <(issue_of 700 body)
+  check 'rebuilt, not replaced' grep -qF 'toolchain-updates.yml rebuilds #42 on it at its next run' <(issue_of 700 body)
+  check 'closing skips the set' grep -qF 'closing #42 skips this set of versions' <(issue_of 700 body)
+}
+
 migration_toolchain_ublock() {
   setup
   export CONCLUSION=failure RUN_ATTEMPT=2 BRANCH='toolchain/ublock-origin-1.76.0'
@@ -2266,6 +2421,18 @@ node_ready
 node_other_file_waits
 ublock_ready
 ublock_other_file_waits
+players_ready
+players_no_live_run_starts_one
+players_live_start_refused
+players_live_running
+players_live_cancelled_once
+players_live_cancelled_twice
+players_live_timed_out_once
+players_live_timed_out_twice
+players_live_failed
+players_live_unlisted
+players_live_asked_last
+players_behind_starts_both
 actions_waits
 actions_ready_with_token
 actions_behind_updates_with_token
@@ -2344,6 +2511,7 @@ migration_scoped_name
 migration_toolchain_pnpm
 migration_toolchain_node
 migration_toolchain_ublock
+migration_toolchain_players
 migration_patched
 migration_already_held
 migration_takes_over_open_issue_by_title
