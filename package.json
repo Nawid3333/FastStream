@@ -75,7 +75,7 @@
     "hls.js": "1.7.3",
     "js-yaml": "^5.5.0",
     "mediabunny": "1.62.1",
-    "mp4box": "2.4.1",
+    "mp4box": "2.5.0",
     "sortablejs": "1.15.7",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5",

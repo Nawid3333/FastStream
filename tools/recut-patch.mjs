@@ -374,6 +374,45 @@ function renamedCounterpart(rel, theirsDir) {
   return {candidates, match: candidates.length === 1 ? candidates[0] : undefined};
 }
 
+// --- hashed chunk names -------------------------------------------------------------
+
+/**
+ * Rewrites every content-hashed chunk name in tools/sync-vendor.mjs (mp4box's
+ * MP4BOX_CHUNKS) to its counterpart in the freshly installed release. A patch names
+ * only the chunk it patches (mp4box's styp-*), so the renames it records cover one
+ * chunk; the unpatched ones (mp4box's rolldown-runtime-*) are renamed by every release
+ * too - their content changes - and a stale name fails the sync's checkMp4boxImports,
+ * which turns the update into a hand issue instead of its pull request (2026-10-26).
+ *
+ * @param {string} text - tools/sync-vendor.mjs as it is now, with the old names.
+ * @param {string} distDir - The new release's dist directory in node_modules.
+ * @param {{from: string, to: string}[]} known - Renames the patch itself recorded;
+ *     their new names are already in the text.
+ * @return {{text: string, renamed: {from: string, to: string}[]}} The reworked text and
+ *     every rename applied, patch ones included - a caller logs them.
+ */
+function renameHashedChunks(text, distDir, known) {
+  const renamed = [...known];
+  for (const {from, to} of known) {
+    text = text.split(path.posix.basename(from)).join(path.posix.basename(to));
+  }
+  // The names the patch renames applied: not to be looked at again, or a second run of
+  // the same pass would rename the new names to still other candidates.
+  const seen = new Set(renamed.map(({to}) => path.posix.basename(to)));
+  for (const entry of text.matchAll(/['"]([^'"]*?-[A-Za-z0-9_-]{6,}\.(?:mjs|js|cjs))['"]/g)) {
+    const rel = entry[1];
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    const {match} = renamedCounterpart(rel, distDir);
+    // Itself as the one candidate means the name is current; a stale name is
+    // not in the new release's directory, which is why it needs renaming.
+    if (!match || match === rel) continue;
+    text = text.split(path.posix.basename(rel)).join(path.posix.basename(match));
+    renamed.push({from: rel, to: match});
+  }
+  return {text, renamed};
+}
+
 // --- three-way merges ----------------------------------------------------------------
 
 /**
@@ -853,11 +892,13 @@ function applyUpdate(opts, cur, result, work) {
     must('pnpm', ['patch-commit', edit], {cwd: root});
   }
 
-  // A renamed chunk is named in tools/sync-vendor.mjs (mp4box's MP4BOX_CHUNKS).
+  // Chunks named in tools/sync-vendor.mjs (mp4box's MP4BOX_CHUNKS): every hashed chunk
+  // name gets its new-release counterpart, patch renames first (renameHashedChunks).
   const sv = path.join(root, 'tools/sync-vendor.mjs');
-  let svText = fs.readFileSync(sv, 'utf8');
-  for (const {from: a, to: b} of result.renamed) svText = svText.split(path.posix.basename(a)).join(path.posix.basename(b));
-  fs.writeFileSync(sv, svText);
+  const svText = fs.readFileSync(sv, 'utf8');
+  const {text, renamed} = renameHashedChunks(svText, path.join(root, 'node_modules', pkg, 'dist'), result.renamed);
+  for (const {from, to} of renamed) console.log(`  ${from} renamed to ${to} in tools/sync-vendor.mjs`);
+  fs.writeFileSync(sv, text);
 
   const sync = run('node', ['tools/sync-vendor.mjs'], {cwd: root});
   process.stdout.write(sync.stdout);
@@ -869,7 +910,7 @@ function applyUpdate(opts, cur, result, work) {
   return 0;
 }
 
-export {applyHunks, bumpPackageJson, dropDependabotIgnores, parseDiff, patchedFiles, renamedCounterpart, mergeText, splitWebpack, mergeWebpack, spliceOnto, checkJavaScript};
+export {applyHunks, bumpPackageJson, dropDependabotIgnores, parseDiff, patchedFiles, renamedCounterpart, renameHashedChunks, mergeText, splitWebpack, mergeWebpack, spliceOnto, checkJavaScript};
 
 // Run as a command; imported (tests/unit/recutPatch.test.mjs), it only exports the above.
 if (process.argv[1] && path.resolve(process.argv[1]) === url.fileURLToPath(import.meta.url)) {

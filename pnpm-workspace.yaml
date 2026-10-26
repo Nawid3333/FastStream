@@ -65,7 +65,7 @@ patchedDependencies:
   dashjs@5.2.1: patches/dashjs@5.2.1.patch
   gif.js@0.2.0: patches/gif.js@0.2.0.patch
   hls.js@1.7.3: patches/hls.js@1.7.3.patch
-  mp4box@2.4.1: patches/mp4box@2.4.1.patch
+  mp4box@2.5.0: patches/mp4box@2.5.0.patch
 # pnpm 12 (2026-10-11): with its default (download) it switches to the pinned version by
 # itself and records itself in a first pnpm-lock.yaml document (packageManagerDependencies).
 # GitHub's dependency graph reads only that first document, so every dependency vanished
@@ -74,3 +74,9 @@ patchedDependencies:
 # tools/update-local.ps1 install exactly the pinned pnpm, so nothing needs the switch:
 # ignore keeps pnpm-lock.yaml one document, byte for byte what pnpm 11 wrote.
 pmOnFail: ignore
+# mp4box 2.5.0 is inside pnpm 12's built-in minimumReleaseAge (1440 minutes since v11):
+# published 2026-10-25 16:16 UTC, over the line at 17:16 UTC 2026-10-26, which every CI
+# job of the first run hit (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). Gone once the
+# lockfile's mp4box is a day old; the maintenance doc records a cleanup precedent (U4).
+minimumReleaseAgeExclude:
+  - mp4box@2.5.0

@@ -33,7 +33,7 @@ const root = path.resolve(__dirname, '..');
  * (unappliedPatches, #176).
  */
 /** The chunks mp4box's dist/mp4box.all.mjs imports; checked by checkMp4boxImports. */
-const MP4BOX_CHUNKS = ['styp-9TIZZDLN.mjs', 'rolldown-runtime-w6R9maHv.mjs'];
+const MP4BOX_CHUNKS = ['styp-BV5G3FS-.mjs', 'rolldown-runtime-CNh9ExCG.mjs'];
 
 const VENDOR = [
   {

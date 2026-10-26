@@ -66,9 +66,9 @@ patch instead of committing one, takes the library off
 `.github/dependabot.yml`'s ignore list, and says to remove any `patched: true` marks in
 `tools/sync-vendor.mjs`.
 
-If `tools/sync-vendor.mjs` then fails (an unpatched file renamed too), the tool
-exits 2 with the version, lockfile and patch already changed: fix `sync-vendor.mjs`,
-then run `pnpm run verify`.
+If `tools/sync-vendor.mjs` then fails (a hashed file whose counterpart the tool cannot
+pin down - two candidates, say), the tool exits 2 with the version, lockfile and patch
+already changed: fix `sync-vendor.mjs`, then run `pnpm run verify`.
 
 ## What the tool checks, and what it cannot
 
