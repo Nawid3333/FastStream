@@ -74,7 +74,7 @@
     "globals": "^17.13.0",
     "hls.js": "1.7.3",
     "js-yaml": "^5.5.0",
-    "mediabunny": "1.61.6",
+    "mediabunny": "1.62.1",
     "mp4box": "2.4.1",
     "sortablejs": "1.15.7",
     "typescript": "^7.0.2",
