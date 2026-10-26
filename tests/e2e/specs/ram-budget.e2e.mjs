@@ -29,17 +29,19 @@ const NO_ANSWER = 'no answer from the page';
 /**
  * browser.execute, with a time limit.
  * @param {Function} fn - Run in the page.
- * @param {...*} args - Its arguments.
+ * @param {...*} args - Its arguments; an extra number as the last one sets the answer
+ *     limit in ms, for the call that is IO and not a plain page read.
  * @return {Promise<*>} What fn returned, or NO_ANSWER.
  */
 async function inPage(fn, ...args) {
+  const last = args.length && typeof args[args.length - 1] === 'number' ? args.pop() : PAGE_ANSWER_MS;
   const call = browser.execute(fn, ...args);
   // Given up on, it may still fail later, with the session.
   call.catch(() => {});
   let timer;
   try {
     return await Promise.race([call, new Promise((resolve) => {
-      timer = setTimeout(() => resolve(NO_ANSWER), PAGE_ANSWER_MS);
+      timer = setTimeout(() => resolve(NO_ANSWER), last);
     })]);
   } finally {
     clearTimeout(timer);
@@ -161,6 +163,11 @@ async function holdingsUntil(check, timeout, failure) {
  *     in time.
  */
 async function holdings() {
+  // The call walks every OPFS session's files; with the disk writes of this test's budget
+  // in flight it now and then took over the usual 5 s on the Windows runner, every poll of
+  // holdingsUntil said "no answer from the page", and 60 s ran out with nothing said (once
+  // in a week; the retry's writes were done in 15.7 s). Its own window: stuck is stuck at
+  // 20 s, slow-but-alive IO answers.
   return inPage(() => new Promise((done) => {
     (async () => {
       const client = window.fastStream;
@@ -186,7 +193,7 @@ async function holdings() {
       done({ram: manager.ramBytes(), leaving: manager.spillingBytes(), total, files, others,
         letGo: client.letGo, opfs: !!store.opfsManager, full: manager.memoryFull});
     })();
-  }));
+  }), PAGE_ANSWER_MS * 4);
 }
 
 describe('The RAM budget', function() {

@@ -140,7 +140,9 @@ describe('Player menus', function() {
 
     await addSource(twoTracksUrl());
     await waitForPicture();
-    const two = await settle(state, (s) => s.tracks === 2 && s.shown);
+    // The label, too: the tracks arrive a tick before the button's label and menu state
+    // follow, and a read between the two saw the old label (once on a busy runner).
+    const two = await settle(state, (s) => s.tracks === 2 && s.shown && s.label === 'Audio tracks');
     console.log('      two tracks:', JSON.stringify(two));
     expect(two.shown).toBe(true);
     expect(two.label).toBe('Audio tracks');
@@ -351,7 +353,11 @@ describe('Player menus', function() {
     await setTime('end', '00:00:04');
     await click('.mainplayer .loop_menu_toggle_button');
     await click('.mainplayer .loop_menu_gif_button');
-    expect((await loop()).running).toBe(true);
+    // The click answers before the recording's loop has flipped its flag; a read between
+    // the two saw running: false (once, on a busy runner), and the toggle after it then
+    // stopped nothing. waitUntil gives the flag the tick it needs.
+    await browser.waitUntil(async () => (await loop()).running,
+        {timeout: 10000, interval: 100, timeoutMsg: 'the recording never started'});
     await click('.mainplayer .loop_menu_toggle_button');
     await browser.waitUntil(async () => !(await loop()).running, {timeout: 10000, timeoutMsg: 'the recording never ended'});
     expect((await loop()).enabled).toBe(false);
