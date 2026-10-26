@@ -1091,8 +1091,15 @@ describe('content.js around an in-page player', function() {
     // its own video back: no player is left that the background does not know.
     await openPage('/cleanup');
     await openPlayer();
+    // The page leaves for the cache only once nothing in it is loading: openPage waits for
+    // the first frame only, and the clip went on loading; the player's source fetch was on
+    // top of that. With a request still open (in the page or its player frame), Firefox
+    // kept the page out of the cache and Back loaded it again ({kept: false}, 4 attempts
+    // in a week, pageMediaIdle's comment, #346). keepForBack keeps pagehide's persisted,
+    // so a red run says whether the page was never cached or cached and dropped.
+    await keepForBack();
+    await pageMediaIdle();
     await inPage(() => {
-      window.__kept = true;
       window.__cachedWithPlayer = null;
       window.addEventListener('pageshow', (e) => {
         window.__cachedWithPlayer = e.persisted && !!window.playerIframe();
@@ -1103,9 +1110,11 @@ describe('content.js around an in-page player', function() {
     });
     await browser.waitUntil(async () => inPage(() => location.pathname === '/other'),
         {timeout: 10000, timeoutMsg: 'the other page never loaded'});
+    const backAt = new Date().toISOString();
     await browser.back();
     await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
         {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
+    await expectFromCache(backAt);
     expect(await inPage(() => ({kept: window.__kept === true, withPlayer: window.__cachedWithPlayer})))
         .toEqual({kept: true, withPlayer: true});
     await browser.waitUntil(async () => !(await hasPlayer()),
