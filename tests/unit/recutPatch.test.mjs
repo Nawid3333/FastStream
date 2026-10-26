@@ -5,7 +5,7 @@ import {spawnSync} from 'node:child_process';
 import {describe, expect, it} from 'vitest';
 import {
   applyHunks, bumpPackageJson, checkJavaScript, dropDependabotIgnores, mergeWebpack, parseDiff,
-  renamedCounterpart, spliceOnto, splitWebpack,
+  renamedCounterpart, renameHashedChunks, spliceOnto, splitWebpack,
 } from '../../tools/recut-patch.mjs';
 
 // tools/recut-patch.mjs moves a library's pnpm patch onto a new release. Each piece below
@@ -124,6 +124,83 @@ describe('renamedCounterpart', () => {
       expect(renamedCounterpart('dist/styp-9TIZZDLN.mjs', dir).match).toBe(undefined);
       expect(renamedCounterpart('dist/styp-9TIZZDLN.mjs', dir).candidates).toHaveLength(2);
       expect(renamedCounterpart('dist/plain.mjs', dir).candidates).toEqual([]);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
+  });
+});
+
+describe('renameHashedChunks', () => {
+  // The mp4box 2.5.0 recut: the patch renamed styp-9TIZZDLN, and the sync's
+  // MP4BOX_CHUNKS still listed rolldown-runtime-w6R9maHv - whose name the release also
+  // changed, from content the patch never touches. A stale name failed sync-vendor and
+  // turned the update into a hand issue instead of its pull request.
+  const dist = (files) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'recut-test-'));
+    for (const [name, content] of Object.entries(files)) {
+      fs.writeFileSync(path.join(dir, name), content ?? '');
+    }
+    return dir;
+  };
+  // What the sync file lists before --apply: the old release's names.
+  const chunkLine = 'const MP4BOX_CHUNKS = [\'styp-9TIZZDLN.mjs\', \'rolldown-runtime-w6R9maHv.mjs\'];';
+
+  it('renames the unpatched hashed chunk alongside the patch ones, and reports all renames', () => {
+    const dir = dist({'mp4box.all.mjs': 'import \'./styp-AbC123xy.mjs\';\nimport \'./rolldown-runtime-Nw2xQ9st.mjs\';\n', 'styp-AbC123xy.mjs': '', 'rolldown-runtime-Nw2xQ9st.mjs': ''});
+    try {
+      const {text, renamed} = renameHashedChunks(chunkLine, dir, [{from: 'dist/styp-9TIZZDLN.mjs', to: 'dist/styp-AbC123xy.mjs'}]);
+      expect(text).toBe('const MP4BOX_CHUNKS = [\'styp-AbC123xy.mjs\', \'rolldown-runtime-Nw2xQ9st.mjs\'];');
+      expect(renamed).toEqual([
+        {from: 'dist/styp-9TIZZDLN.mjs', to: 'dist/styp-AbC123xy.mjs'},
+        {from: 'rolldown-runtime-w6R9maHv.mjs', to: 'rolldown-runtime-Nw2xQ9st.mjs'},
+      ]);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
+  });
+
+  it('renames a hashed chunk with no patch rename recorded at all', () => {
+    const dir = dist({'mp4box.all.mjs': 'import \'./styp-AbC123xy.mjs\';\nimport \'./rolldown-runtime-Nw2xQ9st.mjs\';\n', 'styp-AbC123xy.mjs': '', 'rolldown-runtime-Nw2xQ9st.mjs': ''});
+    try {
+      const {text, renamed} = renameHashedChunks('[\'styp-9TIZZDLN.mjs\', \'rolldown-runtime-w6R9maHv.mjs\']', dir, []);
+      expect(text).toBe('[\'styp-AbC123xy.mjs\', \'rolldown-runtime-Nw2xQ9st.mjs\']');
+      expect(renamed).toEqual([
+        {from: 'styp-9TIZZDLN.mjs', to: 'styp-AbC123xy.mjs'},
+        {from: 'rolldown-runtime-w6R9maHv.mjs', to: 'rolldown-runtime-Nw2xQ9st.mjs'},
+      ]);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
+  });
+
+  it('keeps a name whose counterpart is ambiguous or already correct', () => {
+    const dir = dist({'styp-AbC123xy.mjs': '', 'styp-ZZZ99999.mjs': '', 'styp-9TIZZDLN.mjs': ''});
+    try {
+      const {text, renamed} = renameHashedChunks('[\'styp-9TIZZDLN.mjs\']', dir, []);
+      // Two candidates for a counterpart: no rename, the name stays and a look tells why.
+      expect(text).toBe('[\'styp-9TIZZDLN.mjs\']');
+      expect(renamed).toEqual([]);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
+  });
+
+  it('keeps a name that is already the current one in the release', () => {
+    const dir = dist({'styp-9TIZZDLN.mjs': ''});
+    try {
+      const {text, renamed} = renameHashedChunks('[\'styp-9TIZZDLN.mjs\']', dir, []);
+      expect(text).toBe('[\'styp-9TIZZDLN.mjs\']');
+      expect(renamed).toEqual([]);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
+  });
+
+  it('leaves names without a hash counterpart in the release (a plain name, a .map)', () => {
+    const dir = dist({'styp-AbC123xy.mjs': ''});
+    try {
+      const {text} = renameHashedChunks('[\'plain.mjs\', \'styp-AbC123xy.mjs.map\', \'styp-AbC123xy.mjs\']', dir, []);
+      expect(text).toBe('[\'plain.mjs\', \'styp-AbC123xy.mjs.map\', \'styp-AbC123xy.mjs\']');
     } finally {
       fs.rmSync(dir, {recursive: true, force: true});
     }
