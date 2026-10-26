@@ -1,6 +1,6 @@
 {
   "video.js": "8.24.2",
-  "@videojs/cdn": "10.1.0",
+  "@videojs/cdn": "10.2.0",
   "shaka-player": "5.3.1",
   "plyr": "3.8.5",
   "@clappr/player": "0.14.8",
@@ -8,8 +8,8 @@
   "mediaelement": "7.1.0",
   "vidstack": "1.15.7",
   "media-chrome": "4.19.3",
-  "hls-video-element": "1.5.11",
-  "custom-media-element": "1.4.6",
+  "hls-video-element": "1.5.12",
+  "custom-media-element": "1.4.7",
   "media-tracks": "0.3.5",
   "dplayer": "1.27.1",
   "artplayer": "5.4.0",
