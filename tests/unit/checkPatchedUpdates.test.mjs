@@ -12,8 +12,10 @@ describe('patchedDependencies', () => {
   it('reads every patched library with the version its patch is cut against', () => {
     const libraries = patchedDependencies(yaml);
     expect(libraries.length).toBeGreaterThanOrEqual(5);
-    expect(libraries).toContainEqual({name: 'hls.js', version: '1.7.3'});
-    expect(libraries).toContainEqual({name: 'Coloris', version: '0.25.0'});
+    // By name only: the versions are what every update moves, and a version here turned the
+    // Coloris 0.25.1 update red though nothing was wrong with it (#591). The loop below and
+    // the package.json test hold each version to its patch.
+    expect(libraries.map(({name}) => name)).toEqual(expect.arrayContaining(['hls.js', 'Coloris']));
     for (const {name, version} of libraries) {
       // pnpm names a scoped package's patch with __ for the slash: @scope__name@1.0.0.patch.
       const file = `${name.replace('/', '__')}@${version}.patch`;
