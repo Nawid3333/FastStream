@@ -1735,7 +1735,22 @@
     return parents;
   }
 
+  /**
+   * How much of an element is on screen, 0 to 1. In a hidden document (a background tab)
+   * the element's box stands in for the browser's measure, which there is no answer
+   * (his report, 2026-10-27: MPV autoplay went on to the next episode in a background tab,
+   * and its hoster's player was never started). Measured in Firefox 158: a cross-site frame
+   * made in a hidden tab has a 0x0 viewport, and IntersectionObserver gives everything in it
+   * 0 until the tab is shown; and a hidden tab measures on a timer that slows each time
+   * (1 s, 7 s, 15 s, 32 s), so even the page's own answer came after the background's
+   * 3 s (FrameAnswerWaitMs).
+   * @param {Element} domElement
+   * @return {Promise<number>}
+   */
   function isVisible(domElement) {
+    if (document.visibilityState === 'hidden') {
+      return Promise.resolve(boxVisibleRatio(domElement));
+    }
     return new Promise((resolve) => {
       const o = new IntersectionObserver(([entry]) => {
         resolve(entry.intersectionRatio);
@@ -1743,6 +1758,49 @@
       });
       o.observe(domElement);
     });
+  }
+
+  /**
+   * isVisible's measure in a hidden document: the part of the element's box inside the
+   * frame's viewport and inside each box above it that clips (overflow other than visible),
+   * as IntersectionObserver has it: a video parked off-screen, or in a box of no height, as
+   * an ad's may be, is 0. A frame made in a hidden tab has a 0x0 viewport at first (its real
+   * one came within 3 s, measured): until then, what lies below and right of its top left
+   * corner counts.
+   * @param {Element} element
+   * @return {number} 0 to 1.
+   */
+  function boxVisibleRatio(element) {
+    const rect = element.getBoundingClientRect();
+    const area = rect.width * rect.height;
+    if (!(area > 0)) return 0;
+    let left = Math.max(rect.left, 0);
+    let top = Math.max(rect.top, 0);
+    let right = window.innerWidth > 0 ? Math.min(rect.right, window.innerWidth) : rect.right;
+    let bottom = window.innerHeight > 0 ? Math.min(rect.bottom, window.innerHeight) : rect.bottom;
+    for (const current of flatTreeParents(element)) {
+      const style = window.getComputedStyle(current);
+      if (current !== element) {
+        const clipsX = (style.overflowX || style.overflow) !== 'visible';
+        const clipsY = (style.overflowY || style.overflow) !== 'visible';
+        if (clipsX || clipsY) {
+          const box = current.getBoundingClientRect();
+          if (clipsX) {
+            left = Math.max(left, box.left);
+            right = Math.min(right, box.right);
+          }
+          if (clipsY) {
+            top = Math.max(top, box.top);
+            bottom = Math.min(bottom, box.bottom);
+          }
+        }
+      }
+      // A fixed box is placed by the viewport: what holds it in the page clips nothing of it.
+      if (style.position === 'fixed') break;
+    }
+    const width = right - left;
+    const height = bottom - top;
+    return width > 0 && height > 0 ? width * height / area : 0;
   }
 
   function testSimilarity(originalElement, childElement, parentElement) {
