@@ -305,15 +305,18 @@ source. Diff formats cannot carry a trailing-CR-only change, so
 newline instead. Without that the generated file differs from the vendored one
 by exactly those 428 bytes plus a final newline.
 
-**addons-linter's one `DANGEROUS_EVAL` here** is
+**addons-linter's one `DANGEROUS_EVAL` here was**
 `/******/ return this || new Function('return this')();` - webpack's own
 generated bootstrap, present verbatim in the module-wrapper preamble of
 effectively every webpack bundle (the `/******/` comment prefix is webpack's
 own marker for its runtime code, not this project's). It is the standard
 cross-environment global-object lookup, reached only as a fallback when
-`this` is already falsy at that point in the bootstrap - which it is not, in
-a browser or extension context. Not something to patch out of a bundle this
-size for one boilerplate line; left as upstream ships it.
+`globalThis` is missing and `this` is falsy - never, in a browser or extension
+context. Since 2026-10-27 `patches/dashjs@5.2.1.patch` has one more hunk that
+makes it `return this || globalThis;`: one boilerplate line a reviewer reads at a
+glance, which takes the bundle's only eval-like construct out and the warning
+with it. The patch re-cut (`tools/recut-patch.mjs`) carries it to each dash.js
+release; the line has been the same in every webpack 5 bundle.
 
 ## The smaller libraries
 
@@ -555,27 +558,27 @@ rather than a throwaway script: it undoes `one-var`, `curly`, `quotes`,
 `no-var`/`prefer-const` and template-literal re-indentation, so what survives
 is only what can change behaviour.
 
-**Its one `UNSAFE_VAR_ASSIGNMENT`** is `TEXTAREA_ELEMENT.innerHTML = s;`
+**Its one `UNSAFE_VAR_ASSIGNMENT` was** `TEXTAREA_ELEMENT.innerHTML = s;`
 inside `unescape(s)`, decoding HTML entities in cue text by writing to a
-detached `<textarea>` and reading `.textContent` back. It is safe here for a
+detached `<textarea>` and reading `.textContent` back. It was safe for a
 reason in the caller first: `unescape` is only ever given a text token, and
 `nextToken`'s `/^([^<]*)(<[^>]*>?)?/` ends a text token at the first `<`, so the
-string cannot hold a tag at all. The textarea is the second line of defence: its
-`innerHTML` is parsed as RCDATA text (character references decoded, no element
-created). Do not reuse `unescape` on raw text that may contain `<` on the strength
-of the textarea alone; that guarantee rests on fragment-parsing details, the
-tokenizer's does not. Confirmed
-that addons-linter cannot be told this either: an inline
-`// eslint-disable-next-line no-unsanitized/property` on this exact line was
-tested and made no difference to the warning count, so whatever runs this
-check does not honour inline directives (a sensible choice for a review
-tool, since otherwise a maintainer could always just disable the finding).
-`DOMParser().parseFromString(s, 'text/html')` was considered as an
-alternative and rejected: unlike a textarea's RCDATA parsing, `'text/html'`
-parsing genuinely constructs real elements (just detached from any
-document), which is a weaker guarantee resting on browsers not fetching
-resources for a detached document rather than on what the parser is
-spec-required to produce. Left as upstream ships it.
+string cannot hold a tag at all. addons-linter cannot be told so (an inline
+`// eslint-disable-next-line no-unsanitized/property` made no difference: it
+does not honour inline directives, a sensible choice for a review tool).
+
+Since 2026-10-27 (the ninth change in `tools/verify-vtt.mjs`) it decodes with
+`DOMParser`, which `no-unsanitized` does not flag, in a form that keeps the same
+guarantee: the text goes inside `<textarea>…</textarea>` with every `<` written as
+`&lt;` first, so the parser can only make the textarea's one text node (RCDATA,
+character references decoded) - nothing of the cue can end the textarea or start an
+element. (A bare `parseFromString(s, 'text/html')`, rejected earlier, would build
+real elements; this does not.) The line break after `<textarea>` is the one the
+parser drops, so a cue's own leading one stays; a NUL is dropped, as the innerHTML
+write dropped it. Text with no `&`, CR or NUL is returned as it is, unparsed.
+`modules.e2e.mjs` checks it against the old textarea method in Firefox for nine
+texts (entities with and without `;`, a `</textarea><img onerror>` attempt, CR,
+NUL, a leading line break): the same text, and no element.
 
 ### webm.mjs: removed
 

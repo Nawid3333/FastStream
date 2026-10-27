@@ -1,5 +1,5 @@
 diff --git a/dist/modern/esm/dash.all.debug.js b/dist/modern/esm/dash.all.debug.js
-index 148cfed3b9260ca84bfd655c8166a6269103236b..6db0e166630a7c4b33f7bcb2085a5c2cd413e442 100644
+index 148cfed3b9260ca84bfd655c8166a6269103236b..761f6b333924e7fa38536daf69e9ff1764f2999e 100644
 --- a/dist/modern/esm/dash.all.debug.js
 +++ b/dist/modern/esm/dash.all.debug.js
 @@ -1,3 +1,5 @@
@@ -1005,6 +1005,15 @@ index 148cfed3b9260ca84bfd655c8166a6269103236b..6db0e166630a7c4b33f7bcb2085a5c2c
    function _addHttpRequestMetric(httpRequest, httpResponse, traces) {
      const requestObject = httpRequest.customData.request;
      const cmsd = settings.get().streaming.cmsd && settings.get().streaming.cmsd.enabled ? cmsdModel.parseResponseHeaders(httpResponse.headers, requestObject.mediaType) : null;
+@@ -81179,7 +81177,7 @@ class SchedulingInfo {
+ /******/ 	__webpack_require__.g = (function() {
+ /******/ 		if (typeof globalThis === 'object') return globalThis;
+ /******/ 		try {
+-/******/ 			return this || new Function('return this')();
++/******/ 			return this || globalThis;
+ /******/ 		} catch (e) {
+ /******/ 			if (typeof window === 'object') return window;
+ /******/ 		}
 @@ -81284,5 +81282,3 @@ var __webpack_exports__Protection = __webpack_exports__.Protection;
  var __webpack_exports__default = __webpack_exports__["default"];
  var __webpack_exports__supportsMediaSource = __webpack_exports__.supportsMediaSource;

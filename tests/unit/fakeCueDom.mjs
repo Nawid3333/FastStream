@@ -67,10 +67,21 @@ class FakeElement extends FakeNode {
     this.childNodes = [];
     this.ownText = text;
   }
+}
 
-  // Only the parser's <textarea> uses this, to decode entities in cue text.
-  set innerHTML(html) {
-    this.ownText = html.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, String.fromCharCode(0xa0)).replace(/&amp;/g, '&');
+/**
+ * vtt.mjs decodes a cue's text by having DOMParser parse it in a <textarea> (its unescape):
+ * this gives that textarea's text, with the few character references the tests use decoded.
+ */
+class FakeDOMParser {
+  /**
+   * @param {string} html - "<textarea>\n" + the text + "</textarea>".
+   * @return {{querySelector: () => {textContent: string}}}
+   */
+  parseFromString(html) {
+    const text = html.replace(/^<textarea>\n/, '').replace(/<\/textarea>$/, '')
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, String.fromCharCode(0xa0)).replace(/&amp;/g, '&');
+    return {querySelector: () => ({textContent: text})};
   }
 }
 
@@ -112,6 +123,7 @@ export const fakeDocument = {
 export function installFakeDom() {
   globalThis.document = fakeDocument;
   globalThis.window = globalThis;
+  globalThis.DOMParser = FakeDOMParser;
 }
 
 /**

@@ -1,11 +1,12 @@
 # The addons-linter warnings, one by one
 
-`pnpm run lint:amo` reports **0 errors, 0 notices, 2 warnings** against
-`build_firefox_amo`, verified 2026-10-10 and again 2026-10-23. It was 3 from 2026-09-11 (re-verified
-after the Coloris 0.21.1→0.25.0 re-port) until the speech detector went on
-2026-10-10, and with it ONNX Runtime's `ort.wasm.mjs` and its warning. Every one of
-the 2 warnings is listed here with what it is and why the file has not been
-changed to silence it.
+`pnpm run lint:amo` reports **0 errors, 0 notices, 0 warnings** against
+`build_firefox_amo`, verified 2026-10-27 (`lint:github` the same). It was 2 from
+2026-10-10 to 2026-10-27, both in vendored libraries and left explained until the
+owner asked for none (both fixed, below); 3 from 2026-09-11 (re-verified after the
+Coloris 0.21.1→0.25.0 re-port) until the speech detector went on 2026-10-10, and with
+it ONNX Runtime's `ort.wasm.mjs` and its warning. Every warning there was is listed
+here with what it was and what changed.
 
 **The script passes `--self-hosted`.** Without it, addons-linter reports a
 `MANIFEST_UPDATE_URL` error on `browser_specific_settings.gecko.update_url`
@@ -30,7 +31,10 @@ claim gets.
 
 So the position is: change first-party code where the warning has a point,
 change vendored code through `patches/` where the fix is genuinely safe and
-worth the audit cost, explain the rest.
+worth the audit cost, explain the rest. The last two met that bar once looked at
+again (2026-10-27): each is a few lines a reviewer reads at a glance, kept where the
+provenance checks see it (the dash.js patch, `verify:vtt`'s list of changes), and
+proven to change nothing (below).
 
 ## Fixed rather than explained
 
@@ -42,6 +46,8 @@ worth the audit cost, explain the rest.
 | `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` (swatch-list builder) | fixed upstream itself as of 0.25.0 - no longer in our patch at all (see below) |
 | `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` line 977 | the ~40-element picker skeleton rewritten to `createElement`/`append` (see below) |
 | `DANGEROUS_EVAL` | `player/modules/sweetalert.mjs` line 3685 | the `new Function(...)` call replaced with an explanatory `throw` (see below); gone with sweetalert2 since 2026-10-09 |
+| `UNSAFE_VAR_ASSIGNMENT` | `player/modules/vtt.mjs` line 1181 | the cue-text entity decoder: a textarea `innerHTML` write became `DOMParser` on a textarea with every `<` escaped (2026-10-27, see below) |
+| `DANGEROUS_EVAL` | `player/modules/dash.mjs` line 81180 | webpack's unreachable `new Function('return this')` became `globalThis` in `patches/dashjs@5.2.1.patch` (2026-10-27, see below) |
 
 **gif.js's `UNSUPPORTED_API` was a scope-blind false positive, not a
 workaround.** The flagged line was `browser.platform[browser.platform.name] =
@@ -143,43 +149,43 @@ strings the source assigns (`'33.33333333333333%'` reads back as
 expected browser behaviour, not a bug, and adjusted for after seeing the
 actual values rather than guessing them.
 
-## The remaining 2
+## The last 2, fixed 2026-10-27
 
-### `UNSAFE_VAR_ASSIGNMENT` x1 — `player/modules/vtt.mjs` line 1065
+### `UNSAFE_VAR_ASSIGNMENT` — `player/modules/vtt.mjs` line 1181
 
-`TEXTAREA_ELEMENT.innerHTML = s`, the standard idiom for decoding HTML
+Was `TEXTAREA_ELEMENT.innerHTML = s`, the standard idiom for decoding HTML
 entities in subtitle cue text: assign to a detached `<textarea>` and read
-back `.textContent`. This is safe by construction, not just low-risk: the
-HTML spec gives `<textarea>` an RCDATA content model, so assigning to its
-`innerHTML` can never create an element or run a script no matter what the
-string contains — the entire value always becomes exactly one text node.
+back `.textContent`. It was safe by construction: the HTML spec gives
+`<textarea>` an RCDATA content model, so the whole value becomes exactly one
+text node. addons-linter cannot be told so: an inline `// eslint-disable-next-line
+no-unsanitized/property` made no difference to the count (it does not honour
+inline directives, a sensible choice for a review tool).
 
-Confirmed that addons-linter cannot be told this either: an inline `//
-eslint-disable-next-line no-unsanitized/property` on this exact line was
-tested and made no difference to the warning count, so whatever runs this
-check does not honour inline directives — a sensible choice for a review
-tool, since otherwise a maintainer could always just disable the finding.
-`DOMParser().parseFromString(s, 'text/html')` was considered as a rewrite and
-rejected: unlike a textarea's RCDATA parsing, `'text/html'` parsing genuinely
-constructs real elements (just detached from any document), which is a
-weaker guarantee resting on browsers not fetching resources for a detached
-document, rather than on what the parser is spec-required to produce. That
-would be a safety downgrade dressed up as a fix.
+Fixed by the ninth change in `tools/verify-vtt.mjs`: `DOMParser` parses
+`"<textarea>\n" + s + "</textarea>"`, with every `<` in `s` written as `&lt;` and any NUL
+dropped first, and the textarea's `textContent` is read. A bare
+`parseFromString(s, 'text/html')` was rejected here earlier because it builds real
+elements; this is not that. The cue sits inside a textarea with no `<` of its own, so
+the parser can make nothing of it but the textarea's one text node: the same RCDATA
+guarantee as before. The line break after `<textarea>` is the one the parser drops, so a
+cue's own first one stays, and a NUL goes as the innerHTML write dropped it (Firefox; the
+parser alone would make it U+FFFD). Text with no `&`, CR or NUL is returned unparsed.
+`tests/e2e/specs/modules.e2e.mjs` compares it with the old textarea method in Firefox for
+nine texts - entities with and without `;`, a `</textarea><img onerror>` attempt, CR,
+NUL, a leading line break - and gets the same text and no element for each.
 
-This is also the one file that **cannot be regenerated**: it is dash.js's
-`contrib/videojs-vtt.js/vtt.js`, which dash.js publishes only minified. Its
-provenance is instead proven on demand by `pnpm run verify:vtt`, which fetches
-upstream, applies the three documented changes, and asserts the two parse to
-the same program. Editing this line would add a fourth change to that list
-for a warning that isn't pointing at a real problem.
+This is still the one file that **cannot be regenerated**: it is dash.js's
+`contrib/videojs-vtt.js/vtt.js`, which dash.js publishes only minified. `pnpm run
+verify:vtt` fetches upstream, applies the nine documented changes, and asserts the two
+parse to the same program; a change missing from its list fails it.
 
 (Until 2026-10-10 a third: `UNSAFE_VAR_ASSIGNMENT` in `player/modules/vad/ort.wasm.mjs`,
 ONNX Runtime's own `await import(url)` of its wasm glue. It went with the speech
 detector, and the manifest's CSP lost `'wasm-unsafe-eval'` with it.)
 
-### `DANGEROUS_EVAL` x1 — `player/modules/dash.mjs` line 85152
+### `DANGEROUS_EVAL` — `player/modules/dash.mjs` line 81180
 
-webpack's runtime global detection, in full:
+webpack's runtime global detection, as dash.js ships it:
 
 ```js
 if (typeof globalThis === 'object') return globalThis;
@@ -190,37 +196,32 @@ try {
 }
 ```
 
-Unreachable twice over. `globalThis` has existed in every Firefox since 65,
-so the first line returns. Even if it did not, `this` is truthy at module
-scope in a classic script, and the `new Function` is inside a `try` whose
-`catch` falls back to `window` — which is what would happen under this
-extension's CSP, since `script-src 'self' 'wasm-unsafe-eval'` does not permit
-`eval`. This is webpack's own generated bootstrap preamble (the `/******/`
-comment prefix is webpack's own marker, not this project's), present
-verbatim in effectively every webpack bundle ever shipped.
-
-Verified, not assumed: this is the only eval-like construct in a 3.5 MB
-bundle, and DASH playback is covered end to end by
-`tests/e2e/specs/playback.e2e.mjs`.
+Unreachable twice over: `globalThis` has existed in every Firefox since 65, so the first
+line returns, and the extension's CSP (`script-src 'self'`) would refuse the `new
+Function` anyway. Fixed by one more hunk in `patches/dashjs@5.2.1.patch`: `return this ||
+globalThis;`. Nothing that runs changes, and the bundle's only eval-like construct is gone.
+The patch re-cut (`tools/recut-patch.mjs`, run by the patched-libraries workflow) carries
+the hunk to each dash.js release; the line is webpack's own boilerplate, the same in every
+webpack 5 bundle, and if a release ever changed it the re-cut stops with a conflict and
+opens an issue, as for any hunk. DASH playback is covered end to end by
+`tests/e2e/specs/playback.e2e.mjs` and `dash-broken-segment.e2e.mjs`.
 
 ## Why not just patch them all
 
 Because the count is not the goal. Upstream FastStream passed the automated
 linter and was rejected anyway, over vendored libraries a reviewer could not
-verify. Two advisory warnings on files that are pinned, generated,
-diffable, or safe by construction is a far better position than zero
-warnings on files that have been hand-edited past the point of easy review —
-which is where the last submission started. Where a fix was genuinely safe
-and worth that audit cost (gif.js, all seven of Coloris's sites,
-sweetalert2), it was made; where it was not, the reasoning is written down
-instead of a diff nobody asked for.
+verify. Advisory warnings on files that are pinned, generated, diffable, or safe by
+construction are a better position than zero warnings on files that have been
+hand-edited past the point of easy review - which is where the last submission started.
+Where a fix was genuinely safe and worth that audit cost (gif.js, all seven of Coloris's
+sites, sweetalert2, and since 2026-10-27 vtt.js's decoder and dash.js's webpack line), it
+was made, each where the provenance checks see it.
 
-## The GitHub self-host build has the same two
+## The GitHub self-host build
 
-`pnpm run lint:github` — the build distributed outside AMO — reports
-**0 errors, 0 notices, 2 warnings**: the vtt/dash items above,
-present in both builds for the same reasons (patches apply to the shared
-`chrome/player/modules/` source both targets splice from).
+`pnpm run lint:github` - the build distributed outside AMO - reports
+**0 errors, 0 notices, 0 warnings** as well (patches apply to the shared
+`chrome/player/modules/` source both targets splice from; the vtt/dash two were in both).
 
 It had a 4th until 2026-09-24, **`MISSING_DATA_COLLECTION_PERMISSIONS`**. Adding
 `data_collection_permissions` needs Firefox 140+ (142+ for Android), and this

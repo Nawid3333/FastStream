@@ -148,18 +148,14 @@ version and the add-on id `build.mjs` sets); broken -> the issue "Update path br
 repeated by mail. The decision steps were dry-run with a stub `gh` (17 scenarios) before
 the change went in.
 
-## AMO lint (firefox-amo, current: 0 errors / 2 warnings, needs `--self-hosted`)
+## AMO lint (firefox-amo, current: 0 errors / 0 warnings, needs `--self-hosted`)
 
-Verified 2026-10-10, and again on 2026-10-23 after the strict typing (#530-#556): both
-`firefox-amo` and `firefox-github` are **0 errors, 0 notices, 2 warnings** (`vtt.mjs` line
-1181, `dash.mjs` line 81180). (`firefox-github` had a 4th until 2026-09-24, see
-below; both had a 3rd, ONNX Runtime's `vad/ort.wasm.mjs`, until the speech
-detector went on 2026-10-10.)
-
-The 2 warnings both targets share are both in vendored libraries: `vtt.mjs`
-(`UNSAFE_VAR_ASSIGNMENT`) and `dash.mjs`'s webpack bootstrap eval
-(`DANGEROUS_EVAL`) — see `docs/amo-linter-warnings.md` for why
-each is safe-left-alone. `firefox-github` used to add
+Verified 2026-10-27: both `firefox-amo` and `firefox-github` are **0 errors, 0 notices,
+0 warnings**. (Until then 2: `vtt.mjs` line 1181's `UNSAFE_VAR_ASSIGNMENT` and
+`dash.mjs` line 81180's webpack bootstrap `DANGEROUS_EVAL`, both in vendored libraries,
+fixed as `docs/amo-linter-warnings.md` says; `firefox-github` had a 4th until 2026-09-24,
+see below; both had ONNX Runtime's `vad/ort.wasm.mjs` until the speech detector went on
+2026-10-10.) `firefox-github` used to add
 `MISSING_DATA_COLLECTION_PERMISSIONS`; it now declares
 `data_collection_permissions: {required: ['none']}` like `firefox-amo`, which
 needed its `strict_min_version` raised from 136 to 142 (the key needs 140+,
