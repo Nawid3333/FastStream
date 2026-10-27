@@ -589,6 +589,23 @@ the master, its variant, then the sound's playlist on the next page (red before:
 `index-a1.m3u8`); `StreamLengths.test.mjs`: audio and subtitles playlists, and that they go
 with the oldest master.
 
+**The next page in a background tab (2026-10-27).** His report: with the tab not the active
+one, MPV autoplay went on to the next episode in the browser, and sometimes nothing came to
+mpv. `startPagePlayers` asks only the frame whose video `getVideo` finds on screen, and that
+went by IntersectionObserver. Measured in Firefox 158 (scratch specs over WebDriver classic,
+where showing another tab hides the first): a hoster's frame from another site made while the
+tab is hidden has a 0x0 viewport at load (its real one within 3 s) and IntersectionObserver
+gives everything in it 0 until the tab is shown, so no frame was asked and the hoster's idle
+player never started (with the tab in front: started after 2 s; the same player in the page
+itself: after 3 s). The hidden tab's own measures also came ever later (1, 7, 15, 32 s), past
+the background's 3 s. In a hidden document `isVisible` now measures the box (`boxVisibleRatio`:
+the viewport and the boxes that clip it, as IntersectionObserver does). A frame with
+`display: none` in a tab in front stays "visible", so keeps the old measure. A tab the
+extension opens without showing it (`tabs.create` with `active: false`) loads the hoster too,
+and its started player loads its stream (`loadedmetadata`), while Firefox holds its `play()`
+until the tab is shown. `classic-specs/autoplay-background-tab.e2e.mjs` (red before: the
+player was never started), `contentPagePlayer.test.mjs`.
+
 **Debugging.** Add `"debug": true` to
 `%LOCALAPPDATA%\FastStreamMpvHost\config.json` (no reinstall needed, the host
 reads it per message) and it appends JSONL to `faststream-mpv-host.log` next

@@ -1735,7 +1735,22 @@
     return parents;
   }
 
+  /**
+   * How much of an element is on screen, 0 to 1. In a hidden document (a background tab)
+   * the element's box stands in for the browser's measure, which there is no answer
+   * (his report, 2026-10-27: MPV autoplay went on to the next episode in a background tab,
+   * and its hoster's player was never started). Measured in Firefox 158: a cross-site frame
+   * made in a hidden tab has a 0x0 viewport, and IntersectionObserver gives everything in it
+   * 0 until the tab is shown; and a hidden tab measures on a timer that slows each time
+   * (1 s, 7 s, 15 s, 32 s), so even the page's own answer came after the background's
+   * 3 s (FrameAnswerWaitMs).
+   * @param {Element} domElement
+   * @return {Promise<number>}
+   */
   function isVisible(domElement) {
+    if (document.visibilityState === 'hidden') {
+      return Promise.resolve(boxVisibleRatio(domElement));
+    }
     return new Promise((resolve) => {
       const o = new IntersectionObserver(([entry]) => {
         resolve(entry.intersectionRatio);
@@ -1743,6 +1758,64 @@
       });
       o.observe(domElement);
     });
+  }
+
+  /**
+   * isVisible's measure in a hidden document: the part of the element's box inside the
+   * frame's viewport and inside each box above it that clips (overflow other than visible,
+   * or paint containment), as IntersectionObserver has it: a video parked off-screen, or in a
+   * box of no height, as an ad's may be, is 0. A box placed absolutely or fixed escapes the
+   * clips between it and the box that places it (its containing block; for a fixed one a
+   * transform, a filter or containment, else the viewport), as CSS draws it (glm's review,
+   * 2026-10-27). A frame made in a hidden tab has a 0x0 viewport at first (its real one came
+   * within 3 s, measured): until then, what lies below and right of its top left corner counts.
+   * The clip is each box's border box, a border's width wider than the browser's.
+   * @param {Element} element
+   * @return {number} 0 to 1.
+   */
+  function boxVisibleRatio(element) {
+    const rect = element.getBoundingClientRect();
+    const area = rect.width * rect.height;
+    if (!(area > 0)) return 0;
+    let left = Math.max(rect.left, 0);
+    let top = Math.max(rect.top, 0);
+    let right = window.innerWidth > 0 ? Math.min(rect.right, window.innerWidth) : rect.right;
+    let bottom = window.innerHeight > 0 ? Math.min(rect.bottom, window.innerHeight) : rect.bottom;
+    const set = (value) => !!value && value !== 'none';
+    // 'absolute' or 'fixed' while the walk is between such a box and its containing block.
+    let escaping = null;
+    for (const current of flatTreeParents(element)) {
+      const style = window.getComputedStyle(current);
+      const contain = String(style.contain || '');
+      const paintContained = /paint|strict|content/.test(contain);
+      if (current !== element) {
+        const holdsFixed = set(style.transform) || set(style.perspective) || set(style.filter) ||
+          set(style.backdropFilter) || paintContained || /layout/.test(contain) ||
+          /transform|perspective|filter/.test(String(style.willChange || ''));
+        if (escaping === null || holdsFixed || (escaping === 'absolute' && style.position !== 'static')) {
+          escaping = null;
+          const clipsX = (style.overflowX || style.overflow) !== 'visible' || paintContained;
+          const clipsY = (style.overflowY || style.overflow) !== 'visible' || paintContained;
+          if (clipsX || clipsY) {
+            const box = current.getBoundingClientRect();
+            if (clipsX) {
+              left = Math.max(left, box.left);
+              right = Math.min(right, box.right);
+            }
+            if (clipsY) {
+              top = Math.max(top, box.top);
+              bottom = Math.min(bottom, box.bottom);
+            }
+          }
+        }
+      }
+      if (escaping === null && (style.position === 'absolute' || style.position === 'fixed')) {
+        escaping = style.position;
+      }
+    }
+    const width = right - left;
+    const height = bottom - top;
+    return width > 0 && height > 0 ? width * height / area : 0;
   }
 
   function testSimilarity(originalElement, childElement, parentElement) {
