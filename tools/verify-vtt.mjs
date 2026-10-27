@@ -41,8 +41,10 @@ const UPSTREAM =
  * FastStream's copy is closer to videojs/vtt.js than dash.js's is. One is a
  * real product change - subtitles are rendered at a fifth of the default size
  * relative to the container. The fourth answers a CodeQL alert (2026-09-22), and
- * the last four keep a hostile cue from throwing, freezing the page or borrowing
- * the player's own classes (2026-10-03).
+ * the next four keep a hostile cue from throwing, freezing the page or borrowing
+ * the player's own classes (2026-10-03). The last decodes a cue's character
+ * references without an innerHTML write, the last addons-linter warning in it
+ * (2026-10-27).
  *
  * A change to vtt.mjs has to be added here in the same commit, or this check
  * fails - which is how it is meant to work, and why CI runs it.
@@ -87,6 +89,13 @@ const CHANGES = [
     what: 'cue classes: not set on the element, where the player\'s own CSS matched them (#292)',
     from: 'node.className = classes.join(\' \');',
     to: '',
+  },
+  {
+    what: 'cue text: character references decoded by DOMParser, not an innerHTML write (addons-linter)',
+    from: '    TEXTAREA_ELEMENT.innerHTML = s;\n    s = TEXTAREA_ELEMENT.textContent;\n    TEXTAREA_ELEMENT.textContent = "";\n    return s;',
+    to: String.raw`if (!/[&\r\0]/.test(s)) { return s; }
+      var parsed = new DOMParser().parseFromString("<textarea>\n" + s.replace(/\0/g, "").replace(/</g, "&lt;") + "</textarea>", "text/html");
+      return parsed.querySelector("textarea").textContent;`,
   },
 ];
 

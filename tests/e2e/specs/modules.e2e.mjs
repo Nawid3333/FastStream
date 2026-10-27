@@ -596,4 +596,36 @@ describe('the colour picker', function() {
     // rounded.
     expect(result.hueMarkerLeft).toBe('33.3333%');
   });
+
+  it('vtt.js decodes a cue\'s character references as the textarea did, and makes no element of them', async function() {
+    // vtt.mjs decoded each text of a cue by writing it to a detached <textarea>'s innerHTML,
+    // the one write addons-linter warned of; it decodes with DOMParser now (verify-vtt.mjs).
+    // The old way is the reference here, in the same Firefox: the same text for each of these,
+    // and no element made of any of them.
+    const result = await runInPage(async () => {
+      const {WebVTT} = await import('/player/modules/vtt.mjs');
+      const reference = document.createElement('textarea');
+      const texts = [
+        'plain text, nothing to decode',
+        'Tom &amp; Jerry',
+        '&lt;b&gt;not bold&lt;/b&gt;',
+        '&lt;/textarea&gt;&lt;img src=x onerror="window.__vttRan = true"&gt;',
+        '&#233; &eacute; &#x1F600; &nbsp;| &lrm;&rlm;',
+        'no semicolon &amp then &copy and &unknown; and a lone &',
+        '\nstarts with a line break &amp;',
+        'carriage\r\nreturns\r here',
+        'a\u0000b &amp; c',
+      ];
+      return texts.map((text) => {
+        reference.innerHTML = text;
+        const tree = WebVTT.convertCueToDOMTree(window, text);
+        return {text, want: reference.textContent, got: tree.textContent, elements: tree.querySelectorAll('*').length};
+      }).concat([{ran: !!window.__vttRan}]);
+    });
+    const ran = result.pop();
+    for (const {text, want, got, elements} of result) {
+      expect({text, got, elements}).toEqual({text, got: want, elements: 0});
+    }
+    expect(ran).toEqual({ran: false});
+  });
 });

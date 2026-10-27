@@ -1178,10 +1178,18 @@
                 }
 
                 function unescape(s) {
-                    TEXTAREA_ELEMENT.innerHTML = s;
-                    s = TEXTAREA_ELEMENT.textContent;
-                    TEXTAREA_ELEMENT.textContent = "";
-                    return s;
+                    // FastStream: the character references decoded as the textarea's innerHTML
+                    // did, without an innerHTML write (addons-linter warned of it). Every "<"
+                    // written as &lt; first, the parser can make nothing but the textarea's one
+                    // text node; the line break after <textarea> is the one the parser drops, so
+                    // the cue's own first one stays. A NUL goes, as the innerHTML write dropped it
+                    // (measured in modules.e2e.mjs; the parser would make it U+FFFD). Text with no
+                    // "&", CR or NUL, which the parser would leave as it is, is not parsed at all.
+                    if (!/[&\r\0]/.test(s)) {
+                        return s;
+                    }
+                    var parsed = new DOMParser().parseFromString("<textarea>\n" + s.replace(/\0/g, "").replace(/</g, "&lt;") + "</textarea>", "text/html");
+                    return parsed.querySelector("textarea").textContent;
                 }
 
                 function shouldAdd(current, element) {
