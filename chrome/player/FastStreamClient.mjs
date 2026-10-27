@@ -66,6 +66,11 @@ const RECOVERY_WINDOW_MS = 120000;
 // time was built anew every second for as long as the video was open; one that plays on
 // between rare errors is built again after each.
 const PREVIEW_RELOAD_LIMIT = 3;
+// How often renewSourceLink asks the page for a refused link anew: at most LINK_RENEWAL_LIMIT
+// times in LINK_RENEWAL_WINDOW_MS for one video. A page whose new link is refused too (a
+// block, not an old link) ends where it did, without being asked on and on.
+const LINK_RENEWAL_LIMIT = 2;
+const LINK_RENEWAL_WINDOW_MS = 300000;
 // How far into a video the overlay's picture is taken again (takeArtwork), past a black start.
 const ARTWORK_AFTER_S = 5;
 // How often the dropped frames are counted (watchDroppedFrames).
@@ -274,6 +279,10 @@ export class FastStreamClient extends EventEmitter {
     this.playedSource = null;
     /** @type {{url: ?string, times: number[]}} */
     this.recoveries = {url: null, times: []};
+    // When the page was asked for a refused link anew, for which video, and whether it is
+    // being asked now (renewSourceLink).
+    /** @type {{identifier: ?string, times: number[], asking: boolean, playing?: boolean}} */
+    this.linkRenewals = {identifier: null, times: [], asking: false};
     // The last decode error recoverPlayer built the player again for (BrokenMedia.mjs).
     this.lastDecodeFailure = null;
     this.previewPlayerSetup = null;
@@ -1111,15 +1120,9 @@ export class FastStreamClient extends EventEmitter {
         timeFromURL = null;
       }
 
-      // Strip out the timestamp from the URL
+      // Strip out the timestamp from the URL, the rest of it untouched (URLUtils.withTimestamp)
       if (timeFromURL !== null) {
-        try {
-          const url = new URL(source.url);
-          url.searchParams.delete('faststream-timestamp');
-          source.url = url.toString();
-        } catch (e) {
-          console.error(e);
-        }
+        source.url = URLUtils.withTimestamp(source.url, null);
       }
 
       // The time in the player page's own address is for the video the page was opened
@@ -1973,14 +1976,8 @@ export class FastStreamClient extends EventEmitter {
     // setSourceInternal reads and takes off again (whole seconds). Not for a live stream,
     // which joins at its live edge again, nor for a blob: or data: URL, which takes none.
     if (!this.isLive() && /^https?:/i.test(again.url)) {
-      try {
-        const withTime = new URL(again.url);
-        // Whole seconds: past a broken segment, the second after it ends.
-        withTime.searchParams.set('faststream-timestamp', String(skip ? Math.ceil(time) : Math.floor(time)));
-        again.url = withTime.toString();
-      } catch (e) {
-        // Not a URL after all: from the start, still with everything downloaded.
-      }
+      // Whole seconds: past a broken segment, the second after it ends.
+      again.url = URLUtils.withTimestamp(again.url, skip ? Math.ceil(time) : Math.floor(time));
     }
     // The quality and the audio track the user had.
     again.defaultLevelInfo = {
@@ -2027,13 +2024,7 @@ export class FastStreamClient extends EventEmitter {
     const direct = source.copy();
     direct.mode = PlayerModes.DIRECT;
     if (time >= 1 && /^https?:/i.test(direct.url)) {
-      try {
-        const withTime = new URL(direct.url);
-        withTime.searchParams.set('faststream-timestamp', String(Math.floor(time)));
-        direct.url = withTime.toString();
-      } catch (e) {
-        // Not a URL after all: from the start.
-      }
+      direct.url = URLUtils.withTimestamp(direct.url, Math.floor(time));
     }
     this.setSource(direct, this.fallbacks.sources, {play: wasPlaying})
         .catch((e) => console.warn('Could not play the source directly', e));
@@ -2047,13 +2038,81 @@ export class FastStreamClient extends EventEmitter {
    * @return {string}
    */
   recoverySourceURL(url) {
-    try {
-      const parsed = new URL(url);
-      parsed.searchParams.delete('faststream-timestamp');
-      return parsed.toString();
-    } catch (e) {
-      return url;
+    return URLUtils.withTimestamp(url, null);
+  }
+
+  /**
+   * A server refused one of the source's requests (401, 403, 410; DownloadManager.linkRefused).
+   * @param {number} status
+   * @param {string} url - The request's.
+   */
+  linkRefused(status, url) {
+    this.renewSourceLink(status).catch((e) => console.warn('Could not get the link anew', e));
+  }
+
+  /**
+   * Asks the page the source came from for its link anew (the background fetches it again,
+   * FreshLink.mjs), and with a new one plays on at the same time, quality and audio track. A
+   * hoster signs its link for some hours, and Back gives a page its old one from Firefox's
+   * cache: such a link was refused once it ran out, and the player sat at a spinner, at the
+   * start or mid-video, until the user reloaded the page and cleared the cache (#592). Once
+   * for a burst of refusals, at most LINK_RENEWAL_LIMIT times in LINK_RENEWAL_WINDOW_MS for one
+   * video; a page that gives the same link, or none, changes nothing.
+   * @param {number} status - The refusal's.
+   * @return {Promise<boolean>} Whether the player plays on with a new link.
+   */
+  async renewSourceLink(status) {
+    const source = this.source;
+    if (!source || !EnvUtils.isExtension() || source.loadedFromArchive || !/^https?:/i.test(source.url)) {
+      return false;
     }
+    const now = Date.now();
+    let renewals = this.linkRenewals;
+    if (renewals.identifier !== source.identifier) {
+      renewals = this.linkRenewals = {identifier: source.identifier, times: [], asking: false};
+    }
+    renewals.times = renewals.times.filter((time) => now - time < LINK_RENEWAL_WINDOW_MS);
+    if (renewals.asking || renewals.times.length >= LINK_RENEWAL_LIMIT) {
+      return false;
+    }
+    renewals.asking = true;
+    renewals.times.push(now);
+    console.warn(`The server refused the link (${status}): asking the page for it anew`);
+    /** @type {unknown} */
+    let fresh = null;
+    try {
+      fresh = await chrome.runtime.sendMessage({type: MessageTypes.REQUEST_FRESH_LINK, url: this.recoverySourceURL(source.url)});
+    } catch (e) {
+      console.warn('The background gave no new link', e);
+    } finally {
+      renewals.asking = false;
+    }
+    // Another video meanwhile, or the page has no other link.
+    if (this.source !== source || typeof fresh !== 'string') {
+      return false;
+    }
+    const time = this.currentTime;
+    // What the user wants, not what the element says (recoverPlayer). A player built with a new
+    // link that was refused again before it showed anything keeps the wish from before it.
+    const wasPlaying = !!this.state.playing || !this.paused || (this.playedSource !== source && !!renewals.playing);
+    renewals.playing = wasPlaying;
+    console.warn('Playing on with the page\'s new link at ' + time);
+    const again = source.copy();
+    again.url = fresh;
+    // The time as recoverPlayer gives it; not for a live stream, which joins at its edge.
+    if (!this.isLive() && time >= 1) {
+      again.url = URLUtils.withTimestamp(fresh, Math.floor(time));
+    }
+    again.defaultLevelInfo = {
+      level: this.getCurrentVideoLevelID() ?? undefined,
+      audioLevel: this.getCurrentAudioLevelID() ?? undefined,
+    };
+    // What the old link downloaded is not kept (keepStorageOnce): downloads are kept by their
+    // URL, the new link's are other URLs, and the old ones would only hold memory (measured in
+    // fresh-link.e2e.mjs: the new player asked for every one again).
+    this.droppedFrameWatch.keepChoiceOnce();
+    await this.setSource(again, this.fallbacks.sources, {play: wasPlaying});
+    return true;
   }
 
   /**
@@ -2913,13 +2972,7 @@ export class FastStreamClient extends EventEmitter {
     next.url = entry.url;
     const time = Math.floor(this.currentTime);
     if (time >= 1 && !this.isLive()) {
-      try {
-        const withTime = new URL(next.url);
-        withTime.searchParams.set('faststream-timestamp', String(time));
-        next.url = withTime.toString();
-      } catch (e) {
-        // Not a URL after all: from the start.
-      }
+      next.url = URLUtils.withTimestamp(next.url, time);
     }
     console.log('Playing the page\'s ' + (entry.label || entry.height + 'p') + ' instead');
     // The same video in another file: a version picked by hand stays picked.

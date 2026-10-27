@@ -356,6 +356,16 @@ export class DownloadManager {
   }
 
   /**
+   * A server refused a link (401, 403, 410; FetchLoader's onRefused, through
+   * StandardDownloader): the player may get it anew from its page.
+   * @param {number} status
+   * @param {string} url
+   */
+  linkRefused(status, url) {
+    this.client?.linkRefused?.(status, url);
+  }
+
+  /**
    * A server answered 429 or 503 (FetchLoader tells at once, before it retries): half the
    * downloaders go (one stays) - one mid-fetch hands its download back to the queue, one
    * delivering a finished download finishes it first (StandardDownloader.retire) - the

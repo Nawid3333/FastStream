@@ -15,6 +15,7 @@ const CHECKED = [
   'chrome/background/ContextMenu.mjs',
   'chrome/background/CustomSourcePatterns.mjs',
   'chrome/background/DownloadFilename.mjs',
+  'chrome/background/FreshLink.mjs',
   'chrome/background/KeyShortcut.mjs',
   'chrome/background/ManifestTypes.mjs',
   'chrome/background/MpvBackend.mjs',

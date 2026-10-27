@@ -12,7 +12,7 @@ import {RequestUtils} from '../utils/RequestUtils.mjs';
 /** @typedef {{url: string, method?: string, headers?: Object<string, string>, body?: *, responseType?: string, rangeStart: number, rangeEnd: number}} LoaderRequest */
 /** @typedef {{retryDelay: number, timeout: number, maxRetry: number, maxRetryDelay: number, fetchPriority?: 'high'|'low'|'auto'|(() => 'high'|'low'|'auto')}} LoaderConfig */
 /** @typedef {{url: string, status: number, headers: Object<string, string>, data: string|ArrayBuffer}} LoaderResponse */
-/** @typedef {{onError: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onProgress?: (stats: LoaderStats, request: LoaderRequest, data: string|ArrayBuffer, networkDetails: null) => void, onSuccess: (response: LoaderResponse, stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onTimeout: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onSlowDown?: (retryAfter: number|null) => void}} LoaderCallbacks */
+/** @typedef {{onError: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onProgress?: (stats: LoaderStats, request: LoaderRequest, data: string|ArrayBuffer, networkDetails: null) => void, onSuccess: (response: LoaderResponse, stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onTimeout: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onSlowDown?: (retryAfter: number|null) => void, onRefused?: (status: number, url: string) => void}} LoaderCallbacks */
 
 /**
  * How long a Retry-After header asks to wait: a number of seconds or an HTTP date.
@@ -418,6 +418,14 @@ export class FetchLoader {
       });
       // onSlowDown can synchronously slow down and abort this loader (DownloadManager.slowDown
       // -> StandardDownloader.retire): do not retry or report a stopped loader.
+      if (!this.callbacks) return;
+    }
+    // 401, 403 and 410 refuse the link itself, an expired one among them: the player may get
+    // it anew from its page (FastStreamClient.linkRefused, FreshLink.mjs).
+    if (status === 401 || status === 403 || status === 410) {
+      this.callbacks?.forEach((callbacks) => {
+        callbacks?.onRefused?.(status, request.url);
+      });
       if (!this.callbacks) return;
     }
     // if max nb of retries reached or if http status between 400 and 499

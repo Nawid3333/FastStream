@@ -7,6 +7,28 @@ import {PlayerModes} from '../../chrome/player/enums/PlayerModes.mjs';
 // nothing at all - no error is raised anywhere - so it gets the most
 // coverage of any module here.
 
+describe('withTimestamp', () => {
+  // vidmoly's signature ends in '='; written anew as %3D (URLSearchParams), the server refused
+  // it: every segment after a player was built again at a time got a 403 (#592).
+  const signed = 'https://prx-1.vmget.online/hls2/v_,n,l,.urlset/master.m3u8?t=Ab+c/d=&s=1793113399&e=43200&v=';
+
+  it('sets the time and leaves every other byte of the link as it was', () => {
+    expect(URLUtils.withTimestamp(signed, 95)).toBe(signed + '&faststream-timestamp=95');
+    expect(URLUtils.withTimestamp(signed + '&faststream-timestamp=3', 95)).toBe(signed + '&faststream-timestamp=95');
+    expect(URLUtils.withTimestamp('https://h.test/v.mp4', 7)).toBe('https://h.test/v.mp4?faststream-timestamp=7');
+    expect(URLUtils.withTimestamp('https://h.test/v.mp4?a=1#t=5', 7)).toBe('https://h.test/v.mp4?a=1&faststream-timestamp=7#t=5');
+  });
+
+  it('takes the time off, the rest untouched, and leaves a link without one as it is', () => {
+    expect(URLUtils.withTimestamp(signed + '&faststream-timestamp=95', null)).toBe(signed);
+    expect(URLUtils.withTimestamp('https://h.test/v?faststream-timestamp=95&t=a%20b', null)).toBe('https://h.test/v?t=a%20b');
+    expect(URLUtils.withTimestamp('https://h.test/v.mp4?faststream-timestamp=95', null)).toBe('https://h.test/v.mp4');
+    expect(URLUtils.withTimestamp(signed, null)).toBe(signed);
+    // Another parameter that only starts so is not it.
+    expect(URLUtils.withTimestamp('https://h.test/v?faststream-timestamps=1', null)).toBe('https://h.test/v?faststream-timestamps=1');
+  });
+});
+
 describe('get_url_extension', () => {
   it('extracts a lowercase extension', () => {
     expect(URLUtils.get_url_extension('https://e.com/a/b/v.M3U8')).toBe('m3u8');

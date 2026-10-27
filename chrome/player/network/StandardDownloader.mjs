@@ -52,6 +52,15 @@ export class StandardDownloader {
     this.manager.slowDown?.(retryAfter);
   }
 
+  /**
+   * A server refused the link (401, 403, 410): the manager tells the player.
+   * @param {number} status
+   * @param {string} url
+   */
+  onRefused(status, url) {
+    this.manager.linkRefused?.(status, url);
+  }
+
   getSpeed() {
     return this.speedTracker.getSpeed();
   }

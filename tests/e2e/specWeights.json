@@ -19,6 +19,7 @@
   "ext-specs/extension.e2e.mjs": 12,
   "ext-specs/firefox-vpn.e2e.mjs": 14,
   "ext-specs/framed-player.e2e.mjs": 18,
+  "ext-specs/fresh-link.e2e.mjs": 30,
   "ext-specs/header-rules.e2e.mjs": 10,
   "ext-specs/iframe-redirect.e2e.mjs": 11,
   "ext-specs/keybinds-storage.e2e.mjs": 14,

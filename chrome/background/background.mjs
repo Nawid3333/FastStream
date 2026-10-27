@@ -13,6 +13,7 @@ import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {createMenus, linkTarget, MenuIds, updateMenus} from './ContextMenu.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
 import {sanitizeDownloadFilename} from './DownloadFilename.mjs';
+import {fetchFreshLink} from './FreshLink.mjs';
 import {KeyShortcut} from './KeyShortcut.mjs';
 import {modeFromContentType, modeFromMediaType} from './ManifestTypes.mjs';
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
@@ -1194,6 +1195,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       sendPageMediaHold(tab);
     }
+  } else if (msg.type === MessageTypes.REQUEST_FRESH_LINK) {
+    // A player whose stream the server refused asks its page for the link anew (FreshLink.mjs).
+    if (!BackgroundUtils.isUrlPlayerUrl(sender.url || '') || typeof msg.url !== 'string') {
+      sendResponse(null);
+      return;
+    }
+    fetchFreshLink(freshLinkPages(tab, frame, msg.url), msg.url).then(sendResponse, (e) => {
+      console.warn('No new link for a refused stream', e);
+      sendResponse(null);
+    });
+    return true;
   } else if (msg.type === MessageTypes.PLAYER_OPEN_GONE) {
     // The page took the player iframe out before its player loaded: no PLAYER_LOADED comes
     // to end the opening, and openPlayer refused this frame until the page navigated.
@@ -1744,6 +1756,32 @@ async function getPageFrame(frame) {
   }
 
   return null;
+}
+
+/**
+ * The pages to ask for a new link to a stream the server refused (FreshLink.mjs): the page the
+ * player plays for first, then each frame that saw the stream (the same URL less its query).
+ * At most three, each fetched once.
+ * @param {TabHolder} tab
+ * @param {FrameHolder & FrameExtras} frame - The player's.
+ * @param {string} url - The refused link.
+ * @return {string[]}
+ */
+function freshLinkPages(tab, frame, url) {
+  const identifier = url.split(/[?#]/)[0];
+  /** @type {string[]} */
+  const pages = [];
+  const add = (/** @type {FrameHolder|null|undefined} */ page) => {
+    if (page && /^https?:/i.test(page.url) && !pages.includes(page.url)) pages.push(page.url);
+  };
+  add(frame.pageFrame || frame.parent);
+  for (const other of tab.getFrames()) {
+    if (other.getSources().some(/** @param {TrackedSource} source */ (source) =>
+      [source.url, source.requestedUrl].some((link) => link?.split(/[?#]/)[0] === identifier))) {
+      add(other);
+    }
+  }
+  return pages.slice(0, 3);
 }
 
 /**
