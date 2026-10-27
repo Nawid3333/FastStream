@@ -144,9 +144,12 @@ the player's Next button would, and its stream replaces the old one in the same 
   `script-message faststream-previous` and `script-message faststream-autoplay`.
 - mpv says what happens: the next episode loading, that the page has no next episode,
   that its tab is closed, or that the next page brought no stream within a minute.
-- **The episode's tab must stay open** (in MPV mode): the page is what knows the next
-  episode. Close it, or close Firefox, and mpv plays on; the episode buttons go away,
-  and the series continues once you open the page again and send an episode.
+- **The episode's tab may be closed.** FastStream keeps the page's next and previous
+  episode links from when the episode went to mpv, and opens the next one in a tab in the
+  background, which closes again once mpv has its stream (it stays if you switch to it).
+  This needs the page's next episode to be a link (not a button run by a script), and the
+  tab's window to still be open. Close Firefox, and mpv plays on; the episode buttons go
+  away, and the series continues once you open the page again and send an episode.
 - It needs helper version 9 and **Reuse one mpv window**.
 
 ## Options

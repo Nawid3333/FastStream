@@ -718,6 +718,7 @@ chrome.tabs.onRemoved.addListener((tabid, removed) => {
   if (closing?.windowStateBefore && removed && !removed.isWindowClosing) {
     restoreWindowState(closing, removed.windowId);
   }
+  if (removed) noteMpvTabClosed(tabid, removed);
   Tabs.removeTab(tabid);
   VpnMirror.forgetTab(tabid);
 });
@@ -3174,10 +3175,20 @@ function tabSources(tab) {
 // (the mpv setup's faststream-episodes.lua), which this setting drives and the switch flips;
 // an end waits Options.autoplayCountdown seconds, which the switch or a key can cut short,
 // and Space stop.
+// The tab may be closed while mpv plays (his wish, 2026-10-27): the next and the previous
+// episode's links are read from its page at each hand-off (rememberEpisodeLinks), and an end
+// or a key then opens the episode in a tab not shown (goToEpisodeInNewTab), which closes again
+// once its stream went to mpv.
+/**
+ * The episode links of the page a stream went to mpv from, and where its tab was.
+ * @typedef {{tabId: number, next: ?string, previous: ?string, seriesEnd: boolean,
+ *   cookieStoreId: ?string}} EpisodeLinksOfTab
+ */
 /**
  * @typedef {{tabId: number, url: string, qualities: ?Array<{url: string}>, alive: boolean, going: boolean,
  *   countdown: ?ReturnType<typeof setTimeout>, countdownAsks: number,
  *   stalled: ?ReturnType<typeof setTimeout>,
+ *   links: ?EpisodeLinksOfTab, closedTab: ?{links: EpisodeLinksOfTab, windowId: number, windowClosing: boolean},
  *   watcher: ?{notify: Function, hide: Function, state: Function, stop: Function}}} MpvWatch
  */
 /** @type {?MpvWatch} */
@@ -3297,6 +3308,8 @@ function watchMpvFor(tab, url, qualities = null) {
     if (before.continuationOptions?.mpvNext) {
       before.continuationOptions = null;
     }
+    // One autoplay opened for an episode that no longer goes to mpv.
+    closeReopenedTab(before);
   }
   if (mpvWatch?.alive) {
     // A stream arrived: the next page's "no stream" alarm, and an end's countdown, are done.
@@ -3306,13 +3319,106 @@ function watchMpvFor(tab, url, qualities = null) {
     mpvWatch.tabId = tab.tabId;
     mpvWatch.url = url;
     mpvWatch.qualities = qualities;
+    // A tab that is open now is what an end goes on from. The links of the tab's page before
+    // are not this one's: closed before these are read, it has none (glm's review).
+    mpvWatch.closedTab = null;
+    mpvWatch.links = null;
+    rememberEpisodeLinks(mpvWatch, tab);
     return;
   }
   /** @type {MpvWatch} */
   const state = {tabId: tab.tabId, url, qualities, alive: true, going: false, countdown: null, countdownAsks: 0,
-    stalled: null, watcher: null};
+    stalled: null, links: null, closedTab: null, watcher: null};
   mpvWatch = state;
   state.watcher = Mpv.watch((event) => onMpvWatchEvent(state, event));
+  rememberEpisodeLinks(state, tab);
+}
+
+/** How long rememberEpisodeLinks waits to read the links again when the page had none yet. */
+const EpisodeLinksAgainMs = 10000;
+
+/**
+ * Reads the next and the previous episode's links of the page whose stream just went to mpv,
+ * for an end or a key to go on with once its tab is closed (goToEpisodeInNewTab), through
+ * EPISODE_LINKS, which clicks nothing. A page that lists its episodes only a while after its
+ * stream (a list it fetches) is read once more, also in a tab autoplay opened for the episode
+ * itself (TabHolder.mpvReopened), which closes once read.
+ * @param {MpvWatch} state
+ * @param {TabHolder} tab
+ * @return {Promise<void>}
+ */
+async function rememberEpisodeLinks(state, tab) {
+  const page = tab.mpvPage;
+  const stillThePage = () => state.alive && mpvWatch === state && state.tabId === tab.tabId && isTabOpen(tab) &&
+    tab.mpvPage === page;
+  let links = await readEpisodeLinks(tab);
+  if (!stillThePage()) return;
+  state.links = links;
+  if (!links.next && !links.seriesEnd) {
+    await new Promise((resolve) => setTimeout(resolve, EpisodeLinksAgainMs));
+    if (!stillThePage()) return;
+    links = await readEpisodeLinks(tab);
+    if (!stillThePage()) return;
+    state.links = links;
+  }
+  if (tab.mpvReopened) {
+    closeReopenedTab(tab);
+  }
+}
+
+/**
+ * The page's episode links (EPISODE_LINKS), from its top frame only: the background opens one
+ * later as a tab of its own, and a frame's (a hoster's, an ad's) went there in the tab's
+ * container (glm's review, 2026-10-27), where goToEpisode, with the tab open, has such a frame
+ * go on only within itself. A page that does not answer within MpvPagePollMs cannot tell.
+ * @param {TabHolder} tab
+ * @return {Promise<EpisodeLinksOfTab>}
+ */
+async function readEpisodeLinks(tab) {
+  /** @type {EpisodeLinksOfTab} */
+  const links = {tabId: tab.tabId, next: null, previous: null, seriesEnd: false, cookieStoreId: null};
+  const answer = await askFrame(tab.tabId, {type: MessageTypes.EPISODE_LINKS}, {frameId: 0}, 'episode_links',
+      MpvPagePollMs);
+  const address = (/** @type {*} */ value) => typeof value === 'string' && /^https?:\/\//i.test(value) ? value : null;
+  if (answer && typeof answer === 'object' && !answer.error) {
+    links.next = answer.hasNext === true ? address(answer.next) : null;
+    links.seriesEnd = answer.hasNext !== true && answer.seriesEnd === true;
+    links.previous = address(answer.previous);
+  }
+  // Its container, which the episode's tab opens in: the same cookies, the same login. The
+  // default and the private store go by the window (as the DOWNLOAD message's tab does).
+  const store = await chrome.tabs.get(tab.tabId).then((info) => info?.cookieStoreId || null, () => null);
+  links.cookieStoreId = store && store !== 'firefox-default' && store !== 'firefox-private' ? store : null;
+  return links;
+}
+
+/**
+ * Closes a tab MPV autoplay opened for an episode (TabHolder.mpvReopened), unless the user
+ * looks at it now: then it is the user's, and stays.
+ * @param {TabHolder} tab
+ */
+function closeReopenedTab(tab) {
+  if (!tab?.mpvReopened) return;
+  tab.mpvReopened = false;
+  chrome.tabs.get(tab.tabId).then((info) => {
+    if (info && !info.active) return chrome.tabs.remove(tab.tabId);
+    return undefined;
+  }).catch(() => {
+    // Gone already.
+  });
+}
+
+/**
+ * The tab mpv's stream came from is closed (tabs.onRemoved): the episode links its page had
+ * stay with the watch, for an end or a key to go on in a new tab (goToEpisodeInNewTab).
+ * @param {number} tabId
+ * @param {{windowId: number, isWindowClosing: boolean}} removed
+ */
+function noteMpvTabClosed(tabId, removed) {
+  const state = mpvWatch;
+  if (!state?.alive || state.tabId !== tabId || state.links?.tabId !== tabId) return;
+  state.closedTab = {links: state.links, windowId: removed.windowId, windowClosing: !!removed.isWindowClosing};
+  if (Logging) console.log('[MPV autoplay] its tab was closed; the episodes go on in a new one:', state.links);
 }
 
 /**
@@ -3366,6 +3472,8 @@ function onMpvWatchEvent(state, event) {
       tab.mpvLastPlaySend = null;
       Tabs.saveTabState(tab);
     }
+    // A tab autoplay opened for an episode mpv no longer waits for.
+    if (tab) closeReopenedTab(tab);
     if (Logging) console.log('[MPV autoplay] the watch ended:', event.reason);
     return;
   }
@@ -3470,7 +3578,9 @@ async function startMpvCountdown(state) {
   // A key, the switch, mpv closing or another end while the page is asked wins over this one.
   const ask = ++state.countdownAsks;
   const tab = Tabs.getTab(state.tabId);
-  const page = tab && tab.isOn && tab.isMpv ? await nextEpisodeInPage(tab) : null;
+  // A closed tab's page said it when its stream went to mpv (rememberEpisodeLinks).
+  const page = tab && tab.isOn && tab.isMpv ? await nextEpisodeInPage(tab) :
+    !tab && state.closedTab?.links.seriesEnd ? 'series_end' : null;
   if (ask !== state.countdownAsks || state.countdown || !state.alive || !Options.mpvAutoplayNext) return;
   if (page === 'series_end') {
     notifySeriesEnd(state);
@@ -3522,9 +3632,11 @@ async function goToEpisode(state, direction) {
   const title = chrome.i18n.getMessage(direction === 'next' ? 'player_next_video_label' : 'player_previous_video_label') ||
     (direction === 'next' ? 'Next video' : 'Previous video');
   const tab = Tabs.getTab(state.tabId);
+  if (!tab && state.closedTab) {
+    return goToEpisodeInNewTab(state, direction, title);
+  }
   if (!tab || !tab.isOn || !tab.isMpv) {
-    state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_unavailable') ||
-      'its tab is closed, or not in MPV mode', MpvNoticeSeconds);
+    notifyEpisodeUnavailable(state, title);
     return;
   }
   // An end and a key at the same moment would click the page's link twice, a skipped episode.
@@ -3580,8 +3692,108 @@ async function goToEpisode(state, direction) {
     return;
   }
   if (Logging) console.log('[MPV autoplay] went on:', direction, tab.tabId);
+  awaitEpisodeStream(state, tab, title);
+}
+
+/**
+ * mpv's notice that the episode cannot be gone to: its tab is closed (and its page had no
+ * link to it, or its window went), or not in MPV mode.
+ * @param {MpvWatch} state
+ * @param {string} title
+ */
+function notifyEpisodeUnavailable(state, title) {
+  state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_unavailable') ||
+    'its tab is closed, or not in MPV mode', MpvNoticeSeconds);
+}
+
+/**
+ * goToEpisode with the tab of mpv's stream closed (his wish, 2026-10-27): the episode its page
+ * linked to (rememberEpisodeLinks) opens in a new tab that is not shown, in the window and the
+ * container the closed one was in, and goes on as the tab did (awaitEpisodeStream). Measured
+ * in Firefox 158: such a tab loads the hoster, its player is started, and its stream is
+ * asked for, while Firefox holds the page's own play() until the tab is shown. Once the stream
+ * went to mpv, the tab closes again (rememberEpisodeLinks). Not when the closed tab's window
+ * went with it, nor for a page whose next was a button, not a link.
+ * @param {MpvWatch} state
+ * @param {'next'|'previous'} direction
+ * @param {string} title - mpv's notice's title.
+ * @return {Promise<void>}
+ */
+async function goToEpisodeInNewTab(state, direction, title) {
+  const closed = state.closedTab;
+  if (!closed) return;
+  const url = direction === 'next' ? closed.links.next : closed.links.previous;
+  if (!url) {
+    if (direction === 'next' && closed.links.seriesEnd) {
+      notifySeriesEnd(state);
+    } else {
+      notifyEpisodeUnavailable(state, title);
+    }
+    return;
+  }
+  // Its window went with it; or MPV mode was switched off since (leaveMpvWhenOff), which a
+  // tab still open shows by its isMpv (glm's review).
+  if (closed.windowClosing || !Options.mpvMode) {
+    notifyEpisodeUnavailable(state, title);
+    return;
+  }
+  // An end and a key at the same moment would open the episode twice.
+  if (state.going) {
+    return;
+  }
+  state.going = true;
+  /** @type {?chrome.tabs.Tab} */
+  let created = null;
+  try {
+    created = await chrome.tabs.create({url, active: false, windowId: closed.windowId,
+      ...(closed.links.cookieStoreId ? {cookieStoreId: closed.links.cookieStoreId} : {})});
+  } catch (e) {
+    console.error('Opening the next episode\'s tab failed', e);
+  } finally {
+    state.going = false;
+  }
+  if (!created || typeof created.id !== 'number') {
+    notifyEpisodeUnavailable(state, title);
+    return;
+  }
+  // mpv closed, or another tab's stream took it, while the tab was made.
+  if (!state.alive || mpvWatch !== state || state.closedTab !== closed) {
+    chrome.tabs.remove(created.id).catch(() => {});
+    return;
+  }
+  state.closedTab = null;
+  state.links = null;
+  state.tabId = created.id;
+  // MPV, as the closed tab was: the lists by address decide nothing for it (tabs.onUpdated
+  // keeps a tab that is on already). Matched by the MPV allowlist already, where it names the
+  // address: its own start would send the page's first stream, an ad's maybe, beside the
+  // episode's pick (glm's review).
+  const tab = Tabs.getTabOrCreate(created.id);
+  tab.isOn = true;
+  tab.isMpv = true;
+  tab.mpvOnPlay = false;
+  tab.mpvMatched = MpvAllowlist.matches(url);
+  tab.mpvReopened = true;
+  BackgroundUtils.updateTabIcon(tab);
+  if (Logging) console.log('[MPV autoplay] went on in a new tab:', direction, created.id, url);
+  awaitEpisodeStream(state, tab, title);
+  // Its frames may have come before the continuation did (FRAME_ADDED starts this too).
+  startPagePlayers(tab);
+}
+
+/**
+ * The tab went on to the episode: its stream goes to mpv by itself (onSourceRecieved,
+ * pickNextEpisodeForMpv) for a minute, its page's player is started if it waits for a click
+ * (startPagePlayers), and mpv says what happens.
+ * @param {MpvWatch} state
+ * @param {TabHolder} tab
+ * @param {string} title - mpv's notice's title.
+ */
+function awaitEpisodeStream(state, tab, title) {
   tab.continuationOptions = {autoPlay: true, mpvNext: true};
   tab.mpvNextEpisodeUntil = Date.now() + MpvNextEpisodeWaitMs;
+  // Not for a tab closed meanwhile: its state went back into storage (isTabOpen; glm's review).
+  if (isTabOpen(tab)) Tabs.saveTabState(tab);
   state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_loading') || 'loading in mpv',
       MpvNoticeSeconds);
   // The page gone to had its minute and brought no stream (a locked episode, a dead hoster,

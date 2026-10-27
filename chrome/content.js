@@ -18,6 +18,7 @@
     EXIT_CARRIED_FULLSCREEN: 'EXIT_CARRIED_FULLSCREEN',
     PLAYLIST_NAVIGATION: 'PLAYLIST_NAVIGATION',
     PLAYLIST_POLL: 'PLAYLIST_POLL',
+    EPISODE_LINKS: 'EPISODE_LINKS',
     START_PAGE_PLAYER: 'START_PAGE_PLAYER',
     PAGE_TYPING: 'PAGE_TYPING',
     FRAME_REMOVED: 'FRAME_REMOVED',
@@ -188,6 +189,8 @@
       return handlePlaylistNavigation(request, sender, sendResponse);
     } else if (request.type === MessageTypes.PLAYLIST_POLL) {
       return pollPlaylistButtons(request, sender, sendResponse);
+    } else if (request.type === MessageTypes.EPISODE_LINKS) {
+      return readEpisodeLinks(request, sender, sendResponse);
     } else if (request.type === MessageTypes.START_PAGE_PLAYER) {
       startPagePlayer().then(sendResponse, () => sendResponse(null));
       return true;
@@ -421,18 +424,67 @@
       return;
     }
 
-    // The link's own address rather than a click: hosters hang ad scripts on their links (a
-    // popup, or the episode in a new tab), and the chain broke. A link meant for another
-    // frame (_top, _parent, a name, also by the page's <base target>) and a button keep their
-    // click; one into a new tab (<base target="_blank">) opens here, in the chain's tab.
-    const target = linkTarget(button);
-    if (button.tagName === 'A' && /^https?:/i.test(button.href) && (target === '' || target === '_self' || target === '_blank') &&
-        withoutHash(button.href) !== withoutHash(window.location.href)) {
-      window.location.assign(button.href);
+    const address = episodeLinkAddress(button);
+    if (address) {
+      window.location.assign(address);
     } else {
       button.click();
     }
     sendResponse('clicked');
+  }
+
+  /**
+   * The address a next or previous episode's link takes this frame to, as
+   * handlePlaylistNavigation follows it: the link's own address rather than a click, as
+   * hosters hang ad scripts on their links (a popup, or the episode in a new tab), and the
+   * chain broke. A link meant for another frame (_top, _parent, a name, also by the page's
+   * <base target>) and a button keep their click: none. One into a new tab
+   * (<base target="_blank">) opens here, in the chain's tab.
+   * @param {*} button - getNextOrPreviousButton's.
+   * @return {?string}
+   */
+  function episodeLinkAddress(button) {
+    const target = linkTarget(button);
+    if (button.tagName === 'A' && /^https?:/i.test(button.href) && (target === '' || target === '_self' || target === '_blank') &&
+        withoutHash(button.href) !== withoutHash(window.location.href)) {
+      return button.href;
+    }
+    return null;
+  }
+
+  /**
+   * The next and the previous episode's addresses (EPISODE_LINKS), for MPV autoplay to go on
+   * with once the tab is closed (background.mjs rememberEpisodeLinks): null for one this page
+   * has no link to (a button, or none). Only links within the page's own origin: the
+   * background opens one later in a tab nobody looks at, and a link to another site (an ad's)
+   * went there with the tab's cookies (glm's review, 2026-10-27).
+   * @param {*} request
+   * @param {*} sender
+   * @param {Function} sendResponse
+   */
+  function readEpisodeLinks(request, sender, sendResponse) {
+    const ownSite = (/** @type {?string} */ address) => {
+      try {
+        return address && new URL(address).origin === window.location.origin ? address : null;
+      } catch (e) {
+        return null;
+      }
+    };
+    try {
+      const nextButton = getNextOrPreviousButton(true);
+      const previousButton = getNextOrPreviousButton(false);
+      sendResponse({
+        next: nextButton ? ownSite(episodeLinkAddress(nextButton)) : null,
+        previous: previousButton ? ownSite(episodeLinkAddress(previousButton)) : null,
+        hasNext: nextButton !== null,
+        hasPrevious: previousButton !== null,
+        seriesEnd: nextButton === null && isSeriesEnd(),
+      });
+    } catch (e) {
+      sendResponse({
+        error: e.message,
+      });
+    }
   }
 
   function pollPlaylistButtons(request, sender, sendResponse) {
