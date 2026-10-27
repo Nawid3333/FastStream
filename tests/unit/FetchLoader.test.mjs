@@ -691,4 +691,22 @@ describe('FetchLoader and Retry-After', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(recorder.calls).toEqual([]);
   });
+
+  // A refused link (an expired signature: vidmoly's segments answer 403) is told at once, so
+  // the player can get it anew from its page (FastStreamClient.linkRefused, #592); the error
+  // still goes as before. Other failures are no refusal.
+  it('tells a 401, 403 or 410 as a refused link, and no other failure', async () => {
+    for (const [status, refused] of [[401, true], [403, true], [410, true], [404, false], [429, false], [500, false]]) {
+      vi.stubGlobal('fetch', failing(status, 'No', null));
+      const loader = new FetchLoader();
+      const recorder = makeCallbackRecorder();
+      const refusals = [];
+      recorder.onRefused = (...args) => refusals.push(args);
+      loader.addCallbacks(recorder);
+      loader.load(makeRequest(), makeConfig({maxRetry: 0, retryDelay: 100}));
+      await vi.runAllTimersAsync();
+      expect(refusals, String(status)).toEqual(refused ? [[status, 'https://example.com/fragment.ts']] : []);
+      expect(recorder.calls.map((c) => c.type), String(status)).toEqual(['onError']);
+    }
+  });
 });

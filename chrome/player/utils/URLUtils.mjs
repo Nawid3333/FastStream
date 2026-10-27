@@ -56,6 +56,32 @@ export class URLUtils {
     }
   }
   /**
+   * The URL with FastStream's time (its faststream-timestamp parameter) set, or taken off,
+   * and everything else as it was, byte for byte. URLSearchParams writes the whole query
+   * anew, a '=' in a value as %3D, and a signed link is then refused: vidmoly's
+   * t=…= became t=…%3D, and every segment after a rebuild at a time got a 403 (#592).
+   * @param {string} url
+   * @param {?number} seconds - The time, or null to take it off.
+   * @return {string}
+   */
+  static withTimestamp(url, seconds) {
+    const hashAt = url.indexOf('#');
+    const hash = hashAt === -1 ? '' : url.slice(hashAt);
+    const rest = hashAt === -1 ? url : url.slice(0, hashAt);
+    const queryAt = rest.indexOf('?');
+    const query = queryAt === -1 ? [] : rest.slice(queryAt + 1).split('&');
+    const kept = query.filter((part) => !/^faststream-timestamp(=|$)/.test(part));
+    if (seconds === null && kept.length === query.length) {
+      return url;
+    }
+    if (seconds !== null) {
+      kept.push('faststream-timestamp=' + seconds);
+    }
+    const base = queryAt === -1 ? rest : rest.slice(0, queryAt);
+    return base + (kept.length ? '?' + kept.join('&') : '') + hash;
+  }
+
+  /**
   * @param {string} url
   */
   static strip_queryhash(url) {

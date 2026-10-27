@@ -10,6 +10,7 @@ import {SKIP_BUTTON_SECONDS} from '../options/KeybindUtils.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {InterfaceUtils} from '../utils/InterfaceUtils.mjs';
 import {StringUtils} from '../utils/StringUtils.mjs';
+import {URLUtils} from '../utils/URLUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {ClickSequence} from './ClickSequence.mjs';
@@ -1155,9 +1156,8 @@ export class InterfaceController {
     let copyURL = '';
     if (this.client.source) {
       try {
-        const url = this.client.source.toCopyURL();
-        url.searchParams.set('faststream-timestamp', Math.floor(this.client.currentTime).toString());
-        copyURL = url.toString();
+        // The time added without writing the query anew: a signed link stays one (URLUtils).
+        copyURL = URLUtils.withTimestamp(this.client.source.toCopyURL().toString(), Math.floor(this.client.currentTime));
       } catch (e) {
       }
     }

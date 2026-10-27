@@ -1511,7 +1511,9 @@ describe('FastStreamClient, the page\'s qualities with a query of their own', ()
     await client.sourceChange;
     await settle();
 
-    expect(client.source.url).not.toBe(qualities[0].url);
+    // The time comes and goes without the query written anew (URLUtils.withTimestamp): the
+    // file played is the entry's, byte for byte.
+    expect(client.source.url).toBe(qualities[0].url);
     expect(client.getMenuVideoLevelID()).toBe('page-quality:0');
     expect(client.getMenuVideoLevels().size).toBe(2);
   });
@@ -1885,5 +1887,92 @@ describe('FastStreamClient, frames this computer drops', () => {
     playback.client.player = playback.player;
     play(playback, 20);
     expect(playback.player.setCurrentVideoLevelID).toHaveBeenCalledWith('720');
+  });
+});
+
+describe('FastStreamClient, a link the server refuses', () => {
+  // vidmoly's shape: a signature that ends in '=', which the server refuses written as %3D.
+  const OLD = 'https://prx-1.vmget.online/hls2/v_,n,.urlset/master.m3u8?t=old+sig/1=&s=1793113399&e=43200';
+  const NEW = 'https://prx-1.vmget.online/hls2/v_,n,.urlset/master.m3u8?t=new+sig/2=&s=1793116532&e=43200';
+  const asked = () => chrome.runtime.sendMessage.mock.calls
+      .filter(([message]) => message.type === MessageTypes.REQUEST_FRESH_LINK);
+  // makeClient sets none of the constructor's state for this.
+  const withRenewals = (client) => {
+    client.linkRenewals = {identifier: null, times: [], asking: false};
+    return client;
+  };
+  const recordPlays = (client) => {
+    const plays = [];
+    client.play = vi.fn(async () => {
+      plays.push(client.player.currentTime);
+    });
+    return plays;
+  };
+
+  it('gets the link anew from its page, and plays on with it at its time', async () => {
+    // A hoster's link runs out (vidmoly: twelve hours), and Back gives the page its old one
+    // from Firefox's cache: the player sat at a spinner until the page was reloaded (#592).
+    const client = withRenewals(makeClient());
+    client.downloadManager.keepStorageOnce = vi.fn();
+    const first = await setSource(client, makeSource(OLD), (made) => {
+      made.duration = 1440;
+    });
+    client.playedSource = client.source;
+    first._currentTime = 300.6;
+    first.paused = false;
+    let made = null;
+    client.playerLoader.createPlayer = vi.fn(async () => {
+      made = new FakePlayer(null);
+      made.duration = 1440;
+      made.video.readyState = 0;
+      return made;
+    });
+    chrome.runtime.sendMessage.mockImplementation(async (message) =>
+      (message.type === MessageTypes.REQUEST_FRESH_LINK ? NEW : undefined));
+    const plays = recordPlays(client);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // A burst of refused segments asks once.
+    client.linkRefused(403, OLD + '&seg=40');
+    client.linkRefused(403, OLD + '&seg=41');
+    await settle();
+    await client.sourceChange;
+    await settle();
+
+    expect(asked()).toEqual([[{type: MessageTypes.REQUEST_FRESH_LINK, url: OLD}]]);
+    // Byte for byte: the time came and went without the query written anew.
+    expect(client.source.url).toBe(NEW);
+    // The new link's downloads are other URLs: the old ones are not kept to hold memory.
+    expect(client.downloadManager.keepStorageOnce).not.toHaveBeenCalled();
+    made.video.readyState = 1;
+    made.emit(DefaultPlayerEvents.LOADEDMETADATA);
+    await settle();
+    expect(made.seeks).toContain(300);
+    expect(plays).toEqual([300]);
+  });
+
+  it('changes nothing without a new link, and asks at most twice in five minutes', async () => {
+    const client = withRenewals(makeClient());
+    await setSource(client, makeSource(OLD), (made) => {
+      made.duration = 1440;
+    });
+    const built = vi.fn();
+    client.playerLoader.createPlayer = built;
+    chrome.runtime.sendMessage.mockImplementation(async () => null);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+
+    for (let i = 0; i < 3; i++) {
+      client.linkRefused(403, OLD);
+      await settle();
+    }
+    expect(asked()).toHaveLength(2);
+    expect(client.source.url).toBe(OLD);
+    expect(built).not.toHaveBeenCalled();
+
+    now.mockReturnValue(1_000_000 + 300_001);
+    client.linkRefused(410, OLD);
+    await settle();
+    expect(asked()).toHaveLength(3);
   });
 });
