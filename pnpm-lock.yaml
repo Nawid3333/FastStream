@@ -17,7 +17,7 @@ overrides:
   web-ext>@devicefarmer/adbkit: '-'
 
 patchedDependencies:
-  Coloris@0.25.0: d8a066fa49aa80466d054aad0f7a2c767b2f62cf365492c155bb9b4ce30fb2ec
+  Coloris@0.25.1: c4147209f121eb8e1746440d4026a9f680a4098009bcdd8ea077e441c8d727f9
   dashjs@5.2.1: f09c7ddbd4aedea040b042bfc600ab65b3b6131d6bfdd8dbfaf3ea580fd20ffc
   gif.js@0.2.0: 7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae
   hls.js@1.7.3: bd4f4bcbe636b6c516ce4781461d8f25ea81e790e80451d5795c17868bdb2563
@@ -55,8 +55,8 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       Coloris:
-        specifier: github:mdbassit/Coloris#v0.25.0
-        version: https://codeload.github.com/mdbassit/Coloris/tar.gz/a00946eb69780d2ba3b906c3f4535b03f987cc05(patch_hash=d8a066fa49aa80466d054aad0f7a2c767b2f62cf365492c155bb9b4ce30fb2ec)
+        specifier: github:mdbassit/Coloris#v0.25.1
+        version: https://codeload.github.com/mdbassit/Coloris/tar.gz/ed599540e3be76939ccb318fe10b0ae89366842f(patch_hash=c4147209f121eb8e1746440d4026a9f680a4098009bcdd8ea077e441c8d727f9)
       acorn:
         specifier: 8.19.0
         version: 8.19.0
@@ -1123,9 +1123,9 @@ packages:
     resolution: {integrity: sha512-K5obAqfrO7zhycnCupM9aaoZ9kx0SA0kv7+Z2oOUsdpWquv4s/Z4zyD7AdTqxrK3pgPM+ozaUi8kdRQbCWaIrQ==}
     engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=18.0.0'}
 
-  Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/a00946eb69780d2ba3b906c3f4535b03f987cc05:
-    resolution: {gitHosted: true, integrity: sha512-BXzPa+odpoBYuiXJalx13ac/jbfasxXM2467Pkn9ES02SXbstTmTCYpsp1rpe6q6tIJqUGUsMh5THX0ZEL+rKg==, tarball: https://codeload.github.com/mdbassit/Coloris/tar.gz/a00946eb69780d2ba3b906c3f4535b03f987cc05}
-    version: 0.25.0
+  Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/ed599540e3be76939ccb318fe10b0ae89366842f:
+    resolution: {gitHosted: true, integrity: sha512-eibpveTKkCIysOEdRXvpsKSM1nwAAW/0+cJJG3lfKVcwbXvyqqSz8a/0S1RrtLR9SfNc6Erep0GT0tA+blbN6w==, tarball: https://codeload.github.com/mdbassit/Coloris/tar.gz/ed599540e3be76939ccb318fe10b0ae89366842f}
+    version: 0.25.1
 
   abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
@@ -4135,7 +4135,7 @@ snapshots:
 
   '@zip.js/zip.js@2.23.0': {}
 
-  Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/a00946eb69780d2ba3b906c3f4535b03f987cc05(patch_hash=d8a066fa49aa80466d054aad0f7a2c767b2f62cf365492c155bb9b4ce30fb2ec): {}
+  Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/ed599540e3be76939ccb318fe10b0ae89366842f(patch_hash=c4147209f121eb8e1746440d4026a9f680a4098009bcdd8ea077e441c8d727f9): {}
 
   abort-controller@3.0.0:
     dependencies:
