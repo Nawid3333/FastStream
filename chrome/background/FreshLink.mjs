@@ -18,25 +18,29 @@ const MAX_PAGE_LENGTH = 4 * 1024 * 1024;
 const PAGE_TIMEOUT_MS = 15000;
 
 /**
- * Whether two hosts are one service's: the same, or the same past their first label
- * (prx-1316-ant.vmget.online and prx-1402-ant.vmget.online: the proxy a page names can change).
- * @param {string} a
- * @param {string} b
- * @return {boolean}
+ * How many of the refused link's parameters a link has as they were: a hoster changes its
+ * signature and issue time, and keeps the rest (vidmoly: e, srv, i, asn…).
+ * @param {URL} link
+ * @param {URL} dead
+ * @return {number}
  */
-function sameService(a, b) {
-  if (a === b) return true;
-  const rest = (/** @type {string} */ host) => host.split('.').slice(1).join('.');
-  return rest(a).includes('.') && rest(a) === rest(b);
+function keptParameters(link, dead) {
+  let kept = 0;
+  for (const [name, value] of link.searchParams) {
+    if (name !== 'faststream-timestamp' && dead.searchParams.getAll(name).includes(value)) kept++;
+  }
+  return kept;
 }
 
 /**
- * The link to the same stream in a page's text, other than the one refused: the same path, on
- * the same host or the same service's. Links in a script's strings count too (https:\/\/…,
- * &, &amp;).
+ * The link to the same stream in a page's text, other than the one refused: the same host and
+ * path. Of several, the one that kept most of the refused link's parameters (a page can name
+ * the next episode too, with the same path and its own id), and none when two keep as many.
+ * Links in a script's strings count too (https:\/\/…, &), and in the page's HTML (&amp;):
+ * each read as it is written there, never unescaped twice.
  * @param {string} text - The page.
  * @param {string} refused - The link the server refused.
- * @return {?string} The new link, or null when the page has none other.
+ * @return {?string} The new link, or null when the page has none other, or no one best.
  */
 export function findFreshLink(text, refused) {
   let dead;
@@ -45,22 +49,56 @@ export function findFreshLink(text, refused) {
   } catch (e) {
     return null;
   }
-  const page = text.replace(/\\\//g, '/').replace(/\\u0026/gi, '&').replace(/&amp;/g, '&');
-  for (const match of page.matchAll(/https?:\/\/[^\s"'<>`\\]+/g)) {
-    // As the page wrote it: a signed link is taken byte for byte (URLUtils.withTimestamp).
-    const link = match[0].replace(/[.,;)]+$/, '');
-    let candidate;
-    try {
-      candidate = new URL(link);
-    } catch (e) {
-      continue;
-    }
-    if (candidate.pathname === dead.pathname && sameService(candidate.hostname, dead.hostname) &&
-        link !== URLUtils.withTimestamp(refused, null)) {
-      return link;
+  const old = URLUtils.withTimestamp(refused, null);
+  /** @type {Map<string, number>} */
+  const found = new Map();
+  const readings = [text, text.replace(/\\\//g, '/').replace(/\\u0026/gi, '&'), text.replace(/&amp;/g, '&')];
+  for (const page of readings) {
+    for (const match of page.matchAll(/https?:\/\/[^\s"'<>`\\]+/g)) {
+      // As the page wrote it: a signed link is taken byte for byte (URLUtils.withTimestamp).
+      const link = match[0].replace(/[.,;)]+$/, '');
+      // Still escaped here (&amp;), or cut at a script's escape (&): the reading for that
+      // escape has it whole.
+      if (link.includes('&amp;') || page[/** @type {number} */ (match.index) + match[0].length] === '\\') continue;
+      let candidate;
+      try {
+        candidate = new URL(link);
+      } catch (e) {
+        continue;
+      }
+      if (candidate.host === dead.host && candidate.pathname === dead.pathname && link !== old) {
+        found.set(link, keptParameters(candidate, dead));
+      }
     }
   }
-  return null;
+  const best = Math.max(-1, ...found.values());
+  const bests = [...found].filter(([, kept]) => kept === best).map(([link]) => link);
+  return bests.length === 1 ? bests[0] : null;
+}
+
+/**
+ * A page's text, at most MAX_PAGE_LENGTH of it, read as it comes: a huge answer is not held
+ * whole. Nothing for a stream or a picture opened as a page, which names no link.
+ * @param {Response} response
+ * @return {Promise<string>}
+ */
+async function readPage(response) {
+  const type = response.headers.get('Content-Type') || '';
+  if (type && !/text|html|json|javascript|xml/i.test(type)) return '';
+  if (!response.body) return (await response.text()).slice(0, MAX_PAGE_LENGTH);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  try {
+    while (text.length < MAX_PAGE_LENGTH) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, {stream: true});
+    }
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+  return text.slice(0, MAX_PAGE_LENGTH);
 }
 
 /**
@@ -77,8 +115,7 @@ export async function fetchFreshLink(pages, refused, fetchPage = fetch) {
       const response = await fetchPage(page, {cache: 'no-store', credentials: 'include',
         signal: AbortSignal.timeout(PAGE_TIMEOUT_MS)});
       if (!response.ok) continue;
-      const text = await response.text();
-      const fresh = findFreshLink(text.length > MAX_PAGE_LENGTH ? text.slice(0, MAX_PAGE_LENGTH) : text, refused);
+      const fresh = findFreshLink(await readPage(response), refused);
       if (fresh) return fresh;
     } catch (e) {
       console.warn('Could not fetch a page for a new link', page, e);
