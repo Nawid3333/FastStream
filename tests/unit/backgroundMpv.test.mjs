@@ -1568,6 +1568,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
   const EP2 = 'https://site.test/watch/2';
   const S1 = 'https://cdn.test/one/master.m3u8';
   const S2 = 'https://cdn.test/two/master.m3u8';
+  const S3 = 'https://cdn.test/three/master.m3u8';
   // A hoster's preroll, and a stream of a few minutes (a trailer, a preview).
   const AD = 'https://ads.test/pre/master.m3u8';
   const SHORT = 'https://cdn.test/short/master.m3u8';
@@ -1590,19 +1591,24 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
    * @param {Object} [options] - More options.
    * @param {string} [link] - What the page's top frame answers to a next/previous request.
    * @param {Object} [poll] - What it answers to PLAYLIST_POLL (none: a page that cannot tell).
+   * @param {Object<string, Object>} [episodeLinks] - What each tab's top frame (by its id), or a
+   *   frame ('tab:frame'), answers to EPISODE_LINKS (none: a page that cannot tell).
+   * @param {Object} [tab] - More of the tab's properties (its cookieStoreId).
    * @return {Promise<Object>} The port (backgroundHarness: sent, emit, drop).
    */
-  async function onEpisode1(options = {}, link = 'clicked', poll = undefined) {
+  async function onEpisode1(options = {}, link = 'clicked', poll = undefined, episodeLinks = {}, tab = {}) {
     navigations = [];
     polls = [];
     bg = await loadBackground({
       options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvAutoplayNext: true, autoplayCountdown: 0, ...options},
-      tabs: [{id: 1, url: EP1}],
-      fetch: playlists({[S1]: 1400, [S2]: 1400, [AD]: 30, [SHORT]: 90,
+      tabs: [{id: 1, url: EP1, ...tab}],
+      fetch: playlists({[S1]: 1400, [S2]: 1400, [S3]: 1400, [AD]: 30, [SHORT]: 90,
         [LANGS]: LANGS_MASTER, [LANGS_VIDEO]: 1400, [LANGS_DE]: 1400, [LANGS_FR]: 1400}),
-      onTabMessage: ({frameId, message}) => {
+      onTabMessage: ({tabId, frameId, message}) => {
         // The page's video: in the top frame here (startPagePlayers asks the largest).
         if (message.type === 'GET_VIDEO_SIZE') return frameId === 0 ? 640 * 360 : 0;
+        // A frame's own answer by tab and frame (1:5), else the tab's top frame's (1).
+        if (message.type === 'EPISODE_LINKS') return episodeLinks[`${tabId}:${frameId}`] ?? (frameId === 0 ? episodeLinks[tabId] : undefined);
         if (message.type === 'PLAYLIST_POLL') {
           polls.push(frameId);
           return frameId === 0 ? poll : undefined;
@@ -2113,6 +2119,276 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     port.emit({type: 'request', action: 'next'});
     await bg.wait(100);
     expect(notices(port)).toEqual(['its tab is closed, or not in MPV mode']);
+  });
+
+  describe('with the episode\'s tab closed', () => {
+    // His wish (2026-10-27): the tab closed, autoplay goes on. The page's episode links are
+    // read at the hand-off (EPISODE_LINKS); the episode then opens in a tab not shown, which
+    // closes again once its stream went to mpv.
+    const EP0 = 'https://site.test/watch/0';
+    const EP3 = 'https://site.test/watch/3';
+    const linksTo = (next, previous = null) => ({hasNext: next !== null, next, hasPrevious: previous !== null, previous,
+      seriesEnd: false});
+
+    /** Episode 1 in mpv, its links read, and its tab closed. */
+    async function closedAfterEpisode1(options = {}, links = {1: linksTo(EP2, EP0), 1000: linksTo(EP3, EP1)}) {
+      const port = await onEpisode1(options, 'clicked', undefined, links);
+      await bg.wait(100);
+      await bg.closed(1);
+      return port;
+    }
+
+    /** The tab made for an episode loads it and its hoster asks for the stream. */
+    async function newTabLoads(tabId, url, stream) {
+      await bg.navigated(tabId, url);
+      await bg.frameAdded(tabId, 0, url, `page${tabId}`);
+      await bg.frameAdded(tabId, 7, 'https://hoster.test/e/x', `hoster${tabId}`);
+      await bg.request({tabId, url: stream, frameId: 7});
+      await bg.wait(500);
+    }
+
+    it('opens the next episode in a tab not shown, sends its stream, closes it, and goes on from it', async () => {
+      const port = await closedAfterEpisode1();
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      expect(bg.createdTabs).toEqual([{id: 1000, url: EP2, active: false, windowId: 1}]);
+      expect(notices(port)).toEqual(['loading in mpv']);
+      // Nothing clicked anywhere: the closed tab's page is gone.
+      expect(navigations).toEqual([]);
+
+      await newTabLoads(1000, EP2, S2);
+      expect(bg.toMpv()).toEqual([S1, S2]);
+      // Its links read, it closes again.
+      expect(bg.removedTabs).toEqual([1000]);
+      await bg.closed(1000);
+
+      // The next end goes on from the episode it showed.
+      port.emit({type: 'ended', path: S2});
+      await bg.wait(100);
+      expect(bg.createdTabs.map((t) => t.url)).toEqual([EP2, EP3]);
+      await newTabLoads(1001, EP3, S3);
+      expect(bg.toMpv()).toEqual([S1, S2, S3]);
+      // No "no stream" notice a minute later.
+      await bg.wait(61000);
+      expect(notices(port)).toEqual(['loading in mpv', 'loading in mpv']);
+    });
+
+    it('goes back with mpv\'s previous key, in a tab not shown', async () => {
+      const port = await closedAfterEpisode1();
+      port.emit({type: 'request', action: 'previous'});
+      await bg.wait(100);
+      expect(bg.createdTabs).toEqual([{id: 1000, url: EP0, active: false, windowId: 1}]);
+    });
+
+    it('counts down first, as with the tab open', async () => {
+      const port = await closedAfterEpisode1({autoplayCountdown: 5});
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      expect(notices(port)).toEqual(['next episode in 5 s (n: now, Space: stop)']);
+      expect(bg.createdTabs).toEqual([]);
+      await bg.wait(5000);
+      expect(bg.createdTabs).toEqual([{id: 1000, url: EP2, active: false, windowId: 1}]);
+      expect(notices(port)).toEqual(['next episode in 5 s (n: now, Space: stop)', 'loading in mpv']);
+    });
+
+    it('says so when Firefox makes no tab, and closes one made after mpv was closed', async () => {
+      // glm's review (2026-10-27): neither case had a test.
+      let port = await closedAfterEpisode1();
+      bg.chrome.tabs.create = async () => {
+        throw new Error('No window with id: 1.');
+      };
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      expect(notices(port)).toEqual(['its tab is closed, or not in MPV mode']);
+      bg.unload();
+
+      port = await closedAfterEpisode1();
+      let made;
+      bg.chrome.tabs.create = (props) => new Promise((resolve) => {
+        made = () => resolve({id: 1500, ...props});
+      });
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      port.emit({type: 'closed', reason: 'mpv closed'});
+      await bg.wait(100);
+      made();
+      await bg.wait(100);
+      expect(bg.removedTabs).toEqual([1500]);
+    });
+
+    it('leaves a tab it opened open when the user looks at it', async () => {
+      const port = await closedAfterEpisode1();
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      expect(bg.createdTabs.map((t) => t.url)).toEqual([EP2]);
+      bg.tabs.push({id: 1000, url: EP2, active: true});
+      await newTabLoads(1000, EP2, S2);
+      expect(bg.toMpv()).toEqual([S1, S2]);
+      expect(bg.removedTabs).toEqual([]);
+    });
+
+    it('closes a tab it opened whose episode mpv no longer waits for', async () => {
+      // mpv closed meanwhile.
+      let port = await closedAfterEpisode1();
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      port.emit({type: 'closed', reason: 'mpv closed'});
+      await bg.wait(100);
+      expect(bg.removedTabs).toEqual([1000]);
+      bg.unload();
+
+      // Another tab's stream took mpv meanwhile.
+      port = await closedAfterEpisode1();
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      await bg.navigated(2, EP3);
+      await bg.frameAdded(2, 0, EP3, 'other');
+      await bg.request({tabId: 2, url: S3, frameId: 0});
+      await bg.wait(500);
+      expect(bg.toMpv()).toEqual([S1, S3]);
+      expect(bg.removedTabs).toEqual([1000]);
+    });
+
+    it('says the series ended, or that it cannot go on, as the closed tab\'s page told', async () => {
+      // The series' last episode: at once, and with a countdown set, none counted down.
+      const lastOne = {1: {hasNext: false, next: null, hasPrevious: true, previous: EP0, seriesEnd: true}};
+      let port = await closedAfterEpisode1({}, lastOne);
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      expect(notices(port)).toEqual(['the last episode of the series: autoplay stops']);
+      bg.unload();
+      port = await closedAfterEpisode1({autoplayCountdown: 5}, lastOne);
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(6000);
+      expect(notices(port)).toEqual(['the last episode of the series: autoplay stops']);
+      expect(bg.createdTabs).toEqual([]);
+      bg.unload();
+
+      // A next button, not a link: nothing to open.
+      port = await closedAfterEpisode1({}, {1: {hasNext: true, next: null, hasPrevious: false, previous: null, seriesEnd: false}});
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      expect(notices(port)).toEqual(['its tab is closed, or not in MPV mode']);
+      expect(bg.createdTabs).toEqual([]);
+      bg.unload();
+
+      // Its window closed with it.
+      port = await onEpisode1({}, 'clicked', undefined, {1: linksTo(EP2)});
+      await bg.wait(100);
+      await bg.closed(1, {isWindowClosing: true});
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      expect(notices(port)).toEqual(['its tab is closed, or not in MPV mode']);
+      expect(bg.createdTabs).toEqual([]);
+    });
+
+    it('reads the links once more when the page had none yet', async () => {
+      const links = {};
+      const port = await onEpisode1({}, 'clicked', undefined, links);
+      await bg.wait(100);
+      // The page's episode list came after its stream.
+      links[1] = linksTo(EP2);
+      await bg.wait(10000);
+      await bg.closed(1);
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      expect(bg.createdTabs.map((t) => t.url)).toEqual([EP2]);
+    });
+
+    it('opens no link a frame gave, nor one that is no web address', async () => {
+      // glm's review (2026-10-27): a hoster's or an ad's frame chose the address of a tab the
+      // background opened by itself, in the tab's container.
+      let port = await closedAfterEpisode1({}, {'1:5': linksTo('https://ads.test/win')});
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      expect(bg.createdTabs).toEqual([]);
+      expect(notices(port)).toEqual(['its tab is closed, or not in MPV mode']);
+      bg.unload();
+
+      port = await closedAfterEpisode1({}, {1: linksTo('javascript:alert(1)', 'file:///C:/x')});
+      port.emit({type: 'ended', path: S1});
+      port.emit({type: 'request', action: 'previous'});
+      await bg.wait(100);
+      expect(bg.createdTabs).toEqual([]);
+    });
+
+    it('opens nothing once MPV mode was switched off', async () => {
+      const port = await closedAfterEpisode1();
+      bg.options = {...bg.options, mpvMode: false};
+      await bg.message({type: 'LOAD_OPTIONS'});
+      await bg.wait(100);
+      port.emit({type: 'request', action: 'next'});
+      await bg.wait(100);
+      expect(bg.createdTabs).toEqual([]);
+    });
+
+    it('sends the episode, not an ad the page asked for first, on a page the MPV allowlist names', async () => {
+      // glm's review (2026-10-27): the allowlist's own start sent the first stream half a second
+      // after the address, beside the episode's pick, and the episode was dropped after it.
+      const port = await closedAfterEpisode1();
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      await bg.navigated(1000, EP2);
+      await bg.frameAdded(1000, 0, EP2, 'page1000');
+      await bg.frameAdded(1000, 7, 'https://hoster.test/e/x', 'hoster1000');
+      await bg.request({tabId: 1000, url: AD, frameId: 7});
+      await bg.wait(700);
+      await bg.request({tabId: 1000, url: S2, frameId: 7});
+      await bg.wait(1000);
+      expect(bg.toMpv()).toEqual([S1, S2]);
+    });
+
+    it('keeps no links of the page before when the tab is closed before its new page\'s are read', async () => {
+      // glm's review: the same tab on to episode 2 in the browser, its stream to mpv, the tab
+      // closed while its links were still asked for: episode 1's links took it back to 2.
+      const links = {1: linksTo(EP2)};
+      const port = await onEpisode1({}, 'clicked', undefined, links);
+      await bg.wait(100);
+      links[1] = new Promise(() => {});
+      await bg.navigated(1, EP2);
+      await bg.frameAdded(1, 0, EP2, 'ep2');
+      await bg.request({tabId: 1, url: S2, frameId: 0});
+      await bg.wait(500);
+      expect(bg.toMpv()).toEqual([S1, S2]);
+      await bg.closed(1);
+      port.emit({type: 'ended', path: S2});
+      await bg.wait(100);
+      expect(bg.createdTabs).toEqual([]);
+    });
+
+    it('reads a tab it opened once more when its page had no links yet, and closes it then', async () => {
+      const links = {1: linksTo(EP2)};
+      const port = await closedAfterEpisode1({}, links);
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      await newTabLoads(1000, EP2, S2);
+      expect(bg.toMpv()).toEqual([S1, S2]);
+      expect(bg.removedTabs).toEqual([]);
+      links[1000] = linksTo(EP3);
+      await bg.wait(10000);
+      expect(bg.removedTabs).toEqual([1000]);
+      await bg.closed(1000);
+      port.emit({type: 'ended', path: S2});
+      await bg.wait(100);
+      expect(bg.createdTabs.map((t) => t.url)).toEqual([EP2, EP3]);
+    });
+
+    it('opens the episode in the closed tab\'s container, and leaves the default one to the window', async () => {
+      let port = await onEpisode1({}, 'clicked', undefined, {1: linksTo(EP2)}, {cookieStoreId: 'firefox-container-2'});
+      await bg.wait(100);
+      await bg.closed(1);
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      expect(bg.createdTabs).toEqual([{id: 1000, url: EP2, active: false, windowId: 1, cookieStoreId: 'firefox-container-2'}]);
+      bg.unload();
+
+      port = await onEpisode1({}, 'clicked', undefined, {1: linksTo(EP2)}, {cookieStoreId: 'firefox-default'});
+      await bg.wait(100);
+      await bg.closed(1);
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      expect(bg.createdTabs).toEqual([{id: 1000, url: EP2, active: false, windowId: 1}]);
+    });
   });
 
   it('watches again once mpv was closed, and lets an old host go', async () => {

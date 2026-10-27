@@ -606,6 +606,21 @@ and its started player loads its stream (`loadedmetadata`), while Firefox holds 
 until the tab is shown. `classic-specs/autoplay-background-tab.e2e.mjs` (red before: the
 player was never started), `contentPagePlayer.test.mjs`.
 
+**The episode's tab closed (2026-10-27).** His wish: autoplay goes on with the tab closed. At
+each hand-off (`watchMpvFor`) the background reads the page's episode links (`EPISODE_LINKS`,
+content.js `readEpisodeLinks`: the addresses `handlePlaylistNavigation` would follow, within
+the page's own origin; a link kept as a click, or a script's button, gives none), from the top
+frame only, once more after 10 s when it knew none. glm's review: a frame's (an ad's) or another
+site's link would have opened as a tab nobody looks at, with the tab's cookies. `tabs.onRemoved` keeps them with
+the watch (`noteMpvTabClosed`); an end or mpv's key then opens the link in a tab not shown
+(`goToEpisodeInNewTab`: `active: false`, the closed tab's window and container), on and in
+MPV, with the continuation `goToEpisode` gives (`awaitEpisodeStream`). Once its stream went to
+mpv and its links were read, the tab closes (`closeReopenedTab`), unless the user switched to
+it; so does one whose episode mpv no longer waits for (mpv closed, another tab's stream). Not
+when the window went with the tab, nor with MPV mode switched off since. One whose page brings
+no stream stays open, as mpv's notice says to look at it. `backgroundMpv.test.mjs` "with the episode's tab closed",
+`contentEpisodeNavigation.test.mjs`.
+
 **Debugging.** Add `"debug": true` to
 `%LOCALAPPDATA%\FastStreamMpvHost\config.json` (no reinstall needed, the host
 reads it per message) and it appends JSONL to `faststream-mpv-host.log` next

@@ -470,11 +470,12 @@ export async function loadBackground({
   /**
    * The tab is closed.
    * @param {number} tabId - The tab.
+   * @param {{isWindowClosing?: boolean}} [removeInfo] - Its window closed with it.
    * @return {Promise<void>}
    */
-  bg.closed = async (tabId) => {
+  bg.closed = async (tabId, removeInfo = {}) => {
     bg.tabs = bg.tabs.filter((t) => t.id !== tabId);
-    for (const listener of tabEvents.onRemoved.listeners) listener(tabId, {windowId: 1, isWindowClosing: false});
+    for (const listener of tabEvents.onRemoved.listeners) listener(tabId, {windowId: 1, isWindowClosing: false, ...removeInfo});
     await settle();
   };
 

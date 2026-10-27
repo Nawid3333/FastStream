@@ -290,6 +290,9 @@ export class TabHolder {
     this.mpvNextPick = null;
     /** @type {ReturnType<typeof setTimeout>|undefined} */
     this.mpvNextPickTimer = undefined;
+    // A tab MPV autoplay opened for the next episode itself, its tab before closed (background.mjs
+    // goToEpisodeInNewTab): it closes again once its stream went to mpv.
+    this.mpvReopened = false;
     // A fullscreen carried over to the next episode (background.mjs setCarriedFullscreen):
     // the window's state before it went fullscreen, to go back to, and the player that asked.
     /** @type {chrome.windows.Window['state']|null} */

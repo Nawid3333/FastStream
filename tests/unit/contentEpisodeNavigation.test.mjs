@@ -264,3 +264,46 @@ describe('the next episode, within the series', () => {
     expect(await unknown.next()).toBe('no_button');
   });
 });
+
+// MPV autoplay with the episode's tab closed (his wish, 2026-10-27): the background reads the
+// page's episode links when its stream goes to mpv (EPISODE_LINKS), and opens one in a new tab
+// later. The address is the one handlePlaylistNavigation would follow; a link kept as a click
+// gives none.
+describe('the episode links read for a tab closed later', () => {
+  const links = (p) => p.send({type: 'EPISODE_LINKS'});
+
+  it('are the next and the previous episode\'s addresses, and nothing is followed', async () => {
+    const {p, link, assigned, clicked} = episodePage();
+    link('https://site.example/watch/0', 'Previous episode');
+    link('https://site.example/watch/2', 'Next episode');
+    expect(await links(p)).toEqual({next: 'https://site.example/watch/2', previous: 'https://site.example/watch/0',
+      hasNext: true, hasPrevious: true, seriesEnd: false});
+    expect(assigned).toEqual([]);
+    expect(clicked).toEqual([]);
+  });
+
+  it('give no address for a link kept as a click, but say there is a next one', async () => {
+    const {p, link, base} = episodePage();
+    base('_top');
+    link('https://site.example/watch/2', 'Next episode');
+    expect(await links(p)).toEqual({next: null, previous: null, hasNext: true, hasPrevious: false, seriesEnd: false});
+  });
+
+  it('say there is none on a page without them', async () => {
+    const {p} = episodePage();
+    expect(await links(p)).toEqual({next: null, previous: null, hasNext: false, hasPrevious: false, seriesEnd: false});
+  });
+});
+
+describe('the episode links read for a tab closed later, on another site', () => {
+  it('give no address for a link off the page\'s own origin', async () => {
+    // glm's review (2026-10-27): the background opens it in a tab nobody looks at. The link
+    // finder already passes over another site's links (also one with rel=next); readEpisodeLinks
+    // checks the origin once more, as that tab goes unseen.
+    const {p, link, assigned} = episodePage();
+    link('https://elsewhere.example/watch/2', 'Weiter', {rel: 'next'});
+    expect(await p.send({type: 'EPISODE_LINKS'})).toEqual({next: null, previous: null, hasNext: false,
+      hasPrevious: false, seriesEnd: false});
+    expect(assigned).toEqual([]);
+  });
+});
