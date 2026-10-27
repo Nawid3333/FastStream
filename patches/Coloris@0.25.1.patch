@@ -1,7 +1,7 @@
 diff --git a/dist/coloris.js b/dist/coloris.js
-index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67d064a08d 100644
+index fe212f3861b31e768739f1d58a29afbba5531ffb..3818e1ba5a7b0b2feece5d13410200269af4f9b9 100644
 --- a/dist/coloris.js
-+++ b/dist/coloris.js	
++++ b/dist/coloris.js
 @@ -64,17 +64,18 @@
        return;
      }
@@ -99,7 +99,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
      }
    }
  
-@@ -597,7 +609,7 @@
+@@ -602,7 +614,7 @@
        settings.onChange.call(window, color, currentEl);
      }
  
@@ -108,7 +108,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
    }
  
    /**
-@@ -751,7 +763,7 @@
+@@ -756,7 +768,7 @@
  
  
      // Select the current format in the format switcher
@@ -117,7 +117,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
    }
  
    /**
-@@ -965,44 +977,64 @@
+@@ -970,44 +982,64 @@
     * Init the color picker.
     */
    function init() {
@@ -216,7 +216,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
  
      // Append the color picker to the DOM
      document.body.appendChild(picker);
-@@ -1029,7 +1061,7 @@
+@@ -1034,7 +1066,7 @@
      });
  
      addListener(colorArea, 'mousedown', function (event) {
@@ -225,7 +225,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
      });
  
      addListener(colorArea, 'contextmenu', function (event) {
-@@ -1037,15 +1069,15 @@
+@@ -1042,15 +1074,15 @@
      });
  
      addListener(colorArea, 'touchstart', function (event) {
@@ -244,7 +244,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
      });
  
      addListener(colorValue, 'change', function (event) {
-@@ -1057,6 +1089,11 @@
+@@ -1062,6 +1094,11 @@
        }
      });
  
@@ -256,7 +256,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
      addListener(clearButton, 'click', function (event) {
        pickColor('');
        closePicker();
-@@ -1082,21 +1119,21 @@
+@@ -1087,21 +1124,21 @@
        }
      });
  
@@ -284,7 +284,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
        var key = event.key;
        var target = event.target;
        var shiftKey = event.shiftKey;
-@@ -1126,14 +1163,16 @@
+@@ -1131,14 +1168,16 @@
          if (shiftKey && target === firstFocusable) {
            lastFocusable.focus();
            event.preventDefault();
@@ -302,7 +302,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
        // Reset any previously set per-instance options
        if (hasInstance) {
          resetVirtualInstance();
-@@ -1154,6 +1193,37 @@
+@@ -1159,6 +1198,37 @@
        if (Object.keys(movements).includes(event.key)) {
          moveMarkerOnKeydown.apply(void 0, movements[event.key]);
          event.preventDefault();
@@ -340,7 +340,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
        }
      });
  
-@@ -1179,7 +1249,7 @@
+@@ -1184,7 +1254,7 @@
     * @return {object} The DOM element with the provided id.
     */
    function getEl(id) {
@@ -349,7 +349,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
    }
  
    /**
-@@ -1198,7 +1268,7 @@
+@@ -1203,7 +1273,7 @@
          if (matches.call(event.target, selector)) {
            fn.call(event.target, event);
          }
@@ -358,7 +358,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
  
        // If the selector is not a string then it's a function
        // in which case we need a regular event listener
-@@ -1245,11 +1315,7 @@
+@@ -1250,11 +1320,7 @@
      function Coloris(options) {
        DOMReady(function () {
          if (options) {
@@ -371,7 +371,7 @@ index edad1c83ba663cd2651a26ef82e7116c1c82bf40..bdb8364679503798d71b6049ad4ebf67
          }
        });
      }var _loop2 = function _loop2(
-@@ -1264,6 +1330,6 @@
+@@ -1269,6 +1335,6 @@
    }();
  
    // Init the color picker when the DOM is ready
