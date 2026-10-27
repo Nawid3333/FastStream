@@ -388,14 +388,22 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
       await window.fastStream.pause();
       // The bar's last pixel, pressed and let go as a click there.
       const bar = /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_controls_progress_container'));
+      const before = window.fastStream.currentTime;
       const rect = bar.getBoundingClientRect();
       const x = rect.left + rect.width - 1;
       const y = rect.top + rect.height / 2;
       bar.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0, clientX: x, clientY: y}));
       document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, button: 0, clientX: x, clientY: y}));
-      return {time: window.fastStream.currentTime, duration: window.fastStream.duration};
+      // With what decides whether it seeks: ProgressBar seeks only on a bar with a width.
+      return {before, time: window.fastStream.currentTime, duration: window.fastStream.duration,
+        barWidth: bar.clientWidth, frame: `${innerWidth}x${innerHeight}`, visibility: document.visibilityState};
     });
     console.log(`      clicked the bar's end: ${JSON.stringify(at)}`);
+    // A click that did not seek (#583: still at the time it was paused at, once in a week's
+    // runs) is said here, with that state, not after the 30 s wait for the next episode.
+    if (!(at.time > at.duration - 0.25)) {
+      throw new Error(`the click on the bar's end did not seek: ${JSON.stringify(at)}`);
+    }
     await onPage('/ep2');
   });
 
@@ -416,18 +424,24 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
         await browser.execute(() => window.fastStream.play());
         await browser.waitUntil(() => browser.execute(() => window.fastStream.state.playing),
             {timeout: 10000, timeoutMsg: `${page}: the video never played`});
-        await browser.execute(() => {
+        const at = await browser.execute(() => {
           const bar = /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_controls_progress_container'));
+          const before = window.fastStream.currentTime;
           const rect = bar.getBoundingClientRect();
           const x = rect.left + rect.width - 1;
           const y = rect.top + rect.height / 2;
           bar.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0, clientX: x, clientY: y}));
+          const sought = window.fastStream.currentTime;
           document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, button: 0, clientX: x, clientY: y}));
+          return {before, sought, barWidth: bar.clientWidth, frame: `${innerWidth}x${innerHeight}`,
+            visibility: document.visibilityState};
         });
         await browser.pause(1500);
         const after = await browser.execute(() => ({player: window.fastStream.player.constructor.name,
           time: window.fastStream.currentTime, duration: window.fastStream.duration}));
-        console.log(`      ${page}, 1.5 s after the click: ${JSON.stringify(after)}`);
+        // The click's own state with it: one at 1.5 s (#583) was a click that did not seek (a
+        // video playing on from where it was) or one started again (sought, then back at 0).
+        console.log(`      ${page}, 1.5 s after the click: ${JSON.stringify({...after, click: at})}`);
         // Started again, it would be about 1.5 s in.
         expect(after.time).toBeGreaterThan(after.duration - 0.25);
       }
