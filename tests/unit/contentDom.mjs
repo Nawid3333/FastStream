@@ -447,7 +447,9 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
     addEventListener: (type, listener) => windowListeners.push({type, listener}),
     removeEventListener: () => {},
     parent: {postMessage() {}},
+    // An element's `computed` gives any other property too (transform, contain).
     getComputedStyle: (el) => ({
+      ...el.computed,
       display: el.style.getPropertyValue('display') || el.computed?.display || 'block',
       position: el.style.getPropertyValue('position') || el.computed?.position || 'static',
       overflow: el.computed?.overflow || 'visible',

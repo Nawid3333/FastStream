@@ -161,6 +161,48 @@ describe('a hoster\'s frame made in a background tab', () => {
     expect(await p.send({type: 'GET_VIDEO_SIZE'})).toBe(640 * 360);
   });
 
+  it('counts an absolutely placed video out of a clipping box that does not place it', async () => {
+    // glm's review (2026-10-27): the player's box places it, the collapsed one between clips
+    // nothing of it, as the browser draws it.
+    const {p, video} = hiddenFrame();
+    const player = p.document.createElement('div');
+    player.rect = {x: 8, y: 8, width: 640, height: 360};
+    player.computed = {position: 'relative'};
+    const collapsed = p.document.createElement('div');
+    collapsed.rect = {x: 8, y: 8, width: 640, height: 0};
+    collapsed.computed = {overflow: 'hidden'};
+    video.remove();
+    video.computed = {position: 'absolute'};
+    collapsed.appendChild(video);
+    player.appendChild(collapsed);
+    p.document.body.appendChild(player);
+    expect(await p.send({type: 'GET_VIDEO_SIZE'})).toBe(640 * 360);
+  });
+
+  it('clips a fixed video by a transformed box, which places it', async () => {
+    const {p, video} = hiddenFrame();
+    const box = p.document.createElement('div');
+    box.rect = {x: 0, y: 0, width: 10, height: 10};
+    box.computed = {overflow: 'hidden', transform: 'translateZ(0px)'};
+    video.remove();
+    video.rect = {x: 100, y: 100, width: 640, height: 360};
+    video.computed = {position: 'fixed'};
+    box.appendChild(video);
+    p.document.body.appendChild(box);
+    expect(await p.send({type: 'GET_VIDEO_SIZE'})).toBe(0);
+  });
+
+  it('clips by a box with paint containment', async () => {
+    const {p, video} = hiddenFrame();
+    const box = p.document.createElement('div');
+    box.rect = {x: 8, y: 8, width: 640, height: 0};
+    box.computed = {contain: 'paint'};
+    video.remove();
+    box.appendChild(video);
+    p.document.body.appendChild(box);
+    expect(await p.send({type: 'GET_VIDEO_SIZE'})).toBe(0);
+  });
+
   it('measures within the viewport of a hidden page that has one', async () => {
     const {p, video} = hiddenFrame();
     p.window.innerWidth = 1280;
