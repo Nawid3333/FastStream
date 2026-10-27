@@ -63,19 +63,24 @@ function outputState() {
 
 /**
  * Clicks a row of the audio list the way a user does (WebDriver's click: a user activation,
- * which Firefox's chooser needs), with the list open.
+ * which Firefox's chooser needs), with the list open. The output rows come once the player
+ * has put its sound on an output (attachAudioOutputDevice, after the video plays), and are
+ * drawn anew then: looked for until there, as a user waits for them (#583: "no row" in a run
+ * of the flaky week, on Linux and Windows).
  * @param {string} text - The row's text, from its start.
  */
 async function clickRow(text) {
-  await browser.execute(() => window.fastStream.interfaceController.audioQualityChanger.openUI());
-  const rows = await browser.$$('.mainplayer .fluid_audio_sources_list .fluid_audio_source_list_item');
-  for (const row of rows) {
-    if ((await row.getText()).trim().startsWith(text)) {
-      await row.click();
-      return;
+  await browser.waitUntil(async () => {
+    await browser.execute(() => window.fastStream.interfaceController.audioQualityChanger.openUI());
+    const rows = await browser.$$('.mainplayer .fluid_audio_sources_list .fluid_audio_source_list_item');
+    for (const row of rows) {
+      if ((await row.getText()).trim().startsWith(text)) {
+        await row.click();
+        return true;
+      }
     }
-  }
-  throw new Error(`no row "${text}" in the audio list`);
+    return false;
+  }, {timeout: 10000, interval: 250, timeoutMsg: `no row "${text}" in the audio list`});
 }
 
 describe('The audio output', function() {

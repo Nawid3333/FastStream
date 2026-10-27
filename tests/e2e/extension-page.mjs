@@ -38,6 +38,12 @@ export async function openExtensionPage(pagePath) {
   await browser.url(OPENER_URL);
   await browser.execute((u) => window.open(u, '_blank'), PLAYER_PAGE + '?t=' + Date.now());
 
+  // When each window was sent to the target. A replace takes more than a round to show in its
+  // URL, and one sent again meanwhile could replace the page once more after the readyState
+  // check below: the spec then ran in a page without a body yet (#583, twice in a week). Sent
+  // again only after 2 s, for a replace that got lost.
+  /** @type {Map<string, number>} */
+  const replaced = new Map();
   await browser.waitUntil(async () => {
     for (const h of await browser.getWindowHandles()) {
       await browser.switchToWindow(h);
@@ -45,9 +51,9 @@ export async function openExtensionPage(pagePath) {
       if (url === target) {
         return true;
       }
-      if (url.startsWith(PLAYER_PAGE)) {
+      if (url.startsWith(PLAYER_PAGE) && Date.now() - (replaced.get(h) ?? -Infinity) > 2000) {
         // A page still loading may refuse the script; the next round tries again.
-        await browser.execute((u) => location.replace(u), target).catch(() => {});
+        await browser.execute((u) => location.replace(u), target).then(() => replaced.set(h, Date.now()), () => {});
       }
     }
     return false;
