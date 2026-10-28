@@ -6533,6 +6533,24 @@
     "zh_CN": "FastStream - MPV - 流未能打开：$1",
     "zh_TW": "FastStream - MPV - 串流未能開啟：$1"
   },
+  "extension_toggle_label_drm": {
+    "en": "FastStream - This video is copy-protected (DRM), and FastStream cannot play it: the site's own player keeps it",
+    "de": "FastStream - Dieses Video ist durch DRM geschützt, und FastStream kann es nicht abspielen: Es bleibt im Player der Website",
+    "es": "FastStream - Este video está protegido contra copia (DRM) y FastStream no puede reproducirlo: se lo queda el reproductor del sitio",
+    "fr": "FastStream - Cette vidéo est protégée contre la copie (DRM), et FastStream ne peut pas la lire : elle reste dans le lecteur du site",
+    "id": "FastStream - Video ini dilindungi dari penyalinan (DRM), dan FastStream tidak dapat memutarnya: video tetap di pemutar situs",
+    "it": "FastStream - Questo video è protetto da DRM e FastStream non può riprodurlo: resta nel lettore del sito web",
+    "ja": "FastStream - この動画はコピー保護（DRM）されているため、FastStream では再生できません。サイト自身のプレーヤーで再生されます",
+    "ko": "FastStream - 이 비디오는 복사 방지(DRM)되어 있어 FastStream에서 재생할 수 없습니다. 사이트 자체 플레이어에서 재생됩니다",
+    "ms": "FastStream - Video ini dilindungi daripada penyalinan (DRM), dan FastStream tidak boleh memainkannya: video diserahkan kepada pemain tapak itu sendiri",
+    "nl": "FastStream - Deze video is kopieerbeveiligd (DRM) en FastStream kan hem niet afspelen: de eigen speler van de site houdt hem vast",
+    "pl": "FastStream - To wideo jest chronione przed kopiowaniem (DRM), a FastStream nie może go odtworzyć: pozostaje w odtwarzaczu strony",
+    "pt_BR": "FastStream - Este vídeo é protegido contra cópia (DRM), e o FastStream não pode reproduzi-lo: ele fica no reprodutor do próprio site",
+    "ru": "FastStream - Это видео защищено от копирования (DRM), и FastStream не может его воспроизвести: оно остаётся в плеере сайта",
+    "tr": "FastStream - Bu video kopya korumalı (DRM) ve FastStream onu oynatamıyor: sitenin kendi oynatıcısında kalıyor",
+    "zh_CN": "FastStream - 此视频受复制保护（DRM），FastStream 无法播放：它会留在网站自己的播放器中",
+    "zh_TW": "FastStream - 此影片受複製保護（DRM），FastStream 無法播放：它會留在網站自己的播放器中"
+  },
   "extension_toggle_label_mpv_outdated": {
     "en": "FastStream - MPV - the mpv helper on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)",
     "de": "FastStream - MPV - der mpv-Helfer auf diesem Computer ist veraltet: Führe \"Update mpv\" aus dem Startmenü aus (in einem FastStream-Checkout: update-local.cmd oder native-host\\install.ps1)",
@@ -7180,6 +7198,24 @@
     "tr": "Bu video Firefox VPN üzerinden geliyor ve mpv Firefox VPN'i kullanamıyor: site mpv'yi reddeder. mpv'de izlemek için bu sitede Firefox VPN'i kapatın ve sayfayı yeniden yükleyin.",
     "zh_CN": "此视频通过 Firefox VPN 传输，而 mpv 无法使用 Firefox VPN：网站会拒绝 mpv。要在 mpv 中观看，请为此网站关闭 Firefox VPN 并重新加载页面。",
     "zh_TW": "此影片透過 Firefox VPN 傳輸，而 mpv 無法使用 Firefox VPN：網站會拒絕 mpv。要在 mpv 中觀看，請為此網站關閉 Firefox VPN 並重新載入頁面。"
+  },
+  "player_mpv_drm": {
+    "en": "This video is copy-protected (DRM), and mpv cannot play it: the site's own player keeps it.",
+    "de": "Dieses Video ist durch DRM geschützt, und mpv kann es nicht abspielen: Es bleibt im Player der Website.",
+    "es": "Este video está protegido contra copia (DRM) y mpv no puede reproducirlo: se lo queda el reproductor del sitio.",
+    "fr": "Cette vidéo est protégée contre la copie (DRM), et mpv ne peut pas la lire : elle reste dans le lecteur du site.",
+    "id": "Video ini dilindungi dari penyalinan (DRM), dan mpv tidak dapat memutarnya: video tetap di pemutar situs.",
+    "it": "Questo video è protetto da DRM e mpv non può riprodurlo: resta nel lettore del sito web.",
+    "ja": "この動画はコピー保護（DRM）されているため、mpv では再生できません。サイト自身のプレーヤーで再生されます。",
+    "ko": "이 비디오는 복사 방지(DRM)되어 있어 mpv에서 재생할 수 없습니다. 사이트 자체 플레이어에서 재생됩니다.",
+    "ms": "Video ini dilindungi daripada penyalinan (DRM), dan mpv tidak boleh memainkannya: video diserahkan kepada pemain tapak itu sendiri.",
+    "nl": "Deze video is kopieerbeveiligd (DRM) en mpv kan hem niet afspelen: de eigen speler van de site houdt hem vast.",
+    "pl": "To wideo jest chronione przed kopiowaniem (DRM), a mpv nie może go odtworzyć: pozostaje w odtwarzaczu strony.",
+    "pt_BR": "Este vídeo é protegido contra cópia (DRM), e o mpv não pode reproduzi-lo: ele fica no reprodutor do próprio site.",
+    "ru": "Это видео защищено от копирования (DRM), и mpv не может его воспроизвести: оно остаётся в плеере сайта.",
+    "tr": "Bu video kopya korumalı (DRM) ve mpv onu oynatamıyor: sitenin kendi oynatıcısında kalıyor.",
+    "zh_CN": "此视频受复制保护（DRM），mpv 无法播放：它会留在网站自己的播放器中。",
+    "zh_TW": "此影片受複製保護（DRM），mpv 無法播放：它會留在網站自己的播放器中。"
   },
   "mpv_episode_loading": {
     "en": "loading in mpv",

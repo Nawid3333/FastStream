@@ -1088,6 +1088,9 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - der Stream wurde nicht geöffnet: $1"
     },
+    "extension_toggle_label_drm": {
+        "message": "FastStream - Dieses Video ist durch DRM geschützt, und FastStream kann es nicht abspielen: Es bleibt im Player der Website"
+    },
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - der mpv-Helfer auf diesem Computer ist veraltet: Führe \"Update mpv\" aus dem Startmenü aus (in einem FastStream-Checkout: update-local.cmd oder native-host\\install.ps1)"
     },
@@ -1195,6 +1198,9 @@
     },
     "player_mpv_vpn": {
         "message": "Dieses Video wird über Firefox VPN übertragen, und mpv kann Firefox VPN nicht nutzen: Die Seite würde mpv ablehnen. Um es in mpv anzusehen, schalte Firefox VPN für diese Seite aus und lade die Seite neu."
+    },
+    "player_mpv_drm": {
+        "message": "Dieses Video ist durch DRM geschützt, und mpv kann es nicht abspielen: Es bleibt im Player der Website."
     },
     "mpv_episode_loading": {
         "message": "wird in mpv geladen"

@@ -9,6 +9,8 @@
  * background's MPV picks rank by what they tell.
  */
 
+import {isDecryptable} from './Decryptable.mjs';
+
 // A stream whose length could not be read ranks as this long: above a known-short one (an
 // ad, an intro), below a known film or episode. A length is unknown when the server turned
 // the read away, or the file keeps it where a few reads do not reach.
@@ -138,6 +140,75 @@ export class StreamLength {
       }
     }
     return variants.length > 0 ? {variants, renditions, media} : null;
+  }
+
+  /**
+   * Whether an HLS media playlist has segments encrypted in a way FastStream cannot decrypt:
+   * copy protection (Widevine, PlayReady, FairPlay) or SAMPLE-AES. Its player loads them and
+   * shows nothing, where the page's own player plays them (Vimeo, 2026-10-28: SAMPLE-AES-CTR
+   * under a Widevine and a PlayReady key). The keys in force are kept as hls.js keeps them,
+   * one per KEYFORMAT until a METHOD=NONE, and a segment is decrypted with the identity one
+   * when there is one, as the player takes them (HLSFragmentRequester.takeOverDecryption);
+   * an AES-128 key beside a DRM one plays. A master playlist tells nothing here: it names
+   * its variants' keys in their own playlists, and an EXT-X-SESSION-KEY may name one that
+   * none of them uses.
+   * @param {string} text - The playlist.
+   * @return {boolean}
+   */
+  static hlsProtected(text) {
+    /** @type {Map<string, string>} */
+    const keys = new Map();
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (line.startsWith('#EXT-X-KEY:')) {
+        const attributes = StreamLength.hlsAttributes(line.slice('#EXT-X-KEY:'.length));
+        if (attributes.METHOD === 'NONE') {
+          keys.clear();
+        } else if (attributes.METHOD) {
+          keys.set(attributes.KEYFORMAT || 'identity', attributes.METHOD);
+        }
+      } else if (keys.size > 0 && line !== '' && (!line.startsWith('#') || line.startsWith('#EXT-X-MAP:')) &&
+          !isDecryptable(keys.get('identity'), 'identity')) {
+        // A segment, or an init segment, under keys none of which FastStream decrypts.
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Whether a DASH manifest's video is copy-protected (ContentProtection: CENC under
+   * Widevine, PlayReady, ClearKey): FastStream has no key system, and its player stops at
+   * the first encrypted sample (DashPlayer's needkey). Every video adaptation set has to
+   * be, as a clear one beside them plays; with none of them told apart as video (no
+   * contentType, mimeType or size), every adaptation set.
+   * @param {string} text - The MPD.
+   * @return {boolean}
+   */
+  static dashProtected(text) {
+    const sets = [...text.matchAll(/<(?:[\w-]+:)?AdaptationSet\b([^>]*)>([\s\S]*?)<\/(?:[\w-]+:)?AdaptationSet\s*>/g)]
+        .map((match) => ({
+          video: /\bcontentType\s*=\s*["']video["']|\bmimeType\s*=\s*["']video\/|\bwidth\s*=/i.test(match[1] + match[2]),
+          protected: /<(?:[\w-]+:)?ContentProtection\b/.test(match[2]),
+        }));
+    const videos = sets.filter((set) => set.video);
+    const judged = videos.length > 0 ? videos : sets;
+    return judged.length > 0 && judged.every((set) => set.protected);
+  }
+
+  /**
+   * An HLS tag's attribute list (RFC 8216, 4.2): NAME=value, the value quoted or not. A
+   * quoted one may hold commas (a key's data: URI).
+   * @param {string} text - What follows the tag's colon.
+   * @return {Object<string, string>} The values by name, quotes taken off.
+   */
+  static hlsAttributes(text) {
+    /** @type {Object<string, string>} */
+    const attributes = {};
+    for (const match of text.matchAll(/([A-Za-z0-9-]+)\s*=\s*("[^"]*"|[^,]*)/g)) {
+      attributes[match[1].toUpperCase()] = match[2].trim().replace(/^"(.*)"$/, '$1');
+    }
+    return attributes;
   }
 
   /**

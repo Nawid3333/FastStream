@@ -2735,3 +2735,73 @@ describe('MPV mode and an HLS stream whose master playlist offers several qualit
     expect(bg.toMpv()).toEqual([variant(480)]);
   });
 });
+
+describe('a copy-protected stream (DRM)', () => {
+  // mpv has no key system either: its window stayed black, where the page's player plays
+  // the video. Nothing is handed off, and the reason shows where a failed hand-off does.
+  const WIDEVINE = '#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI="data:text/plain;base64,AAAANHBzc2g=",' +
+    'KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"';
+  const VARIANT = 'https://cdn.test/episode/1080.m3u8';
+  const network = {
+    [EPISODE]: `#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,RESOLUTION=1920x1080\n${VARIANT}\n`,
+    [VARIANT]: hlsPlaylist(1400).replace('#EXT-X-VERSION:3', `#EXT-X-VERSION:3\n${WIDEVINE}`),
+    [AD]: hlsPlaylist(30),
+  };
+
+  it('is not handed to mpv by the allowlist, nor the page\'s next stream, and the toolbar says why', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists(network, 50)});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(2000);
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.badges.get(1)).toBe('!');
+    expect(bg.titles.get(1)).toContain('copy-protected');
+    // The page's next stream is an ad's, or one of the film's pieces: not the video.
+    await bg.request({tabId: 1, url: AD});
+    await bg.wait(2000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('is not sent by the player\'s mpv button, whose answer says why, read only then', async () => {
+    // Detected with the tab off: nothing read it. The button's hand-off reads it first.
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: playlists(network, 50)});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    await bg.request({tabId: 1, url: EPISODE});
+    const answer = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: [], qualities: []},
+        {tabId: 1, frameId: 0, url: 'moz-extension://bg-test/player/index.html'});
+    await bg.wait(1000);
+    expect(await answer).toMatchObject({ok: false, drm: true});
+    expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
+  });
+
+  it('leaves a clear stream as it was', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: hlsPlaylist(1400)}, 50)});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(2000);
+    expect(bg.toMpv()).toHaveLength(1);
+  });
+
+  it('is a DASH stream too, read only when the player\'s button sends it', async () => {
+    // Detected with the tab off, nothing read it; openInMpv waits for no DASH manifest for
+    // qualities (hlsQualityChoice is HLS only), so it waits for this one's read itself.
+    const MPD = 'https://cdn.test/episode/manifest.mpd';
+    const mpd = '<MPD type="static" mediaPresentationDuration="PT24M"><Period><AdaptationSet contentType="video">' +
+      '<ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cenc"/>' +
+      '<Representation id="1" width="1920"/></AdaptationSet></Period></MPD>';
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: playlists({[MPD]: mpd}, 300)});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    await bg.request({tabId: 1, url: MPD}, {responseHeaders: [{name: 'Content-Type', value: 'application/dash+xml'}]});
+    const answer = bg.message({type: 'MPV_OPEN', url: MPD, headers: [], qualities: []},
+        {tabId: 1, frameId: 0, url: 'moz-extension://bg-test/player/index.html'});
+    await bg.wait(1000);
+    expect(await answer).toMatchObject({ok: false, drm: true});
+    expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
+  });
+});

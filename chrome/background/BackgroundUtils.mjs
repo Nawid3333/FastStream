@@ -170,12 +170,17 @@ export class BackgroundUtils {
         tabId: tab.tabId,
       });
     } else if (tab.isOn) {
+      // A copy-protected video stays in the page's own player (tab.protectedVideo): on, and
+      // no player opened, the button says why.
       chrome.action.setBadgeText({
-        text: 'On',
+        text: tab.protectedVideo ? 'DRM' : 'On',
         tabId: tab.tabId,
       });
       chrome.action.setTitle({
-        title: chrome.i18n.getMessage('extension_toggle_label') || 'Toggle FastStream',
+        title: tab.protectedVideo ?
+          chrome.i18n.getMessage('extension_toggle_label_drm') ||
+            'FastStream - This video is copy-protected (DRM), and FastStream cannot play it: the site\'s own player keeps it' :
+          chrome.i18n.getMessage('extension_toggle_label') || 'Toggle FastStream',
         tabId: tab.tabId,
       });
       chrome.action.setIcon({

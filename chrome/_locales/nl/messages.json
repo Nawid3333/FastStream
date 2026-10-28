@@ -1088,6 +1088,9 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - de stream is niet geopend: $1"
     },
+    "extension_toggle_label_drm": {
+        "message": "FastStream - Deze video is kopieerbeveiligd (DRM) en FastStream kan hem niet afspelen: de eigen speler van de site houdt hem vast"
+    },
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream – MPV – het mpv-hulpje op deze computer is verouderd: voer ‘Update mpv’ uit via het Startmenu (in een FastStream-checkout: update-local.cmd of native-host\\install.ps1)"
     },
@@ -1195,6 +1198,9 @@
     },
     "player_mpv_vpn": {
         "message": "Deze video komt binnen via Firefox VPN, en mpv kan Firefox VPN niet gebruiken: de site zou mpv weigeren. Om de video in mpv te bekijken, schakel Firefox VPN uit voor deze site en herlaad de pagina."
+    },
+    "player_mpv_drm": {
+        "message": "Deze video is kopieerbeveiligd (DRM) en mpv kan hem niet afspelen: de eigen speler van de site houdt hem vast."
     },
     "mpv_episode_loading": {
         "message": "laden in mpv"
