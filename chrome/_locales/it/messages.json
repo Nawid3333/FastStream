@@ -638,6 +638,9 @@
     "player_error_load": {
         "message": "Caricamento del video fallito!"
     },
+    "player_error_turn_off": {
+        "message": "Disattiva FastStream con il pulsante nella barra degli strumenti per guardarlo nel lettore del sito web."
+    },
     "source_copied": {
         "message": "URL copiato negli appunti!"
     },

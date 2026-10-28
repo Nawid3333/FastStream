@@ -638,6 +638,9 @@
     "player_error_load": {
         "message": "影片載入失敗！"
     },
+    "player_error_turn_off": {
+        "message": "請用工具列上的按鈕關閉 FastStream，改用網站本身的播放器觀看。"
+    },
     "source_copied": {
         "message": "已將網址複製到剪貼簿！"
     },

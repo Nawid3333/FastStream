@@ -638,6 +638,9 @@
     "player_error_load": {
         "message": "视频加载失败！"
     },
+    "player_error_turn_off": {
+        "message": "请用工具栏按钮关闭 FastStream，然后在网站自带的播放器中观看。"
+    },
     "source_copied": {
         "message": "已将 URL 复制到剪贴板！"
     },

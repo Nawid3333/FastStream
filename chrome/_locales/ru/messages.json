@@ -638,6 +638,9 @@
     "player_error_load": {
         "message": "Не удалось загрузить видео!"
     },
+    "player_error_turn_off": {
+        "message": "Выключите FastStream кнопкой на панели инструментов, чтобы посмотреть его в плеере сайта."
+    },
     "source_copied": {
         "message": "Скопировано!"
     },

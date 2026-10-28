@@ -2065,3 +2065,73 @@ describe('FastStreamClient, the last source\'s player failing while the next sou
     expect(client.source.url).toBe(OLD);
   });
 });
+
+// An MP4 file the MP4 player cannot read, of which nothing has shown, plays in Firefox's own
+// player inside FastStream before the load error shows; the error then tells how to watch it in
+// the site's own player. FastStream never steps aside by itself (the owner, 2026-10-28).
+describe('FastStreamClient, a video its player cannot read', () => {
+  const mp4 = () => makeSource('https://cdn.example/a.mp4', {mode: 'accelerated_mp4'});
+  const quiet = () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  };
+
+  it('tries an MP4 file in Firefox\'s own player before the load error', async () => {
+    quiet();
+    const client = makeClient();
+    const player = await setSource(client, mp4());
+    const set = vi.spyOn(client, 'setSource').mockImplementation(async () => {});
+
+    player.emit(DefaultPlayerEvents.ERROR, 'Invalid data found while parsing box');
+    await settle();
+
+    expect(set).toHaveBeenCalledTimes(1);
+    expect(set.mock.calls[0][0].mode).toBe('direct');
+    expect(client.interfaceController.failedToLoad).not.toHaveBeenCalled();
+  });
+
+  it('shows the error for a refused range, which Firefox\'s own player would be refused too', async () => {
+    quiet();
+    const client = makeClient();
+    const player = await setSource(client, mp4());
+    const set = vi.spyOn(client, 'setSource').mockImplementation(async () => {});
+
+    player.emit(DefaultPlayerEvents.ERROR, 'Range 3 failed to load');
+    await settle();
+
+    expect(set).not.toHaveBeenCalled();
+    expect(client.interfaceController.failedToLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the error, as before, once the video has shown a picture', async () => {
+    quiet();
+    const client = makeClient();
+    const player = await setSource(client, mp4());
+    player.emit(DefaultPlayerEvents.LOADEDDATA);
+    await settle();
+    // A rebuild is no way out either (its limit, say).
+    vi.spyOn(client, 'recoverPlayer').mockReturnValue(false);
+    const set = vi.spyOn(client, 'setSource').mockImplementation(async () => {});
+
+    player.emit(DefaultPlayerEvents.ERROR, 'Invalid data found while parsing box');
+    await settle();
+
+    expect(set).not.toHaveBeenCalled();
+    expect(client.interfaceController.failedToLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells how to watch the video in the site\'s own player, in a page only', () => {
+    const client = makeClient();
+    const own = {};
+    own.top = own;
+    try {
+      globalThis.window = {top: {}};
+      expect(client.loadErrorMessage('404')).toBe('player_error_load (404) player_error_turn_off');
+      globalThis.window = own;
+      expect(client.loadErrorMessage('404')).toBe('player_error_load (404)');
+      expect(client.loadErrorMessage()).toBe('player_error_load');
+    } finally {
+      delete globalThis.window;
+    }
+  });
+});

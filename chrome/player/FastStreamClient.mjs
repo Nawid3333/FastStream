@@ -1315,7 +1315,7 @@ export class FastStreamClient extends EventEmitter {
       // one that came after the source was taken (the audio tools, say): the video may
       // well play.
       if (!taken && this.fallbacks === fallbacks && fallbacks.request === this.sourceRequests && !this.tryNextSource()) {
-        this.failedToLoad(Localize.getMessage('player_error_load'));
+        this.failedToLoad(this.loadErrorMessage());
       }
     }
 
@@ -2144,6 +2144,29 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
+   * Whether the video being set has shown a picture: this source, or the same video before
+   * (a rebuild, a new link and Firefox's own player keep its identifier).
+   * @return {boolean}
+   */
+  hasShownVideo() {
+    return !!this.source && !!this.playedSource && this.playedSource.identifier === this.source.identifier;
+  }
+
+  /**
+   * The load error's text: what went wrong, and in a page, how to watch the video in the
+   * site's own player instead, as the DRM error says. FastStream never steps aside by itself:
+   * the toolbar's Off is the user's to click (the owner, 2026-10-28).
+   * @param {string} [detail] - What went wrong, when known.
+   * @return {string}
+   */
+  loadErrorMessage(detail) {
+    const message = Localize.getMessage('player_error_load') + (detail ? ' (' + detail + ')' : '');
+    // A player in a tab of its own has no site's player to go to.
+    const inPage = typeof window !== 'undefined' && window.top !== window;
+    return inPage ? message + ' ' + Localize.getMessage('player_error_turn_off') : message;
+  }
+
+  /**
    * The load error: the message, the downloads stopped.
    * @param {string} reason - The message shown.
    */
@@ -2504,8 +2527,7 @@ export class FastStreamClient extends EventEmitter {
     this.context.on(DefaultPlayerEvents.PLAY_DIRECTLY, (/** @type {string} */ reason) => {
       if (!this.isCurrentAttempt(player)) return;
       if (!this.playDirectly(player, reason)) {
-        const message = Localize.getMessage('player_error_load');
-        this.failedToLoad(message + ' (' + reason + ')');
+        this.failedToLoad(this.loadErrorMessage(reason));
       }
     });
 
@@ -2528,8 +2550,14 @@ export class FastStreamClient extends EventEmitter {
       // With what went wrong: the reason is the event's only argument, and the second one
       // this read instead was never passed, so every failure said only "Failed to load video!".
       const detail = describePlayerError(reason);
-      const message = Localize.getMessage('player_error_load');
-      this.failedToLoad(detail ? message + ' (' + detail + ')' : message);
+      // An MP4 file the MP4 player could not read, of which nothing showed: Firefox's own player,
+      // inside FastStream, reads more than mp4box and MSE do (a file mp4box cannot parse, a
+      // codec MSE refuses), once per source (playDirectly). Not for a refused request, which it
+      // would send just the same, while the page's new link may be on its way (renewSourceLink).
+      if (!isNetworkFailure(reason) && !this.hasShownVideo() && this.playDirectly(player, detail || 'player error')) {
+        return;
+      }
+      this.failedToLoad(this.loadErrorMessage(detail));
     });
 
     this.context.on(DefaultPlayerEvents.NEED_KEY, (/** @type {undefined} */ event) => {

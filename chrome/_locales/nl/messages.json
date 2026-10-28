@@ -638,6 +638,9 @@
     "player_error_load": {
         "message": "Video laden mislukt!"
     },
+    "player_error_turn_off": {
+        "message": "Zet FastStream uit met de knop in de werkbalk om de video in de eigen speler van de site te bekijken."
+    },
     "source_copied": {
         "message": "URL gekopieerd naar klembord!"
     },

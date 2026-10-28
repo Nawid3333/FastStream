@@ -638,6 +638,9 @@
     "player_error_load": {
         "message": "¡Error al cargar el video!"
     },
+    "player_error_turn_off": {
+        "message": "Desactiva FastStream con el botón de la barra de herramientas para verlo en el reproductor del sitio."
+    },
     "source_copied": {
         "message": "¡URL copiada al portapapeles!"
     },

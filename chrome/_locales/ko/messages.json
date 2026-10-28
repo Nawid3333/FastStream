@@ -638,6 +638,9 @@
     "player_error_load": {
         "message": "비디오 로드 실패!"
     },
+    "player_error_turn_off": {
+        "message": "도구 모음 버튼으로 FastStream을 끄고 사이트의 자체 플레이어에서 시청하세요."
+    },
     "source_copied": {
         "message": "URL이 클립보드에 복사되었습니다!"
     },
