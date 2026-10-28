@@ -204,6 +204,76 @@ describe('StreamLengths', () => {
     expect(await lengths.probe({url: 'https://cdn.example/a.mpd', mode: PlayerModes.ACCELERATED_DASH})).toBe(1440);
   });
 
+  describe('copy protection', () => {
+    // Vimeo's, measured 2026-10-28 (vimeo.com/863362136): a master with no key, and variants
+    // whose segments are SAMPLE-AES-CTR under a Widevine and a PlayReady key.
+    const WIDEVINE = '#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI="data:text/plain;base64,AAAANHBzc2g=",KEYID=0x46d7,' +
+      'KEYFORMATVERSIONS="1",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"';
+    const PLAYREADY = '#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI="data:text/plain;charset=UTF-16;base64,BgIAAA==",' +
+      'KEYFORMAT="com.microsoft.playready"';
+    const master = '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="English",URI="audio/media.m3u8"\n' +
+      '#EXT-X-STREAM-INF:BANDWIDTH=6320976,RESOLUTION=1920x1080,AUDIO="a"\nv1080/media.m3u8\n';
+    const variant = (keys) => `#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXT-X-PLAYLIST-TYPE:VOD\n${keys}` +
+      '#EXT-X-MAP:URI="init.mp4"\n#EXTINF:6,\nseg1.mp4\n#EXTINF:6,\nseg2.mp4\n#EXT-X-ENDLIST\n';
+
+    it('tells an HLS stream whose variant is copy-protected, by its master\'s URL, its length read all the same', async () => {
+      const {fetch} = server({
+        'https://cdn.example/v/master.m3u8': {body: master},
+        'https://cdn.example/v/v1080/media.m3u8': {body: variant(`${WIDEVINE}\n${PLAYREADY}\n`)},
+      });
+      const lengths = new StreamLengths({fetch});
+      expect(lengths.isProtected('https://cdn.example/v/master.m3u8')).toBe(false);
+      expect(await lengths.probe({url: 'https://cdn.example/v/master.m3u8', mode: HLS})).toBe(12);
+      expect(lengths.isProtected('https://cdn.example/v/master.m3u8')).toBe(true);
+    });
+
+    it('tells a media playlist detected by itself', async () => {
+      const {fetch} = server({'https://cdn.example/v/v1080/media.m3u8': {body: variant(`${WIDEVINE}\n`)}});
+      const lengths = new StreamLengths({fetch});
+      await lengths.probe({url: 'https://cdn.example/v/v1080/media.m3u8', mode: HLS});
+      expect(lengths.isProtected('https://cdn.example/v/v1080/media.m3u8')).toBe(true);
+    });
+
+    it('takes AES-128, which FastStream decrypts itself, and a stream with no key, for clear', async () => {
+      const {fetch} = server({
+        'https://cdn.example/aes.m3u8': {body: variant('#EXT-X-KEY:METHOD=AES-128,URI="key.bin",IV=0x01\n')},
+        'https://cdn.example/clear.m3u8': {body: variant('')},
+      });
+      const lengths = new StreamLengths({fetch});
+      await lengths.probe({url: 'https://cdn.example/aes.m3u8', mode: HLS});
+      await lengths.probe({url: 'https://cdn.example/clear.m3u8', mode: HLS});
+      expect(lengths.isProtected('https://cdn.example/aes.m3u8')).toBe(false);
+      expect(lengths.isProtected('https://cdn.example/clear.m3u8')).toBe(false);
+    });
+
+    it('tells a DASH stream whose video is copy-protected', async () => {
+      const mpd = (protection) => '<MPD type="static" mediaPresentationDuration="PT24M"><Period>' +
+        `<AdaptationSet contentType="video">${protection}<Representation id="1" width="1920"/></AdaptationSet>` +
+        '<AdaptationSet contentType="audio"><Representation id="2"/></AdaptationSet></Period></MPD>';
+      const {fetch} = server({
+        'https://cdn.example/drm.mpd': {body: mpd('<ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cenc"/>')},
+        'https://cdn.example/clear.mpd': {body: mpd('')},
+      });
+      const lengths = new StreamLengths({fetch});
+      expect(await lengths.probe({url: 'https://cdn.example/drm.mpd', mode: PlayerModes.ACCELERATED_DASH})).toBe(1440);
+      await lengths.probe({url: 'https://cdn.example/clear.mpd', mode: PlayerModes.ACCELERATED_DASH});
+      expect(lengths.isProtected('https://cdn.example/drm.mpd')).toBe(true);
+      expect(lengths.isProtected('https://cdn.example/clear.mpd')).toBe(false);
+    });
+
+    it('forgets a protected stream with its length, past the limit', async () => {
+      const {fetch} = server({'https://cdn.example/drm.m3u8': {body: variant(`${WIDEVINE}\n`)}});
+      const lengths = new StreamLengths({fetch});
+      await lengths.probe({url: 'https://cdn.example/drm.m3u8', mode: HLS});
+      for (let i = 0; i < 300; i++) {
+        await lengths.probe({url: `https://cdn.example/${i}.m3u8`, mode: HLS});
+      }
+      expect(lengths.lengthOf('https://cdn.example/drm.m3u8')).toBeUndefined();
+      expect(lengths.isProtected('https://cdn.example/drm.m3u8')).toBe(false);
+      expect(lengths.protectedUrls.size).toBe(0);
+    });
+  });
+
   it('reads an MP4\'s length from a movie header after its media data, in two ranges', async () => {
     const mdat = box('mdat', new Uint8Array(200000));
     const file = concat(ftyp, mdat, moov(1500));

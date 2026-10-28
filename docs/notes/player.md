@@ -629,3 +629,38 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
 player's own playback requests are never held unless it is paused and yielding. Yield is
 re-evaluated on each peer message and on the client's tick, play, pause, seek and
 visibilitychange. A scrub sends the same state at most every 250 ms.
+
+## A copy-protected video stays in the page's player (2026-10-28)
+
+Found while testing upstream #456 (saving from vimeo.com/863362136 looped a part, 1.3.70): that
+video is copy-protected now. FastStream took it over, its player loaded the manifest and sat at
+readyState 0 behind "This video is copy-protected (DRM)…", where Vimeo's own player plays it.
+
+- **What Vimeo sends** (Firefox 159, measured): a master playlist with no key at all, and
+  variant and audio playlists with two keys each, both `METHOD=SAMPLE-AES-CTR`: Widevine
+  (`KEYFORMAT="urn:uuid:edef8ba9-…"`, the PSSH as a `data:` URI) and PlayReady. The URL names
+  `/drm/cenc,derivedv2,…/`, which the rule does not go by.
+- **Where it is told.** The background already reads a stream's master and its first variant
+  for the length (StreamLengths, `MAX_PLAYLIST_READS = 2`), so the variant's keys come with no
+  request of their own. `StreamLength.hlsProtected` keeps the keys in force as hls.js does (one
+  per KEYFORMAT until `METHOD=NONE`), and a segment plays when the identity key is one FastStream
+  decrypts (`Decryptable.mjs`: AES-128, AES-256), which is the rule
+  `HLSFragmentRequester.takeOverDecryption` goes by too: `HLSEncryptedPlaylists.test.mjs` runs
+  both on the same playlists through hls.js's parser. One deliberate difference: a key format
+  hls.js does not know, which it drops and plays as clear (still encrypted, it shows nothing).
+  `EXT-X-SESSION-KEY` decides nothing: it may name a key no variant uses. DASH:
+  `StreamLength.dashProtected`, every video adaptation set under ContentProtection (a clear one
+  beside them plays).
+- **What changes.** `hasVideoSource` (every in-page open: auto-enable, the toolbar's On, a
+  stream found while on) opens no player when the stream the player would play is protected:
+  that one, as main.mjs picks (the longest, `StreamPick.pick`), not any protected one, or a
+  film's clear ad won the pick. It now waits for DASH manifests' reads too, as for HLS. The
+  toolbar button shows "DRM" and why (`tab.protectedVideo`, cleared on a new page and at Off).
+  `openInMpv` refuses a protected stream as it refuses a Firefox VPN one, after waiting for an
+  unread manifest (`HlsQualitiesWaitMs`); the allowlist's MPV then sends the page's next stream
+  neither (an ad's, or a piece of the film).
+- **Left as it was.** A stream the background could not tell (its variant's read failed, a key
+  that comes later in a live playlist) still opens the player, which says DRM on hls.js's or
+  dash.js's word (NEED_KEY), as before.
+- **Live, 2026-10-28:** player.vimeo.com/video/863362136 kept Vimeo's player, badge "DRM";
+  vimeo.com/22439234 (clear) was still taken over and played.

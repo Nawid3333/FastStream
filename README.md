@@ -25,7 +25,7 @@ To use the player, simply:
 
 Notes:
 - Live HLS and DASH streams play.
-- This player will not function with DRM protected content. This is intended. Please be mindful of how you use this tool. FastStream should not be used to infringe copyright.
+- This player will not function with DRM protected content. This is intended. Please be mindful of how you use this tool. FastStream should not be used to infringe copyright. On a page whose video is copy-protected, FastStream leaves it to the site's own player, and mpv mode sends it nowhere: the toolbar button shows "DRM" and says why.
 - Please report bugs, accessibility problems and feature requests on the issue tracker: https://github.com/Nawid3333/FastStream/issues
 - For your privacy, this extension **does not collect telemetry** and has no server of its own. Besides the sites whose videos you play, it connects only to OpenSubtitles when you search for subtitles, and to GitHub for updates. Everything it runs ships inside the add-on. The details, permission by permission, are in [docs/privacy-policy.md](docs/privacy-policy.md).
 - The default maximum size for predownloading is 5 GB. This can be changed in the settings page (0 = predownload nothing, empty = no limit). Where the downloaded video is kept, in RAM or on the disk, is your choice too: see [RAM and disk](#ram-and-disk).

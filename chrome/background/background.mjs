@@ -203,7 +203,8 @@ const CaptionsAnswerWaitMs = 12000;
 // (getPageQualities). It reads them from what it holds: milliseconds, unless its scripts are busy.
 const PageQualitiesWaitMs = 1000;
 // The longest a hand-off to mpv waits for an HLS master playlist to be read, for its
-// qualities (hlsQualityChoice); the read starts when the stream is detected.
+// qualities (hlsQualityChoice), and for any manifest, for its copy protection (openInMpv);
+// the read starts when the stream is detected.
 const HlsQualitiesWaitMs = 1500;
 // How long a video's file the page told as it loaded (content.js on loadedmetadata, a
 // LOADED_MEDIA with live set) waits before it is taken in. The request for it, when there
@@ -848,6 +849,8 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       tab.mpvPlayPendingUntil = 0;
       tab.mpvPlayedVideo = null;
       tab.mpvPlayChecking = null;
+      // The page before's copy-protected video, not this one's (hasVideoSource).
+      tab.protectedVideo = false;
       clearTimeout(tab.urlStartTimer);
 
       chrome.tabs.sendMessage(tabid, {
@@ -2248,23 +2251,44 @@ function modeFromQuery(url) {
 /**
  * What a hand-off to mpv answers: MpvBackend.openStream's answer, or openInMpv's refusal
  * of a stream Firefox VPN carries.
- * @typedef {Awaited<ReturnType<MpvBackend['openStream']>>|{ok: false, vpn: true, error: string}} MpvHandOff
+ * @typedef {Awaited<ReturnType<MpvBackend['openStream']>>|{ok: false, vpn: true, error: string}|
+ *   {ok: false, drm: true, error: string}} MpvHandOff
  */
 
 /**
  * Whether a frame's streams include one that may show a video, and not only playlists of
  * stills: the seek bar's thumbnails, which a page may ask for just before its video
- * (StreamLength STILLS_LENGTH). The playlists' lengths are read first, when they are not
- * yet; a read takes one request, the one the player would make next.
+ * (StreamLength STILLS_LENGTH). Nor when the one the player would play is copy-protected
+ * (DRM, StreamLengths.isProtected): its player loaded it and showed nothing, in place of the
+ * page's, which plays it (Vimeo, 2026-10-28); the page keeps its own, and the toolbar button
+ * says why (tab.protectedVideo). The one it would play, as it picks (main.mjs: the
+ * longest, StreamPick.pick), not any protected one: the film's ads and trailers are clear,
+ * and one of them played in its place. The manifests' lengths are read first, when they are
+ * not yet; a read takes one request, the one the player would make next.
  * @param {FrameHolder} frame - The frame a player would open in.
- * @return {Promise<boolean>} True unless every one of its streams is a playlist of stills.
+ * @return {Promise<boolean>} True unless every one of its streams is a playlist of stills, or
+ *   the one it would play is copy-protected.
  */
 async function hasVideoSource(frame) {
-  const playlists = () => collectSources(frame).sources.filter((source) => source.mode === PlayerModes.ACCELERATED_HLS);
-  await Lengths.settle(playlists, SourceLengthWaitMs);
+  const manifests = () => collectSources(frame).sources.filter((source) =>
+    source.mode === PlayerModes.ACCELERATED_HLS || source.mode === PlayerModes.ACCELERATED_DASH);
+  await Lengths.settle(manifests, SourceLengthWaitMs);
   const sources = collectSources(frame).sources;
   const lengths = Lengths.lengthsOf(sources);
-  return lengths.some((length) => length !== STILLS_LENGTH);
+  if (!lengths.some((length) => length !== STILLS_LENGTH)) {
+    return false;
+  }
+  const played = StreamPick.pick(StreamLength.longest(sources.map((source, i) => ({...source, duration: lengths[i]}))));
+  if (Lengths.isProtected(played.url)) {
+    if (Logging) console.log('Copy-protected, left to the page\'s player:', played.url);
+    if (!frame.tab.protectedVideo) {
+      frame.tab.protectedVideo = true;
+      BackgroundUtils.updateTabIcon(frame.tab);
+      Tabs.saveTabState(frame.tab);
+    }
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -3143,8 +3167,9 @@ function autoOpenInMpv(tab, url, headers) {
     followMpvDecoder(tab, result);
     if (result.ok) {
       pauseAfterHandOff(tab, result);
-    } else {
-      // The host never launched mpv, so let the next stream try.
+    } else if (!('drm' in result)) {
+      // The host never launched mpv, so let the next stream try. Not after a copy-protected
+      // video's: the page's next stream would be one of its pieces, or an ad's.
       tab.mpvAutoOpened = false;
       Tabs.saveTabState(tab);
     }
@@ -4475,7 +4500,8 @@ async function hlsQualityChoice(tab, url) {
  *   window decides which of the VPN's hosts count (VpnProxyMirror.throughBrowserVpn).
  * @param {string} url - The stream.
  * @param {...*} rest - openStream's other arguments.
- * @return {Promise<MpvHandOff>} openStream's answer, or {ok: false, vpn: true, error}.
+ * @return {Promise<MpvHandOff>} openStream's answer, or {ok: false, vpn: true, error}, or
+ *   {ok: false, drm: true, error}.
  */
 async function openInMpv(tabId, url, ...rest) {
   let incognito;
@@ -4512,6 +4538,26 @@ async function openInMpv(tabId, url, ...rest) {
       url = choice.url;
       if (choice.list) rest[5] = {...(rest[5] || {}), qualities: choice.list};
     }
+  }
+  // Copy-protected (DRM, StreamLengths.isProtected): mpv has no key system either, and its
+  // window stayed black where the page's player plays the video. Its manifest's read tells,
+  // which started when it was detected, with the tab on; a master's tells for its variants.
+  // An HLS stream's is waited for above (hlsQualityChoice) when it gives the qualities; the
+  // player's button gives its own, a DASH stream none, and a stream detected while the tab
+  // was off was not read: waited for here, as long.
+  const tracked = tabId !== undefined && tabId >= 0 && Tabs.getTab(tabId) ?
+    tabSources(Tabs.getTab(tabId)).find((source) => source.url === detected) : null;
+  if (tracked && (tracked.mode === PlayerModes.ACCELERATED_HLS || tracked.mode === PlayerModes.ACCELERATED_DASH)) {
+    await Lengths.settle(() => [tracked], HlsQualitiesWaitMs);
+  }
+  if (Lengths.isProtected(detected) || Lengths.isProtected(url)) {
+    if (Logging) console.log('[MPV] not handed off, copy-protected:', url);
+    return {
+      ok: false,
+      drm: true,
+      error: chrome.i18n.getMessage('player_mpv_drm') ||
+        'This video is copy-protected (DRM), and mpv cannot play it: the site\'s own player keeps it.',
+    };
   }
   if (VpnMirror.throughBrowserVpn(detected, incognito) || VpnMirror.throughBrowserVpn(url, incognito)) {
     if (Logging) console.log('[MPV] not handed off, Firefox VPN carries it:', url);

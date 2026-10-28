@@ -376,6 +376,69 @@ describe('StreamLength.fromDash', () => {
   });
 });
 
+describe('StreamLength.dashProtected', () => {
+  const CENC = '<ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cenc" cenc:default_KID="1"/>' +
+    '<ContentProtection schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"><cenc:pssh>AAAA</cenc:pssh></ContentProtection>';
+  const mpd = (...sets) => `<MPD type="static" mediaPresentationDuration="PT24M"><Period>${sets.join('')}</Period></MPD>`;
+  const set = (attributes, inner) => `<AdaptationSet ${attributes}>${inner}</AdaptationSet>`;
+
+  it('tells video under CENC, at the adaptation set or at each representation', () => {
+    expect(StreamLength.dashProtected(mpd(set('contentType="video"', CENC + '<Representation id="1" width="1920"/>')))).toBe(true);
+    expect(StreamLength.dashProtected(mpd(set('mimeType="video/mp4"',
+        `<Representation id="1" width="1920">${CENC}</Representation>`)))).toBe(true);
+    // ClearKey is a key system FastStream has no more than the others.
+    expect(StreamLength.dashProtected(mpd(set('contentType="video"',
+        '<ContentProtection schemeIdUri="urn:uuid:e2719d58-a985-b3c9-781a-b030af78d30e"/><Representation id="1"/>')))).toBe(true);
+  });
+
+  it('takes a clear video set beside a protected one for playable, and a protected audio beside clear video', () => {
+    expect(StreamLength.dashProtected(mpd(
+        set('contentType="video"', CENC + '<Representation id="hd" width="1920"/>'),
+        set('contentType="video"', '<Representation id="sd" width="640"/>')))).toBe(false);
+    expect(StreamLength.dashProtected(mpd(
+        set('contentType="video"', '<Representation id="1" width="1920"/>'),
+        set('contentType="audio"', CENC + '<Representation id="2"/>')))).toBe(false);
+  });
+
+  it('judges every set when none tells it is video, and namespaced ones too', () => {
+    expect(StreamLength.dashProtected(mpd(set('id="0"', CENC + '<Representation id="1"/>')))).toBe(true);
+    expect(StreamLength.dashProtected(mpd(set('id="0"', CENC), set('id="1"', '<Representation id="2"/>')))).toBe(false);
+    expect(StreamLength.dashProtected('<dash:MPD><dash:Period><dash:AdaptationSet contentType="video">' +
+      '<dash:ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011"/></dash:AdaptationSet></dash:Period></dash:MPD>')).toBe(true);
+  });
+
+  it('takes an MPD with no protection, or no adaptation set, for clear', () => {
+    expect(StreamLength.dashProtected(mpd(set('contentType="video"', '<Representation id="1" width="1920"/>')))).toBe(false);
+    expect(StreamLength.dashProtected(mpd())).toBe(false);
+    expect(StreamLength.dashProtected('<html>ContentProtection</html>')).toBe(false);
+  });
+});
+
+describe('StreamLength.hlsAttributes', () => {
+  it('reads quoted and plain values, a quoted one with commas in it', () => {
+    expect(StreamLength.hlsAttributes('METHOD=SAMPLE-AES-CTR,URI="data:text/plain;base64,AA,BB==",KEYFORMAT="urn:uuid:x"'))
+        .toEqual({METHOD: 'SAMPLE-AES-CTR', URI: 'data:text/plain;base64,AA,BB==', KEYFORMAT: 'urn:uuid:x'});
+    expect(StreamLength.hlsAttributes('method=AES-128, IV=0x01')).toEqual({METHOD: 'AES-128', IV: '0x01'});
+  });
+});
+
+describe('StreamLength.hlsProtected', () => {
+  it('reads a playlist with CRLF line ends and spaces as one without', () => {
+    const text = '#EXTM3U\r\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://k",KEYFORMAT="com.apple.streamingkeydelivery"\r\n  #EXTINF:4,\r\nseg0.ts\r\n';
+    expect(StreamLength.hlsProtected(text)).toBe(true);
+  });
+
+  it('takes a master playlist, its session key whatever, for clear: its variants tell', () => {
+    const master = '#EXTM3U\n#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES,URI="skd://k",KEYFORMAT="com.apple.streamingkeydelivery"\n' +
+      '#EXT-X-STREAM-INF:BANDWIDTH=1\nv/index.m3u8\n';
+    expect(StreamLength.hlsProtected(master)).toBe(false);
+  });
+
+  it('takes a key that comes after the last segment for clear', () => {
+    expect(StreamLength.hlsProtected('#EXTM3U\n#EXTINF:4,\nseg0.ts\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI="k"\n')).toBe(false);
+  });
+});
+
 describe('StreamLength.parseIsoDuration', () => {
   it('reads the parts MPDs use', () => {
     expect(StreamLength.parseIsoDuration('PT1.5S')).toBe(1.5);

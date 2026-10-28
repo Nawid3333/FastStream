@@ -1088,6 +1088,9 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - akış açılmadı: $1"
     },
+    "extension_toggle_label_drm": {
+        "message": "FastStream - Bu video kopya korumalı (DRM) ve FastStream onu oynatamıyor: sitenin kendi oynatıcısında kalıyor"
+    },
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - bu bilgisayardaki mpv yardımcısı güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream depo kopyasında: update-local.cmd veya native-host\\install.ps1)"
     },
@@ -1195,6 +1198,9 @@
     },
     "player_mpv_vpn": {
         "message": "Bu video Firefox VPN üzerinden geliyor ve mpv Firefox VPN'i kullanamıyor: site mpv'yi reddeder. mpv'de izlemek için bu sitede Firefox VPN'i kapatın ve sayfayı yeniden yükleyin."
+    },
+    "player_mpv_drm": {
+        "message": "Bu video kopya korumalı (DRM) ve mpv onu oynatamıyor: sitenin kendi oynatıcısında kalıyor."
     },
     "mpv_episode_loading": {
         "message": "mpv'de yükleniyor"
