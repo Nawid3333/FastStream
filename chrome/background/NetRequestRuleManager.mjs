@@ -22,11 +22,22 @@ function extensionHost() {
   return new URL(chrome.runtime.getURL('/')).hostname;
 }
 
+// How long a header rule lives: a request's (FetchLoader's, for each one) goes out at once.
+export const RULE_LIFETIME_MS = 5000;
+// The most a rule may ask for: Firefox's own player (DirectVideoPlayer) makes its requests
+// whenever it needs them, and renews its rule while it has the source.
+export const MAX_RULE_LIFETIME_MS = 60000;
+
 export class RuleEntry {
-  /** @param {number} id - The session rule's id. */
-  constructor(id) {
+  /**
+   * @param {number} id - The session rule's id.
+   * @param {number} [lifetimeMs] - How long it lives: RULE_LIFETIME_MS, up to
+   *     MAX_RULE_LIFETIME_MS.
+   */
+  constructor(id, lifetimeMs) {
     this.id = id;
-    this.expiresAt = Date.now() + 1000 * 5;
+    const lifetime = Number.isFinite(lifetimeMs) ? /** @type {number} */ (lifetimeMs) : RULE_LIFETIME_MS;
+    this.expiresAt = Date.now() + Math.min(Math.max(lifetime, RULE_LIFETIME_MS), MAX_RULE_LIFETIME_MS);
   }
 }
 
@@ -120,10 +131,11 @@ export class RuleManager {
    * @param {string} url - The request URL the rule applies to.
    * @param {number} tabId - The tab whose requests it changes; TAB_ID_NONE for the extension's own.
    * @param {FSHeaderCommand[]} requestHeaderCommands - The headers to set or remove.
+   * @param {number} [lifetimeMs] - How long the rule lives (RuleEntry).
    */
-  async addHeaderRule(url, tabId, requestHeaderCommands) {
+  async addHeaderRule(url, tabId, requestHeaderCommands, lifetimeMs) {
     await this.initialClear;
-    const rule = new RuleEntry(this.getNextID());
+    const rule = new RuleEntry(this.getNextID(), lifetimeMs);
     // insert rule in order
     const index = this.getInsertionIndex(rule.id);
     if (index === -1) throw new Error('Rule already exists');
@@ -143,7 +155,7 @@ export class RuleManager {
         // a `*` made the rule demand a backslash no URL has, and a stream URL
         // like an Akamai `acl=/*` token got no Referer/Origin. Unescaped, a
         // `*`, `^` or `|` from the URL can only widen the match, never exclude
-        // the URL itself, and the rule is limited to one tab and 5 seconds.
+        // the URL itself, and the rule is limited to one tab and its lifetime.
         // Only the scheme at the start: an http URL whose query holds an https one
         // lost that "https://" instead. A `|` at its very end anchors the end there,
         // before that `|`, and the URL itself did not match: a `*` after it keeps it

@@ -1273,8 +1273,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return;
     }
     if (msg.commands.length) {
-      // A tab that sends a message has an id.
-      ruleManager.addHeaderRule(msg.url, /** @type {number} */ (senderTab.id), msg.commands).then((rule) => {
+      // A tab that sends a message has an id. The rule's lifetime is capped (RuleEntry).
+      ruleManager.addHeaderRule(msg.url, /** @type {number} */ (senderTab.id), msg.commands, msg.lifetimeMs).then((rule) => {
         if (Logging) console.log('Added rule', msg, rule);
         sendResponse();
       }).catch((e) => {

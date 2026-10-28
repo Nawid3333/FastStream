@@ -170,6 +170,7 @@ const CHECKED = [
   'chrome/player/utils/AudioUtils.mjs',
   'chrome/player/utils/BlobManager.mjs',
   'chrome/player/utils/BrokenMedia.mjs',
+  'chrome/player/utils/ContainerSniff.mjs',
   'chrome/player/utils/Decryptable.mjs',
   'chrome/player/utils/EnvUtils.mjs',
   'chrome/player/utils/FastStreamArchiveUtils.mjs',

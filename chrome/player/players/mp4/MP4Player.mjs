@@ -4,6 +4,7 @@ import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
 import {EmitterCancel, EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
 import {createFile} from '../../modules/mp4box/mp4box.all.mjs';
+import {startsLikeMp4} from '../../utils/ContainerSniff.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
@@ -704,6 +705,14 @@ export default class MP4Player extends EventEmitter {
               return;
             }
 
+            // Not an MP4 at all, whatever its server and URL call it (a Matroska file served
+            // as video/mp4): mp4box reads only MP4's boxes, Firefox's own player reads it.
+            if (frag.rangeStart === 0 && !this.metaData && data?.byteLength &&
+                !startsLikeMp4(new Uint8Array(data, 0, Math.min(data.byteLength, 8)))) {
+              this.playDirectly('The file is not an MP4 file');
+              return;
+            }
+
             const hadMetaData = !!this.metaData;
             this.mp4box.appendBuffer(data);
             this.refreshSampleIndex();
@@ -921,7 +930,8 @@ export default class MP4Player extends EventEmitter {
 
   /**
    * Hands the source to Firefox's own player (DirectVideoPlayer), for a server this player
-   * cannot load in ranges (RangeAnswers.mjs). Once: this player stops loading.
+   * cannot load in ranges (RangeAnswers.mjs) or a file that is no MP4 (ContainerSniff.mjs).
+   * Once: this player stops loading.
    * @param {string} reason
    */
   playDirectly(reason) {
