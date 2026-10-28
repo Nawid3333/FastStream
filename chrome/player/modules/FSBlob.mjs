@@ -442,6 +442,40 @@ export class FSBlob {
   }
 
   /**
+   * Takes over a download another player stored on the disk (DownloadManager.adopt): its file
+   * moved into this store's OPFS session and kept as stored there, not in RAM. Not for a store
+   * that keeps nothing on the disk (a private window, "Keep video on disk" off), nor one whose
+   * disk is not OPFS.
+   * @param {string} identifier - Its identifier here.
+   * @param {string} fromSession - The other player's OPFS session directory.
+   * @param {string} fromName - The file's name there.
+   * @return {Promise<boolean>} Whether it is here now.
+   */
+  async adoptStoredFile(identifier, fromSession, fromName) {
+    if (this.memoryOnly || !await this.ready() || !this.opfsManager) {
+      return false;
+    }
+    try {
+      const file = await this.opfsManager.adoptFile(identifier, fromSession, fromName);
+      this.blobStore.set(identifier, file);
+      this.inRam.delete(identifier);
+      return true;
+    } catch (e) {
+      console.warn('A handed-over download could not be moved here, it will be downloaded again', e);
+      return false;
+    }
+  }
+
+  /**
+   * Deletes another player's OPFS session directory: what is left of it once its hand-off was
+   * taken (or nothing, without OPFS here: its own prune, 60 s on, takes it).
+   * @param {string} session
+   */
+  dropSession(session) {
+    this.opfsManager?.dropSession(session).catch((e) => console.warn('Could not delete an old buffer\'s files', e));
+  }
+
+  /**
    * Lets a blob go, from RAM and from the backend.
    * @param {string} identifier
    * @return {Promise<boolean>} true, whether or not the backend could drop its copy.

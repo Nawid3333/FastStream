@@ -46,6 +46,8 @@ FastStream downloads the video ahead and keeps it until it is played. Two settin
 
 A video that fits in the RAM you gave it is never written to the disk. With the disk off and 0 RAM, nothing is kept ahead, so a video may stop to load. Private windows never write the buffer to the disk. Your watch progress and the videos you save are not the buffer: these settings do not touch them.
 
+Reloading the page doesn't throw the buffer away. FastStream keeps what it had downloaded, in RAM and on the disk, for 20 seconds, and the player of the reloaded page plays on with it, also when the site gives the video a new signed link at every load. Whatever no player takes back within those 20 seconds is let go of, and its files are deleted.
+
 ## Browser compatibility
 
 FastStream is built for Firefox on the desktop. Chrome and other Chromium browsers are not supported and are not tested, and there are no plans for mobile.

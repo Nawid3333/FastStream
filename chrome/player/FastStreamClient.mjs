@@ -283,6 +283,12 @@ export class FastStreamClient extends EventEmitter {
     // being asked now (renewSourceLink).
     /** @type {{identifier: ?string, times: number[], asking: boolean, playing?: boolean}} */
     this.linkRenewals = {identifier: null, times: [], asking: false};
+    // The page this player is on, for its source (takeBackBuffer): its hand-off names it.
+    /** @type {?{page: string, identifier: string}} */
+    this.bufferPage = null;
+    // What it took back of an earlier player's buffer (takeBackBuffer).
+    /** @type {?{taken: number, of: number}} */
+    this.bufferTakenBack = null;
     // The last decode error recoverPlayer built the player again for (BrokenMedia.mjs).
     this.lastDecodeFailure = null;
     this.previewPlayerSetup = null;
@@ -1171,6 +1177,9 @@ export class FastStreamClient extends EventEmitter {
       }
 
       this.storageAvailable = await EnvUtils.getAvailableStorage();
+      // What an earlier player of this video on this page downloaded, before this one asks for
+      // anything: a reload starts with the buffer it had (handOffBuffer).
+      await this.takeBackBuffer(source);
 
       const options = {};
       built = await this.playerLoader.createPlayer(source.mode, this, options);
@@ -2107,9 +2116,11 @@ export class FastStreamClient extends EventEmitter {
       level: this.getCurrentVideoLevelID() ?? undefined,
       audioLevel: this.getCurrentAudioLevelID() ?? undefined,
     };
-    // What the old link downloaded is not kept (keepStorageOnce): downloads are kept by their
-    // URL, the new link's are other URLs, and the old ones would only hold memory (measured in
-    // fresh-link.e2e.mjs: the new player asked for every one again).
+    // What the old link downloaded is kept, and found under the new link: the same files, the
+    // signature the two links differ in left out (DownloadManager.relink). Kept by their URL
+    // alone, the new player asked for every one again (fresh-link.e2e.mjs, 2026-10-27).
+    this.downloadManager.keepStorageOnce();
+    this.downloadManager.relink(source.url, fresh);
     this.droppedFrameWatch.keepChoiceOnce();
     await this.setSource(again, this.fallbacks.sources, {play: wasPlaying});
     return true;
@@ -2126,6 +2137,66 @@ export class FastStreamClient extends EventEmitter {
     // network error) plays out what it has and waits, never pausing: the page's player
     // stayed held under the error, paused each time it was started.
     this.reportPlaying(false);
+  }
+
+  /**
+   * Hands the buffer over as the player goes (main.mjs's beforeunload: its page reloads, or is
+   * left), for the next player of this video on this page to take back (BufferStash, within
+   * BufferKeepMs): a reload of the page does not lose what was downloaded, in RAM or on the disk.
+   */
+  handOffBuffer() {
+    const source = this.source;
+    // For the page takeBackBuffer was told (bufferPage): no page, no hand-off.
+    if (!source || !this.bufferPage || source.identifier !== this.bufferPage.identifier || !this.downloadManager) {
+      return;
+    }
+    const {session, entries} = this.downloadManager.handOff();
+    if (entries.length === 0) {
+      return;
+    }
+    // At once: the page is going. The Blobs go along as they are, not copied (256 MB in 1 ms).
+    chrome.runtime.sendMessage({type: MessageTypes.BUFFER_STASH, page: this.bufferPage.page,
+      identifier: source.identifier, url: source.url, session, entries})
+        .catch((e) => console.warn('Could not hand the buffer over', e));
+  }
+
+  /**
+   * Takes back the buffer an earlier player of this video on this page handed over as it went
+   * (handOffBuffer), before this player downloads anything.
+   * @param {VideoSource} source - The source being set.
+   * @return {Promise<void>}
+   */
+  async takeBackBuffer(source) {
+    this.bufferPage = null;
+    if (!EnvUtils.isExtension() || source.loadedFromArchive || !/^https?:/i.test(source.url)) {
+      return;
+    }
+    /** @type {*} */
+    let answer = null;
+    try {
+      answer = await chrome.runtime.sendMessage({type: MessageTypes.BUFFER_TAKE, identifier: source.identifier});
+    } catch (e) {
+      console.warn('Could not ask for a handed-over buffer', e);
+      return;
+    }
+    if (this.source !== source) {
+      return;
+    }
+    // The page this player is on, which its own hand-off names (handOffBuffer).
+    this.bufferPage = typeof answer?.page === 'string' ? {page: answer.page, identifier: source.identifier} : null;
+    if (!Array.isArray(answer?.handOff?.entries) || answer.handOff.entries.length === 0) {
+      return;
+    }
+    // Into this page's own realm: an answer's objects are another's, and its Blobs were no
+    // `instanceof Blob` here (measured), so none was taken. A Blob's data is shared, not copied.
+    const handOff = structuredClone(answer.handOff);
+    // The RAM's at once; the disk's while the player starts.
+    const {taken, onDisk} = this.downloadManager.adopt(handOff, source.url);
+    const record = this.bufferTakenBack = {taken, of: handOff.entries.length};
+    onDisk.then((fromDisk) => {
+      record.taken += fromDisk;
+      console.log(`Took back ${record.taken} of the ${record.of} downloads a player of this video had`);
+    }).catch((e) => console.warn('Could not take back the handed-over files on the disk', e));
   }
 
   /**

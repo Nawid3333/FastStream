@@ -41,6 +41,9 @@ export const MessageTypes = {
   REQUEST_KEYBOARD: 'REQUEST_KEYBOARD',
   PAGE_TYPING: 'PAGE_TYPING',
   FRAME_REMOVED: 'FRAME_REMOVED',
+  // A player going away hands its buffer over, and the next one takes it back (BufferStash).
+  BUFFER_STASH: 'BUFFER_STASH',
+  BUFFER_TAKE: 'BUFFER_TAKE',
   DOWNLOAD: 'DOWNLOAD',
   HANDLE_DOWNLOAD: 'HANDLE_DOWNLOAD',
   PAUSE_MEDIA: 'PAUSE_MEDIA',
