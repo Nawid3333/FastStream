@@ -2041,6 +2041,20 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
+   * Whether a player's failure is about the source being set now. setSource counts the next
+   * source at once, and the last source's player stays this.player until resetPlayer tears it
+   * down: what it reported in between was taken for the new source's - its hand-over to
+   * Firefox's own player played the old URL over the one the user had just picked, and its
+   * error showed the load error over the source on its way in (glm's review, 2026-10-28).
+   * tryNextSource and recoverPlayer asked this already; every failure route now does.
+   * @param {Player} player - The player whose event it is.
+   * @return {boolean}
+   */
+  isCurrentAttempt(player) {
+    return player === this.player && this.fallbacks.request === this.sourceRequests;
+  }
+
+  /**
    * A source's URL without the time recoverPlayer gives it, so its recoveries count as one
    * source's.
    * @param {string} url
@@ -2072,7 +2086,10 @@ export class FastStreamClient extends EventEmitter {
    */
   async renewSourceLink(status) {
     const source = this.source;
-    if (!source || !EnvUtils.isExtension() || source.loadedFromArchive || !/^https?:/i.test(source.url)) {
+    // A refusal of the last source's request, with the next one on its way in, is none of it.
+    const request = this.sourceRequests;
+    if (!source || this.fallbacks.request !== request || !EnvUtils.isExtension() || source.loadedFromArchive ||
+        !/^https?:/i.test(source.url)) {
       return false;
     }
     const now = Date.now();
@@ -2096,8 +2113,8 @@ export class FastStreamClient extends EventEmitter {
     } finally {
       renewals.asking = false;
     }
-    // Another video meanwhile, or the page has no other link.
-    if (this.source !== source || typeof fresh !== 'string') {
+    // Another video meanwhile (asked for, or already set), or the page has no other link.
+    if (this.source !== source || this.sourceRequests !== request || typeof fresh !== 'string') {
       return false;
     }
     const time = this.currentTime;
@@ -2485,6 +2502,7 @@ export class FastStreamClient extends EventEmitter {
     // A source this player cannot load (MP4Player, a server that ignores Range): Firefox's own
     // player plays it, once per source.
     this.context.on(DefaultPlayerEvents.PLAY_DIRECTLY, (/** @type {string} */ reason) => {
+      if (!this.isCurrentAttempt(player)) return;
       if (!this.playDirectly(player, reason)) {
         const message = Localize.getMessage('player_error_load');
         this.failedToLoad(message + ' (' + reason + ')');
@@ -2493,6 +2511,7 @@ export class FastStreamClient extends EventEmitter {
 
     this.context.on(DefaultPlayerEvents.ERROR, (/** @type {unknown} */ reason) => {
       console.error('ERROR', reason);
+      if (!this.isCurrentAttempt(player)) return;
       // A video codec that just failed to decode for good: the same source again, without it.
       // Only a DashPlayer has takeCodecReload.
       if (/** @type {Player & {takeCodecReload?: () => boolean}} */ (player).takeCodecReload?.() && this.reloadWithoutFailedCodec(player)) {
@@ -2514,6 +2533,7 @@ export class FastStreamClient extends EventEmitter {
     });
 
     this.context.on(DefaultPlayerEvents.NEED_KEY, (/** @type {undefined} */ event) => {
+      if (!this.isCurrentAttempt(player)) return;
       this.failedToLoad(Localize.getMessage('player_error_drm'));
     });
 

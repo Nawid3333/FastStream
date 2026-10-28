@@ -307,8 +307,10 @@ export async function loadBackground({
 
   const log = console.log;
   console.log = () => {};
+  /** @type {Object<string, 'own'|'any'>} */
+  let senders = {};
   try {
-    await import('../../chrome/background/background.mjs');
+    ({MessageSenders: senders} = await import('../../chrome/background/background.mjs'));
     await settle();
   } finally {
     console.log = log;
@@ -334,13 +336,16 @@ export async function loadBackground({
    * @param {{tabId?: number, frameId?: number, url?: string, tab?: Object,
    *   onAnswer?: function(*): void}} [from] - Its sender; onAnswer runs the moment the answer
    *   comes, as the sender's callback does, before anything else the background has started.
+   *   Without a url, one of FastStream's own messages comes from its player page.
    * @return {Promise<*>} The background's answer, once given (undefined for none).
    */
   bg.message = async (message, {tabId = 1, frameId = 0, url, tab, onAnswer} = {}) => {
     const sender = {
       tab: tab || {id: tabId, url: (bg.tabs.find((t) => t.id === tabId) || {}).url},
       frameId,
-      url,
+      // A message only FastStream's own pages send (MessageSenders) comes from the player,
+      // unless the test names another sender: a content script's is ignored.
+      url: url ?? (senders[message?.type] === 'own' ? 'moz-extension://bg-test/player/index.html' : undefined),
     };
     let reply;
     const answered = new Promise((resolve) => {
