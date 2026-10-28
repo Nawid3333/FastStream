@@ -139,6 +139,29 @@ describe('Subtitle editing', function() {
     expect(state.currentTime).toBeCloseTo(2, 1);
   });
 
+  it('removes a track with the numpad\'s Delete over its row, as with Delete', async function() {
+    // The row's keys went by position: NumLock off, the numpad's Delete is NumpadDecimal, and
+    // it did nothing (upstream #482). The press as Firefox sends it, on the row as the
+    // Shift+Backspace case's (the menu is closed: the row takes no focus from WebDriver).
+    await openPlayer();
+    const tracks = await browser.execute(() => new Promise((done) => {
+      import('/player/SubtitleTrack.mjs').then(async ({SubtitleTrack}) => {
+        const client = window.fastStream;
+        const track = new SubtitleTrack('Numpad test', 'en');
+        track.loadText('1\n00:00:01,000 --> 00:00:03,000\nA line\n\n');
+        client.loadSubtitleTrack(track);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const before = client.interfaceController.subtitlesManager.tracks.length;
+        const row = document.querySelector('.mainplayer .subtitles_list .subtitle-track-element');
+        row.dispatchEvent(new KeyboardEvent('keydown',
+            {key: 'Delete', code: 'NumpadDecimal', bubbles: true, cancelable: true}));
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        done({before, after: client.interfaceController.subtitlesManager.tracks.length});
+      });
+    }));
+    expect(tracks).toEqual({before: 1, after: 0});
+  });
+
   it('names a downloaded track after the track, not after its row', async function() {
     // With two tracks on, a row reads "1: (en) Foo Bar", and the name offered was
     // "1:__(en)_Foo_Bar"; Firefox refuses a file name with a colon.

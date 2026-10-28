@@ -13,6 +13,11 @@ const TypedKeyNames = {
   ';': 'Semicolon', '\'': 'Quote', '`': 'Backquote', ',': 'Comma', '.': 'Period', '/': 'Slash',
 };
 
+// Keys that type nothing and go by position all the same (getKeyString): the modifiers,
+// which have a left and a right one, and keys the browser cannot name.
+const PositionNamedKeys = new Set(['Shift', 'Control', 'Alt', 'AltGraph', 'Meta', 'OS', 'Super', 'Hyper',
+  'Fn', 'FnLock', 'Unidentified', 'Process']);
+
 /**
  * Utility functions for DOM and web operations.
  */
@@ -114,7 +119,14 @@ export class WebUtils {
     // - Another character on such a key (German ß, ü, ´) is named by itself, and a dead key
     //   is 'Dead': neither is the US key's binding any more.
     // - A non-Latin letter (Cyrillic) goes by position: those keyboards carry the Latin
-    //   letters too. Named keys (arrows, Enter, F1) go by position as before.
+    //   letters too.
+    // - A key that types nothing goes by what it does, as a typed one by its character
+    //   (KeyboardEvent.key: 'ArrowLeft', 'Home', 'Enter', 'F1'): the numpad's arrows, Home,
+    //   PageUp, Delete and Enter are those keys. By position they were 'Numpad4', 'Numpad7',
+    //   'NumpadEnter', and none fired the binding of its key (upstream #482). A modifier keeps
+    //   its position ('ShiftLeft', 'AltRight'): 'Shift' alone would read as a modifier with
+    //   no key. A key whose meaning the browser does not know ('Unidentified') goes by
+    //   position too.
     const char = e.key && e.key.length === 1 && e.key !== ' ' ? e.key : null;
     // AltGr is Control+Alt on Windows; with it a key types a character, it is no shortcut.
     // Only there: on Linux and macOS Control+Alt is a shortcut of its own (Control+Alt+Comma
@@ -137,6 +149,8 @@ export class WebUtils {
       typed = true;
     } else if (e.key === 'Dead') {
       key = 'Dead';
+    } else if (e.key && /^[A-Z][A-Za-z0-9]+$/.test(e.key) && !PositionNamedKeys.has(e.key)) {
+      key = e.key;
     } else {
       key = e.code;
     }

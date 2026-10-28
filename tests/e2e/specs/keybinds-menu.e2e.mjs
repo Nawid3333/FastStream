@@ -12,6 +12,8 @@
 
 import {browser, expect} from '@wdio/globals';
 
+import {KEYBINDS_VERSION} from '../../../chrome/player/options/KeybindUtils.mjs';
+
 const optionsPagePath = () => '/player/options/index.html?t=' + Date.now();
 
 const row = (action) => `.keybind-container[data-keybind="${action}"]`;
@@ -196,7 +198,7 @@ describe('Keybinding menu', function() {
 
     const expected = Object.entries(await defaults()).sort();
     await waitForSaved((saved) => JSON.stringify(Object.entries(saved.keybinds).sort()) === JSON.stringify(expected));
-    expect((await savedOptions()).keybindsVersion).toBe(4);
+    expect((await savedOptions()).keybindsVersion).toBe(KEYBINDS_VERSION);
   });
 
   it('keeps the box a key was set in, and its focus, after the save', async function() {
@@ -222,7 +224,7 @@ describe('Keybinding menu', function() {
     // Old default, chosen on purpose, saved by a page that already knows the new layout.
     await assignKey('WindowedFullscreen', 'KeyW');
     await waitForSaved((saved) => saved.keybinds.WindowedFullscreen === 'KeyW');
-    expect((await savedOptions()).keybindsVersion).toBe(4);
+    expect((await savedOptions()).keybindsVersion).toBe(KEYBINDS_VERSION);
 
     await openOptions();
     const state = await rowState('WindowedFullscreen');
@@ -270,7 +272,7 @@ describe('Keybinding menu with options saved before the layout changed', functio
     await assignKey('SeekPercent50', 'KeyU');
     await waitForSaved((saved) => saved.keybinds.SeekPercent50 === 'KeyU');
     const saved = await savedOptions();
-    expect(saved.keybindsVersion).toBe(4);
+    expect(saved.keybindsVersion).toBe(KEYBINDS_VERSION);
     expect(saved.keybinds.WindowedFullscreen).toBe('Shift+KeyW');
     expect(saved.keybinds.FlipVideo).toBe('KeyV');
     expect(saved.keybinds.SpeedPreset5).toBe('None');

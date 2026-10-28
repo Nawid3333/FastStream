@@ -25,8 +25,12 @@ import {DefaultKeybinds, KeybindsWithModifiers} from './defaults/DefaultKeybinds
  *    moved to Shift+Backspace (mpv's revert-seek), the screenshot to Shift+S (mpv's
  *    video-only screenshot), and the frame step from Shift+Left/Right to `,`/`.`, which
  *    held SeekForwardLarge/SeekBackwardLarge (10 s, what J/K do now; both actions are gone).
+ * 4: the speed steps to S and D (MOVED_IN_VERSION_4).
+ * 5: keys that type nothing are named by what they do, no longer by position
+ *    (WebUtils.getKeyString): a binding saved on a numpad key under its position is renamed
+ *    (RENAMED_IN_VERSION_5).
  */
-export const KEYBINDS_VERSION = 4;
+export const KEYBINDS_VERSION = 5;
 
 /**
  * Seconds the skip buttons seek. They were 5 x seekStepSize, which was 10 s at the old
@@ -115,13 +119,26 @@ export const MOVED_IN_VERSION_4 = {
 };
 
 /**
+ * The keys version 5 renamed (2026-10-28): numpad keys that type nothing, NumLock off, went by
+ * position, so a binding recorded on one was saved under that name. They go by what they do
+ * now, as the main keys do (upstream #482). With NumLock on, a numpad digit was a digit already.
+ */
+export const RENAMED_IN_VERSION_5 = {
+  'Numpad0': 'Insert', 'Numpad1': 'End', 'Numpad2': 'ArrowDown', 'Numpad3': 'PageDown',
+  'Numpad4': 'ArrowLeft', 'Numpad5': 'Clear', 'Numpad6': 'ArrowRight', 'Numpad7': 'Home',
+  'Numpad8': 'ArrowUp', 'Numpad9': 'PageUp', 'NumpadDecimal': 'Delete', 'NumpadEnter': 'Enter',
+};
+
+/**
  * The layout changes, oldest first. `moved` maps an action to the old default a saved
- * binding is moved away from; `added` lists the actions that version introduced.
+ * binding is moved away from; `added` lists the actions that version introduced; `renamed`
+ * maps a key name to the one the same key has from that version on, in every saved binding.
  */
 const MIGRATIONS = [
-  {version: 2, moved: MOVED_IN_VERSION_2, added: ADDED_IN_VERSION_2},
-  {version: 3, moved: MOVED_IN_VERSION_3, added: ADDED_IN_VERSION_3},
-  {version: 4, moved: MOVED_IN_VERSION_4, added: []},
+  {version: 2, moved: MOVED_IN_VERSION_2, added: ADDED_IN_VERSION_2, renamed: {}},
+  {version: 3, moved: MOVED_IN_VERSION_3, added: ADDED_IN_VERSION_3, renamed: {}},
+  {version: 4, moved: MOVED_IN_VERSION_4, added: [], renamed: {}},
+  {version: 5, moved: {}, added: [], renamed: RENAMED_IN_VERSION_5},
 ];
 
 /**
@@ -342,7 +359,9 @@ export function isTextEntryTarget(target) {
  * - a binding that still holds a default that version moved is given the new one, unless
  *   another action already uses that, in which case it is left unbound;
  * - an action new in that version takes its default key only when no other action already
- *   uses it, otherwise it is left unbound.
+ *   uses it, otherwise it is left unbound;
+ * - a binding on a key that version renamed keeps the key under its new name, unless another
+ *   action already uses that name, in which case it is left unbound.
  * Version 3 also moves a saved seekStepSize that still holds the old default of 2 to the
  * new default, since the arrows are what it sets.
  *
@@ -376,9 +395,18 @@ export function migrateKeybinds(options, stored) {
       }
     };
 
-    for (const {version, moved, added} of MIGRATIONS) {
+    for (const {version, moved, added, renamed} of MIGRATIONS) {
       if (storedVersion >= version) {
         continue;
+      }
+      // The user's choice, under the name its key has now; not taking a key another action
+      // has (the numpad's arrow on the main arrow's action).
+      for (const [action, key] of Object.entries(keybinds)) {
+        const match = /^((?:(?:Meta|Control|Alt|Shift)\+)*)(.+)$/.exec(key);
+        const newName = match && Object.hasOwn(renamed, match[2]) ? /** @type {Object<string, string>} */ (renamed)[match[2]] : null;
+        if (match && newName) {
+          assign(action, match[1] + newName);
+        }
       }
       for (const [action, oldKey] of Object.entries(moved)) {
         if (saved[action] === oldKey) {
