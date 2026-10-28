@@ -213,6 +213,38 @@ describe('keys every layout has in one place keep their names', () => {
   });
 });
 
+describe('keys that type nothing go by what they do', () => {
+  const named = (code, key, mods = {}) => WebUtils.getKeyString({code, key, shiftKey: false,
+    ctrlKey: false, altKey: false, metaKey: false, ...mods});
+
+  it('the numpad\'s keys with NumLock off are the main keys (upstream #482)', () => {
+    // By position they were Numpad4, Numpad7..., and the arrows' bindings never fired.
+    expect(named('Numpad4', 'ArrowLeft')).toBe('ArrowLeft');
+    expect(named('Numpad6', 'ArrowRight', {shiftKey: true})).toBe('Shift+ArrowRight');
+    expect(named('Numpad8', 'ArrowUp')).toBe('ArrowUp');
+    expect(named('Numpad7', 'Home')).toBe('Home');
+    expect(named('Numpad9', 'PageUp')).toBe('PageUp');
+    expect(named('Numpad0', 'Insert')).toBe('Insert');
+    expect(named('NumpadDecimal', 'Delete')).toBe('Delete');
+    expect(named('NumpadEnter', 'Enter')).toBe('Enter');
+    expect(named('Numpad5', 'Clear')).toBe('Clear');
+  });
+
+  it('the main keys keep their names', () => {
+    for (const key of ['ArrowLeft', 'Home', 'End', 'PageDown', 'Delete', 'Enter', 'Escape', 'Tab', 'F5',
+      'MediaPlayPause', 'AudioVolumeUp', 'ContextMenu', 'CapsLock']) {
+      expect(named(key, key), key).toBe(key);
+    }
+  });
+
+  it('a modifier, and a key the browser cannot name, by position', () => {
+    expect(named('ShiftRight', 'Shift', {shiftKey: true})).toBe('ShiftRight');
+    expect(named('ControlLeft', 'Control', {ctrlKey: true})).toBe('ControlLeft');
+    expect(named('MetaLeft', 'Meta', {metaKey: true})).toBe('MetaLeft');
+    expect(named('IntlRo', 'Unidentified')).toBe('IntlRo');
+  });
+});
+
 describe('Control+Alt on a key that types a character', () => {
   // Windows types with Control+Alt what AltGr types, and that is no shortcut. On Linux and
   // macOS it is one of its own: Control+Alt+Comma came out as a plain Comma there (glm's

@@ -502,27 +502,24 @@ export class SubtitlesManager extends EventEmitter {
     });
 
 
+    // The row's own keys, named as the player's keybinds are (WebUtils.getKeyString): by the
+    // character the layout types and by what a key does. By position (e.code), the numpad's
+    // Delete was none of them, and on a German keyboard its '+' shifted the subtitles (the US
+    // ']' key) while its ']' (AltGr+9) did not.
+    /** @type {Object<string, HTMLElement>} */
+    const rowKeys = {
+      'Delete': removeTrack, 'Backspace': removeTrack,
+      'BracketRight': shiftRTrack, 'BracketLeft': shiftLTrack,
+      'KeyD': downloadTrack, 'KeyR': resyncTool,
+    };
     trackElement.addEventListener('keydown', (e) => {
       // The row has the focus whenever the mouse is over it; a combination is the player's
-      // or the browser's (Shift+Backspace undoes a seek, Ctrl+D bookmarks), not the row's.
-      if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) {
-        return;
-      }
-      if (e.code === 'Delete' || e.code === 'Backspace') {
+      // or the browser's (Shift+Backspace undoes a seek, Ctrl+D bookmarks), not the row's: its
+      // name carries the modifier and is none of these.
+      const button = rowKeys[WebUtils.getKeyString(e)];
+      if (button) {
         e.stopPropagation();
-        removeTrack.click();
-      } else if (e.code === 'BracketRight') {
-        e.stopPropagation();
-        shiftRTrack.click();
-      } else if (e.code === 'BracketLeft') {
-        e.stopPropagation();
-        shiftLTrack.click();
-      } else if (e.code === 'KeyD') {
-        e.stopPropagation();
-        downloadTrack.click();
-      } else if (e.code === 'KeyR') {
-        e.stopPropagation();
-        resyncTool.click();
+        button.click();
       }
     });
 

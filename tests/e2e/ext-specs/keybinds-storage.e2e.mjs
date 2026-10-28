@@ -16,6 +16,8 @@
 
 import {browser, expect} from '@wdio/globals';
 
+import {KEYBINDS_VERSION} from '../../../chrome/player/options/KeybindUtils.mjs';
+
 import {openExtensionPage} from '../extension-page.mjs';
 
 const setStored = (options) => browser.execute((value) => new Promise((done) => {
@@ -62,7 +64,7 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
     }));
 
     expect(options.failed).toBeUndefined();
-    expect(options.keybindsVersion).toBe(4);
+    expect(options.keybindsVersion).toBe(KEYBINDS_VERSION);
     expect(options.keybinds.WindowedFullscreen).toBe('Shift+KeyW');
     // Chapters are gone: the old binding is dropped.
     expect(options.keybinds.NextChapter).toBeUndefined();
@@ -105,7 +107,7 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
         {timeout: 10000, timeoutMsg: 'the change was never saved to chrome.storage'});
 
     const saved = await getStored();
-    expect(saved.keybindsVersion).toBe(4);
+    expect(saved.keybindsVersion).toBe(KEYBINDS_VERSION);
     expect(saved.keybinds.WindowedFullscreen).toBe('Shift+KeyW');
     expect(saved.keybinds.ResetPlaybackRate).toBe('KeyY');
   });

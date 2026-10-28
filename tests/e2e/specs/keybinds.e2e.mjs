@@ -444,6 +444,18 @@ describe('mpv seek keys', function() {
     });
   }
 
+  // The numpad with NumLock off, from the real keyboard (WebDriver's numpad keys): its 4 and 6
+  // are ArrowLeft and ArrowRight with the codes Numpad4 and Numpad6. Named by position, no
+  // arrow binding fired (upstream #482).
+  for (const [label, key, delta] of [['numpad ArrowLeft', '', -5], ['numpad ArrowRight', '', 5]]) {
+    it(`the ${label} seeks ${delta > 0 ? '+' : ''}${delta} s as the main arrow does`, async function() {
+      await seekTo(80);
+      await landsOn(80, 'the start position');
+      await browser.action('key').down(key).up(key).perform();
+      await landsOn(80 + delta, label);
+    });
+  }
+
   // A German (QWERTZ) keyboard: the key labelled Z sits where a US one has Y and sends
   // KeyY, typing 'z'; Y the other way round. The shortcuts follow the letter typed, as
   // mpv's input.conf does: by position, Y seeked back 60 s and Z set 5x.

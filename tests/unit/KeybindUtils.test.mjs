@@ -643,6 +643,34 @@ describe('migrateKeybinds', () => {
     });
   });
 
+  describe('version 5: numpad keys by what they do', () => {
+    // A binding recorded on a numpad key with NumLock off was saved under its position
+    // (Numpad4); the same press is named ArrowLeft now (upstream #482).
+    it('keeps a binding on a numpad key, under the key\'s new name, modifiers too', () => {
+      const stored = {keybindsVersion: 4, keybinds: {...DefaultKeybinds, Mute: 'Numpad5', Screenshot: 'Control+NumpadEnter',
+        ZoomReset: 'NumpadDecimal'}};
+      const {keybinds} = migrateKeybinds(mergedOver(stored), stored);
+      expect(keybinds.Mute).toBe('Clear');
+      expect(keybinds.Screenshot).toBe('Control+Enter');
+      expect(keybinds.ZoomReset).toBe('Delete');
+      expect(findKeybindConflicts(keybinds)).toEqual([]);
+    });
+
+    it('leaves it unbound when another action has the main key', () => {
+      // The numpad's arrow on its own action, the main arrow on SeekBackward (its default).
+      const stored = {keybindsVersion: 4, keybinds: {...DefaultKeybinds, UndoSeek: 'Numpad4'}};
+      const {keybinds} = migrateKeybinds(mergedOver(stored), stored);
+      expect(keybinds.SeekBackward).toBe('ArrowLeft');
+      expect(keybinds.UndoSeek).toBe('None');
+      expect(info).toHaveBeenCalledWith('Keybind UndoSeek left unbound: ArrowLeft is already taken');
+    });
+
+    it('renames nothing for options saved by this version', () => {
+      const stored = {keybindsVersion: 5, keybinds: {...DefaultKeybinds, Mute: 'Numpad5'}};
+      expect(migrateKeybinds(mergedOver(stored), stored).keybinds.Mute).toBe('Numpad5');
+    });
+  });
+
   it('passes through anything that is not options', () => {
     expect(migrateKeybinds(null, null)).toBeNull();
     expect(migrateKeybinds(undefined, {})).toBeUndefined();
