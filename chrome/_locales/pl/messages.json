@@ -638,6 +638,9 @@
     "player_error_load": {
         "message": "Nie udało się załadować wideo!"
     },
+    "player_error_turn_off": {
+        "message": "Wyłącz FastStream przyciskiem na pasku narzędzi, aby obejrzeć je w odtwarzaczu strony."
+    },
     "source_copied": {
         "message": "Adres URL skopiowany do schowka!"
     },

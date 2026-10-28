@@ -2065,3 +2065,94 @@ describe('FastStreamClient, the last source\'s player failing while the next sou
     expect(client.source.url).toBe(OLD);
   });
 });
+
+// An MP4 file the MP4 player cannot read, of which nothing has shown, plays in Firefox's own
+// player inside FastStream before the load error shows; the error then tells how to watch it in
+// the site's own player. FastStream never steps aside by itself (the owner, 2026-10-28).
+describe('FastStreamClient, a video its player cannot read', () => {
+  const mp4 = () => makeSource('https://cdn.example/a.mp4', {mode: 'accelerated_mp4'});
+  const quiet = () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  };
+
+  it('tries an MP4 file in Firefox\'s own player before the load error', async () => {
+    quiet();
+    const client = makeClient();
+    const player = await setSource(client, mp4());
+    const set = vi.spyOn(client, 'setSource').mockImplementation(async () => {});
+
+    player.emit(DefaultPlayerEvents.ERROR, 'Invalid data found while parsing box');
+    await settle();
+
+    expect(set).toHaveBeenCalledTimes(1);
+    expect(set.mock.calls[0][0].mode).toBe('direct');
+    expect(client.interfaceController.failedToLoad).not.toHaveBeenCalled();
+  });
+
+  it('shows the error for a refused range, which Firefox\'s own player would be refused too', async () => {
+    quiet();
+    const client = makeClient();
+    const player = await setSource(client, mp4());
+    const set = vi.spyOn(client, 'setSource').mockImplementation(async () => {});
+
+    player.emit(DefaultPlayerEvents.ERROR, 'Range 3 failed to load');
+    await settle();
+
+    expect(set).not.toHaveBeenCalled();
+    expect(client.interfaceController.failedToLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('rebuilds a video that showed a picture first, and plays it in Firefox\'s own player when that is no way out', async () => {
+    quiet();
+    const client = makeClient();
+    const player = await setSource(client, mp4());
+    player.emit(DefaultPlayerEvents.LOADEDDATA);
+    await settle();
+    const recover = vi.spyOn(client, 'recoverPlayer').mockReturnValue(true);
+    const set = vi.spyOn(client, 'setSource').mockImplementation(async () => {});
+
+    player.emit(DefaultPlayerEvents.ERROR, 'Invalid data found while parsing box');
+    await settle();
+    expect(recover).toHaveBeenCalledTimes(1);
+    expect(set).not.toHaveBeenCalled();
+
+    // Its rebuilds used up (RECOVERY_LIMIT).
+    recover.mockReturnValue(false);
+    player.emit(DefaultPlayerEvents.ERROR, 'Invalid data found while parsing box');
+    await settle();
+    expect(set).toHaveBeenCalledTimes(1);
+    expect(set.mock.calls[0][0].mode).toBe('direct');
+    expect(client.interfaceController.failedToLoad).not.toHaveBeenCalled();
+  });
+
+  it('shows the error when Firefox\'s own player cannot play the file either', async () => {
+    quiet();
+    const client = makeClient();
+    const player = await setSource(client, mp4());
+    client.playedDirectly = client.recoverySourceURL(client.source.url);
+
+    player.emit(DefaultPlayerEvents.ERROR, 'Invalid data found while parsing box');
+    await settle();
+
+    expect(client.interfaceController.failedToLoad).toHaveBeenCalledExactlyOnceWith(
+        expect.stringMatching(/^player_error_load \(Invalid data found while parsing box\)/));
+  });
+
+  it('tells how to watch the video in the site\'s own player, in a page only', () => {
+    const client = makeClient();
+    const own = {};
+    own.top = own;
+    const before = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    try {
+      globalThis.window = {top: {}};
+      expect(client.loadErrorMessage('404')).toBe('player_error_load (404) player_error_turn_off');
+      globalThis.window = own;
+      expect(client.loadErrorMessage('404')).toBe('player_error_load (404)');
+      expect(client.loadErrorMessage()).toBe('player_error_load');
+    } finally {
+      delete globalThis.window;
+      if (before) Object.defineProperty(globalThis, 'window', before);
+    }
+  });
+});

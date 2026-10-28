@@ -638,6 +638,9 @@
     "player_error_load": {
         "message": "Gagal memuatkan video!"
     },
+    "player_error_turn_off": {
+        "message": "Matikan FastStream dengan butang bar alatnya untuk menontonnya dalam pemain tapak itu sendiri."
+    },
     "source_copied": {
         "message": "URL disalin ke papan keratan!"
     },

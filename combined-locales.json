@@ -3833,6 +3833,24 @@
     "zh_CN": "视频加载失败！",
     "zh_TW": "影片載入失敗！"
   },
+  "player_error_turn_off": {
+    "en": "Turn FastStream off with its toolbar button to watch it in the site's own player.",
+    "de": "Deaktiviere FastStream mit der Schaltfläche in der Symbolleiste, um es im Player der Website anzusehen.",
+    "es": "Desactiva FastStream con el botón de la barra de herramientas para verlo en el reproductor del sitio.",
+    "fr": "Désactivez FastStream à l'aide du bouton de la barre d'outils pour la regarder dans le lecteur du site.",
+    "id": "Matikan FastStream dengan tombol bilah alatnya untuk menontonnya di pemutar situs.",
+    "it": "Disattiva FastStream con il pulsante nella barra degli strumenti per guardarlo nel lettore del sito web.",
+    "ja": "ツールバーのボタンで FastStream をオフにして、サイトの標準プレーヤーで再生してください。",
+    "ko": "도구 모음 버튼으로 FastStream을 끄고 사이트의 자체 플레이어에서 시청하세요.",
+    "ms": "Matikan FastStream dengan butang bar alatnya untuk menontonnya dalam pemain tapak itu sendiri.",
+    "nl": "Zet FastStream uit met de knop in de werkbalk om de video in de eigen speler van de site te bekijken.",
+    "pl": "Wyłącz FastStream przyciskiem na pasku narzędzi, aby obejrzeć je w odtwarzaczu strony.",
+    "pt_BR": "Desative o FastStream pelo botão dele na barra de ferramentas para assisti-lo no reprodutor do próprio site.",
+    "ru": "Выключите FastStream кнопкой на панели инструментов, чтобы посмотреть его в плеере сайта.",
+    "tr": "Sitenin kendi oynatıcısında izlemek için FastStream'i araç çubuğu düğmesiyle kapatın.",
+    "zh_CN": "请用工具栏按钮关闭 FastStream，然后在网站自带的播放器中观看。",
+    "zh_TW": "請用工具列上的按鈕關閉 FastStream，改用網站本身的播放器觀看。"
+  },
   "source_copied": {
     "en": "Copied URL to clipboard!",
     "de": "Die Video-URL wurde in die Zwischenablage kopiert!",

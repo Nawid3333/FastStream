@@ -638,6 +638,9 @@
     "player_error_load": {
         "message": "Failed to load video!"
     },
+    "player_error_turn_off": {
+        "message": "Turn FastStream off with its toolbar button to watch it in the site's own player."
+    },
     "source_copied": {
         "message": "Copied URL to clipboard!"
     },

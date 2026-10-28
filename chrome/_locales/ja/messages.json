@@ -638,6 +638,9 @@
     "player_error_load": {
         "message": "動画の読み込みに失敗しました!"
     },
+    "player_error_turn_off": {
+        "message": "ツールバーのボタンで FastStream をオフにして、サイトの標準プレーヤーで再生してください。"
+    },
     "source_copied": {
         "message": "URL をクリップボードにコピーしました!"
     },

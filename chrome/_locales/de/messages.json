@@ -638,6 +638,9 @@
     "player_error_load": {
         "message": "Laden des Videos fehlgeschlagen!"
     },
+    "player_error_turn_off": {
+        "message": "Deaktiviere FastStream mit der Schaltfläche in der Symbolleiste, um es im Player der Website anzusehen."
+    },
     "source_copied": {
         "message": "Die Video-URL wurde in die Zwischenablage kopiert!"
     },
