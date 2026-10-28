@@ -69,7 +69,8 @@ function sendVideo(req, res) {
  */
 async function playerState() {
   await browser.switchFrame(null);
-  if (!(await browser.$('iframe[src*="player/index.html"]').isExisting())) {
+  const topIsPlayer = await browser.execute(() => !!window.fastStream);
+  if (!topIsPlayer && !(await browser.$('iframe[src*="player/index.html"]').isExisting())) {
     // The link opened in the page's iframe: the player is in that frame, or is its page.
     if (!(await browser.$('iframe#link').isExisting())) {
       return {player: false};
@@ -233,6 +234,13 @@ describe('A stream the page asks for through a redirect', function() {
     // CDN's address names nothing (the redirect noted for frame loads too).
     const state = await playsOn('/page/frame');
     expect(state.source).toContain('/cdn/frame/v7?tok=');
+    expect(state.failed).toBe(false);
+  });
+
+  it('plays a link opened in the tab, which names no type at the CDN', async function() {
+    // The tab's own load, with "use the player for stream links" off (its default).
+    const state = await playsOn('/go/tab/clip.mp4');
+    expect(state.source).toContain('/cdn/tab/v7?tok=');
     expect(state.failed).toBe(false);
   });
 

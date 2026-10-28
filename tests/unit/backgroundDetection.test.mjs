@@ -233,8 +233,9 @@ describe('a stream reached through a redirect', () => {
   });
 
   it('waits for a CDN slower than the player\'s opening', async () => {
-    // The player opened on the link, and the CDN's answer came to a frame with a player,
-    // whose streams are not taken any more.
+    // No player on the redirect alone: it opens at the CDN's answer. Before, the player opened
+    // on the link, and the CDN's answer came to a frame with a player, whose streams are not
+    // taken any more.
     bg = await loadBackground({options: {autoEnableURLs: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}]});
     await bg.navigated(1, PAGE);
     await bg.frameAdded(1, 0, PAGE, 'page-1');
@@ -300,10 +301,10 @@ describe('a stream reached through a redirect', () => {
 
   it('is none when the link\'s own address answers with a page', async () => {
     // The "expired" page at …/clip.mp4 itself: the .mp4 named it a video, in a <video> and
-    // opened in a frame alike.
+    // opened in a frame or the tab alike.
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
     await bg.frameAdded(1, 0, PAGE, 'page-1');
-    for (const type of ['media', 'sub_frame']) {
+    for (const type of ['media', 'sub_frame', 'main_frame']) {
       await bg.request({tabId: 1, type, url: LINK}, {responseHeaders: [{name: 'Content-Type', value: 'text/html'}]});
     }
     expect(await sourcesForPlayer()).toEqual([]);
