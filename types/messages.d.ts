@@ -97,7 +97,7 @@ interface FSSetHeaders extends FSMessageBase {
   commands: FSHeaderCommand[];
   /**
    * How long the rule lives, in ms: 5 s without it, at most 60 s (RuleEntry). Firefox's own
-   * player (DirectVideoPlayer) asks for longer and renews it while it has the source.
+   * player (DirectVideoPlayer) asks for 60 s and renews it every 10 s while it has the source.
    */
   lifetimeMs?: number;
 }

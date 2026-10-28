@@ -52,7 +52,8 @@ describe('saveExtension', () => {
 // Firefox's player asks for ranges whenever it needs them: on a seek, after a long pause, for
 // a Matroska file's index at its end. The rule set once lived 5 s, and the first request after
 // that went out without the page's Referer: a hoster's server sent it to a decoy, and the
-// source was reloaded. The rule now lives 30 s and is renewed while the player has the source.
+// source was reloaded. The rule now lives 60 s and is renewed every 10 s while the player has
+// the source: a hidden tab's timers may run late.
 describe('DirectVideoPlayer\'s header rule', () => {
   let sent;
   let player;
@@ -76,11 +77,12 @@ describe('DirectVideoPlayer\'s header rule', () => {
 
   const source = (headers) => /** @type {any} */ ({url: 'https://cdn.test/v/film', headers});
 
-  it('lives 30 s, and is renewed every 10 s while the player has the source', async () => {
+  it('lives 60 s, and is renewed every 10 s while the player has the source', async () => {
     await player.setSource(source({Referer: 'https://site.test/watch'}));
     expect(sent).toEqual([{type: 'SET_HEADERS', url: 'https://cdn.test/v/film', lifetimeMs: HEADER_RULE_LIFETIME_MS,
       commands: [{operation: 'set', header: 'Referer', value: 'https://site.test/watch'}]}]);
-    expect(HEADER_RULE_LIFETIME_MS).toBeGreaterThan(HEADER_RULE_RENEW_MS * 2);
+    expect(HEADER_RULE_LIFETIME_MS).toBe(60000);
+    expect(HEADER_RULE_LIFETIME_MS).toBeGreaterThanOrEqual(HEADER_RULE_RENEW_MS * 5);
     await vi.advanceTimersByTimeAsync(HEADER_RULE_RENEW_MS * 3);
     expect(sent).toHaveLength(4);
     expect(new Set(sent.map((message) => JSON.stringify(message))).size).toBe(1);

@@ -183,9 +183,11 @@ extension with a local copy of that shape:
   once, and every rule lived 5 s (`RuleEntry`): the element's first request after that (the
   Matroska index at the file's end, read 12 s in, or a seek) went out with no Referer, to the
   decoy, and the client's recovery reloaded the source (the buffer fell from 39 s to 9 s). The
-  element's rule now lives 30 s and is renewed every 10 s while the player has the source
-  (`SET_HEADERS`' `lifetimeMs`, capped at 60 s); a request's rule stays 5 s. After the player
-  is gone the rule lasts at most 30 s, limited to the extension's own requests in that tab.
+  element's rule now lives 60 s, the cap (`SET_HEADERS`' `lifetimeMs`), and is renewed every
+  10 s while the player has the source: Firefox may hold a hidden tab's timers back, and a
+  renewal up to 50 s late still comes in time (glm's review). A request's rule stays 5 s. After
+  the player is gone the rule lasts at most 60 s, limited to the extension's own requests to
+  that URL in that tab.
 
 The background's 64 KB read of the file (`StreamLengths`) sees the same bytes and could pick
 the player before MP4Player tries; not done yet: the hand-over costs one range.

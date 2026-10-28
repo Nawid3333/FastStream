@@ -10,7 +10,7 @@
 // Firefox's own player in FastStream got the page's headers from a rule the background set
 // for 5 s, and asks for ranges whenever it needs them: the first request after those 5 s
 // (a Matroska file's index at its end, a seek) went to the decoy, and the source was
-// reloaded. Its rule now lives 30 s and is renewed while it has the source.
+// reloaded. Its rule now lives 60 s and is renewed every 10 s while it has the source.
 //
 // Driven on the installed extension, the site on the auto-enable list: the page plays the
 // film, the player takes it over, plays it, and plays on after a seek far ahead, 12 s in.

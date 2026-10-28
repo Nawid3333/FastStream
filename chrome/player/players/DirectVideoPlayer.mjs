@@ -35,8 +35,10 @@ export function elementHeaderCommands(headers) {
 // it while it has the source. Firefox's player asks for ranges when it needs them: on a
 // seek, after a long pause, for a Matroska file's index at its end. A request's rule lives
 // 5 s, and those went out without the page's Referer or cookie: a hoster's server answered
-// the first one after 5 s with a redirect to a decoy, and the source was reloaded.
-export const HEADER_RULE_LIFETIME_MS = 30000;
+// the first one after 5 s with a redirect to a decoy, and the source was reloaded. The most
+// the background grants (MAX_RULE_LIFETIME_MS): Firefox may hold a hidden tab's timers back,
+// and a renewal up to 50 s late still comes before the rule ends.
+export const HEADER_RULE_LIFETIME_MS = 60000;
 export const HEADER_RULE_RENEW_MS = 10000;
 
 // What a direct video can be saved as. A URL without an extension (".../watch?v=1") was saved
