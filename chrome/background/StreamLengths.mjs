@@ -160,6 +160,21 @@ export class StreamLengths {
   }
 
   /**
+   * Notes what a finished read told of a stream's copy protection, either way. Not for a URL
+   * forgotten while it was read (MAX_KNOWN): nothing would forget its mark, and the stream,
+   * detected again and read as clear, still counted as protected (glm's review of #606).
+   * @param {string} url - The stream's URL, as detected.
+   * @param {boolean} copyProtected - What its manifest says.
+   */
+  noteProtection(url, copyProtected) {
+    if (copyProtected && this.known.has(url)) {
+      this.protectedUrls.add(url);
+    } else {
+      this.protectedUrls.delete(url);
+    }
+  }
+
+  /**
    * The lengths of a page's sources, as lengthOf tells them, but a file not read yet, or
    * not readable, counts as a piece of a stream when another of them was read as one and
    * has the same URL but for its numbers (seg-14.mp4, seg-15.mp4). An HLS or DASH player
@@ -313,9 +328,7 @@ export class StreamLengths {
         if ('duration' in playlist) {
           // A media playlist: the stream's, or its master's first variant's. Its keys tell
           // whether its segments are copy-protected; the master names none of them.
-          if (StreamLength.hlsProtected(text)) {
-            this.protectedUrls.add(source.url);
-          }
+          this.noteProtection(source.url, StreamLength.hlsProtected(text));
           return playlist.duration;
         }
         if (read === 0) {
@@ -332,9 +345,7 @@ export class StreamLengths {
         return null;
       }
       const text = response.text();
-      if (StreamLength.dashProtected(text)) {
-        this.protectedUrls.add(source.url);
-      }
+      this.noteProtection(source.url, StreamLength.dashProtected(text));
       return StreamLength.fromDash(text);
     }
 

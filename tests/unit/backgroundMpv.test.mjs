@@ -2786,4 +2786,22 @@ describe('a copy-protected stream (DRM)', () => {
     await bg.wait(2000);
     expect(bg.toMpv()).toHaveLength(1);
   });
+
+  it('is a DASH stream too, read only when the player\'s button sends it', async () => {
+    // Detected with the tab off, nothing read it; openInMpv waits for no DASH manifest for
+    // qualities (hlsQualityChoice is HLS only), so it waits for this one's read itself.
+    const MPD = 'https://cdn.test/episode/manifest.mpd';
+    const mpd = '<MPD type="static" mediaPresentationDuration="PT24M"><Period><AdaptationSet contentType="video">' +
+      '<ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cenc"/>' +
+      '<Representation id="1" width="1920"/></AdaptationSet></Period></MPD>';
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: playlists({[MPD]: mpd}, 300)});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    await bg.request({tabId: 1, url: MPD}, {responseHeaders: [{name: 'Content-Type', value: 'application/dash+xml'}]});
+    const answer = bg.message({type: 'MPV_OPEN', url: MPD, headers: [], qualities: []},
+        {tabId: 1, frameId: 0, url: 'moz-extension://bg-test/player/index.html'});
+    await bg.wait(1000);
+    expect(await answer).toMatchObject({ok: false, drm: true});
+    expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
+  });
 });

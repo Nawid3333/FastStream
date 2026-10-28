@@ -2281,14 +2281,31 @@ async function hasVideoSource(frame) {
   const played = StreamPick.pick(StreamLength.longest(sources.map((source, i) => ({...source, duration: lengths[i]}))));
   if (Lengths.isProtected(played.url)) {
     if (Logging) console.log('Copy-protected, left to the page\'s player:', played.url);
-    if (!frame.tab.protectedVideo) {
-      frame.tab.protectedVideo = true;
-      BackgroundUtils.updateTabIcon(frame.tab);
-      Tabs.saveTabState(frame.tab);
-    }
+    noteProtectedVideo(frame.tab, true);
     return false;
   }
   return true;
+}
+
+/**
+ * Whether the toolbar button says the tab's video stays in the page's own player for being
+ * copy-protected (tab.protectedVideo, hasVideoSource): "DRM", and why. Not while one of the
+ * tab's FastStream players is there, which plays the video the user watches: a stream the page
+ * asked for after it opened, or one of another frame, said "DRM" over it; a player that opens
+ * says so no more (glm's review of #606).
+ * @param {TabHolder} tab - The tab.
+ * @param {boolean} copyProtected - Whether its video stays in the page's player for it.
+ */
+function noteProtectedVideo(tab, copyProtected) {
+  // One still opening too: each frame's player opens on a timer of its own, in either order.
+  if (copyProtected && [...tab.getFrames()].some((frame) => frame.isPlayer || frame.playerOpening)) {
+    return;
+  }
+  if (tab.protectedVideo !== copyProtected) {
+    tab.protectedVideo = copyProtected;
+    BackgroundUtils.updateTabIcon(tab);
+    Tabs.saveTabState(tab);
+  }
 }
 
 /**
@@ -2867,6 +2884,8 @@ async function openPlayer(frame) {
   // Named in content.js's report of a player iframe the page took out before it loaded
   // (PLAYER_OPEN_GONE), so a report of an earlier attempt never ends this one.
   frame.playerOpeningAttempt = ++playerOpeningAttempts;
+  // Another frame's video, or the page's next, is one FastStream plays: no "DRM" over it.
+  noteProtectedVideo(frame.tab, false);
 
   if (Logging) console.log('Opening player', frame);
 

@@ -272,6 +272,25 @@ describe('StreamLengths', () => {
       expect(lengths.isProtected('https://cdn.example/drm.m3u8')).toBe(false);
       expect(lengths.protectedUrls.size).toBe(0);
     });
+
+    it('keeps no mark of a read that ends after its URL was forgotten', async () => {
+      // Marked then, nothing forgot the mark: the stream, detected again and read as clear,
+      // still counted as protected.
+      let answer;
+      const slow = new Promise((resolve) => {
+        answer = resolve;
+      });
+      const lengths = new StreamLengths({fetch: async (url) => url === 'https://cdn.example/drm.m3u8' ?
+        slow : new Response('', {status: 404})});
+      const read = lengths.probe({url: 'https://cdn.example/drm.m3u8', mode: HLS});
+      for (let i = 0; i < 300; i++) {
+        await lengths.probe({url: `https://cdn.example/${i}.m3u8`, mode: HLS});
+      }
+      answer(new Response(variant(`${WIDEVINE}\n`), {status: 200}));
+      await read;
+      expect(lengths.isProtected('https://cdn.example/drm.m3u8')).toBe(false);
+      expect(lengths.protectedUrls.size).toBe(0);
+    });
   });
 
   it('reads an MP4\'s length from a movie header after its media data, in two ranges', async () => {

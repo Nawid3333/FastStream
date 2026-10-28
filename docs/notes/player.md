@@ -656,9 +656,10 @@ readyState 0 behind "This video is copy-protected (DRM)…", where Vimeo's own p
   that one, as main.mjs picks (the longest, `StreamPick.pick`), not any protected one, or a
   film's clear ad won the pick. It now waits for DASH manifests' reads too, as for HLS. The
   toolbar button shows "DRM" and why (`tab.protectedVideo`, cleared on a new page and at Off).
-  `openInMpv` refuses a protected stream as it refuses a Firefox VPN one, after waiting for an
-  unread manifest (`HlsQualitiesWaitMs`); the allowlist's MPV then sends the page's next stream
-  neither (an ad's, or a piece of the film).
+  `openInMpv` refuses a protected stream as it refuses a Firefox VPN one ("!" and the reason in
+  the tooltip), after waiting for an unread manifest (`HlsQualitiesWaitMs`); the allowlist's MPV
+  then sends the page's next stream neither (an ad's, or a piece of the film). A read sets the
+  mark either way, and none for a URL forgotten while it was read (`noteProtection`).
 - **Left as it was.** A stream the background could not tell (its variant's read failed, a key
   that comes later in a live playlist) still opens the player, which says DRM on hls.js's or
   dash.js's word (NEED_KEY), as before.
