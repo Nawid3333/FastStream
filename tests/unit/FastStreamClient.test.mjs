@@ -2103,27 +2103,47 @@ describe('FastStreamClient, a video its player cannot read', () => {
     expect(client.interfaceController.failedToLoad).toHaveBeenCalledTimes(1);
   });
 
-  it('shows the error, as before, once the video has shown a picture', async () => {
+  it('rebuilds a video that showed a picture first, and plays it in Firefox\'s own player when that is no way out', async () => {
     quiet();
     const client = makeClient();
     const player = await setSource(client, mp4());
     player.emit(DefaultPlayerEvents.LOADEDDATA);
     await settle();
-    // A rebuild is no way out either (its limit, say).
-    vi.spyOn(client, 'recoverPlayer').mockReturnValue(false);
+    const recover = vi.spyOn(client, 'recoverPlayer').mockReturnValue(true);
     const set = vi.spyOn(client, 'setSource').mockImplementation(async () => {});
 
     player.emit(DefaultPlayerEvents.ERROR, 'Invalid data found while parsing box');
     await settle();
-
+    expect(recover).toHaveBeenCalledTimes(1);
     expect(set).not.toHaveBeenCalled();
-    expect(client.interfaceController.failedToLoad).toHaveBeenCalledTimes(1);
+
+    // Its rebuilds used up (RECOVERY_LIMIT).
+    recover.mockReturnValue(false);
+    player.emit(DefaultPlayerEvents.ERROR, 'Invalid data found while parsing box');
+    await settle();
+    expect(set).toHaveBeenCalledTimes(1);
+    expect(set.mock.calls[0][0].mode).toBe('direct');
+    expect(client.interfaceController.failedToLoad).not.toHaveBeenCalled();
+  });
+
+  it('shows the error when Firefox\'s own player cannot play the file either', async () => {
+    quiet();
+    const client = makeClient();
+    const player = await setSource(client, mp4());
+    client.playedDirectly = client.recoverySourceURL(client.source.url);
+
+    player.emit(DefaultPlayerEvents.ERROR, 'Invalid data found while parsing box');
+    await settle();
+
+    expect(client.interfaceController.failedToLoad).toHaveBeenCalledExactlyOnceWith(
+        expect.stringMatching(/^player_error_load \(Invalid data found while parsing box\)/));
   });
 
   it('tells how to watch the video in the site\'s own player, in a page only', () => {
     const client = makeClient();
     const own = {};
     own.top = own;
+    const before = Object.getOwnPropertyDescriptor(globalThis, 'window');
     try {
       globalThis.window = {top: {}};
       expect(client.loadErrorMessage('404')).toBe('player_error_load (404) player_error_turn_off');
@@ -2132,6 +2152,7 @@ describe('FastStreamClient, a video its player cannot read', () => {
       expect(client.loadErrorMessage()).toBe('player_error_load');
     } finally {
       delete globalThis.window;
+      if (before) Object.defineProperty(globalThis, 'window', before);
     }
   });
 });

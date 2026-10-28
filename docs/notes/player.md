@@ -201,12 +201,15 @@ The e2e web build (`wdio.conf.mjs`) serves the player with COOP/COEP: Firefox's 
 loads only files whose server sends `Cross-Origin-Resource-Policy`, which every spec's server
 does. The extension's player page is not cross-origin isolated: measure DIRECT there.
 
-**A failure, and what the user sees (2026-10-28).** An MP4 file whose player reports an error
-before anything showed - not a refused request (`isNetworkFailure`: a range or the first fragment
-that failed to load), which Firefox's own player would send just the same while the page's new
-link may be on its way (`renewSourceLink`) - is tried once in Firefox's own player inside
-FastStream (`playDirectly`, from the client's `ERROR` handler): it reads files mp4box cannot parse
-and codecs MSE refuses. Only then the load error shows, and in a page it ends with how to watch the
+**A failure, and what the user sees (2026-10-28).** An MP4 file whose player reports an error that
+neither the next source nor a rebuild (`recoverPlayer`, for a video that showed a picture) gets
+past - and not a refused request (`isNetworkFailure`: a range or the first fragment that failed to
+load), which Firefox's own player would send just the same while the page's new link may be on its
+way (`renewSourceLink`) - is tried once in Firefox's own player inside FastStream, at the time it
+was at (`playDirectly`, from the client's `ERROR` handler): it reads files mp4box cannot parse and
+codecs MSE refuses. (A first version tried it only before the first picture; glm's review found
+that test, by identifier, took a later episode at the same URL path for the one that had played.)
+Only then the load error shows, and in a page it ends with how to watch the
 video in the site's own player: "Turn FastStream off with its toolbar button..." (`player_error_turn_off`,
 the DRM error's second sentence in every locale). FastStream does not step aside by itself: a
 version that gave the page its player back when nothing had shown was built and dropped unmerged on

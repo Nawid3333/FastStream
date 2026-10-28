@@ -2144,15 +2144,6 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
-   * Whether the video being set has shown a picture: this source, or the same video before
-   * (a rebuild, a new link and Firefox's own player keep its identifier).
-   * @return {boolean}
-   */
-  hasShownVideo() {
-    return !!this.source && !!this.playedSource && this.playedSource.identifier === this.source.identifier;
-  }
-
-  /**
    * The load error's text: what went wrong, and in a page, how to watch the video in the
    * site's own player instead, as the DRM error says. FastStream never steps aside by itself:
    * the toolbar's Off is the user's to click (the owner, 2026-10-28).
@@ -2550,11 +2541,12 @@ export class FastStreamClient extends EventEmitter {
       // With what went wrong: the reason is the event's only argument, and the second one
       // this read instead was never passed, so every failure said only "Failed to load video!".
       const detail = describePlayerError(reason);
-      // An MP4 file the MP4 player could not read, of which nothing showed: Firefox's own player,
-      // inside FastStream, reads more than mp4box and MSE do (a file mp4box cannot parse, a
-      // codec MSE refuses), once per source (playDirectly). Not for a refused request, which it
-      // would send just the same, while the page's new link may be on its way (renewSourceLink).
-      if (!isNetworkFailure(reason) && !this.hasShownVideo() && this.playDirectly(player, detail || 'player error')) {
+      // An MP4 file the MP4 player could not read, nor a rebuild of it (recoverPlayer, for one that
+      // showed a picture): Firefox's own player, inside FastStream, reads more than mp4box and MSE
+      // do (a file mp4box cannot parse, a codec MSE refuses), once per source and at the time it
+      // was at (playDirectly). Not for a refused request, which it would send just the same, while
+      // the page's new link may be on its way (renewSourceLink).
+      if (!isNetworkFailure(reason) && this.playDirectly(player, detail || 'player error')) {
         return;
       }
       this.failedToLoad(this.loadErrorMessage(detail));
