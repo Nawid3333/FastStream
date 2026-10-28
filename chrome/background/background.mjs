@@ -957,25 +957,67 @@ function fromOwnPage(sender) {
   return String(sender.url || '').startsWith(chrome.runtime.getURL(''));
 }
 
+// Who may send each message the listener below answers. 'own': FastStream's own pages only
+// (the player, also framed in a site, and the options page: fromOwnPage). 'any': its content
+// scripts too, which run in every page. A content script sends none of the 'own' ones, so one
+// that does is not FastStream's to obey: what they do - the options read anew, the mpv test,
+// header rules, downloads, the tab's sources cleared, the next episode - is the player's or
+// the options page's to ask for. Some of them checked their sender where they were answered and
+// others not (LOAD_OPTIONS, MPV_TEST, CLEAR_SOURCES, REQUEST_PLAYLIST_NAVIGATION: glm's review,
+// 2026-10-28); every type the listener answers is listed here (backgroundMessages.test.mjs).
+/** @type {Object<string, 'own'|'any'>} */
+export const MessageSenders = {
+  [MessageTypes.PING]: 'own',
+  [MessageTypes.VPN_STATUS]: 'own',
+  [MessageTypes.VPN_OPEN_PERMISSION]: 'own',
+  [MessageTypes.LOAD_OPTIONS]: 'own',
+  [MessageTypes.MPV_TEST]: 'own',
+  [MessageTypes.MPV_OPEN]: 'own',
+  [MessageTypes.PLAYER_LOADED]: 'own',
+  [MessageTypes.PLAYER_PLAYING]: 'own',
+  [MessageTypes.REQUEST_FRESH_LINK]: 'own',
+  [MessageTypes.BUFFER_STASH]: 'own',
+  [MessageTypes.BUFFER_TAKE]: 'own',
+  [MessageTypes.REQUEST_SOURCES]: 'own',
+  [MessageTypes.CLEAR_SOURCES]: 'own',
+  [MessageTypes.SET_HEADERS]: 'own',
+  [MessageTypes.DOWNLOAD]: 'own',
+  [MessageTypes.REQUEST_FULLSCREEN]: 'own',
+  [MessageTypes.REQUEST_WINDOWED_FULLSCREEN]: 'own',
+  [MessageTypes.REQUEST_KEYBOARD]: 'own',
+  [MessageTypes.REQUEST_WINDOW_FULLSCREEN]: 'own',
+  [MessageTypes.REQUEST_MINIPLAYER]: 'own',
+  [MessageTypes.REQUEST_PLAYLIST_NAVIGATION]: 'own',
+  [MessageTypes.REPORT_AUTOPLAY_PROBLEM]: 'own',
+  [MessageTypes.REQUEST_PLAYLIST_POLL]: 'own',
+  [MessageTypes.POPUP_GUARD_ARM]: 'any',
+  [MessageTypes.MPV_USER_PLAY]: 'any',
+  [MessageTypes.SHORTCUT_CANCELLED]: 'any',
+  [MessageTypes.FRAME_ADDED]: 'any',
+  [MessageTypes.FRAME_REMOVED]: 'any',
+  [MessageTypes.PLAYER_OPEN_GONE]: 'any',
+  [MessageTypes.LOADED_MEDIA]: 'any',
+  [MessageTypes.DETECTED_SOURCE]: 'any',
+  [MessageTypes.SEND_TO_PLAYER]: 'any',
+  [MessageTypes.EXIT_CARRIED_FULLSCREEN]: 'any',
+};
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (MessageSenders[msg?.type] === 'own' && !fromOwnPage(sender)) {
+    return;
+  }
   if (msg.type === MessageTypes.PING) {
     sendResponse(MessageTypes.PONG);
     return;
   } else if (msg.type === MessageTypes.VPN_STATUS) {
     // The player, about its source: did the page reach it through Firefox VPN, and may
-    // FastStream follow (VpnProxyMirror)? Only from FastStream's own pages: the answer adds
-    // the URL's host to those that follow the VPN.
-    if (!fromOwnPage(sender)) {
-      return;
-    }
+    // FastStream follow (VpnProxyMirror)? Only from FastStream's own pages (MessageSenders):
+    // the answer adds the URL's host to those that follow the VPN.
     sendResponse(VpnMirror.status(String(msg.url || ''), !!sender.tab?.incognito, sender.tab?.id));
     return;
   } else if (msg.type === MessageTypes.VPN_OPEN_PERMISSION) {
     // The player's Firefox VPN button: a player in a page has no permissions API, so the
     // permissions page asks, at its proxy row, in a tab of its own next to the video's.
-    if (!fromOwnPage(sender)) {
-      return;
-    }
     /** @type {chrome.tabs.CreateProperties} */
     const create = {url: chrome.runtime.getURL('perms.html') + '#proxy'};
     if (sender.tab?.id !== undefined) {
@@ -1028,11 +1070,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // seconds are swallowed: each one spawns its own mpv window, and a user
     // who clicks again because nothing appeared yet should not end up with a
     // stack of them.
-    // Only from the player: a manual send skips the MPV allowlist, and this one names the
-    // URL, headers and subtitles the helper gets (#470: a content script could send it).
-    if (!fromOwnPage(sender)) {
-      return;
-    }
+    // Only from the player (MessageSenders): a manual send skips the MPV allowlist, and this
+    // one names the URL, headers and subtitles the helper gets (#470: a content script could
+    // send it).
     if (Logging) console.log('[MPV] MPV_OPEN request:', msg.url);
     const now = Date.now();
     if (msg.url === LastManualMpvUrl &&
@@ -1268,10 +1308,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse('cleared');
     return;
   } else if (msg.type === MessageTypes.SET_HEADERS) {
-    // Only from FastStream's own pages: the rule sets the headers the message names (#470).
-    if (!fromOwnPage(sender)) {
-      return;
-    }
+    // Only from FastStream's own pages (MessageSenders): the rule sets the headers the
+    // message names (#470).
     if (msg.commands.length) {
       // A tab that sends a message has an id. The rule's lifetime is capped (RuleEntry).
       ruleManager.addHeaderRule(msg.url, /** @type {number} */ (senderTab.id), msg.commands, msg.lifetimeMs).then((rule) => {
@@ -1296,10 +1334,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }, frame, mode);
     }
   } else if (msg.type === MessageTypes.DOWNLOAD) {
-    // Only from FastStream's own pages: it downloads whatever URL the message names (#470).
-    if (!fromOwnPage(sender)) {
-      return;
-    }
+    // Only from FastStream's own pages (MessageSenders): it downloads whatever URL the
+    // message names (#470).
     const url = msg.url;
     // Firefox refuses a name with a colon and some other characters, and the download then
     // silently did not happen: every screenshot ("@00:05") and any title with a colon.

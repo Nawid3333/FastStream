@@ -1979,3 +1979,89 @@ describe('FastStreamClient, a link the server refuses', () => {
     expect(asked()).toHaveLength(3);
   });
 });
+
+// setSource counts the next source at once, and the last source's player stays the player until
+// resetPlayer tears it down. A failure it reported in between was taken for the new source's:
+// its hand-over to Firefox's own player played the old URL over the source the user had just
+// picked, its error showed the load error over it, and a refused link of the old source was
+// asked for anew and rebuilt over it (glm's review, 2026-10-28).
+describe('FastStreamClient, the last source\'s player failing while the next source is on its way in', () => {
+  const nextSourceAskedFor = (client) => {
+    client.sourceRequests++;
+  };
+
+  it('does not hand the last source to Firefox\'s own player', async () => {
+    const client = makeClient();
+    const old = await setSource(client, makeSource('https://cdn.example/old.mp4', {mode: 'accelerated_mp4'}));
+    const set = vi.spyOn(client, 'setSource');
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    nextSourceAskedFor(client);
+
+    old.emit(DefaultPlayerEvents.PLAY_DIRECTLY, 'The file is not an MP4 file');
+    await settle();
+
+    expect(set).not.toHaveBeenCalled();
+    expect(client.interfaceController.failedToLoad).not.toHaveBeenCalled();
+  });
+
+  it('shows no load error for its error, nor for a key it lacks', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const client = makeClient();
+    const old = await setSource(client, makeSource('https://cdn.example/old.m3u8'));
+    nextSourceAskedFor(client);
+
+    old.emit(DefaultPlayerEvents.ERROR, {});
+    old.emit(DefaultPlayerEvents.NEED_KEY);
+    await settle();
+
+    expect(client.interfaceController.failedToLoad).not.toHaveBeenCalled();
+  });
+
+  it('still fails as before while its source is the one being played', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const client = makeClient();
+    const current = await setSource(client, makeSource('https://cdn.example/a.m3u8'));
+
+    current.emit(DefaultPlayerEvents.NEED_KEY);
+    await settle();
+
+    expect(client.interfaceController.failedToLoad).toHaveBeenCalledExactlyOnceWith('player_error_drm');
+  });
+
+  it('does not ask for the last source\'s link anew, nor rebuild it with one that comes late', async () => {
+    const OLD = 'https://cdn.example/hls/master.m3u8?sig=old';
+    const client = makeClient();
+    client.linkRenewals = {identifier: null, times: [], asking: false};
+    client.downloadManager.keepStorageOnce = vi.fn();
+    client.downloadManager.relink = vi.fn();
+    await setSource(client, makeSource(OLD));
+    const built = vi.fn();
+    client.playerLoader.createPlayer = built;
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const asked = () => chrome.runtime.sendMessage.mock.calls.filter(([message]) => message.type === MessageTypes.REQUEST_FRESH_LINK);
+
+    nextSourceAskedFor(client);
+    client.linkRefused(403, OLD);
+    await settle();
+    expect(asked()).toEqual([]);
+
+    // Refused while it was the source; the next one asked for before the new link came.
+    client.fallbacks.request = client.sourceRequests;
+    let answer;
+    chrome.runtime.sendMessage.mockImplementation((message) => (message.type === MessageTypes.REQUEST_FRESH_LINK ?
+      new Promise((resolve) => {
+        answer = resolve;
+      }) : Promise.resolve()));
+    client.linkRefused(403, OLD);
+    await settle();
+    expect(asked()).toHaveLength(1);
+    nextSourceAskedFor(client);
+    answer('https://cdn.example/hls/master.m3u8?sig=new');
+    await settle();
+    // A rebuild would be under way there (the first case's wait).
+    await client.sourceChange;
+    await settle();
+    expect(built).not.toHaveBeenCalled();
+    expect(client.source.url).toBe(OLD);
+  });
+});

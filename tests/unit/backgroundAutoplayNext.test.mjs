@@ -89,8 +89,9 @@ describe('the player\'s autoplay next', () => {
     await restarted(session);
     expect(await bg.message(NEXT, {tabId: 1, frameId: 5, url: PLAYER_IN_PAGE})).toBe('error');
     expect(await bg.message(NEXT, {tabId: 1, frameId: 6, url: PLAYER_IN_PAGE})).toBe('error');
-    // Nor for the page itself in the player's frame: only FastStream's player page names it.
-    expect(await bg.message(NEXT, {tabId: 1, frameId: 5, url: EP1})).toBe('error');
+    // Nor for the page itself in the player's frame: only FastStream's player page names it,
+    // and a content script's request goes unanswered (MessageSenders).
+    expect(await bg.message(NEXT, {tabId: 1, frameId: 5, url: EP1})).toBe(undefined);
     expect(bg.sent('PLAYLIST_NAVIGATION')).toEqual([]);
   });
 

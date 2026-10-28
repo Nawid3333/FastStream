@@ -60,7 +60,7 @@ describe('a download from a container tab', () => {
     expect(hidden.cookieStoreId).toBe('firefox-container-1');
     for (const listener of bg.chrome.runtime.onMessage.listeners) {
       listener({type: 'PLAYER_LOADED', url: 'moz-extension://bg-test/player/index.html'},
-          {tab: {id: hidden.id, url: hidden.url}, frameId: 0}, () => {});
+          {tab: {id: hidden.id, url: hidden.url}, frameId: 0, url: 'moz-extension://bg-test/player/index.html'}, () => {});
     }
     return answers;
   }

@@ -140,6 +140,13 @@ describe('what a player was handed', () => {
     await bg.message({type: 'CLEAR_SOURCES'}, {tabId: 1, frameId: 5});
     expect(await askAgain()).toEqual([]);
   });
+
+  it('is sent again after a content script asked for the list to be cleared', async () => {
+    // Only the player's "Clear Sources" button clears it (MessageSenders).
+    await playerHandedAStream();
+    await bg.message({type: 'CLEAR_SOURCES'}, {tabId: 1, frameId: 5, url: 'https://site.test/watch'});
+    expect(await askAgain()).toEqual(['https://cdn.test/v/master.m3u8']);
+  });
 });
 
 describe('a page that is never left', () => {
