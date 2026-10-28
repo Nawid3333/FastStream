@@ -173,8 +173,13 @@ describe('A stream link the server refuses', function() {
     // Where it was, not from 0 (a few seconds' play between).
     expect(renewed.time).toBeGreaterThan(playing.time - 1);
     const after = await waitForPlayer((s) => s.time > renewed.time + 2 && !s.paused, 'the video did not play on', 20000);
+    // What the old link had downloaded the new one takes (DownloadManager.relink): the same
+    // files, the signature left out. Kept by their URL alone, every one was asked for again.
+    const fetched = new Set(segments.filter((s) => s.sig === first && s.status === 200).map((s) => s.place));
+    const again = segments.filter((s) => s.sig === `s${before + 2}` && fetched.has(s.place)).map((s) => s.place);
     console.log('      ran out at', playing.time.toFixed(1), 's; on the new link at', renewed.time.toFixed(1),
-        's, then:', JSON.stringify(after));
+        's, then:', JSON.stringify(after), `; downloaded under the old link ${fetched.size}, asked for again ${again.length}`);
     expect(after.failed).toBe(false);
+    expect(again).toEqual([]);
   });
 });

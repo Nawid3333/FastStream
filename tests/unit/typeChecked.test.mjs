@@ -12,6 +12,7 @@ const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '../
 
 const CHECKED = [
   'chrome/background/BackgroundUtils.mjs',
+  'chrome/background/BufferStash.mjs',
   'chrome/background/ContextMenu.mjs',
   'chrome/background/CustomSourcePatterns.mjs',
   'chrome/background/DownloadFilename.mjs',
@@ -73,6 +74,7 @@ const CHECKED = [
   'chrome/player/network/DownloadManager.mjs',
   'chrome/player/network/FetchLoader.mjs',
   'chrome/player/network/IndexedDBManager.mjs',
+  'chrome/player/network/LinkSignature.mjs',
   'chrome/player/network/MemoryBudget.mjs',
   'chrome/player/network/OPFSManager.mjs',
   'chrome/player/network/OpQueue.mjs',

@@ -1914,6 +1914,7 @@ describe('FastStreamClient, a link the server refuses', () => {
     // from Firefox's cache: the player sat at a spinner until the page was reloaded (#592).
     const client = withRenewals(makeClient());
     client.downloadManager.keepStorageOnce = vi.fn();
+    client.downloadManager.relink = vi.fn();
     const first = await setSource(client, makeSource(OLD), (made) => {
       made.duration = 1440;
     });
@@ -1942,8 +1943,10 @@ describe('FastStreamClient, a link the server refuses', () => {
     expect(asked()).toEqual([[{type: MessageTypes.REQUEST_FRESH_LINK, url: OLD}]]);
     // Byte for byte: the time came and went without the query written anew.
     expect(client.source.url).toBe(NEW);
-    // The new link's downloads are other URLs: the old ones are not kept to hold memory.
-    expect(client.downloadManager.keepStorageOnce).not.toHaveBeenCalled();
+    // The old link's downloads are kept, and found under the new link (DownloadManager.relink):
+    // kept by their URL alone, the new player asked for every one again.
+    expect(client.downloadManager.keepStorageOnce).toHaveBeenCalledTimes(1);
+    expect(client.downloadManager.relink).toHaveBeenCalledExactlyOnceWith(OLD, NEW);
     made.video.readyState = 1;
     made.emit(DefaultPlayerEvents.LOADEDMETADATA);
     await settle();

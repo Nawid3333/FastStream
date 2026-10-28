@@ -10,6 +10,7 @@ import {getAddressKey} from '../player/utils/AddressKey.mjs';
 import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {desiredHeight, listForSource, pickQuality} from '../player/utils/PageQualityPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
+import {bufferKey, BufferStash} from './BufferStash.mjs';
 import {createMenus, linkTarget, MenuIds, updateMenus} from './ContextMenu.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
 import {sanitizeDownloadFilename} from './DownloadFilename.mjs';
@@ -1207,6 +1208,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse(null);
     });
     return true;
+  } else if (msg.type === MessageTypes.BUFFER_STASH) {
+    // A player going away (its page reloaded or left) hands its buffer over (BufferStash), for
+    // the page BUFFER_TAKE told it it is on: by now the page's frame is the next page's.
+    const key = BackgroundUtils.isUrlPlayerUrl(sender.url || '') ? playerBufferKey(msg.page, sender, msg.identifier) : null;
+    if (key && typeof msg.url === 'string' && Array.isArray(msg.entries)) {
+      bufferStash.put(key, {
+        url: msg.url,
+        session: typeof msg.session === 'string' && /^[\w-]+$/.test(msg.session) ? msg.session : null,
+        entries: msg.entries,
+      });
+    }
+  } else if (msg.type === MessageTypes.BUFFER_TAKE) {
+    // The next player of that video on that page takes it back, and is told which page that
+    // is, for its own hand-off.
+    const page = (frame.parent || frame).url;
+    const key = BackgroundUtils.isUrlPlayerUrl(sender.url || '') ? playerBufferKey(page, sender, msg.identifier) : null;
+    sendResponse(key ? {page, handOff: bufferStash.take(key)} : null);
   } else if (msg.type === MessageTypes.PLAYER_OPEN_GONE) {
     // The page took the player iframe out before its player loaded: no PLAYER_LOADED comes
     // to end the opening, and openPlayer refused this frame until the page navigated.
@@ -1757,6 +1775,46 @@ async function getPageFrame(frame) {
   }
 
   return null;
+}
+
+// The buffers of players that went away, for the next player of the same video on the same
+// page (BufferStash); what nobody takes is flushed after BufferKeepMs, its files deleted.
+const bufferStash = new BufferStash({dropSession: dropBufferSession});
+
+/**
+ * Where a player's buffer may be taken back (bufferKey): its page - the frame it is in (a
+ * player tab's own page), the same page after a reload - and its video, its window and container.
+ * The page keeps two videos on one address apart (hls.php?v=1, ?v=2), whose files a signature
+ * left out of their addresses would otherwise take for each other's.
+ * The page is the one BUFFER_TAKE found and told the player: by its hand-off, as the page
+ * reloads, the tab's frames are already the next page's (an empty address, measured), the
+ * player's own frame a new one.
+ * @param {*} pageUrl - The player's page.
+ * @param {chrome.runtime.MessageSender} sender
+ * @param {*} identifier - The source's identifier (its URL without the query).
+ * @return {?string} null when the player's page or its source is not known.
+ */
+function playerBufferKey(pageUrl, sender, identifier) {
+  if (typeof identifier !== 'string' || !identifier || typeof pageUrl !== 'string' || !pageUrl) {
+    return null;
+  }
+  return bufferKey({
+    pageUrl,
+    identifier,
+    incognito: !!sender.tab?.incognito,
+    cookieStoreId: /** @type {chrome.tabs.Tab & {cookieStoreId?: string}} */ (sender.tab)?.cookieStoreId,
+  });
+}
+
+/**
+ * Deletes a player's OPFS session directory: a hand-off nobody took.
+ * @param {string} session - Its name (BufferStash checked it is one).
+ * @return {Promise<void>}
+ */
+async function dropBufferSession(session) {
+  const root = await navigator.storage.getDirectory();
+  const fsblob = await root.getDirectoryHandle('fsblob');
+  await fsblob.removeEntry(session, {recursive: true});
 }
 
 /**

@@ -42,6 +42,7 @@ async function loadPlayerPage(time, inFrame = true, answer = () => Promise.resol
       constructor() {
         this.version = 'test';
         this.destroy = vi.fn();
+        this.handOffBuffer = vi.fn();
         this.source = {url: 'https://cdn.test/film.m3u8'};
         this.currentTime = time;
       }

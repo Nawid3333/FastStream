@@ -165,6 +165,48 @@ export class OPFSManager {
   }
 
   /**
+   * Takes over a file another player stored (its hand-off: DownloadManager.adopt): moved from
+   * that player's session directory into this one, under the name it has here. The old player's
+   * session outlives it (prune waits 60 s past its last heartbeat), so the file is still there.
+   * @param {string} identifier - Its identifier here.
+   * @param {string} fromSession - The other player's session directory.
+   * @param {string} fromName - Its name there.
+   * @return {Promise<File>} It, from this session.
+   */
+  async adoptFile(identifier, fromSession, fromName) {
+    if (!this.sessionName) {
+      throw new Error('OPFS session not initialized');
+    }
+    const root = await navigator.storage.getDirectory();
+    const fsblobRoot = await root.getDirectoryHandle('fsblob');
+    const from = await fsblobRoot.getDirectoryHandle(fromSession);
+    const to = await fsblobRoot.getDirectoryHandle(this.sessionName);
+    const handle = await from.getFileHandle(fromName);
+    const name = /** @type {string} */ (this.fileName(identifier, true));
+    try {
+      // FileSystemHandle.move, which Firefox has for OPFS (4 ms for 1 MB, measured) and lib.dom
+      // does not declare yet.
+      await /** @type {FileSystemFileHandle & {move: (dir: FileSystemDirectoryHandle, name: string) => Promise<void>}} */ (handle).move(to, name);
+    } catch (e) {
+      this.fileNames.delete(identifier);
+      throw e;
+    }
+    return (await to.getFileHandle(name)).getFile();
+  }
+
+  /**
+   * Deletes another player's session directory: what is left of it once its hand-off was taken.
+   * @param {string} session - Its name.
+   * @return {Promise<void>}
+   */
+  async dropSession(session) {
+    if (session === this.sessionName) return;
+    const root = await navigator.storage.getDirectory();
+    const fsblobRoot = await root.getDirectoryHandle('fsblob');
+    await fsblobRoot.removeEntry(session, {recursive: true});
+  }
+
+  /**
    * Opens a file the worker wrote in this session, as a plain File. Used to
    * hand a finished save to the download pipeline without ever holding the
    * whole file in RAM.

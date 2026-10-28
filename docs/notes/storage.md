@@ -313,3 +313,41 @@ against an idle baseline of the same length:
 - **What it means for an SSD:** rated endurance is in hundreds of TB written (a 1 TB drive
   typically 600 TBW); 10 GB of spilled video a day is ~9 TB a year with the overhead, about 1.5 %
   of that. The budget is what decides how much is written: the overflow beyond it.
+
+## A reload keeps the buffer for 20 s (2026-10-28)
+
+His wish: a reload of the page must not throw away what was buffered; what nobody takes back is let
+go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e2e.mjs`.
+
+- **The hand-off.** At the player's `beforeunload`, before `destroy()`, the client sends its finished
+  video files to the background (`BUFFER_STASH`, `FastStreamClient.handOffBuffer` ->
+  `DownloadManager.handOff`): RAM ones as their Blobs, disk ones as their OPFS file names plus the
+  session directory. Plain records only (no `DownloadEntry`, no functions); no playlist or
+  manifest (text: they carry the old signatures, a live one moves on), no key (raw), nothing in
+  the Cache API or IndexedDB. Measured: 256 MB of Blobs sent in 1 ms, the data shared, not copied,
+  and intact after the sender's page was gone.
+- **`runtime.getBackgroundPage()` is not there in a player iframe inside a web page** (it is in an
+  extension tab), so the hand-off is a runtime message; from such an iframe, messages and ports
+  still go out at `beforeunload` and `pagehide` as its page reloads (measured).
+- **The key is the page as `BUFFER_TAKE` told the player.** By the hand-off the tab's frames are
+  the next page's already: the page frame's address is empty, the player's frame a new object
+  (measured). The background answers `BUFFER_TAKE` with the page, and the player names it in its
+  hand-off. Key: page + source identifier + private or not + container (`bufferKey`): two videos on
+  one address (`hls.php?v=1`, `?v=2`) never take each other's files.
+- **The stash** (`chrome/background/BufferStash.mjs`) keeps a hand-off `BufferKeepMs` (20 s), then
+  lets its Blobs go and deletes its session directory (the background sees the iframe's OPFS:
+  measured). A newer hand-off of the same key replaces an older one. If the event page itself
+  goes first, its RAM goes with it, and the directory waits for the 60 s prune. Measured: a stash
+  in the event page survives 25 s with nothing else happening.
+- **Taking it back.** `FastStreamClient.takeBackBuffer` runs in `setSourceInternal` after the reset
+  and before the player is built. The answer is `structuredClone`d into the player's realm first:
+  its Blobs were not `instanceof Blob` there, and none was taken (measured). RAM Blobs go into the
+  player's FSBlob as deferred saves (in its RAM budget); disk files are moved into its own session
+  (`FileSystemFileHandle.move` on the main thread: 4 ms for 1 MB in Firefox 159), then the old
+  directory is deleted.
+- **A new signed link** (vidmoly: `?t=&s=` new at every load): `LinkSignature.signatureParams` names
+  the query parameters whose values differ between the old and the new source link, and a request
+  under the new link finds the file with those left out (`DownloadManager.stored`, an alias: the
+  entry's data stays under its old store id, `entry.blobId`). Parameters that did not change still
+  tell files apart. FreshLink uses the same (`DownloadManager.relink`): a refused link's fresh one
+  no longer downloads everything again.

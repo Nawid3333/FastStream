@@ -362,6 +362,9 @@ async function setup() {
   window.addEventListener('beforeunload', () => {
     const time = /** @type {FastStreamWindow} */ (window).fastStream?.source ? /** @type {FastStreamWindow} */ (window).fastStream.currentTime : 0;
     if (/** @type {FastStreamWindow} */ (window).fastStream) {
+      // Its buffer to the next player of this video on this page, a reload's (BufferStash).
+      // For a navigation that never happens too: the player loads again below, and takes it back.
+      /** @type {FastStreamWindow} */ (window).fastStream.handOffBuffer();
       /** @type {FastStreamWindow} */ (window).fastStream.destroy();
       delete /** @type {Window & {fastStream?: FastStreamClient}} */ (window).fastStream;
     }

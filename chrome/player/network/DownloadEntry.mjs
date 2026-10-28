@@ -88,6 +88,11 @@ export class DownloadEntry {
 
     this.responseURL = null;
 
+    // Where the store keeps its data, when that is not its own identifier: a download an earlier
+    // player handed over, asked for now under the source's new link (DownloadManager.adopt).
+    /** @type {?string} */
+    this.blobId = null;
+
     // Told when its stored data cannot be read any more (getDataFromBlob): the download
     // manager drops the entry then, so it is downloaded again.
     /** @type {((error: *) => void)|null} */

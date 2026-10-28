@@ -3,8 +3,12 @@ import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {FSBlob} from '../modules/FSBlob.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {DownloadEntry} from './DownloadEntry.mjs';
+import {signatureParams, withoutSignature} from './LinkSignature.mjs';
 import {URGENT_PARALLEL} from './PlayheadFirst.mjs';
 import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
+
+// How many of a hand-off's disk files are moved at a time (DownloadManager.adoptDiskFiles).
+const AdoptAtOnce = 8;
 
 /** @typedef {import('./DownloadEntry.mjs').DownloadRequest} DownloadRequest */
 
@@ -49,6 +53,12 @@ export class DownloadManager {
     /** @type {StandardDownloader[]} */
     this.downloaders = [];
     this.paused = false;
+    // What an earlier player of this video handed over (adopt), by its address with the source
+    // link's signature left out, until a request under the new link takes it (stored).
+    /** @type {?Map<string, DownloadEntry>} */
+    this.adopted = null;
+    /** @type {?Set<string>} */
+    this.adoptedSignature = null;
     // The next reset() keeps the downloads (keepStorageOnce).
     this.keepStorageNext = false;
     // Leaving the network to a watched player that is short of video (setYield).
@@ -131,7 +141,7 @@ export class DownloadManager {
       return;
     }
 
-    const identifier = this.getIdentifier(entry);
+    const identifier = entry.blobId ?? this.getIdentifier(entry);
     // Kept in RAM; the client writes it to disk only when the RAM budget needs it to.
     // Complete, not raw, not stored yet: its data is the Blob onSuccess made.
     await this.blobStore.saveBlobAsync(/** @type {Blob} */ (entry.data), identifier, {deferred: true});
@@ -146,16 +156,6 @@ export class DownloadManager {
    * @param {DownloadEntry} entry
    */
   setEntry(entry) {
-    const identifier = this.getIdentifier(entry);
-    // Its stored data cannot be read any more (DownloadEntry.getDataFromBlob): forgotten,
-    // so the next request for it downloads it again.
-    entry.onDataLost = (error) => {
-      if (this.storage?.get(identifier) !== entry) return;
-      console.warn('A stored download could not be read, it will be downloaded again', error);
-      this.storage.delete(identifier);
-      this.blobStore?.deleteBlob(identifier);
-    };
-
     // A save that failed (a full disk) leaves the data in memory, as before - without an
     // unhandled rejection, which neither caller awaited.
     /** @param {DownloadEntry} done - The finished entry. */
@@ -166,6 +166,23 @@ export class DownloadManager {
       entry.setTransferFunction(archive);
     }
 
+    this.keepEntry(entry, this.getIdentifier(entry));
+  }
+
+  /**
+   * Keeps a download under an identifier.
+   * @param {DownloadEntry} entry
+   * @param {string} identifier - getIdentifier's, for its address now.
+   */
+  keepEntry(entry, identifier) {
+    // Its stored data cannot be read any more (DownloadEntry.getDataFromBlob): forgotten,
+    // so the next request for it downloads it again.
+    entry.onDataLost = (error) => {
+      if (this.storage?.get(identifier) !== entry) return;
+      console.warn('A stored download could not be read, it will be downloaded again', error);
+      this.storage.delete(identifier);
+      this.blobStore?.deleteBlob(entry.blobId ?? identifier);
+    };
     this.storage.set(identifier, entry);
   }
 
@@ -176,7 +193,7 @@ export class DownloadManager {
    */
   canGetFile(details) {
     const key = this.getIdentifier(details);
-    const storedEntry = this.storage.get(key);
+    const storedEntry = this.stored(details, key);
 
     if (storedEntry?.status === DownloadStatus.DOWNLOAD_COMPLETE) {
       return true;
@@ -199,7 +216,197 @@ export class DownloadManager {
    */
   getEntry(details) {
     const key = this.getIdentifier(details);
-    return this.storage.get(key);
+    return this.stored(details, key);
+  }
+
+  /**
+   * The download kept for a request: under its address, or one an earlier player of this video
+   * handed over (adopt) under the link's old signature, kept under this address from now on.
+   * @param {DownloadRequest} details - The request.
+   * @param {string} key - Its identifier (getIdentifier).
+   * @return {*} The DownloadEntry, undefined for none; untyped as the storage is (its field).
+   */
+  stored(details, key) {
+    const entry = this.storage.get(key);
+    if (entry || !this.adopted?.size) {
+      return entry;
+    }
+    const loose = this.looseIdentifier(details);
+    const adopted = this.adopted.get(loose);
+    if (!adopted || this.storage.get(this.getIdentifier(adopted)) !== adopted) {
+      return undefined;
+    }
+    this.adopted.delete(loose);
+    // Under the new address now; its data stays where the store has it (blobId).
+    const oldKey = this.getIdentifier(adopted);
+    adopted.blobId ??= oldKey;
+    this.storage.delete(oldKey);
+    adopted.url = details.url;
+    this.keepEntry(adopted, key);
+    return adopted;
+  }
+
+  /**
+   * A request's identifier with the source link's signature left out: the same for a file
+   * under the old link and the new one (LinkSignature).
+   * @param {{url: string, rangeStart?: number, rangeEnd?: number, responseType?: string}} details
+   * @return {string}
+   */
+  looseIdentifier(details) {
+    return this.getIdentifier({...details, url: withoutSignature(details.url, this.adoptedSignature)});
+  }
+
+  /**
+   * Keeps this player's downloads for its source under a new link to it (FreshLink, with
+   * keepStorageOnce): a request under the new link finds the file downloaded under the old one,
+   * the signature the two links differ in left out (stored). Every file was downloaded again.
+   * @param {string} oldUrl - The source's link as it was.
+   * @param {string} newUrl - Its new link.
+   */
+  relink(oldUrl, newUrl) {
+    const signature = signatureParams(oldUrl, newUrl);
+    if (!signature?.size || !this.storage) {
+      return;
+    }
+    this.adoptedSignature = signature;
+    this.adopted = new Map();
+    const adopted = /** @type {Map<string, DownloadEntry>} */ (this.adopted);
+    this.storage.forEach((entry) => {
+      const loose = this.looseIdentifier(entry);
+      // The first of twins (one file under two issues of the link) stands for both.
+      if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE && !entry.storeRaw && entry.responseType === 'arraybuffer' &&
+          !adopted.has(loose)) {
+        adopted.set(loose, entry);
+      }
+    });
+  }
+
+  /**
+   * The finished downloads, as plain records another player can take back (BufferStash), for a
+   * reload of the page not to lose them: the ones in RAM as their Blobs, the ones on the disk
+   * as their file names in this player's OPFS session. Only a video's files: not a playlist
+   * or a manifest (text: the next player loads them anew, under the new link, and a live one
+   * moves on), not a key (raw), not one stored elsewhere (the Cache API, IndexedDB: read back
+   * now, they would be copied into RAM as the page goes).
+   * @return {{session: ?string, entries: import('../../background/BufferStash.mjs').HandedEntry[]}}
+   */
+  handOff() {
+    /** @type {import('../../background/BufferStash.mjs').HandedEntry[]} */
+    const entries = [];
+    const store = this.blobStore;
+    const opfs = store?.opfsManager;
+    this.storage?.forEach((entry, identifier) => {
+      if (entry.status !== DownloadStatus.DOWNLOAD_COMPLETE || entry.storeRaw || entry.responseType !== 'arraybuffer' ||
+          typeof entry.data !== 'function') {
+        return;
+      }
+      const blobId = entry.blobId ?? identifier;
+      const record = {url: entry.url, rangeStart: entry.rangeStart, rangeEnd: entry.rangeEnd,
+        responseType: entry.responseType, dataSize: entry.dataSize};
+      const data = store.blobStore.get(blobId);
+      if (store.isInRam(blobId) && data instanceof Blob) {
+        entries.push({...record, blob: data});
+        return;
+      }
+      const file = opfs?.fileName(blobId);
+      if (file) {
+        entries.push({...record, file});
+      }
+    });
+    return {session: opfs?.sessionName ?? null, entries};
+  }
+
+  /**
+   * Takes back what an earlier player of this video handed over (handOff): each file as a
+   * finished download, its Blob into this player's RAM at once (counted in its budget like any
+   * download), its file on the disk moved into this player's session meanwhile (adoptDiskFiles).
+   * A request finds it under its old address, or under the new link's with the signature both
+   * links differ in left out (stored). Nothing for another link (another host or path).
+   * @param {{url: string, session: ?string, entries: import('../../background/BufferStash.mjs').HandedEntry[]}} handOff
+   * @param {string} url - The new source's URL.
+   * @return {{taken: number, onDisk: Promise<number>}} How many it took back at once (RAM), and
+   *   how many of the disk's it has once those are moved.
+   */
+  adopt(handOff, url) {
+    const signature = signatureParams(handOff.url, url);
+    if (signature === null || !this.blobStore) {
+      return {taken: 0, onDisk: Promise.resolve(0)};
+    }
+    this.adoptedSignature = signature;
+    this.adopted = new Map();
+    let taken = 0;
+    /** @type {Array<{entry: DownloadEntry, identifier: string, file: string}>} */
+    const disk = [];
+    /** @type {Set<string>} */
+    const seen = new Set();
+    for (const record of handOff.entries) {
+      if (typeof record?.url !== 'string' || record.responseType !== 'arraybuffer') continue;
+      const entry = new DownloadEntry({url: record.url, rangeStart: record.rangeStart, rangeEnd: record.rangeEnd,
+        responseType: record.responseType, headers: {}});
+      const identifier = this.getIdentifier(entry);
+      entry.status = DownloadStatus.DOWNLOAD_COMPLETE;
+      entry.dataSize = record.dataSize || 0;
+      entry.blobId = identifier;
+      // One file under two issues of the link (a FreshLink renewal downloaded it again): taken
+      // once, the twin left out, or both were handed on at every reload after (glm's review).
+      const loose = this.looseIdentifier(entry);
+      if (seen.has(loose)) continue;
+      seen.add(loose);
+      if (record.blob instanceof Blob) {
+        if (this.storage.has(identifier)) continue;
+        // Stored in RAM by setEntry (archiveEntryData), as an archive's downloads are.
+        entry.data = record.blob;
+        this.keepAdopted(entry);
+        taken++;
+      } else if (typeof record.file === 'string' && handOff.session) {
+        disk.push({entry, identifier, file: record.file});
+      }
+    }
+    return {taken, onDisk: this.adoptDiskFiles(disk, handOff.session)};
+  }
+
+  /**
+   * Keeps a download taken back (adopt), found under the new link too (stored).
+   * @param {DownloadEntry} entry
+   */
+  keepAdopted(entry) {
+    this.setEntry(entry);
+    if (this.adoptedSignature?.size) {
+      /** @type {Map<string, DownloadEntry>} */ (this.adopted).set(this.looseIdentifier(entry), entry);
+    }
+  }
+
+  /**
+   * Moves the disk's files of a hand-off into this player's session, a few at a time and the
+   * first ones first, while the player starts: each takes a few ms (4 ms for 1 MB, measured), and
+   * a long video has thousands, which the player would have waited for. One the player asked for
+   * before its turn was downloaded again, and is left; what is left of the old session goes
+   * after (its heartbeat, the files not taken).
+   * @param {Array<{entry: DownloadEntry, identifier: string, file: string}>} disk
+   * @param {?string} session - The old session directory.
+   * @return {Promise<number>} How many it took.
+   */
+  async adoptDiskFiles(disk, session) {
+    const store = this.blobStore;
+    let taken = 0;
+    for (let i = 0; i < disk.length && session; i += AdoptAtOnce) {
+      await Promise.all(disk.slice(i, i + AdoptAtOnce).map(async ({entry, identifier, file}) => {
+        if (this.blobStore !== store || this.storage.has(identifier)) return;
+        if (!await store.adoptStoredFile(identifier, session, file)) return;
+        // Asked for and downloaded while it was being moved, or the store gone meanwhile.
+        if (this.blobStore !== store || this.storage.has(identifier)) {
+          store.deleteBlob(identifier);
+          return;
+        }
+        entry.data = () => store.getBlob(identifier);
+        this.keepAdopted(entry);
+        taken++;
+      }));
+    }
+    if (session && this.blobStore === store) {
+      store.dropSession(session);
+    }
+    return taken;
   }
 
   /**
@@ -220,11 +427,11 @@ export class DownloadManager {
    */
   removeFile(details) {
     const key = this.getIdentifier(details);
-    const storedEntry = this.storage.get(key);
+    const storedEntry = this.stored(details, key);
     if (storedEntry) {
       storedEntry.destroy();
       this.storage.delete(key);
-      this.blobStore.deleteBlob(key);
+      this.blobStore.deleteBlob(storedEntry.blobId ?? key);
     }
   }
 
@@ -255,7 +462,7 @@ export class DownloadManager {
   getFile(details, callbacks, priority) {
     priority = priority || 0;
     const key = this.getIdentifier(details);
-    let storedEntry = this.storage.get(key);
+    let storedEntry = this.stored(details, key);
     //  console.log("get file", key, storedEntry)
 
     if (!storedEntry || storedEntry.status === DownloadStatus.DOWNLOAD_FAILED) {
@@ -939,6 +1146,9 @@ export class DownloadManager {
 
   async clearStorage() {
     this.storage.clear();
+    // The downloads an earlier player handed over (adopt) went with them.
+    this.adopted = null;
+    this.adoptedSignature = null;
     await this.blobStore.clear();
   }
 
