@@ -317,6 +317,11 @@ export class TabHolder {
     // again (no "!": an older helper still plays the stream, 2026-10-13).
     /** @type {boolean} */
     this.mpvHostOutdated = false;
+    // Whether the page's video is copy-protected (StreamLengths.isProtected), and so stays
+    // in the page's own player: the toolbar button says so ("DRM", and why in its tooltip),
+    // where nothing else would tell why no player opened. False again on a new page.
+    /** @type {boolean} */
+    this.protectedVideo = false;
     // Which video decoder the mpv this tab handed its stream to uses (MpvBackend's
     // MpvDecoder), for the toolbar button's tooltip; null until mpv has said.
     /** @type {?import('./MpvBackend.mjs').MpvDecoder} */
@@ -374,6 +379,8 @@ export class TabHolder {
     // surviving hostname changes (upstream semantics for regexMatched).
     this.mpvAutoOpened = false;
     this.mpvSentUrls.clear();
+    // The toolbar's Off too: its next On looks at the page's video again (hasVideoSource).
+    this.protectedVideo = false;
     // A user's play whose stream has not been detected yet, and the last
     // stream a play sent, which keeps a player that calls play() twice from
     // opening a second window. A number from the constructor on, which runs this.
@@ -704,7 +711,7 @@ const TabStateKeyPrefix = 'tabState:';
 // wake opens a second mpv window for a page already handed off. mpvOnPlay too,
 // or a woken background forwards the page's first stream after all. mpvError and
 // mpvHostOutdated, or the toolbar's "!" for a failed hand-off and its tooltip for an outdated
-// host went at the wake; mpvDecoder, or its tooltip forgot which decoder mpv uses. And a play still waiting for its
+// host went at the wake; protectedVideo, or its "DRM"; mpvDecoder, or its tooltip forgot which decoder mpv uses. And a play still waiting for its
 // stream (mpvPlayPendingUntil, mpvPlayedVideo) and the last one sent (mpvLastPlaySend,
 // which keeps a player's second play() from opening a second window). mpvTurnedOff, or the
 // MPV Allowlist started MPV again on the site the user had turned it off on. playerPageFrames,
@@ -713,7 +720,7 @@ const TabStateKeyPrefix = 'tabState:';
 // a TabHolder - frames, detected sources - describes the current page and is rebuilt as
 // that page makes requests.
 const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened',
-  'mpvError', 'mpvHostOutdated', 'mpvDecoder', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend',
+  'mpvError', 'mpvHostOutdated', 'protectedVideo', 'mpvDecoder', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend',
   'mpvTurnedOff', 'windowStateBefore', 'carriedFullscreenFrameId', 'carryAwaited', 'playerPageFrames'];
 
 export class TabTracker {

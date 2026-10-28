@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest';
 
-import {loadBackground} from './backgroundHarness.mjs';
+import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
 // What the background detects from a page's requests (onBeforeSendHeaders, then
 // onHeadersReceived), and what it keeps of it, driven through its real listeners.
@@ -327,5 +327,126 @@ describe('a stream fetched with a header of the page\'s own', () => {
     const sources = await sourcesForPlayer();
     expect(sources.map((s) => s.url)).toEqual([url]);
     expect(sources[0].headers).toEqual([{name: 'Referer', value: 'https://site.test/'}, {name: 'X-Token', value: 'abc'}]);
+  });
+});
+
+// A copy-protected video (DRM) stays in the page's own player: FastStream's loaded it and
+// showed nothing (Vimeo, 2026-10-28). The background reads the master and its first variant
+// for the length anyway (StreamLengths), and the variant's keys tell.
+describe('a copy-protected video', () => {
+  const FILM = 'https://cdn.test/film/master.m3u8';
+  const TRAILER = 'https://cdn.test/trailer/master.m3u8';
+  const AD = 'https://ads.test/ad/index.m3u8';
+  const WIDEVINE = '#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI="data:text/plain;base64,AAAANHBzc2g=",' +
+    'KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"';
+  const master = (dir) => `#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,RESOLUTION=1920x1080\nhttps://cdn.test/${dir}/1080.m3u8\n`;
+  const drm = (seconds) => hlsPlaylist(seconds).replace('#EXT-X-VERSION:3', `#EXT-X-VERSION:3\n${WIDEVINE}`);
+
+  /**
+   * An auto-enabled page that asks for these streams, one after another.
+   * @param {Object<string, string>} network - The playlists by URL.
+   * @param {string[]} streams - What the page asks for.
+   * @param {number} [delayMs] - How long the background's reads take.
+   */
+  async function page(network, streams, delayMs = 0) {
+    bg = await loadBackground({
+      options: {autoEnableURLs: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
+      fetch: (url) => new Promise((resolve) => setTimeout(() =>
+        resolve(network[url] === undefined ? response('', 404) : response(network[url])), delayMs)),
+    });
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    for (const url of streams) {
+      const type = url.endsWith('.mpd') ? 'application/dash+xml' : 'application/vnd.apple.mpegurl';
+      await bg.request({tabId: 1, type: 'xmlhttprequest', url}, {responseHeaders: [{name: 'Content-Type', value: type}]});
+    }
+    // Past the opening delay and the wait for the lengths.
+    await bg.wait(3000);
+  }
+
+  it('opens no player in place of the page\'s, and the toolbar button says why', async () => {
+    await page({[FILM]: master('film'), 'https://cdn.test/film/1080.m3u8': drm(1400)}, [FILM]);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+    expect(bg.badges.get(1)).toBe('DRM');
+    expect(bg.titles.get(1)).toContain('copy-protected');
+  });
+
+  it('nor for the page\'s clear ad: the film is what the player would play', async () => {
+    // Left out of the pick, the copy-protected film let the ad win it, and the ad played.
+    await page({
+      [AD]: hlsPlaylist(30),
+      [FILM]: master('film'), 'https://cdn.test/film/1080.m3u8': drm(1400),
+    }, [AD, FILM]);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+  });
+
+  it('is a copy-protected trailer beside a clear film, which opens', async () => {
+    await page({
+      [TRAILER]: master('trailer'), 'https://cdn.test/trailer/1080.m3u8': drm(120),
+      [FILM]: master('film'), 'https://cdn.test/film/1080.m3u8': hlsPlaylist(1400),
+    }, [TRAILER, FILM]);
+    expect(bg.sent('OPEN_PLAYER')).toHaveLength(1);
+    expect(bg.badges.get(1)).toBe('On');
+  });
+
+  it('opens the player for an AES-128 stream, which FastStream decrypts itself', async () => {
+    const aes = hlsPlaylist(1400).replace('#EXT-X-VERSION:3', '#EXT-X-VERSION:3\n#EXT-X-KEY:METHOD=AES-128,URI="key.bin"');
+    await page({[FILM]: master('film'), 'https://cdn.test/film/1080.m3u8': aes}, [FILM]);
+    expect(bg.sent('OPEN_PLAYER')).toHaveLength(1);
+  });
+
+  it('is a DASH stream too, its manifest read slower than the opening delay', async () => {
+    // The read answers after replaceDelay (500 ms), within the wait for the lengths: not
+    // waited for, the stream counted as clear, and the player opened on it.
+    const mpd = '<MPD type="static" mediaPresentationDuration="PT24M"><Period><AdaptationSet contentType="video">' +
+      '<ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cenc"/>' +
+      '<Representation id="1" width="1920"/></AdaptationSet></Period></MPD>';
+    await page({'https://cdn.test/film/manifest.mpd': mpd}, ['https://cdn.test/film/manifest.mpd'], 1200);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+    expect(bg.badges.get(1)).toBe('DRM');
+  });
+
+  it('says nothing over FastStream\'s player when another frame asks for a copy-protected stream', async () => {
+    // A frame with a player takes no more streams (onHeadersReceived), another frame does: an
+    // embed's copy-protected trailer gets no player, and no "DRM" over the film FastStream plays.
+    await page({
+      [FILM]: master('film'), 'https://cdn.test/film/1080.m3u8': hlsPlaylist(1400),
+      [TRAILER]: master('trailer'), 'https://cdn.test/trailer/1080.m3u8': drm(3000),
+    }, [FILM]);
+    expect(bg.sent('OPEN_PLAYER')).toHaveLength(1);
+    await bg.message({type: 'PLAYER_LOADED', url: PLAYER_IN_PAGE, parentFrameId: 0}, {tabId: 1, frameId: 5});
+    await bg.frameAdded(1, 7, 'https://embed.test/e/1', 'embed-1');
+    await bg.request({tabId: 1, frameId: 7, parentFrameId: 0, type: 'xmlhttprequest', url: TRAILER},
+        {responseHeaders: [{name: 'Content-Type', value: 'application/vnd.apple.mpegurl'}]});
+    await bg.wait(3000);
+    expect(bg.sent('OPEN_PLAYER')).toHaveLength(1);
+    expect(bg.badges.get(1)).toBe('On');
+  });
+
+  it('says nothing either when another frame\'s clear video opens a player', async () => {
+    bg = await loadBackground({
+      options: {autoEnableURLs: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
+      fetch: async (url) => {
+        const network = {[FILM]: master('film'), 'https://cdn.test/film/1080.m3u8': drm(1400),
+          [TRAILER]: master('trailer'), 'https://cdn.test/trailer/1080.m3u8': hlsPlaylist(1400)};
+        return network[url] === undefined ? response('', 404) : response(network[url]);
+      },
+    });
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await bg.frameAdded(1, 7, 'https://embed.test/e/1', 'embed-1');
+    const hls = {responseHeaders: [{name: 'Content-Type', value: 'application/vnd.apple.mpegurl'}]};
+    await bg.request({tabId: 1, type: 'xmlhttprequest', url: FILM}, hls);
+    await bg.request({tabId: 1, frameId: 7, parentFrameId: 0, type: 'xmlhttprequest', url: TRAILER}, hls);
+    await bg.wait(3000);
+    expect(bg.sent('OPEN_PLAYER').map((m) => m.frameId)).toEqual([7]);
+    expect(bg.badges.get(1)).toBe('On');
+  });
+
+  it('is forgotten on the next page', async () => {
+    await page({[FILM]: master('film'), 'https://cdn.test/film/1080.m3u8': drm(1400)}, [FILM]);
+    expect(bg.badges.get(1)).toBe('DRM');
+    await bg.navigated(1, 'https://site.test/watch/2');
+    expect(bg.badges.get(1)).toBe('On');
   });
 });

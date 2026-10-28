@@ -1088,6 +1088,9 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - поток не открылся: $1"
     },
+    "extension_toggle_label_drm": {
+        "message": "FastStream - Это видео защищено от копирования (DRM), и FastStream не может его воспроизвести: оно остаётся в плеере сайта"
+    },
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - mpv-хост на этом компьютере устарел: запустите «Update mpv» из меню «Пуск» (в копии репозитория FastStream: update-local.cmd или native-host\\install.ps1)"
     },
@@ -1195,6 +1198,9 @@
     },
     "player_mpv_vpn": {
         "message": "Это видео передаётся через Firefox VPN, а mpv не может использовать Firefox VPN: сайт откажет mpv. Чтобы посмотреть его в mpv, отключите Firefox VPN для этого сайта и перезагрузите страницу."
+    },
+    "player_mpv_drm": {
+        "message": "Это видео защищено от копирования (DRM), и mpv не может его воспроизвести: оно остаётся в плеере сайта."
     },
     "mpv_episode_loading": {
         "message": "загрузка в mpv"

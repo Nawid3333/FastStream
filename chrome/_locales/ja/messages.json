@@ -1088,6 +1088,9 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - ストリームを開けませんでした: $1"
     },
+    "extension_toggle_label_drm": {
+        "message": "FastStream - この動画はコピー保護（DRM）されているため、FastStream では再生できません。サイト自身のプレーヤーで再生されます"
+    },
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - このコンピューターの mpv ヘルパーが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）"
     },
@@ -1195,6 +1198,9 @@
     },
     "player_mpv_vpn": {
         "message": "この動画は Firefox VPN 経由で送られてきますが、mpv は Firefox VPN を使用できません。そのためサイトは mpv を拒否します。mpv で視聴するには、このサイトで Firefox VPN をオフにして、ページを再読み込みしてください。"
+    },
+    "player_mpv_drm": {
+        "message": "この動画はコピー保護（DRM）されているため、mpv では再生できません。サイト自身のプレーヤーで再生されます。"
     },
     "mpv_episode_loading": {
         "message": "mpvで読み込み中"

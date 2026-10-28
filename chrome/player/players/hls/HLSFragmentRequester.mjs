@@ -1,15 +1,8 @@
 // @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
+import {isDecryptable} from '../../utils/Decryptable.mjs';
 import {HLSDecrypter} from './HLSDecrypter.mjs';
-
-// The encryption FastStream decrypts itself (decrypter-worker.js: AES-CBC, the key's own
-// bytes): whole segments under an AES-128 or AES-256 key the playlist names. hls.js also
-// hands out decryptdata for SAMPLE-AES, where only the samples are encrypted, for
-// AES-256-CTR, and for the DRM key formats (Widevine, PlayReady, FairPlay); decrypting
-// those as whole AES-CBC segments gave garbage or nothing, and a generic load error
-// instead of the DRM message.
-const DECRYPTABLE_METHODS = ['AES-128', 'AES-256'];
 
 /** @typedef {import('../../modules/hls.mjs').Fragment} HlsFragment */
 /** @typedef {import('../../network/DownloadEntry.mjs').DownloadEntry} DownloadEntry */
@@ -53,7 +46,8 @@ export class HLSFragmentRequester {
     const takeOver = (frag) => {
       if (!frag?.encrypted) return;
       const decryptdata = frag.decryptdata;
-      if (decryptdata?.keyFormat === 'identity' && DECRYPTABLE_METHODS.includes(decryptdata.method)) {
+      // The rule the background's read of the playlist goes by too (StreamLength.hlsProtected).
+      if (decryptdata && isDecryptable(decryptdata.method, decryptdata.keyFormat)) {
         frag.fs_oldcryptdata = decryptdata;
         frag.fs_oldlevelKeys = frag.levelkeys;
       } else {

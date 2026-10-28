@@ -45,6 +45,9 @@ export class StreamLengths {
     this.setHeaders = setHeaders;
     /** @type {Map<string, {duration: (number|null|undefined), promise: Promise<number|null>}>} */
     this.known = new Map();
+    // The streams read as copy-protected (isProtected), by the URL detected: one of the known.
+    /** @type {Set<string>} */
+    this.protectedUrls = new Set();
     // The HLS master playlists read (by the URL detected), with their variants and their audio's
     // and subtitles' playlists (absolute URLs), and the master of each: hlsQualities.
     /** @type {Map<string, MasterInfo>} */
@@ -145,6 +148,33 @@ export class StreamLengths {
   }
 
   /**
+   * Whether a stream was read as copy-protected (DRM): an HLS stream whose media playlist
+   * has segments FastStream cannot decrypt (StreamLength.hlsProtected), its master's read
+   * through its variant's; a DASH one whose video is (StreamLength.dashProtected). Neither
+   * FastStream's player nor mpv plays it, and the page's own player does: it stays.
+   * @param {string} url - A stream's URL.
+   * @return {boolean} False too while it is not read yet.
+   */
+  isProtected(url) {
+    return this.protectedUrls.has(url);
+  }
+
+  /**
+   * Notes what a finished read told of a stream's copy protection, either way. Not for a URL
+   * forgotten while it was read (MAX_KNOWN): nothing would forget its mark, and the stream,
+   * detected again and read as clear, still counted as protected (glm's review of #606).
+   * @param {string} url - The stream's URL, as detected.
+   * @param {boolean} copyProtected - What its manifest says.
+   */
+  noteProtection(url, copyProtected) {
+    if (copyProtected && this.known.has(url)) {
+      this.protectedUrls.add(url);
+    } else {
+      this.protectedUrls.delete(url);
+    }
+  }
+
+  /**
    * The lengths of a page's sources, as lengthOf tells them, but a file not read yet, or
    * not readable, counts as a piece of a stream when another of them was read as one and
    * has the same URL but for its numbers (seg-14.mp4, seg-15.mp4). An HLS or DASH player
@@ -199,7 +229,9 @@ export class StreamLengths {
     });
     this.known.set(source.url, entry);
     if (this.known.size > MAX_KNOWN) {
-      this.known.delete(/** @type {string} */ (this.known.keys().next().value));
+      const oldest = /** @type {string} */ (this.known.keys().next().value);
+      this.known.delete(oldest);
+      this.protectedUrls.delete(oldest);
     }
     return entry.promise;
   }
@@ -285,15 +317,22 @@ export class StreamLengths {
       let url = source.url;
       for (let read = 0; read < MAX_PLAYLIST_READS; read++) {
         const response = await this.get(url, request, null);
-        const playlist = response && StreamLength.fromHls(response.text());
+        if (!response) {
+          return null;
+        }
+        const text = response.text();
+        const playlist = StreamLength.fromHls(text);
         if (!playlist) {
           return null;
         }
         if ('duration' in playlist) {
+          // A media playlist: the stream's, or its master's first variant's. Its keys tell
+          // whether its segments are copy-protected; the master names none of them.
+          this.noteProtection(source.url, StreamLength.hlsProtected(text));
           return playlist.duration;
         }
         if (read === 0) {
-          this.noteMaster(source.url, response.text(), response.url);
+          this.noteMaster(source.url, text, response.url);
         }
         url = new URL(playlist.variant, response.url).href;
       }
@@ -302,7 +341,12 @@ export class StreamLengths {
 
     if (source.mode === PlayerModes.ACCELERATED_DASH) {
       const response = await this.get(source.url, request, null);
-      return response && StreamLength.fromDash(response.text());
+      if (!response) {
+        return null;
+      }
+      const text = response.text();
+      this.noteProtection(source.url, StreamLength.dashProtected(text));
+      return StreamLength.fromDash(text);
     }
 
     if (source.mode === PlayerModes.ACCELERATED_MP4 || source.mode === PlayerModes.DIRECT) {

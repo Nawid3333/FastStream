@@ -8,6 +8,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
 import {HLSFragment} from '../../chrome/player/players/hls/HLSFragment.mjs';
 import {HLSFragmentRequester} from '../../chrome/player/players/hls/HLSFragmentRequester.mjs';
+import {StreamLength} from '../../chrome/player/utils/StreamLength.mjs';
 
 // HLSPlayer.trackUpdated hands each playlist to HLSFragmentRequester.takeOverDecryption,
 // which takes the decryption of its AES-128 segments over from hls.js; HLSFragmentRequester
@@ -192,5 +193,66 @@ describe('HLSFragmentRequester, an init segment under the playlist\'s key', () =
     const player = {emit: vi.fn(), source: {headers: {}}, getClient: () => ({downloadManager: {getFile: vi.fn()}})};
     expect(() => new HLSFragmentRequester(player).requestFragment(fragment, {})).toThrow(/decryptdata/);
     expect(fragment.status).toBe(DownloadStatus.WAITING);
+  });
+});
+
+// The background reads a playlist before any player opens (StreamLength.hlsProtected), and
+// leaves one it takes for copy-protected to the page's own player. Its rule has to be the
+// player's: taken for DRM where the player decrypts it, the page kept a stream FastStream
+// plays; taken for clear where the player cannot, the player opened and showed nothing.
+describe('StreamLength.hlsProtected, as the player decides', () => {
+  const WIDEVINE = 'METHOD=SAMPLE-AES-CTR,URI="data:text/plain;base64,AAAANHBzc2g=",KEYID=0x46d7,' +
+    'KEYFORMATVERSIONS="1",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"';
+  const PLAYREADY = 'METHOD=SAMPLE-AES-CTR,URI="data:text/plain;charset=UTF-16;base64,BgIAAA==",KEYFORMAT="com.microsoft.playready"';
+  const FAIRPLAY = 'METHOD=SAMPLE-AES,KEYFORMAT="com.apple.streamingkeydelivery",KEYFORMATVERSIONS="1",URI="skd://key42"';
+
+  /**
+   * A media playlist: its lines between the header and the end, segments where 'seg' is.
+   * @param {string[]} body - EXT-X-KEY attribute lists ('KEY:...'), and 'seg' for a segment.
+   * @return {string}
+   */
+  function playlist(body) {
+    let n = 0;
+    const lines = body.flatMap((line) => line === 'seg' ? ['#EXTINF:4,', `seg${n++}.m4s`] : [`#EXT-X-${line}`]);
+    return ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-TARGETDURATION:4', '#EXT-X-MEDIA-SEQUENCE:0',
+      ...lines, '#EXT-X-ENDLIST', ''].join('\n');
+  }
+
+  const cases = {
+    'AES-128': ['KEY:' + AES_128, 'MAP:URI="init.mp4"', 'seg', 'seg'],
+    'AES-256': [`KEY:METHOD=AES-256,URI="key.bin",IV=0x${IV_HEX}`, 'seg', 'seg'],
+    'no key': ['MAP:URI="init.mp4"', 'seg', 'seg'],
+    'METHOD=NONE': ['KEY:METHOD=NONE', 'seg', 'seg'],
+    'AES-128, then none': ['KEY:' + AES_128, 'seg', 'KEY:METHOD=NONE', 'seg'],
+    'AES-128 beside a FairPlay key': ['KEY:' + AES_128, 'KEY:' + FAIRPLAY, 'seg', 'seg'],
+    'SAMPLE-AES': [`KEY:METHOD=SAMPLE-AES,URI="key.bin",IV=0x${IV_HEX}`, 'seg', 'seg'],
+    'AES-256-CTR': [`KEY:METHOD=AES-256-CTR,URI="key.bin",IV=0x${IV_HEX}`, 'seg', 'seg'],
+    'FairPlay': ['KEY:' + FAIRPLAY, 'seg', 'seg'],
+    'Widevine alone': ['KEY:' + WIDEVINE.replace('SAMPLE-AES-CTR', 'SAMPLE-AES-CENC'), 'MAP:URI="init.mp4"', 'seg'],
+    'Vimeo: Widevine and PlayReady': ['KEY:' + WIDEVINE, 'KEY:' + PLAYREADY, 'MAP:URI="init.mp4"', 'seg', 'seg'],
+    'clear, then Widevine': ['seg', 'KEY:' + WIDEVINE, 'seg'],
+  };
+
+  for (const [name, body] of Object.entries(cases)) {
+    it(name, () => {
+      const text = playlist(body);
+      const fragments = M3U8Parser.parseLevelPlaylist(text, 'http://127.0.0.1/stream/index.m3u8', 0, 'main', 0, null).fragments;
+      const playerDecrypts = HLSFragmentRequester.takeOverDecryption(fragments);
+      expect(StreamLength.hlsProtected(text)).toBe(!playerDecrypts);
+    });
+  }
+
+  it('reads Vimeo\'s and FairPlay\'s as protected, and AES-128 beside FairPlay as clear', () => {
+    // The table above holds only if these come out as measured, whatever takeOverDecryption says.
+    expect(StreamLength.hlsProtected(playlist(cases['Vimeo: Widevine and PlayReady']))).toBe(true);
+    expect(StreamLength.hlsProtected(playlist(cases['FairPlay']))).toBe(true);
+    expect(StreamLength.hlsProtected(playlist(cases['AES-128 beside a FairPlay key']))).toBe(false);
+  });
+
+  it('takes a key format hls.js does not know for one FastStream cannot decrypt', () => {
+    // hls.js drops such a key ("Ignoring unsupported EXT-X-KEY") and hands the segments on as
+    // clear: still encrypted, they play nothing. The one place the two rules part, on purpose.
+    const text = playlist(['KEY:METHOD=SAMPLE-AES,KEYFORMAT="com.example.drm",URI="skd://x"', 'seg', 'seg']);
+    expect(StreamLength.hlsProtected(text)).toBe(true);
   });
 });

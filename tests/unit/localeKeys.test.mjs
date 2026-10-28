@@ -145,7 +145,7 @@ describe('Every locale', () => {
   // text, and one whose $1/$2 differ from English's loses or garbles what is put in.
   const placeholders = (message) => (message.match(/[$]\d/g) || []).sort().join(' ');
   for (const locale of fs.readdirSync(path.join(chromeDir, '_locales'))) {
-    it(`${locale} has English's keys, each with English's placeholders`, () => {
+    it(`${locale} has English's keys, each with English's placeholders and none garbled`, () => {
       const messages = JSON.parse(fs.readFileSync(path.join(chromeDir, '_locales', locale, 'messages.json'), 'utf8'));
       expect(Object.keys(messages).sort()).toEqual(Object.keys(english).sort());
       const empty = Object.keys(messages).filter((key) => !messages[key].message?.trim());
@@ -153,6 +153,10 @@ describe('Every locale', () => {
       const differing = Object.keys(english).filter((key) => Object.hasOwn(messages, key) &&
           placeholders(messages[key].message) !== placeholders(english[key].message));
       expect(differing).toEqual([]);
+      // U+FFFD is what a text read in the wrong encoding keeps of the letters it could not
+      // read: 7 locales' translations came back as "vid�ro" and worse (2026-10-28).
+      const garbled = Object.keys(messages).filter((key) => messages[key].message?.includes('�'));
+      expect(garbled).toEqual([]);
     });
   }
 });
