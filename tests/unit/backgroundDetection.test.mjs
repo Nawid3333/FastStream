@@ -232,16 +232,50 @@ describe('a stream reached through a redirect', () => {
     expect(sources[0].headers).toEqual([{name: 'Referer', value: 'https://site.test/'}]);
   });
 
-  it('is none while only the redirect has come', async () => {
-    // A CDN slower than the player's opening: the player opened on the link, and the CDN's
-    // answer came to a frame with a player, whose streams are not taken any more.
+  it('waits for a CDN slower than the player\'s opening', async () => {
+    // The player opened on the link, and the CDN's answer came to a frame with a player,
+    // whose streams are not taken any more.
+    bg = await loadBackground({options: {autoEnableURLs: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    const atCdn = bg.redirected(bg.requestSent({tabId: 1, type: 'media', url: LINK}), CDN);
+    // Past the opening delay (replaceDelay, 500 ms) and the wait for the stream's length.
+    await bg.wait(3000);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+    await bg.responded(atCdn, {statusCode: 206, responseHeaders: [{name: 'Content-Type', value: 'video/mp4'}]});
+    await bg.wait(3000);
+    expect(bg.sent('OPEN_PLAYER')).toHaveLength(1);
+    const sources = await sourcesForPlayer();
+    expect(sources.map((s) => s.url)).toEqual([CDN]);
+  });
+
+  it('is the file a 3xx without a Location is', async () => {
+    // Firefox follows no redirect there: the response is the file.
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
     await bg.frameAdded(1, 0, PAGE, 'page-1');
-    bg.redirected(bg.requestSent({tabId: 1, type: 'media', url: LINK}), CDN);
-    await bg.wait(100);
-    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+    await bg.request({tabId: 1, type: 'media', url: LINK},
+        {statusCode: 302, responseHeaders: [{name: 'Content-Type', value: 'video/mp4'}]});
     const sources = await sourcesForPlayer();
-    expect(sources).toEqual([]);
+    expect(sources.map((s) => s.url)).toEqual([LINK]);
+  });
+
+  it('goes by the query of a proxy link redirected to an address that names nothing', async () => {
+    const proxy = 'https://proxy.test/get?url=https%3A%2F%2Fcdn.test%2Fv%2Findex.m3u8';
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    const sent = bg.requestSent({tabId: 1, url: proxy});
+    await bg.responded(bg.redirected(sent, CDN), {responseHeaders: [{name: 'Content-Type', value: 'application/octet-stream'}]});
+    const sources = await sourcesForPlayer();
+    expect(sources.map((s) => [s.url, s.mode])).toEqual([[CDN, 'accelerated_hls']]);
+  });
+
+  it('goes by the type a link opened in the tab named', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    const sent = bg.requestSent({tabId: 1, type: 'main_frame', url: 'https://hoster.test/go/7/master.m3u8'});
+    await bg.responded(bg.redirected(sent, CDN), {responseHeaders: [{name: 'Content-Type', value: 'application/octet-stream'}]});
+    const sources = await sourcesForPlayer();
+    expect(sources.map((s) => [s.url, s.mode])).toEqual([[CDN, 'accelerated_hls']]);
   });
 
   it('goes by the type the link named, when the CDN\'s address names none', async () => {
@@ -261,6 +295,17 @@ describe('a stream reached through a redirect', () => {
     const sent = bg.requestSent({tabId: 1, type: 'media', url: LINK});
     await bg.responded(bg.redirected(sent, 'https://hoster.test/expired'),
         {responseHeaders: [{name: 'Content-Type', value: 'text/html; charset=utf-8'}]});
+    expect(await sourcesForPlayer()).toEqual([]);
+  });
+
+  it('is none when the link\'s own address answers with a page', async () => {
+    // The "expired" page at …/clip.mp4 itself: the .mp4 named it a video, in a <video> and
+    // opened in a frame alike.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    for (const type of ['media', 'sub_frame']) {
+      await bg.request({tabId: 1, type, url: LINK}, {responseHeaders: [{name: 'Content-Type', value: 'text/html'}]});
+    }
     expect(await sourcesForPlayer()).toEqual([]);
   });
 });

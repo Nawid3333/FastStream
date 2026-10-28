@@ -9,7 +9,8 @@
 //   player, and streams found then are dropped.
 // - a link that has run out, redirected to the hoster's "expired" page, opened a player on it.
 // The redirect's response is no stream; the request's final one is, by its own URL or
-// Content-Type, or by the type the link named.
+// Content-Type, or by the type the link named - in a frame's load as well, where Firefox
+// shows the video itself.
 //
 // The same site checks a fetch with a header of its own, which Firefox precedes with a CORS
 // preflight (OPTIONS): the stream's headers are the fetch's, not the preflight's.
@@ -69,9 +70,20 @@ function sendVideo(req, res) {
 async function playerState() {
   await browser.switchFrame(null);
   if (!(await browser.$('iframe[src*="player/index.html"]').isExisting())) {
-    return {player: false};
+    // The link opened in the page's iframe: the player is in that frame, or is its page.
+    if (!(await browser.$('iframe#link').isExisting())) {
+      return {player: false};
+    }
+    await browser.switchFrame(await browser.$('iframe#link'));
+    const isPlayer = await browser.execute(() => !!window.fastStream);
+    if (!isPlayer && !(await browser.$('iframe[src*="player/index.html"]').isExisting())) {
+      await browser.switchFrame(null);
+      return {player: false};
+    }
   }
-  await browser.switchFrame(await browser.$('iframe[src*="player/index.html"]'));
+  if (await browser.$('iframe[src*="player/index.html"]').isExisting()) {
+    await browser.switchFrame(await browser.$('iframe[src*="player/index.html"]'));
+  }
   const state = await browser.execute(() => {
     const client = window.fastStream;
     const video = client?.player?.getVideo?.();
@@ -128,6 +140,10 @@ describe('A stream the page asks for through a redirect', function() {
       const page = /^\/page\/(\w+)$/.exec(url.pathname);
       if (page) {
         answer(200, {'Content-Type': 'text/html; charset=utf-8'});
+        if (page[1] === 'frame') {
+          return res.end(`<!doctype html><title>frame</title>
+            <iframe id="link" src="/go/frame/clip.mp4" width="640" height="360" allowfullscreen frameborder="0"></iframe>`);
+        }
         if (page[1] === 'preflight') {
           return res.end(`<!doctype html><title>preflight</title>
             <video muted style="width: 640px; height: 360px"></video>
@@ -209,6 +225,14 @@ describe('A stream the page asks for through a redirect', function() {
     const state = await playsOn('/page/slow');
     expect(state.source).toContain('/cdn/slow/v7?tok=');
     expect(state.sources.filter((url) => url.includes('/go/'))).toEqual([]);
+    expect(state.failed).toBe(false);
+  });
+
+  it('plays a link opened in an iframe, which names no type at the CDN', async function() {
+    // Firefox shows the video in the frame itself: the frame's load is the request, and the
+    // CDN's address names nothing (the redirect noted for frame loads too).
+    const state = await playsOn('/page/frame');
+    expect(state.source).toContain('/cdn/frame/v7?tok=');
     expect(state.failed).toBe(false);
   });
 
