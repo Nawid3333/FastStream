@@ -178,7 +178,8 @@ describe('A Matroska file its server calls an MP4', function() {
     } finally {
       await browser.switchFrame(null);
       for (const r of filmRequests) {
-        console.log(`      request +${r.at - opened} ms ${r.range} referer ${r.referer ? 'page' : 'none'}`);
+        // The range JSON-quoted: a request's header cannot forge log lines (CodeQL js/log-injection).
+        console.log(`      request +${r.at - opened} ms ${JSON.stringify(r.range)} referer ${r.referer ? 'page' : 'none'}`);
       }
     }
     // Every one of the film's requests had the page's Referer: none went to the decoy.
