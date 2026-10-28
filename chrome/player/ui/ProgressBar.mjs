@@ -6,6 +6,7 @@ import {StringUtils} from '../utils/StringUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
+import {PressTracker} from './PressTracker.mjs';
 
 /** @typedef {import('../FastStreamClient.mjs').FastStreamClient} FastStreamClient */
 /** @typedef {import('../players/Fragment.mjs').Fragment} Fragment */
@@ -446,13 +447,6 @@ export class ProgressBar extends EventEmitter {
 
     /** @type {(event: MouseEvent | TouchEvent) => void} */
     const onProgressbarMouseMove = (event) => {
-      // No button held: it was let go outside the player, where neither mouseup nor
-      // mouseleave may reach this frame. The drag ends where it was, without seeking:
-      // every move went on seeking, and the next click played the video.
-      if (event.type === 'mousemove' && (/** @type {MouseEvent} */ (event)).buttons === 0) {
-        endDrag(null);
-        return;
-      }
       this.hidePreview();
       const currentY = Math.min(Math.max((/** @type {MouseEvent} */ (event)).clientY - WebUtils.getOffsetTop(/** @type {HTMLElement} */ (DOMElements.progressContainer)), -100), 50);
       const currentX = Math.min(Math.max((/** @type {MouseEvent} */ (event)).clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.progressContainer)), 0), /** @type {HTMLElement} */ (DOMElements.progressContainer).clientWidth);
@@ -474,20 +468,11 @@ export class ProgressBar extends EventEmitter {
       shiftTime(currentX);
     };
 
-    // Ends the drag, at the release point of a mouseup (event) or where it was (null).
-    let ended = false;
+    // Ends the drag, at the release point of a mouseup (event), or where it was (null): the
+    // press ended without one (PressTracker), or the player went on to another video.
     /** @type {(event: MouseEvent | TouchEvent | null, resume?: boolean) => void} */
     const endDrag = (event, resume = true) => {
-      // Once: a mouseup in the player reaches its listener and the document's.
-      if (ended) return;
-      ended = true;
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mousemove', onProgressbarMouseMove);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('touchmove', onProgressbarMouseMove);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseup', onProgressbarMouseUp);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseleave', onProgressbarMouseUp);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('touchend', onProgressbarMouseUp);
-      document.removeEventListener('mouseup', onProgressbarMouseUp);
-      if (this.endDrag === endDrag) this.endDrag = null;
+      if (this.endDrag === cancelDrag) this.endDrag = null;
       if (!this.keepPreciseModeOpen) {
         this.endPreciseMode();
       }
@@ -513,18 +498,21 @@ export class ProgressBar extends EventEmitter {
         this.client.player?.play();
       }
     };
-    /** @type {(event: MouseEvent | TouchEvent) => void} */
-    const onProgressbarMouseUp = (event) => endDrag(event);
-    this.endDrag = endDrag;
     shiftTime(initialPosition);
-    // Anywhere in this document: a drag keeps the mouse events in the frame it started in,
-    // wherever the button is let go (FineTimeControls).
-    document.addEventListener('mouseup', onProgressbarMouseUp);
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', onProgressbarMouseUp);
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('touchend', onProgressbarMouseUp, {passive: true});
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseleave', onProgressbarMouseUp);
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', onProgressbarMouseMove);
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('touchmove', onProgressbarMouseMove, {passive: true});
+    // Seeks along until the button is let go, wherever, or the press ends without a release
+    // (PressTracker). Without one, the drag stays where it was: every move went on seeking
+    // with no button held, and the next click played the video.
+    let resumeAtEnd = true;
+    const press = PressTracker.follow(event, {
+      move: onProgressbarMouseMove,
+      end: (release) => endDrag(release, resumeAtEnd),
+    });
+    /** @type {(event: null, resume?: boolean) => void} */
+    const cancelDrag = (_event, resume = true) => {
+      resumeAtEnd = resume;
+      press.cancel();
+    };
+    this.endDrag = cancelDrag;
   }
 
   onProgressbarMouseLeave() {

@@ -9,7 +9,9 @@ import {FakeDocument} from './helpers/fakeDom.mjs';
 // - They ended only on a mouseup inside the player. Let go outside it, the next mouse
 //   move over the player went on dragging with no button held.
 // They now start on the left button only, and end on a mouseup anywhere in the document
-// or on a move with no button held, as FineTimeControls' timeline grab does (#183).
+// or on a move with no button held, as FineTimeControls' timeline grab does (#183) - and,
+// since every press goes by PressTracker (2026-10-28), the moment the window loses the focus
+// (a window switch takes the mouseup elsewhere).
 
 const doc = new FakeDocument('<html><body></body></html>');
 vi.stubGlobal('document', doc);
@@ -45,10 +47,13 @@ const releaseInside = (props) => player.fire('mouseup', {button: 0, buttons: 0, 
 const releaseOutside = (props) => doc.fire('mouseup', {button: 0, buttons: 0, timeStamp: 2, ...props});
 
 beforeEach(() => {
-  for (const target of [player, doc]) {
+  for (const target of [player, doc, doc.defaultView]) {
     for (const type of Object.keys(target.listeners)) target.listeners[type].length = 0;
   }
+  for (const type of Object.keys(doc.captureListeners)) doc.captureListeners[type].length = 0;
 });
+// The window switched mid-drag: its mouseup goes to the other window.
+const switchWindow = () => doc.defaultView.fire('blur');
 
 describe('the volume bar', () => {
   // 300 px wide from x = 110 (the handler takes 10 off): a pixel is 1% of the 300%.
@@ -105,6 +110,14 @@ describe('the volume bar', () => {
     move({clientX: 170});
     move({clientX: 200, buttons: 0});
     expect(controls.volume).toBeCloseTo(0.6);
+    move({clientX: 250});
+    expect(controls.volume).toBeCloseTo(0.6);
+  });
+
+  it('stops where it was when the window is switched mid-drag', () => {
+    press();
+    move({clientX: 170});
+    switchWindow();
     move({clientX: 250});
     expect(controls.volume).toBeCloseTo(0.6);
   });
@@ -167,6 +180,15 @@ describe('the subtitles\' position', () => {
     move({clientY: 400});
     expect(wrapper.style.marginBottom).toBe('5px');
   });
+
+  it('stops where it was when the window is switched mid-drag', () => {
+    const wrapper = make();
+    press(wrapper);
+    move({clientY: 450});
+    switchWindow();
+    move({clientY: 400});
+    expect(wrapper.style.marginBottom).toBe('55px');
+  });
 });
 
 describe('the silence-skip threshold line', () => {
@@ -208,6 +230,16 @@ describe('the silence-skip threshold line', () => {
     move({clientY: 480, buttons: 0});
     move({clientY: 460});
     expect(skipper.silenceThreshold).toBe(0.5);
+  });
+
+  it('stops where it was when the window is switched mid-drag, and is saved', () => {
+    const skipper = make();
+    press(skipper);
+    move({clientY: 480});
+    switchWindow();
+    move({clientY: 460});
+    expect(skipper.silenceThreshold).toBeCloseTo(0.7);
+    expect(skipper.saveState).toHaveBeenCalledTimes(1);
   });
 });
 

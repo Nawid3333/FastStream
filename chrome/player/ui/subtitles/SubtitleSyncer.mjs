@@ -5,7 +5,7 @@ import {WebVTT} from '../../modules/vtt.mjs';
 import {AlertPolyfill} from '../../utils/AlertPolyfill.mjs';
 import {SubtitleSyncUtils} from '../../utils/SubtitleSyncUtils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
-import {DOMElements} from '../DOMElements.mjs';
+import {PressTracker} from '../PressTracker.mjs';
 
 // The shortest a cue can be dragged to, in seconds.
 const MinCueDuration = 0.1;
@@ -112,6 +112,11 @@ export class SubtitleSyncer extends EventEmitter {
         grabbedCue = null;
         grabbedEdge = null;
       }
+      // Until the button is let go, wherever, or the press ends without a release
+      // (PressTracker). It ended on a mouseup or a mouseleave of the player, and at a move
+      // with no button held: the subtitles menu and the subtitle rows stop mouseup, and the
+      // track went on following the pointer.
+      PressTracker.follow(e, {move: onTrackMove, end: clearGrabbing});
     });
 
     // double click to edit
@@ -204,18 +209,12 @@ export class SubtitleSyncer extends EventEmitter {
       }
     };
 
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', clearGrabbing);
-
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseleave', clearGrabbing);
-
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', (e) => {
-      // No button held: it was let go where this drag never heard of it (the subtitles menu
-      // and the subtitle rows stop mouseup), and the track went on following the pointer.
-      // The subtitles' own drag ends the same way (SubtitlesManager).
-      if (isGrabbingTrack && e.buttons === 0) {
-        clearGrabbing();
-        return;
-      }
+    /**
+     * A move while the track is grabbed: the track, or the grabbed cue or its edge, follows.
+     * @param {MouseEvent|TouchEvent} event
+     */
+    const onTrackMove = (event) => {
+      const e = /** @type {MouseEvent} */ (event);
       if (!this.client.player) return;
       const video = this.client.player.getVideo();
       if (isGrabbingTrack && this.trackToSync) {
@@ -246,7 +245,7 @@ export class SubtitleSyncer extends EventEmitter {
         this.redrawTrack();
         this.client.interfaceController.subtitlesManager.renderSubtitles();
       }
-    });
+    };
   }
 
   /**

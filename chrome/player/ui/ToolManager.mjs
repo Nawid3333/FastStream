@@ -4,8 +4,8 @@ import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {MediaKeys} from './MediaKeys.mjs';
+import {PressTracker} from './PressTracker.mjs';
 
-/** @typedef {HTMLElement & {_toolSkipClick: boolean}} ToolElement */
 /** @typedef {import('../options/defaults/ToolSettings.mjs').ToolSetting} ToolSetting */
 export class ToolManager {
   /**
@@ -52,49 +52,37 @@ export class ToolManager {
       this.sortableExtra.option('disabled', true);
     }
 
-    const tools = /** @type {ToolElement[]} */ (Array.from(/** @type {Element} */ (DOMElements.leftToolsContainer).children).concat(Array.from(/** @type {Element} */ (DOMElements.rightToolsContainer).children), Array.from(/** @type {Element} */ (DOMElements.extraTools).children)));
-
-    // Only one tool's long-press can be pending at a time (each mousedown
-    // clears any previous this.reorderTimeout), so a single shared mouseup
-    // listener can track which element is waiting for its skipClick reset
-    // instead of registering a near-identical listener per tool.
-    /** @type {ToolElement | null} */
-    let pendingSkipClickEl = null;
-    /** @type {Element} */ (DOMElements.playerContainer).addEventListener('mouseup', (e) => {
-      clearTimeout(this.reorderTimeout);
-      if (pendingSkipClickEl) {
-        const el = pendingSkipClickEl;
-        pendingSkipClickEl = null;
-        setTimeout(() => {
-          el._toolSkipClick = false;
-        }, 100);
-      }
-    });
+    const tools = /** @type {HTMLElement[]} */ (Array.from(/** @type {Element} */ (DOMElements.leftToolsContainer).children).concat(Array.from(/** @type {Element} */ (DOMElements.rightToolsContainer).children), Array.from(/** @type {Element} */ (DOMElements.extraTools).children)));
 
     tools.forEach((el) => {
-      el._toolSkipClick = false;
-      /** @param {MouseEvent} e */
-      const reorderMouseDown = (e) => {
+      // A tool held 800 ms starts the reordering. It ended only on a mouseup in the player:
+      // with the window switched while a tool was held, the reordering began after the button
+      // had been let go. The press ends however it ends now (PressTracker), and the release of
+      // a long press opens no tool and leaves the reordering on: its click is kept from them,
+      // where a flag set aside for 100 ms after the mouseup let the click through or not.
+      el.addEventListener('mousedown', (e) => {
         // check if left mouse button was pressed
         if (e.button !== 0) return;
 
         if (this.specialReorderModeEnabled) return;
 
         clearTimeout(this.reorderTimeout);
+        let longPress = false;
         this.reorderTimeout = setTimeout(() => {
-          el._toolSkipClick = true;
-          pendingSkipClickEl = el;
+          longPress = true;
           this.startReorderUI();
         }, 800);
-      };
-
-      el.addEventListener('mousedown', (e) => {
-        reorderMouseDown(e);
+        PressTracker.follow(e, {end: (release) => {
+          clearTimeout(this.reorderTimeout);
+          if (longPress) {
+            PressTracker.swallowClick(release ?? e);
+          }
+        }});
       });
 
       el.addEventListener('click', (e) => {
         if (this.specialReorderModeEnabled) {
-          if (!el._toolSkipClick) this.stopReorderUI();
+          this.stopReorderUI();
           e.stopPropagation();
         }
       }, true);
