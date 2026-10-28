@@ -28,6 +28,7 @@
   "ext-specs/page-qualities.e2e.mjs": 33,
   "ext-specs/page-subtitles.e2e.mjs": 13,
   "ext-specs/player-peers-bfcache.e2e.mjs": 11,
+  "ext-specs/redirected-source.e2e.mjs": 20,
   "ext-specs/same-video-file.e2e.mjs": 12,
   "ext-specs/save-dialog-regression.e2e.mjs": 11,
   "ext-specs/save-flow.e2e.mjs": 22,

@@ -407,12 +407,15 @@ export async function loadBackground({
 
   /**
    * A redirect: the request goes on to another address, with the same request id, as
-   * Firefox's webRequest has it (onBeforeRedirect, then the headers are sent again).
+   * Firefox's webRequest has it (the redirect's own response, onBeforeRedirect, then the
+   * headers are sent again).
    * @param {Object} details - The request's details (bg.requestSent).
    * @param {string} to - Where it is redirected.
    * @return {Object} The request's details at its new address, for bg.responded.
    */
   bg.redirected = (details, to) => {
+    const redirect = {...details, statusCode: 302, responseHeaders: [{name: 'Location', value: to}]};
+    for (const listener of webRequest.onHeadersReceived.listeners) listener(redirect);
     for (const listener of webRequest.onBeforeRedirect.listeners) listener({...details, redirectUrl: to, statusCode: 302});
     const next = {...details, url: to};
     for (const listener of webRequest.onBeforeRequest.listeners) listener(next);

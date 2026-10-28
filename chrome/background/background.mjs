@@ -4547,15 +4547,71 @@ chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
 }, webRequestPerms);
 
 // Where a redirected request was first sent (TabHolder.noteRedirect): a page's player lists its
-// files by those addresses, and the stream is found at the end of the redirect (addSource).
-// A <video>'s requests and a player's own fetches: the files a player lists.
+// files by those addresses, and the stream is found at the end of the redirect (addSource), by
+// the type the first address names when its own names none (redirectedType).
+// A <video>'s requests and a player's own fetches: the files a player lists; and a stream link
+// opened in a tab or a frame.
 chrome.webRequest.onBeforeRedirect.addListener((details) => {
   if (isTablessRequest(details)) return;
   Tabs.getTabOrCreate(details.tabId).noteRedirect(details.requestId, details.url);
 }, {
   urls: ['<all_urls>'],
-  types: ['media', 'xmlhttprequest', 'other'],
+  types: ['media', 'xmlhttprequest', 'other', 'main_frame', 'sub_frame'],
 });
+
+/**
+ * Whether a response is a redirect, which the request follows to another address: no stream,
+ * though its address names one (a hoster's …/clip.mp4 link to its CDN). Taken for the stream,
+ * the player played the link, and the redirect at each of its requests went to the CDN without
+ * the page's Referer, which was set for the link (refused by a CDN that checks it); a CDN slower
+ * than the player's opening delay was never seen, the frame having a player by its answer; and a
+ * link run out, redirected to the hoster's "expired" page, opened a player on it (upstream #585).
+ * Only the statuses Firefox follows, to a Location: without one, the response is the file
+ * (glm's review, 2026-10-28). 304 Not Modified is the file itself, from the cache.
+ * @param {{statusCode: number, responseHeaders?: Array<{name: string, value?: string}>}} details -
+ *   webRequest's.
+ * @return {boolean}
+ */
+function isRedirect(details) {
+  return [301, 302, 303, 307, 308].includes(details.statusCode) &&
+    !!details.responseHeaders?.some((header) => header.name.toLowerCase() === 'location');
+}
+
+/**
+ * The type a redirected request's first address names, for a response whose own address names
+ * none: …/master.m3u8 redirected to the CDN's /v/7?token. Not for a page (the link run out, sent
+ * to the hoster's "expired" page), nor a manifest its Content-Type names, nor a media element's
+ * file, whose Content-Type tells video from audio (modeFromMediaType).
+ * @param {TabHolder} tab
+ * @param {{requestId: string|number, type?: string, responseHeaders?: Array<{name: string, value?: string}>}} details -
+ *   webRequest's.
+ * @param {string} ext - What the response's own address names (urlType).
+ * @return {string} The type to go by: ext, or the first address's.
+ */
+function redirectedType(tab, details, ext) {
+  const namesType = (/** @type {string} */ type) => !!URLUtils.getModeFromExtension(type) || BackgroundUtils.isSubtitles(type);
+  const first = tab.redirectOrigin(details.requestId);
+  if (!first || namesType(ext) || details.type === 'media' || isHtmlResponse(details.responseHeaders) ||
+      modeFromContentType(details.responseHeaders)) {
+    return ext;
+  }
+  const firstType = urlType(first);
+  return namesType(firstType) ? firstType : ext;
+}
+
+/**
+ * The mode the query of a redirected request's first address names (modeFromQuery), for a
+ * proxy link redirected to an address that names none: proxy?url=https://cdn/.../index.m3u8 to
+ * the CDN's /s/9f3e, answered application/octet-stream. Not for a page it led to.
+ * @param {TabHolder} tab
+ * @param {{requestId: string|number, responseHeaders?: Array<{name: string, value?: string}>}} details -
+ *   webRequest's.
+ * @return {?string}
+ */
+function modeFromRedirectQuery(tab, details) {
+  const first = tab.redirectOrigin(details.requestId);
+  return first && !isHtmlResponse(details.responseHeaders) ? modeFromQuery(first) : null;
+}
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
@@ -4570,7 +4626,28 @@ chrome.webRequest.onHeadersReceived.addListener(
       if ((details.statusCode >= 400 && details.statusCode < 600) || details.statusCode === 204) {
         return; // Client or server error. Ignore it
       }
-      const ext = urlType(url);
+      if (isRedirect(details)) {
+        return; // The request's response at the end of the redirect is the stream.
+      }
+      // A CORS preflight (OPTIONS), which Firefox shows add-ons, or a HEAD: no stream comes in
+      // either, and the request after it, which does, has the headers to fetch it with. The
+      // preflight's were taken for the stream's, a header of the page's own (a token) left out,
+      // and the server refused the player.
+      if (details.method === 'OPTIONS' || details.method === 'HEAD') {
+        return;
+      }
+      // A page is not a stream, whatever its address or query names: an embed page
+      // (embed.php?file=https://cdn/.../index.m3u8), or a link run out, answered with the
+      // hoster's "expired" page at …/clip.mp4. Taking it for the stream opened the player on
+      // the page itself. The stream a page plays is detected by itself, when the page requests
+      // it. A page load answered with the stream itself - a proxy link opened in a tab or an
+      // iframe - is not HTML, and Firefox plays it in that load, with no request of its own to
+      // detect. Not a player's fetch: a manifest a server calls text/html still plays there.
+      if ((details.type === 'media' || details.type === 'main_frame' || details.type === 'sub_frame') &&
+          isHtmlResponse(details.responseHeaders)) {
+        return;
+      }
+      const ext = redirectedType(tab, details, urlType(url));
 
       if (BackgroundUtils.isSubtitles(ext)) {
         VpnMirror.noteSource(details);
@@ -4589,23 +4666,14 @@ chrome.webRequest.onHeadersReceived.addListener(
           if (!mode) {
             return;
           }
-        } else if ((details.type === 'main_frame' || details.type === 'sub_frame') &&
-            isHtmlResponse(details.responseHeaders)) {
-          // A page is not a stream, even when its query string names one: an embed page
-          // (embed.php?file=https://cdn/.../index.m3u8) is HTML, and taking it for the
-          // stream could open the player on the page itself. The stream the page plays is
-          // detected by itself, when the page requests it. A page load answered with the
-          // stream itself - a proxy link opened in a tab or an iframe - is not HTML, and
-          // Firefox plays it in that load, with no request of its own to detect.
-          return;
         } else if (details.type === 'xmlhttprequest' || details.type === 'other' ||
             details.type === 'main_frame' || details.type === 'sub_frame') {
           // The query names the stream for a proxy a player fetches it through, and for a
           // page load answered with the stream itself (not HTML, above). Nothing else: a
           // tracking pixel, script or beacon often names the media URL it reports on in its
           // query, and was taken for the stream - opened in the player, sent to mpv ahead of
-          // the real manifest.
-          mode = modeFromQuery(url);
+          // the real manifest. Or the query of the proxy link redirected here.
+          mode = modeFromQuery(url) || modeFromRedirectQuery(tab, details);
           if (!mode) {
             return;
           }
