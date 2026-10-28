@@ -2,13 +2,58 @@
 // Node (vitest's environment is 'node', and no DOM library is installed). It knows the
 // little those scripts use: ids, classes, data-* and other attributes, the element tree,
 // simple selectors (tag, .class, #id, [attr], tag.class, and lists of those), listeners
-// called directly by the test (no bubbling), and focus. It is no browser: layout, CSS and
+// called directly by the test (no bubbling; the document's capture-phase listeners hear an
+// element's event first, as in a browser), a window for the document, and focus. It is no browser: layout, CSS and
 // events the script does not listen for are not there.
 
 // Elements this HTML writes without a closing tag (an <option> inside a <datalist>).
 const VOID = new Set(['input', 'br', 'meta', 'link', 'img', 'hr', 'source', 'option']);
 
 const camel = (name) => name.replace(/-([a-z])/g, (m, c) => c.toUpperCase());
+
+/**
+ * @param {boolean|{capture?: boolean}} [options] - addEventListener's third argument.
+ * @return {boolean} Whether it asks for the capture phase.
+ */
+const isCapture = (options) => options === true || !!(options && typeof options === 'object' && options.capture);
+
+/**
+ * An event as a test fires it: its properties, and what listeners do to it.
+ * @param {string} type
+ * @param {Object} target
+ * @param {Object} props
+ * @return {Object}
+ */
+function fakeEvent(type, target, props) {
+  return {
+    type, target, currentTarget: target, defaultPrevented: false, propagationStopped: false,
+    immediatePropagationStopped: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    stopPropagation() {
+      this.propagationStopped = true;
+    },
+    stopImmediatePropagation() {
+      this.propagationStopped = true;
+      this.immediatePropagationStopped = true;
+    },
+    ...props,
+  };
+}
+
+/**
+ * Calls the listeners of a list until one stops the event's propagation at once.
+ * @param {Function[]|undefined} list
+ * @param {Object} self - What `this` is for them.
+ * @param {Object} event
+ */
+function callListeners(list, self, event) {
+  for (const fn of (list || []).slice()) {
+    fn.call(self, event);
+    if (event.immediatePropagationStopped) return;
+  }
+}
 
 /** One element of the stand-in DOM. */
 export class FakeElement {
@@ -167,17 +212,11 @@ export class FakeElement {
    * @return {Object} The event, with what the listeners did to it.
    */
   fire(type, props = {}) {
-    const event = {
-      type, target: this, currentTarget: this, defaultPrevented: false, propagationStopped: false,
-      preventDefault() {
-        this.defaultPrevented = true;
-      },
-      stopPropagation() {
-        this.propagationStopped = true;
-      },
-      ...props,
-    };
-    for (const fn of (this.listeners[type] || []).slice()) fn.call(this, event);
+    const event = fakeEvent(type, this, props);
+    // The capture phase passes the document first: a listener there can stop the event
+    // before it reaches this element.
+    callListeners(this.ownerDocument.captureListeners[type], this.ownerDocument, event);
+    if (!event.propagationStopped) callListeners(this.listeners[type], this, event);
     return event;
   }
 
@@ -281,6 +320,10 @@ export class FakeDocument {
     this.head = this.documentElement.querySelector('head');
     this.activeElement = this.body;
     this.listeners = {};
+    // Listeners added for the capture phase: they hear the events of every element first.
+    this.captureListeners = {};
+    this.hidden = false;
+    this.defaultView = new FakeWindow();
   }
 
   /**
@@ -309,6 +352,37 @@ export class FakeDocument {
     return new FakeElement(this, tag);
   }
 
+  addEventListener(type, fn, options) {
+    const store = isCapture(options) ? this.captureListeners : this.listeners;
+    (store[type] ||= []).push(fn);
+  }
+
+  removeEventListener(type, fn, options) {
+    const list = (isCapture(options) ? this.captureListeners : this.listeners)[type] || [];
+    if (list.includes(fn)) list.splice(list.indexOf(fn), 1);
+  }
+
+  /**
+   * Calls the document's own listeners for an event (one that reached the document): those
+   * of the capture phase, then the others.
+   * @param {string} type - The event type.
+   * @param {Object} [props] - The event's properties.
+   * @return {Object} The event.
+   */
+  fire(type, props = {}) {
+    const event = fakeEvent(type, this, props);
+    callListeners(this.captureListeners[type], this, event);
+    if (!event.propagationStopped) callListeners(this.listeners[type], this, event);
+    return event;
+  }
+}
+
+/** The window of a stand-in document: its listeners, for the events a test fires at it. */
+export class FakeWindow {
+  constructor() {
+    this.listeners = {};
+  }
+
   addEventListener(type, fn) {
     (this.listeners[type] ||= []).push(fn);
   }
@@ -319,13 +393,15 @@ export class FakeDocument {
   }
 
   /**
-   * Calls the document's own listeners for an event (one that reached the document).
-   * @param {string} type - The event type.
-   * @param {Object} [props] - The event's properties.
+   * Calls the window's listeners for an event at the window itself (its blur).
+   * @param {string} type
+   * @param {Object} [props]
+   * @return {Object} The event.
    */
   fire(type, props = {}) {
-    const event = {type, target: this, preventDefault() {}, stopPropagation() {}, ...props};
-    for (const fn of (this.listeners[type] || []).slice()) fn.call(this, event);
+    const event = fakeEvent(type, this, props);
+    callListeners(this.listeners[type], this, event);
+    return event;
   }
 }
 

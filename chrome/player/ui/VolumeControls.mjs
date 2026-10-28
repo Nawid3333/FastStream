@@ -5,6 +5,7 @@ import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
+import {PressTracker} from './PressTracker.mjs';
 
 const MAX_VOLUME = EnvUtils.isWebAudioSupported() ? 3 : 1;
 
@@ -125,42 +126,19 @@ export class VolumeControls extends EventEmitter {
     };
 
     /** @param {MouseEvent|TouchEvent} event */
-    const onVolumeBarMouseMove = (event) => {
-      // No button held: it was let go where this drag never heard of it.
-      if (event.type === 'mousemove' && /** @type {MouseEvent} */ (event).buttons === 0) {
-        stopDrag();
-        return;
-      }
-      const currentX = /** @type {MouseEvent} */ (event).clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.volumeContainer)) - 10;
-      shiftVolume(currentX);
-    };
+    const volumeBarX = (event) => /** @type {MouseEvent} */ (event).clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.volumeContainer)) - 10;
 
-    const stopDrag = () => {
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mousemove', onVolumeBarMouseMove);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('touchmove', onVolumeBarMouseMove);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseup', onVolumeBarMouseUp);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('touchend', onVolumeBarMouseUp);
-      document.removeEventListener('mouseup', onVolumeBarMouseUp);
-    };
-
-    /** @param {MouseEvent|TouchEvent} event */
-    const onVolumeBarMouseUp = (event) => {
-      stopDrag();
-
-      const currentX = /** @type {MouseEvent} */ (event).clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.volumeContainer)) - 10;
-
-      if (!isNaN(currentX)) {
-        shiftVolume(currentX);
-      }
-    };
-
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', onVolumeBarMouseUp);
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('touchend', onVolumeBarMouseUp, {passive: true});
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', onVolumeBarMouseMove);
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('touchmove', onVolumeBarMouseMove, {passive: true});
-    // Let go outside the player: a drag keeps the mouse events in the document it started
-    // in, and only the document hears that mouseup.
-    document.addEventListener('mouseup', onVolumeBarMouseUp);
+    // Follows the pointer until the button is let go, wherever, which sets the volume there,
+    // or the press ends without a release (PressTracker): the volume stays as it is.
+    PressTracker.follow(event, {
+      move: (move) => shiftVolume(volumeBarX(move)),
+      end: (release) => {
+        const currentX = release ? volumeBarX(release) : NaN;
+        if (!isNaN(currentX)) {
+          shiftVolume(currentX);
+        }
+      },
+    });
 
     event.stopPropagation();
   }

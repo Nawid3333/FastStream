@@ -138,6 +138,7 @@ const CHECKED = [
   'chrome/player/ui/OnScreenDisplay.mjs',
   'chrome/player/ui/OptionsWindow.mjs',
   'chrome/player/ui/PointerMoves.mjs',
+  'chrome/player/ui/PressTracker.mjs',
   'chrome/player/ui/ProgressBar.mjs',
   'chrome/player/ui/SaveManager.mjs',
   'chrome/player/ui/SourcesBrowser.mjs',

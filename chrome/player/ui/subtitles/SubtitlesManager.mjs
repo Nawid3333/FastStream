@@ -10,6 +10,7 @@ import {SubtitleUtils} from '../../utils/SubtitleUtils.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {DOMElements} from '../DOMElements.mjs';
+import {PressTracker} from '../PressTracker.mjs';
 import {OpenSubtitlesSearch, OpenSubtitlesSearchEvents} from './OpenSubtitlesSearch.mjs';
 import {SubtitlesSettingsManager, SubtitlesSettingsManagerEvents} from './SubtitlesSettingsManager.mjs';
 import {SubtitleSyncer} from './SubtitleSyncer.mjs';
@@ -608,21 +609,9 @@ export class SubtitlesManager extends EventEmitter {
 
     let yStart = 0;
 
-    /** @param {MouseEvent} e */
-    const mouseup = (e) => {
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mousemove', mousemove);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseup', mouseup);
-      document.removeEventListener('mouseup', mouseup);
-      e.stopPropagation();
-    };
-
-    /** @param {MouseEvent} e */
-    const mousemove = (e) => {
-      // No button held: it was let go where this drag never heard of it.
-      if (e.buttons === 0) {
-        mouseup(e);
-        return;
-      }
+    /** @param {MouseEvent|TouchEvent} event */
+    const mousemove = (event) => {
+      const e = /** @type {MouseEvent} */ (event);
       // drag by adjusting margin-bottom
       const oldDiff = yStart - e.clientY;
       let diff = oldDiff;
@@ -646,7 +635,6 @@ export class SubtitlesManager extends EventEmitter {
 
       yStart = e.clientY;
       this.checkTrackBounds();
-      e.stopPropagation();
     };
 
     wrapper.addEventListener('mousedown', (e) => {
@@ -657,10 +645,9 @@ export class SubtitlesManager extends EventEmitter {
         return;
       }
       yStart = e.clientY;
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', mousemove);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', mouseup);
-      // Let go outside the player: only the document hears that mouseup.
-      document.addEventListener('mouseup', mouseup);
+      // Until the button is let go, wherever, or the press ends without a release
+      // (PressTracker): the subtitles stay where they were dragged to.
+      PressTracker.follow(e, {move: mousemove, end: () => {}});
     });
 
 

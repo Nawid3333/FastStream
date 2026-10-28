@@ -18,7 +18,10 @@ const {el, fire, playerContainer, doc} = vi.hoisted(() => {
       addEventListener(type, fn) {
         (listeners[type] ||= []).push(fn);
       },
-      removeEventListener() {},
+      removeEventListener(type, fn) {
+        const list = listeners[type] || [];
+        if (list.includes(fn)) list.splice(list.indexOf(fn), 1);
+      },
       appendChild() {},
       replaceChildren() {},
       remove() {},
@@ -29,10 +32,12 @@ const {el, fire, playerContainer, doc} = vi.hoisted(() => {
       getContext: () => new Proxy({}, {get: (target, key) => (key in target ? target[key] : () => {})}),
     };
   };
+  // An element's event passes the document first, in the capture phase, where a press is
+  // followed (PressTracker).
   const fire = (target, type, event = {}) => {
-    for (const fn of (target.listeners[type] || []).slice()) {
-      fn({button: 0, buttons: 1, clientX: 0, ...event});
-    }
+    const full = {button: 0, buttons: 1, clientX: 0, ...event};
+    for (const fn of (target === doc ? [] : (doc.listeners[type] || []).slice())) fn(full);
+    for (const fn of (target.listeners[type] || []).slice()) fn(full);
   };
   const doc = el();
   doc.createElement = () => el();

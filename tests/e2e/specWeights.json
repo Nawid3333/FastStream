@@ -58,6 +58,7 @@
   "specs/player-controls.e2e.mjs": 64,
   "specs/player-menus.e2e.mjs": 33,
   "specs/player-recovery.e2e.mjs": 26,
+  "specs/press-end.e2e.mjs": 15,
   "specs/ram-budget.e2e.mjs": 48,
   "specs/save-fmp4.e2e.mjs": 34,
   "specs/save-video.e2e.mjs": 34,

@@ -1,6 +1,7 @@
 // @ts-check
 import {EventEmitter} from '../modules/eventemitter.mjs';
 import {DOMElements} from './DOMElements.mjs';
+import {PressTracker} from './PressTracker.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {StringUtils} from '../utils/StringUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
@@ -155,6 +156,23 @@ export class FineTimeControls extends EventEmitter {
     let grabStart = 0;
     let grabStartTime = 0;
     let shouldPlay = false;
+    /** @type {?{cancel: () => void}} */
+    let grab = null;
+    let resumeAtEnd = true;
+
+    /** @param {MouseEvent|TouchEvent} e */
+    const onGrabMove = (e) => {
+      if (!this.client.player) return;
+      const video = this.client.player.getVideo();
+      const delta = /** @type {MouseEvent} */ (e).clientX - grabStart;
+      const time = grabStartTime - (delta / this.ui.timelineTicks.clientWidth * video.duration);
+      // Off again for each move: a key's seek in the middle of the grab turns saving on
+      // around itself, and the moves after it were saved one by one (glm's review,
+      // 2026-10-13).
+      this.client.setSeekSave(false);
+      this.client.currentTime = time;
+      this.client.updateTime(time);
+    };
 
     /** @param {MouseEvent} e */
     const mouseDown = (e) => {
@@ -174,18 +192,25 @@ export class FineTimeControls extends EventEmitter {
       // and one grab filled the undo history (glm's second look, 2026-10-13).
       this.client.savePosition();
       this.client.setSeekSave(false);
+      // A grab ended only on a mouseup inside the player: released outside it, the next
+      // mouse move went on seeking with no button held. It follows the pointer now until the
+      // button is let go, wherever, which seeks there, or the press ends without a release
+      // (PressTracker): it ends where it was, and plays on.
+      resumeAtEnd = true;
+      grab = PressTracker.follow(e, {
+        move: onGrabMove,
+        end: (release) => {
+          grab = null;
+          endGrab(release, !!release, resumeAtEnd);
+        },
+      });
     };
     this.ui.timelineTicks.addEventListener('mousedown', mouseDown);
     // this.ui.timelineAudioCanvasContainer.addEventListener('mousedown', mouseDown);
     // this.ui.timelineImages.addEventListener('mousedown', mouseDown);
 
-    // A grab ended only on a mouseup inside the player: released outside it, the next
-    // mouse move went on seeking with no button held. It ends now on a mouseup anywhere in
-    // this document (a drag keeps the mouse events in the frame it started in, wherever
-    // the button is released), and on a move with no button held, for a mouseup that never
-    // came at all.
     /**
-     * @param {MouseEvent|null} e - The release, or the move with no button held.
+     * @param {MouseEvent|TouchEvent|null} e - The release; null for a grab that ended without one.
      * @param {boolean} seek - Seeks to where the grab ended.
      * @param {boolean} [resume=true] - Plays on, if it played before the grab.
      */
@@ -211,28 +236,10 @@ export class FineTimeControls extends EventEmitter {
     // A grab still held when the next video came (reset) went on seeking it from the
     // previous one's position, and its release started it. It ends there, without seeking
     // or playing on, as the progress bar's drag does.
-    this.endGrab = () => endGrab(null, false, false);
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', (e) => endGrab(e, true), true);
-    document.addEventListener('mouseup', (e) => endGrab(e, true));
-
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', (e) => {
-      if (isGrabbing && e.buttons === 0) {
-        endGrab(e, false);
-        return;
-      }
-      if (!this.client.player) return;
-      const video = this.client.player.getVideo();
-      if (isGrabbing) {
-        const delta = e.clientX - grabStart;
-        const time = grabStartTime - (delta / this.ui.timelineTicks.clientWidth * video.duration);
-        // Off again for each move: a key's seek in the middle of the grab turns saving on
-        // around itself, and the moves after it were saved one by one (glm's review,
-        // 2026-10-13).
-        this.client.setSeekSave(false);
-        this.client.currentTime = time;
-        this.client.updateTime(time);
-      }
-    });
+    this.endGrab = () => {
+      resumeAtEnd = false;
+      grab?.cancel();
+    };
   }
 
   /**

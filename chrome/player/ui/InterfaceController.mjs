@@ -15,6 +15,7 @@ import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {ClickSequence} from './ClickSequence.mjs';
 import {PointerMoves} from './PointerMoves.mjs';
+import {PressTracker} from './PressTracker.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {downloadStatusText} from './DownloadStatusText.mjs';
 import {FineTimeControls} from './FineTimeControls.mjs';
@@ -448,26 +449,42 @@ export class InterfaceController {
       this.queueControlsHide(1);
     });
 
+    // Holding the video plays it at twice the speed until the press ends (PressTracker: let go
+    // anywhere, or ended without a release) or the pointer leaves the video. It ended only at
+    // the next click or a mouseleave: with the window switched while the video was held, the
+    // mouseup went to the other window, and the video played on at twice the speed (measured,
+    // 2026-10-28). A hold is no click: its release neither plays nor pauses.
     /** @type {any} */
     let holdTimeout = null;
     /** @type {any} */
     let lastSpeed = null;
     let wasPlaying = false;
+    /** @type {?{cancel: () => void}} */
+    let hold = null;
     /** @type {HTMLElement} */ (DOMElements.videoContainer).addEventListener('mousedown', (e)=>{
-      if (e.button === 0) {
-        clearTimeout(holdTimeout);
-        holdTimeout = setTimeout(() => {
-          if (lastSpeed !== null || !this.client.player) {
-            return;
-          }
-          wasPlaying = this.state.playing;
-          lastSpeed = this.client.playbackRate;
-          // Twice as fast, up to the rate with sound; never slower than it was (the 16x key).
-          this.client.setPlaybackRate(Math.max(lastSpeed, Math.min(lastSpeed * 2, this.client.options.maxPlaybackRate)), true);
-
-          this.client.play();
-        }, 800);
+      if (e.button !== 0) {
+        return;
       }
+      hold?.cancel();
+      holdTimeout = setTimeout(() => {
+        if (lastSpeed !== null || !this.client.player) {
+          return;
+        }
+        wasPlaying = this.state.playing;
+        lastSpeed = this.client.playbackRate;
+        // Twice as fast, up to the rate with sound; never slower than it was (the 16x key).
+        this.client.setPlaybackRate(Math.max(lastSpeed, Math.min(lastSpeed * 2, this.client.options.maxPlaybackRate)), true);
+
+        this.client.play();
+      }, 800);
+      hold = PressTracker.follow(e, {end: (release) => {
+        hold = null;
+        const spedUp = lastSpeed !== null;
+        stopSpeedUp();
+        if (spedUp) {
+          PressTracker.swallowClick(release ?? e);
+        }
+      }});
     });
 
     const stopSpeedUp = () => {
@@ -483,12 +500,8 @@ export class InterfaceController {
       clearTimeout(holdTimeout);
     };
 
-    // DOMElements.videoContainer.addEventListener('mouseup', (e)=>{
-    //   stopSpeedUp();
-    // });
-
-    /** @type {HTMLElement} */ (DOMElements.videoContainer).addEventListener('mouseleave', (e)=>{
-      stopSpeedUp();
+    /** @type {HTMLElement} */ (DOMElements.videoContainer).addEventListener('mouseleave', ()=>{
+      hold?.cancel();
     });
 
     // One, two or three clicks on the video, each with its action (ClickSequence: a single
@@ -518,12 +531,6 @@ export class InterfaceController {
       }
     });
     /** @type {HTMLElement} */ (DOMElements.videoContainer).addEventListener('click', (e) => {
-      clearTimeout(holdTimeout);
-      if (lastSpeed !== null) {
-        stopSpeedUp();
-        return;
-      }
-
       if (this.closeAllMenus(false)) {
         return;
       }
@@ -701,17 +708,9 @@ export class InterfaceController {
       console.warn('Coloris failed to initialize', e);
     }
 
-    /** @param {MouseEvent} e */
-    const mouseUpHandler = (e) => {
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mousemove', mouseMoveHandler);
-      // With capture, as it was added: without, the remove did nothing, and each drag left one more.
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseup', mouseUpHandler, true);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseleave', mouseUpHandler);
-    };
-
-    /** @param {MouseEvent} e */
+    /** @param {MouseEvent|TouchEvent} e */
     const mouseMoveHandler = (e) => {
-      const currentY = Math.min(Math.max(e.clientY - WebUtils.getOffsetTop(/** @type {HTMLElement} */ (DOMElements.progressContainer)), -100), 100);
+      const currentY = Math.min(Math.max(/** @type {MouseEvent} */ (e).clientY - WebUtils.getOffsetTop(/** @type {HTMLElement} */ (DOMElements.progressContainer)), -100), 100);
       const isExpanded = /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.contains('expanded');
       const offset = isExpanded ? 0 : 80;
       if (currentY > 50) {
@@ -731,10 +730,10 @@ export class InterfaceController {
         return;
       }
 
-
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', mouseMoveHandler);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', mouseUpHandler, true);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseleave', mouseUpHandler);
+      // Dragged up, the timeline opens, down it closes, until the press ends (PressTracker).
+      // It ended on a mouseup or a mouseleave of the player: with the window switched mid-drag,
+      // every move over the player after it opened or closed the timeline with no button held.
+      PressTracker.follow(e, {move: mouseMoveHandler, end: () => {}});
     });
   }
 

@@ -5,6 +5,7 @@ import {Utils} from '../../utils/Utils.mjs';
 import {AudioUtils} from '../../utils/AudioUtils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {DOMElements} from '../DOMElements.mjs';
+import {PressTracker} from '../PressTracker.mjs';
 import {SILENT_MAX_PLAYBACK_RATE} from '../../options/KeybindUtils.mjs';
 
 // A speed picked here is saved this long after its last change, as the volume is
@@ -99,29 +100,17 @@ export class PlaybackRateChanger extends EventEmitter {
     const startY = e.clientY;
     const startThreshold = this.silenceThreshold;
     const fineTimeControls = this.client.interfaceController.fineTimeControls;
-    /** @param {MouseEvent} e */
-    const onAudioMouseMove = (e) => {
-      // No button held: it was let go where this drag never heard of it.
-      if (e.buttons === 0) {
-        onAudioMouseUp();
-        return;
-      }
-      const diff = startY - e.clientY;
+    /** @param {MouseEvent|TouchEvent} move */
+    const onAudioMouseMove = (move) => {
+      const diff = startY - /** @type {MouseEvent} */ (move).clientY;
       this.silenceThreshold = Utils.clamp(startThreshold + diff / fineTimeControls.ui.timelineAudio.clientHeight, 0, 1);
       this.updateSilenceSkipper();
     };
 
-    /** @param {MouseEvent} [e] */
-    const onAudioMouseUp = (e) => {
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mousemove', onAudioMouseMove);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseup', onAudioMouseUp);
-      /** @type {HTMLElement} */ (DOMElements.playerContainer).removeEventListener('mouseleave', onAudioMouseUp);
-      this.saveState();
-    };
-
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mousemove', onAudioMouseMove);
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseup', onAudioMouseUp);
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('mouseleave', onAudioMouseUp);
+    // Until the button is let go, wherever, or the press ends without a release
+    // (PressTracker); the line stays where it was dragged to, and is saved. Let go outside the
+    // player, it went on following the pointer until a move came with no button held.
+    PressTracker.follow(e, {move: onAudioMouseMove, end: () => this.saveState()});
   }
 
   updateSilenceSkipper() {
