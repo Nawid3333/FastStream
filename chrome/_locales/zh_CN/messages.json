@@ -1089,7 +1089,7 @@
         "message": "FastStream - MPV - 流未能打开：$1"
     },
     "extension_toggle_label_drm": {
-        "message": "FastStream - 此_��U��O��_���O�o�O护'��DRM'��'��FastStream 无法播攝'��_��_��_��_��Oc�_��播攝O��_��_��播攝"
+        "message": "FastStream - 此视频受复制保护（DRM），FastStream 无法播放：它会留在网站自己的播放器中"
     },
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - 这台电脑上的 mpv 辅助程序已过时：请运行开始菜单中的“Update mpv”（在 FastStream 仓库的检出副本中：update-local.cmd 或 native-host\\install.ps1）"
@@ -1200,7 +1200,7 @@
         "message": "此视频通过 Firefox VPN 传输，而 mpv 无法使用 Firefox VPN：网站会拒绝 mpv。要在 mpv 中观看，请为此网站关闭 Firefox VPN 并重新加载页面。"
     },
     "player_mpv_drm": {
-        "message": "此_��U��O��_���O�o�O护'��DRM'��'��mpv 无法播攝'��_��_��_��_��Oc�_��播攝O��_��_��播攝O��"
+        "message": "此视频受复制保护（DRM），mpv 无法播放：它会留在网站自己的播放器中。"
     },
     "mpv_episode_loading": {
         "message": "正在 mpv 中加载"

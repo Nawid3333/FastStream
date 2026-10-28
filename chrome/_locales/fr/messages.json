@@ -1089,7 +1089,7 @@
         "message": "FastStream - MPV - le flux ne s'est pas ouvert : $1"
     },
     "extension_toggle_label_drm": {
-        "message": "FastStream - Cette vid�ro est prot�rg�re contre la copie (DRM), et FastStream ne peut pas la lire : le lecteur du site la garde"
+        "message": "FastStream - Cette vidéo est protégée contre la copie (DRM), et FastStream ne peut pas la lire : elle reste dans le lecteur du site"
     },
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - l'assistant mpv de cet ordinateur est obsolète : lancez « Update mpv » depuis le menu Démarrer (dans une copie du dépôt FastStream : update-local.cmd ou native-host\\install.ps1)"
@@ -1200,7 +1200,7 @@
         "message": "Cette vidéo provient de Firefox VPN, et mpv ne peut pas utiliser Firefox VPN : le site refuserait mpv. Pour la regarder dans mpv, désactivez Firefox VPN pour ce site et rechargez la page."
     },
     "player_mpv_drm": {
-        "message": "Cette vid�ro est prot�rg�re contre la copie (DRM), et mpv ne peut pas la lire : le lecteur du site la garde."
+        "message": "Cette vidéo est protégée contre la copie (DRM), et mpv ne peut pas la lire : elle reste dans le lecteur du site."
     },
     "mpv_episode_loading": {
         "message": "chargement dans mpv"

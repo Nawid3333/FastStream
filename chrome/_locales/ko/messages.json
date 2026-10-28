@@ -1089,7 +1089,7 @@
         "message": "FastStream - MPV - 스트림을 열지 못했습니다: $1"
     },
     "extension_toggle_label_drm": {
-        "message": "FastStream - yO� U��U��y��U�� U�Ay�� U�ry��(DRM)U�� y��y�rU��y�� yx�y�� FastStreamy��y�� yx�y�OY�� y�� y��y�AU��U��. y��yO�Y�cyO� yx�y�� Y��U��yO�y��U�� U��y�� yx�y�OY�rU��U��"
+        "message": "FastStream - 이 비디오는 복사 방지(DRM)되어 있어 FastStream에서 재생할 수 없습니다. 사이트 자체 플레이어에서 재생됩니다"
     },
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - 이 컴퓨터의 mpv 도우미가 오래되었습니다: 시작 메뉴에서 'Update mpv'를 실행하세요(FastStream 저장소 체크아웃에서는 update-local.cmd 또는 native-host\\install.ps1)"
@@ -1200,7 +1200,7 @@
         "message": "이 비디오는 Firefox VPN을 통해 전송되며, mpv는 Firefox VPN을 사용할 수 없습니다: 사이트에서 mpv를 거부할 것입니다. mpv에서 시청하려면 이 사이트에 대해 Firefox VPN을 끄고 페이지를 새로 고침하세요."
     },
     "player_mpv_drm": {
-        "message": "yO� U��U��y��U�� U�Ay�� U�ry��(DRM)U�� y��y�rU��y�� yx�y�� mpvy��y�� yx�y�OY�� y�� y��y�AU��U��. y��yO�Y�cyO� yx�y�� Y��U��yO�y��U�� U��y�� yx�y�OY�rU��U��."
+        "message": "이 비디오는 복사 방지(DRM)되어 있어 mpv에서 재생할 수 없습니다. 사이트 자체 플레이어에서 재생됩니다."
     },
     "mpv_episode_loading": {
         "message": "mpv에서 로드 중"

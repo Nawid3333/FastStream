@@ -1089,7 +1089,7 @@
         "message": "FastStream - MPV - stream tidak terbuka: $1"
     },
     "extension_toggle_label_drm": {
-        "message": "FastStream - Video ini dilindungi hak cipta (DRM), dan FastStream tidak dapat memutarnya: video diserahkan kepada pemutar situs"
+        "message": "FastStream - Video ini dilindungi dari penyalinan (DRM), dan FastStream tidak dapat memutarnya: video tetap di pemutar situs"
     },
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - program penghubung mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)"
@@ -1200,7 +1200,7 @@
         "message": "Video ini berasal dari Firefox VPN, dan mpv tidak dapat menggunakan Firefox VPN: situs akan menolak mpv. Untuk menontonnya di mpv, matikan Firefox VPN untuk situs ini dan muat ulang halaman."
     },
     "player_mpv_drm": {
-        "message": "Video ini dilindungi hak cipta (DRM), dan mpv tidak dapat memutarnya: video diserahkan kepada pemutar situs."
+        "message": "Video ini dilindungi dari penyalinan (DRM), dan mpv tidak dapat memutarnya: video tetap di pemutar situs."
     },
     "mpv_episode_loading": {
         "message": "memuat di mpv"
