@@ -163,6 +163,42 @@ played a minute in, and one padded to whole ranges that must fire `ended` with n
 the one after its end (without `endsAt`: 11 ranges past the end and no end, or 6 retries of the
 416 and the load error).
 
+## A file is what its bytes are, and Firefox's own player keeps the page's headers (2026-10-28)
+
+A hoster served a Matroska file (H.264, AAC, SRT; written by mkvmerge) as `video/mp4`, from a
+URL ending in `.mp4`, beside an MP4 of the same video on another link. Measured on the installed
+extension with a local copy of that shape:
+
+- **The page's own `<video>` played it, FastStream's player failed.** The type and the URL
+  picked `ACCELERATED_MP4`, mp4box stopped at the first bytes ("Invalid data found while
+  parsing box of type '£B' at position 0"), and the player showed the load error. Firefox's
+  element reads a file by its bytes: served as `video/mp4`, `application/octet-stream` or
+  `video/x-matroska`, it played the Matroska file every time. `MP4Player` now looks at the
+  first range's first 8 bytes (`ContainerSniff.startsLikeMp4`: a box's size, then four
+  printable characters) and hands a file that cannot be an MP4 to Firefox's own player
+  (`playDirectly`), one range in. Every real MP4 and QuickTime file starts with a box, so none
+  leaves MP4Player; HTML that happens to start like one fails in mp4box, as before.
+- **Firefox's own player lost the page's headers after 5 s.** That server answered a request
+  without the page's Referer with a 302 to a decoy. `DirectVideoPlayer` set its header rule
+  once, and every rule lived 5 s (`RuleEntry`): the element's first request after that (the
+  Matroska index at the file's end, read 12 s in, or a seek) went out with no Referer, to the
+  decoy, and the client's recovery reloaded the source (the buffer fell from 39 s to 9 s). The
+  element's rule now lives 30 s and is renewed every 10 s while the player has the source
+  (`SET_HEADERS`' `lifetimeMs`, capped at 60 s); a request's rule stays 5 s. After the player
+  is gone the rule lasts at most 30 s, limited to the extension's own requests in that tab.
+
+The background's 64 KB read of the file (`StreamLengths`) sees the same bytes and could pick
+the player before MP4Player tries; not done yet: the hand-over costs one range.
+
+`mislabelled-file.e2e.mjs`: a Matroska film served as `video/mp4` from an `.mp4` URL by a server
+that sends a request without the page's Referer to a decoy, at 400 KB/s; the player plays it in
+Firefox's own player, plays on after a seek 12 s in, and no request lacks the Referer. On main it
+failed with the mp4box error; with the hand-over alone, the request 12 s in had no Referer.
+
+The e2e web build (`wdio.conf.mjs`) serves the player with COOP/COEP: Firefox's own player there
+loads only files whose server sends `Cross-Origin-Resource-Policy`, which every spec's server
+does. The extension's player page is not cross-origin isolated: measure DIRECT there.
+
 ## AAC in a channel layout of its own, on Windows (2026-10-12)
 
 Reported on a film site (its hoster: one MP4 per quality, `[360p]url,...`

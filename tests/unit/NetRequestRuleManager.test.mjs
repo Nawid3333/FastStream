@@ -235,3 +235,65 @@ describe('RuleManager, a rule added while the last event page\'s are cleared', (
     expect(calls.slice(0, 2)).toEqual(['clear', 'add']);
   });
 });
+
+// Firefox's own player (DirectVideoPlayer) asks for ranges whenever it needs them, long after
+// it set its rule: a request's 5 s were over by then, and a seek went out without the page's
+// Referer. It asks for a longer rule and renews it; a rule's lifetime stays capped.
+describe('RuleManager, a rule\'s lifetime', () => {
+  let held;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    held = new Set();
+    globalThis.chrome = {
+      runtime: {getURL: (path) => 'moz-extension://test-uuid' + path},
+      declarativeNetRequest: {
+        getSessionRules: async () => [],
+        updateSessionRules: async (update) => {
+          for (const id of update.removeRuleIds || []) held.delete(id);
+          for (const rule of update.addRules || []) held.add(rule.id);
+        },
+      },
+    };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete globalThis.chrome;
+  });
+
+  const referer = [{operation: 'set', header: 'referer', value: 'https://site.test/'}];
+
+  it('is 5 s for a request\'s rule', async () => {
+    const manager = new RuleManager();
+    const rule = await manager.addHeaderRule('https://cdn.test/a.mp4', 7, referer);
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(held.has(rule.id)).toBe(true);
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(held.has(rule.id)).toBe(false);
+  });
+
+  it('is as long as asked for, up to 60 s', async () => {
+    const manager = new RuleManager();
+    const element = await manager.addHeaderRule('https://cdn.test/a.mkv', 7, referer, 30000);
+    const greedy = await manager.addHeaderRule('https://cdn.test/b.mkv', 7, referer, 3600000);
+    await vi.advanceTimersByTimeAsync(29000);
+    expect(held.has(element.id)).toBe(true);
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(held.has(element.id)).toBe(false);
+    expect(held.has(greedy.id)).toBe(true);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(held.has(greedy.id)).toBe(false);
+  });
+
+  it('is never shorter than a request\'s, nor made of something that is no number', async () => {
+    const manager = new RuleManager();
+    const short = await manager.addHeaderRule('https://cdn.test/a.mp4', 7, referer, 10);
+    const odd = await manager.addHeaderRule('https://cdn.test/b.mp4', 7, referer, /** @type {any} */ ('forever'));
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(held.has(short.id)).toBe(true);
+    expect(held.has(odd.id)).toBe(true);
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(held.size).toBe(0);
+  });
+});

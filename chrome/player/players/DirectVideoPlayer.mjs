@@ -31,6 +31,14 @@ export function elementHeaderCommands(headers) {
   return commands;
 }
 
+// How long the background keeps the element's header rule, and how often the player renews
+// it while it has the source. Firefox's player asks for ranges when it needs them: on a
+// seek, after a long pause, for a Matroska file's index at its end. A request's rule lives
+// 5 s, and those went out without the page's Referer or cookie: a hoster's server answered
+// the first one after 5 s with a redirect to a decoy, and the source was reloaded.
+export const HEADER_RULE_LIFETIME_MS = 30000;
+export const HEADER_RULE_RENEW_MS = 10000;
+
 // What a direct video can be saved as. A URL without an extension (".../watch?v=1") was saved
 // as .webm, and one ending in .php as .php: most direct videos are MP4.
 const MEDIA_EXTENSIONS = new Set(['mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'ogg', 'mp3', 'm4a', 'aac', 'wav', 'flac', 'opus', 'weba', 'oga']);
@@ -57,6 +65,8 @@ export default class DirectVideoPlayer extends EventEmitter {
     this.client = client;
 
     this.video = /** @type {HTMLVideoElement} */ (document.createElement(config?.isAudioOnly ? 'audio' : 'video'));
+    /** @type {?ReturnType<typeof setInterval>} */
+    this.headerRenewal = null;
   }
 
   load() {
@@ -82,6 +92,7 @@ export default class DirectVideoPlayer extends EventEmitter {
   /** @param {import('../VideoSource.mjs').VideoSource} source */
   async setSource(source) {
     this.source = source;
+    this.stopHeaderRenewal();
     const url = URLUtils.playableUrl(source.url, document.baseURI);
     if (!url) {
       // As the media element reports a source it cannot load: an ERROR after this call,
@@ -92,25 +103,35 @@ export default class DirectVideoPlayer extends EventEmitter {
     // Firefox's own loader sends the page's headers only if the background's rule for this URL
     // sets them (the rule the MP4 player's requests get through FetchLoader): the Referer or
     // cookie a site asks for, so a source handed over from the MP4 player (playDirectly) plays.
-    await this.setHeaderRule(source, url);
+    // Renewed while this is the source: the element's later requests need it as much.
+    if (await this.setHeaderRule(source, url) && this.source === source && this.video) {
+      this.headerRenewal = setInterval(() => this.setHeaderRule(source, url), HEADER_RULE_RENEW_MS);
+    }
     this.video.src = url;
+  }
+
+  stopHeaderRenewal() {
+    if (this.headerRenewal !== null) clearInterval(this.headerRenewal);
+    this.headerRenewal = null;
   }
 
   /**
    * Asks the background to set the source's headers on the requests for its URL.
    * @param {?import('../VideoSource.mjs').VideoSource} source
    * @param {string} url - The URL the element loads.
+   * @return {Promise<boolean>} Whether the source has headers to set.
    */
   async setHeaderRule(source, url) {
-    if (!EnvUtils.isExtension() || !/^https?:/i.test(url)) return;
+    if (!EnvUtils.isExtension() || !/^https?:/i.test(url)) return false;
     const commands = elementHeaderCommands(source?.headers);
-    if (!commands.length) return;
+    if (!commands.length) return false;
     try {
-      await chrome.runtime.sendMessage({type: MessageTypes.SET_HEADERS, url, commands});
+      await chrome.runtime.sendMessage({type: MessageTypes.SET_HEADERS, url, commands, lifetimeMs: HEADER_RULE_LIFETIME_MS});
     } catch (e) {
       // Without the rule it plays as it did before: without the headers.
       console.warn('Could not set the headers of the source', e);
     }
+    return true;
   }
 
   getSource() {
@@ -130,6 +151,7 @@ export default class DirectVideoPlayer extends EventEmitter {
   }
 
   destroy() {
+    this.stopHeaderRenewal();
     VideoUtils.destroyVideo(this.video);
     this.video = /** @type {any} */ (null);
 
