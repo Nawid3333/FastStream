@@ -212,3 +212,74 @@ describe('a stream named in a request\'s query', () => {
     expect(sources.map((s) => s.url)).toEqual(['https://cdn.test/proxy?url=https://cdn.test/z/index.m3u8']);
   });
 });
+
+// The stream a page asks for through a redirect (upstream #585, asked on #592): the request's
+// response at the end of it, not the redirect's own, which Firefox shows as well. The real
+// page's run is ext-specs/redirected-source.e2e.mjs.
+describe('a stream reached through a redirect', () => {
+  const LINK = 'https://hoster.test/go/7/clip.mp4';
+  const CDN = 'https://cdn.test/v/7?tok=1';
+
+  it('is the CDN\'s address, which the link led to, once', async () => {
+    // Taken by the .mp4 in the link, the redirect's response was a stream of its own: the
+    // player played the link, and its requests got to the CDN without the page's Referer.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    const sent = bg.requestSent({tabId: 1, type: 'media', url: LINK});
+    await bg.responded(bg.redirected(sent, CDN), {statusCode: 206, responseHeaders: [{name: 'Content-Type', value: 'video/mp4'}]});
+    const sources = await sourcesForPlayer();
+    expect(sources.map((s) => s.url)).toEqual([CDN]);
+    expect(sources[0].headers).toEqual([{name: 'Referer', value: 'https://site.test/'}]);
+  });
+
+  it('is none while only the redirect has come', async () => {
+    // A CDN slower than the player's opening: the player opened on the link, and the CDN's
+    // answer came to a frame with a player, whose streams are not taken any more.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    bg.redirected(bg.requestSent({tabId: 1, type: 'media', url: LINK}), CDN);
+    await bg.wait(100);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+    const sources = await sourcesForPlayer();
+    expect(sources).toEqual([]);
+  });
+
+  it('goes by the type the link named, when the CDN\'s address names none', async () => {
+    // hls.js fetches the manifest; the CDN calls it application/octet-stream.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    const sent = bg.requestSent({tabId: 1, url: 'https://hoster.test/go/7/master.m3u8'});
+    await bg.responded(bg.redirected(sent, CDN), {responseHeaders: [{name: 'Content-Type', value: 'application/octet-stream'}]});
+    const sources = await sourcesForPlayer();
+    expect(sources.map((s) => [s.url, s.mode])).toEqual([[CDN, 'accelerated_hls']]);
+  });
+
+  it('is none when the link led to a page', async () => {
+    // A link run out, sent to the hoster's "expired" page: the player opened on it.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    const sent = bg.requestSent({tabId: 1, type: 'media', url: LINK});
+    await bg.responded(bg.redirected(sent, 'https://hoster.test/expired'),
+        {responseHeaders: [{name: 'Content-Type', value: 'text/html; charset=utf-8'}]});
+    expect(await sourcesForPlayer()).toEqual([]);
+  });
+});
+
+describe('a stream fetched with a header of the page\'s own', () => {
+  it('has the fetch\'s headers, not its preflight\'s or a HEAD\'s', async () => {
+    // Firefox shows add-ons the CORS preflight (OPTIONS) before the fetch: answered 200, its
+    // headers, without the page's token, were taken for the stream's, and the server refused
+    // the player.
+    const url = 'https://api.test/live/master.m3u8';
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await bg.request({tabId: 1, url, method: 'OPTIONS', requestHeaders: [
+      {name: 'Access-Control-Request-Method', value: 'GET'}, {name: 'Access-Control-Request-Headers', value: 'x-token'}]});
+    await bg.request({tabId: 1, url, method: 'HEAD', requestHeaders: [{name: 'Referer', value: 'https://site.test/'}]});
+    await bg.request({tabId: 1, url, method: 'GET', requestHeaders: [
+      {name: 'Referer', value: 'https://site.test/'}, {name: 'X-Token', value: 'abc'}]});
+    const sources = await sourcesForPlayer();
+    expect(sources.map((s) => s.url)).toEqual([url]);
+    expect(sources[0].headers).toEqual([{name: 'Referer', value: 'https://site.test/'}, {name: 'X-Token', value: 'abc'}]);
+  });
+});

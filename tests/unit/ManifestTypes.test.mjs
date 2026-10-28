@@ -43,6 +43,13 @@ describe('modeFromMediaType', () => {
     }
   });
 
+  it('takes no page for a video', () => {
+    // A link run out, answered with the hoster's "expired" page (redirected-source.e2e).
+    for (const type of ['text/html; charset=utf-8', 'application/xhtml+xml']) {
+      expect(modeFromMediaType(typed(type)), type).toBeNull();
+    }
+  });
+
   it('plays a WebM, Ogg or Matroska video as it is', () => {
     expect(modeFromMediaType(typed('video/webm'))).toBe(PlayerModes.DIRECT);
     expect(modeFromMediaType(typed('video/ogg'))).toBe(PlayerModes.DIRECT);

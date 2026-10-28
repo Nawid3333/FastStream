@@ -4547,15 +4547,54 @@ chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
 }, webRequestPerms);
 
 // Where a redirected request was first sent (TabHolder.noteRedirect): a page's player lists its
-// files by those addresses, and the stream is found at the end of the redirect (addSource).
-// A <video>'s requests and a player's own fetches: the files a player lists.
+// files by those addresses, and the stream is found at the end of the redirect (addSource), by
+// the type the first address names when its own names none (redirectedType).
+// A <video>'s requests and a player's own fetches: the files a player lists; and a stream link
+// opened in a tab or a frame.
 chrome.webRequest.onBeforeRedirect.addListener((details) => {
   if (isTablessRequest(details)) return;
   Tabs.getTabOrCreate(details.tabId).noteRedirect(details.requestId, details.url);
 }, {
   urls: ['<all_urls>'],
-  types: ['media', 'xmlhttprequest', 'other'],
+  types: ['media', 'xmlhttprequest', 'other', 'main_frame', 'sub_frame'],
 });
+
+/**
+ * Whether a response is a redirect, which the request follows to another address: no stream,
+ * though its address names one (a hoster's …/clip.mp4 link to its CDN). Taken for the stream,
+ * the player played the link, and the redirect at each of its requests went to the CDN without
+ * the page's Referer, which was set for the link (refused by a CDN that checks it); a CDN slower
+ * than the player's opening delay was never seen, the frame having a player by its answer; and a
+ * link run out, redirected to the hoster's "expired" page, opened a player on it (upstream #585).
+ * 304 Not Modified is the file itself, from the cache.
+ * @param {number} statusCode - webRequest's.
+ * @return {boolean}
+ */
+function isRedirect(statusCode) {
+  return statusCode >= 300 && statusCode < 400 && statusCode !== 304;
+}
+
+/**
+ * The type a redirected request's first address names, for a response whose own address names
+ * none: …/master.m3u8 redirected to the CDN's /v/7?token. Not for a page (the link run out, sent
+ * to the hoster's "expired" page), nor a manifest its Content-Type names, nor a media element's
+ * file, whose Content-Type tells video from audio (modeFromMediaType).
+ * @param {TabHolder} tab
+ * @param {{requestId: string|number, type?: string, responseHeaders?: Array<{name: string, value?: string}>}} details -
+ *   webRequest's.
+ * @param {string} ext - What the response's own address names (urlType).
+ * @return {string} The type to go by: ext, or the first address's.
+ */
+function redirectedType(tab, details, ext) {
+  const namesType = (/** @type {string} */ type) => !!URLUtils.getModeFromExtension(type) || BackgroundUtils.isSubtitles(type);
+  const first = tab.redirectOrigin(details.requestId);
+  if (!first || namesType(ext) || details.type === 'media' || isHtmlResponse(details.responseHeaders) ||
+      modeFromContentType(details.responseHeaders)) {
+    return ext;
+  }
+  const firstType = urlType(first);
+  return namesType(firstType) ? firstType : ext;
+}
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
@@ -4570,7 +4609,17 @@ chrome.webRequest.onHeadersReceived.addListener(
       if ((details.statusCode >= 400 && details.statusCode < 600) || details.statusCode === 204) {
         return; // Client or server error. Ignore it
       }
-      const ext = urlType(url);
+      if (isRedirect(details.statusCode)) {
+        return; // The request's response at the end of the redirect is the stream.
+      }
+      // A CORS preflight (OPTIONS), which Firefox shows add-ons, or a HEAD: no stream comes in
+      // either, and the request after it, which does, has the headers to fetch it with. The
+      // preflight's were taken for the stream's, a header of the page's own (a token) left out,
+      // and the server refused the player.
+      if (details.method === 'OPTIONS' || details.method === 'HEAD') {
+        return;
+      }
+      const ext = redirectedType(tab, details, urlType(url));
 
       if (BackgroundUtils.isSubtitles(ext)) {
         VpnMirror.noteSource(details);

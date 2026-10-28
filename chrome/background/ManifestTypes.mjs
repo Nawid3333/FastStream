@@ -42,12 +42,14 @@ const DIRECT_TYPES = ['video/webm', 'video/ogg', 'application/ogg', 'video/x-mat
  * by its Content-Type. Every such file used to be taken for an MP4 video: a site's
  * notification sound or a podcast's MP3 too, which on the MPV allowlist went to mpv as the
  * page's first stream, and on a tab that is on opened the player.
+ * A page is no video either: a link run out, answered with the hoster's "expired" page, opened
+ * the player on it.
  * @param {Array<{name: string, value?: string}>} [headers] - webRequest's responseHeaders.
- * @return {string|null} The mode, or null for audio, which is no video.
+ * @return {string|null} The mode, or null for audio, which is no video, and for a page.
  */
 export function modeFromMediaType(headers) {
   const type = contentTypeOf(headers);
-  if (type.startsWith('audio/')) {
+  if (type.startsWith('audio/') || type === 'text/html' || type === 'application/xhtml+xml') {
     return null;
   }
   if (DIRECT_TYPES.includes(type)) {
