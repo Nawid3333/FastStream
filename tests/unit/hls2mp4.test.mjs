@@ -39,7 +39,7 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
 // audio included, is the case that broke a save (the MP3 test below).
 globalThis.MediaSource = {isTypeSupported: () => true};
 
-const {HLS2MP4} = await import('../../chrome/player/modules/hls2mp4/hls2mp4.mjs');
+const {HLS2MP4, samplesFromMoof} = await import('../../chrome/player/modules/hls2mp4/hls2mp4.mjs');
 
 const FRAME = TS_CLOCK / 25;
 const RATE = 48000;
@@ -98,6 +98,42 @@ async function save(fragments, {audioRendition = false, converter = new HLS2MP4(
  * @return {number} 90 kHz ticks
  */
 const ticks = (seconds) => Math.round(seconds * TS_CLOCK);
+
+describe('samplesFromMoof', () => {
+  /**
+   * An ISO BMFF box: size, type, content.
+   * @param {string} type
+   * @param {...number[]} content bytes
+   * @return {number[]}
+   */
+  const box = (type, ...content) => {
+    const body = content.flat();
+    const size = 8 + body.length;
+    return [size >>> 24, (size >>> 16) & 0xff, (size >>> 8) & 0xff, size & 0xff, ...[...type].map((c) => c.charCodeAt(0)), ...body];
+  };
+  const u32 = (n) => [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff];
+  // A moof as hls.js's MP4.moof writes one: mfhd, then a traf with tfhd, tfdt and trun.
+  const moof = (version, trunFlags, samples) => new Uint8Array(box('moof',
+      box('mfhd', u32(0), u32(1)),
+      box('traf', box('tfhd', u32(0), u32(1)), box('tfdt', [1, 0, 0, 0], u32(0), u32(0)),
+          box('trun', [version, (trunFlags >>> 16) & 0xff, (trunFlags >>> 8) & 0xff, trunFlags & 0xff], u32(samples.length), u32(120),
+              samples.flatMap((s) => [...u32(s[0]), ...u32(s[1]), ...s[2], ...u32(s[3])])))));
+
+  it('reads each sample back as hls.js built it, a negative video offset included', () => {
+    // A key frame (depends on nothing), then a frame shown before its decode time.
+    const samples = samplesFromMoof(moof(1, 0x000f01, [[3600, 1000, [0x02, 0x00, 0, 0], 7200], [3600, 200, [0x01, 0x01, 0, 0], -3600 >>> 0]]));
+    const flags = {isLeading: 0, isDependedOn: 0, hasRedundancy: 0, degradPrio: 0, paddingValue: 0};
+    expect(samples).toEqual([
+      {duration: 3600, size: 1000, cts: 7200, flags: {...flags, dependsOn: 2, isNonSync: 0}},
+      {duration: 3600, size: 200, cts: -3600, flags: {...flags, dependsOn: 1, isNonSync: 1}},
+    ]);
+  });
+
+  it('refuses a moof whose trun does not carry every sample\'s four values, or that has none', () => {
+    expect(() => samplesFromMoof(moof(0, 0x000301, [[1024, 10, [0, 0, 0, 0], 0]]))).toThrow(/without each sample's/);
+    expect(() => samplesFromMoof(new Uint8Array(0))).toThrow(/without moof\/traf\/trun/);
+  });
+});
 
 describe('HLS2MP4: a level with a separate audio rendition', () => {
   // The video is decoded from `videoDts` and shown one frame later (it has B pictures),

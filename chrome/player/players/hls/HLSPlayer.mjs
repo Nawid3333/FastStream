@@ -99,12 +99,16 @@ export default class HLSPlayer extends EventEmitter {
       appendErrorMaxRetry: 3,
       // eslint-disable-next-line new-cap
       loader: HLSLoaderFactory(this),
-      enableDateRangeMetadataCues: true,
-      enableEmsgMetadataCues: true,
-      enableID3MetadataCues: true,
-      enableWebVTT: true,
-      enableIMSC1: true,
-      enableCEA708Captions: true,
+      // hls.js's text and metadata tracks are not FastStream's: it turns hls.js's subtitles off
+      // (subtitleTrack -1, MANIFEST_PARSED) and reads no video.textTracks. With these on, hls.js
+      // still decoded CEA-608 captions and made cues of ID3, emsg and EXT-X-DATERANGE metadata
+      // for every fragment, and a text track per subtitle rendition, all hidden.
+      enableDateRangeMetadataCues: false,
+      enableEmsgMetadataCues: false,
+      enableID3MetadataCues: false,
+      enableWebVTT: false,
+      enableIMSC1: false,
+      enableCEA708Captions: false,
       stretchShortVideoTrack: false,
       maxAudioFramesDrift: 1,
       forceKeyFrameOnDiscontinuity: true,
