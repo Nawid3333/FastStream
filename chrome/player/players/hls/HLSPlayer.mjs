@@ -109,6 +109,14 @@ export default class HLSPlayer extends EventEmitter {
       enableWebVTT: false,
       enableIMSC1: false,
       enableCEA708Captions: false,
+      // Interstitials (EXT-X-DATERANGE CLASS="com.apple.hls.interstitial", ad breaks): hls.js
+      // plays each in a player of its own made from this config, FastStream's loader and level
+      // control included, and FastStream drives none of it. Measured (hls-interstitials.e2e.mjs):
+      // a break that replaces part of the stream made the video skip the stream's first seconds
+      // and end inside the break; one inserted before it played no ad, though hls.js fetched the
+      // ad's playlist. Off, hls.js plays the stream itself, in order, as the HLS spec has a
+      // player without interstitials do.
+      enableInterstitialPlayback: false,
       stretchShortVideoTrack: false,
       maxAudioFramesDrift: 1,
       forceKeyFrameOnDiscontinuity: true,
