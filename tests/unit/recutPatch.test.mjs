@@ -35,6 +35,16 @@ describe('applyHunks', () => {
     expect(applyHunks('0\n1\nx\r\ny\nz\n', hunksOf(patch), 'f')).toBe('0\n1\nx\r\nY\nz\n');
   });
 
+  it('marks a file the patch deletes, as pnpm writes it for gif.js\'s .npmignore', () => {
+    // pnpm never installs .npmignore, so patch-commit records it as deleted, with no hunk.
+    const patch = 'diff --git a/.npmignore b/.npmignore\ndeleted file mode 100644\nindex 09f95d5..0000000\n' +
+      'diff --git a/f b/f\n@@ -1,1 +1,1 @@\n-a\n+b\n';
+    expect(parseDiff(patch)).toEqual([
+      {file: '.npmignore', hunks: [], deleted: true},
+      {file: 'f', hunks: [{oldStart: 1, oldCount: 1, lines: [{op: '-', text: 'a'}, {op: '+', text: 'b'}]}]},
+    ]);
+  });
+
   it('refuses a hunk whose lines are not in the file', () => {
     const patch = 'diff --git a/f b/f\n@@ -1,1 +1,1 @@\n-nothere\n+x\n';
     expect(() => applyHunks('a\nb\n', hunksOf(patch), 'f')).toThrow(/does not apply/);
