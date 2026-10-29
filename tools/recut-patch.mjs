@@ -14,7 +14,10 @@
 // module never conflicts with FastStream's change to another. A file whose name carries
 // a content hash (mp4box's rolldown chunks) is matched to the new release's renamed one.
 // Stray CR characters in the new release (dash.js ships 428) are kept, so the patch
-// holds only real changes.
+// holds only real changes. When a file's merge conflicts, the patch's hunks are tried on
+// the new release as they are, each where its lines occur exactly once: a release that
+// reorders its bundle throws the merge off while FastStream's changes still fit
+// (hls.js 1.7.4).
 //
 // Then it checks each merged JavaScript file: it must parse, and ESLint's no-undef and
 // no-unused-vars must report no name that the stock new release does not. A clean
@@ -293,6 +296,53 @@ function applyHunks(original, hunks, label) {
 }
 
 /**
+ * Applies a patch's hunks to a newer release of the file, each where its old lines (context
+ * and removed) occur exactly once, in any order: a release that reordered the bundle moves
+ * FastStream's changes by thousands of lines, and some past others (hls.js 1.7.4 moved whole
+ * classes, 2026-10-29: the three-way merge marked 3 conflicts, every hunk applied as it was).
+ * A hunk whose old lines are missing or found more than once is not guessed at.
+ *
+ * @param {string} text - The new release's file, CRs taken out (norm).
+ * @param {Hunk[]} hunks - The file's, from parseDiff.
+ * @return {{text?: string, failed: string[]}} text: when every hunk applied; failed: why
+ *     each one that did not.
+ */
+function applyHunksByContext(text, hunks) {
+  const lines = text.split('\n');
+  const failed = [];
+  /** @type {Array<{at: number, old: number, lines: string[], hunk: string}>} */
+  const placed = [];
+  for (const h of hunks) {
+    const hunk = `@@ -${h.oldStart},${h.oldCount}`;
+    // An end-of-file marker ties a hunk to the last line, which a reordered file moves.
+    if (h.newNoEol || h.oldNoEol) {
+      failed.push(`${hunk} (at the end of the file)`); continue;
+    }
+    const old = h.lines.filter((l) => l.op !== '+').map((l) => l.text);
+    if (!old.length) {
+      failed.push(`${hunk} (no context to find it by)`); continue;
+    }
+    const at = [];
+    for (let i = 0; i + old.length <= lines.length; i++) {
+      if (lines[i] === old[0] && old.every((l, k) => lines[i + k] === l)) at.push(i);
+    }
+    if (at.length !== 1) {
+      const first = (old.find((l) => l.trim()) || '').trim().slice(0, 60);
+      failed.push(`${hunk} ("${first}") is ${at.length ? `there ${at.length} times` : 'not there'}`);
+      continue;
+    }
+    placed.push({at: at[0], old: old.length, lines: h.lines.filter((l) => l.op !== '-').map((l) => l.text), hunk});
+  }
+  placed.sort((a, b) => a.at - b.at);
+  for (let i = 1; i < placed.length; i++) {
+    if (placed[i].at < placed[i - 1].at + placed[i - 1].old) failed.push(`${placed[i].hunk} (overlaps ${placed[i - 1].hunk})`);
+  }
+  if (failed.length) return {failed};
+  for (const p of placed.reverse()) lines.splice(p.at, p.old, ...p.lines);
+  return {text: lines.join('\n'), failed};
+}
+
+/**
  * One hunk of a unified diff.
  * @typedef {Object} Hunk
  * @property {number} oldStart
@@ -303,14 +353,16 @@ function applyHunks(original, hunks, label) {
  */
 
 /**
- * Splits a unified diff into {file, hunks} per file.
+ * Splits a unified diff into {file, hunks} per file. deleted: the patch deletes the file
+ * (gif.js's .npmignore, which pnpm never installs, so pnpm patch-commit records it as
+ * deleted).
  * @param {string} patchText
- * @return {Array<{file: string, hunks: Hunk[]}>}
+ * @return {Array<{file: string, hunks: Hunk[], deleted?: boolean}>}
  */
 function parseDiff(patchText) {
-  /** @type {Array<{file: string, hunks: Hunk[]}>} */
+  /** @type {Array<{file: string, hunks: Hunk[], deleted?: boolean}>} */
   const files = [];
-  /** @type {{file: string, hunks: Hunk[]}|undefined} */
+  /** @type {{file: string, hunks: Hunk[], deleted?: boolean}|undefined} */
   let file;
   /** @type {Hunk|undefined} */
   let hunk;
@@ -321,6 +373,10 @@ function parseDiff(patchText) {
       if (d[1] !== d[2]) throw new Error(`the patch renames ${d[1]} to ${d[2]}; not supported`);
       files.push(file = {file: d[1], hunks: []});
       hunk = undefined;
+      continue;
+    }
+    if (file && !hunk && /^deleted file mode /.test(line)) {
+      file.deleted = true;
       continue;
     }
     const h = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
@@ -644,7 +700,11 @@ async function checkJavaScript(merged, stock, label, oldBase, oldOurs) {
  * @property {string[]} merged - Modules merged or kept; empty for a whole-file merge.
  * @property {string[]} [removedUpstream]
  * @property {string[]} [conflictList]
+ * @property {{conflicts: number, hunks: number}} [byContext] - A merge that conflicted,
+ *     taken from the patch's hunks instead (applyHunksByContext).
+ * @property {string[]} [contextMisses] - Why the hunks did not fit, when they did not.
  * @property {boolean} [resumed]
+ * @property {boolean} [deleted] - The patch deletes the file.
  * @property {boolean} [landed]
  */
 
@@ -691,9 +751,19 @@ async function main() {
   const oursDir = path.join(work, 'ours');
   fs.rmSync(oursDir, {recursive: true, force: true});
   copyDir(baseDir, oursDir);
-  for (const {file, hunks} of parseDiff(patchText)) {
+  /** @type {Map<string, Hunk[]>} */
+  const patchHunks = new Map();
+  /** @type {Set<string>} */
+  const deleted = new Set();
+  for (const {file, hunks, deleted: gone} of parseDiff(patchText)) {
     const f = path.join(oursDir, file);
+    if (gone) {
+      fs.rmSync(f, {force: true});
+      deleted.add(file);
+      continue;
+    }
     fs.writeFileSync(f, applyHunks(fs.readFileSync(f, 'utf8'), hunks, file));
+    patchHunks.set(file, hunks);
   }
   // What pnpm installed is what ships. For the current patch it must be exactly what the
   // hunks above produced, or this tool would be merging something else.
@@ -702,6 +772,12 @@ async function main() {
     JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8')).version;
   if (installedVersion === cur.version) {
     for (const rel of files) {
+      if (deleted.has(rel)) {
+        if (fs.existsSync(path.join(installed, rel))) {
+          throw new Error(`${rel}: ${cur.patch} deletes it, but it is installed - run pnpm install`);
+        }
+        continue;
+      }
       if (!fs.readFileSync(path.join(installed, rel)).equals(fs.readFileSync(path.join(oursDir, rel)))) {
         throw new Error(`${rel}: applying ${cur.patch} to ${opts.pkg} ${cur.version} does not give the installed file - run pnpm install`);
       }
@@ -711,6 +787,13 @@ async function main() {
   /** @type {RecutResult} */
   const result = {package: opts.pkg, from: cur.version, to: opts.to, work, files: [], problems: [], renamed: []};
   for (const rel of files) {
+    if (deleted.has(rel)) {
+      // Nothing to merge: the new patch deletes it again, unless the release dropped it.
+      const landed = !fs.existsSync(path.join(theirsDir, rel));
+      result.files.push({file: rel, from: rel, conflicts: 0, mode: 'deleted', merged: [], deleted: true, landed});
+      if (landed) result.problems.push(`${rel}: FastStream's changes are all in ${opts.to} already - the patch can be dropped for this file`);
+      continue;
+    }
     const base = fs.readFileSync(path.join(baseDir, rel), 'utf8');
     const ours = fs.readFileSync(path.join(oursDir, rel), 'utf8');
     let target = opts.map.get(rel) || rel;
@@ -736,6 +819,19 @@ async function main() {
       merged = mergeText(o, b, t, target);
       Object.assign(entry, {mode: 'whole file'});
     }
+    if (merged.conflicts) {
+      // The three-way merge lines the releases up by their diff, which a reordered bundle
+      // throws off; the patch's own hunks may still fit the new release as they are.
+      const hunks = (patchHunks.get(rel) || []).map((h) => ({...h, lines: h.lines.map((l) => ({...l, text: l.text.replace(/\r$/, '')}))}));
+      const byContext = applyHunksByContext(t, hunks);
+      if (byContext.text !== undefined) {
+        entry.byContext = {conflicts: merged.conflicts, hunks: hunks.length};
+        delete entry.conflictList;
+        merged = {text: byContext.text, conflicts: 0};
+      } else {
+        entry.contextMisses = byContext.failed;
+      }
+    }
     entry.conflicts = merged.conflicts;
     result.files.push(entry);
 
@@ -760,7 +856,8 @@ async function main() {
     }
     if (merged.conflicts) {
       fs.writeFileSync(outFile, merged.text);
-      result.problems.push(`${target}: ${merged.conflicts} conflict(s), marked in ${outFile}`);
+      result.problems.push(`${target}: ${merged.conflicts} conflict(s), marked in ${outFile}` +
+        (entry.contextMisses ? `; FastStream's hunks do not fit ${opts.to} as they are either: ${entry.contextMisses.join(', ')}` : ''));
       continue;
     }
     const final = spliceOnto(theirsRaw, merged.text);
@@ -779,9 +876,10 @@ async function main() {
     console.log(JSON.stringify({...result, clean}, null, 2));
   } else {
     for (const f of result.files) {
-      const extra = f.mode === 'webpack modules' ?
+      const extra = (f.mode === 'webpack modules' ?
         ` - modules: ${f.theirs} as released, ${f.ours} as patched, ${f.same} identical, ` +
-        `${f.merged.length} merged${f.merged.length ? ` (${f.merged.join(', ')})` : ''}` : '';
+        `${f.merged.length} merged${f.merged.length ? ` (${f.merged.join(', ')})` : ''}` : '') +
+        (f.byContext ? ` - the three-way merge marked ${f.byContext.conflicts}; all ${f.byContext.hunks} of the patch's hunks fit ${opts.to} by their context instead` : '');
       console.log(`  ${f.file}${f.from !== f.file ? ` (was ${f.from})` : ''}: ${f.mode}, ${f.conflicts} conflict(s)${extra}`);
       for (const c of f.conflictList || []) console.log(`      conflict: ${c}`);
     }
@@ -880,7 +978,8 @@ function applyUpdate(opts, cur, result, work) {
   must('pnpm', ['patch', `${pkg}@${to}`, '--edit-dir', edit], {cwd: root});
   for (const f of result.files) {
     if (f.landed) continue;
-    fs.copyFileSync(path.join(work, 'merged', f.file), path.join(edit, f.file));
+    if (f.deleted) fs.rmSync(path.join(edit, f.file), {force: true});
+    else fs.copyFileSync(path.join(work, 'merged', f.file), path.join(edit, f.file));
   }
   if (result.files.every((f) => f.landed)) {
     // Dependabot takes the library back.
@@ -910,7 +1009,7 @@ function applyUpdate(opts, cur, result, work) {
   return 0;
 }
 
-export {applyHunks, bumpPackageJson, dropDependabotIgnores, parseDiff, patchedFiles, renamedCounterpart, renameHashedChunks, mergeText, splitWebpack, mergeWebpack, spliceOnto, checkJavaScript};
+export {applyHunks, applyHunksByContext, bumpPackageJson, dropDependabotIgnores, parseDiff, patchedFiles, renamedCounterpart, renameHashedChunks, mergeText, splitWebpack, mergeWebpack, spliceOnto, checkJavaScript};
 
 // Run as a command; imported (tests/unit/recutPatch.test.mjs), it only exports the above.
 if (process.argv[1] && path.resolve(process.argv[1]) === url.fileURLToPath(import.meta.url)) {

@@ -20,7 +20,7 @@ patchedDependencies:
   Coloris@0.25.1: c4147209f121eb8e1746440d4026a9f680a4098009bcdd8ea077e441c8d727f9
   dashjs@5.2.1: 5bd4216990932225d76caa11e6da713c4b9647d5ece38bf7cc88720b03cd3526
   gif.js@0.2.0: 7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae
-  hls.js@1.7.3: bd4f4bcbe636b6c516ce4781461d8f25ea81e790e80451d5795c17868bdb2563
+  hls.js@1.7.4: 6d2a53d6e945b3441429dd035a065eeef9afbceb0e8bfa7cbc70ece0e3c0f627
   mp4box@2.5.0: 3091a659c97e24ca32b158848f4677b2cea9286d2943219003f9d817b42d7ece
 
 importers:
@@ -88,8 +88,8 @@ importers:
         specifier: ^17.13.0
         version: 17.13.0
       hls.js:
-        specifier: 1.7.3
-        version: 1.7.3(patch_hash=bd4f4bcbe636b6c516ce4781461d8f25ea81e790e80451d5795c17868bdb2563)
+        specifier: 1.7.4
+        version: 1.7.4(patch_hash=6d2a53d6e945b3441429dd035a065eeef9afbceb0e8bfa7cbc70ece0e3c0f627)
       js-yaml:
         specifier: ^5.5.0
         version: 5.5.0
@@ -1917,8 +1917,8 @@ packages:
     resolution: {integrity: sha512-iZyKG96/JwPz1N55vj2Ie2vXbhu440zfUfJvSwEqEbeLluk7NnapfGqa7LH0mOsnDxTF85Mx8/dyR6HfqcbmbQ==}
     engines: {node: '>=20'}
 
-  hls.js@1.7.3:
-    resolution: {integrity: sha512-MsPlx6yVW4Qv4C7mEVou4/gk/5cN2dVxOTnrNjPSmyH2f0Ln+/UkG10Ax1PE6OvrmTVPKgQYozTtBaPOuCzq7A==}
+  hls.js@1.7.4:
+    resolution: {integrity: sha512-3GlxGdPvT2YHvQYOt+yOzT/DEior/qJVNIylHA77kgeoBTdQQqi70GwefNEUmHQeNGyjC8U62+bruqW/Tpm+tg==}
 
   hookified@1.15.1:
     resolution: {integrity: sha512-MvG/clsADq1GPM2KGo2nyfaWVyn9naPiXrqIe4jYjXNZQt238kWyOGrsyc/DmRAQ+Re6yeo6yX/yoNCG5KAEVg==}
@@ -5014,7 +5014,7 @@ snapshots:
     dependencies:
       hookified: 1.15.1
 
-  hls.js@1.7.3(patch_hash=bd4f4bcbe636b6c516ce4781461d8f25ea81e790e80451d5795c17868bdb2563): {}
+  hls.js@1.7.4(patch_hash=6d2a53d6e945b3441429dd035a065eeef9afbceb0e8bfa7cbc70ece0e3c0f627): {}
 
   hookified@1.15.1: {}
 
