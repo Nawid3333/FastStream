@@ -6,9 +6,10 @@
 // enableInterstitialPlayback went off (HLSPlayer), on the hls-ts fixture's 9 s with a 9 s ad:
 // a break that replaces part of the stream (no X-RESUME-OFFSET, as live ad insertion has it)
 // made the video skip from 0 to 9.9 s within a second and end at 13; plain hls.js played the
-// stream to 4 s, then the ad. A break inserted into the stream (X-RESUME-OFFSET=0) played no
-// ad in FastStream, though hls.js fetched the ad's playlist and kept a schedule that never
-// moved. Now hls.js plays the stream itself, in order, as the HLS spec has a player without
+// stream to 4 s, then the ad. A break inserted before the stream (X-RESUME-OFFSET=0, CUE="PRE")
+// played no ad in FastStream, though hls.js fetched the ad's playlist. One inserted into the
+// stream already played the stream itself (hls.js's schedule never moved); its test keeps it
+// that way. Now hls.js plays the stream itself, in order, as the HLS spec has a player without
 // interstitials do, and never asks for the ad.
 
 import fs from 'node:fs';
@@ -58,16 +59,18 @@ const PLAYLISTS = {
 };
 
 /**
- * Plays a stream to its end, noting the time every second.
+ * Plays a stream to its end, noting about every second where the video is and when the page
+ * saw it there.
  * @param {string} name - Its path.
- * @return {Promise<{times: number[], ended: boolean, duration: number, error: ?string}>}
+ * @return {Promise<{samples: Array<{time: number, at: number}>, ended: boolean, duration: number,
+ *   error: ?string}>} at: the page's clock, in seconds.
  */
 async function playThrough(name) {
   requests = [];
   await browser.url(`/player/index.html?t=${Date.now()}#${ORIGIN}${name}`);
-  const times = [];
+  const samples = [];
   let last = null;
-  const end = Date.now() + 30000;
+  const end = Date.now() + 45000;
   while (Date.now() < end) {
     last = await browser.execute(() => {
       const client = window.fastStream;
@@ -75,15 +78,15 @@ async function playThrough(name) {
       if (!video) return null;
       if (video.paused && !video.ended) video.play().catch(() => {});
       return {
-        time: video.currentTime, ended: video.ended, duration: video.duration,
+        time: video.currentTime, at: performance.now() / 1000, ended: video.ended, duration: video.duration,
         error: client.interfaceController?.statusManager?.statusMessages?.get('error')?.message || null,
       };
     });
-    if (last) times.push(last.time);
+    if (last) samples.push({time: last.time, at: last.at});
     if (last?.ended || last?.error) break;
     await browser.pause(1000);
   }
-  return {times, ended: !!last?.ended, duration: last?.duration ?? NaN, error: last?.error ?? null};
+  return {samples, ended: !!last?.ended, duration: last?.duration ?? NaN, error: last?.error ?? null};
 }
 
 describe('An HLS stream with an interstitial (an ad break)', function() {
@@ -123,14 +126,17 @@ describe('An HLS stream with an interstitial (an ad break)', function() {
     ['/midroll-replacing.m3u8', 'replacing part of the stream'],
   ]) {
     it(`plays the stream itself, in order, past a break ${what}, and never asks for the ad`, async function() {
-      const {times, ended, duration, error} = await playThrough(name);
+      const {samples, ended, duration, error} = await playThrough(name);
       expect(error).toBe(null);
       expect(ended).toBe(true);
       // The stream's 9 s, not a timeline with the ad's 9 in it.
       expect(duration).toBeCloseTo(9, 0);
-      // A second a step, never a jump.
-      const steps = times.slice(1).map((t, i) => Math.round((t - times[i]) * 10) / 10);
-      expect(steps.filter((s) => s < 0 || s > 2.5)).toEqual([]);
+      // Never back, and never further on than the page's clock went (a jump), with a second
+      // to spare for a frame that lands between two samples.
+      const jumps = samples.slice(1).map((s, i) => ({
+        from: samples[i].time, to: s.time, ahead: (s.time - samples[i].time) - (s.at - samples[i].at),
+      })).filter((step) => step.to < step.from - 0.05 || step.ahead > 1);
+      expect(jumps).toEqual([]);
       expect(requests.filter((p) => p.startsWith('/ad'))).toEqual([]);
     });
   }
