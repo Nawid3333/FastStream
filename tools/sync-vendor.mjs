@@ -43,8 +43,8 @@ const VENDOR = [
     patched: true,
   },
   {
-    // hls.js's own worker bundle, for HLSPlayer's workerPath; unpatched: the patch's
-    // outputSamples is read only from hls2mp4's main-thread Transmuxer (hls.mjs).
+    // hls.js's own worker bundle, for HLSPlayer's workerPath; unpatched: the patch only
+    // widens hls.mjs's export list, for hls2mp4's main-thread Transmuxer.
     name: 'hls.js',
     from: 'node_modules/hls.js/dist/hls.worker.js',
     to: 'chrome/player/modules/hls.worker.js',

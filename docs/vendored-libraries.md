@@ -9,22 +9,18 @@ it.
 Method: fetch every candidate npm release, diff each against the in-tree
 copy, and take the smallest diff as the base version. Reproduce with
 `docs/hls.js-1.6.9-faststream.patch` - that reproduces the original 1.6.9
-measurement. Today's patch is `patches/hls.js@1.7.3.patch`, applied by pnpm
+measurement. Today's patch is `patches/hls.js@1.7.4.patch`, applied by pnpm
 (`pnpm-workspace.yaml`, `patchedDependencies`).
 
 ## hls.js
 
-**Base version: 1.7.3** (bumped 2026-09-11 from 1.7.2, which was itself
-upgraded 2026-09-06 from 1.6.9). The 1.7.2→1.7.3 bump changed nothing the
-patch touches: `git apply --check` against a pristine 1.7.3 tarball took the
-1.7.2 patch unmodified (same hunk content, only the surrounding line numbers
-shifted by a couple of lines), confirmed by `pnpm patch`/`patch-commit`
-rebasing it clean. Now **4 hunks, all in `dist/hls.mjs`, a 40-line patch** (2026-10-22: the
-2 hunks in the UMD `dist/hls.js` went with it, see "hls.worker.js" below; 6 hunks and 62
-lines before) — down from the original 22 hunks / 466 lines against 1.6.9. The reduction plan below (originally
+**Base version: 1.7.4** (2026-10-29, from 1.7.3, bumped 2026-09-11 from 1.7.2, which was
+itself upgraded 2026-09-06 from 1.6.9). Now **1 hunk, the export list in `dist/hls.mjs`, an
+11-line patch** (2026-10-29; 4 hunks and 40 lines before, 6 and 62 before 2026-10-22) — down
+from the original 22 hunks / 466 lines against 1.6.9. The reduction plan below (originally
 written against a 1.7.1 target) was carried out one version further at the
 1.7.2 step, re-verifying every claim against the actual 1.7.2 npm release
-rather than trusting the old table; nothing in it changed at 1.7.3.
+rather than trusting the old table.
 
 ### What's still patched
 
@@ -34,23 +30,31 @@ rather than trusting the old table; nothing in it changed at 1.7.3.
 `chrome/player/modules/hls2mp4/transmuxer.mjs:1` imports to convert HLS to
 MP4 for the save-to-disk feature (the original patch's list also included
 `AvcVideoParser` and `ExpGolomb`, which nothing in this tree imports, so
-those two were dropped). Confirmed still absent from 1.7.2's export
+those two were dropped). Confirmed still absent from 1.7.4's export
 statement, and the package's `exports` map still only exposes `.`,
 `./light` and `./dist/*`, so there is still no deep-import escape hatch.
 
-**`outputSamples` on the remux result (2 hunks, in `dist/hls.mjs`).** The
-muxer's returned object gains `outputSamples` alongside `nb`. hls2mp4 needs
-the samples themselves, not just the count, and gets them from its own
-main-thread `Transmuxer` (`hls2mp4/transmuxer.mjs`, on `hls.mjs`); the
-playback worker's remux results are read by nothing that wants them, so the
-worker is not patched (since 2026-10-22). Confirmed still not returned by 1.7.2's
-`MP4Remuxer`.
+### Dropped 2026-10-29
 
-**VTT subtitle part-loading guard, upstream issue #7460 (1 hunk).**
-`BaseStreamController.shouldLoadParts` still has no fragment-type check, so
-without this guard `SubtitleStreamController` (which does not implement
-part loading) could be told to load parts anyway. Confirmed still missing
-in 1.7.2.
+**`outputSamples` on the remux result (was 2 hunks).** hls2mp4 writes a plain MP4, so it
+needs every sample's size, duration, composition offset and flags, and the patch added the
+remuxer's sample list (`outputSamples`) to its result. The same list is in the result
+already: `MP4Remuxer` writes it into the fragment's moof (`data1`), whose `trun` holds
+exactly those four values per sample (`MP4.trun`, from the list it then returned). hls2mp4
+reads it back from there (`samplesFromMoof`). Before the hunks went, every sample of the 38
+saves in `hls2mp4.test.mjs` and `saveDownloadsAhead.test.mjs` (H.264, HEVC, AAC, MP3, AC-3,
+discontinuities, holes, a damaged packet: 3,383) came out identical both ways. The moof is
+always there: hls.js leaves it empty only for bare MPEG audio, and the transmuxer asks for
+MP3 in MP4 (`typeSupported.mpeg` false).
+
+**VTT subtitle part-loading guard, upstream issue #7460 (was 1 hunk).** Not a FastStream
+change: it was upstream's own stopgap, video-dev/hls.js#7463 (2025-08), which the copy
+FastStream once vendored was built after. Upstream removed it again in #7626 (2026-01, in
+1.7.0) when `SubtitleStreamController` learnt to load VTT parts, so the patch was putting a
+withdrawn workaround back. It never ran here either: it sits inside `shouldLoadParts`'s
+`config.lowLatencyMode` branch, and HLSPlayer sets `lowLatencyMode: false` (and turns
+hls.js's subtitles off). "Confirmed still missing in 1.7.2" checked the line, not why
+upstream had taken it out.
 
 ### What moved out of the patch entirely
 
@@ -97,10 +101,9 @@ original developers" is accurate.
 
 ## Recommended approach: `pnpm patch`, not wrappers
 
-Do **not** try to reimplement these through wrapper classes. The exports and
-`outputSamples` changes have no public-API equivalent, and reimplementing a
-demuxer to avoid a one-line export change would add far more risk than it
-removes.
+Do **not** try to reimplement these through wrapper classes. The exports
+change has no public-API equivalent, and reimplementing a demuxer to avoid a
+one-line export change would add far more risk than it removes.
 
 Ship the **official npm release plus a committed patch file**, via
 `pnpm patch`. This is what pnpm's patching exists for and it satisfies what

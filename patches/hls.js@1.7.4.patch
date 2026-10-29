@@ -1,37 +1,8 @@
 diff --git a/dist/hls.mjs b/dist/hls.mjs
-index df51d7646a48c277fca6e5d790d5ec854effc557..917cfc671ffe17f85cdfe3cc0aa6156b58195d86 100644
+index df51d7646a48c277fca6e5d790d5ec854effc557..a3d908b4e581a8a4923e4bf5590ec324cf18170e 100644
 --- a/dist/hls.mjs
 +++ b/dist/hls.mjs
-@@ -13419,6 +13419,10 @@ class BaseStreamController extends TaskLoop {
-         // Buffer must be ahead of first part + duration of parts after last segment
-         // and playback must be at or past segment adjacent to part list
-         const firstPart = details.partList[0];
-+        // Loading of VTT subtitle parts is not implemented in subtitle-stream-controller (#7460)
-+        if (firstPart.fragment.type === PlaylistLevelType.SUBTITLE) {
-+          return false;
-+        }
-         const safePartStart = firstPart.end + (((_details$fragmentHint = details.fragmentHint) == null ? void 0 : _details$fragmentHint.duration) || 0);
-         if (bufferEnd >= safePartStart) {
-           const playhead = this.playhead;
-@@ -19669,6 +19673,7 @@ class MP4Remuxer extends Logger {
-       hasAudio: false,
-       hasVideo: true,
-       nb: outputSamples.length,
-+      outputSamples,
-       dropped: track.dropped
-     };
-     // For troubleshooting duplicates of https://github.com/video-dev/hls.js/issues/6374
-@@ -19903,7 +19908,8 @@ class MP4Remuxer extends Logger {
-       type,
-       hasAudio: true,
-       hasVideo: false,
--      nb: nbSamples
-+      nb: nbSamples,
-+      outputSamples
-     };
-     this.isAudioContiguous = true;
-     return audioData;
-@@ -41379,5 +41385,5 @@ class Hls {
+@@ -41379,5 +41379,5 @@ class Hls {
  }
  Hls.defaultConfig = void 0;
  

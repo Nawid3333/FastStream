@@ -10,16 +10,93 @@ const TS_CLOCK = 90000;
 
 /**
  * What hls.js remuxed from one fragment for one track (MP4Remuxer, one of the internals
- * FastStream's patch exports): hls.js's RemuxedTrack, its mdat in data2 (optional in hls.js's
- * types, always there for a track MP4Remuxer remuxed), and the samples (hls.js's Mp4Sample,
- * which its types do not describe) that patches/hls.js@*.patch adds.
- * @typedef {import('../hls.mjs').RemuxedTrack & {data2: Uint8Array<ArrayBuffer>, outputSamples: Array<*>}} RemuxedFragment
+ * FastStream's patch exports): hls.js's RemuxedTrack, its moof in data1 and its mdat in data2
+ * (optional in hls.js's types, always there for a track MP4Remuxer remuxed).
+ * @typedef {import('../hls.mjs').RemuxedTrack & {data2: Uint8Array<ArrayBuffer>}} RemuxedFragment
  */
+
+/**
+ * One sample of a fragment, as hls.js's MP4Remuxer builds it (its Mp4Sample, createMp4Sample):
+ * what MP4Generator writes the file's sample tables from.
+ * @typedef {{duration: number, size: number, cts: number, flags: {isLeading: number,
+ *   isDependedOn: number, hasRedundancy: number, degradPrio: number, dependsOn: number,
+ *   isNonSync: number, paddingValue: number}}} Mp4Sample
+ */
+
+/**
+ * Reads a fragment's samples back from the moof hls.js's MP4Remuxer wrote for it (data1).
+ * Its trun holds, for each sample, the duration, size, flags and composition offset of the
+ * samples the remuxer built it from (MP4.trun). The remuxer does not return that list;
+ * FastStream's patch used to add it to the result.
+ * @param {Uint8Array} moof
+ * @return {Array<Mp4Sample>}
+ */
+export function samplesFromMoof(moof) {
+  const view = new DataView(moof.buffer, moof.byteOffset, moof.byteLength);
+  /**
+   * The first box of a type between two offsets: where its content starts and ends.
+   * @param {number} start
+   * @param {number} end
+   * @param {string} type
+   * @return {?{start: number, end: number}}
+   */
+  const child = (start, end, type) => {
+    for (let at = start; at + 8 <= end;) {
+      const size = view.getUint32(at);
+      if (size < 8 || at + size > end) {
+        break;
+      }
+      if (String.fromCharCode(moof[at + 4], moof[at + 5], moof[at + 6], moof[at + 7]) === type) {
+        return {start: at + 8, end: at + size};
+      }
+      at += size;
+    }
+    return null;
+  };
+  const moofBox = child(0, moof.byteLength, 'moof');
+  const traf = moofBox && child(moofBox.start, moofBox.end, 'traf');
+  const trun = traf && child(traf.start, traf.end, 'trun');
+  if (!trun) {
+    throw new Error('hls.js remuxed a fragment without moof/traf/trun');
+  }
+  const version = moof[trun.start];
+  const flags = view.getUint32(trun.start) & 0xffffff;
+  // MP4.trun writes each sample's duration, size, flags and composition offset.
+  if ((flags & 0xf00) !== 0xf00 || (flags & 0x4)) {
+    throw new Error(`hls.js wrote a trun without each sample's duration, size, flags and offset (0x${flags.toString(16)})`);
+  }
+  const count = view.getUint32(trun.start + 4);
+  let at = trun.start + 8 + ((flags & 0x1) ? 4 : 0);
+  if (at + count * 16 > trun.end) {
+    throw new Error('hls.js wrote a trun shorter than its sample count');
+  }
+  /** @type {Array<Mp4Sample>} */
+  const samples = [];
+  for (let i = 0; i < count; i++, at += 16) {
+    const f = view.getUint32(at + 8);
+    samples.push({
+      duration: view.getUint32(at),
+      size: view.getUint32(at + 4),
+      // Version 1 (video) writes the offset signed.
+      cts: version === 1 ? view.getInt32(at + 12) : view.getUint32(at + 12),
+      flags: {
+        isLeading: (f >>> 26) & 3,
+        dependsOn: (f >>> 24) & 3,
+        isDependedOn: (f >>> 22) & 3,
+        hasRedundancy: (f >>> 20) & 3,
+        paddingValue: (f >>> 17) & 7,
+        isNonSync: (f >>> 16) & 1,
+        degradPrio: f & 0xffff,
+      },
+    });
+  }
+  return samples;
+}
 
 /**
  * One fragment's part of a track (pushChunk): its samples, where its mdat goes in the file,
  * and its times on the stream's clock, in seconds.
- * @typedef {{id: number, samples: Array<*>, offset: number, originalOffset: number,
+ * @typedef {{id: number, samples: Array<Mp4Sample>, offset: number, originalOffset: number,
  *   startDTS: number, endDTS: number, startPTS: number, endPTS: number}} TrackChunk
  */
 
@@ -183,7 +260,7 @@ export class HLS2MP4 extends EventEmitter {
   /**
    * Adds what hls.js remuxed from one fragment to a track, and keeps its data.
    * @param {Mp4Track} track
-   * @param {RemuxedFragment} remuxed hls.js's result for the track: its samples, times and mdat
+   * @param {RemuxedFragment} remuxed hls.js's result for the track: its moof, times and mdat
    * @param {number} initPTS where the stream's clock was at the transmuxer's time 0, in
    *     seconds. The level and the audio rendition each have a transmuxer, which counts
    *     from its own stream's first timestamp: the chunks keep the stream's clock instead,
@@ -197,7 +274,7 @@ export class HLS2MP4 extends EventEmitter {
     }
     track.chunks.push({
       id: track.nextChunkId++,
-      samples: remuxed.outputSamples,
+      samples: samplesFromMoof(remuxed.data1),
       offset: /** @type {number} */ (this.datasOffset) + headerLen,
       originalOffset: /** @type {number} */ (this.datasOffset) + headerLen,
       startDTS: remuxed.startDTS + initPTS,
