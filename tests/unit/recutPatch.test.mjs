@@ -4,8 +4,8 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {describe, expect, it} from 'vitest';
 import {
-  applyHunks, bumpPackageJson, checkJavaScript, dropDependabotIgnores, mergeWebpack, parseDiff,
-  renamedCounterpart, renameHashedChunks, spliceOnto, splitWebpack,
+  applyHunks, applyHunksByContext, bumpPackageJson, checkJavaScript, dropDependabotIgnores, mergeText,
+  mergeWebpack, parseDiff, renamedCounterpart, renameHashedChunks, spliceOnto, splitWebpack,
 } from '../../tools/recut-patch.mjs';
 
 // tools/recut-patch.mjs moves a library's pnpm patch onto a new release. Each piece below
@@ -38,6 +38,40 @@ describe('applyHunks', () => {
   it('refuses a hunk whose lines are not in the file', () => {
     const patch = 'diff --git a/f b/f\n@@ -1,1 +1,1 @@\n-nothere\n+x\n';
     expect(() => applyHunks('a\nb\n', hunksOf(patch), 'f')).toThrow(/does not apply/);
+  });
+});
+
+describe('applyHunksByContext', () => {
+  // hls.js 1.7.4 moved whole classes of its bundle: the three-way merge of 1.7.3's patch
+  // marked 3 conflicts, and an issue asked for a hand update, while all four hunks fitted
+  // the new release as they were. Here a small class moves below a big one.
+  const big = Array.from({length: 10}, (_, i) => `  b${i};`);
+  const small = ['class A {', '  a1;', '  a2;', '  a3;', '}'];
+  const base = [...small, 'class B {', ...big, '}', 'export { A, B };', ''].join('\n');
+  // FastStream's two changes; the first adds a line, so the second moves down by one.
+  const patched = (text) => text.replace('  a2;', '  a2 = "FastStream";\n  a2b;').replace('export { A, B };', 'export { A, B, C };');
+  const ours = patched(base);
+  const theirs = ['class B {', ...big, '}', ...small, 'export { A, B };', ''].join('\n');
+  const patch = 'diff --git a/f b/f\n' +
+    '@@ -2,3 +2,4 @@ class A {\n   a1;\n-  a2;\n+  a2 = "FastStream";\n+  a2b;\n   a3;\n' +
+    '@@ -17,2 +18,2 @@\n }\n-export { A, B };\n+export { A, B, C };\n';
+
+  it('fits the hunks of a block the new release moved, where the three-way merge conflicts', () => {
+    expect(applyHunks(base, hunksOf(patch), 'f')).toBe(ours);
+    expect(mergeText(ours, base, theirs, 'f').conflicts).toBeGreaterThan(0);
+    const fit = applyHunksByContext(theirs, hunksOf(patch));
+    expect(fit.failed).toEqual([]);
+    expect(fit.text).toBe(patched(theirs));
+  });
+
+  it('does not guess at a hunk whose lines are there twice or not at all', () => {
+    const twice = theirs.replace('export', [...small, 'export'].join('\n'));
+    const gone = theirs.replace('  a1;\n', '  a1 = 1;\n');
+    for (const [text, why] of [[twice, /\("a1;"\) is there 2 times/], [gone, /\("a1;"\) is not there/]]) {
+      const fit = applyHunksByContext(text, hunksOf(patch));
+      expect(fit.text).toBeUndefined();
+      expect(fit.failed).toEqual([expect.stringMatching(why)]);
+    }
   });
 });
 

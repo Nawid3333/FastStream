@@ -74,7 +74,12 @@ already changed: fix `sync-vendor.mjs`, then run `pnpm run verify`.
 
 It merges module by module where it can, finds a content-hashed file under its new name
 (mp4box's rolldown chunks), and keeps the stray CR characters a release ships (dash.js
-has 428), so the patch holds only real changes. Each merged JavaScript file
+has 428), so the patch holds only real changes. When a whole-file merge conflicts, it
+tries the patch's own hunks on the new release, each where its lines occur exactly once:
+hls.js 1.7.4 moved whole classes of its bundle, and the three-way merge marked 3 conflicts
+while all four of FastStream's changes still fitted as they were (issue #610). A hunk whose
+lines are gone or found twice is not guessed at; the report names it, with its first
+line, next to the conflicts. Each merged JavaScript file
 (`.js`/`.mjs`/`.cjs`) must parse, and ESLint's `no-undef`/`no-unused-vars` must find no
 name that neither the new release nor the current patch has. A clean merge is not a correct one: on the dash.js 5.2.1 upgrade two
 merged cleanly and would have thrown on every stream of their kind - a helper upstream

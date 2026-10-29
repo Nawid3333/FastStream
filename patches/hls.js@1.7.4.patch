@@ -1,8 +1,8 @@
 diff --git a/dist/hls.mjs b/dist/hls.mjs
-index fce9ba311355708eaf3846cc9f167a1fdd946c76..98b4e3888343303377d7ae27ed28bcfffb9e0013 100644
+index df51d7646a48c277fca6e5d790d5ec854effc557..917cfc671ffe17f85cdfe3cc0aa6156b58195d86 100644
 --- a/dist/hls.mjs
-+++ b/dist/hls.mjs	
-@@ -11182,6 +11182,10 @@ class BaseStreamController extends TaskLoop {
++++ b/dist/hls.mjs
+@@ -13419,6 +13419,10 @@ class BaseStreamController extends TaskLoop {
          // Buffer must be ahead of first part + duration of parts after last segment
          // and playback must be at or past segment adjacent to part list
          const firstPart = details.partList[0];
@@ -13,7 +13,7 @@ index fce9ba311355708eaf3846cc9f167a1fdd946c76..98b4e3888343303377d7ae27ed28bcff
          const safePartStart = firstPart.end + (((_details$fragmentHint = details.fragmentHint) == null ? void 0 : _details$fragmentHint.duration) || 0);
          if (bufferEnd >= safePartStart) {
            const playhead = this.playhead;
-@@ -17371,6 +17375,7 @@ class MP4Remuxer extends Logger {
+@@ -19669,6 +19673,7 @@ class MP4Remuxer extends Logger {
        hasAudio: false,
        hasVideo: true,
        nb: outputSamples.length,
@@ -21,7 +21,7 @@ index fce9ba311355708eaf3846cc9f167a1fdd946c76..98b4e3888343303377d7ae27ed28bcff
        dropped: track.dropped
      };
      // For troubleshooting duplicates of https://github.com/video-dev/hls.js/issues/6374
-@@ -17605,7 +17610,8 @@ class MP4Remuxer extends Logger {
+@@ -19903,7 +19908,8 @@ class MP4Remuxer extends Logger {
        type,
        hasAudio: true,
        hasVideo: false,
@@ -31,7 +31,7 @@ index fce9ba311355708eaf3846cc9f167a1fdd946c76..98b4e3888343303377d7ae27ed28bcff
      };
      this.isAudioContiguous = true;
      return audioData;
-@@ -41139,5 +41145,5 @@ class Hls {
+@@ -41379,5 +41385,5 @@ class Hls {
  }
  Hls.defaultConfig = void 0;
  
