@@ -173,7 +173,7 @@ of this change already exists.
 
 ## dash.js
 
-**Now 5.3.0 plus a 33 KB patch (2026-11-07; 5.3.0 since 2026-11-06, 5.2.1 since 2026-09-25)** - see "Status" and
+**Now 5.3.0 plus a 23 KB patch (2026-11-07; 5.3.0 since 2026-11-06, 5.2.1 since 2026-09-25)** - see "Status" and
 "Re-cut onto 5.3.0" below; the next update goes
 through `docs/updating-patched-libraries.md`. The
 measurements that follow are from the first migration (2026-09-05); they are
@@ -262,7 +262,7 @@ FastStream's changes - the whole list, each used by `players/dash/`:
 
 | Where | Change | Used by |
 |---|---|---|
-| `HTTPLoader` | Downloads go through FastStream: `customData.onSuccess/onFail/onAbort` callbacks; dash.js's own retries and response interceptors are removed | `DashLoader.mjs` |
+| `HTTPLoader` | None since 2026-11-07: downloads go through FastStream's `DashLoader` (`dash.extend('XHRLoader', ...)`), which ends each request as dash.js's own XHRLoader does - the answer in the `CommonMediaResponse`, then `customData.onloadend`, or `customData.onabort` - with dash.js's retries set to 0 (`DashPlayer`). Until then the patch added `customData.onSuccess/onFail/onAbort` and cut HTTPLoader's ending, retries and response interceptors out | `DashLoader.mjs` |
 | `Representation`, `RepresentationController`, `Stream`, `StreamProcessor` | Representations are updated lazily (`setUpdateCallback`/`checkForUpdate`), quality switches wait for it (`prepareQualityChange` is async), and a `REPRESENTATION_UPDATED` event says when one is ready | `DashPlayer.mjs` |
 | `SegmentsController` and the four segment getters, `DashHandler` | `getAllSegments()`, and `_getRequestForSegment` exported | `DashPlayer.extractFragments` |
 | `MediaController` | When a custom initial track selection function is set, it picks from all of a type's tracks (a text track as stock dash.js picks it), ahead of dash.js's saved-settings filtering: one added hook (since 2026-11-07; until then the filtering was deleted) | `setCustomInitialTrackSelectionFunction` |
@@ -343,14 +343,27 @@ themselves. So, where it changes nothing FastStream does:
   filtering did, without the ~165 deleted lines that conflicted twice at this re-cut. The
   hook names no webpack import (`'text'`, not `Constants.TEXT`): webpack renumbers those.
 - **`MediaPlayer`**: `getRepresentations`, which nothing in FastStream calls, is gone.
+- **`HTTPLoader`** is stock 5.3.0 (it was +79/-92 lines, the patch's biggest and most
+  deleting part). `DashLoader` answers through what dash.js gives every loader: it writes the
+  answer into the `CommonMediaResponse` (status 200, data, URL; status 0 for a failure, a
+  network error's status in XHRLoader - not a 404, whose first failure would have dash.js check
+  its clock against a time server) and calls `customData.onloadend`, or `customData.onabort`
+  (`DashLoader.endsOf`). HTTPLoader then does what FastStream's three callbacks did: a 2xx with
+  a body is the answer, anything else an error. Its retries are 0, every request type its
+  settings know (`DashPlayer`): FastStream's download manager retries, and `DashLoader` counts
+  a segment's failures. Two differences, both stock dash.js's behaviour: the answer reaches
+  dash.js a microtask later (HTTPLoader's response interceptors, none of them FastStream's),
+  and an answer to a request dash.js aborted itself goes nowhere (its `abort` takes
+  `onloadend` away; FastStream's `onSuccess` used to deliver it). `DashLoader.test.mjs` reads
+  HTTPLoader's code from the npm bundle and fails, in the update's own PR, if a release
+  changes what `DashLoader` relies on.
 
-The patch went from 42.8 KB (54 hunks) to 33.1 KB (46). Left to try, each only with the DASH
+The patch went from 42.8 KB (54 hunks) to 23.3 KB (40). Left to try, each only with the DASH
 end-to-end specs as its proof: enumerating segments through `SegmentsController.getSegmentByIndex`
-in FastStream instead of a `getAllSegments` in each segment getter, `getActiveStream()`
-instead of `getStreamController().getActiveStream()`, and the download hook in `HTTPLoader`
-answering through dash.js's own response path instead of replacing it (glm's audit,
-2026-11-07). The more of the patch is additions at stable places, the more releases the
-patched-libraries workflow takes on its own.
+in FastStream instead of a `getAllSegments` in each segment getter, and `getActiveStream()`
+instead of `getStreamController().getActiveStream()` (glm's audit, 2026-11-07). The more of
+the patch is additions at stable places, the more releases the patched-libraries workflow takes
+on its own.
 
 One wrinkle worth recording: npm's bundle embeds 428 stray CR characters
 inside a vendored BSD licence comment, because a bundled dependency ships CRLF

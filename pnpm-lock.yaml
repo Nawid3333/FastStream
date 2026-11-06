@@ -20,7 +20,7 @@ overrides:
 
 patchedDependencies:
   Coloris@0.25.1: c4147209f121eb8e1746440d4026a9f680a4098009bcdd8ea077e441c8d727f9
-  dashjs@5.3.0: 1056f643f3ed8074252a854d56a4b7f9f7a794c31d95b77d75f9d99040a2d7fb
+  dashjs@5.3.0: 94bb7521647eae1cab755e05876bb57cf86b8173ca0c53edbe85856c0beef794
   gif.js@0.2.0: 7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae
   hls.js@1.7.4: ac81f303e24939bca6d74bbfe7470c487b23389a89637cb30bc10cf15d5ccd81
   mp4box@2.5.0: 3091a659c97e24ca32b158848f4677b2cea9286d2943219003f9d817b42d7ece
@@ -64,7 +64,7 @@ importers:
         version: 8.19.0
       dashjs:
         specifier: 5.3.0
-        version: 5.3.0(patch_hash=1056f643f3ed8074252a854d56a4b7f9f7a794c31d95b77d75f9d99040a2d7fb)(@svta/cml-cta@1.0.9(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1))(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)
+        version: 5.3.0(patch_hash=94bb7521647eae1cab755e05876bb57cf86b8173ca0c53edbe85856c0beef794)(@svta/cml-cta@1.0.9(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1))(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)
       eslint:
         specifier: ^10.13.0
         version: 10.13.0(jiti@2.7.0)(supports-color@8.1.1)
@@ -4532,7 +4532,7 @@ snapshots:
 
   css-what@6.1.0: {}
 
-  dashjs@5.3.0(patch_hash=1056f643f3ed8074252a854d56a4b7f9f7a794c31d95b77d75f9d99040a2d7fb)(@svta/cml-cta@1.0.9(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1))(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1):
+  dashjs@5.3.0(patch_hash=94bb7521647eae1cab755e05876bb57cf86b8173ca0c53edbe85856c0beef794)(@svta/cml-cta@1.0.9(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1))(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1):
     dependencies:
       '@svta/cml-608': 1.1.0
       '@svta/cml-cmcd': 2.8.2(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)

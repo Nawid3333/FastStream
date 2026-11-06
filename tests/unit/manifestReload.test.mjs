@@ -115,15 +115,16 @@ function loadHls(player, context) {
  */
 function loadDash(player, url, type) {
   return new Promise((resolve, reject) => {
+    // dash.js's CommonMediaResponse: HTTPLoader reads the answer from it in onloadend.
+    const response = {status: 0};
     dashLoaderFactory(player)().load({
       url, method: 'GET', headers: {},
       customData: {
         request: {type, responseType: 'text'},
-        onSuccess: (data) => resolve(data),
-        onFail: () => reject(new Error('onFail')),
-        onAbort: () => reject(new Error('onAbort')),
+        onloadend: () => response.status === 200 ? resolve(response.data) : reject(new Error('onFail')),
+        onabort: () => reject(new Error('onAbort')),
       },
-    });
+    }, response);
   });
 }
 
@@ -209,16 +210,16 @@ describe('a DASH segment the fragment store does not have', () => {
     // One factory per player, as DashPlayer gives dash.js (dash.extend): the count is its.
     const factory = dashLoaderFactory(player);
     const load = () => new Promise((resolve) => {
+      const response = {status: 0};
       factory().load({
         url: 'http://127.0.0.1/seg-5.m4s', method: 'GET', headers: {},
         customData: {
           request: {type: 'MediaSegment', representation: {id: 'v1', adaptation: {type: 'video'}},
             index: 5, startTime: 10, responseType: 'arraybuffer'},
-          onSuccess: () => resolve('success'),
-          onFail: () => resolve('fail'),
-          onAbort: () => resolve('abort'),
+          onloadend: () => resolve(response.status === 200 ? 'success' : 'fail'),
+          onabort: () => resolve('abort'),
         },
-      });
+      }, response);
     });
     expect(await load()).toBe('abort');
     expect(await load()).toBe('abort');
