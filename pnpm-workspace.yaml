@@ -51,6 +51,15 @@ overrides:
   # reach it. Removing adbkit removes node-forge; `web-ext run -t firefox-android`, which
   # nothing here does, is what goes with it.
   'web-ext>@devicefarmer/adbkit': '-'
+  # Dependabot #81 (glob <= 14.0.1, an AbortSignal timeout that did not stop the walk) and #82
+  # (minimatch < 11.0.1, denial of service through globparts amplification), both published
+  # 2026-10-30, fixed only in the next major: WebdriverIO's @wdio/config asks for glob ^13,
+  # ESLint 10's @eslint/config-array for minimatch ^10. Neither ships in the extension. The
+  # majors bring no change either uses (the e2e suites find their specs, ESLint its configs,
+  # with these), so each 13.x / 10.x request gets the fixed major. minimatch 3.x (ESLint 9,
+  # web-ext's addons-linter) is not affected.
+  glob@13: ^14.0.2
+  minimatch@10: ^11.0.1
 allowBuilds:
   geckodriver: true
   esbuild: true
