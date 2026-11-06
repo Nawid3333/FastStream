@@ -91,6 +91,51 @@ describe('FetchLoader', () => {
     expect(stats.aborted).toBe(false);
   });
 
+  /** A body that comes in these pieces. */
+  const inPieces = (pieces) => new ReadableStream({
+    start(controller) {
+      for (const piece of pieces) controller.enqueue(new Uint8Array(piece));
+      controller.close();
+    },
+  });
+
+  // MP4Player feeds a range to mp4box as it downloads (progressive): the first frame needs the
+  // moov and its own bytes, not the whole megabyte.
+  it('gives a range\'s pieces as they come, with their place, before its whole answer', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(inPieces([[1, 2, 3], [4, 5], [6]]),
+        {status: 206, headers: {'content-range': 'bytes 0-5/100', 'content-length': '6'}})));
+    const loader = new FetchLoader();
+    const recorder = makeCallbackRecorder();
+    recorder.onChunk = (chunk, offset, answer) => recorder.calls.push({type: 'onChunk', args: [Array.from(chunk), offset, answer]});
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest({rangeStart: 0, rangeEnd: 6}), makeConfig());
+    await vi.runAllTimersAsync();
+
+    expect(recorder.calls.map((c) => c.type)).toEqual(['onChunk', 'onChunk', 'onChunk', 'onProgress', 'onSuccess']);
+    expect(recorder.calls.slice(0, 3).map((c) => [c.args[0], c.args[1]])).toEqual([[[1, 2, 3], 0], [[4, 5], 3], [[6], 5]]);
+    expect(recorder.calls[0].args[2]).toMatchObject({status: 206, contentRange: 'bytes 0-5/100'});
+    expect(recorder.calls[0].args[2].headers['content-range']).toBe('bytes 0-5/100');
+  });
+
+  it('gives no pieces of a whole file sent for a range, nor of a text', async () => {
+    const pieces = (response, request) => {
+      vi.stubGlobal('fetch', vi.fn(async () => response));
+      const loader = new FetchLoader();
+      const recorder = makeCallbackRecorder();
+      let count = 0;
+      recorder.onChunk = () => count++;
+      loader.addCallbacks(recorder);
+      loader.load(makeRequest(request), makeConfig());
+      return vi.runAllTimersAsync().then(() => count);
+    };
+    // A server that ignores Range: its answer is cut to the range, at its end only.
+    expect(await pieces(new Response(inPieces([[1, 2], [3, 4]]), {status: 200}), {rangeStart: 0, rangeEnd: 4})).toBe(0);
+    expect(await pieces(new Response(inPieces([[1, 2]]), {status: 206, headers: {'content-range': 'bytes 0-1/9'}}),
+        {rangeStart: 0, rangeEnd: 2, responseType: 'text'})).toBe(0);
+    // A 206 without Content-Range says nothing about the file: whole at its end.
+    expect(await pieces(new Response(inPieces([[1, 2]]), {status: 206}), {rangeStart: 0, rangeEnd: 2})).toBe(0);
+  });
+
   it('decodes text responses when responseType is not arraybuffer', async () => {
     vi.stubGlobal('fetch', fetchResolving('hello world', {status: 200}));
 

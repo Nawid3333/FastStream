@@ -95,6 +95,80 @@ describe('DownloadEntry watchers', () => {
   });
 });
 
+// The pieces of a range's answer as they come (FetchLoader -> StandardDownloader -> here), for
+// MP4Player to feed mp4box before the range is in.
+describe('DownloadEntry: the pieces of an answer', () => {
+  const ANSWER = {status: 206, contentRange: 'bytes 0-5/100', headers: {}};
+  /** A range's download under way, not processed before it is stored. */
+  const rangeEntry = () => {
+    const entry = new DownloadEntry({url: 'http://127.0.0.1/v.mp4', rangeStart: 0, rangeEnd: 6, responseType: 'arraybuffer'});
+    entry.status = DownloadStatus.DOWNLOAD_INITIATED;
+    entry.downloader = {};
+    return entry;
+  };
+  /** A watcher recording the pieces it is told. */
+  const reader = () => {
+    const pieces = [];
+    return {pieces, watcher: {callbacks: {onSuccess() {}, onChunk: (chunk, offset) => pieces.push([Array.from(chunk), offset])}}};
+  };
+
+  it('tells its watchers each piece, and one that joins on the way those so far first', async () => {
+    const entry = rangeEntry();
+    const early = reader();
+    entry.addWatcher(early.watcher);
+    entry.onChunk(new Uint8Array([1, 2, 3]), 0, ANSWER);
+    const late = reader();
+    entry.addWatcher(late.watcher);
+    entry.onChunk(new Uint8Array([4, 5]), 3, ANSWER);
+    await Promise.resolve();
+    expect(early.pieces).toEqual([[[1, 2, 3], 0], [[4, 5], 3]]);
+    // A task later (once the caller has its hold), all in order: the piece that came meanwhile
+    // with them, not before them.
+    expect(late.pieces).toEqual([[[1, 2, 3], 0], [[4, 5], 3]]);
+    entry.onChunk(new Uint8Array([6]), 5, ANSWER);
+    expect(late.pieces.at(-1)).toEqual([[6], 5]);
+  });
+
+  it('starts over at a retry, and keeps none once the download is over', async () => {
+    const entry = rangeEntry();
+    entry.onChunk(new Uint8Array([1, 2]), 0, ANSWER);
+    entry.onChunk(new Uint8Array([1, 2, 3]), 0, ANSWER);
+    expect(entry.pieces.map((p) => p.offset)).toEqual([0]);
+    entry.cleanup();
+    expect(entry.pieces).toBe(null);
+    const late = reader();
+    entry.addWatcher(late.watcher);
+    await Promise.resolve();
+    expect(late.pieces).toEqual([]);
+  });
+
+  it('tells none of an answer it processes before storing it (an encrypted segment), nor of a raw one', () => {
+    const decrypted = rangeEntry();
+    decrypted.postProcessor = async (entry, response) => response;
+    const raw = new DownloadEntry({url: 'http://127.0.0.1/key', responseType: 'arraybuffer', storeRaw: true});
+    raw.status = DownloadStatus.DOWNLOAD_INITIATED;
+    for (const entry of [decrypted, raw]) {
+      const {pieces, watcher} = reader();
+      entry.addWatcher(watcher);
+      entry.onChunk(new Uint8Array([1]), 0, ANSWER);
+      expect(pieces).toEqual([]);
+    }
+  });
+
+  it('a watcher that throws keeps the others from nothing', () => {
+    const entry = rangeEntry();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    entry.addWatcher({callbacks: {onSuccess() {}, onChunk: () => {
+      throw new Error('a reader bug');
+    }}});
+    const {pieces, watcher} = reader();
+    entry.addWatcher(watcher);
+    entry.onChunk(new Uint8Array([7]), 0, ANSWER);
+    expect(pieces).toEqual([[[7], 0]]);
+    error.mockRestore();
+  });
+});
+
 describe('DownloadEntry: stored data that can no longer be read', () => {
   // An OPFS file deleted or rewritten under its File, a Cache API entry that went: the
   // fragment is downloaded again when next asked for, instead of failing the same way.
