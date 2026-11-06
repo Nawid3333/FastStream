@@ -173,7 +173,7 @@ of this change already exists.
 
 ## dash.js
 
-**Now 5.3.0 plus a 42 KB patch (2026-11-06; 5.2.1 since 2026-09-25)** - see "Status" and
+**Now 5.3.0 plus a 33 KB patch (2026-11-07; 5.3.0 since 2026-11-06, 5.2.1 since 2026-09-25)** - see "Status" and
 "Re-cut onto 5.3.0" below; the next update goes
 through `docs/updating-patched-libraries.md`. The
 measurements that follow are from the first migration (2026-09-05); they are
@@ -265,9 +265,9 @@ FastStream's changes - the whole list, each used by `players/dash/`:
 | `HTTPLoader` | Downloads go through FastStream: `customData.onSuccess/onFail/onAbort` callbacks; dash.js's own retries and response interceptors are removed | `DashLoader.mjs` |
 | `Representation`, `RepresentationController`, `Stream`, `StreamProcessor` | Representations are updated lazily (`setUpdateCallback`/`checkForUpdate`), quality switches wait for it (`prepareQualityChange` is async), and a `REPRESENTATION_UPDATED` event says when one is ready | `DashPlayer.mjs` |
 | `SegmentsController` and the four segment getters, `DashHandler` | `getAllSegments()`, and `_getRequestForSegment` exported | `DashPlayer.extractFragments` |
-| `MediaController` | dash.js's own initial track filtering and selection are removed; the custom initial track selection function decides, and must be set | `setCustomInitialTrackSelectionFunction` |
+| `MediaController` | When a custom initial track selection function is set, it picks from all of a type's tracks (a text track as stock dash.js picks it), ahead of dash.js's saved-settings filtering: one added hook (since 2026-11-07; until then the filtering was deleted) | `setCustomInitialTrackSelectionFunction` |
 | `AbrController`, `CustomParametersModel`, `MediaPlayer` | `setCustomBitrateSelectionFunction` | `DashPlayer.mjs` |
-| `MediaPlayer`, `StreamProcessor`, `Stream` | `getStreamController`, `getRepresentations`, `getSegmentsController`, `getDashHandler`; an `initialInit` event | `DashPlayer.mjs` |
+| `MediaPlayer`, `StreamProcessor`, `Stream` | `getStreamController`, `getSegmentsController`, `getDashHandler`; an `initialInit` event | `DashPlayer.mjs` |
 | `PlaybackController` | `internalSeek` is cleared when the internal seek it announced arrives - Andrew's "fix seek" | seeking |
 
 **Porting them to 5.2.1** was a three-way merge per webpack module: base = the
@@ -320,7 +320,7 @@ How each was resolved - the next re-cut meets the same code:
   The update callback is `_updateLater` = `_updateRepresentation(rep, true)`: a callback
   given one argument would have left `isSelected` undefined and a SegmentBase stream
   without its segment list after an error - a clean-merged line, not a conflict.
-- **`MediaController`**: FastStream's removal of dash.js's initial track filtering is kept,
+- **`MediaController`** (a hook since, see below): FastStream's removal of dash.js's initial track filtering was kept,
   but 5.3.0's `filterTracksBySettings` and new `getAvailablePreferredLanguages` stay:
   both are exported, and `TextController` calls the latter. `_matchRoleAbsent`, which
   FastStream had removed with the filtering, is back - `filterTracksBySettings` needs it.
@@ -329,9 +329,28 @@ How each was resolved - the next re-cut meets the same code:
 - **webpack's runtime tail**: 5.3.0's new shape, with `return this || globalThis;`.
 
 The resolution script and the full run are kept by that session, not in the repository.
-Most of the patch could go through dash.js's public API instead (initial track selection,
-segment enumeration through `getSegmentByIndex`, `getActiveStream`): the smaller the
-patch, the more releases the workflow takes on its own.
+
+### A smaller patch, for the next re-cuts (2026-11-07)
+
+What conflicts at a re-cut is the code FastStream's patch deleted or rewrote that upstream then
+edited; code the patch leaves alone and a few added lines at a stable place merge by
+themselves. So, where it changes nothing FastStream does:
+
+- **`MediaController`** is stock 5.3.0 plus one 12-line hook at the start of
+  `setInitialMediaSettingsForType` (after its "no tracks" return): with a custom initial track
+  selection function set, that function picks from every track of the type (its first pick,
+  else the first track), a text track goes to stock `selectInitialTrack` - what the deleted
+  filtering did, without the ~165 deleted lines that conflicted twice at this re-cut. The
+  hook names no webpack import (`'text'`, not `Constants.TEXT`): webpack renumbers those.
+- **`MediaPlayer`**: `getRepresentations`, which nothing in FastStream calls, is gone.
+
+The patch went from 42.8 KB (54 hunks) to 33.1 KB (46). Left to try, each only with the DASH
+end-to-end specs as its proof: enumerating segments through `SegmentsController.getSegmentByIndex`
+in FastStream instead of a `getAllSegments` in each segment getter, `getActiveStream()`
+instead of `getStreamController().getActiveStream()`, and the download hook in `HTTPLoader`
+answering through dash.js's own response path instead of replacing it (glm's audit,
+2026-11-07). The more of the patch is additions at stable places, the more releases the
+patched-libraries workflow takes on its own.
 
 One wrinkle worth recording: npm's bundle embeds 428 stray CR characters
 inside a vendored BSD licence comment, because a bundled dependency ships CRLF
