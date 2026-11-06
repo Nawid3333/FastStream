@@ -198,7 +198,7 @@ try {
 
 Unreachable twice over: `globalThis` has existed in every Firefox since 65, so the first
 line returns, and the extension's CSP (`script-src 'self'`) would refuse the `new
-Function` anyway. Fixed by one more hunk in `patches/dashjs@5.2.1.patch`: `return this ||
+Function` anyway. Fixed by one more hunk in the dash.js patch (`patches/dashjs@<version>.patch`): `return this ||
 globalThis;`. Nothing that runs changes, and the bundle's only eval-like construct is gone.
 The patch re-cut (`tools/recut-patch.mjs`, run by the patched-libraries workflow) carries
 the hunk to each dash.js release; the line is webpack's own boilerplate, the same in every
