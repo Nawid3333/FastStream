@@ -13,7 +13,8 @@ import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
  * asked for as one); the entry of a failed or an aborted one.
  * @typedef {{onProgress?: (stats: import('../../network/FetchLoader.mjs').LoaderStats,
  *     context: ReturnType<MP4Fragment['getContext']>, data: ArrayBuffer, xhr: null) => void,
- *   onFail: (entry: DownloadEntry) => void, onAbort?: (entry: DownloadEntry) => void} & (
+ *   onFail: (entry: DownloadEntry) => void, onAbort?: (entry: DownloadEntry) => void,
+ *   onChunk?: (chunk: Uint8Array, offset: number, answer: import('../../network/FetchLoader.mjs').PartialAnswer) => void} & (
  *   {skipProcess?: false, onSuccess: (entry: DownloadEntry, data: MP4BoxBuffer) => void} |
  *   {skipProcess: true, onSuccess: (entry: DownloadEntry, data: undefined) => void})} FragmentCallbacks
  */
@@ -56,6 +57,13 @@ export class MP4FragmentRequester {
        * @param {DownloadEntry} entry
        * @param {null} [xhr] - FetchLoader has none; none at all for a stored copy.
        */
+      /**
+       * A piece of the range as it downloads (progressive: MP4Player.feedPiece).
+       * @param {Uint8Array} chunk
+       * @param {number} offset
+       * @param {import('../../network/FetchLoader.mjs').PartialAnswer} answer
+       */
+      onChunk: (chunk, offset, answer) => callbacks.onChunk?.(chunk, offset, answer),
       onSuccess: async (entry, xhr) => {
         /** @type {MP4BoxBuffer|undefined} */
         let data;

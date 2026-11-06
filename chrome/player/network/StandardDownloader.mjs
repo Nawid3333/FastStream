@@ -225,6 +225,16 @@ export class StandardDownloader {
   }
 
   /**
+   * A piece of the answer as it comes (FetchLoader.readBody), for the entry's watchers.
+   * @param {Uint8Array} chunk
+   * @param {number} offset
+   * @param {import('./FetchLoader.mjs').PartialAnswer} answer
+   */
+  onChunk(chunk, offset, answer) {
+    this.entry?.onChunk(chunk, offset, answer);
+  }
+
+  /**
    * @param {LoaderStats} stats
    * @param {LoaderRequest} entry - FetchLoader's request, unused.
    * @param {null} xhr - FetchLoader has none.

@@ -156,6 +156,27 @@ is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
     a range queues hundreds; joined (up to 2 MiB) they were measured slower, not faster -
     Firefox uses none of a joined append's frames before it has parsed all of it: playback
     70-100 ms later, a seek per connection 90 ms later, by turns with the same builds.
+- **A range goes to mp4box as it downloads (2026-11-07).** It went only once all of its 1 MB was
+  in: the first frame waited for the whole first range though it needs only the moov and its own
+  bytes, and a seek for the whole range holding its keyframe. FetchLoader now tells each piece of
+  a range's own answer as it comes (a 206 with its Content-Range; not a whole file cut to the
+  range, not text), StandardDownloader and DownloadEntry pass it on (the entry keeps the pieces
+  so far for a watcher that joins on the way, and gives them to it in order a microtask later;
+  none for an answer processed before it is stored, an encrypted segment), and
+  `MP4Player.feedPiece` gives mp4box each piece at its place in the file, for its own request
+  only: from the range's start, without a hole, never a byte twice (a retried download starts
+  over), only an answer whose Content-Range starts where the range does; before the moov only
+  the file's first range, an MP4's, whose answer gives the file's length (set first: mp4box
+  needs it before it parses the moov). When the range is in, its handler appends what was not
+  fed and runs its checks as before; a seek's reset forgets what was fed. Same measurement as
+  the entry above (4 rounds by turns): first frame 1889 -> 1065 ms on the shared line, 3921 ->
+  1567 ms at 4 Mbit/s per connection; playing 2029 -> 1205 and 4053 -> 1708 ms; a seek to 80 s
+  3431 -> 2642 and 3435 -> 2726 ms; a seek to 85 s the same (3538/3527 -> 3487/3542, within the
+  runs' spread); buffered at 8 s 29.9 -> 36.3 and 31.9 -> 38.9 s. glm's reviews found no
+  double-fed byte; its three points (a snapshot of the metadata state used only when bytes were
+  fed, the Content-Range start check, a piece counted only once mp4box took it) are in.
+  `tests/unit/mp4Progressive.test.mjs`, and the piece relay in the FetchLoader and DownloadEntry
+  tests.
 
 ## MP4 from servers that do not answer ranges (2026-10-09)
 

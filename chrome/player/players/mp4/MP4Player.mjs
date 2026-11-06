@@ -104,6 +104,10 @@ export default class MP4Player extends EventEmitter {
     this.currentFragments = [];
     // Failed ranges' retries: fragment -> {count, at}.
     this.rangeRetries = new Map();
+    // How much of each range mp4box has had while it downloads (feedPiece), until the range is
+    // in (its onSuccess) or a reset empties mp4box (resetHLS).
+    /** @type {Map<MP4Fragment, {bytes: number, off: boolean, hadMetaData: boolean}>} */
+    this.fedRanges = new Map();
 
     this._duration = 0;
 
@@ -722,8 +726,20 @@ export default class MP4Player extends EventEmitter {
               return;
             }
 
-            const hadMetaData = !!this.metaData;
-            this.mp4box.appendBuffer(data);
+            // What mp4box had of it while it downloaded (feedPiece): the rest goes now.
+            const fed = this.fedRanges.get(frag);
+            this.fedRanges.delete(frag);
+            // As it was before its first piece, if any was fed (a moov in it is no moov "after the
+            // media"); else as now, as before progressive feeding.
+            const hadMetaData = fed?.bytes ? fed.hadMetaData : !!this.metaData;
+            const fedBytes = fed?.bytes || 0;
+            if (!fedBytes) {
+              this.mp4box.appendBuffer(data);
+            } else if (fedBytes < (data?.byteLength || 0)) {
+              const rest = /** @type {MP4BoxBuffer} */ (data.slice(fedBytes));
+              rest.fileStart = data.fileStart + fedBytes;
+              this.mp4box.appendBuffer(rest);
+            }
             this.refreshSampleIndex();
             this.currentFragments.push(frag);
             this.rangeRetries.delete(frag);
@@ -769,6 +785,14 @@ export default class MP4Player extends EventEmitter {
           onProgress: (stats, context, data, xhr) => {
 
           },
+          /**
+           * @param {Uint8Array} chunk
+           * @param {number} offset
+           * @param {import('../../network/FetchLoader.mjs').PartialAnswer} answer
+           */
+          onChunk: (chunk, offset, answer) => {
+            if (this.loader === loader) this.feedPiece(frag, chunk, offset, answer);
+          },
           /** @param {DownloadEntry} entry */
           onFail: (entry) => {
             if (this.loader === loader) {
@@ -791,6 +815,61 @@ export default class MP4Player extends EventEmitter {
         return;
       }
     }
+  }
+
+  /**
+   * Gives mp4box a piece of a range while the range downloads. Its first frame needs the moov and
+   * that frame's bytes, a seek its keyframe's, not the whole megabyte: a range went to mp4box only
+   * once all of it was in. Only a range's own answer (206 and its Content-Range, FetchLoader),
+   * from its start on and without a hole, never a byte twice (a retried download starts over);
+   * before the moov only the file's first range, an MP4's, whose answer says the file's length
+   * (mp4box needs it before it parses the moov). What is not fed here goes when the range is
+   * in (onSuccess), whose checks run as before.
+   * @param {MP4Fragment} frag
+   * @param {Uint8Array} chunk
+   * @param {number} offset - Its place in the range.
+   * @param {import('../../network/FetchLoader.mjs').PartialAnswer} answer
+   */
+  feedPiece(frag, chunk, offset, answer) {
+    let state = this.fedRanges.get(frag);
+    if (!state) {
+      // A download joined on the way, its first pieces missed: all of it at its end.
+      if (offset !== 0) return;
+      state = {bytes: 0, off: false, hadMetaData: !!this.metaData};
+      this.fedRanges.set(frag, state);
+      // Only an answer that is this range from its start: one whose Content-Range starts
+      // elsewhere would put its bytes at the wrong place in the file (glm's review).
+      if (parseInt(/^bytes (\d+)-/.exec(answer.contentRange)?.[1] ?? '', 10) !== frag.rangeStart) {
+        state.off = true;
+        return;
+      }
+      if (!this.metaData) {
+        const length = frag.rangeStart === 0 && chunk.byteLength >= 8 && startsLikeMp4(chunk.subarray(0, 8)) ?
+          lengthFromAnswer({status: answer.status, headers: answer.headers, received: 0},
+              {start: frag.rangeStart, end: frag.rangeEnd}).length : 0;
+        if (!(length > 0)) {
+          state.off = true;
+          return;
+        }
+        if (!this.fileLength) {
+          this.fileLength = length;
+          this.initializeFragments();
+        }
+      }
+    }
+    if (state.off) return;
+    // A hole (a piece missed): the rest at the range's end.
+    if (offset > state.bytes) {
+      state.off = true;
+      return;
+    }
+    const end = Math.min(offset + chunk.byteLength, frag.rangeEnd - frag.rangeStart);
+    if (end <= state.bytes) return;
+    const piece = /** @type {MP4BoxBuffer} */ (chunk.slice(state.bytes - offset, end - offset).buffer);
+    piece.fileStart = frag.rangeStart + state.bytes;
+    // Counted once mp4box has it: a piece it refused goes again with the rest (onSuccess).
+    this.mp4box.appendBuffer(piece);
+    state.bytes = end;
   }
 
   /**
@@ -959,6 +1038,7 @@ export default class MP4Player extends EventEmitter {
     this.removeFromBuffers(0, this.video.duration);
     this.mp4box.flush();
     this.mp4box.stream.buffers.length = 0;
+    this.fedRanges?.clear();
 
     this.metaData.tracks.forEach((track) => {
       this.freeSamples(track.id);
