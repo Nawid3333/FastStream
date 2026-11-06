@@ -208,14 +208,57 @@ describe('DownloadManager.adopt', () => {
     expect(manager.getEntry({url: seg(3), responseType: 'arraybuffer'})).toBeUndefined();
   });
 
-  it('leaves a disk file the player asked for before its turn, and takes it no second time', async () => {
+  /** @param {Object} entry - A DownloadEntry. @return {Promise<string>} Its data, as text. */
+  const read = async (entry) => new TextDecoder().decode(await entry.getDataFromBlob('arraybuffer'));
+
+  // A request for a disk file before its turn downloaded it again: after a reload the player asks
+  // for the start, or where it resumes, at once (reload-keeps-buffer.e2e, #620).
+  it('answers a request for a disk file before its turn from the file, moved then, once', async () => {
     const manager = new DownloadManager(null);
     manager.downloaders = [];
     const {onDisk} = manager.adopt(handOff, OLD);
-    // The player asks for segment 3 before its file is moved: a download of its own.
-    const asked = manager.getFile({url: seg(3), responseType: 'arraybuffer'}, {}, 0).entry;
+    const {stored, entry} = ask(manager, seg(3));
+    expect(stored).toBe(true);
+    expect(await read(entry)).toBe(`from ${handOff.session}/f7`);
+    expect(await onDisk).toBe(1);
+    expect(manager.blobStore.adoptStoredFile).toHaveBeenCalledTimes(1);
+    expect(manager.queue).toEqual([]);
+  });
+
+  it('answers it under the new link as well', async () => {
+    const manager = new DownloadManager(null);
+    manager.downloaders = [];
+    const {onDisk} = manager.adopt(handOff, NEW);
+    const {stored, entry} = ask(manager, seg(3, NEW_SIG));
+    expect(stored).toBe(true);
+    expect(entry.url).toBe(seg(3, NEW_SIG));
+    expect(await read(entry)).toBe(`from ${handOff.session}/f7`);
+    expect(await onDisk).toBe(1);
+  });
+
+  it('drops one it could not move that was asked for first, so the next request downloads it', async () => {
+    const broken = {...handOff, entries: handOff.entries.map((e) => (e.file ? {...e, file: 'broken'} : e))};
+    const manager = new DownloadManager(null);
+    manager.downloaders = [];
+    const {onDisk} = manager.adopt(broken, NEW);
+    const {stored, entry} = ask(manager, seg(3, NEW_SIG));
+    expect(stored).toBe(true);
+    // Lost data, as a stored file that cannot be read: the requester fails it, the player asks again.
+    await expect(entry.getDataFromBlob('arraybuffer')).rejects.toBeDefined();
     expect(await onDisk).toBe(0);
-    expect(manager.getEntry({url: seg(3), responseType: 'arraybuffer'})).toBe(asked);
+    expect(manager.getEntry({url: seg(3, NEW_SIG), responseType: 'arraybuffer'})).toBeUndefined();
+    expect(ask(manager, seg(3, NEW_SIG)).entry.status).not.toBe(DownloadStatus.DOWNLOAD_COMPLETE);
+  });
+
+  it('keeps no file moved after the next source\'s storage went', async () => {
+    const manager = new DownloadManager(null);
+    manager.downloaders = [];
+    const {onDisk} = manager.adopt(handOff, OLD);
+    await manager.clearStorage();
+    expect(await onDisk).toBe(0);
+    const id = manager.getIdentifier({url: seg(3), responseType: 'arraybuffer'});
+    expect(manager.blobStore.deleteBlob).toHaveBeenCalledWith(id);
+    expect(manager.blobStore.blobStore.has(id)).toBe(false);
   });
 
   it('is gone with the next source\'s storage', async () => {

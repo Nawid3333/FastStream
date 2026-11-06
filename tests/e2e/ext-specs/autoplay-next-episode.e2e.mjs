@@ -141,6 +141,26 @@ async function intoPlayer(what) {
 }
 
 /**
+ * Waits until the player's frame is laid out, its progress bar with a width: a click on the bar
+ * seeks only then (ProgressBar). The player frame is out of process and takes its size after the
+ * page lays it out; its video may already play meanwhile, at 0x0 - three CI runs in the week to
+ * 2026-11-02 (#620) clicked 46 ms after playing began, on a bar 0 wide, and did not seek.
+ * @param {string} what - For the message.
+ */
+async function barLaidOut(what) {
+  let state;
+  await browser.waitUntil(async () => {
+    state = await browser.execute(() => {
+      const bar = document.querySelector('.mainplayer .fluid_controls_progress_container');
+      return {barWidth: bar?.clientWidth ?? null, frame: `${innerWidth}x${innerHeight}`};
+    });
+    return state.barWidth > 0 && !state.frame.startsWith('0x');
+  }, {timeout: 10000, interval: 100}).catch(() => {
+    throw new Error(`${what}: the player frame never got its size: ${JSON.stringify(state)}`);
+  });
+}
+
+/**
  * Waits until the player plays its video, by itself.
  * @param {string} episode - The ep= the source must name.
  * @return {Promise<Object>} The player's state.
@@ -384,6 +404,7 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
     // The keyboard's next-track key goes there as well: Firefox took the player's handler, in
     // the page's frame (MediaKeys; a key itself cannot be pressed from here).
     expect(await browser.execute(() => window.fastStream.interfaceController.toolManager.mediaKeys.offered.nexttrack)).toBe(true);
+    await barLaidOut('the first episode');
     const at = await browser.execute(async () => {
       await window.fastStream.pause();
       // The bar's last pixel, pressed and let go as a click there.
@@ -424,6 +445,7 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
         await browser.execute(() => window.fastStream.play());
         await browser.waitUntil(() => browser.execute(() => window.fastStream.state.playing),
             {timeout: 10000, timeoutMsg: `${page}: the video never played`});
+        await barLaidOut(page);
         const at = await browser.execute(() => {
           const bar = /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_controls_progress_container'));
           const before = window.fastStream.currentTime;

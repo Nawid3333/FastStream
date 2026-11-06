@@ -11,6 +11,13 @@ import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 const AdoptAtOnce = 8;
 
 /** @typedef {import('./DownloadEntry.mjs').DownloadRequest} DownloadRequest */
+/**
+ * A file an earlier player of this video left on the disk, taken back (adopt): its entry, its
+ * identifier here, where it is (the old session, its file name), the storage it was taken into
+ * (storageGeneration), and its move once begun (adoptOne).
+ * @typedef {{entry: DownloadEntry, identifier: string, session: string, file: string, generation: number,
+ *   moved: ?Promise<boolean>}} AdoptedFile
+ */
 
 export class DownloadManager {
   /** How long no download may fail before a downloader dropped for a failure comes back. */
@@ -59,6 +66,9 @@ export class DownloadManager {
     this.adopted = null;
     /** @type {?Set<string>} */
     this.adoptedSignature = null;
+    // Counts clearStorage(): a handed-over file moved after the downloads it was taken into went
+    // is not kept (adoptOne).
+    this.storageGeneration = 0;
     // The next reset() keeps the downloads (keepStorageOnce).
     this.keepStorageNext = false;
     // Leaving the network to a watched player that is short of video (setYield).
@@ -335,7 +345,7 @@ export class DownloadManager {
     this.adoptedSignature = signature;
     this.adopted = new Map();
     let taken = 0;
-    /** @type {Array<{entry: DownloadEntry, identifier: string, file: string}>} */
+    /** @type {AdoptedFile[]} */
     const disk = [];
     /** @type {Set<string>} */
     const seen = new Set();
@@ -359,10 +369,55 @@ export class DownloadManager {
         this.keepAdopted(entry);
         taken++;
       } else if (typeof record.file === 'string' && handOff.session) {
-        disk.push({entry, identifier, file: record.file});
+        if (this.storage.has(identifier)) continue;
+        // Here at once, read once its file is moved into this player's session: in its turn
+        // (adoptDiskFiles), or at once for a read that comes first. A request for it before its
+        // turn downloaded it again (reload-keeps-buffer.e2e: the start, or where the video
+        // resumes; twice in the week to 2026-11-02, #620).
+        /** @type {AdoptedFile} */
+        const item = {entry, identifier, session: handOff.session, file: record.file, generation: this.storageGeneration, moved: null};
+        entry.data = async () => {
+          try {
+            return await this.adoptOne(item) ? await this.blobStore.getBlob(identifier) : undefined;
+          } catch (e) {
+            // Unread: lost data (DownloadEntry.getDataFromBlob), dropped, downloaded again.
+            return undefined;
+          }
+        };
+        this.keepAdopted(entry);
+        disk.push(item);
       }
     }
     return {taken, onDisk: this.adoptDiskFiles(disk, handOff.session)};
+  }
+
+  /**
+   * Moves one handed-over file into this player's session, once, whoever asks first: its turn in
+   * adoptDiskFiles or a read of its entry. One that cannot be moved, or whose downloads went
+   * meanwhile (a new source), is dropped - under the key its entry has now: a request under
+   * the new link moved it (stored) - so the next request downloads it.
+   * @param {AdoptedFile} item
+   * @return {Promise<boolean>} Whether it is here.
+   */
+  adoptOne(item) {
+    item.moved ??= (async () => {
+      const store = this.blobStore;
+      let moved = false;
+      try {
+        moved = !!store && await store.adoptStoredFile(item.identifier, item.session, item.file);
+      } catch (e) {
+        moved = false;
+      }
+      if (moved && this.blobStore === store && this.storageGeneration === item.generation) {
+        return true;
+      }
+      if (moved) store.deleteBlob(item.identifier);
+      if (this.storageGeneration === item.generation) {
+        item.entry.onDataLost?.(new Error('A handed-over download could not be moved here'));
+      }
+      return false;
+    })();
+    return item.moved;
   }
 
   /**
@@ -379,10 +434,10 @@ export class DownloadManager {
   /**
    * Moves the disk's files of a hand-off into this player's session, a few at a time and the
    * first ones first, while the player starts: each takes a few ms (4 ms for 1 MB, measured), and
-   * a long video has thousands, which the player would have waited for. One the player asked for
-   * before its turn was downloaded again, and is left; what is left of the old session goes
-   * after (its heartbeat, the files not taken).
-   * @param {Array<{entry: DownloadEntry, identifier: string, file: string}>} disk
+   * a long video has thousands, which the player would have waited for. Their entries are here
+   * from the start (adopt): one read before its turn is moved at once (adoptOne). What is left of
+   * the old session goes after every move has ended (its heartbeat, the files not taken).
+   * @param {AdoptedFile[]} disk
    * @param {?string} session - The old session directory.
    * @return {Promise<number>} How many it took.
    */
@@ -390,18 +445,8 @@ export class DownloadManager {
     const store = this.blobStore;
     let taken = 0;
     for (let i = 0; i < disk.length && session; i += AdoptAtOnce) {
-      await Promise.all(disk.slice(i, i + AdoptAtOnce).map(async ({entry, identifier, file}) => {
-        if (this.blobStore !== store || this.storage.has(identifier)) return;
-        if (!await store.adoptStoredFile(identifier, session, file)) return;
-        // Asked for and downloaded while it was being moved, or the store gone meanwhile.
-        if (this.blobStore !== store || this.storage.has(identifier)) {
-          store.deleteBlob(identifier);
-          return;
-        }
-        entry.data = () => store.getBlob(identifier);
-        this.keepAdopted(entry);
-        taken++;
-      }));
+      const moved = await Promise.all(disk.slice(i, i + AdoptAtOnce).map((item) => this.adoptOne(item)));
+      taken += moved.filter(Boolean).length;
     }
     if (session && this.blobStore === store) {
       store.dropSession(session);
@@ -1145,6 +1190,7 @@ export class DownloadManager {
   }
 
   async clearStorage() {
+    this.storageGeneration++;
     this.storage.clear();
     // The downloads an earlier player handed over (adopt) went with them.
     this.adopted = null;
