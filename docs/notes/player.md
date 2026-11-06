@@ -134,6 +134,29 @@ waits for a range to be buffered after a reset can see stale appends that a queu
 is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
 `tests/e2e/specs/mp4-seek.e2e.mjs` covers the above.
 
+- **Each video frame goes to the SourceBuffer as soon as its bytes are in (2026-11-06).**
+  mp4box's segment option `rapAlignement` (on by default) lets a segment boundary fire only on
+  a keyframe, and `createFragment(start, end)` includes `end`: with `nbSamples: 1` the first
+  frame went alone, and every frame from there to the next keyframe went in one segment, once
+  the last of them was downloaded. The video showed its first frame and stood there for the
+  whole keyframe interval - and the same after every seek and every stall. It is off for the
+  video track now. Where a run of segments starts is unchanged: a seek's `mp4box.seek(time,
+  true)` starts at a keyframe, and segments started after a keyframe (not on one) before too,
+  so Firefox already took segments that start on an ordinary frame (glm's review agreed); new
+  is only that they are one frame each. Measured in the e2e Firefox, long-av.mp4
+  (keyframes 8.3 s apart), a local server with 150 ms to the first byte, builds served by turns
+  (4 rounds, medians): playback started 1.9 s sooner on a shared 12 Mbit/s line (3880 -> 2015
+  ms) and 3.3 s sooner at 4 Mbit/s per connection (7359 -> 4047 ms), a resume at 6 s 1.7 s
+  sooner (3827 -> 2176 ms, separate runs); a seek to 80 s / 85 s about 1 s sooner on the
+  shared line (4469 -> 3405, 4580 -> 3530 ms), the same per connection; first frames and the
+  requests at the start unchanged.
+  `tests/e2e/specs/mp4-first-frames.e2e.mjs`: the server holds back every range after the
+  first, and the video must play from the first one.
+  - **Not done: joining queued appends into one `appendBuffer` call.** With one append per frame
+    a range queues hundreds; joined (up to 2 MiB) they were measured slower, not faster -
+    Firefox uses none of a joined append's frames before it has parsed all of it: playback
+    70-100 ms later, a seek per connection 90 ms later, by turns with the same builds.
+
 ## MP4 from servers that do not answer ranges (2026-10-09)
 
 `MP4Player` loads a file in 1 MB ranges and takes its length from `Content-Range`
@@ -623,6 +646,21 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   loading, seek to 5:00): 2.69 and 2.68 s, before 2.70 and 2.70 s; two downloads at the seek,
   as before. A server answering 429 above three connections: two slow-downs in 60 s before and
   after, each halving, the Retry-After held, the probe after the calm period as before.
+- **Not done: the first frame's fragments alone at the start (measured 2026-11-06).** While a
+  video starts, an HLS player downloads nothing ahead (`HLSPlayer.currentFragment` follows
+  hls.js's `currentFrag`, null until the first segment is appended): segment 0 alone, segment
+  1 alone, then the downloads ahead. DASH downloads ahead from the start, beside its first
+  segment. Tried: an HLS fallback to `hls.loadLevel` and the store's fragment at the playhead,
+  and, until the playhead's fragments were in, no other download (then all at once, on their
+  `FRAGMENT_UPDATE`). Same e2e Firefox and server as the MP4 entry above (150 ms to the first
+  byte), 3 runs each: DASH's first frame 2087 -> 1546 ms on a shared 12 Mbit/s line, HLS's
+  buffer at 8-12 s up to 8 s more - but on a server limiting each connection DASH had one
+  segment less ahead at every point (4.5 -> 0.6 s at 4 s), fMP4 HLS on the shared line one
+  less at 4 s and 16 s, and a resume (HLS) 1.1 s slower: the downloads started at the end of
+  segment 0, before the remembered time was applied, and the resume's segment shared the line
+  with three others. Holding back helps only where the downloads share a line, and the player
+  cannot tell which kind of server it has before the speed test: left out (the owner: no
+  regressions). The patch and runs: kept by the 2026-11-06 session, not in the repository.
 - **The download line counts the connections again (2026-10-22, the owner's wish):**
   "3C ↓9.6 Mbit/s 50%", as upstream showed until 2026-10-09, now with the speed in Mbit/s
   (`DownloadStatusText.mjs`). The count is the downloads running at that moment

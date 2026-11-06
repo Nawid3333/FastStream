@@ -221,6 +221,15 @@ export default class MP4Player extends EventEmitter {
     if (videoTrack) {
       this.mp4box.setSegmentOptions(videoTrack.id, 1, {
         nbSamples: 1,
+        // Each frame on its own, as soon as its bytes are in. mp4box's default cuts a video
+        // segment only at a keyframe: after the first frame, the frames up to the next
+        // keyframe went to the SourceBuffer together, once the last of them was downloaded.
+        // The video showed its first frame and waited there for that whole stretch - 8.3 s
+        // of video in the e2e file (playback 2.0 s after the first frame on a shared
+        // 12 Mbit/s line, 3.3 s at 4 Mbit/s per connection), and the same after every seek
+        // and every stall. Where a segment starts is the seek's (mp4box.seek(time, true)),
+        // not this: these segments ended on a keyframe and started after one before too.
+        rapAlignement: false,
       });
     }
 
