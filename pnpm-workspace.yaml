@@ -62,7 +62,7 @@ allowBuilds:
   spawn-sync: false
 patchedDependencies:
   Coloris@0.25.1: patches/Coloris@0.25.1.patch
-  dashjs@5.2.1: patches/dashjs@5.2.1.patch
+  dashjs@5.3.0: patches/dashjs@5.3.0.patch
   gif.js@0.2.0: patches/gif.js@0.2.0.patch
   hls.js@1.7.4: patches/hls.js@1.7.4.patch
   mp4box@2.5.0: patches/mp4box@2.5.0.patch
