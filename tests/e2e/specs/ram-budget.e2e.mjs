@@ -302,8 +302,14 @@ describe('The RAM budget', function() {
     // decision, 2026-10-09: 0 RAM is straight to disk). Slow segments, for the budget to be
     // set long before the stream is in.
     await downloadAll(0, '/slow/long.m3u8', 60000);
-    // The next 10 s (MemoryBudget.KEEP_AT_LEAST), here 2-3 MB.
-    const state = await holdingsUntil((held) => held.ram < 4e6, 30000, 'more in RAM than the next seconds');
+    // The next 10 s (MemoryBudget.KEEP_AT_LEAST), here 2-3 MB, beside what is on its way to disk:
+    // a copy goes from RAM once its file is written, and the OPFS worker writes one file at a
+    // time. On the Windows runner 2.4-7.5 MB of writes were still under way after 30 s, three
+    // times in the week to 2026-11-02 (#620), the rest the same 1.7 MB each time: the budget
+    // held, the disk was slow. So the budget as the client counts it (keepWithinMemoryBudget:
+    // held - leaving), and the files written within 60 s, as the test above waits for them.
+    const state = await holdingsUntil((held) => held.ram - held.leaving < 4e6 && held.files > 40, 60000,
+        'more in RAM than the next seconds, or the rest not written');
     console.log(`      budget 0: ${JSON.stringify(state)}`);
     // About 60 fragments: all but the next seconds on disk, written by this player (holdings).
     expect(state.files).toBeGreaterThan(40);

@@ -343,8 +343,12 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   and before the player is built. The answer is `structuredClone`d into the player's realm first:
   its Blobs were not `instanceof Blob` there, and none was taken (measured). RAM Blobs go into the
   player's FSBlob as deferred saves (in its RAM budget); disk files are moved into its own session
-  (`FileSystemFileHandle.move` on the main thread: 4 ms for 1 MB in Firefox 159), then the old
-  directory is deleted.
+  (`FileSystemFileHandle.move` on the main thread: 4 ms for 1 MB in Firefox 159), 8 at a time,
+  then the old directory is deleted. Each disk file is a finished download from the start, its
+  data read once its file is moved: in its turn, or at once when the player reads it first
+  (`DownloadManager.adoptOne`). The player asks for where it starts or resumes before those files'
+  turn, and they were downloaded again (`reload-keeps-buffer.e2e`, twice in the week to
+  2026-11-02, #620); one that cannot be moved is dropped as lost data and downloaded then.
 - **A new signed link** (vidmoly: `?t=&s=` new at every load): `LinkSignature.signatureParams` names
   the query parameters whose values differ between the old and the new source link, and a request
   under the new link finds the file with those left out (`DownloadManager.stored`, an alias: the

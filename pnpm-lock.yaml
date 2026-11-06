@@ -15,10 +15,12 @@ overrides:
   basic-ftp: ^6.2.1
   shell-quote: ^1.11.0
   web-ext>@devicefarmer/adbkit: '-'
+  glob@13: ^14.0.2
+  minimatch@10: ^11.0.1
 
 patchedDependencies:
   Coloris@0.25.1: c4147209f121eb8e1746440d4026a9f680a4098009bcdd8ea077e441c8d727f9
-  dashjs@5.2.1: 5bd4216990932225d76caa11e6da713c4b9647d5ece38bf7cc88720b03cd3526
+  dashjs@5.3.0: fc5e85c8d7984ad75741d09af2fc113377d3f1918d4fd23828b9efa7df927199
   gif.js@0.2.0: 7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae
   hls.js@1.7.4: ac81f303e24939bca6d74bbfe7470c487b23389a89637cb30bc10cf15d5ccd81
   mp4box@2.5.0: 3091a659c97e24ca32b158848f4677b2cea9286d2943219003f9d817b42d7ece
@@ -61,8 +63,8 @@ importers:
         specifier: 8.19.0
         version: 8.19.0
       dashjs:
-        specifier: 5.2.1
-        version: 5.2.1(patch_hash=5bd4216990932225d76caa11e6da713c4b9647d5ece38bf7cc88720b03cd3526)(@svta/cml-cta@1.0.6(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0))(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0)
+        specifier: 5.3.0
+        version: 5.3.0(patch_hash=fc5e85c8d7984ad75741d09af2fc113377d3f1918d4fd23828b9efa7df927199)(@svta/cml-cta@1.0.9(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1))(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)
       eslint:
         specifier: ^10.13.0
         version: 10.13.0(jiti@2.7.0)(supports-color@8.1.1)
@@ -536,6 +538,9 @@ packages:
       '@types/node':
         optional: true
 
+  '@isaacs/nonrecursive-glob-match@1.1.0':
+    resolution: {integrity: sha512-GPm/Dbvk5RLmhRnxXIa7nTpK0xtl4E0wj0MslsuNiJ1FIROU+2+9lgUC/dgF7Ey4QCWhfEsgxilMRMCdHPfDfw==}
+
   '@jest/diff-sequences@30.5.0':
     resolution: {integrity: sha512-OsqBjHXCn8cadasoAZBP6nWYvMsRhpMzGXTpxJ5aO04NlbdhIz+FVe3q49l0AwVhsz/cEmIpBes6gAFl1/dWQg==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
@@ -731,67 +736,67 @@ packages:
     peerDependencies:
       eslint: ^9.0.0 || ^10.0.0
 
-  '@svta/cml-608@1.0.2':
-    resolution: {integrity: sha512-ZEJ68330gcLKfvVv6Qifr1HR7+GldDUxzkjqSbqRK7jHtHSLSV1JAyDwlYe8+C7ABuY1bp8MpgJ4/Gg+jl+pLQ==}
+  '@svta/cml-608@1.1.0':
+    resolution: {integrity: sha512-r427FE+vTYsgh9wi7lc6gkixFpdBiTSy+fIy4zdwe8+mgOtMiVjP9xHW68z1KcH/WNSGRDzCEunNIsX4tIljTA==}
     engines: {node: '>=20'}
 
-  '@svta/cml-cmcd@2.3.2':
-    resolution: {integrity: sha512-SKBBjLmci0WK8HMjuv+36tVIMktonoOoxsXblOFZmB+ePPV2zjRMTD+2ZmE/1VEPJkKHENyhSjSHgJyeOlvZ1A==}
+  '@svta/cml-cmcd@2.8.2':
+    resolution: {integrity: sha512-/safKRbApNeycQBJHdA6EgrPj+6vqsChRLX6oQr1//DKKfoyjed2Pn7oDUNxw17hTN+X02AvvOtKrg7niY4AQw==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@svta/cml-structured-field-values': 1.1.3
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-structured-field-values': 1.1.6
+      '@svta/cml-utils': 1.6.1
 
-  '@svta/cml-cmsd@1.0.6':
-    resolution: {integrity: sha512-LUORV6bb0TbU4rSC2HoPqUCix1igLrXkRQXWiIyJo2OMzb14kAK/1jsW0mzY6up6w1GrjKQcjc6OwqJdo/zd/g==}
+  '@svta/cml-cmsd@1.1.1':
+    resolution: {integrity: sha512-Om3w7qU33E7i/K3Gd0GOG8njIDP9GD3R3XjqxIGc/ZXFexTVvMK3eQIN9cyVLdJrLR7XLMUIih7Kc1D+tNLl8Q==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@svta/cml-cta': 1.0.6
-      '@svta/cml-structured-field-values': 1.1.3
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-cta': 1.0.9
+      '@svta/cml-structured-field-values': 1.1.6
+      '@svta/cml-utils': 1.6.1
 
-  '@svta/cml-cta@1.0.6':
-    resolution: {integrity: sha512-l13/4myTX1EbRd38nY8J1umVY5UdR/nZO6CeKqVLXnMMIayg7/fu0TueZckjTA9Loal55MGK1xbHnXVjz7OUUw==}
+  '@svta/cml-cta@1.0.9':
+    resolution: {integrity: sha512-qEz9dYeHSDQtKiIfDQNWlBQgBsKJZcUojI8JLNhfc4d4IcAmqwwCd7UVXxEiAt7S6hNLQgWBE/YH43ot8x0Fbw==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@svta/cml-structured-field-values': 1.1.3
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-structured-field-values': 1.1.6
+      '@svta/cml-utils': 1.6.1
 
-  '@svta/cml-dash@1.0.6':
-    resolution: {integrity: sha512-4XtHYlPrzL/dRe/8XmRQoLnTo9S86tISgrl67eUqKl5MtNTpZBYTncuPrspslPZPZROBBWNrBuepYfYUtU9CKA==}
+  '@svta/cml-dash@1.0.9':
+    resolution: {integrity: sha512-+ufdUrkKpeNPtxDXA/8b7gXJAR9FnntGVvImgexzrjoIH4j/5QkhPmwjT2fUk/l3bsMGqRkZcFoqKLagT21BVQ==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-utils': 1.6.1
 
-  '@svta/cml-id3@1.0.6':
-    resolution: {integrity: sha512-63j8gkAnPOmOBWlp0hIZPvsIioZttdbg6/TgwITqMYbSLYVJ+6QGa/UtIP0I84NsfstANw6QdCn7i8SS08kn1A==}
+  '@svta/cml-id3@1.0.9':
+    resolution: {integrity: sha512-dH902qkWEscl5srsL5pxJjyXMHWV6r3E9Up/thlnGj0M5hc0e+M6VeIFsmLVtZkuwwhugXb39PAkRP1IRRm8Nw==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-utils': 1.6.1
 
-  '@svta/cml-request@1.0.12':
-    resolution: {integrity: sha512-4sJvnnoNpq58j2mCGP8k+MF6wVy/qa4gbt6kfT1dPIKmn3mPxw+JVfilhcWsUi+peK2yCZxOJJYyHj1cAcQE1w==}
+  '@svta/cml-request@1.0.21':
+    resolution: {integrity: sha512-OEpyH5F4Buh8fYfaOXtbbWrHY3BG7J5i2euEz5qemj1H8ABVgmHHXnkv+NNSSvJH/0bjoqFbXwUcD2KHUUoaSA==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@svta/cml-cmcd': 2.3.2
-      '@svta/cml-utils': 1.5.0
-      '@svta/cml-xml': 1.1.4
+      '@svta/cml-cmcd': 2.8.2
+      '@svta/cml-utils': 1.6.1
+      '@svta/cml-xml': 1.2.1
 
-  '@svta/cml-structured-field-values@1.1.3':
-    resolution: {integrity: sha512-XqLzQOTznz6kh/nsSh8dy1kV7GQjL4csG+2U5EvLGhAqNuNUczbVg5EAsDobKDVg8xhdthdXx2UuwM+ZHQCxSg==}
+  '@svta/cml-structured-field-values@1.1.6':
+    resolution: {integrity: sha512-+aPvf3Ak9DdJZC+z5/R1A8Swq0AI4uoVD6QV5e8gM9W8im+LuzP69rPh7lrnA7RfANTPhSwd6zxTf/IXyPlY8A==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-utils': 1.6.1
 
-  '@svta/cml-utils@1.5.0':
-    resolution: {integrity: sha512-JMqclD7Akd+GSJiuaYNUHOP2wNtf/nauKeszlYeivSHfi0Lp3pmSW5PXDvJ2dO4aPmmSOQbF0ztTsW9Vcs2Whw==}
+  '@svta/cml-utils@1.6.1':
+    resolution: {integrity: sha512-jPKb+it53Pi8rbO8fNX8qpbdE+JfDAeOXF7lcG+uVU5BCcR0wbMTT2VtFdMeVsUN57TFPAurRavE3aEUSzC+zw==}
     engines: {node: '>=20'}
 
-  '@svta/cml-xml@1.1.4':
-    resolution: {integrity: sha512-jbixqjiJIc16SGxylHwiOzO+DuhkGfuP+fJ9AHeVJKdFDKnabgfCDpnp6dvZpZnjMj4nHvzVtuUV7RISPIwYXw==}
+  '@svta/cml-xml@1.2.1':
+    resolution: {integrity: sha512-zTogQQ6h6Lhzi78MU9pH2NEuCDK2lpWjMsmvQqGoLipozQAkLO7OXgEc4K9KZ1qmwg77DSiiJQo6TNtyT9PbQw==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-utils': 1.6.1
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -1299,9 +1304,6 @@ packages:
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
-  bcp-47-match@2.0.3:
-    resolution: {integrity: sha512-JtTezzbAibu8G0R9op9zb3vcWZd9JF6M0xOYGPn0fNCd7wOpRB1mU2mH9T8gaBGbAAyIIVgB2G7xG0GP98zMAQ==}
-
   boolbase@1.0.0:
     resolution: {integrity: sha512-JZOSA7Mo9sNGB8+UjSgzdLtokWAky1zbztM3WRLCbZ70/3cTANmQmOdR7y2g+J0e2WXywy1yS468tY+IruqEww==}
 
@@ -1491,8 +1493,8 @@ packages:
     resolution: {integrity: sha512-HTUrgRJ7r4dsZKU6GjmpfRK1O76h97Z8MfS1G0FozR+oF2kG6Vfe8JE6zwrkbxigziPHinCJ+gCPjA9EaBDtRw==}
     engines: {node: '>= 6'}
 
-  dashjs@5.2.1:
-    resolution: {integrity: sha512-axcJmLeJCTJMLUfQRErUJB1KOiU5iHF+DMLBc3FKeox1HPYtGUQlC6Xm5Mm6vhBUR3CHHLIPOqw0JDIqMtP+Dw==}
+  dashjs@5.3.0:
+    resolution: {integrity: sha512-2Pe1gl4kUX30RkjmGVywT8Frje0a5reGqmqXDqsD/YC/3EkfN1XFuDoBg1p4gnfaHIDcL2KwD/4iqpCKz8tuwA==}
     engines: {node: '>=20'}
 
   debounce@1.2.1:
@@ -1884,8 +1886,8 @@ packages:
     resolution: {integrity: sha512-XxwI8EOhVQgWp6iDL+3b0r86f4d6AX6zSU55HfB4ydCEuXLXc5FcYeOu+nnGftS4TEju/11rt4KJPTMgbfmv4A==}
     engines: {node: '>=10.13.0'}
 
-  glob@13.0.6:
-    resolution: {integrity: sha512-Wjlyrolmm8uDpm/ogGyXZXb1Z+Ca2B8NbJwqBVg0axK9GbBeoS7yGV6vjXnYdGm6X53iehEuxxbyiKp8QmN4Vw==}
+  glob@14.0.3:
+    resolution: {integrity: sha512-A1vjIwC3qpdCso45Iw127gnp7sPhqgY8lUQhDrArIs+GbmfaaVPFuoyy7WyLT9EPZCRZ7j7aLdwUhQmHWesEow==}
     engines: {node: 18 || 20 || >=22}
 
   global-directory@4.0.1:
@@ -2352,9 +2354,9 @@ packages:
   mediabunny@1.64.0:
     resolution: {integrity: sha512-ILat5qSwfmZjnYhk7Dc8uEvEQNtzXNxUVyfxR9Fp6JRa8Axsg5xE1EXwCTOzXJHhH/a2eyk6sZ1ffivCk4rIXg==}
 
-  minimatch@10.2.6:
-    resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
-    engines: {node: 18 || 20 || >=22}
+  minimatch@11.0.4:
+    resolution: {integrity: sha512-/UJ1dEoVQTjPNDh6SGlUo+ueLMmoHTas4q+8yaAR/5t6nLAIiBDJtoYUh20IYleix7ehiQkgczb84PE3uzHkxg==}
+    engines: {node: 20 || >=22}
 
   minimatch@3.1.5:
     resolution: {integrity: sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w==}
@@ -2491,8 +2493,8 @@ packages:
     resolution: {integrity: sha512-haREypq7xkM7ErfgIyA0z+Bj4AGKlMSdlQE2jvJo6huWD1EdkKYV+G/T4nq0YEF2vgTT8kqMFKo1uHn950r4SQ==}
     engines: {node: '>=12'}
 
-  path-scurry@2.0.2:
-    resolution: {integrity: sha512-3O/iVVsJAPsOnpwWIeD+d6z/7PmqApyQePUtCndjatj/9I5LylHvt5qluFaBT3I5h3r1ejfR056c+FCv+NnNXg==}
+  path-scurry@3.0.0:
+    resolution: {integrity: sha512-1pTbQqH1wIwMi/eleQ5leFTTCkzFsPcgXNjwOA8YGGW/W4/kHT3dssE7Z6NH+zuqNLOzOB0uaD61yl7cAcVhgg==}
     engines: {node: 18 || 20 || >=22}
 
   pathe@2.0.3:
@@ -3337,7 +3339,7 @@ snapshots:
     dependencies:
       '@eslint/object-schema': 3.0.5
       debug: 4.4.3(supports-color@8.1.1)
-      minimatch: 10.2.6
+      minimatch: 11.0.4
     transitivePeerDependencies:
       - supports-color
 
@@ -3528,6 +3530,8 @@ snapshots:
     optionalDependencies:
       '@types/node': 26.6.6
 
+  '@isaacs/nonrecursive-glob-match@1.1.0': {}
+
   '@jest/diff-sequences@30.5.0': {}
 
   '@jest/expect-utils@30.5.2':
@@ -3664,47 +3668,47 @@ snapshots:
       estraverse: 5.3.0
       picomatch: 4.0.7
 
-  '@svta/cml-608@1.0.2': {}
+  '@svta/cml-608@1.1.0': {}
 
-  '@svta/cml-cmcd@2.3.2(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0)':
+  '@svta/cml-cmcd@2.8.2(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)':
     dependencies:
-      '@svta/cml-structured-field-values': 1.1.3(@svta/cml-utils@1.5.0)
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-structured-field-values': 1.1.6(@svta/cml-utils@1.6.1)
+      '@svta/cml-utils': 1.6.1
 
-  '@svta/cml-cmsd@1.0.6(@svta/cml-cta@1.0.6(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0))(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0)':
+  '@svta/cml-cmsd@1.1.1(@svta/cml-cta@1.0.9(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1))(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)':
     dependencies:
-      '@svta/cml-cta': 1.0.6(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0)
-      '@svta/cml-structured-field-values': 1.1.3(@svta/cml-utils@1.5.0)
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-cta': 1.0.9(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)
+      '@svta/cml-structured-field-values': 1.1.6(@svta/cml-utils@1.6.1)
+      '@svta/cml-utils': 1.6.1
 
-  '@svta/cml-cta@1.0.6(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0)':
+  '@svta/cml-cta@1.0.9(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)':
     dependencies:
-      '@svta/cml-structured-field-values': 1.1.3(@svta/cml-utils@1.5.0)
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-structured-field-values': 1.1.6(@svta/cml-utils@1.6.1)
+      '@svta/cml-utils': 1.6.1
 
-  '@svta/cml-dash@1.0.6(@svta/cml-utils@1.5.0)':
+  '@svta/cml-dash@1.0.9(@svta/cml-utils@1.6.1)':
     dependencies:
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-utils': 1.6.1
 
-  '@svta/cml-id3@1.0.6(@svta/cml-utils@1.5.0)':
+  '@svta/cml-id3@1.0.9(@svta/cml-utils@1.6.1)':
     dependencies:
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-utils': 1.6.1
 
-  '@svta/cml-request@1.0.12(@svta/cml-cmcd@2.3.2(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0)(@svta/cml-xml@1.1.4(@svta/cml-utils@1.5.0))':
+  '@svta/cml-request@1.0.21(@svta/cml-cmcd@2.8.2(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)(@svta/cml-xml@1.2.1(@svta/cml-utils@1.6.1))':
     dependencies:
-      '@svta/cml-cmcd': 2.3.2(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0)
-      '@svta/cml-utils': 1.5.0
-      '@svta/cml-xml': 1.1.4(@svta/cml-utils@1.5.0)
+      '@svta/cml-cmcd': 2.8.2(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)
+      '@svta/cml-utils': 1.6.1
+      '@svta/cml-xml': 1.2.1(@svta/cml-utils@1.6.1)
 
-  '@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0)':
+  '@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1)':
     dependencies:
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-utils': 1.6.1
 
-  '@svta/cml-utils@1.5.0': {}
+  '@svta/cml-utils@1.6.1': {}
 
-  '@svta/cml-xml@1.1.4(@svta/cml-utils@1.5.0)':
+  '@svta/cml-xml@1.2.1(@svta/cml-utils@1.6.1)':
     dependencies:
-      '@svta/cml-utils': 1.5.0
+      '@svta/cml-utils': 1.6.1
 
   '@types/chai@5.2.3':
     dependencies:
@@ -3928,7 +3932,7 @@ snapshots:
       '@wdio/types': 10.1.0
       '@wdio/utils': 10.1.0(supports-color@8.1.1)(yauzl@3.4.0)
       deepmerge-ts: 8.0.2
-      glob: 13.0.6
+      glob: 14.0.3
       import-meta-resolve: 4.2.0
       jiti: 2.7.0
     transitivePeerDependencies:
@@ -4310,8 +4314,6 @@ snapshots:
 
   base64-js@1.5.1: {}
 
-  bcp-47-match@2.0.3: {}
-
   boolbase@1.0.0: {}
 
   boxen@8.0.1:
@@ -4530,16 +4532,15 @@ snapshots:
 
   css-what@6.1.0: {}
 
-  dashjs@5.2.1(patch_hash=5bd4216990932225d76caa11e6da713c4b9647d5ece38bf7cc88720b03cd3526)(@svta/cml-cta@1.0.6(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0))(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0):
+  dashjs@5.3.0(patch_hash=fc5e85c8d7984ad75741d09af2fc113377d3f1918d4fd23828b9efa7df927199)(@svta/cml-cta@1.0.9(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1))(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1):
     dependencies:
-      '@svta/cml-608': 1.0.2
-      '@svta/cml-cmcd': 2.3.2(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0)
-      '@svta/cml-cmsd': 1.0.6(@svta/cml-cta@1.0.6(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0))(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0)
-      '@svta/cml-dash': 1.0.6(@svta/cml-utils@1.5.0)
-      '@svta/cml-id3': 1.0.6(@svta/cml-utils@1.5.0)
-      '@svta/cml-request': 1.0.12(@svta/cml-cmcd@2.3.2(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0)(@svta/cml-xml@1.1.4(@svta/cml-utils@1.5.0))
-      '@svta/cml-xml': 1.1.4(@svta/cml-utils@1.5.0)
-      bcp-47-match: 2.0.3
+      '@svta/cml-608': 1.1.0
+      '@svta/cml-cmcd': 2.8.2(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)
+      '@svta/cml-cmsd': 1.1.1(@svta/cml-cta@1.0.9(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1))(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)
+      '@svta/cml-dash': 1.0.9(@svta/cml-utils@1.6.1)
+      '@svta/cml-id3': 1.0.9(@svta/cml-utils@1.6.1)
+      '@svta/cml-request': 1.0.21(@svta/cml-cmcd@2.8.2(@svta/cml-structured-field-values@1.1.6(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1))(@svta/cml-utils@1.6.1)(@svta/cml-xml@1.2.1(@svta/cml-utils@1.6.1))
+      '@svta/cml-xml': 1.2.1(@svta/cml-utils@1.6.1)
       codem-isoboxer: 0.3.10
       fast-deep-equal: 3.1.3
       html-entities: 2.6.0
@@ -4748,7 +4749,7 @@ snapshots:
       imurmurhash: 0.1.4
       is-glob: 4.0.3
       json-stable-stringify-without-jsonify: 1.0.1
-      minimatch: 10.2.6
+      minimatch: 11.0.4
       natural-compare: 1.4.0
       optionator: 0.9.4
     optionalDependencies:
@@ -4988,11 +4989,11 @@ snapshots:
     dependencies:
       is-glob: 4.0.3
 
-  glob@13.0.6:
+  glob@14.0.3:
     dependencies:
-      minimatch: 10.2.6
+      minimatch: 11.0.4
       minipass: 7.1.3
-      path-scurry: 2.0.2
+      path-scurry: 3.0.0
 
   global-directory@4.0.1:
     dependencies:
@@ -5414,8 +5415,9 @@ snapshots:
       '@types/dom-mediacapture-transform': 0.1.12
       '@types/dom-webcodecs': 0.1.13
 
-  minimatch@10.2.6:
+  minimatch@11.0.4:
     dependencies:
+      '@isaacs/nonrecursive-glob-match': 1.1.0
       brace-expansion: 5.0.12
 
   minimatch@3.1.5:
@@ -5435,11 +5437,11 @@ snapshots:
       debug: 4.4.3(supports-color@8.1.1)
       diff: 9.0.0
       find-up-simple: 1.0.1
-      glob: 13.0.6
+      glob: 14.0.3
       is-path-inside: 4.0.0
       is-unicode-supported: 0.1.0
       js-yaml: 5.5.0
-      minimatch: 10.2.6
+      minimatch: 11.0.4
       ms: 2.1.3
       picocolors: 1.1.1
       serialize-javascript: 7.1.3
@@ -5559,7 +5561,7 @@ snapshots:
 
   path-key@4.0.0: {}
 
-  path-scurry@2.0.2:
+  path-scurry@3.0.0:
     dependencies:
       lru-cache: 11.5.3
       minipass: 7.1.3
@@ -5704,7 +5706,7 @@ snapshots:
 
   readdir-glob@3.0.0:
     dependencies:
-      minimatch: 10.2.6
+      minimatch: 11.0.4
 
   readdirp@5.1.1: {}
 
