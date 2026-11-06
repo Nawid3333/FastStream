@@ -250,6 +250,16 @@ describe('DownloadManager.adopt', () => {
     expect(ask(manager, seg(3, NEW_SIG)).entry.status).not.toBe(DownloadStatus.DOWNLOAD_COMPLETE);
   });
 
+  it('keeps no file moved for a download let go of before its move', async () => {
+    const manager = new DownloadManager(null);
+    manager.downloaders = [];
+    const {onDisk} = manager.adopt(handOff, OLD);
+    manager.removeFile({url: seg(3), responseType: 'arraybuffer'});
+    expect(await onDisk).toBe(0);
+    const id = manager.getIdentifier({url: seg(3), responseType: 'arraybuffer'});
+    expect(manager.blobStore.blobStore.has(id)).toBe(false);
+  });
+
   it('keeps no file moved after the next source\'s storage went', async () => {
     const manager = new DownloadManager(null);
     manager.downloaders = [];

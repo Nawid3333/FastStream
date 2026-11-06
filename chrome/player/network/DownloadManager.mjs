@@ -408,7 +408,10 @@ export class DownloadManager {
       } catch (e) {
         moved = false;
       }
-      if (moved && this.blobStore === store && this.storageGeneration === item.generation) {
+      // Let go of meanwhile (removeFile destroys it: a fragment freed behind the playhead), its
+      // file would stay in this session with nothing to read or delete it (glm's review).
+      const kept = !item.entry.aborted && item.entry.status === DownloadStatus.DOWNLOAD_COMPLETE;
+      if (moved && kept && this.blobStore === store && this.storageGeneration === item.generation) {
         return true;
       }
       if (moved) store.deleteBlob(item.identifier);
