@@ -173,7 +173,8 @@ of this change already exists.
 
 ## dash.js
 
-**Now 5.2.1 plus a 41 KB patch (2026-09-25)** - see "Status" below; the next update goes
+**Now 5.3.0 plus a 42 KB patch (2026-11-06; 5.2.1 since 2026-09-25)** - see "Status" and
+"Re-cut onto 5.3.0" below; the next update goes
 through `docs/updating-patched-libraries.md`. The
 measurements that follow are from the first migration (2026-09-05); they are
 kept because the status section explains the one thing they got wrong, which
@@ -301,6 +302,37 @@ Checked by:
 patch's changes from stock 5.2.1 onto the new stock bundle, module by module,
 and run the same two checks.
 
+### Re-cut onto 5.3.0 (2026-11-06, issue #623)
+
+`tools/recut-patch.mjs` merged 9 modules cleanly and stopped on 6 conflicts (12 blocks).
+How each was resolved - the next re-cut meets the same code:
+
+- **`MediaPlayer`**: 5.3.0 split it into API modules (`mediaplayer/CoreApi.js`,
+  `CustomParametersApi.js`, `TrackApi.js`, ...) merged into one player object over a shared
+  `state`. FastStream's three additions (`getStreamController`, `getRepresentations`,
+  `setCustomBitrateSelectionFunction`) now sit in the slim `MediaPlayer`'s `instance`,
+  reading `state` as 5.3.0's own API modules do.
+- **`RepresentationController`**: 5.3.0 made segment lists lazy itself, for SegmentBase only
+  (`_updateRepresentation(rep, isSelected)`, `loadSegmentList`, a retry back-off that
+  excludes a failing Representation from ABR). FastStream's lazier update (every
+  Representation through `setUpdateCallback`/`checkForUpdate`) is kept, and 5.3.0's
+  `loadSegmentList` loads through it (`_loadNow`), so no Representation is updated twice.
+  The update callback is `_updateLater` = `_updateRepresentation(rep, true)`: a callback
+  given one argument would have left `isSelected` undefined and a SegmentBase stream
+  without its segment list after an error - a clean-merged line, not a conflict.
+- **`MediaController`**: FastStream's removal of dash.js's initial track filtering is kept,
+  but 5.3.0's `filterTracksBySettings` and new `getAvailablePreferredLanguages` stay:
+  both are exported, and `TextController` calls the latter. `_matchRoleAbsent`, which
+  FastStream had removed with the filtering, is back - `filterTracksBySettings` needs it.
+- **`StreamProcessor`**: both sides' additions. **`CustomParametersModel`**: 5.3.0 renamed
+  the other fields of the same `let`; FastStream's `customBitrateSelectionFunction` added.
+- **webpack's runtime tail**: 5.3.0's new shape, with `return this || globalThis;`.
+
+The resolution script and the full run are kept by that session, not in the repository.
+Most of the patch could go through dash.js's public API instead (initial track selection,
+segment enumeration through `getSegmentByIndex`, `getActiveStream`): the smaller the
+patch, the more releases the workflow takes on its own.
+
 One wrinkle worth recording: npm's bundle embeds 428 stray CR characters
 inside a vendored BSD licence comment, because a bundled dependency ships CRLF
 source. Diff formats cannot carry a trailing-CR-only change, so
@@ -315,7 +347,7 @@ effectively every webpack bundle (the `/******/` comment prefix is webpack's
 own marker for its runtime code, not this project's). It is the standard
 cross-environment global-object lookup, reached only as a fallback when
 `globalThis` is missing and `this` is falsy - never, in a browser or extension
-context. Since 2026-10-27 `patches/dashjs@5.2.1.patch` has one more hunk that
+context. Since 2026-10-27 the dash.js patch (`patches/dashjs@<version>.patch`) has one more hunk that
 makes it `return this || globalThis;`: one boilerplate line a reviewer reads at a
 glance, which takes the bundle's only eval-like construct out and the warning
 with it. The patch re-cut (`tools/recut-patch.mjs`) carries it to each dash.js
