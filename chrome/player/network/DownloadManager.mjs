@@ -517,7 +517,6 @@ export class DownloadManager {
     priority = priority || 0;
     const key = this.getIdentifier(details);
     let storedEntry = this.stored(details, key);
-    //  console.log("get file", key, storedEntry)
 
     if (!storedEntry || storedEntry.status === DownloadStatus.DOWNLOAD_FAILED) {
       storedEntry = new DownloadEntry(details);

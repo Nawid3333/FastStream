@@ -931,14 +931,6 @@ export class FastStreamClient extends EventEmitter {
     if (ramOnly && this.state.bufferAhead > this.ramAheadSeconds(ramRoom, bitrate)) {
       this.state.bufferAhead = this.ramAheadSeconds(ramRoom, bitrate);
     }
-
-    // if (!this.hasDownloadSpace) {
-    //   this.audioAnalyzer.disableBackground();
-    //   this.frameExtractor.disableBackground();
-    // } else {
-    //   this.audioAnalyzer.enableBackground();
-    //   this.frameExtractor.enableBackground();
-    // }
   }
 
   /**

@@ -108,7 +108,6 @@ export class DashFragmentRequester {
         }
         if (fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE) {
           fragment.status = DownloadStatus.DOWNLOAD_COMPLETE;
-          //    console.log(fragment)
           this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
         }
         callbacks.onSuccess(entry, data);

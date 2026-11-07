@@ -40,7 +40,6 @@
       const sar = track.sar;
       const startWithSap = track.startWithSap;
       const SegmentBase = track.SegmentBase;
-      // const codecid = track.codecid;
       const Representation = this.document.createElement('Representation');
       Representation.setAttribute('id', id);
       Representation.setAttribute('codecs', codecs);
@@ -77,8 +76,6 @@
       // A video without sound has no audio list (null): only the video then. It threw, and the
       // video was not detected at all (final review, 2026-10-10).
       const audioAdaptationSet = dashData.audio?.length ? this.loadDashTracks(dashData.audio) : null;
-      // const dolby = dashData.dolby;
-      // const flac = dashData.flac;
 
       const MPD = this.document.createElement('MPD');
       MPD.setAttribute('xmlns', 'urn:mpeg:dash:schema:mpd:2011');

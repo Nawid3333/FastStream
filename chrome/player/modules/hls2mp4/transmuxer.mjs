@@ -88,7 +88,6 @@ export default class Transmuxer {
       userAgent: 'android',
     }, {
       get: (obj, prop) => {
-        // console.log("get", prop)
         if (prop in obj) {
           return /** @type {Record<string|symbol, *>} */ (obj)[prop];
         } else {

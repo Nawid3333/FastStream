@@ -126,12 +126,6 @@ export default class DashPlayer extends EventEmitter {
       },
     };
 
-    // if (this.isPreview) {
-    // newSettings.debug ={
-    //   'logLevel': Debug.LOG_LEVEL_DEBUG,
-    // };
-    // }
-
     this.dash.updateSettings(newSettings);
     this.dash.registerCustomCapabilitiesFilter((rep) => this.probeRepresentation(rep));
 

@@ -206,8 +206,6 @@ export class FineTimeControls extends EventEmitter {
       });
     };
     this.ui.timelineTicks.addEventListener('mousedown', mouseDown);
-    // this.ui.timelineAudioCanvasContainer.addEventListener('mousedown', mouseDown);
-    // this.ui.timelineImages.addEventListener('mousedown', mouseDown);
 
     /**
      * @param {MouseEvent|TouchEvent|null} e - The release; null for a grab that ended without one.

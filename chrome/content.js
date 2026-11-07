@@ -619,7 +619,6 @@
           /** @type {ParentNode} */ (video.highest.parentNode).replaceChild(iframe, video.highest);
         }
 
-        // updateIframeStyle(video.highest, iframe, isYt, playerFillsScreen);
         const watcher = pauseAllWithin(video.highest);
 
         /** @type {ReplacedPlayer} */
@@ -765,7 +764,6 @@
       // if placeholder is visible again
       const observer = new IntersectionObserver(async ([entry]) => {
         if (entry.intersectionRatio > 0.3 && miniplayerState.active) {
-          //  unmakeMiniPlayer(iframeObj);
           observer.disconnect();
 
           const result = await sendToPlayer(miniplayerState.playerFrameId, {
@@ -2022,7 +2020,6 @@
    */
   function testSimilarity(originalElement, childElement, parentElement) {
     const parentStyle = window.getComputedStyle(parentElement);
-    // const childStyle = window.getComputedStyle(childElement);
     const parentRect = parentElement.getBoundingClientRect();
     const childRect = childElement.getBoundingClientRect();
 

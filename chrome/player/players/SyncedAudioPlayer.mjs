@@ -293,7 +293,6 @@ export class SyncedAudioPlayer extends EventEmitter {
     // Check error
     const offset = this.videoDelay / 1000;
     const error = Math.abs(/** @type {HTMLVideoElement} */ (this.client.currentVideo).currentTime + offset - currentPlayer.getVideo().currentTime);
-    // console.log('Error is', error);
     if (error > 0.01 && /** @type {HTMLVideoElement} */ (this.client.currentVideo).readyState >= 2) {
       if (!this.resyncing) {
         // The largest error first: tested from the smallest, anything over 0.05 s took

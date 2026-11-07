@@ -180,7 +180,6 @@ export default class MP4Player extends EventEmitter {
 
   /** @param {number} id - The track's. */
   freeSamples(id) {
-    // return;
     // samples_stored: patches/mp4box@*.patch.
     const trak = /** @type {TrakBox & {samples_stored: Sample[]}} */ (this.mp4box.getTrackById(id));
 
@@ -207,7 +206,6 @@ export default class MP4Player extends EventEmitter {
     const audioTrack = /** @type {Movie} */ (this.metaData).audioTracks[/** @type {number} */ (this.currentAudioTrack)];
 
     this.mp4box.onSegment = (id, user, buffer, sampleNumber, last) => {
-      // console.log(id, sampleNumber)
       // A file can have no video track (audio only) or no audio track.
       // The samples are released once the segment is queued: one the SourceBuffer refuses
       // is handled by the appender, which loads again from the playhead.
@@ -346,7 +344,6 @@ export default class MP4Player extends EventEmitter {
     this.metaData = info;
     this.estimateTotalSizeFromMetadats();
     const max = Math.ceil(this.fileLength / FRAGMENT_SIZE);
-    // for (let l = 0; l < info.videoTracks.length; l++) {
     const l = this.getCurrentVideoLevelID();
     for (let i = 0; i < max; i++) {
       if (!this.client.getFragment(l, i)) {
@@ -366,7 +363,6 @@ export default class MP4Player extends EventEmitter {
         sortedCount: samples.length,
       });
     }
-    //  }
 
     for (let l = 0; l < info.audioTracks.length; l++) {
       const trak = this.mp4box.moov.traks.find((trak) => {
