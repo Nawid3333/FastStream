@@ -299,4 +299,43 @@ describe('a reset with media segments still queued', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(reload).not.toHaveBeenCalled();
   });
+
+  it('keeps what mp4box\'s flush gives during the reset, behind the removal, and counts no refusal', async () => {
+    // glm's review of the change: dropped after the flush, a segment the flush gave was
+    // queued under the reset's own count, and its AbortError counted as a refusal - a reload
+    // more, and three quick seeks failed the video with "could not be buffered".
+    const {default: MP4Player} = await import('../../chrome/player/players/mp4/MP4Player.mjs');
+    const {SegmentAppender} = await import('../../chrome/player/players/mp4/SegmentAppender.mjs');
+    const video = makeWrapper();
+    const reload = vi.fn();
+    const fail = vi.fn();
+    const player = {
+      metaData: {tracks: []},
+      segmentAppender: new SegmentAppender({reload, readLess: vi.fn(), fail, isCurrent: () => true}),
+      videoSourceBuffer: video.wrapper,
+      audioSourceBuffer: null,
+      mediaSource: {duration: 100},
+      mp4box: {
+        flush: () => player.segmentAppender.append(video.wrapper, new ArrayBuffer(7)),
+        seek: vi.fn(),
+        stream: {buffers: []},
+      },
+      freeSamples: vi.fn(),
+      loader: null,
+      video: {duration: 100},
+      currentTime: 50,
+      currentFragments: [],
+      rangeRetries: new Map(),
+      fedRanges: new Map(),
+      runLoad: vi.fn(),
+    };
+    player.removeFromBuffers = MP4Player.prototype.removeFromBuffers.bind(player);
+    player.segmentAppender.append(video.wrapper, new ArrayBuffer(1)); // running
+    player.segmentAppender.append(video.wrapper, new ArrayBuffer(2)); // queued
+
+    for (let i = 0; i < 3; i++) MP4Player.prototype.resetHLS.call(player, true);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect([reload.mock.calls.length, fail.mock.calls.length]).toEqual([0, 0]);
+  });
 });

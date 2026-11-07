@@ -1047,14 +1047,16 @@ export default class MP4Player extends EventEmitter {
   resetHLS(noLoad) {
     if (!this.metaData) return;
     this.segmentAppender.reloaded();
-    this.mp4box.flush();
-    this.mp4box.stream.buffers.length = 0;
-    // What is still queued (and what the flush just gave) would be appended only for the
-    // removal below to take it away again: dropped instead, so the new place's segments
-    // follow the removal at once.
+    // The media segments still queued would be appended only for the removal below to take
+    // them away again: dropped instead, so the new place's segments follow the removal at
+    // once. Before the flush: a segment the flush gives is appended under the new count
+    // (reloaded()), and dropped, its AbortError counted as a refusal (glm's review). It goes
+    // in after the removal, as it always did.
     this.videoSourceBuffer?.dropQueuedMedia();
     this.audioSourceBuffer?.dropQueuedMedia();
     this.removeFromBuffers(0, this.video.duration);
+    this.mp4box.flush();
+    this.mp4box.stream.buffers.length = 0;
     this.fedRanges?.clear();
 
     this.metaData.tracks.forEach((track) => {
