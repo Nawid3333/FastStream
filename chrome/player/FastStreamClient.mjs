@@ -1621,7 +1621,11 @@ export class FastStreamClient extends EventEmitter {
     const toDisk = manager.canSpill();
     const room = budget === 0 && toDisk ? DISK_ONLY_ROOM_BYTES : share;
     manager.memoryFull = isFull(held, leaving, room, manager.memoryFull);
-    if (held - leaving <= share * HIGH) return;
+    // Full, it lets go down to LOW, where downloads ahead start again. The downloads running
+    // when it let go come in after, a little over LOW: let go of only over HIGH, they stayed,
+    // and with them "full" - downloads ahead stopped for good (a 30-minute stream stopped at
+    // 70% with 153 of 200 MB held).
+    if (held - leaving <= share * (manager.memoryFull ? LOW : HIGH)) return;
 
     const time = this.state.currentTime;
     const current = this.currentFragment;
