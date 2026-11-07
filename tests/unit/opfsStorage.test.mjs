@@ -385,6 +385,31 @@ describe('opfs-worker: writes', () => {
     }
   });
 
+  it('reads a spilled fragment into RAM only in its turn, one at a time', async () => {
+    // OPFSManager read every Blob before posting it: fragments a memory budget spilled
+    // together were all in RAM a second time before the first was on disk (Codex, 2026-11-07).
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    const writtenAtEachRead = [];
+    const fragments = [0, 1, 2].map((i) => {
+      const blob = new Blob([new Uint8Array([i + 1, 2, 3])]);
+      const read = blob.arrayBuffer.bind(blob);
+      blob.arrayBuffer = () => {
+        writtenAtEachRead.push([...sessionOf(root, manager).children.entries()]
+            .filter(([name, file]) => name !== '_meta.json' && file.bytes.byteLength > 0).length);
+        return read();
+      };
+      return blob;
+    });
+    try {
+      await Promise.all(fragments.map((blob, i) => manager.setFile('blob' + i, blob)));
+      expect(writtenAtEachRead).toEqual([0, 1, 2]);
+      expect([...(await manager.getFile('blob2')).disk.bytes]).toEqual([3, 2, 3]);
+    } finally {
+      await manager.close();
+    }
+  });
+
   it('writes a whole save, chunk after chunk, into one file', async () => {
     const root = new FakeDir();
     const manager = await startManager(root);

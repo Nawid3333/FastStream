@@ -256,7 +256,7 @@ export class OPFSManager {
 
   /**
    * @param {string} op
-   * @param {{identifier: string | null, data?: Uint8Array | ArrayBuffer}} [payload]
+   * @param {{identifier: string | null, data?: Uint8Array | ArrayBuffer | Blob}} [payload]
    * @param {Transferable[]} [transfer]
    * @return {Promise<*>}
    */
@@ -306,8 +306,10 @@ export class OPFSManager {
    * @return {Promise<void>}
    */
   async setFile(identifier, blob) {
-    const buffer = await blob.arrayBuffer();
-    await this.call('set', {identifier: this.fileName(identifier, true), data: buffer}, [buffer]);
+    // The Blob itself, which the worker reads in its turn (its queue): read here first, every
+    // fragment a memory budget spilled at once was in RAM twice before the first was written,
+    // 100 MB for a 100 MB spill (Codex's review). A Blob goes to the worker without a copy.
+    await this.call('set', {identifier: this.fileName(identifier, true), data: blob});
   }
 
   /**

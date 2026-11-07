@@ -336,7 +336,8 @@ self.addEventListener('message', async (event) => {
         result = {sessionName};
         break;
       case 'set':
-        await queue.push(() => setFile(identifier, data));
+        // A Blob (OPFSManager.setFile) is read here, in its turn: one in RAM at a time.
+        await queue.push(async () => setFile(identifier, data instanceof Blob ? await data.arrayBuffer() : data));
         break;
       case 'get':
         result = await queue.push(() => getFile(identifier));
