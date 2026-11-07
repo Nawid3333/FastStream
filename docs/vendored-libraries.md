@@ -33,6 +33,39 @@ MP4 for the save-to-disk feature (the original patch's list also included
 those two were dropped). Confirmed still absent from 1.7.4's export
 statement, and the package's `exports` map still only exposes `.`,
 `./light` and `./dist/*`, so there is still no deep-import escape hatch.
+Since 2026-11-07 also `MP4`, hls.js's MP4 writer (below).
+
+### The save's MP4 writer and hls.js's (2026-11-07)
+
+`chrome/player/modules/hls2mp4/MP4Generator.mjs` writes a save's MP4 file. It started as a
+copy of hls.js's `src/remux/mp4-generator.ts`, and FastStream made it write a whole file, not
+fragments: real sample tables (`stts`, `stsc`, `stsz`, `stco`/`co64`, `stss`, `ctts`), edit
+lists, a `moov` without `mvex`, `tkhd` in the movie's timescale, its own audio sample entries
+(an `esds` passed through, MP3, AC-3 from a transport stream). Compared with hls.js 1.7.4
+function by function, 15 of its functions were still hls.js's, unchanged. So:
+
+- **From hls.js itself**: the video sample entries (`avc1`, `hvc1`: byte for byte what the
+  copies wrote), which hls2mp4 writes with hls.js's `MP4` and hands over as the track's
+  `codecBuffer`, as a DASH track's already was; and the fragment boxes (`moof`, `traf`,
+  `trun`, `mfhd`, `mvex`, `trex`, `mdat`), which only the tests' fMP4 helper used. Both went
+  from MP4Generator (966 -> 696 lines); hls.js's changes to them now come with hls.js. Not
+  imported by MP4Generator: a DASH save (mp4merger) would load hls.js's 1.2 MB for nothing.
+  Taking over hls.js's *other* unchanged functions one by one would break the file: hls.js's
+  functions call each other as `MP4.x`, so its `minf` or `moov` writes its own empty sample
+  table and fragment header, not FastStream's.
+- **Checked against hls.js's**: every function FastStream keeps its own version of
+  (`box`, `hdlr`, `mdhd`, `mdia`, `minf`, `moov`, `mvhd`, `sdtp`, `stbl`, `stsd`, `esds`,
+  `mp4a`, `mp3`, `ac3`, `tkhd`, `trak`, `initSegment`, hls.js's `audioStsd`, and
+  `normalizePts`, which `ptsNormalize.mjs` rewrites). `tests/unit/mp4WriterUpstream.test.mjs`
+  pins a fingerprint of each in hls.js's source (comments, whitespace and trailing commas
+  left out); an hls.js update that changes one fails there, in its own pull request, and
+  the message says what to compare. It also checks that the patch exports `MP4` and that no
+  DASH save module imports hls.js.
+
+Proof that nothing changed: every box the writer returned across the 49 save tests
+(hls2mp4, dash2mp4, mp4merger, saveDownloadsAhead: H.264, HEVC, AAC, MP3, AC-3, fMP4) was
+hashed before and after - 1,745 of FastStream's (54 whole headers among them) identical, and
+all 178 of the now hls.js-written ones there again.
 
 ### Dropped 2026-10-29
 

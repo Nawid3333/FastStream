@@ -22,7 +22,7 @@ patchedDependencies:
   Coloris@0.25.1: c4147209f121eb8e1746440d4026a9f680a4098009bcdd8ea077e441c8d727f9
   dashjs@5.3.0: 94bb7521647eae1cab755e05876bb57cf86b8173ca0c53edbe85856c0beef794
   gif.js@0.2.0: 7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae
-  hls.js@1.7.4: ac81f303e24939bca6d74bbfe7470c487b23389a89637cb30bc10cf15d5ccd81
+  hls.js@1.7.4: 3a9f687704aa3d840b960ac8afa2664fc9feb0c11ed2f990f8a320d3e6d61af3
   mp4box@2.5.0: 3091a659c97e24ca32b158848f4677b2cea9286d2943219003f9d817b42d7ece
 
 importers:
@@ -91,7 +91,7 @@ importers:
         version: 17.13.0
       hls.js:
         specifier: 1.7.4
-        version: 1.7.4(patch_hash=ac81f303e24939bca6d74bbfe7470c487b23389a89637cb30bc10cf15d5ccd81)
+        version: 1.7.4(patch_hash=3a9f687704aa3d840b960ac8afa2664fc9feb0c11ed2f990f8a320d3e6d61af3)
       js-yaml:
         specifier: ^5.5.0
         version: 5.5.0
@@ -5015,7 +5015,7 @@ snapshots:
     dependencies:
       hookified: 1.15.1
 
-  hls.js@1.7.4(patch_hash=ac81f303e24939bca6d74bbfe7470c487b23389a89637cb30bc10cf15d5ccd81): {}
+  hls.js@1.7.4(patch_hash=3a9f687704aa3d840b960ac8afa2664fc9feb0c11ed2f990f8a320d3e6d61af3): {}
 
   hookified@1.15.1: {}
 

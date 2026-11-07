@@ -1,8 +1,10 @@
-// Builds fragmented MP4 (an init segment and moof/mdat fragments) for the merger's tests,
-// with the writer the saves themselves use (MP4Generator), which has every box a fragment
-// needs. Its trun is version 1 for video, so composition offsets may be negative, as CMAF
-// packagers write them.
+// Builds fragmented MP4 (an init segment and moof/mdat fragments) for the merger's tests:
+// the track with the writer the saves themselves use (MP4Generator), the fragments and the
+// video sample entry with hls.js's own (its MP4, which FastStream's patch exports), whose
+// fragment boxes MP4Generator no longer copies. hls.js's trun is version 1 for video, so
+// composition offsets may be negative, as CMAF packagers write them.
 
+import {MP4 as HlsMP4} from '../../../chrome/player/modules/hls.mjs';
 import {MP4} from '../../../chrome/player/modules/hls2mp4/MP4Generator.mjs';
 import {ParameterSets} from './mpegts.mjs';
 
@@ -59,7 +61,7 @@ export function videoTrack({timescale, id = 1}) {
  */
 export function initSegment(track) {
   ready();
-  const moov = MP4.box(MP4.types.moov, MP4.mvhd(track.timescale, 0), MP4.trak({...track}), MP4.mvex([track]));
+  const moov = MP4.box(MP4.types.moov, MP4.mvhd(track.timescale, 0), MP4.trak({...track, codecBuffer: HlsMP4.avc1(track)}), HlsMP4.mvex([track]));
   return concat([MP4.FTYP, moov]).buffer;
 }
 
@@ -88,7 +90,7 @@ export function fragment(track, sequence, baseDecodeTime, samples) {
       isNonSync: key ? 0 : 1,
     },
   }));
-  const moof = MP4.moof(sequence, baseDecodeTime, {...track, samples: written});
-  const mdat = MP4.mdat(new Uint8Array(samples.length).fill(0xab));
+  const moof = HlsMP4.moof(sequence, baseDecodeTime, {...track, samples: written});
+  const mdat = HlsMP4.mdat(new Uint8Array(samples.length).fill(0xab));
   return new Blob([moof, mdat]);
 }
