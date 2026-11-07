@@ -3,8 +3,9 @@ import {EventEmitter} from '../../modules/eventemitter.mjs';
 
 /**
  * A queued operation on the SourceBuffer, with its promise's resolve and reject: an append of
- * bytes, or a removal of a time range, in seconds.
- * @typedef {{resolve: (value: void) => void, reject: (reason?: unknown) => void} & ({type: 'append', buffer: BufferSource} |
+ * bytes (media: a media segment, not an initialization segment), or a removal of a time
+ * range, in seconds.
+ * @typedef {{resolve: (value: void) => void, reject: (reason?: unknown) => void} & ({type: 'append', buffer: BufferSource, media?: boolean} |
  *   {type: 'remove', start: number, end: number})} SourceBufferOp
  */
 
@@ -58,17 +59,36 @@ export class SourceBufferWrapper extends EventEmitter {
 
   /**
    * @param {BufferSource} buffer
+   * @param {{media?: boolean}} [options] - media: a media segment, which dropQueuedMedia may
+   *   drop; an initialization segment is never dropped.
    * @return {Promise<void>} Resolves once the SourceBuffer took it.
    */
-  appendBuffer(buffer) {
+  appendBuffer(buffer, {media = false} = {}) {
     return new Promise((resolve, reject) => {
       this.do({
         type: 'append',
         buffer: buffer,
+        media,
         resolve,
         reject,
       });
     });
+  }
+
+  /**
+   * Drops the media segments still queued; the operation running, initialization segments and
+   * removals stay. A seek that loads afresh removes what they would add, and Firefox parsed
+   * every one of them before that removal ran: hundreds of one-frame segments behind a fast
+   * download (Codex's review, 2026-11-07). Their promises reject with an AbortError.
+   */
+  dropQueuedMedia() {
+    const isMedia = (/** @type {SourceBufferOp} */ op) => op.type === 'append' && !!op.media;
+    const dropped = this.toDo.filter(isMedia);
+    if (!dropped.length) return;
+    this.toDo = this.toDo.filter((op) => !isMedia(op));
+    for (const op of dropped) {
+      op.reject(new DOMException('Dropped: the player loads afresh', 'AbortError'));
+    }
   }
 
   /**

@@ -38,7 +38,7 @@ export class SegmentAppender {
    */
   append(wrapper, buffer) {
     const reloads = this.reloads;
-    wrapper.appendBuffer(buffer).then(() => {
+    wrapper.appendBuffer(buffer, {media: true}).then(() => {
       if (reloads === this.reloads) {
         this.refusals = 0;
       }

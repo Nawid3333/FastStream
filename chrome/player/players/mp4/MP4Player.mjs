@@ -1051,10 +1051,14 @@ export default class MP4Player extends EventEmitter {
   resetHLS(noLoad) {
     if (!this.metaData) return;
     this.segmentAppender.reloaded();
-    // console.log("resetHLS");
-    this.removeFromBuffers(0, this.video.duration);
     this.mp4box.flush();
     this.mp4box.stream.buffers.length = 0;
+    // What is still queued (and what the flush just gave) would be appended only for the
+    // removal below to take it away again: dropped instead, so the new place's segments
+    // follow the removal at once.
+    this.videoSourceBuffer?.dropQueuedMedia();
+    this.audioSourceBuffer?.dropQueuedMedia();
+    this.removeFromBuffers(0, this.video.duration);
     this.fedRanges?.clear();
 
     this.metaData.tracks.forEach((track) => {
