@@ -10,6 +10,26 @@ import {DashFragment} from '../../chrome/player/players/dash/DashFragment.mjs';
 // dash.js. (What a reload of a manifest gets: manifestReload.test.mjs.)
 
 /**
+ * HTTPLoader's own ends of a request, as dash.js puts them in its customData for the loader:
+ * onloadend once the answer is in the response, onabort.
+ * @return {{onloadend: Function, onabort: Function}}
+ */
+const ends = () => ({onloadend: vi.fn(), onabort: vi.fn()});
+
+/**
+ * How dash.js heard a request end, as its HTTPLoader would take it: an abort, the answer (its
+ * CommonMediaResponse a 2xx), an error (anything else), or not yet.
+ * @param {Object} request - What dash.js handed the loader.
+ * @param {Object} response - The CommonMediaResponse it handed with it.
+ * @return {'abort'|'success'|'error'|'-'}
+ */
+function heardOf(request, response) {
+  if (request.customData.onabort.mock.calls.length) return 'abort';
+  if (!request.customData.onloadend.mock.calls.length) return '-';
+  return response.status >= 200 && response.status <= 299 ? 'success' : 'error';
+}
+
+/**
  * Loads one manifest request through DashLoader.
  * @param {string} url - The URL dash.js asks for.
  * @return {Object} What the download manager was asked for.
@@ -27,11 +47,9 @@ function loadManifest(url) {
     headers: {},
     customData: {
       request: {type: 'MPD', responseType: 'text'},
-      onSuccess: vi.fn(),
-      onFail: vi.fn(),
-      onAbort: vi.fn(),
+      ...ends(),
     },
-  });
+  }, {status: 0});
   expect(getFile).toHaveBeenCalledTimes(1);
   return getFile.mock.calls[0][0];
 }
@@ -72,9 +90,7 @@ describe('DashLoader and DashFragment, one segment through both paths', () => {
       customData: {
         request: {type: 'MediaSegment', index: 7, startTime: 14, responseType: 'arraybuffer',
           url, representation: {id: 'v1', adaptation: {type: 'video'}}},
-        onSuccess: vi.fn(),
-        onFail: vi.fn(),
-        onAbort: vi.fn(),
+        ...ends(),
       },
     };
   }
@@ -129,9 +145,7 @@ describe('DashLoader, a segment that keeps failing', () => {
       customData: {
         request: {type: 'MediaSegment', index: 7, startTime: 14, responseType: 'arraybuffer',
           url: 'http://127.0.0.1/seg7.m4s', representation: {id: 'v1', adaptation: {type: 'video'}}},
-        onSuccess: vi.fn(),
-        onFail: vi.fn(),
-        onAbort: vi.fn(),
+        ...ends(),
       },
     };
   }
@@ -142,9 +156,10 @@ describe('DashLoader, a segment that keeps failing', () => {
     const heard = [];
     for (let n = 0; n < 4; n++) {
       const request = segmentRequest();
-      load.load(request);
+      const response = {status: 0};
+      load.load(request, response);
       requestFragment.mock.calls[n][1].onFail({});
-      heard.push(request.customData.onAbort.mock.calls.length ? 'abort' : request.customData.onFail.mock.calls.length ? 'error' : '-');
+      heard.push(heardOf(request, response));
     }
     expect(heard).toEqual(['abort', 'abort', 'error', 'error']);
     expect(player.emit).toHaveBeenCalledWith('error', expect.stringContaining('video-v1:7'));
@@ -156,13 +171,14 @@ describe('DashLoader, a segment that keeps failing', () => {
     const outcomes = ['fail', 'fail', 'success', 'fail', 'fail'];
     const heard = outcomes.map((outcome, n) => {
       const request = segmentRequest();
-      load.load(request);
+      const response = {status: 0};
+      load.load(request, response);
       if (outcome === 'fail') {
         requestFragment.mock.calls[n][1].onFail({});
       } else {
         requestFragment.mock.calls[n][1].onSuccess({responseURL: request.url}, new ArrayBuffer(1));
       }
-      return request.customData.onAbort.mock.calls.length ? 'abort' : request.customData.onFail.mock.calls.length ? 'error' : 'success';
+      return heardOf(request, response);
     });
     expect(heard).toEqual(['abort', 'abort', 'success', 'abort', 'abort']);
     expect(player.emit).not.toHaveBeenCalled();
@@ -175,8 +191,116 @@ describe('DashLoader, a segment that keeps failing', () => {
     };
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const request = segmentRequest();
-    dashLoaderFactory(player)().load(request);
-    expect(request.customData.onFail).toHaveBeenCalledTimes(1);
+    const response = {status: 0};
+    dashLoaderFactory(player)().load(request, response);
+    expect(request.customData.onloadend).toHaveBeenCalledTimes(1);
+    expect(heardOf(request, response)).toBe('error');
+  });
+});
+
+describe('DashLoader, how a request ends for dash.js', () => {
+  // dash.js's stock HTTPLoader gives its loader the request's ends: the answer goes into the
+  // CommonMediaResponse, then customData.onloadend (a 2xx with a body is the answer, anything
+  // else an error), an abort is customData.onabort. FastStream's patch used to add its own
+  // three callbacks to HTTPLoader for this, and cut HTTPLoader's ending out; the cut conflicted
+  // with dash.js's updates.
+
+  /**
+   * A player whose store holds segment 7, and a request for it.
+   * @return {Object}
+   */
+  function segment() {
+    const requestFragment = vi.fn(() => ({abort() {}}));
+    const player = {
+      source: {headers: {}}, activeRequests: [], emit: vi.fn(),
+      client: {getFragment: () => ({request: {url: 'http://127.0.0.1/seg7.m4s'}}), getFragments: () => []},
+      fragmentRequester: {requestFragment},
+    };
+    const request = {
+      url: 'http://127.0.0.1/seg7.m4s', method: 'GET', headers: {},
+      customData: {
+        request: {type: 'MediaSegment', index: 7, startTime: 14, responseType: 'arraybuffer',
+          url: 'http://127.0.0.1/seg7.m4s', representation: {id: 'v1', adaptation: {type: 'video'}}},
+        ...ends(),
+      },
+    };
+    const response = {status: 0};
+    dashLoaderFactory(player)().load(request, response);
+    return {callbacks: requestFragment.mock.calls[0][1], request, response};
+  }
+
+  it('puts the answer in dash.js\'s response before onloadend', () => {
+    const {callbacks, request, response} = segment();
+    const data = new ArrayBuffer(4);
+    request.customData.onloadend.mockImplementation(() => {
+      // What HTTPLoader reads in its onloadend.
+      expect(response).toMatchObject({status: 200, data, url: 'http://127.0.0.1/moved/seg7.m4s'});
+    });
+    callbacks.onSuccess({responseURL: 'http://127.0.0.1/moved/seg7.m4s'}, data);
+    expect(request.customData.onloadend).toHaveBeenCalledTimes(1);
+    expect(request.customData.onabort).not.toHaveBeenCalled();
+  });
+
+  it('tells an abort through onabort, and nothing else', () => {
+    const {callbacks, request} = segment();
+    callbacks.onAbort({});
+    expect(request.customData.onabort).toHaveBeenCalledTimes(1);
+    expect(request.customData.onloadend).not.toHaveBeenCalled();
+  });
+
+  it('tells nothing of a request dash.js has aborted itself (its abort takes onloadend away)', () => {
+    const {callbacks, request} = segment();
+    request.customData.onloadend = undefined;
+    expect(() => callbacks.onSuccess({responseURL: request.url}, new ArrayBuffer(1))).not.toThrow();
+  });
+});
+
+describe('dash.js\'s HTTPLoader, what DashLoader relies on', () => {
+  // DashLoader ends requests through dash.js's own, unpatched HTTPLoader (endsOf). An update of
+  // dash.js that changes how HTTPLoader takes a loader's answer fails here, in its own PR.
+  const dash = fs.readFileSync(new URL('../../node_modules/dashjs/dist/modern/esm/dash.all.debug.js', import.meta.url), 'utf8');
+  /**
+   * A webpack module's code: not its comments (a patch that cut code out could leave it there
+   * as comments), its whitespace made single spaces.
+   * @param {string} name - Its source path in the bundle.
+   * @return {string}
+   */
+  const codeOf = (name) => {
+    const start = dash.indexOf(`"${name}":`);
+    expect(start, name).toBeGreaterThan(0);
+    return dash.slice(start, dash.indexOf('\n/***/ "./', start + 1))
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s+/g, ' ');
+  };
+  const httpLoader = codeOf('./src/streaming/net/HTTPLoader.js');
+
+  it('hands the loader the request and its response', () => {
+    expect(httpLoader).toContain('loader.load(httpRequest, httpResponse);');
+  });
+
+  it('puts its own ends of the request in customData', () => {
+    expect(httpLoader).toContain('httpRequest.customData.onloadend = _onloadend;');
+    expect(httpLoader).toContain('httpRequest.customData.onabort = _onabort;');
+  });
+
+  it('takes a 2xx with a body as the answer, and passes its data and URL on', () => {
+    expect(httpLoader).toContain('commonMediaResponse.status >= 200 && commonMediaResponse.status <= 299');
+    expect(httpLoader).toContain('config.success(commonMediaResponse.data, commonMediaResponse.statusText, commonMediaResponse.url);');
+  });
+
+  it('retries as many times as its settings say for the request\'s type (DashPlayer sets 0)', () => {
+    expect(httpLoader).toMatch(/getRetryAttemptsForType\(config\.request\.type\)/);
+    expect(httpLoader).toContain('if (remainingAttempts > 0) {');
+    // DashPlayer zeroes every key of streaming.retryAttempts: a release that read retries from
+    // elsewhere would bring dash.js's own 3 back without a word (glm's review).
+    expect(codeOf('./src/streaming/models/MediaPlayerModel.js')).toContain('settings.get().streaming.retryAttempts[type]');
+  });
+
+  it('aborts a request through the loader\'s customData.abort, onabort left to tell it', () => {
+    // DashLoader's abort: its download's onAbort calls customData.onabort (endsOf). HTTPLoader's
+    // abort takes onloadend and onprogress away first, not onabort.
+    expect(httpLoader).toContain('reqData.onloadend = reqData.onprogress = undefined;');
+    expect(httpLoader).toContain('reqData.abort();');
+    expect(httpLoader).not.toMatch(/onabort = (undefined|null)/);
   });
 });
 
@@ -201,9 +325,7 @@ describe('DashLoader, a manifest of several periods', () => {
       customData: {
         request: {type: 'MediaSegment', index: 0, startTime: 600, responseType: 'arraybuffer',
           url, range, representation: {id: '1', adaptation: {type: 'video'}}},
-        onSuccess: vi.fn(),
-        onFail: vi.fn(),
-        onAbort: vi.fn(),
+        ...ends(),
       },
     };
   }

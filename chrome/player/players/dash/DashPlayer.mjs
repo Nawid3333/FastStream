@@ -88,8 +88,18 @@ export default class DashPlayer extends EventEmitter {
     const emitterRelay = new EmitterRelay([preEvents, this]);
     VideoUtils.addPassthroughEventListenersToVideo(this.video, emitterRelay);
 
+    // dash.js asks for nothing again by itself (its HTTPLoader's retries): FastStream's download
+    // manager retries, and DashLoader counts a segment's failures, so a failure DashLoader reports
+    // is the last. Every request type dash.js's settings know, so one a later version adds is in.
+    /** @type {Object<string, number>} */
+    const retryAttempts = {};
+    for (const type of Object.keys(this.dash.getSettings().streaming?.retryAttempts || {})) {
+      if (type !== 'lowLatencyMultiplyFactor') retryAttempts[type] = 0;
+    }
+
     const newSettings = {
       streaming: {
+        retryAttempts,
         abr: {
           autoSwitchBitrate: {audio: false, video: false},
         },

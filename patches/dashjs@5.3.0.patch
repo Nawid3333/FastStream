@@ -1,5 +1,5 @@
 diff --git a/dist/modern/esm/dash.all.debug.js b/dist/modern/esm/dash.all.debug.js
-index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d8886c5dd 100644
+index 579275f575362d1bcec9d328830d25e78ece4c87..bc384d2fb35541614bcba0afb8bba502dfe4e300 100644
 --- a/dist/modern/esm/dash.all.debug.js
 +++ b/dist/modern/esm/dash.all.debug.js
 @@ -1,3 +1,5 @@
@@ -329,18 +329,15 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
    hasSegments() {
      return this.segmentInfoType !== _constants_DashConstants_js__WEBPACK_IMPORTED_MODULE_0__["default"].BASE_URL && this.segmentInfoType !== _constants_DashConstants_js__WEBPACK_IMPORTED_MODULE_0__["default"].SEGMENT_BASE && !this.indexRange;
    }
-@@ -36342,7 +36477,17 @@ function MediaPlayer() {
+@@ -36342,7 +36477,14 @@ function MediaPlayer() {
    }
    instance = {
      extend,
 -    setConfig
 +    setConfig,
-+    // FastStream (players/dash/): the stream controller, a track's Representations, the bitrate choice
++    // FastStream (players/dash/): the stream controller, the bitrate choice
 +    getStreamController() {
 +      return state.streamController;
-+    },
-+    getRepresentations(mediaInfo) {
-+      return state.abrController.getPossibleVoRepresentations(mediaInfo, true);
 +    },
 +    setCustomBitrateSelectionFunction(customFunc) {
 +      state.customParametersModel.setCustomBitrateSelectionFunction(customFunc);
@@ -348,7 +345,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
    };
    _composeApis();
    setup();
-@@ -37966,6 +38111,9 @@ function Stream(config) {
+@@ -37966,6 +38108,9 @@ function Stream(config) {
          }
        });
        Promise.all(promises).then(() => {
@@ -358,7 +355,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
          return _createBufferSinks(previousSourceBufferSinks, representationsFromPreviousPeriod);
        }).then(bufferSinks => {
          if (streamProcessors.length === 0) {
-@@ -38434,10 +38582,10 @@ function Stream(config) {
+@@ -38434,10 +38579,10 @@ function Stream(config) {
        });
      }
    }
@@ -371,7 +368,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
      }
    }
    function _addInlineEvents() {
-@@ -39458,6 +39606,7 @@ function StreamProcessor(config) {
+@@ -39458,6 +39603,7 @@ function StreamProcessor(config) {
  
        // Update Representation Controller with the new data. Note we do not filter any Representations here as the filter values might change over time.
        const voRepresentations = abrController.getPossibleVoRepresentations(currentMediaInfo, false);
@@ -379,7 +376,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
        return representationController.updateData(voRepresentations, currentMediaInfo.isFragmented, selectedValues.selectedRepresentation.id).then(() => {
          _onDataUpdateCompleted();
          resolve();
-@@ -39523,7 +39672,7 @@ function StreamProcessor(config) {
+@@ -39523,7 +39669,7 @@ function StreamProcessor(config) {
     * If we want to aggressively replace existing parts in the buffer we need to make sure that the new quality is higher than the already buffered one.
     * @param {object} e
     */
@@ -388,7 +385,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
      if (!e.newRepresentation) {
        return;
      }
-@@ -39539,10 +39688,10 @@ function StreamProcessor(config) {
+@@ -39539,10 +39685,10 @@ function StreamProcessor(config) {
        _prepareAdaptationSwitchQualityChange(e);
      } else {
        logger.debug(`Preparing quality within the same AdaptationSet for type ${type} from representation id ${e.oldRepresentation.id} to ${e.newRepresentation.id}`);
@@ -401,7 +398,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
      const newRepresentation = e.newRepresentation;
      qualityChangeInProgress = true;
  
-@@ -39550,7 +39699,7 @@ function StreamProcessor(config) {
+@@ -39550,7 +39696,7 @@ function StreamProcessor(config) {
      clearScheduleTimer();
  
      // Update selected Representation in RepresentationController
@@ -410,7 +407,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
      _handleDifferentSwitchTypes(e);
    }
    function _prepareAdaptationSwitchQualityChange(e) {
-@@ -40243,6 +40392,12 @@ function StreamProcessor(config) {
+@@ -40243,6 +40389,12 @@ function StreamProcessor(config) {
    function finalisePlayList(time, reason) {
      dashMetrics.pushPlayListTraceMetrics(time, reason);
    }
@@ -423,7 +420,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
    function getBufferingTime() {
      return bufferingTime;
    }
-@@ -40284,7 +40439,9 @@ function StreamProcessor(config) {
+@@ -40284,7 +40436,9 @@ function StreamProcessor(config) {
      setMediaInfoArray,
      setMediaSource,
      setTrackSwitchInProgress,
@@ -434,7 +431,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
    };
    setup();
    return instance;
-@@ -42096,10 +42253,14 @@ function AbrController() {
+@@ -42096,10 +42250,14 @@ function AbrController() {
      }
    }
    function getOptimalRepresentationForBitrate(mediaInfo, bitrateInKbit, includeCompatibleMediaInfos = true) {
@@ -450,250 +447,26 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
  
      // If bitrate should be as small as possible return the Representation with the lowest bitrate
      const smallestRepresentation = possibleVoRepresentations.reduce((a, b) => {
-@@ -47050,36 +47211,13 @@ function MediaController() {
+@@ -47050,6 +47208,18 @@ function MediaController() {
      if (!possibleTracks || possibleTracks.length === 0) {
        return;
      }
--    if (!settings.get().streaming.includePreselectionsForInitialTrackSelection) {
--      // Removing all preselections
--      filteredTracks = possibleTracks.filter(track => !track.isPreselection);
--      // Since each preselection always refers at least one AdaptationSet,
--      // filteredTracks.length will always be > 0
--    } else {
--      filteredTracks = Array.from(possibleTracks);
--    }
--    if (localSettings) {
--      logger.info('Filtering ' + filteredTracks.length + ' ' + type + ' tracks based on settings');
--      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsId, localSettings);
--      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsLang, {
--        lang: getAvailablePreferredLanguages(filteredTracks, localSettings)
--      });
--      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsIndex, localSettings);
--      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsViewPoint, localSettings);
--      if (!(type === _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].AUDIO && !!lastSelectedTracks[type])) {
--        filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsRole, localSettings);
--      }
--      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsAccessibility, localSettings);
--      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsCodec, localSettings);
--      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsAudioChannelConfig, localSettings);
--      logger.info('Filtering ' + type + ' tracks ended, found ' + filteredTracks.length + ' matching track(s).');
--    }
- 
--    // More than one possibility
--    if (filteredTracks.length > 1) {
--      setTrack(selectInitialTrack(type, filteredTracks));
-+    // We did not apply any filter. We can select from all possible tracks
-+    if (filteredTracks.length === 0) {
-+      setTrack(selectInitialTrack(type, possibleTracks));
-     }
--    // Only one possibility use this one
-+
-+    // We have some tracks based on the filtering we did.
-     else {
-       setTrack(filteredTracks[0]);
-     }
-@@ -47362,6 +47500,9 @@ function MediaController() {
-     const preferredLanguages = Array.isArray(prefLang) ? prefLang : [prefLang];
-     return [...new Set(preferredLanguages.flatMap(preference => _getBestLanguageMatch(availableLanguages, preference)))];
-   }
-+  function _matchRoleAbsent(_, track) {
-+    return !track.roles || track.roles.length === 0;
-+  }
-   function matchSettingsLang(settings, track) {
-     try {
-       if (!settings.lang) {
-@@ -47379,9 +47520,6 @@ function MediaController() {
-   function matchSettingsIndex(settings, track) {
-     return settings.index === undefined || settings.index === null || track.index === settings.index;
-   }
--  function matchSettingsId(settings, track) {
--    return settings.id === undefined || settings.id === null || track.id === settings.id;
--  }
-   function matchSettingsViewPoint(settings, track) {
-     return !settings.viewpoint || !!track.viewpoint.filter(function (item) {
-       return _compareDescriptorType(item, settings.viewpoint);
-@@ -47396,9 +47534,6 @@ function MediaController() {
-     })[0];
-     return matchRole || track.type === _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].AUDIO && isTrackActive;
-   }
--  function _matchRoleAbsent(_, track) {
--    return !track.roles || track.roles.length === 0;
--  }
-   function matchSettingsAccessibility(settings, track) {
-     let matchAccessibility;
-     if (!settings.accessibility) {
-@@ -47417,9 +47552,6 @@ function MediaController() {
-       return _compareDescriptorType(item, settings.audioChannelConfiguration);
-     })[0];
-   }
--  function matchSettingsCodec(settings, track) {
--    return !settings.codec || settings.codec === track.codec;
--  }
-   function matchSettings(settings, track, isTrackActive = false) {
-     try {
-       const matchLang = matchSettingsLang(settings, track);
-@@ -47449,24 +47581,6 @@ function MediaController() {
-       text: null
-     };
-   }
--  function getTracksWithHighestSelectionPriority(trackArr) {
--    let max = 0;
--    let result = [];
--    trackArr.forEach(track => {
--      if (!isNaN(track.selectionPriority)) {
--        // Higher max value. Reset list and add new entry
--        if (track.selectionPriority > max) {
--          max = track.selectionPriority;
--          result = [track];
--        }
--        // Same max value add to list
--        else if (track.selectionPriority === max) {
--          result.push(track);
--        }
--      }
--    });
--    return result;
--  }
-   function getTracksWithHighestBitrate(trackArr) {
-     let max = 0;
-     let result = [];
-@@ -47586,54 +47700,9 @@ function MediaController() {
- 
-     // If we have a custom function that selects the track we use this one
-     if (customInitialTrackSelectionFunction && typeof customInitialTrackSelectionFunction === 'function') {
--      tmpArr = customInitialTrackSelectionFunction(tmpArr);
--    }
--
--    // If we know the current selected bitrate for the media type we select the AdaptationSet that comes closest to this. This should only be relevant for multiperiod when we transition to the next period.
--    else if (lastSelectedRepresentations[type]) {
--      tmpArr = _trackSelectionModeClosestBitrate(tmpArr, type);
--    }
--
--    // Use the track selection function that is defined in the settings
--    else {
--      if (!settings.get().streaming.ignoreSelectionPriority) {
--        logger.info('Trying to find track with highest selectionPriority');
--        tmpArr = _trackSelectionModeHighestSelectionPriority(tmpArr);
--      }
--      if (tmpArr.length > 1 && settings.get().streaming.prioritizeRoleMain) {
--        logger.info('Trying to find a main track');
--        tmpArr = filterTracksBySettings(tmpArr, matchSettingsRole, {
--          role: {
--            schemeIdUri: _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].DASH_ROLE_SCHEME_ID,
--            value: _dash_constants_DashConstants_js__WEBPACK_IMPORTED_MODULE_7__["default"].MAIN
--          }
--        });
--      }
--      if (tmpArr.length > 1) {
--        logger.info('Selecting track based on selectionModeForInitialTrack');
--        let mode = settings.get().streaming.selectionModeForInitialTrack;
--        switch (mode) {
--          case _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].TRACK_SELECTION_MODE_HIGHEST_BITRATE:
--            tmpArr = _trackSelectionModeHighestBitrate(tmpArr);
--            break;
--          case _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].TRACK_SELECTION_MODE_FIRST_TRACK:
--            tmpArr = _trackSelectionModeFirstTrack(tmpArr);
--            break;
--          case _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].TRACK_SELECTION_MODE_HIGHEST_EFFICIENCY:
--            tmpArr = _trackSelectionModeHighestEfficiency(tmpArr);
--            break;
--          case _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].TRACK_SELECTION_MODE_WIDEST_RANGE:
--            tmpArr = _trackSelectionModeWidestRange(tmpArr);
--            break;
--          case _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].TRACK_SELECTION_MODE_LOWEST_STARTUP_DELAY:
--            tmpArr = _trackSelectionModeLowestStartupDelay(tmpArr);
--            break;
--          default:
--            logger.warn(`Track selection mode ${mode} is not supported. Falling back to TRACK_SELECTION_MODE_FIRST_TRACK`);
--            tmpArr = _trackSelectionModeFirstTrack(tmpArr);
--            break;
--        }
--      }
-+      tmpArr = customInitialTrackSelectionFunction(mediaInfos);
-+    } else {
-+      throw new Error('No valid initial track selection function found!');
-     }
-     return tmpArr.length > 0 ? tmpArr[0] : mediaInfos[0];
-   }
-@@ -47727,69 +47796,6 @@ function MediaController() {
-       return mediaInfos;
-     }
-   }
--
--  /**
--   * Find the track that has a bitrate that matches the currenly selected one
--   * @param tracks
--   * @param type
--   * @returns {*}
--   * @private
--   */
--  function _trackSelectionModeClosestBitrate(tracks, type) {
--    if (!tracks || tracks.length === 0 || !type || !lastSelectedRepresentations[type]) {
--      return tracks;
--    }
--    const targetBitrate = lastSelectedRepresentations[type].bandwidth;
--    if (!targetBitrate || isNaN(targetBitrate)) {
--      return tracks;
--    }
--    let current = {
--      min: NaN,
--      track: null
--    };
--    tracks.forEach(track => {
--      track.bitrateList.forEach(entry => {
--        const diff = Math.abs(entry.bandwidth - targetBitrate);
--        if (isNaN(current.min) || diff < current.min) {
--          current.min = diff;
--          current.track = track;
--        }
--      });
--    });
--    return current.track ? [current.track] : tracks;
--  }
--  function _trackSelectionModeHighestSelectionPriority(tracks) {
--    return getTracksWithHighestSelectionPriority(tracks);
--  }
--  function _trackSelectionModeHighestBitrate(tracks) {
--    let tmpArr = getTracksWithHighestBitrate(tracks);
--    if (tmpArr.length > 1) {
--      tmpArr = getTracksWithWidestRange(tmpArr);
--    }
--    return tmpArr;
--  }
--  function _trackSelectionModeFirstTrack(tracks) {
--    return tracks[0];
--  }
--  function _trackSelectionModeHighestEfficiency(tracks) {
--    let tmpArr = getTracksWithHighestEfficiency(tracks);
--    if (tmpArr.length > 1) {
--      tmpArr = getTracksWithHighestBitrate(tmpArr);
--    }
--    return tmpArr;
--  }
--  function _trackSelectionModeLowestStartupDelay(tracks) {
--    let tmpArr = _getL3DBootstrapTracks(tracks);
--    const targetTracks = tmpArr.length > 0 ? tmpArr : tracks;
--    return _trackSelectionModeHighestEfficiency(targetTracks);
--  }
--  function _trackSelectionModeWidestRange(tracks) {
--    let tmpArr = getTracksWithWidestRange(tracks);
--    if (tmpArr.length > 1) {
--      tmpArr = getTracksWithHighestBitrate(tracks);
--    }
--    return tmpArr;
--  }
-   function _compareDescriptorType(v1, v2) {
-     if (v1 && v2) {
-       let t1 = JSON.stringify({
-@@ -47843,7 +47849,6 @@ function MediaController() {
-     getCurrentTrackFor,
-     getInitialSettings,
-     getTracksFor,
--    getTracksWithHighestSelectionPriority,
-     getTracksWithHighestBitrate,
-     getTracksWithHighestEfficiency,
-     getTracksWithWidestRange,
-@@ -48689,6 +48694,7 @@ function PlaybackController() {
++    // FastStream: its own function picks from every track (setCustomInitialTrackSelectionFunction),
++    // not from what dash.js's saved and initial settings leave of them.
++    const fastStreamPick = customParametersModel.getCustomInitialTrackSelectionFunction();
++    if (typeof fastStreamPick === 'function') {
++      if (type === 'text') {
++        setTrack(selectInitialTrack(type, possibleTracks));
++      } else {
++        const picked = fastStreamPick(possibleTracks);
++        setTrack(picked && picked.length > 0 ? picked[0] : possibleTracks[0]);
++      }
++      return;
++    }
+     if (!settings.get().streaming.includePreselectionsForInitialTrackSelection) {
+       // Removing all preselections
+       filteredTracks = possibleTracks.filter(track => !track.isPreselection);
+@@ -48689,6 +48859,7 @@ function PlaybackController() {
    function _onPlaybackSeeking() {
      // Check if internal seeking to be ignored
      if (internalSeek) {
@@ -701,7 +474,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
        return;
      }
      let seekTime = getTime();
-@@ -51026,7 +51032,18 @@ function StreamController() {
+@@ -51026,7 +51197,18 @@ function StreamController() {
     */
    function _handleMediaErrorDecode() {
      logger.error('A MEDIA_ERR_DECODE occured: Resetting the MediaSource');
@@ -721,7 +494,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
      // Deactivate the current stream.
      activeStream.deactivate(false);
  
-@@ -59358,7 +59375,7 @@ function createCallbackRegistry(callbacks = []) {
+@@ -59358,7 +59540,7 @@ function createCallbackRegistry(callbacks = []) {
    };
  }
  function CustomParametersModel() {
@@ -730,7 +503,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
    const context = this.context;
    const settings = (0,_core_Settings_js__WEBPACK_IMPORTED_MODULE_2__["default"])(context).getInstance();
    function setup() {
-@@ -59406,6 +59423,14 @@ function CustomParametersModel() {
+@@ -59406,6 +59588,14 @@ function CustomParametersModel() {
      customInitialTrackSelectionFunction = null;
    }
  
@@ -745,7 +518,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
    /**
     * Returns the initial track selection function
     * @return {function}
-@@ -59414,6 +59439,14 @@ function CustomParametersModel() {
+@@ -59414,6 +59604,14 @@ function CustomParametersModel() {
      return customInitialTrackSelectionFunction;
    }
  
@@ -760,7 +533,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
    /**
     * Returns all certificate request filters
     * @return {array}
-@@ -59783,6 +59816,7 @@ function CustomParametersModel() {
+@@ -59783,6 +59981,7 @@ function CustomParametersModel() {
      getCertificateResponseFilters,
      getCustomCapabilitiesFilters,
      getCustomInitialTrackSelectionFunction,
@@ -768,7 +541,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
      getExternalSubtitles,
      getLicenseRequestFilters,
      getLicenseResponseFilters,
-@@ -59808,6 +59842,7 @@ function CustomParametersModel() {
+@@ -59808,6 +60007,7 @@ function CustomParametersModel() {
      restoreDefaultUTCTimingSources,
      setConfig,
      setCustomInitialTrackSelectionFunction,
@@ -776,221 +549,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
      setXHRWithCredentialsForType,
      unregisterCertificateRequestFilter,
      unregisterCertificateResponseFilter,
-@@ -62543,7 +62578,7 @@ function HTTPLoader(cfg) {
-    * @param {number} remainingAttempts
-    * @private
-    */
--  function _internalLoad(config, remainingAttempts) {
-+  function _internalLoad(config) {
-     /**
-      * Fired when a request has completed, whether successfully (after load) or unsuccessfully (after abort, timeout or error).
-      */
-@@ -62609,6 +62644,37 @@ function HTTPLoader(cfg) {
-         config.progress(event);
-       }
-     };
-+    const onFail = function onFail() {
-+      _onloadend();
-+      errHandler.error(new _vo_DashJSError_js__WEBPACK_IMPORTED_MODULE_4__["default"](downloadErrorToRequestTypeMap[requestObject.type], requestObject.url + ' is not available', {
-+        request: requestObject,
-+        response: commonMediaResponse
-+      }));
-+      if (config.error) {
-+        config.error(requestObject, 'error', commonMediaResponse.statusText, commonMediaResponse);
-+      }
-+      if (config.complete) {
-+        config.complete(requestObject, commonMediaResponse.statusText);
-+      }
-+    };
-+    const onAbort = function onAbort() {
-+      _onabort();
-+    };
-+    const onSuccess = function onSuccess(data, responseURL) {
-+      _onloadend();
-+      if (requestObject.type === _vo_metrics_HTTPRequest_js__WEBPACK_IMPORTED_MODULE_2__.HTTPRequest.MPD_TYPE) {
-+        dashMetrics.addManifestUpdate(requestObject);
-+        eventBus.trigger(_core_events_Events_js__WEBPACK_IMPORTED_MODULE_9__["default"].MANIFEST_LOADING_FINISHED, {
-+          requestObject
-+        });
-+      }
-+      if (config.success) {
-+        config.success(data, '4 DONE OK', responseURL);
-+      }
-+      if (config.complete) {
-+        config.complete(requestObject, '4 DONE OK');
-+      }
-+    };
- 
-     /**
-      * Fired when a request has been aborted, for example because the program called XMLHttpRequest.abort().
-@@ -62644,48 +62710,51 @@ function HTTPLoader(cfg) {
-       commonAccessTokenController.processResponseHeaders(commonMediaResponse);
-       _updateRequestTimingInfo();
-       _updateResourceTimingInfo();
--      _applyResponseInterceptors(commonMediaResponse).then(_httpResponse => {
--        commonMediaResponse = _httpResponse;
--        _addHttpRequestMetric(commonMediaRequest, commonMediaResponse, traces);
--
--        // Ignore aborted requests
--        if (aborted) {
--          if (config.abort) {
--            config.abort(requestObject);
--          }
--          return;
--        }
--        if (requestObject.type === _vo_metrics_HTTPRequest_js__WEBPACK_IMPORTED_MODULE_2__.HTTPRequest.MPD_TYPE) {
--          dashMetrics.addManifestUpdate(requestObject);
--          eventBus.trigger(_core_events_Events_js__WEBPACK_IMPORTED_MODULE_9__["default"].MANIFEST_LOADING_FINISHED, {
--            requestObject
--          });
--        }
--
--        // POST requests are allowed to have empty response bodies (e.g. CMCD event reporting endpoints).
--        // GET requests still need a body since dash.js consumes it (manifests, segments).
--        const hasUsableBody = !!commonMediaResponse.data || requestObject.method === _vo_metrics_HTTPRequest_js__WEBPACK_IMPORTED_MODULE_2__.HTTPRequest.POST;
--        if (commonMediaResponse.status >= 200 && commonMediaResponse.status <= 299 && hasUsableBody) {
--          if (config.success) {
--            config.success(commonMediaResponse.data, commonMediaResponse.statusText, commonMediaResponse.url);
--          }
--          if (config.complete) {
--            config.complete(requestObject, commonMediaResponse.statusText);
--          }
--        } else {
--          // If we get a 404 to a media segment we should check the client clock again and perform a UTC sync in the background.
--          try {
--            if (commonMediaResponse.status === 404 && settings.get().streaming.utcSynchronization.enableBackgroundSyncAfterSegmentDownloadError && requestObject.type === _vo_metrics_HTTPRequest_js__WEBPACK_IMPORTED_MODULE_2__.HTTPRequest.MEDIA_SEGMENT_TYPE) {
--              // Only trigger a sync if the loading failed for the first time
--              const initialNumberOfAttempts = mediaPlayerModel.getRetryAttemptsForType(_vo_metrics_HTTPRequest_js__WEBPACK_IMPORTED_MODULE_2__.HTTPRequest.MEDIA_SEGMENT_TYPE);
--              if (initialNumberOfAttempts === remainingAttempts) {
--                eventBus.trigger(_core_events_Events_js__WEBPACK_IMPORTED_MODULE_9__["default"].ATTEMPT_BACKGROUND_SYNC);
--              }
--            }
--          } catch (e) {}
--          _retriggerRequest();
-+      if (aborted) {
-+        if (config.abort) {
-+          config.abort(requestObject);
-         }
--      });
-+        return;
-+      }
-+      _addHttpRequestMetric(commonMediaRequest, commonMediaResponse, traces);
-+
-+      //     // Ignore aborted requests
-+      //     if (aborted) {
-+      //         if (config.abort) {
-+      //             config.abort(requestObject);
-+      //         }
-+      //         return;
-+      //     }
-+
-+      //     if (requestObject.type === HTTPRequest.MPD_TYPE) {
-+      //         dashMetrics.addManifestUpdate(requestObject);
-+      //         eventBus.trigger(Events.MANIFEST_LOADING_FINISHED, { requestObject });
-+      //     }
-+
-+      //     if (commonMediaResponse.status >= 200 && commonMediaResponse.status <= 299 && commonMediaResponse.data) {
-+      //         if (config.success) {
-+      //             config.success(commonMediaResponse.data, commonMediaResponse.statusText, commonMediaResponse.url);
-+      //         }
-+
-+      //         if (config.complete) {
-+      //             config.complete(requestObject, commonMediaResponse.statusText);
-+      //         }
-+      //     } else {
-+      //         // If we get a 404 to a media segment we should check the client clock again and perform a UTC sync in the background.
-+      //         try {
-+      //             if (commonMediaResponse.status === 404 && settings.get().streaming.utcSynchronization.enableBackgroundSyncAfterSegmentDownloadError && requestObject.type === HTTPRequest.MEDIA_SEGMENT_TYPE) {
-+      //                 // Only trigger a sync if the loading failed for the first time
-+      //                 const initialNumberOfAttempts = mediaPlayerModel.getRetryAttemptsForType(HTTPRequest.MEDIA_SEGMENT_TYPE);
-+      //                 if (initialNumberOfAttempts === remainingAttempts) {
-+      //                     eventBus.trigger(Events.ATTEMPT_BACKGROUND_SYNC);
-+      //                 }
-+      //             }
-+      //         } catch (e) {
-+      //         }
-+
-+      //         _retriggerRequest();
-+      //     }
-+      // });
-     };
-     const _updateRequestTimingInfo = function () {
-       requestObject.startDate = requestStartTime;
-@@ -62709,6 +62778,9 @@ function HTTPLoader(cfg) {
-           httpRequest.customData.onprogress = _onprogress;
-           httpRequest.customData.onabort = _onabort;
-           httpRequest.customData.ontimeout = _ontimeout;
-+          httpRequest.customData.onFail = onFail;
-+          httpRequest.customData.onSuccess = onSuccess;
-+          httpRequest.customData.onAbort = onAbort;
-           httpResponse.resourceTiming.startTime = performance.now();
-           loader.load(httpRequest, httpResponse);
-           resolve();
-@@ -62716,45 +62788,6 @@ function HTTPLoader(cfg) {
-       });
-     };
- 
--    /**
--     * Retriggers the request in case we did not exceed the number of retry attempts
--     * @private
--     */
--    const _retriggerRequest = function () {
--      if (remainingAttempts > 0) {
--        remainingAttempts--;
--        if (config && config.request) {
--          config.request.retryAttempts += 1;
--        }
--        let retryRequest = {
--          config: config
--        };
--        retryRequests.push(retryRequest);
--        retryRequest.timeout = setTimeout(function () {
--          if (retryRequests.indexOf(retryRequest) === -1) {
--            return;
--          } else {
--            retryRequests.splice(retryRequests.indexOf(retryRequest), 1);
--          }
--          _internalLoad(config, remainingAttempts);
--        }, mediaPlayerModel.getRetryIntervalsForType(requestObject.type));
--      } else {
--        if (requestObject.type === _vo_metrics_HTTPRequest_js__WEBPACK_IMPORTED_MODULE_2__.HTTPRequest.MSS_FRAGMENT_INFO_SEGMENT_TYPE) {
--          return;
--        }
--        errHandler.error(new _vo_DashJSError_js__WEBPACK_IMPORTED_MODULE_4__["default"](downloadErrorToRequestTypeMap[requestObject.type], requestObject.url + ' is not available', {
--          request: requestObject,
--          response: commonMediaResponse
--        }));
--        if (config.error) {
--          config.error(requestObject, 'error', commonMediaResponse.statusText, commonMediaResponse);
--        }
--        if (config.complete) {
--          config.complete(requestObject, commonMediaResponse.statusText);
--        }
--      }
--    };
--
-     /**
-      * Returns the request timeout value from Settings based on the request type.
-      * This reads the value dynamically so that runtime changes via updateSettings() take effect.
-@@ -62865,17 +62898,6 @@ function HTTPLoader(cfg) {
-       });
-     }, Promise.resolve(httpRequest));
-   }
--  function _applyResponseInterceptors(response) {
--    const interceptors = customParametersModel.getResponseInterceptors();
--    if (!interceptors) {
--      return Promise.resolve(response);
--    }
--    return interceptors.reduce((prev, next) => {
--      return prev.then(resp => {
--        return next(resp);
--      });
--    }, Promise.resolve(response));
--  }
-   function _addHttpRequestMetric(httpRequest, httpResponse, traces) {
-     const requestObject = httpRequest.customData.request;
-     const cmsd = settings.get().streaming.cmsd && settings.get().streaming.cmsd.enabled ? cmsdModel.parseResponseHeaders(httpResponse.headers, requestObject.mediaType) : null;
-@@ -84533,7 +84555,7 @@ class SchedulingInfo {
+@@ -84533,7 +84733,7 @@ class SchedulingInfo {
  /******/ __webpack_require__.g = (function() {
  /******/ 	if (typeof globalThis === 'object') return globalThis;
  /******/ 	try {
@@ -999,7 +558,7 @@ index 579275f575362d1bcec9d328830d25e78ece4c87..851f855ca717d5a46afba9803640478d
  /******/ 	} catch (e) {
  /******/ 		if (typeof window === 'object') return window;
  /******/ 	}
-@@ -84636,5 +84658,3 @@ var __webpack_exports__Protection = __webpack_exports__.Protection;
+@@ -84636,5 +84836,3 @@ var __webpack_exports__Protection = __webpack_exports__.Protection;
  var __webpack_exports__default = __webpack_exports__["default"];
  var __webpack_exports__supportsMediaSource = __webpack_exports__.supportsMediaSource;
  export { __webpack_exports__Constants as Constants, __webpack_exports__Debug as Debug, __webpack_exports__ExternalSubtitle as ExternalSubtitle, __webpack_exports__MediaPlayer as MediaPlayer, __webpack_exports__MediaPlayerFactory as MediaPlayerFactory, __webpack_exports__MetricsReporting as MetricsReporting, __webpack_exports__Protection as Protection, __webpack_exports__default as default, __webpack_exports__supportsMediaSource as supportsMediaSource };
