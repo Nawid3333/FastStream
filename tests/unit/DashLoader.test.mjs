@@ -259,13 +259,21 @@ describe('dash.js\'s HTTPLoader, what DashLoader relies on', () => {
   // DashLoader ends requests through dash.js's own, unpatched HTTPLoader (endsOf). An update of
   // dash.js that changes how HTTPLoader takes a loader's answer fails here, in its own PR.
   const dash = fs.readFileSync(new URL('../../node_modules/dashjs/dist/modern/esm/dash.all.debug.js', import.meta.url), 'utf8');
-  const start = dash.indexOf('"./src/streaming/net/HTTPLoader.js":');
-  // Its code only: not its comments (a patch that cut code out could leave it there as comments).
-  const httpLoader = dash.slice(start, dash.indexOf('\n/***/ "./', start + 1))
-      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s+/g, ' ');
+  /**
+   * A webpack module's code: not its comments (a patch that cut code out could leave it there
+   * as comments), its whitespace made single spaces.
+   * @param {string} name - Its source path in the bundle.
+   * @return {string}
+   */
+  const codeOf = (name) => {
+    const start = dash.indexOf(`"${name}":`);
+    expect(start, name).toBeGreaterThan(0);
+    return dash.slice(start, dash.indexOf('\n/***/ "./', start + 1))
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s+/g, ' ');
+  };
+  const httpLoader = codeOf('./src/streaming/net/HTTPLoader.js');
 
   it('hands the loader the request and its response', () => {
-    expect(start).toBeGreaterThan(0);
     expect(httpLoader).toContain('loader.load(httpRequest, httpResponse);');
   });
 
@@ -279,9 +287,20 @@ describe('dash.js\'s HTTPLoader, what DashLoader relies on', () => {
     expect(httpLoader).toContain('config.success(commonMediaResponse.data, commonMediaResponse.statusText, commonMediaResponse.url);');
   });
 
-  it('retries as many times as its settings say (DashPlayer sets 0)', () => {
+  it('retries as many times as its settings say for the request\'s type (DashPlayer sets 0)', () => {
     expect(httpLoader).toMatch(/getRetryAttemptsForType\(config\.request\.type\)/);
     expect(httpLoader).toContain('if (remainingAttempts > 0) {');
+    // DashPlayer zeroes every key of streaming.retryAttempts: a release that read retries from
+    // elsewhere would bring dash.js's own 3 back without a word (glm's review).
+    expect(codeOf('./src/streaming/models/MediaPlayerModel.js')).toContain('settings.get().streaming.retryAttempts[type]');
+  });
+
+  it('aborts a request through the loader\'s customData.abort, onabort left to tell it', () => {
+    // DashLoader's abort: its download's onAbort calls customData.onabort (endsOf). HTTPLoader's
+    // abort takes onloadend and onprogress away first, not onabort.
+    expect(httpLoader).toContain('reqData.onloadend = reqData.onprogress = undefined;');
+    expect(httpLoader).toContain('reqData.abort();');
+    expect(httpLoader).not.toMatch(/onabort = (undefined|null)/);
   });
 });
 
