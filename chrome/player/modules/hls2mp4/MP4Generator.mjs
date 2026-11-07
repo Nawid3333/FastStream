@@ -165,9 +165,6 @@ export class MP4 {
   static hdlr(type) {
     return MP4.box(MP4.types.hdlr, MP4.HDLR_TYPES[type]);
   }
-  static mdat(data) {
-    return MP4.box(MP4.types.mdat, data);
-  }
   static mdhd(timescale, duration) {
     duration *= timescale;
     const upperWordDuration = Math.floor(duration / (UINT32_MAX + 1));
@@ -189,12 +186,6 @@ export class MP4 {
   static mdia(track) {
     return MP4.box(MP4.types.mdia, MP4.mdhd(track.timescale, track.duration), MP4.hdlr(track.type), MP4.minf(track));
   }
-  static mfhd(sequenceNumber) {
-    return MP4.box(MP4.types.mfhd, new Uint8Array([0x00, 0x00, 0x00, 0x00,
-      // flags
-      sequenceNumber >> 24, sequenceNumber >> 16 & 0xff, sequenceNumber >> 8 & 0xff, sequenceNumber & 0xff, // sequence_number
-    ]));
-  }
 
   static minf(track) {
     if (track.type === 'audio') {
@@ -202,9 +193,6 @@ export class MP4 {
     } else {
       return MP4.box(MP4.types.minf, MP4.box(MP4.types.vmhd, MP4.VMHD), MP4.DINF, MP4.stbl(track));
     }
-  }
-  static moof(sn, baseMediaDecodeTime, track) {
-    return MP4.box(MP4.types.moof, MP4.mfhd(sn), MP4.traf(track, baseMediaDecodeTime));
   }
 
   /**
@@ -217,14 +205,6 @@ export class MP4 {
       boxes[i] = MP4.trak(tracks[i]);
     }
     return MP4.box.apply(null, [MP4.types.moov, MP4.mvhd(tracks[0].timescale, tracks[0].duration)].concat(boxes));
-  }
-  static mvex(tracks) {
-    let i = tracks.length;
-    const boxes = [];
-    while (i--) {
-      boxes[i] = MP4.trex(tracks[i]);
-    }
-    return MP4.box.apply(null, [MP4.types.mvex, ...boxes]);
   }
   static mvhd(timescale, duration) {
     duration *= timescale;
@@ -479,174 +459,9 @@ export class MP4 {
     return MP4.box(MP4.types.sdtp, bytes);
   }
 
-  static avc1(track) {
-    let sps = [];
-    let pps = [];
-    let i;
-    let data;
-    let len;
-    // assemble the SPSs
-
-    for (i = 0; i < track.sps.length; i++) {
-      data = track.sps[i];
-      len = data.byteLength;
-      sps.push(len >>> 8 & 0xff);
-      sps.push(len & 0xff);
-
-      // SPS
-      sps = sps.concat(Array.prototype.slice.call(data));
-    }
-
-    // assemble the PPSs
-    for (i = 0; i < track.pps.length; i++) {
-      data = track.pps[i];
-      len = data.byteLength;
-      pps.push(len >>> 8 & 0xff);
-      pps.push(len & 0xff);
-      pps = pps.concat(Array.prototype.slice.call(data));
-    }
-    const avcc = MP4.box(MP4.types.avcC, new Uint8Array([0x01,
-      // version
-      sps[3],
-      // profile
-      sps[4],
-      // profile compat
-      sps[5],
-      // level
-      0xfc | 3,
-      // lengthSizeMinusOne, hard-coded to 4 bytes
-      0xe0 | track.sps.length, // 3bit reserved (111) + numOfSequenceParameterSets
-    ].concat(sps).concat([track.pps.length, // numOfPictureParameterSets
-    ]).concat(pps))); // "PPS"
-    const width = track.width;
-    const height = track.height;
-    const hSpacing = track.pixelRatio[0];
-    const vSpacing = track.pixelRatio[1];
-    return MP4.box(MP4.types.avc1, new Uint8Array([0x00, 0x00, 0x00,
-      // reserved
-      0x00, 0x00, 0x00,
-      // reserved
-      0x00, 0x01,
-      // data_reference_index
-      0x00, 0x00,
-      // pre_defined
-      0x00, 0x00,
-      // reserved
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      // pre_defined
-      width >> 8 & 0xff, width & 0xff,
-      // width
-      height >> 8 & 0xff, height & 0xff,
-      // height
-      0x00, 0x48, 0x00, 0x00,
-      // horizresolution
-      0x00, 0x48, 0x00, 0x00,
-      // vertresolution
-      0x00, 0x00, 0x00, 0x00,
-      // reserved
-      0x00, 0x01,
-      // frame_count
-      0x12, 0x64, 0x61, 0x69, 0x6c,
-      // dailymotion/hls.js
-      0x79, 0x6d, 0x6f, 0x74, 0x69, 0x6f, 0x6e, 0x2f, 0x68, 0x6c, 0x73, 0x2e, 0x6a, 0x73, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      // compressorname
-      0x00, 0x18,
-      // depth = 24
-      0x11, 0x11]),
-    // pre_defined = -1
-    avcc, MP4.box(MP4.types.btrt, new Uint8Array([0x00, 0x1c, 0x9c, 0x80,
-      // bufferSizeDB
-      0x00, 0x2d, 0xc6, 0xc0,
-      // maxBitrate
-      0x00, 0x2d, 0xc6, 0xc0])),
-    // avgBitrate
-    MP4.box(MP4.types.pasp, new Uint8Array([hSpacing >> 24,
-      // hSpacing
-      hSpacing >> 16 & 0xff, hSpacing >> 8 & 0xff, hSpacing & 0xff, vSpacing >> 24,
-      // vSpacing
-      vSpacing >> 16 & 0xff, vSpacing >> 8 & 0xff, vSpacing & 0xff])));
-  }
   // FastStream: hls.js 1.7.3's MP4.hvc1 (src/remux/mp4-generator.ts), as it writes the
   // sample entry for the HEVC it demuxes from a transport stream. track.params is what its
   // HEVC parser read from the VPS and SPS.
-  static hvc1(track) {
-    const ps = track.params;
-    const units = [track.vps, track.sps, track.pps];
-    const NALuLengthSize = 4;
-    const config = new Uint8Array([0x01, ps.general_profile_space << 6 | (ps.general_tier_flag ? 32 : 0) | ps.general_profile_idc, ps.general_profile_compatibility_flags[0], ps.general_profile_compatibility_flags[1], ps.general_profile_compatibility_flags[2], ps.general_profile_compatibility_flags[3], ps.general_constraint_indicator_flags[0], ps.general_constraint_indicator_flags[1], ps.general_constraint_indicator_flags[2], ps.general_constraint_indicator_flags[3], ps.general_constraint_indicator_flags[4], ps.general_constraint_indicator_flags[5], ps.general_level_idc, 240 | ps.min_spatial_segmentation_idc >> 8, 255 & ps.min_spatial_segmentation_idc, 252 | ps.parallelismType, 252 | ps.chroma_format_idc, 248 | ps.bit_depth_luma_minus8, 248 | ps.bit_depth_chroma_minus8, 0x00, parseInt(ps.frame_rate.fps), NALuLengthSize - 1 | ps.temporal_id_nested << 2 | ps.num_temporal_layers << 3 | (ps.frame_rate.fixed ? 64 : 0), units.length]);
-
-    // compute hvcC size in bytes
-    let length = config.length;
-    for (let i = 0; i < units.length; i += 1) {
-      length += 3;
-      for (let j = 0; j < units[i].length; j += 1) {
-        length += 2 + units[i][j].length;
-      }
-    }
-    const hvcC = new Uint8Array(length);
-    hvcC.set(config, 0);
-    length = config.length;
-    // append parameter set units: one vps, one or more sps and pps
-    const iMax = units.length - 1;
-    for (let i = 0; i < units.length; i += 1) {
-      hvcC.set(new Uint8Array([32 + i | (i === iMax ? 128 : 0), 0x00, units[i].length]), length);
-      length += 3;
-      for (let j = 0; j < units[i].length; j += 1) {
-        hvcC.set(new Uint8Array([units[i][j].length >> 8, units[i][j].length & 255]), length);
-        length += 2;
-        hvcC.set(units[i][j], length);
-        length += units[i][j].length;
-      }
-    }
-    const hvcc = MP4.box(MP4.types.hvcC, hvcC);
-    const width = track.width;
-    const height = track.height;
-    const hSpacing = track.pixelRatio[0];
-    const vSpacing = track.pixelRatio[1];
-    return MP4.box(MP4.types.hvc1, new Uint8Array([0x00, 0x00, 0x00,
-      // reserved
-      0x00, 0x00, 0x00,
-      // reserved
-      0x00, 0x01,
-      // data_reference_index
-      0x00, 0x00,
-      // pre_defined
-      0x00, 0x00,
-      // reserved
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      // pre_defined
-      width >> 8 & 0xff, width & 0xff,
-      // width
-      height >> 8 & 0xff, height & 0xff,
-      // height
-      0x00, 0x48, 0x00, 0x00,
-      // horizresolution
-      0x00, 0x48, 0x00, 0x00,
-      // vertresolution
-      0x00, 0x00, 0x00, 0x00,
-      // reserved
-      0x00, 0x01,
-      // frame_count
-      0x12, 0x64, 0x61, 0x69, 0x6c,
-      // dailymotion/hls.js
-      0x79, 0x6d, 0x6f, 0x74, 0x69, 0x6f, 0x6e, 0x2f, 0x68, 0x6c, 0x73, 0x2e, 0x6a, 0x73, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      // compressorname
-      0x00, 0x18,
-      // depth = 24
-      0x11, 0x11]),
-    // pre_defined = -1
-    hvcc, MP4.box(MP4.types.btrt, new Uint8Array([0x00, 0x1c, 0x9c, 0x80,
-      // bufferSizeDB
-      0x00, 0x2d, 0xc6, 0xc0,
-      // maxBitrate
-      0x00, 0x2d, 0xc6, 0xc0])),
-    // avgBitrate
-    MP4.box(MP4.types.pasp, new Uint8Array([hSpacing >> 24,
-      // hSpacing
-      hSpacing >> 16 & 0xff, hSpacing >> 8 & 0xff, hSpacing & 0xff, vSpacing >> 24,
-      // vSpacing
-      vSpacing >> 16 & 0xff, vSpacing >> 8 & 0xff, vSpacing & 0xff])));
-  }
   static esds(track) {
     if (track.esds) {
       return new Uint8Array([
@@ -769,13 +584,10 @@ export class MP4 {
         return MP4.box(MP4.types.stsd, MP4.STSD, MP4.ac3(track));
       }
       return MP4.box(MP4.types.stsd, MP4.STSD, MP4.mp4a(track));
-    } else {
-      // FastStream: hls.js demuxes HEVC from transport streams too; it was written as avc1.
-      if (track.segmentCodec === 'hevc') {
-        return MP4.box(MP4.types.stsd, MP4.STSD, MP4.hvc1(track));
-      }
-      return MP4.box(MP4.types.stsd, MP4.STSD, MP4.avc1(track));
     }
+    // A video track comes with its sample entry: a DASH or fMP4 track's from its own init
+    // segment (mp4merger), an HLS transport stream's written by hls.js's MP4 writer (hls2mp4).
+    throw new Error(`A ${track.type} track without its sample entry (codecBuffer)`);
   }
   static tkhd(track) {
     const id = track.id;
@@ -814,34 +626,6 @@ export class MP4 {
     ]));
   }
 
-  static traf(track, baseMediaDecodeTime) {
-    const sampleDependencyTable = MP4.sdtp(track);
-    const id = track.id;
-    const upperWordBaseMediaDecodeTime = Math.floor(baseMediaDecodeTime / (UINT32_MAX + 1));
-    const lowerWordBaseMediaDecodeTime = Math.floor(baseMediaDecodeTime % (UINT32_MAX + 1));
-    return MP4.box(MP4.types.traf, MP4.box(MP4.types.tfhd, new Uint8Array([0x00,
-      // version 0
-      0x00, 0x00, 0x00,
-      // flags
-      id >> 24, id >> 16 & 0xff, id >> 8 & 0xff, id & 0xff, // track_ID
-    ])), MP4.box(MP4.types.tfdt, new Uint8Array([0x01,
-      // version 1
-      0x00, 0x00, 0x00,
-      // flags
-      upperWordBaseMediaDecodeTime >> 24, upperWordBaseMediaDecodeTime >> 16 & 0xff, upperWordBaseMediaDecodeTime >> 8 & 0xff, upperWordBaseMediaDecodeTime & 0xff, lowerWordBaseMediaDecodeTime >> 24, lowerWordBaseMediaDecodeTime >> 16 & 0xff, lowerWordBaseMediaDecodeTime >> 8 & 0xff, lowerWordBaseMediaDecodeTime & 0xff])), MP4.trun(track, sampleDependencyTable.length + 16 +
-                // tfhd
-                20 +
-                // tfdt
-                8 +
-                // traf header
-                16 +
-                // mfhd
-                8 +
-                // moof header
-                8),
-    // mdat header
-    sampleDependencyTable);
-  }
 
 
   static elst(segment_durations, media_times) {
@@ -898,61 +682,7 @@ export class MP4 {
     track.duration = track.duration || 0xffffffff;
     return MP4.box(MP4.types.trak, MP4.tkhd(track), MP4.mdia(track), MP4.edts(track));
   }
-  static trex(track) {
-    const id = track.id;
-    return MP4.box(MP4.types.trex, new Uint8Array([0x00,
-      // version 0
-      0x00, 0x00, 0x00,
-      // flags
-      id >> 24, id >> 16 & 0xff, id >> 8 & 0xff, id & 0xff,
-      // track_ID
-      0x00, 0x00, 0x00, 0x01,
-      // default_sample_description_index
-      0x00, 0x00, 0x00, 0x00,
-      // default_sample_duration
-      0x00, 0x00, 0x00, 0x00,
-      // default_sample_size
-      0x00, 0x01, 0x00, 0x01, // default_sample_flags
-    ]));
-  }
 
-  static trun(track, offset) {
-    const samples = track.samples || [];
-    const len = samples.length;
-    const arraylen = 12 + 16 * len;
-    const array = new Uint8Array(arraylen);
-    let i;
-    let sample;
-    let duration;
-    let size;
-    let flags;
-    let cts;
-    offset += 8 + arraylen;
-    array.set([track.type === 'video' ? 0x01 : 0x00,
-      // version 1 for video with signed-int sample_composition_time_offset
-      0x00, 0x0f, 0x01,
-      // flags
-      len >>> 24 & 0xff, len >>> 16 & 0xff, len >>> 8 & 0xff, len & 0xff,
-      // sample_count
-      offset >>> 24 & 0xff, offset >>> 16 & 0xff, offset >>> 8 & 0xff, offset & 0xff, // data_offset
-    ], 0);
-    for (i = 0; i < len; i++) {
-      sample = samples[i];
-      duration = sample.duration;
-      size = sample.size;
-      flags = sample.flags;
-      cts = sample.cts;
-      array.set([duration >>> 24 & 0xff, duration >>> 16 & 0xff, duration >>> 8 & 0xff, duration & 0xff,
-        // sample_duration
-        size >>> 24 & 0xff, size >>> 16 & 0xff, size >>> 8 & 0xff, size & 0xff,
-        // sample_size
-        flags.isLeading << 2 | flags.dependsOn, flags.isDependedOn << 6 | flags.hasRedundancy << 4 | flags.paddingValue << 1 | flags.isNonSync, flags.degradPrio & 0xf0 << 8, flags.degradPrio & 0x0f,
-        // sample_flags
-        cts >>> 24 & 0xff, cts >>> 16 & 0xff, cts >>> 8 & 0xff, cts & 0xff, // sample_composition_time_offset
-      ], 12 + 16 * i);
-    }
-    return MP4.box(MP4.types.trun, array);
-  }
   static initSegment(tracks) {
     if (!MP4.types) {
       MP4.init();

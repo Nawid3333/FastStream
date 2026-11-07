@@ -1,6 +1,7 @@
 // @ts-check
 import {EventEmitter} from '../eventemitter.mjs';
 import {FSBlob} from '../FSBlob.mjs';
+import {MP4 as HlsMP4} from '../hls.mjs';
 import {MP4} from './MP4Generator.mjs';
 import {normalizePts} from './ptsNormalize.mjs';
 import Transmuxer from './transmuxer.mjs';
@@ -422,6 +423,14 @@ export class HLS2MP4 extends EventEmitter {
       // flatMap, not push(...samples): a spread of a very long chunk's samples can pass the
       // engine's argument limit and throw a RangeError.
       track.samples = track.chunks.flatMap((chunk) => chunk.samples);
+
+      // The video's sample entry (avc1 or hvc1, with its parameter sets) is hls.js's own MP4
+      // writer's, so hls.js's changes to it come with hls.js; FastStream's writer takes it as
+      // it takes a DASH track's (codecBuffer). Its copies of the two were hls.js's, byte for
+      // byte. Not in MP4Generator itself: a DASH save would load hls.js for it.
+      if (track.type !== 'audio' && !track.codecBuffer) {
+        track.codecBuffer = track.segmentCodec === 'hevc' ? HlsMP4.hvc1(track) : HlsMP4.avc1(track);
+      }
     });
     let initSeg;
     try {
