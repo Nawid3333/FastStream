@@ -2,6 +2,7 @@
 import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {MpvBackend} from './MpvBackend.mjs';
+import {isSubtitles} from './StreamDetection.mjs';
 
 const PlayerURL = chrome.runtime.getURL('player/index.html');
 
@@ -225,11 +226,11 @@ export class BackgroundUtils {
   }
 
   /**
-   * @param {string} ext - A file extension or type (background.mjs urlType).
+   * @param {string} ext - A file extension or type (StreamDetection.urlType).
    * @return {boolean}
    */
   static isSubtitles(ext) {
-    return ext === 'vtt' || ext === 'srt';
+    return isSubtitles(ext);
   }
 
   /**

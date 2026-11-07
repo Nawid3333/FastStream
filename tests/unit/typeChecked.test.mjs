@@ -25,6 +25,7 @@ const CHECKED = [
   'chrome/background/MpvTarget.mjs',
   'chrome/background/MultiRegexMatcher.mjs',
   'chrome/background/NetRequestRuleManager.mjs',
+  'chrome/background/StreamDetection.mjs',
   'chrome/background/StreamLengths.mjs',
   'chrome/background/TabTracker.mjs',
   'chrome/background/UrlMatchList.mjs',

@@ -16,13 +16,13 @@ import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
 import {sanitizeDownloadFilename} from './DownloadFilename.mjs';
 import {fetchFreshLink} from './FreshLink.mjs';
 import {KeyShortcut} from './KeyShortcut.mjs';
-import {modeFromContentType, modeFromMediaType} from './ManifestTypes.mjs';
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
 import {Capabilities, MpvBackend} from './MpvBackend.mjs';
 import {MpvSubtitles} from './MpvSubtitles.mjs';
 import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
 import {RuleManager} from './NetRequestRuleManager.mjs';
 import {StreamLengths} from './StreamLengths.mjs';
+import {classifyResponse, modeFromQuery, urlType} from './StreamDetection.mjs';
 import {TabTracker} from './TabTracker.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {VpnProxyMirror} from './VpnProxyMirror.mjs';
@@ -2192,49 +2192,6 @@ async function attachPageQualities(tab, sources) {
   }
 }
 
-/**
- * The type a URL names by itself: its file extension, or what a site's pattern says it
- * is (Vimeo's player config, the user's custom source patterns).
- * @param {string} url - A request's URL.
- * @return {string} The extension or type, for URLUtils.getModeFromExtension and
- *   BackgroundUtils.isSubtitles.
- */
-function urlType(url) {
-  let ext = URLUtils.get_url_extension(url);
-  if (URLUtils.hostnameMatches(url, 'player.vimeo.com') && (url.includes('config?') || url.includes('video'))) {
-    ext = 'vmpatch';
-  }
-
-  const output = CustomSourcePatternsMatcher.match(url);
-  if (output) {
-    ext = output;
-  }
-  return ext;
-}
-
-/**
- * The mode of a stream fetched through a proxy, which names it in the query string:
- * proxy?url=https://cdn/.../index.m3u8.
- * @param {string} url - The proxy request's URL.
- * @return {?string} The stream's player mode, or null when the query names none.
- */
-function modeFromQuery(url) {
-  for (const value of URLUtils.get_url_params(url).values()) {
-    if (!URLUtils.is_url(value)) continue;
-    let ext = URLUtils.get_url_extension(value);
-
-    const output = CustomSourcePatternsMatcher.match(value);
-    if (output) {
-      ext = output;
-    }
-
-    const mode = URLUtils.getModeFromExtension(ext);
-    if (mode) {
-      return mode;
-    }
-  }
-  return null;
-}
 
 /** @typedef {import('./TabTracker.mjs').FrameHolder} FrameHolder */
 /** @typedef {import('./TabTracker.mjs').TabHolder} TabHolder */
@@ -2412,13 +2369,13 @@ function recoverFrameSources(frame, msg) {
     const media = !!resource.media;
     // A media element sends no Origin, unless it loads CORS (crossorigin), as content.js says.
     const headers = pageHeaders(typeof msg.url === 'string' ? msg.url : frame.url, url, media && !resource.cors);
-    const ext = urlType(url);
+    const ext = urlType(url, CustomSourcePatternsMatcher);
     if (BackgroundUtils.isSubtitles(ext)) {
       handleSubtitles(url, frame, headers);
       continue;
     }
 
-    const mode = URLUtils.getModeFromExtension(ext) || (media ? PlayerModes.ACCELERATED_MP4 : modeFromQuery(url));
+    const mode = URLUtils.getModeFromExtension(ext) || (media ? PlayerModes.ACCELERATED_MP4 : modeFromQuery(url, CustomSourcePatternsMatcher));
     if (!mode || getSourceFromURL(frame, url)) continue;
     onSourceRecieved({
       url,
@@ -4666,16 +4623,6 @@ const webRequestPerms = ['requestHeaders'];
 /** @type {Array<'responseHeaders'|'extraHeaders'|'blocking'>} */
 const webRequestPerms2 = ['responseHeaders'];
 
-/**
- * Whether a response is an HTML page, by its Content-Type.
- * @param {Array<{name: string, value?: string}>} [headers] - webRequest's responseHeaders.
- * @return {boolean} True for text/html and application/xhtml+xml.
- */
-function isHtmlResponse(headers) {
-  const contentType = headers?.find((header) => header.name.toLowerCase() === 'content-type');
-  const type = contentType?.value?.split(';')[0].trim().toLowerCase();
-  return type === 'text/html' || type === 'application/xhtml+xml';
-}
 
 /**
  * Whether a request belongs to no tab: a service worker's, or this background's own
@@ -4724,131 +4671,23 @@ chrome.webRequest.onBeforeRedirect.addListener((details) => {
   types: ['media', 'xmlhttprequest', 'other', 'main_frame', 'sub_frame'],
 });
 
-/**
- * Whether a response is a redirect, which the request follows to another address: no stream,
- * though its address names one (a hoster's …/clip.mp4 link to its CDN). Taken for the stream,
- * the player played the link, and the redirect at each of its requests went to the CDN without
- * the page's Referer, which was set for the link (refused by a CDN that checks it); a CDN slower
- * than the player's opening delay was never seen, the frame having a player by its answer; and a
- * link run out, redirected to the hoster's "expired" page, opened a player on it (upstream #585).
- * Only the statuses Firefox follows, to a Location: without one, the response is the file
- * (glm's review, 2026-10-28). 304 Not Modified is the file itself, from the cache.
- * @param {{statusCode: number, responseHeaders?: Array<{name: string, value?: string}>}} details -
- *   webRequest's.
- * @return {boolean}
- */
-function isRedirect(details) {
-  return [301, 302, 303, 307, 308].includes(details.statusCode) &&
-    !!details.responseHeaders?.some((header) => header.name.toLowerCase() === 'location');
-}
-
-/**
- * The type a redirected request's first address names, for a response whose own address names
- * none: …/master.m3u8 redirected to the CDN's /v/7?token. Not for a page (the link run out, sent
- * to the hoster's "expired" page), nor a manifest its Content-Type names, nor a media element's
- * file, whose Content-Type tells video from audio (modeFromMediaType).
- * @param {TabHolder} tab
- * @param {{requestId: string|number, type?: string, responseHeaders?: Array<{name: string, value?: string}>}} details -
- *   webRequest's.
- * @param {string} ext - What the response's own address names (urlType).
- * @return {string} The type to go by: ext, or the first address's.
- */
-function redirectedType(tab, details, ext) {
-  const namesType = (/** @type {string} */ type) => !!URLUtils.getModeFromExtension(type) || BackgroundUtils.isSubtitles(type);
-  const first = tab.redirectOrigin(details.requestId);
-  if (!first || namesType(ext) || details.type === 'media' || isHtmlResponse(details.responseHeaders) ||
-      modeFromContentType(details.responseHeaders)) {
-    return ext;
-  }
-  const firstType = urlType(first);
-  return namesType(firstType) ? firstType : ext;
-}
-
-/**
- * The mode the query of a redirected request's first address names (modeFromQuery), for a
- * proxy link redirected to an address that names none: proxy?url=https://cdn/.../index.m3u8 to
- * the CDN's /s/9f3e, answered application/octet-stream. Not for a page it led to.
- * @param {TabHolder} tab
- * @param {{requestId: string|number, responseHeaders?: Array<{name: string, value?: string}>}} details -
- *   webRequest's.
- * @return {?string}
- */
-function modeFromRedirectQuery(tab, details) {
-  const first = tab.redirectOrigin(details.requestId);
-  return first && !isHtmlResponse(details.responseHeaders) ? modeFromQuery(first) : null;
-}
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
       if (isTablessRequest(details)) {
         return;
       }
-      const url = details.url;
       const tab = Tabs.getTabOrCreate(details.tabId);
       const frame = tab.getFrameOrCreate(details.frameId);
       if (frame.hasPlayer()) return;
-
-      if ((details.statusCode >= 400 && details.statusCode < 600) || details.statusCode === 204) {
-        return; // Client or server error. Ignore it
-      }
-      if (isRedirect(details)) {
-        return; // The request's response at the end of the redirect is the stream.
-      }
-      // A CORS preflight (OPTIONS), which Firefox shows add-ons, or a HEAD: no stream comes in
-      // either, and the request after it, which does, has the headers to fetch it with. The
-      // preflight's were taken for the stream's, a header of the page's own (a token) left out,
-      // and the server refused the player.
-      if (details.method === 'OPTIONS' || details.method === 'HEAD') {
-        return;
-      }
-      // A page is not a stream, whatever its address or query names: an embed page
-      // (embed.php?file=https://cdn/.../index.m3u8), or a link run out, answered with the
-      // hoster's "expired" page at …/clip.mp4. Taking it for the stream opened the player on
-      // the page itself. The stream a page plays is detected by itself, when the page requests
-      // it. A page load answered with the stream itself - a proxy link opened in a tab or an
-      // iframe - is not HTML, and Firefox plays it in that load, with no request of its own to
-      // detect. Not a player's fetch: a manifest a server calls text/html still plays there.
-      if ((details.type === 'media' || details.type === 'main_frame' || details.type === 'sub_frame') &&
-          isHtmlResponse(details.responseHeaders)) {
-        return;
-      }
-      const ext = redirectedType(tab, details, urlType(url));
-
-      if (BackgroundUtils.isSubtitles(ext)) {
+      const found = classifyResponse(details, tab.redirectOrigin(details.requestId), CustomSourcePatternsMatcher);
+      if (found.kind === 'subtitles') {
         VpnMirror.noteSource(details);
-        handleSubtitles(url, frame, tab.requestHeaders.get(details.requestId));
-        return;
+        handleSubtitles(details.url, frame, tab.requestHeaders.get(details.requestId));
+      } else if (found.kind === 'source') {
+        VpnMirror.noteSource(details);
+        onSourceRecieved(details, frame, found.mode);
       }
-
-      let mode = URLUtils.getModeFromExtension(ext);
-      if (!mode) {
-        // A manifest whose URL names no type: its Content-Type does (ManifestTypes).
-        mode = modeFromContentType(details.responseHeaders);
-      }
-      if (!mode) {
-        if (details.type === 'media') {
-          mode = modeFromMediaType(details.responseHeaders);
-          if (!mode) {
-            return;
-          }
-        } else if (details.type === 'xmlhttprequest' || details.type === 'other' ||
-            details.type === 'main_frame' || details.type === 'sub_frame') {
-          // The query names the stream for a proxy a player fetches it through, and for a
-          // page load answered with the stream itself (not HTML, above). Nothing else: a
-          // tracking pixel, script or beacon often names the media URL it reports on in its
-          // query, and was taken for the stream - opened in the player, sent to mpv ahead of
-          // the real manifest. Or the query of the proxy link redirected here.
-          mode = modeFromQuery(url) || modeFromRedirectQuery(tab, details);
-          if (!mode) {
-            return;
-          }
-        } else {
-          return;
-        }
-      }
-
-      VpnMirror.noteSource(details);
-      onSourceRecieved(details, frame, mode);
     }, {
       urls: ['<all_urls>'],
     }, webRequestPerms2,
