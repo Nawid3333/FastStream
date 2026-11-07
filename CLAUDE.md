@@ -160,8 +160,15 @@ mpv host's installed copy, WSL): `docs/notes/local-pc.md`.
   which fails until they agree; `RequiredHostVersion` in `MpvBackend.mjs` too only when the
   extension needs the new host (a change with no new behaviour leaves it: no reinstall).
 - **A file with `// @ts-check` keeps it**, and is listed in
-  `tests/unit/typeChecked.test.mjs`. `types/messages.d.ts` gets a message only after its
-  real payload was read.
+  `tests/unit/typeChecked.test.mjs`. A classic script (content scripts, a worker), which
+  nothing imports, also needs its place in `tsconfig.json`'s `include` or `files`, or tsc
+  never reads it; the same test checks that. `types/messages.d.ts` gets a message only
+  after its real payload was read.
+- **No new top-level code in `background/background.mjs`, `content.js` or
+  `player/FastStreamClient.mjs`** (the owner, 2026-11-07): a new feature gets a module of its
+  own beside them, imported by them (a content script: a classic script of its own, listed
+  in the manifest before `content.js`, as `overlay-guard.js` is). Each is thousands of lines
+  already.
 - **Workflows:** every action is pinned to a commit SHA; no `schedule:` in `ci.yml` (GitHub
   disables the whole file after 60 quiet days); a workflow's `run:` scripts are tested in
   `tests/workflows`; a job that reads a secret names its environment.
