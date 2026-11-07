@@ -161,6 +161,27 @@ describe('DownloadManager', () => {
     vi.restoreAllMocks();
   });
 
+  it('takes a queued download it removes out of the queue, where it held up every download ahead', () => {
+    // A level switch frees the old level's downloads ahead (client.freeLevel), queued ones
+    // too. Left in the queue, failed, they kept canGetFile saying no to the new level's.
+    const manager = new DownloadManager(null);
+    manager.blobStore = {deleteBlob: vi.fn(), close() {}};
+    const downloader = idleDownloader();
+    manager.downloaders = [downloader];
+    const at = (n) => ({url: `https://example.com/${n}.ts`, responseType: 'arraybuffer'});
+    manager.getFile(at(0), {}, 0);
+    manager.getFile(at(1), {}, 0);
+    manager.getFile(at(2), {}, 0);
+    expect(manager.queue).toHaveLength(2);
+
+    manager.removeFile(at(1));
+    manager.removeFile(at(2));
+    expect(manager.queue).toEqual([]);
+    // The downloader free again, the next download ahead is answered at once.
+    downloader.entry = null;
+    expect(manager.canGetFile(at(3))).toBe(true);
+  });
+
   it('yielding cancels the downloads ahead, not what playback waits for, nor one nearly done', () => {
     // Another player the user watches is short of video (PlayerPeers.shouldYield).
     const client = {predownloadFragments: vi.fn()};

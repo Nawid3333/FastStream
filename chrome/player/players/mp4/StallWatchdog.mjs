@@ -15,7 +15,8 @@ const STALL_MAX_NUDGES = 3;
  * buffered ahead, and its time and frame count stay where they are. play() gets it going,
  * but at the time its clock has run on to, a minute later; a seek starts it where it was
  * sought to. So a stuck video is sought a little forward, as hls.js does for its streams.
- * MP4Player's main loop runs check() about every millisecond.
+ * MP4Player's main loop runs check(): every few ms while the player starts or seeks or has run
+ * out of media, every 50 ms while it plays with media ahead (STEADY_LOOP_MS).
  */
 export class StallWatchdog {
   /**

@@ -43,6 +43,8 @@ const BACK_BUFFER_SLACK = 1;
 // again after each of these waits, in ms. Still failing, it is the player's error once
 // playback has reached it.
 const RANGE_RETRY_DELAYS_MS = [2000, 4000, 8000];
+// How often the main loop runs while the video plays with media ahead, in ms (mainLoop).
+const STEADY_LOOP_MS = 50;
 
 const VIDEO_TRACK = 0;
 const AUDIO_TRACK = 1;
@@ -66,6 +68,8 @@ export default class MP4Player extends EventEmitter {
   constructor(client, config) {
     super();
     this.client = client;
+    // One function for every round of the main loop, not a new one each time.
+    this.boundMainLoop = this.mainLoop.bind(this);
 
     this.isPreview = config?.isPreview || false;
     this.isAudioOnly = config?.isAudioOnly || false;
@@ -447,7 +451,13 @@ export default class MP4Player extends EventEmitter {
       }
       return;
     }
-    this.loopTimeout = setTimeout(this.mainLoop.bind(this), 1);
+    // At once (1 ms, which Firefox makes 4) while something here is urgent: starting (the
+    // first frame waits for the seek to the buffered start above), seeking, or out of media
+    // to play. Playing with media ahead, nothing is: a range that ends starts the next itself
+    // (onSuccess runs runLoad), and the stall watchdog counts seconds. The loop woke the page
+    // about 250 times a second for as long as an MP4 played.
+    const urgent = this.needsInit || this.readyState < 3 || this.video.seeking;
+    this.loopTimeout = setTimeout(this.boundMainLoop, urgent ? 1 : STEADY_LOOP_MS);
   }
 
   /**

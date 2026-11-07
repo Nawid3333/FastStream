@@ -31,9 +31,11 @@ export class IndexedDBManager {
 
     if (!this.isPersistent()) {
       this.prune();
+      // Every 5 s, as opfs-worker.mjs's heartbeat: a transaction each second for the page's
+      // whole life was more than prune's 60 s window needs (a beat at most ~20 s old).
       this.aliveInterval = setInterval(()=>{
         this.keepAlive();
-      }, 1000);
+      }, 5000);
       this.dbName = 'faststream-temp-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
     } else {
       // Persistent: it has a name.
@@ -86,7 +88,7 @@ export class IndexedDBManager {
           let stale = false;
           try {
             const updatedTime = await IndexedDBManager.getValue(db, 'metadata', 'updated_time');
-            // A live tab writes it each second, but Firefox delays a hidden tab's timers by up
+            // A live tab writes it every 5 s, but Firefox delays a hidden tab's timers by up
             // to 15 s (PlayerPeers): 10 s took live databases for dead ones (review, 2026-10-09).
             // (A Date.now(): setup and keepAlive write it.)
             stale = !updatedTime || Date.now() - /** @type {number} */ (updatedTime) > 60000;
@@ -317,19 +319,21 @@ export class IndexedDBManager {
    */
   static wrapRequest(request, timeout) {
     return new Promise((resolve, reject)=>{
+      // Cleared once the request is answered: each one left its timer to fire for nothing
+      // seconds later - every get, set and heartbeat.
+      const timer = timeout ? setTimeout(()=>{
+        reject(new Error('Timeout'));
+      }, timeout) : undefined;
       request.onerror = (event) => {
+        clearTimeout(timer);
         console.error(event);
         reject(event);
       };
       request.onsuccess = (event) => {
+        clearTimeout(timer);
         // The event's target is the request.
         resolve(/** @type {IDBRequest<T>} */ (event.target).result);
       };
-      if (timeout) {
-        setTimeout(()=>{
-          reject(new Error('Timeout'));
-        }, timeout);
-      }
     });
   }
 }

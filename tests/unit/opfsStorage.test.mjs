@@ -49,7 +49,7 @@ class FakeFile {
   constructor(text = '', name = '') {
     this.bytes = new TextEncoder().encode(text);
     this.unreadable = false;
-    // The heartbeat is left out of diskRoom: it is written every second, whenever.
+    // The heartbeat is left out of diskRoom: it is written every 5 s, whenever.
     this.isHeartbeat = name === '_meta.json';
     // Forced syncs to the disk (FileSystemSyncAccessHandle.flush).
     this.flushes = 0;
