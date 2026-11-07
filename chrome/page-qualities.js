@@ -14,6 +14,10 @@
 // files; which list is the stream's is decided by the background, by the URLs.
 // eslint-disable-next-line no-unused-vars
 const PageQualities = (() => {
+  /**
+   * One quality of a list: its file, its label as the page shows it, its height in pixels.
+   * @typedef {{url: string, label: string, height: number}} Quality
+   */
   // Where players keep a <source>'s quality.
   const LABEL_ATTRIBUTES = ['label', 'size', 'res', 'data-quality', 'data-res', 'data-label', 'data-size',
     'data-height', 'title', 'quality'];
@@ -88,9 +92,10 @@ const PageQualities = (() => {
    * One list's entries cleaned up: absolute URLs, each once, labels as text.
    * @param {Array<{url: *, label: *}>} entries
    * @param {string} base
-   * @return {?Array<{url: string, label: string, height: number}>} Null for fewer than two.
+   * @return {?Array<Quality>} Null for fewer than two.
    */
   function toList(entries, base) {
+    /** @type {Array<Quality>} */
     const list = [];
     for (const entry of entries) {
       const url = absolute(entry.url, base);
@@ -106,7 +111,7 @@ const PageQualities = (() => {
    * the first is the one. Encoded strings ("#2...", "#3...") are not read.
    * @param {string} text
    * @param {string} base
-   * @return {?Array<{url: string, label: string, height: number}>}
+   * @return {?Array<Quality>}
    */
   function parsePlayerjsFile(text, base) {
     if (typeof text !== 'string' || !text.startsWith('[')) return null;
@@ -124,16 +129,16 @@ const PageQualities = (() => {
    * The <source> lists of the page's videos.
    * @param {Document} doc
    * @param {string} base
-   * @return {Array<Array<Object>>}
+   * @return {Array<Array<Quality>>}
    */
   function fromSourceElements(doc, base) {
     const lists = [];
     for (const media of doc.querySelectorAll('video')) {
       const entries = [];
       for (const source of media.querySelectorAll('source')) {
-        const attribute = LABEL_ATTRIBUTES.find((name) => source.hasAttribute(name) && source.getAttribute(name).trim());
+        const attribute = LABEL_ATTRIBUTES.find((name) => source.hasAttribute(name) && /** @type {string} */ (source.getAttribute(name)).trim());
         if (!attribute) continue;
-        let label = source.getAttribute(attribute).trim();
+        let label = /** @type {string} */ (source.getAttribute(attribute)).trim();
         // Plyr's size is a bare height.
         if (/^\d{3,4}$/.test(label)) label += 'p';
         entries.push({url: source.getAttribute('src'), label});
@@ -148,9 +153,10 @@ const PageQualities = (() => {
    * Playerjs's file strings in the page's own scripts (`file:"[360p]...,[720p]..."`).
    * @param {Document} doc
    * @param {string} base
-   * @return {Array<Array<Object>>}
+   * @return {Array<Array<Quality>>}
    */
   function fromScripts(doc, base) {
+    /** @type {Array<Array<Quality>>} */
     const lists = [];
     // file:"..." in a script, "file":"..." in JSON.
     const pattern = /\bfile["']?\s*:\s*(["'])(\[[^"']{0,40}\][\s\S]*?)\1/g;
@@ -168,8 +174,8 @@ const PageQualities = (() => {
 
   /**
    * Whether two lists name the same files.
-   * @param {Array<Object>} a
-   * @param {Array<Object>} b
+   * @param {Array<Quality>} a
+   * @param {Array<Quality>} b
    * @return {boolean}
    */
   function sameList(a, b) {
@@ -179,7 +185,7 @@ const PageQualities = (() => {
   /**
    * Reads a page object's field, and nothing that throws (a getter, a dead object).
    * @param {*} object
-   * @param {string} key
+   * @param {string|number} key
    * @return {*}
    */
   function field(object, key) {
@@ -207,10 +213,12 @@ const PageQualities = (() => {
    * script's window.wrappedJSObject in Firefox).
    * @param {*} page
    * @param {string} base
-   * @return {Array<Array<Object>>}
+   * @return {Array<Array<Quality>>}
    */
   function fromPlayers(page, base) {
+    /** @type {Array<Array<Quality>>} */
     const lists = [];
+    /** @param {Array<{url: *, label: *}>} entries */
     const add = (entries) => {
       const list = toList(entries, base);
       if (list && !lists.some((known) => sameList(known, list))) lists.push(list);
@@ -244,9 +252,10 @@ const PageQualities = (() => {
    * @param {Document} doc
    * @param {*} page - The page's own window, or null.
    * @param {string} base - The page's address, for relative URLs.
-   * @return {Array<Array<{url: string, label: string, height: number}>>}
+   * @return {Array<Array<Quality>>}
    */
   function find(doc, page, base) {
+    /** @type {Array<Array<Quality>>} */
     const lists = [];
     for (const list of [...fromSourceElements(doc, base), ...fromPlayers(page, base), ...fromScripts(doc, base)]) {
       if (!lists.some((known) => sameList(known, list))) lists.push(list);

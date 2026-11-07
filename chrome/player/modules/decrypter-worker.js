@@ -1,12 +1,21 @@
 // @ts-check
 
+/**
+ * A segment to decrypt (HLSDecrypter.decrypt), AES-128 CBC with its key and IV.
+ * @typedef {{id: number, encrypted: BufferSource, iv: BufferSource, key: BufferSource}} DecryptRequest
+ */
+
 onmessage = (e) => {
   decrypt(e.data);
 };
 
+/**
+ * @param {BufferSource} value
+ * @return {Uint8Array<ArrayBuffer>}
+ */
 function toUint8Array(value) {
   if (value instanceof Uint8Array) {
-    return value;
+    return /** @type {Uint8Array<ArrayBuffer>} */ (value);
   }
 
   if (ArrayBuffer.isView(value)) {
@@ -23,9 +32,11 @@ function getSubtle() {
     return null;
   }
 
-  return cryptoObj.subtle || cryptoObj.webkitSubtle || null;
+  // None outside a secure context (the web build on a plain http address).
+  return cryptoObj.subtle || null;
 }
 
+/** @param {DecryptRequest} data */
 async function decrypt(data) {
   const subtle = getSubtle();
 

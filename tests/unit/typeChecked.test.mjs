@@ -272,6 +272,19 @@ describe('type-checked files', () => {
     expect(checked).toEqual([...CHECKED].sort());
   });
 
+  it('are read by tsc: a classic script (.js), which nothing imports, is in the include or the files', () => {
+    // The content scripts and the HLS decrypter's worker had // @ts-check and were listed
+    // here, but nothing named them in tsconfig.json and nothing imports a classic script:
+    // tsc never read them (213 errors in content.js when it first did, 2026-11-07). The
+    // worker is in `files`: chrome/player/modules is excluded, and `files` is not.
+    const {include, files = []} = JSON.parse(fs.readFileSync(path.join(root, 'tsconfig.json'), 'utf8'));
+    const escape = (text) => text.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    const patterns = include.map((glob) => new RegExp('^' + glob.split('**/')
+        .map((part) => part.split('*').map(escape).join('[^/]*')).join('(?:.*/)?') + '$'));
+    expect(CHECKED.filter((file) => file.endsWith('.js') && !files.includes(file) &&
+      !patterns.some((re) => re.test(file)))).toEqual([]);
+  });
+
   it('see a declaration beside every vendored library they import', () => {
     // Absent until the build copies it, a vendored library was an untyped import; once
     // there, TypeScript read its JavaScript, guessed types the code does not fit, and the
