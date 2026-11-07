@@ -65,6 +65,7 @@ const CHECKED = [
   'chrome/player/modules/dash2mp4/mp4merger.mjs',
   'chrome/player/modules/decrypter-worker.js',
   'chrome/player/modules/eventemitter.mjs',
+  'chrome/player/modules/hls2mp4/MP4Generator.mjs',
   'chrome/player/modules/hls2mp4/hls2mp4.mjs',
   'chrome/player/modules/hls2mp4/ptsNormalize.mjs',
   'chrome/player/modules/hls2mp4/transmuxer.mjs',

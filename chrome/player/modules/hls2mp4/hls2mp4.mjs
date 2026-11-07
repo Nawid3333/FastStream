@@ -105,7 +105,8 @@ export function samplesFromMoof(moof) {
  * A track the file is written from (makeTrack): the track hls.js's demuxer describes (TSDemuxer,
  * an internal its types do not describe, so its fields - timescale, pps, sps and the rest
  * MP4Generator reads - stay unchecked), with what this file adds.
- * @typedef {Object<string, *> & {samples: Array<*>, chunks: Array<TrackChunk>, use64Offsets: boolean,
+ * @typedef {Object<string, *> & {id: number, type: string, timescale: number, duration: number,
+ *   samples: Array<*>, chunks: Array<TrackChunk>, use64Offsets: boolean,
  *   nextChunkId: number, elst: Array<{media_time: number, segment_duration: number}>}} Mp4Track
  */
 
@@ -244,7 +245,8 @@ export class HLS2MP4 extends EventEmitter {
   }
 
   /**
-   * @param {Object<string, *>} demuxedTrack the track hls.js's demuxer describes
+   * @param {Object<string, *> & {id: number, type: string, timescale: number, duration: number}} demuxedTrack
+   *   the track hls.js's demuxer describes (MP4Remuxer sets its timescale and duration)
    * @return {Mp4Track} the track the file is written from
    */
   makeTrack(demuxedTrack) {
