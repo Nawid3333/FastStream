@@ -831,3 +831,26 @@ Checked and not changed (the reason each time):
   a millisecond per detected segment): small or unmeasured gains, each with a way to go wrong.
 - HLSPlayer.currentFragment's fallback to `hls.loadLevel`: part of the start-up change measured
   and reverted on 2026-11-06 (above); the glm knowledge-base entry that described it is retired.
+
+Second round (the save and storage modules, the repository's CI and tests, what runs on every
+page; 2026-11-07):
+
+- Changed: `MP4Merger.finalize` handed each chunk of the file to the OPFS worker through
+  `toStandaloneBuffer`, which copied it once more - the whole file over, after the progress
+  showed 100 %. `Blob.arrayBuffer()` gives a fresh buffer of its own, which goes as it is.
+- **An HLS save's chunks wait in RAM while the disk is slower than the conversion**
+  (`hls2mp4.pushChunk` -> `FSBlob.saveBlob`, not awaited): a long save can hold much of the
+  file as Blobs. Waiting for the disk would bound the RAM and may make saves slower: not
+  changed without a measured long save. Neither is a single progressive OPFS file for HLS
+  saves (as MP4Merger writes one), reading the next fragment while the current one converts,
+  nor awaiting in-flight offloads in `FSBlob.clear()` (an orphan lives only until the
+  session's directory is pruned).
+- CI: the lint/test/build job takes 68 s, so running its lint and typecheck in parallel or
+  moving `verify:vtt` earlier saves seconds; the e2e jobs (7-8 min) spend 17 s before the first
+  spec, fixtures included, so caching fixtures or building one target per job is not worth
+  the workflow. `isolate: false` for vitest would share module state and mocks between test
+  files, for the Windows unit job that runs beside the e2e jobs and sets nothing's pace.
+- Every page: `overlay-guard`'s second check spends its time in `getBoundingClientRect` per
+  element (the comment's measurement), not in the allocations around it; `PLAYLIST_POLL`'s two
+  walks of the page's links run ten times when a player starts; the gesture scan's 2 s cadence
+  is load-bearing for the 5 s activation window.

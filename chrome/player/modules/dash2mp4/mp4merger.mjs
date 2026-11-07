@@ -465,8 +465,10 @@ export class MP4Merger extends EventEmitter {
             throw new Error('Cancelled');
           }
           const buf = /** @type {ArrayBuffer} */ (await BlobManager.getDataFromBlob(slice, 'arraybuffer'));
+          // A fresh buffer of its own (Blob.arrayBuffer()), handed to the worker as it is:
+          // toStandaloneBuffer copied it once more, the whole file over, chunk by chunk.
           await this.opfs.saveAppend(this.saveIdentifier,
-              new Uint8Array(toStandaloneBuffer(buf)));
+              new Uint8Array(buf instanceof ArrayBuffer ? buf : toStandaloneBuffer(buf)));
         }
         await this.opfs.saveEnd(this.saveIdentifier);
         const file = await this.opfs.getSavedFile(/** @type {string} */ (this.saveIdentifier));
