@@ -5,7 +5,7 @@
 
 import {browser, expect} from '@wdio/globals';
 
-const FIXTURE = () => `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/frames-24fps.mp4`;
+const fixtureUrl = () => `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/frames-24fps.mp4`;
 
 /**
  * Opens the player with no source, autoplay and remembered positions off.
@@ -51,7 +51,7 @@ describe('The progress loop of a short video', function() {
             window.fastStream.addSource(new VideoSource(url, {}, URLUtils.getModeFromURL(url)), true);
             done(null);
           }).catch((e) => done(String(e)));
-    }), FIXTURE());
+    }), fixtureUrl());
     expect(error).toBe(null);
     await browser.waitUntil(async () => browser.execute(() => {
       const client = window.fastStream;
