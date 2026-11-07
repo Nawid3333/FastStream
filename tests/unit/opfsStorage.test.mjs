@@ -357,10 +357,11 @@ describe('opfs-worker: writes', () => {
     }
   });
 
-  it('forces no fragment and no heartbeat to the disk, and a save once, when it is complete', async () => {
+  it('forces nothing to the disk: no fragment, no heartbeat, no save', async () => {
     // A flushed write is a forced sync: 500 MB as 1.6 MB files, each flushed, made Windows
     // write 800 MB, lazily 423 MB (measured), and the heartbeat was flushed every second for
-    // every open player. A fragment and the heartbeat are only read back in this session.
+    // every open player. A save's flush at its end took about 0.5 s of a 458 MB HLS save. All
+    // three are only read back in this session.
     const root = new FakeDir();
     const manager = await startManager(root);
     try {
@@ -368,18 +369,15 @@ describe('opfs-worker: writes', () => {
       await manager.saveBegin('save-1');
       await manager.saveAppend('save-1', new Uint8Array([1, 2]));
       await manager.saveAppend('save-1', new Uint8Array([3]));
-      const flushed = () => [...sessionOf(root, manager).children.values()].reduce((n, file) => n + (file.flushes || 0), 0);
-      // Nothing yet: the save's one flush comes when it is complete.
-      expect(flushed()).toBe(0);
       await manager.saveEnd('save-1');
-      expect(flushed()).toBe(1);
       const fragment = await manager.getFile('blob0');
       const save = await manager.getSavedFile('save-1');
+      expect([...save.disk.bytes]).toEqual([1, 2, 3]);
       expect({
         fragment: fragment.disk.flushes,
         heartbeat: sessionOf(root, manager).children.get('_meta.json').flushes,
         save: save.disk.flushes,
-      }).toEqual({fragment: 0, heartbeat: 0, save: 1});
+      }).toEqual({fragment: 0, heartbeat: 0, save: 0});
     } finally {
       await manager.close();
     }
