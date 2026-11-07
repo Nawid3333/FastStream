@@ -823,6 +823,84 @@ describe('a player over the whole page', () => {
     }
     expect([film.paused, call.paused]).toEqual([true, false]);
   });
+
+  /**
+   * Playing <audio> elements, added to an element of the page. Not in an async test itself:
+   * a loop there keeps its last element in a register across the test's next await, and
+   * the garbage collector then never takes it.
+   * @param {Object} parent - The element.
+   * @param {number} count - How many.
+   * @return {Array<Object>}
+   */
+  function addPlayingAudio(parent, count) {
+    const media = Array.from({length: count}, () => parent.ownerDocument.createElement('audio'));
+    for (const medium of media) {
+      parent.appendChild(medium);
+      medium.paused = false;
+    }
+    return media;
+  }
+
+  /**
+   * A page with a player over it, opened with these media in the page.
+   * @param {number} count - How many <audio> elements.
+   * @return {Promise<{page: Object, media: Array<Object>}>}
+   */
+  async function pageWithMedia(count) {
+    const page = loadContentScript();
+    page.document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 720};
+    page.document.body.rect = {x: 0, y: 0, width: 1280, height: 720};
+    const media = addPlayingAudio(page.document.body, count);
+    await page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, noRedirect: true, frameId: 0, parentFrameId: -1,
+      attempt: 1, force: true});
+    return {page, media};
+  }
+  const play = (medium) => {
+    medium.paused = false;
+    medium.listeners.filter((l) => l.type === 'play').forEach((l) => l.listener.call(medium, {target: medium}));
+  };
+
+  it('keeps none of the media the page dropped meanwhile alive', async () => {
+    // Every medium it paused was kept in a Set until the player went: a page that adds and
+    // drops media while the player is up (ads, previews on hover) kept them all alive, with
+    // their buffers (Codex's review, 2026-11-07).
+    const v8 = await import('node:v8');
+    const vm = await import('node:vm');
+    v8.setFlagsFromString('--expose-gc');
+    const gc = vm.runInNewContext('gc');
+    // In the element the player replaces: a player over the whole page holds every element
+    // it hid itself (to give each its style back), the page's media among them.
+    const {page, wrap} = pageWithVideo();
+    const media = addPlayingAudio(wrap, 50);
+    await openPlayer(page);
+    expect(media.every((medium) => medium.paused)).toBe(true);
+    // The page drops them (a function of its own, for the reason addPlayingAudio gives).
+    const refs = ((dropped) => {
+      for (const medium of dropped) medium.remove();
+      return dropped.map((medium) => new WeakRef(medium));
+    })(media.splice(0));
+    for (let i = 0; i < 5 && refs.some((ref) => ref.deref()); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      gc();
+    }
+    expect(refs.map((ref, i) => ref.deref() ? i : -1).filter((i) => i >= 0)).toEqual([]);
+  });
+
+  it('pauses a medium the page took out while the player is up, and lets it play after', async () => {
+    const {page, media: [kept]} = await pageWithMedia(1);
+    kept.remove();
+    play(kept);
+    expect(kept.paused).toBe(true);
+    await page.send({type: 'REMOVE_PLAYERS'});
+    play(kept);
+    expect(kept.paused).toBe(false);
+  });
+
+  it('takes its listener off the media still in the page when the player goes', async () => {
+    const {page, media: [medium]} = await pageWithMedia(1);
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(medium.listeners.filter((l) => l.type === 'play')).toEqual([]);
+  });
 });
 
 // The resize observer updated the player at most every 100 ms and dropped the changes in

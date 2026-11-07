@@ -46,7 +46,7 @@
    */
   /**
    * The media pauseAllWithin holds paused, and the observer that finds new ones.
-   * @typedef {{observer: MutationObserver, hooked: Set<HTMLMediaElement>}} PauseWatcher
+   * @typedef {{observer: MutationObserver, held: WeakSet<HTMLMediaElement>}} PauseWatcher
    */
   /** @typedef {ReturnType<typeof setTimeout>} Timer */
 
@@ -381,7 +381,7 @@
     if (overlay !== -1) {
       const {watcher, hidden} = overlayPlayers.splice(overlay, 1)[0];
       undoFillScreenIframe(hidden);
-      removePauseListeners(watcher);
+      stopPausing(watcher);
     }
   }
 
@@ -1001,7 +1001,7 @@
 
     overlayPlayers.forEach(({iframe, watcher}) => {
       iframe.remove();
-      removePauseListeners(watcher);
+      stopPausing(watcher);
     });
     overlayPlayers.length = 0;
 
@@ -1041,7 +1041,7 @@
     // and scripts for it stopped working until a reload.
     transferId(iframe, old);
     restoreTransition(old);
-    removePauseListeners(replacedData.watcher);
+    stopPausing(replacedData.watcher);
     replacedData.resizeObserver?.disconnect();
   }
 
@@ -1555,18 +1555,28 @@
       Math.abs(real.width - stood.width) < 0.5 && Math.abs(real.height - stood.height) < 0.5;
   }
 
+  // The media each player up holds paused (pauseAllWithin), one WeakSet a player: weakly,
+  // as a page that adds and drops media while the player is up (ads, previews on hover)
+  // had every one kept alive here, with its buffers, until the player went (Codex's
+  // review, 2026-11-07). A WeakSet, not WeakRefs: Firefox keeps an entry whose key is the
+  // content script's wrapper of a page element for as long as the element lives.
+  /** @type {Set<WeakSet<HTMLMediaElement>>} */
+  const PausedHolds = new Set();
+
   /** @this {HTMLMediaElement} */
   function pauseOnPlay() {
+    // Only while a player holds it: a medium the page took out keeps this listener after
+    // the player goes (stopPausing takes it off those still in the page).
+    if (![...PausedHolds].some((held) => held.has(this))) return;
     // A call's live stream plays on (playsLiveStream), also one given its stream later.
     if (!playsLiveStream(this)) this.pause();
   }
 
   /** @param {Element} element */
   function pauseAllWithin(element) {
-    // Every element hooked, so all of them are let go again, wherever the page has moved
-    // them by then. The cleanup used to unhook the videos still inside the element only,
-    // which left an <audio> added meanwhile pausing itself on every play, for good.
-    const hooked = new Set();
+    /** @type {WeakSet<HTMLMediaElement>} */
+    const held = new WeakSet();
+    PausedHolds.add(held);
     /** @param {HTMLMediaElement} media */
     const hook = (media) => {
       try {
@@ -1577,7 +1587,7 @@
         console.error(e);
       }
       media.addEventListener('play', pauseOnPlay);
-      hooked.add(media);
+      held.add(media);
     };
 
     // Its sounds too, as for the ones added later: an <audio> already there played on
@@ -1604,17 +1614,24 @@
 
     return {
       observer,
-      hooked,
+      held,
     };
   }
 
-  /** @param {PauseWatcher} watcher */
-  function removePauseListeners(watcher) {
-    watcher.hooked.forEach((media) => {
-      media.removeEventListener('play', pauseOnPlay);
-    });
-    watcher.hooked.clear();
+  /**
+   * Lets go of what a player held paused, wherever the page has moved it by then. The
+   * cleanup used to unhook the videos still inside the player's element only, which left
+   * an <audio> added meanwhile pausing itself on every play, for good.
+   * @param {PauseWatcher} watcher
+   */
+  function stopPausing(watcher) {
+    PausedHolds.delete(watcher.held);
     watcher.observer.disconnect();
+    for (const media of /** @type {HTMLMediaElement[]} */ (querySelectorAllInAllShadows('video, audio', document.documentElement))) {
+      if (watcher.held.has(media) && ![...PausedHolds].some((held) => held.has(media))) {
+        media.removeEventListener('play', pauseOnPlay);
+      }
+    }
   }
 
   /**
