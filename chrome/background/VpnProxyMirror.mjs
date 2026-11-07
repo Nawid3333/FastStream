@@ -143,7 +143,21 @@ export class VpnProxyMirror {
     };
     const key = VpnProxyMirror.keyOf(seen);
     this.proxies.set(key, seen);
+    if (this.proxies.size > MaxHosts * 2) this.forgetUnusedProxies(key);
     return key;
+  }
+
+  /**
+   * Lets go of the proxies no host and no tab names any more: every one ever seen stayed for the
+   * event page's life (a VPN's servers change). Not the one just seen: its caller names it next.
+   * @param {string} keep - The key rememberProxy just set.
+   */
+  forgetUnusedProxies(keep) {
+    const used = new Set([keep, ...this.tabs.values()]);
+    for (const entry of this.hosts.values()) used.add(entry.key);
+    for (const key of this.proxies.keys()) {
+      if (!used.has(key)) this.proxies.delete(key);
+    }
   }
 
   /**

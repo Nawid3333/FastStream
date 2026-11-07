@@ -116,7 +116,9 @@ const OverlayGuard = (() => {
   // The elements painted over the iframe that belong to the player's area, each the
   // outermost one below the ancestor they share with the iframe.
   function overlaysOf(iframe, {full, visible: box}) {
-    const picks = new Set();
+    // The elements picked so far: a few, in the order picked. An array, not a Set: each
+    // element of the page was checked against a copy of the Set, every second.
+    const picks = [];
     const everything = allElements();
     const players = everything.filter(isPlayerFrame);
     // The document's elementsFromPoint gives a shadow root's elements as their host: the
@@ -127,7 +129,7 @@ const OverlayGuard = (() => {
     for (const el of everything) {
       if (el === iframe || holds(el, iframe) || isPlayerFrame(el)) continue;
       // Inside one already picked, which goes as a whole.
-      if ([...picks].some((pick) => holds(pick, el))) continue;
+      if (picks.some((pick) => holds(pick, el))) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 1 || r.height < 1 || overlap(r, box) < 16) continue;
       // Painted above the iframe where the two overlap?
@@ -153,9 +155,9 @@ const OverlayGuard = (() => {
           pick = a;
         }
       }
-      if (pick) picks.add(pick);
+      if (pick && !picks.includes(pick)) picks.push(pick);
     }
-    return [...picks].filter((el) => ![...picks].some((other) => other !== el && holds(other, el)));
+    return picks.filter((el) => !picks.some((other) => other !== el && holds(other, el)));
   }
 
   function hide(guard, el) {

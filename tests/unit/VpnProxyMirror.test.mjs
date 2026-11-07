@@ -287,3 +287,24 @@ describe('VpnProxyMirror', () => {
     expect(current().urls).toEqual(['*://cdn.example/*']);
   });
 });
+
+// Every proxy ever seen stayed for the event page's life: a VPN's servers change, and the map
+// only grew. Only those no host and no tab names any more go, and never the one just seen.
+describe('VpnProxyMirror, the proxies it remembers', () => {
+  it('lets go of proxies nothing names, keeping the ones in use and the newest', () => {
+    const {mirror, current} = setup();
+    mirror.noteRequest(pageRequest(PAGE, vpn(), {type: 'main_frame'}));
+    mirror.noteRequest(pageRequest(CDN, vpn()));
+    mirror.noteSource(pageRequest(CDN, vpn()));
+    // 450 other servers, each seen once by a request of another tab's page that left no host.
+    for (let i = 0; i < 450; i++) {
+      mirror.noteRequest(pageRequest(`https://other${i}.example/`, {...vpn(), host: `srv${i}.vpn.example`},
+          {tabId: 100 + i, type: 'image', frameId: 1}));
+    }
+    expect(mirror.proxies.size).toBeLessThanOrEqual(450);
+    // The stream's host still goes the page's way.
+    expect(current().listener(ownRequest(CDN)).host).toBe('muc139.m1.fastly-masque.net');
+    // The newest proxy is kept for the call that just saw it.
+    expect(mirror.proxies.has(mirror.rememberProxy({...vpn(), host: 'newest.vpn.example'}))).toBe(true);
+  });
+});

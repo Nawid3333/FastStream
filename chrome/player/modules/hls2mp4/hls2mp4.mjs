@@ -171,10 +171,21 @@ export class HLS2MP4 extends EventEmitter {
     return !!previous && fragment.getFrag().cc === previous.getFrag().cc && fragment.sn > previous.sn + 1;
   }
 
-  /** @param {ZippedFragment} fragData - A fragment of the level. */
-  async pushFragment(fragData) {
+  /**
+   * A fragment's data, from the store.
+   * @param {ZippedFragment} fragData
+   * @return {Promise<*>}
+   */
+  async readFragment(fragData) {
     const entry = await fragData.getEntry();
-    const data = await entry.getDataFromBlob();
+    return entry.getDataFromBlob();
+  }
+
+  /**
+   * @param {ZippedFragment} fragData - A fragment of the level.
+   * @param {*} data - Its data (readFragment).
+   */
+  async pushFragment(fragData, data) {
     const fragment = fragData.fragment;
     // The wrapper has no cc; the discontinuity counter is on hls.js's own fragment (getFrag()).
     const isDiscontinuity = !this.prevFrag || fragment.sn !== this.prevFrag.fragment.sn + 1 || fragment.getFrag().cc !== this.prevFrag.fragment.getFrag().cc;
@@ -222,10 +233,11 @@ export class HLS2MP4 extends EventEmitter {
     }
   }
 
-  /** @param {ZippedFragment} fragData - A fragment of the audio rendition. */
-  async pushFragmentAudio(fragData) {
-    const entry = await fragData.getEntry();
-    const data = await entry.getDataFromBlob();
+  /**
+   * @param {ZippedFragment} fragData - A fragment of the audio rendition.
+   * @param {*} data - Its data (readFragment).
+   */
+  async pushFragmentAudio(fragData, data) {
     const fragment = fragData.fragment;
     // The wrapper has no cc; the discontinuity counter is on hls.js's own fragment (getFrag()).
     const isDiscontinuity = !this.prevFragAudio || fragment.sn !== this.prevFragAudio.fragment.sn + 1 || fragment.getFrag().cc !== this.prevFragAudio.fragment.getFrag().cc;
@@ -489,14 +501,21 @@ export class HLS2MP4 extends EventEmitter {
       this.audioRendition = zippedFragments.some((fragment) => fragment.track !== 0);
 
       let lastProgress = 0;
+      // The next fragment is read from the store (RAM, or OPFS through its worker) while this
+      // one converts: one after the other, each waited for the other. One fragment more held.
+      // A read that fails meanwhile is the next round's error, not an unhandled rejection.
+      let next = zippedFragments.length ? this.readFragment(zippedFragments[0]) : null;
       for (let i = 0; i < zippedFragments.length; i++) {
         if (this.cancelled) {
           throw new Error('Cancelled');
         }
+        const data = await next;
+        next = i + 1 < zippedFragments.length ? this.readFragment(zippedFragments[i + 1]) : null;
+        next?.catch(() => {});
         if (zippedFragments[i].track === 0) {
-          await this.pushFragment(zippedFragments[i]);
+          await this.pushFragment(zippedFragments[i], data);
         } else {
-          await this.pushFragmentAudio(zippedFragments[i]);
+          await this.pushFragmentAudio(zippedFragments[i], data);
         }
         const newProgress = Math.floor((i + 1) / zippedFragments.length * 100);
         if (newProgress !== lastProgress) {

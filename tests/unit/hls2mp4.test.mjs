@@ -552,3 +552,52 @@ describe('HLS2MP4: sample entries', () => {
     expect(find(readBoxes(entry, 86), 'avcC')).toBeDefined();
   });
 });
+
+// As MP4Merger: the next fragment is read while this one converts, and a failed read still
+// fails the save, in its turn, with nothing left unhandled.
+describe('HLS2MP4: reading the next fragment while one converts', () => {
+  function recorded(count, failing = -1) {
+    const converter = new HLS2MP4();
+    const events = [];
+    converter.setup = () => {};
+    converter.finalize = async () => 'file';
+    converter.readFragment = async (fragData) => {
+      events.push(`read ${fragData.n}`);
+      await Promise.resolve();
+      if (fragData.n === failing) throw new Error(`read ${fragData.n} failed`);
+      return fragData.n;
+    };
+    const push = async (fragData, data) => {
+      events.push(`convert ${data}`);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      events.push(`converted ${data}`);
+    };
+    converter.pushFragment = push;
+    converter.pushFragmentAudio = push;
+    const zipped = Array.from({length: count}, (_, n) => ({n, track: n % 2}));
+    return {converter, events, zipped};
+  }
+
+  it('starts the next fragment\'s read before the conversion of this one ends, in order', async () => {
+    const {converter, events, zipped} = recorded(3);
+    expect(await converter.convert(null, null, null, null, zipped)).toBe('file');
+    expect(events.indexOf('read 1')).toBeLessThan(events.indexOf('converted 0'));
+    expect(events.indexOf('read 2')).toBeLessThan(events.indexOf('converted 1'));
+    expect(events.filter((e) => e.startsWith('convert '))).toEqual(['convert 0', 'convert 1', 'convert 2']);
+  });
+
+  it('fails the save with a read that failed while the fragment before converted', async () => {
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      const {converter, events, zipped} = recorded(3, 1);
+      await expect(converter.convert(null, null, null, null, zipped)).rejects.toThrow('read 1 failed');
+      expect(events).toContain('converted 0');
+      expect(events).not.toContain('convert 1');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
+});
