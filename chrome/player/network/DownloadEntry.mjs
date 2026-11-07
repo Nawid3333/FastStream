@@ -39,7 +39,8 @@ const DATA_GONE = new Error('The stored download is gone');
  * FetchLoader's progress with the request, the entry of a failed or an aborted one.
  * @typedef {{onSuccess: (entry: DownloadEntry, xhr?: null) => void,
  *   onProgress?: (stats: LoaderStats, request: DownloadRequest, data: ArrayBuffer|string, xhr: null) => void,
- *   onFail?: (entry: DownloadEntry) => void, onAbort?: (entry: DownloadEntry) => void}} DownloadCallbacks
+ *   onFail?: (entry: DownloadEntry) => void, onAbort?: (entry: DownloadEntry) => void,
+ *   onChunk?: (chunk: Uint8Array, offset: number, answer: import('./FetchLoader.mjs').PartialAnswer) => void}} DownloadCallbacks
  */
 
 /**
@@ -97,11 +98,65 @@ export class DownloadEntry {
     // manager drops the entry then, so it is downloaded again.
     /** @type {((error: *) => void)|null} */
     this.onDataLost = null;
+
+    // The pieces of the answer so far, while it downloads (onChunk), for a watcher that comes in
+    // on the way; let go of once the download is over (cleanup).
+    /** @type {?Array<{chunk: Uint8Array, offset: number, answer: import('./FetchLoader.mjs').PartialAnswer}>} */
+    this.pieces = null;
+    // Watchers that joined on the way and are given the pieces so far (addWatcher).
+    /** @type {?WeakSet<DownloadWatcher>} */
+    this.catchingUp = null;
   }
 
-  /** @param {DownloadWatcher} watcher */
+  /**
+   * A watcher joins the download. One that reads its pieces and comes in on the way is given
+   * those so far a task later (after the caller has its hold on it), in order: a piece that
+   * comes meanwhile goes with them, not before them (a reader of a range needs its start first).
+   * @param {DownloadWatcher} watcher
+   */
   addWatcher(watcher) {
     this.watchers.push(watcher);
+    if (this.pieces?.length && watcher.callbacks.onChunk) {
+      (this.catchingUp ??= new WeakSet()).add(watcher);
+      queueMicrotask(() => {
+        this.catchingUp?.delete(watcher);
+        for (const {chunk, offset, answer} of this.pieces || []) {
+          if (!this.watchers.includes(watcher)) return;
+          this.tellChunk(watcher, chunk, offset, answer);
+        }
+      });
+    }
+  }
+
+  /**
+   * A piece of the answer, as it came (FetchLoader, through the downloader): told to the watchers
+   * that read pieces. Not for a download whose answer is processed before it is stored (an
+   * encrypted segment): its pieces are not what the watchers get.
+   * @param {Uint8Array} chunk
+   * @param {number} offset - Its place in the answer; 0 starts it over (a retry).
+   * @param {import('./FetchLoader.mjs').PartialAnswer} answer
+   */
+  onChunk(chunk, offset, answer) {
+    if (this.postProcessor || this.storeRaw || this.status !== DownloadStatus.DOWNLOAD_INITIATED) return;
+    if (offset === 0 || !this.pieces) this.pieces = [];
+    this.pieces.push({chunk, offset, answer});
+    [...this.watchers].forEach((watcher) => {
+      if (!this.catchingUp?.has(watcher)) this.tellChunk(watcher, chunk, offset, answer);
+    });
+  }
+
+  /**
+   * @param {DownloadWatcher} watcher
+   * @param {Uint8Array} chunk
+   * @param {number} offset
+   * @param {import('./FetchLoader.mjs').PartialAnswer} answer
+   */
+  tellChunk(watcher, chunk, offset, answer) {
+    try {
+      watcher.callbacks.onChunk?.(chunk, offset, answer);
+    } catch (e) {
+      console.error('A download watcher\'s onChunk threw:', e);
+    }
   }
 
   /** @param {DownloadWatcher} watcher */
@@ -143,6 +198,7 @@ export class DownloadEntry {
     this.downloader = null;
     this.transferFile = null;
     this.watchers.length = 0;
+    this.pieces = null;
   }
 
   destroy() {

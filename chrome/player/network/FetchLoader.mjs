@@ -12,7 +12,11 @@ import {RequestUtils} from '../utils/RequestUtils.mjs';
 /** @typedef {{url: string, method?: string, headers?: Object<string, string>, body?: *, responseType?: string, rangeStart: number, rangeEnd: number}} LoaderRequest */
 /** @typedef {{retryDelay: number, timeout: number, maxRetry: number, maxRetryDelay: number, fetchPriority?: 'high'|'low'|'auto'|(() => 'high'|'low'|'auto')}} LoaderConfig */
 /** @typedef {{url: string, status: number, headers: Object<string, string>, data: string|ArrayBuffer}} LoaderResponse */
-/** @typedef {{onError: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onProgress?: (stats: LoaderStats, request: LoaderRequest, data: string|ArrayBuffer, networkDetails: null) => void, onSuccess: (response: LoaderResponse, stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onTimeout: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onSlowDown?: (retryAfter: number|null) => void, onRefused?: (status: number, url: string) => void}} LoaderCallbacks */
+/** @typedef {{onError: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onProgress?: (stats: LoaderStats, request: LoaderRequest, data: string|ArrayBuffer, networkDetails: null) => void, onSuccess: (response: LoaderResponse, stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onTimeout: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onSlowDown?: (retryAfter: number|null) => void, onRefused?: (status: number, url: string) => void, onChunk?: (chunk: Uint8Array, offset: number, answer: PartialAnswer) => void}} LoaderCallbacks */
+/**
+ * What a range's answer said, given with each of its pieces (onChunk): a 206 and its Content-Range.
+ * @typedef {{status: number, contentRange: string, headers: Object<string, string>}} PartialAnswer
+ */
 
 /**
  * How long a Retry-After header asks to wait: a number of seconds or an HTTP date.
@@ -354,6 +358,20 @@ export class FetchLoader {
 
     const reader = response.body.getReader();
     const chunks = [];
+    // Each piece of a range's own answer (a 206 with its Content-Range), at its place in the range,
+    // as it comes: a reader that can use part of it (MP4Player) need not wait for the rest. Not
+    // for a whole file cut to the range (range), nor for text.
+    const contentRange = response.headers.get('content-range');
+    /** @type {?PartialAnswer} */
+    let partial = null;
+    if (isArrayBuffer && !range && response.status === 206 && contentRange && this.callbacks?.some((callbacks) => callbacks.onChunk)) {
+      /** @type {Object<string, string>} */
+      const headers = {};
+      response.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      partial = {status: 206, contentRange, headers};
+    }
     let receivedLength = 0;
     let keptLength = 0;
     const limit = range ? range.rangeEnd : Infinity;
@@ -374,6 +392,17 @@ export class FetchLoader {
         const kept = value.subarray(Math.max(0, from - chunkStart), Math.max(0, limit - chunkStart));
         chunks.push(kept);
         keptLength += kept.byteLength;
+        if (partial && kept.byteLength) {
+          const answer = partial;
+          this.callbacks?.forEach((callbacks) => {
+            // A reader's mistake is not the download's: it goes on, and is delivered whole.
+            try {
+              callbacks.onChunk?.(kept, keptLength - kept.byteLength, answer);
+            } catch (e) {
+              console.error('A reader of a download\'s pieces threw:', e);
+            }
+          });
+        }
       }
       stats.loaded = receivedLength;
 
