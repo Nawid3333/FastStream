@@ -73,6 +73,12 @@ const LINK_RENEWAL_LIMIT = 2;
 const LINK_RENEWAL_WINDOW_MS = 300000;
 // How far into a video the overlay's picture is taken again (takeArtwork), past a black start.
 const ARTWORK_AFTER_S = 5;
+// Saved positions: resumed for a year; past it deleted at most once a day, this long after a
+// player starts (scheduleProgressPrune), the time of the last delete kept in localStorage.
+const PROGRESS_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
+const PROGRESS_PRUNE_EVERY_MS = 24 * 60 * 60 * 1000;
+const PROGRESS_PRUNE_DELAY_MS = 30000;
+const PROGRESS_PRUNED_KEY = 'faststream-progress-pruned';
 // How often the dropped frames are counted (watchDroppedFrames).
 const DROPPED_SAMPLE_MS = 1000;
 // How long a stream may stay stuck in its last seconds before autoplay takes it as ended
@@ -330,7 +336,7 @@ export class FastStreamClient extends EventEmitter {
   async setup() {
     await this.downloadManager.setup();
     if (SecureMemory.isSupported()) {
-      const progressMemory = new SecureMemory('faststream-progress');
+      const progressMemory = new SecureMemory('faststream-progress', {maxAgeMs: PROGRESS_MAX_AGE_MS});
       try {
         await progressMemory.setup();
         this.progressMemory = progressMemory;
@@ -340,7 +346,7 @@ export class FastStreamClient extends EventEmitter {
     }
 
     if (this.progressMemory) {
-      await this.progressMemory.pruneOld(Date.now() - 1000 * 60 * 60 * 24 * 365); // 1 year
+      this.scheduleProgressPrune();
     }
 
     try {
@@ -464,10 +470,37 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
+   * Deletes the saved positions past their year, at most once a day and a while after the
+   * player started. Every player's setup waited for it before the player showed: a pass over
+   * every position saved in the year (Codex's review, 2026-11-07). Until it runs, an old
+   * position reads as none (SecureMemory's maxAgeMs), so nothing older is resumed meanwhile.
+   */
+  scheduleProgressPrune() {
+    let last = 0;
+    try {
+      last = Number(localStorage.getItem(PROGRESS_PRUNED_KEY)) || 0;
+    } catch (e) {
+      // No localStorage (a private window may refuse it): prune, as before.
+    }
+    if (Date.now() - last < PROGRESS_PRUNE_EVERY_MS) return;
+    this.progressPruneTimer = setTimeout(() => {
+      const memory = this.progressMemory;
+      if (!memory || this.destroyed) return;
+      try {
+        localStorage.setItem(PROGRESS_PRUNED_KEY, String(Date.now()));
+      } catch (e) {
+        // Pruned again by the next player, then.
+      }
+      memory.pruneOld(Date.now() - PROGRESS_MAX_AGE_MS);
+    }, PROGRESS_PRUNE_DELAY_MS);
+  }
+
+  /**
    * Destroys the client and cleans up resources.
    */
   destroy() {
     this.destroyed = true;
+    clearTimeout(this.progressPruneTimer);
     document.removeEventListener('visibilitychange', this.onPeersVisibility);
     this.peers.stop();
     this.resetPlayer();

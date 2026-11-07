@@ -989,6 +989,13 @@ export default class MP4Player extends EventEmitter {
       this.loader = null;
     }
 
+    // Its holds on the fragments it appended go with it, one each, as resetHLS gives them
+    // back. A seek preview or a frame extractor destroyed while the main player played on kept
+    // them, and the memory budget could never let those fragments go (Codex's review).
+    for (const frag of this.currentFragments.splice(0)) {
+      frag.removeReference(ReferenceTypes.MP4PLAYER);
+    }
+
     // Its last use: nothing reads it once the player is destroyed.
     this.mp4box = /** @type {any} */ (null);
     this.metaData = null;
