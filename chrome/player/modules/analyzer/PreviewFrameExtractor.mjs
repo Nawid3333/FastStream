@@ -14,17 +14,18 @@ const AnalyzerStatus = {
   FAILED: 'failed',
 };
 
-const SHOULD_STORE_AS_BLOB = true;
-
 export class PreviewFrameExtractor extends EventEmitter {
   /** @param {import('../../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     super();
     this.client = client;
     this.outputRateInv = 2;
-    // The frames taken, one per outputRateInv seconds: a data URL, or an object URL of its Blob.
-    /** @type {Array<{url: string, blob?: Blob}>} */
+    // The frames taken, one per outputRateInv seconds: an object URL of the PNG.
+    /** @type {Array<{url: string, blob: Blob}>} */
     this.frameBuffer = [];
+    // Frames being encoded (toBlob), not in frameBuffer yet.
+    /** @type {Set<number>} */
+    this.framesPending = new Set();
 
     // Whoever needs the frames, kept by identity.
     /** @type {Array<object>} */
@@ -77,12 +78,11 @@ export class PreviewFrameExtractor extends EventEmitter {
 
   reset() {
     try {
-      if (SHOULD_STORE_AS_BLOB) {
-        this.frameBuffer.forEach((frame) => {
-          URL.revokeObjectURL(frame.url);
-        });
-      }
+      this.frameBuffer.forEach((frame) => {
+        URL.revokeObjectURL(frame.url);
+      });
       this.frameBuffer = [];
+      this.framesPending = new Set();
       this.backgroundAnalyzerSource = null;
       this.backgroundDoneRanges = [];
       this.stopBackgroundAnalyzer();
@@ -321,7 +321,9 @@ export class PreviewFrameExtractor extends EventEmitter {
 
       requestAnimationFrame(onAnimFrame);
 
-      if (player.readyState < 2) {
+      // A seek still pending shows the frame before it: taken now, it was kept as the new
+      // place's, and the next seek was asked for before this one ended (Codex, 2026-11-07).
+      if (player.readyState < 2 || video.seeking) {
         return;
       }
 
@@ -335,21 +337,9 @@ export class PreviewFrameExtractor extends EventEmitter {
 
       const frame = Math.floor(time / this.outputRateInv);
 
-      if (!this.frameBuffer[frame]) {
+      if (!this.frameBuffer[frame] && !this.framesPending.has(frame)) {
         this.extractorContext.drawImage(video, 0, 0, this.extractorCanvas.width, this.extractorCanvas.height);
-        const url = this.extractorCanvas.toDataURL('image/png');
-        if (SHOULD_STORE_AS_BLOB) {
-          // convert to blob
-          const blob = new Blob([/** @type {any} */ (Uint8Array).fromBase64(url.slice(url.indexOf(',') + 1))], {type: 'image/png'});
-          this.frameBuffer[frame] = {
-            blob,
-            url: URL.createObjectURL(blob),
-          };
-        } else {
-          this.frameBuffer[frame] = {
-            url,
-          };
-        }
+        this.storeFrame(frame);
       }
 
       if (!currentRange || time < currentRange.start || time > currentRange.end + 16) {
@@ -431,6 +421,24 @@ export class PreviewFrameExtractor extends EventEmitter {
     requestAnimationFrame(onAnimFrame);
 
     return doneRanges;
+  }
+
+  /**
+   * Keeps the canvas's picture as this frame. toBlob copies the picture at once and encodes
+   * the PNG off the main thread; toDataURL encoded it here, into a base64 string that was
+   * decoded again for the Blob.
+   * @param {number} frame
+   */
+  storeFrame(frame) {
+    const buffer = this.frameBuffer;
+    const pending = this.framesPending;
+    pending.add(frame);
+    this.extractorCanvas.toBlob((blob) => {
+      pending.delete(frame);
+      // Dropped meanwhile (reset): not put into the new video's frames.
+      if (!blob || buffer !== this.frameBuffer || buffer[frame]) return;
+      buffer[frame] = {blob, url: URL.createObjectURL(blob)};
+    }, 'image/png');
   }
 
   shouldRunAnalyzerInBackground() {
