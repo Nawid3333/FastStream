@@ -20,6 +20,7 @@ const CHECKED = [
   'chrome/background/KeyShortcut.mjs',
   'chrome/background/ManifestTypes.mjs',
   'chrome/background/MpvBackend.mjs',
+  'chrome/background/MpvMode.mjs',
   'chrome/background/MpvRelayWatch.mjs',
   'chrome/background/MpvSubtitles.mjs',
   'chrome/background/MpvTarget.mjs',
