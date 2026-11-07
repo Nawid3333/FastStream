@@ -178,6 +178,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The three vendored files that cannot be generated from a release are proven
+      # instead: each check fetches the pinned upstream file, applies the changes
+      # docs/vendored-libraries.md lists, and compares. An edit to one of those files that
+      # is not added to its check fails here - verify:vtt was red for three days
+      # (2026-09-22 to 09-25) when nothing ran it. First after the install: seconds, and the
+      # one step that fetches over the network - a failed fetch is red at once, not after the build.
+      - name: Vendored file provenance (vtt.js)
+        run: pnpm run verify:vtt
+
       - name: ESLint
         run: pnpm run lint
 
@@ -201,14 +210,6 @@ jobs:
 
       - name: addons-linter (firefox-github, the self-install build)
         run: pnpm run lint:github
-
-      # The three vendored files that cannot be generated from a release are proven
-      # instead: each check fetches the pinned upstream file, applies the changes
-      # docs/vendored-libraries.md lists, and compares. An edit to one of those files that
-      # is not added to its check fails here - verify:vtt was red for three days
-      # (2026-09-22 to 09-25) when nothing ran it. Early, because they take seconds.
-      - name: Vendored file provenance (vtt.js)
-        run: pnpm run verify:vtt
 
       # fsaunpack, the .fsa archive helper, has its own npm lockfile and nothing else runs
       # it: this installs that lockfile (install scripts off) and starts its test server,
