@@ -20,6 +20,8 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
       this.blobs = new Map();
       this.next = 0;
       this.closed = false;
+      // An OPFS manager, when a test sets one up (a save written to disk as it goes).
+      this.opfsManager = globalThis.__fakeOpfs?.() ?? null;
     }
     saveBlob(blob) {
       const id = `blob${this.next++}`;
@@ -550,5 +552,133 @@ describe('HLS2MP4: sample entries', () => {
     const {type, entry} = readSampleEntry(find(tracks.vide.trak.children, 'mdia/minf/stbl/stsd'));
     expect(type).toBe('avc1');
     expect(find(readBoxes(entry, 86), 'avcC')).toBeDefined();
+  });
+});
+
+// As MP4Merger: the next fragment is read while this one converts, and a failed read still
+// fails the save, in its turn, with nothing left unhandled.
+describe('HLS2MP4: reading the next fragment while one converts', () => {
+  function recorded(count, failing = -1) {
+    const converter = new HLS2MP4();
+    const events = [];
+    converter.setup = () => {};
+    converter.finalize = async () => 'file';
+    converter.readFragment = async (fragData) => {
+      events.push(`read ${fragData.n}`);
+      await Promise.resolve();
+      if (fragData.n === failing) throw new Error(`read ${fragData.n} failed`);
+      return fragData.n;
+    };
+    const push = async (fragData, data) => {
+      events.push(`convert ${data}`);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      events.push(`converted ${data}`);
+    };
+    converter.pushFragment = push;
+    converter.pushFragmentAudio = push;
+    const zipped = Array.from({length: count}, (_, n) => ({n, track: n % 2}));
+    return {converter, events, zipped};
+  }
+
+  it('starts the next fragment\'s read before the conversion of this one ends, in order', async () => {
+    const {converter, events, zipped} = recorded(3);
+    expect(await converter.convert(null, null, null, null, zipped)).toBe('file');
+    expect(events.indexOf('read 1')).toBeLessThan(events.indexOf('converted 0'));
+    expect(events.indexOf('read 2')).toBeLessThan(events.indexOf('converted 1'));
+    expect(events.filter((e) => e.startsWith('convert '))).toEqual(['convert 0', 'convert 1', 'convert 2']);
+  });
+
+  it('fails the save with a read that failed while the fragment before converted', async () => {
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      const {converter, events, zipped} = recorded(3, 1);
+      await expect(converter.convert(null, null, null, null, zipped)).rejects.toThrow('read 1 failed');
+      expect(events).toContain('converted 0');
+      expect(events).not.toContain('convert 1');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
+});
+
+// A long HLS save kept every converted piece as a Blob until it ended: the whole video in
+// RAM. With OPFS the pieces go into one file on disk as they are made, and the saved file is
+// that file behind the moov - the same bytes.
+describe('HLS2MP4: a save written to disk as it goes', () => {
+  const fragments = () => [0, 1, 2].map((sn) => fragment(0, {sn, cc: 0, start: sn}, muxSegment({video: {
+    type: StreamTypes.H264,
+    units: videoUnits({start: ticks(1.4 + sn), count: 25, frame: FRAME, picture: h264AccessUnit}),
+  }})));
+  const level = {details: {totalduration: 10}, audioCodec: 'mp4a.40.2', videoCodec: 'avc1.42c014'};
+  /**
+   * An OPFS manager in memory.
+   * @param {{failBegin?: boolean}} [options] - failBegin: saveBegin rejects (a private window).
+   * @return {Object}
+   */
+  const fakeOpfs = ({failBegin = false} = {}) => {
+    const files = new Map();
+    const log = [];
+    return {
+      files,
+      log,
+      saveBegin: async (id) => {
+        if (failBegin) throw new Error('SecurityError: no OPFS here');
+        files.set(id, []);
+        log.push('begin');
+      },
+      saveAppend: async (id, data) => {
+        files.get(id).push(new Uint8Array(data));
+        log.push('append');
+      },
+      saveEnd: async () => {
+        log.push('end');
+      },
+      getSavedFile: async (id) => new Blob(files.get(id)),
+      saveAbort: async (id) => {
+        files.delete(id);
+        log.push('abort');
+      },
+    };
+  };
+  const bytesOf = async (blob) => new Uint8Array(await blob.arrayBuffer());
+
+  afterEach(() => {
+    delete globalThis.__fakeOpfs;
+  });
+
+  it('writes the same file as a save kept in memory, and keeps no piece in memory', async () => {
+    const inMemory = await bytesOf(await new HLS2MP4().convert(level, null, undefined, null, fragments()));
+    let opfs;
+    globalThis.__fakeOpfs = () => (opfs = fakeOpfs());
+    const onDisk = await bytesOf(await new HLS2MP4().convert(level, null, undefined, null, fragments()));
+    expect(onDisk).toEqual(inMemory);
+    expect(stores.at(-1).blobs.size).toBe(0);
+    expect(opfs.log[0]).toBe('begin');
+    expect(opfs.log.at(-1)).toBe('end');
+    expect(opfs.log.filter((step) => step === 'append').length).toBeGreaterThan(0);
+  });
+
+  it('keeps the pieces in memory where the disk save cannot begin (a private window)', async () => {
+    const inMemory = await bytesOf(await new HLS2MP4().convert(level, null, undefined, null, fragments()));
+    globalThis.__fakeOpfs = () => fakeOpfs({failBegin: true});
+    const fallback = await bytesOf(await new HLS2MP4().convert(level, null, undefined, null, fragments()));
+    expect(fallback).toEqual(inMemory);
+    expect(stores.at(-1).blobs.size).toBeGreaterThan(0);
+  });
+
+  it('drops the file on disk when a fragment fails', async () => {
+    let opfs;
+    globalThis.__fakeOpfs = () => (opfs = fakeOpfs());
+    const failed = {track: 0, fragment: {sn: 3, cc: 0, start: 3}, getEntry: async () => {
+      throw new Error('Bad status code: 404');
+    }};
+    await expect(new HLS2MP4().convert(level, null, undefined, null, [...fragments(), failed]))
+        .rejects.toThrow('Bad status code: 404');
+    expect(opfs.log.at(-1)).toBe('abort');
+    expect(opfs.files.size).toBe(0);
+    expect(stores.at(-1).closed).toBe(true);
   });
 });

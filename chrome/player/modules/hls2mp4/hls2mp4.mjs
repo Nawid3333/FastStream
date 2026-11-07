@@ -105,7 +105,8 @@ export function samplesFromMoof(moof) {
  * A track the file is written from (makeTrack): the track hls.js's demuxer describes (TSDemuxer,
  * an internal its types do not describe, so its fields - timescale, pps, sps and the rest
  * MP4Generator reads - stay unchecked), with what this file adds.
- * @typedef {Object<string, *> & {samples: Array<*>, chunks: Array<TrackChunk>, use64Offsets: boolean,
+ * @typedef {Object<string, *> & {id: number, type: string, timescale: number, duration: number,
+ *   samples: Array<*>, chunks: Array<TrackChunk>, use64Offsets: boolean,
  *   nextChunkId: number, elst: Array<{media_time: number, segment_duration: number}>}} Mp4Track
  */
 
@@ -117,6 +118,10 @@ export function samplesFromMoof(moof) {
  */
 
 
+// The pieces of a save on their way to its file at once: the worker writes them one after
+// the other while the next ones are converted.
+const SAVE_APPENDS_AHEAD = 8;
+
 export class HLS2MP4 extends EventEmitter {
   /**
    * @param {(cancel: () => void) => void} [registerCancel] - Hands over what cancels the save.
@@ -124,6 +129,25 @@ export class HLS2MP4 extends EventEmitter {
   constructor(registerCancel) {
     super();
     this.blobManager = new FSBlob();
+    // The converted pieces go into one file on disk as they are made (OPFS), and the saved
+    // file is that one behind the moov. Kept as Blobs until the end, a long save had the
+    // whole video in RAM: 454 MB held at the end of a 458 MB save, 30 minutes of a 2 Mbit/s
+    // stream (measured 2026-11-07, docs/notes/player.md). Blobs still where
+    // there is no OPFS (a private window, the web build without it): decided at the first
+    // piece (toDisk), as MP4Merger decides at its end.
+    /** @type {?import('../../network/OPFSManager.mjs').OPFSManager} */
+    this.opfs = this.blobManager.opfsManager || null;
+    this.saveIdentifier = this.opfs ? 'hls-' + Date.now() + '-' + Math.floor(Math.random() * 1000000) : null;
+    /** @type {?Promise<void>} */
+    this.saveReady = null;
+    if (this.opfs) {
+      this.saveReady = this.opfs.saveBegin(/** @type {string} */ (this.saveIdentifier));
+      // Awaited by toDisk; this only keeps a save cancelled before its first piece quiet.
+      this.saveReady.catch(() => {});
+    }
+    // Pieces on their way to the file, at most SAVE_APPENDS_AHEAD.
+    /** @type {Promise<void>[]} */
+    this.appends = [];
     if (registerCancel) {
       registerCancel(() => {
         this.cancel();
@@ -170,10 +194,21 @@ export class HLS2MP4 extends EventEmitter {
     return !!previous && fragment.getFrag().cc === previous.getFrag().cc && fragment.sn > previous.sn + 1;
   }
 
-  /** @param {ZippedFragment} fragData - A fragment of the level. */
-  async pushFragment(fragData) {
+  /**
+   * A fragment's data, from the store.
+   * @param {ZippedFragment} fragData
+   * @return {Promise<*>}
+   */
+  async readFragment(fragData) {
     const entry = await fragData.getEntry();
-    const data = await entry.getDataFromBlob();
+    return entry.getDataFromBlob();
+  }
+
+  /**
+   * @param {ZippedFragment} fragData - A fragment of the level.
+   * @param {*} data - Its data (readFragment).
+   */
+  async pushFragment(fragData, data) {
     const fragment = fragData.fragment;
     // The wrapper has no cc; the discontinuity counter is on hls.js's own fragment (getFrag()).
     const isDiscontinuity = !this.prevFrag || fragment.sn !== this.prevFrag.fragment.sn + 1 || fragment.getFrag().cc !== this.prevFrag.fragment.getFrag().cc;
@@ -207,7 +242,7 @@ export class HLS2MP4 extends EventEmitter {
         }
       });
 
-      this.pushChunk(this.videoTrack, result.video, result.initPTS, afterHole);
+      await this.pushChunk(this.videoTrack, result.video, result.initPTS, afterHole);
     }
 
     // With an audio rendition selected, hls.js plays that and drops whatever audio the
@@ -217,14 +252,15 @@ export class HLS2MP4 extends EventEmitter {
       if (!this.audioTrack) {
         this.audioTrack = this.makeTrack(result.audioTrack);
       }
-      this.pushChunk(this.audioTrack, result.audio, result.initPTS, afterHole);
+      await this.pushChunk(this.audioTrack, result.audio, result.initPTS, afterHole);
     }
   }
 
-  /** @param {ZippedFragment} fragData - A fragment of the audio rendition. */
-  async pushFragmentAudio(fragData) {
-    const entry = await fragData.getEntry();
-    const data = await entry.getDataFromBlob();
+  /**
+   * @param {ZippedFragment} fragData - A fragment of the audio rendition.
+   * @param {*} data - Its data (readFragment).
+   */
+  async pushFragmentAudio(fragData, data) {
     const fragment = fragData.fragment;
     // The wrapper has no cc; the discontinuity counter is on hls.js's own fragment (getFrag()).
     const isDiscontinuity = !this.prevFragAudio || fragment.sn !== this.prevFragAudio.fragment.sn + 1 || fragment.getFrag().cc !== this.prevFragAudio.fragment.getFrag().cc;
@@ -239,12 +275,13 @@ export class HLS2MP4 extends EventEmitter {
       if (!this.audioTrack) {
         this.audioTrack = this.makeTrack(result.audioTrack);
       }
-      this.pushChunk(this.audioTrack, result.audio, result.initPTS, afterHole);
+      await this.pushChunk(this.audioTrack, result.audio, result.initPTS, afterHole);
     }
   }
 
   /**
-   * @param {Object<string, *>} demuxedTrack the track hls.js's demuxer describes
+   * @param {Object<string, *> & {id: number, type: string, timescale: number, duration: number}} demuxedTrack
+   *   the track hls.js's demuxer describes (MP4Remuxer sets its timescale and duration)
    * @return {Mp4Track} the track the file is written from
    */
   makeTrack(demuxedTrack) {
@@ -268,7 +305,7 @@ export class HLS2MP4 extends EventEmitter {
    *     the one both renditions share, so the tracks start as far apart as they played.
    * @param {boolean} [afterHole] whether fragments are missing before this one (isAfterHole)
    */
-  pushChunk(track, remuxed, initPTS, afterHole = false) {
+  async pushChunk(track, remuxed, initPTS, afterHole = false) {
     const headerLen = 8;
     if (afterHole && track.chunks.length) {
       this.padHole(track, remuxed.startDTS + initPTS);
@@ -283,11 +320,39 @@ export class HLS2MP4 extends EventEmitter {
       startPTS: remuxed.startPTS + initPTS,
       endPTS: remuxed.endPTS + initPTS,
     });
-    const blob = new Blob([remuxed.data2], {
-      type: 'video/mp4',
-    });
-    /** @type {Array<*>} */ (this.datas).push(this.blobManager.saveBlob(blob));
-    this.datasOffset += remuxed.data2.byteLength;
+    const data = remuxed.data2;
+    this.datasOffset += data.byteLength;
+    if (await this.toDisk()) {
+      // Handed to the worker (transferred): a view of a larger buffer is copied first.
+      const own = data.byteOffset === 0 && data.byteLength === data.buffer.byteLength ? data : data.slice();
+      const append = /** @type {import('../../network/OPFSManager.mjs').OPFSManager} */ (this.opfs)
+          .saveAppend(/** @type {string} */ (this.saveIdentifier), own);
+      // Awaited below or in finalize; this keeps a failure after a cancel quiet.
+      append.catch(() => {});
+      this.appends.push(append);
+      if (this.appends.length >= SAVE_APPENDS_AHEAD) {
+        await this.appends.shift();
+      }
+      return;
+    }
+    /** @type {Array<*>} */ (this.datas).push(this.blobManager.saveBlob(new Blob([data], {type: 'video/mp4'})));
+  }
+
+  /**
+   * Whether the pieces go into the file on disk: OPFS's save began. Asked before the first
+   * piece is kept, so a save that could not begin keeps them all as Blobs.
+   * @return {Promise<boolean>}
+   */
+  async toDisk() {
+    if (!this.opfs) return false;
+    try {
+      await this.saveReady;
+      return true;
+    } catch (e) {
+      console.warn('The save could not write to disk; it keeps its pieces in memory', e);
+      this.opfs = null;
+      return false;
+    }
   }
 
   /**
@@ -461,6 +526,15 @@ export class HLS2MP4 extends EventEmitter {
       initSeg = MP4.initSegment(tracks);
     }
 
+    if (this.opfs) {
+      const opfs = this.opfs;
+      const identifier = /** @type {string} */ (this.saveIdentifier);
+      await Promise.all(this.appends.splice(0));
+      await opfs.saveEnd(identifier);
+      // On disk; the moov in front of it. It stays until release(), with the blob store.
+      return new Blob([initSeg, await opfs.getSavedFile(identifier)], {type: 'video/mp4'});
+    }
+
     const dataChunks = await Promise.all(/** @type {Array<*>} */ (this.datas).map((data) => {
       return this.blobManager.getBlob(data);
     }));
@@ -487,14 +561,21 @@ export class HLS2MP4 extends EventEmitter {
       this.audioRendition = zippedFragments.some((fragment) => fragment.track !== 0);
 
       let lastProgress = 0;
+      // The next fragment is read from the store (RAM, or OPFS through its worker) while this
+      // one converts: one after the other, each waited for the other. One fragment more held.
+      // A read that fails meanwhile is the next round's error, not an unhandled rejection.
+      let next = zippedFragments.length ? this.readFragment(zippedFragments[0]) : null;
       for (let i = 0; i < zippedFragments.length; i++) {
         if (this.cancelled) {
           throw new Error('Cancelled');
         }
+        const data = await next;
+        next = i + 1 < zippedFragments.length ? this.readFragment(zippedFragments[i + 1]) : null;
+        next?.catch(() => {});
         if (zippedFragments[i].track === 0) {
-          await this.pushFragment(zippedFragments[i]);
+          await this.pushFragment(zippedFragments[i], data);
         } else {
-          await this.pushFragmentAudio(zippedFragments[i]);
+          await this.pushFragmentAudio(zippedFragments[i], data);
         }
         const newProgress = Math.floor((i + 1) / zippedFragments.length * 100);
         if (newProgress !== lastProgress) {
@@ -512,6 +593,9 @@ export class HLS2MP4 extends EventEmitter {
       // was kept, so the blob store goes now, as MP4Merger's does. Only a cancel closed
       // it; after a failure its worker and the fragments on disk stayed until the tab
       // closed.
+      if (this.opfs) {
+        await this.opfs.saveAbort(/** @type {string} */ (this.saveIdentifier)).catch(() => {});
+      }
       this.destroy(/* immediate */ true);
       throw e;
     }

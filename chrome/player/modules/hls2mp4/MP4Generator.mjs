@@ -1,6 +1,66 @@
-/* eslint-disable */
+// @ts-check
+// The save's MP4 writer: a whole MP4 file (sample tables, edit lists, no fragments). It began as
+// hls.js's mp4-generator; what was still hls.js's own comes from hls.js now, and the rest is
+// checked against it (tests/unit/mp4WriterUpstream.test.mjs, docs/vendored-libraries.md).
+
+/**
+ * A sample of a track, as the saves give it (hls2mp4's samplesFromMoof, MP4Merger).
+ * @typedef {{duration: number, size: number, cts: number, flags: Mp4SampleFlags}} Mp4Sample
+ */
+/**
+ * @typedef {{isLeading?: number, isDependedOn: number, hasRedundancy: number, degradPrio?: number,
+ *   paddingValue?: number, dependsOn: number, isNonSync: number}} Mp4SampleFlags
+ */
+/**
+ * A run of a track's samples stored one after the other in the file (stsc, stco).
+ * @typedef {{id: number, samples: Array<Mp4Sample>, offset: number}} Mp4Chunk
+ */
+/**
+ * A track to write (hls2mp4's makeTrack, MP4Merger's makeVideoTrack and makeAudioTrack).
+ * @typedef {Object} Mp4Track
+ * @property {number} id
+ * @property {string} type - 'video' or 'audio'.
+ * @property {number} timescale
+ * @property {number} [movieTimescale] - The movie's (its first track's): tkhd and the edits count in
+ *   it. Set before the file is written (hls2mp4, MP4Merger.finalize).
+ * @property {number} duration - In seconds.
+ * @property {number} [width]
+ * @property {number} [height]
+ * @property {Array<Mp4Sample>} samples
+ * @property {Array<Mp4Chunk>} chunks
+ * @property {Array<{media_time: number, segment_duration: number}>} elst
+ * @property {boolean} [use64Offsets] - co64 instead of stco: a file past 4 GB.
+ * @property {ArrayBuffer|Uint8Array} [codecBuffer] - Its sample entry, written already: a DASH
+ *   or fMP4 track's from its own init segment, an HLS video track's by hls.js (hls2mp4).
+ * @property {?string} [segmentCodec]
+ * @property {string} [codec]
+ * @property {Array<number>|Uint8Array} [config] - AAC's AudioSpecificConfig bytes, or AC-3's dac3.
+ * @property {Array<number>|Uint8Array} [esds] - An esds box's payload after its version and flags.
+ * @property {number} [channelCount]
+ * @property {number} [samplerate]
+ * @property {*} [params]
+ */
+
 const UINT32_MAX = Math.pow(2, 32) - 1;
 export class MP4 {
+  /**
+   * Each box type's four character codes, set by init() on the first file.
+   * @type {Object<string, Array<number>>}
+   */
+  static types;
+  /** @type {Object<string, Uint8Array>} */
+  static HDLR_TYPES;
+  /** @type {Uint8Array} */
+  static VMHD;
+  /** @type {Uint8Array} */
+  static SMHD;
+  /** @type {Uint8Array} */
+  static STSD;
+  /** @type {Uint8Array} */
+  static FTYP;
+  /** @type {Uint8Array} */
+  static DINF;
+
   static init() {
     MP4.types = {
       'avc1': [],
@@ -140,6 +200,11 @@ export class MP4 {
     MP4.FTYP = MP4.box(MP4.types.ftyp, majorBrand, minorVersion, majorBrand, avc1Brand);
     MP4.DINF = MP4.box(MP4.types.dinf, MP4.box(MP4.types.dref, dref));
   }
+  /**
+   * @param {ArrayLike<number>} type - The box type's four character codes (MP4.types).
+   * @param {...ArrayLike<number> & {byteLength: number}} payload
+   * @return {Uint8Array<ArrayBuffer>}
+   */
   static box(type, ...payload) {
     let size = 8;
     let i = payload.length;
@@ -162,9 +227,18 @@ export class MP4 {
     }
     return result;
   }
+  /**
+   * @param {string} type - 'video' or 'audio'.
+   * @return {Uint8Array}
+   */
   static hdlr(type) {
     return MP4.box(MP4.types.hdlr, MP4.HDLR_TYPES[type]);
   }
+  /**
+   * @param {number} timescale
+   * @param {number} duration - In seconds.
+   * @return {Uint8Array}
+   */
   static mdhd(timescale, duration) {
     duration *= timescale;
     const upperWordDuration = Math.floor(duration / (UINT32_MAX + 1));
@@ -183,10 +257,18 @@ export class MP4 {
       // 'und' language (undetermined)
       0x00, 0x00]));
   }
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static mdia(track) {
     return MP4.box(MP4.types.mdia, MP4.mdhd(track.timescale, track.duration), MP4.hdlr(track.type), MP4.minf(track));
   }
 
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static minf(track) {
     if (track.type === 'audio') {
       return MP4.box(MP4.types.minf, MP4.box(MP4.types.smhd, MP4.SMHD), MP4.DINF, MP4.stbl(track));
@@ -196,16 +278,23 @@ export class MP4 {
   }
 
   /**
-     * @param tracks... (optional) {array} the tracks associated with this movie
-     */
+   * @param {Array<Mp4Track>} tracks - The movie's tracks.
+   * @return {Uint8Array}
+   */
   static moov(tracks) {
     let i = tracks.length;
+    /** @type {Array<Uint8Array>} */
     const boxes = [];
     while (i--) {
       boxes[i] = MP4.trak(tracks[i]);
     }
-    return MP4.box.apply(null, [MP4.types.moov, MP4.mvhd(tracks[0].timescale, tracks[0].duration)].concat(boxes));
+    return MP4.box(MP4.types.moov, MP4.mvhd(tracks[0].timescale, tracks[0].duration), ...boxes);
   }
+  /**
+   * @param {number} timescale
+   * @param {number} duration - In seconds.
+   * @return {Uint8Array}
+   */
   static mvhd(timescale, duration) {
     duration *= timescale;
     const upperWordDuration = Math.floor(duration / (UINT32_MAX + 1));
@@ -240,8 +329,14 @@ export class MP4 {
     return MP4.box(MP4.types.mvhd, bytes);
   }
 
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static stts(track) {
+    /** @type {Array<number>} */
     const sample_counts = [];
+    /** @type {Array<number>} */
     const sample_deltas = [];
 
     for (let i = 0; i < track.samples.length; i++) {
@@ -273,9 +368,16 @@ export class MP4 {
     return MP4.box(MP4.types.stts, new Uint8Array(table));
   }
 
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static stsc(track) {
+    /** @type {Array<number>} */
     const first_chunks = [];
+    /** @type {Array<number>} */
     const samples_per_chunk = [];
+    /** @type {Array<number>} */
     const sample_description_index = [];
 
     for (let i = 0; i < track.chunks.length; i++) {
@@ -307,6 +409,10 @@ export class MP4 {
     return MP4.box(MP4.types.stsc, new Uint8Array(table));
   }
 
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static stsz(track) {
     const len = track.samples.length;
     const table = new ArrayBuffer(len * 4 + 4 + 4 + 4);
@@ -324,6 +430,10 @@ export class MP4 {
   }
 
 
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static stco(track) {
     const len = track.chunks.length;
     const table = new ArrayBuffer(len * 4 + 4 + 4);
@@ -343,6 +453,10 @@ export class MP4 {
     return MP4.box(MP4.types.stco, new Uint8Array(table));
   }
 
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static co64(track) {
     const len = track.chunks.length;
     const table = new ArrayBuffer(len * 8 + 4 + 4);
@@ -358,7 +472,12 @@ export class MP4 {
     return MP4.box(MP4.types.co64, new Uint8Array(table));
   }
 
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static stss(track) {
+    /** @type {Array<number>} */
     const keySamples = [];
     for (let i = 0; i < track.samples.length; i++) {
       if (track.samples[i].flags && !track.samples[i].flags.isNonSync) {
@@ -380,8 +499,14 @@ export class MP4 {
     return MP4.box(MP4.types.stss, new Uint8Array(table));
   }
 
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static ctts(track) {
+    /** @type {Array<number>} */
     const sample_counts = [];
+    /** @type {Array<number>} */
     const composition_offsets = [];
 
     for (let i = 0; i < track.samples.length; i++) {
@@ -422,6 +547,10 @@ export class MP4 {
   }
 
 
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static stbl(track) {
     const co = track.use64Offsets ? MP4.co64(track) : MP4.stco(track);
      
@@ -445,6 +574,10 @@ export class MP4 {
     }
   };
 
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static sdtp(track) {
     const samples = track.samples || [];
     const bytes = new Uint8Array(4 + samples.length);
@@ -462,6 +595,10 @@ export class MP4 {
   // FastStream: hls.js 1.7.3's MP4.hvc1 (src/remux/mp4-generator.ts), as it writes the
   // sample entry for the HEVC it demuxes from a transport stream. track.params is what its
   // HEVC parser read from the VPS and SPS.
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static esds(track) {
     if (track.esds) {
       return new Uint8Array([
@@ -472,7 +609,8 @@ export class MP4 {
         ...track.esds,
       ]);
     }
-    const configlen = track.config.length;
+    const config = /** @type {Array<number>} */ (track.config);
+    const configlen = config.length;
     return new Uint8Array([
       0x00,
       // version 0
@@ -504,11 +642,15 @@ export class MP4 {
       // avgBitrate
 
       0x05, // descriptor_type
-    ].concat([configlen]).concat(track.config).concat([0x06, 0x01, 0x02])); // GASpecificConfig)); // length + audio config descriptor
+    ].concat([configlen]).concat(config).concat([0x06, 0x01, 0x02])); // GASpecificConfig)); // length + audio config descriptor
   }
 
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static mp4a(track) {
-    const samplerate = track.samplerate;
+    const samplerate = /** @type {number} */ (track.samplerate);
     return MP4.box(MP4.types.mp4a, new Uint8Array([0x00, 0x00, 0x00,
       // reserved
       0x00, 0x00, 0x00,
@@ -517,7 +659,7 @@ export class MP4 {
       // data_reference_index
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
       // reserved
-      0x00, track.channelCount,
+      0x00, /** @type {number} */ (track.channelCount),
       // channelcount
       0x00, 0x10,
       // sampleSize:16bits
@@ -527,8 +669,12 @@ export class MP4 {
       //
       0x00, 0x00]), MP4.box(MP4.types.esds, MP4.esds(track)));
   }
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static mp3(track) {
-    const samplerate = track.samplerate;
+    const samplerate = /** @type {number} */ (track.samplerate);
     return MP4.box(MP4.types['.mp3'], new Uint8Array([0x00, 0x00, 0x00,
       // reserved
       0x00, 0x00, 0x00,
@@ -537,7 +683,7 @@ export class MP4 {
       // data_reference_index
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
       // reserved
-      0x00, track.channelCount,
+      0x00, /** @type {number} */ (track.channelCount),
       // channelcount
       0x00, 0x10,
       // sampleSize:16bits
@@ -551,6 +697,10 @@ export class MP4 {
   // it writes the sample entry for the AC-3 it demuxes from a transport stream. track.config
   // is the dac3 payload hls.js's AC-3 parser (src/demux/audio/ac3-demuxer.ts, appendFrame)
   // built from the first frame header: fscod, bsid, bsmod, acmod, lfeon, bit_rate_code.
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static ac3(track) {
     const samplerate = track.samplerate || 0;
     return MP4.box(MP4.types['ac-3'], new Uint8Array([0x00, 0x00, 0x00,
@@ -569,8 +719,12 @@ export class MP4 {
       // reserved2
       samplerate >> 8 & 0xff, samplerate & 0xff,
       //
-      0x00, 0x00]), MP4.box(MP4.types.dac3, track.config));
+      0x00, 0x00]), MP4.box(MP4.types.dac3, /** @type {Uint8Array} */ (track.config)));
   }
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static stsd(track) {
     if (track.codecBuffer) {
       return MP4.box(MP4.types.stsd, MP4.STSD, new Uint8Array(track.codecBuffer));
@@ -589,11 +743,15 @@ export class MP4 {
     // segment (mp4merger), an HLS transport stream's written by hls.js's MP4 writer (hls2mp4).
     throw new Error(`A ${track.type} track without its sample entry (codecBuffer)`);
   }
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static tkhd(track) {
     const id = track.id;
-    const duration = track.duration * track.movieTimescale;
-    const width = track.width;
-    const height = track.height;
+    const duration = track.duration * /** @type {number} */ (track.movieTimescale);
+    const width = /** @type {number} */ (track.width);
+    const height = /** @type {number} */ (track.height);
     const upperWordDuration = Math.floor(duration / (UINT32_MAX + 1));
     const lowerWordDuration = Math.floor(duration % (UINT32_MAX + 1));
     return MP4.box(MP4.types.tkhd, new Uint8Array([0x01,
@@ -628,6 +786,11 @@ export class MP4 {
 
 
 
+  /**
+   * @param {Array<number>} segment_durations - In the movie's timescale.
+   * @param {Array<number>} media_times - In the track's timescale; -1 for an empty edit.
+   * @return {Uint8Array}
+   */
   static elst(segment_durations, media_times) {
     // FastStream: version 1 counts in 64 bits. The movie timescale is the first track's,
     // and a DASH video track's can be 10 MHz: 32 bits ran out after 7 minutes, and the
@@ -660,8 +823,14 @@ export class MP4 {
     }
     return MP4.box(MP4.types.elst, new Uint8Array(entries));
   }
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static edts(track) {
+    /** @type {Array<number>} */
     const segment_durations = [];
+    /** @type {Array<number>} */
     const media_times = [];
 
 
@@ -678,11 +847,19 @@ export class MP4 {
      * @param track {object} a track definition
      * @return {Uint8Array} the track box
      */
+  /**
+   * @param {Mp4Track} track
+   * @return {Uint8Array}
+   */
   static trak(track) {
     track.duration = track.duration || 0xffffffff;
     return MP4.box(MP4.types.trak, MP4.tkhd(track), MP4.mdia(track), MP4.edts(track));
   }
 
+  /**
+   * @param {Array<Mp4Track>} tracks
+   * @return {Uint8Array<ArrayBuffer>} ftyp and moov.
+   */
   static initSegment(tracks) {
     if (!MP4.types) {
       MP4.init();

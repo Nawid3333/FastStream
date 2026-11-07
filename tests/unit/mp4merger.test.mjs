@@ -171,3 +171,59 @@ describe('MP4Merger: the blob store of a save', () => {
     expect(stores.at(-1).closed).toBe(true);
   });
 });
+
+// A save read a fragment from the store, converted it, and only then read the next: the
+// store's read and the conversion each waited for the other. The next one is read while this
+// one converts now; a read that fails still fails the save, in its turn, and nothing is left
+// unhandled.
+describe('MP4Merger: reading the next fragment while one converts', () => {
+  /**
+   * A merger whose reads and conversions are recorded, each held until let go.
+   * @param {number} count - Fragments.
+   * @param {number} [failing] - The fragment whose read fails.
+   * @return {Object}
+   */
+  function recorded(count, failing = -1) {
+    const merger = new MP4Merger();
+    const events = [];
+    merger.setup = () => {};
+    merger.videoTrack = {};
+    merger.finalize = async () => 'file';
+    merger.readFragment = async (fragData) => {
+      events.push(`read ${fragData.n}`);
+      await Promise.resolve();
+      if (fragData.n === failing) throw new Error(`read ${fragData.n} failed`);
+      return {data: fragData.n, blob: null};
+    };
+    merger.pushFragment = async (track, fragData, read) => {
+      events.push(`convert ${read.data}`);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      events.push(`converted ${read.data}`);
+    };
+    const zipped = Array.from({length: count}, (_, n) => ({n, track: 0}));
+    return {merger, events, zipped};
+  }
+
+  it('starts the next fragment\'s read before the conversion of this one ends, in order', async () => {
+    const {merger, events, zipped} = recorded(3);
+    expect(await merger.convert(10, null, 0, null, zipped)).toBe('file');
+    expect(events.indexOf('read 1')).toBeLessThan(events.indexOf('converted 0'));
+    expect(events.indexOf('read 2')).toBeLessThan(events.indexOf('converted 1'));
+    expect(events.filter((e) => e.startsWith('convert '))).toEqual(['convert 0', 'convert 1', 'convert 2']);
+  });
+
+  it('fails the save with a read that failed while the fragment before converted', async () => {
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      const {merger, events, zipped} = recorded(3, 1);
+      await expect(merger.convert(10, null, 0, null, zipped)).rejects.toThrow('read 1 failed');
+      expect(events).toContain('converted 0');
+      expect(events).not.toContain('convert 1');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
+});

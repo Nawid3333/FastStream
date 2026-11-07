@@ -42,12 +42,17 @@
   "include": [
     "types/**/*.d.ts",
     "chrome/background/**/*.mjs",
+    "chrome/*.js",
+    "chrome/custom/*.js",
     "chrome/player/utils/**/*.mjs",
     "chrome/player/enums/**/*.mjs",
     "chrome/player/network/**/*.mjs",
     "native-host/**/*.mjs",
     "tests/**/*.mjs",
     "tools/**/*.mjs"
+  ],
+  "files": [
+    "chrome/player/modules/decrypter-worker.js"
   ],
   "exclude": [
     "node_modules",

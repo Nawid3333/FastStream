@@ -58,6 +58,11 @@ export class InterfaceController {
     this.client = client;
     // One function for every frame of the progress loop, not a new one each frame.
     this.boundProgressLoop = this.progressLoop.bind(this);
+    // The loop's round waiting for a video frame, and the element it waits on (scheduleProgressFrame).
+    /** @type {?number} */
+    this.progressFrameHandle = null;
+    /** @type {?HTMLVideoElement} */
+    this.progressFrameVideo = null;
     // The client's state, with the flag this keeps there for a Document Picture-in-Picture window.
     /** @type {import('../FastStreamClient.mjs').FastStreamClient['state'] & {documentPip?: boolean}} */
     this.state = client.state;
@@ -992,12 +997,29 @@ export class InterfaceController {
     // time controls are open. A paused video's time moves only by a seek, and its
     // timeupdate shows that; the loop ran on at 60 a second while it sat paused. play()
     // starts it again.
+    this.progressFrameHandle = null;
     if (!this.shouldRunProgressLoop || (!this.state.playing && !this.fineTimeControls.started)) {
       this.isRunningProgressLoop = false;
       return;
     }
-    window.requestAnimationFrame(this.boundProgressLoop);
+    this.scheduleProgressFrame();
     this.client.updateTime(this.client.currentTime);
+  }
+
+  /**
+   * The progress loop's next round: at the video's next frame while it plays
+   * (requestVideoFrameCallback) - the screen's every frame was up to 144 a second for a video
+   * of 24 to 60 - or at the screen's next frame while the fine time controls are open (their
+   * timeline moves smoothly) and for an element without video frames (an <audio>).
+   */
+  scheduleProgressFrame() {
+    const video = /** @type {HTMLVideoElement|undefined} */ (this.client.player?.getVideo?.());
+    if (this.state.playing && !this.fineTimeControls.started && typeof video?.requestVideoFrameCallback === 'function') {
+      this.progressFrameVideo = video;
+      this.progressFrameHandle = video.requestVideoFrameCallback(this.boundProgressLoop);
+    } else {
+      window.requestAnimationFrame(this.boundProgressLoop);
+    }
   }
 
   durationChanged() {
@@ -1019,6 +1041,13 @@ export class InterfaceController {
     // leave shouldRunProgressLoop false, and let the pending frame stop the
     // loop for good even though it had just been asked to run.
     this.shouldRunProgressLoop = true;
+    // A round waiting for a video frame may never come: the video paused, or the player has
+    // another element now. Asked to run, the loop decides again how it waits.
+    if (this.progressFrameHandle !== null) {
+      this.progressFrameVideo?.cancelVideoFrameCallback(this.progressFrameHandle);
+      this.progressFrameHandle = null;
+      this.isRunningProgressLoop = false;
+    }
     if (!this.isRunningProgressLoop) {
       this.isRunningProgressLoop = true;
       this.progressLoop();

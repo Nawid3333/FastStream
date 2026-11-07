@@ -226,3 +226,116 @@ describe('a removal still to run', () => {
     expect(sourceBuffer.abort).toHaveBeenCalledTimes(1);
   });
 });
+
+// A seek that loads afresh (MP4Player.resetHLS) queued its removal of everything behind the
+// media segments still waiting: Firefox parsed each of them, hundreds behind a fast download,
+// for the removal to take it away again before the new place's first segment (Codex's
+// review, 2026-11-07). They are dropped now; what runs, initialization segments and removals
+// stay.
+describe('a reset with media segments still queued', () => {
+  beforeEach(() => {
+    globalThis.MediaSource = {isTypeSupported: () => true};
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    globalThis.MediaSource = originalMediaSource;
+  });
+
+  it('drops the queued media segments only, and their promises reject', async () => {
+    const {sourceBuffer, wrapper} = makeWrapper();
+    const order = [];
+    sourceBuffer.appendBuffer.mockImplementation((buffer) => order.push(['append', buffer.byteLength]));
+    sourceBuffer.remove.mockImplementation((start, end) => order.push(['remove', start, end]));
+
+    const running = wrapper.appendBuffer(new ArrayBuffer(1), {media: true});
+    const queued = [wrapper.appendBuffer(new ArrayBuffer(2), {media: true}), wrapper.appendBuffer(new ArrayBuffer(3), {media: true})];
+    const init = wrapper.appendBuffer(new ArrayBuffer(4));
+    const removal = wrapper.remove(5, 6);
+    wrapper.dropQueuedMedia();
+
+    for (const p of queued) await expect(p).rejects.toMatchObject({name: 'AbortError'});
+    sourceBuffer.updateEnd();
+    sourceBuffer.updateEnd();
+    sourceBuffer.updateEnd();
+    expect(order).toEqual([['append', 1], ['append', 4], ['remove', 5, 6]]);
+    await Promise.all([running, init, removal]);
+  });
+
+  it('puts the removal of the reset right behind the segment that runs', async () => {
+    const {default: MP4Player} = await import('../../chrome/player/players/mp4/MP4Player.mjs');
+    const {SegmentAppender} = await import('../../chrome/player/players/mp4/SegmentAppender.mjs');
+    const video = makeWrapper();
+    const audio = makeWrapper();
+    const reload = vi.fn();
+    const player = {
+      metaData: {tracks: []},
+      segmentAppender: new SegmentAppender({reload, readLess: vi.fn(), fail: vi.fn(), isCurrent: () => true}),
+      videoSourceBuffer: video.wrapper,
+      audioSourceBuffer: audio.wrapper,
+      mediaSource: {duration: 100},
+      mp4box: {flush: vi.fn(), seek: vi.fn(), stream: {buffers: []}},
+      freeSamples: vi.fn(),
+      loader: null,
+      video: {duration: 100},
+      currentTime: 50,
+      currentFragments: [],
+      rangeRetries: new Map(),
+      fedRanges: new Map(),
+      runLoad: vi.fn(),
+    };
+    player.removeFromBuffers = MP4Player.prototype.removeFromBuffers.bind(player);
+    for (let i = 0; i < 300; i++) {
+      player.segmentAppender.append(video.wrapper, new ArrayBuffer(1));
+      player.segmentAppender.append(audio.wrapper, new ArrayBuffer(1));
+    }
+
+    MP4Player.prototype.resetHLS.call(player, true);
+
+    for (const {wrapper} of [video, audio]) {
+      expect(wrapper.toDo.map((op) => op.type)).toEqual(['remove']);
+    }
+    // The dropped segments are the reset's business: no reload, no error for them.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('keeps what mp4box\'s flush gives during the reset, behind the removal, and counts no refusal', async () => {
+    // glm's review of the change: dropped after the flush, a segment the flush gave was
+    // queued under the reset's own count, and its AbortError counted as a refusal - a reload
+    // more, and three quick seeks failed the video with "could not be buffered".
+    const {default: MP4Player} = await import('../../chrome/player/players/mp4/MP4Player.mjs');
+    const {SegmentAppender} = await import('../../chrome/player/players/mp4/SegmentAppender.mjs');
+    const video = makeWrapper();
+    const reload = vi.fn();
+    const fail = vi.fn();
+    const player = {
+      metaData: {tracks: []},
+      segmentAppender: new SegmentAppender({reload, readLess: vi.fn(), fail, isCurrent: () => true}),
+      videoSourceBuffer: video.wrapper,
+      audioSourceBuffer: null,
+      mediaSource: {duration: 100},
+      mp4box: {
+        flush: () => player.segmentAppender.append(video.wrapper, new ArrayBuffer(7)),
+        seek: vi.fn(),
+        stream: {buffers: []},
+      },
+      freeSamples: vi.fn(),
+      loader: null,
+      video: {duration: 100},
+      currentTime: 50,
+      currentFragments: [],
+      rangeRetries: new Map(),
+      fedRanges: new Map(),
+      runLoad: vi.fn(),
+    };
+    player.removeFromBuffers = MP4Player.prototype.removeFromBuffers.bind(player);
+    player.segmentAppender.append(video.wrapper, new ArrayBuffer(1)); // running
+    player.segmentAppender.append(video.wrapper, new ArrayBuffer(2)); // queued
+
+    for (let i = 0; i < 3; i++) MP4Player.prototype.resetHLS.call(player, true);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect([reload.mock.calls.length, fail.mock.calls.length]).toEqual([0, 0]);
+  });
+});

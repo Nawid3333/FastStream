@@ -123,3 +123,24 @@ than an absent one.
 
 Use `@types/chrome` — the codebase uses `chrome.*` in 136 places and does
 not use webextension-polyfill at all.
+
+### The classic scripts, read at last (2026-11-07)
+
+`content.js`, `overlay-guard.js`, `page-qualities.js`, `episode-links.js`, the four site
+scripts in `chrome/custom/` and `player/modules/decrypter-worker.js` had `// @ts-check` and
+were in typeChecked.test's list, but tsc never read them: an ES module is reached through
+its imports, and nothing imports a classic script, and no `include` named them. `content.js`
+had 213 errors when tsc first read it. They are in `include` now (the worker in `files`:
+`chrome/player/modules` is excluded, and `files` is not), and typeChecked.test fails when a
+listed `.js` file is in neither.
+
+They were annotated without a change to the code: each file parses to the same program as
+before, comments and positions aside (acorn, compared node by node). A cast in parentheses
+leaves the program as it was; a new `const` for a narrowed value does not, so where a value
+needs another type twice, it is cast twice. Named types for what was repeated inline:
+`PlayedVideo`, `ShadowHost` (an element whose shadow root Firefox opens to a content script,
+`openOrClosedShadowRoot`), `PauseWatcher`, `Timer` (`ReturnType<typeof setTimeout>`: with
+Node's types loaded, `setTimeout` returns a `Timeout`, not a number), `Quality`, `Styled`.
+Each script's typedefs sit inside its own scope: at the top level of a classic script they
+would be global to every script in the program. `window.location = url` needs its cast
+(`string & Location`): that is the type TypeScript's DOM types give the setter.

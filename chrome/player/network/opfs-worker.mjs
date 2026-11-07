@@ -139,8 +139,9 @@ function writeAll(accessHandle, data, at) {
 // have to be read back in this browser session, which close() makes them, and a session that
 // crashed is pruned, its video downloaded again. Writing 500 MB as 1.6 MB files, each flushed,
 // made Windows write 800 MB to the disk; left to its lazy writer, 423 MB (measured
-// 2026-10-09). The heartbeat flushed once a second for every open player. A save's file is
-// flushed once, when it is complete (saveEnd).
+// 2026-10-09). The heartbeat flushed once a second for every open player. Nor a save's file
+// (saveEnd): read back as the Blob the user downloads, in this session too. Its flush at the
+// end took about 0.5 s of a 458 MB HLS save (1770 ms against 1259 ms, medians of 6, 2026-11-07).
 
 /** Overwrites this session's heartbeat marker with the current time. */
 async function writeHeartbeat() {
@@ -260,7 +261,7 @@ async function destroy() {
  * Progressive whole-file saves. 'saveBegin' creates/truncates the output
  * file and keeps an open sync access handle for it; 'saveAppend' writes
  * chunks in order (FIFO through the OpQueue preserves stream order);
- * 'saveEnd' flushes and closes, leaving the file readable from the main
+ * 'saveEnd' truncates and closes, leaving the file readable from the main
  * thread via getFile. 'saveAbort' discards everything.
  */
 /**
@@ -295,7 +296,6 @@ async function saveEnd(identifier) {
   }
   try {
     stream.handle.truncate(stream.offset);
-    stream.handle.flush();
   } finally {
     stream.handle.close();
     saveStreams.delete(identifier);
@@ -336,7 +336,8 @@ self.addEventListener('message', async (event) => {
         result = {sessionName};
         break;
       case 'set':
-        await queue.push(() => setFile(identifier, data));
+        // A Blob (OPFSManager.setFile) is read here, in its turn: one in RAM at a time.
+        await queue.push(async () => setFile(identifier, data instanceof Blob ? await data.arrayBuffer() : data));
         break;
       case 'get':
         result = await queue.push(() => getFile(identifier));

@@ -557,24 +557,36 @@ describe('Player controls', function() {
   });
 
   it('redraws a short video\'s time every frame while it plays, and not while it is paused', async function() {
-    // A video under five minutes is redrawn every frame (requestAnimationFrame), so its bar
-    // moves smoothly. The loop ran on at 60 a second while the video sat paused.
+    // A video under five minutes is redrawn at each of its frames (requestVideoFrameCallback),
+    // so its bar moves smoothly. The loop ran on at 60 a second while the video sat paused.
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
-    // How often the player's time is updated in one second: the loop's frames, and the
-    // video's own timeupdate events.
+    // How often the player's time is updated in one second (the loop's rounds and the video's
+    // own timeupdate events), and how many frames the video showed meanwhile: as many as the
+    // machine can, all 30 of this video's on a desktop, fewer on CI's headless Linux, where
+    // updates at the screen's rate (above 20) were asked for and 9-11 came.
     const perSecond = () => browser.execute(() => new Promise((done) => {
       const client = window.fastStream;
+      const video = client.player.getVideo();
       const updateTime = client.updateTime;
       let calls = 0;
+      let frames = 0;
+      let counting = true;
       client.updateTime = function(...args) {
         calls++;
         return updateTime.apply(this, args);
       };
+      const onFrame = () => {
+        if (!counting) return;
+        frames++;
+        video.requestVideoFrameCallback(onFrame);
+      };
+      video.requestVideoFrameCallback(onFrame);
       setTimeout(() => {
+        counting = false;
         delete client.updateTime;
-        done(calls);
+        done({calls, frames});
       }, 1000);
     }));
     const paused = await perSecond();
@@ -588,10 +600,13 @@ describe('Player controls', function() {
     });
     await browser.pause(300);
     const pausedAgain = await perSecond();
-    console.log('      time updates per second:', JSON.stringify({paused, playing, pausedAgain}));
-    expect(paused).toBeLessThan(5);
-    expect(playing).toBeGreaterThan(20);
-    expect(pausedAgain).toBeLessThan(5);
+    console.log('      time updates and frames per second:', JSON.stringify({paused, playing, pausedAgain}));
+    expect(paused.calls).toBeLessThan(5);
+    // Every frame shown (one may land after the count's end), and more than timeupdate's
+    // four a second alone.
+    expect(playing.frames).toBeGreaterThan(5);
+    expect(playing.calls).toBeGreaterThanOrEqual(playing.frames - 1);
+    expect(pausedAgain.calls).toBeLessThan(5);
   });
 
   it('pauses on a click at once, as the Space key does, and a double click plays on', async function() {

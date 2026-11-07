@@ -180,7 +180,6 @@ export default class MP4Player extends EventEmitter {
 
   /** @param {number} id - The track's. */
   freeSamples(id) {
-    // return;
     // samples_stored: patches/mp4box@*.patch.
     const trak = /** @type {TrakBox & {samples_stored: Sample[]}} */ (this.mp4box.getTrackById(id));
 
@@ -207,7 +206,6 @@ export default class MP4Player extends EventEmitter {
     const audioTrack = /** @type {Movie} */ (this.metaData).audioTracks[/** @type {number} */ (this.currentAudioTrack)];
 
     this.mp4box.onSegment = (id, user, buffer, sampleNumber, last) => {
-      // console.log(id, sampleNumber)
       // A file can have no video track (audio only) or no audio track.
       // The samples are released once the segment is queued: one the SourceBuffer refuses
       // is handled by the appender, which loads again from the playhead.
@@ -346,7 +344,6 @@ export default class MP4Player extends EventEmitter {
     this.metaData = info;
     this.estimateTotalSizeFromMetadats();
     const max = Math.ceil(this.fileLength / FRAGMENT_SIZE);
-    // for (let l = 0; l < info.videoTracks.length; l++) {
     const l = this.getCurrentVideoLevelID();
     for (let i = 0; i < max; i++) {
       if (!this.client.getFragment(l, i)) {
@@ -366,7 +363,6 @@ export default class MP4Player extends EventEmitter {
         sortedCount: samples.length,
       });
     }
-    //  }
 
     for (let l = 0; l < info.audioTracks.length; l++) {
       const trak = this.mp4box.moov.traks.find((trak) => {
@@ -989,6 +985,13 @@ export default class MP4Player extends EventEmitter {
       this.loader = null;
     }
 
+    // Its holds on the fragments it appended go with it, one each, as resetHLS gives them
+    // back. A seek preview or a frame extractor destroyed while the main player played on kept
+    // them, and the memory budget could never let those fragments go (Codex's review).
+    for (const frag of this.currentFragments.splice(0)) {
+      frag.removeReference(ReferenceTypes.MP4PLAYER);
+    }
+
     // Its last use: nothing reads it once the player is destroyed.
     this.mp4box = /** @type {any} */ (null);
     this.metaData = null;
@@ -1044,7 +1047,13 @@ export default class MP4Player extends EventEmitter {
   resetHLS(noLoad) {
     if (!this.metaData) return;
     this.segmentAppender.reloaded();
-    // console.log("resetHLS");
+    // The media segments still queued would be appended only for the removal below to take
+    // them away again: dropped instead, so the new place's segments follow the removal at
+    // once. Before the flush: a segment the flush gives is appended under the new count
+    // (reloaded()), and dropped, its AbortError counted as a refusal (glm's review). It goes
+    // in after the removal, as it always did.
+    this.videoSourceBuffer?.dropQueuedMedia();
+    this.audioSourceBuffer?.dropQueuedMedia();
     this.removeFromBuffers(0, this.video.duration);
     this.mp4box.flush();
     this.mp4box.stream.buffers.length = 0;

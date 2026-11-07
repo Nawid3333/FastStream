@@ -125,7 +125,6 @@ export function DASHLoaderFactory(player) {
      * @param {ReturnType<typeof endsOf>} end
      */
     function loadFragmentInternal(httpRequest, end) {
-      // console.log(httpRequest);
       try {
         const requestObj = httpRequest.customData.request;
         const representation = requestObj.representation;

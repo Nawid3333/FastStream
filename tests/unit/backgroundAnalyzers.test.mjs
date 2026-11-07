@@ -198,6 +198,87 @@ describe('PreviewFrameExtractor, a stale background player', () => {
   });
 });
 
+describe('PreviewFrameExtractor, taking the frames', () => {
+  /**
+   * The extractor's loop on a stand-in player whose seeks end when the test says: the video
+   * shows the old place's picture until then, as a real one does.
+   * @return {Object}
+   */
+  function harness() {
+    const frames = [];
+    const encodes = [];
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: () => ({drawImage: (source) => frames.push(source.picture)}),
+      toBlob: (done) => encodes.push(done),
+    };
+    vi.stubGlobal('document', {createElement: () => canvas});
+    vi.stubGlobal('URL', {createObjectURL: (blob) => 'blob:' + blob.picture, revokeObjectURL: () => {}});
+    const loop = [];
+    vi.stubGlobal('requestAnimationFrame', (callback) => loop.push(callback));
+    const video = {videoWidth: 640, videoHeight: 360, seeking: false, picture: 0};
+    let time = 0;
+    const player = {
+      get currentTime() {
+        return time;
+      },
+      set currentTime(value) {
+        time = value;
+        video.seeking = true;
+      },
+      readyState: 4,
+      duration: 600,
+      getVideo: () => video,
+      createContext: () => ({on: vi.fn(), destroy: vi.fn()}),
+      destroy: vi.fn(),
+    };
+    const client = makeClient(player);
+    client.isRegionBuffered = () => false;
+    const extractor = new PreviewFrameExtractor(client);
+    extractor.runAnalyzerInBackground(player, [], () => {});
+    return {
+      extractor,
+      frames,
+      encodes,
+      nextFrame: () => loop.shift()(),
+      seeked: () => {
+        video.seeking = false;
+        video.picture = time;
+      },
+      encode: () => encodes.shift()(Object.assign(new Blob(['png']), {picture: frames[0]})),
+    };
+  }
+
+  it('takes a frame only once its seek has ended, never the picture before it', () => {
+    // Asked for the next place at once, the following animation frame drew the video before
+    // the seek ended: the old place's picture, kept as the new one's (Codex, 2026-11-07).
+    const run = harness();
+    run.seeked();
+    run.nextFrame();
+    expect(run.frames).toEqual([0]);
+    run.nextFrame(); // the seek to 2 s is still on its way
+    expect(run.frames).toEqual([0]);
+    run.seeked();
+    run.nextFrame();
+    expect(run.frames).toEqual([0, 2]);
+  });
+
+  it('keeps a frame once encoded, and none for a video reset meanwhile', () => {
+    const run = harness();
+    run.seeked();
+    run.nextFrame();
+    run.encode();
+    expect(run.extractor.frameBuffer[0].url).toBe('blob:0');
+
+    run.seeked();
+    run.nextFrame();
+    run.extractor.reset();
+    run.encode();
+    expect(run.extractor.frameBuffer).toEqual([]);
+  });
+});
+
 describe('AudioAnalyzer, a background player destroyed before its metadata came', () => {
   // A stop (a new video, the tool closed) or a newer start while the player loaded: its
   // audio context and volume loop were let go only once the analysis ran, which needs the

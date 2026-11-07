@@ -13,9 +13,14 @@ import {IndexedDBManager} from '../network/IndexedDBManager.mjs';
  */
 
 export class SecureMemory {
-  /** @param {string} dbName - The IndexedDB database it keeps its records in. */
-  constructor(dbName) {
+  /**
+   * @param {string} dbName - The IndexedDB database it keeps its records in.
+   * @param {{maxAgeMs?: number}} [options] - maxAgeMs: a record saved longer ago than this
+   *   reads as none (getFile), whether or not pruneOld has deleted it yet.
+   */
+  constructor(dbName, {maxAgeMs = Infinity} = {}) {
     this.indexedDbManager = new IndexedDBManager(dbName);
+    this.maxAgeMs = maxAgeMs;
   }
 
   static isSupported() {
@@ -216,7 +221,12 @@ export class SecureMemory {
     }
 
     // What setFile stored.
-    const {encryptedData} = /** @type {StoredRecord} */ (data);
+    const {encryptedData, time} = /** @type {StoredRecord} */ (data);
+    // Past its age, as if pruneOld had deleted it already: the delete runs later, not while a
+    // player starts.
+    if (Date.now() - time > this.maxAgeMs) {
+      return null;
+    }
     if (encryptedData) {
       try {
         const data = await SecureMemory.decrypt(keyHash, encryptedData);
@@ -234,8 +244,8 @@ export class SecureMemory {
 
   /**
    * Deletes records not saved since the cutoff. Best effort, and it never fails or
-   * hangs: the player's setup waits on it before the player shows. It rejected on a
-   * cursor error, and an aborted transaction left it pending for good.
+   * hangs. It rejected on a cursor error, and an aborted transaction left it pending for
+   * good (the player's setup waited on it then; FastStreamClient.scheduleProgressPrune now).
    * @param {number} cutoff - Records older than this (ms since the epoch) go.
    * @return {Promise<void>}
    */

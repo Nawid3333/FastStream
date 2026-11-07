@@ -85,8 +85,6 @@ export class PlaybackRateChanger extends EventEmitter {
     // Saved by a build with a higher cap, it went to the video as it was.
     this.silenceSkipSpeed = Utils.clamp(state.silenceSkipSpeed, 0.1, this.maxPlaybackRate);
     this.silenceThreshold = Number.isFinite(state.silenceThreshold) ? Utils.clamp(state.silenceThreshold, 0, 1) : 0;
-    // this.audioPaddingStart = state.audioPaddingStart;
-    // this.audioPaddingEnd = state.audioPaddingEnd;
   }
 
   /** @param {MouseEvent} e */

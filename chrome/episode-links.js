@@ -90,15 +90,19 @@ const EpisodeLinks = (() => {
     }
     url.hash = '';
     const step = isNext ? 1 : -1;
+    /** @param {string} digits */
     const bump = (digits) => {
       const n = parseInt(digits, 10) + step;
       if (!Number.isFinite(n) || n < 0) return null;
       return String(n).padStart(digits.startsWith('0') ? digits.length : 0, '0');
     };
+    /** @type {string[]} */
     const out = [];
+    /** @param {string} candidate */
     const add = (candidate) => {
       if (candidate && candidate !== url.href && !out.includes(candidate)) out.push(candidate);
     };
+    /** @param {RegExp} regex */
     const inPath = (regex) => {
       for (const match of url.pathname.matchAll(regex)) {
         const number = bump(match[2]);

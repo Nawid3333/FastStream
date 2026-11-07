@@ -260,7 +260,6 @@ export class SubtitlesManager extends EventEmitter {
       if (!files || !files[0]) return;
       const file = files[0];
       const name = file.name;
-      //  var ext = name.substring(name.length - 4);
 
       // A file that is no subtitles, or one that failed to parse, vanished without a word:
       // the URL and OpenSubtitles paths say so.

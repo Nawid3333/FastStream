@@ -472,14 +472,6 @@ export class LevelManager {
   }
 
   /**
-   * @param {string} codec
-   * @return {boolean}
-   */
-  isCodecSupported(codec) {
-    return true;
-  }
-
-  /**
    * @param {Array<VideoLevel>} availableLevels
    * @param {?number} [desiredHeight]
    * @param {boolean} [ignoreCurrent]
@@ -494,12 +486,6 @@ export class LevelManager {
         return currentLevel;
       }
     }
-
-    // First, filter out incompatible levels
-    availableLevels = availableLevels.filter((level) => {
-      return (!level.videoCodec || this.isCodecSupported(level.videoCodec)) &&
-                (!level.audioCodec || this.isCodecSupported(level.audioCodec));
-    });
 
     // Then the codecs that failed to decode in this video, while another one is left.
     const decodable = availableLevels.filter((level) => !this.isVideoCodecFailed(level.videoCodec));
@@ -555,10 +541,9 @@ export class LevelManager {
       }
     }
 
-    // First, filter out incompatible levels
-    availableLevels = availableLevels.filter((level) => {
-      return (!level.audioCodec || this.isCodecSupported(level.audioCodec));
-    });
+    // A copy: the levels are sorted below, and the caller's list was not to change. (It came
+    // from a filter of codecs said to be supported, which kept every level.)
+    availableLevels = availableLevels.slice();
 
     // Next, pick language
     availableLevels = this.filterAudioLevelsByLanguage(availableLevels);

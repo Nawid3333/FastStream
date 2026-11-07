@@ -1,5 +1,12 @@
 // @ts-check
 (()=>{
+  /**
+   * @param {*} obj - Parsed JSON.
+   * @param {string} key
+   * @param {Array<*>} [list]
+   * @param {Array<string|number>} [stack] - The keys and indexes to obj.
+   * @return {Array<*>|undefined}
+   */
   function findPropertyRecursive(obj, key, list = [], stack = []) {
     if (typeof obj !== 'object' || obj === null) {
       return;
@@ -27,6 +34,7 @@
 
 
   // Posts the first video_dash_manifest with a value in a response, if the response is JSON.
+  /** @param {*} text - A response, JSON or not. */
   function readResponse(text) {
     // Without the key there is nothing to find: most responses, which were all parsed.
     if (typeof text !== 'string' || !text.includes('video_dash_manifest')) {
@@ -42,6 +50,7 @@
   }
 
   // Posts the first video_dash_manifest with a value in parsed JSON.
+  /** @param {*} data - Parsed JSON. */
   function readData(data) {
     // video_dash_manifest
     // Nothing for a response that is not an object (a JSON number or string). Most
@@ -70,16 +79,17 @@
   const rawOpen = XMLHttpRequest.prototype.open;
 
   XMLHttpRequest.prototype.open = function() {
-    if (!this._hooked) {
-      this._hooked = true;
+    if (!/** @type {XMLHttpRequest & {_hooked?: boolean}} */ (this)._hooked) {
+      /** @type {XMLHttpRequest & {_hooked?: boolean}} */ (this)._hooked = true;
       setupHook(this);
     }
     // eslint-disable-next-line prefer-rest-params
-    rawOpen.apply(this, arguments);
+    rawOpen.apply(this, /** @type {*} */ (arguments));
   };
 
+  /** @param {XMLHttpRequest} xhr */
   function setupHook(xhr) {
-    xhr.addEventListener('readystatechange', (e) =>{
+    xhr.addEventListener('readystatechange', (/** @type {Event} */ e) =>{
       // Check response code
       if (xhr.readyState !== 4) {
         return;

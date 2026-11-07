@@ -831,3 +831,54 @@ Checked and not changed (the reason each time):
   a millisecond per detected segment): small or unmeasured gains, each with a way to go wrong.
 - HLSPlayer.currentFragment's fallback to `hls.loadLevel`: part of the start-up change measured
   and reverted on 2026-11-06 (above); the glm knowledge-base entry that described it is retired.
+
+Second round (the save and storage modules, the repository's CI and tests, what runs on every
+page; 2026-11-07):
+
+- Changed: `MP4Merger.finalize` handed each chunk of the file to the OPFS worker through
+  `toStandaloneBuffer`, which copied it once more - the whole file over, after the progress
+  showed 100 %. `Blob.arrayBuffer()` gives a fresh buffer of its own, which goes as it is.
+- **An HLS save's chunks wait in RAM while the disk is slower than the conversion**
+  (`hls2mp4.pushChunk` -> `FSBlob.saveBlob`, not awaited): measured and changed in the third
+  round below (one file on disk as it goes). Reading the next fragment while the current one
+  converts: done then too. Not changed: awaiting in-flight offloads in `FSBlob.clear()` (an
+  orphan lives only until the session's directory is pruned).
+- CI: the lint/test/build job takes 68 s. `verify:vtt` runs first since the third round;
+  running lint and typecheck in parallel would save seconds, not worth interleaved logs; the e2e jobs (7-8 min) spend 17 s before the first
+  spec, fixtures included, so caching fixtures or building one target per job is not worth
+  the workflow. `isolate: false` for vitest would share module state and mocks between test
+  files, for the Windows unit job that runs beside the e2e jobs and sets nothing's pace.
+- Every page: `overlay-guard`'s second check spends its time in `getBoundingClientRect` per
+  element (the comment's measurement), not in the allocations around it; `PLAYLIST_POLL`'s two
+  walks of the page's links run ten times when a player starts; the gesture scan's 2 s cadence
+  is load-bearing for the 5 s activation window.
+
+Third round (2026-11-07): the trade-offs measured in Firefox (dev build, Windows 11, local
+server) before deciding. Interleaved runs, a brief try before each long run.
+
+- **HLS save of a long stream** (30 minutes of a 2 Mbit/s HLS stream, 1000 fragments, a
+  458.5 MB file; RAM = what the save's blob stores held, sampled every 100 ms). Medians of 6:
+  as Blobs until the end (before) 1118 ms, 454 MB held; one OPFS file written as it goes,
+  flushed at its end, 1770 ms; the same without the flush, 1259 ms, nothing held but at most
+  8 pieces on their way (`SAVE_APPENDS_AHEAD`, about 0.5 MB each here). Waiting for each
+  Blob's write to the disk instead (backpressure): 1983 ms for a 90 s stream that took 74 ms -
+  dropped after the brief try. Kept: one file, no flush (`saveEnd`: the file is only read
+  back in this session; the flush served nothing and slowed the DASH and other saves too).
+- **The RAM budget stopped downloads ahead for good** (found by that measurement: the stream
+  stopped downloading at 70 %, 153 of 200 MB held, nothing being written). Full from HIGH
+  until back at LOW, it let go only over HIGH; the downloads that were running when it let
+  go came in after and left it a little over LOW. While full it now lets go down to LOW
+  (`keepWithinMemoryBudget`). With it, all 1000 fragments came in within 10 s.
+- **A seek that loads afresh drops the MP4 appends still queued** (`dropQueuedMedia`). A seek
+  far ahead with about 685 one-frame appends queued, n=8: playing again after 198 ms against
+  232 ms (medians), first frame 117 against 129 ms. Queue peaks while playing: 2,000-3,000.
+- **Build the seek preview's player lazily or alongside the start**, instead of before
+  `play()`: no start-up gain, kept as it is. First frame / playing in ms, means of 4, network
+  A (1.5 MB/s shared) and B (500 kB/s per connection):
+  A mp4 487/581 eager, 512/606 alongside, 511/603 lazy; A ts 1005/1097, 1021/1114, 999/1092;
+  A fmp4 1017/1103, 1013/1107, 998/1045; B mp4 1000/1109, 1001/1116, 1022/1116;
+  B ts 2135/2229, 2153/2247, 2110/2204; B fmp4 2074/2167, 2072/2166, 2074/2167.
+  The preview is ready 75-120 ms after `addSource`, long before the first frame.
+- **Preview thumbnails only after their seek ended**: 32 frames in 12 s and none taken during
+  a pending seek, old and new alike (Firefox's `readyState` gated it already); kept for the
+  `toBlob` encoding.

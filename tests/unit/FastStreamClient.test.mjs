@@ -1347,6 +1347,28 @@ describe('FastStreamClient, the RAM budget while writes to disk are slow', () =>
       expect(urls, String(ramBudget)).toHaveLength(44);
     }
   });
+
+  it('downloads ahead again when the downloads running as it let go come in after', async () => {
+    // 40 held of a budget of 40: full (over HIGH), it writes 10 to disk, down to LOW (30).
+    const {client, manager, arrive, finishWrites} = clientWithSlowDisk(40 * BYTES);
+    client.keepWithinMemoryBudget();
+    expect(manager.memoryFull).toBe(true);
+    expect(manager.spill).toHaveBeenCalledTimes(10);
+    // Two that were downloading come in, then the writes finish: 32 held, over LOW, under HIGH.
+    arrive(40, 42);
+    client.keepWithinMemoryBudget();
+    finishWrites();
+    await settle();
+    for (let tick = 0; tick < 3; tick++) {
+      client.keepWithinMemoryBudget();
+      finishWrites();
+      await settle();
+    }
+    // Before: nothing more let go of, full for good, and no download ahead again.
+    expect(manager.spill).toHaveBeenCalledTimes(12);
+    client.keepWithinMemoryBudget();
+    expect(manager.memoryFull).toBe(false);
+  });
 });
 
 describe('FastStreamClient, "Buffer behind" changed while a video plays', () => {

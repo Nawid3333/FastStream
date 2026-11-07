@@ -36,13 +36,29 @@
     HOLD_PAGE_MEDIA: 'HOLD_PAGE_MEDIA',
   };
 
+  /**
+   * What a video plays (playedVideo).
+   * @typedef {{src: string, duration: ?number, playing: string, time: number}} PlayedVideo
+   */
+  /**
+   * An element whose shadow root Firefox opens to a content script, closed or open.
+   * @typedef {Element & {openOrClosedShadowRoot?: ?ShadowRoot}} ShadowHost
+   */
+  /**
+   * The media pauseAllWithin holds paused, and the observer that finds new ones.
+   * @typedef {{observer: MutationObserver, held: WeakSet<HTMLMediaElement>}} PauseWatcher
+   */
+  /** @typedef {ReturnType<typeof setTimeout>} Timer */
+
   const iframeMap = new Map();
   // The next episode carried a fullscreen over (background.mjs setCarriedFullscreen): the
   // browser window is fullscreen and the player fills the page. Escape here, where the
   // keyboard is after the page loaded, ends it as it ends a real fullscreen.
   let carriedFullscreen = false;
+  /** @type {ReplacedPlayer[]} */
   const replacedPlayerQueue = [];
   // Players laid over the whole page (a video that fills it), with their pause watchers.
+  /** @type {Array<{iframe: HTMLIFrameElement, watcher: PauseWatcher, hidden: *}>} */
   const overlayPlayers = [];
   // What fillScreenIframe changed: each element, with what it gets back. A Map, as each
   // element is looked up in it: an array made a page of 30,000 elements take seconds on its
@@ -67,6 +83,7 @@
 
   // The resize observers' last update of the players, and the one due after a burst.
   let resizeDebounce = performance.now();
+  /** @type {?Timer} */
   let resizeTrailing = null;
   const Config = {
     softReplaceByDefault: true,
@@ -146,9 +163,10 @@
     } else if (request.type === MessageTypes.GET_PAGE_QUALITIES) {
       // The qualities the page's own player offers as files of their own (page-qualities.js),
       // for the background to give the stream's player, and mpv, the one the user wants.
+      /** @type {*[]} */
       let lists = [];
       try {
-        lists = PageQualities.find(document, window.wrappedJSObject || window, window.location.href);
+        lists = PageQualities.find(document, /** @type {Window & {wrappedJSObject?: *}} */ (window).wrappedJSObject || window, window.location.href);
       } catch (e) {
         console.warn('Reading the page player\'s qualities failed', e);
       }
@@ -197,7 +215,7 @@
     } else if (request.type === MessageTypes.PAGE_TYPING) {
       // Whether the user types in this page, or looks elsewhere: the next episode's player
       // takes the keyboard only when not (main.mjs; the reviews of 2026-10-11).
-      const active = document.activeElement;
+      const active = /** @type {HTMLElement | null} */ (document.activeElement);
       sendResponse(document.visibilityState !== 'visible' ||
         !!active && (active.isContentEditable === true || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)));
       return;
@@ -275,6 +293,7 @@
   // nothing in it to say so, and the background kept that frame's player opening
   // (frame.playerOpening): no player opened there again until the page navigated.
   const pendingPlayers = new Map();
+  /** @type {MutationObserver | null} */
   let pendingPlayersWatch = null;
   // This page started its own player for an autoplay next once (startPagePlayer), and one
   // ask is still looking for its video.
@@ -362,13 +381,15 @@
     if (overlay !== -1) {
       const {watcher, hidden} = overlayPlayers.splice(overlay, 1)[0];
       undoFillScreenIframe(hidden);
-      removePauseListeners(watcher);
+      stopPausing(watcher);
     }
   }
 
+  /** @param {Event} e */
   function frameLoadListener(e) {
     // Find match in iframeMap
     const iframeElement = e.target;
+    /** @type {*} */
     let frameObj = null;
     iframeMap.forEach((value) => {
       if (value.iframe === iframeElement) {
@@ -397,7 +418,7 @@
    * page's console as one, and failed an e2e that watches for them (content-cleanup's Back
    * case on Windows, 2026-10-01). tests/unit/contentMessages.test.mjs keeps every other
    * sendMessage here with a callback.
-   * @param {Object} message - The message.
+   * @param {*} message - The message.
    */
   function notifyBackground(message) {
     chrome.runtime.sendMessage(message).catch((e) => {
@@ -405,8 +426,11 @@
     });
   }
 
+  /**
+   * @param {?MessageEventSource} win
+   */
   function findIframeWithWindow(win) {
-    const iframes = querySelectorAllInAllShadows('iframe');
+    const iframes = /** @type {HTMLIFrameElement[]} */ (querySelectorAllInAllShadows('iframe'));
     for (let i = 0; i < iframes.length; i++) {
       if (iframes[i].contentWindow === win) {
         return iframes[i];
@@ -416,6 +440,11 @@
   }
 
 
+  /**
+   * @param {*} request
+   * @param {*} sender
+   * @param {Function} sendResponse
+   */
   function handlePlaylistNavigation(request, sender, sendResponse) {
     const button = getNextOrPreviousButton(request.direction === 'next');
     if (!button) {
@@ -428,7 +457,7 @@
     if (address) {
       window.location.assign(address);
     } else {
-      button.click();
+      /** @type {HTMLElement} */ (button).click();
     }
     sendResponse('clicked');
   }
@@ -482,11 +511,16 @@
       });
     } catch (e) {
       sendResponse({
-        error: e.message,
+        error: /** @type {Error} */ (e).message,
       });
     }
   }
 
+  /**
+   * @param {*} request
+   * @param {*} sender
+   * @param {Function} sendResponse
+   */
   function pollPlaylistButtons(request, sender, sendResponse) {
     try {
       const nextButton = getNextOrPreviousButton(true);
@@ -500,11 +534,28 @@
       });
     } catch (e) {
       sendResponse({
-        error: e.message,
+        error: /** @type {Error} */ (e).message,
       });
     }
   }
 
+  /**
+   * @typedef ReplacedPlayer
+   * @property {HTMLIFrameElement} iframe
+   * @property {PauseWatcher} watcher
+   * @property {HTMLElement} old
+   * @property {boolean} softReplace
+   * @property {boolean} fillScreen
+   * @property {?HTMLVideoElement} [video]
+   * @property {?PlayedVideo} [played]
+   * @property {boolean} [convertDue]
+   * @property {?ResizeObserver} [resizeObserver]
+   */
+  /**
+   * @param {*} request
+   * @param {*} sender
+   * @param {Function} sendResponse
+   */
   function handlePlayerOpen(request, sender, sendResponse) {
     // The video is found by its visibility, which can take a second (a background tab's
     // IntersectionObserver): players removed meanwhile (the page went on to another address)
@@ -532,7 +583,7 @@
             newURL.searchParams.set('parent_frame_id', request.parentFrameId);
           }
           RedirectingToPlayer = true;
-          window.location = newURL.href;
+          window.location = /** @type {string & Location} */ (newURL.href);
           sendResponse('redirect');
         } else {
           const iframe = document.createElement('iframe');
@@ -563,14 +614,14 @@
         iframe.src = newURL.href;
 
         if (softReplace) {
-          video.highest.parentNode.insertBefore(iframe, video.highest);
+          /** @type {ParentNode} */ (video.highest.parentNode).insertBefore(iframe, video.highest);
         } else {
-          video.highest.parentNode.replaceChild(iframe, video.highest);
+          /** @type {ParentNode} */ (video.highest.parentNode).replaceChild(iframe, video.highest);
         }
 
-        // updateIframeStyle(video.highest, iframe, isYt, playerFillsScreen);
         const watcher = pauseAllWithin(video.highest);
 
+        /** @type {ReplacedPlayer} */
         const pobj = {
           iframe,
           watcher,
@@ -581,8 +632,8 @@
         // The video itself, for the stream it played (GET_PLAYED_VIDEO). A site's own query
         // may have found its player's box: the one video in it, and none when there are
         // more, an ad's or a preview's among them as likely as not.
-        const inBox = video.highest.tagName === 'VIDEO' ? [video.highest] :
-          querySelectorAllIncludingShadows('video', video.highest);
+        const inBox = /** @type {HTMLVideoElement[]} */ (video.highest.tagName === 'VIDEO' ? [video.highest] :
+          querySelectorAllIncludingShadows('video', video.highest));
         pobj.video = video.video || (inBox.length === 1 ? inBox[0] : null);
         pobj.played = playedVideo(pobj.video);
         replacedPlayerQueue.push(pobj);
@@ -613,7 +664,7 @@
         // An element: a video straight in a shadow root put the player there, with the root
         // as its parent, which a ResizeObserver refuses. The throw left the player without
         // one: it followed the window's size, but not its box on the page.
-        pobj.resizeObserver.observe(iframe.parentElement || iframe.parentNode.host);
+        pobj.resizeObserver.observe(iframe.parentElement || /** @type {ShadowRoot} */ (iframe.parentNode).host);
       }
     }).catch((e) => {
       // Whatever went wrong, the background hears back: without an answer it kept the
@@ -625,6 +676,9 @@
     return true;
   }
 
+  /**
+   * @param {*} pobj
+   */
   function makeSoftIntoHard(pobj) {
     const {old} = pobj;
     if (!pobj.softReplace) {
@@ -637,6 +691,11 @@
     pobj.softReplace = false;
   }
 
+  /**
+   * @param {*} request
+   * @param {*} sender
+   * @param {Function} sendResponse
+   */
   function handleWindowedFullscreen(request, sender, sendResponse) {
     const iframeObj = iframeMap.get(request.frameId);
     if (!iframeObj) {
@@ -659,6 +718,11 @@
     }
   }
 
+  /**
+   * @param {*} request
+   * @param {*} sender
+   * @param {Function} sendResponse
+   */
   function handleMiniplayer(request, sender, sendResponse) {
     if (Date.now() < MiniplayerCooldown) {
       sendResponse('cooldown');
@@ -700,7 +764,6 @@
       // if placeholder is visible again
       const observer = new IntersectionObserver(async ([entry]) => {
         if (entry.intersectionRatio > 0.3 && miniplayerState.active) {
-          //  unmakeMiniPlayer(iframeObj);
           observer.disconnect();
 
           const result = await sendToPlayer(miniplayerState.playerFrameId, {
@@ -730,6 +793,10 @@
     }
   }
 
+  /**
+   * @param {number|number[]|'all'} frameId
+   * @param {*} data
+   */
   async function sendToPlayer(frameId, data) {
     const frameIds = [];
     if (typeof frameId === 'number') {
@@ -755,6 +822,11 @@
     }));
   }
 
+  /**
+   * @param {*} request
+   * @param {*} sender
+   * @param {Function} sendResponse
+   */
   function handleFullscreen(request, sender, sendResponse) {
     if (request.queryPermissions) {
       sendResponse(!!document.fullscreenEnabled);
@@ -782,7 +854,7 @@
       }
       sendResponse('exit');
     } else {
-      element.requestFullscreen().then(() => {
+      /** @type {Promise<void>} */ (element.requestFullscreen()).then(() => {
         sendResponse('enter');
       }).catch((e) => {
         // Refused (no user gesture, an iframe the page took out): the player hears 'error'.
@@ -801,19 +873,25 @@
   // pages write them.
   const ScrapedTrackKinds = ['subtitles', 'captions'];
 
+  /**
+   * @param {*} request
+   * @param {*} sender
+   * @param {Function} sendResponse
+   */
   function handleCaptionsScrape(request, sender, sendResponse) {
     // Every track is counted before any is asked for: a request that fails at once (a src
     // XMLHttpRequest refuses) answers inside the loop, and the answer went out then, with
     // the tracks after it never asked for.
-    const trackElements = querySelectorAllIncludingShadows('track')
+    const trackElements = /** @type {HTMLTrackElement[]} */ (querySelectorAllIncludingShadows('track'))
         .filter((track) => track.src && ScrapedTrackKinds.includes(track.kind));
     const pending = trackElements.length;
     let done = 0;
+    /** @type {{data: string, source: string, label: string, language: string}[]} */
     const tracks = [];
     for (let i = 0; i < trackElements.length; i++) {
       const track = trackElements[i];
       const source = track.src;
-      httpRequest(source, (err, req, body) => {
+      httpRequest(source, (/** @type {*} */ err, /** @type {*} */ req, /** @type {*} */ body) => {
         done++;
         if (body) {
           tracks.push({
@@ -841,7 +919,7 @@
     let paused = 0;
     // Shadow roots too, closed ones as well: a player built as a web component keeps its
     // <video> in one.
-    querySelectorAllInAllShadows('video, audio', document.documentElement).forEach((media) => {
+    /** @type {HTMLMediaElement[]} */ (querySelectorAllInAllShadows('video, audio', document.documentElement)).forEach((media) => {
       try {
         if (!media.paused && !playsLiveStream(media)) {
           media.pause();
@@ -883,6 +961,7 @@
     }
   }
 
+  /** @param {*} e */
   function pauseHeldMedia(e) {
     const media = e.target;
     if (pageMediaHeld && media && (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') &&
@@ -920,7 +999,7 @@
 
     overlayPlayers.forEach(({iframe, watcher}) => {
       iframe.remove();
-      removePauseListeners(watcher);
+      stopPausing(watcher);
     });
     overlayPlayers.length = 0;
 
@@ -944,7 +1023,7 @@
    * again. The page may have taken the player's iframe out itself (a re-render): remove()
    * and replaceWith() do nothing for a detached iframe, where removeChild on its missing
    * parent threw and left the rest of the cleanup undone.
-   * @param {Object} replacedData - The replacement, from handlePlayerOpen.
+   * @param {ReplacedPlayer} replacedData - The replacement, from handlePlayerOpen.
    */
   function restoreReplaced(replacedData) {
     const {iframe, old} = replacedData;
@@ -960,10 +1039,11 @@
     // and scripts for it stopped working until a reload.
     transferId(iframe, old);
     restoreTransition(old);
-    removePauseListeners(replacedData.watcher);
+    stopPausing(replacedData.watcher);
     replacedData.resizeObserver?.disconnect();
   }
 
+  /** @param {*} iframeObj */
   function updateMiniPlayer(iframeObj) {
     const miniplayerState = iframeObj.miniplayerState;
     if (miniplayerState.active) {
@@ -997,6 +1077,7 @@
     });
   }
 
+  /** @param {*} iframeObj */
   function makeMiniPlayer(iframeObj) {
     const miniplayerState = iframeObj.miniplayerState;
     if (miniplayerState.active) {
@@ -1050,6 +1131,7 @@
     updateMiniPlayer(iframeObj);
   }
 
+  /** @param {*} iframeObj */
   function unmakeMiniPlayer(iframeObj) {
     const miniplayerState = iframeObj.miniplayerState;
     if (!miniplayerState.active) {
@@ -1073,6 +1155,7 @@
     miniplayerState.placeholder = null;
   }
 
+  /** @param {*} iframeObj */
   function toggleMiniPlayer(iframeObj) {
     const miniplayerState = iframeObj.miniplayerState;
     if (miniplayerState.active) {
@@ -1084,6 +1167,7 @@
     }
   }
 
+  /** @param {*} iframeObj */
   function windowedFullscreenToggle(iframeObj) {
     const windowedFullscreenState = iframeObj.windowedFullscreenState;
 
@@ -1109,6 +1193,7 @@
     }
   }
 
+  /** @param {Element[]} [whitelist] */
   function undoFillScreenIframe(whitelist) {
     const only = whitelist ? new Set(whitelist) : null;
     elementsChangedByFillscreen.forEach((old, element) => {
@@ -1125,7 +1210,9 @@
     });
   }
 
+  /** @param {HTMLIFrameElement} iframe */
   function fillScreenIframe(iframe, skipHide = false) {
+    /** @type {Element[]} */
     const addedElements = [];
     const expandStyle =
     `position: fixed !important;
@@ -1155,7 +1242,7 @@
       // Gather all elements not parents of the iframe
       const elements = allElementsIncludingShadows();
       for (let i = 0; i < elements.length; i++) {
-        const element = elements[i];
+        const element = /** @type {HTMLElement} */ (elements[i]);
         if (element === iframe) {
           continue;
         }
@@ -1214,12 +1301,13 @@
 
     iframe.setAttribute('style', expandStyle);
 
-    return addedElements;
+    return /** @type {Element[]} */ (addedElements);
   }
 
   // hideSoft and showSoft switch the element's transitions off, so the size changes they
   // make don't animate. The page's own transition is kept until the element is given
   // back (restoreTransition); it used to stay "none !important" for good.
+  /** @param {HTMLElement} player */
   function rememberTransition(player) {
     if (!('fsTransition' in player.dataset)) {
       player.dataset.fsTransition = player.style.getPropertyValue('transition');
@@ -1227,6 +1315,7 @@
     }
   }
 
+  /** @param {HTMLElement} player */
   function restoreTransition(player) {
     if (!('fsTransition' in player.dataset)) {
       return;
@@ -1243,6 +1332,7 @@
   }
 
   // What hideSoft sets on the page's element: no size, nothing drawn outside it.
+  /** @type {Object<string, string>} */
   const SoftHidden = {width: '0px', height: '0px', overflow: 'hidden', margin: '0px', contain: 'paint'};
 
   /**
@@ -1256,11 +1346,16 @@
    */
   const softSaves = new WeakMap();
 
+  /**
+   * @param {HTMLElement} player
+   * @param {string} name
+   */
   function isSoftHidden(player, name) {
     return player.style.getPropertyValue(name) === SoftHidden[name] &&
       player.style.getPropertyPriority(name) === 'important';
   }
 
+  /** @param {HTMLElement} player */
   function hideSoft(player) {
     rememberTransition(player);
     // Saved at the first hide, and again at each later one where the value is no longer the
@@ -1280,6 +1375,7 @@
 
   // The saved values back - each only while it is still the hidden one: a value the page set
   // meanwhile is the page's newer one. The save stays for the next hideSoft (a measurement).
+  /** @param {HTMLElement} player */
   function showSoft(player) {
     rememberTransition(player);
     player.style.setProperty('transition', 'none', 'important');
@@ -1302,6 +1398,7 @@
     }
   }
 
+  /** @param {HTMLElement} player */
   function forgetSoft(player) {
     softSaves.delete(player);
   }
@@ -1314,7 +1411,7 @@
    * measure it each time.
    */
   function updateReplacedPlayersSoon() {
-    clearTimeout(resizeTrailing);
+    clearTimeout(/** @type {Timer} */ (resizeTrailing));
     const now = performance.now();
     if (now - resizeDebounce > 100) {
       resizeDebounce = now;
@@ -1327,6 +1424,7 @@
     }
   }
 
+  /** @param {?ReplacedPlayer} [convert] - A soft replace to make hard if it came out too small. */
   function updateReplacedPlayers(convert = null) {
     iframeMap.forEach((iframeObj) => {
       if (iframeObj.replacedData) {
@@ -1352,6 +1450,12 @@
     });
   }
 
+  /**
+   * @param {HTMLElement} old
+   * @param {HTMLElement} iframe
+   * @param {boolean} softReplace
+   * @param {boolean} [holdsId]
+   */
   function updateReplacedPlayer(old, iframe, softReplace, holdsId = true) {
     const parent = iframe.parentNode;
     // A hard-replaced player the page took out has nowhere to measure the page's element:
@@ -1380,14 +1484,14 @@
       // measured instead, once it measured as the element did.
       let fits = standInFits.get(old);
       if (fits === undefined) {
-        fits = standInMeasuresAs(old, parent, iframe);
+        fits = standInMeasuresAs(old, /** @type {ParentNode} */ (parent), iframe);
         standInFits.set(old, fits);
       }
       const measured = (fits && makeStandIn(old)) || old;
-      parent.insertBefore(measured, iframe);
+      /** @type {ParentNode} */ (parent).insertBefore(measured, iframe);
       transferId(iframe, measured);
       final_size = transferStyles(measured, iframe, false);
-      parent.removeChild(measured);
+      /** @type {ParentNode} */ (parent).removeChild(measured);
     }
     return final_size;
   }
@@ -1434,6 +1538,7 @@
     if (!standIn) {
       return false;
     }
+    /** @param {Element} element */
     const measure = (element) => {
       parent.insertBefore(element, iframe);
       transferId(iframe, element);
@@ -1448,17 +1553,29 @@
       Math.abs(real.width - stood.width) < 0.5 && Math.abs(real.height - stood.height) < 0.5;
   }
 
+  // The media each player up holds paused (pauseAllWithin), one WeakSet a player: weakly,
+  // as a page that adds and drops media while the player is up (ads, previews on hover)
+  // had every one kept alive here, with its buffers, until the player went (Codex's
+  // review, 2026-11-07). A WeakSet, not WeakRefs: Firefox keeps an entry whose key is the
+  // content script's wrapper of a page element for as long as the element lives.
+  /** @type {Set<WeakSet<HTMLMediaElement>>} */
+  const PausedHolds = new Set();
+
+  /** @this {HTMLMediaElement} */
   function pauseOnPlay() {
+    // Only while a player holds it: a medium the page took out keeps this listener after
+    // the player goes (stopPausing takes it off those still in the page).
+    if (![...PausedHolds].some((held) => held.has(this))) return;
     // A call's live stream plays on (playsLiveStream), also one given its stream later.
-    // eslint-disable-next-line no-invalid-this
     if (!playsLiveStream(this)) this.pause();
   }
 
+  /** @param {Element} element */
   function pauseAllWithin(element) {
-    // Every element hooked, so all of them are let go again, wherever the page has moved
-    // them by then. The cleanup used to unhook the videos still inside the element only,
-    // which left an <audio> added meanwhile pausing itself on every play, for good.
-    const hooked = new Set();
+    /** @type {WeakSet<HTMLMediaElement>} */
+    const held = new WeakSet();
+    PausedHolds.add(held);
+    /** @param {HTMLMediaElement} media */
     const hook = (media) => {
       try {
         // Not a call's live stream: a watch party's voice chat fell silent under a player
@@ -1468,23 +1585,24 @@
         console.error(e);
       }
       media.addEventListener('play', pauseOnPlay);
-      hooked.add(media);
+      held.add(media);
     };
 
     // Its sounds too, as for the ones added later: an <audio> already there played on
     // under the player.
-    querySelectorAllIncludingShadows('video, audio', element).forEach(hook);
+    /** @type {HTMLMediaElement[]} */ (querySelectorAllIncludingShadows('video, audio', element)).forEach(hook);
 
     // Add mutation observer to pause videos added later: added themselves, or inside an
     // added subtree, as a re-render of the page's player puts them.
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.type === 'childList') {
-          mutation.addedNodes.forEach((node) => {
+          // Text nodes too, which have no tagName.
+          /** @type {NodeListOf<Element>} */ (mutation.addedNodes).forEach((node) => {
             if (node.tagName === 'VIDEO' || node.tagName === 'AUDIO') {
-              hook(node);
+              hook(/** @type {HTMLMediaElement} */ (node));
             } else if (node.nodeType === Node.ELEMENT_NODE) {
-              querySelectorAllIncludingShadows('video, audio', node).forEach(hook);
+              /** @type {HTMLMediaElement[]} */ (querySelectorAllIncludingShadows('video, audio', node)).forEach(hook);
             }
           });
         }
@@ -1494,24 +1612,38 @@
 
     return {
       observer,
-      hooked,
+      held,
     };
   }
 
-  function removePauseListeners(watcher) {
-    watcher.hooked.forEach((media) => {
-      media.removeEventListener('play', pauseOnPlay);
-    });
-    watcher.hooked.clear();
+  /**
+   * Lets go of what a player held paused, wherever the page has moved it by then. The
+   * cleanup used to unhook the videos still inside the player's element only, which left
+   * an <audio> added meanwhile pausing itself on every play, for good.
+   * @param {PauseWatcher} watcher
+   */
+  function stopPausing(watcher) {
+    PausedHolds.delete(watcher.held);
     watcher.observer.disconnect();
+    for (const media of /** @type {HTMLMediaElement[]} */ (querySelectorAllInAllShadows('video, audio', document.documentElement))) {
+      if (watcher.held.has(media) && ![...PausedHolds].some((held) => held.has(media))) {
+        media.removeEventListener('play', pauseOnPlay);
+      }
+    }
   }
 
+  /**
+   * @param {Element} old
+   * @param {HTMLElement} iframe
+   * @param {boolean} softReplace
+   */
   function transferStyles(old, iframe, softReplace) {
     const rect = old.getBoundingClientRect();
     const styles = window.getComputedStyle(old);
 
-    iframe.setAttribute('style', old.getAttribute('style'));
-    iframe.classList = old.classList;
+    iframe.setAttribute('style', /** @type {string} */ (old.getAttribute('style')));
+    // The setter takes the list's text.
+    iframe.classList = /** @type {*} */ (old.classList);
 
     const width = Math.max(rect.width, 100) + 'px';
     const height = Math.max(rect.height, 100) + 'px';
@@ -1542,6 +1674,10 @@
     return rect.width * rect.height;
   }
 
+  /**
+   * @param {Element} from
+   * @param {Element} to
+   */
   function transferId(from, to) {
     const fromId = from.id;
     if (fromId) {
@@ -1611,6 +1747,9 @@
 
   // Answers with the response's text, read as a subtitle file (decodeSubtitleBytes): its one
   // use is the page's subtitle files, which can be Windows-1252.
+  /**
+   * @param {...*} args - The url, then callback and bust, or post, callback and bust.
+   */
   function httpRequest(...args) {
     const url = args[0];
     let post = undefined;
@@ -1630,12 +1769,13 @@
     // the headers or between pieces of the body. A failed or stopped request calls back
     // as a status other than 200 did, with no response.
     const stall = new AbortController();
+    /** @type {Timer|undefined} */
     let stallTimer;
     const armStallTimer = () => {
       clearTimeout(stallTimer);
       stallTimer = setTimeout(() => stall.abort(), HttpRequestStallMs);
     };
-    const init = {
+    /** @type {RequestInit} */ const init = {
       method: post ? 'POST' : 'GET',
       signal: AbortSignal.any([stall.signal, AbortSignal.timeout(HttpRequestTimeoutMs)]),
     };
@@ -1690,7 +1830,7 @@
    */
   function hasPlayerIframe() {
     const playerUrl = chrome.runtime.getURL('player/index.html');
-    return querySelectorAllIncludingShadows('iframe').some((iframe) => iframe.src.startsWith(playerUrl));
+    return querySelectorAllIncludingShadows('iframe').some((iframe) => /** @type {HTMLIFrameElement} */ (iframe).src.startsWith(playerUrl));
   }
 
   /**
@@ -1698,12 +1838,12 @@
    * @param {string} query - The selector.
    * @param {?Element|DocumentFragment} [currentElement] - Where to look; the body by default.
    * @param {Element[]} [results] - Where to put what is found.
-   * @param {function(Element): ?ShadowRoot} [shadowOf] - The shadow root to look into, of
+   * @param {(el: Element) => ShadowRoot | null} [shadowOf] - The shadow root to look into, of
    *   an element: its open one by default (querySelectorAllInAllShadows: closed ones too).
    * @return {Element[]}
    */
   function querySelectorAllIncludingShadows(query, currentElement = document.body, results = [],
-      shadowOf = (el) => el.shadowRoot) {
+      shadowOf = (/** @type {Element} */ el) => el.shadowRoot) {
     if (!currentElement) {
       return results;
     }
@@ -1723,7 +1863,7 @@
     // shadow root added it while FastStream's player was up, and pauseAllWithin's observer,
     // which looks inside each added element, never paused it. Last, so what the walk above
     // found keeps its place.
-    const own = shadowOf(currentElement);
+    const own = shadowOf(/** @type {Element} */ (currentElement));
     if (own) {
       querySelectorAllIncludingShadows(query, own, results, shadowOf);
     }
@@ -1744,11 +1884,14 @@
    * @return {Element[]}
    */
   function querySelectorAllInAllShadows(query, root = document.body) {
-    return querySelectorAllIncludingShadows(query, root, [], (el) => el.openOrClosedShadowRoot || el.shadowRoot);
+    return querySelectorAllIncludingShadows(query, root, [], (/** @type {ShadowHost} */ el) => el.openOrClosedShadowRoot || el.shadowRoot);
   }
 
+  /**
+   * @param {Element} element
+   */
   function getParentElement(element) {
-    return element.parentElement || element.assignedSlot || element.parentNode?.host;
+    return element.parentElement || element.assignedSlot || /** @type {ShadowRoot} */ (element.parentNode)?.host;
   }
 
   const NotLayerTags = new Set(['STYLE', 'SCRIPT', 'LINK', 'TEMPLATE']);
@@ -1764,7 +1907,7 @@
     for (const element of root.querySelectorAll('*')) {
       found.push(element);
       // Firefox lets a content script into closed roots too.
-      const shadow = element.openOrClosedShadowRoot || element.shadowRoot;
+      const shadow = /** @type {ShadowHost} */ (element).openOrClosedShadowRoot || element.shadowRoot;
       if (shadow) {
         allElementsIncludingShadows(shadow, found);
       }
@@ -1782,7 +1925,7 @@
     const parents = [];
     for (let current = element; current;) {
       parents.push(current);
-      current = current.assignedSlot || current.parentElement || current.parentNode?.host;
+      current = current.assignedSlot || current.parentElement || /** @type {ShadowRoot} */ (current.parentNode)?.host;
     }
     return parents;
   }
@@ -1833,7 +1976,7 @@
     let top = Math.max(rect.top, 0);
     let right = window.innerWidth > 0 ? Math.min(rect.right, window.innerWidth) : rect.right;
     let bottom = window.innerHeight > 0 ? Math.min(rect.bottom, window.innerHeight) : rect.bottom;
-    const set = (value) => !!value && value !== 'none';
+    const set = (/** @type {string} */ value) => !!value && value !== 'none';
     // 'absolute' or 'fixed' while the walk is between such a box and its containing block.
     let escaping = null;
     for (const current of flatTreeParents(element)) {
@@ -1870,9 +2013,13 @@
     return width > 0 && height > 0 ? width * height / area : 0;
   }
 
+  /**
+   * @param {Element} originalElement
+   * @param {Element} childElement
+   * @param {Element} parentElement
+   */
   function testSimilarity(originalElement, childElement, parentElement) {
     const parentStyle = window.getComputedStyle(parentElement);
-    // const childStyle = window.getComputedStyle(childElement);
     const parentRect = parentElement.getBoundingClientRect();
     const childRect = childElement.getBoundingClientRect();
 
@@ -1909,6 +2056,9 @@
     return false;
   }
 
+  /**
+   * @param {Element} element
+   */
   function getParentElementsWithSameBounds(element) {
     const elements = [];
     const originalElement = element;
@@ -1932,7 +2082,7 @@
   }
 
   async function getVideo() {
-    const videos = Array.from(querySelectorAllIncludingShadows('video'));
+    const videos = /** @type {HTMLVideoElement[]} */ (Array.from(querySelectorAllIncludingShadows('video')));
 
     let visibleVideos = await Promise.all(videos.map(async (video) => {
       const visibleRatio = await isVisible(video);
@@ -1947,7 +2097,7 @@
 
     const largestVideo = visibleVideos.reduce((prev, current) => {
       return (prev && prev.visibleArea > current.visibleArea) ? prev : current;
-    }, null);
+    }, /** @type {?{video: HTMLVideoElement, visibleArea: number}} */ (null));
 
     if (!largestVideo) {
       return null;
@@ -1958,7 +2108,7 @@
       video: largestVideo.video,
       size: largestVideo.visibleArea,
       parents: parentElementsWithSameBounds,
-      highest: parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : largestVideo.video,
+      highest: /** @type {HTMLElement} */ (parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : largestVideo.video),
     };
   }
 
@@ -1979,7 +2129,7 @@
     // The players' own APIs first: their play() loads the stream the way their button does,
     // and a click on them can land on an ad's layer. The page's objects, through the content
     // script's view of the page (Firefox's Xray waiver).
-    const page = window.wrappedJSObject;
+    const page = /** @type {Window & {wrappedJSObject?: *}} */ (window).wrappedJSObject;
     try {
       // JW Player, as most hosters have it: idle until played.
       if (page && typeof page.jwplayer === 'function') {
@@ -2024,7 +2174,7 @@
     }
     // FastStream's player may have taken the video meanwhile.
     if (pagePlayerStarted || iframeMap.size > 0 || pendingPlayers.size > 0) return null;
-    const video = found && found.video;
+    const video = /** @type {HTMLVideoElement|null} */ (found && found.video);
     if (video && (!video.paused || video.ended)) return null;
     if (video && (video.currentSrc || video.src || video.srcObject)) {
       pagePlayerStarted = true;
@@ -2072,7 +2222,7 @@
    * @return {?HTMLElement}
    */
   function playButtonFor(video) {
-    const shown = (element) => {
+    const shown = (/** @type {Element} */ element) => {
       const rect = element.getBoundingClientRect();
       if (rect.width < 8 || rect.height < 8) return null;
       const style = window.getComputedStyle(element);
@@ -2080,23 +2230,29 @@
       return rect;
     };
     const known = querySelectorAllIncludingShadows(PlayerPlayButtons).find((element) => shown(element));
-    if (known) return known;
+    if (known) return /** @type {HTMLElement} */ (known);
     if (!video) return null;
     const area = video.getBoundingClientRect();
-    return querySelectorAllIncludingShadows(GenericPlayButtons).find((element) => {
+    return /** @type {HTMLElement | null} */ (querySelectorAllIncludingShadows(GenericPlayButtons).find((element) => {
       const rect = shown(element);
       if (!rect) return false;
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
       return x >= area.left && x <= area.right && y >= area.top && y <= area.bottom;
-    }) || null;
+    }) || null);
   }
 
+  /**
+   * @param {string} urlStr
+   */
   function url_to_absolute(urlStr) {
     const url = new URL(urlStr, document.baseURI);
     return url.href;
   }
 
+  /**
+   * @param {string|URL} url
+   */
   function isLinkToDifferentPageOnWebsite(url) {
     try {
       url = new URL(url, window.location.href);
@@ -2120,6 +2276,10 @@
   }
 
 
+  /**
+   * @param {Element} element
+   * @param {Element} child
+   */
   function isSimilar(element, child) {
     const style = window.getComputedStyle(element);
     const width = parseInt(style.width) || 0;
@@ -2135,6 +2295,10 @@
   }
 
 
+  /**
+   * @param {Element} element
+   * @return {Array<Element>}
+   */
   function getSimilar(element) {
     if (!element) return [];
     const parent = element.parentElement;
@@ -2143,8 +2307,8 @@
     if (element.tagName === 'BODY' || !children) return [];
 
 
-    const found = [];
-    const potential = [];
+    const found = /** @type {Element[]} */ ([]);
+    const potential = /** @type {Element[]} */ ([]);
     for (let i = 0; i < children.length; i++) {
       const child = children[i];
       if (isSimilar(element, child)) {
@@ -2237,7 +2401,7 @@
   function onlyOneSaying(elements, isNext, score) {
     const hits = elements.filter((el) => EpisodeLinks.phraseScore(wordsOf(el), isNext) === score);
     // A link counts by its address; anything else (a button) by itself.
-    const targets = new Set(hits.map((el) => (el.tagName === 'A' && typeof el.href === 'string' && el.href ?
+    const targets = new Set(hits.map((/** @type {Element & {href?: string}} */ el) => (el.tagName === 'A' && typeof el.href === 'string' && el.href ?
       withoutHash(el.href) : el)));
     return targets.size === 1 ? hits[0] : null;
   }
@@ -2250,8 +2414,8 @@
    *   (EpisodeLinks.seriesOf) - another series is never the next episode;
    * - own: of them, those that open in the page - a link into a new tab, unless it is the
    *   very next episode's address, is an ad's way.
-   * @param {Array<Element>} aElements
-   * @return {{site: Array<Element>, series: Array<Element>, own: Array<Element>}}
+   * @param {Array<HTMLAnchorElement>} aElements
+   * @return {{site: Array<HTMLAnchorElement>, series: Array<HTMLAnchorElement>, own: Array<HTMLAnchorElement>}}
    */
   function episodeLinksOf(aElements) {
     const seriesOfPage = EpisodeLinks.seriesOf(window.location.href);
@@ -2264,7 +2428,7 @@
    * Whether the page lists this page's season: it links the previous episode, or two other
    * episodes of the season (a season's first episode has no previous; deepseek's review) -
    * one other alone ("latest episode: 5") is no list (its third round).
-   * @param {Array<Element>} links - episodeLinksOf's series links.
+   * @param {Array<HTMLAnchorElement>} links - episodeLinksOf's series links.
    * @return {boolean}
    */
   function listsThisSeason(links) {
@@ -2289,14 +2453,14 @@
    */
   function isSeriesEnd() {
     if (!EpisodeLinks.seriesOf(window.location.href)) return false;
-    const links = episodeLinksOf(querySelectorAllIncludingShadows('a'));
+    const links = episodeLinksOf(/** @type {HTMLAnchorElement[]} */ (querySelectorAllIncludingShadows('a')));
     return listsThisSeason(links.series) && !linksLaterInSeason(links.site);
   }
 
   /**
    * Whether the page links a later episode of this page's season: a gap before it (a removed
    * episode) is no season's end (glm's review, 2026-10-11).
-   * @param {Array<Element>} siteLinks - episodeLinksOf's site links, into a new tab too.
+   * @param {Array<HTMLAnchorElement>} siteLinks - episodeLinksOf's site links, into a new tab too.
    * @return {boolean}
    */
   function linksLaterInSeason(siteLinks) {
@@ -2309,7 +2473,7 @@
   }
 
   function getNextOrPreviousButton(isNext = false) {
-    const aElements = querySelectorAllIncludingShadows('a');
+    const aElements = /** @type {HTMLAnchorElement[]} */ (querySelectorAllIncludingShadows('a'));
     const links = episodeLinksOf(aElements);
     const ownLinks = links.own;
     const series = EpisodeLinks.seriesOf(window.location.href);
@@ -2336,11 +2500,11 @@
       const here = EpisodeLinks.seasonEpisode(window.location.href);
       const next = EpisodeLinks.nextSeason(window.location.href);
       if (here && next) {
-        const ofNext = links.series.map((a) => ({a, at: EpisodeLinks.seasonEpisode(a.href)}))
-            .filter(({at}) => !!at && at.show === here.show && at.season === here.season + 1);
+        const ofNext = /** @type {Array<{a: HTMLAnchorElement, at: *}>} */ (links.series.map((a) => ({a, at: EpisodeLinks.seasonEpisode(a.href)}))
+            .filter(({at}) => !!at && at.show === here.show && at.season === here.season + 1));
         const linked = ofNext.find(({at}) => at.episode === 1) || ofNext.find(({at}) => at.episode === here.episode + 1);
         if (linked) return linked.a;
-        const linksSeason = (a) => {
+        const linksSeason = (/** @type {HTMLAnchorElement} */ a) => {
           const path = withoutHash(a.href).split('?')[0].replace(/\/$/, '');
           return path.startsWith(next.season) && !/^\d/.test(path.slice(next.season.length));
         };
@@ -2354,7 +2518,7 @@
 
     // 2. An episode phrase in any language FastStream knows ("Nächste Folge", 下一集), in a
     // link's text, aria-label or title, or on a button that is no link.
-    const buttons = structured ? [] : querySelectorAllIncludingShadows('button, [role="button"]')
+    const buttons = structured ? [] : /** @type {Array<HTMLElement & {disabled?: boolean}>} */ (querySelectorAllIncludingShadows('button, [role="button"]'))
         .filter((b) => !b.disabled && b.getAttribute('aria-disabled') !== 'true');
     const phrase = onlyOneSaying(ownLinks, isNext, 2) || onlyOneSaying(buttons, isNext, 2);
     if (phrase) return phrase;
@@ -2375,9 +2539,9 @@
   /**
    * 3. The way it was found until 2026-10-11: an English "next" or "next episode" link, the
    * neighbour of this page's link in a list, an "Episode N" list.
-   * @param {Array<Element>} aElements
+   * @param {Array<HTMLAnchorElement>} aElements
    * @param {boolean} isNext
-   * @return {?Element}
+   * @return {?HTMLAnchorElement}
    */
   function getNextOrPreviousByList(aElements, isNext) {
     // Check if next or previous button is in a elements
@@ -2396,11 +2560,11 @@
 
     const currentURL = window.location.href;
     let matchedElements = aElements.filter((a) => {
-      if (!a.href) {
+      if (!/** @type {HTMLAnchorElement} */ (a).href) {
         return false;
       }
       try {
-        const url = url_to_absolute(a.href);
+        const url = url_to_absolute(/** @type {HTMLAnchorElement} */ (a).href);
         return url === currentURL;
       } catch (e) {
         return false;
@@ -2453,8 +2617,8 @@
         // Check if a element. Only one to this site, as for a "Next" link above: a list's
         // neighbour may be an ad, and the player followed it.
         if (similar[nextIndex].tagName === 'A') {
-          if (isLinkOnThisSite(similar[nextIndex])) {
-            return similar[nextIndex];
+          if (isLinkOnThisSite(/** @type {HTMLAnchorElement} */ (similar[nextIndex]))) {
+            return /** @type {HTMLAnchorElement} */ (similar[nextIndex]);
           }
           continue;
         }
@@ -2488,7 +2652,7 @@
   }
 
   document.addEventListener('click', (e) => {
-    let current = e.target;
+    let current = /** @type {?Element} */ (e.target);
     while (current) {
       if (current.tagName === 'A') {
         break;
@@ -2496,14 +2660,14 @@
       current = getParentElement(current);
     }
 
-    if (!current || !current.href) {
+    if (!current || !/** @type {HTMLAnchorElement} */ (current).href) {
       return;
     }
 
     // A click that opens the link somewhere else - a new tab or window (Ctrl, Command,
     // Shift, target="_blank", also by the page's <base target>), a download (Alt, or the
     // download attribute) - leaves this page and its player where they are.
-    const target = linkTarget(current);
+    const target = linkTarget(/** @type {HTMLAnchorElement} */ (current));
     if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey ||
         current.hasAttribute('download') ||
         (target && !['_self', '_parent', '_top'].includes(target))) {
@@ -2511,7 +2675,7 @@
     }
 
     // check if href leads to different page and origin
-    const url = current.href;
+    const url = /** @type {HTMLAnchorElement} */ (current).href;
     if (isLinkToDifferentPageOnWebsite(url)) {
       removePlayers();
     }
@@ -2519,7 +2683,7 @@
 
 
   document.addEventListener('fullscreenchange', () => {
-    const changedFor = [];
+    const changedFor = /** @type {any[]} */ ([]);
     iframeMap.forEach((iframeObj) => {
       const fullscreenState = iframeObj.fullscreenState;
       const element = iframeObj.iframe;
@@ -2566,7 +2730,7 @@
   /**
    * What a video plays, for the player to play the same stream (StreamPick.played).
    * @param {HTMLVideoElement|null|undefined} video - The video.
-   * @return {?{src: string, duration: ?number, playing: string, time: number}} Its file's URL
+   * @return {?PlayedVideo} Its file's URL
    *   (not a blob: URL, which a detected source never has), its length in seconds (Infinity
    *   when live), its currentSrc as it is, blob: or not, and where it plays, in seconds; or
    *   null for no video.
@@ -2589,7 +2753,7 @@
    * What the video a player replaced plays: as it is now, while it plays what it played
    * then (a page's player sets its length a moment after it asked for the manifest), or
    * else as it was then.
-   * @param {Object|undefined} player - The replaced player (replacedPlayerQueue).
+   * @param {ReplacedPlayer|undefined} player - The replaced player (replacedPlayerQueue).
    * @return {?{src: string, duration: ?number}} See playedVideo.
    */
   function replacedVideo(player) {
@@ -2617,11 +2781,11 @@
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         if (observedMedia.size >= ObservedMediaLimit) break;
-        if (!LoadedMediaInitiators.includes(entry.initiatorType) || observedMedia.has(entry.name)) continue;
+        if (!LoadedMediaInitiators.includes(/** @type {PerformanceResourceTiming} */ (entry).initiatorType) || observedMedia.has(entry.name)) continue;
         observedMedia.set(entry.name, {
           name: entry.name,
-          initiatorType: entry.initiatorType,
-          responseStatus: entry.responseStatus,
+          initiatorType: /** @type {PerformanceResourceTiming} */ (entry).initiatorType,
+          responseStatus: /** @type {PerformanceResourceTiming} */ (entry).responseStatus,
           startTime: entry.startTime,
         });
       }
@@ -2641,10 +2805,10 @@
    *   element loaded it, and when the request started (ms since the epoch).
    */
   function loadedMedia() {
-    const found = [];
-    let entries = [];
+    const found = /** @type {Array<{url: string, media: boolean, time: number}>} */ ([]);
+    let entries = /** @type {PerformanceResourceTiming[]} */ ([]);
     try {
-      entries = Array.from(performance.getEntriesByType('resource'));
+      entries = /** @type {PerformanceResourceTiming[]} */ (Array.from(performance.getEntriesByType('resource')));
     } catch (e) {
       // No timeline: the videos still tell theirs.
     }
@@ -2663,7 +2827,7 @@
       });
     }
     querySelectorAllIncludingShadows('video, audio').forEach((media) => {
-      const src = media.currentSrc || '';
+      const src = /** @type {HTMLMediaElement} */ (media).currentSrc || '';
       if (/^https?:\/\//i.test(src) && !found.some((entry) => entry.url === src)) {
         found.push({url: src, media: true, time: Date.now()});
       }
@@ -2710,6 +2874,10 @@
     return now - lastShortcutKeyAt > UserActivationMs;
   }
 
+  /**
+   * The video the user just started: report it to the background for mpv.
+   * @param {HTMLVideoElement} video - The video.
+   */
   function reportUserPlay(video) {
     try {
       chrome.runtime.sendMessage({
@@ -2724,11 +2892,15 @@
     }
   }
 
+  /**
+   * A 'play' event: report the video to mpv if the user started it.
+   * @param {Event} e - The play event.
+   */
   function onPlay(e) {
     // Only a play Firefox reports: a 'play' event the page makes up during a click starts
     // nothing, and made its video the one the shortcut sends.
     if (!e.isTrusted) return;
-    const video = e.target;
+    const video = /** @type {HTMLVideoElement|null} */ (e.target);
     if (!video || video.tagName !== 'VIDEO') return;
     if (!playFollowsUserPress()) return;
     userStartedVideos.add(video);
@@ -2750,9 +2922,13 @@
   // finds it (loadedMedia).
   const reportedVideoFiles = new Set();
 
+  /**
+   * A video got its file: tell the background once.
+   * @param {Event} e - The loadedmetadata event.
+   */
   function onLoadedMetadata(e) {
     if (!e.isTrusted) return;
-    const video = e.target;
+    const video = /** @type {HTMLVideoElement|null} */ (e.target);
     if (!video || video.tagName !== 'VIDEO') return;
     const src = video.currentSrc || '';
     if (!/^https?:\/\//i.test(src) || reportedVideoFiles.has(src)) return;
@@ -2784,6 +2960,10 @@
   const listenedRoots = new WeakSet();
   let lastRootScan = 0;
 
+  /**
+   * Listen for plays in one shadow root.
+   * @param {ShadowRoot} root - The shadow root.
+   */
   function listenInRoot(root) {
     if (!listenedRoots.has(root)) {
       listenedRoots.add(root);
@@ -2793,10 +2973,14 @@
     }
   }
 
+  /**
+   * Listen in one root and every shadow root under it.
+   * @param {Document|ShadowRoot} root - The document or a shadow root.
+   */
   function listenInShadowRoots(root) {
     for (const element of root.querySelectorAll('*')) {
       // Firefox lets a content script into closed roots too.
-      const shadow = element.openOrClosedShadowRoot || element.shadowRoot;
+      const shadow = /** @type {ShadowHost} */ (element).openOrClosedShadowRoot || element.shadowRoot;
       if (shadow) {
         listenInRoot(shadow);
         listenInShadowRoots(shadow);
@@ -2804,6 +2988,7 @@
     }
   }
 
+  /** @param {KeyboardEvent} e */
   function onUserGesture(e) {
     if (!e.isTrusted) return;
     // A key that starts a video is a plain one (Space, Enter, K). One that could be an
@@ -2831,7 +3016,7 @@
     }
   }
 
-  window.addEventListener('pointerdown', onUserGesture, true);
+  window.addEventListener('pointerdown', /** @type {EventListener} */ (onUserGesture), true);
   window.addEventListener('keydown', onUserGesture, true);
   window.addEventListener('keydown', (e) => {
     // The user's Escape only: one the page made (dispatchEvent) left the window too.
@@ -2850,7 +3035,7 @@
   // Pressing the shortcut while already watching a video the user started
   // counts as starting it now.
   function reportPlayingUserVideo() {
-    for (const video of querySelectorAllInAllShadows('video')) {
+    for (const video of /** @type {HTMLVideoElement[]} */ (querySelectorAllInAllShadows('video'))) {
       if (userStartedVideos.has(video) && !video.paused && !video.ended) {
         reportUserPlay(video);
         return true;
@@ -2925,6 +3110,7 @@
   // 'here'; 'left', told at beforeunload; or 'back', named again after a leave that never
   // happened.
   let leaveState = 'here';
+  /** @type {?Timer} */
   let leaveTimer = null;
 
   /** Names this page to the background (FRAME_ADDED). */
@@ -2969,7 +3155,7 @@
 
   window.addEventListener('pagehide', () => {
     // Gone, or into the back-forward cache, which names the page again itself (pageshow).
-    clearTimeout(leaveTimer);
+    clearTimeout(/** @type {Timer} */ (leaveTimer));
     leaveTimer = null;
     if (leaveState === 'back' && !RedirectingToPlayer) {
       reportLeaving();

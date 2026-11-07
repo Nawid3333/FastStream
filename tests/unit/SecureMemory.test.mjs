@@ -199,6 +199,22 @@ describe('SecureMemory.getFile', () => {
     memory.indexedDbManager = {getFile: async () => undefined};
     expect(await memory.getFile(await hashesFor('video'))).toBeNull();
   });
+
+  // pruneOld runs once a day a while after a player starts (FastStreamClient), not in every
+  // player's setup: a position past its year must read as none before it is deleted.
+  it('gives null for a record past its age that pruneOld has not deleted yet', async () => {
+    const stored = new Map();
+    const memory = new SecureMemory('test', {maxAgeMs: 1000});
+    memory.indexedDbManager = {
+      setFile: async (key, value) => stored.set(key, value),
+      getFile: async (key) => stored.get(key),
+    };
+    const hashes = await hashesFor('video');
+    await memory.setFile(hashes, {lastTime: 42});
+    expect(await memory.getFile(hashes)).toEqual({lastTime: 42});
+    stored.get('id').time -= 2000;
+    expect(await memory.getFile(hashes)).toBeNull();
+  });
 });
 
 describe('SecureMemory.getHashes', () => {

@@ -7,6 +7,8 @@
 > the tree as it is, read `CLAUDE.md`, `docs/maintenance.md` and
 > `docs/vendored-libraries.md`. Since 2026-10-02 nothing merges itself: every pull
 > request waits for the owner, and a green push to `main` still releases.
+> Its "Open decisions" and "Next steps, in order" are history too (2026-11-07): none of
+> them is a task now. Open work is in the repository's issues.
 >
 > **Removed since (2026-10-10, his decisions):** the video filters (brightness, contrast,
 > colours; zoom, flip and rotate stay), the speech detector (ONNX Runtime, the Silero VAD

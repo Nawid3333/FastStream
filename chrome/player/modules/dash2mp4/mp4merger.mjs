@@ -141,18 +141,28 @@ export class MP4Merger extends EventEmitter {
   }
 
   /**
-   * Adds a fragment's samples to its track, and its mdat to the file's data.
-   * @param {MergerTrack} defaultTrack - The track the fragment was queued against.
-   * @param {ZippedFragment} fragData - The fragment.
-   * @return {Promise<void>}
+   * A fragment's data, and the blob its mdat is sliced from.
+   * @param {ZippedFragment} fragData
+   * @return {Promise<{data: *, blob: *}>}
    */
-  async pushFragment(defaultTrack, fragData) {
+  async readFragment(fragData) {
     const entry = await fragData.getEntry();
     // getDataFromBlob first, not getData and BlobManager: it tells the store a read of data
     // it lost, and the save downloads the fragment again (savedEntry); the blob sliced
-    // below is then the new download's.
+    // in pushFragment is then the new download's.
     const data = await entry.getDataFromBlob('arraybuffer');
     const blob = await entry.getData();
+    return {data, blob};
+  }
+
+  /**
+   * Adds a fragment's samples to its track, and its mdat to the file's data.
+   * @param {MergerTrack} defaultTrack - The track the fragment was queued against.
+   * @param {ZippedFragment} fragData - The fragment.
+   * @param {{data: *, blob: *}} read - Its data and its blob (readFragment).
+   * @return {Promise<void>}
+   */
+  async pushFragment(defaultTrack, fragData, {data, blob}) {
     data.fileStart = 0;
     const mp4boxfile = createFile(false);
     mp4boxfile.onError = function(module, message) {
@@ -465,8 +475,10 @@ export class MP4Merger extends EventEmitter {
             throw new Error('Cancelled');
           }
           const buf = /** @type {ArrayBuffer} */ (await BlobManager.getDataFromBlob(slice, 'arraybuffer'));
+          // A fresh buffer of its own (Blob.arrayBuffer()), handed to the worker as it is:
+          // toStandaloneBuffer copied it once more, the whole file over, chunk by chunk.
           await this.opfs.saveAppend(this.saveIdentifier,
-              new Uint8Array(toStandaloneBuffer(buf)));
+              new Uint8Array(buf instanceof ArrayBuffer ? buf : toStandaloneBuffer(buf)));
         }
         await this.opfs.saveEnd(this.saveIdentifier);
         const file = await this.opfs.getSavedFile(/** @type {string} */ (this.saveIdentifier));
@@ -511,16 +523,23 @@ export class MP4Merger extends EventEmitter {
       this.setup(videoDuration, videoInitSegment, audioDuration, audioInitSegment);
 
       let lastProgress = 0;
+      // The next fragment is read from the store (RAM, or OPFS through its worker) while this
+      // one converts: one after the other, each waited for the other. One fragment more held.
+      // A read that fails meanwhile is the next round's error, not an unhandled rejection.
+      let next = zippedFragments.length ? this.readFragment(zippedFragments[0]) : null;
       for (let i = 0; i < zippedFragments.length; i++) {
         if (this.cancelled) {
           throw new Error('Cancelled');
         }
+        const read = /** @type {{data: *, blob: *}} */ (await next);
+        next = i + 1 < zippedFragments.length ? this.readFragment(zippedFragments[i + 1]) : null;
+        next?.catch(() => {});
         // setup made the track of each duration given: a track's fragments come with its
         // duration (DashPlayer.saveVideo).
         if (zippedFragments[i].track === 0) {
-          await this.pushFragment(/** @type {MergerTrack} */ (this.videoTrack), zippedFragments[i]);
+          await this.pushFragment(/** @type {MergerTrack} */ (this.videoTrack), zippedFragments[i], read);
         } else {
-          await this.pushFragment(/** @type {MergerTrack} */ (this.audioTrack), zippedFragments[i]);
+          await this.pushFragment(/** @type {MergerTrack} */ (this.audioTrack), zippedFragments[i], read);
         }
         const newProgress = Math.floor((i + 1) / zippedFragments.length * 100);
         if (newProgress !== lastProgress) {
