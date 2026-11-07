@@ -118,6 +118,10 @@ export function samplesFromMoof(moof) {
  */
 
 
+// The pieces of a save on their way to its file at once: the worker writes them one after
+// the other while the next ones are converted.
+const SAVE_APPENDS_AHEAD = 8;
+
 export class HLS2MP4 extends EventEmitter {
   /**
    * @param {(cancel: () => void) => void} [registerCancel] - Hands over what cancels the save.
@@ -125,6 +129,25 @@ export class HLS2MP4 extends EventEmitter {
   constructor(registerCancel) {
     super();
     this.blobManager = new FSBlob();
+    // The converted pieces go into one file on disk as they are made (OPFS), and the saved
+    // file is that one behind the moov. Kept as Blobs until the end, a long save had the
+    // whole video in RAM: 454 MB held at the end of a 458 MB save, 30 minutes of a 2 Mbit/s
+    // stream (measured 2026-11-07, docs/notes/player.md). Blobs still where
+    // there is no OPFS (a private window, the web build without it): decided at the first
+    // piece (toDisk), as MP4Merger decides at its end.
+    /** @type {?import('../../network/OPFSManager.mjs').OPFSManager} */
+    this.opfs = this.blobManager.opfsManager || null;
+    this.saveIdentifier = this.opfs ? 'hls-' + Date.now() + '-' + Math.floor(Math.random() * 1000000) : null;
+    /** @type {?Promise<void>} */
+    this.saveReady = null;
+    if (this.opfs) {
+      this.saveReady = this.opfs.saveBegin(/** @type {string} */ (this.saveIdentifier));
+      // Awaited by toDisk; this only keeps a save cancelled before its first piece quiet.
+      this.saveReady.catch(() => {});
+    }
+    // Pieces on their way to the file, at most SAVE_APPENDS_AHEAD.
+    /** @type {Promise<void>[]} */
+    this.appends = [];
     if (registerCancel) {
       registerCancel(() => {
         this.cancel();
@@ -219,7 +242,7 @@ export class HLS2MP4 extends EventEmitter {
         }
       });
 
-      this.pushChunk(this.videoTrack, result.video, result.initPTS, afterHole);
+      await this.pushChunk(this.videoTrack, result.video, result.initPTS, afterHole);
     }
 
     // With an audio rendition selected, hls.js plays that and drops whatever audio the
@@ -229,7 +252,7 @@ export class HLS2MP4 extends EventEmitter {
       if (!this.audioTrack) {
         this.audioTrack = this.makeTrack(result.audioTrack);
       }
-      this.pushChunk(this.audioTrack, result.audio, result.initPTS, afterHole);
+      await this.pushChunk(this.audioTrack, result.audio, result.initPTS, afterHole);
     }
   }
 
@@ -252,7 +275,7 @@ export class HLS2MP4 extends EventEmitter {
       if (!this.audioTrack) {
         this.audioTrack = this.makeTrack(result.audioTrack);
       }
-      this.pushChunk(this.audioTrack, result.audio, result.initPTS, afterHole);
+      await this.pushChunk(this.audioTrack, result.audio, result.initPTS, afterHole);
     }
   }
 
@@ -282,7 +305,7 @@ export class HLS2MP4 extends EventEmitter {
    *     the one both renditions share, so the tracks start as far apart as they played.
    * @param {boolean} [afterHole] whether fragments are missing before this one (isAfterHole)
    */
-  pushChunk(track, remuxed, initPTS, afterHole = false) {
+  async pushChunk(track, remuxed, initPTS, afterHole = false) {
     const headerLen = 8;
     if (afterHole && track.chunks.length) {
       this.padHole(track, remuxed.startDTS + initPTS);
@@ -297,11 +320,39 @@ export class HLS2MP4 extends EventEmitter {
       startPTS: remuxed.startPTS + initPTS,
       endPTS: remuxed.endPTS + initPTS,
     });
-    const blob = new Blob([remuxed.data2], {
-      type: 'video/mp4',
-    });
-    /** @type {Array<*>} */ (this.datas).push(this.blobManager.saveBlob(blob));
-    this.datasOffset += remuxed.data2.byteLength;
+    const data = remuxed.data2;
+    this.datasOffset += data.byteLength;
+    if (await this.toDisk()) {
+      // Handed to the worker (transferred): a view of a larger buffer is copied first.
+      const own = data.byteOffset === 0 && data.byteLength === data.buffer.byteLength ? data : data.slice();
+      const append = /** @type {import('../../network/OPFSManager.mjs').OPFSManager} */ (this.opfs)
+          .saveAppend(/** @type {string} */ (this.saveIdentifier), own);
+      // Awaited below or in finalize; this keeps a failure after a cancel quiet.
+      append.catch(() => {});
+      this.appends.push(append);
+      if (this.appends.length >= SAVE_APPENDS_AHEAD) {
+        await this.appends.shift();
+      }
+      return;
+    }
+    /** @type {Array<*>} */ (this.datas).push(this.blobManager.saveBlob(new Blob([data], {type: 'video/mp4'})));
+  }
+
+  /**
+   * Whether the pieces go into the file on disk: OPFS's save began. Asked before the first
+   * piece is kept, so a save that could not begin keeps them all as Blobs.
+   * @return {Promise<boolean>}
+   */
+  async toDisk() {
+    if (!this.opfs) return false;
+    try {
+      await this.saveReady;
+      return true;
+    } catch (e) {
+      console.warn('The save could not write to disk; it keeps its pieces in memory', e);
+      this.opfs = null;
+      return false;
+    }
   }
 
   /**
@@ -475,6 +526,15 @@ export class HLS2MP4 extends EventEmitter {
       initSeg = MP4.initSegment(tracks);
     }
 
+    if (this.opfs) {
+      const opfs = this.opfs;
+      const identifier = /** @type {string} */ (this.saveIdentifier);
+      await Promise.all(this.appends.splice(0));
+      await opfs.saveEnd(identifier);
+      // On disk; the moov in front of it. It stays until release(), with the blob store.
+      return new Blob([initSeg, await opfs.getSavedFile(identifier)], {type: 'video/mp4'});
+    }
+
     const dataChunks = await Promise.all(/** @type {Array<*>} */ (this.datas).map((data) => {
       return this.blobManager.getBlob(data);
     }));
@@ -533,6 +593,9 @@ export class HLS2MP4 extends EventEmitter {
       // was kept, so the blob store goes now, as MP4Merger's does. Only a cancel closed
       // it; after a failure its worker and the fragments on disk stayed until the tab
       // closed.
+      if (this.opfs) {
+        await this.opfs.saveAbort(/** @type {string} */ (this.saveIdentifier)).catch(() => {});
+      }
       this.destroy(/* immediate */ true);
       throw e;
     }
