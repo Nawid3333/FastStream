@@ -110,7 +110,7 @@ describe('IndexedDBManager.prune', () => {
     expect(deleteDB.mock.calls).toEqual([['faststream-temp-stale']]);
   });
 
-  // A live tab writes its time each second, but Firefox runs a hidden tab's timers up to 15 s
+  // A live tab writes its time every 5 s, but Firefox runs a hidden tab's timers up to 15 s
   // late: one 10 s behind was taken for a dead one, and its videos were deleted under it.
   it('keeps the database of a hidden tab whose timers run late', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -141,6 +141,37 @@ describe('IndexedDBManager.requestDB', () => {
       request.onsuccess({target: {result: db}});
       expect(db.close).toHaveBeenCalledTimes(1);
     } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// Each request left its timeout's timer behind once answered, to fire seconds later for
+// nothing: every get, set and heartbeat of a player page.
+describe('IndexedDBManager.wrapRequest', () => {
+  it('lets its timeout go once the request is answered, and still times out one that is not', async () => {
+    vi.useFakeTimers();
+    try {
+      const answered = {};
+      const result = IndexedDBManager.wrapRequest(answered, 5000);
+      expect(vi.getTimerCount()).toBe(1);
+      answered.onsuccess({target: {result: 'value'}});
+      expect(await result).toBe('value');
+      expect(vi.getTimerCount()).toBe(0);
+
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const refused = {};
+      const failed = IndexedDBManager.wrapRequest(refused, 5000);
+      refused.onerror('refused');
+      await expect(failed).rejects.toBe('refused');
+      expect(vi.getTimerCount()).toBe(0);
+
+      const stuck = IndexedDBManager.wrapRequest({}, 5000);
+      const outcome = stuck.catch((e) => e.message);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(await outcome).toBe('Timeout');
+    } finally {
+      vi.restoreAllMocks();
       vi.useRealTimers();
     }
   });

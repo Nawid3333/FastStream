@@ -83,7 +83,10 @@ export function chooseToRelease(held, time, keep, bytes) {
   if (freed >= bytes || (keep.behind <= KEEP_AT_LEAST.behind && keep.ahead <= KEEP_AT_LEAST.ahead)) {
     return first;
   }
-  const rest = releaseOutside(held.filter((fragment) => !first.includes(fragment)), time, KEEP_AT_LEAST, bytes - freed);
+  // A set: includes() on the list made this pass quadratic, each client tick while a long
+  // video sat over its budget with thousands of fragments held.
+  const chosen = new Set(first);
+  const rest = releaseOutside(held.filter((fragment) => !chosen.has(fragment)), time, KEEP_AT_LEAST, bytes - freed);
   return [...first, ...rest];
 }
 

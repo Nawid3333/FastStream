@@ -2954,6 +2954,12 @@ async function openPlayer(frame) {
  * @param {FrameHolder} frame - The frame a stream was detected in.
  */
 async function sendSourcesToMainFramePlayers(frame) {
+  // Only a tab that is on and has a main player is sent to (below): with none, the query of
+  // every tab is for nothing - and this runs for every stream detected, each segment of a
+  // page's own player.
+  if (!Array.from(Tabs.tabs.values()).some((tab) => tab.isOn && tab.getMainPlayer())) {
+    return;
+  }
   // query all tabs
   const tabs = await BackgroundUtils.queryTabs();
   // Only to player tabs on the same side of private browsing as the page: a private

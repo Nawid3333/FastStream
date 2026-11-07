@@ -56,6 +56,8 @@ export class InterfaceController {
   /** @param {import('../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     this.client = client;
+    // One function for every frame of the progress loop, not a new one each frame.
+    this.boundProgressLoop = this.progressLoop.bind(this);
     // The client's state, with the flag this keeps there for a Document Picture-in-Picture window.
     /** @type {import('../FastStreamClient.mjs').FastStreamClient['state'] & {documentPip?: boolean}} */
     this.state = client.state;
@@ -994,7 +996,7 @@ export class InterfaceController {
       this.isRunningProgressLoop = false;
       return;
     }
-    window.requestAnimationFrame(this.progressLoop.bind(this));
+    window.requestAnimationFrame(this.boundProgressLoop);
     this.client.updateTime(this.client.currentTime);
   }
 

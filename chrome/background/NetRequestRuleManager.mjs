@@ -36,14 +36,23 @@ export class RuleEntry {
    */
   constructor(id, lifetimeMs) {
     this.id = id;
+    this.expiresAt = Date.now() + RuleEntry.lifetime(lifetimeMs);
+  }
+
+  /**
+   * @param {number} [lifetimeMs] - What was asked for.
+   * @return {number} What a rule gets: RULE_LIFETIME_MS, up to MAX_RULE_LIFETIME_MS.
+   */
+  static lifetime(lifetimeMs) {
     const lifetime = Number.isFinite(lifetimeMs) ? /** @type {number} */ (lifetimeMs) : RULE_LIFETIME_MS;
-    this.expiresAt = Date.now() + Math.min(Math.max(lifetime, RULE_LIFETIME_MS), MAX_RULE_LIFETIME_MS);
+    return Math.min(Math.max(lifetime, RULE_LIFETIME_MS), MAX_RULE_LIFETIME_MS);
   }
 }
 
 /**
- * A rule the manager holds, with how often its removal failed (filterRules).
- * @typedef {RuleEntry & {removeAttempts?: number}} HeldRule
+ * A rule the manager holds, with how often its removal failed (filterRules), what it is for
+ * (its URL, tab and headers) and whether the browser took it (addHeaderRule).
+ * @typedef {RuleEntry & {removeAttempts?: number, key?: string, ready?: Promise<boolean>}} HeldRule
  */
 
 export class RuleManager {
@@ -106,6 +115,9 @@ export class RuleManager {
       }
       return true;
     });
+    // Nothing ran out: no call to the browser. It went each second for as long as any rule
+    // was held - throughout playback - with nothing to remove.
+    if (removed.length === 0) return;
 
     try {
       await chrome.declarativeNetRequest.updateSessionRules({
@@ -135,7 +147,20 @@ export class RuleManager {
    */
   async addHeaderRule(url, tabId, requestHeaderCommands, lifetimeMs) {
     await this.initialClear;
+    // The same rule still held - the same URL as requested, tab and headers: an MP4's ranges,
+    // a direct video's renewals - is kept longer instead of added again. Each was a call to
+    // the browser, which compiles the session rules anew. Only once the browser has taken it:
+    // a request let go before that went out without its headers.
+    const key = JSON.stringify([asRequested(url), tabId, requestHeaderCommands]);
+    const same = this.rules.find((held) => held.key === key && !held.removeAttempts && held.expiresAt > Date.now());
+    if (same && await same.ready && this.rules.includes(same) && same.expiresAt > Date.now()) {
+      same.expiresAt = Math.max(same.expiresAt, Date.now() + RuleEntry.lifetime(lifetimeMs));
+      return same;
+    }
+
+    /** @type {HeldRule} */
     const rule = new RuleEntry(this.getNextID(), lifetimeMs);
+    rule.key = key;
     // insert rule in order
     const index = this.getInsertionIndex(rule.id);
     if (index === -1) throw new Error('Rule already exists');
@@ -169,14 +194,17 @@ export class RuleManager {
       },
     };
 
+    // Removed first, in the same call: a rule whose removal failed three times was given
+    // up (above) while the browser may still hold it, and its id, free again here, was
+    // refused - every rule after it too, until the event page restarted.
+    const added = chrome.declarativeNetRequest.updateSessionRules({
+      removeRuleIds: [ruleObj.id],
+      addRules: /** @type {chrome.declarativeNetRequest.Rule[]} */ ([ruleObj]),
+    });
+    // For a request asking for the same rule meanwhile (above): false when it was refused.
+    rule.ready = added.then(() => true, () => false);
     try {
-      // Removed first, in the same call: a rule whose removal failed three times was given
-      // up (above) while the browser may still hold it, and its id, free again here, was
-      // refused - every rule after it too, until the event page restarted.
-      await chrome.declarativeNetRequest.updateSessionRules({
-        removeRuleIds: [ruleObj.id],
-        addRules: /** @type {chrome.declarativeNetRequest.Rule[]} */ ([ruleObj]),
-      });
+      await added;
     } catch (e) {
       // Roll back the optimistic insertion above so bookkeeping
       // (getNextID/getInsertionIndex) doesn't think a rule exists that the

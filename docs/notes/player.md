@@ -777,3 +777,57 @@ readyState 0 behind "This video is copy-protected (DRM)…", where Vimeo's own p
   dash.js's word (NEED_KEY), as before.
 - **Live, 2026-10-28:** player.vimeo.com/video/863362136 kept Vimeo's player, badge "DRM";
   vimeo.com/22439234 (clear) was still taken over and played.
+
+## Optimisation review of the whole player, 2026-11-07
+
+glm-5.3-flash reviewed the network layer and client, the players, the interface's playback-time
+code and the background script for speed on Windows 11 and Firefox (Codex was asked too, and
+stopped at its usage limit). Each finding was checked against the code before anything was
+changed.
+
+Changed:
+
+- **A queued download that was removed stayed in the queue** (`DownloadManager.removeFile`,
+  as on a level switch freeing the old level's downloads ahead): `canGetFile` says no while
+  the queue holds anything, so the new level's downloads ahead waited until a finished
+  download let `queueNext` drop it. Now taken out, as the other ways a queued download ends do.
+- **MP4Player's main loop** re-armed every 1 ms (4 ms in Firefox) for as long as an MP4
+  played, about 250 rounds a second per player (the seek preview is a second one). Now 1 ms
+  only while it starts, seeks or has run out of media, 50 ms while it plays with media ahead
+  (`STEADY_LOOP_MS`): measured about 20 rounds a second per player while playing. First frame
+  and seek times: the interleaved comparison in the pull request.
+- **Header rules**: the expiry round called `declarativeNetRequest.updateSessionRules` every
+  second with nothing to remove while any rule was held; now only when one ran out. The same
+  rule asked for again (an MP4's every range, a direct video's renewals) is kept longer
+  instead of added again - each add made Firefox compile the session rules anew - and a
+  second request waits until the browser took the first.
+- **A stream detected with no player tab to send it to** queried every tab
+  (`sendSourcesToMainFramePlayers`, for each segment a page's own player fetched).
+- **Heartbeats every 5 s, not 1 s** (opfs-worker, IndexedDB temporary databases): a file
+  opened, written and closed, or a transaction, each second for every player page's life.
+  Only `prune`'s 60 s staleness window reads them.
+- Small: an IndexedDB request's timeout timer is cleared once answered; `chooseToRelease`'s
+  second pass uses a Set (it was quadratic over the held fragments); the progress loop and
+  the MP4 main loop reuse one bound function instead of making one per round.
+
+Checked and not changed (the reason each time):
+
+- **Update the toolbar icon only when a tab's URL changes** (`tabs.onUpdated`): Firefox resets
+  a tab's own action title, badge and icon when the tab navigates; setting them on every
+  update is what puts FastStream's state back whenever that reset lands.
+- **Renew DirectVideoPlayer's header rule every 30 s instead of 10 s**: its comment's reason
+  holds - a hidden tab's timer can be up to 50 s late, and the renewal has to land within the
+  60 s rule.
+- **Filter the detection listener by request type**: subtitle and file-extension detection run
+  for every type before the type checks (a video in `<embed>`/`<object>` is type `object`), and
+  `onBeforeRequest` has to see every request anyway (the frame tree, the VPN mirror), so the
+  background is woken all the same. Not worth the risk of missing a source.
+- **Run the start-up's storage estimate and buffer take-back while the player is built**
+  (`setSourceInternal`): the order is what keeps adoption before the first download; not
+  measured to be slow.
+- **Re-index a fragmented MP4's samples only every 4th range**, **run the subtitle bounds
+  check only when something changed**, **skip the silence skipper's checks while paused**,
+  **cache each tracked source's URL shape** (`trimTracked`: a split and a replace, well under
+  a millisecond per detected segment): small or unmeasured gains, each with a way to go wrong.
+- HLSPlayer.currentFragment's fallback to `hls.loadLevel`: part of the start-up change measured
+  and reverted on 2026-11-06 (above); the glm knowledge-base entry that described it is retired.

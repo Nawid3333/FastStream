@@ -297,3 +297,119 @@ describe('RuleManager, a rule\'s lifetime', () => {
     expect(held.size).toBe(0);
   });
 });
+
+// Each rule added was a call to the browser, which compiles the session rules anew: an MP4's
+// every range, a direct video's every renewal asked for the same rule again. And the round
+// that removes expired rules called the browser each second with nothing to remove.
+describe('RuleManager, the same rule asked for again', () => {
+  let calls;
+  let held;
+  /** @type {?() => void} */
+  let releaseAdd;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    calls = [];
+    held = new Set();
+    releaseAdd = null;
+    globalThis.chrome = {
+      runtime: {getURL: (path) => 'moz-extension://test-uuid' + path},
+      declarativeNetRequest: {
+        getSessionRules: async () => [],
+        updateSessionRules: async (update) => {
+          calls.push(update);
+          if (releaseAdd === undefined && update.addRules?.length) {
+            // Held until the test lets it go: the browser still taking the rule.
+            await new Promise((resolve) => {
+              releaseAdd = resolve;
+            });
+          }
+          for (const id of update.removeRuleIds || []) held.delete(id);
+          for (const rule of update.addRules || []) held.add(rule.id);
+        },
+      },
+    };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete globalThis.chrome;
+  });
+
+  const referer = [{operation: 'set', header: 'referer', value: 'https://site.test/'}];
+  const adds = () => calls.filter((update) => update.addRules?.length).length;
+
+  it('keeps the rule it holds longer instead of adding it again', async () => {
+    const manager = new RuleManager();
+    const first = await manager.addHeaderRule('https://cdn.test/v.mp4', 7, referer);
+    await vi.advanceTimersByTimeAsync(4000);
+    const again = await manager.addHeaderRule('https://cdn.test/v.mp4', 7, referer);
+    expect(again).toBe(first);
+    expect(adds()).toBe(1);
+    // 5 s from the second request, not from the first.
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(held.has(first.id)).toBe(true);
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(held.has(first.id)).toBe(false);
+  });
+
+  it('never shortens a longer rule it reuses', async () => {
+    const manager = new RuleManager();
+    const element = await manager.addHeaderRule('https://cdn.test/v.mkv', 7, referer, 60000);
+    await manager.addHeaderRule('https://cdn.test/v.mkv', 7, referer);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(held.has(element.id)).toBe(true);
+  });
+
+  it('adds a rule of its own for another URL, tab or header', async () => {
+    const manager = new RuleManager();
+    await manager.addHeaderRule('https://cdn.test/v.mp4', 7, referer);
+    await manager.addHeaderRule('https://cdn.test/w.mp4', 7, referer);
+    await manager.addHeaderRule('https://cdn.test/v.mp4', 8, referer);
+    await manager.addHeaderRule('https://cdn.test/v.mp4', 7, [{operation: 'set', header: 'origin', value: 'https://site.test'}]);
+    expect(adds()).toBe(4);
+  });
+
+  it('answers a request for the same rule only once the browser has taken it', async () => {
+    const manager = new RuleManager();
+    releaseAdd = undefined;
+    const first = manager.addHeaderRule('https://cdn.test/v.mp4', 7, referer);
+    await vi.advanceTimersByTimeAsync(0);
+    let answered = false;
+    const again = manager.addHeaderRule('https://cdn.test/v.mp4', 7, referer).then((rule) => {
+      answered = true;
+      return rule;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(answered).toBe(false);
+    /** @type {() => void} */ (releaseAdd)();
+    expect(await again).toBe(await first);
+    expect(adds()).toBe(1);
+  });
+
+  it('adds its own when the browser refused the one it would reuse', async () => {
+    const manager = new RuleManager();
+    const take = globalThis.chrome.declarativeNetRequest.updateSessionRules;
+    let refusals = 1;
+    globalThis.chrome.declarativeNetRequest.updateSessionRules = async (update) => {
+      if (update.addRules?.length && refusals-- > 0) throw new Error('refused');
+      return take(update);
+    };
+    const first = manager.addHeaderRule('https://cdn.test/v.mp4', 7, referer);
+    const again = manager.addHeaderRule('https://cdn.test/v.mp4', 7, referer);
+    await expect(first).rejects.toThrow('refused');
+    const rule = await again;
+    expect(held.has(rule.id)).toBe(true);
+  });
+
+  it('calls the browser to remove rules only when one ran out', async () => {
+    const manager = new RuleManager();
+    const rule = await manager.addHeaderRule('https://cdn.test/v.mp4', 7, referer);
+    // After the clearing of a last event page's rules, which the manager does once.
+    const since = calls.length;
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(calls.slice(since)).toEqual([]);
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(calls.slice(since)).toEqual([{removeRuleIds: [rule.id]}]);
+  });
+});

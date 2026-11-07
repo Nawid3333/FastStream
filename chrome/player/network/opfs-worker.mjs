@@ -14,7 +14,10 @@ import {OpQueue} from './OpQueue.mjs';
 // in the back-forward cache, or a whole browser after the computer slept, writes no
 // heartbeat for a while, and the next player to start deleted their stored video.
 const STALE_MS = 60000;
-const HEARTBEAT_MS = 1000;
+// Every 5 s, not every second: each beat opens, writes and closes a file, for the whole life
+// of every player page. Firefox holds a hidden tab's timers back by up to 15 s, so a beat is
+// at most about 20 s old, well inside STALE_MS.
+const HEARTBEAT_MS = 5000;
 const META_FILE = '_meta.json';
 
 const queue = new OpQueue();

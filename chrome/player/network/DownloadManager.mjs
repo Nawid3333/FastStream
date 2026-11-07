@@ -477,6 +477,12 @@ export class DownloadManager {
     const key = this.getIdentifier(details);
     const storedEntry = this.stored(details, key);
     if (storedEntry) {
+      // Out of the queue too, as the other ways a queued download ends take it out: left
+      // there failed, it kept canGetFile saying no to every download ahead (a level switch
+      // freeing the old level's queued ones), until a finished download moved it to the
+      // head and queueNext dropped it.
+      const queued = this.queue.indexOf(storedEntry);
+      if (queued !== -1) this.queue.splice(queued, 1);
       storedEntry.destroy();
       this.storage.delete(key);
       this.blobStore.deleteBlob(storedEntry.blobId ?? key);
