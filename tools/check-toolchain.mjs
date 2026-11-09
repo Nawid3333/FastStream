@@ -9,8 +9,7 @@
 //     .nvmrc, so the pull request changes that one file. Routine: ready to merge once CI
 //     passes and the build is unchanged; the owner merges it (2026-10-02).
 //   - pnpm, same major: the newest release of the pinned major ("packageManager" in
-//     package.json) that is at least MIN_AGE_DAYS old, so a broken or hijacked release is
-//     usually pulled before it is tried. Routine: .github/workflows/update-prs.yml says
+//     package.json), as soon as it is out. Routine: .github/workflows/update-prs.yml says
 //     it is ready to merge once CI passes.
 //   - pnpm, next major: the same change, routine as the same major is, unless it wants the
 //     lockfile rewritten (CI fails at the frozen install, and the owner pushes it). pnpm 12
@@ -18,12 +17,11 @@
 //     pnpm-lock.yaml one YAML document, which GitHub's dependency graph needs
 //     (dependabot/dependabot-core#15904).
 //   - uBlock Origin, which tools/setup-dev-profile.mjs puts into the developer's Firefox
-//     profile: the newest public release on AMO at least MIN_AGE_DAYS old. Dependabot cannot
+//     profile: the newest public release on AMO. Dependabot cannot
 //     see an add-on pin, and nothing in CI downloads it, so the workflow downloads the file
 //     and checks it against AMO's SHA-256 before it pushes anything. Routine.
 //   - The player libraries the live suite plays (tests/e2e/live-specs/player-libraries.json),
-//     as one set ("players" in the plan): each at its newest release at least MIN_AGE_DAYS
-//     old that fits the ranges they declare on each other and on hls.js (the repository's
+//     as one set ("players" in the plan): each at its newest release that fits the ranges they declare on each other and on hls.js (the repository's
 //     own pin), a new major included: the live suite plays each page before the pull request
 //     is ready, and a page a major breaks keeps it red until the page is changed. MAJOR_HOLDS
 //     keeps a library on its major on purpose, each hold with its reason, while the held line
@@ -56,12 +54,11 @@ import {compareVersions} from './check-patched-updates.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * How old a release must be before it is tried (the owner's call, 2026-10-20; 5 days until
- * 2026-10-11, then none): green CI cannot see a compromised release, and most are pulled
- * within hours to days. Dependabot's cooldown and update-prs.yml's lockfile check wait as
- * long. tools/newest-release.mjs takes it for the owner's PC too.
+ * How old a release must be before it is tried: no wait (the owner's call of 2026-11-09, as
+ * from 2026-10-11 to 2026-10-20: nothing merges itself, and he decides when each update is
+ * merged). tools/newest-release.mjs takes it for the owner's PC too.
  */
-export const MIN_AGE_DAYS = 3;
+export const MIN_AGE_DAYS = 0;
 
 /** Every update pull request's title starts with this; the workflow and the plan share it. */
 export const TITLE_PREFIX = 'Toolchain update: ';
@@ -408,7 +405,7 @@ function bare(version, atom) {
 }
 
 /**
- * The versions a pin may move to: plain, not deprecated, MIN_AGE_DAYS old, above the pin, a
+ * The versions a pin may move to: plain, not deprecated, above the pin, a
  * new major included, and below a hold's bound when the library has one. Newest first, the pin
  * itself last as the floor (even when it is deprecated or young: it is what main has).
  * @param {RegistryDoc} doc
@@ -759,7 +756,7 @@ async function updates() {
     const nextMajor = newestOfMajor(doc, major + 1, now);
     /** @type {Update[]} */
     const tracks = [{name: 'pnpm', current: pnpmCurrent, latest: sameMajor, behind: compareVersions(sameMajor, pnpmCurrent) > 0,
-      routine: true, note: `newest ${major}.x at least ${MIN_AGE_DAYS} days old is ${sameMajor}; pinned ${pin}`}];
+      routine: true, note: `newest ${major}.x is ${sameMajor}; pinned ${pin}`}];
     if (nextMajor) {
       tracks.push({name: 'pnpm', current: pnpmCurrent, latest: nextMajor, behind: true, routine: true,
         note: `pnpm ${major + 1} is out: ${nextMajor}; pinned ${pin}`});
@@ -773,10 +770,10 @@ async function updates() {
     // Newest first; a page of 25 reaches back months for an add-on that releases monthly.
     const page = await getJson(`https://addons.mozilla.org/api/v5/addons/addon/${UBLOCK.slug}/versions/?page_size=25`);
     const addon = newestAddon(page, now);
-    if (!addon) throw new Error(`AMO lists no public release at least ${MIN_AGE_DAYS} days old on its first page`);
+    if (!addon) throw new Error(`AMO lists no public release on its first page`);
     return [{name: UBLOCK.name, current: addonCurrent, latest: addon.version,
       behind: compareVersions(addon.version, addonCurrent) > 0, routine: true,
-      note: `newest on AMO at least ${MIN_AGE_DAYS} days old is ${addon.version}; tools/setup-dev-profile.mjs pins ${addonCurrent}`,
+      note: `newest on AMO is ${addon.version}; tools/setup-dev-profile.mjs pins ${addonCurrent}`,
       file: {url: addon.url, sha256: addon.sha256}}];
   });
 

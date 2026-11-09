@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # security-alerts.yml's job "watch", the daily look at the update pull requests (2026-10-20):
-# it closes the migration issues of pull requests merged or closed since, starts
-# update-prs.yml again on a pull request it held back for new releases once they are 3 days
-# old, and opens, updates or closes the one issue "Update pull requests piling up" (a
+# it closes the migration issues of pull requests merged or closed since, and opens, updates or closes the one issue "Update pull requests piling up" (a
 # Dependabot entry at its open-pull-requests-limit minus 2, or an update red for over 14
 # days). Fixtures stand in for the issues, pull requests, comments, events and
 # .github/dependabot.yml; the stub gh logs what the steps create, edit, close and start.
@@ -12,11 +10,9 @@ here=$(mktemp -d)
 trap 'rm -rf "$here"' EXIT
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 close_step=$here/close.sh
-again_step=$here/again.sh
 pile_step=$here/pile.sh
 report_step=$here/report.sh
 step_script security-alerts.yml 'Close the migration issues of closed pull requests' > "$close_step" || exit 1
-step_script security-alerts.yml 'Decide again on update pull requests held for new releases' > "$again_step" || exit 1
 step_script security-alerts.yml 'Open, update or close the piling-up issue' > "$pile_step" || exit 1
 step_script security-alerts.yml "Report the watch's own failure" > "$report_step" || exit 1
 
@@ -215,65 +211,6 @@ check 'tries #701 and #702' count "$LOG" 'CLOSE [' 2
 scenario 'm2 no migration issue -> nothing' "$close_step"
 check 'succeeds' test "$status" -eq 0
 check 'touches nothing' test ! -s "$LOG"
-
-# --- Deciding again on a pull request held back for package versions under 3 days old.
-
-due=$((NOW - 60))
-later=$((NOW + 3600))
-look() { # <time> <run> <commit>: update-prs.yml's comment holding a pull request back
-  printf '@Nawid3333 CI passes on this pull request. Look at this before merging:\n\n- its lockfile adds package versions under 3 days old\n\nThe youngest ...\n<!-- update-prs-recheck: %s %s %s -->\n\n<sub>x</sub>\n<!-- update-prs: look -->\n' "$1" "$2" "$3"
-}
-p42=$(pull 42 dependabot/npm_and_yarn/tooling-minor-and-patch-0123abcd)
-
-scenario 'r1 old enough now, same commit -> update-prs.yml starts again on that run' "$again_step" \
-  FX_PRS="$(arr "$p42")" \
-  FX_COMMENTS_42="$(arr "$(cmt 'github-actions[bot]' $'red\n<!-- update-prs: red 0123456789ab -->')" "$(cmt 'github-actions[bot]' "$(look $due 555 $sha)")")"
-check 'succeeds' test "$status" -eq 0
-check 'starts update-prs.yml on main, with the run and the branch' contains "$LOG" \
-  'DISPATCH [update-prs.yml] [--ref] [main] [-f] [run_id=555] [-f] [branch=dependabot/npm_and_yarn/tooling-minor-and-patch-0123abcd]'
-check 'once' count "$LOG" 'DISPATCH' 1
-
-scenario 'r2 exactly at its time -> starts it' "$again_step" \
-  FX_PRS="$(arr "$p42")" FX_COMMENTS_42="$(arr "$(cmt 'github-actions[bot]' "$(look $NOW 555 $sha)")")"
-check 'starts it' count "$LOG" 'DISPATCH' 1
-
-scenario 'r3 not old enough yet -> nothing' "$again_step" \
-  FX_PRS="$(arr "$p42")" FX_COMMENTS_42="$(arr "$(cmt 'github-actions[bot]' "$(look $later 555 $sha)")")"
-check 'succeeds' test "$status" -eq 0
-check 'starts nothing' lacks "$LOG" 'DISPATCH'
-check 'says when' contains "$FIX/out" '#42: its youngest new package version is 3 days old at 2026-10-20 13:40 UTC.'
-
-scenario 'r4 the branch moved on -> its own CI run decides' "$again_step" \
-  FX_PRS="$(arr "$p42")" FX_COMMENTS_42="$(arr "$(cmt 'github-actions[bot]' "$(look $due 555 $other)")")"
-check 'starts nothing' lacks "$LOG" 'DISPATCH'
-check 'says why' contains "$FIX/out" '#42 moved on from bbbbbbbb'
-
-scenario 'r5 a later verdict without the marker -> nothing' "$again_step" \
-  FX_PRS="$(arr "$p42")" \
-  FX_COMMENTS_42="$(arr "$(cmt 'github-actions[bot]' "$(look $due 555 $sha)")" "$(cmt 'github-actions[bot]' $'ready\n<!-- update-prs: ready -->')")"
-check 'starts nothing' lacks "$LOG" 'DISPATCH'
-
-scenario "r6 the marker in someone else's comment, or in one not update-prs.yml's -> nothing" "$again_step" \
-  FX_PRS="$(arr "$p42")" \
-  FX_COMMENTS_42="$(arr "$(cmt 'github-actions[bot]' $'look\n<!-- update-prs: look -->')" "$(cmt Nawid3333 "$(look $due 556 $sha)")" \
-    "$(cmt 'github-actions[bot]' "$(look $due 557 $sha | sed '/<!-- update-prs: look -->/d')")")"
-check 'starts nothing' lacks "$LOG" 'DISPATCH'
-
-scenario "r7 a fork's pull request, a branch that is no update -> not looked at" "$again_step" \
-  FX_PRS="$(arr "$(pull 43 dependabot/npm_and_yarn/x-1.0.0 mallory '' true)" "$(pull 44 feature/x Nawid3333)")" \
-  FX_COMMENTS_43="$(arr "$(cmt 'github-actions[bot]' "$(look $due 555 $sha)")")" \
-  FX_COMMENTS_44="$(arr "$(cmt 'github-actions[bot]' "$(look $due 555 $sha)")")"
-check 'succeeds' test "$status" -eq 0
-check 'reads no comments' lacks "$LOG" 'COMMENTS'
-check 'starts nothing' lacks "$LOG" 'DISPATCH'
-
-scenario 'r8 two held back, one due -> one start' "$again_step" \
-  FX_PRS="$(arr "$p42" "$(pull 50 patched/hls.js-1.8.0 app/github-actions)" "$(pull 51 toolchain/pnpm-13.0.0 app/github-actions)")" \
-  FX_COMMENTS_42="$(arr "$(cmt 'github-actions[bot]' "$(look $later 555 $sha)")")" \
-  FX_COMMENTS_50="$(arr "$(cmt 'github-actions[bot]' "$(look $due 600 $sha)")")"
-check 'starts the due one' contains "$LOG" 'DISPATCH [update-prs.yml] [--ref] [main] [-f] [run_id=600] [-f] [branch=patched/hls.js-1.8.0]'
-check 'only that one' count "$LOG" 'DISPATCH' 1
-check 'reads each update branch' test "$(grep -c '^COMMENTS' "$LOG")" -eq 3
 
 # --- The issue "Update pull requests piling up".
 

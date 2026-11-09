@@ -5,8 +5,7 @@ your merge. `update-prs.yml` runs after every completed CI run for this reposito
 `dependabot/*`, `toolchain/*` and `patched/*` branches and comments
 on the PR, assigned to you: **ready to merge** once CI is green and its checks hold (only
 that bot's commits, only the files that kind of update changes, the dependency review
-passed, no package version under 3 days old in its lockfile (a security fix aside), and the
-build unchanged when it is not meant to ship), or what to look at before merging, or why CI
+passed, and the build unchanged when it is not meant to ship), or what to look at before merging, or why CI
 failed; red twice, it is parked with a migration issue that says what to do. The comment
 says whether your merge releases: an update that ships starts CI on `main` with your merge,
 and a green run there releases it to Firefox. The mpv pin comes as one PR that keeps up with
@@ -18,49 +17,36 @@ merged themselves.
 
 | What | How it arrives | What happens on green | What reaches you |
 | ---- | -------------- | ---------------------- | ---------------- |
-| npm tooling, minor/patch | one grouped Dependabot PR a week (`tooling-minor-and-patch`) | "ready to merge"; your merge releases nothing (the build is unchanged) | the PR |
-| npm shipped libraries (fuse.js, mediabunny, sortablejs), minor/patch | one grouped Dependabot PR a week (`shipped-minor-and-patch`) | "ready to merge"; your merge starts CI on `main`, and a green run there releases it | the PR; GitHub emails you when CI on `main` fails after your merge |
-| npm major | a Dependabot PR of its own (after the 3-day cooldown) | "ready to merge": a tooling major when the build is unchanged; a shipped library's releases after your merge, as for the shipped group | the PR |
-| fsaunpack (express) | a Dependabot PR for `fsaunpack/`, the helper that unpacks and serves a saved `.fsa` archive; not part of the extension | "ready to merge" when it changes only `fsaunpack/package.json` and `fsaunpack/package-lock.json` and every version that lockfile adds is 3 days old; CI installs it (scripts off) and starts its test server on a recorded archive (`pnpm run verify:fsaunpack`). | the PR |
-| GitHub Actions | one grouped Dependabot PR a week (minor/patch), a major on its own, each release once it is 3 days old | "ready to merge" when it changes only workflow and action files; `update-prs.yml` brings its branch up to date with your token `UPDATE_PRS_TOKEN` (below) | the PR |
-| pnpm 12.x | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/pnpm-<version>`, changing only `packageManager`, once the release is 3 days old; one in conflict with `main` is rebuilt on it weekly | "ready to merge" | the PR |
+| npm tooling, minor/patch | one grouped Dependabot PR that keeps up, looked for daily (`tooling-minor-and-patch`) | "ready to merge"; your merge releases nothing (the build is unchanged) | the PR |
+| npm shipped libraries (fuse.js, mediabunny, sortablejs), minor/patch | one grouped Dependabot PR that keeps up, looked for daily (`shipped-minor-and-patch`) | "ready to merge"; your merge starts CI on `main`, and a green run there releases it | the PR; GitHub emails you when CI on `main` fails after your merge |
+| npm major | a Dependabot PR of its own | "ready to merge": a tooling major when the build is unchanged; a shipped library's releases after your merge, as for the shipped group | the PR |
+| fsaunpack (express) | a Dependabot PR for `fsaunpack/`, the helper that unpacks and serves a saved `.fsa` archive; not part of the extension | "ready to merge" when it changes only `fsaunpack/package.json` and `fsaunpack/package-lock.json`; CI installs it (scripts off) and starts its test server on a recorded archive (`pnpm run verify:fsaunpack`). | the PR |
+| GitHub Actions | one grouped Dependabot PR that keeps up (minor/patch), a major on its own, looked for daily | "ready to merge" when it changes only workflow and action files; `update-prs.yml` brings its branch up to date with your token `UPDATE_PRS_TOKEN` (below) | the PR |
+| pnpm 12.x | a PR from `toolchain-updates.yml` (daily, 07:00 UTC) on `toolchain/pnpm-<version>`, changing only `packageManager`; one in conflict with `main` is rebuilt on it at the next daily run | "ready to merge" | the PR |
 | pnpm next major | a PR from `toolchain-updates.yml` | as for the same major; one that wants the lockfile rewritten fails CI, and the comment says so | the PR |
-| Node LTS | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/node-<major>`, changing `.nvmrc` | "ready to merge" when the build is unchanged | the PR |
-| the live suite's player libraries (`tests/e2e/live-specs/player-libraries.json`), new majors included | ONE rolling PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/player-libraries`, rebuilt in place when the set changes or it conflicts with `main`: each library at its newest release that is 3 days old and fits the ranges they declare on each other (and on our hls.js); the PR names a new major, whose page may need a change. `MAJOR_HOLDS` in `tools/check-toolchain.mjs` keeps a library on its major on purpose (video.js on 8: its 10 on npm holds no player, and Video.js 10 is `@videojs/cdn`, a library of its own); CI and the live suite are started on it | "ready to merge" once CI and the live suite passed on its commit, it changes only that file, its branch holds `main` and the build is unchanged. A failed live suite is named with its run (a public stream may be down): re-run it, and its end decides again. Closing the PR skips that set; the next set comes as a new PR | the PR |
-| a hold in `MAJOR_HOLDS` to look at again | the weekly run fails when a held line has had no release for a year (`staleAfterDays`), when the pin has passed the hold, or when the hold names a library the file does not pin; the rolling PR goes ahead | decide: drop the hold (the next set takes the major, and its page may need a change), or keep it: bring its reason up to date and, for a line that is quiet on purpose, give it a longer `staleAfterDays` | the failed run's issue |
-| uBlock Origin in the dev profile | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/ublock-origin-<version>`, changing its entry in `tools/setup-dev-profile.mjs` (version, file, SHA-256), once the AMO release is 3 days old; the run downloads the file and checks it against AMO's SHA-256 first | "ready to merge" when the build is unchanged; nothing in CI uses the add-on | the PR |
-| WSL, on your PC | `update-local.cmd` compares your WSL with WSL's latest release (once it is 3 days old); nothing in the repository changes | nothing to merge: answer Y, and it runs `wsl --update` and `wsl --shutdown` | no e-mail: you see it when you run `update-local.cmd` |
+| Node LTS | a PR from `toolchain-updates.yml` (daily, 07:00 UTC) on `toolchain/node-<major>`, changing `.nvmrc` | "ready to merge" when the build is unchanged | the PR |
+| the live suite's player libraries (`tests/e2e/live-specs/player-libraries.json`), new majors included | ONE rolling PR from `toolchain-updates.yml` (daily, 07:00 UTC) on `toolchain/player-libraries`, rebuilt in place when the set changes or it conflicts with `main`: each library at its newest release that fits the ranges they declare on each other (and on our hls.js); the PR names a new major, whose page may need a change. `MAJOR_HOLDS` in `tools/check-toolchain.mjs` keeps a library on its major on purpose (video.js on 8: its 10 on npm holds no player, and Video.js 10 is `@videojs/cdn`, a library of its own); CI and the live suite are started on it | "ready to merge" once CI and the live suite passed on its commit, it changes only that file, its branch holds `main` and the build is unchanged. A failed live suite is named with its run (a public stream may be down): re-run it, and its end decides again. Closing the PR skips that set; the next set comes as a new PR | the PR |
+| a hold in `MAJOR_HOLDS` to look at again | the daily run fails when a held line has had no release for a year (`staleAfterDays`), when the pin has passed the hold, or when the hold names a library the file does not pin; the rolling PR goes ahead | decide: drop the hold (the next set takes the major, and its page may need a change), or keep it: bring its reason up to date and, for a line that is quiet on purpose, give it a longer `staleAfterDays` | the failed run's issue |
+| uBlock Origin in the dev profile | a PR from `toolchain-updates.yml` (daily, 07:00 UTC) on `toolchain/ublock-origin-<version>`, changing its entry in `tools/setup-dev-profile.mjs` (version, file, SHA-256); the run downloads the file and checks it against AMO's SHA-256 first | "ready to merge" when the build is unchanged; nothing in CI uses the add-on | the PR |
+| WSL, on your PC | `update-local.cmd` compares your WSL with WSL's latest release; nothing in the repository changes | nothing to merge: answer Y, and it runs `wsl --update` and `wsl --shutdown` | no e-mail: you see it when you run `update-local.cmd` |
 | patched libraries, minor/patch | a PR from `patched-libraries.yml` on `patched/<name>-<version>` with the re-cut patch, CI dispatched on it | "ready to merge"; your merge releases as for the shipped libraries | the PR |
 | patched libraries, major | the same (a re-cut that is not clean comes as an issue instead) | as for minor/patch | the PR |
 | upstream (Andrews54757/FastStream) | nothing to merge any more: this fork no longer follows upstream (your decision, 2026-10-09). `upstream-watch.yml` (daily) lists upstream's commits you have not reviewed yet, the files each touches and which of them this fork still has, and marks the likely fixes | nothing merges; port a fix by hand if it helps this fork | one issue, "Upstream: N commit(s) to review", updated in place; close it once reviewed |
 | mpv build | one PR from `mpv-updates.yml` on branch `mpv-update`, which moves to each newer build of shinchiro's that passes CI | "ready to merge"; your merge releases nothing (only CI installs this mpv) | the PR (one, not one a day); an issue on failure |
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
-| actionlint and zizmor images | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | "ready to merge" when it changes only those files: CI ran every workflow file through the new checks | the PR |
+| actionlint and zizmor images | a Dependabot PR (docker, daily) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | "ready to merge" when it changes only those files: CI ran every workflow file through the new checks | the PR |
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
-| security alerts | a Dependabot alert on the Security tab, and a Dependabot PR that fixes it (the rows above), skipping both 3-day waits; `security-alerts.yml` (daily) watches for an alert with no such PR | as the PR's row says | GitHub's alert email; for an alert over 6 hours old with no Dependabot PR, an issue per package, "Security alert: <package>", closed once its alerts are fixed on `main` or dismissed |
-| security alerts Dependabot cannot fix, when an override floor fixes them | ONE rolling PR from `security-alerts.yml` (daily) on `security/overrides`, "Security fixes: override floors": a floor per package and major in `pnpm-workspace.yaml`'s `overrides` (raised, or added with a comment), and `pnpm-lock.yaml` rewritten for it (`--lockfile-only --ignore-scripts`, in a job with no write token), checked to fix every alert it takes and to move nothing else; CI and the dependency review are started on it | "ready to merge" when CI and the dependency review pass and it changes only those two files; no 3-day wait (a security fix). An alert it cannot take (no patched version, the fix a new major, a floor `main` has already, a parent-scoped override, two overrides reaching the same major) gets the issue above, with the reason. Closing the PR unmerged hands its alerts to you as issues | the PR |
+| security alerts | a Dependabot alert on the Security tab, and a Dependabot PR that fixes it (the rows above); `security-alerts.yml` (daily) watches for an alert with no such PR | as the PR's row says | GitHub's alert email; for an alert over 6 hours old with no Dependabot PR, an issue per package, "Security alert: <package>", closed once its alerts are fixed on `main` or dismissed |
+| security alerts Dependabot cannot fix, when an override floor fixes them | ONE rolling PR from `security-alerts.yml` (daily) on `security/overrides`, "Security fixes: override floors": a floor per package and major in `pnpm-workspace.yaml`'s `overrides` (raised, or added with a comment), and `pnpm-lock.yaml` rewritten for it (`--lockfile-only --ignore-scripts`, in a job with no write token), checked to fix every alert it takes and to move nothing else; CI and the dependency review are started on it | "ready to merge" when CI and the dependency review pass and it changes only those two files. An alert it cannot take (no patched version, the fix a new major, a floor `main` has already, a parent-scoped override, two overrides reaching the same major) gets the issue above, with the reason. Closing the PR unmerged hands its alerts to you as issues | the PR |
 
-Dependabot proposes a release once it is 3 days old (`cooldown` in `.github/dependabot.yml`;
-your call of 2026-10-20, after none from 2026-10-11). Green CI cannot see a compromised
-release - malware passes the tests - and most npm supply-chain compromises of 2025 were found
-and pulled within hours to days: the wait lets that happen before a release reaches your
-merge (Renovate's best-practice preset waits 3 days for npm too). The cooldown covers only
-the packages Dependabot bumps, not what the new lockfile brings in with them, so
-`update-prs.yml` looks up every package version a Dependabot or patched-library PR adds to
-its lockfile on the npm registry: one under 3 days old, or whose age the registry does not
-give, keeps the PR from "ready to merge", even a tooling one. The comment says when the
-youngest is 3 days old (for an age the registry did not give, or a lockfile that could not
-be read, a day later: that may have been a moment's failure); within a day after that, `security-alerts.yml`'s daily watch has
-`update-prs.yml` decide again, and the PR becomes "ready to merge" by itself. A security fix
-waits for neither: Dependabot gives its security updates no cooldown, and `update-prs.yml`
-skips the age check for a Dependabot security update (the line "You can disable automated
-security fix PRs" in its description) and for a PR every package of which has an open
-Dependabot alert (a grouped update with one such package waits: that package's fix comes as
-a security update of its own). `toolchain-updates.yml` takes a pnpm release once it is 3 days old;
-pnpm's own `minimumReleaseAge` default is untouched. The patched libraries are ignored by
+A release reaches you as a PR as soon as its source's daily look sees it: no wait (your call of
+2026-11-09, as from 2026-10-11 to 2026-10-20; 3 days between them). You decide when each update
+is merged. Green CI cannot see a compromised release - malware passes the tests - and most npm
+compromises were found and pulled within hours to days, so a PR that came today is the one to
+leave for a few days if you want that margin. The patched libraries are ignored by
 Dependabot on purpose: they arrive from `patched-libraries.yml`
 (`docs/updating-patched-libraries.md`). The other libraries the extension ships come in the
-weekly shipped group, `mediabunny` among them since 2026-09-30 (until then `mp4-muxer`,
+shipped group, `mediabunny` among them since 2026-09-30 (until then `mp4-muxer`,
 which Mediabunny replaced, was held for a last release that crashed; `onnxruntime-web` was
 in it until the speech detector went, 2026-10-10). A PR from that group changes the
 extension, so CI runs on `main` after its merge and decides the release;
@@ -86,8 +72,7 @@ last one is edited in place, so a repeat sends no second email.
 ## Your PC
 
 GitHub can't update your PC, so one double-click checks it: `update-local.cmd` in the
-repository's root. It compares your tools with what CI uses, by CI's rule (a release counts
-once it is 3 days old), and changes nothing without asking:
+repository's root. It compares your tools with what CI uses, by CI's rule, and changes nothing without asking:
 
 - Node.js of the major `.nvmrc` names: whether a newer eligible release is on nodejs.org.
 - npm's newest release, and the pnpm version `package.json` pins (inside the repository
@@ -154,17 +139,14 @@ Or, by hand:
 
 "Ready to merge": merge it when you like.
 Otherwise the comment names the check the PR failed - a tooling update whose build differs
-from the latest release, a file that kind of update does not change, a package version
-under 3 days old, a GitHub
+from the latest release, a file that kind of update does not change, a GitHub
 Actions update while `UPDATE_PRS_TOKEN` is missing, the `hold` label - and the PR is
-assigned to you. Look at that, then merge it or close it as above. A PR held back only for
-a young package version needs nothing from you: the comment says when it is old enough, and
-within a day after that it is decided again. The comment is
+assigned to you. Look at that, then merge it or close it as above. The comment is
 edited in place while the PR keeps waiting, even if the reasons change: a new email
 comes when it turns red, turns green, is merged, or fails at a different step.
 
 A CI run that was cancelled or skipped decides nothing. The next completed run
-does: rerun it from the Actions tab, or push. (The weekly toolchain run starts CI on
+does: rerun it from the Actions tab, or push. (The daily toolchain run starts CI on
 its own pull requests when their head has no run that decides.)
 
 A pull request a workflow opened - toolchain, patched library - shows
@@ -223,11 +205,7 @@ comment says "ready to merge" only when all of this holds:
   (Dependabot npm; for pnpm, only the `packageManager` line); `fsaunpack/package.json` and
   `fsaunpack/package-lock.json`; `.nvmrc` (Node); workflow and action files (GitHub
   Actions); the two Dockerfiles (actionlint, zizmor); a re-cut's files (patched libraries);
-- its dependency review passed, and every package version it adds to its lockfile is 3 days
-  old on the npm registry (Dependabot's cooldown covers only what it bumps). Not for a
-  security fix: a Dependabot security update, or a PR every package of which has an open
-  Dependabot alert. Held back only for that, it is decided again once the youngest version
-  is 3 days old (`security-alerts.yml`'s daily watch starts `update-prs.yml` again);
+- its dependency review passed;
 - an update not meant to ship (tooling, toolchain, workflows, fsaunpack): CI's build of the
   extension is file-for-file the latest release's, the version number aside, so it releases
   nothing. A shipped library or a patched library is meant to ship: CI

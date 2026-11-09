@@ -153,6 +153,9 @@ setup() {
     # The recipes' own scripts, as main has them.
     mkdir -p tools tests/e2e/live-specs
     cp "$REPO/tools/check-toolchain.mjs" "$REPO/tools/check-patched-updates.mjs" "$REPO/tools/setup-dev-profile.mjs" tools/
+    # uBlock Origin at the version these scenarios start from, whatever main pins: the
+    # toolchain's own pull request moves that pin, and went red here for it (#646).
+    sed -i "s/^    version: '[^']*',\$/    version: '1.75.0',/" tools/setup-dev-profile.mjs
     # The player libraries, as main has them: two, at old releases.
     printf '{\n  "plyr": "3.8.5",\n  "dplayer": "1.27.1"\n}\n' > tests/e2e/live-specs/player-libraries.json
     git add -A && git commit -q -m init && git remote add origin "$T/origin.git" && git push -q origin main
