@@ -152,8 +152,14 @@ jobs:
             --jq '{jobs: [.jobs[] | select(.conclusion | IN("failure", "cancelled", "timed_out")) | .conclusion = "failure"]}' \
             > "$RUNNER_TEMP/jobs.json"
           : > "$RUNNER_TEMP/failed.log"
+          # gh 2.103 refuses a log with terminal escape codes (e2e logs have colours) without
+          # --allow-escape-sequences, which an older gh does not know: one, then the other.
+          joblog() {
+            gh api --allow-escape-sequences "repos/$GITHUB_REPOSITORY/actions/jobs/$1/logs" 2> /dev/null ||
+              gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$1/logs" 2> /dev/null || true
+          }
           jq -r '.jobs[] | [.databaseId, .name] | @tsv' "$RUNNER_TEMP/jobs.json" | while IFS=$'\t' read -r id name; do
-            { gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$id/logs" < /dev/null 2> /dev/null || true; } |
+            joblog "$id" < /dev/null |
               awk -v job="$name" '{ print job "\t\t" $0 }' >> "$RUNNER_TEMP/failed.log"
           done
           verdict=unknown
