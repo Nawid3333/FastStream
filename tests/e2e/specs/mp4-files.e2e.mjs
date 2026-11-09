@@ -252,6 +252,18 @@ describe('MP4 files of other shapes', function() {
         return res.end();
       }
       const match = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
+      if (req.url.startsWith('/in-two-pieces/')) {
+        // A file of less than one of MP4Player's ranges, its moov at the end: half of it, a pause
+        // long enough for the player to read that much, then the rest.
+        const file = fs.readFileSync(path.join(fixturesDir, 'mp4-shapes', path.basename(req.url)));
+        const start = Number(match?.[1] || 0);
+        const end = Math.min(match?.[2] ? Number(match[2]) : file.length - 1, file.length - 1);
+        res.writeHead(206, {...cors, 'Content-Type': 'video/mp4', 'Content-Range': `bytes ${start}-${end}/${file.length}`});
+        const body = file.subarray(start, end + 1);
+        res.write(body.subarray(0, body.length >> 1));
+        setTimeout(() => res.end(body.subarray(body.length >> 1)), 300);
+        return;
+      }
       if (!match) {
         res.writeHead(200, {...cors, 'Content-Type': 'video/mp4'});
         return res.end(bytes);
@@ -277,6 +289,15 @@ describe('MP4 files of other shapes', function() {
 
   it('plays an MP4 that has no video track', async function() {
     const state = await playFor(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/audio-only.mp4`);
+    expect(state.currentTime).toBeGreaterThan(1);
+    expect(state.failed).toBe(false);
+  });
+
+  // Its first range reaches mp4box piece by piece as it downloads (feedPiece): the media came in
+  // one piece, the moov in a later one, and the first gave no samples. The video sat at its start
+  // for good, only when the network happened to cut the file so (mp4-files in #644, since #629).
+  it('plays a short MP4 whose moov comes in a later piece of its first range', async function() {
+    const state = await playFor(`${LENGTHLESS_ORIGIN}/in-two-pieces/audio-only.mp4`);
     expect(state.currentTime).toBeGreaterThan(1);
     expect(state.failed).toBe(false);
   });
