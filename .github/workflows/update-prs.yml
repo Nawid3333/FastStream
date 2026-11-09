@@ -15,7 +15,7 @@ name: Update PRs
 #
 #   CI failed   CI runs once more on the same commit, in case a test was flaky, and that
 #               run decides. Still red: the pull request stays open, is labelled
-#               ci-failed and assigned to the owner, and a comment @mentions them with the
+#               ci-failed, and a comment (which the daily digest sums up) gives the
 #               failed jobs and steps, what each step checks, the last lines of each
 #               failed log, and how main's own CI stands (red there too points away from
 #               the update). Nothing is guessed about the cause beyond that. Red twice, the
@@ -25,12 +25,11 @@ name: Update PRs
 #               on the pull request (here; the hold label set here comes off with it), or
 #               once it is merged or closed (security-alerts.yml's daily watch).
 #               A run that failed only because GitHub or a download host did not answer
-#               (tools/ci-outage.sh) is an outage, not the update: a comment without an
-#               @mention says so, and outage-retry.yml runs CI again on the commit three hours
-#               later, up to three times; then the owner is @mentioned. No label, no hold, no
+#               (tools/ci-outage.sh) is an outage, not the update: a comment says so, and outage-retry.yml runs CI again on the commit three hours
+#               later, up to three times; then a comment says to start it by hand. No label, no hold, no
 #               migration issue, and an outage run is no first try. A failed job without a log
 #               (a lost runner) opens no migration issue either.
-#   CI passed   a comment @mentions the owner and assigns them. "Ready to merge" when
+#   CI passed   a comment, which the daily digest sums up. "Ready to merge" when
 #               every one of these holds: opened by that bot and only its commits on it; it
 #               changes only what that kind of update changes (package.json and
 #               pnpm-lock.yaml; fsaunpack's two files; .nvmrc; workflow files; the two
@@ -100,7 +99,7 @@ jobs:
   decide:
     permissions:
       contents: write       # bring a branch up to date
-      pull-requests: write  # comment, assign, label
+      pull-requests: write  # comment, label
       issues: write         # the ci-failed label, the migration issues, and the issue when this workflow fails
       actions: write        # start CI once more, or on an updated branch
       checks: read          # the dependency review's check runs
@@ -381,9 +380,9 @@ jobs:
               fi
               {
                 if [ "$outages" -le 3 ]; then
-                  printf '@%s CI could not do its checks on this commit: GitHub or a download host did not answer (an outage, not this update), and outage-retry.yml could not be started to run it again later. ' "$OWNER"
+                  printf 'CI could not do its checks on this commit: GitHub or a download host did not answer (an outage, not this update), and outage-retry.yml could not be started to run it again later. '
                 else
-                  printf '@%s CI failed on this commit %s times, each time because GitHub or a download host did not answer (an outage, not this update). ' "$OWNER" "$outages"
+                  printf 'CI failed on this commit %s times, each time because GitHub or a download host did not answer (an outage, not this update). ' "$outages"
                 fi
                 printf 'Nothing here needs changes for it: once GitHub answers again (https://www.githubstatus.com), start CI on this branch (Actions, CI, Run workflow); that run decides.\n\n'
                 cat "$RUNNER_TEMP/diagnosis.md"
@@ -470,8 +469,8 @@ jobs:
                 gh pr edit "$number" --add-label hold > /dev/null
               fi
               {
-                printf '@%s CI failed twice on #%s (%s): the new version most likely needs changes to the code here, which no rerun or rebase brings. #%s is labelled `hold` meanwhile.\n\n' \
-                  "$OWNER" "$number" "$(jq -r .title <<< "$pr")" "$number"
+                printf 'CI failed twice on #%s (%s): the new version most likely needs changes to the code here, which no rerun or rebase brings. #%s is labelled `hold` meanwhile.\n\n' \
+                  "$number" "$(jq -r .title <<< "$pr")" "$number"
                 printf '### What failed\n\n'
                 cat "$RUNNER_TEMP/diagnosis.md"
                 printf '\n### What to do\n\n'
@@ -491,7 +490,7 @@ jobs:
                 gh issue edit "$found" --title "Migration: $what" --body-file "$RUNNER_TEMP/migration.md" > /dev/null
                 migration=$found
               else
-                migration=$(gh issue create --title "Migration: $what" --assignee "$OWNER" --body-file "$RUNNER_TEMP/migration.md")
+                migration=$(gh issue create --title "Migration: $what" --body-file "$RUNNER_TEMP/migration.md")
                 migration=${migration##*/}
               fi
             }
@@ -503,9 +502,9 @@ jobs:
             # shellcheck disable=SC2016
             {
               if [ "$again" = 1 ]; then
-                printf '@%s CI fails on this pull request. It failed twice on this commit, so a flaky test is an unlikely cause.\n\n' "$OWNER"
+                printf 'CI fails on this pull request. It failed twice on this commit, so a flaky test is an unlikely cause.\n\n'
               else
-                printf '@%s CI fails on this pull request (%s).\n\n' "$OWNER" "$CONCLUSION"
+                printf 'CI fails on this pull request (%s).\n\n' "$CONCLUSION"
               fi
               cat "$RUNNER_TEMP/diagnosis.md"
               if [ -n "$migration" ]; then
@@ -517,7 +516,7 @@ jobs:
               hint
             } > "$RUNNER_TEMP/body.md"
             gh label create "$LABEL" --color B60205 --description 'CI fails on this update; see the comment' --force > /dev/null
-            gh pr edit "$number" --add-assignee "$OWNER" --add-label "$LABEL" > /dev/null
+            gh pr edit "$number" --add-label "$LABEL" > /dev/null
             say "$key" "$RUNNER_TEMP/body.md"
             exit 0
           fi
@@ -891,24 +890,23 @@ jobs:
           # shellcheck disable=SC2016
           {
             if [ "$key" = ready ]; then
-              printf '@%s CI passes on this pull request (%s), and every check holds: **ready for you to merge**.\n\n' "$OWNER" "$RUN_URL"
+              printf 'CI passes on this pull request (%s), and every check holds: **ready for you to merge**.\n\n' "$RUN_URL"
               if [ "$ships" = 1 ]; then
                 printf 'It changes what the extension ships: once you merge it, CI runs on main, and a green run there releases it to Firefox.\n'
               else
                 printf 'Its build of the extension is file for file the one in %s, the version number aside: merging it releases nothing.\n' "${tag:-the latest release}"
               fi
             else
-              printf '@%s CI passes on this pull request (%s). Look at this before merging:\n\n' "$OWNER" "$RUN_URL"
+              printf 'CI passes on this pull request (%s). Look at this before merging:\n\n' "$RUN_URL"
               printf -- '- %s\n' "${reasons[@]}"
             fi
             printf '\n'
             hint
           } > "$RUNNER_TEMP/body.md"
-          gh pr edit "$number" --add-assignee "$OWNER" > /dev/null
           say "$key" "$RUNNER_TEMP/body.md"
 
       # Bot-started runs are emailed to no one, so a failure of this workflow itself would go
-      # unseen: one issue while it is open, assigned and @mentioning the owner. A failure
+      # unseen: one issue while it is open, which the daily digest lists. A failure
       # while it is open adds a comment to it.
       - name: Report this workflow's own failure
         if: failure()
@@ -922,10 +920,10 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s Failed again: %s\n' "$OWNER" "$SELF_URL" > "$RUNNER_TEMP/comment.md"
+            printf 'Failed again: %s\n' "$SELF_URL" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
-          printf '@%s update-prs.yml failed while deciding on an update pull request: %s\n\nThat pull request is not reported on until this is fixed. The run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
-            "$OWNER" "$SELF_URL" > "$RUNNER_TEMP/body.md"
-          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          printf 'update-prs.yml failed while deciding on an update pull request: %s\n\nThat pull request is not reported on until this is fixed. The run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$SELF_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"

@@ -107,7 +107,7 @@ serve "$(vtt_url v5.1.0)" $'a\nb\nc\n'
 serve "$(vtt_url v5.3.0)" $'a\nB\nc\nd\n'
 run 'v1 dash.js changed vtt.js -> an issue with the change, older ones closed' "$vtt_step"
 check 'succeeds' test "$status" -eq 0
-check 'opens "vtt.js changed in dash.js v5.3.0"' contains "$LOG" 'ISSUECREATE [--title] [vtt.js changed in dash.js v5.3.0] [--assignee] [Nawid3333]'
+check 'opens "vtt.js changed in dash.js v5.3.0"' contains "$LOG" 'ISSUECREATE [--title] [vtt.js changed in dash.js v5.3.0]'
 check 'counts the changed lines and links the compare' contains "$LOG" 'changes 3 lines of it: https://github.com/Dash-Industry-Forum/dash.js/compare/v5.1.0...v5.3.0'
 check 'closes the older #60, pointing at the new one' contains "$LOG" "ISSUECLOSE [60] [--reason] [not planned] [--comment] [dash.js v5.3.0 is out: https://github.com/Nawid3333/FastStream/issues/99 replaces this one.]"
 check 'closes #61, whose release the pin has passed' contains "$LOG" 'ISSUECLOSE [61] [--comment] [tools/verify-vtt.mjs pins dash.js v5.1.0 now.]'

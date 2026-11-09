@@ -239,10 +239,10 @@ check 'ignore list and labels are no directories' lacks "$FIX/out" 'dependency-n
 scenario 'p3 npm / at its limit minus 2 -> one issue' "$pile_step" \
   FX_PRS="[$(prs 1 8 dependabot/npm_and_yarn/pkg)]"
 check 'succeeds' test "$status" -eq 0
-check 'opens the issue, assigned to the owner' contains "$LOG" \
-  'CREATE [--title] [Update pull requests piling up] [--assignee] [Nawid3333] [--body-file]'
+check 'opens the issue' contains "$LOG" \
+  'CREATE [--title] [Update pull requests piling up] [--body-file]'
 check 'once' count "$LOG" 'CREATE [' 1
-check 'mentions the owner' contains "$LOG" '@Nawid3333 Update pull requests are piling up'
+check 'its text' contains "$LOG" 'Update pull requests are piling up'
 check 'the row' contains "$LOG" '| npm | `/` | 8 | 10 | #1, #2, #3, #4, #5, #6, #7, #8 |'
 check 'says what Dependabot does at the limit' contains "$LOG" 'Dependabot opens no more for it, not even for a new release'
 check 'no red table' lacks "$LOG" 'Red for more than 14 days'
@@ -346,7 +346,7 @@ check 'touches no issue' test ! -s "$LOG"
 
 scenario 'f1 failure -> opens "Update PR watch failed"' "$report_step" TITLE='Update PR watch failed'
 check 'succeeds' test "$status" -eq 0
-check 'opens it, assigned' contains "$LOG" 'CREATE [--title] [Update PR watch failed] [--assignee] [Nawid3333] [--body-file]'
+check 'opens it' contains "$LOG" 'CREATE [--title] [Update PR watch failed] [--body-file]'
 check 'with the run' contains "$LOG" 'https://github.com/Nawid3333/FastStream/actions/runs/1'
 
 scenario 'f2 failure while it is open -> a comment' "$report_step" TITLE='Update PR watch failed' \

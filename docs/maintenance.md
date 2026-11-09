@@ -3,12 +3,13 @@
 Nothing merges itself (your choice, 2026-10-02): every update arrives as a PR and waits for
 your merge. `update-prs.yml` runs after every completed CI run for this repository's
 `dependabot/*`, `toolchain/*` and `patched/*` branches and comments
-on the PR, assigned to you: **ready to merge** once CI is green and its checks hold (only
+on the PR without a mention and with no one assigned: **ready to merge** once CI is green and its checks hold (only
 that bot's commits, only the files that kind of update changes, the dependency review
 passed, and the build unchanged when it is not meant to ship), or what to look at before merging, or why CI
 failed; red twice, it is parked with a migration issue that says what to do. The comment
 says whether your merge releases: an update that ships starts CI on `main` with your merge,
-and a green run there releases it to Firefox. The mpv pin comes as one PR that keeps up with
+and a green run there releases it to Firefox. None of those comments or issues mentions you
+or assigns you, and the daily digest lists them (below). The mpv pin comes as one PR that keeps up with
 shinchiro's builds. Updates without a PR - a runner image, a new Firefox - are watched by
 their own workflows, which stay silent while they pass. Until 2026-10-02 green updates
 merged themselves.
@@ -65,9 +66,11 @@ the fix is on `main`, and a push that changes a lockfile waits up to 10 minutes 
 (the daily run closes it otherwise). Dismissing an alert on the Security tab closes it too.
 Closing the issue yourself skips the alerts it lists; a new alert for that package still
 opens a new one.
-In the table, "ready to merge" means one comment that @mentions you - CI is green and
-every check holds - with the PR assigned to you; a comment with the same verdict as the
-last one is edited in place, so a repeat sends no second email.
+In the table, "ready to merge" means one comment on the PR - CI is green and every check
+holds - written without a mention and with no one assigned, so it does not email you; the
+daily digest lists the PR. A comment with the same verdict as the last one is edited in
+place, so a repeat makes no new digest entry: the PR keeps one line, with nothing marked
+new.
 
 ## Your PC
 
@@ -98,7 +101,20 @@ WSL (`pnpm run verify:linux` updates them). Run the
 check whenever you like: it changes nothing, and lists everything out of date with what to
 do about it.
 
-## When you get an email
+## Email: one a day
+
+Every day at 10:00 UTC the pinned issue **Daily digest** gets one comment that @mentions
+you: that is the one email a day (`daily-digest.yml`). The comments and issues below
+mention no one; the digest lists them.
+
+Your GitHub settings for one email a day:
+
+- **Settings > Notifications > System > Actions**: untick Email (keep Web), so failed runs
+  of workflows you started or scheduled send none.
+- **Settings > Notifications > Dependabot alerts**: untick Email, or pick the weekly email
+  digest.
+- Unwatch pull requests and issues you were mentioned on before (each one's Unsubscribe
+  button), or they keep emailing on every comment until closed.
 
 ### CI red on an update PR
 
@@ -108,7 +124,7 @@ comment says it failed twice. (If GitHub refused to start that second run, the c
 reports the one failure.) It holds a table of
 each failed job, the step that failed and what that step checks, the last 40 lines
 of each failed log, and `main`'s latest CI status; the PR carries the `ci-failed`
-label and is assigned to you.
+label. It mentions no one, so it emails no one: the daily digest lists the red PR.
 
 Failed twice, the new version most likely needs changes to the code here, which no rerun
 or rebase brings (your call, 2026-10-20). So the PR is also labelled `hold`, and one issue,
@@ -123,15 +139,16 @@ or rebase brings (your call, 2026-10-20). So the PR is also labelled `hold`, and
 
 The issue closes itself when CI passes on the PR, which also takes off the `hold` label the
 workflow set (one you set yourself stays), or when the PR is merged or closed (checked once
-a day). Failing twice again edits the same issue: no second email.
+a day). Failing twice again edits the same issue: no new digest entry.
 
 A run that failed only because GitHub or a download host did not answer (a 5xx on
 geckodriver's, mpv's or the npm registry's download, after their own tries) is no failure of
-the update: `update-prs.yml` comments without an @mention that it was an outage, and
+the update: `update-prs.yml` comments that it was an outage, and
 `outage-retry.yml` runs CI again on the commit three hours later, up to three times. No
 `ci-failed`, no `hold`, no migration issue, and an outage run is no first try. Only when the
-third retry meets an outage too, or the retry cannot be started, does a comment @mention you:
-start CI on the branch by hand once GitHub answers again. A failed job that left no log (a
+third retry meets an outage too, or the retry cannot be started, does the comment ask you to
+start CI on the branch by hand once GitHub answers again - still without a mention, so the
+daily digest is where you read it. A failed job that left no log (a
 lost runner) opens no migration issue either; the comment says so.
 
 Or, by hand:
@@ -150,9 +167,10 @@ Or, by hand:
 Otherwise the comment names the check the PR failed - a tooling update whose build differs
 from the latest release, a file that kind of update does not change, a GitHub
 Actions update while `UPDATE_PRS_TOKEN` is missing, the `hold` label - and the PR is
-assigned to you. Look at that, then merge it or close it as above. The comment is
-edited in place while the PR keeps waiting, even if the reasons change: a new email
-comes when it turns red, turns green, is merged, or fails at a different step.
+written with no one assigned and no mention, so the daily digest is where you read it. Look
+at that, then merge it or close it as above. The comment is edited in place while the PR
+keeps waiting, even if the reasons change: a new digest entry comes when it turns red, turns
+green, is merged, or fails at a different step.
 
 A CI run that was cancelled or skipped decides nothing. The next completed run
 does: rerun it from the Actions tab, or push. (The daily toolchain run starts CI on

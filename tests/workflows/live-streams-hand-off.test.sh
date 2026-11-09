@@ -107,7 +107,7 @@ export START_FAILS=3
 scenario 'refused three times'
 check 'fails' test "$status" -ne 0
 check 'tries three times' test "$(starts)" -eq 3
-check 'opens the issue, assigned' contains "$FIX/calls" 'issue create --title Update PRs hand-off failed --assignee owner'
+check 'opens the issue' contains "$FIX/calls" 'issue create --title Update PRs hand-off failed'
 check 'the issue says how to start it by hand' contains "$FIX/create" \
   "Start it from the Actions tab: Update PRs, Run workflow, run_id 777 and branch $BRANCH."
 

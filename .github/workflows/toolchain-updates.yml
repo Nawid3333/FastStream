@@ -80,7 +80,6 @@ jobs:
         timeout-minutes: 13
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
           EVENT: ${{ github.event_name }}
           PREFIX: 'Toolchain update: '
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -262,7 +261,7 @@ jobs:
                 printf '\nRanges that do not hold on `main` already (nothing here can move them):\n\n'
                 jq -r '.unresolved[] | "- \(.name) \(.version) asks for \(.needs) `\(.range)`"' "$players"
               fi
-              printf '\nCI and the live suite (`live-streams.yml`: every library plays its page on its own, then FastStream takes it over, on Linux and on Windows) have been started on it. `update-prs.yml` tells @%s once both have run whether it is ready to merge, and the merge is theirs.\n\n' "$OWNER"
+              printf '\nCI and the live suite (`live-streams.yml`: every library plays its page on its own, then FastStream takes it over, on Linux and on Windows) have been started on it. `update-prs.yml` says here once both have run whether it is ready to merge (and the daily digest lists it), and the merge is the owner'"'"'s.\n\n'
               printf 'This pull request is rebuilt in place when the set changes. Closing it skips this set; it comes again with the next one.\n'
               printf '\nNothing here is part of the extension: its build should come out unchanged, and a merge then releases nothing (auto-release.yml compares the builds).\n'
               printf '\n<sub>Opened by %s</sub>\n<!-- player-libraries: %s -->\n' "$RUN_URL" "$state"
@@ -366,9 +365,9 @@ jobs:
                 printf '%s %s -> %s (%s).\n\n' "$name" "$was" "$latest" "$(jq -r .note <<< "$update")"
                 printf 'This pull request changes only %s, and CI has been started on it: the whole of `pnpm run verify`, on Linux and on Windows.\n\n' "$what"
                 if [ "$(jq -r .routine <<< "$update")" = true ]; then
-                  printf 'Routine: `update-prs.yml` tells @%s once CI has run whether it is ready to merge, and the merge is theirs.\n' "$OWNER"
+                  printf 'Routine: `update-prs.yml` says here once CI has run whether it is ready to merge (and the daily digest lists it), and the merge is the owner'"'"'s.\n'
                 else
-                  printf 'A decision: `update-prs.yml` tells @%s when CI is green or red, and the merge is theirs. Closing this pull request skips %s %s for good.\n' "$OWNER" "$name" "$latest"
+                  printf 'A decision: `update-prs.yml` says here when CI is green or red (and the daily digest lists it), and the merge is the owner'"'"'s. Closing this pull request skips %s %s for good.\n' "$name" "$latest"
                 fi
                 if [ "$name" = 'uBlock Origin' ]; then
                   printf '\nNothing in CI downloads the add-on: this run downloaded %s and checked it against the SHA-256 AMO gives for it, the check `pnpm run profile:setup` makes too.\n' "$(jq -r .file.url <<< "$update")"
@@ -485,14 +484,13 @@ jobs:
           [ "$failed" = 0 ] || exit 1
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
-      # whoever last changed the cron line): one issue while it is open, assigned and
-      # @mentioning the owner, as update-prs.yml does. A failure while it is open adds a
+      # whoever last changed the cron line): one issue while it is open, which the daily
+      # digest lists, as update-prs.yml does. A failure while it is open adds a
       # comment to it.
       - name: Report this workflow's own failure
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TITLE: 'Toolchain updates workflow failed'
         run: |
@@ -503,10 +501,10 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            printf 'Failed again: %s\n' "$RUN_URL" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
-          printf '@%s toolchain-updates.yml failed: %s\n\nThe run log names the failed command; a pull request it was raising or rebuilding may be half done (the next run finishes it). Close this issue once it is fixed; a later failure opens a new one.\n' \
-            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
-          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          printf 'toolchain-updates.yml failed: %s\n\nThe run log names the failed command; a pull request it was raising or rebuilding may be half done (the next run finishes it). Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"

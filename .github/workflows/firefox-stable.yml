@@ -10,7 +10,7 @@ name: Firefox stable
 # Each version is tested once: after a green run its version is recorded as an Actions
 # cache entry (firefox-stable-tested-<version>), and later runs find it and stop. The
 # playback and installed-extension suites run against exactly that version. A failure
-# opens one issue per version, assigned to the owner with an @mention; the next green
+# opens one issue per version, which the daily digest lists; the next green
 # run closes it. Run by hand to test the current stable again regardless.
 
 on:
@@ -163,7 +163,6 @@ jobs:
           DETECT: ${{ needs.detect.result }}
           RESULT: ${{ needs.e2e.result }}
           VERSION: ${{ needs.detect.outputs.version }}
-          OWNER: ${{ github.repository_owner }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -174,9 +173,9 @@ jobs:
               echo 'Already reported.'
               exit 0
             fi
-            printf '@%s The daily Firefox stable check could not read the current release from Mozilla, so no suite ran: %s\n\nThis issue closes on its own once a run reads it again.\n' \
-              "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
-            gh issue create --repo "$GITHUB_REPOSITORY" --title "$unreadable" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+            printf 'The daily Firefox stable check could not read the current release from Mozilla, so no suite ran: %s\n\nThis issue closes on its own once a run reads it again.\n' \
+              "$RUN_URL" > "$RUNNER_TEMP/body.md"
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$unreadable" --body-file "$RUNNER_TEMP/body.md"
             exit 0
           fi
           gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title \
@@ -206,9 +205,9 @@ jobs:
           failed=$(gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs \
             --jq '[.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out") | "\(.name) (\(.conclusion))"] | join(", ")')
           {
-            printf '@%s The e2e suites fail on **Firefox %s**, the current stable release - already on your machine once it updates: %s\n\n' "$OWNER" "$VERSION" "$RUN_URL"
+            printf 'The e2e suites fail on **Firefox %s**, the current stable release - already on your machine once it updates: %s\n\n' "$VERSION" "$RUN_URL"
             printf 'The run log and its e2e-logs artifact show which spec failed. tests/e2e/specs/firefox.e2e.mjs pins the Firefox behaviour FastStream relies on; a failure there means that behaviour changed.\n\n'
             printf 'This issue closes on its own once a run on the stable release passes.\n'
             printf 'Failed: %s\n' "${failed:-see the run}"
           } > "$RUNNER_TEMP/body.md"
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$RUNNER_TEMP/body.md"

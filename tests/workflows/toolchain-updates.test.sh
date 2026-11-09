@@ -617,7 +617,7 @@ weekly_pnpm() {
   check 'main untouched' test "$(origin rev-list --count main)" = 1
   check 'pull request' has_call 'pr create --base main --head toolchain/pnpm-11.27.1 --title Toolchain update: pnpm 11.27.1 --label dependencies'
   check 'CI started once' test "$(n_calls '^workflow run ci.yml --ref toolchain/pnpm-11.27.1$')" = 1
-  check 'routine body' grep -qF 'Routine: `update-prs.yml` tells @nawid once CI has run whether it is ready to merge' "$STATE/created.body"
+  check 'routine body' grep -qF 'Routine: `update-prs.yml` says here once CI has run whether it is ready to merge (and the daily digest lists it)' "$STATE/created.body"
   check 'names the change' grep -qF 'changes only `packageManager` in `package.json`' "$STATE/created.body"
   check 'lockfile hint' grep -qF 'The lockfile is left as it is' "$STATE/created.body"
   check 'every title, paginated' has_call 'api --paginate repos/me/fs/issues?state=all&per_page=100'
@@ -633,7 +633,7 @@ weekly_node() {
   check 'only .nvmrc' test "$(branch_diff toolchain/node-26)" = .nvmrc
   check '.nvmrc is 26' test "$(origin show toolchain/node-26:.nvmrc)" = 26
   check 'commit message' test "$(origin log -1 --format=%s toolchain/node-26)" = 'build: Node.js 22 -> 26'
-  check 'a decision' grep -qF 'A decision: `update-prs.yml` tells @nawid' "$STATE/created.body"
+  check 'a decision' grep -qF 'A decision: `update-prs.yml` says here when CI is green or red' "$STATE/created.body"
   check 'no lockfile hint' bash -c '! grep -qF "lockfile" "$0"' "$STATE/created.body"
 }
 

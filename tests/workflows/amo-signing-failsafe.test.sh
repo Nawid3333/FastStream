@@ -188,7 +188,7 @@ report() {
 echo 'the failsafe failed, no issue open'
 fresh
 check 'the step passes' report '[{"number": 3, "title": "Other"}]'
-check 'opens "Release failsafe failed"' contains "$LOG" 'issue create --repo me/fs --title Release failsafe failed --assignee nawid'
+check 'opens "Release failsafe failed"' contains "$LOG" 'issue create --repo me/fs --title Release failsafe failed'
 
 echo 'the failsafe failed again, its issue open'
 fresh

@@ -12,7 +12,7 @@ name: Vendored updates
 # StreamSaver.js's API name: its body is FastStream's own OPFS and memory sinks, so an
 # upstream change had nothing to port.)
 #
-# The issue is assigned to the owner and @mentions them. A title is never raised twice, open or
+# The daily digest lists the issue. A title is never raised twice, open or
 # closed: closing one skips that release for good. Each closes itself once its pin is at
 # its tag or later, and a newer release's item closes the older ones. (The silero-vad model
 # pull request went with the speech detector, 2026-10-10.)
@@ -39,7 +39,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      OWNER: ${{ github.repository_owner }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       UPSTREAM: 'Dash-Industry-Forum/dash.js'
       VTT_PATH: 'contrib/videojs-vtt.js/vtt.js'
@@ -121,9 +120,9 @@ jobs:
             exit 1
           fi
           # shellcheck disable=SC2016 # backticks are Markdown
-          printf '@%s dash.js %s is out and %s.\n\n`chrome/player/modules/vtt.mjs` is that file at dash.js %s with the changes `tools/verify-vtt.mjs` re-applies. Move the tag in its UPSTREAM line to %s and run `pnpm run verify:vtt`: it says where a change no longer applies. This issue closes itself once the pin is at %s or later; closing it skips %s.\n' \
-            "$OWNER" "$latest" "$what" "$pinned_tag" "$latest" "$latest" "$latest" > "$RUNNER_TEMP/body.md"
-          url=$(gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md")
+          printf 'dash.js %s is out and %s.\n\n`chrome/player/modules/vtt.mjs` is that file at dash.js %s with the changes `tools/verify-vtt.mjs` re-applies. Move the tag in its UPSTREAM line to %s and run `pnpm run verify:vtt`: it says where a change no longer applies. This issue closes itself once the pin is at %s or later; closing it skips %s.\n' \
+            "$latest" "$what" "$pinned_tag" "$latest" "$latest" "$latest" > "$RUNNER_TEMP/body.md"
+          url=$(gh issue create --title "$title" --body-file "$RUNNER_TEMP/body.md")
           echo "Opened $url"
           close_pass "$url"
 
@@ -136,10 +135,10 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            printf 'Failed again: %s\n' "$RUN_URL" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
-          printf '@%s vendored-updates.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
-            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
-          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          printf 'vendored-updates.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"

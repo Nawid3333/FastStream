@@ -4,7 +4,7 @@ name: Flaky e2e specs
 # run. ci.yml lists each one in its run's summary and uploads the list, one artifact an e2e
 # job, e2e-retried-<os>-<suite>-<group> (tests/e2e/retriedSpecs.mjs writes it). Once a week
 # this folds the last 7 days of those lists, all branches, into one issue, "Flaky e2e
-# specs: week to <date>", assigned to the owner and @mentioning them: each spec file, how
+# specs: week to <date>", which the daily digest lists: each spec file, how
 # often it was run again, how often its retry passed, and the runs. A spec that keeps
 # passing only on its retry is a flaky test, or a race like #67's.
 #
@@ -33,7 +33,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      OWNER: ${{ github.repository_owner }}
       PREFIX: 'Flaky e2e specs: week to '
     steps:
       - name: Fold the week's retried specs into one issue
@@ -105,7 +104,7 @@ jobs:
           ' "$RUNNER_TEMP/retried.jsonl" > "$RUNNER_TEMP/rows.md"
 
           {
-            printf '@%s E2e spec files that failed once and were run again in the CI runs of the 7 days to %s, all branches.\n\n' "$OWNER" "$today"
+            printf 'E2e spec files that failed once and were run again in the CI runs of the 7 days to %s, all branches.\n\n' "$today"
             printf '| Spec file | Run again | Passed on retry | Failed twice | Suite (OS) | Branches | Runs |\n'
             printf '| --- | --- | --- | --- | --- | --- | --- |\n'
             cat "$RUNNER_TEMP/rows.md"
@@ -122,7 +121,7 @@ jobs:
             gh issue edit "$current" --body-file "$RUNNER_TEMP/body.md"
             echo "Updated #$current"
           else
-            url=$(gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md")
+            url=$(gh issue create --title "$title" --body-file "$RUNNER_TEMP/body.md")
             current=${url##*/}
             echo "Opened $url"
           fi
@@ -135,8 +134,8 @@ jobs:
           done < "$RUNNER_TEMP/mine.tsv"
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
-      # whoever last changed the cron line): one issue while it is open, assigned and
-      # @mentioning the owner, as toolchain-updates.yml does. A failure while it is open adds a
+      # whoever last changed the cron line): one issue while it is open, which the daily
+      # digest lists, as toolchain-updates.yml does. A failure while it is open adds a
       # comment to it.
       - name: Report this workflow's own failure
         if: failure()
@@ -148,10 +147,10 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            printf 'Failed again: %s\n' "$RUN_URL" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
-          printf '@%s flaky-specs.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
-            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
-          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          printf 'flaky-specs.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"

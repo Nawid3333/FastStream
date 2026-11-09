@@ -108,11 +108,11 @@ git -C "$UPSTREAM" checkout -q -b side
 up_commit chrome/player/b.mjs b 'Add b'
 git -C "$UPSTREAM" checkout -q main
 git -C "$UPSTREAM" -c user.name=Andrew -c user.email=a@example.com merge -q --no-ff -m 'Merge pull request #1 from x/side' side
-watch 'w1 first run, three new commits and a merge -> one issue from what main merged, assigned'
+watch 'w1 first run, three new commits and a merge -> one issue from what main merged'
 check 'succeeds' test "$status" -eq 0
-check 'opens one issue, assigned' grep -qF 'ISSUE_CREATE [--title] [Upstream: 3 commit(s) to review] [--body-file]' "$LOG"
-check 'assigned to the owner' grep -qF '[--assignee] [Nawid3333]' "$LOG"
-check '@mentions the owner' contains "$LOG" '@Nawid3333 upstream'
+check 'opens one issue' grep -qF 'ISSUE_CREATE [--title] [Upstream: 3 commit(s) to review] [--body-file]' "$LOG"
+check 'assigns no one' lacks "$LOG" 'assignee'
+check 'mentions no one' lacks "$LOG" '@Nawid3333'
 check 'the fix touches a file this fork has, in bold, flagged' contains "$LOG" 'Fix a crash when seeking (Andrews54757/FastStream#567) ('
 check '... flagged fix?' grep -qE 'seeking .* - \*\*fix\?\*\*$' "$LOG"
 check '... its file in bold' contains "$LOG" '**`chrome/player/a.mjs`**'
@@ -166,8 +166,8 @@ up_commit chrome/player/a.mjs a3 'Came after'
 watch 'w6 upstream moved past the open issue -> it is updated and the owner hears of it'
 check 'succeeds' test "$status" -eq 0
 check 'edits #8, all of them' grep -qF 'ISSUE_EDIT [8] [--title] [Upstream: 2 commit(s) to review]' "$LOG"
-check 'keeps the owner assigned' grep -qF '[--add-assignee] [Nawid3333]' "$LOG"
-check 'comments, with the mention, how many came' grep -qF 'ISSUE_COMMENT [8] [--body] [@Nawid3333 upstream moved: 1 more commit(s), 2 to review now.]' "$LOG"
+check 'assigns no one' lacks "$LOG" 'assignee'
+check 'comments how many came' grep -qF 'ISSUE_COMMENT [8] [--body] [Upstream moved: 1 more commit(s), 2 to review now.]' "$LOG"
 check 'opens none' bash -c '! grep -q "^ISSUE_CREATE" "$0"' "$LOG"
 
 fixtures
@@ -238,10 +238,10 @@ check 'no issue opened' bash -c '! grep -q "^ISSUE_CREATE" "$0"' "$LOG"
 fixtures
 TITLE='Upstream watch failed'
 export TITLE
-echo 'n1 a failure with none open -> one issue, assigned'
+echo 'n1 a failure with none open -> one issue'
 run "$notify_step"
 check 'succeeds' test "$status" -eq 0
-check 'opens it, assigned' grep -qF "ISSUE_CREATE [--title] [Upstream watch failed] [--body] [The upstream watch failed. Run: $RUN_URL] [--assignee] [Nawid3333]" "$LOG"
+check 'opens it' grep -qF "ISSUE_CREATE [--title] [Upstream watch failed] [--body] [The upstream watch failed. Run: $RUN_URL]" "$LOG"
 
 fixtures
 echo '[{"number":12,"title":"Upstream watch failed"},{"number":13,"title":"Something else"}]' > "$FIX/open.json"

@@ -461,7 +461,7 @@ fork_pr_same_branch_and_sha() {
   fork_pr
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'reports on #42' has_call 'pr edit 42 --add-assignee nawid'
+  check 'reports on #42' has_call 'pr comment 42 --body-file'
   check 'ready to merge' ready
   check "the fork's #43 untouched" untouched_43
 }
@@ -473,7 +473,7 @@ fork_pr_red() {
   fork_pr
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'labels #42' has_call 'pr edit 42 --add-assignee nawid --add-label ci-failed'
+  check 'labels #42' has_call 'pr edit 42 --add-label ci-failed'
   check "the fork's #43 untouched" untouched_43
 }
 
@@ -558,7 +558,7 @@ red_second() {
   check 'exit 0' test "$rc" -eq 0
   check 'a run run again by hand gets no third try' bash -c '! grep -qE "run rerun|workflow run" "$0"' "$STATE/gh.log"
   check 'one comment' test "$(comments_n)" -eq 1
-  check '@mentions the owner' grep -qF '@nawid CI fails' <(last_comment)
+  check 'says CI fails' grep -qF 'CI fails on this pull request' <(last_comment)
   check 'says the rerun failed too' grep -qF 'failed twice' <(last_comment)
   check 'table row: job, step, meaning' grep -qF '| Lint, test and build | Unit tests | the unit tests (Vitest) |' <(last_comment)
   check 'a job that passed is not listed' bash -c '! grep -qF "| Lint workflows |" <<< "$0"' "$(last_comment)"
@@ -568,7 +568,7 @@ red_second() {
   check "names main's CI" grep -qF 'main, the latest push: success: https://github.com/me/fs/actions/runs/77' <(last_comment)
   check 'carries a red key' grep -qE '<!-- update-prs: red [0-9a-f]{12} -->' <(last_comment)
   check 'labelled ci-failed' grep -qx 'ci-failed' "$STATE/labels"
-  check 'assigned to the owner' grep -qx 'nawid' "$STATE/assignees"
+  check 'assigns no one' test ! -s "$STATE/assignees"
   check 'not called ready' not_ready
   check 'Dependabot hint' grep -qF '@dependabot ignore' <(last_comment)
 }
@@ -678,7 +678,7 @@ outage_fourth() {
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'no retry, no second try' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
-  check '@mentions the owner: four times an outage' grep -qF '@nawid CI failed on this commit 4 times, each time because GitHub or a download host did not answer' <(last_comment)
+  check 'says so: four times an outage' grep -qF 'CI failed on this commit 4 times, each time because GitHub or a download host did not answer' <(last_comment)
   check 'says how to start CI' grep -qF 'start CI on this branch (Actions, CI, Run workflow)' <(last_comment)
   check 'its key' grep -qF "<!-- update-prs: outage stuck ${sha:0:12} -->" <(last_comment)
   check 'no label, assignee or issue' no_report_marks
@@ -692,7 +692,7 @@ outage_retry_refused() {
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'tried outage-retry.yml' retried
-  check '@mentions the owner: could not be started' grep -qF 'and outage-retry.yml could not be started' <(last_comment)
+  check 'says it could not be started' grep -qF 'and outage-retry.yml could not be started' <(last_comment)
   check 'no label, assignee or issue' no_report_marks
 }
 
@@ -771,9 +771,9 @@ green_ready() {
   check 'ready to merge' ready
   # Only the review's own check run: without the name, CI's green run would pass for it.
   check 'asks for the review check by name' has_call 'check-runs?check_name=Review%20dependency%20changes'
-  check '@mentions the owner' grep -qF '@nawid CI passes on this pull request (https://github.com/me/fs/actions/runs/555), and every check holds' <(last_comment)
+  check 'says so' grep -qF 'CI passes on this pull request (https://github.com/me/fs/actions/runs/555), and every check holds' <(last_comment)
   check 'says merging releases nothing' grep -qF 'file for file the one in v1.3.82.40, the version number aside: merging it releases nothing' <(last_comment)
-  check 'assigned' grep -qx nawid "$STATE/assignees"
+  check 'assigns no one' test ! -s "$STATE/assignees"
   check 'no branch update' bash -c '! grep -q update-branch "$0"' "$STATE/gh.log"
   check 'branch kept' bash -c '! grep -q "api -X DELETE" "$0"' "$STATE/gh.log"
   check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
@@ -795,8 +795,8 @@ green_ships() {
   check 'exit 0' test "$rc" -eq 0
   check 'not called ready' not_ready
   check 'says it changes what ships' grep -qF 'changes what the extension ships' <(last_comment)
-  check '@mentions and assigns' grep -qF '@nawid CI passes' <(last_comment)
-  check 'assigned' grep -qx nawid "$STATE/assignees"
+  check 'says CI passes' grep -qF 'CI passes' <(last_comment)
+  check 'assigns no one' test ! -s "$STATE/assignees"
   check 'a look key' grep -qF '<!-- update-prs: look -->' <(last_comment)
   check 'says to look first' grep -qF 'Look at this before merging' <(last_comment)
 }
@@ -1198,8 +1198,8 @@ node_ready() {
   check 'ready to merge' ready
   check 'build compared' has_call 'release download'
   check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
-  check '@mentions the owner' grep -qF '@nawid CI passes' <(last_comment)
-  check 'assigned' grep -qx nawid "$STATE/assignees"
+  check 'says CI passes' grep -qF 'CI passes' <(last_comment)
+  check 'assigns no one' test ! -s "$STATE/assignees"
 }
 
 node_other_file_waits() {
@@ -1933,8 +1933,8 @@ migration_opened() {
   check 'and ci-failed' grep -qx ci-failed "$STATE/labels"
   check 'one issue' test "$(issues_n)" -eq 1
   check 'its title' test "$(issue_of 700 title)" = 'Migration: eslint 10.12.0'
-  check 'assigned to the owner' test "$(issue_of 700 assignee)" = nawid
-  check '@mentions the owner, links the pull request' grep -qF '@nawid CI failed twice on #42 (build(deps-dev): bump eslint)' <(issue_of 700 body)
+  check 'assigns no one' test -z "$(issue_of 700 assignee)"
+  check 'links the pull request' grep -qF 'CI failed twice on #42 (build(deps-dev): bump eslint)' <(issue_of 700 body)
   check 'the failed step' grep -qF '| Lint, test and build | Unit tests | the unit tests (Vitest) |' <(issue_of 700 body)
   check 'the log' grep -qF 'FAIL tests/unit/x.test.mjs > it breaks' <(issue_of 700 body)
   check "main's CI" grep -qF 'main, the latest push: success' <(issue_of 700 body)

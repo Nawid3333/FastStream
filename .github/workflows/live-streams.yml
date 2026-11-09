@@ -11,8 +11,8 @@ name: Real streams
 # else. Its first runs found three bugs (#40, #41, a file played without a request).
 #
 # Not part of CI, on purpose: it depends on third-party servers, and an outage there must
-# not hold back a release. A scheduled failure opens one issue, assigned to the owner with
-# an @mention; the next green scheduled run closes it. It also runs on a pull request that
+# not hold back a release. A scheduled failure opens one issue, which the daily digest
+# lists; the next green scheduled run closes it. It also runs on a pull request that
 # changes this suite or its setup, and by hand; and on the player libraries' update pull
 # request (toolchain-updates.yml dispatches it there), which update-prs.yml calls ready only
 # once this suite passed on its commit.
@@ -114,7 +114,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          OWNER: ${{ github.repository_owner }}
           BRANCH: ${{ github.head_ref || github.ref_name }}
           SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -141,13 +140,13 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s GitHub refused three times again, after the live suite on %s (%s): start update-prs.yml by hand with run_id %s and branch %s.\n' \
-              "$OWNER" "$BRANCH" "$SELF_URL" "$run_id" "$BRANCH" > "$RUNNER_TEMP/comment.md"
+            printf 'GitHub refused three times again, after the live suite on %s (%s): start update-prs.yml by hand with run_id %s and branch %s.\n' \
+              "$BRANCH" "$SELF_URL" "$run_id" "$BRANCH" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md" || true
           else
-            printf '@%s GitHub refused three times to start update-prs.yml after the live suite on %s (%s), so that pull request waits without a word. Start it from the Actions tab: Update PRs, Run workflow, run_id %s and branch %s. Close this issue once it has run.\n' \
-              "$OWNER" "$BRANCH" "$SELF_URL" "$run_id" "$BRANCH" > "$RUNNER_TEMP/body.md"
-            gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md" || true
+            printf 'GitHub refused three times to start update-prs.yml after the live suite on %s (%s), so that pull request waits without a word. Start it from the Actions tab: Update PRs, Run workflow, run_id %s and branch %s. Close this issue once it has run.\n' \
+              "$BRANCH" "$SELF_URL" "$run_id" "$BRANCH" > "$RUNNER_TEMP/body.md"
+            gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md" || true
           fi
           exit 1
 
@@ -164,7 +163,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RESULT: ${{ needs.live.result }}
-          OWNER: ${{ github.repository_owner }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -191,9 +189,9 @@ jobs:
           # The backticks are Markdown for the issue body, not command substitution.
           # shellcheck disable=SC2016
           {
-            printf '@%s The weekly check against real streams and sites failed: %s\n\n' "$OWNER" "$RUN_URL"
+            printf 'The weekly check against real streams and sites failed: %s\n\n' "$RUN_URL"
             printf 'Failed (or timed out): %s. The run log names the case, and its logs artifact has the browser logs.\n\n' "${failed:-see the run}"
             printf 'A stream or site the check uses may just be down: run it again by hand (Actions > Real streams > Run workflow). If it fails again, a CDN or site changed how it serves video, or FastStream stopped coping with it - `pnpm run test:live` reproduces it locally.\n\n'
             printf 'This issue closes on its own once a scheduled run passes.\n'
           } > "$RUNNER_TEMP/body.md"
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "$prefix ($(date -u +%Y-%m-%d))" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$prefix ($(date -u +%Y-%m-%d))" --body-file "$RUNNER_TEMP/body.md"

@@ -25,8 +25,8 @@ name: Keepalive
 # 60th day. If GitHub disables scheduled workflows anyway, the owner re-enables each
 # from its page in the Actions tab, the Enable workflow button.
 #
-# A failed run opens one issue "Keepalive failed", assigned to and @mentioning the
-# owner; while it is open, a later failure comments on it. Close the issue once this
+# A failed run opens one issue "Keepalive failed", which the daily digest lists;
+# while it is open, a later failure comments on it. Close the issue once this
 # workflow runs green again.
 
 on:
@@ -58,7 +58,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      OWNER: ${{ github.repository_owner }}
     steps:
       # The schedule: triggers are read from the checkout, so the step needs the files.
       - name: Check out the workflows
@@ -147,7 +146,7 @@ jobs:
 
       # A failed run of this workflow is emailed only to whoever started it (for the
       # schedule, whoever last changed the cron line): one issue while it is open,
-      # assigned and @mentioning the owner, as toolchain-updates.yml does. A failure while
+      # which the daily digest lists, as toolchain-updates.yml does. A failure while
       # it is open adds a comment to it.
       - name: Report this workflow's own failure
         if: failure()
@@ -162,10 +161,10 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            printf 'Failed again: %s\n' "$RUN_URL" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
-          printf '@%s keepalive.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
-            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
-          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          printf 'keepalive.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"

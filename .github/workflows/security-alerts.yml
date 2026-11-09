@@ -7,7 +7,7 @@ name: Security alerts
 # as the only notice. So once a day this reads the repository's open Dependabot alerts. A
 # package with an alert over 6 hours old (Dependabot's pull request comes within minutes)
 # and no open Dependabot pull request naming it gets one issue, "Security alert: <package>",
-# assigned to the owner and @mentioning them, listing its alerts and how to fix them by
+# which the daily digest lists, listing its alerts and how to fix them by
 # hand. A later alert for that package is added to the open issue with a comment.
 #
 # The issue closes itself once none of the package's alerts is open: fixed on main (GitHub
@@ -77,7 +77,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      OWNER: ${{ github.repository_owner }}
       EVENT: ${{ github.event_name }}
       PREFIX: 'Security alert: '
       BRANCH: security/overrides
@@ -308,7 +307,7 @@ jobs:
 
             {
               # shellcheck disable=SC2016 # backticks are Markdown
-              printf '@%s Dependabot has open security alerts for `%s` and no pull request that fixes them:\n\n' "$OWNER" "$package"
+              printf 'Dependabot has open security alerts for `%s` and no pull request that fixes them:\n\n' "$package"
               printf '| Alert | Severity | In | Vulnerable | Fixed in | Advisory |\n| --- | --- | --- | --- | --- | --- |\n'
               cat "$T/rows.md"
               cat <<EOF
@@ -331,10 +330,10 @@ jobs:
               gh issue edit "$open" --body-file "$T/body.md"
               links=$(for n in $new; do printf '[alert %s](%s/%s) ' "$n" "$ALERTS" "$n"; done)
               if [ "$(wc -w <<< "$new")" -eq 1 ]; then what='Another security alert'; else what='More security alerts'; fi
-              gh issue comment "$open" --body "@$OWNER $what for \`$package\`, with no pull request that fixes it: ${links% }. The list above now includes it."
+              gh issue comment "$open" --body "$what for \`$package\`, with no pull request that fixes it: ${links% }. The list above now includes it."
               echo "Added alert(s) $new to #$open ($package)"
             else
-              url=$(gh issue create --title "$PREFIX$package" --assignee "$OWNER" --body-file "$T/body.md")
+              url=$(gh issue create --title "$PREFIX$package" --body-file "$T/body.md")
               echo "Opened $url ($package: alerts $list)"
             fi
           done < "$T/due.tsv"
@@ -352,8 +351,8 @@ jobs:
           retention-days: 1
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
-      # whoever last changed the cron line): one issue while it is open, assigned and
-      # @mentioning the owner, as toolchain-updates.yml does. A failure while it is open adds a
+      # whoever last changed the cron line): one issue while it is open, which the daily
+      # digest lists, as toolchain-updates.yml does. A failure while it is open adds a
       # comment to it.
       - name: Report this workflow's own failure
         if: failure()
@@ -368,13 +367,13 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            printf 'Failed again: %s\n' "$RUN_URL" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
-          printf '@%s security-alerts.yml failed: %s\n\nThe run log names the failed command. Until it is fixed, a Dependabot alert with no pull request raises no issue. Close this issue once it is fixed; a later failure opens a new one.\n' \
-            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
-          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          printf 'security-alerts.yml failed: %s\n\nThe run log names the failed command. Until it is fixed, a Dependabot alert with no pull request raises no issue. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"
 
   # The plan's floors are tried here: pnpm resolves the lockfile with the overrides applied,
   # and the module verifies the result against the plan. The job deliberately has no token
@@ -507,7 +506,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      OWNER: ${{ github.repository_owner }}
       PREFIX: 'Security alert: '
       BRANCH: security/overrides
       ALERTS_URL: https://github.com/${{ github.repository }}/security/dependabot
@@ -629,7 +627,7 @@ jobs:
           marker=$(jq -r '.handled | map(tostring) | join(" ")' result/routing.json)
           {
             # shellcheck disable=SC2016 # backticks are Markdown
-            printf '@%s These alerts can be fixed without touching any package.json: a floor for each package in the `overrides` of `pnpm-workspace.yaml` makes pnpm take the newest release that floor allows, in place of the ranges its dependents ask for. Only the packages below move.\n\n' "$OWNER"
+            printf 'These alerts can be fixed without touching any package.json: a floor for each package in the `overrides` of `pnpm-workspace.yaml` makes pnpm take the newest release that floor allows, in place of the ranges its dependents ask for. Only the packages below move.\n\n'
             printf '| Alert | Severity | In | Vulnerable | Fixed in | Advisory |\n| --- | --- | --- | --- | --- | --- |\n'
             cat "$T/pr-rows.md"
             printf '\n| Package | Selector | Change | From | Floor |\n| --- | --- | --- | --- | --- |\n'
@@ -705,7 +703,7 @@ jobs:
               result/plan.json > "$T/rows.md"
             {
               # shellcheck disable=SC2016 # backticks are Markdown
-              printf '@%s A floor was planned for `%s`, but the package manager would not install it, so these alerts come back to you:\n\n' "$OWNER" "$package"
+              printf 'A floor was planned for `%s`, but the package manager would not install it, so these alerts come back to you:\n\n' "$package"
               printf '| Alert | Severity | In | Vulnerable | Fixed in | Advisory |\n| --- | --- | --- | --- | --- | --- |\n'
               cat "$T/rows.md"
               printf '\nWhy: %s\n\n' "$reason"
@@ -734,10 +732,10 @@ jobs:
               fi
               gh issue edit "$number" --body-file "$T/issue-body.md" > /dev/null
               links=$(for n in $list; do printf '[alert %s](%s/%s) ' "$n" "$ALERTS_URL" "$n"; done)
-              gh issue comment "$number" --body "@$OWNER ${links% }could not be installed automatically: $reason. The list above now includes them."
+              gh issue comment "$number" --body "${links% }could not be installed automatically: $reason. The list above now includes them."
               echo "Demoted alerts $list onto #$number ($package)"
             else
-              url=$(gh issue create --title "$PREFIX$package" --assignee "$OWNER" --body-file "$T/body.md")
+              url=$(gh issue create --title "$PREFIX$package" --body-file "$T/body.md")
               echo "Demoted alerts $list to $url ($package)"
             fi
           done < "$T/demote.tsv"
@@ -817,7 +815,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      OWNER: ${{ github.repository_owner }}
     steps:
       - name: Report the route's own failure
         env:
@@ -833,15 +830,15 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            printf 'Failed again: %s\n' "$RUN_URL" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
           {
-            printf '@%s The override route failed (job(s):%s): %s\n\n' "$OWNER" "$failed" "$RUN_URL"
+            printf 'The override route failed (job(s):%s): %s\n\n' "$failed" "$RUN_URL"
             printf '%s\n' "The run log names the failed command. This failure takes no action on any alert by design: the alerts the failed run's plan had claimed are recorded nowhere, so the next run offers them again from scratch - a transient registry failure must not demote an alert for good. Until it is fixed, no override pull request can move, and the alerts it would have taken raise nothing that day. Close this issue once it is fixed; a later failure opens a new one."
           } > "$RUNNER_TEMP/body.md"
-          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"
 
   # The update pull requests, once a day. Dependabot fails quietly in another way too: once an
   # entry of .github/dependabot.yml has its open-pull-requests-limit of pull requests open, it
@@ -859,7 +856,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      OWNER: ${{ github.repository_owner }}
     steps:
       - name: Close the migration issues of closed pull requests
         run: |
@@ -981,7 +977,7 @@ jobs:
           fi
           # shellcheck disable=SC2016 # backticks are Markdown
           {
-            printf '@%s Update pull requests are piling up, and Dependabot tells no one.\n\n' "$OWNER"
+            printf 'Update pull requests are piling up, and Dependabot tells no one.\n\n'
             if [ -s "$T/full.md" ]; then
               printf '**Near the limit.** Once an entry of `.github/dependabot.yml` has its `open-pull-requests-limit` of pull requests open, Dependabot opens no more for it, not even for a new release, until some are merged or closed. This warns at the limit minus 2 (at least 2).\n\n'
               printf '| Ecosystem | Directories | Open | Limit | Pull requests |\n| --- | --- | --- | --- | --- |\n'
@@ -1001,7 +997,7 @@ jobs:
             gh issue edit "$open" --body-file "$T/body.md" > /dev/null
             echo "Updated #$open."
           else
-            gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$T/body.md"
+            gh issue create --title "$TITLE" --body-file "$T/body.md"
           fi
 
       # As the check's report above, for this job: one issue while it is open, a comment on it
@@ -1016,10 +1012,10 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            printf 'Failed again: %s\n' "$RUN_URL" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
-          printf '@%s The daily watch of the update pull requests (security-alerts.yml, job "Watch the update pull requests") failed: %s\n\nThe run log names the failed command. Until it is fixed, migration issues of closed pull requests stay open, pull requests held for new releases are not decided again, and piling-up pull requests raise no issue. Close this issue once it is fixed; a later failure opens a new one.\n' \
-            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
-          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          printf 'The daily watch of the update pull requests (security-alerts.yml, job "Watch the update pull requests") failed: %s\n\nThe run log names the failed command. Until it is fixed, migration issues of closed pull requests stay open, pull requests held for new releases are not decided again, and piling-up pull requests raise no issue. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"

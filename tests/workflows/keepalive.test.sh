@@ -251,18 +251,18 @@ check 'the stub named the failure' contains "$FIX/out" 'stub gh: enable failed f
 scenario 's5 failure report, none open: opens "Keepalive failed"' \
   "$report_step" '{}' false '{}' '[{"title":"Other"}]' ''
 check 'succeeds' test "$status" -eq 0
-check 'opens it assigned to the owner' contains "$LOG" \
-  'CREATE [--title] [Keepalive failed] [--assignee] [Nawid3333]'
-check 'mentions the owner and links this run' contains "$LOG" \
-  '@Nawid3333 keepalive.yml failed: https://github.com/Nawid3333/FastStream/actions/runs/1'
+check 'opens it' contains "$LOG" \
+  'CREATE [--title] [Keepalive failed]'
+check 'links this run' contains "$LOG" \
+  'keepalive.yml failed: https://github.com/Nawid3333/FastStream/actions/runs/1'
 
 scenario 's6 failure report, already open: comments on it' \
   "$report_step" '{}' false '{}' '[{"number":3,"title":"Other"},{"number":12,"title":"Keepalive failed"}]' ''
 check 'succeeds' test "$status" -eq 0
 check 'creates nothing' lacks "$LOG" 'CREATE'
 check 'comments on the open one' contains "$LOG" 'COMMENT [12] [--body-file]'
-check 'the comment mentions the owner and links this run' contains "$LOG" \
-  '@Nawid3333 Failed again: https://github.com/Nawid3333/FastStream/actions/runs/1'
+check 'the comment links this run' contains "$LOG" \
+  'Failed again: https://github.com/Nawid3333/FastStream/actions/runs/1'
 
 scenario 's7 a committer date that is not an ISO date: refused, nothing enabled' \
   "$enable_step" '{"commit":{"committer":{"date":"whenever the wind blows"}}}' false "$workflows" '[]' ''
