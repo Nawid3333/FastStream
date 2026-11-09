@@ -8,6 +8,7 @@ import {describe, expect, it, vi} from 'vitest';
 const {default: MP4Player} = await import('../../chrome/player/players/mp4/MP4Player.mjs');
 const feedPiece = MP4Player.prototype.feedPiece;
 const moovIsAfterMedia = MP4Player.prototype.moovIsAfterMedia;
+const moovCameAfterFedMedia = MP4Player.prototype.moovCameAfterFedMedia;
 
 /**
  * A range's own answer: a 206 and its Content-Range.
@@ -156,6 +157,28 @@ describe('a moov in a later piece than the media', () => {
     const state = fedTwice(false);
     expect(state.moovInFirstPiece).toBe(false);
     expect(state.bytes).toBe(16);
+  });
+
+  describe('reads the range again', () => {
+    const moovLast = {moovIsAfterMedia: () => true};
+    const moovFirst = {moovIsAfterMedia: () => false};
+    const fed = {bytes: 16, hadMetaData: false, moovInFirstPiece: false};
+
+    it('for media in one piece and the moov in a later one', () => {
+      expect(moovCameAfterFedMedia.call(moovLast, fed)).toBe(true);
+    });
+
+    // Reading it again would stop a video already playing from that range.
+    it('not for a moov at the start that spans two pieces', () => {
+      expect(moovCameAfterFedMedia.call(moovFirst, fed)).toBe(false);
+    });
+
+    it('not when the first piece brought all of it, nor for a range not fed, nor once the moov was known', () => {
+      expect(moovCameAfterFedMedia.call(moovLast, {...fed, moovInFirstPiece: true})).toBe(false);
+      expect(moovCameAfterFedMedia.call(moovLast, undefined)).toBe(false);
+      expect(moovCameAfterFedMedia.call(moovLast, {...fed, bytes: 0})).toBe(false);
+      expect(moovCameAfterFedMedia.call(moovLast, {...fed, hadMetaData: true})).toBe(false);
+    });
   });
 
   it('tells media before the moov from a moov at the start', () => {

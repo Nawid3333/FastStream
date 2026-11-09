@@ -170,7 +170,9 @@ async function videoState() {
     const video = window.fastStream?.currentVideo;
     if (!video) return {};
     if (video.paused) video.play().catch(() => {});
+    const buffered = Array.from({length: video.buffered.length}, (_, i) => [video.buffered.start(i), video.buffered.end(i)]);
     return {currentTime: video.currentTime, readyState: video.readyState, duration: window.fastStream.duration,
+      elementDuration: video.duration, buffered,
       error: video.error?.message || null, failed: !!window.fastStream.interfaceController?.failed};
   });
 }
@@ -297,6 +299,9 @@ describe('MP4 files of other shapes', function() {
   // one piece, the moov in a later one, and the first gave no samples. The video sat at its start
   // for good, only when the network happened to cut the file so (mp4-files in #644, since #629).
   it('plays a short MP4 whose moov comes in a later piece of its first range', async function() {
+    // The server cuts the file in half: this checks nothing if the moov moves to the first half.
+    const file = fs.readFileSync(path.join(fixturesDir, 'mp4-shapes', 'audio-only.mp4'));
+    expect(file.lastIndexOf('moov')).toBeGreaterThan(file.length / 2);
     const state = await playFor(`${LENGTHLESS_ORIGIN}/in-two-pieces/audio-only.mp4`);
     expect(state.currentTime).toBeGreaterThan(1);
     expect(state.failed).toBe(false);

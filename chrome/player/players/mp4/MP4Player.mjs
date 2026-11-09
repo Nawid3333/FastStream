@@ -758,8 +758,7 @@ export default class MP4Player extends EventEmitter {
             // The first range too when it came in pieces and the moov in a later one than the
             // media: a short such file sat so, only when the network cut it there (measured with
             // mp4box: 0 segments from two pieces, 27 from one buffer).
-            const moovAfterFedMedia = fedBytes > 0 && !fed?.moovInFirstPiece && this.moovIsAfterMedia();
-            if (!hadMetaData && this.metaData && (frag.sn > 0 || moovAfterFedMedia)) {
+            if (!hadMetaData && this.metaData && (frag.sn > 0 || this.moovCameAfterFedMedia(fed))) {
               this.resetHLS(true);
             }
 
@@ -881,6 +880,17 @@ export default class MP4Player extends EventEmitter {
     this.mp4box.appendBuffer(piece);
     if (state.bytes === 0) state.moovInFirstPiece = !!this.metaData;
     state.bytes = end;
+  }
+
+  /**
+   * Whether a range fed in pieces lost its samples: its moov came after the first piece, with
+   * media before it.
+   * @param {{bytes: number, hadMetaData: boolean, moovInFirstPiece: boolean}} [fed] - The range's
+   *   state in fedRanges, if it was fed.
+   * @return {boolean}
+   */
+  moovCameAfterFedMedia(fed) {
+    return !!fed?.bytes && !fed.hadMetaData && !fed.moovInFirstPiece && this.moovIsAfterMedia();
   }
 
   /**
