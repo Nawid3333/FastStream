@@ -20,7 +20,7 @@
     "start:ff": "node tools/launch-ff.mjs",
     "start:ff:fresh": "node tools/launch-ff-fresh.mjs",
     "start:ff:clean": "web-ext run --source-dir=build_firefox_github --target=firefox-desktop",
-    "test": "vitest run",
+    "test": "node tools/sync-vendor.mjs && vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:workflows": "bash tests/workflows/run.sh",
