@@ -351,14 +351,27 @@ jobs:
           $url = "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/$($pin.release)/$($pin.asset)"
           $archive = Join-Path $env:RUNNER_TEMP 'mpv.7z'
           $dir = Join-Path $env:RUNNER_TEMP 'mpv'
-          foreach ($attempt in 1..3) {
+          # Tried again only when GitHub did not answer, or answered 408, 429 or 5xx, with waits
+          # that grow to about four minutes in all: three tries 15 s apart all met its 504s on
+          # 2026-11-09, which lasted about ten minutes. Anything else (a 404: a pin whose build
+          # is gone) is a failure of its own, at once.
+          $waits = @(15, 30, 60, 120)
+          foreach ($attempt in 0..$waits.Count) {
             try {
-              Invoke-WebRequest -Uri $url -OutFile $archive
+              Invoke-WebRequest -Uri $url -OutFile $archive -ConnectionTimeoutSeconds 20 -OperationTimeoutSeconds 120
               break
             } catch {
-              if ($attempt -eq 3) { throw }
-              Write-Warning "Download attempt $attempt failed: $_"
-              Start-Sleep -Seconds 15
+              $code = [int]$_.Exception.Response.StatusCode
+              $transient = $code -eq 0 -or $code -eq 408 -or $code -eq 429 -or $code -ge 500
+              if (-not $transient) { throw }
+              if ($attempt -eq $waits.Count) {
+                # update-prs.yml reads this line as an outage (tools/ci-outage.sh), not a failure
+                # of the update.
+                Write-Output "::error::FS-OUTAGE mpv: $url did not download (HTTP $code): $_"
+                throw
+              }
+              Write-Warning "Download attempt $($attempt + 1) failed (HTTP $code): $_"
+              Start-Sleep -Seconds $waits[$attempt]
             }
           }
           $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash

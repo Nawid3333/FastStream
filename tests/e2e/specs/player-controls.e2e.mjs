@@ -563,20 +563,27 @@ describe('Player controls', function() {
     await addSource(mp4Url());
     await waitForPicture();
     // How often the player's time is updated in one second (the loop's rounds and the video's
-    // own timeupdate events), and how many frames the video showed meanwhile: as many as the
-    // machine can, all 30 of this video's on a desktop, fewer on CI's headless Linux, where
-    // updates at the screen's rate (above 20) were asked for and 9-11 came.
+    // own timeupdate events, which call updateTime too), how many of those were timeupdates,
+    // and how many frames the video showed meanwhile: as many as the machine can, all 30 of
+    // this video's on a desktop, fewer on CI's headless Linux (9-11, and 4 on Firefox Beta's
+    // runner on 2026-11-09). So the frames are not counted against the clock, only against the
+    // loop's rounds: calls less timeupdates.
     const perSecond = () => browser.execute(() => new Promise((done) => {
       const client = window.fastStream;
       const video = client.player.getVideo();
       const updateTime = client.updateTime;
       let calls = 0;
+      let timeupdates = 0;
       let frames = 0;
       let counting = true;
       client.updateTime = function(...args) {
         calls++;
         return updateTime.apply(this, args);
       };
+      const onTimeupdate = () => {
+        timeupdates++;
+      };
+      video.addEventListener('timeupdate', onTimeupdate);
       const onFrame = () => {
         if (!counting) return;
         frames++;
@@ -586,7 +593,8 @@ describe('Player controls', function() {
       setTimeout(() => {
         counting = false;
         delete client.updateTime;
-        done({calls, frames});
+        video.removeEventListener('timeupdate', onTimeupdate);
+        done({calls, timeupdates, frames});
       }, 1000);
     }));
     const paused = await perSecond();
@@ -602,10 +610,10 @@ describe('Player controls', function() {
     const pausedAgain = await perSecond();
     console.log('      time updates and frames per second:', JSON.stringify({paused, playing, pausedAgain}));
     expect(paused.calls).toBeLessThan(5);
-    // Every frame shown (one may land after the count's end), and more than timeupdate's
-    // four a second alone.
-    expect(playing.frames).toBeGreaterThan(5);
-    expect(playing.calls).toBeGreaterThanOrEqual(playing.frames - 1);
+    // A round of the loop for every frame shown, beyond the timeupdates (a frame and a
+    // timeupdate may each land just after the count's end). The video plays: some frames came.
+    expect(playing.frames).toBeGreaterThanOrEqual(3);
+    expect(playing.calls - playing.timeupdates).toBeGreaterThanOrEqual(playing.frames - 2);
     expect(pausedAgain.calls).toBeLessThan(5);
   });
 

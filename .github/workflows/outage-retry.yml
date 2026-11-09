@@ -1,0 +1,105 @@
+name: Outage retry
+
+# Runs CI again on an update pull request's commit some hours after a run that failed only
+# because GitHub or a download host did not answer (tools/ci-outage.sh). update-prs.yml starts
+# it (on main, by workflow_dispatch) instead of parking the update: on 2026-11-09 GitHub
+# answered 504 for about ten minutes, and four update pull requests were parked as migrations
+# for nothing. CI's end then reaches update-prs.yml again (ci.yml's hand-off), which decides;
+# it starts this at most three times for a commit.
+#
+# Its job only waits and then starts one workflow: no checkout, nothing from the pull request
+# runs. When the wait is over CI starts only if an open pull request of this repository is
+# still on that branch at that commit; a newer commit has had CI of its own. A second start
+# for the same branch (the dispatched and the pull_request run of one commit, both failed on
+# the same outage) replaces the one still waiting.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: The update branch to run CI on
+        required: true
+        type: string
+      sha:
+        description: The commit CI failed on; CI starts only while the pull request is still at it
+        required: true
+        type: string
+      delay:
+        description: Seconds to wait first (at most 18000)
+        required: false
+        type: string
+        default: '10800'
+
+permissions: {}  # the job asks for what it needs
+
+concurrency:
+  group: outage-retry-${{ inputs.branch }}
+  cancel-in-progress: true
+
+jobs:
+  retry:
+    name: Run CI again after an outage
+    permissions:
+      actions: write         # start ci.yml
+      pull-requests: write   # the pull request still at that commit; a comment if CI could not start
+    runs-on: ubuntu-latest
+    # The wait (five hours at most), the tries of the calls after it (18 minutes), a few more.
+    timeout-minutes: 345
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      BRANCH: ${{ inputs.branch }}
+      SHA: ${{ inputs.sha }}
+      DELAY: ${{ inputs.delay }}
+    steps:
+      - name: Wait, then start CI
+        id: retry
+        run: |
+          set -euo pipefail
+          # Only the branches update-prs.yml reports on, a full commit, a wait in range.
+          if ! [[ $BRANCH =~ ^(dependabot|toolchain|patched|security)/[A-Za-z0-9._/@+-]+$ ]] || [[ $BRANCH == *..* ]]; then
+            echo "::error::Not an update branch: $BRANCH"
+            exit 1
+          fi
+          if ! [[ $SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Not a full commit: $SHA"
+            exit 1
+          fi
+          if ! [[ $DELAY =~ ^[0-9]+$ ]] || [ "$DELAY" -gt 18000 ]; then
+            echo "::error::The wait must be 0 to 18000 seconds: $DELAY"
+            exit 1
+          fi
+          echo 'valid=true' >> "$GITHUB_OUTPUT"
+          # GitHub may still answer badly when the wait is over: a call that fails is tried
+          # again 1, 2, 5 and 10 minutes later.
+          retry() {
+            local wait
+            for wait in 60 120 300 600 0; do
+              if "$@"; then return 0; fi
+              if [ "$wait" = 0 ]; then return 1; fi
+              echo "::warning::$1 $2 $3 failed; trying again in $wait s." >&2
+              sleep "$wait"
+            done
+          }
+          echo "Waiting $DELAY s, until $(date -u -d "+$DELAY seconds" '+%H:%M') UTC."
+          sleep "$DELAY"
+          # The open pull request of this repository on the branch, still at that commit.
+          open=$(retry gh pr list --state open --head "$BRANCH" --limit 20 --json headRefOid,isCrossRepository \
+            --jq "[.[] | select(.headRefOid == \"$SHA\" and (.isCrossRepository | not))] | length")
+          if [ "$open" = 0 ]; then
+            echo "No open pull request on $BRANCH at ${SHA:0:8} any more: merged, closed, or moved on. Nothing to do."
+            exit 0
+          fi
+          retry gh workflow run ci.yml --ref "$BRANCH"
+          echo "Started CI on $BRANCH at ${SHA:0:8}; update-prs.yml decides on its end."
+
+      # Nothing else would: update-prs.yml said CI runs again, and only CI's end reaches it.
+      - name: Tell the owner CI did not start
+        if: failure() && steps.retry.outputs.valid == 'true'
+        run: |
+          set -euo pipefail
+          printf '@%s CI was to run again on this pull request after an outage, but could not be started (%s). Start it on this branch (Actions, CI, Run workflow); that run decides.\n' \
+            "$OWNER" "$SELF_URL" > "$RUNNER_TEMP/body.md"
+          gh pr comment "$BRANCH" --body-file "$RUNNER_TEMP/body.md"
