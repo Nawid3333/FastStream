@@ -382,7 +382,8 @@ describe('uBlock Origin on AMO', () => {
 
 describe('uBlock Origin in tools/setup-dev-profile.mjs', () => {
   const text = fs.readFileSync('tools/setup-dev-profile.mjs', 'utf8');
-  const next = {version: '1.76.0', url: 'https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-1.76.0.xpi',
+  // A version no real pin reaches: the toolchain's own pull request moves the pin (#654).
+  const next = {version: '99.0.0', url: 'https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-99.0.0.xpi',
     sha256: 'b'.repeat(64)};
 
   it('reads the version the profile installs', () => {
@@ -392,11 +393,11 @@ describe('uBlock Origin in tools/setup-dev-profile.mjs', () => {
   it('replaces its version, url and sha256, and nothing else', () => {
     const {text: written, was} = applyAddon(text, UBLOCK.id, next);
     expect(was).toBe(addonVersion(text, UBLOCK.id));
-    expect(addonVersion(written, UBLOCK.id)).toBe('1.76.0');
+    expect(addonVersion(written, UBLOCK.id)).toBe('99.0.0');
     const changed = (a, b) => a.split('\n').filter((line, i) => line !== b.split('\n')[i]);
     expect(written.split('\n')).toHaveLength(text.split('\n').length);
     expect(changed(written, text)).toEqual([
-      '    version: \'1.76.0\',',
+      '    version: \'99.0.0\',',
       `    url: '${next.url}',`,
       `    sha256: '${'b'.repeat(64)}',`,
     ]);
@@ -415,7 +416,7 @@ describe('uBlock Origin in tools/setup-dev-profile.mjs', () => {
     const entry = /\n {2}\{\n[^]*?\n {2}\},\n/.exec(text)?.[0] || '';
     expect(entry).toContain(UBLOCK.id);
     expect(() => applyAddon(text.replace(entry, entry + entry.slice(1)), UBLOCK.id, next)).toThrow(/more than once/);
-    expect(() => applyAddon(text, UBLOCK.id, {...next, version: '1.76.0\''})).toThrow(/not a release/);
+    expect(() => applyAddon(text, UBLOCK.id, {...next, version: '99.0.0\''})).toThrow(/not a release/);
     expect(() => applyAddon(text, UBLOCK.id, {...next, url: 'https://evil.example/x.xpi'})).toThrow(/not a release/);
     expect(() => applyAddon(text, UBLOCK.id, {...next, sha256: 'B'.repeat(64)})).toThrow(/not a release/);
   });
@@ -429,7 +430,7 @@ describe('uBlock Origin in tools/setup-dev-profile.mjs', () => {
     expect(was).toBe(addonVersion(text, UBLOCK.id));
     expect(written).toContain('    // moved on from } the old pin\n');
     expect(written).toContain(`// was: id: '${UBLOCK.id}', {\n`);
-    expect(addonVersion(written, UBLOCK.id)).toBe('1.76.0');
+    expect(addonVersion(written, UBLOCK.id)).toBe('99.0.0');
   });
 
   it('refuses an entry written another way, rather than guess', () => {
