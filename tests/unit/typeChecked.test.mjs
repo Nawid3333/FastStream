@@ -122,6 +122,7 @@ const CHECKED = [
   'chrome/player/players/hls/HLSLoader.mjs',
   'chrome/player/players/hls/HLSPlayer.mjs',
   'chrome/player/players/mp4/AacLayout.mjs',
+  'chrome/player/players/mp4/DurationSync.mjs',
   'chrome/player/players/mp4/MP4Fragment.mjs',
   'chrome/player/players/mp4/MP4FragmentRequester.mjs',
   'chrome/player/players/mp4/MP4Player.mjs',
