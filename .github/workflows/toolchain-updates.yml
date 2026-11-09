@@ -1,31 +1,31 @@
 name: Toolchain updates
 
-# Weekly check of the build toolchain (tools/check-toolchain.mjs), which turns each update
+# Daily check of the build toolchain (tools/check-toolchain.mjs), which turns each update
 # into a pull request "Toolchain update: <name> <version>" on branch toolchain/<name>-<version>,
 # with CI started on it (a push by this workflow's token starts no workflow; a dispatch
 # does):
 #   - Node.js, a newer LTS major: .nvmrc, the file every workflow's setup-node reads (this
 #     token may not push a workflow file). update-prs.yml tells the owner whether it is
 #     ready to merge; nothing merges itself (the owner's choice, 2026-10-02).
-#   - pnpm, the newest release of the pinned major at least 3 days old: "packageManager"
+#   - pnpm, the newest release of the pinned major, as soon as it is out: "packageManager"
 #     in package.json, and nothing else. Routine: ready to merge once CI passes and nothing
 #     the extension ships has changed.
 #   - pnpm, the next major: the same change, handled the same way.
 #   - uBlock Origin, which tools/setup-dev-profile.mjs puts into the developer's Firefox
-#     profile: the newest public release on AMO at least 3 days old. Its entry there (version,
+#     profile: the newest public release on AMO. Its entry there (version,
 #     file, SHA-256) and nothing else; nothing in CI downloads the file, so this run downloads
 #     it and checks it against AMO's SHA-256 before pushing. Routine.
 #   - The player libraries the live suite plays (tests/e2e/live-specs/player-libraries.json):
 #     ONE rolling pull request, "Toolchain update: player libraries" on
 #     toolchain/player-libraries, rebuilt in place on main whenever the set changes. Each
-#     library goes to its newest release at least 3 days old that fits the ranges the others
+#     library goes to its newest release that fits the ranges the others
 #     declare on it, a new major included (the pull request names it: its page may need a
 #     change); MAJOR_HOLDS in tools/check-toolchain.mjs keeps a library on its major on
 #     purpose, and a hold to look at again fails the run. CI and the live suite
 #     (live-streams.yml, which plays them; CI does not) are started on each new head, and
 #     update-prs.yml calls it ready only once both passed. Closing it skips that set: it
 #     comes again only with another.
-# The weekly run also rebuilds an open one on main when main has moved into conflict with
+# The daily run also rebuilds an open one on main when main has moved into conflict with
 # it, and starts CI on one whose head has none.
 # A title is never used twice, as a pull request or an issue, open or closed: closing one
 # is how an update is skipped, and it stays skipped. An open one is closed on its own once
@@ -38,9 +38,9 @@ name: Toolchain updates
 
 on:
   schedule:
-    - cron: '0 7 * * 1'
+    - cron: '0 7 * * *'
   # Right after a toolchain file changed on main, so a pull request the change made
-  # obsolete closes without waiting a week. A push only closes.
+  # obsolete closes without waiting a day. A push only closes.
   push:
     branches: [main]
     paths:
@@ -204,7 +204,7 @@ jobs:
               *) echo "toolchain/$1-$2" ;;
             esac
           }
-          # Retried once: a pull request left without CI would wait for good (until the weekly
+          # Retried once: a pull request left without CI would wait for good (until the daily
           # run below finds it).
           start_ci() { # <branch>
             gh workflow run ci.yml --ref "$1" || { sleep 30; gh workflow run ci.yml --ref "$1"; }
@@ -243,7 +243,7 @@ jobs:
 
             # The pull request's text, for a new one and a rebuilt one alike.
             {
-              printf 'The player libraries the live suite plays (`%s`), each at its newest release that is at least 3 days old and fits the ranges the others declare on it:\n\n' "$pfile"
+              printf 'The player libraries the live suite plays (`%s`), each at its newest release that fits the ranges the others declare on it:\n\n' "$pfile"
               printf '| Library | Now | Then |\n| --- | --- | --- |\n'
               jq -r '.changes[] | "| [\(.name)](https://www.npmjs.com/package/\(.name)?activeTab=versions) | \(.from) | \(.to) |"' "$players"
               if [ "$(jq '.newMajors | length' "$players")" != 0 ]; then
@@ -385,7 +385,7 @@ jobs:
               raised+=("$branch")
             done 3< "$RUNNER_TEMP/raise.jsonl"
           else
-            echo 'A push only closes; the weekly run raises.'
+            echo 'A push only closes; the daily run raises.'
           fi
 
           # --- Close what is resolved or replaced: pull requests (and their branches), and the

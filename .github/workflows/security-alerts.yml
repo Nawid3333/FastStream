@@ -40,9 +40,8 @@ name: Security alerts
 #
 # The second job, "watch" (daily and by hand, not on a push), looks after the open update
 # pull requests: it opens "Update pull requests piling up" when a Dependabot entry nears its
-# open-pull-requests-limit or an update has been red for over 14 days, closes the migration
-# issues update-prs.yml opened for pull requests merged or closed since, and starts
-# update-prs.yml again on a pull request it held back for new releases once they are 3 days old.
+# open-pull-requests-limit or an update has been red for over 14 days, and closes the migration
+# issues update-prs.yml opened for pull requests merged or closed since.
 
 on:
   schedule:
@@ -643,9 +642,6 @@ jobs:
           EOF
             printf '<!-- alerts: %s -->\n' "$marker"
           } > "$T/pr-body.md"
-          # Nothing in this body or in any comment here may ever carry an
-          # <!-- update-prs-recheck: --> marker: that marker is what makes watch start
-          # update-prs.yml on a pull request.
 
           pr_number=$(jq -r '.number // 0' plan/old-pr.json)
           if [ "$pr_number" != 0 ]; then
@@ -860,7 +856,6 @@ jobs:
       contents: read        # main's .github/dependabot.yml, for each entry's limit
       pull-requests: read   # the open pull requests
       issues: write         # the "Update pull requests piling up" and "Migration: ..." issues
-      actions: write        # start update-prs.yml again on a pull request held for new releases
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
@@ -891,38 +886,6 @@ jobs:
               *) echo "#$issue: #$pr is still open." ;;
             esac
           done 3< "$RUNNER_TEMP/migrations.txt"
-
-      - name: Decide again on update pull requests held for new releases
-        run: |
-          set -euo pipefail
-          # update-prs.yml holds back an update pull request whose lockfile adds a package
-          # version under 3 days old, and its comment says when the youngest is old enough, with
-          # the CI run and the commit it decided on: <!-- update-prs-recheck: <time> <run>
-          # <commit> -->. Once that time has passed, with the pull request still at that commit,
-          # update-prs.yml is started again on that run, as ci.yml's hand-off starts it, and
-          # decides as it does after CI. A newer commit has a CI run of its own, which decides.
-          now=$(date -u +%s)
-          gh pr list --state open --limit 200 --json number,headRefName,headRefOid,isCrossRepository \
-            --jq '.[] | select((.isCrossRepository | not) and (.headRefName | test("^(dependabot|toolchain|patched)/"))) | "\(.number) \(.headRefName) \(.headRefOid)"' \
-            > "$RUNNER_TEMP/prs.txt"
-          while read -r number branch head <&3; do
-            # The last comment update-prs.yml made on it, found as update-prs.yml finds it.
-            gh api --paginate "repos/$GH_REPO/issues/$number/comments" \
-              --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- update-prs: "))) | {body}' \
-              > "$RUNNER_TEMP/ours.jsonl"
-            recheck=$(jq -rs 'last | .body // ""' "$RUNNER_TEMP/ours.jsonl" |
-              sed -n 's/^<!-- update-prs-recheck: \([0-9][0-9]*\) \([0-9][0-9]*\) \([0-9a-f]\{40\}\) -->$/\1 \2 \3/p' | tail -n 1)
-            if [ -z "$recheck" ]; then continue; fi
-            read -r at run sha <<< "$recheck"
-            if [ "$sha" != "$head" ]; then
-              echo "#$number moved on from ${sha:0:8}: the CI run of its new commit decides."
-            elif [ "$at" -gt "$now" ]; then
-              echo "#$number: its youngest new package version is 3 days old at $(date -u -d "@$at" '+%Y-%m-%d %H:%M UTC')."
-            else
-              echo "#$number: its new package versions are 3 days old now. Starting update-prs.yml on CI run $run."
-              gh workflow run update-prs.yml --ref main -f "run_id=$run" -f "branch=$branch"
-            fi
-          done 3< "$RUNNER_TEMP/prs.txt"
 
       - name: Open, update or close the piling-up issue
         env:

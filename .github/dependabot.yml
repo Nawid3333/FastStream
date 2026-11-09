@@ -6,14 +6,17 @@
 # A merge to main is a release (auto-release.yml) when it changes what the
 # extension ships - a vendored library such as fuse.js does, a test or build tool
 # does not and merges without one. Minor and patch updates are grouped into one
-# PR per week; a major update still gets a PR of its own, because it is a
+# PR that keeps up; a major update still gets a PR of its own, because it is a
 # decision rather than routine.
+#
+# A release is proposed as soon as Dependabot sees it, at its daily look: no cooldown (the
+# owner's call of 2026-11-09, as from 2026-10-11 to 2026-10-20: nothing merges itself, and he
+# decides when each update is merged).
 #
 # What happens to each PR once CI has run is update-prs.yml's job: it reports, and nothing
 # merges itself (the owner's choice, 2026-10-02: every PR waits for his merge). A red one
 # is reported to the owner; a green one is called ready to merge when it changes only
-# package.json and pnpm-lock.yaml and adds no package version under 3 days old (a security
-# fix aside). A tooling update must also leave the built extension identical to the latest
+# package.json and pnpm-lock.yaml. A tooling update must also leave the built extension identical to the latest
 # release, so it
 # releases nothing. The libraries the extension ships (tools/sync-vendor.mjs copies them
 # into it) are grouped apart, in shipped-minor-and-patch: merging that PR starts CI on
@@ -21,14 +24,6 @@
 # which Dependabot names after it: a rename here must be made there too. A major comes on
 # a branch of its own: update-prs.yml tells a shipped library's by the patterns of
 # shipped-minor-and-patch below, read from main.
-#
-# cooldown: a release is proposed once it is 3 days old (the owner's call, 2026-10-20; 5 days
-# until 2026-10-11, then none). Green CI cannot see a compromised release - malware passes
-# the tests - and most npm supply-chain compromises of 2025 were found and pulled within
-# hours to days: a 3-day wait lets that happen before a release reaches the owner's merge
-# (Renovate's best-practice preset waits 3 days for npm too). Dependabot applies no cooldown
-# to security updates. The cooldown holds back only the packages Dependabot bumps, not what
-# the new lockfile brings in with them: update-prs.yml checks those (3 days as well).
 #
 # open-pull-requests-limit: once an entry has that many pull requests open, Dependabot opens
 # no more for it, and says nothing. security-alerts.yml's daily watch opens one issue,
@@ -43,9 +38,7 @@ updates:
   - package-ecosystem: 'npm'
     directory: '/'
     schedule:
-      interval: 'weekly'
-    cooldown:
-      default-days: 3
+      interval: 'daily'
     open-pull-requests-limit: 10
     labels:
       - 'dependencies'
@@ -87,13 +80,11 @@ updates:
   # part of the extension. CI installs that lockfile and starts the test server on a
   # recorded archive (pnpm run verify:fsaunpack), with install scripts off. update-prs.yml
   # calls a PR ready to merge when it changes only fsaunpack/package.json and
-  # fsaunpack/package-lock.json and every version that lockfile adds is 3 days old.
+  # fsaunpack/package-lock.json.
   - package-ecosystem: 'npm'
     directory: '/fsaunpack'
     schedule:
-      interval: 'weekly'
-    cooldown:
-      default-days: 3
+      interval: 'daily'
     open-pull-requests-limit: 5
     labels:
       - 'dependencies'
@@ -101,7 +92,7 @@ updates:
   # Workflow actions are pinned to a commit SHA with the version as a comment,
   # so a moved or hijacked tag cannot change what runs next to the AMO signing
   # keys. Nothing arrives on its own any more; Dependabot updates the SHA and
-  # the comment together - minor and patch releases as one grouped PR a week, a
+  # the comment together - minor and patch releases as one grouped PR, a
   # new major on its own. Like every update they wait for the owner's merge; they change
   # workflow files, so update-prs.yml brings their branch up to date with the owner's token,
   # UPDATE_PRS_TOKEN (docs/maintenance.md). (The actionlint image ci.yml runs is pinned by digest too, in
@@ -113,9 +104,7 @@ updates:
       - '/'
       - '/.github/actions/*'
     schedule:
-      interval: 'weekly'
-    cooldown:
-      default-days: 3
+      interval: 'daily'
     open-pull-requests-limit: 5
     labels:
       - 'dependencies'
@@ -134,9 +123,7 @@ updates:
       - '/.github/actionlint'
       - '/.github/zizmor'
     schedule:
-      interval: 'weekly'
-    cooldown:
-      default-days: 3
+      interval: 'daily'
     open-pull-requests-limit: 2
     labels:
       - 'dependencies'
