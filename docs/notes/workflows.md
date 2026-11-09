@@ -262,6 +262,27 @@
   compromises of 2025 were pulled within hours to days; not measured here, no compromised
   release has reached this repository), none again. `tests/unit/checkToolchain.test.mjs` keeps
   it so everywhere.
+- **Outages are not failures** (2026-11-09). That morning GitHub answered 504 for about ten
+  minutes (geckodriver's and mpv's downloads), and four update PRs were parked with `hold`
+  and a migration issue for nothing. Now: (1) the e2e setup keeps geckodriver in a weekly
+  Actions cache (`~/geckodriver-e2e`, saved only from a fresh download) and hands it to wdio
+  as `GECKODRIVER_VERSION` + `WEBDRIVER_CACHE_DIR` (the geckodriver package then uses the
+  cached `geckodriver-<version>` without any network); a fresh download and ci.yml's mpv
+  download try again at 15, 30, 60 and 120 s, but only on no answer, 408, 429 or 5xx (a 404
+  is an error at once); the runner image's geckodriver is the last fallback. When the tries
+  are spent they print `::error::FS-OUTAGE <what>: ...`. (2) `tools/ci-outage.sh <jobs.json>
+  <failed.log>` says outage (every failed or timed-out job's log has a signature: our
+  `##[error]FS-OUTAGE `, geckodriver's own `statusCode 5xx`, `ERR_PNPM_FETCH_5xx`), red, or
+  unknown (no failed job, or one without a log); never a bare "504", which specs test.
+  update-prs.yml reads it at its own commit through the API (no checkout), classifies the run
+  and the newest six earlier failed runs on the commit: an outage run is no first try, and an
+  outage comments (key `outage <sha12>`, no @mention, no label) and starts
+  `outage-retry.yml` (workflow_dispatch on main: branch, sha, delay; per-branch concurrency,
+  cancel-in-progress; it sleeps, checks an open PR is still at the sha, starts ci.yml) up to
+  three times; then an @mention (key `outage stuck <sha12>`). Unknown never migrates.
+  firefox-beta.yml's report reads each failed job's log through the API (its run is still
+  going) and opens no issue on an outage. Tests: `tests/workflows/ci-outage.test.sh`, the
+  outage scenarios in `update-prs-decide.test.sh`.
 - **Update guards** (2026-10-20, the owner's calls, so that a green update PR can be
   merged without a second look). (1) **Red twice: hold + a
   migration issue.** When the second try fails too (again=1) on a dependabot/, toolchain/

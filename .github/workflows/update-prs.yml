@@ -24,7 +24,13 @@ name: Update PRs
 #               carries the same diagnosis and what to do. That issue closes once CI passes
 #               on the pull request (here; the hold label set here comes off with it), or
 #               once it is merged or closed (security-alerts.yml's daily watch).
-#   CI passed   a comment @mentions the owner and assigns them. "Ready to merge" when
+#               A run that failed only because GitHub or a download host did not answer
+#               (tools/ci-outage.sh) is an outage, not the update: a comment without an
+#               @mention says so, and outage-retry.yml runs CI again on the commit three hours
+#               later, up to three times; then the owner is @mentioned. No label, no hold, no
+#               migration issue, and an outage run is no first try. A failed job without a log
+#               (a lost runner) opens no migration issue either.
+#   CI passed  a comment @mentions the owner and assigns them. "Ready to merge" when
 #               every one of these holds: opened by that bot and only its commits on it; it
 #               changes only what that kind of update changes (package.json and
 #               pnpm-lock.yaml; fsaunpack's two files; .nvmrc; workflow files; the two
@@ -180,6 +186,8 @@ jobs:
           # repository only; Contents, Pull requests and Workflows: read and write). Used for
           # nothing else (docs/maintenance.md, "A token for workflow updates").
           MERGE_TOKEN: ${{ secrets.UPDATE_PRS_TOKEN }}
+          # This workflow's own commit (main's): tools/ci-outage.sh is read from it.
+          WORKFLOW_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           LABEL=ci-failed
@@ -269,28 +277,6 @@ jobs:
               echo "CI $CONCLUSION: cancelled for a newer run or by hand, or skipped. Nothing to report."
               exit 0
             fi
-            # A second try, in case a test was flaky: a new CI run on this commit, which decides.
-            # (A re-run of this one would be started by this workflow's token, and its end
-            # would reach no workflow.) Not when this is the second try already: an earlier
-            # CI run on this commit failed, or someone ran this one again. The earlier run can
-            # also be the other one of a pull request a workflow opened: its dispatched run and
-            # its pull_request run build the same commit.
-            again=0
-            if [ "$RUN_ATTEMPT" != 1 ]; then
-              again=1
-            else
-              earlier=$(gh run list --workflow ci.yml --commit "$SHA" --limit 50 --json databaseId,conclusion |
-                jq --argjson id "$RUN_ID" '[.[] | select(.databaseId != $id and (.conclusion | IN("failure", "timed_out")))] | length')
-              if [ "$earlier" != 0 ]; then
-                again=1
-              elif gh workflow run ci.yml --ref "$BRANCH"; then
-                echo 'Started CI once more on this commit; that run decides.'
-                exit 0
-              else
-                echo 'CI could not be started once more; this run decides.'
-              fi
-            fi
-
             gh run view "$RUN_ID" --attempt "$RUN_ATTEMPT" --json jobs > "$RUNNER_TEMP/jobs.json"
             jq -r 'def bad: .conclusion | IN("failure", "timed_out", "cancelled");
               .jobs[] | select(bad) | [.name, ([.steps[] | select(bad) | .name] | join(" / "))] | @tsv' \
@@ -341,6 +327,85 @@ jobs:
                 fi
               done
             } > "$RUNNER_TEMP/diagnosis.md"
+
+            # Whether a run failed only because GitHub or a download host did not answer:
+            # outage, red or unknown (tools/ci-outage.sh, read at this workflow's own commit,
+            # never the pull request's; unreadable, every run is unknown). On 2026-11-09 GitHub
+            # answered 504 for about ten minutes, and four update pull requests were parked as
+            # migrations for nothing.
+            gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/tools/ci-outage.sh?ref=$WORKFLOW_SHA" \
+              > "$RUNNER_TEMP/ci-outage.sh" 2> /dev/null || : > "$RUNNER_TEMP/ci-outage.sh"
+            verdict_of() { # <jobs.json> <failed.log>
+              if [ -s "$RUNNER_TEMP/ci-outage.sh" ]; then
+                bash "$RUNNER_TEMP/ci-outage.sh" "$1" "$2" || echo unknown
+              else
+                echo unknown
+              fi
+            }
+            verdict=$(verdict_of "$RUNNER_TEMP/jobs.json" "$RUNNER_TEMP/failed.log")
+            echo "This run: $verdict."
+            # The earlier failed runs on this commit (the newest six), each with its verdict. One
+            # that failed on an outage is no first try; it counts towards the outage tries
+            # below. The earlier run can also be the other one of a pull request a workflow
+            # opened: its dispatched run and its pull_request run build the same commit.
+            gh run list --workflow ci.yml --commit "$SHA" --limit 50 --json databaseId,conclusion > "$RUNNER_TEMP/runs.json"
+            mapfile -t earlier_ids < <(jq -r --argjson id "$RUN_ID" '[.[] | select(.databaseId != $id and
+              (.conclusion | IN("failure", "timed_out")))] | sort_by(.databaseId) | reverse | .[:6][] | .databaseId' "$RUNNER_TEMP/runs.json")
+            earlier=0
+            outages=0
+            for id in "${earlier_ids[@]}"; do
+              v=unknown
+              if gh run view "$id" --json jobs > "$RUNNER_TEMP/jobs-$id.json" < /dev/null; then
+                gh run view "$id" --log-failed > "$RUNNER_TEMP/failed-$id.log" 2> /dev/null < /dev/null || true
+                v=$(verdict_of "$RUNNER_TEMP/jobs-$id.json" "$RUNNER_TEMP/failed-$id.log")
+              fi
+              echo "Earlier run $id on this commit: $v."
+              if [ "$v" = outage ]; then outages=$((outages + 1)); else earlier=$((earlier + 1)); fi
+            done
+
+            # --- An outage: nothing about the update, so no label, hold or migration. CI runs
+            # again on the commit three hours later (outage-retry.yml), up to three times; a
+            # newer commit or a closed pull request ends it. Then the owner hears of it.
+            if [ "$verdict" = outage ]; then
+              outages=$((outages + 1))
+              retry_at=$(date -u -d '+3 hours' '+%H:%M')
+              if [ "$outages" -le 3 ] &&
+                gh workflow run outage-retry.yml --ref main -f "branch=$BRANCH" -f "sha=$SHA" -f delay=10800; then
+                {
+                  printf 'CI could not do its checks on this commit: GitHub or a download host did not answer (an outage, not this update). '
+                  printf 'CI runs again on it at about %s UTC, in three hours (outage-retry.yml, try %s of 3). Nothing to do meanwhile.\n\n' "$retry_at" "$outages"
+                  cat "$RUNNER_TEMP/diagnosis.md"
+                } > "$RUNNER_TEMP/body.md"
+                say "outage ${SHA:0:12}" "$RUNNER_TEMP/body.md"
+                exit 0
+              fi
+              {
+                if [ "$outages" -le 3 ]; then
+                  printf '@%s CI could not do its checks on this commit: GitHub or a download host did not answer (an outage, not this update), and outage-retry.yml could not be started to run it again later. ' "$OWNER"
+                else
+                  printf '@%s CI failed on this commit %s times, each time because GitHub or a download host did not answer (an outage, not this update). ' "$OWNER" "$outages"
+                fi
+                printf 'Nothing here needs changes for it: once GitHub answers again (https://www.githubstatus.com), start CI on this branch (Actions, CI, Run workflow); that run decides.\n\n'
+                cat "$RUNNER_TEMP/diagnosis.md"
+              } > "$RUNNER_TEMP/body.md"
+              say "outage stuck ${SHA:0:12}" "$RUNNER_TEMP/body.md"
+              exit 0
+            fi
+
+            # A second try, in case a test was flaky: a new CI run on this commit, which decides.
+            # (A re-run of this one would be started by this workflow's token, and its end
+            # would reach no workflow.) Not when this is the second try already: an earlier
+            # CI run on this commit failed (other than on an outage), or someone ran this one
+            # again.
+            again=0
+            if [ "$RUN_ATTEMPT" != 1 ] || [ "$earlier" != 0 ]; then
+              again=1
+            elif gh workflow run ci.yml --ref "$BRANCH"; then
+              echo 'Started CI once more on this commit; that run decides.'
+              exit 0
+            else
+              echo 'CI could not be started once more; this run decides.'
+            fi
 
             # Red twice on an update pull request: the new version most likely needs changes to
             # the code here, which no rerun or rebase brings (the owner's call, 2026-10-20). The
@@ -431,7 +496,9 @@ jobs:
               fi
             }
             migration=''
-            if [ "$again" = 1 ] && [ "$kind" != other ]; then migrate; fi
+            # Not when a failed job left no log (a runner that was lost): nothing says the update
+            # broke anything.
+            if [ "$again" = 1 ] && [ "$kind" != other ] && [ "$verdict" != unknown ]; then migrate; fi
 
             # shellcheck disable=SC2016
             {
@@ -443,6 +510,8 @@ jobs:
               cat "$RUNNER_TEMP/diagnosis.md"
               if [ -n "$migration" ]; then
                 printf '\nThe new version most likely needs changes to the code here: this pull request is labelled `hold`, and #%s says what to do.\n' "$migration"
+              elif [ "$again" = 1 ] && [ "$verdict" = unknown ]; then
+                printf '\nA failed job left no log to read (its runner was lost, or GitHub did not hand the log out), so this is not taken for an update that needs code changes. Start CI on this branch again (Actions, CI, Run workflow) to see.\n'
               fi
               printf '\nThe pull request stays open. A new commit on it runs CI again.\n'
               hint

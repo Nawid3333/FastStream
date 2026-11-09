@@ -259,3 +259,117 @@ runs:
         echo "FIREFOX_BINARY=$FIREFOX_PATH" >> "$GITHUB_ENV"
         # Not "firefox --version": firefox.exe does not print it to a console on Windows.
         echo "Firefox $FIREFOX_VERSION at $FIREFOX_PATH"
+
+    # geckodriver, which WebdriverIO otherwise downloads at every run: first its newest version
+    # from raw.githubusercontent.com, then the binary from github.com, a few quick tries and none
+    # for an HTTP error. On 2026-11-09 GitHub answered 504 for about ten minutes, and every e2e
+    # job of four update PRs failed in seconds; the PRs were parked as needing code changes. Now
+    # it comes from the Actions cache, the newest release a week at a time; a job that misses
+    # fetches it with tries over about eight minutes, and then takes the one the runner image
+    # ships. The geckodriver package finds it with no network at all: WebdriverIO hands it
+    # WEBDRIVER_CACHE_DIR, and GECKODRIVER_VERSION names the file (geckodriver-<version>).
+    - name: This week's geckodriver cache key
+      id: gecko-key
+      shell: bash
+      run: |
+        echo "key=e2e-geckodriver-${RUNNER_OS}-$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+
+    - name: Restore geckodriver from the cache
+      id: gecko-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/geckodriver-e2e
+        key: ${{ steps.gecko-key.outputs.key }}
+
+    - name: Get geckodriver
+      id: gecko
+      shell: bash
+      run: |
+        set -uo pipefail
+        dir=~/geckodriver-e2e
+        mkdir -p "$dir"
+        exe=''
+        if [ "$RUNNER_OS" = Windows ]; then exe=.exe; fi
+        # Tried again only when the host did not answer, or answered 408, 429 or 5xx: with
+        # growing waits, 15 s, 30 s, 1 and 2 min (the e2e jobs have 20 min in all). Anything
+        # else, a 404 say, is no outage and is not tried again. Sets $why on failure.
+        why=''
+        fetch() { # <url> <file>
+          local wait code
+          for wait in 15 30 60 120 0; do
+            code=$(curl -sSL --connect-timeout 20 --max-time 120 -o "$2" -w '%{http_code}' "$1") || true
+            if [ "$code" = 200 ]; then return 0; fi
+            case $code in
+              000|408|429|5??) why=network ;;
+              *) why="$1 answered HTTP $code"; return 1 ;;
+            esac
+            if [ "$wait" = 0 ]; then return 1; fi
+            echo "::warning::$1 did not answer (HTTP $code); trying again in $wait s."
+            sleep "$wait"
+          done
+        }
+        version=$(cat "$dir/version" 2> /dev/null || true)
+        if [ -n "$version" ] && [ -x "$dir/geckodriver-$version$exe" ]; then
+          echo "geckodriver $version from the cache."
+        else
+          version=''
+          # Why it is not downloaded, if it is not: only "network" is an outage. A release
+          # GitHub serves but this step cannot read or unpack is a failure of its own.
+          cargo=$RUNNER_TEMP/geckodriver-Cargo.toml
+          if fetch https://raw.githubusercontent.com/mozilla/geckodriver/release/Cargo.toml "$cargo"; then
+            version=$(sed -n 's/^version = "\([0-9][0-9.]*\)"$/\1/p' "$cargo" | head -n 1)
+            if [ -z "$version" ]; then why='its Cargo.toml names no version'; fi
+          fi
+          if [ -n "$version" ]; then
+            if [ "$RUNNER_OS" = Windows ]; then archive=win64.zip; else archive=linux64.tar.gz; fi
+            url=https://github.com/mozilla/geckodriver/releases/download/v$version/geckodriver-v$version-$archive
+            file=$RUNNER_TEMP/geckodriver-$archive
+            unpacked=$RUNNER_TEMP/geckodriver-unpacked
+            mkdir -p "$unpacked"
+            if ! fetch "$url" "$file"; then
+              version=''
+            elif ! if [ "$RUNNER_OS" = Windows ]; then
+                     pwsh -NoProfile -Command "Expand-Archive -LiteralPath '$(cygpath -w "$file")' -DestinationPath '$(cygpath -w "$unpacked")' -Force"
+                   else tar -xzf "$file" -C "$unpacked"; fi ||
+                 ! mv "$unpacked/geckodriver$exe" "$dir/geckodriver-$version$exe"; then
+              why="$url did not unpack to geckodriver$exe"
+              version=''
+            else
+              chmod 755 "$dir/geckodriver-$version$exe"
+              echo "$version" > "$dir/version"
+              echo 'save=true' >> "$GITHUB_OUTPUT"
+              echo "geckodriver $version downloaded."
+            fi
+          fi
+          if [ -z "$version" ]; then
+            # The one the runner image ships, under its own version: not saved to the cache.
+            image=${GECKOWEBDRIVER:-}/geckodriver$exe
+            if [ -n "${GECKOWEBDRIVER:-}" ] && [ -x "$image" ]; then
+              version=$("$image" --version | sed -n '1s/^geckodriver \([0-9][0-9.]*\).*/\1/p')
+            fi
+            if [ -z "$version" ]; then
+              # update-prs.yml reads an FS-OUTAGE line as an outage, not a failure of the update.
+              if [ "$why" = network ]; then
+                echo '::error::FS-OUTAGE geckodriver: GitHub did not answer, and the runner image has none'
+              else
+                echo "::error::geckodriver: $why, and the runner image has none"
+              fi
+              exit 1
+            fi
+            cp "$image" "$dir/geckodriver-$version$exe"
+            echo "::warning::geckodriver could not be downloaded ($why): using the runner image's $version."
+          fi
+        fi
+        cache_dir=$dir
+        if [ "$RUNNER_OS" = Windows ]; then cache_dir=$(cygpath -w "$dir"); fi
+        echo "GECKODRIVER_VERSION=$version" >> "$GITHUB_ENV"
+        echo "WEBDRIVER_CACHE_DIR=$cache_dir" >> "$GITHUB_ENV"
+
+    - name: Save geckodriver to the cache
+      if: steps.gecko.outputs.save == 'true'
+      # As for ffmpeg above: jobs that missed it race to save it; a refused save fails no job.
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/geckodriver-e2e
+        key: ${{ steps.gecko-key.outputs.key }}

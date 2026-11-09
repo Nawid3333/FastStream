@@ -8,7 +8,8 @@ name: Firefox Beta
 # as a two-week warning instead of on the day the browser updates.
 #
 # A scheduled failure opens one issue, assigned to the owner with an @mention and naming
-# the Beta version; the first green scheduled run closes it. It also runs on a pull
+# the Beta version; the first green scheduled run closes it. A run that failed only because
+# GitHub or a download host did not answer (tools/ci-outage.sh) opens none. It also runs on a pull
 # request that changes this workflow or the e2e configs, so a change to it is tested
 # before it lands, and by hand. Nothing here releases or blocks a release: it is not
 # part of CI.
@@ -111,7 +112,8 @@ jobs:
     timeout-minutes: 5
     permissions:
       issues: write
-      actions: read
+      actions: read     # the jobs and their logs
+      contents: read    # tools/ci-outage.sh
     steps:
       - name: Open or close the Firefox Beta issue
         env:
@@ -139,6 +141,28 @@ jobs:
           fi
           if [ -n "$open" ]; then
             echo "Still failing on Firefox ${VERSION:-Beta}; already reported in #$open."
+            exit 0
+          fi
+          # Not Firefox: every failed job failed only because GitHub or a download host did
+          # not answer (tools/ci-outage.sh, at this run's commit). No issue; the next scheduled
+          # run decides. This run is still going (this job is part of it), so each failed job's
+          # own log is read, and a job that ran out of its time (cancelled here) counts as
+          # failed: only its log can call it an outage.
+          gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs \
+            --jq '{jobs: [.jobs[] | select(.conclusion | IN("failure", "cancelled", "timed_out")) | .conclusion = "failure"]}' \
+            > "$RUNNER_TEMP/jobs.json"
+          : > "$RUNNER_TEMP/failed.log"
+          jq -r '.jobs[] | [.databaseId, .name] | @tsv' "$RUNNER_TEMP/jobs.json" | while IFS=$'\t' read -r id name; do
+            { gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$id/logs" < /dev/null 2> /dev/null || true; } |
+              awk -v job="$name" '{ print job "\t\t" $0 }' >> "$RUNNER_TEMP/failed.log"
+          done
+          verdict=unknown
+          if gh api -H 'Accept: application/vnd.github.raw' "repos/$GITHUB_REPOSITORY/contents/tools/ci-outage.sh?ref=$GITHUB_SHA" \
+            > "$RUNNER_TEMP/ci-outage.sh"; then
+            verdict=$(bash "$RUNNER_TEMP/ci-outage.sh" "$RUNNER_TEMP/jobs.json" "$RUNNER_TEMP/failed.log" || echo unknown)
+          fi
+          if [ "$verdict" = outage ]; then
+            echo "::notice::The e2e jobs failed only because GitHub or a download host did not answer: no issue. The next scheduled run decides."
             exit 0
           fi
           failed=$(gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs \

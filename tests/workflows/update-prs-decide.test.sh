@@ -9,6 +9,7 @@ source "$(dirname "$0")/lib.sh"
 KEEP=${KEEP:-0}
 STEP=$(mktemp)
 step_script update-prs.yml Decide > "$STEP" || exit 1
+CLASSIFIER=$(cd "$(dirname "$0")/../.." && pwd)/tools/ci-outage.sh
 checks=0
 fails=0
 TDIRS=()
@@ -126,7 +127,16 @@ case "$1 $2" in
     if [ -f "$STATE/rerun_fails" ]; then echo 'stub gh: rerun refused' >&2; exit 1; fi
     ;;
   'run view')
-    if printf '%s\n' "$@" | grep -qx -- --log-failed; then cat "$STATE/failed.log"; else jqout "$STATE/jobs.json"; fi
+    # Run <id>'s jobs and failed log: jobs-<id>.json and failed-<id>.log when a scenario gives
+    # them (an earlier run on the commit), else jobs.json and failed.log.
+    j=$STATE/jobs.json l=$STATE/failed.log
+    if [ -f "$STATE/jobs-$3.json" ]; then j=$STATE/jobs-$3.json l=$STATE/failed-$3.log; fi
+    if printf '%s\n' "$@" | grep -qx -- --log-failed; then
+      [ -f "$l" ] || { echo 'stub gh: no log' >&2; exit 1; }
+      cat "$l"
+    else
+      jqout "$j"
+    fi
     ;;
   'run list')
     if [ "$(opt --event "$@")" = workflow_dispatch ]; then
@@ -250,6 +260,11 @@ case "$1 $2" in
       "PUT repos/me/fs/pulls/"*/update-branch)
         if [ -f "$STATE/update_fails" ]; then echo 'stub gh: expected_head_sha does not match' >&2; exit 1; fi
         : > "$STATE/updated"; printf '%s\n' "$GH_TOKEN" > "$STATE/update_token"; echo '{}'
+        ;;
+      "GET repos/me/fs/contents/tools/ci-outage.sh?ref=$WORKFLOW_SHA")
+        # The classifier at the workflow's own commit: this checkout's.
+        [ -f "$STATE/classifier_unreadable" ] && { echo 'stub gh: HTTP 502' >&2; exit 1; }
+        cat "$CLASSIFIER"
         ;;
       "GET repos/me/fs/contents/.github/dependabot.yml?ref=main")
         [ -f "$STATE/dependabot.yml" ] || { echo 'stub gh: HTTP 404' >&2; exit 1; }
@@ -382,6 +397,7 @@ setup() {
   export BRANCH='dependabot/npm_and_yarn/tooling-minor-and-patch-0123abcd'
   export SHA=$sha
   export MERGE_TOKEN=''
+  export WORKFLOW_SHA=dddddddddddddddddddddddddddddddddddddddd CLASSIFIER
   write_stubs
   : > "$STATE/gh.log"
   echo '[]' > "$STATE/comments.json"
@@ -599,6 +615,153 @@ timed_out() {
   check 'exit 0' test "$rc" -eq 0
   check 'a second try first' has_call "workflow run ci.yml --ref $BRANCH"
   check 'no comment yet' test "$(comments_n)" -eq 0
+}
+
+# --- Outages (tools/ci-outage.sh, run for real): GitHub's 504 on geckodriver's download, as on
+# 2026-11-09, in the failed job's log.
+outage_log() { # [file]
+  printf 'Lint, test and build\tUnit tests\t2026-11-09T07:35:02.1966082Z Error: Failed to download binary (statusCode 504): \n' > "${1:-$STATE/failed.log}"
+}
+earlier_run() { # <id> <outage|red>: an earlier failed run on this commit, with that log
+  cp "$STATE/jobs.json" "$STATE/jobs-$1.json"
+  if [ "$2" = outage ]; then outage_log "$STATE/failed-$1.log"; else cp "$STATE/failed.log" "$STATE/failed-$1.log"; fi
+}
+retried() { has_call "workflow run outage-retry.yml --ref main -f branch=$BRANCH -f sha=$sha -f delay=10800"; }
+no_report_marks() { # no label, assignee, hold or issue
+  [ ! -s "$STATE/labels" ] && [ ! -s "$STATE/assignees" ] && [ "$(issues_n)" = 0 ]
+}
+
+outage_first() {
+  setup
+  export CONCLUSION=failure
+  outage_log
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'reads the classifier at its own commit' has_call "contents/tools/ci-outage.sh?ref=$WORKFLOW_SHA"
+  check 'starts outage-retry.yml on main for this commit, in three hours' retried
+  check 'no second try now' bash -c '! grep -q "workflow run ci.yml" "$0"' "$STATE/gh.log"
+  check 'one comment' test "$(comments_n)" -eq 1
+  check 'says it is an outage, and when CI runs again' grep -qF 'an outage, not this update). CI runs again on it at about' <(last_comment)
+  check 'try 1 of 3' grep -qF 'try 1 of 3' <(last_comment)
+  check 'names the failed job' grep -qF '| Lint, test and build | Unit tests |' <(last_comment)
+  check 'no @mention' bash -c '! grep -qF "@nawid" <<< "$0"' "$(last_comment)"
+  check 'its key' grep -qF "<!-- update-prs: outage ${sha:0:12} -->" <(last_comment)
+  check 'no label, assignee or issue' no_report_marks
+}
+
+outage_third() {
+  # Two earlier runs on this commit failed on the outage too (the retries), the newest first
+  # in no particular order: the third and last try.
+  setup
+  export CONCLUSION=failure RUN_ID=557
+  echo '[{"databaseId":555,"conclusion":"failure"},{"databaseId":557,"conclusion":"failure"},{"databaseId":556,"conclusion":"failure"}]' > "$STATE/commit_runs.json"
+  earlier_run 555 outage
+  earlier_run 556 outage
+  outage_log
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'reads both earlier runs' bash -c 'grep -q "^run view 555 --json jobs" "$0" && grep -q "^run view 556 --json jobs" "$0"' "$STATE/gh.log"
+  check 'starts outage-retry.yml' retried
+  check 'try 3 of 3' grep -qF 'try 3 of 3' <(last_comment)
+  check 'no label, assignee or issue' no_report_marks
+}
+
+outage_fourth() {
+  # Three earlier runs failed on the outage: no more tries, the owner hears of it.
+  setup
+  export CONCLUSION=failure RUN_ID=558
+  echo '[{"databaseId":558,"conclusion":"failure"},{"databaseId":557,"conclusion":"failure"},{"databaseId":556,"conclusion":"timed_out"},{"databaseId":555,"conclusion":"failure"}]' > "$STATE/commit_runs.json"
+  earlier_run 555 outage
+  earlier_run 556 outage
+  earlier_run 557 outage
+  outage_log
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'no retry, no second try' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
+  check '@mentions the owner: four times an outage' grep -qF '@nawid CI failed on this commit 4 times, each time because GitHub or a download host did not answer' <(last_comment)
+  check 'says how to start CI' grep -qF 'start CI on this branch (Actions, CI, Run workflow)' <(last_comment)
+  check 'its key' grep -qF "<!-- update-prs: outage stuck ${sha:0:12} -->" <(last_comment)
+  check 'no label, assignee or issue' no_report_marks
+}
+
+outage_retry_refused() {
+  setup
+  export CONCLUSION=failure
+  outage_log
+  : > "$STATE/dispatch_fails"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'tried outage-retry.yml' retried
+  check '@mentions the owner: could not be started' grep -qF 'and outage-retry.yml could not be started' <(last_comment)
+  check 'no label, assignee or issue' no_report_marks
+}
+
+outage_same_again() {
+  # The retry failed on the outage again: the same comment, edited (no new email).
+  setup
+  export CONCLUSION=failure
+  outage_log
+  run_step
+  export RUN_ID=556
+  echo '[{"databaseId":556,"conclusion":"failure"},{"databaseId":555,"conclusion":"failure"}]' > "$STATE/commit_runs.json"
+  earlier_run 555 outage
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'still one comment' test "$(comments_n)" -eq 1
+  check 'edited to try 2 of 3' grep -qF 'try 2 of 3' <(last_comment)
+}
+
+red_after_outage() {
+  # The run before failed on the outage, this one on a test: the first real try, so a second.
+  setup
+  export CONCLUSION=failure RUN_ID=556
+  echo '[{"databaseId":556,"conclusion":"failure"},{"databaseId":555,"conclusion":"failure"}]' > "$STATE/commit_runs.json"
+  earlier_run 555 outage
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'starts CI once more' has_call "workflow run ci.yml --ref $BRANCH"
+  check 'no comment yet' test "$(comments_n)" -eq 0
+  check 'no issue' test "$(issues_n)" -eq 0
+}
+
+red_twice_after_outage() {
+  # An outage, then red twice: a migration as ever.
+  setup
+  export CONCLUSION=failure RUN_ID=557
+  echo '[{"databaseId":557,"conclusion":"failure"},{"databaseId":556,"conclusion":"failure"},{"databaseId":555,"conclusion":"failure"}]' > "$STATE/commit_runs.json"
+  earlier_run 555 outage
+  earlier_run 556 red
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'no third run' bash -c '! grep -q "^workflow run" "$0"' "$STATE/gh.log"
+  check 'a migration issue' test "$(issues_n)" -eq 1
+  check 'labelled hold' grep -qx hold "$STATE/labels"
+}
+
+red_one_job_without_log() {
+  # Red twice: one failed job's log shows only the outage, the other job left none (a lost
+  # runner). Unknown: no outage retry, and no migration.
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2
+  jq '.jobs += [{name: "e2e (Linux, playback 1/2)", conclusion: "failure", steps: []}]' "$STATE/jobs.json" > "$STATE/j" && mv "$STATE/j" "$STATE/jobs.json"
+  outage_log
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'no issue' test "$(issues_n)" -eq 0
+  check 'no hold' bash -c '! grep -qx hold "$0"' "$STATE/labels"
+  check 'labelled ci-failed' grep -qx ci-failed "$STATE/labels"
+  check 'says why not' grep -qF 'A failed job left no log to read' <(last_comment)
+}
+
+outage_classifier_unreadable() {
+  # The classifier could not be read: no run is called an outage, CI fails as ever.
+  setup
+  export CONCLUSION=failure
+  outage_log
+  : > "$STATE/classifier_unreadable"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'a second try, no outage retry' bash -c 'grep -q "^workflow run ci.yml" "$0" && ! grep -q "outage-retry" "$0"' "$STATE/gh.log"
 }
 
 green_ready() {
@@ -2065,6 +2228,15 @@ red_same_again
 red_different
 cancelled
 timed_out
+outage_first
+outage_third
+outage_fourth
+outage_retry_refused
+outage_same_again
+red_after_outage
+red_twice_after_outage
+red_one_job_without_log
+outage_classifier_unreadable
 green_ready
 green_version_only
 green_ships

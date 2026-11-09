@@ -125,6 +125,15 @@ The issue closes itself when CI passes on the PR, which also takes off the `hold
 workflow set (one you set yourself stays), or when the PR is merged or closed (checked once
 a day). Failing twice again edits the same issue: no second email.
 
+A run that failed only because GitHub or a download host did not answer (a 5xx on
+geckodriver's, mpv's or the npm registry's download, after their own tries) is no failure of
+the update: `update-prs.yml` comments without an @mention that it was an outage, and
+`outage-retry.yml` runs CI again on the commit three hours later, up to three times. No
+`ci-failed`, no `hold`, no migration issue, and an outage run is no first try. Only when the
+third retry meets an outage too, or the retry cannot be started, does a comment @mention you:
+start CI on the branch by hand once GitHub answers again. A failed job that left no log (a
+lost runner) opens no migration issue either; the comment says so.
+
 Or, by hand:
 
 - Push a fix to the branch: the next CI run decides again. A fix you push makes the
