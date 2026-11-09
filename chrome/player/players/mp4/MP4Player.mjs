@@ -891,7 +891,7 @@ export default class MP4Player extends EventEmitter {
    */
   moovIsAfterMedia() {
     const moovStart = this.mp4box.moov?.start;
-    return moovStart !== undefined && this.mp4box.mdats.some((mdat) => mdat.start < moovStart);
+    return moovStart !== undefined && this.mp4box.mdats.some((mdat) => (mdat.start ?? Infinity) < moovStart);
   }
 
   /**
