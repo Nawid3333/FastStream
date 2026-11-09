@@ -11,7 +11,7 @@
 // so a reviewer can check the base by hash and read the diff in minutes.
 //
 // The generated files are gitignored. Run after `pnpm install`, or let
-// `pnpm run build` do it.
+// `pnpm run build` or `pnpm test` do it.
 
 import fs from 'node:fs';
 import path from 'node:path';

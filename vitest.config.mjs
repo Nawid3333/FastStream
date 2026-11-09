@@ -2,8 +2,10 @@ import path from 'node:path';
 import {defineConfig} from 'vitest/config';
 
 // Libraries tools/sync-vendor.mjs copies out of node_modules unchanged (patched by pnpm at
-// install). The copies are generated, and CI runs the unit tests before it makes them, so a
-// test of code that imports one (the save's MP4 writers) gets the npm build itself.
+// install). A test of code that imports one (the save's MP4 writers) gets the npm build itself.
+// `pnpm test` also makes the copies first: this redirect was not called in a checkout under
+// "V:Faststream modernisationFaststream version 4" (2026-11-09), and the unit tests there
+// ran on copies from before a dependency update (31 failures in hls2mp4 until a build).
 const root = import.meta.dirname;
 const VENDORED = new Map([
   ['chrome/player/modules/hls.mjs', 'node_modules/hls.js/dist/hls.mjs'],
