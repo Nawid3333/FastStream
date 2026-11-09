@@ -83,11 +83,6 @@ patchedDependencies:
 # tools/update-local.ps1 install exactly the pinned pnpm, so nothing needs the switch:
 # ignore keeps pnpm-lock.yaml one document, byte for byte what pnpm 11 wrote.
 pmOnFail: ignore
-# hls.js 1.7.4 is inside pnpm 12's built-in minimumReleaseAge (1440 minutes since v11):
-# published 2026-10-28 17:30 UTC, and taken the next morning. The install that took it
-# wrote this entry itself; without it CI's frozen install stops
-# (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION, every job of mp4box 2.5.0's first run, 2026-10-26).
-# An entry is stale once its release is a day old, and goes (U4 in the maintenance doc):
-# mp4box 2.5.0's went 2026-10-29.
-minimumReleaseAgeExclude:
-  - hls.js@1.7.4
+# pnpm 12 will not install a release under a day old by default. No wait here (the owner's call
+# of 2026-11-09): he decides when each update is merged.
+minimumReleaseAge: 0

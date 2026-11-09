@@ -19,8 +19,7 @@ email (assigned to you, with an @mention) in one of two ways:
 - **An issue with the same title** - the tool stopped: a conflict, or a check failed. The
   issue lists where. Take it by hand (below), or close it to skip that version.
 
-A release younger than pnpm's `minimumReleaseAge` cannot be installed yet; the workflow
-says nothing that day and tries again the next. Either way the pull request or issue is
+Either way the pull request or issue is
 closed by itself once the library is patched at that version or newer, or no longer
 patched at all, however that happened, and a version you closed is never raised again.
 Besides the daily run, the workflow runs on a push to main that changes

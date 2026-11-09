@@ -135,7 +135,7 @@
 - **Artifacts** (2026-09-28): `faststream-bundles` is kept 7 days (auto-release reads it
   minutes after the run; the 90-day default had piled up 57 copies, 469 MB), failure logs
   30 days.
-- **`toolchain-updates.yml`** (weekly, Mondays 07:00 UTC; a push to `main` touching
+- **`toolchain-updates.yml`** (daily, 07:00 UTC, Mondays only until 2026-11-09; a push to `main` touching
   `.nvmrc`/`package.json` only closes) + `tools/check-toolchain.mjs`: a pull request
   per update, "Toolchain update: <name> <version>", on `toolchain/node-<major>` or
   `toolchain/pnpm-<version>`, with CI started on the branch by `gh workflow run ci.yml`
@@ -145,8 +145,8 @@
   Node update is a one-file change: the toolchain workflow's `GITHUB_TOKEN` may not
   push changes to `.github/workflows/*`. `tests/unit/checkToolchain.test.mjs` fails
   if a workflow names its own `node-version` or a setup-node step lacks
-  `node-version-file: .nvmrc`. pnpm's newest release of the pinned major, once it is
-  3 days old (`MIN_AGE_DAYS`; none from 2026-10-11 to 2026-10-20), changes `packageManager` in `package.json` and nothing else, and waits
+  `node-version-file: .nvmrc`. pnpm's newest release of the pinned major
+  changes `packageManager` in `package.json` and nothing else, and waits
   for the owner's merge. Nothing from npm runs in that job, beside its write token: CI
   installs the lockfile unchanged with the new pnpm (`--frozen-lockfile`), so one that
   wants it rewritten fails CI and reaches the owner. A newer pnpm major comes
@@ -157,7 +157,7 @@
   A title is never used twice (issue or PR, open or closed): closing one skips that
   version for good. An open PR closes itself when the project reaches that version,
   or when a newer one on the same track gets its own PR (on a push, which raises
-  nothing, only an open one counts: `--close-only`). The weekly run also rebuilds on
+  nothing, only an open one counts: `--close-only`). The daily run also rebuilds on
   `main` an open one `main` has moved into conflict with (the two pnpm tracks change
   the same line) when all its commits are the bot's, rebuilt on a freshly fetched
   `main`, and starts CI on one whose head has no run that decides (a lost dispatch, or
@@ -168,7 +168,7 @@
   purpose (issue #11 closed); Node 26 arrives as a PR when it becomes LTS (late
   October 2026). uBlock Origin, which `tools/setup-dev-profile.mjs` puts into the
   developer's Firefox profile (2026-10-24; Dependabot cannot see an add-on pin): AMO's
-  newest public listed release at least 3 days old, on `toolchain/ublock-origin-<version>`,
+  newest public listed release, on `toolchain/ublock-origin-<version>`,
   changing only its entry there. Nothing in CI downloads the add-on, so the run downloads
   the file and checks it against AMO's SHA-256 before it pushes; a mismatch is a red run
   and no pull request. The plan's output carries every track (`updates`), so an open one
@@ -179,7 +179,7 @@
   `pnpm-workspace.yaml` from a parent folder when the folder has none) come as ONE rolling PR,
   "Toolchain update: player libraries" on `toolchain/player-libraries`, rebuilt in place on
   `main` when the set changes or it conflicts with `main`: each library at its newest release
-  that is 3 days old and fits the ranges they declare on each other and on the repository's
+  that fits the ranges they declare on each other and on the repository's
   hls.js (`playerTargets()`: xgplayer-hls asks for its exact xgplayer, hls-video-element for a
   custom-media-element), a new major included since 2026-10-24 (until then an issue, "Player
   libraries: newer majors", listed them for a decision by hand: "everything gets handled by
@@ -192,9 +192,7 @@
   closed unmerged by hand, that set is skipped (this workflow's own close takes the marker out
   first). CI and the live suite are started on each new head. The tracks' decision logic is `plan()` in
   `tools/check-toolchain.mjs`, the players' set `playerTargets()` beside it, both unit-tested. Dependencies stay pinned by the lockfile on purpose (patches, AMO
-  reproducibility); Dependabot's weekly grouped PRs are how they move, each release
-  proposed once it is 3 days old (`cooldown` in `.github/dependabot.yml`, the owner's call
-  of 2026-10-20 after none from 2026-10-11; security updates skip it): npm minor/patch is split into `shipped-minor-and-patch`
+  reproducibility); Dependabot's grouped PRs, looked for daily, are how they move: npm minor/patch is split into `shipped-minor-and-patch`
   (fuse.js, mediabunny, sortablejs - the unpatched libraries
   `tools/sync-vendor.mjs` copies into the extension) and `tooling-minor-and-patch`
   (everything else), so a tooling update is not held back by a shipped one;
@@ -225,8 +223,7 @@
   changes (`package.json` + `pnpm-lock.yaml`; for pnpm only `packageManager`, the lockfile
   untouched; fsaunpack's two files; `.nvmrc`; `.github/workflows` + `.github/actions`;
   the two Dockerfiles; a re-cut's `pnpm-workspace.yaml`, `patches/`, `tools/sync-vendor.mjs`), the
-  dependency review passed, every version its lockfile adds is 3 days old (fsaunpack's
-  `package-lock.json` read with jq; a security fix exempt; see "Update guards" below), it is mergeable, it contains the newest `main`
+  dependency review passed, it is mergeable, it contains the newest `main`
   (otherwise GitHub's update-branch runs, CI restarts and that run decides, at most 3
   times), and, for an update that must not ship (all but the shipped and the patched
   libraries), CI's build of the extension (the `faststream-bundles`
@@ -254,34 +251,19 @@
   opens one issue "Update PRs workflow failed" (the decide step has its own
   `timeout-minutes` under the job's, so running out of time fails the step and still
   reaches the report).
-- **Update guards** (2026-10-20, the owner's three calls, so that a green update PR can be
-  merged without a second look). (1) **A 3-day release wait**, back after 2026-10-11's
-  removal (351bd7de; it was 5 days for the cooldown and the toolchain, 7 for the lockfile
-  check): Dependabot's `cooldown` (`default-days: 3`, every entry; zizmor's
-  `dependabot-cooldown` audit asks for 3), `MIN_AGE_DAYS = 3` in `tools/check-toolchain.mjs`
-  (pnpm; `tools/newest-release.mjs` and so update-local.cmd too), and update-prs.yml's
-  registry lookup of every version a Dependabot or patched-library PR adds to its lockfile.
-  Why: green CI cannot see a compromised release, and most npm compromises of 2025 were
-  pulled within hours to days (the owner's reasoning; Renovate's best-practice preset waits
-  3 days for npm). Not measured here: no compromised release has reached this repository.
-  The Node LTS major track has no wait, as before: `.nvmrc` names a major, and setup-node
-  takes its newest release at every run anyway. A security fix is not held back: Dependabot
-  gives its security updates no cooldown, and update-prs.yml skips the lookup for a PR whose
-  body has "You can disable automated security fix PRs for this repo" (measured on all 35
-  Dependabot PRs here: #6, #7, #8, #352 and #353, security updates, have it; none of the
-  other 30 does, #95 among them) or
-  every package of which has an open Dependabot alert on that lockfile (#95, a security update
-  of 2026-09-30 whose body lacks the line, is why the body alone is not enough; every package,
-  or a grouped version update with one alerted member would waive the wait for the rest too;
-  the job asks
-  for `vulnerability-alerts: read`, which actionlint 1.7.12 does not know, see
-  `.github/actionlint.yaml`). Unreadable alerts: the wait applies. Held back only by age, a
-  PR would sit at "look" until its next CI run, so the comment carries
-  `<!-- update-prs-recheck: <time> <run> <commit> -->` (when the youngest version is 3 days
-  old; a day later, at the latest, when an age is unknown or the lockfile could not be read,
-  which may be a moment's failure: GLM's review found the marker lost otherwise), and security-alerts.yml's daily `watch` job starts
-  update-prs.yml by `workflow_dispatch` on that run once the time has passed and the PR is
-  still at that commit (the CI artifact it compares lives 7 days). (2) **Red twice: hold + a
+- **No release wait** (the owner's call of 2026-11-09: "I decide when to merge them, so there's
+  no reason to have an artificial holdback"). A release comes as a PR as soon as its source's
+  daily look sees it: no Dependabot `cooldown` (zizmor's `dependabot-cooldown` audit off),
+  `MIN_AGE_DAYS = 0` in `tools/check-toolchain.mjs` (and so `tools/newest-release.mjs` and
+  update-local.cmd), `minimumReleaseAge: 0` in `pnpm-workspace.yaml` (pnpm 12's own default
+  is a day), and update-prs.yml looks at no lockfile. Dependabot and the toolchain look daily
+  now, not weekly. It has gone back and forth: 5 to 7 days until 2026-10-11 (351bd7de), none,
+  3 days from 2026-10-20 (c0f1908d: green CI cannot see a compromised release, and most npm
+  compromises of 2025 were pulled within hours to days; not measured here, no compromised
+  release has reached this repository), none again. `tests/unit/checkToolchain.test.mjs` keeps
+  it so everywhere.
+- **Update guards** (2026-10-20, the owner's calls, so that a green update PR can be
+  merged without a second look). (1) **Red twice: hold + a
   migration issue.** When the second try fails too (again=1) on a dependabot/, toolchain/
   or patched/ branch, the PR also gets `hold` (only when it has none: an existing one stays
   the owner's) and one issue "Migration: <what>" - Dependabot's commit metadata gives
@@ -291,7 +273,7 @@
   again by its `<!-- migration-pr: N -->` marker (or an open bot issue with the same title,
   which it takes over), it is edited, not opened twice. A green run closes it and takes off
   `hold` when the last `labeled hold` event's actor is github-actions[bot] (unreadable
-  events: it stays); the daily watch closes the issues of PRs merged or closed. (3) **The
+  events: it stays); the daily watch closes the issues of PRs merged or closed. (2) **The
   piling-up issue**, in the daily watch (security-alerts.yml, not ci.yml, which takes no
   `schedule:`; not update-prs.yml either, which a `schedule:` would expose to GitHub's
   60-day disabling): each entry of main's `.github/dependabot.yml` (read with awk as it is
@@ -546,7 +528,7 @@
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
   actionlint image by digest, in `.github/actionlint/Dockerfile`, since Dependabot does
   not update a `docker://` line); Dependabot bumps them, the workflows' and the composite
-  actions' (`/.github/actions/*`), minor/patch grouped weekly, and wait for the owner's
+  actions' (`/.github/actions/*`), minor/patch grouped, looked for daily, and wait for the owner's
   merge like every update.
   `tests/unit/checkToolchain.test.mjs` fails for a pin in a form Dependabot does not update. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
@@ -714,8 +696,7 @@
   leaves the patch unapplied), so for each new version this re-cuts the patch itself.
   Clean, checks passed: a PR from `patched/<name>-<version>`, with CI dispatched on it (a
   push by `GITHUB_TOKEN` starts no workflow; `gh workflow run` does). Conflict or failed
-  check: an issue with the tool's report. Too new for pnpm's `minimumReleaseAge`
-  (`ERR_PNPM_NO_MATURE_MATCHING_VERSION`): nothing until the next daily run. Both
+  check: an issue with the tool's report. Both
   assigned + @mention, never raised twice (issue or PR titles, any state), closed when
   the patch is cut against that version or newer; closing one by hand skips the
   version. Runbook: `docs/updating-patched-libraries.md`. The tool reproduces every

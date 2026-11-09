@@ -4,11 +4,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {beforeAll, describe, expect, it} from 'vitest';
-import {isPinnedUrl, newestNode, newestPackage, newestWsl} from '../../tools/newest-release.mjs';
+import {isPinnedUrl, newestNode as newestNodeOf, newestPackage as newestPackageOf, newestWsl as newestWslOf} from '../../tools/newest-release.mjs';
 
 // tools/update-local.ps1 brings this PC to the versions CI's rule allows: the newest release
-// at least 3 days old (MIN_AGE_DAYS in tools/check-toolchain.mjs; none from 2026-10-11 to
-// 2026-10-20). tools/newest-release.mjs picks them.
+// (MIN_AGE_DAYS in tools/check-toolchain.mjs, no wait since 2026-11-09). tools/newest-release.mjs
+// picks them.
+// No release waits for its age any more (MIN_AGE_DAYS is 0: the owner's call of 2026-11-09), but
+// every function here still takes a minimum age, and that filter has been wanted before. These
+// tests ask for one, WAIT days, unless they say otherwise.
+const WAIT = 3;
+const newestNode = (index, major, now, minAge = WAIT) => newestNodeOf(index, major, now, minAge);
+const newestPackage = (doc, now, minAge = WAIT) => newestPackageOf(doc, now, minAge);
+const newestWsl = (release, now, minAge = WAIT) => newestWslOf(release, now, minAge);
 const now = Date.parse('2026-10-01T12:00:00Z');
 const daysAgo = (n) => new Date(now - n * 24 * 60 * 60 * 1000).toISOString();
 
@@ -25,8 +32,9 @@ describe('newestNode', () => {
     expect(newestNode(index, 26, now)).toBe('26.9.0');
   });
 
-  it('takes the newest one, however new, when asked for no minimum age', () => {
+  it('takes the newest one, however new, when asked for no minimum age, and by default', () => {
     expect(newestNode(index, 26, now, 0)).toBe('26.10.0');
+    expect(newestNodeOf(index, 26, now)).toBe('26.10.0');
   });
 
   it('stays on the major asked for', () => {
@@ -87,8 +95,9 @@ describe('newestPackage', () => {
     expect(newestPackage(doc, now + 47 * 60 * 60 * 1000)).toBe('11.9.0');
   });
 
-  it('takes the latest at once when asked for no minimum age', () => {
+  it('takes the latest at once when asked for no minimum age, and by default', () => {
     expect(newestPackage(doc, now, 0)).toBe('12.0.0');
+    expect(newestPackageOf(doc, now)).toBe('12.0.0');
   });
 });
 
@@ -106,6 +115,7 @@ describe('newestWsl', () => {
   it('is nothing while the latest release is younger', () => {
     expect(newestWsl(release('2.6.2', 2.9), now)).toBe(null);
     expect(newestWsl(release('2.6.2', 0), now, 0)).toBe('2.6.2');
+    expect(newestWslOf(release('2.6.2', 0), now)).toBe('2.6.2');
   });
 
   it('is nothing for a pre-release, a draft or a release without a date', () => {

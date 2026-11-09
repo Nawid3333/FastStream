@@ -4,7 +4,7 @@ name: Update PRs
 # pull requests come from Dependabot (dependabot/*), toolchain-updates.yml (toolchain/*),
 # patched-libraries.yml (patched/*) and security-alerts.yml (security/overrides: override
 # floors for alerts Dependabot cannot fix; only pnpm-workspace.yaml and pnpm-lock.yaml may
-# change, its dependency review must pass, and a security fix waits no 3 days). (Upstream sync pull requests ended on 2026-10-09:
+# change, its dependency review must pass). (Upstream sync pull requests ended on 2026-10-09:
 # the fork no longer merges upstream; upstream-watch.yml reports its commits.) Before this,
 # each sat until the owner looked; a red one told nobody, since GitHub emails a failed run
 # only to whoever started it, and that was a bot.
@@ -31,12 +31,9 @@ name: Update PRs
 #               Dockerfiles; a re-cut's files; tools/setup-dev-profile.mjs for uBlock
 #               Origin; tests/e2e/live-specs/player-libraries.json for the player
 #               libraries, whose live suite must have passed on the commit too: CI does not
-#               play them); its dependency review passed; every package
-#               version it adds to the lockfile is 3 days old on the npm registry
-#               (Dependabot's cooldown holds back only what it bumps; a security fix is not
-#               held back); and the branch holds the newest main, so what he merges is
-#               exactly what CI tested. One held back only for that is decided again once
-#               it is old enough (security-alerts.yml's daily watch starts this again).
+#               play them); its dependency review passed; and the branch holds the newest main, so what he
+#               merges is exactly what CI tested. How old a release is does not count (the
+#               owner's call of 2026-11-09: he decides when each update is merged).
 #               The comment also says what the merge does:
 #               - Dependabot's shipped libraries (tools/sync-vendor.mjs copies them into the
 #                 extension) and the patched libraries change what the
@@ -101,7 +98,6 @@ jobs:
       issues: write         # the ci-failed label, the migration issues, and the issue when this workflow fails
       actions: write        # start CI once more, or on an updated branch
       checks: read          # the dependency review's check runs
-      vulnerability-alerts: read  # whether an update fixes an open Dependabot alert (no 3-day wait then)
     name: Report on an update PR
     # A run whose actor is this repository's own token comes by workflow_dispatch, should
     # GitHub ever send workflow_run for it as well: one decision per run.
@@ -484,10 +480,6 @@ jobs:
               held=0
             fi
           fi
-          # A package version under 3 days old: when to decide again, and why (below).
-          recheck=''
-          recheck_why=''
-          security=''
 
           # The "Review dependency changes" check on a commit: "success" when a run of it passed,
           # "missing" when there is none, else the newest run's conclusion (the API lists them
@@ -648,108 +640,6 @@ jobs:
               updated=$(jq -r '.commits[].messageBody' "$RUNNER_TEMP/pr.json" | sed -n 's/^- dependency-name: //p' | tr -d "\"'" | sort -u)
               if [ -n "$shipped" ] && [ -n "$updated" ] && grep -qxF -f <(printf '%s\n' "$shipped") <<< "$updated"; then
                 ships=1
-              fi
-            fi
-            if [ "$kind" = dependabot ] || [ "$kind" = patched ]; then
-              # Green CI cannot see a compromised release: malware passes the tests, and most npm
-              # supply-chain compromises are found and pulled within hours to days. So every
-              # package version this pull request adds to its lockfile must be 3 days old on the
-              # npm registry, or it is not called ready (the owner's call, 2026-10-20; 7 days
-              # until 2026-10-11, then none). Dependabot's cooldown (3 days) holds back only the
-              # packages it bumps, not what the new lockfile brings in with them, and
-              # patched-libraries.yml waits only for pnpm's own minimumReleaseAge. Whatever cannot
-              # be checked counts as too young.
-              #
-              # A security fix is not held back, as Dependabot's cooldown holds back none: one
-              # Dependabot opened as a security update (its body has the line below: #352 and
-              # #353 here do, its version updates do not), or one every package of which has an
-              # open Dependabot alert on that lockfile (#95, a security update whose body lacks
-              # the line, shows the line alone does not tell). Every package: a grouped version
-              # update with one alerted member would otherwise waive the wait for all the rest
-              # (that member's fix comes as a security update of its own).
-              if jq -e '(.body // "") | contains("You can disable automated security fix PRs for this repo")' "$RUNNER_TEMP/pr.json" > /dev/null; then
-                security='Dependabot opened it as a security update'
-              else
-                # The packages it updates: Dependabot names them in its commits' metadata.
-                if [ "$kind" = patched ]; then
-                  printf '%s\n' "$library" > "$RUNNER_TEMP/updates.txt"
-                else
-                  jq -r '.commits[] | select([.authors[].login] | all(. == "dependabot[bot]")) | .messageBody' "$RUNNER_TEMP/pr.json" |
-                    sed -n 's/^- dependency-name: //p' | tr -d "\"'" | LC_ALL=C sort -u > "$RUNNER_TEMP/updates.txt"
-                fi
-                # The open alerts on this lockfile: pnpm-lock.yaml's are in the root, fsaunpack's
-                # in fsaunpack/.
-                manifest_dir=''
-                if [ "$fsa" = 1 ]; then manifest_dir=fsaunpack; fi
-                if MANIFEST_DIR=$manifest_dir gh api --paginate "repos/$GH_REPO/dependabot/alerts?state=open&per_page=100" \
-                     --jq '.[] | select((.dependency.manifest_path | ltrimstr("/") | split("/") | .[:-1] | join("/")) == env.MANIFEST_DIR) | .dependency.package.name' \
-                     > "$RUNNER_TEMP/alerted.txt"; then
-                  unalerted=$(LC_ALL=C sort -u "$RUNNER_TEMP/alerted.txt" | LC_ALL=C comm -23 "$RUNNER_TEMP/updates.txt" -)
-                  if [ -s "$RUNNER_TEMP/updates.txt" ] && [ -z "$unalerted" ]; then
-                    security="every package it updates has an open Dependabot alert: $(tr '\n' ' ' < "$RUNNER_TEMP/updates.txt" | sed 's/ $//')"
-                  fi
-                else
-                  echo '::warning::The Dependabot alerts could not be read: the 3-day wait applies to this pull request.'
-                fi
-              fi
-              if [ -n "$security" ]; then
-                echo "A security fix ($security): no 3-day wait."
-              else
-                lock_base=$(gh api "repos/$GH_REPO/compare/main...$SHA" --jq .merge_base_commit.sha)
-                lockfile=pnpm-lock.yaml
-                if [ "$fsa" = 1 ]; then lockfile=fsaunpack/package-lock.json; fi
-                if gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/$lockfile?ref=$lock_base" > "$RUNNER_TEMP/lock.base" &&
-                   gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/$lockfile?ref=$SHA" > "$RUNNER_TEMP/lock.head"; then
-                  # One name@version per line: the keys of pnpm-lock.yaml's packages section, or
-                  # npm's packages (node_modules/<name>, nested ones too; the project itself and
-                  # links aside).
-                  entries() {
-                    if [ "$fsa" = 1 ]; then
-                      jq -r '.packages // {} | to_entries[] | select((.key | startswith("node_modules/")) and (.value.link | not) and .value.version != null) |
-                        "\(.key | sub("^(.*/)?node_modules/"; ""))@\(.value.version)"' "$1" | LC_ALL=C sort -u
-                    else
-                      awk '/^packages:/ {f = 1; next} /^[^ ]/ {f = 0} f && /^  [^ ]/ {sub(/^  /, ""); sub(/:$/, ""); print}' "$1" |
-                        tr -d "'" | LC_ALL=C sort -u
-                    fi
-                  }
-                  entries "$RUNNER_TEMP/lock.base" > "$RUNNER_TEMP/lock.base.txt"
-                  entries "$RUNNER_TEMP/lock.head" > "$RUNNER_TEMP/lock.head.txt"
-                  cutoff=$(date -u -d '3 days ago' +%s)
-                  young=()
-                  newest=0   # the latest publication among the young ones
-                  unknown=0  # whether one's age is unknown
-                  while IFS= read -r entry; do
-                    name=${entry%@*}
-                    version=${entry##*@}
-                    published=$(curl -fsSL --retry 2 --max-time 60 "https://registry.npmjs.org/${name/\//%2F}" |
-                      jq -r --arg v "$version" '.time[$v] // empty' 2> /dev/null || true)
-                    seconds=''
-                    if [ -n "$published" ]; then seconds=$(date -u -d "$published" +%s 2> /dev/null || true); fi
-                    if [ -z "$seconds" ]; then
-                      young+=("$entry (age unknown)")
-                      unknown=1
-                    elif [ "$seconds" -gt "$cutoff" ]; then
-                      young+=("$entry (published ${published:0:10})")
-                      if [ "$seconds" -gt "$newest" ]; then newest=$seconds; fi
-                    fi
-                  done < <(LC_ALL=C comm -13 "$RUNNER_TEMP/lock.base.txt" "$RUNNER_TEMP/lock.head.txt")
-                  if [ ${#young[@]} != 0 ]; then
-                    reasons+=("its lockfile adds package versions under 3 days old or of unknown age, which Dependabot's cooldown does not hold back: $(printf '%s; ' "${young[@]}" | sed 's/; $//')")
-                    # Decided again once the youngest is 3 days old. An age the registry did not
-                    # give may be a moment's failure: asked again a day from now at the latest
-                    # (one it never gives keeps the pull request waiting all the same).
-                    recheck=$((newest + 3 * 24 * 60 * 60))
-                    recheck_why='when the youngest of those versions is 3 days old'
-                    if [ "$unknown" = 1 ] && [ "$recheck" -lt $(( $(date -u +%s) + 24 * 60 * 60 )) ]; then
-                      recheck=$(( $(date -u +%s) + 24 * 60 * 60 ))
-                      recheck_why='when the registry is asked again about the ages it did not give'
-                    fi
-                  fi
-                else
-                  reasons+=("its $lockfile could not be read, to check how old the package versions it adds are")
-                  recheck=$(( $(date -u +%s) + 24 * 60 * 60 ))
-                  recheck_why='when the lockfile is read again'
-                fi
               fi
             fi
             if [ "$kind" = pnpm ]; then
@@ -941,15 +831,6 @@ jobs:
             else
               printf '@%s CI passes on this pull request (%s). Look at this before merging:\n\n' "$OWNER" "$RUN_URL"
               printf -- '- %s\n' "${reasons[@]}"
-              if [ -n "$recheck" ]; then
-                # security-alerts.yml's daily watch reads the marker: once its time has passed, it
-                # starts this workflow again on the same CI run, if the branch is still there.
-                printf '\nThis pull request is decided again at %s, %s, or within a day after.\n<!-- update-prs-recheck: %s %s %s -->\n' \
-                  "$(date -u -d "@$recheck" '+%Y-%m-%d %H:%M UTC')" "$recheck_why" "$recheck" "$RUN_ID" "$SHA"
-              fi
-            fi
-            if [ -n "$security" ]; then
-              printf '\nA security fix (%s): the 3-day wait for new releases does not hold it back.\n' "$security"
             fi
             printf '\n'
             hint

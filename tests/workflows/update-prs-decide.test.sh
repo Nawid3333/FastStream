@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # update-prs.yml's Decide step: what it tells the owner about a pull request - ready to merge,
 # look at this first, or red. It never merges one (nothing merges itself, 2026-10-02).
-# gh, curl, sleep and unzip are stubbed (unzip by python's zipfile, curl by canned npm
-# registry answers); jq, awk, sed, sha1sum and diff run for real. Every gh call is logged
-# to $STATE/gh.log, every curl call to $STATE/curl.log. KEEP=1 keeps the scenarios' temp
+# gh, sleep and unzip are stubbed (unzip by python's zipfile); jq, awk, sed, sha1sum and
+# diff run for real. Every gh call is logged to $STATE/gh.log. KEEP=1 keeps the scenarios' temp
 # folders. This test keeps its own check and run_step, which also print the step's output
 # and gh calls when a check fails.
 source "$(dirname "$0")/lib.sh"
@@ -212,10 +211,6 @@ case "$1 $2" in
         if [ -f "$STATE/events_fail" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
         jqout "$STATE/events.json"
         ;;
-      "GET repos/me/fs/dependabot/alerts?state=open&per_page=100")
-        if [ -f "$STATE/alerts_fail" ]; then echo 'stub gh: HTTP 403 Resource not accessible by integration' >&2; exit 1; fi
-        jqout "$STATE/alerts.json"
-        ;;
       "PATCH repos/me/fs/issues/comments/"*)
         id=${path##*/}
         f=$(opt -F "${ORIG[@]}"); f=${f#body=@}
@@ -250,13 +245,6 @@ case "$1 $2" in
           jq --arg v "${BRANCH#toolchain/pnpm-}" '.packageManager = "pnpm@\($v)"' "$STATE/main-package.json"
         fi
         ;;
-      "GET repos/me/fs/contents/pnpm-lock.yaml?ref="*)
-        # The merge base's lockfile, or the pull request's (lock.head, when a scenario
-        # gives one; the same as the base's otherwise).
-        ref=${path##*ref=}
-        if [ -f "$STATE/lock_unreadable_$ref" ]; then echo 'stub gh: HTTP 404' >&2; exit 1; fi
-        if [ "$ref" = "$SHA" ] && [ -f "$STATE/lock.head" ]; then cat "$STATE/lock.head"; else cat "$STATE/lock.base"; fi
-        ;;
       "GET repos/me/fs/compare/"*) jq -n --argjson a "$(cat "$STATE/behind")" '{ahead_by: $a, merge_base_commit: {sha: "1111111111111111111111111111111111111111"}}' > "$STATE/cmp.json"; jqout "$STATE/cmp.json" ;;
       "DELETE repos/me/fs/git/refs/heads/"*) : > "$STATE/branch_deleted" ;;
       "PUT repos/me/fs/pulls/"*/update-branch)
@@ -266,10 +254,6 @@ case "$1 $2" in
       "GET repos/me/fs/contents/.github/dependabot.yml?ref=main")
         [ -f "$STATE/dependabot.yml" ] || { echo 'stub gh: HTTP 404' >&2; exit 1; }
         cat "$STATE/dependabot.yml"
-        ;;
-      "GET repos/me/fs/contents/fsaunpack/package-lock.json?ref="*)
-        ref=${path##*ref=}
-        if [ "$ref" = "$SHA" ] && [ -f "$STATE/npmlock.head" ]; then cat "$STATE/npmlock.head"; else cat "$STATE/npmlock.base"; fi
         ;;
       "GET repos/me/fs/pulls/"*/commits*)
         # The pull request's commits with GitHub's signature check: Dependabot's commits and the
@@ -307,19 +291,6 @@ GHSTUB
 #!/usr/bin/env bash
 exit 0
 EOF
-  # curl -fsSL ... https://registry.npmjs.org/<name, / as %2F>: the package's document from
-  # $STATE/registry/<that name>.json; a 404 (curl -f fails) for one not there.
-  cat > "$BIN/curl" <<'EOF'
-#!/usr/bin/env bash
-url=${!#}
-printf '%s\n' "$url" >> "$STATE/curl.log"
-case $url in
-  https://registry.npmjs.org/*) f=$STATE/registry/${url#https://registry.npmjs.org/}.json ;;
-  *) echo "stub curl: unhandled: $*" >&2; exit 99 ;;
-esac
-[ -f "$f" ] || { echo 'curl: (22) The requested URL returned error: 404' >&2; exit 22; }
-cat "$f"
-EOF
   cat > "$BIN/unzip" <<'EOF'
 #!/usr/bin/env bash
 # unzip -q <zip> -d <dir>. Like Info-ZIP's unzip, it makes only the last folder of <dir>
@@ -353,55 +324,6 @@ prview() { # <files json> <commits json>
 commit() { # <login> <headline> [body]
   jq -cn --arg l "$1" --arg h "$2" --arg b "${3-}" --arg oid "$(printf '%s' "$1$2" | sha1sum | cut -c1-40)" \
     '{oid: $oid, authors: [{login: $l}], messageHeadline: $h, messageBody: $b}'
-}
-# The merge base's pnpm-lock.yaml; a pull request's is the same unless lock_adds makes one.
-lock_base() {
-  cat > "$STATE/lock.base" <<'EOF'
-lockfileVersion: '9.0'
-
-importers:
-
-  .:
-    devDependencies:
-      eslint:
-        specifier: ^10.11.0
-        version: 10.11.0
-
-packages:
-
-  '@eslint/js@10.11.0':
-    resolution: {integrity: sha512-x}
-
-  eslint@10.11.0:
-    resolution: {integrity: sha512-x}
-
-snapshots:
-
-  '@eslint/js@10.11.0': {}
-
-  eslint@10.11.0:
-    dependencies:
-      '@eslint/js': 10.11.0
-EOF
-}
-lock_adds() { # <key>...: the pull request's lockfile: the base's, with these package keys added
-  awk -v extra="$*" '{print} /^packages:/ {n = split(extra, e, " "); for (i = 1; i <= n; i++) printf "\n  %s:\n    resolution: {integrity: sha512-x}\n", e[i]}' \
-    "$STATE/lock.base" > "$STATE/lock.head"
-}
-published() { # <name> <version> <ISO time>: when the npm registry says that version came out
-  local f="$STATE/registry/${1/\//%2F}.json"
-  mkdir -p "$STATE/registry"
-  [ -f "$f" ] || echo '{"time":{}}' > "$f"
-  jq --arg v "$2" --arg t "$3" '.time[$v] = $t' "$f" > "$f.new" && mv "$f.new" "$f"
-}
-days_ago() { date -u -d "$1 days ago" +%Y-%m-%dT%H:%M:%S.000Z; }
-hours_ago() { date -u -d "$1 hours ago" +%Y-%m-%dT%H:%M:%S.000Z; }
-prbody() { # <text>: the pull request's body (after prview, which writes the file anew)
-  jq --arg b "$1" '.body = $b' "$STATE/prview.json" > "$STATE/pv.tmp" && mv "$STATE/pv.tmp" "$STATE/prview.json"
-}
-alert() { # <package> <manifest path>: an open Dependabot alert
-  jq --arg p "$1" --arg m "$2" '. + [{number: (length + 1), state: "open", dependency: {package: {ecosystem: "npm", name: $p}, manifest_path: $m}}]' \
-    "$STATE/alerts.json" > "$STATE/a.tmp" && mv "$STATE/a.tmp" "$STATE/alerts.json"
 }
 open_issue() { # <number> <title> <body> [author]: an open issue (author app/github-actions unless given)
   jq --argjson n "$1" --arg t "$2" --arg b "$3" --arg a "${4:-app/github-actions}" \
@@ -465,13 +387,11 @@ setup() {
   echo '[]' > "$STATE/comments.json"
   echo '[]' > "$STATE/issues.json"
   echo '[]' > "$STATE/events.json"
-  echo '[]' > "$STATE/alerts.json"
   echo MERGEABLE > "$STATE/mergeable"
   echo 0 > "$STATE/behind"
   echo v1.3.82.40 > "$STATE/tag"
   echo '{"check_runs":[{"conclusion":"success"}]}' > "$STATE/checkruns.json"
   echo '{"name":"faststream","packageManager":"pnpm@11.22.0"}' > "$STATE/main-package.json"
-  lock_base
   # main's .github/dependabot.yml as far as update-prs reads it: the shipped group's
   # libraries (the header names the group in prose too, as the real one does).
   cat > "$STATE/dependabot.yml" <<'EOF'
@@ -487,7 +407,6 @@ updates:
         exclude-patterns: ['fuse.js', 'mediabunny', 'sortablejs']
         update-types: ['minor', 'patch']
 EOF
-  : > "$STATE/curl.log"
   bundle old 1.3.82.40 'play()'
   bundle new 1.3.82.40 'play()'
   amo_bundle amo-old 1.3.82.40 https://example.com/updates.json
@@ -1034,8 +953,6 @@ pnpm_same_major() {
   check 'no dependency review asked' bash -c '! grep -q check-runs "$0"' "$STATE/gh.log"
   check 'package.json read at the merge base, raw' has_call 'api -H Accept: application/vnd.github.raw repos/me/fs/contents/package.json?ref=1111111111111111111111111111111111111111'
   check "and the pull request's, raw" has_call "api -H Accept: application/vnd.github.raw repos/me/fs/contents/package.json?ref=$sha"
-  check 'no lockfile read: that check is for Dependabot pull requests' bash -c '! grep -q pnpm-lock.yaml "$0"' "$STATE/gh.log"
-  check 'no alerts read either' bash -c '! grep -q dependabot/alerts "$0"' "$STATE/gh.log"
 }
 
 pnpm_package_json_more() {
@@ -1332,7 +1249,6 @@ security_ready() {
   check 'exit 0' test "$rc" -eq 0
   check 'ready to merge' ready
   check 'asks for the dependency review on this commit' has_call "api repos/me/fs/commits/$sha/check-runs?check_name=Review%20dependency%20changes"
-  check 'no 3-day wait: no lockfile ages read' bash -c '! grep -q "registry.npmjs.org" "$0"' "$STATE/curl.log"
   check 'build compared' has_call 'release download'
   check 'the security hint' grep -qF 'Closing it without merging hands its alerts back to you' <(last_comment)
 }
@@ -1565,27 +1481,6 @@ patched_extra_file_waits() {
   check 'names the file' grep -qF 'it changes tests/e2e/specs/x.e2e.mjs, not only what a patch re-cut changes' <(last_comment)
 }
 
-patched_young_package_waits() {
-  patched_setup 1.7.4
-  lock_adds 'hls.js@1.7.4'
-  published hls.js 1.7.4 "$(days_ago 2)"
-  run_step
-  check 'not called ready' not_ready
-  check 'names it' grep -qF 'hls.js@1.7.4 (published' <(last_comment)
-}
-
-patched_security_alert_skips_wait() {
-  # The patched libraries have no Dependabot pull request: an open alert for the library
-  # it updates, on pnpm-lock.yaml, makes it a security fix all the same.
-  patched_setup 1.7.4
-  lock_adds 'hls.js@1.7.4'
-  published hls.js 1.7.4 "$(days_ago 1)"
-  alert hls.js pnpm-lock.yaml
-  run_step
-  check 'ready to merge' ready
-  check 'says why' grep -qF 'A security fix (every package it updates has an open Dependabot alert: hls.js)' <(last_comment)
-}
-
 patched_foreign_commit_waits() {
   patched_setup 1.7.4
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'github-actions[bot]' 'deps: hls.js'),$(commit 'someone' 'tweak')]"
@@ -1674,10 +1569,6 @@ fsa_setup() {
   local meta=$'---\nupdated-dependencies:\n- dependency-name: express\n  dependency-version: 5.3.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...'
   prview '["fsaunpack/package.json","fsaunpack/package-lock.json"]' \
     "[$(commit 'dependabot[bot]' 'build(deps): bump express from 5.2.1 to 5.3.0 in /fsaunpack' "$meta")]"
-  echo '{"name":"fsaunpack","lockfileVersion":3,"packages":{"":{"name":"fsaunpack"},"node_modules/express":{"version":"5.2.1"},"node_modules/body-parser/node_modules/qs":{"version":"6.14.0"}}}' \
-    > "$STATE/npmlock.base"
-  jq '.packages["node_modules/express"].version = "5.3.0"' "$STATE/npmlock.base" > "$STATE/npmlock.head"
-  published express 5.3.0 "$(days_ago 9)"
 }
 
 fsaunpack_ready() {
@@ -1685,42 +1576,7 @@ fsaunpack_ready() {
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'ready to merge' ready
-  check "fsaunpack's lockfile read at the merge base" has_call 'contents/fsaunpack/package-lock.json?ref=1111111111111111111111111111111111111111'
-  check 'the version it adds checked on the registry' grep -qx 'https://registry.npmjs.org/express' "$STATE/curl.log"
-  check 'nothing else looked up' test "$(wc -l < "$STATE/curl.log")" -eq 1
-  check 'pnpm-lock.yaml not read' bash -c '! grep -q pnpm-lock.yaml "$0"' "$STATE/gh.log"
   check 'build compared: fsaunpack ships nothing' has_call 'release download'
-}
-
-fsaunpack_young_package_waits() {
-  fsa_setup
-  jq '.packages["node_modules/express/node_modules/qs"] = {version: "6.16.0"}' "$STATE/npmlock.head" > "$STATE/n.tmp" &&
-    mv "$STATE/n.tmp" "$STATE/npmlock.head"
-  published qs 6.16.0 "$(hours_ago 5)"
-  run_step
-  check 'not called ready' not_ready
-  check 'names the nested package' grep -qF 'qs@6.16.0 (published' <(last_comment)
-}
-
-fsaunpack_workspace_entry_ignored() {
-  # npm lists a workspace folder under packages too, with a version: not a registry package.
-  fsa_setup
-  jq '.packages["tools/sub"] = {version: "0.1.0"}' "$STATE/npmlock.head" > "$STATE/n.tmp" && mv "$STATE/n.tmp" "$STATE/npmlock.head"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'ready to merge' ready
-  check 'not looked up' bash -c '! grep -q "tools" "$0"' "$STATE/curl.log"
-}
-
-fsaunpack_security_alert_skips_wait() {
-  # An open alert on fsaunpack's lockfile for the package it updates: a security fix.
-  fsa_setup
-  published express 5.3.0 "$(hours_ago 5)"
-  alert express fsaunpack/package-lock.json
-  run_step
-  check 'ready to merge' ready
-  check 'asks the registry nothing' test ! -s "$STATE/curl.log"
-  check 'says why' grep -qF 'A security fix (every package it updates has an open Dependabot alert: express)' <(last_comment)
 }
 
 fsaunpack_other_file_waits() {
@@ -1730,15 +1586,6 @@ fsaunpack_other_file_waits() {
   run_step
   check 'not called ready' not_ready
   check 'names the file' grep -qF 'it changes package.json, not only fsaunpack/package.json and fsaunpack/package-lock.json' <(last_comment)
-}
-
-shipped_young_package_waits() {
-  shipped_setup
-  lock_adds 'mediabunny@1.61.0'
-  published mediabunny 1.61.0 "$(hours_ago 5)"
-  run_step
-  check 'not called ready' not_ready
-  check 'names it' grep -qF 'mediabunny@1.61.0 (published' <(last_comment)
 }
 
 # A tooling update whose build differs is not ready: only the shipped group ships.
@@ -1897,246 +1744,17 @@ compare_after_bundle() {
   check 'compare last, after the build comparison' bash -c 'grep -E "^(api repos/me/fs/compare|release download|run download)" "$0" | tail -n 1 | grep -q "^api repos/me/fs/compare"' "$STATE/gh.log"
 }
 
-# --- Every package version a Dependabot or patched-library pull request adds to its lockfile
-# must be 3 days old on the npm registry (the owner's call, 2026-10-20; Dependabot's cooldown
-# holds back only what it bumps). A security fix is not held back.
+# --- How old a release is does not count (the owner's call of 2026-11-09: he decides when each
+# update is merged): nothing asks the npm registry, reads the lockfile or reads the alerts.
 
-lock_nothing_added() {
+new_release_is_ready() {
   setup
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'reads the merge base lockfile' has_call 'api -H Accept: application/vnd.github.raw repos/me/fs/contents/pnpm-lock.yaml?ref=1111111111111111111111111111111111111111'
-  check "and the pull request's" has_call "api -H Accept: application/vnd.github.raw repos/me/fs/contents/pnpm-lock.yaml?ref=$sha"
-  check 'asks the registry nothing' test ! -s "$STATE/curl.log"
-  check 'ready to merge' ready
-  check 'no recheck marker' bash -c '! grep -qF "update-prs-recheck" "$0"' "$STATE/comments.json"
-}
-
-lock_old_packages() {
-  setup
-  lock_adds left-pad@1.3.0 "'@babel/core@7.0.0'"
-  published left-pad 1.3.0 2018-04-09T00:00:00.000Z
-  published @babel/core 7.0.0 "$(days_ago 4)"
-  run_step
-  check 'looks up the added package' grep -qx 'https://registry.npmjs.org/left-pad' "$STATE/curl.log"
-  check 'and the scoped one, its / escaped' grep -qx 'https://registry.npmjs.org/@babel%2Fcore' "$STATE/curl.log"
-  check 'nothing else' test "$(wc -l < "$STATE/curl.log")" -eq 2
-  check 'ready to merge' ready
-}
-
-lock_young_package() {
-  setup
-  lock_adds left-pad@1.3.0 pnpm@11.28.2
-  published left-pad 1.3.0 2018-04-09T00:00:00.000Z
-  pub=$(days_ago 2)
-  published pnpm 11.28.2 "$pub"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'not called ready' not_ready
-  check 'names the young one and its date' grep -qF "pnpm@11.28.2 (published ${pub:0:10})" <(last_comment)
-  check 'says 3 days' grep -qF 'package versions under 3 days old or of unknown age' <(last_comment)
-  check 'not the old one' bash -c '! grep -qF left-pad <<< "$0"' "$(last_comment)"
-  check 'assigned' grep -qx nawid "$STATE/assignees"
-  check 'a look key' grep -qF '<!-- update-prs: look -->' <(last_comment)
-}
-
-lock_just_under_3_days() {
-  setup
-  lock_adds pnpm@11.28.2
-  published pnpm 11.28.2 "$(hours_ago 71)"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'not called ready' not_ready
-  check 'names it' grep -qF 'pnpm@11.28.2 (published' <(last_comment)
-}
-
-lock_just_over_3_days() {
-  setup
-  lock_adds pnpm@11.28.2
-  published pnpm 11.28.2 "$(hours_ago 73)"
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'ready to merge' ready
-}
-
-lock_changed_version() {
-  # A bump replaces a key: only the new version is new.
-  setup
-  sed 's/eslint@10\.11\.0/eslint@10.12.0/' "$STATE/lock.base" > "$STATE/lock.head"
-  published eslint 10.12.0 "$(days_ago 1)"
-  run_step
-  check 'looks up only eslint' test "$(cat "$STATE/curl.log")" = 'https://registry.npmjs.org/eslint'
-  check 'not called ready' not_ready
-  check 'names it' grep -qF 'eslint@10.12.0 (published' <(last_comment)
-}
-
-# recheck_within <from> <to>: the last comment's marker names a time in [from, to], this run and commit.
-recheck_within() {
-  local at
-  at=$(last_comment | sed -n "s/^<!-- update-prs-recheck: \([0-9]*\) 555 $sha -->$/\1/p")
-  [ -n "$at" ] && [ "$at" -ge "$1" ] && [ "$at" -le "$2" ]
-}
-
-lock_unknown_age() {
-  # A package the registry does not have, and a version it does not list. The registry may
-  # have failed for a moment: asked again a day later (the pull request waits all the same).
-  setup
-  lock_adds no-such-pkg-fs-zz9@1.0.0 left-pad@9.9.9
-  published left-pad 1.3.0 2018-04-09T00:00:00.000Z
-  t0=$(date -u +%s)
-  run_step
-  t1=$(date -u +%s)
-  check 'exit 0' test "$rc" -eq 0
-  check 'not called ready' not_ready
-  check 'the missing package, age unknown' grep -qF 'no-such-pkg-fs-zz9@1.0.0 (age unknown)' <(last_comment)
-  check 'the missing version, age unknown' grep -qF 'left-pad@9.9.9 (age unknown)' <(last_comment)
-  check 'decided again a day later' recheck_within $((t0 + 86400)) $((t1 + 86400))
-  check 'says why' grep -qF 'when the registry is asked again about the ages it did not give, or within a day after.' <(last_comment)
-}
-
-lock_unknown_and_young() {
-  # An unknown age, and a version that is 3 days old only in two and a half days: the later.
-  setup
-  lock_adds no-such-pkg-fs-zz9@1.0.0 left-pad@1.3.0
-  pub=$(hours_ago 12)
-  published left-pad 1.3.0 "$pub"
-  run_step
-  at=$(( $(date -u -d "$pub" +%s) + 3 * 86400 ))
-  check 'when the youngest is old enough' grep -qx "<!-- update-prs-recheck: $at 555 $sha -->" <(last_comment)
-  check 'says why' grep -qF 'when the youngest of those versions is 3 days old' <(last_comment)
-}
-
-lock_base_unreadable() {
-  setup
-  lock_adds left-pad@1.3.0
-  : > "$STATE/lock_unreadable_1111111111111111111111111111111111111111"
-  t0=$(date -u +%s)
-  run_step
-  t1=$(date -u +%s)
-  check 'exit 0' test "$rc" -eq 0
-  check 'not called ready' not_ready
-  check 'says so' grep -qF 'its pnpm-lock.yaml could not be read' <(last_comment)
-  check 'read again a day later' recheck_within $((t0 + 86400)) $((t1 + 86400))
-  check 'says why' grep -qF 'when the lockfile is read again' <(last_comment)
-}
-
-lock_head_unreadable() {
-  setup
-  : > "$STATE/lock_unreadable_$sha"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'not called ready' not_ready
-  check 'says so' grep -qF 'its pnpm-lock.yaml could not be read' <(last_comment)
-}
-
-# security-alerts.yml's daily watch reads when to decide again, the run and the commit.
-lock_recheck_marker() {
-  setup
-  lock_adds pnpm@11.28.2
-  pub=$(hours_ago 30)
-  published pnpm 11.28.2 "$pub"
-  run_step
-  at=$(( $(date -u -d "$pub" +%s) + 3 * 86400 ))
-  check 'not called ready' not_ready
-  check 'marks when, the run and the commit' grep -qx "<!-- update-prs-recheck: $at 555 $sha -->" <(last_comment)
-  check 'says when and why, readably' grep -qF "decided again at $(date -u -d "@$at" '+%Y-%m-%d %H:%M UTC'), when the youngest of those versions is 3 days old, or within a day after." <(last_comment)
-}
-
-lock_recheck_newest_of_two() {
-  setup
-  lock_adds pnpm@11.28.2 left-pad@1.3.0
-  published pnpm 11.28.2 "$(hours_ago 30)"
-  pub=$(hours_ago 10)
-  published left-pad 1.3.0 "$pub"
-  run_step
-  at=$(( $(date -u -d "$pub" +%s) + 3 * 86400 ))
-  check 'the youngest decides when' grep -qx "<!-- update-prs-recheck: $at 555 $sha -->" <(last_comment)
-}
-
-security_update_body_skips_wait() {
-  # Dependabot's security updates end their body with this line (#352, #353).
-  setup
-  lock_adds pnpm@11.28.2
-  published pnpm 11.28.2 "$(hours_ago 2)"
-  prbody $'Bumps the npm_and_yarn group with 1 update.\n\n---\nYou can disable automated security fix PRs for this repo from the [Security Alerts page](https://github.com/me/fs/network/alerts).'
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'ready to merge' ready
-  check 'asks the registry nothing' test ! -s "$STATE/curl.log"
-  check 'reads no lockfile for it' bash -c '! grep -q "contents/pnpm-lock.yaml" "$0"' "$STATE/gh.log"
-  check 'says why' grep -qF 'A security fix (Dependabot opened it as a security update): the 3-day wait for new releases does not hold it back.' <(last_comment)
-}
-
-security_alert_skips_wait() {
-  # #95 was a security update without that line: an open alert for what it updates tells.
-  setup
-  lock_adds pnpm@11.28.2
-  published pnpm 11.28.2 "$(hours_ago 2)"
-  alert eslint pnpm-lock.yaml
-  run_step
-  check 'ready to merge' ready
-  check 'asked for the open alerts' has_call 'api --paginate repos/me/fs/dependabot/alerts?state=open&per_page=100'
-  check 'asks the registry nothing' test ! -s "$STATE/curl.log"
-  check 'says why' grep -qF 'A security fix (every package it updates has an open Dependabot alert: eslint)' <(last_comment)
-}
-
-security_alert_for_one_of_a_group_waits() {
-  # A grouped version update with one alerted member: that member's fix comes as a security
-  # update of its own; the group waits like any other.
-  setup
-  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'Bump the tooling-minor-and-patch group with 5 updates' "$group_meta")]"
-  lock_adds pnpm@11.28.2
-  published pnpm 11.28.2 "$(hours_ago 2)"
-  alert js-yaml pnpm-lock.yaml
-  run_step
-  check 'not called ready' not_ready
-  check 'no security note' bash -c '! grep -qF "A security fix" <<< "$0"' "$(last_comment)"
-}
-
-security_alert_for_every_one_of_a_group() {
-  setup
-  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'Bump the tooling-minor-and-patch group with 5 updates' "$group_meta")]"
-  lock_adds pnpm@11.28.2
-  published pnpm 11.28.2 "$(hours_ago 2)"
-  for p in @types/chrome @types/node js-yaml vitest web-ext; do alert "$p" pnpm-lock.yaml; done
-  run_step
-  check 'ready to merge' ready
-  check 'names them' grep -qF 'every package it updates has an open Dependabot alert: @types/chrome @types/node js-yaml vitest web-ext' <(last_comment)
-}
-
-security_alert_on_other_lockfile_waits() {
-  setup
-  lock_adds pnpm@11.28.2
-  published pnpm 11.28.2 "$(hours_ago 2)"
-  alert eslint fsaunpack/package-lock.json
-  run_step
-  check 'not called ready' not_ready
-  check 'names the young one' grep -qF 'pnpm@11.28.2 (published' <(last_comment)
-  check 'no security note' bash -c '! grep -qF "A security fix" <<< "$0"' "$(last_comment)"
-}
-
-security_alert_for_other_package_waits() {
-  setup
-  lock_adds pnpm@11.28.2
-  published pnpm 11.28.2 "$(hours_ago 2)"
-  alert eslint-plugin-x pnpm-lock.yaml
-  alert lint pnpm-lock.yaml
-  run_step
-  check 'not called ready' not_ready
-}
-
-security_alerts_unreadable_waits() {
-  # Without the alerts, the wait applies: a security fix waits 3 days rather than a young
-  # release slipping through.
-  setup
-  lock_adds pnpm@11.28.2
-  published pnpm 11.28.2 "$(hours_ago 2)"
-  alert eslint pnpm-lock.yaml
-  : > "$STATE/alerts_fail"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'not called ready' not_ready
-  check 'warns' grep -qF 'The Dependabot alerts could not be read' "$T/out"
+  check 'reads no lockfile' bash -c '! grep -q pnpm-lock.yaml "$0"' "$STATE/gh.log"
+  check 'reads no alerts' bash -c '! grep -q dependabot/alerts "$0"' "$STATE/gh.log"
+  check 'no marker to decide again' bash -c '! grep -qF "update-prs-recheck" "$0"' "$STATE/comments.json"
 }
 
 # --- Red twice on an update pull request: the new version most likely needs code changes.
@@ -2531,8 +2149,6 @@ patched_same_version_waits
 patched_unparseable_waits
 patched_range_on_main_waits
 patched_extra_file_waits
-patched_young_package_waits
-patched_security_alert_skips_wait
 patched_foreign_commit_waits
 shipped_ready
 shipped_major_ready
@@ -2540,11 +2156,7 @@ shipped_major_own_branch_ready
 shipped_scoped_ready
 shipped_list_unreadable_waits
 fsaunpack_ready
-fsaunpack_young_package_waits
-fsaunpack_workspace_entry_ignored
-fsaunpack_security_alert_skips_wait
 fsaunpack_other_file_waits
-shipped_young_package_waits
 tooling_that_ships_waits
 held_waits
 patched_review_passed
@@ -2561,25 +2173,6 @@ update_refused_head_moved
 update_refused
 green_mergeable_stays_unknown
 compare_after_bundle
-lock_nothing_added
-lock_old_packages
-lock_young_package
-lock_just_under_3_days
-lock_just_over_3_days
-lock_changed_version
-lock_unknown_age
-lock_base_unreadable
-lock_head_unreadable
-lock_unknown_and_young
-lock_recheck_marker
-lock_recheck_newest_of_two
-security_update_body_skips_wait
-security_alert_skips_wait
-security_alert_on_other_lockfile_waits
-security_alert_for_other_package_waits
-security_alerts_unreadable_waits
-security_alert_for_one_of_a_group_waits
-security_alert_for_every_one_of_a_group
 migration_opened
 migration_not_on_first_failure
 migration_not_before_second_try

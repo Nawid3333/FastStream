@@ -4,11 +4,21 @@ import fs from 'node:fs';
 import * as yaml from 'js-yaml';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {
-  aboveHold, addonVersion, applyAddon, applyPlayers, getJson, holdProblem, latestLtsMajor, MAJOR_HOLDS, MIN_AGE_DAYS,
-  newestAddon, newestOfMajor, pinCandidates, plan, PLAYER_LIBRARIES, playerState, playerTargets, projectNodeMajor, relation,
-  TITLE_PREFIX, UBLOCK,
+  aboveHold as aboveHoldOf, addonVersion, applyAddon, applyPlayers, getJson, holdProblem, latestLtsMajor, MAJOR_HOLDS, MIN_AGE_DAYS,
+  newestAddon as newestAddonOf, newestOfMajor as newestOfMajorOf, pinCandidates as pinCandidatesOf, plan, PLAYER_LIBRARIES,
+  playerState, playerTargets as playerTargetsOf, projectNodeMajor, relation, TITLE_PREFIX, UBLOCK,
 } from '../../tools/check-toolchain.mjs';
 import {ADDONS} from '../../tools/setup-dev-profile.mjs';
+
+// No release waits for its age any more (MIN_AGE_DAYS is 0: the owner's call of 2026-11-09), but
+// every function here still takes a minimum age, and that filter has been wanted before. These
+// tests ask for one, WAIT days, unless they say otherwise.
+const WAIT = 3;
+const aboveHold = (doc, below, now, minAge = WAIT) => aboveHoldOf(doc, below, now, minAge);
+const newestAddon = (page, now, minAge = WAIT) => newestAddonOf(page, now, minAge);
+const newestOfMajor = (doc, major, now, minAge = WAIT) => newestOfMajorOf(doc, major, now, minAge);
+const pinCandidates = (doc, pin, now, minAge = WAIT, below = null) => pinCandidatesOf(doc, pin, now, minAge, below);
+const playerTargets = (pins, docs, fixed, now, minAge = WAIT, holds = MAJOR_HOLDS) => playerTargetsOf(pins, docs, fixed, now, minAge, holds);
 
 // The toolchain check opens and closes pull requests on these numbers; a wrong one either
 // nags about a Node the project already uses or stays quiet about a new LTS.
@@ -161,36 +171,45 @@ describe('every pinned tool is one Dependabot updates', () => {
   });
 });
 
-// The owner's call of 2026-10-20: a release waits 3 days before it is proposed, wherever the
-// update comes from. Dependabot's cooldown, update-prs.yml's lockfile check, the toolchain's
-// MIN_AGE_DAYS and zizmor's audit name the same number, or one of them lets a younger release
-// through. (zizmor flags a cooldown shorter than its setting, not an entry without one:
-// checked with zizmor 1.30.1.)
-describe('one release wait everywhere', () => {
+// The owner's call of 2026-11-09 (as from 2026-10-11 to 2026-10-20): no wait for a new release,
+// wherever the update comes from. He decides when each update is merged.
+describe('no release wait anywhere', () => {
   const root = new URL('../../', import.meta.url);
   const read = (path) => fs.readFileSync(new URL(path, root), 'utf8');
 
-  it('is 3 days', () => {
-    expect(MIN_AGE_DAYS).toBe(3);
+  it('in the toolchain', () => {
+    expect(MIN_AGE_DAYS).toBe(0);
   });
 
-  it('in every entry of .github/dependabot.yml', () => {
+  it('in .github/dependabot.yml, which looks every day', () => {
     const {updates} = yaml.load(read('.github/dependabot.yml'));
     expect(updates.length).toBeGreaterThanOrEqual(4);
     for (const update of updates) {
       const name = `${update['package-ecosystem']} ${update.directory ?? update.directories}`;
-      expect(update.cooldown, name).toEqual({'default-days': MIN_AGE_DAYS});
+      expect(update.cooldown, name).toBeUndefined();
+      expect(update.schedule.interval, name).toBe('daily');
     }
   });
 
-  it('in zizmor\'s audit of it', () => {
-    expect(yaml.load(read('.github/zizmor.yml')).rules['dependabot-cooldown']).toEqual({config: {days: MIN_AGE_DAYS}});
+  it('in zizmor, which would ask for a cooldown', () => {
+    expect(yaml.load(read('.github/zizmor.yml')).rules['dependabot-cooldown']).toEqual({disable: true});
   });
 
-  it('in update-prs.yml\'s lockfile check, and when it decides again', () => {
+  it('in pnpm, whose own default is a day', () => {
+    const workspace = yaml.load(read('pnpm-workspace.yaml'));
+    expect(workspace.minimumReleaseAge).toBe(0);
+    expect(workspace.minimumReleaseAgeExclude).toBeUndefined();
+  });
+
+  it('in update-prs.yml, which reads no lockfile for it', () => {
     const gate = read('.github/workflows/update-prs.yml');
-    expect(gate).toContain(`cutoff=$(date -u -d '${MIN_AGE_DAYS} days ago' +%s)`);
-    expect(gate).toContain(`recheck=$((newest + ${MIN_AGE_DAYS} * 24 * 60 * 60))`);
+    expect(gate).not.toContain('registry.npmjs.org');
+    expect(gate).not.toContain('update-prs-recheck');
+    expect(read('.github/workflows/security-alerts.yml')).not.toContain('update-prs-recheck');
+  });
+
+  it('in toolchain-updates.yml, which looks every day', () => {
+    expect(yaml.load(read('.github/workflows/toolchain-updates.yml')).on.schedule).toEqual([{cron: '0 7 * * *'}]);
   });
 });
 
@@ -213,8 +232,12 @@ describe('newestOfMajor', () => {
     },
   };
 
-  // A pnpm release is tried once it is MIN_AGE_DAYS (3) old: 11.29.0 is 2 days old.
-  it('waits MIN_AGE_DAYS by default', () => {
+  it('takes a release of today by default: no wait', () => {
+    expect(newestOfMajorOf(doc, 11, now)).toBe('11.29.0');
+  });
+
+  // With a wait of 3 days: 11.29.0 is 2 days old.
+  it('waits as long as it is asked to', () => {
     expect(newestOfMajor(doc, 11, now)).toBe('11.28.0');
     expect(newestOfMajor(doc, 11, now + day)).toBe('11.29.0');
   });
@@ -330,12 +353,12 @@ describe('uBlock Origin on AMO', () => {
     created: new Date(now - daysOld * day).toISOString(), status: 'public', hash: hash('a'),
     url: `https://addons.mozilla.org/firefox/downloads/file/${version.replace(/\D/g, '')}/ublock_origin-${version}.xpi`, ...file}});
 
-  it('takes the newest public listed release that is MIN_AGE_DAYS old, with its file and SHA-256', () => {
+  it('takes the newest public listed release that is WAIT old, with its file and SHA-256', () => {
     const page = {results: [release('1.77.0', 1), release('1.76.0', 4), release('1.75.0', 30)]};
     expect(newestAddon(page, now)).toEqual({version: '1.76.0', sha256: 'a'.repeat(64),
       url: 'https://addons.mozilla.org/firefox/downloads/file/1760/ublock_origin-1.76.0.xpi'});
     expect(newestAddon(page, now + 2 * day).version).toBe('1.77.0');
-    expect(MIN_AGE_DAYS).toBe(3);
+    expect(WAIT).toBe(3);
   });
 
   it('compares versions as numbers, whatever order AMO lists them in', () => {
@@ -464,7 +487,7 @@ const NOW = Date.parse('2026-06-01T00:00:00.000Z');
 
 /**
  * Registry doc with terse entries; `age` is days published before `atNow`
- * (default 30 clears every MIN_AGE_DAYS check; 1 day never does).
+ * (default 30 clears every WAIT check; 1 day never does).
  * @typedef {{ dependencies?: Record<string, string>, peerDependencies?: Record<string, string>, deprecated?: boolean | string }} DocVersion
  * @typedef {{ versions: Record<string, DocVersion>, time: Record<string, string> }} Doc
  * @param {number} atNow
@@ -609,8 +632,8 @@ describe('pinCandidates, more', () => {
     expect(pinCandidates(doc, '1.4.0', NOW)).toEqual(['1.10.0', '1.6.0', '1.5.0', '1.4.0']);
   });
 
-  it('takes a release exactly MIN_AGE_DAYS old, and a younger one with a shorter wait', () => {
-    const doc = docOf(NOW, {'1.4.0': {}, '1.4.1': {age: MIN_AGE_DAYS}, '1.4.2': {age: 1}});
+  it('takes a release exactly WAIT old, and a younger one with a shorter wait', () => {
+    const doc = docOf(NOW, {'1.4.0': {}, '1.4.1': {age: WAIT}, '1.4.2': {age: 1}});
     expect(pinCandidates(doc, '1.4.0', NOW)).toEqual(['1.4.1', '1.4.0']);
     expect(pinCandidates(doc, '1.4.0', NOW, 1)).toEqual(['1.4.2', '1.4.1', '1.4.0']);
   });
@@ -685,8 +708,8 @@ describe('pinCandidates', () => {
 
   it('stops below a hold\u2019s bound, and at the pin when nothing below it is newer', () => {
     const doc = docOf(NOW, {'1.4.0': {}, '1.5.0': {}, '1.9.9': {}, '2.0.0': {}, '2.1.0': {}});
-    expect(pinCandidates(doc, '1.4.0', NOW, MIN_AGE_DAYS, '2.0.0')).toEqual(['1.9.9', '1.5.0', '1.4.0']);
-    expect(pinCandidates(doc, '1.4.0', NOW, MIN_AGE_DAYS, '1.5.0')).toEqual(['1.4.0']);
+    expect(pinCandidates(doc, '1.4.0', NOW, WAIT, '2.0.0')).toEqual(['1.9.9', '1.5.0', '1.4.0']);
+    expect(pinCandidates(doc, '1.4.0', NOW, WAIT, '1.5.0')).toEqual(['1.4.0']);
   });
 
   it('takes the next 0.y and 0.0.z lines as it takes a major', () => {
@@ -794,7 +817,7 @@ describe('playerTargets', () => {
         '9.0.0': {age: 1},
       }),
     };
-    const plan = playerTargets(pins, docs, {}, NOW, MIN_AGE_DAYS, new Map());
+    const plan = playerTargets(pins, docs, {}, NOW, WAIT, new Map());
     expect(plan.target).toEqual({'video.js': '8.24.1'});
     expect(plan.changes).toEqual([]);
     expect(plan.newMajors).toEqual([]);
@@ -835,7 +858,7 @@ describe('playerTargets', () => {
       'plyr': docOf(NOW, {'3.8.5': {age: 40}, '4.0.0': {age: 20}}),
     };
     const holds = new Map([['video.js', {below: '9.0.0', staleAfterDays: 365, reason: 'its 10 is no player'}]]);
-    const plan = playerTargets(pins, docs, {}, NOW, MIN_AGE_DAYS, holds);
+    const plan = playerTargets(pins, docs, {}, NOW, WAIT, holds);
     expect(plan.target).toEqual({'video.js': '8.24.2', 'plyr': '4.0.0'});
     expect(plan.newMajors).toEqual([{name: 'plyr', from: '3.8.5', to: '4.0.0'}]);
     expect(plan.kept).toEqual([{name: 'video.js', version: '8.24.2', latest: '10.1.0', below: '9.0.0', reason: 'its 10 is no player'}]);
@@ -843,7 +866,7 @@ describe('playerTargets', () => {
     expect(plan.holdProblems).toEqual([]);
     // Nothing above the bound old enough yet: nothing kept out, and nothing to say.
     const young = {'video.js': docOf(NOW, {'8.24.1': {age: 40}, '10.2.0': {age: 1}}), 'plyr': docs.plyr};
-    expect(playerTargets(pins, young, {}, NOW, MIN_AGE_DAYS, holds).kept).toEqual([]);
+    expect(playerTargets(pins, young, {}, NOW, WAIT, holds).kept).toEqual([]);
   });
 
   it('reports a hold to look at again, and a hold the pin has passed holds nothing', () => {
@@ -853,7 +876,7 @@ describe('playerTargets', () => {
       ['video.js', {below: '9.0.0', staleAfterDays: 365, reason: 'r'}],
       ['plyr', {below: '4.0.0', staleAfterDays: 365, reason: 'r'}],
     ]);
-    const plan = playerTargets(pins, docs, {}, NOW, MIN_AGE_DAYS, holds);
+    const plan = playerTargets(pins, docs, {}, NOW, WAIT, holds);
     expect(plan.target).toEqual({'video.js': '10.0.0'});
     expect(plan.kept).toEqual([]);
     expect(plan.holdProblems).toEqual([
@@ -872,7 +895,7 @@ describe('playerTargets', () => {
       }),
       'xgplayer-hls': docOf(NOW, {
         '3.0.26': {age: 40, peer: {xgplayer: '3.0.26'}},
-        '3.0.27': {age: 1}, // below MIN_AGE_DAYS, so hls stays on its floor
+        '3.0.27': {age: 1}, // below WAIT, so hls stays on its floor
       }),
     };
     const plan = playerTargets(pins, docs, {}, NOW);
