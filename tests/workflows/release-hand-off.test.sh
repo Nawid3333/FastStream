@@ -99,9 +99,9 @@ scenario hand-off 'refused three times'
 check 'fails' test "$status" -ne 0
 check 'tries three times' test "$(starts)" -eq 3
 check 'looks for the issue among all open ones' contains "$FIX/calls" "$LIST"
-check 'opens the issue, assigned' contains "$FIX/calls" 'issue create --title Auto release failed --assignee owner'
+check 'opens the issue' contains "$FIX/calls" 'issue create --title Auto release failed'
 check 'the issue names the run, the commit and how to start it' contains "$FIX/create" \
-  '@owner GitHub refused three times to start auto-release.yml for CI run 777 on main (abcdef12), a run this repository started. Start it from the Actions tab: Auto release, Run workflow, run_id 777.'
+  'GitHub refused three times to start auto-release.yml for CI run 777 on main (abcdef12), a run this repository started. Start it from the Actions tab: Auto release, Run workflow, run_id 777.'
 
 export OPEN_ISSUES='[{"number":4,"title":"Other"},{"number":7,"title":"Auto release failed"}]'
 scenario hand-off 'refused three times, the issue already open'
@@ -109,7 +109,7 @@ check 'fails' test "$status" -ne 0
 check 'opens no second issue' lacks "$FIX/calls" 'issue create'
 check 'comments on the open one' contains "$FIX/calls" 'issue comment 7 --body-file'
 check 'the comment names this run and how to start it' contains "$FIX/comment" \
-  "@owner GitHub refused three times to start auto-release.yml, for CI run 777 on main (abcdef12): $SELF_URL. Start it from the Actions tab: Auto release, Run workflow, run_id 777."
+  "GitHub refused three times to start auto-release.yml, for CI run 777 on main (abcdef12): $SELF_URL. Start it from the Actions tab: Auto release, Run workflow, run_id 777."
 
 export OPEN_ISSUES='[{"number":8,"title":"Auto release failed again"}]'
 scenario hand-off 'refused three times, an issue with a longer title open'
@@ -125,22 +125,22 @@ export START_FAILS=0 OPEN_ISSUES='[{"number":4,"title":"Other"}]' LIST_FAILS=''
 scenario report 'auto-release failed, no issue open'
 check 'succeeds' test "$status" -eq 0
 check 'looks for the issue among all open ones' contains "$FIX/calls" "$LIST"
-check 'opens the issue, assigned' contains "$FIX/calls" 'issue create --title Auto release failed --assignee owner'
+check 'opens the issue' contains "$FIX/calls" 'issue create --title Auto release failed'
 check 'the issue names the owner and links the failed run' contains "$FIX/create" \
-  "@owner A CI run on main that this repository started (a re-run, or a run for pushes that start none) did not lead to a release: $SELF_URL"
+  "A CI run on main that this repository started (a re-run, or a run for pushes that start none) did not lead to a release: $SELF_URL"
 
 export EVENT=workflow_run
 scenario report 'auto-release failed on CI'"'"'s workflow_run event'
 check 'succeeds' test "$status" -eq 0
-check 'opens the issue, assigned' contains "$FIX/calls" 'issue create --title Auto release failed --assignee owner'
+check 'opens the issue' contains "$FIX/calls" 'issue create --title Auto release failed'
 check 'the issue says CI passed and the release failed' contains "$FIX/create" \
-  "@owner CI on main passed, and releasing it failed: $SELF_URL"
+  "CI on main passed, and releasing it failed: $SELF_URL"
 
 export EVENT='' OPEN_ISSUES='[{"number":7,"title":"Auto release failed"}]'
 scenario report 'auto-release failed, the issue already open'
 check 'succeeds' test "$status" -eq 0
 check 'opens no second issue' lacks "$FIX/calls" 'issue create'
 check 'comments on the open one' contains "$FIX/calls" 'issue comment 7 --body-file'
-check 'the comment links this run' contains "$FIX/comment" "@owner Auto release failed again: $SELF_URL"
+check 'the comment links this run' contains "$FIX/comment" "Auto release failed again: $SELF_URL"
 
 finish

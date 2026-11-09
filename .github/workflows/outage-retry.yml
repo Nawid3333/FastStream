@@ -48,7 +48,6 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      OWNER: ${{ github.repository_owner }}
       SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       BRANCH: ${{ inputs.branch }}
       SHA: ${{ inputs.sha }}
@@ -100,6 +99,6 @@ jobs:
         if: failure() && steps.retry.outputs.valid == 'true'
         run: |
           set -euo pipefail
-          printf '@%s CI was to run again on this pull request after an outage, but could not be started (%s). Start it on this branch (Actions, CI, Run workflow); that run decides.\n' \
-            "$OWNER" "$SELF_URL" > "$RUNNER_TEMP/body.md"
+          printf 'CI was to run again on this pull request after an outage, but could not be started (%s). Start it on this branch (Actions, CI, Run workflow); that run decides.\n' \
+            "$SELF_URL" > "$RUNNER_TEMP/body.md"
           gh pr comment "$BRANCH" --body-file "$RUNNER_TEMP/body.md"

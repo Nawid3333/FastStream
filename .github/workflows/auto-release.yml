@@ -358,7 +358,7 @@ jobs:
           done
           exit 1
 
-      # A failed release: one issue while it is open, assigned and @mentioning the owner. A
+      # A failed release: one issue while it is open, which the daily digest lists. A
       # run ci.yml started emails no one. A run on CI's workflow_run event should email the
       # one who pushed, but no failed run there has ever shown it (none of 91 runs failed),
       # and a release missed in silence leaves main unreleased; so it reports too. A
@@ -370,7 +370,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          OWNER: ${{ github.repository_owner }}
           EVENT: ${{ github.event_name }}
           SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TITLE: 'Auto release failed'
@@ -382,7 +381,7 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s Auto release failed again: %s\n' "$OWNER" "$SELF_URL" > "$RUNNER_TEMP/comment.md"
+            printf 'Auto release failed again: %s\n' "$SELF_URL" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
@@ -391,9 +390,9 @@ jobs:
           else
             what='A CI run on main that this repository started (a re-run, or a run for pushes that start none) did not lead to a release'
           fi
-          printf '@%s %s: %s\n\nThe CI run was red, or a release step failed; the log says which. main'"'"'s newest changes are not released until this is fixed. Close this issue once it is fixed; a failure while it is open adds a comment.\n' \
-            "$OWNER" "$what" "$SELF_URL" > "$RUNNER_TEMP/body.md"
-          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          printf '%s: %s\n\nThe CI run was red, or a release step failed; the log says which. main'"'"'s newest changes are not released until this is fixed. Close this issue once it is fixed; a failure while it is open adds a comment.\n' \
+            "$what" "$SELF_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"
 
   # Restarts a CI run on main that a later run cancelled (see the header). After every CI
   # push run on main ends, whatever it concluded, it finds the newest commit on main with a
@@ -434,7 +433,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          OWNER: ${{ github.repository_owner }}
           TITLE: 'CI on main needs a re-run'
         run: |
           set -euo pipefail
@@ -457,14 +455,14 @@ jobs:
             number=$(gh issue list --state open --limit 200 --json number,title \
               --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
             if [ -n "$number" ]; then
-              printf '@%s CI on main for %s cannot finish either: %s. The run: %s\n' \
-                "$OWNER" "${sha:0:8}" "$1" "$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$id" > "$RUNNER_TEMP/comment.md"
+              printf 'CI on main for %s cannot finish either: %s. The run: %s\n' \
+                "${sha:0:8}" "$1" "$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$id" > "$RUNNER_TEMP/comment.md"
               gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
               exit 0
             fi
-            printf '@%s CI on main for %s cannot finish: %s. Its changes are not released until it passes.\n\nThe run: %s\n\nRe-run it from that page (a re-run you start releases as usual once it is green), or push. This issue closes on its own at the next green CI run on main.\n' \
-              "$OWNER" "${sha:0:8}" "$1" "$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$id" > "$RUNNER_TEMP/body.md"
-            gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+            printf 'CI on main for %s cannot finish: %s. Its changes are not released until it passes.\n\nThe run: %s\n\nRe-run it from that page (a re-run you start releases as usual once it is green), or push. This issue closes on its own at the next green CI run on main.\n' \
+              "${sha:0:8}" "$1" "$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$id" > "$RUNNER_TEMP/body.md"
+            gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"
             exit 0
           }
           sha=''

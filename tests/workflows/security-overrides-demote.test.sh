@@ -72,7 +72,7 @@ scenario() { # <name> <old pull request number> [NAME=value]...
 
 scenario 'd1 pnpm cannot install the floor -> the alerts get their issue, with the marker' 0
 check 'succeeds' test "$status" -eq 0
-check 'opens "Security alert: minimist", assigned' contains "$LOG" 'CREATE [--title] [Security alert: minimist] [--assignee] [owner]'
+check 'opens "Security alert: minimist"' contains "$LOG" 'CREATE [--title] [Security alert: minimist]'
 check 'a row per alert, from the plan' contains "$LOG" '| [60](https://github.com/o/r/security/dependabot/60) | high |'
 check '(the second too)' contains "$LOG" '| [61](https://github.com/o/r/security/dependabot/61) | low |'
 check 'says why' contains "$LOG" 'Why: nothing published satisfies it'

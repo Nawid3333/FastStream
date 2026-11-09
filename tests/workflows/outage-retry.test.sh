@@ -86,7 +86,7 @@ expect 'five tries' test "$(grep -c '^workflow run ci.yml' "$here/gh.log")" = 5
 expect 'valid inputs: the comment step runs' valid
 run "$here/tell.sh"
 expect 'the comment is posted' called "pr comment $branch --body-file $here/body.md"
-expect 'it @mentions the owner and says what to do' grep -qF '@nawid CI was to run again on this pull request after an outage, but could not be started (https://github.com/me/fs/actions/runs/9). Start it on this branch' "$here/body.md"
+expect 'it says what to do' grep -qF 'CI was to run again on this pull request after an outage, but could not be started (https://github.com/me/fs/actions/runs/9). Start it on this branch' "$here/body.md"
 
 for bad in 'main' 'feature/x' 'dependabot/../main' 'dependabot/x y' 'dependabot/$(id)' '42'; do
   setup "$bad" "$sha" 10800

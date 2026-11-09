@@ -15,7 +15,7 @@ name: Patched libraries
 #     by hand.
 #   - Too new for pnpm's minimumReleaseAge: nothing yet; the next daily run tries again.
 #
-# Either is assigned to the repo owner and @mentions them, so GitHub emails it. A title
+# The daily digest (daily-digest.yml) lists either, the owner's one email a day. A title
 # is never raised twice, as an issue or a pull request, open or closed: closing one is how
 # a version is skipped (a major rewrite not worth porting, say), and it stays closed.
 # Both are closed on their own once the patched version has caught up with them, however
@@ -74,7 +74,6 @@ jobs:
       - name: Sync update pull requests and issues with the patched versions
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
           PREFIX: 'Patched library update: '
           EVENT: ${{ github.event_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -195,7 +194,7 @@ jobs:
               # The backticks are Markdown for the body, not command substitution.
               # shellcheck disable=SC2016
               {
-                printf '@%s %s %s is out: %s\n\n' "$OWNER" "$name" "$latest" "$url"
+                printf '%s %s is out: %s\n\n' "$name" "$latest" "$url"
                 printf 'tools/recut-patch.mjs moved the patch from %s onto %s and its checks passed - each patched file parses, and no name is undefined or unused that neither the new release nor the old patch has. Its report:\n\n```\n' "$current" "$latest"
                 cat "$RUNNER_TEMP/report.txt"
                 printf '```\n\nThat is not the proof: CI is, and this workflow has started it on this branch - the full `pnpm run verify` suite, playback included - with "Review dependency changes" for what the lockfile adds. Green: merge, and it releases. Red, or to look closer: `docs/updating-patched-libraries.md`. Closing this pull request skips %s %s for good.\n' "$name" "$latest"
@@ -204,7 +203,7 @@ jobs:
                 fi
                 printf '\n<sub>Opened by %s</sub>\n' "$RUN_URL"
               } > "$RUNNER_TEMP/body.md"
-              gh pr create --base main --head "$branch" --title "$title" --assignee "$OWNER" \
+              gh pr create --base main --head "$branch" --title "$title" \
                 --body-file "$RUNNER_TEMP/body.md"
               # The pull request's own runs wait for an approval (this token opened it).
               gh workflow run ci.yml --ref "$branch"
@@ -212,7 +211,7 @@ jobs:
             else
               # shellcheck disable=SC2016
               {
-                printf '@%s %s %s is out: %s\n\n' "$OWNER" "$name" "$latest" "$url"
+                printf '%s %s is out: %s\n\n' "$name" "$latest" "$url"
                 printf 'The patch in this repository is cut against %s %s, and tools/recut-patch.mjs could not move it onto %s on its own:\n\n```\n' "$name" "$current" "$latest"
                 cat "$RUNNER_TEMP/report.txt"
                 printf '```\n\nTo take it: `node tools/recut-patch.mjs %s %s`, resolve what it lists, then `--resume --apply` and `pnpm run verify` (`docs/updating-patched-libraries.md`). This issue closes on its own once the patch is cut against %s or newer; closing it by hand skips %s for good.\n' "$name" "$latest" "$latest" "$latest"
@@ -221,7 +220,7 @@ jobs:
                 fi
                 printf '\n<sub>Opened by %s</sub>\n' "$RUN_URL"
               } > "$RUNNER_TEMP/body.md"
-              gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+              gh issue create --title "$title" --body-file "$RUNNER_TEMP/body.md"
             fi
             git checkout -q -f "$start"
             git clean -q -fd
@@ -229,15 +228,14 @@ jobs:
           supersede
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
-      # whoever last changed the cron line): one issue while it is open, assigned and
-      # @mentioning the owner, as toolchain-updates.yml does. A failure while it is open adds a
+      # whoever last changed the cron line): one issue while it is open, which the daily
+      # digest lists, as toolchain-updates.yml does. A failure while it is open adds a
       # comment to it.
       - name: Report this workflow's own failure
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          OWNER: ${{ github.repository_owner }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TITLE: 'Patched libraries workflow failed'
         run: |
@@ -246,10 +244,10 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            printf 'Failed again: %s\n' "$RUN_URL" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
-          printf '@%s patched-libraries.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
-            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
-          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          printf 'patched-libraries.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"

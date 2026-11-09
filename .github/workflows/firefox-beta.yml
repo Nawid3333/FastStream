@@ -7,8 +7,8 @@ name: Firefox Beta
 # week, so each Beta gets several runs and "the Firefox update broke FastStream" arrives
 # as a two-week warning instead of on the day the browser updates.
 #
-# A scheduled failure opens one issue, assigned to the owner with an @mention and naming
-# the Beta version; the first green scheduled run closes it. A run that failed only because
+# A scheduled failure opens one issue naming the Beta version, which the daily digest
+# lists; the first green scheduled run closes it. A run that failed only because
 # GitHub or a download host did not answer (tools/ci-outage.sh) opens none. It also runs on a pull
 # request that changes this workflow or the e2e configs, so a change to it is tested
 # before it lands, and by hand. Nothing here releases or blocks a release: it is not
@@ -120,7 +120,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RESULT: ${{ needs.e2e.result }}
           VERSION: ${{ needs.e2e.outputs.firefox-version }}
-          OWNER: ${{ github.repository_owner }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -174,9 +173,9 @@ jobs:
           failed=$(gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs \
             --jq '[.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out") | "\(.name) (\(.conclusion))"] | join(", ")')
           {
-            printf '@%s The e2e suites fail on **Firefox %s**, which becomes the release in about two weeks: %s\n\n' "$OWNER" "${VERSION:-Beta}" "$RUN_URL"
+            printf 'The e2e suites fail on **Firefox %s**, which becomes the release in about two weeks: %s\n\n' "${VERSION:-Beta}" "$RUN_URL"
             printf 'The same suites pass on the current release in CI, so this is a change in Firefox. The run log and its e2e-logs artifact show which spec failed. tests/e2e/specs/firefox.e2e.mjs pins the Firefox behaviour FastStream relies on; a failure there means that behaviour changed.\n\n'
             printf 'This issue closes on its own once a scheduled run passes again.\n'
             printf 'Failed: %s\n' "${failed:-see the run}"
           } > "$RUNNER_TEMP/body.md"
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "$prefix: Firefox ${VERSION:-Beta}" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$prefix: Firefox ${VERSION:-Beta}" --body-file "$RUNNER_TEMP/body.md"

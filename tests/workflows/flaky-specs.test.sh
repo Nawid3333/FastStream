@@ -146,9 +146,9 @@ zip_list 22 "$(rec download-names pbm-github win32 true)
 zip_list 14 "$(rec 'fork | @Nawid3333 ready to merge' web linux true)"
 run "s1 three lists this week (and a fork's) -> opens this week's issue, closes last week's" "$fold_step"
 check 'succeeds' test "$status" -eq 0
-check "opens \"${PREFIX}$today\", assigned to the owner" contains "$LOG" \
-  "CREATE [--title] [${PREFIX}$today] [--assignee] [Nawid3333]"
-check 'mentions the owner' contains "$LOG" "@Nawid3333 E2e spec files that failed once and were run again in the CI runs of the 7 days to $today"
+check "opens \"${PREFIX}$today\"" contains "$LOG" \
+  "CREATE [--title] [${PREFIX}$today]"
+check 'its text' contains "$LOG" "E2e spec files that failed once and were run again in the CI runs of the 7 days to $today"
 check 'download-names: run again 3 times, passed 3, failed twice 0, both OSes, both branches, 3 runs' contains "$LOG" \
   '| `tests/e2e/specs/download-names.e2e.mjs` | 3 | 3 | 0 | ext-amo (linux), ext-amo (win32), pbm-github (win32) | claude/y, main | [501](https://github.com/Nawid3333/FastStream/actions/runs/501) [503](https://github.com/Nawid3333/FastStream/actions/runs/503) |'
 check 'save-fmp4: run again once, failed twice once' contains "$LOG" \
@@ -212,10 +212,10 @@ check 'opens nothing' lacks "$LOG" 'CREATE'
 fixtures '[]' '[]' '[]' '[{"title":"Other"}]'
 run 's6 failure report, none open -> opens the failure issue' "$report_step"
 check 'succeeds' test "$status" -eq 0
-check 'opens "Flaky specs workflow failed", assigned to the owner' contains "$LOG" \
-  'CREATE [--title] [Flaky specs workflow failed] [--assignee] [Nawid3333]'
-check 'mentions the owner and the run URL' contains "$LOG" \
-  '@Nawid3333 flaky-specs.yml failed: https://github.com/Nawid3333/FastStream/actions/runs/1'
+check 'opens "Flaky specs workflow failed"' contains "$LOG" \
+  'CREATE [--title] [Flaky specs workflow failed]'
+check 'names the run URL' contains "$LOG" \
+  'flaky-specs.yml failed: https://github.com/Nawid3333/FastStream/actions/runs/1'
 
 fixtures '[]' '[]' '[]' '[{"number":3,"title":"Other"},{"number":12,"title":"Flaky specs workflow failed"}]'
 run 's7 failure report, already open -> a comment on it' "$report_step"

@@ -7,8 +7,8 @@ these alone and the **Patched libraries** workflow watches them instead, once a 
 
 ## When a new version comes out
 
-The workflow tries the update itself, with `tools/recut-patch.mjs`, and tells you by
-email (assigned to you, with an @mention) in one of two ways:
+The workflow tries the update itself, with `tools/recut-patch.mjs`, and tells you,
+through the daily digest (`daily-digest.yml`), in one of two ways:
 
 - **A pull request, "Patched library update: `<name>` `<version>`"** - the patch moved
   onto the new release cleanly and passed the tool's checks. The workflow starts CI on

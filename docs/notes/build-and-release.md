@@ -125,7 +125,7 @@ latest release and, if incomplete, builds that tag and asks AMO for the version
 tag's): signed -> download (byte-identical to web-ext's
 file, checked on 1.3.82.27; the regenerated `updates.json` matched the published one
 exactly) and attach both; pending -> next run; missing (never uploaded) -> sign now;
-rejected, or still incomplete after 24 h -> one issue, assigned + @mention, closed when the
+rejected, or still incomplete after 24 h -> one issue (the daily digest lists it), closed when the
 release is complete. Re-running `web-ext sign` cannot do this: AMO refuses a second upload
 of a version. v1.3.79.0 and v1.3.82.2, the two releases without an xpi, are both `public`
 on AMO - the failsafe would have collected them. `release.yml`'s `timeout-minutes: 45`

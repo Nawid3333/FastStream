@@ -527,7 +527,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          OWNER: ${{ github.repository_owner }}
           RUN_ID: ${{ github.run_id }}
           # A pull_request run's ref is the pull request's merge ref; its branch is head_ref.
           BRANCH: ${{ github.head_ref || github.ref_name }}
@@ -543,13 +542,13 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s GitHub refused three times again, for CI run %s on %s (%s): start update-prs.yml by hand with run_id %s and branch %s.\n' \
-              "$OWNER" "$RUN_ID" "$BRANCH" "$SELF_URL" "$RUN_ID" "$BRANCH" > "$RUNNER_TEMP/comment.md"
+            printf 'GitHub refused three times again, for CI run %s on %s (%s): start update-prs.yml by hand with run_id %s and branch %s.\n' \
+              "$RUN_ID" "$BRANCH" "$SELF_URL" "$RUN_ID" "$BRANCH" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md" || true
           else
-            printf '@%s GitHub refused three times to start update-prs.yml for CI run %s on %s (%s), a run this repository started, so that pull request waits without a word. Start it from the Actions tab: Update PRs, Run workflow, run_id %s and branch %s. Close this issue once it has run.\n' \
-              "$OWNER" "$RUN_ID" "$BRANCH" "$SELF_URL" "$RUN_ID" "$BRANCH" > "$RUNNER_TEMP/body.md"
-            gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md" || true
+            printf 'GitHub refused three times to start update-prs.yml for CI run %s on %s (%s), a run this repository started, so that pull request waits without a word. Start it from the Actions tab: Update PRs, Run workflow, run_id %s and branch %s. Close this issue once it has run.\n' \
+              "$RUN_ID" "$BRANCH" "$SELF_URL" "$RUN_ID" "$BRANCH" > "$RUNNER_TEMP/body.md"
+            gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md" || true
           fi
           exit 1
 
@@ -586,7 +585,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          OWNER: ${{ github.repository_owner }}
           RUN_ID: ${{ github.run_id }}
           SHA: ${{ github.sha }}
           SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -601,12 +599,12 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s GitHub refused three times to start auto-release.yml, for CI run %s on main (%s): %s. Start it from the Actions tab: Auto release, Run workflow, run_id %s.\n' \
-              "$OWNER" "$RUN_ID" "${SHA:0:8}" "$SELF_URL" "$RUN_ID" > "$RUNNER_TEMP/comment.md"
+            printf 'GitHub refused three times to start auto-release.yml, for CI run %s on main (%s): %s. Start it from the Actions tab: Auto release, Run workflow, run_id %s.\n' \
+              "$RUN_ID" "${SHA:0:8}" "$SELF_URL" "$RUN_ID" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md" || true
           else
-            printf '@%s GitHub refused three times to start auto-release.yml for CI run %s on main (%s), a run this repository started. Start it from the Actions tab: Auto release, Run workflow, run_id %s. Close this issue once it has run.\n' \
-              "$OWNER" "$RUN_ID" "${SHA:0:8}" "$RUN_ID" > "$RUNNER_TEMP/body.md"
-            gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md" || true
+            printf 'GitHub refused three times to start auto-release.yml for CI run %s on main (%s), a run this repository started. Start it from the Actions tab: Auto release, Run workflow, run_id %s. Close this issue once it has run.\n' \
+              "$RUN_ID" "${SHA:0:8}" "$RUN_ID" > "$RUNNER_TEMP/body.md"
+            gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md" || true
           fi
           exit 1

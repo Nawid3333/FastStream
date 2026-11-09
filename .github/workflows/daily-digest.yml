@@ -1,0 +1,230 @@
+name: Daily digest
+
+# One email a day instead of one for every event (the owner's wish, 2026-11-09: "just one
+# email per repo that gets sent daily, which summarizes all the stuff"). Every other workflow
+# writes its comments and issues without an @mention and assigns nobody, so GitHub emails
+# none of them; this one comments once a day on the pinned issue "Daily digest", @mentioning
+# the owner once, with everything since its last comment:
+#
+#   - workflow runs that failed, by workflow and branch, and how each stands now;
+#   - the open pull requests, each with update-prs.yml's latest verdict;
+#   - pull requests merged or closed, issues opened or closed, releases published;
+#   - comments from anyone but the owner and the bots;
+#   - the open Dependabot and code scanning alerts, and which are new.
+#
+# A day with nothing of that posts nothing. GitHub's own emails (a failed run you started, a
+# Dependabot alert) are the owner's settings, not this file's: docs/maintenance.md, "Email".
+# The issue is made, and pinned, when there is none open; closing it starts a new one.
+
+on:
+  schedule:
+    # Daily, 10:00 UTC: after Dependabot's and toolchain-updates.yml's morning runs (07:00)
+    # and update-prs.yml's verdicts on their CI.
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+
+permissions: {}  # the job asks for what it needs
+
+concurrency:
+  group: daily-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    name: Post the daily digest
+    permissions:
+      issues: write               # the digest issue and its comment
+      pull-requests: read         # the pull requests and their verdicts
+      actions: read               # the failed runs
+      contents: read              # the releases
+      vulnerability-alerts: read  # the open Dependabot alerts
+      security-events: read       # the open code scanning alerts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Post the digest
+        run: |
+          set -euo pipefail
+          title='Daily digest'
+          t=$RUNNER_TEMP
+          # The window is [since, now): now is taken before anything is read, and goes into
+          # this digest's marker, so what happens while it runs comes in the next one. Ten
+          # minutes back: GitHub's search finds an issue closed seconds ago only a little later,
+          # and the next digest has those ten minutes.
+          now=$(date -u -d '-10 minutes' '+%Y-%m-%dT%H:%M:%SZ')
+
+          # --- The digest issues, by search (not among the newest issues): the open one, made
+          # and pinned when there is none, and the closed ones, newest first, for the cursor.
+          gh issue list --state all --limit 100 --search "\"$title\" in:title" --json number,title,state,author \
+            --jq "[.[] | select(.title == \"$title\" and .author.login == \"app/github-actions\")] |
+              sort_by(.state != \"OPEN\", -.number) | .[] | \"\(.number) \(.state)\"" > "$t/digests.txt"
+          issue=$(awk '$2 == "OPEN" { print $1; exit }' "$t/digests.txt")
+          if [ -z "$issue" ]; then
+            # shellcheck disable=SC2016 # backticks are Markdown
+            printf 'Once a day, %s, a comment here sums up what happened in this repository: failed workflow runs, pull requests and their verdicts, issues, releases, comments, security alerts (`.github/workflows/daily-digest.yml`). The other workflows mention nobody, so this is the one email a day.\n\nClosing this issue starts a new one, which goes on from where this one stopped.\n' \
+              '10:00 UTC' > "$t/issue.md"
+            url=$(gh issue create --title "$title" --body-file "$t/issue.md")
+            issue=${url##*/}
+            gh issue pin "$issue" > /dev/null 2>&1 || echo 'Could not pin the digest issue.'
+          fi
+
+          # --- Since: where the last digest stopped, read from its marker (in the open issue,
+          # else the newest closed one that has one); at most a week back; else a day.
+          since=''
+          while read -r n _; do
+            since=$(gh api --paginate "repos/$GH_REPO/issues/$n/comments?per_page=100" \
+              --jq '.[] | select(.user.login == "github-actions[bot]") | .body' < /dev/null |
+              grep -oE '<!-- daily-digest: [0-9T:Z-]+ -->' | tail -n 1 | sed -E 's/<!-- daily-digest: (.*) -->/\1/' || true)
+            if [ -n "$since" ]; then break; fi
+          done < "$t/digests.txt"
+          week=$(date -u -d '-7 days' '+%Y-%m-%dT%H:%M:%SZ')
+          if [ -z "$since" ]; then since=$(date -u -d '-1 day' '+%Y-%m-%dT%H:%M:%SZ'); fi
+          if [[ $since < $week ]]; then since=$week; fi
+          echo "From $since to $now."
+          new() { [[ ! $1 < $since && $1 < $now ]]; }  # an ISO time in [since, now)
+
+          # --- Workflow runs that failed: those that ended in the window (a run started a day
+          # before it and still going at the last digest counts now), fetched by conclusion so
+          # the runs API's 1000-result cap is far off. Grouped by workflow (its id: a renamed
+          # one stays one) and branch, each with the newest run there and how it stands.
+          back=$(date -u -d "@$(($(date -u -d "$since" +%s) - 86400))" '+%Y-%m-%dT%H:%M:%SZ')
+          for c in failure timed_out startup_failure; do
+            gh api --paginate "repos/$GH_REPO/actions/runs?status=$c&created=%3E%3D$back&per_page=100" \
+              --jq '.workflow_runs[] | {id, workflow_id, name, path, branch: (.head_branch // "-"), updated_at}'
+          done | jq -s --arg since "$since" --arg now "$now" \
+            '[.[] | select(.updated_at >= $since and .updated_at < $now and .path != ".github/workflows/daily-digest.yml")] |
+              unique_by(.id) | group_by([.workflow_id, .branch]) |
+              map({workflow_id: .[0].workflow_id, branch: .[0].branch, name: (max_by(.id) | .name), failed: length})' > "$t/failed.json"
+          : > "$t/failed.md"
+          # (No field is empty: tab is whitespace to read, and an empty one would shift the rest.
+          # A run with no branch has "-", and its workflow's newest run is taken on any branch.)
+          while IFS=$'\t' read -r wid branch name failed; do
+            on_branch=''
+            if [ "$branch" != - ]; then on_branch="branch=$(jq -rn --arg b "$branch" '$b | @uri')&"; fi
+            newest=$(gh api "repos/$GH_REPO/actions/workflows/$wid/runs?${on_branch}per_page=1" \
+              --jq '.workflow_runs[0] | "\(if .status != "completed" then "running" elif .conclusion == "success" then "passed since" else .conclusion end)\t\(.html_url)"' < /dev/null || true)
+            state=${newest%%$'\t'*}
+            # A | in a name or branch would split the table's cell.
+            # shellcheck disable=SC2016 # backticks are Markdown
+            printf '| %s | `%s` | %s | [%s](%s) |\n' "${name//|/\\|}" "${branch//|/\\|}" "$failed" "${state:-unknown}" "${newest#*$'\t'}" >> "$t/failed.md"
+          done < <(jq -r 'sort_by(.branch != "main", .name, .branch)[] | [.workflow_id, .branch, (.name // "-"), .failed] | @tsv' "$t/failed.json")
+
+          # --- Open pull requests, each with update-prs.yml's latest verdict. A verdict is new
+          # when its comment was made in the window: update-prs.yml edits a comment for the same
+          # verdict again and makes a new one for a new verdict.
+          gh pr list --state open --limit 1000 --json number,title,url,createdAt,labels > "$t/prs.json"
+          : > "$t/open-prs.md"
+          changed=0
+          while IFS=$'\t' read -r n prtitle url created labels; do
+            key=$(gh api --paginate "repos/$GH_REPO/issues/$n/comments?per_page=100" \
+              --jq '.[] | select(.user.login == "github-actions[bot]") | {u: .created_at, b: .body}' < /dev/null |
+              jq -rs 'map(select(.b | test("<!-- update-prs: [^>]* -->"))) | last // empty |
+                "\(.u)\t\(.b | [scan("<!-- update-prs: ([^>]*) -->")] | last | .[0])"')
+            when=${key%%$'\t'*}
+            key=${key#*$'\t'}
+            case $key in
+              '') verdict='no verdict yet' ;;
+              ready) verdict='ready to merge' ;;
+              look) verdict='look at it before merging' ;;
+              red*) verdict='CI fails' ;;
+              'outage stuck'*) verdict='outage: start CI on it by hand' ;;
+              outage*) verdict='outage: CI runs again later' ;;
+              *) verdict=$key ;;
+            esac
+            fresh=''
+            if new "$created"; then fresh=' (new)'; changed=1
+            elif [ -n "$when" ] && new "$when"; then fresh=' (verdict changed)'; changed=1; fi
+            printf -- '- [#%s](%s) %s: **%s**%s%s\n' "$n" "$url" "$prtitle" "$verdict" "${labels:+ [$labels]}" "$fresh" >> "$t/open-prs.md"
+          done < <(jq -r '.[] | [.number, .title, .url, .createdAt, ([.labels[].name] | join(", "))] | @tsv' "$t/prs.json")
+
+          # --- Merged or closed pull requests, opened or closed issues (not the digest's),
+          # releases: each in [since, now).
+          in_window=". >= \"$since\" and . < \"$now\""
+          gh pr list --state closed --limit 1000 --search "closed:>=$since" --json number,title,url,mergedAt,closedAt \
+            --jq ".[] | select(.closedAt | $in_window) | \"- [#\(.number)](\(.url)) \(.title): \(if .mergedAt then \"merged\" else \"closed\" end)\"" > "$t/closed-prs.md"
+          gh issue list --state all --limit 1000 --search "created:>=$since" --json number,title,url,state,createdAt \
+            --jq ".[] | select(.number != $issue and .title != \"$title\" and (.createdAt | $in_window)) | \"- [#\(.number)](\(.url)) \(.title)\(if .state == \"CLOSED\" then \" (closed since)\" else \"\" end)\"" > "$t/opened-issues.md"
+          gh issue list --state closed --limit 1000 --search "closed:>=$since" --json number,title,url,closedAt \
+            --jq ".[] | select(.number != $issue and .title != \"$title\" and (.closedAt | $in_window)) | \"- [#\(.number)](\(.url)) \(.title)\"" > "$t/closed-issues.md"
+          gh release list --limit 100 --json tagName,publishedAt,isDraft \
+            --jq ".[] | select((.isDraft | not) and (.publishedAt | $in_window)) | \"- [\(.tagName)]($GITHUB_SERVER_URL/$GH_REPO/releases/tag/\(.tagName))\"" > "$t/releases.md"
+
+          # --- Comments from anyone but the owner and the bots: on issues and pull requests,
+          # and on a pull request's lines (review comments, which the first list leaves out).
+          for kind in issues/comments pulls/comments; do
+            gh api --paginate "repos/$GH_REPO/$kind?since=$since&per_page=100" \
+              --jq ".[] | select(.user.type != \"Bot\" and .user.login != \"$OWNER\" and (.created_at | $in_window)) |
+                \"- \(.user.login) on [#\((.issue_url // .pull_request_url) | split(\"/\") | last)](\(.html_url))\""
+          done > "$t/comments.md"
+
+          # --- Open security alerts, and the new ones. Unreadable: said so, not fatal.
+          alerts() { # <api path> <name>
+            local all
+            if all=$(gh api --paginate "repos/$GH_REPO/$1?state=open&per_page=100" --jq '.[] | .created_at' 2> /dev/null); then
+              local open fresh
+              open=$(grep -c . <<< "$all" || true)
+              fresh=$(while read -r c; do if [ -n "$c" ] && new "$c"; then echo x; fi; done <<< "$all" | grep -c . || true)
+              if [ "$open" != 0 ]; then
+                printf -- '- %s: %s open, %s new\n' "$2" "$open" "$fresh"
+                if [ "$fresh" != 0 ]; then changed=1; fi
+              fi
+            else
+              printf -- '- %s: could not be read\n' "$2"
+            fi
+          }
+          { alerts dependabot/alerts 'Dependabot alerts'; alerts code-scanning/alerts 'Code scanning alerts'; } > "$t/alerts.md"
+
+          # --- Nothing new: no comment, no email.
+          if [ "$changed" = 0 ] && ! [ -s "$t/failed.md" ] && ! [ -s "$t/closed-prs.md" ] && ! [ -s "$t/opened-issues.md" ] &&
+             ! [ -s "$t/closed-issues.md" ] && ! [ -s "$t/releases.md" ] && ! [ -s "$t/comments.md" ]; then
+            echo 'Nothing new since the last digest: no comment.'
+            exit 0
+          fi
+          section() { # <title> <file>
+            if [ -s "$2" ]; then printf '\n### %s\n\n' "$1"; cat "$2"; fi
+          }
+          # Where the next digest goes on from.
+          marker="<!-- daily-digest: $now -->"
+          {
+            printf '@%s What happened in this repository from %s to %s UTC.\n' "$OWNER" "${since/T/ }" "${now/T/ }"
+            if [ -s "$t/failed.md" ]; then
+              printf '\n### Failed workflow runs\n\n| Workflow | Branch | Failed | Newest run |\n| --- | --- | --- | --- |\n'
+              cat "$t/failed.md"
+            fi
+            section 'Open pull requests' "$t/open-prs.md"
+            section 'Pull requests merged or closed' "$t/closed-prs.md"
+            section 'New issues' "$t/opened-issues.md"
+            section 'Issues closed' "$t/closed-issues.md"
+            section 'Releases' "$t/releases.md"
+            section 'Comments from others' "$t/comments.md"
+            section 'Security alerts' "$t/alerts.md"
+            printf '\n<sub>%s</sub>\n%s\n' "$SELF_URL" "$marker"
+          } > "$t/digest.md"
+          # GitHub takes 65536 characters in a comment.
+          if [ "$(wc -c < "$t/digest.md")" -gt 60000 ]; then
+            { head -c 59000 "$t/digest.md"; printf '\n\n(cut here: the full digest is in the run log, %s)\n%s\n' "$SELF_URL" "$marker"; } > "$t/cut.md"
+            cat "$t/digest.md"
+            mv "$t/cut.md" "$t/digest.md"
+          fi
+          gh issue comment "$issue" --body-file "$t/digest.md"
+
+      # The digest is the one email: when it fails, nothing else would say so (the other
+      # workflows mention no one, and the owner turns GitHub's Actions emails off). Its next
+      # run starts at the last digest, so it covers this day as well.
+      - name: Say the digest failed
+        if: failure()
+        run: |
+          set -euo pipefail
+          printf '@%s The daily digest failed: %s. The next one also covers what this one would have.\n' "$OWNER" "$SELF_URL" > "$RUNNER_TEMP/failed.md"
+          issue=$(gh issue list --state open --limit 200 --json number,title,author \
+            --jq '[.[] | select(.title == "Daily digest" and .author.login == "app/github-actions")][0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body-file "$RUNNER_TEMP/failed.md"
+          else
+            gh issue create --title 'Daily digest failed' --body-file "$RUNNER_TEMP/failed.md"
+          fi

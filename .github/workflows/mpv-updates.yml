@@ -14,7 +14,7 @@ name: mpv updates
 #     this workflow's token starts no workflow, a dispatch does. When it fails, its failed
 #     jobs run once more, so one flaky test does not count.
 #   - Passed: the commit CI passed goes to branch mpv-update, and ONE pull request from it
-#     offers the build, assigned to the owner. Nothing merges itself (the owner's choice,
+#     offers the build; the daily digest lists it. Nothing merges itself (the owner's choice,
 #     2026-10-02): he merges it when he likes. It keeps up: a newer build that passes moves
 #     the same branch and retitles the same pull request, so a build a day is not an email
 #     a day. Closing it skips that build; the next one that passes opens a new pull
@@ -25,8 +25,8 @@ name: mpv updates
 #   - Failed (an attempt still running after 65 minutes is cancelled, and counts as
 #     failed): the branch stays, to look at and as the record that this build was tried:
 #     it is not tried again. Delete the branch to try it again. The failure goes on ONE
-#     issue, "mpv update failed: <what>", assigned to the owner and @mentioning them, so
-#     GitHub emails it: opened, or retitled and commented while it is open. CI keeps the
+#     issue, "mpv update failed: <what>", which the daily digest lists:
+#     opened, or retitled and commented while it is open. CI keeps the
 #     pinned build meanwhile.
 #
 # Every run also checks that the pinned release still exists upstream. Once it is gone,
@@ -86,7 +86,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          OWNER: ${{ github.repository_owner }}
           EVENT: ${{ github.event_name }}
           UPSTREAM: shinchiro/mpv-winbuild-cmake
           PREFIX: 'mpv update failed: '
@@ -202,10 +201,10 @@ jobs:
             fi
             printf '\n<sub>Reported by %s</sub>\n<!-- mpv-updates: %s -->\n' "$RUN_URL" "$1" >> "$3"
             if [ -n "$issue" ]; then
-              gh issue edit "$issue" --title "$PREFIX$2" --add-assignee "$OWNER"
+              gh issue edit "$issue" --title "$PREFIX$2"
               gh issue comment "$issue" --body-file "$3"
             else
-              url=$(gh issue create --title "$PREFIX$2" --assignee "$OWNER" --body-file "$3")
+              url=$(gh issue create --title "$PREFIX$2" --body-file "$3")
               issue=${url##*/}
             fi
           }
@@ -292,7 +291,7 @@ jobs:
               title="ci: mpv $latest (shinchiro)"
               # shellcheck disable=SC2016 # backticks are Markdown
               {
-                printf '@%s shinchiro'"'"'s mpv %s passed CI (%s), whose Windows job runs the MPV-mode e2e specs with it. **Ready for you to merge.**\n\n' "$OWNER" "$latest" "$run_url"
+                printf 'shinchiro'"'"'s mpv %s passed CI (%s), whose Windows job runs the MPV-mode e2e specs with it. **Ready for you to merge.**\n\n' "$latest" "$run_url"
                 printf -- '- Release: https://github.com/%s/releases/tag/%s\n' "$UPSTREAM" "$latest"
                 printf -- '- The change: `.github/mpv-build.json` pins %s instead of %s, and nothing else.\n' "$latest" "$pinned"
                 printf -- '- Merging it releases nothing: only CI installs this mpv.\n\n'
@@ -302,7 +301,7 @@ jobs:
                 gh pr edit "$pr" --title "$title" --body-file "$RUNNER_TEMP/pr.md" > /dev/null
                 echo "#$pr offers $latest now."
               else
-                url=$(gh pr create --base main --head "$PR_BRANCH" --title "$title" --body-file "$RUNNER_TEMP/pr.md" --assignee "$OWNER")
+                url=$(gh pr create --base main --head "$PR_BRANCH" --title "$title" --body-file "$RUNNER_TEMP/pr.md")
                 pr=${url##*/}
                 echo "Opened #$pr for $latest."
               fi
@@ -322,11 +321,11 @@ jobs:
               # shellcheck disable=SC2016 # backticks are Markdown
               {
                 if [ "$conclusion" = timed_out ]; then
-                  printf '@%s CI with mpv %s from shinchiro was still running after 65 minutes, so it was cancelled.\n\n' "$OWNER" "$latest"
+                  printf 'CI with mpv %s from shinchiro was still running after 65 minutes, so it was cancelled.\n\n' "$latest"
                 elif [ "$rerun" = 1 ]; then
-                  printf '@%s mpv %s from shinchiro failed CI. Its failed jobs were run once more, in case a test was flaky, and that ended in %s.\n\n' "$OWNER" "$latest" "$conclusion"
+                  printf 'mpv %s from shinchiro failed CI. Its failed jobs were run once more, in case a test was flaky, and that ended in %s.\n\n' "$latest" "$conclusion"
                 else
-                  printf '@%s mpv %s from shinchiro failed CI (%s), and its failed jobs could not be run again.\n\n' "$OWNER" "$latest" "$conclusion"
+                  printf 'mpv %s from shinchiro failed CI (%s), and its failed jobs could not be run again.\n\n' "$latest" "$conclusion"
                 fi
                 printf -- '- CI run: %s\n' "$run_url"
                 printf -- '- Branch: `%s`, which is main with the pin moved and nothing else\n' "$branch"
@@ -342,7 +341,7 @@ jobs:
           if [ "$gone" = 1 ]; then
             # shellcheck disable=SC2016 # backticks are Markdown
             {
-              printf '@%s The pinned mpv build, %s from shinchiro, is gone upstream: shinchiro keeps only about the 30 newest releases. CI downloads it from there, so every CI run now fails at "Install mpv and the native host", and nothing is released.\n\n' "$OWNER" "$pinned"
+              printf 'The pinned mpv build, %s from shinchiro, is gone upstream: shinchiro keeps only about the 30 newest releases. CI downloads it from there, so every CI run now fails at "Install mpv and the native host", and nothing is released.\n\n' "$pinned"
               if [ -n "$pr" ]; then
                 printf 'Merge #%s, which offers a newer build that passed CI, to fix it.\n' "$pr"
               else
@@ -353,8 +352,8 @@ jobs:
           fi
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
-      # whoever last changed the cron line): one issue while it is open, assigned and
-      # @mentioning the owner, as toolchain-updates.yml does. A failure while it is open adds a
+      # whoever last changed the cron line): one issue while it is open, which the daily
+      # digest lists, as toolchain-updates.yml does. A failure while it is open adds a
       # comment to it.
       # Not for a pull request's dry run: its failure shows on the pull request.
       - name: Report this workflow's own failure
@@ -362,7 +361,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          OWNER: ${{ github.repository_owner }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TITLE: 'mpv updates workflow failed'
         run: |
@@ -371,10 +369,10 @@ jobs:
           number=$(gh issue list --state open --limit 200 --json number,title \
             --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
           if [ -n "$number" ]; then
-            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            printf 'Failed again: %s\n' "$RUN_URL" > "$RUNNER_TEMP/comment.md"
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
-          printf '@%s mpv-updates.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
-            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
-          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          printf 'mpv-updates.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"

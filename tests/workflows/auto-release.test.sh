@@ -145,11 +145,11 @@ scenario restart 'attempt 2 cancelled by another late run' COMMITS="$(on_main "$
   RUNS="$(arr "$(mk 4 $B push 10:10 in_progress null 1)" "$(mk 2 $A push 10:09 completed '"cancelled"' 2)")" EXPECT='(attempt 2)|>> rerun 2' LACKS='issue create'
 scenario restart 'attempt 3 cancelled by a late run: issue' COMMITS="$(on_main "$(cm $A 'fix: a')")" \
   RUNS="$(arr "$(mk 5 $B push 10:12 in_progress null 1)" "$(mk 2 $A push 10:11 completed '"cancelled"' 3)")" \
-  EXPECT='>> issue create --title CI on main needs a re-run --assignee owner|@owner CI on main for aaaa1111 cannot finish: its attempt 3 was cancelled by a later run too|/actions/runs/2' LACKS='>> rerun'
+  EXPECT='>> issue create --title CI on main needs a re-run|CI on main for aaaa1111 cannot finish: its attempt 3 was cancelled by a later run too|/actions/runs/2' LACKS='>> rerun'
 scenario restart 'attempt 3 cancelled, the issue already open: a comment on it' COMMITS="$(on_main "$(cm $A 'fix: a')")" \
   ISSUES='[{"number":8,"title":"Other"},{"number":7,"title":"CI on main needs a re-run"}]' \
   RUNS="$(arr "$(mk 5 $B push 10:12 in_progress null 1)" "$(mk 2 $A push 10:11 completed '"cancelled"' 3)")" \
-  EXPECT='>> issue comment 7 --body-file|@owner CI on main for aaaa1111 cannot finish either: its attempt 3 was cancelled by a later run too. The run: https://github.com/o/r/actions/runs/2' \
+  EXPECT='>> issue comment 7 --body-file|CI on main for aaaa1111 cannot finish either: its attempt 3 was cancelled by a later run too. The run: https://github.com/o/r/actions/runs/2' \
   LACKS='issue create|>> rerun'
 scenario restart 'rerun refused, but started meanwhile' RERUN_RC=1 COMMITS="$(on_main "$(cm $A 'fix: a')")" \
   RUNS="$(arr "$(mk 3 $B push 10:06 in_progress null 1)" "$(mk 2 $A push 10:05 completed '"cancelled"' 1)")" \

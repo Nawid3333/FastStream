@@ -78,10 +78,10 @@ export START_FAILS=3
 scenario 'refused three times'
 check 'fails' test "$status" -ne 0
 check 'tries three times' test "$(starts)" -eq 3
-check 'opens the issue, assigned' contains "$FIX/calls" 'issue create --title Update PRs hand-off failed --assignee owner'
+check 'opens the issue' contains "$FIX/calls" 'issue create --title Update PRs hand-off failed'
 check 'the issue says how to start update-prs.yml by hand' contains "$FIX/create" \
   "Start it from the Actions tab: Update PRs, Run workflow, run_id 777 and branch $BRANCH."
-check 'and links the run' contains "$FIX/create" "@owner GitHub refused three times to start update-prs.yml for CI run 777 on $BRANCH ($SELF_URL)"
+check 'and links the run' contains "$FIX/create" "GitHub refused three times to start update-prs.yml for CI run 777 on $BRANCH ($SELF_URL)"
 
 export OPEN_ISSUES='[{"number":4,"title":"Update PRs workflow failed"},{"number":9,"title":"Update PRs hand-off failed"}]'
 scenario 'refused three times, the issue already open'
@@ -89,7 +89,7 @@ check 'fails' test "$status" -ne 0
 check 'opens no second issue' lacks "$FIX/calls" 'issue create'
 check 'comments on the open one, not on update-prs.yml'"'"'s own' contains "$FIX/calls" 'issue comment 9 --body-file'
 check 'the comment says how to start it' contains "$FIX/comment" \
-  "@owner GitHub refused three times again, for CI run 777 on $BRANCH ($SELF_URL): start update-prs.yml by hand with run_id 777 and branch $BRANCH."
+  "GitHub refused three times again, for CI run 777 on $BRANCH ($SELF_URL): start update-prs.yml by hand with run_id 777 and branch $BRANCH."
 
 export OPEN_ISSUES='[]' LIST_FAILS=1
 scenario 'refused three times, the open issues unreadable'

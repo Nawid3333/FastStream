@@ -252,13 +252,13 @@ check 'touches no issue' test ! -s "$LOG"
 scenario 's2 the 2026-09-30 case: two packages, no pull request -> one issue each' "$main_step" \
   FX_ALERTS="$(arr "$b43" "$b44" "$b45" "$ip52")"
 check 'succeeds' test "$status" -eq 0
-check 'opens "Security alert: brace-expansion", assigned to the owner' contains "$LOG" \
-  'CREATE [--title] [Security alert: brace-expansion] [--assignee] [Nawid3333] [--body-file]'
+check 'opens "Security alert: brace-expansion"' contains "$LOG" \
+  'CREATE [--title] [Security alert: brace-expansion] [--body-file]'
 check 'opens "Security alert: ip-address"' contains "$LOG" \
-  'CREATE [--title] [Security alert: ip-address] [--assignee] [Nawid3333] [--body-file]'
+  'CREATE [--title] [Security alert: ip-address] [--body-file]'
 check 'opens two issues' count "$LOG" 'CREATE [' 2
-check 'mentions the owner' contains "$LOG" \
-  '@Nawid3333 Dependabot has open security alerts for `brace-expansion` and no pull request that fixes them:'
+check 'its text' contains "$LOG" \
+  'Dependabot has open security alerts for `brace-expansion` and no pull request that fixes them:'
 check 'a table row per alert, linked' contains "$LOG" \
   "| [43]($base/43) | high | \`pnpm-lock.yaml\` | \`< 1.2.3\` | 1.2.3 | A flaw in brace-expansion |"
 check 'the last alert has its row too' contains "$LOG" "| [45]($base/45) |"
@@ -373,8 +373,8 @@ scenario 's21 a new alert for an open issue -> the issue edited, one comment' "$
 check 'succeeds' test "$status" -eq 0
 check 'edits #5' contains "$LOG" 'EDIT [5] [--body-file]'
 check 'its list gains 45' contains "$LOG" '<!-- alerts: 43 44 45 -->'
-check 'comments, mentioning the owner and linking the alert' contains "$LOG" \
-  "COMMENT [5] [--body] [@Nawid3333 Another security alert for \`brace-expansion\`, with no pull request that fixes it: [alert 45]($base/45). The list above now includes it.]"
+check 'comments, linking the alert' contains "$LOG" \
+  "COMMENT [5] [--body] [Another security alert for \`brace-expansion\`, with no pull request that fixes it: [alert 45]($base/45). The list above now includes it.]"
 check 'opens nothing' lacks "$LOG" 'CREATE'
 check 'closes nothing' lacks "$LOG" 'CLOSE'
 
@@ -475,18 +475,18 @@ check 'touches no issue' test ! -s "$LOG"
 
 scenario 's36 failure report, none open -> opens the failure issue' "$report_step" FX_OPEN='[{"title":"Other"}]'
 check 'succeeds' test "$status" -eq 0
-check 'opens "Security alerts workflow failed", assigned to the owner' contains "$LOG" \
-  'CREATE [--title] [Security alerts workflow failed] [--assignee] [Nawid3333]'
-check 'mentions the owner and the run URL' contains "$LOG" \
-  '@Nawid3333 security-alerts.yml failed: https://github.com/Nawid3333/FastStream/actions/runs/1'
+check 'opens "Security alerts workflow failed"' contains "$LOG" \
+  'CREATE [--title] [Security alerts workflow failed]'
+check 'names the run URL' contains "$LOG" \
+  'security-alerts.yml failed: https://github.com/Nawid3333/FastStream/actions/runs/1'
 
 scenario 's37 failure report, already open -> a comment on it' "$report_step" \
   FX_OPEN='[{"number":3,"title":"Other"},{"number":12,"title":"Security alerts workflow failed"}]'
 check 'succeeds' test "$status" -eq 0
 check 'opens nothing' lacks "$LOG" 'CREATE'
 check 'comments on the open one' contains "$LOG" 'COMMENT [12] [--body-file]'
-check 'the comment mentions the owner and links this run' contains "$LOG" \
-  '@Nawid3333 Failed again: https://github.com/Nawid3333/FastStream/actions/runs/1'
+check 'the comment links this run' contains "$LOG" \
+  'Failed again: https://github.com/Nawid3333/FastStream/actions/runs/1'
 
 scenario 's38 failure report, the open issues unreadable -> opens one anyway' "$report_step" FX_OPEN='not json'
 check 'succeeds' test "$status" -eq 0
