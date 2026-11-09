@@ -46,7 +46,7 @@ compromises were found and pulled within hours to days, so a PR that came today 
 leave for a few days if you want that margin. The patched libraries are ignored by
 Dependabot on purpose: they arrive from `patched-libraries.yml`
 (`docs/updating-patched-libraries.md`). The other libraries the extension ships come in the
-weekly shipped group, `mediabunny` among them since 2026-09-30 (until then `mp4-muxer`,
+shipped group, `mediabunny` among them since 2026-09-30 (until then `mp4-muxer`,
 which Mediabunny replaced, was held for a last release that crashed; `onnxruntime-web` was
 in it until the speech detector went, 2026-10-10). A PR from that group changes the
 extension, so CI runs on `main` after its merge and decides the release;
@@ -141,9 +141,7 @@ Or, by hand:
 Otherwise the comment names the check the PR failed - a tooling update whose build differs
 from the latest release, a file that kind of update does not change, a GitHub
 Actions update while `UPDATE_PRS_TOKEN` is missing, the `hold` label - and the PR is
-assigned to you. Look at that, then merge it or close it as above. A PR held back only for
-a young package version needs nothing from you: the comment says when it is old enough, and
-within a day after that it is decided again. The comment is
+assigned to you. Look at that, then merge it or close it as above. The comment is
 edited in place while the PR keeps waiting, even if the reasons change: a new email
 comes when it turns red, turns green, is merged, or fails at a different step.
 

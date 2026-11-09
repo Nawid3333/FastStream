@@ -561,7 +561,7 @@ jobs:
             if [ "$(jq -r .isDraft <<< "$pr")" = true ]; then reasons+=('it is a draft'); fi
             if [ "$(jq -r .baseRefName <<< "$pr")" != main ]; then reasons+=('it does not target main'); fi
             if [ "$author" != "app/${bot%\[bot\]}" ]; then reasons+=("$author opened it, not $bot"); fi
-            gh pr view "$number" --json files,commits,body > "$RUNNER_TEMP/pr.json"
+            gh pr view "$number" --json files,commits > "$RUNNER_TEMP/pr.json"
             # gh pr view reads at most 100 files and 100 commits (measured on gh 2.101: a pull
             # request of 789 files and 217 commits gave 100 of each). One with more is not seen
             # whole by the checks below, so a person looks at it.
@@ -636,7 +636,7 @@ jobs:
               shipped=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/.github/dependabot.yml?ref=main" |
                 awk '/^[[:space:]]*shipped-minor-and-patch:[[:space:]]*$/ {f = 1; next} f && /^[[:space:]]*patterns:/ {print; exit}' |
                 grep -oE "'[^']+'" | tr -d "'" || true)
-              # A scoped name comes in double quotes, as for the age check below.
+              # A scoped name comes in double quotes.
               updated=$(jq -r '.commits[].messageBody' "$RUNNER_TEMP/pr.json" | sed -n 's/^- dependency-name: //p' | tr -d "\"'" | sort -u)
               if [ -n "$shipped" ] && [ -n "$updated" ] && grep -qxF -f <(printf '%s\n' "$shipped") <<< "$updated"; then
                 ships=1

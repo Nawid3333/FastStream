@@ -358,7 +358,6 @@ describe('uBlock Origin on AMO', () => {
     expect(newestAddon(page, now)).toEqual({version: '1.76.0', sha256: 'a'.repeat(64),
       url: 'https://addons.mozilla.org/firefox/downloads/file/1760/ublock_origin-1.76.0.xpi'});
     expect(newestAddon(page, now + 2 * day).version).toBe('1.77.0');
-    expect(WAIT).toBe(3);
   });
 
   it('compares versions as numbers, whatever order AMO lists them in', () => {

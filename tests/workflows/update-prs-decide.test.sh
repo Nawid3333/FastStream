@@ -69,7 +69,7 @@ case "$1 $2" in
   'pr view')
     fields=$(opt --json "$@")
     case $fields in
-      files,commits,body) cat "$STATE/prview.json" ;;
+      files,commits) cat "$STATE/prview.json" ;;
       commits) jq '{commits}' "$STATE/prview.json" ;;
       mergeable)
         n=$(cat "$STATE/mergeable_calls" 2> /dev/null || echo 0); n=$((n + 1)); echo "$n" > "$STATE/mergeable_calls"
