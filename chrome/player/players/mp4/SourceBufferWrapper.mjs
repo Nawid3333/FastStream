@@ -21,6 +21,9 @@ export class SourceBufferWrapper extends EventEmitter {
     }
     this.sourceBuffer = mediaSource.addSourceBuffer(codec);
     this.updating = false;
+    // Held: starts no further operation until released (DurationSync, which needs every
+    // SourceBuffer idle to set the MediaSource's duration).
+    this.held = false;
     // The removal running, as its operation ({start, end}), or null (hasPendingRemove).
     /** @type {?(SourceBufferOp & {type: 'remove'})} */
     this.removing = null;
@@ -108,8 +111,19 @@ export class SourceBufferWrapper extends EventEmitter {
     });
   }
 
+  /** Starts no further operation until release(); the one running goes on. */
+  hold() {
+    this.held = true;
+  }
+
+  /** Runs the operations queued again. */
+  release() {
+    this.held = false;
+    this.sourceBufferDo();
+  }
+
   sourceBufferDo() {
-    if (this.updating) return;
+    if (this.updating || this.held) return;
     if (this.toDo.length) {
       const current = this.toDo[0];
 
@@ -138,7 +152,7 @@ export class SourceBufferWrapper extends EventEmitter {
   /** @param {SourceBufferOp} obj */
   do(obj) {
     this.toDo.push(obj);
-    if (!this.updating) this.sourceBufferDo();
+    this.sourceBufferDo();
   }
 
   get buffered() {

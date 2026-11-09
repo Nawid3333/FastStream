@@ -32,6 +32,7 @@ import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
  *   sortedSamples: Array<Sample>, sortedCount: number}} PlayedTrack
  */
 import {keyframeOffset, sampledDuration} from './SampleIndex.mjs';
+import {DurationSync} from './DurationSync.mjs';
 import {SegmentAppender} from './SegmentAppender.mjs';
 import {SourceBufferWrapper, removalPending} from './SourceBufferWrapper.mjs';
 import {SaveFragmentFetcher, savedEntry} from '../SaveFragmentFetcher.mjs';
@@ -114,6 +115,13 @@ export default class MP4Player extends EventEmitter {
     this.fedRanges = new Map();
 
     this._duration = 0;
+    // The element gets _duration once its SourceBuffers let it (DurationSync.mjs).
+    this.durationSync = new DurationSync(() => this.mediaSource,
+        () => /** @type {SourceBufferWrapper[]} */ ([this.videoSourceBuffer, this.audioSourceBuffer].filter(Boolean)));
+    this.boundApplyDuration = () => this.durationSync.apply();
+    // A seek past the element's duration, waiting for the duration to be set; null: none.
+    /** @type {?number} */
+    this.pendingSeek = null;
 
     // Still stuck once its nudges are spent: an error the player shows, rather than a
     // video frozen for good with nothing said.
@@ -163,6 +171,7 @@ export default class MP4Player extends EventEmitter {
     if (videoTrack) {
       const videoCodec = 'video/mp4; codecs=\"' + videoTrack.codec + '\"';
       this.videoSourceBuffer = new SourceBufferWrapper(/** @type {MediaSource} */ (this.mediaSource), videoCodec);
+      this.videoSourceBuffer.on('updateend', this.boundApplyDuration);
     }
 
     if (this.currentAudioTrack !== null) {
@@ -174,6 +183,7 @@ export default class MP4Player extends EventEmitter {
         }
         const audioCodec = 'audio/mp4; codecs=\"' + fixedCodec + '\"';
         this.audioSourceBuffer = new SourceBufferWrapper(/** @type {MediaSource} */ (this.mediaSource), audioCodec);
+        this.audioSourceBuffer.on('updateend', this.boundApplyDuration);
       }
     }
   }
@@ -433,6 +443,7 @@ export default class MP4Player extends EventEmitter {
         this.needsInit = false;
       }
 
+      this.durationSync.apply();
       this.runLoad();
       this.checkEndOfStream();
       this.stallWatchdog.check(this.video);
@@ -989,6 +1000,8 @@ export default class MP4Player extends EventEmitter {
 
   destroy() {
     this.running = false;
+    this.durationSync?.clear();
+    this.pendingSeek = null;
     // SourceBuffer.abort() throws unless the MediaSource is open, and after endOfStream()
     // it is 'ended': the throw left the player half destroyed, without DESTROYED ever being
     // emitted.
@@ -1106,6 +1119,20 @@ export default class MP4Player extends EventEmitter {
   }
 
   set currentTime(value) {
+    // The element would land a seek past its duration on that duration: one waiting to be set
+    // (DurationSync) is set first. So does any seek while the element has none yet (NaN, or
+    // +Infinity from an initialization segment without one): it is then held to what is
+    // buffered (glm's review). The latest seek wins.
+    if (this.durationSync.pending && (!Number.isFinite(this.video.duration) || value > this.video.duration)) {
+      this.pendingSeek = value;
+      this.durationSync.whenApplied(() => {
+        if (this.pendingSeek !== value || !this.video) return;
+        this.pendingSeek = null;
+        this.currentTime = value;
+      });
+      return;
+    }
+    this.pendingSeek = null;
     this.video.currentTime = value;
 
     // What matters is where the element is going: a seek to -3 s lands on 0, which may well
@@ -1126,7 +1153,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   get currentTime() {
-    return this.video.currentTime;
+    return this.pendingSeek ?? this.video.currentTime;
   }
 
   get readyState() {
@@ -1210,10 +1237,12 @@ export default class MP4Player extends EventEmitter {
   updateDuration() {
     const newDuration = this.calculateDuration();
     // The MediaSource takes a duration only while it is open; after endOfStream() it is
-    // 'ended' until the next append opens it again, and the setter would throw.
+    // 'ended' until the next append opens it again, and the setter would throw. It also
+    // throws while a SourceBuffer is updating, as one is right after an append: DurationSync
+    // sets it once none is.
     if (newDuration !== this._duration && /** @type {MediaSource} */ (this.mediaSource).readyState === 'open') {
       this._duration = newDuration;
-      /** @type {MediaSource} */ (this.mediaSource).duration = newDuration;
+      this.durationSync.set(newDuration);
       this.emit(DefaultPlayerEvents.DURATIONCHANGE);
     }
   }
