@@ -1120,8 +1120,10 @@ export default class MP4Player extends EventEmitter {
 
   set currentTime(value) {
     // The element would land a seek past its duration on that duration: one waiting to be set
-    // (DurationSync) is set first. The latest seek wins.
-    if (this.durationSync.pending && value > this.video.duration) {
+    // (DurationSync) is set first. So does any seek while the element has none yet (NaN, or
+    // +Infinity from an initialization segment without one): it is then held to what is
+    // buffered (glm's review). The latest seek wins.
+    if (this.durationSync.pending && (!Number.isFinite(this.video.duration) || value > this.video.duration)) {
       this.pendingSeek = value;
       this.durationSync.whenApplied(() => {
         if (this.pendingSeek !== value || !this.video) return;
