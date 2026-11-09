@@ -29,14 +29,20 @@ async function openEmptyPlayer() {
 }
 
 /**
- * The progress loop's rounds while the video presents the next FRAMES frames.
- * @return {Promise<{rounds: number, frames: number, ms: number}>}
+ * The progress loop's rounds, and how often the client was told the time, while the video
+ * presents the next FRAMES frames.
+ * @return {Promise<{rounds: number, times: number, frames: number, ms: number}>}
  */
 async function roundsOverFrames() {
   await browser.execute(() => {
     const client = window.fastStream;
     if (!window.__zzCount) {
-      window.__zzCount = {rounds: 0, frames: 0, start: 0};
+      window.__zzCount = {rounds: 0, times: 0, frames: 0, start: 0};
+      const update = client.updateTime.bind(client);
+      client.updateTime = (time) => {
+        window.__zzCount.times++;
+        return update(time);
+      };
       const controller = client.interfaceController;
       const schedule = controller.scheduleProgressFrame.bind(controller);
       controller.scheduleProgressFrame = () => {
@@ -50,14 +56,25 @@ async function roundsOverFrames() {
       };
       video.requestVideoFrameCallback(onFrame);
     }
-    Object.assign(window.__zzCount, {rounds: 0, frames: 0, start: performance.now()});
+    Object.assign(window.__zzCount, {rounds: 0, times: 0, frames: 0, start: performance.now()});
   });
   await browser.waitUntil(async () => (await browser.execute(() => window.__zzCount.frames)) >= FRAMES,
       {timeout: 30000, interval: 50, timeoutMsg: `the video did not present ${FRAMES} frames in 30 s`});
   return browser.execute(() => {
-    const {rounds, frames, start} = window.__zzCount;
-    return {rounds, frames, ms: Math.round(performance.now() - start)};
+    const {rounds, times, frames, start} = window.__zzCount;
+    return {rounds, times, frames, ms: Math.round(performance.now() - start)};
   });
+}
+
+/**
+ * One round a frame, each telling the client the time (timeupdate tells it too, so the times can
+ * be more). At the screen's 60 a second it would be 2.5 rounds for this 24 fps video.
+ * @param {{rounds: number, times: number, frames: number}} seen
+ */
+function expectOneRoundAFrame(seen) {
+  expect(seen.rounds).toBeGreaterThanOrEqual(seen.frames - 2);
+  expect(seen.rounds).toBeLessThanOrEqual(seen.frames * 1.5);
+  expect(seen.times).toBeGreaterThanOrEqual(seen.rounds);
 }
 
 describe('The progress loop of a short video', function() {
@@ -86,15 +103,13 @@ describe('The progress loop of a short video', function() {
     await play();
     const playing = await roundsOverFrames();
     console.log(`      playing: ${JSON.stringify(playing)}`);
-    // One round a frame. At the screen's 60 a second it would be 2.5 rounds for this 24 fps video.
-    expect(playing.rounds).toBeGreaterThanOrEqual(playing.frames - 2);
-    expect(playing.rounds).toBeLessThanOrEqual(playing.frames * 1.5);
+    expectOneRoundAFrame(playing);
 
     await browser.execute(() => window.fastStream.pause());
     await browser.pause(300);
     await play();
     const again = await roundsOverFrames();
     console.log(`      after a pause: ${JSON.stringify(again)}`);
-    expect(again.rounds).toBeGreaterThanOrEqual(again.frames - 2);
+    expectOneRoundAFrame(again);
   });
 });
