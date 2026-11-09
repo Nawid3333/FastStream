@@ -37,9 +37,9 @@ export const ADDONS = [
   {
     id: 'uBlock0@raymondhill.net',
     name: 'uBlock Origin',
-    version: '1.75.0',
-    url: 'https://addons.mozilla.org/firefox/downloads/file/5034826/ublock_origin-1.75.0.xpi',
-    sha256: '5b74415860456370644bd80f16125e865b0e6c356bb5dfcfb84069967eaa5287',
+    version: '1.76.0',
+    url: 'https://addons.mozilla.org/firefox/downloads/file/5225273/ublock_origin-1.76.0.xpi',
+    sha256: '6f20ff6749193599548770539103069c20948dfcd3e61c3089a67da7bfc3be39',
   },
 ];
 
