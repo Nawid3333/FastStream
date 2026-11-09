@@ -110,7 +110,7 @@ export default class MP4Player extends EventEmitter {
     this.rangeRetries = new Map();
     // How much of each range mp4box has had while it downloads (feedPiece), until the range is
     // in (its onSuccess) or a reset empties mp4box (resetHLS).
-    /** @type {Map<MP4Fragment, {bytes: number, off: boolean, hadMetaData: boolean}>} */
+    /** @type {Map<MP4Fragment, {bytes: number, off: boolean, hadMetaData: boolean, moovInFirstPiece: boolean}>} */
     this.fedRanges = new Map();
 
     this._duration = 0;
@@ -755,7 +755,10 @@ export default class MP4Player extends EventEmitter {
             // recordings): the ranges read to reach it were parsed without it, and gave no
             // samples, yet counted as loaded. A long such file sat at its start with nothing
             // buffered, for good. They are read again, as for a seek, now the moov is known.
-            if (!hadMetaData && this.metaData && frag.sn > 0) {
+            // The first range too when it came in pieces and the moov in a later one than the
+            // media: a short such file sat so, only when the network cut it there (measured with
+            // mp4box: 0 segments from two pieces, 27 from one buffer).
+            if (!hadMetaData && this.metaData && (frag.sn > 0 || this.moovCameAfterFedMedia(fed))) {
               this.resetHLS(true);
             }
 
@@ -841,7 +844,7 @@ export default class MP4Player extends EventEmitter {
     if (!state) {
       // A download joined on the way, its first pieces missed: all of it at its end.
       if (offset !== 0) return;
-      state = {bytes: 0, off: false, hadMetaData: !!this.metaData};
+      state = {bytes: 0, off: false, hadMetaData: !!this.metaData, moovInFirstPiece: false};
       this.fedRanges.set(frag, state);
       // Only an answer that is this range from its start: one whose Content-Range starts
       // elsewhere would put its bytes at the wrong place in the file (glm's review).
@@ -875,7 +878,30 @@ export default class MP4Player extends EventEmitter {
     piece.fileStart = frag.rangeStart + state.bytes;
     // Counted once mp4box has it: a piece it refused goes again with the rest (onSuccess).
     this.mp4box.appendBuffer(piece);
+    if (state.bytes === 0) state.moovInFirstPiece = !!this.metaData;
     state.bytes = end;
+  }
+
+  /**
+   * Whether a range fed in pieces lost its samples: its moov came after the first piece, with
+   * media before it.
+   * @param {{bytes: number, hadMetaData: boolean, moovInFirstPiece: boolean}} [fed] - The range's
+   *   state in fedRanges, if it was fed.
+   * @return {boolean}
+   */
+  moovCameAfterFedMedia(fed) {
+    return !!fed?.bytes && !fed.hadMetaData && !fed.moovInFirstPiece && this.moovIsAfterMedia();
+  }
+
+  /**
+   * Whether the file's media starts before its moov. A moov that merely spans two pieces, at the
+   * start of a long film, loses nothing: reading its range again would stop the video that is
+   * already playing from it.
+   * @return {boolean}
+   */
+  moovIsAfterMedia() {
+    const moovStart = this.mp4box.moov?.start;
+    return moovStart !== undefined && this.mp4box.mdats.some((mdat) => (mdat.start ?? Infinity) < moovStart);
   }
 
   /**

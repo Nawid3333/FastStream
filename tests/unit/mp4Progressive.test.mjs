@@ -7,6 +7,8 @@ import {describe, expect, it, vi} from 'vitest';
 
 const {default: MP4Player} = await import('../../chrome/player/players/mp4/MP4Player.mjs');
 const feedPiece = MP4Player.prototype.feedPiece;
+const moovIsAfterMedia = MP4Player.prototype.moovIsAfterMedia;
+const moovCameAfterFedMedia = MP4Player.prototype.moovCameAfterFedMedia;
 
 /**
  * A range's own answer: a 206 and its Content-Range.
@@ -125,5 +127,65 @@ describe('MP4Player.feedPiece', () => {
       expect(q.fed).toEqual([]);
       expect(q.fileLength).toBe(0);
     }
+  });
+});
+
+describe('a moov in a later piece than the media', () => {
+  /**
+   * @param {boolean} metaDataAfterFirst - Whether the first piece brings the moov.
+   * @return {Object} A stand-in player whose moov comes with the piece the test says.
+   */
+  const fedTwice = (metaDataAfterFirst) => {
+    const stand = player({metaData: false});
+    let pieces = 0;
+    stand.mp4box.appendBuffer = () => {
+      pieces++;
+      if (metaDataAfterFirst || pieces === 2) stand.metaData = {};
+    };
+    const frag = range(0, 16);
+    const answer = answerFor(frag);
+    feedPiece.call(stand, frag, bytes(...MP4_START), 0, answer);
+    feedPiece.call(stand, frag, bytes(...MP4_START), 8, answer);
+    return stand.fedRanges.get(frag);
+  };
+
+  it('remembers a moov that came with the first piece: nothing before it was parsed without it', () => {
+    expect(fedTwice(true).moovInFirstPiece).toBe(true);
+  });
+
+  it('remembers one that came later', () => {
+    const state = fedTwice(false);
+    expect(state.moovInFirstPiece).toBe(false);
+    expect(state.bytes).toBe(16);
+  });
+
+  describe('reads the range again', () => {
+    const moovLast = {moovIsAfterMedia: () => true};
+    const moovFirst = {moovIsAfterMedia: () => false};
+    const fed = {bytes: 16, hadMetaData: false, moovInFirstPiece: false};
+
+    it('for media in one piece and the moov in a later one', () => {
+      expect(moovCameAfterFedMedia.call(moovLast, fed)).toBe(true);
+    });
+
+    // Reading it again would stop a video already playing from that range.
+    it('not for a moov at the start that spans two pieces', () => {
+      expect(moovCameAfterFedMedia.call(moovFirst, fed)).toBe(false);
+    });
+
+    it('not when the first piece brought all of it, nor for a range not fed, nor once the moov was known', () => {
+      expect(moovCameAfterFedMedia.call(moovLast, {...fed, moovInFirstPiece: true})).toBe(false);
+      expect(moovCameAfterFedMedia.call(moovLast, undefined)).toBe(false);
+      expect(moovCameAfterFedMedia.call(moovLast, {...fed, bytes: 0})).toBe(false);
+      expect(moovCameAfterFedMedia.call(moovLast, {...fed, hadMetaData: true})).toBe(false);
+    });
+  });
+
+  it('tells media before the moov from a moov at the start', () => {
+    const file = (moovStart, ...mdatStarts) => ({mp4box: {moov: {start: moovStart}, mdats: mdatStarts.map((start) => ({start}))}});
+    expect(moovIsAfterMedia.call(file(80680, 36))).toBe(true);
+    expect(moovIsAfterMedia.call(file(36, 500000))).toBe(false);
+    expect(moovIsAfterMedia.call(file(36))).toBe(false);
+    expect(moovIsAfterMedia.call({mp4box: {mdats: []}})).toBe(false);
   });
 });
