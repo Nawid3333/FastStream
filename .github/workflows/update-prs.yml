@@ -30,7 +30,7 @@ name: Update PRs
 #               later, up to three times; then the owner is @mentioned. No label, no hold, no
 #               migration issue, and an outage run is no first try. A failed job without a log
 #               (a lost runner) opens no migration issue either.
-#   CI passed  a comment @mentions the owner and assigns them. "Ready to merge" when
+#   CI passed   a comment @mentions the owner and assigns them. "Ready to merge" when
 #               every one of these holds: opened by that bot and only its commits on it; it
 #               changes only what that kind of update changes (package.json and
 #               pnpm-lock.yaml; fsaunpack's two files; .nvmrc; workflow files; the two

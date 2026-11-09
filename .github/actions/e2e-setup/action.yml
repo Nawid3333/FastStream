@@ -265,7 +265,7 @@ runs:
     # for an HTTP error. On 2026-11-09 GitHub answered 504 for about ten minutes, and every e2e
     # job of four update PRs failed in seconds; the PRs were parked as needing code changes. Now
     # it comes from the Actions cache, the newest release a week at a time; a job that misses
-    # fetches it with tries over about eight minutes, and then takes the one the runner image
+    # fetches it with tries over about four minutes, and then takes the one the runner image
     # ships. The geckodriver package finds it with no network at all: WebdriverIO hands it
     # WEBDRIVER_CACHE_DIR, and GECKODRIVER_VERSION names the file (geckodriver-<version>).
     - name: This week's geckodriver cache key
@@ -290,21 +290,25 @@ runs:
         mkdir -p "$dir"
         exe=''
         if [ "$RUNNER_OS" = Windows ]; then exe=.exe; fi
-        # Tried again only when the host did not answer, or answered 408, 429 or 5xx: with
-        # growing waits, 15 s, 30 s, 1 and 2 min (the e2e jobs have 20 min in all). Anything
-        # else, a 404 say, is no outage and is not tried again. Sets $why on failure.
+        # Tried again only when the host did not answer, answered 408, 429 or 5xx, or the
+        # transfer broke off (curl fails, though it may print the 200 of the headers): with
+        # growing waits, 15 s, 30 s, 1 and 2 min, each try at most a minute (the archive is a
+        # few MB): under 10 min in all, of the e2e jobs' 20. Any other answer, a 404 say, is no
+        # outage and is not tried again. Sets $why on failure.
         why=''
         fetch() { # <url> <file>
-          local wait code
+          local wait code rc
           for wait in 15 30 60 120 0; do
-            code=$(curl -sSL --connect-timeout 20 --max-time 120 -o "$2" -w '%{http_code}' "$1") || true
-            if [ "$code" = 200 ]; then return 0; fi
-            case $code in
-              000|408|429|5??) why=network ;;
-              *) why="$1 answered HTTP $code"; return 1 ;;
+            rc=0
+            code=$(curl -sSL --connect-timeout 15 --max-time 60 -o "$2" -w '%{http_code}' "$1") || rc=$?
+            case $rc:$code in
+              0:200) return 0 ;;
+              0:408|0:429|0:5??) why=network ;;
+              0:*) why="$1 answered HTTP $code"; return 1 ;;
+              *) why=network ;;
             esac
             if [ "$wait" = 0 ]; then return 1; fi
-            echo "::warning::$1 did not answer (HTTP $code); trying again in $wait s."
+            echo "::warning::$1 did not answer (HTTP $code, curl exit $rc); trying again in $wait s."
             sleep "$wait"
           done
         }

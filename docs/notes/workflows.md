@@ -278,8 +278,9 @@
   and the newest six earlier failed runs on the commit: an outage run is no first try, and an
   outage comments (key `outage <sha12>`, no @mention, no label) and starts
   `outage-retry.yml` (workflow_dispatch on main: branch, sha, delay; per-branch concurrency,
-  cancel-in-progress; it sleeps, checks an open PR is still at the sha, starts ci.yml) up to
-  three times; then an @mention (key `outage stuck <sha12>`). Unknown never migrates.
+  cancel-in-progress; it sleeps, checks an open PR is still at the sha, starts ci.yml, each
+  call tried again 1, 2, 5 and 10 min later, and comments on the PR with an @mention when CI
+  still could not start) up to three times; then an @mention (key `outage stuck <sha12>`). Unknown never migrates.
   firefox-beta.yml's report reads each failed job's log through the API (its run is still
   going) and opens no issue on an outage. Tests: `tests/workflows/ci-outage.test.sh`, the
   outage scenarios in `update-prs-decide.test.sh`.
