@@ -82,6 +82,26 @@ export class URLUtils {
   }
 
   /**
+   * What tells one video from another by its address (VideoSource.identifier: its remembered
+   * time, its buffer handed over, its link renewals): the URL without its query, which a signed
+   * link renews, and with a fragment that is a path, which a page's service worker may read as the
+   * video's id (abyss.to's player: one address, #mp4/<video>/<quality> for each video, #665;
+   * without it every video there went on at the last one's time). Any other fragment is dropped,
+   * as before: a media fragment (#t=30), a type hint (#.mp4, #hls), a page's flag (#autoplay), a
+   * route (#/x). The request for the file has no fragment, and the page's address of the same
+   * file must give the same identifier (glm's review).
+   * @param {string} url
+   * @return {string}
+   */
+  static mediaIdentifier(url) {
+    const hashAt = url.indexOf('#');
+    if (hashAt === -1) return url.split('?')[0];
+    const base = url.slice(0, hashAt).split('?')[0];
+    const hash = url.slice(hashAt);
+    return /^#[^/]+\/\S/.test(hash) ? base + hash : base;
+  }
+
+  /**
   * @param {string} url
   */
   static strip_queryhash(url) {

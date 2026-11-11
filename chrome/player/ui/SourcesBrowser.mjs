@@ -68,7 +68,7 @@ export class SourcesBrowser {
     sourceURL.ariaLabel = sourceURL.placeholder;
     sourceURL.addEventListener('input', (e) => {
       source.url = sourceURL.value;
-      source.identifier = source.url.split(/[?#]/)[0];
+      source.identifier = URLUtils.mediaIdentifier(source.url);
       this.updateSources();
     });
     sourceContainer.appendChild(sourceURL);

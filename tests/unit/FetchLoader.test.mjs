@@ -1,5 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {FetchLoader, fetchPriorityOf, retryAfterMs} from '../../chrome/player/network/FetchLoader.mjs';
+import {FetchLoader, fetchPriorityOf, isRefusal, retryAfterMs} from '../../chrome/player/network/FetchLoader.mjs';
+import {PageFetch} from '../../chrome/player/network/PageFetch.mjs';
 
 // FetchLoader is the single network primitive shared by HLS, DASH and MP4
 // fragment/playlist loading (via DownloadManager -> StandardDownloader). It
@@ -753,5 +754,189 @@ describe('FetchLoader and Retry-After', () => {
       expect(refusals, String(status)).toEqual(refused ? [[status, 'https://example.com/fragment.ts']] : []);
       expect(recorder.calls.map((c) => c.type), String(status)).toEqual(['onError']);
     }
+  });
+});
+
+// What FastStream is refused, the page may be given (PageFetch.mjs, page-fetch.js, #665): a
+// video only the page's service worker answers ("Video not found" from anywhere else), a link
+// that wants the page's cookies as they are now. Tried once more through the page, at once; a
+// host the page could load goes through it from then on.
+describe('FetchLoader through the page', () => {
+  /**
+   * A page that answers every request with these (each: [status, headers, body bytes]), in turn.
+   * @param {Array<[number, Object<string, string>, number[]]>} answers
+   */
+  function pageAnswering(answers) {
+    const seen = [];
+    const connect = vi.fn(() => {
+      const listeners = [];
+      return {
+        postMessage: (msg) => {
+          if (typeof msg.id !== 'number') return;
+          seen.push(msg);
+          const [status, headers, body] = answers[Math.min(seen.length - 1, answers.length - 1)];
+          Promise.resolve().then(() => {
+            // ['error', message]: the page's fetch failed (a network error).
+            if (status === 'error') {
+              listeners.forEach((fn) => fn({id: msg.id, error: headers}));
+              return;
+            }
+            listeners.forEach((fn) => fn({id: msg.id, status, headers, url: msg.url}));
+            listeners.forEach((fn) => fn({id: msg.id, chunk: new Uint8Array(body)}));
+            listeners.forEach((fn) => fn({id: msg.id, done: true}));
+          });
+        },
+        disconnect: () => {},
+        onMessage: {addListener: (fn) => listeners.push(fn)},
+        onDisconnect: {addListener: () => {}},
+      };
+    });
+    return {connect, seen};
+  }
+
+  beforeEach(() => {
+    globalThis.self = globalThis;
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    PageFetch.configure(null);
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  /** Loads one request, all timers run; its callbacks. */
+  async function load(request = makeRequest(), config = makeConfig({maxRetry: 0})) {
+    const loader = new FetchLoader();
+    const recorder = makeCallbackRecorder();
+    loader.addCallbacks(recorder);
+    loader.load(request, config);
+    await vi.runAllTimersAsync();
+    return recorder;
+  }
+
+  it('loads a refused range through the page, and the host through it from then on', async () => {
+    const page = pageAnswering([[206, {'content-range': 'bytes 0-2/10', 'content-type': 'video/mp4'}, [7, 8, 9]]]);
+    PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+    const direct = vi.fn(async () => new Response('Forbidden', {status: 403}));
+    vi.stubGlobal('fetch', direct);
+
+    const first = await load(makeRequest({rangeStart: 0, rangeEnd: 3}));
+    expect(first.calls.map((c) => c.type)).toEqual(['onProgress', 'onSuccess']);
+    const [response] = first.calls[1].args;
+    expect(response.status).toBe(206);
+    expect(Array.from(new Uint8Array(response.data))).toEqual([7, 8, 9]);
+    // The page is asked for the same range; no header of FastStream's own goes with it.
+    expect(page.seen[0]).toMatchObject({url: 'https://example.com/fragment.ts', headers: {Range: 'bytes=0-2'}});
+    expect(PageFetch.routes('https://example.com/next.ts')).toBe(true);
+
+    await load(makeRequest({url: 'https://example.com/next.ts'}));
+    expect(direct).toHaveBeenCalledTimes(1);
+    expect(page.seen.map((m) => m.url)).toEqual(['https://example.com/fragment.ts', 'https://example.com/next.ts']);
+  });
+
+  it('takes a web page where media was asked for as a refusal (a player address answering "Video not found")', async () => {
+    const page = pageAnswering([[200, {'content-type': 'video/mp4'}, [1, 2]]]);
+    PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<title>Video not found</title>', {status: 200, headers: {'content-type': 'text/html; charset=utf-8'}})));
+    const recorder = await load();
+    expect(Array.from(new Uint8Array(recorder.calls[1].args[0].data))).toEqual([1, 2]);
+    expect(page.seen).toHaveLength(1);
+  });
+
+  it('keeps FastStream\'s own answer when the page is refused too, and routes nothing', async () => {
+    const page = pageAnswering([[403, {}, []]]);
+    PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Forbidden', {status: 403})));
+    const recorder = await load();
+    expect(recorder.calls.map((c) => c.type)).toEqual(['onError']);
+    expect(recorder.calls[0].args[0].error.code).toBe(403);
+    expect(PageFetch.routes('https://example.com/fragment.ts')).toBe(false);
+  });
+
+  it('asks no page for a playlist answered as a web page, nor for a server error', async () => {
+    const page = pageAnswering([[200, {}, [1]]]);
+    PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('#EXTM3U', {status: 200, headers: {'content-type': 'text/html'}})));
+    const playlist = await load(makeRequest({responseType: 'text'}));
+    expect(playlist.calls.map((c) => c.type)).toEqual(['onProgress', 'onSuccess']);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', {status: 500})));
+    await load();
+    expect(page.seen).toEqual([]);
+  });
+
+  it('takes a refused playlist from the page, and loads its host through the page only on media', async () => {
+    const page = pageAnswering([[200, {'content-type': 'application/vnd.apple.mpegurl'}, [35, 69, 88, 84]]]);
+    PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Forbidden', {status: 403})));
+    const recorder = await load(makeRequest({url: 'https://example.com/index.m3u8', responseType: 'text'}));
+    expect(recorder.calls.map((c) => c.type)).toEqual(['onProgress', 'onSuccess']);
+    expect(recorder.calls[1].args[0].data).toBe('#EXT');
+    expect(PageFetch.routes('https://example.com/a.ts')).toBe(false);
+  });
+
+  it('takes no web page from the page, for a playlist neither: the refusal stands, for the link\'s renewal', async () => {
+    // A site's "not found" page or an app's fallback page in place of the playlist would hide the
+    // 403 the link's renewal (FreshLink) waits for.
+    const page = pageAnswering([[200, {'content-type': 'text/html'}, [60]]]);
+    PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Forbidden', {status: 403})));
+    const playlist = await load(makeRequest({url: 'https://example.com/index.m3u8', responseType: 'text'}));
+    expect(playlist.calls.map((c) => c.type)).toEqual(['onError']);
+    expect(playlist.calls[0].args[0].error.code).toBe(403);
+    const media = await load();
+    expect(media.calls[0].args[0].error.code).toBe(403);
+    expect(PageFetch.routes('https://example.com/a.ts')).toBe(false);
+  });
+
+  it('goes direct again when the page refuses a routed host, and keeps the refusal', async () => {
+    const page = pageAnswering([[206, {'content-range': 'bytes 0-0/9'}, [1]], [403, {}, []]]);
+    PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+    const direct = vi.fn(async () => new Response('Forbidden', {status: 403}));
+    vi.stubGlobal('fetch', direct);
+    await load();
+    expect(PageFetch.routes('https://example.com/fragment.ts')).toBe(true);
+
+    const refused = await load();
+    expect(refused.calls.map((c) => c.type)).toEqual(['onError']);
+    expect(refused.calls[0].args[0].error.code).toBe(403);
+    expect(direct).toHaveBeenCalledTimes(1);
+    expect(PageFetch.routes('https://example.com/fragment.ts')).toBe(false);
+  });
+
+  it('goes direct again when the page cannot load a routed host, or gives a web page for media', async () => {
+    for (const [answer, what] of [[['error', 'The page is gone'], 'a failure'], [[200, {'content-type': 'text/html'}, [60]], 'a web page']]) {
+      const page = pageAnswering([[206, {'content-range': 'bytes 0-0/9'}, [1]], answer]);
+      PageFetch.configure(null);
+      PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('Forbidden', {status: 403})));
+      await load();
+      expect(PageFetch.routes('https://example.com/fragment.ts'), what).toBe(true);
+      const failed = await load();
+      expect(failed.calls.map((c) => c.type), what).toEqual(['onError']);
+      expect(PageFetch.routes('https://example.com/fragment.ts'), what).toBe(false);
+    }
+  });
+
+  it('is as before without a page to load through', async () => {
+    PageFetch.configure(null);
+    const direct = vi.fn(async () => new Response('Forbidden', {status: 403}));
+    vi.stubGlobal('fetch', direct);
+    const recorder = await load();
+    expect(recorder.calls.map((c) => c.type)).toEqual(['onError']);
+    expect(direct).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells a refusal by its status, and a web page only where media was asked for', () => {
+    for (const status of [401, 403, 404, 410]) {
+      expect(isRefusal(new Response('', {status}), false), String(status)).toBe(true);
+    }
+    for (const status of [200, 206, 416, 429, 500, 503]) {
+      expect(isRefusal(new Response('', {status}), true), String(status)).toBe(false);
+    }
+    const html = () => new Response('', {status: 200, headers: {'content-type': 'TEXT/HTML; charset=utf-8'}});
+    expect(isRefusal(html(), true)).toBe(true);
+    expect(isRefusal(html(), false)).toBe(false);
+    expect(isRefusal(new Response('', {status: 200, headers: {'content-type': 'text/htmlx'}}), true)).toBe(false);
   });
 });

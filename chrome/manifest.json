@@ -64,6 +64,7 @@
       "run_at": "document_start",
       "js": [
         "overlay-guard.js",
+        "page-fetch.js",
         "episode-links.js",
         "page-qualities.js",
         "content.js"

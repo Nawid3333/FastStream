@@ -23,6 +23,7 @@ import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
 import {RuleManager} from './NetRequestRuleManager.mjs';
 import {StreamLengths} from './StreamLengths.mjs';
 import {classifyResponse, modeFromQuery, urlType} from './StreamDetection.mjs';
+import {relayPageFetch} from './PageFetchRelay.mjs';
 import {TabTracker} from './TabTracker.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {VpnProxyMirror} from './VpnProxyMirror.mjs';
@@ -162,6 +163,11 @@ const PlayedVideoWaitMs = 1000;
 // whether it may go fullscreen. Content scripts share the page's event loop, and one that
 // never let go held a click (no player opened) or a fullscreen request for good.
 const FrameAnswerWaitMs = 3000;
+// A player's port to its page, joined to the page's frame (PageFetchRelay.mjs).
+chrome.runtime.onConnect.addListener((port) => {
+  relayPageFetch(port, {extensionId: chrome.runtime.id, extensionUrl: chrome.runtime.getURL(''),
+    connectTab: (tabId, info) => chrome.tabs.connect(tabId, info)});
+});
 // The captions' scrape waits for the page's tracks, each up to 10 s (content.js
 // HttpRequestTimeoutMs): a little longer than that.
 const CaptionsAnswerWaitMs = 12000;
@@ -2593,6 +2599,7 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
     const response = {
       mediaInfo: getMediaInfoFromTab(sender?.tab),
       isMainPlayer,
+      ...pageOfPlayer(tab, frame),
     };
 
     sendResponse(response);
@@ -2604,8 +2611,21 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
     sendResponse({
       mediaInfo: getMediaInfoFromTab(sender?.tab),
       isMainPlayer,
+      ...pageOfPlayer(tab, frame),
     });
   });
+}
+
+/**
+ * Where a player's page is, for loading through it (PageFetch.mjs): none for a player that is its
+ * tab's page itself (no page script runs in an extension page).
+ * @param {TabHolder} tab
+ * @param {FrameHolder & FrameExtras} frame - The player's, its pageFrame set.
+ * @return {{tabId: number, pageFrameId: number}} tabId -1 for none.
+ */
+function pageOfPlayer(tab, frame) {
+  const page = frame.pageFrame && frame.pageFrame !== frame ? frame.pageFrame : null;
+  return page ? {tabId: tab.tabId, pageFrameId: page.frameId} : {tabId: -1, pageFrameId: -1};
 }
 
 /**
