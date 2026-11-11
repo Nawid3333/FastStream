@@ -776,6 +776,11 @@ describe('FetchLoader through the page', () => {
           seen.push(msg);
           const [status, headers, body] = answers[Math.min(seen.length - 1, answers.length - 1)];
           Promise.resolve().then(() => {
+            // ['error', message]: the page's fetch failed (a network error).
+            if (status === 'error') {
+              listeners.forEach((fn) => fn({id: msg.id, error: headers}));
+              return;
+            }
             listeners.forEach((fn) => fn({id: msg.id, status, headers, url: msg.url}));
             listeners.forEach((fn) => fn({id: msg.id, chunk: new Uint8Array(body)}));
             listeners.forEach((fn) => fn({id: msg.id, done: true}));
@@ -858,6 +863,59 @@ describe('FetchLoader through the page', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', {status: 500})));
     await load();
     expect(page.seen).toEqual([]);
+  });
+
+  it('takes a refused playlist from the page, and loads its host through the page only on media', async () => {
+    const page = pageAnswering([[200, {'content-type': 'application/vnd.apple.mpegurl'}, [35, 69, 88, 84]]]);
+    PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Forbidden', {status: 403})));
+    const recorder = await load(makeRequest({url: 'https://example.com/index.m3u8', responseType: 'text'}));
+    expect(recorder.calls.map((c) => c.type)).toEqual(['onProgress', 'onSuccess']);
+    expect(recorder.calls[1].args[0].data).toBe('#EXT');
+    expect(PageFetch.routes('https://example.com/a.ts')).toBe(false);
+  });
+
+  it('takes no web page from the page, for a playlist neither: the refusal stands, for the link\'s renewal', async () => {
+    // A site's "not found" page or an app's fallback page in place of the playlist would hide the
+    // 403 the link's renewal (FreshLink) waits for.
+    const page = pageAnswering([[200, {'content-type': 'text/html'}, [60]]]);
+    PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Forbidden', {status: 403})));
+    const playlist = await load(makeRequest({url: 'https://example.com/index.m3u8', responseType: 'text'}));
+    expect(playlist.calls.map((c) => c.type)).toEqual(['onError']);
+    expect(playlist.calls[0].args[0].error.code).toBe(403);
+    const media = await load();
+    expect(media.calls[0].args[0].error.code).toBe(403);
+    expect(PageFetch.routes('https://example.com/a.ts')).toBe(false);
+  });
+
+  it('goes direct again when the page refuses a routed host, and keeps the refusal', async () => {
+    const page = pageAnswering([[206, {'content-range': 'bytes 0-0/9'}, [1]], [403, {}, []]]);
+    PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+    const direct = vi.fn(async () => new Response('Forbidden', {status: 403}));
+    vi.stubGlobal('fetch', direct);
+    await load();
+    expect(PageFetch.routes('https://example.com/fragment.ts')).toBe(true);
+
+    const refused = await load();
+    expect(refused.calls.map((c) => c.type)).toEqual(['onError']);
+    expect(refused.calls[0].args[0].error.code).toBe(403);
+    expect(direct).toHaveBeenCalledTimes(1);
+    expect(PageFetch.routes('https://example.com/fragment.ts')).toBe(false);
+  });
+
+  it('goes direct again when the page cannot load a routed host, or gives a web page for media', async () => {
+    for (const [answer, what] of [[['error', 'The page is gone'], 'a failure'], [[200, {'content-type': 'text/html'}, [60]], 'a web page']]) {
+      const page = pageAnswering([[206, {'content-range': 'bytes 0-0/9'}, [1]], answer]);
+      PageFetch.configure(null);
+      PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('Forbidden', {status: 403})));
+      await load();
+      expect(PageFetch.routes('https://example.com/fragment.ts'), what).toBe(true);
+      const failed = await load();
+      expect(failed.calls.map((c) => c.type), what).toEqual(['onError']);
+      expect(PageFetch.routes('https://example.com/fragment.ts'), what).toBe(false);
+    }
   });
 
   it('is as before without a page to load through', async () => {

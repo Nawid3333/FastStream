@@ -841,19 +841,30 @@ Only where its bytes come from changes, and only after FastStream's own request 
   `ArrayBuffer.isView` and copied into the player's own realm.
 - **`FetchLoader`**, the one loader of HLS (playlists and fragments), DASH, MP4 and saving, tries
   a request once more through the page when FastStream's own is refused: 401, 403, 404, 410, or
-  a web page where media was asked for (`isRefusal`). A host the page could load goes through the
-  page from then on (by origin). With no page (a player on its own tab, the web build), nothing
+  a web page where media was asked for (`isRefusal`). The page's answer is taken when it is 2xx
+  and no web page, for a playlist too: a site's "not found" page or an app's fallback page in
+  place of a refused playlist would hide the 403 that the link's renewal (FreshLink) waits for.
+  A host whose **media** the page could load goes through the page from then on (by origin; a
+  playlist alone proves less). Routes start empty for each source (another episode's links may
+  load directly), and a routed host goes direct again as soon as the page fails it: page gone,
+  network error, refusal, or a web page where media was asked for. A refusal then goes on to
+  the link's renewal as before. With no page (a player on its own tab, the web build), nothing
   changes. A server error, 429, 416 or a playlist answered as `text/html` is no refusal.
+  (glm's review found the route-on-playlist, the routes kept across sources, and the head
+  timeout that did not tell the page to stop.)
 - **Detection** needed nothing new. Firefox tells add-ons nothing of an answer a service worker
   gives (webRequest fires `onBeforeRequest` only, Mozilla bugs 1626831 and 1817450), but
   content.js reports the file a page's `<video>` got (`loadedmetadata`, `LOADED_MEDIA` live) by
   its `currentSrc`, fragment and all, and the background takes it in as an MP4. A watch of
   unanswered media requests that asked the page about them (PageMedia) was built and dropped:
   the e2e found the video by the report first, every time.
-- **`VideoSource.identifier`** (`URLUtils.mediaIdentifier`) keeps the fragment now, except a
-  W3C media fragment (`#t=`, `xywh=`, `track=`, `id=`). On abyss every video has the same
-  address, and without it each one resumed at the last one's time (measured in the e2e: the
-  second video started at 122 s).
+- **`VideoSource.identifier`** (`URLUtils.mediaIdentifier`) keeps a fragment that is a path
+  (`#mp4/<video>/<quality>`). On abyss every video has the same address, and without it each one
+  resumed at the last one's time (measured in the e2e: the second video started at 122 s). Every
+  other fragment is dropped as before (`#t=30`, `#hls`, `#.mp4`, `#autoplay`, `#/route`): the
+  request for a file has no fragment and the page's element may have one, and the two must give
+  the same identifier, or the remembered time and the buffer hand-over miss (glm's review; a
+  first version kept every fragment but media fragments).
 
 Saving works the same way: the save loads through the page as the player does (the owner's
 choice: saving allowed everywhere).

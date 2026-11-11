@@ -48,8 +48,8 @@ const SW_PAGE = `<!doctype html><title>sw video</title>
       video.muted = true;
       video.preload = 'auto';
       video.style.cssText = 'width:640px;height:360px';
-      // One address for every video; the id after '#' picks it (?clip=, clip-1 by default).
-      video.src = '/sw/video/play#' + (new URLSearchParams(location.search).get('clip') || 'clip-1');
+      // One address for every video; the id after '#' picks it (?clip=, mp4/clip-1 by default; a path, as abyss.to's).
+      video.src = '/sw/video/play#' + (new URLSearchParams(location.search).get('clip') || 'mp4/clip-1');
       document.body.append(video);
     } else if (!sessionStorage.getItem('reloaded')) {
       // A page the worker does not control yet: once more, under it.
@@ -60,7 +60,7 @@ const SW_PAGE = `<!doctype html><title>sw video</title>
     }
   </script>`;
 const SW_SCRIPT = `
-  const FILES = {'clip-1': '/sw/store/long-av.mp4', 'clip-2': '/sw/store/long-av.mp4'};
+  const FILES = {'mp4/clip-1': '/sw/store/long-av.mp4', 'mp4/clip-2': '/sw/store/long-av.mp4'};
   self.addEventListener('install', () => self.skipWaiting());
   self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
   self.addEventListener('fetch', (event) => {
@@ -240,7 +240,7 @@ describe('A video only its page can load', function() {
       if (url.pathname === '/outer') {
         res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store'});
         res.end(`<!doctype html><title>outer</title><body style="margin:0">
-          <iframe src="${SITE}/sw/page?clip=clip-2" width="800" height="450" allow="autoplay; fullscreen"></iframe>`);
+          <iframe src="${SITE}/sw/page?clip=mp4/clip-2" width="800" height="450" allow="autoplay; fullscreen"></iframe>`);
         return;
       }
       if (url.pathname === '/sw/page') {
@@ -334,7 +334,7 @@ describe('A video only its page can load', function() {
     console.log('      ready:', JSON.stringify(ready));
     expect(ready.failed).toBe(false);
     // The address the page's video has, its fragment (the video's id) kept.
-    expect(ready.url).toBe(`${SITE}/sw/video/play#clip-1`);
+    expect(ready.url).toBe(`${SITE}/sw/video/play#mp4/clip-1`);
 
     const playing = await playPast(3, 'the worker\'s video never played 3 s');
     console.log('      playing:', JSON.stringify(playing));
@@ -390,12 +390,12 @@ describe('A video only its page can load', function() {
     // video at the first test's address, its id another fragment: it starts from its beginning,
     // not where the first test's video was left (VideoSource.identifier keeps the fragment).
     seen = [];
-    playerPage = `iframe[src="${SITE}/sw/page?clip=clip-2"]`;
+    playerPage = `iframe[src="${SITE}/sw/page?clip=mp4/clip-2"]`;
     await browser.url(`${SITE.replace('127.0.0.1', 'localhost')}/outer`);
     const ready = await waitForPlayer((s) => s.readyState >= 2 || s.failed, 'FastStream never played the embedded worker\'s video', 45000);
     console.log('      ready:', JSON.stringify(ready));
     expect(ready.failed).toBe(false);
-    expect(ready.url).toBe(`${SITE}/sw/video/play#clip-2`);
+    expect(ready.url).toBe(`${SITE}/sw/video/play#mp4/clip-2`);
     expect(ready.time).toBeLessThan(5);
     const playing = await playPast(3, 'the embedded worker\'s video never played 3 s');
     console.log('      playing:', JSON.stringify(playing));

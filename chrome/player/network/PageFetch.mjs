@@ -64,6 +64,7 @@ export class PageFetchChannel {
         },
         cancel: () => {
           this.pending.delete(msg.id);
+          request.dispose();
           this.port?.postMessage({abort: msg.id});
         },
       });
@@ -91,6 +92,7 @@ export class PageFetchChannel {
       }
     } else if (msg.done) {
       this.pending.delete(msg.id);
+      request.dispose();
       try {
         request.controller?.close();
       } catch (e) {
@@ -122,11 +124,7 @@ export class PageFetchChannel {
       const id = this.nextId++;
       let settled = false;
       const timer = setTimeout(() => request.fail(new TypeError('The page did not answer')), HEAD_TIMEOUT_MS);
-      const onAbort = () => {
-        this.pending.delete(id);
-        this.port?.postMessage({abort: id});
-        request.fail(new DOMException('Aborted', 'AbortError'));
-      };
+      const onAbort = () => request.fail(new DOMException('Aborted', 'AbortError'));
       const request = {
         url,
         /** @type {?ReadableStreamDefaultController<Uint8Array>} */
@@ -137,9 +135,20 @@ export class PageFetchChannel {
           settled = true;
           resolve(response);
         },
+        // Ended (done, cancelled, failed): the signal no longer holds it.
+        dispose: () => signal?.removeEventListener('abort', onAbort),
         fail: (/** @type {Error} */ e) => {
           clearTimeout(timer);
-          signal?.removeEventListener('abort', onAbort);
+          request.dispose();
+          // The page stops too, when its port is still open: a head that came too late, an
+          // abort. A page that sent the error itself has ended it already (an unknown id there).
+          if (this.pending.has(id)) {
+            try {
+              this.port?.postMessage({abort: id});
+            } catch (err) {
+              // The port is gone, and the page's requests with it.
+            }
+          }
           this.pending.delete(id);
           if (!settled) {
             settled = true;
@@ -190,13 +199,17 @@ class PageFetchRoutes {
   }
 
   /**
-   * The frame the player's stream came from, or none (a file, a link typed in, no page).
+   * The frame the player's stream came from, or none (a file, a link typed in, no page): for each
+   * source the player sets. Its routes start empty: a host proves again, for each stream, that
+   * only the page gets it (another episode's links may load directly). The port to the same frame
+   * is kept.
    * @param {?{tabId: number, frameId: number}} target
    * @param {(tabId: number, frameId: number) => chrome.runtime.Port} [connect] - Opens a port to the frame.
    */
   configure(target, connect = defaultConnect) {
     const key = target && Number.isInteger(target.tabId) && target.tabId >= 0 && Number.isInteger(target.frameId) ?
       target.tabId + ':' + target.frameId : null;
+    this.routed.clear();
     if (key === this.target) return;
     this.channel?.close();
     this.routed.clear();
@@ -238,6 +251,15 @@ class PageFetchRoutes {
   route(url) {
     const origin = this.originOf(url);
     if (origin && this.channel) this.routed.add(origin);
+  }
+
+  /**
+   * Loads the URL's host directly again: the page could not load it.
+   * @param {string} url
+   */
+  unroute(url) {
+    const origin = this.originOf(url);
+    if (origin) this.routed.delete(origin);
   }
 
   /**

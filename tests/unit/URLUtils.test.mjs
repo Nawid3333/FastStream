@@ -176,15 +176,18 @@ describe('URLUtils.mediaIdentifier', () => {
     expect(URLUtils.mediaIdentifier('https://cdn.example/v.mp4')).toBe('https://cdn.example/v.mp4');
   });
 
-  it('keeps a fragment that names the video, query or not', () => {
+  it('keeps a fragment that is a path naming the video, query or not', () => {
     expect(URLUtils.mediaIdentifier('https://player.example/#mp4/abc/720')).toBe('https://player.example/#mp4/abc/720');
     expect(URLUtils.mediaIdentifier('https://player.example/?x=1#mp4/abc/720')).toBe('https://player.example/#mp4/abc/720');
     expect(URLUtils.mediaIdentifier('https://player.example/#mp4/abc/720'))
         .not.toBe(URLUtils.mediaIdentifier('https://player.example/#mp4/xyz/720'));
   });
 
-  it('drops a media fragment, which names a part of the same file, and an empty one', () => {
-    for (const fragment of ['#t=30', '#t=10,20', '#xywh=0,0,320,240', '#track=audio', '#id=chapter1', '#']) {
+  it('drops every other fragment, as the request for the file has none', () => {
+    // Media fragments, type hints, a page's flags, routes: the same file, which the background
+    // may have from its request (no fragment) and the page from its element (with one).
+    for (const fragment of ['#t=30', '#T=30', '#t=10,20', '#autoplay&t=30', '#xywh=0,0,320,240', '#track=audio',
+      '#id=chapter1', '#', '#.mp4', '#hls', '#!', '#/', '#/watch/1', '#embed', '#autoplay', '#?x=1', '##x', '#mp4/']) {
       expect(URLUtils.mediaIdentifier('https://cdn.example/v.mp4?s=1' + fragment), fragment).toBe('https://cdn.example/v.mp4');
     }
   });

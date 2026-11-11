@@ -264,6 +264,9 @@ export class FetchLoader {
         // tearing down the previous attempt) - not a network failure.
         return;
       }
+      // The page could not load it (gone, navigated, a network error): the next try goes
+      // direct again, and through the page only when that is refused.
+      if (viaPage) PageFetch.unroute(request.url);
       this.handleLoadFailure(0, /** @type {Error} */ (e).message);
       return;
     }
@@ -272,15 +275,31 @@ export class FetchLoader {
       return;
     }
 
+    if (viaPage && isRefusal(response, isArrayBuffer)) {
+      // Refused through the page too (a link run out, a site's page where media was asked for):
+      // direct again from the next try, which hands a refusal to the link's renewal as before.
+      PageFetch.unroute(request.url);
+      if (response.ok) {
+        response.body?.cancel().catch(() => {});
+        this.handleLoadFailure(0, 'The page was given a web page');
+        return;
+      }
+    }
+
     // Refused here: the page may be given it (its service worker, its cookies as they are now).
-    // Once, at once, and only taken when the page's answer is no refusal itself.
+    // Once, at once, and only taken when the page's answer is the file: 2xx and no web page, for
+    // a playlist too (a site's "not found" page, an app's fallback page, would stand in for the
+    // refusal its link's renewal waits for). Its host goes through the page from then on only on
+    // a media answer: a playlist alone proves less.
     if (!viaPage && PageFetch.available() && isRefusal(response, isArrayBuffer)) {
       try {
         const fromPage = await PageFetch.fetch(request.url, {headers: pageHeaders, signal: controller.signal, priority: fetchPriorityOf(config)});
         if (isStale()) return;
-        if (fromPage.status >= 200 && fromPage.status < 300 && !isRefusal(fromPage, isArrayBuffer)) {
-          console.log('Loading through the page from now on:', new URL(request.url).origin);
-          PageFetch.route(request.url);
+        if (fromPage.ok && !isRefusal(fromPage, true)) {
+          if (isArrayBuffer) {
+            console.log('Loading through the page from now on:', new URL(request.url).origin);
+            PageFetch.route(request.url);
+          }
           response.body?.cancel().catch(() => {});
           response = fromPage;
         } else {

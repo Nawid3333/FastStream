@@ -91,6 +91,33 @@ describe('PageFetchChannel', () => {
     port.answer({id: 1, status: 200, headers: {}});
   });
 
+  it('tells the page to stop a request whose head came too late, and keeps no listener of an ended one', async () => {
+    vi.useFakeTimers();
+    try {
+      const port = fakePort();
+      const channel = new PageFetchChannel(() => port);
+      const controller = new AbortController();
+      const removed = vi.spyOn(controller.signal, 'removeEventListener');
+      const late = channel.fetch('https://cdn.example/late.mp4', {signal: controller.signal});
+      vi.advanceTimersByTime(30000);
+      await expect(late).rejects.toThrow('The page did not answer');
+      expect(port.posted).toContainEqual({abort: 1});
+      expect(removed).toHaveBeenCalledTimes(1);
+
+      // Ended by its end: its listener goes, and a later abort tells the page nothing.
+      const done = channel.fetch('https://cdn.example/v.mp4', {signal: controller.signal});
+      port.answer({id: 2, status: 200, headers: {}});
+      const response = await done;
+      port.answer({id: 2, done: true});
+      await response.arrayBuffer();
+      expect(removed).toHaveBeenCalledTimes(2);
+      controller.abort();
+      expect(port.posted).not.toContainEqual({abort: 2});
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('stops the page\'s reading when the body is cancelled', async () => {
     const port = fakePort();
     const channel = new PageFetchChannel(() => port);
@@ -166,11 +193,26 @@ describe('PageFetch (the player\'s routes)', () => {
     await settle();
   });
 
-  it('keeps its routes when configured again for the same frame', () => {
+  it('starts each source with no routes, and keeps the port to the same frame', async () => {
+    // Another episode's links may load directly: its host proves again that only the page gets it.
+    const port = fakePort();
+    const connect = vi.fn(() => port);
+    PageFetch.configure({tabId: 1, frameId: 0}, connect);
+    PageFetch.route('https://cdn.example/a.mp4');
+    PageFetch.fetch('https://cdn.example/a.mp4').catch(() => {});
+    PageFetch.configure({tabId: 1, frameId: 0}, connect);
+    expect(PageFetch.routes('https://cdn.example/a.mp4')).toBe(false);
+    PageFetch.fetch('https://cdn.example/b.mp4').catch(() => {});
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(port.disconnect).not.toHaveBeenCalled();
+    await settle();
+  });
+
+  it('loads a host directly again once unrouted', () => {
     PageFetch.configure({tabId: 1, frameId: 0}, () => fakePort());
     PageFetch.route('https://cdn.example/a.mp4');
-    PageFetch.configure({tabId: 1, frameId: 0}, () => fakePort());
-    expect(PageFetch.routes('https://cdn.example/a.mp4')).toBe(true);
+    PageFetch.unroute('https://cdn.example/b.mp4');
+    expect(PageFetch.routes('https://cdn.example/a.mp4')).toBe(false);
   });
 
   it('takes no page for a tab or frame that is none', () => {
