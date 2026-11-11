@@ -225,14 +225,21 @@ export default class MP4Player extends EventEmitter {
       // The samples are released once the segment is queued: one the SourceBuffer refuses
       // is handled by the appender, which loads again from the playhead.
       // makeSourceBuffers made a SourceBuffer for each track it found.
+      // The tracks played now, not when this was set: switchAudioTrack's reset flushes mp4box,
+      // which gives the samples of the audio before the switch that it still had - after the
+      // removal, so they would have stayed in the SourceBuffer (glm's review). Dropped.
+      const playedAudio = this.currentAudioTrack === null ? undefined : this.metaData?.audioTracks[this.currentAudioTrack];
       if (videoTrack?.id === id) {
         this.segmentAppender.append(/** @type {SourceBufferWrapper} */ (this.videoSourceBuffer), buffer);
 
         this.freeSamples(id);
-      } else if (audioTrack?.id === id) {
+      } else if (playedAudio?.id === id) {
         this.segmentAppender.append(/** @type {SourceBufferWrapper} */ (this.audioSourceBuffer), buffer);
 
         this.freeSamples(id);
+      } else if (audioTrack?.id === id) {
+        this.freeSamples(id);
+        return;
       } else {
         throw new Error('Unknown track id');
       }
