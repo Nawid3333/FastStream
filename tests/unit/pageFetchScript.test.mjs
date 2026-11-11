@@ -1,13 +1,12 @@
-import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {describe, expect, it, vi} from 'vitest';
+import source from '../../chrome/page-fetch.js?raw';
 
 // page-fetch.js, the page's side of loading through the page (PageFetch.mjs is the player's, the
 // background joins the two: PageFetchRelay.mjs): whom it answers, which headers it lets a request
 // name, and how it streams an answer back (#665). Run in a context of its own with stand-ins for
 // chrome.runtime and fetch.
 
-const source = readFileSync(new URL('../../chrome/page-fetch.js', import.meta.url), 'utf8');
 const EXTENSION = 'moz-extension://faststream-id/';
 
 /**
