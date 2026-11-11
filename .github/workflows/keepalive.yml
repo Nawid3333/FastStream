@@ -25,7 +25,7 @@ name: Keepalive
 # 60th day. If GitHub disables scheduled workflows anyway, the owner re-enables each
 # from its page in the Actions tab, the Enable workflow button.
 #
-# A failed run opens one issue "Keepalive failed", which the daily digest lists;
+# A failed run opens one issue "Keepalive failed";
 # while it is open, a later failure comments on it. Close the issue once this
 # workflow runs green again.
 
@@ -146,7 +146,7 @@ jobs:
 
       # A failed run of this workflow is emailed only to whoever started it (for the
       # schedule, whoever last changed the cron line): one issue while it is open,
-      # which the daily digest lists, as toolchain-updates.yml does. A failure while
+      # as toolchain-updates.yml does. A failure while
       # it is open adds a comment to it.
       - name: Report this workflow's own failure
         if: failure()

@@ -8,7 +8,7 @@ name: Upstream watch
 # what was taken.)
 #
 # Once a day this lists upstream's commits that were not reviewed yet in one issue,
-# "Upstream: N commits to review", which the daily digest (daily-digest.yml) lists,
+# "Upstream: N commits to review",
 # updated in place when upstream moves again, with a comment saying how many more. Each commit names the files it changes and marks the ones this
 # fork still has, and "fix?" when its message speaks of a fix, a bug, a crash, a leak or
 # security; a commit that touches only files this fork does not have (Chrome-only code,
@@ -197,7 +197,7 @@ jobs:
 
           if [ -n "$OPEN" ]; then
             gh issue edit "$OPEN" --title "$TITLE" --body-file "$T/body.md"
-            # Editing an issue shows nowhere; a comment says it moved (the daily digest lists it).
+            # Editing an issue shows nowhere; a comment says it moved.
             if [ -n "$OPEN_HEAD" ] && git cat-file -e "$OPEN_HEAD^{commit}" 2> /dev/null && git merge-base --is-ancestor "$OPEN_HEAD" "$UP"; then
               MORE=$(git rev-list --no-merges --count "$OPEN_HEAD..$UP")
             else
@@ -226,7 +226,7 @@ jobs:
             gh issue close "$issue" --comment "The upstream watch ran cleanly again: $RUN_URL"
           done < "$RUNNER_TEMP/failed-issues.txt"
 
-      # The daily digest lists it. One issue by title, commented on when it fails
+      # One issue by title, commented on when it fails
       # again, so daily failures do not pile up.
       - name: Notify on failure
         if: failure()

@@ -617,7 +617,7 @@ weekly_pnpm() {
   check 'main untouched' test "$(origin rev-list --count main)" = 1
   check 'pull request' has_call 'pr create --base main --head toolchain/pnpm-11.27.1 --title Toolchain update: pnpm 11.27.1 --label dependencies'
   check 'CI started once' test "$(n_calls '^workflow run ci.yml --ref toolchain/pnpm-11.27.1$')" = 1
-  check 'routine body' grep -qF 'Routine: `update-prs.yml` says here once CI has run whether it is ready to merge (and the daily digest lists it)' "$STATE/created.body"
+  check 'routine body' grep -qF 'Routine: `update-prs.yml` says here once CI has run whether it is ready to merge' "$STATE/created.body"
   check 'names the change' grep -qF 'changes only `packageManager` in `package.json`' "$STATE/created.body"
   check 'lockfile hint' grep -qF 'The lockfile is left as it is' "$STATE/created.body"
   check 'every title, paginated' has_call 'api --paginate repos/me/fs/issues?state=all&per_page=100'

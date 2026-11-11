@@ -7,8 +7,8 @@ name: Firefox Beta
 # week, so each Beta gets several runs and "the Firefox update broke FastStream" arrives
 # as a two-week warning instead of on the day the browser updates.
 #
-# A scheduled failure opens one issue naming the Beta version, which the daily digest
-# lists; the first green scheduled run closes it. A run that failed only because
+# A scheduled failure opens one issue naming the Beta version; the
+# first green scheduled run closes it. A run that failed only because
 # GitHub or a download host did not answer (tools/ci-outage.sh) opens none. It also runs on a pull
 # request that changes this workflow or the e2e configs, so a change to it is tested
 # before it lands, and by hand. Nothing here releases or blocks a release: it is not

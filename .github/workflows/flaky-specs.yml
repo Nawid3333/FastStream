@@ -4,7 +4,7 @@ name: Flaky e2e specs
 # run. ci.yml lists each one in its run's summary and uploads the list, one artifact an e2e
 # job, e2e-retried-<os>-<suite>-<group> (tests/e2e/retriedSpecs.mjs writes it). Once a week
 # this folds the last 7 days of those lists, all branches, into one issue, "Flaky e2e
-# specs: week to <date>", which the daily digest lists: each spec file, how
+# specs: week to <date>": each spec file, how
 # often it was run again, how often its retry passed, and the runs. A spec that keeps
 # passing only on its retry is a flaky test, or a race like #67's.
 #
@@ -134,8 +134,8 @@ jobs:
           done < "$RUNNER_TEMP/mine.tsv"
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
-      # whoever last changed the cron line): one issue while it is open, which the daily
-      # digest lists, as toolchain-updates.yml does. A failure while it is open adds a
+      # whoever last changed the cron line): one issue while it is open, as
+      # toolchain-updates.yml does. A failure while it is open adds a
       # comment to it.
       - name: Report this workflow's own failure
         if: failure()

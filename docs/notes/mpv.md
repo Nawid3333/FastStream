@@ -642,7 +642,7 @@ if the registry key or its manifest is missing rather than letting the specs
 skip. `mpv-updates.yml` offers each new pin: each day it pushes shinchiro's
 newest build as `mpv/<release>`, dispatches CI on it, reruns failed jobs once,
 and on a pass moves branch `mpv-update` to that commit, with ONE pull request from
-it that keeps up (retitled per build, listed by the daily digest; the owner merges it; the
+it that keeps up (retitled per build; the owner merges it; the
 pin ships nothing, so his merge releases nothing). Until 2026-10-02 the pin
 commit went onto main directly. A failed build,
 or a pinned release gone upstream (shinchiro keeps about 30), opens or updates

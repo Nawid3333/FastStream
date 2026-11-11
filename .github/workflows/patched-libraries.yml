@@ -15,7 +15,7 @@ name: Patched libraries
 #     by hand.
 #   - Too new for pnpm's minimumReleaseAge: nothing yet; the next daily run tries again.
 #
-# The daily digest (daily-digest.yml) lists either, the owner's one email a day. A title
+# A title
 # is never raised twice, as an issue or a pull request, open or closed: closing one is how
 # a version is skipped (a major rewrite not worth porting, say), and it stays closed.
 # Both are closed on their own once the patched version has caught up with them, however
@@ -228,8 +228,8 @@ jobs:
           supersede
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
-      # whoever last changed the cron line): one issue while it is open, which the daily
-      # digest lists, as toolchain-updates.yml does. A failure while it is open adds a
+      # whoever last changed the cron line): one issue while it is open, as
+      # toolchain-updates.yml does. A failure while it is open adds a
       # comment to it.
       - name: Report this workflow's own failure
         if: failure()

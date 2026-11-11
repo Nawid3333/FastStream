@@ -14,7 +14,7 @@ name: mpv updates
 #     this workflow's token starts no workflow, a dispatch does. When it fails, its failed
 #     jobs run once more, so one flaky test does not count.
 #   - Passed: the commit CI passed goes to branch mpv-update, and ONE pull request from it
-#     offers the build; the daily digest lists it. Nothing merges itself (the owner's choice,
+#     offers the build. Nothing merges itself (the owner's choice,
 #     2026-10-02): he merges it when he likes. It keeps up: a newer build that passes moves
 #     the same branch and retitles the same pull request, so a build a day is not an email
 #     a day. Closing it skips that build; the next one that passes opens a new pull
@@ -25,7 +25,7 @@ name: mpv updates
 #   - Failed (an attempt still running after 65 minutes is cancelled, and counts as
 #     failed): the branch stays, to look at and as the record that this build was tried:
 #     it is not tried again. Delete the branch to try it again. The failure goes on ONE
-#     issue, "mpv update failed: <what>", which the daily digest lists:
+#     issue, "mpv update failed: <what>":
 #     opened, or retitled and commented while it is open. CI keeps the
 #     pinned build meanwhile.
 #
@@ -352,8 +352,8 @@ jobs:
           fi
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
-      # whoever last changed the cron line): one issue while it is open, which the daily
-      # digest lists, as toolchain-updates.yml does. A failure while it is open adds a
+      # whoever last changed the cron line): one issue while it is open, as
+      # toolchain-updates.yml does. A failure while it is open adds a
       # comment to it.
       # Not for a pull request's dry run: its failure shows on the pull request.
       - name: Report this workflow's own failure
