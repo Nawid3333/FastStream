@@ -298,6 +298,33 @@ player buffered and never played. Measured on a film (one file on that hoster), 
   test Firefox: the whole file downloaded in about 50 s, seeks to 40:00 and back, 4x - no stall,
   no nudge, no rebuild, 4 dropped frames of 11,970 at 1x.
 
+## An MP4's audio tracks (2026-11-11, #665)
+
+- **Before:** MP4Player played audio track 0, always, and offered it as the only audio level. A
+  film whose first track is Dolby AC-3/E-AC-3 (Firefox decodes neither) failed with "Failed to
+  create SourceBuffers: Codec not supported" though an AAC track sat next to it, and a second
+  language could not be chosen. HLS and DASH had their languages already.
+- **Now** (`players/mp4/AudioTracks.mjs`): every track `MediaSource.isTypeSupported` takes is a
+  level (`1:<index>`, 'und' as no language, the hdlr name as its label unless a muxer's default).
+  The start track: the one LevelManager remembers for this video, else the preferred language's,
+  else the one the file enables (tkhd flag 1), else the first; only playable ones. The language
+  and audio menus then work as for HLS. A track Firefox cannot play is left out, not greyed.
+- **The switch** (`switchAudioTrack`): the same audio SourceBuffer goes on - `resetHLS(true)`
+  empties both SourceBuffers and mp4box, a queued `changeType()` follows when the codec differs
+  (SourceBufferWrapper: it fires no updateend, so the next operation runs at once), then
+  `startSegmentation({audioOnly: true})` appends only the new audio init segment and mp4box seeks
+  to the keyframe before the playhead. Both tracks load again from there, from the RAM/disk
+  cache, as after a seek. No second SourceBuffer: Firefox may refuse one once media is in.
+- **Labels:** AudioLevel has a `label` (HLS: the rendition's NAME), shown first in the audio menu,
+  so two tracks in one language (film and commentary) read differently.
+- **Tests:** `AudioTracks.test.mjs`, `SourceBufferWrapper.test.mjs` (changeType in the queue);
+  `mp4-files.e2e.mjs` plays an AC-3-first file from its AAC track and switches a two-language
+  file mid-play, then seeks - both failed on main (the AC-3 file did not play through
+  MP4Player; one audio level).
+- **Not covered:** Firefox's own player (DIRECT: WebM, MKV, servers without ranges) plays the
+  file's default track. `HTMLMediaElement.audioTracks` is behind the `media.track.enabled`
+  preference in Firefox (MDN's compatibility data, 2026-11-11), which an extension cannot set.
+
 ## The qualities a page's own player offers (2026-10-12)
 
 His report (a film on a film site, its hoster): the player showed one quality and played the

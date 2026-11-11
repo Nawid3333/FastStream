@@ -63,6 +63,8 @@ export class AudioLevel {
    * @param {?string} [level.language]
    * @param {?string} [level.audioCodec]
    * @param {*} [level.track] - The player's own object for it, as VideoLevel's.
+   * @param {string} [level.label] - The track's own name ("Commentary", "English 5.1"), if
+   *   it has one: two tracks in one language are told apart by it.
    * @param {?import('./DecodingCapabilities.mjs').DecodingInfo} [level.decoding]
    */
   constructor({
@@ -72,9 +74,11 @@ export class AudioLevel {
     language,
     audioCodec,
     track,
+    label,
     decoding,
   }) {
     this.id = id;
+    this.label = label || '';
     this.bitrate = bitrate || 0;
     this.mimeType = mimeType || '';
     this.language = language || '';

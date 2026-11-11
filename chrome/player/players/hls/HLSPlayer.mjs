@@ -594,6 +594,8 @@ export default class HLSPlayer extends EventEmitter {
         bitrate: track.bitrate,
         mimeType: null,
         language: track.lang,
+        // The playlist's NAME, which every audio rendition has.
+        label: track.name,
         audioCodec: track.audioCodec ? `audio/mp4; codecs="${track.audioCodec}"` : null,
         decoding: cachedAnswer(HLSPlayer.audioProbeForTrack(track)),
       })));

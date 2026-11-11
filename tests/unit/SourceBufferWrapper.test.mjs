@@ -225,6 +225,40 @@ describe('a removal still to run', () => {
     expect(() => wrapper.abort()).not.toThrow();
     expect(sourceBuffer.abort).toHaveBeenCalledTimes(1);
   });
+
+  // An MP4's other audio track (MP4Player.switchAudioTrack) can have another codec: the type
+  // changes in the queue, behind the removal that empties the SourceBuffer and before the new
+  // track's initialization segment, as SourceBuffer.changeType() is refused while an update runs.
+  it('changes the type in its place in the queue, and runs the next operation at once', async () => {
+    const {sourceBuffer, wrapper} = makeWrapper();
+    const calls = [];
+    sourceBuffer.remove.mockImplementation(() => calls.push('remove'));
+    sourceBuffer.changeType = vi.fn((type) => calls.push('changeType ' + type));
+    sourceBuffer.appendBuffer.mockImplementation(() => calls.push('append'));
+
+    wrapper.remove(0, 10);
+    const changed = wrapper.changeType('audio/mp4; codecs="opus"');
+    wrapper.appendBuffer(new ArrayBuffer(8));
+    expect(calls).toEqual(['remove']);
+
+    // changeType starts no update and fires no updateend: the append must not wait for one.
+    sourceBuffer.updateEnd();
+    await expect(changed).resolves.toBeUndefined();
+    expect(calls).toEqual(['remove', 'changeType audio/mp4; codecs="opus"', 'append']);
+    expect(wrapper.updating).toBe(true);
+  });
+
+  it('rejects a type the SourceBuffer refuses, and runs the next operation', async () => {
+    const {sourceBuffer, wrapper} = makeWrapper();
+    sourceBuffer.changeType = vi.fn(() => {
+      throw new DOMException('unsupported', 'NotSupportedError');
+    });
+    const changed = wrapper.changeType('audio/mp4; codecs="ac-3"');
+    const appended = wrapper.appendBuffer(new ArrayBuffer(8));
+    await expect(changed).rejects.toThrow('unsupported');
+    await expect(appended).resolves.toBeUndefined();
+    expect(sourceBuffer.appendBuffer).toHaveBeenCalledTimes(1);
+  });
 });
 
 // A seek that loads afresh (MP4Player.resetHLS) queued its removal of everything behind the
