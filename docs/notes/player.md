@@ -866,8 +866,9 @@ Only where its bytes come from changes, and only after FastStream's own request 
   the same identifier, or the remembered time and the buffer hand-over miss (glm's review; a
   first version kept every fragment but media fragments).
 
-Saving works the same way: the save loads through the page as the player does (the owner's
-choice: saving allowed everywhere).
+Saving uses the same loader (FetchLoader, through StandardDownloader), so it takes the same way
+through the page (the owner's choice: saving allowed everywhere). Not measured end to end for a
+service-worker video yet: save-flow and save-transport passed, on ordinary files.
 
 Limits, known:
 
