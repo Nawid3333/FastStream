@@ -38,6 +38,7 @@ import {VpnPrompt} from './ui/VpnPrompt.mjs';
 import {describePlayerError, isNetworkFailure} from './utils/PlayerErrorUtils.mjs';
 import {isDecodeError, isSamePlace, pastBrokenMedia} from './utils/BrokenMedia.mjs';
 import {PlayerPeers} from './network/PlayerPeers.mjs';
+import {PageFetch} from './network/PageFetch.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate} from './network/PlayheadFirst.mjs';
 import {SILENT_MAX_PLAYBACK_RATE} from './options/KeybindUtils.mjs';
@@ -154,6 +155,9 @@ export class FastStreamClient extends EventEmitter {
   constructor() {
     super();
     this.version = EnvUtils.getVersion();
+    // The tab and frame of the page this player is on (setPage), or null: none, or not known yet.
+    /** @type {?{tabId: number, frameId: number}} */
+    this.page = null;
 
     /** @type {ClientOptions} */
     this.options = {
@@ -1174,6 +1178,10 @@ export class FastStreamClient extends EventEmitter {
       await this.resetPlayer();
       this.restoreCarriedDecodeFailures(source);
       this.source = source;
+      // Where it can be loaded through when FastStream itself is refused: the frame that asked for
+      // it, else the player's own page.
+      PageFetch.configure(this.page && source.url.startsWith('http') ?
+        {tabId: this.page.tabId, frameId: source.pageFrameId ?? this.page.frameId} : null);
       // A time the source came with is where it starts, and nothing plays before it is
       // applied: the place a player built again after an error was at (recoverPlayer), where
       // Firefox's own player takes over (playDirectly), a page's timestamp. Autoplay, and the
@@ -2428,6 +2436,16 @@ export class FastStreamClient extends EventEmitter {
     this.setCurrentVideoLevelID(lower.id);
     this.interfaceController.setStatusMessage(StatusTypes.QUALITY, Localize.getMessage('player_quality_lowered',
         [qualityLabel(levels, lower), percent, qualityLabel(levels, current)]), 'warning', 15000);
+  }
+
+  /**
+   * The tab and frame of the page this player is on (the background's answer to PLAYER_LOADED),
+   * for loading through it (PageFetch.mjs).
+   * @param {*} tabId
+   * @param {*} frameId
+   */
+  setPage(tabId, frameId) {
+    this.page = Number.isInteger(tabId) && tabId >= 0 && Number.isInteger(frameId) ? {tabId, frameId} : null;
   }
 
   /**

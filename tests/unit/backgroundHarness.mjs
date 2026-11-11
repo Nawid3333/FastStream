@@ -181,6 +181,8 @@ export async function loadBackground({
       getPlatformInfo: async () => ({os, arch: 'x86-64'}),
       onInstalled: event(),
       onMessage,
+      // A player's port to its page (PageFetchRelay.mjs).
+      onConnect: event(),
       sendMessage: async (message) => {
         bg.runtimeSent.push(message);
       },

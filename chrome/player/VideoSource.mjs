@@ -1,5 +1,6 @@
 // @ts-check
 import {PlayerModes} from './enums/PlayerModes.mjs';
+import {URLUtils} from './utils/URLUtils.mjs';
 
 const headerBlacklist = [
   'accept',
@@ -65,7 +66,7 @@ export class VideoSource {
       this.url = source;
       // Set either way: here or by fromFile.
       /** @type {string} */
-      this.identifier = this.url.split(/[?#]/)[0];
+      this.identifier = URLUtils.mediaIdentifier(this.url);
     }
     this.mode = mode || PlayerModes.DIRECT;
 
@@ -89,6 +90,10 @@ export class VideoSource {
     // The qualities the page's own player offers this file in, as files of their own
     // ([{url, label, height}], page-qualities.js), or null (setQualities).
     this.qualities = null;
+    // The frame of the page that asked for it (the background's frameId), or null: where it can
+    // be loaded through when FastStream itself is refused (PageFetch.mjs).
+    /** @type {?number} */
+    this.pageFrameId = null;
   }
 
   /**
@@ -105,7 +110,7 @@ export class VideoSource {
       return;
     }
     this.qualities = qualities.map((entry) => ({url: entry.url, label: entry.label || '', height: entry.height || 0}));
-    this.identifier = this.qualities[0].url.split(/[?#]/)[0];
+    this.identifier = URLUtils.mediaIdentifier(this.qualities[0].url);
   }
 
   /**
@@ -222,6 +227,7 @@ export class VideoSource {
     newsource.loadedFromArchive = this.loadedFromArchive;
     newsource.headers = {...this.headers};
     newsource.qualities = this.qualities ? this.qualities.map((entry) => ({...entry})) : null;
+    newsource.pageFrameId = this.pageFrameId;
     return newsource;
   }
 }

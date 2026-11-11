@@ -2,6 +2,7 @@
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {RequestUtils} from '../utils/RequestUtils.mjs';
+import {PageFetch} from './PageFetch.mjs';
 
 // Every fragment, playlist, manifest and MP4 range the player loads: fetch() with stall
 // timeouts, retries with backoff, byte ranges and the stats hls.js and dash.js read. It was
@@ -17,6 +18,22 @@ import {RequestUtils} from '../utils/RequestUtils.mjs';
  * What a range's answer said, given with each of its pieces (onChunk): a 206 and its Content-Range.
  * @typedef {{status: number, contentRange: string, headers: Object<string, string>}} PartialAnswer
  */
+
+// The answers that say the server will not give FastStream what it gives the page: tried once
+// more through the page (PageFetch), when there is one.
+const REFUSALS = new Set([401, 403, 404, 410]);
+
+/**
+ * Whether an answer refuses what was asked: one of REFUSALS, or a web page where media was asked
+ * for (abyss.to's player address answers "Video not found" from anywhere but its page, #665).
+ * @param {Response} response
+ * @param {boolean} isArrayBuffer - Media was asked for, not a playlist or a manifest.
+ * @return {boolean}
+ */
+export function isRefusal(response, isArrayBuffer) {
+  if (REFUSALS.has(response.status)) return true;
+  return isArrayBuffer && response.ok && /^text\/html\b/i.test(response.headers.get('content-type') || '');
+}
 
 /**
  * How long a Retry-After header asks to wait: a number of seconds or an HTTP date.
@@ -209,9 +226,16 @@ export class FetchLoader {
     // rearmTimeout() calls below.
     this.rearmTimeout();
 
+    const isArrayBuffer = request.responseType === 'arraybuffer';
+    // Through the page from the start: its host refused FastStream before and answered the page,
+    // or the stream is the page's own (PageFetch.route).
+    const viaPage = PageFetch.routes(request.url);
+    /** @type {Object<string, string>} */
+    const pageHeaders = fetchHeaders['Range'] ? {Range: fetchHeaders['Range']} : {};
     let response;
     try {
-      response = await fetch(request.url, {
+      response = viaPage ? await PageFetch.fetch(request.url, {headers: pageHeaders, signal: controller.signal, priority: fetchPriorityOf(config)}) :
+      await fetch(request.url, {
         method: request.method || 'GET',
         headers: fetchHeaders,
         body: request.body,
@@ -248,6 +272,26 @@ export class FetchLoader {
       return;
     }
 
+    // Refused here: the page may be given it (its service worker, its cookies as they are now).
+    // Once, at once, and only taken when the page's answer is no refusal itself.
+    if (!viaPage && PageFetch.available() && isRefusal(response, isArrayBuffer)) {
+      try {
+        const fromPage = await PageFetch.fetch(request.url, {headers: pageHeaders, signal: controller.signal, priority: fetchPriorityOf(config)});
+        if (isStale()) return;
+        if (fromPage.status >= 200 && fromPage.status < 300 && !isRefusal(fromPage, isArrayBuffer)) {
+          console.log('Loading through the page from now on:', new URL(request.url).origin);
+          PageFetch.route(request.url);
+          response.body?.cancel().catch(() => {});
+          response = fromPage;
+        } else {
+          fromPage.body?.cancel().catch(() => {});
+        }
+      } catch (e) {
+        if (isStale()) return;
+        console.warn('The page could not load it either', /** @type {Error} */ (e)?.message);
+      }
+    }
+
     if (stats.loading.first === 0) {
       stats.loading.first = Math.max(self.performance.now(), stats.loading.start);
     }
@@ -261,7 +305,6 @@ export class FetchLoader {
     }
 
     this.response = response;
-    const isArrayBuffer = request.responseType === 'arraybuffer';
     // A server that ignores Range answers 200 with the whole file, from its first byte. That
     // was taken for the range asked for (the file's start, labelled as a range further in);
     // the range is cut out of it now (readBody). A 200 that says it is the range (a

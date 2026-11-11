@@ -82,6 +82,23 @@ export class URLUtils {
   }
 
   /**
+   * What tells one video from another by its address (VideoSource.identifier: its remembered
+   * time, its buffer handed over, its link renewals): the URL without its query, which a signed
+   * link renews, and with its fragment, which a page's service worker may read as the video's id
+   * (abyss.to's player: one address, #mp4/<video>/<quality> for each video, #665; without it every
+   * video there went on at the last one's time). Not a media fragment (#t=30, xywh=, track=,
+   * id=), which names a part of the same file.
+   * @param {string} url
+   * @return {string}
+   */
+  static mediaIdentifier(url) {
+    const hashAt = url.indexOf('#');
+    const hash = hashAt === -1 ? '' : url.slice(hashAt);
+    const base = (hashAt === -1 ? url : url.slice(0, hashAt)).split('?')[0];
+    return /^#(?:$|(?:t|xywh|track|id)=)/.test(hash) ? base : base + hash;
+  }
+
+  /**
   * @param {string} url
   */
   static strip_queryhash(url) {

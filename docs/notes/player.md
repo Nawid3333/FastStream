@@ -805,6 +805,78 @@ readyState 0 behind "This video is copy-protected (DRM)…", where Vimeo's own p
 - **Live, 2026-10-28:** player.vimeo.com/video/863362136 kept Vimeo's player, badge "DRM";
   vimeo.com/22439234 (clear) was still taken over and played.
 
+## Loading through the page (2026-11-11, #665)
+
+abyss.to's player (abyssplayer.com, embedded as an iframe) played in the page and never in
+FastStream. The video's address (`https://player.abyssplayer.com/#mp4/<video>/<quality>`) is
+answered only by the page's service worker, which reads the part after `#`. Anywhere else it is
+the player's HTML ("Video not found"). FastStream's player loads from its extension page: no
+service worker of the page, none of the page's cookies as they are now, and only approximations of
+the page's Referer and Origin (header rules). Upstream closed the same report as not planned
+(Andrews54757/FastStream#386).
+
+What changed, for every site (no site's name in the code). FastStream's own player still plays.
+Only where its bytes come from changes, and only after FastStream's own request was refused:
+
+- **`page-fetch.js`** (content script, every frame): in Manifest V3 a content script's `fetch()`
+  is the page's own request. Measured, Firefox 160: it goes through the page's service worker,
+  carries the page's cookies, Referer and Origin, works cross-origin under the host permission,
+  and is answered 206 for a range. It serves a port named `faststream-page-fetch`, only to this
+  extension (the sender's id and extension URL are checked), and streams each answer back: head,
+  pieces, done or error. Requests can be aborted one by one, and closing the port stops all of
+  them. A request may name only `Range`, `Accept` and `If-Range`. A Response's URL drops the
+  fragment; the head keeps the request's own address unless it was redirected. `content.fetch`
+  (MV2 only) is not used, and the page's own functions are not touched.
+- **`PageFetchRelay.mjs`** (background): the player in a page's iframe has **no `chrome.tabs`**
+  (measured: undefined there). It opens `runtime.connect({name: 'faststream-page-fetch-relay:<frameId>'})`,
+  and the background joins it to `tabs.connect` into that frame of the sender's own tab, never
+  another tab. Either side closing closes both. A player whose port broke (an event page that
+  went idle, a page that navigated) connects again at its next request.
+- **`PageFetch.mjs`** (player): the channel and the routes. `FastStreamClient.setSourceInternal`
+  points it at the frame the source came from (`VideoSource.pageFrameId`, else the player's page
+  from `acceptPlayer`'s `tabId`/`pageFrameId`). A player that is its tab's page itself gets none:
+  it also lists other tabs' streams. **A port message's `Uint8Array` is another realm's**
+  (measured: `[object Uint8Array]`, `instanceof Uint8Array` false), and a first version dropped
+  every piece: the body was empty, and mp4box never found the movie. Pieces are taken by
+  `ArrayBuffer.isView` and copied into the player's own realm.
+- **`FetchLoader`**, the one loader of HLS (playlists and fragments), DASH, MP4 and saving, tries
+  a request once more through the page when FastStream's own is refused: 401, 403, 404, 410, or
+  a web page where media was asked for (`isRefusal`). A host the page could load goes through the
+  page from then on (by origin). With no page (a player on its own tab, the web build), nothing
+  changes. A server error, 429, 416 or a playlist answered as `text/html` is no refusal.
+- **Detection** needed nothing new. Firefox tells add-ons nothing of an answer a service worker
+  gives (webRequest fires `onBeforeRequest` only, Mozilla bugs 1626831 and 1817450), but
+  content.js reports the file a page's `<video>` got (`loadedmetadata`, `LOADED_MEDIA` live) by
+  its `currentSrc`, fragment and all, and the background takes it in as an MP4. A watch of
+  unanswered media requests that asked the page about them (PageMedia) was built and dropped:
+  the e2e found the video by the report first, every time.
+- **`VideoSource.identifier`** (`URLUtils.mediaIdentifier`) keeps the fragment now, except a
+  W3C media fragment (`#t=`, `xywh=`, `track=`, `id=`). On abyss every video has the same
+  address, and without it each one resumed at the last one's time (measured in the e2e: the
+  second video started at 122 s).
+
+Saving works the same way: the save loads through the page as the player does (the owner's
+choice: saving allowed everywhere).
+
+Limits, known:
+
+- **DIRECT** (Firefox's own `<video>` in FastStream's page: WebM and other files MSE can't take)
+  loads by itself. A service-worker-only WebM does not play.
+- **DRM** stays in the page's player (see "A copy-protected video stays in the page's player").
+- **MPV mode** gets the link as before: mpv cannot load what only the page can.
+- **A stream built in the page's memory** (`blob:` from MediaSource) has no request to repeat.
+  Its manifest or file, when FastStream finds that, plays instead.
+
+Tests: `PageFetch.test.mjs` (channel and routes, another realm's pieces),
+`PageFetchRelay.test.mjs`, `pageFetchScript.test.mjs` (the content script in a vm: senders,
+headers, streaming, abort, the fragment), `backgroundPageFetch.test.mjs`, the "FetchLoader through
+the page" block of `FetchLoader.test.mjs`, `URLUtils.mediaIdentifier`, and
+`ext-specs/page-fetch.e2e.mjs` on the installed extension: a video only the page's service worker
+serves (its id in the fragment, "Video not found" to anyone else), a video only the page's current
+session cookie opens (renewed by its first answer), and a second worker video at the same address
+in a cross-origin iframe, which starts from 0 and loads through that frame. Each plays, and the
+first two seek to 120 s.
+
 ## Optimisation review of the whole player, 2026-11-07
 
 glm-5.3-flash reviewed the network layer and client, the players, the interface's playback-time

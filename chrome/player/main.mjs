@@ -25,7 +25,8 @@ import {VideoSource} from './VideoSource.mjs';
  * A stream as the SOURCES message carries it (the background's tracked sources), with its
  * depth, length and the page's qualities for it when known.
  * @typedef {{url: string, mode: string, headers?: *, time?: number, depth?: number,
- *   duration?: number|null, qualities?: ?Array<{url: string, label: string, height: number}>}} SentSource
+ *   duration?: number|null, qualities?: ?Array<{url: string, label: string, height: number}>,
+ *   frameId?: number}} SentSource
  */
 
 /**
@@ -175,6 +176,7 @@ async function recieveSources(request, sendResponse) {
     }
     const source = new VideoSource(url, s.headers, s.mode);
     source.setQualities(s.qualities);
+    if (Number.isInteger(s.frameId)) source.pageFrameId = /** @type {number} */ (s.frameId);
     return source;
   };
 
@@ -315,6 +317,7 @@ async function setup() {
         return;
       }
       /** @type {FastStreamWindow} */ (window).fastStream.setMediaInfo(data.mediaInfo);
+      /** @type {FastStreamWindow} */ (window).fastStream.setPage(data.tabId, data.pageFrameId);
       /** @type {FastStreamWindow} */ (window).fastStream.setNeedsUserInteraction(!data.isMainPlayer);
 
       console.log('Recieved data', data);
