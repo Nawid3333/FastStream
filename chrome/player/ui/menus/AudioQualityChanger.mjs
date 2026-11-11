@@ -228,12 +228,17 @@ export class AudioQualityChanger extends EventEmitter {
       const mimeParts = level.mimeType ? level.mimeType.split('/') : [];
       const container = (mimeParts.length >= 2) ? mimeParts[1] : '';
 
-      const label = `${container}${level.id.includes('-drc') ? ' [DRC]' : ''} @${Math.round(level.bitrate / 1000)} kbps`;
+      // The track's own name first, when it has one: two tracks of one language and container
+      // read the same otherwise (an MP4's commentary next to its film sound).
+      const label = `${level.label ? level.label + ' - ' : ''}${container}${level.id.includes('-drc') ? ' [DRC]' : ''} @${Math.round(level.bitrate / 1000)} kbps`;
 
       text.textContent = isLevelActive ? label + ' ' + Localize.getMessage('player_quality_current') : label;
 
       const titleParts = [];
       titleParts.push(`ID: ${level.id}`);
+      if (level.label) {
+        titleParts.push(`Name: ${level.label}`);
+      }
       if (container) {
         titleParts.push(`Container: ${container}`);
       }

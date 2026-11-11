@@ -9,6 +9,7 @@ import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {relabelEsdsAacLayout} from './AacLayout.mjs';
+import {audioTrackLabel, audioTrackMime, pickAudioTrack} from './AudioTracks.mjs';
 import {MP4Fragment} from './MP4Fragment.mjs';
 import {lengthFromAnswer} from './RangeAnswers.mjs';
 import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
@@ -177,12 +178,7 @@ export default class MP4Player extends EventEmitter {
     if (this.currentAudioTrack !== null) {
       const audioTrack = /** @type {Movie} */ (this.metaData).audioTracks[this.currentAudioTrack];
       if (audioTrack) {
-        let fixedCodec = audioTrack.codec;
-        if (fixedCodec === 'Opus') {
-          fixedCodec = 'opus';
-        }
-        const audioCodec = 'audio/mp4; codecs=\"' + fixedCodec + '\"';
-        this.audioSourceBuffer = new SourceBufferWrapper(/** @type {MediaSource} */ (this.mediaSource), audioCodec);
+        this.audioSourceBuffer = new SourceBufferWrapper(/** @type {MediaSource} */ (this.mediaSource), audioTrackMime(audioTrack.codec));
         this.audioSourceBuffer.on('updateend', this.boundApplyDuration);
       }
     }
@@ -208,10 +204,19 @@ export default class MP4Player extends EventEmitter {
       this.emit(DefaultPlayerEvents.ERROR, 'Failed to create SourceBuffers: ' + /** @type {Error} */ (e).message);
       return;
     }
+    this.startSegmentation();
+  }
 
+  /**
+   * Has mp4box cut the tracks played (currentVideoTrack, currentAudioTrack) into segments
+   * for their SourceBuffers, from the playhead on.
+   * @param {{audioOnly?: boolean}} [options] - audioOnly: the audio track changed
+   *   (switchAudioTrack); the video's initialization segment is in its SourceBuffer already.
+   */
+  startSegmentation({audioOnly = false} = {}) {
     this.mp4box.fragmentedTracks.length = 0;
 
-    // Only onMetadataParsed calls this, once the metadata is in.
+    // Only once the metadata is in (setupHLS, switchAudioTrack).
     const videoTrack = /** @type {Movie} */ (this.metaData).videoTracks[this.currentVideoTrack];
     const audioTrack = /** @type {Movie} */ (this.metaData).audioTracks[/** @type {number} */ (this.currentAudioTrack)];
 
@@ -220,14 +225,21 @@ export default class MP4Player extends EventEmitter {
       // The samples are released once the segment is queued: one the SourceBuffer refuses
       // is handled by the appender, which loads again from the playhead.
       // makeSourceBuffers made a SourceBuffer for each track it found.
+      // The tracks played now, not when this was set: switchAudioTrack's reset flushes mp4box,
+      // which gives the samples of the audio before the switch that it still had - after the
+      // removal, so they would have stayed in the SourceBuffer (glm's review). Dropped.
+      const playedAudio = this.currentAudioTrack === null ? undefined : this.metaData?.audioTracks[this.currentAudioTrack];
       if (videoTrack?.id === id) {
         this.segmentAppender.append(/** @type {SourceBufferWrapper} */ (this.videoSourceBuffer), buffer);
 
         this.freeSamples(id);
-      } else if (audioTrack?.id === id) {
+      } else if (playedAudio?.id === id) {
         this.segmentAppender.append(/** @type {SourceBufferWrapper} */ (this.audioSourceBuffer), buffer);
 
         this.freeSamples(id);
+      } else if (audioTrack?.id === id) {
+        this.freeSamples(id);
+        return;
       } else {
         throw new Error('Unknown track id');
       }
@@ -268,14 +280,16 @@ export default class MP4Player extends EventEmitter {
 
     let ind = 0;
     if (videoTrack) {
-      /** @type {SourceBufferWrapper} */ (this.videoSourceBuffer).appendBuffer(initSegs[ind++].buffer).catch(warnRefused);
+      const init = initSegs[ind++].buffer;
+      if (!audioOnly) /** @type {SourceBufferWrapper} */ (this.videoSourceBuffer).appendBuffer(init).catch(warnRefused);
     }
 
     if (audioTrack) {
       /** @type {SourceBufferWrapper} */ (this.audioSourceBuffer).appendBuffer(initSegs[ind++].buffer).catch(warnRefused);
     }
 
-    this.mp4box.seek(this.currentTime);
+    // From the keyframe before the playhead when the audio changed mid-way, as resetHLS seeks.
+    this.mp4box.seek(this.currentTime, audioOnly);
     this.mp4box.start();
   }
 
@@ -389,6 +403,7 @@ export default class MP4Player extends EventEmitter {
     }
 
     this.setFragmentTimes();
+    this.currentAudioTrack = this.firstAudioTrack();
     this.emit(DefaultPlayerEvents.MANIFEST_PARSED);
     this.updateDuration();
     this.setupHLS();
@@ -1181,19 +1196,48 @@ export default class MP4Player extends EventEmitter {
     return result;
   }
 
+  /**
+   * The audio tracks Firefox can play, by level id, in file order. One it cannot (Dolby
+   * AC-3, say) is no choice: it would only fail.
+   * @return {Map<string, AudioLevel>}
+   */
   getAudioLevels() {
-    if (!this.metaData || !this.metaData.audioTracks[0]) return new Map();
-    const track = this.metaData.audioTracks[0];
     const result = new Map();
-    const id = this.getCurrentAudioLevelID();
-    result.set(id, new AudioLevel(/** @type {Exclude<ConstructorParameters<typeof AudioLevel>[0], undefined>} */ ({
-      id: id,
-      bitrate: track.bitrate,
-      mimeType: 'audio/mp4',
-      language: track.language,
-      audioCodec: track.codec,
-    })));
+    // A preview plays no audio (currentAudioTrack null): none to choose.
+    if (!this.metaData || this.currentAudioTrack === null) return result;
+    this.metaData.audioTracks.forEach((track, index) => {
+      if (!MediaSource.isTypeSupported(audioTrackMime(track.codec))) return;
+      const id = this.getIdentifier(AUDIO_TRACK, index);
+      result.set(id, new AudioLevel(/** @type {Exclude<ConstructorParameters<typeof AudioLevel>[0], undefined>} */ ({
+        id: id,
+        bitrate: track.bitrate,
+        mimeType: 'audio/mp4',
+        // 'und' (undetermined), as muxers write for none: no language.
+        language: track.language === 'und' ? '' : track.language,
+        audioCodec: track.codec,
+        label: audioTrackLabel(track.name),
+        track,
+      })));
+    });
     return result;
+  }
+
+  /**
+   * The audio track to start with (AudioTracks.pickAudioTrack): the one chosen before for this
+   * video, else the preferred language's, else the one the file enables, else the first;
+   * only one Firefox can play. 0 when none can, which then fails as it always did.
+   * @return {?number} Null for a preview, which plays no audio.
+   */
+  firstAudioTrack() {
+    if (this.currentAudioTrack === null) return null;
+    const levels = Array.from(this.getAudioLevels().values());
+    const levelManager = this.client.getLevelManager();
+    const remembered = levelManager.getCurrentAudioLevelID();
+    const chosen = pickAudioTrack(levels,
+        (level) => !!((this.audioTracks[this.getIndexes(level.id).levelID]?.trak?.tkhd?.flags ?? 0) & 1),
+        typeof remembered === 'string' ? remembered : null,
+        (list) => levelManager.filterAudioLevelsByLanguage(list));
+    return chosen ? this.getIndexes(chosen.id).levelID : 0;
   }
 
   getCurrentVideoLevelID() {
@@ -1208,8 +1252,42 @@ export default class MP4Player extends EventEmitter {
   setCurrentVideoLevelID(levelID) { // not implemented yet
   }
 
-  /** @param {string|number|null} levelID - What the client has (none: null); unused. */
-  setCurrentAudioLevelID(levelID) { // not implemented yet
+  /**
+   * Plays another of the file's audio tracks (getAudioLevels' ids), from the playhead on.
+   * @param {string|number|null} levelID - What the client has (none: null).
+   */
+  setCurrentAudioLevelID(levelID) {
+    // A preview plays no audio; before the metadata there is nothing to switch.
+    if (typeof levelID !== 'string' || this.currentAudioTrack === null || !this.metaData) return;
+    const {trackID, levelID: index} = this.getIndexes(levelID);
+    if (trackID !== AUDIO_TRACK || index === this.currentAudioTrack || !this.getAudioLevels().has(levelID)) return;
+    this.switchAudioTrack(index);
+  }
+
+  /**
+   * The same audio SourceBuffer goes on with the other track: what it holds goes, its type
+   * changes if the codec does, the new track's initialization segment goes in, and both
+   * tracks load again from the keyframe before the playhead, as after a seek. The video's
+   * SourceBuffer is emptied too, so the two start together. No new SourceBuffer: Firefox
+   * may refuse one once media has been appended.
+   * @param {number} index - Into the file's audio tracks.
+   */
+  switchAudioTrack(index) {
+    const wrapper = this.audioSourceBuffer;
+    const next = /** @type {Movie} */ (this.metaData).audioTracks[index];
+    if (!wrapper || !next) return;
+    const previous = /** @type {Movie} */ (this.metaData).audioTracks[/** @type {number} */ (this.currentAudioTrack)];
+    this.currentAudioTrack = index;
+    this.resetHLS(true);
+    const mimeType = audioTrackMime(next.codec);
+    if (!previous || audioTrackMime(previous.codec) !== mimeType) {
+      wrapper.changeType(mimeType).catch((e) => {
+        this.running = false;
+        this.emit(DefaultPlayerEvents.ERROR, 'Could not switch the audio track: ' + (/** @type {Error} */ (e)?.message || e));
+      });
+    }
+    this.startSegmentation({audioOnly: true});
+    this.runLoad();
   }
 
 

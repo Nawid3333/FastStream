@@ -240,6 +240,13 @@ describe('MP4 files of other shapes', function() {
         ['-stream_loop', '2', '-i', LONG_FIXTURE, '-c', 'copy', '-movflags', 'frag_keyframe+empty_moov']);
     ensureFile('long-6.0.mp4', ['-i', LONG_FIXTURE, '-c:v', 'copy', '-af', 'aformat=channel_layouts=6.0', '-c:a', 'aac']);
     ensureFilmLayout('long-6.0-film.mp4', 'long-6.0.mp4');
+    // Two audio tracks in two languages: the film's sound, and a tone.
+    ensureFile('two-audio.mp4', ['-i', LONG_FIXTURE, '-f', 'lavfi', '-i', 'sine=frequency=880:duration=160',
+      '-map', '0:v', '-map', '0:a', '-map', '1:a', '-c:v', 'copy', '-c:a:0', 'copy', '-c:a:1', 'aac', '-shortest',
+      '-metadata:s:a:0', 'language=eng', '-metadata:s:a:1', 'language=jpn']);
+    // Dolby AC-3 first, which Firefox does not decode, then the same sound in AAC.
+    ensureFile('ac3-first.mp4', ['-i', LONG_FIXTURE, '-map', '0:v', '-map', '0:a', '-map', '0:a', '-c:v', 'copy',
+      '-c:a:0', 'ac3', '-c:a:1', 'copy', '-metadata:s:a:0', 'language=eng', '-metadata:s:a:1', 'language=eng']);
 
     const bytes = fs.readFileSync(LONG_FIXTURE);
     server = http.createServer((req, res) => {
@@ -378,6 +385,60 @@ describe('MP4 files of other shapes', function() {
     const state = await playFor(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/long-6.0-film.mp4`);
     expect(state.currentTime).toBeGreaterThan(1);
     expect(state.failed).toBe(false);
+  });
+
+  // MP4Player played the first audio track, always (#665): a file whose first one Firefox
+  // cannot decode failed outright, and a second language could not be chosen.
+  it('plays an MP4 whose first audio track Firefox cannot decode, from the one it can', async function() {
+    const state = await playFor(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/ac3-first.mp4`);
+    const audio = await browser.execute(() => {
+      const player = window.fastStream.player;
+      return {codec: player.metaData.audioTracks[player.currentAudioTrack].codec,
+        ac3: MediaSource.isTypeSupported('audio/mp4; codecs="ac-3"'),
+        levels: Array.from(window.fastStream.getAudioLevels().keys())};
+    });
+    console.log('      audio:', JSON.stringify(audio));
+    expect(state.currentTime).toBeGreaterThan(1);
+    expect(state.failed).toBe(false);
+    // A Firefox that one day decodes AC-3 may play either.
+    if (!audio.ac3) {
+      expect(audio.codec).toMatch(/^mp4a/);
+      expect(audio.levels).toEqual(['1:1']);
+    }
+  });
+
+  it('switches the audio track of an MP4 while it plays, and plays on', async function() {
+    const start = await playFor(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/two-audio.mp4`);
+    expect(start.currentTime).toBeGreaterThan(1);
+    const levels = await browser.execute(() => Array.from(window.fastStream.getAudioLevels().values())
+        .map((level) => ({id: level.id, language: level.language})));
+    expect(levels.map((level) => level.language).sort()).toEqual(['eng', 'jpn']);
+    const before = await browser.execute(() => window.fastStream.getCurrentAudioLevelID());
+    const other = levels.find((level) => level.id !== before).id;
+    const at = await browser.execute((id) => {
+      window.fastStream.setCurrentAudioLevelID(id);
+      return window.fastStream.currentTime;
+    }, other);
+    const after = await playPast(at + 3, 'after the switch');
+    const audio = await browser.execute(() => {
+      const player = window.fastStream.player;
+      const buffered = player.audioSourceBuffer.buffered;
+      const time = player.currentTime;
+      return {id: window.fastStream.getCurrentAudioLevelID(), trackId: player.metaData.audioTracks[player.currentAudioTrack].id,
+        segmented: player.mp4box.fragmentedTracks.map((track) => track.id),
+        audioAtPlayhead: Array.from({length: buffered.length}, (_, i) => [buffered.start(i), buffered.end(i)])
+            .some(([s, e]) => s <= time && time < e)};
+    });
+    console.log('      audio:', JSON.stringify(audio));
+    expect(audio.id).toBe(other);
+    expect(audio.segmented).toContain(audio.trackId);
+    expect(audio.audioAtPlayhead).toBe(true);
+    expect(after.currentTime).toBeGreaterThan(at + 3);
+    expect(after.failed).toBe(false);
+    // And it goes on loading the new track after a seek.
+    const later = await seekAndPlay(100);
+    expect(later.currentTime).toBeGreaterThan(101);
+    expect(later.failed).toBe(false);
   });
 
   it('plays an MP4 from a server that does not give its length, far into it', async function() {

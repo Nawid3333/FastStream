@@ -3,10 +3,10 @@ import {EventEmitter} from '../../modules/eventemitter.mjs';
 
 /**
  * A queued operation on the SourceBuffer, with its promise's resolve and reject: an append of
- * bytes (media: a media segment, not an initialization segment), or a removal of a time
- * range, in seconds.
+ * bytes (media: a media segment, not an initialization segment), a removal of a time
+ * range, in seconds, or a change of the type its next initialization segment has.
  * @typedef {{resolve: (value: void) => void, reject: (reason?: unknown) => void} & ({type: 'append', buffer: BufferSource, media?: boolean} |
- *   {type: 'remove', start: number, end: number})} SourceBufferOp
+ *   {type: 'remove', start: number, end: number} | {type: 'changeType', mimeType: string})} SourceBufferOp
  */
 
 export class SourceBufferWrapper extends EventEmitter {
@@ -111,6 +111,23 @@ export class SourceBufferWrapper extends EventEmitter {
     });
   }
 
+  /**
+   * Makes the media that follows of another type (codec): an MP4's other audio track, say.
+   * In the queue, as the SourceBuffer takes it only while no update runs.
+   * @param {string} mimeType - As isTypeSupported takes it.
+   * @return {Promise<void>} Resolves once the SourceBuffer took it.
+   */
+  changeType(mimeType) {
+    return new Promise((resolve, reject) => {
+      this.do({
+        type: 'changeType',
+        mimeType,
+        resolve,
+        reject,
+      });
+    });
+  }
+
   /** Starts no further operation until release(); the one running goes on. */
   hold() {
     this.held = true;
@@ -135,6 +152,13 @@ export class SourceBufferWrapper extends EventEmitter {
           this.sourceBuffer.appendBuffer(current.buffer);
         } else if (current.type === 'remove') {
           this.sourceBuffer.remove(current.start, current.end);
+        } else {
+          // Done at once: no update, so no updateend follows. The next operation runs now.
+          this.sourceBuffer.changeType(current.mimeType);
+          current.resolve();
+          this.toDo.splice(0, 1);
+          this.sourceBufferDo();
+          return;
         }
       } catch (e) {
         console.log(e);
