@@ -30,8 +30,7 @@ name: Release failsafe
 #      version and the add-on id. Broken: the issue "Update path broken: <tag>". A check
 #      the network stopped is not reported; the next run makes it again.
 #
-# Every issue goes into the daily digest (daily-digest.yml), the owner's one email a day; it
-# is opened once, and closed by the first run that finds it resolved. A run of this workflow
+# Every issue is opened once, and closed by the first run that finds it resolved. A run of this workflow
 # that fails opens "Release failsafe failed" (the runs release.yml starts email no one).
 
 on:
@@ -379,7 +378,7 @@ jobs:
 
       # A failed run is emailed only to whoever started it: for the runs release.yml starts,
       # this repository's token, so no one; for the schedule, whoever last changed the cron
-      # line. One issue while it is open, which the daily digest lists, as the other
+      # line. One issue while it is open, as the other
       # workflows do; a failure while it is open adds a comment to it.
       - name: Report this workflow's own failure
         if: failure()

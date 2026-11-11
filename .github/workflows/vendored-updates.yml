@@ -12,7 +12,7 @@ name: Vendored updates
 # StreamSaver.js's API name: its body is FastStream's own OPFS and memory sinks, so an
 # upstream change had nothing to port.)
 #
-# The daily digest lists the issue. A title is never raised twice, open or
+# A title is never raised twice, open or
 # closed: closing one skips that release for good. Each closes itself once its pin is at
 # its tag or later, and a newer release's item closes the older ones. (The silero-vad model
 # pull request went with the speech detector, 2026-10-10.)

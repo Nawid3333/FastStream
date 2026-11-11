@@ -15,7 +15,7 @@ name: Update PRs
 #
 #   CI failed   CI runs once more on the same commit, in case a test was flaky, and that
 #               run decides. Still red: the pull request stays open, is labelled
-#               ci-failed, and a comment (which the daily digest sums up) gives the
+#               ci-failed, and a comment gives the
 #               failed jobs and steps, what each step checks, the last lines of each
 #               failed log, and how main's own CI stands (red there too points away from
 #               the update). Nothing is guessed about the cause beyond that. Red twice, the
@@ -29,7 +29,7 @@ name: Update PRs
 #               later, up to three times; then a comment says to start it by hand. No label, no hold, no
 #               migration issue, and an outage run is no first try. A failed job without a log
 #               (a lost runner) opens no migration issue either.
-#   CI passed   a comment, which the daily digest sums up. "Ready to merge" when
+#   CI passed   a comment. "Ready to merge" when
 #               every one of these holds: opened by that bot and only its commits on it; it
 #               changes only what that kind of update changes (package.json and
 #               pnpm-lock.yaml; fsaunpack's two files; .nvmrc; workflow files; the two
@@ -906,7 +906,7 @@ jobs:
           say "$key" "$RUNNER_TEMP/body.md"
 
       # Bot-started runs are emailed to no one, so a failure of this workflow itself would go
-      # unseen: one issue while it is open, which the daily digest lists. A failure
+      # unseen: one issue while it is open. A failure
       # while it is open adds a comment to it.
       - name: Report this workflow's own failure
         if: failure()

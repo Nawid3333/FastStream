@@ -358,7 +358,7 @@ jobs:
           done
           exit 1
 
-      # A failed release: one issue while it is open, which the daily digest lists. A
+      # A failed release: one issue while it is open. A
       # run ci.yml started emails no one. A run on CI's workflow_run event should email the
       # one who pushed, but no failed run there has ever shown it (none of 91 runs failed),
       # and a release missed in silence leaves main unreleased; so it reports too. A

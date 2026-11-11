@@ -212,8 +212,7 @@
   to start it, this run decides. Still red, one comment on the PR
   without a mention and with no one assigned (since 2026-11-09) names
   the failed job, step and what the step checks, the last 40 lines of each failed
-  log and `main`'s latest CI status, and the PR is labelled `ci-failed`; the daily digest
-  lists it. CI green:
+  log and `main`'s latest CI status, and the PR is labelled `ci-failed`. CI green:
   **nothing merges itself** (the owner's choice, 2026-10-02; from 2026-10-01 every kind
   did). One comment, no mention, no assignment: "ready to merge" for any kind (Dependabot
   npm, fsaunpack, GitHub Actions, the actionlint/zizmor images, toolchain Node and pnpm,
@@ -241,15 +240,13 @@
   updates"), used only to bring such a branch up to date. His merge is his
   push: CI runs on `main`, and a green run of a merge that ships releases. A green PR that
   fails a check gets one comment - CI is green, and what to look at
-  before merging - written without a mention and with no one assigned; the daily digest lists
-  it. A comment with the same verdict as the last one is edited in place, so the digest
-  marks nothing new: the owner hears when a
-  verdict changes. The "behind main" check is the last one: a branch behind `main` is
+  before merging - written without a mention and with no one assigned. A comment with the same verdict as the last one is edited in
+  place. The "behind main" check is the last one: a branch behind `main` is
   brought up to date and CI decides again, so what he merges is what CI tested. A branch
   update refused because the branch moved on meanwhile (Dependabot rebased it), or the PR
   was closed, is no failure: the new commit's CI run decides, or there is nothing to
   decide. A cancelled or skipped CI run decides nothing. The comment keeps one key per
-  verdict, so a changed reason edits it without a new digest entry. GitHub deletes a merged
+  verdict, so a changed reason edits it. GitHub deletes a merged
   branch. `main`'s ruleset blocks force-pushes and deletion only, no required checks. If `update-prs.yml` itself fails, it
   opens one issue "Update PRs workflow failed" (the decide step has its own
   `timeout-minutes` under the job's, so running out of time fails the step and still
@@ -288,26 +285,13 @@
   firefox-beta.yml's report reads each failed job's log through the API (its run is still
   going) and opens no issue on an outage. Tests: `tests/workflows/ci-outage.test.sh`, the
   outage scenarios in `update-prs-decide.test.sh`.
-- **One email a day** (2026-11-09, the owner's wish: "just one email per repo that gets
-  sent daily"). No workflow @mentions or assigns the owner any more (both email); its
-  issues, PRs and comments are written plainly, and `daily-digest.yml` (daily, 10:00 UTC)
-  comments once on the pinned issue "Daily digest", @mentioning him once. The window is
-  [the last digest's `<!-- daily-digest: <time> -->` marker, now): the marker holds the time
-  the run started, read from the open digest issue or else the newest closed one (closing the
-  issue starts a new one that goes on from there), at most 7 days back. In it: failed runs
-  that *ended* in the window (fetched per conclusion, failure/timed_out/startup_failure,
-  created up to a day before it), grouped by workflow id and branch with that workflow's
-  newest run there (passed since / failure / running); the open PRs with update-prs.yml's
-  latest key (new when that comment was *created* in the window: a same-key edit is not
-  news); PRs merged or closed, issues opened or closed, releases; issue and review comments
-  from anyone but the owner and bots; open and new Dependabot and code scanning alerts. A
-  quiet day posts nothing and keeps the old marker. If the digest run fails, its second
-  step @mentions the owner on the digest issue. `tests/workflows/no-mentions.test.sh` fails
-  on any other workflow that mentions or assigns again; `daily-digest.test.sh` tests the
-  script. GitHub's own emails (Actions runs he started or scheduled, Dependabot alerts) are
-  his settings: docs/maintenance.md, "Email: one a day". (Reviewed by Codex: 8 findings,
-  all taken: the start-time cursor, runs by end time, by workflow id, review comments, the
-  cursor across a closed issue, the created-not-updated verdict time, no silent list limits.)
+- **No mentions, no digest** (2026-11-09, 2026-11-11). No workflow @mentions or assigns the
+  owner (both email); issues, PRs and comments are written plainly, and
+  `tests/workflows/no-mentions.test.sh` fails on any workflow that does either again. An
+  issue is opened only for a real problem. The daily digest (`daily-digest.yml`, one comment a
+  day on a pinned "Daily digest" issue, 2026-11-09) was removed on 2026-11-11 at the owner's
+  word: not useful, and it cluttered the issue list. GitHub's own emails (Actions runs he
+  started or scheduled, Dependabot alerts) are his settings: docs/maintenance.md, "Email".
 - **Update guards** (2026-10-20, the owner's calls, so that a green update PR can be
   merged without a second look). (1) **Red twice: hold + a
   migration issue.** When the second try fails too (again=1) on a dependabot/, toolchain/
@@ -598,7 +582,7 @@
   (every artifact named `e2e-retried*`, all of this repository's branches, the
   last 7 days; never a fork's pull request, whose CI run writes the list with its own code,
   and the texts are cut down to a path's characters, #166) in one
-  issue "Flaky e2e specs: week to <date>" (the daily digest lists it): per spec, how often it was
+  issue "Flaky e2e specs: week to <date>" per spec, how often it was
   run again, how often its retry passed, suites, branches and runs. It finds the artifacts
   through the repository's artifact list (`actions/artifacts?name=`), not run by run. The
   next week's issue closes it, and so does a week with no retry. Permissions: `actions:
@@ -608,8 +592,7 @@
   brace-expansion (three majors in the lockfile), its failed run emailed no one, and 12
   alerts sat on the Security tab unseen. For an open alert over 6 hours old with no open
   Dependabot PR naming the package (title, the links before the first `<details>`, a
-  grouped update's "Updates" lines), it opens "Security alert: <package>" (the daily
-  digest lists it); a later alert edits it and comments. The body's `<!-- alerts: ... -->` line
+  grouped update's "Updates" lines), it opens "Security alert: <package>"; a later alert edits it and comments. The body's `<!-- alerts: ... -->` line
   records what it listed: a listed alert is never raised again, so closing by hand skips.
   The advisory summary's `<` is escaped in the table, as a marker in it would hide that
   line from the next run (which would comment every day). Closes itself when no alert for the package is open. `vulnerability-alerts: read` is
@@ -673,8 +656,8 @@
   `vendored/silero-vad-<tag>` for a newer model, went with the speech detector on
   2026-10-10.) **vtt.js:** a dash.js release that changes `contrib/videojs-vtt.js/vtt.js` gets an issue,
   "vtt.js changed in dash.js <tag>", with the changed-line count and a compare link: a
-  person moves `tools/verify-vtt.mjs`'s tag and re-runs `verify:vtt`. The daily digest lists
-  each item; it is never raised twice (closing it skips that release), closes itself once its
+  person moves `tools/verify-vtt.mjs`'s tag and re-runs `verify:vtt`. Each item
+  is never raised twice (closing it skips that release), closes itself once its
   pin reaches its tag, and a newer release's item closes older ones. On 2026-10-01 both
   were current in effect: silero-vad v6.2.3 and dash.js v5.2.1 publish the same bytes as
   the pins (v6.2.1, v5.1.0). `tests/workflows/vendored-updates.test.sh`: 10 scenarios
@@ -716,8 +699,7 @@
   yt" has no code to apply to, V1.3.78 is a version bump; the aspect-ratio option (#552) is a
   feature for his decision. `docs/upstream-sync-log.md` keeps the record of the merge years.
 - **`upstream-watch.yml`** (2026-10-09) runs daily (06:00 UTC) and lists upstream's commits
-  not reviewed yet in one issue, "Upstream: N commit(s) to review", which the daily
-  digest lists; when upstream moves again the issue is updated and a comment says how many
+  not reviewed yet in one issue, "Upstream: N commit(s) to review"; when upstream moves again the issue is updated and a comment says how many
   came. Each commit names its files, those this fork still has in
   bold, and "fix?" when its message speaks of a fix, a bug, a crash, a leak or security; a
   commit touching only files this fork does not have is listed apart. **Closing the issue
@@ -743,7 +725,7 @@
   Clean, checks passed: a PR from `patched/<name>-<version>`, with CI dispatched on it (a
   push by `GITHUB_TOKEN` starts no workflow; `gh workflow run` does). Conflict or failed
   check: an issue with the tool's report. Both
-  listed by the daily digest, never raised twice (issue or PR titles, any state), closed when
+  never raised twice (issue or PR titles, any state), closed when
   the patch is cut against that version or newer; closing one by hand skips the
   version. Runbook: `docs/updating-patched-libraries.md`. The tool reproduces every
   current patch byte for byte and replays the hand-cut hls.js 1.7.2 -> 1.7.3 upgrade

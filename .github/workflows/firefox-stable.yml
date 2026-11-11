@@ -10,7 +10,7 @@ name: Firefox stable
 # Each version is tested once: after a green run its version is recorded as an Actions
 # cache entry (firefox-stable-tested-<version>), and later runs find it and stop. The
 # playback and installed-extension suites run against exactly that version. A failure
-# opens one issue per version, which the daily digest lists; the next green
+# opens one issue per version; the next green
 # run closes it. Run by hand to test the current stable again regardless.
 
 on:

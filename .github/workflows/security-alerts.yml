@@ -7,7 +7,7 @@ name: Security alerts
 # as the only notice. So once a day this reads the repository's open Dependabot alerts. A
 # package with an alert over 6 hours old (Dependabot's pull request comes within minutes)
 # and no open Dependabot pull request naming it gets one issue, "Security alert: <package>",
-# which the daily digest lists, listing its alerts and how to fix them by
+# listing its alerts and how to fix them by
 # hand. A later alert for that package is added to the open issue with a comment.
 #
 # The issue closes itself once none of the package's alerts is open: fixed on main (GitHub
@@ -351,8 +351,8 @@ jobs:
           retention-days: 1
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
-      # whoever last changed the cron line): one issue while it is open, which the daily
-      # digest lists, as toolchain-updates.yml does. A failure while it is open adds a
+      # whoever last changed the cron line): one issue while it is open, as
+      # toolchain-updates.yml does. A failure while it is open adds a
       # comment to it.
       - name: Report this workflow's own failure
         if: failure()

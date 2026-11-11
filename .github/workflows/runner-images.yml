@@ -15,7 +15,7 @@ name: Runner images
 # Each is tested once: a green run is recorded as an Actions cache entry
 # (runner-image-next-... / runner-image-latest-...) and later runs find it and stop. A
 # failing image is retried every day until it passes. A failure opens one issue per
-# image, which the daily digest lists; the first green run on that image
+# image; the first green run on that image
 # closes it. Run by hand to test both again regardless.
 
 on:
