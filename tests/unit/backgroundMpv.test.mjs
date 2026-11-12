@@ -2805,3 +2805,85 @@ describe('a copy-protected stream (DRM)', () => {
     expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
   });
 });
+
+describe('a file only its page loads', () => {
+  // abyss.to's player address (#665): only the page's service worker gives the video, and
+  // anyone else gets a web page ("Video not found", measured 2026-11-12: 200 text/html).
+  // mpv's window opened and closed at once. FastStream's own player loads it through the
+  // page: the tab goes over to it, and it says why (MpvMode.playHereInstead).
+  const FILE = 'https://player.test/#mp4/abc/1080';
+  const html = () => async () => response('<html>Video not found</html>', 200, 'text/html; charset=utf-8');
+  const PLAYER_IN_PAGE = 'moz-extension://bg-test/player/index.html?opener=page-1';
+
+  /** The page's video, played with no request Firefox shows (a service worker answered it). */
+  async function pagePlays() {
+    await bg.message({type: 'LOADED_MEDIA', live: true, url: PAGE, document: 'page-1',
+      resources: [{url: FILE, media: true, cors: false, time: Date.now()}]}, {tabId: 1, frameId: 0});
+  }
+
+  it('is not handed to mpv by the allowlist: FastStream\'s player opens, and tells why', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
+      fetch: html()});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await pagePlays();
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false, mpvError: null});
+    expect(bg.badges.get(1)).not.toBe('!');
+    expect(bg.sent('OPEN_PLAYER')).toHaveLength(1);
+
+    // The player that opened gets the notice with the sources, once.
+    await bg.message({type: 'PLAYER_LOADED', url: PLAYER_IN_PAGE, parentFrameId: 0}, {tabId: 1, frameId: 5});
+    bg.sentToTabs.length = 0;
+    await bg.message({type: 'REQUEST_SOURCES'}, {tabId: 1, frameId: 5});
+    await bg.wait(3000);
+    const sent = bg.sent('SOURCES').filter((m) => m.frameId === 5);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].message.notice).toBe('player_mpv_page_only');
+    expect(sent[0].message.sources.map((s) => s.url)).toEqual([FILE]);
+    bg.sentToTabs.length = 0;
+    await bg.message({type: 'REQUEST_SOURCES'}, {tabId: 1, frameId: 5});
+    await bg.wait(3000);
+    expect(bg.sent('SOURCES').filter((m) => m.frameId === 5)[0].message.notice).toBeUndefined();
+  });
+
+  it('is not handed to mpv by the shortcut\'s MPV either', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: html()});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await bg.command('toggle_mpv', 1);
+    await bg.message({type: 'MPV_USER_PLAY', src: FILE, video: {src: FILE, duration: 600}}, {tabId: 1, frameId: 0});
+    await pagePlays();
+    await bg.wait(3000);
+    expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false, mpvOnPlay: false});
+    expect(bg.sent('OPEN_PLAYER')).toHaveLength(1);
+  });
+
+  it('is not sent by the player\'s mpv button, whose answer says why', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: html()});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await pagePlays();
+    await bg.wait(1500);
+    const answer = bg.message({type: 'MPV_OPEN', url: FILE, headers: [], qualities: []},
+        {tabId: 1, frameId: 0, url: 'moz-extension://bg-test/player/index.html'});
+    await bg.wait(2000);
+    expect(await answer).toMatchObject({ok: false, pageOnly: true});
+    expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
+  });
+
+  it('leaves a file that answers as a video as it was', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
+      fetch: async () => response(new Uint8Array(16), 206, 'video/mp4')});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await pagePlays();
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([FILE]);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true});
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+  });
+});

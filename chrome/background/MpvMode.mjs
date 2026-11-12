@@ -11,7 +11,7 @@ import {SHORT_S} from '../player/utils/StreamPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {Capabilities, MpvBackend} from './MpvBackend.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
-import {AutoEnableList, CaptionScrapeWaitMs, HlsQualitiesWaitMs, Lengths, Logging, Options, PageSubtitles, SourceLengthWaitMs, Tabs, VpnMirror, askFrame, closeReopenedTab, ensureOptions, hlsQualityChoice, isSentStream, isTabOpen, newestOfLongest, noteProblem, notifySeriesEnd, pageQualityChoice, pauseTabMedia, saveOption, scrapeCaptionsTags, startPagePlayers, tabHasPlayer, tabTitle, takeScrapedCaptions, userTurnedOff} from './background.mjs';
+import {AutoEnableList, CaptionScrapeWaitMs, HlsQualitiesWaitMs, Lengths, Logging, Options, PageSubtitles, SourceLengthWaitMs, Tabs, VpnMirror, askFrame, closeReopenedTab, ensureOptions, hlsQualityChoice, isSentStream, isTabOpen, newestOfLongest, noteProblem, notifySeriesEnd, openPlayersWithSources, pageQualityChoice, pauseTabMedia, saveOption, scrapeCaptionsTags, startPagePlayers, tabHasPlayer, tabTitle, takeScrapedCaptions, userTurnedOff} from './background.mjs';
 
 /** @typedef {import('./TabTracker.mjs').TabHolder} TabHolder */
 /** @typedef {import('./TabTracker.mjs').TrackedSource} TrackedSource */
@@ -300,6 +300,39 @@ export function pauseAfterHandOff(tab, result) {
 }
 
 /**
+ * After openInMpv refused a file only its page loads (pageOnly: abyss.to's player, #665):
+ * the tab goes over from MPV to FastStream's own player, as the toolbar's MPV -> On does,
+ * and that player, which loads the file through the page (PageFetch), says why
+ * (tab.playerNotice). mpv's window opened and closed at once before, and nothing said why
+ * (the owner's pick, 2026-11-12: no byte relay to mpv, which would need a new helper). Not
+ * the user's Off (userTurnedOff): the toolbar shows On, and the user's click gives MPV back.
+ * A tab the user turned off or over to FastStream meanwhile keeps that.
+ * @param {TabHolder} tab - The tab the stream was sent from.
+ * @param {MpvHandOff} result - openInMpv's answer.
+ * @return {boolean} Whether it was such a refusal: then nothing else is done with it.
+ */
+export function playHereInstead(tab, result) {
+  if (!('pageOnly' in result) || !result.pageOnly) {
+    return false;
+  }
+  if (!tab.isOn || !tab.isMpv) {
+    return true;
+  }
+  if (Logging) console.log('[MPV] FastStream plays it instead, in tab', tab.tabId);
+  tab.isMpv = false;
+  tab.mpvOnPlay = false;
+  tab.mpvError = null;
+  tab.mpvPlayPendingUntil = 0;
+  tab.mpvPlayedVideo = null;
+  tab.mpvPlayChecking = null;
+  tab.playerNotice = 'player_mpv_page_only';
+  BackgroundUtils.updateTabIcon(tab);
+  Tabs.saveTabState(tab);
+  openPlayersWithSources(tab).catch((e) => console.error('Opening the player in place of mpv failed', e));
+  return true;
+}
+
+/**
  * The allowlist's MPV: hands a page's stream to mpv, once per page
  * (tab.mpvAutoOpened), then pauses the page.
  *
@@ -319,7 +352,7 @@ export function autoOpenInMpv(tab, url, headers) {
   tabTitle(tab.tabId).then((title) =>
     openInMpv(tab.tabId, url, tab, headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] forward result:', url, JSON.stringify(result));
-    if (!isHandOffPage(tab, page)) {
+    if (!isHandOffPage(tab, page) || playHereInstead(tab, result)) {
       return;
     }
     setMpvError(tab, result);
@@ -1086,7 +1119,7 @@ export function sendPlayedToMpv(tab, source, video = null) {
     openInMpv(tab.tabId, source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title,
         {startTime})).then((result) => {
     if (Logging) console.log('[MPV] user play result:', source.url, JSON.stringify(result));
-    if (!isHandOffPage(tab, page)) {
+    if (!isHandOffPage(tab, page) || playHereInstead(tab, result)) {
       return;
     }
     setMpvError(tab, result);
@@ -1141,7 +1174,7 @@ export function openMpvWithSources(tab) {
   tabTitle(tab.tabId).then((title) =>
     openInMpv(tab.tabId, source.url, tab, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] openStream result:', source.url, JSON.stringify(result));
-    if (!isHandOffPage(tab, page)) {
+    if (!isHandOffPage(tab, page) || playHereInstead(tab, result)) {
       return;
     }
     setMpvError(tab, result);
@@ -1174,7 +1207,7 @@ export function openMpvWithSources(tab) {
  * @param {string} url - The stream.
  * @param {...*} rest - openStream's other arguments.
  * @return {Promise<MpvHandOff>} openStream's answer, or {ok: false, vpn: true, error}, or
- *   {ok: false, drm: true, error}.
+ *   {ok: false, drm: true, error}, or {ok: false, pageOnly: true, error}.
  */
 export async function openInMpv(tabId, url, ...rest) {
   let incognito;
@@ -1190,6 +1223,16 @@ export async function openInMpv(tabId, url, ...rest) {
   // never saw - a hoster's get_file link, which redirects to its CDN - and it went to mpv on
   // that file's host alone (this review, 2026-10-13).
   const detected = url;
+  // A file only its page gives (StreamLengths.servesWebPage): its length's read, started when it
+  // was detected, tells by its first answer; one detected while the tab was off is read now.
+  // Waited for alongside the reads below.
+  const file = tabId !== undefined && tabId >= 0 && Tabs.getTab(tabId) ?
+    tabSources(Tabs.getTab(tabId)).find((source) => source.url === detected &&
+      (source.mode === PlayerModes.ACCELERATED_MP4 || source.mode === PlayerModes.DIRECT)) : null;
+  if (file) {
+    Lengths.probe(file);
+  }
+  const webPage = Lengths.servesWebPage(detected, HlsQualitiesWaitMs);
   // The page's player offers this file in other qualities too (page-qualities.js): mpv gets
   // the one the user's quality setting asks for, and the list. MPV mode sent the page's
   // default, the lowest on a film site's hoster. Not for the player's button, which sends the
@@ -1230,6 +1273,19 @@ export async function openInMpv(tabId, url, ...rest) {
       drm: true,
       error: chrome.i18n.getMessage('player_mpv_drm') ||
         'This video is copy-protected (DRM), and mpv cannot play it: the site\'s own player keeps it.',
+    };
+  }
+  // Answered with a web page from anywhere but its page (abyss.to's player address, #665: the
+  // page's service worker gives the video). mpv got "Video not found", and its window opened
+  // and closed at once. FastStream's own player loads it through the page (PageFetch), and the
+  // callers hand the tab over to it (playHereInstead).
+  if (await webPage) {
+    if (Logging) console.log('[MPV] not handed off, only its page loads it:', detected);
+    return {
+      ok: false,
+      pageOnly: true,
+      error: chrome.i18n.getMessage('player_mpv_page_only') ||
+        'This video loads only through its page, and mpv cannot open it: FastStream plays it here.',
     };
   }
   if (VpnMirror.throughBrowserVpn(detected, incognito) || VpnMirror.throughBrowserVpn(url, incognito)) {

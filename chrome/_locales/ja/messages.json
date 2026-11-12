@@ -1205,6 +1205,9 @@
     "player_mpv_drm": {
         "message": "この動画はコピー保護（DRM）されているため、mpv では再生できません。サイト自身のプレーヤーで再生されます。"
     },
+    "player_mpv_page_only": {
+        "message": "この動画はそのページ経由でしか読み込めないため、mpv では開けません。FastStream がここで再生します。"
+    },
     "mpv_episode_loading": {
         "message": "mpvで読み込み中"
     },

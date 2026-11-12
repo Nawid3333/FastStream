@@ -1205,6 +1205,9 @@
     "player_mpv_drm": {
         "message": "This video is copy-protected (DRM), and mpv cannot play it: the site's own player keeps it."
     },
+    "player_mpv_page_only": {
+        "message": "This video loads only through its page, and mpv cannot open it: FastStream plays it here."
+    },
     "mpv_episode_loading": {
         "message": "loading in mpv"
     },

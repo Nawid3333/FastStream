@@ -1205,6 +1205,9 @@
     "player_mpv_drm": {
         "message": "此视频受复制保护（DRM），mpv 无法播放：它会留在网站自己的播放器中。"
     },
+    "player_mpv_page_only": {
+        "message": "此视频只能通过其页面加载，mpv 无法打开：FastStream 将在此处播放。"
+    },
     "mpv_episode_loading": {
         "message": "正在 mpv 中加载"
     },

@@ -2031,9 +2031,9 @@ async function attachPageQualities(tab, sources) {
 
 /**
  * What a hand-off to mpv answers: MpvBackend.openStream's answer, or openInMpv's refusal
- * of a stream Firefox VPN carries.
+ * of a stream Firefox VPN carries, a copy-protected one, or one only its page loads.
  * @typedef {Awaited<ReturnType<MpvBackend['openStream']>>|{ok: false, vpn: true, error: string}|
- *   {ok: false, drm: true, error: string}} MpvHandOff
+ *   {ok: false, drm: true, error: string}|{ok: false, pageOnly: true, error: string}} MpvHandOff
  */
 
 /**
@@ -2353,6 +2353,9 @@ export function startPagePlayers(tab) {
 async function sendSources(frame) {
   const continuationOptions = frame.tab.continuationOptions;
   frame.tab.continuationOptions = null;
+  // Shown once, by the first player that asks (MpvMode.playHereInstead).
+  const notice = frame.tab.playerNotice;
+  frame.tab.playerNotice = null;
   const send = /** @param {Array<Object>} subtitles @param {Array<Object>} sources @param {?Object} video */ (subtitles, sources, video) => {
     chrome.tabs.sendMessage(frame.tab.tabId, {
       type: MessageTypes.SOURCES,
@@ -2361,6 +2364,7 @@ async function sendSources(frame) {
       video,
       autoSetSource: true,
       continuationOptions: continuationOptions,
+      ...(notice ? {notice} : {}),
     }, {
       frameId: frame.frameId,
     }, () => {
@@ -2828,7 +2832,7 @@ async function onSourceRecieved(details, frame, mode) {
  *   page's <track> captions are read (onSourceRecieved), and opened here as well it
  *   beat them and opened a second player.
  */
-async function openPlayersWithSources(tab, foundBefore = Infinity) {
+export async function openPlayersWithSources(tab, foundBefore = Infinity) {
   if (!tabHasSources(tab)) {
     // Streams the page asked for before this background knew of it (recoverSources). Each
     // one found opens the player as a stream detected now does (onSourceRecieved): opened

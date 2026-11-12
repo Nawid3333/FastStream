@@ -36,14 +36,16 @@ function event() {
  * reads a body through arrayBuffer() when it has no stream.
  * @param {string|Uint8Array} body - What the server sends.
  * @param {number} [status] - Its status.
+ * @param {string} [contentType] - Its Content-Type, none by default.
  * @return {Object} A stand-in for fetch()'s Response.
  */
-export function response(body, status = 200) {
+export function response(body, status = 200, contentType = '') {
   const bytes = typeof body === 'string' ? new TextEncoder().encode(body) : body;
   return {
     ok: status >= 200 && status < 300,
     status,
     url: '',
+    headers: new Headers(contentType ? {'Content-Type': contentType} : {}),
     body: null,
     arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
   };

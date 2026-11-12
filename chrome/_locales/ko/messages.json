@@ -1205,6 +1205,9 @@
     "player_mpv_drm": {
         "message": "이 비디오는 복사 방지(DRM)되어 있어 mpv에서 재생할 수 없습니다. 사이트 자체 플레이어에서 재생됩니다."
     },
+    "player_mpv_page_only": {
+        "message": "이 동영상은 해당 페이지를 통해서만 로드되므로 mpv에서 열 수 없습니다. FastStream이 여기에서 재생합니다."
+    },
     "mpv_episode_loading": {
         "message": "mpv에서 로드 중"
     },

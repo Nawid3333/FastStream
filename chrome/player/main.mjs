@@ -15,6 +15,11 @@ import {URLUtils} from './utils/URLUtils.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {VideoSource} from './VideoSource.mjs';
 
+// The notices the background may send with the sources, by their messages' keys, and how
+// long one shows.
+const PlayerNotices = ['player_mpv_page_only'];
+const PlayerNoticeMs = 12000;
+
 /**
  * The player's window: it holds the client from setup() until beforeunload deletes it,
  * marked optionsApplied for the tests once loadOptions() gave it the saved options.
@@ -108,6 +113,7 @@ if (EnvUtils.isExtension()) {
 /**
  * @param {{sources: SentSource[], video?: ?{src?: string, duration?: number|null},
  *   subtitles?: Array<import('./utils/SubtitleFetch.mjs').SentSubtitle>, autoSetSource?: boolean, forceAutoplay?: boolean,
+ *   notice?: string,
  *   continuationOptions: {autoPlay?: boolean,
  *   disableLoadProgress?: boolean, fullscreenState?: string}}} request - The SOURCES
  * message, from the background's runtime listener or the page's iframe messager.
@@ -134,6 +140,13 @@ async function recieveSources(request, sendResponse) {
   if (sources.length === 0) {
     sendResponse('no_sources');
     return;
+  }
+
+  // The background's word on why this player opened (MpvMode.playHereInstead): a message's key,
+  // only one of these, as the page's iframe messager brings SOURCES too.
+  if (typeof request.notice === 'string' && PlayerNotices.includes(request.notice)) {
+    /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.setStatusMessage(
+        'mpv', Localize.getMessage(request.notice), 'warning', PlayerNoticeMs);
   }
 
   // The streams the page's video played, when it tells them; else the longest: an ad or an

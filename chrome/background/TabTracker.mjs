@@ -396,6 +396,10 @@ export class TabHolder {
     // checked next (background.mjs sendPendingPlay); null otherwise.
     /** @type {?Array<Object>} */
     this.mpvPlayChecking = null;
+    // What the player that opens next in the tab shows first, once: the key of a message
+    // (MpvMode.playHereInstead's 'player_mpv_page_only'), sent with its sources (sendSources).
+    /** @type {?string} */
+    this.playerNotice = null;
   }
 
   /**
