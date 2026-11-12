@@ -885,7 +885,10 @@ Limits, known:
   FastStream's own player, as the toolbar's MPV -> On does (`MpvMode.playHereInstead`: On, not
   the user's Off), and that player says why (`tab.playerNotice`, a message key sent once with
   the sources; the player shows only keys it knows, as the page's iframe messager brings
-  SOURCES too). The player's mpv button gets the reason as its answer. Passing the page's
+  SOURCES too). On that page the On stands in for MPV (`tab.mpvStandInPage`): the toolbar
+  cycle's next click is MPV -> Off (as On -> MPV it reloaded the page, was refused again and
+  came back On, and Off was never reached: glm's review). The player's mpv button gets the
+  reason as its answer. Passing the page's
   bytes on to mpv would need a local server in the helper (a new host version installed by
   hand, and a port on the PC): the owner chose this instead.
 - **A stream built in the page's memory** (`blob:` from MediaSource) has no request to repeat.

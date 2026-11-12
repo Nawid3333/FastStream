@@ -357,7 +357,12 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
         // toggle's "click stops it" behavior everywhere else), rather than
         // falling back to the in-page player; a second click turns the
         // in-page player on; a third hands the stream to mpv again.
-        if (tab.isMpv) {
+        // An On that stands in for MPV, on a page whose file only the page loads
+        // (MpvMode.playHereInstead), counts as MPV: On -> MPV reloaded the page, was refused
+        // again, came back On, and Off was never reached (glm's review).
+        const standIn = tab.isOn && !tab.isMpv && tab.mpvStandInPage === tab.mpvPage;
+        tab.mpvStandInPage = -1;
+        if (tab.isMpv || standIn) {
           // MPV -> Off
           await stopMpv(tab);
         } else if (tab.isOn) {
@@ -638,6 +643,9 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       tab.mpvPlayChecking = null;
       // The page before's copy-protected video, not this one's (hasVideoSource).
       tab.protectedVideo = false;
+      // Why the page before's player opened in place of mpv (MpvMode.playHereInstead), should
+      // no player have asked for it there: this page's video may be one mpv plays.
+      tab.playerNotice = null;
       clearTimeout(tab.urlStartTimer);
 
       chrome.tabs.sendMessage(tabid, {
@@ -2355,7 +2363,10 @@ async function sendSources(frame) {
   frame.tab.continuationOptions = null;
   // Shown once, by the first player that asks (MpvMode.playHereInstead).
   const notice = frame.tab.playerNotice;
-  frame.tab.playerNotice = null;
+  if (notice) {
+    frame.tab.playerNotice = null;
+    Tabs.saveTabState(frame.tab);
+  }
   const send = /** @param {Array<Object>} subtitles @param {Array<Object>} sources @param {?Object} video */ (subtitles, sources, video) => {
     chrome.tabs.sendMessage(frame.tab.tabId, {
       type: MessageTypes.SOURCES,

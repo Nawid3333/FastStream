@@ -2875,6 +2875,37 @@ describe('a file only its page loads', () => {
     expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
   });
 
+  it('turns the tab off at the toolbar\'s next click, as MPV -> Off', async () => {
+    // As On -> MPV it reloaded the page, was refused again and came back On: Off was never
+    // reached (glm's review).
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
+      fetch: html()});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await pagePlays();
+    await bg.wait(3000);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
+    await bg.click(1);
+    await bg.wait(500);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false});
+    // The cycle goes on as ever: Off -> On.
+    await bg.click(1);
+    await bg.wait(500);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
+    expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
+  });
+
+  it('lets the MPV key\'s next play of the same video go, not dropped as a repeat', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: html()});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await bg.command('toggle_mpv', 1);
+    await bg.message({type: 'MPV_USER_PLAY', src: FILE, video: {src: FILE, duration: 600}}, {tabId: 1, frameId: 0});
+    await pagePlays();
+    await bg.wait(3000);
+    expect(bg.session['tabState:1']).toMatchObject({isMpv: false, mpvLastPlaySend: null});
+  });
+
   it('leaves a file that answers as a video as it was', async () => {
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
       fetch: async () => response(new Uint8Array(16), 206, 'video/mp4')});

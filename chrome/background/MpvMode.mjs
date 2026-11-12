@@ -305,7 +305,9 @@ export function pauseAfterHandOff(tab, result) {
  * and that player, which loads the file through the page (PageFetch), says why
  * (tab.playerNotice). mpv's window opened and closed at once before, and nothing said why
  * (the owner's pick, 2026-11-12: no byte relay to mpv, which would need a new helper). Not
- * the user's Off (userTurnedOff): the toolbar shows On, and the user's click gives MPV back.
+ * the user's Off (userTurnedOff): the toolbar shows On. On this page the tab stands in for MPV
+ * (tab.mpvStandInPage): the toolbar cycle's next click is MPV -> Off. As On -> MPV it reloaded
+ * the page, was refused again and came back On, and Off was never reached (glm's review).
  * A tab the user turned off or over to FastStream meanwhile keeps that.
  * @param {TabHolder} tab - The tab the stream was sent from.
  * @param {MpvHandOff} result - openInMpv's answer.
@@ -325,6 +327,9 @@ export function playHereInstead(tab, result) {
   tab.mpvPlayPendingUntil = 0;
   tab.mpvPlayedVideo = null;
   tab.mpvPlayChecking = null;
+  // The MPV key's next play of the same video is no repeat to drop (sendPlayedToMpv).
+  tab.mpvLastPlaySend = null;
+  tab.mpvStandInPage = tab.mpvPage;
   tab.playerNotice = 'player_mpv_page_only';
   BackgroundUtils.updateTabIcon(tab);
   Tabs.saveTabState(tab);
@@ -1278,9 +1283,10 @@ export async function openInMpv(tabId, url, ...rest) {
   // Answered with a web page from anywhere but its page (abyss.to's player address, #665: the
   // page's service worker gives the video). mpv got "Video not found", and its window opened
   // and closed at once. FastStream's own player loads it through the page (PageFetch), and the
-  // callers hand the tab over to it (playHereInstead).
-  if (await webPage) {
-    if (Logging) console.log('[MPV] not handed off, only its page loads it:', detected);
+  // callers hand the tab over to it (playHereInstead). The page's quality taken in its place
+  // (pageQualityChoice) too, as far as its own read already tells (glm's review).
+  if (await webPage || (url !== detected && await Lengths.servesWebPage(url, 0))) {
+    if (Logging) console.log('[MPV] not handed off, only its page loads it:', url);
     return {
       ok: false,
       pageOnly: true,
