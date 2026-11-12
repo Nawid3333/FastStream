@@ -7235,6 +7235,24 @@
     "zh_CN": "此视频受复制保护（DRM），mpv 无法播放：它会留在网站自己的播放器中。",
     "zh_TW": "此影片受複製保護（DRM），mpv 無法播放：它會留在網站自己的播放器中。"
   },
+  "player_mpv_page_only": {
+    "en": "This video loads only through its page, and mpv cannot open it: FastStream plays it here.",
+    "de": "Dieses Video lädt nur über seine Seite, und mpv kann es nicht öffnen: FastStream spielt es hier ab.",
+    "es": "Este vídeo solo se carga a través de su página y mpv no puede abrirlo: FastStream lo reproduce aquí.",
+    "fr": "Cette vidéo ne se charge que par sa page, et mpv ne peut pas l'ouvrir : FastStream la lit ici.",
+    "id": "Video ini hanya dimuat melalui halamannya, dan mpv tidak dapat membukanya: FastStream memutarnya di sini.",
+    "it": "Questo video si carica solo tramite la sua pagina e mpv non può aprirlo: FastStream lo riproduce qui.",
+    "ja": "この動画はそのページ経由でしか読み込めないため、mpv では開けません。FastStream がここで再生します。",
+    "ko": "이 동영상은 해당 페이지를 통해서만 로드되므로 mpv에서 열 수 없습니다. FastStream이 여기에서 재생합니다.",
+    "ms": "Video ini hanya dimuatkan melalui halamannya, dan mpv tidak dapat membukanya: FastStream memainkannya di sini.",
+    "nl": "Deze video laadt alleen via zijn pagina, en mpv kan hem niet openen: FastStream speelt hem hier af.",
+    "pl": "Ten film ładuje się tylko przez swoją stronę i mpv nie może go otworzyć: FastStream odtwarza go tutaj.",
+    "pt_BR": "Este vídeo só carrega pela própria página, e o mpv não consegue abri-lo: o FastStream o reproduz aqui.",
+    "ru": "Это видео загружается только через свою страницу, и mpv не может его открыть: FastStream воспроизводит его здесь.",
+    "tr": "Bu video yalnızca kendi sayfası üzerinden yüklenir ve mpv onu açamaz: FastStream burada oynatıyor.",
+    "zh_CN": "此视频只能通过其页面加载，mpv 无法打开：FastStream 将在此处播放。",
+    "zh_TW": "此影片只能透過其頁面載入，mpv 無法開啟：FastStream 會在此處播放。"
+  },
   "mpv_episode_loading": {
     "en": "loading in mpv",
     "de": "wird in mpv geladen",

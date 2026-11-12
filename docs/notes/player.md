@@ -875,7 +875,22 @@ Limits, known:
 - **DIRECT** (Firefox's own `<video>` in FastStream's page: WebM and other files MSE can't take)
   loads by itself. A service-worker-only WebM does not play.
 - **DRM** stays in the page's player (see "A copy-protected video stays in the page's player").
-- **MPV mode** gets the link as before: mpv cannot load what only the page can.
+- **MPV mode** cannot hand mpv what only the page loads: mpv asks the server itself, got
+  "Video not found", and its window opened and closed at once (his report, 2026-11-12). Since
+  then the length's read (`StreamLengths`, which runs when a stream is detected) notes a file
+  (MP4 or DIRECT) whose first answer is a 2xx `text/html` (`servesWebPage`; never a playlist or
+  a manifest, which some servers send as `text/html`). `openInMpv` waits for that answer (up to
+  `HlsQualitiesWaitMs`, alongside its other reads) and refuses such a file (`pageOnly`). The
+  allowlist's MPV, the MPV key's play and the toolbar's MPV then put the tab over to
+  FastStream's own player, as the toolbar's MPV -> On does (`MpvMode.playHereInstead`: On, not
+  the user's Off), and that player says why (`tab.playerNotice`, a message key sent once with
+  the sources; the player shows only keys it knows, as the page's iframe messager brings
+  SOURCES too). On that page the On stands in for MPV (`tab.mpvStandInPage`): the toolbar
+  cycle's next click is MPV -> Off (as On -> MPV it reloaded the page, was refused again and
+  came back On, and Off was never reached: glm's review). The player's mpv button gets the
+  reason as its answer. Passing the page's
+  bytes on to mpv would need a local server in the helper (a new host version installed by
+  hand, and a port on the PC): the owner chose this instead.
 - **A stream built in the page's memory** (`blob:` from MediaSource) has no request to repeat.
   Its manifest or file, when FastStream finds that, plays instead.
 

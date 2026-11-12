@@ -597,3 +597,49 @@ describe('StreamLengths.queue', () => {
     }
   });
 });
+
+describe('StreamLengths.servesWebPage', () => {
+  // abyss.to's player address (#665): a web page to anyone but its page's service worker.
+  const FILE = 'https://player.test/#mp4/abc/1080';
+  const answer = (contentType, status = 200, delayMs = 0) => () => new Promise((resolve) => {
+    setTimeout(() => resolve(new Response('<html>Video not found</html>', {status, headers: {'Content-Type': contentType}})), delayMs);
+  });
+
+  it('tells a file answered with a web page, by its first answer', async () => {
+    const lengths = new StreamLengths({fetch: answer('text/html; charset=utf-8')});
+    expect(await lengths.probe({url: FILE, mode: MP4})).toBeNull();
+    expect(await lengths.servesWebPage(FILE, 1000)).toBe(true);
+  });
+
+  it('waits for that answer, up to the deadline', async () => {
+    vi.useFakeTimers();
+    const lengths = new StreamLengths({fetch: answer('text/html', 200, 500)});
+    lengths.probe({url: FILE, mode: MP4});
+    const told = lengths.servesWebPage(FILE, 1500);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(await told).toBe(true);
+
+    const slow = new StreamLengths({fetch: answer('text/html', 200, 5000)});
+    slow.probe({url: FILE, mode: MP4});
+    const late = slow.servesWebPage(FILE, 1500);
+    await vi.advanceTimersByTimeAsync(1600);
+    expect(await late).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('is false for a video, a refusal, a URL never read, and a playlist sent as text/html', async () => {
+    const video = new StreamLengths({fetch: answer('video/mp4', 206)});
+    await video.probe({url: FILE, mode: MP4});
+    expect(await video.servesWebPage(FILE, 1000)).toBe(false);
+
+    const refused = new StreamLengths({fetch: answer('text/html', 403)});
+    await refused.probe({url: FILE, mode: MP4});
+    expect(await refused.servesWebPage(FILE, 1000)).toBe(false);
+
+    expect(await new StreamLengths({fetch: answer('text/html')}).servesWebPage(FILE, 1000)).toBe(false);
+
+    const playlist = new StreamLengths({fetch: answer('text/html')});
+    await playlist.probe({url: 'https://cdn.example/a.m3u8', mode: HLS});
+    expect(await playlist.servesWebPage('https://cdn.example/a.m3u8', 1000)).toBe(false);
+  });
+});

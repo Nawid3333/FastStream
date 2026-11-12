@@ -1205,6 +1205,9 @@
     "player_mpv_drm": {
         "message": "Deze video is kopieerbeveiligd (DRM) en mpv kan hem niet afspelen: de eigen speler van de site houdt hem vast."
     },
+    "player_mpv_page_only": {
+        "message": "Deze video laadt alleen via zijn pagina, en mpv kan hem niet openen: FastStream speelt hem hier af."
+    },
     "mpv_episode_loading": {
         "message": "laden in mpv"
     },

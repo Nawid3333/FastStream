@@ -333,6 +333,10 @@ export class TabHolder {
     // hand-off seconds later, and an answer for a page the tab has left applies nothing.
     /** @type {number} */
     this.mpvPage = 0;
+    // The page (mpvPage) whose file only the page loads, and whose MPV went over to the in-page
+    // player (MpvMode.playHereInstead): there the toolbar cycle's On counts as MPV. -1 for none.
+    /** @type {number} */
+    this.mpvStandInPage = -1;
     // The user turned the tab off, or MPV off, on the site it shows (background.mjs
     // userTurnedOff): the MPV Allowlist does not start MPV there again by itself, also
     // after a page of the site it does not list. Another site, or the user turning MPV on,
@@ -396,6 +400,10 @@ export class TabHolder {
     // checked next (background.mjs sendPendingPlay); null otherwise.
     /** @type {?Array<Object>} */
     this.mpvPlayChecking = null;
+    // What the player that opens next in the tab shows first, once: the key of a message
+    // (MpvMode.playHereInstead's 'player_mpv_page_only'), sent with its sources (sendSources).
+    /** @type {?string} */
+    this.playerNotice = null;
   }
 
   /**
@@ -716,12 +724,14 @@ const TabStateKeyPrefix = 'tabState:';
 // which keeps a player's second play() from opening a second window). mpvTurnedOff, or the
 // MPV Allowlist started MPV again on the site the user had turned it off on. playerPageFrames,
 // or a player's end found no page to go on to the next episode in (his report, 2026-10-23:
-// the countdown stopped at "1 s"; measured, the event page unloads after 30 s). The rest of
+// the countdown stopped at "1 s"; measured, the event page unloads after 30 s). playerNotice,
+// or a player that loaded after a wake said nothing of why it opened in place of mpv (glm's
+// review; sendSources saves its clearing). The rest of
 // a TabHolder - frames, detected sources - describes the current page and is rebuilt as
 // that page makes requests.
 const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened',
   'mpvError', 'mpvHostOutdated', 'protectedVideo', 'mpvDecoder', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend',
-  'mpvTurnedOff', 'windowStateBefore', 'carriedFullscreenFrameId', 'carryAwaited', 'playerPageFrames'];
+  'mpvTurnedOff', 'windowStateBefore', 'carriedFullscreenFrameId', 'carryAwaited', 'playerPageFrames', 'playerNotice'];
 
 export class TabTracker {
   constructor() {

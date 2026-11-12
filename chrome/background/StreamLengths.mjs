@@ -43,11 +43,14 @@ export class StreamLengths {
   constructor({fetch = (url, init) => globalThis.fetch(url, init), setHeaders = async () => {}} = {}) {
     this.fetch = fetch;
     this.setHeaders = setHeaders;
-    /** @type {Map<string, {duration: (number|null|undefined), promise: Promise<number|null>}>} */
+    /** @type {Map<string, {duration: (number|null|undefined), promise: Promise<number|null>, answered: Promise<void>}>} */
     this.known = new Map();
     // The streams read as copy-protected (isProtected), by the URL detected: one of the known.
     /** @type {Set<string>} */
     this.protectedUrls = new Set();
+    // The files answered with a web page (servesWebPage), by the URL detected: one of the known.
+    /** @type {Set<string>} */
+    this.webPageUrls = new Set();
     // The HLS master playlists read (by the URL detected), with their variants and their audio's
     // and subtitles' playlists (absolute URLs), and the master of each: hlsQualities.
     /** @type {Map<string, MasterInfo>} */
@@ -175,6 +178,48 @@ export class StreamLengths {
   }
 
   /**
+   * Whether a file (MP4, or one Firefox plays itself) answered its read with a web page: a
+   * 2xx `text/html`, where FetchLoader.isRefusal sees a refusal too. abyss.to's player
+   * address is one (#665): only the page's service worker gives the video, and anyone else,
+   * mpv too, gets "Video not found" (measured 2026-11-12: 200 `text/html`). FastStream's
+   * player loads such a file through its page (PageFetch); mpv cannot. Waits for the read's
+   * first answer, up to waitMs. Never for a playlist or a manifest: some servers send those as
+   * `text/html`, and FetchLoader takes them all the same.
+   * @param {string} url - A stream's URL, as detected.
+   * @param {number} waitMs - The longest to wait for the first answer.
+   * @return {Promise<boolean>} False for a URL never read (no probe), and at the deadline.
+   */
+  async servesWebPage(url, waitMs) {
+    const known = this.known.get(url);
+    if (!known) {
+      return false;
+    }
+    let timer;
+    await Promise.race([
+      known.answered,
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, waitMs);
+      }),
+    ]);
+    clearTimeout(timer);
+    return this.webPageUrls.has(url);
+  }
+
+  /**
+   * Notes whether a file's first answer was a web page, either way. Not for a URL forgotten
+   * while it was read (MAX_KNOWN), as noteProtection.
+   * @param {string} url - The file's URL, as detected.
+   * @param {boolean} webPage - Whether it was.
+   */
+  noteWebPage(url, webPage) {
+    if (webPage && this.known.has(url)) {
+      this.webPageUrls.add(url);
+    } else {
+      this.webPageUrls.delete(url);
+    }
+  }
+
+  /**
    * The lengths of a page's sources, as lengthOf tells them, but a file not read yet, or
    * not readable, counts as a piece of a stream when another of them was read as one and
    * has the same URL but for its numbers (seg-14.mp4, seg-15.mp4). An HLS or DASH player
@@ -221,10 +266,16 @@ export class StreamLengths {
       return known.promise;
     }
 
-    /** @type {{duration: number|null|undefined, promise: *}} */
-    const entry = {duration: undefined, promise: null};
-    entry.promise = this.queue(() => this.read(source)).catch(() => null).then((duration) => {
+    // Settles at the read's first answer, or at its end: servesWebPage waits for it.
+    /** @type {() => void} */
+    let answered = () => {};
+    /** @type {{duration: number|null|undefined, promise: *, answered: Promise<void>}} */
+    const entry = {duration: undefined, promise: null, answered: new Promise((resolve) => {
+      answered = () => resolve(undefined);
+    })};
+    entry.promise = this.queue(() => this.read(source, answered)).catch(() => null).then((duration) => {
       entry.duration = duration;
+      answered();
       return duration;
     });
     this.known.set(source.url, entry);
@@ -232,6 +283,7 @@ export class StreamLengths {
       const oldest = /** @type {string} */ (this.known.keys().next().value);
       this.known.delete(oldest);
       this.protectedUrls.delete(oldest);
+      this.webPageUrls.delete(oldest);
     }
     return entry.promise;
   }
@@ -296,9 +348,10 @@ export class StreamLengths {
   /**
    * Reads a source's length.
    * @param {{url: string, mode: string, headers: *}} source - The detected source.
+   * @param {() => void} [answered] - Called once a file's first answer is known (servesWebPage).
    * @return {Promise<number|null>} Seconds (PIECE_LENGTH for a piece of a stream), or null.
    */
-  async read(source) {
+  async read(source, answered = () => {}) {
     if (!/^https?:\/\//i.test(source.url)) {
       return null;
     }
@@ -353,6 +406,14 @@ export class StreamLengths {
       let offset = 0;
       for (let read = 0; read < MAX_FILE_READS; read++) {
         const response = await this.get(source.url, request, [offset, offset + FILE_CHUNK_BYTES]);
+        if (read === 0) {
+          const webPage = !!response && /^text\/html\b/i.test(response.contentType);
+          this.noteWebPage(source.url, webPage);
+          answered();
+          if (webPage) {
+            return null;
+          }
+        }
         // A server that ignores the range sends the file from its start, not the part asked
         // for, and all of it: the start is read, the rest never fetched.
         if (!response || (offset > 0 && !response.partial)) {
@@ -379,7 +440,7 @@ export class StreamLengths {
    *   page's headers: those the rule sets, and the rest.
    * @param {Array<number>|null} range - The bytes to ask for, [start, end), or null for
    *   up to MAX_TEXT_BYTES from the start.
-   * @return {Promise<{bytes: Uint8Array, text: () => string, url: string, partial: boolean}|null>}
+   * @return {Promise<{bytes: Uint8Array, text: () => string, url: string, partial: boolean, contentType: string}|null>}
    *   What came, or null for an error status.
    */
   async get(url, request, range) {
@@ -404,6 +465,7 @@ export class StreamLengths {
         text: () => new TextDecoder().decode(bytes),
         url: response.url || url,
         partial: response.status === 206,
+        contentType: response.headers.get('content-type') || '',
       };
     } finally {
       clearTimeout(timer);

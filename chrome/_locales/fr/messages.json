@@ -1205,6 +1205,9 @@
     "player_mpv_drm": {
         "message": "Cette vidéo est protégée contre la copie (DRM), et mpv ne peut pas la lire : elle reste dans le lecteur du site."
     },
+    "player_mpv_page_only": {
+        "message": "Cette vidéo ne se charge que par sa page, et mpv ne peut pas l'ouvrir : FastStream la lit ici."
+    },
     "mpv_episode_loading": {
         "message": "chargement dans mpv"
     },

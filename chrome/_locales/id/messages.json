@@ -1205,6 +1205,9 @@
     "player_mpv_drm": {
         "message": "Video ini dilindungi dari penyalinan (DRM), dan mpv tidak dapat memutarnya: video tetap di pemutar situs."
     },
+    "player_mpv_page_only": {
+        "message": "Video ini hanya dimuat melalui halamannya, dan mpv tidak dapat membukanya: FastStream memutarnya di sini."
+    },
     "mpv_episode_loading": {
         "message": "memuat di mpv"
     },
