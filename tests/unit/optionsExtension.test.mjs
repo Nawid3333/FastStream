@@ -162,7 +162,7 @@ describe('the problems list', () => {
     report.fire('click');
     expect(page.win.open).not.toHaveBeenCalled();
     expect(page.opened).toHaveBeenCalledTimes(1);
-    expect(page.opened.mock.calls[0][0]).toMatch(/^https:\/\/github\.com\/Nawid3333\/FastStream\/issues\/new\?.*example\.com/);
+    expect(page.opened.mock.calls[0][0]).toMatch(/^https:\/\/github\.com\/Nawid3333\/FastStream-for-Firefox\/issues\/new\?.*example\.com/);
   });
 });
 
