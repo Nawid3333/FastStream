@@ -156,6 +156,86 @@ describe('a fullscreen carried over to the next episode', () => {
     expect(await sourcesTo(7, 'page-2')).toEqual([{autoPlay: true}]);
   });
 
+  it('keeps the next episode\'s instructions and its fullscreen when that page changes its own address', async () => {
+    // A next page that sets its own address (history.replaceState: ?server=, a canonical slug)
+    // before its player asked names no new document: counted as a page after it, the episode
+    // played with no autoplay, and the fullscreen went back (a review of f0bef9d4, 2026-11-13).
+    const fullscreenNext = {type: 'REQUEST_PLAYLIST_NAVIGATION', direction: 'next',
+      continuationOptions: {fullscreenState: 'fullscreen', autoPlay: true}};
+    for (const namedFirst of [false, true]) {
+      await playerInPage();
+      await carry(true);
+      await bg.message(fullscreenNext, {tabId: 1, frameId: 5});
+      // The next page's FRAME_ADDED can come before its address does (resetForNewSite).
+      if (namedFirst) await bg.frameAdded(1, 0, EP2, 'page-2');
+      await bg.navigated(1, EP2);
+      if (!namedFirst) await bg.frameAdded(1, 0, EP2, 'page-2');
+      await bg.navigated(1, EP2 + '?server=1');
+      await bg.wait(50);
+      expect(states()).toEqual(['fullscreen']);
+      await bg.message({type: 'PLAYER_LOADED', url: 'moz-extension://bg-test/player/index.html?opener=page-2',
+        parentFrameId: 0}, {tabId: 1, frameId: 7});
+      bg.sentToTabs.length = 0;
+      await bg.message({type: 'REQUEST_SOURCES'}, {tabId: 1, frameId: 7});
+      await bg.wait(1500);
+      expect(bg.sent('SOURCES').map((m) => m.message.continuationOptions))
+          .toEqual([{fullscreenState: 'fullscreen', autoPlay: true}]);
+      // Its player takes the fullscreen over.
+      expect(await bg.message({type: 'REQUEST_WINDOW_FULLSCREEN', force: true}, {tabId: 1, frameId: 7})).toBe('enter');
+      expect(states()).toEqual(['fullscreen']);
+      bg.unload();
+      bg = null;
+    }
+  });
+
+  it('drops the next episode\'s instructions on a page after it, and gives the fullscreen back there', async () => {
+    const fullscreenNext = {type: 'REQUEST_PLAYLIST_NAVIGATION', direction: 'next',
+      continuationOptions: {fullscreenState: 'fullscreen', autoPlay: true}};
+    const sourcesTo = async (frameId, opener) => {
+      await bg.message({type: 'PLAYER_LOADED', url: `moz-extension://bg-test/player/index.html?opener=${opener}`,
+        parentFrameId: 0}, {tabId: 1, frameId});
+      bg.sentToTabs.length = 0;
+      await bg.message({type: 'REQUEST_SOURCES'}, {tabId: 1, frameId});
+      await bg.wait(1500);
+      return bg.sent('SOURCES').filter((m) => m.frameId === frameId).map((m) => m.message.continuationOptions ?? null);
+    };
+
+    // The next page named itself, and the user went on from it: the page there names itself.
+    await playerInPage();
+    await carry(true);
+    await bg.message(fullscreenNext, {tabId: 1, frameId: 5});
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'page-2');
+    await bg.navigated(1, 'https://site.test/watch/9');
+    bg.sentToTabs.length = 0;
+    await bg.frameAdded(1, 0, 'https://site.test/watch/9', 'page-9');
+    await bg.wait(50);
+    expect(states()).toEqual(['fullscreen', 'maximized']);
+    // No Escape to end a fullscreen there: it is over.
+    expect(pageTold()).toEqual([]);
+    expect(await sourcesTo(8, 'page-9')).toEqual([null]);
+    bg.unload();
+
+    // A next page that never names itself (an error page, a PDF: no content script), and the
+    // user's own page after it.
+    await playerInPage();
+    await bg.message(fullscreenNext, {tabId: 1, frameId: 5});
+    await bg.navigated(1, EP2);
+    await bg.navigated(1, 'https://site.test/watch/9');
+    await bg.frameAdded(1, 0, 'https://site.test/watch/9', 'page-9');
+    expect(await sourcesTo(8, 'page-9')).toEqual([null]);
+    bg.unload();
+
+    // Back on the page the episode played on (Firefox's back-forward cache gives it back).
+    await playerInPage();
+    await bg.message(fullscreenNext, {tabId: 1, frameId: 5});
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'page-2');
+    await bg.navigated(1, EP1);
+    await bg.frameAdded(1, 0, EP1, 'page-1');
+    expect(await sourcesTo(8, 'page-1')).toEqual([null]);
+  });
+
   it('lets the next episode\'s player take the keyboard only when the page says nobody types', async () => {
     // The reviews (2026-10-11): the player took the keyboard even from a field the user typed in.
     for (const [typing, may] of [[false, true], [true, false], [undefined, false]]) {

@@ -584,7 +584,11 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
   inheritMpv(openerTab, /** @type {number} */ (newTab.id));
 });
 
-chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
+// Address changes only (Firefox's filter, below): the listener reads nothing else, and Firefox
+// fires onUpdated for every title, favicon and sound change of every tab (a site's title counts
+// its player's time up), each of which set the toolbar button again and kept the event page
+// awake. Firefox's own reset of a tab's button, on a new document, comes with its address.
+/** @type {chrome.tabs.FirefoxUpdatedEvent} */ (chrome.tabs.onUpdated).addListener(async (tabid, changeInfo, tabobj) => {
   await ensureOptions();
 
   const tab = Tabs.getTabOrCreate(tabid);
@@ -594,13 +598,18 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     const oldURL = tab.url ? new URL(tab.url) : null;
     if (oldURL && oldURL.hostname !== url.hostname) {
       // The next episode's instructions go along to the page FastStream went to by itself,
-      // on another site too: the reset dropped them, and that episode played with no
-      // autoplay and gave the fullscreen back. MPV's (mpvNext) end their own way (MpvMode).
-      const next = tab.continuationOptions && !tab.continuationOptions.mpvNext && !tab.continuationArrived ?
-        tab.continuationOptions : null;
+      // on another site too, with how far the tab went (below): the reset dropped them, and
+      // that episode played with no autoplay and gave the fullscreen back. MPV's (mpvNext)
+      // end their own way (MpvMode).
+      const next = tab.continuationOptions && !tab.continuationOptions.mpvNext ?
+        {options: tab.continuationOptions, arrived: tab.continuationArrived, page: tab.continuationPage} : null;
       // Keeps the new site's page when it named itself first (TabHolder.resetForNewSite).
       tab.resetForNewSite(changeInfo.url);
-      tab.continuationOptions = next;
+      if (next) {
+        tab.continuationOptions = next.options;
+        tab.continuationArrived = next.arrived;
+        tab.continuationPage = next.page;
+      }
       // A different site is a fresh decision. mpvMatched is what stops the
       // allowlist from re-arming MPV mode after the user switched it off, so
       // it has to be dropped here or MPV stays off for the rest of the tab's
@@ -619,30 +628,38 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     tab.url = changeInfo.url;
 
     if (!samePage) {
+      // The next episode's instructions (autoplay, fullscreen, no remembered place) are for
+      // the page FastStream went to by itself, the first after its click, and only a player
+      // there takes them (sendSources). A page after that one is the user's own: they stayed
+      // on the tab, and the next video opened in it, minutes later, took them (a review,
+      // 2026-11-13). The pages are the documents frame 0 names (noteContinuationPage), not the
+      // addresses: the next page's own pushState or replaceState (?server=, a canonical slug)
+      // names none, and counted as a page after it, the episode its player asked for next
+      // played with no autoplay and gave the fullscreen back. An address counts only until the
+      // next page named itself: one that never does (an error page, a PDF: no content script)
+      // has no player to take them, and they end at the address after it. MPV's (mpvNext) end
+      // their own way (MpvMode).
+      if (tab.continuationOptions && !tab.continuationOptions.mpvNext) {
+        if (!tab.continuationArrived) {
+          tab.continuationArrived = true;
+          // The next page can name itself before its address comes (resetForNewSite).
+          const zero = tab.getFrame(0);
+          tab.continuationPage = zero?.documentKey && zero.url === changeInfo.url ? zero.documentKey : null;
+        } else if (tab.continuationPage === null) {
+          tab.continuationOptions = null;
+        }
+      }
       // A carried fullscreen goes on only into the next episode (its continuation says so),
       // whose player takes it over (setCarriedFullscreen). A page the user went to himself,
-      // or a second page before any player took it, gets the window as it was.
+      // or one after the next before any player took it, gets the window as it was.
       if (tab.windowStateBefore) {
-        if (tab.continuationOptions?.fullscreenState === 'fullscreen' && !tab.carryAwaited) {
+        if (tab.continuationOptions?.fullscreenState === 'fullscreen') {
           tab.carryAwaited = true;
           tab.carriedFullscreenFrameId = null;
         } else {
           tab.carryAwaited = false;
           tab.carriedFullscreenFrameId = null;
           restoreWindowState(tab, tabobj.windowId);
-        }
-      }
-      // The next episode's instructions (autoplay, fullscreen, no remembered place) are for
-      // the page FastStream went to by itself, the first after its click, and only a player
-      // there takes them (sendSources). A page after that one is the user's own: they stayed
-      // on the tab, and the next video opened in it, minutes later, took them (a review,
-      // 2026-11-13). MPV's (mpvNext) end their own way (MpvMode).
-      if (tab.continuationOptions && !tab.continuationOptions.mpvNext) {
-        if (tab.continuationArrived) {
-          tab.continuationOptions = null;
-          tab.continuationArrived = false;
-        } else {
-          tab.continuationArrived = true;
         }
       }
       // The auto-open latch is per page, not per tab. The reset above only runs on
@@ -730,7 +747,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
   }
 
   BackgroundUtils.updateTabIcon(tab, true);
-});
+}, {properties: ['url']});
 
 // How long a start by address (the MPV allowlist, the auto-enable list) waits before it
 // acts on the streams the tab already tracks (startWithTrackedLater).
@@ -1024,6 +1041,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (tab.playingPlayers.size > 0) {
       sendPageMediaHold(tab);
     }
+    if (frame.frameId === 0 && documentKey) {
+      noteContinuationPage(tab, documentKey);
+    }
     // The next episode's page, after FastStream went there by itself: its player may wait
     // for a click (startPagePlayers).
     if (tab.continuationOptions?.autoPlay) {
@@ -1070,7 +1090,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   } else if (msg.type === MessageTypes.REQUEST_FRESH_LINK) {
     // A player whose stream the server refused asks its page for the link anew (FreshLink.mjs).
-    if (!BackgroundUtils.isUrlPlayerUrl(sender.url || '') || typeof msg.url !== 'string') {
+    // Not in a private window or a container tab: the background is neither, and its fetch of
+    // the page went with the normal window's cookies (a container's login is another one), left
+    // what the page set in the normal cookie jar, and missed a private window's proxy
+    // (VpnProxyMirror). The player there says the link was refused, as before FreshLink.
+    const store = senderTab.cookieStoreId;
+    if (!BackgroundUtils.isUrlPlayerUrl(sender.url || '') || typeof msg.url !== 'string' ||
+        senderTab.incognito || (store && store !== 'firefox-default')) {
       sendResponse(null);
       return;
     }
@@ -1303,6 +1329,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           tab.continuationOptions = msg.continuationOptions;
           // Not on its page yet: the navigation the click started comes next.
           tab.continuationArrived = false;
+          tab.continuationPage = null;
           if (msg.continuationOptions?.autoPlay) watchNextEpisodeArrives(tab, msg.continuationOptions, 'player');
         }
         sendResponse(response);
@@ -1474,6 +1501,32 @@ async function setCarriedFullscreen(frame, on) {
   tellPageCarried(tab, false);
   await restoreWindowState(tab, windowId);
   return 'exit';
+}
+
+/**
+ * A page names itself in the tab's top frame (FRAME_ADDED) while the next episode's
+ * instructions wait for their player (tabs.onUpdated): the first document since the click's
+ * address change is the page they are for, and another one after it - the user went on, or
+ * back - ends them, with a fullscreen carried for them that no player took over. The same
+ * page naming itself again (Firefox's back-forward cache, a leave that never happened) is none.
+ * @param {TabHolder} tab
+ * @param {string} documentKey - The page's name.
+ */
+function noteContinuationPage(tab, documentKey) {
+  if (!tab.continuationOptions || tab.continuationOptions.mpvNext || !tab.continuationArrived ||
+      tab.continuationPage === documentKey) {
+    return;
+  }
+  if (tab.continuationPage === null) {
+    tab.continuationPage = documentKey;
+    return;
+  }
+  tab.continuationOptions = null;
+  if (tab.carryAwaited) {
+    tab.carryAwaited = false;
+    tab.carriedFullscreenFrameId = null;
+    chrome.tabs.get(tab.tabId).then((t) => restoreWindowState(tab, t.windowId), () => {});
+  }
 }
 
 /**
@@ -1745,7 +1798,12 @@ function restorePlayerFrame(tab, frame, sender) {
   if (frame.pageFrame || !BackgroundUtils.isUrlPlayerUrl(sender.url || '')) return;
   const pageFrameId = tab.playerPageFrames[frame.frameId];
   if (typeof pageFrameId !== 'number') return;
-  frame.isPlayer = true;
+  // Counted as acceptPlayer counts one: uncounted, the next player in the tab was its main
+  // player too, and played without a click as this one does. Its leaving counts it gone.
+  if (!frame.isPlayer) {
+    frame.isPlayer = true;
+    tab.playerCount++;
+  }
   frame.pageFrame = tab.getFrameOrCreate(pageFrameId);
 }
 
@@ -2652,6 +2710,10 @@ async function isPlayerParentProven(tab, frame, parentFrameId, opener) {
  */
 function acceptPlayer(tab, frame, sender, sendResponse) {
   if (Logging) console.log('Found FastStream window', frame);
+  // A frame counted already - restorePlayerFrame's, when this is the first word of a player
+  // after Firefox unloaded the background - is not counted twice: a frame's leaving counts
+  // it gone once (resetSelfAndChildren).
+  const counted = frame.isPlayer;
   frame.isPlayer = true;
 
   if (tab.downloadInfo) {
@@ -2681,7 +2743,9 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
   } else if (frame.parent) {
     frame.parent.playerOpening = false;
   }
-  tab.playerCount++;
+  if (!counted) {
+    tab.playerCount++;
+  }
   const isMainPlayer = tab.playerCount === 1;
 
   getPageFrame(frame).then((pageFrame) => {
