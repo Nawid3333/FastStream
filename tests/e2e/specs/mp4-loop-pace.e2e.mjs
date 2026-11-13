@@ -9,6 +9,8 @@
 
 import {browser, expect} from '@wdio/globals';
 
+import {ensureLongAudioOnly} from '../mp4Shapes.mjs';
+
 /**
  * Counts every timer, interval, animation-frame and idle callback the page runs while
  * window.__wake.counting is set. Runs before the page's own scripts (addInitScript).
@@ -77,6 +79,9 @@ describe('An MP4 player with nothing to do', function() {
   let script;
 
   before(async function() {
+    // The audio-only test's file: written here, not by the spec that writes it too
+    // (mp4-loading.e2e.mjs), which a fresh checkout or a CI shard may not have run first.
+    ensureLongAudioOnly();
     script = await browser.addInitScript(countWakeUps);
   });
 

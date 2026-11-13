@@ -28,16 +28,14 @@
 //
 // The fragmented file is cut from the MP4 fixture by ffmpeg, as save-fmp4.e2e.mjs's are.
 
-import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
 
 import {windowsAacLayout} from '../../../chrome/player/players/mp4/AacLayout.mjs';
+import {ensureMp4Shape as ensureFile, fixturesDir} from '../mp4Shapes.mjs';
 
-const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures');
 const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
 // 160 s, 17 MB: 18 of MP4Player's 1 MB ranges. wdio.conf.mjs writes it.
 const LONG_FIXTURE = path.join(fixturesDir, 'long-av.mp4');
@@ -46,26 +44,6 @@ const LENGTHLESS_PORT = 41886;
 const LENGTHLESS_ORIGIN = `http://127.0.0.1:${LENGTHLESS_PORT}`;
 let server;
 
-/**
- * Writes one file with ffmpeg, unless it is already there.
- * @param {string} name - File name under fixtures/mp4-shapes/.
- * @param {string[]} args - ffmpeg's arguments before the output file.
- * @return {void}
- */
-function ensureFile(name, args) {
-  const dir = path.join(fixturesDir, 'mp4-shapes');
-  const file = path.join(dir, name);
-  if (fs.existsSync(file)) return;
-  fs.mkdirSync(dir, {recursive: true});
-  // Written under another name first, so a run killed half way leaves no file to reuse.
-  const partial = file + '.part.mp4';
-  const {status, error, stderr} = spawnSync('ffmpeg', ['-y', '-v', 'error', ...args, partial], {encoding: 'utf8'});
-  if (status !== 0) {
-    throw new Error(`could not write ${name} with ffmpeg${error ? ` (${error.message})` : ''}. ` +
-      `CI installs ffmpeg; locally it must be on PATH.\n${stderr || ''}`);
-  }
-  fs.renameSync(partial, file);
-}
 
 /**
  * Where a file's AAC config (AudioSpecificConfig) is: the DecoderSpecificInfo in its esds box.
