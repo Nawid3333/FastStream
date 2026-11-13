@@ -270,16 +270,24 @@ async function runOnce(name, build, run) {
       if (!preview) return NaN;
       const B = /** @type {any} */ (window).__bench;
       B.preview = {start: performance.now()};
-      const shown = () => {
-        if (B.preview.ready === undefined && !preview.seeking && preview.readyState >= 2) {
+      // Shown: no longer seeking, a frame there. The events give the moment; the wait below
+      // also checks the state itself, as the frame can come after 'seeked' (a removal still
+      // running), with no event of these then. Checking on the events alone timed out about
+      // once in 20 runs, on main's player as on the branch's, while the preview did show
+      // (tests/e2e/specs/mp4-seek-preview.e2e.mjs: 340 places of 340, both builds).
+      B.preview.check = () => {
+        if (B.preview.ready === undefined && !preview.seeking && preview.readyState >= 2 &&
+            Math.abs(preview.currentTime - 120) < 0.5) {
           B.preview.ready = performance.now() - B.preview.start;
         }
+        return B.preview.ready;
       };
-      preview.addEventListener('seeked', shown);
-      preview.addEventListener('loadeddata', shown);
+      for (const type of ['seeked', 'loadeddata', 'canplay', 'timeupdate']) {
+        preview.addEventListener(type, B.preview.check);
+      }
       client.seekPreview(120);
       return undefined;
-    }) ?? await waitFor(() => /** @type {any} */ (window).__bench.preview.ready, 20000, 'the seek preview');
+    }) ?? await waitFor(() => /** @type {any} */ (window).__bench.preview.check(), 20000, 'the seek preview');
     await browser.execute(() => /** @type {any} */ (window).fastStream.hidePreview());
     await browser.pause(1000);
     await startCounting();
