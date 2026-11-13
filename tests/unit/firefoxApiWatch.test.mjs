@@ -3,17 +3,20 @@
 // Every source answers from a fake fetch, GitHub from an in-memory fake: nothing leaves the test.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import {describe, expect, it} from 'vitest';
 import {
-  Bot, Prefix, Urls, bcdChanges, bugzillaItems, codeIndex, feedItems, findUses, getUrl, ghClient, identifiersOfPath,
+  Bot, Prefix, Urls, bcdChanges, bugzillaItems, codeIndex, escapeRegExp, feedItems, findUses, fixtureFetch, getUrl, ghClient,
+  identifiersOfPath, stripComments, tempFolder,
   mdnInline, md, mergeFindings, parseArgs, parseMdnNotes, productDetails, readTarFile, recordsOf, relevantFindings,
   renderSection, run, safeUrl, underPrefix,
 } from '../../tools/firefox-api-watch.mjs';
+import Topics from '../../tools/firefox-api-watch.topics.mjs';
 
 const root = path.resolve(import.meta.dirname, '../..');
-const config = JSON.parse(fs.readFileSync(path.join(root, 'tools/firefox-api-watch.topics.json'), 'utf8'));
+const config = Topics;
 
 // ---------------------------------------------------------------------------------------------
 // Fixtures
@@ -226,21 +229,57 @@ function runWith(options = {}) {
 // Sources
 
 describe('reading the sources', () => {
+  it('asks only the hosts of its sources, over https', async () => {
+    const fetchImpl = /** @type {typeof fetch} */ (async () => new Response('x', {status: 200}));
+    for (const url of ['https://example.test/a', 'http://bugzilla.mozilla.org/rest/bug', 'file:///etc/passwd',
+      'https://user@bugzilla.mozilla.org/rest/bug', 'https://bugzilla.mozilla.org:8443/rest/bug', 'not a url']) {
+      await expect(getUrl(url, {fetchImpl, wait: async () => {}})).rejects.toMatchObject({outage: false});
+    }
+    expect((await getUrl(Urls.mdn(161), {fetchImpl, wait: async () => {}})).text).toBe('x');
+  });
+
+  it('keeps the memo and the fixtures inside a temporary folder', () => {
+    const temp = os.tmpdir();
+    expect(tempFolder(path.join(temp, 'ffw', 'memo'), {})).toBe(path.resolve(temp, 'ffw', 'memo'));
+    expect(tempFolder(path.join(root, 'runner-temp', 'x'), {RUNNER_TEMP: path.join(root, 'runner-temp')})).toBe(path.join(root, 'runner-temp', 'x'));
+    for (const outside of [root, path.join(temp, '..', 'elsewhere'), temp]) {
+      expect(() => tempFolder(outside, {})).toThrow(/not in a temporary folder/);
+    }
+  });
+
+  it('answers the workflow test from fixture files, and 404 for anything else', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ffw-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'versions.json'), '{"a": 1}');
+      fs.writeFileSync(path.join(dir, '161.md'), 'notes');
+      fs.writeFileSync(path.join(dir, 'core-161.json'), '{"bugs": []}');
+      const fetchImpl = fixtureFetch(dir);
+      expect(await (await fetchImpl(Urls.versions)).text()).toBe('{"a": 1}');
+      expect(await (await fetchImpl(Urls.mdn(161))).text()).toBe('notes');
+      expect((await fetchImpl(Urls.mdn(160))).status).toBe(404);
+      const core = `${Urls.bugzilla}?product=Core&component=x&resolution=FIXED&f1=cf_status_firefox161&o1=anyexact`;
+      expect(await (await fetchImpl(core)).text()).toBe('{"bugs": []}');
+      expect((await fetchImpl('https://example.test/versions.json')).status).toBe(404);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
+  });
+
   it('asks again when the server does not answer, and gives up after three tries as an outage', async () => {
     let calls = 0;
     const fetchImpl = /** @type {typeof fetch} */ (async () => {
       calls++;
       throw new Error('ECONNRESET');
     });
-    await expect(getUrl('https://example.test/a', {fetchImpl, wait: async () => {}})).rejects.toMatchObject({outage: true});
+    await expect(getUrl(Urls.versions, {fetchImpl, wait: async () => {}})).rejects.toMatchObject({outage: true});
     expect(calls).toBe(3);
   });
 
   it('fails at once on a 4xx other than 404 and 429, and returns a 404 to the caller', async () => {
     const answer = (/** @type {number} */ status) => /** @type {typeof fetch} */ (async () => new Response('x', {status}));
-    await expect(getUrl('https://example.test/a', {fetchImpl: answer(403), wait: async () => {}})).rejects.toMatchObject({outage: false});
-    expect((await getUrl('https://example.test/a', {fetchImpl: answer(404), wait: async () => {}})).status).toBe(404);
-    await expect(getUrl('https://example.test/a', {fetchImpl: answer(429), wait: async () => {}})).rejects.toMatchObject({outage: true});
+    await expect(getUrl(Urls.versions, {fetchImpl: answer(403), wait: async () => {}})).rejects.toMatchObject({outage: false});
+    expect((await getUrl(Urls.versions, {fetchImpl: answer(404), wait: async () => {}})).status).toBe(404);
+    await expect(getUrl(Urls.versions, {fetchImpl: answer(429), wait: async () => {}})).rejects.toMatchObject({outage: true});
   });
 
   it('reads the current Stable major and the release dates', async () => {
@@ -261,6 +300,35 @@ describe('reading the sources', () => {
 });
 
 describe('MDN notes', () => {
+  it('removes HTML comments until none is left, as a browser hides them', () => {
+    expect(stripComments('a<!-- x -->b')).toBe('ab');
+    expect(stripComments('a<!-- x --!>b')).toBe('ab');
+    // One pass would leave "<!-- b -->" made of the pieces around the first comment.
+    expect(stripComments('a<!<!-- x -->-- b -->c')).toBe('ac');
+    expect(stripComments('a<!-<!-- x -->- b -->c')).toBe('ac');
+    // An unclosed one hides the rest.
+    expect(stripComments('a<!-- open b')).toBe('a');
+    for (const forged of ['<!<!-- -->--', '<!-<!---->-', '<!--<!-- -->', '<!-- --!> <!--']) {
+      expect(stripComments(`x${forged}y`)).not.toContain('<!--');
+    }
+  });
+
+  it('escapes every special character of an identifier made into a pattern', () => {
+    const odd = 'a.b$c\\d(e)[f]{g}*+?^|';
+    expect(new RegExp(`^${escapeRegExp(odd)}$`).test(odd)).toBe(true);
+    expect(new RegExp(`^${escapeRegExp('a.b')}$`).test('axb')).toBe(false);
+  });
+
+  it('keeps the topics\' patterns as RegExp literals, without the g flag', () => {
+    const patterns = [...Topics.topics.flatMap((t) => t.keywords), Topics.bugzilla.coreSummary, Topics.bugzilla.excludeSummary,
+      Topics.excludeText];
+    expect(patterns.length).toBeGreaterThan(100);
+    for (const pattern of patterns) {
+      expect(pattern).toBeInstanceOf(RegExp);
+      expect(pattern.flags).toBe('i');
+    }
+  });
+
   it('turns macros, links and code into plain text with code spans', () => {
     const out = mdnInline('{{WebExtAPIRef("publicSuffix.isKnownSuffix()")}} and {{domxref("A.b", "b()")}} use [`headers`](/en-US/docs/X) ' +
       '{{HTMLElement("link",,"blocking")}} ([Firefox bug 12](https://bugzil.la/12), [Firefox bug 13](https://bugzil.la/13)).');

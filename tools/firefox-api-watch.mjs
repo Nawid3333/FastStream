@@ -9,7 +9,7 @@
 //   - @mdn/browser-compat-data (BCD): features whose Firefox support starts or ends in a release;
 //   - Bugzilla: WebExtensions bugs fixed in the release, and a few Core media/network ones;
 //   - the add-ons blog's feed: posts that name the release.
-// What is relevant: tools/firefox-api-watch.topics.json, plus what the extension's own code uses
+// What is relevant: tools/firefox-api-watch.topics.mjs, plus what the extension's own code uses
 // (its chrome.*/browser.* namespaces, manifest keys, and any identifier of a change found in a
 // tracked file under chrome/).
 //
@@ -31,9 +31,12 @@
 import {execFileSync} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import {fileURLToPath} from 'node:url';
+
+import Topics from './firefox-api-watch.topics.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -51,7 +54,8 @@ export const MaxPost = 60000;
 export const Urls = {
   versions: 'https://product-details.mozilla.org/1.0/firefox_versions.json',
   majors: 'https://product-details.mozilla.org/1.0/firefox_history_major_releases.json',
-  mdn: 'https://raw.githubusercontent.com/mdn/content/main/files/en-us/mozilla/firefox/releases/{version}/index.md',
+  mdn: (/** @type {number} */ version) =>
+    `https://raw.githubusercontent.com/mdn/content/main/files/en-us/mozilla/firefox/releases/${Math.trunc(version)}/index.md`,
   bcd: 'https://registry.npmjs.org/@mdn/browser-compat-data/latest',
   bugzilla: 'https://bugzilla.mozilla.org/rest/bug',
   feed: 'https://blog.mozilla.org/addons/feed/',
@@ -92,9 +96,11 @@ export const GitHubOwners = new Set(['mdn', 'mozilla', 'mozilla-firefox', 'w3c',
  *   members: each merged item's own keys (its bugs and BCD change, else its text's): a finding
  *   with an item that has a key not reported before is news, even when it merged with items
  *   that were reported. A note reworded under the same bug is not.
- * @typedef {{id: string, area: string, priority: Level, kind: Kind, keywords: string[], bcd: string[], modules: string[]}} Topic
- * @typedef {{topics: Topic[], bugzilla: {coreComponents: string[], coreKeywords: string[], coreSummary: string,
- *   excludeSummary: string}, excludeText: string, stopIdentifiers: string[]}} Config
+ * @typedef {{id: string, area: string, priority: Level, kind: Kind, keywords: RegExp[], bcd: string[], modules: string[]}} Topic
+ * @typedef {{topics: Topic[], bugzilla: {coreComponents: string[], coreKeywords: string[], coreSummary: RegExp,
+ *   excludeSummary: RegExp}, excludeText: RegExp, stopIdentifiers: string[]}} Config
+ *   The patterns are RegExp literals (firefox-api-watch.topics.mjs), without the g flag: test()
+ *   keeps no state between calls.
  * @typedef {{version: number, date: string, complete: boolean, reason: string, wip: boolean, checked: number,
  *   findings: Finding[], noNotes?: boolean}} Review
  * @typedef {{number: number, state: string, title: string, body: string, user: string}} Issue
@@ -126,20 +132,27 @@ export class SourceError extends Error {
  * @typedef {{fetchImpl?: typeof fetch, wait?: (ms: number) => Promise<void>}} FetchOptions
  */
 
+/** The only hosts the watcher asks anything of: the sources above, over https. */
+export const SourceHosts = new Set(['product-details.mozilla.org', 'raw.githubusercontent.com', 'registry.npmjs.org',
+  'bugzilla.mozilla.org', 'blog.mozilla.org']);
+
 /**
  * A URL's body, asked up to three times when the server does not answer or answers 5xx, 408 or
  * 429. A 404 is returned (the caller decides whether that is a failure); any other 4xx throws at
- * once. `file:` URLs are read from disk (the tests' fixtures).
+ * once. Only https URLs on the sources' hosts (SourceHosts) are asked for.
  * @param {string} url
  * @param {FetchOptions & {binary?: boolean}} [options]
  * @return {Promise<{status: number, text: string, bytes: Uint8Array}>}
  */
 export async function getUrl(url, {fetchImpl = fetch, wait = defaultWait, binary = false} = {}) {
-  if (url.startsWith('file:')) {
-    const file = fileURLToPath(url);
-    if (!fs.existsSync(file)) return {status: 404, text: '', bytes: new Uint8Array()};
-    const bytes = new Uint8Array(fs.readFileSync(file));
-    return {status: 200, text: binary ? '' : Buffer.from(bytes).toString('utf8'), bytes};
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new SourceError(`not a URL: ${url.slice(0, 80)}`, false);
+  }
+  if (parsed.protocol !== 'https:' || !SourceHosts.has(parsed.hostname) || parsed.username || parsed.password || parsed.port) {
+    throw new SourceError(`not a source the watcher reads: ${parsed.origin}`, false);
   }
   for (let attempt = 1; ; attempt++) {
     /** @type {string} */
@@ -190,10 +203,11 @@ async function getJson(url, options) {
 
 /**
  * The current Stable major version and each major release's date.
- * @param {FetchOptions & {urls?: typeof Urls}} [options]
+ * @param {FetchOptions} [options]
  * @return {Promise<{current: number, dates: Map<number, string>}>}
  */
-export async function productDetails({urls = Urls, ...options} = {}) {
+export async function productDetails(options = {}) {
+  const urls = Urls;
   const versions = await getJson(urls.versions, options);
   const latest = String(versions?.LATEST_FIREFOX_VERSION ?? '');
   const match = /^(\d{2,4})\.\d+(\.\d+)*$/.exec(latest);
@@ -214,20 +228,25 @@ export async function productDetails({urls = Urls, ...options} = {}) {
 /**
  * The newest browser-compat-data: its version and data. The tarball's integrity is checked
  * against the registry's sha512 before it is read.
- * @param {FetchOptions & {urls?: typeof Urls, file?: string}} [options]
+ * @param {FetchOptions & {fixtures?: string}} [options] - fixtures: a folder (from tempFolder)
+ *   whose bcd.json stands in for the package's data (the workflow test).
  * @return {Promise<{version: string, data: any}>}
  */
-export async function loadBcd({urls = Urls, file = '', ...options} = {}) {
-  if (file) {
-    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+export async function loadBcd({fixtures = '', ...options} = {}) {
+  if (fixtures) {
+    const data = JSON.parse(fs.readFileSync(path.join(fixtures, 'bcd.json'), 'utf8'));
     return {version: String(data?.__meta?.version ?? 'fixture'), data};
   }
-  const meta = await getJson(urls.bcd, options);
-  const tarball = String(meta?.dist?.tarball ?? '');
+  const meta = await getJson(Urls.bcd, options);
   const integrity = String(meta?.dist?.integrity ?? '');
-  if (!tarball.startsWith('https://registry.npmjs.org/') || !integrity.startsWith('sha512-')) {
-    throw new SourceError(`${urls.bcd}: no tarball or integrity`, false);
+  // The registry's own address for the package's file and nothing else: the URL is made here
+  // from the file's name, not taken as the answer gives it.
+  const file = /^https:\/\/registry\.npmjs\.org\/@mdn\/browser-compat-data\/-\/(browser-compat-data-\d+\.\d+\.\d+\.tgz)$/
+      .exec(String(meta?.dist?.tarball ?? ''))?.[1];
+  if (!file || !integrity.startsWith('sha512-')) {
+    throw new SourceError(`${Urls.bcd}: no tarball or integrity`, false);
   }
+  const tarball = 'https://registry.npmjs.org/@mdn/browser-compat-data/-/' + file;
   const {bytes} = await getUrl(tarball, {...options, binary: true});
   const digest = 'sha512-' + crypto.createHash('sha512').update(bytes).digest('base64');
   if (digest !== integrity) throw new SourceError(`${tarball}: integrity mismatch`, false);
@@ -263,6 +282,32 @@ export function readTarFile(tar, name) {
 // Parsing the sources
 
 /**
+ * A text as a regular expression matching just it.
+ * @param {string} text
+ * @return {string}
+ */
+export function escapeRegExp(text) {
+  return text.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+}
+
+/**
+ * Text without its HTML comments (`<!-- ... -->`, also ended by `--!>`), as a browser shows it:
+ * removed until none is left (one pass left "<!<!-- a -->-- b -->" as a comment of its own), and
+ * an unclosed one hides the rest.
+ * @param {string} text
+ * @return {string}
+ */
+export function stripComments(text) {
+  let out = text;
+  for (let before = ''; before !== out;) {
+    before = out;
+    out = out.replace(/<!--[\s\S]*?--!?>/g, '');
+  }
+  const open = out.indexOf('<!--');
+  return open === -1 ? out : out.slice(0, open);
+}
+
+/**
  * MDN's inline markup as plain text with `code` spans: macros become the name they show, links
  * their text (an allowed link is kept apart), bold and HTML comments go.
  * @param {string} text
@@ -275,7 +320,7 @@ export function mdnInline(text) {
   const links = [];
   /** @type {number[]} */
   const bugs = [];
-  let out = text.replace(/<!--[\s\S]*?-->/g, '');
+  let out = stripComments(text);
   // Arguments may hold parentheses inside their quotes: {{WebExtAPIRef("publicSuffix.isKnownSuffix()")}}.
   out = out.replace(/\{\{\s*([A-Za-z_]+)\s*(?:\(((?:[^()"']|"[^"]*"|'[^']*')*)\))?\s*\}\}/g, (_, macro, rawArgs = '') => {
     const args = splitArgs(rawArgs);
@@ -349,7 +394,7 @@ function plainLabel(label) {
  * @return {{wip: boolean, beta: boolean, items: RawItem[]}}
  */
 export function parseMdnNotes(markdown, version) {
-  const text = markdown.replace(/\r\n/g, '\n').replace(/<!--[\s\S]*?-->/g, '');
+  const text = stripComments(markdown.replace(/\r\n/g, '\n'));
   const front = /^---\n([\s\S]*?)\n---\n/.exec(text);
   const beta = !!front && /\(Beta\)|\(Nightly\)/.test(front[1]);
   const wip = /still a work in progress/i.test(text);
@@ -519,8 +564,8 @@ export function namesIn(text) {
  * @return {RawItem[]}
  */
 export function bugzillaItems(json, config, namespaces) {
-  const exclude = new RegExp(config.excludeSummary, 'i');
-  const coreSummary = new RegExp(config.coreSummary, 'i');
+  const exclude = config.excludeSummary;
+  const coreSummary = config.coreSummary;
   /** @type {RawItem[]} */
   const items = [];
   for (const bug of Array.isArray(json?.bugs) ? json.bugs : []) {
@@ -698,7 +743,7 @@ export function findUses(identifiers, files, stop, namespaces = new Set()) {
     }
   }
   const word = (/** @type {string} */ id, /** @type {string} */ flags = '') =>
-    new RegExp(`(?<![\\w$])${id.replace(/[.$]/g, '\\$&')}(?![\\w$])`, flags);
+    new RegExp(`(?<![\\w$])${escapeRegExp(id)}(?![\\w$])`, flags);
   for (const [id, how] of names) {
     if (!/^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*$/.test(id) || stop.has(id)) continue;
     const pattern = word(id);
@@ -741,8 +786,8 @@ function distinctive(name) {
  */
 export function relevantFindings(items, config, index) {
   const stop = new Set(config.stopIdentifiers);
-  const topics = config.topics.map((t) => ({...t, patterns: t.keywords.map((k) => new RegExp(k, 'i'))}));
-  const excluded = new RegExp(config.excludeText, 'i');
+  const topics = config.topics.map((t) => ({...t, patterns: t.keywords}));
+  const excluded = config.excludeText;
   const webextTopic = topics.find((t) => t.id === 'webextensions');
   /** @type {Finding[]} */
   const findings = [];
@@ -839,7 +884,7 @@ export function webExtensionUse(item, index) {
   // An API named in plain words ("the userScripts API", "content scripts") counts too; only names
   // that are not ordinary words ("extension", "background", "icons" are everywhere).
   const words = [...index.known.namespaces, ...index.known.manifestKeys].filter((n) => /[A-Z_]/.test(n) &&
-    new RegExp(`(?<![\\w.])${n.replace(/_/g, '[_ ]')}s?(?![\\w])`, 'i').test(text));
+    new RegExp(`(?<![\\w.])${escapeRegExp(n).replace(/_/g, '[_ ]')}s?(?![\\w])`, 'i').test(text));
   const specific = [...firsts.filter((n) => index.known.namespaces.has(n)), ...spans.filter((s) => index.known.manifestKeys.has(s)), ...words];
   const usedOnes = [...firsts.filter((n) => index.namespaces.has(n)), ...spans.filter((s) => index.manifestKeys.has(s)),
     ...words.filter((w) => index.namespaces.has(w) || index.manifestKeys.has(w))];
@@ -963,7 +1008,7 @@ export function md(text, limit = 600) {
       let code = part.slice(1, -1);
       for (let before = ''; before !== code;) {
         before = code;
-        code = code.replace(/<!--|-->/g, '');
+        code = code.replace(/<!--|--!?>/g, '');
       }
       return '`' + code + '`';
     }
@@ -1157,7 +1202,7 @@ export function ghClient(repo, gh = (args, input) => execFileSync('gh', args, {e
 /**
  * @typedef {{
  *   dryRun?: boolean, github?: GitHub|null, from?: number, to?: number, start?: number, lookback?: number,
- *   memo?: string, today?: string, urls?: typeof Urls, bcdFile?: string, fetchImpl?: typeof fetch,
+ *   memo?: string, today?: string, fixtures?: string, fetchImpl?: typeof fetch,
  *   wait?: (ms: number) => Promise<void>, config?: Config, index?: CodeIndex,
  *   log?: (line: string) => void,
  * }} RunOptions
@@ -1173,7 +1218,7 @@ export function ghClient(repo, gh = (args, input) => execFileSync('gh', args, {e
  * @return {Promise<RunResult>}
  */
 export async function run(options = {}) {
-  const {dryRun = false, github = null, start = DefaultStart, lookback = DefaultLookback, urls = Urls,
+  const {dryRun = false, github = null, start = DefaultStart, lookback = DefaultLookback,
     fetchImpl = fetch, wait = defaultWait, log = () => {}} = options;
   const fetchOptions = {fetchImpl, wait};
   const today = options.today ?? new Date().toISOString().slice(0, 10);
@@ -1187,7 +1232,7 @@ export async function run(options = {}) {
   /** @type {{current: number, dates: Map<number, string>}} */
   let pd;
   try {
-    pd = await productDetails({urls, ...fetchOptions});
+    pd = await productDetails(fetchOptions);
   } catch (error) {
     const e = /** @type {SourceError} */ (error);
     if (!e.outage) failures.push(e.message);
@@ -1206,7 +1251,7 @@ export async function run(options = {}) {
     return {summary, posted, memo: options.memo, failures};
   }
 
-  const config = options.config ?? /** @type {Config} */ (JSON.parse(fs.readFileSync(path.join(root, 'tools/firefox-api-watch.topics.json'), 'utf8')));
+  const config = options.config ?? Topics;
   const index = options.index ?? codeIndex();
 
   // What was reported before, from every watcher issue, open or closed.
@@ -1230,10 +1275,10 @@ export async function run(options = {}) {
   /** @type {string} */
   let sharedProblem = '';
   try {
-    bcd = await loadBcd({urls, file: options.bcdFile, ...fetchOptions});
+    bcd = await loadBcd({fixtures: options.fixtures, ...fetchOptions});
     index.known = knownWebExtensions(bcd.data);
-    const answer = await getUrl(urls.feed, fetchOptions);
-    if (answer.status === 404) throw new SourceError(`${urls.feed}: HTTP 404`, false);
+    const answer = await getUrl(Urls.feed, fetchOptions);
+    if (answer.status === 404) throw new SourceError(`${Urls.feed}: HTTP 404`, false);
     feed = answer.text;
   } catch (error) {
     const e = /** @type {SourceError} */ (error);
@@ -1254,7 +1299,7 @@ export async function run(options = {}) {
     }
     try {
       const overdue = !!date && daysBetween(date, today) > GraceDays;
-      const notes = await getUrl(urls.mdn.replace('{version}', String(version)), fetchOptions);
+      const notes = await getUrl(Urls.mdn(version), fetchOptions);
       /** @type {RawItem[]|null} */
       let mdnItems = null;
       if (notes.status === 404) {
@@ -1276,7 +1321,7 @@ export async function run(options = {}) {
         }
       }
       if (mdnItems) {
-        const bugs = await bugzillaFor(version, config, index.namespaces, urls, fetchOptions);
+        const bugs = await bugzillaFor(version, config, index.namespaces, fetchOptions);
         const raw = [...mdnItems, ...bcdChanges(bcd.data, version, (at) => wantedPath(at, config, index)), ...bugs,
           ...feedItems(feed, version)];
         review.checked = raw.length;
@@ -1369,17 +1414,14 @@ export async function postSection(github, version, body, last = 0) {
  * @param {number} version
  * @param {Config} config
  * @param {Set<string>} namespaces
- * @param {typeof Urls} urls
  * @param {FetchOptions} fetchOptions
  * @return {Promise<RawItem[]>}
  */
-async function bugzillaFor(version, config, namespaces, urls, fetchOptions) {
+async function bugzillaFor(version, config, namespaces, fetchOptions) {
   const common = `resolution=FIXED&f1=cf_status_firefox${version}&o1=anyexact&v1=fixed%2Cverified` +
     `&include_fields=id,summary,product,component,keywords&limit=${BugzillaLimit}`;
-  const local = urls.bugzilla.startsWith('file:');
-  const webext = local ? `${urls.bugzilla}/webextensions-${version}.json` : `${urls.bugzilla}?product=WebExtensions&${common}`;
-  const core = local ? `${urls.bugzilla}/core-${version}.json` :
-    `${urls.bugzilla}?product=Core&${config.bugzilla.coreComponents.map((c) => `component=${encodeURIComponent(c)}`).join('&')}&${common}`;
+  const webext = `${Urls.bugzilla}?product=WebExtensions&${common}`;
+  const core = `${Urls.bugzilla}?product=Core&${config.bugzilla.coreComponents.map((c) => `component=${encodeURIComponent(c)}`).join('&')}&${common}`;
   /** @type {RawItem[]} */
   const items = [];
   for (const url of [webext, core]) {
@@ -1387,7 +1429,7 @@ async function bugzillaFor(version, config, namespaces, urls, fetchOptions) {
     if (json?.error) throw new SourceError(`${url.split('?')[0]}: ${String(json.message ?? 'error').slice(0, 120)}`, false);
     // As many as asked for: the list may have been cut, and what is missing would go unseen.
     if (Array.isArray(json?.bugs) && json.bugs.length >= BugzillaLimit) {
-      throw new SourceError(`${url.split('?')[0]}: ${BugzillaLimit} bugs or more for one release; narrow the filter in firefox-api-watch.topics.json`, false);
+      throw new SourceError(`${url.split('?')[0]}: ${BugzillaLimit} bugs or more for one release; narrow the filter in firefox-api-watch.topics.mjs`, false);
     }
     items.push(...bugzillaItems(json, config.bugzilla, namespaces));
   }
@@ -1456,25 +1498,69 @@ export function parseArgs(argv) {
   return args;
 }
 
+/**
+ * A folder named on the command line or in the environment, which has to lie in a temporary
+ * folder - the runner's (RUNNER_TEMP) or the system's: the memo is kept there, and the workflow
+ * test's fixtures. Anything else is refused, so neither can read or write elsewhere.
+ * @param {string} dir
+ * @param {NodeJS.ProcessEnv} [env]
+ * @return {string} The folder, resolved.
+ */
+export function tempFolder(dir, env = process.env) {
+  const resolved = path.resolve(dir);
+  for (const temp of [env.RUNNER_TEMP, os.tmpdir()]) {
+    if (!temp) continue;
+    const base = path.resolve(temp) + path.sep;
+    if (resolved.startsWith(base)) return resolved;
+  }
+  throw new Error(`${dir.slice(0, 200)} is not in a temporary folder (RUNNER_TEMP or ${os.tmpdir()})`);
+}
+
+/**
+ * Mozilla's sources from files, for the workflow test (FFW_FIXTURES): versions.json,
+ * majors.json, <version>.md, webextensions-<version>.json, core-<version>.json, feed.xml (and
+ * bcd.json, read by loadBcd). Anything else answers 404.
+ * @param {string} dir - From tempFolder.
+ * @return {typeof fetch}
+ */
+export function fixtureFetch(dir) {
+  /** @param {string} name */
+  const file = (name) => {
+    const at = path.join(dir, name);
+    return fs.existsSync(at) ? new Response(fs.readFileSync(at), {status: 200}) : new Response('', {status: 404});
+  };
+  return /** @type {typeof fetch} */ (async (input) => {
+    const url = String(input);
+    if (url === Urls.versions) return file('versions.json');
+    if (url === Urls.majors) return file('majors.json');
+    if (url === Urls.feed) return file('feed.xml');
+    const notes = /\/releases\/(\d{2,4})\/index\.md$/.exec(url);
+    if (notes) return file(`${notes[1]}.md`);
+    const bugs = /^https:\/\/bugzilla\.mozilla\.org\/rest\/bug\?product=(WebExtensions|Core)&.*cf_status_firefox(\d{2,4})&/.exec(url);
+    if (bugs) return file(`${bugs[1] === 'Core' ? 'core' : 'webextensions'}-${bugs[2]}.json`);
+    return new Response('', {status: 404});
+  });
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const env = process.env;
-  const urls = {...Urls};
-  if (env.FFW_URLS) Object.assign(urls, JSON.parse(env.FFW_URLS));
-  const memoFile = args.memoDir ? path.join(args.memoDir, 'reviewed') : '';
+  const memoDir = args.memoDir ? tempFolder(args.memoDir, env) : '';
+  const memoFile = memoDir ? path.join(memoDir, 'reviewed') : '';
   const memo = memoFile && fs.existsSync(memoFile) ? fs.readFileSync(memoFile, 'utf8').trim() : '';
+  const fixtures = env.FFW_FIXTURES ? tempFolder(env.FFW_FIXTURES, env) : '';
   const github = args.noGithub ? null : ghClient(String(env.GH_REPO ?? ''));
   const result = await run({
-    dryRun: args.dryRun, github, from: args.from, to: args.to, memo, urls,
+    dryRun: args.dryRun, github, from: args.from, to: args.to, memo,
     start: env.FFW_START ? Number(env.FFW_START) : DefaultStart, today: env.FFW_TODAY || undefined,
-    bcdFile: env.FFW_BCD_FILE || undefined,
+    ...(fixtures ? {fixtures, fetchImpl: fixtureFetch(fixtures)} : {}),
     log: (body) => process.stdout.write(`${body}\n\n---\n\n`),
   });
   const lines = ['## Firefox API watch', '', ...result.summary.map((s) => `- ${s}`), ...result.failures.map((f) => `- **Failed:** ${f}`), ''];
   if (env.GITHUB_STEP_SUMMARY) fs.appendFileSync(env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
   process.stderr.write(lines.join('\n') + '\n');
   if (memoFile && result.memo && result.memo !== memo && !args.dryRun) {
-    fs.mkdirSync(args.memoDir, {recursive: true});
+    fs.mkdirSync(memoDir, {recursive: true});
     fs.writeFileSync(memoFile, result.memo + '\n');
   }
   if (env.GITHUB_OUTPUT) {

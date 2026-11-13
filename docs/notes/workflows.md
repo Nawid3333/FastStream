@@ -748,7 +748,7 @@
 changed that could break or improve FastStream. It sits beside `firefox-stable.yml`/`firefox-beta.yml`,
 which run the e2e suites on a new Firefox and open an issue when they fail: those catch what
 broke, this one what changed. The logic is `tools/firefox-api-watch.mjs`; what counts as
-relevant is `tools/firefox-api-watch.topics.json`.
+relevant is `tools/firefox-api-watch.topics.mjs`.
 
 - **Sources, all machine-readable** (checked 2026-11-13): product-details
   (`firefox_versions.json` for the current Stable, `firefox_history_major_releases.json` for the

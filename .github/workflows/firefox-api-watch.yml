@@ -3,7 +3,7 @@ name: Firefox API watch
 # What each new Firefox Stable release changed that could break or improve FastStream, for the
 # owner's review: MDN's notes for developers, browser-compat-data, Bugzilla and the add-ons blog,
 # matched against what the extension's code uses (tools/firefox-api-watch.mjs, its topics in
-# tools/firefox-api-watch.topics.json).
+# tools/firefox-api-watch.topics.mjs).
 #
 # One review issue, "Firefox API Watch: starting with Firefox N":
 #   - a release with findings and no open issue opens one; with one open, it is a comment on it;

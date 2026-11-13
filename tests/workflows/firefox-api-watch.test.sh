@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # firefox-api-watch.yml: the review step as the workflow runs it (its arguments from the dispatch
 # inputs, the cache memo, the outputs that decide whether the memo is saved), with the real
-# tools/firefox-api-watch.mjs reading Mozilla's sources from fixture files (FFW_URLS) and GitHub
+# tools/firefox-api-watch.mjs reading Mozilla's sources from fixture files (FFW_FIXTURES) and GitHub
 # through a stub gh; and the failure issue's two steps. The watcher's own rules (what is
 # relevant, the issue's life) are tested in tests/unit/firefoxApiWatch.test.mjs.
 source "$(dirname "$0")/lib.sh"
@@ -70,12 +70,7 @@ fixtures() {
   echo '{"bugs": []}' > "$FIX/src/webextensions-161.json"
   echo '{"bugs": []}' > "$FIX/src/core-161.json"
   echo '<rss><channel></channel></rss>' > "$FIX/src/feed.xml"
-  export FFW_BCD_FILE="$FIX/src/bcd.json"
-  FFW_URLS=$(node -e '
-    const d = "file://" + process.argv[1];
-    console.log(JSON.stringify({versions: d + "/versions.json", majors: d + "/majors.json", mdn: d + "/{version}.md",
-      bugzilla: d, feed: d + "/feed.xml"}));' "$FIX/src")
-  export FFW_URLS
+  export FFW_FIXTURES="$FIX/src"
   unset DRY_RUN FROM
 }
 
