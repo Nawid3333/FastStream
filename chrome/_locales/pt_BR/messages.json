@@ -446,6 +446,9 @@
     "player_qualitymenu_label": {
         "message": "Qualidade do vídeo"
     },
+    "player_seekbar_label": {
+        "message": "Posição de reprodução"
+    },
     "player_languagemenu_label": {
         "message": "Seleção de idiomas"
     },

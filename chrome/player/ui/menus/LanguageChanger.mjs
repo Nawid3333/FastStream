@@ -2,6 +2,7 @@
 import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {DOMElements} from '../DOMElements.mjs';
+import {WebUtils} from '../../utils/WebUtils.mjs';
 
 /** @typedef {import('../../players/Levels.mjs').VideoLevel | import('../../players/Levels.mjs').AudioLevel} Level */
 export class LanguageChanger extends EventEmitter {
@@ -16,6 +17,7 @@ export class LanguageChanger extends EventEmitter {
     });
 
     /** @type {HTMLElement} */ (DOMElements.languageMenu).style.display = '';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.languageButton), true);
     if (!dontSetStayVisible) {
       this.stayOpen = true;
     }
@@ -26,6 +28,7 @@ export class LanguageChanger extends EventEmitter {
       return false;
     }
     /** @type {HTMLElement} */ (DOMElements.languageMenu).style.display = 'none';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.languageButton), false);
     this.stayOpen = false;
     return true;
   }

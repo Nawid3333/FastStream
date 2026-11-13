@@ -446,6 +446,9 @@
     "player_qualitymenu_label": {
         "message": "화질"
     },
+    "player_seekbar_label": {
+        "message": "재생 위치"
+    },
     "player_languagemenu_label": {
         "message": "언어 선택"
     },

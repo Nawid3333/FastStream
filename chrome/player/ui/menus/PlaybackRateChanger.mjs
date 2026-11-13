@@ -273,6 +273,7 @@ export class PlaybackRateChanger extends EventEmitter {
     });
 
     /** @type {HTMLElement} */ (DOMElements.playbackRateMenuContainer).style.display = '';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.playbackRate), true);
 
     this.scrollToPosition();
     if (!dontSetStayVisible) {
@@ -300,6 +301,7 @@ export class PlaybackRateChanger extends EventEmitter {
       return false;
     }
     /** @type {HTMLElement} */ (DOMElements.playbackRateMenuContainer).style.display = 'none';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.playbackRate), false);
     this.stayOpen = false;
     return true;
   }

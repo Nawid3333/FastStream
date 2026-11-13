@@ -446,6 +446,9 @@
     "player_qualitymenu_label": {
         "message": "Kualitas video"
     },
+    "player_seekbar_label": {
+        "message": "Posisi pemutaran"
+    },
     "player_languagemenu_label": {
         "message": "Pilih bahasa"
     },

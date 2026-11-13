@@ -71,8 +71,28 @@ export class WebUtils {
       if (e.key === 'Enter') {
         element.click();
         e.stopPropagation();
+        return;
+      }
+      // Space presses a button the keyboard went to, as it does a <button>. A button clicked
+      // with the mouse keeps the focus too, without :focus-visible: there Space stays the
+      // player's play/pause.
+      if (e.key === ' ' && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey &&
+          element.matches(':focus-visible')) {
+        e.preventDefault();
+        e.stopPropagation();
+        element.click();
       }
     });
+  }
+
+  /**
+   * Tells assistive technology that a button opens a menu, and whether the menu is open.
+   * @param {HTMLElement} button
+   * @param {boolean} open
+   */
+  static setExpanded(button, open) {
+    button.setAttribute('aria-haspopup', 'true');
+    button.setAttribute('aria-expanded', String(open));
   }
 
   /**

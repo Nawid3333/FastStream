@@ -1257,6 +1257,12 @@ export class InterfaceController {
     const timeText = StringUtils.formatTime(this.state.currentTime) + ' / ' + StringUtils.formatTime(duration);
     if (/** @type {HTMLElement} */ (DOMElements.duration).textContent !== timeText) {
       /** @type {HTMLElement} */ (DOMElements.duration).textContent = timeText;
+      // The seek bar's values (a slider, ProgressBar.setupUI), in whole seconds as the text.
+      const bar = /** @type {HTMLElement} */ (DOMElements.progressContainer);
+      const end = duration > 0 && Number.isFinite(duration) ? Math.floor(duration) : 0;
+      bar.setAttribute('aria-valuemax', String(end));
+      bar.setAttribute('aria-valuenow', String(Utils.clamp(Math.floor(this.state.currentTime), 0, end)));
+      bar.setAttribute('aria-valuetext', timeText);
     }
 
     this.subtitlesManager.renderSubtitles();

@@ -113,6 +113,17 @@ export class ProgressBar extends EventEmitter {
     /** @type {HTMLElement} */ (DOMElements.progressContainer).addEventListener('mouseleave', this.onProgressbarMouseLeave.bind(this));
     /** @type {HTMLElement} */ (DOMElements.progressContainer).addEventListener('mousemove', this.onProgressbarMouseMove.bind(this));
 
+    // A slider to the keyboard and to a screen reader: in the tab order, named (no title: the
+    // seek preview is its tooltip), its values written with the time's text
+    // (InterfaceController.timeUpdated). Focused, the arrows seek as everywhere in the player.
+    const bar = /** @type {HTMLElement} */ (DOMElements.progressContainer);
+    bar.tabIndex = 0;
+    bar.setAttribute('role', 'slider');
+    bar.setAttribute('aria-label', Localize.getMessage('player_seekbar_label'));
+    bar.setAttribute('aria-valuemin', '0');
+    bar.setAttribute('aria-valuemax', '0');
+    bar.setAttribute('aria-valuenow', '0');
+
     /** @type {HTMLElement} */ (DOMElements.nextVideoBannerButton).addEventListener('click', (e) => {
       this.client.nextVideo();
       e.preventDefault();

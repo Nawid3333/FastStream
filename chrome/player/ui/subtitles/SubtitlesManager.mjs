@@ -205,6 +205,7 @@ export class SubtitlesManager extends EventEmitter {
       return false;
     }
     /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).style.display = 'none';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.subtitles), false);
     // Opened again, it showed the settings it was closed on, not the list of tracks.
     this.settingsManager.closeUI();
     WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.subtitles), Localize.getMessage('player_subtitlesmenu_open_label'));
@@ -216,6 +217,7 @@ export class SubtitlesManager extends EventEmitter {
       target: DOMElements.subtitles,
     });
     /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).style.display = '';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.subtitles), true);
 
     WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.subtitles), Localize.getMessage('player_subtitlesmenu_close_label'));
   }

@@ -3,6 +3,7 @@ import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {getCodecDisplayName, getDecodingLabel} from '../../players/DecodingCapabilities.mjs';
 import {DOMElements} from '../DOMElements.mjs';
+import {WebUtils} from '../../utils/WebUtils.mjs';
 
 /** @typedef {import('../../players/Levels.mjs').VideoLevel} VideoLevel */
 
@@ -49,6 +50,7 @@ export class VideoQualityChanger extends EventEmitter {
     });
 
     /** @type {HTMLElement} */ (DOMElements.videoSourceList).style.display = '';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.videoSource), true);
     if (!dontSetStayVisible) {
       this.stayOpen = true;
     }
@@ -59,6 +61,7 @@ export class VideoQualityChanger extends EventEmitter {
       return false;
     }
     /** @type {HTMLElement} */ (DOMElements.videoSourceList).style.display = 'none';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.videoSource), false);
     this.stayOpen = false;
     return true;
   }

@@ -287,6 +287,7 @@ export class LoopMenu extends EventEmitter {
     });
 
     /** @type {HTMLElement} */ (DOMElements.loopMenu).style.display = '';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.loopButton), true);
   }
 
   closeUI() {
@@ -294,6 +295,7 @@ export class LoopMenu extends EventEmitter {
       return false;
     }
     /** @type {HTMLElement} */ (DOMElements.loopMenu).style.display = 'none';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.loopButton), false);
     return true;
   }
 

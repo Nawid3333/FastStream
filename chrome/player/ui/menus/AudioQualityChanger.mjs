@@ -27,6 +27,7 @@ export class AudioQualityChanger extends EventEmitter {
     });
 
     /** @type {HTMLElement} */ (DOMElements.audioSourceList).style.display = '';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.audioTracksBtn), true);
     if (!dontSetStayVisible) {
       this.stayOpen = true;
     }
@@ -37,6 +38,7 @@ export class AudioQualityChanger extends EventEmitter {
       return false;
     }
     /** @type {HTMLElement} */ (DOMElements.audioSourceList).style.display = 'none';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.audioTracksBtn), false);
     this.stayOpen = false;
     return true;
   }
