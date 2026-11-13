@@ -1751,7 +1751,12 @@ function restorePlayerFrame(tab, frame, sender) {
   if (frame.pageFrame || !BackgroundUtils.isUrlPlayerUrl(sender.url || '')) return;
   const pageFrameId = tab.playerPageFrames[frame.frameId];
   if (typeof pageFrameId !== 'number') return;
-  frame.isPlayer = true;
+  // Counted as acceptPlayer counts one: uncounted, the next player in the tab was its main
+  // player too, and played without a click as this one does. Its leaving counts it gone.
+  if (!frame.isPlayer) {
+    frame.isPlayer = true;
+    tab.playerCount++;
+  }
   frame.pageFrame = tab.getFrameOrCreate(pageFrameId);
 }
 
@@ -2658,6 +2663,10 @@ async function isPlayerParentProven(tab, frame, parentFrameId, opener) {
  */
 function acceptPlayer(tab, frame, sender, sendResponse) {
   if (Logging) console.log('Found FastStream window', frame);
+  // A frame counted already - restorePlayerFrame's, when this is the first word of a player
+  // after Firefox unloaded the background - is not counted twice: a frame's leaving counts
+  // it gone once (resetSelfAndChildren).
+  const counted = frame.isPlayer;
   frame.isPlayer = true;
 
   if (tab.downloadInfo) {
@@ -2687,7 +2696,9 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
   } else if (frame.parent) {
     frame.parent.playerOpening = false;
   }
-  tab.playerCount++;
+  if (!counted) {
+    tab.playerCount++;
+  }
   const isMainPlayer = tab.playerCount === 1;
 
   getPageFrame(frame).then((pageFrame) => {

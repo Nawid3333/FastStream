@@ -40,3 +40,41 @@ describe('a player that goes with the frame it was in', () => {
     expect(Object.keys(kept?.playerPageFrames || {}).sort()).toEqual(['7', '9']);
   });
 });
+
+describe('a player the background lost while Firefox had unloaded it', () => {
+  // Firefox unloads the idle event page while a player plays (TabTracker.mjs): the player's
+  // next message makes its frame a player's again (restorePlayerFrame), and it counts as one.
+
+  /**
+   * A player in frame 7 of the page, then a background started anew.
+   * @return {Promise<void>}
+   */
+  async function playerThenRestart() {
+    const session = {};
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}], session});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    const first = await bg.message({type: 'PLAYER_LOADED', url: player('page-1'), parentFrameId: 0}, {tabId: 1, frameId: 7});
+    expect(first?.isMainPlayer).toBe(true);
+    bg.unload();
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}], session,
+      // The page says it opened a player (TabHolder.playerParentProof): this background never
+      // heard it name itself.
+      onTabMessage: ({message}) => (message.type === 'IS_PLAYER_OPENER' ? true : undefined)});
+  }
+
+  it('is counted: a second player in the tab is not its main player', async () => {
+    // Not counted, the second player was the main one too: it played without a click, and so
+    // did the first.
+    await playerThenRestart();
+    await bg.message({type: 'PLAYER_PLAYING', playing: true}, {tabId: 1, frameId: 7, url: player('page-1')});
+    const second = await bg.message({type: 'PLAYER_LOADED', url: player('page-1'), parentFrameId: 0}, {tabId: 1, frameId: 9});
+    expect(second?.isMainPlayer).toBe(false);
+  });
+
+  it('is counted once when it loads anew in its frame', async () => {
+    await playerThenRestart();
+    const again = await bg.message({type: 'PLAYER_LOADED', url: player('page-1'), parentFrameId: 0}, {tabId: 1, frameId: 7});
+    expect(again?.isMainPlayer).toBe(true);
+  });
+});
