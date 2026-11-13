@@ -241,6 +241,59 @@ describe('Player menus', function() {
     expect(moves.volume).toBeCloseTo(0.9, 5);
   });
 
+  it('opens the quality and language lists with Enter after a click closed them, and chooses an audio track with Enter', async function() {
+    // The review of 2026-11-13: their Enter worked only in an open list, and the audio
+    // button's own Enter could close the list before the list's Enter chose.
+    await openEmptyPlayer();
+    await addSource(twoTracksUrl());
+    await waitForPicture();
+    await browser.waitUntil(async () => browser.execute(() => {
+      const ui = window.fastStream.interfaceController;
+      return document.querySelector('.mainplayer .fluid_video_sources_list').children.length > 0 &&
+        document.querySelectorAll('.mainplayer .fluid_audio_sources_list .fluid_audio_source_list_item').length >= 2 &&
+        ui.audioQualityChanger.enabled;
+    }), {timeout: 10000, timeoutMsg: 'the quality and audio lists stayed empty'});
+    const result = await browser.execute(() => {
+      const client = window.fastStream;
+      const ui = client.interfaceController;
+      const key = (button, name) => button.dispatchEvent(new KeyboardEvent('keydown',
+          {key: name, code: name, bubbles: true, cancelable: true}));
+      // Two languages, as in the case above, so that the language button has a menu.
+      const levels = (list) => new Map(list.map((level) => [level.id, level]));
+      ui.languageChanger.updateLanguageTracks({
+        getVideoLevels: () => levels([{id: 'v-de', language: 'de'}, {id: 'v-en', language: 'en'}]),
+        getAudioLevels: () => levels([{id: 'a-en', language: 'en'}, {id: 'a-fr', language: 'fr'}]),
+        getLevelManager: () => ({getCurrentVideoLevelID: () => 'v-en', getCurrentAudioLevelID: () => 'a-en'}),
+      });
+      const reopened = {};
+      for (const [name, menu, selector] of [['quality', ui.videoQualityChanger, '.mainplayer .fluid_control_video_source'],
+        ['language', ui.languageChanger, '.mainplayer .fluid_control_language']]) {
+        const button = document.querySelector(selector);
+        button.click();
+        button.click();
+        const closed = !menu.isOpen();
+        key(button, 'Enter');
+        reopened[name] = closed && menu.isOpen();
+        menu.closeUI();
+      }
+      const audioButton = document.querySelector('.mainplayer .fluid_button_soundwave');
+      const rows = () => Array.from(document.querySelectorAll('.mainplayer .fluid_audio_sources_list .fluid_audio_source_list_item'));
+      const playing = () => rows().findIndex((row) => row.classList.contains('source_active'));
+      const before = playing();
+      ui.audioQualityChanger.openUI();
+      // The other track highlighted, as the arrows leave it (they may reach the output part).
+      rows()[before === 0 ? 1 : 0].classList.add('candidate');
+      key(audioButton, 'Enter');
+      const audio = {before, after: playing(), open: ui.audioQualityChanger.isOpen()};
+      ui.audioQualityChanger.closeUI();
+      return {reopened, audio};
+    });
+    console.log('      Enter on the menu buttons:', JSON.stringify(result));
+    expect(result.reopened).toEqual({quality: true, language: true});
+    expect(result.audio.after).not.toBe(result.audio.before);
+    expect(result.audio.open).toBe(true);
+  });
+
   it('puts the regular speed back when the silence skipper is turned off in a silence', async function() {
     // The skip speed stayed, and so it did for the next video.
     await openEmptyPlayer();

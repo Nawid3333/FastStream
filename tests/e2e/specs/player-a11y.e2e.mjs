@@ -109,6 +109,20 @@ describe('the player\'s controls, for the keyboard and a screen reader', functio
     await openFilm();
     expect((await rateMenu()).paused).toBe(true);
 
+    // The subtitles button (before the rate button in the tab order) had Enter alone: Space
+    // played the video (the review of 2026-11-13).
+    const subtitlesMenu = () => browser.execute(() => ({
+      expanded: document.querySelector('.mainplayer .fluid_control_subtitles').getAttribute('aria-expanded'),
+      paused: window.fastStream.currentVideo.paused,
+    }));
+    expect(await tabTo('.mainplayer .fluid_control_subtitles')).toBe(true);
+    await browser.keys(' ');
+    expect((await until(subtitlesMenu, (s) => s.expanded === 'true', 'Space did not press the subtitles button')).paused)
+        .toBe(true);
+    await browser.keys(' ');
+    expect((await until(subtitlesMenu, (s) => s.expanded === 'false', 'Space did not press the subtitles button again')).paused)
+        .toBe(true);
+
     // The keyboard: the rate button's menu opens as it gets the focus, and Space presses the
     // button, which closes it. The video does not start.
     expect(await tabTo('.mainplayer .fluid_button_playback_rate')).toBe(true);

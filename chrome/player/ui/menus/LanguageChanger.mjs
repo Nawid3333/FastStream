@@ -124,6 +124,10 @@ export class LanguageChanger extends EventEmitter {
         e.stopPropagation();
       }
     });
+    // After the menu's keys, which take an Enter that chooses: Enter and Space press the
+    // button as they press the others. Enter could not open the menu again once a click had
+    // closed it, and Space played or paused the video.
+    WebUtils.setupKeyPress(/** @type {HTMLElement} */ (DOMElements.languageButton));
 
     /** @type {HTMLElement} */ (DOMElements.languageMenu).addEventListener('click', (e) => {
       e.preventDefault();

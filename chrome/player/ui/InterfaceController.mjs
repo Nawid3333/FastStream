@@ -665,13 +665,9 @@ export class InterfaceController {
       this.toggleAutoplayNext();
       e.stopPropagation();
     });
-    /** @type {HTMLElement} */ (DOMElements.autoplaySwitch).addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        this.toggleAutoplayNext();
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    });
+    // Enter, and Space as on the other buttons: after a click on the switch, Space toggled it
+    // again instead of playing or pausing the video. Its role stays switch.
+    WebUtils.setupKeyPress(/** @type {HTMLElement} */ (DOMElements.autoplaySwitch));
 
     WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.nextVideo));
 

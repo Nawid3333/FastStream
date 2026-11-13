@@ -231,11 +231,9 @@ export class SubtitlesManager extends EventEmitter {
     /** @type {HTMLElement} */ (DOMElements.subtitles).addEventListener('click', this.onCaptionsButtonInteract.bind(this));
     /** @type {HTMLElement} */ (DOMElements.subtitles).tabIndex = 0;
 
-    /** @type {HTMLElement} */ (DOMElements.subtitles).addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        this.onCaptionsButtonInteract(e);
-      }
-    });
+    // Enter (Shift+Enter the subtitle search, as a Shift+click) and Space, as the other
+    // buttons have them: Space played or paused the video instead.
+    WebUtils.setupKeyPress(/** @type {HTMLElement} */ (DOMElements.subtitles), (e) => this.onCaptionsButtonInteract(e));
 
     /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsTestButton).addEventListener('click', (e) => {
       this.isTestSubtitleActive = !this.isTestSubtitleActive;
