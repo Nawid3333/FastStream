@@ -9,7 +9,7 @@ import zlib from 'node:zlib';
 import {describe, expect, it} from 'vitest';
 import {
   Bot, Prefix, Urls, bcdChanges, bugzillaItems, codeIndex, escapeRegExp, feedItems, findUses, fixtureFetch, getUrl, ghClient,
-  identifiersOfPath, stripComments, tempFolder,
+  identifiersOfPath, stripComments, tempPath,
   mdnInline, md, mergeFindings, parseArgs, parseMdnNotes, productDetails, readTarFile, recordsOf, relevantFindings,
   renderSection, run, safeUrl, underPrefix,
 } from '../../tools/firefox-api-watch.mjs';
@@ -240,10 +240,10 @@ describe('reading the sources', () => {
 
   it('keeps the memo and the fixtures inside a temporary folder', () => {
     const temp = os.tmpdir();
-    expect(tempFolder(path.join(temp, 'ffw', 'memo'), {})).toBe(path.resolve(temp, 'ffw', 'memo'));
-    expect(tempFolder(path.join(root, 'runner-temp', 'x'), {RUNNER_TEMP: path.join(root, 'runner-temp')})).toBe(path.join(root, 'runner-temp', 'x'));
+    expect(tempPath(path.join(temp, 'ffw', 'memo'), {})).toBe(path.resolve(temp, 'ffw', 'memo'));
+    expect(tempPath(path.join(root, 'runner-temp', 'x'), {RUNNER_TEMP: path.join(root, 'runner-temp')})).toBe(path.join(root, 'runner-temp', 'x'));
     for (const outside of [root, path.join(temp, '..', 'elsewhere'), temp]) {
-      expect(() => tempFolder(outside, {})).toThrow(/not in a temporary folder/);
+      expect(() => tempPath(outside, {})).toThrow(/not in a temporary folder/);
     }
   });
 

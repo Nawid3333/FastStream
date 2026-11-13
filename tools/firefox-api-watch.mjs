@@ -228,7 +228,7 @@ export async function productDetails(options = {}) {
 /**
  * The newest browser-compat-data: its version and data. The tarball's integrity is checked
  * against the registry's sha512 before it is read.
- * @param {FetchOptions & {fixtures?: string}} [options] - fixtures: a folder (from tempFolder)
+ * @param {FetchOptions & {fixtures?: string}} [options] - fixtures: a folder (from tempPath)
  *   whose bcd.json stands in for the package's data (the workflow test).
  * @return {Promise<{version: string, data: any}>}
  */
@@ -1499,14 +1499,15 @@ export function parseArgs(argv) {
 }
 
 /**
- * A folder named on the command line or in the environment, which has to lie in a temporary
- * folder - the runner's (RUNNER_TEMP) or the system's: the memo is kept there, and the workflow
- * test's fixtures. Anything else is refused, so neither can read or write elsewhere.
+ * A folder or file named on the command line or in the environment, which has to lie in a
+ * temporary folder - the runner's (RUNNER_TEMP) or the system's: the memo, the workflow test's
+ * fixtures, and the runner's own GITHUB_STEP_SUMMARY and GITHUB_OUTPUT files (in RUNNER_TEMP).
+ * Anything else is refused, so none of them can make the watcher read or write elsewhere.
  * @param {string} dir
  * @param {NodeJS.ProcessEnv} [env]
- * @return {string} The folder, resolved.
+ * @return {string} The path, resolved.
  */
-export function tempFolder(dir, env = process.env) {
+export function tempPath(dir, env = process.env) {
   const resolved = path.resolve(dir);
   for (const temp of [env.RUNNER_TEMP, os.tmpdir()]) {
     if (!temp) continue;
@@ -1520,7 +1521,7 @@ export function tempFolder(dir, env = process.env) {
  * Mozilla's sources from files, for the workflow test (FFW_FIXTURES): versions.json,
  * majors.json, <version>.md, webextensions-<version>.json, core-<version>.json, feed.xml (and
  * bcd.json, read by loadBcd). Anything else answers 404.
- * @param {string} dir - From tempFolder.
+ * @param {string} dir - From tempPath.
  * @return {typeof fetch}
  */
 export function fixtureFetch(dir) {
@@ -1545,10 +1546,10 @@ export function fixtureFetch(dir) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const env = process.env;
-  const memoDir = args.memoDir ? tempFolder(args.memoDir, env) : '';
+  const memoDir = args.memoDir ? tempPath(args.memoDir, env) : '';
   const memoFile = memoDir ? path.join(memoDir, 'reviewed') : '';
   const memo = memoFile && fs.existsSync(memoFile) ? fs.readFileSync(memoFile, 'utf8').trim() : '';
-  const fixtures = env.FFW_FIXTURES ? tempFolder(env.FFW_FIXTURES, env) : '';
+  const fixtures = env.FFW_FIXTURES ? tempPath(env.FFW_FIXTURES, env) : '';
   const github = args.noGithub ? null : ghClient(String(env.GH_REPO ?? ''));
   const result = await run({
     dryRun: args.dryRun, github, from: args.from, to: args.to, memo,
@@ -1557,14 +1558,14 @@ async function main() {
     log: (body) => process.stdout.write(`${body}\n\n---\n\n`),
   });
   const lines = ['## Firefox API watch', '', ...result.summary.map((s) => `- ${s}`), ...result.failures.map((f) => `- **Failed:** ${f}`), ''];
-  if (env.GITHUB_STEP_SUMMARY) fs.appendFileSync(env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
+  if (env.GITHUB_STEP_SUMMARY) fs.appendFileSync(tempPath(env.GITHUB_STEP_SUMMARY, env), lines.join('\n') + '\n');
   process.stderr.write(lines.join('\n') + '\n');
   if (memoFile && result.memo && result.memo !== memo && !args.dryRun) {
     fs.mkdirSync(memoDir, {recursive: true});
     fs.writeFileSync(memoFile, result.memo + '\n');
   }
   if (env.GITHUB_OUTPUT) {
-    fs.appendFileSync(env.GITHUB_OUTPUT, `memo=${result.memo}\nmemo_changed=${!args.dryRun && result.memo !== '' && result.memo !== memo}\n`);
+    fs.appendFileSync(tempPath(env.GITHUB_OUTPUT, env), `memo=${result.memo}\nmemo_changed=${!args.dryRun && result.memo !== '' && result.memo !== memo}\n`);
   }
   if (result.failures.length > 0) process.exitCode = 1;
 }
