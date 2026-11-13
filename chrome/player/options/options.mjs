@@ -651,23 +651,8 @@ mpvTestButton.addEventListener('click', () => {
       }
     });
   };
-  if (chrome.permissions && chrome.permissions.contains) {
-    chrome.permissions.contains({permissions: ['nativeMessaging']}, (has) => {
-      if (has) {
-        sendTest();
-      } else {
-        chrome.permissions.request({permissions: ['nativeMessaging']}, (granted) => {
-          if (granted) {
-            sendTest();
-          } else {
-            mpvTestResult.textContent = /** @type {any} */ (window).getI18nMessage('options_mpv_test_fail');
-          }
-        });
-      }
-    });
-  } else {
-    sendTest();
-  }
+  // No permission to ask for: nativeMessaging is one the manifest requires.
+  sendTest();
 });
 
 downloadAll.addEventListener('change', () => {
@@ -733,7 +718,8 @@ async function renderProblems() {
     const report = document.createElement('button');
     report.textContent = Localize.getMessage('options_problems_report');
     report.addEventListener('click', () => {
-      window.open(issueUrl(entry, about), '_blank', 'noopener');
+      // Not window.open: this page is an iframe in the player (EnvUtils.openExternalURL).
+      EnvUtils.openExternalURL(issueUrl(entry, about));
     });
     item.append(text, report);
     problemsList.appendChild(item);
@@ -1224,9 +1210,7 @@ if (EnvUtils.isExtension()) {
   });
 
   /** @type {HTMLElement} */ (document.getElementById('update')).addEventListener('click', (e) => {
-    chrome.tabs.create({
-      url: 'https://github.com/Nawid3333/FastStream/releases',
-    });
+    EnvUtils.openExternalURL('https://github.com/Nawid3333/FastStream/releases');
   });
 
   /** @type {HTMLElement} */ (document.getElementById('noupdate')).addEventListener('click', (e) => {

@@ -7,6 +7,11 @@ import {loadPage} from './helpers/fakeDom.mjs';
 // - The update check (GitHub build) stored the update data at every load, which told every
 //   open options page; a failed check wrote null over the version known, and with no version
 //   known it asked GitHub again at every load.
+// - The problems list's Report button opened the issue with window.open, which the player's
+//   iframe must not (EnvUtils.openExternalURL says why), and the update banner's button
+//   called chrome.tabs.create itself.
+// - The mpv test asked permissions.contains for nativeMessaging, a permission the manifest
+//   requires, before it sent the test.
 
 vi.mock('../../chrome/player/utils/SearchUtils.mjs', () => ({
   initsearch: vi.fn(), resetSearch: vi.fn(), searchWithQuery: vi.fn(),
@@ -139,5 +144,43 @@ describe('the update check', () => {
     expect(page.updateData().lastUpdateCheck).toBeGreaterThan(Date.now() - HOUR);
     expect(page.byId('updatebox').style.display).toBe('block');
   });
+
+  it('opens the releases as the player opens a page', async () => {
+    const page = await openOptionsPage({latestVersion: '1.3.82.200'});
+    page.byId('update').fire('click');
+    expect(page.opened).toHaveBeenCalledWith('https://github.com/Nawid3333/FastStream/releases');
+    expect(page.chrome.tabs.create).not.toHaveBeenCalled();
+  });
 });
 
+describe('the problems list', () => {
+  it('opens the report as the player opens a page, not with window.open', async () => {
+    const problem = {id: 'example.com|no_next', host: 'example.com', path: '/watch', kind: 'no_next', mode: 'player',
+      count: 2, first: 0, last: 0};
+    const page = await openOptionsPage({stored: {siteProblems: [problem]}});
+    const [report] = page.byId('problemslist').querySelectorAll('button');
+    report.fire('click');
+    expect(page.win.open).not.toHaveBeenCalled();
+    expect(page.opened).toHaveBeenCalledTimes(1);
+    expect(page.opened.mock.calls[0][0]).toMatch(/^https:\/\/github\.com\/Nawid3333\/FastStream\/issues\/new\?.*example\.com/);
+  });
+});
+
+describe('the mpv test button', () => {
+  it('sends the test at once: nativeMessaging is a permission the manifest requires', async () => {
+    const page = await openOptionsPage();
+    page.byId('mpvtest').fire('click');
+    expect(page.sent.filter((message) => message.type === 'MPV_TEST')).toHaveLength(1);
+    expect(page.chrome.permissions.contains).not.toHaveBeenCalled();
+    expect(page.chrome.permissions.request).not.toHaveBeenCalled();
+    await settle();
+    expect(page.byId('mpvtestresult').textContent).toBe('options_mpv_test_nompv');
+  });
+
+  it('is right that the manifest requires nativeMessaging', async () => {
+    const fs = await import('node:fs');
+    const manifest = JSON.parse(fs.readFileSync(new URL('../../chrome/manifest.json', import.meta.url), 'utf8'));
+    expect(manifest.permissions).toContain('nativeMessaging');
+    expect(manifest.optional_permissions ?? []).not.toContain('nativeMessaging');
+  });
+});
