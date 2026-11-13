@@ -61,6 +61,18 @@ describe('SCRAPE_CAPTIONS', () => {
     expect(tracks[0].data).toBe('WEBVTT');
   });
 
+  it('asks for a track with a plain GET of its own address', async () => {
+    const asked = [];
+    const page = loadContentScript({responses: {'https://cdn.example/en.vtt': (init) => {
+      asked.push({method: init.method, body: init.body, headers: init.headers});
+      return new Response('WEBVTT', {status: 200});
+    }}});
+    addTrack(page, 'https://cdn.example/en.vtt');
+    const tracks = await page.send({type: 'SCRAPE_CAPTIONS'});
+    expect(tracks.map((track) => track.data)).toEqual(['WEBVTT']);
+    expect(asked).toEqual([{method: 'GET', body: undefined, headers: undefined}]);
+  });
+
   it('answers once, with nothing, for a page without tracks', async () => {
     const page = loadContentScript();
     expect(await page.send({type: 'SCRAPE_CAPTIONS'})).toEqual([]);

@@ -291,5 +291,6 @@ const OverlayGuard = (() => {
     },
     // For content.js, which runs after this script in the same frame (the manifest's order).
     focused,
+    allElements,
   };
 })();

@@ -1270,8 +1270,9 @@
       // shadow root was never hidden (#233).
       const trace = new Set(flatTreeParents(iframe));
 
-      // Gather all elements not parents of the iframe
-      const elements = allElementsIncludingShadows();
+      // Gather all elements not parents of the iframe. Every element of the page, those in
+      // shadow roots (open or closed) too, each root's after its host.
+      const elements = OverlayGuard.allElements();
       for (let i = 0; i < elements.length; i++) {
         const element = /** @type {HTMLElement} */ (elements[i]);
         if (element === iframe) {
@@ -1779,22 +1780,11 @@
   // Answers with the response's text, read as a subtitle file (decodeSubtitleBytes): its one
   // use is the page's subtitle files, which can be Windows-1252.
   /**
-   * @param {...*} args - The url, then callback and bust, or post, callback and bust.
+   * @param {string} url - What to ask for, with a GET.
+   * @param {Function} callback - Called with the error (true, or none), the response, and
+   *   its text (false for none).
    */
-  function httpRequest(...args) {
-    const url = args[0];
-    let post = undefined;
-    let callback;
-    let bust = false;
-
-    if (args[2]) { // post
-      post = args[1];
-      callback = args[2];
-      bust = args[3];
-    } else {
-      callback = args[1];
-      bust = args[2];
-    }
+  function httpRequest(url, callback) {
     // fetch() since 2026-10-06 (XMLHttpRequest before). The whole request has
     // HttpRequestTimeoutMs; it stops when nothing has come for HttpRequestStallMs, before
     // the headers or between pieces of the body. A failed or stopped request calls back
@@ -1807,28 +1797,13 @@
       stallTimer = setTimeout(() => stall.abort(), HttpRequestStallMs);
     };
     /** @type {RequestInit} */ const init = {
-      method: post ? 'POST' : 'GET',
+      method: 'GET',
       signal: AbortSignal.any([stall.signal, AbortSignal.timeout(HttpRequestTimeoutMs)]),
     };
-    try {
-      if (post) {
-        const toPost = [];
-        for (const i in post) {
-          if (Object.hasOwn(post, i)) {
-            toPost.push(encodeURIComponent(i) + '=' + encodeURIComponent(post[i]));
-          }
-        }
-        init.headers = {'Content-type': 'application/x-www-form-urlencoded'};
-        init.body = toPost.join('&');
-      }
-    } catch (e) {
-      callback(e);
-      return;
-    }
 
     const load = async () => {
       armStallTimer();
-      const response = await fetch(url + (bust ? ('?' + Date.now()) : ''), init);
+      const response = await fetch(url, init);
       if (response.status !== 200) {
         response.body?.cancel().catch(() => {});
         return [true, response, false];
@@ -1937,25 +1912,6 @@
   }
 
   const NotLayerTags = new Set(['STYLE', 'SCRIPT', 'LINK', 'TEMPLATE']);
-
-  /**
-   * Every element of the page, those in shadow roots (open or closed) too, each root's
-   * after its host.
-   * @param {Document|ShadowRoot} [root]
-   * @param {Element[]} [found]
-   * @return {Element[]}
-   */
-  function allElementsIncludingShadows(root = document, found = []) {
-    for (const element of root.querySelectorAll('*')) {
-      found.push(element);
-      // Firefox lets a content script into closed roots too.
-      const shadow = /** @type {ShadowHost} */ (element).openOrClosedShadowRoot || element.shadowRoot;
-      if (shadow) {
-        allElementsIncludingShadows(shadow, found);
-      }
-    }
-    return found;
-  }
 
   /**
    * The element and what it is drawn inside, up to <html>: the slot that shows it before
