@@ -11,7 +11,7 @@ import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {relabelEsdsAacLayout} from './AacLayout.mjs';
 import {audioTrackLabel, audioTrackMime, pickAudioTrack} from './AudioTracks.mjs';
 import {MP4Fragment} from './MP4Fragment.mjs';
-import {lengthFromAnswer} from './RangeAnswers.mjs';
+import {MAX_FILE_LENGTH, lengthFromAnswer} from './RangeAnswers.mjs';
 import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
 
 /** @typedef {import('../../modules/mp4box/mp4box.all.mjs').ISOFile} ISOFile */
@@ -377,6 +377,10 @@ export default class MP4Player extends EventEmitter {
         }
       }
     });
+    // A sample past the longest file loaded in ranges (a broken or hostile file): no length
+    // from it, or every range up to there was made at once and the page hung (RangeAnswers'
+    // MAX_FILE_LENGTH). The file is read on range by range, as without a sample table.
+    if (maxOffset > MAX_FILE_LENGTH) return;
     this.fileLength = maxOffset;
     this.initializeFragments();
   }
@@ -771,13 +775,14 @@ export default class MP4Player extends EventEmitter {
             // this range, so the ranges after it were never made, and the file was
             // taken to end there.
             if (!this.fileLength) {
-              const {length, playDirectly} = lengthFromAnswer({
+              const {length, playDirectly, tooLong} = lengthFromAnswer({
                 status: entry.responseStatus,
                 headers: entry.responseHeaders,
                 received: data?.byteLength || 0,
               }, {start: frag.rangeStart, end: frag.rangeEnd});
               if (playDirectly) {
-                this.playDirectly('The server sends the whole file for a range request');
+                this.playDirectly(tooLong ? 'The file is too long to load in ranges' :
+                  'The server sends the whole file for a range request');
                 return;
               }
               if (length > 0) {
@@ -855,6 +860,13 @@ export default class MP4Player extends EventEmitter {
                 return;
               } else {
                 const nextParsePosition = this.metaData ? frag.rangeEnd : (this.mp4box.nextParsePosition || (frag.rangeEnd + 1));
+                // Where mp4box reads next is where a box before the moov says it ends: one past
+                // the longest file loaded in ranges made every range up to there at once
+                // (RangeAnswers' MAX_FILE_LENGTH).
+                if (nextParsePosition > MAX_FILE_LENGTH) {
+                  this.playDirectly('The file is too long to load in ranges');
+                  return;
+                }
                 const maxIndex = Math.max(frag.sn + 1, Math.floor(nextParsePosition / FRAGMENT_SIZE));
                 for (let fragIndex = 1; fragIndex <= maxIndex; fragIndex++) {
                   if (!this.client.getFragment(levelID, fragIndex)) {
