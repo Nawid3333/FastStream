@@ -129,6 +129,30 @@ describe('the player\'s controls, for the keyboard and a screen reader', functio
     expect(state.expanded).toBe('true');
   });
 
+  it('leaves Space to the options page\'s fields: a box ticked once, a space typed', async function() {
+    // Its fields are set up as the player's controls are (WebUtils.setupTabIndex).
+    await browser.url('/player/options/index.html?t=' + Date.now());
+    await browser.waitUntil(async () => browser.execute(() => document.querySelectorAll('.keybind-container').length > 0),
+        {timeout: 30000, timeoutMsg: 'the options page never rendered'});
+    const checked = () => browser.execute(() => /** @type {HTMLInputElement} */ (document.getElementById('downloadall')).checked);
+    const before = await checked();
+    expect(await tabTo('#downloadall')).toBe(true);
+    await browser.keys(' ');
+    await browser.pause(200);
+    expect(await checked()).toBe(!before);
+    await browser.keys(' ');
+    await browser.pause(200);
+    expect(await checked()).toBe(before);
+
+    expect(await tabTo('#maxspeed')).toBe(true);
+    await browser.keys(['1', ' ', '2']);
+    expect(await browser.execute(() => /** @type {HTMLInputElement} */ (document.getElementById('maxspeed')).value)).toBe('1 2');
+    // Not kept: the field's own check turns it down when it is left (change); cleared first.
+    await browser.execute(() => {
+      /** @type {HTMLInputElement} */ (document.getElementById('maxspeed')).value = '';
+    });
+  });
+
   it('has menu buttons that say whether their menu is open', async function() {
     await openFilm();
     const subtitles = () => browser.execute(() => document.querySelector('.mainplayer .fluid_control_subtitles').getAttribute('aria-expanded'));

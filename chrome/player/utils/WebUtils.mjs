@@ -75,8 +75,10 @@ export class WebUtils {
       }
       // Space presses a button the keyboard went to, as it does a <button>. A button clicked
       // with the mouse keeps the focus too, without :focus-visible: there Space stays the
-      // player's play/pause.
+      // player's play/pause. A form control (the options page's fields come here too) has
+      // Space of its own: a space typed, a box ticked once.
       if (e.key === ' ' && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey &&
+          !/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(element.tagName) && !element.isContentEditable &&
           element.matches(':focus-visible')) {
         e.preventDefault();
         e.stopPropagation();

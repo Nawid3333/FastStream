@@ -76,6 +76,19 @@ describe('a control the keyboard went to', () => {
     }
     expect(focused.clicks).toBe(0);
   });
+
+  it('leaves Space to a form control: a space typed in a field, a box ticked once', () => {
+    // The options page sets up its fields this way too; a text field always has :focus-visible.
+    for (const tagName of ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON']) {
+      const field = control(true);
+      field.tagName = tagName;
+      const space = key(' ');
+      field.listeners.keydown(space);
+      expect(field.clicks).toBe(0);
+      expect(space.preventDefault).not.toHaveBeenCalled();
+      expect(space.stopPropagation).not.toHaveBeenCalled();
+    }
+  });
 });
 
 describe('the menu buttons', () => {
