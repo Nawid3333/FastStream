@@ -356,6 +356,22 @@ describe('StreamLengths', () => {
     expect(calls[0].init.credentials).toBe('omit');
   });
 
+  it('keeps nothing it reads in the HTTP cache', async () => {
+    // The background is no private window: a private window's playlists and the first bytes
+    // of its files went into the normal disk cache (MpvSubtitles reads so for the same reason).
+    const master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nv.m3u8\n';
+    const {fetch, calls} = server({
+      'https://cdn.example/m.m3u8': {body: master},
+      'https://cdn.example/v.m3u8': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'},
+      'https://cdn.example/film.mp4': {body: concat(ftyp, box('mdat', new Uint8Array(200000)), moov(1500))},
+    });
+    const lengths = new StreamLengths({fetch});
+    expect(await lengths.probe({url: 'https://cdn.example/m.m3u8', mode: HLS})).toBe(60);
+    expect(await lengths.probe({url: 'https://cdn.example/film.mp4', mode: MP4})).toBe(1500);
+    expect(calls).toHaveLength(4);
+    expect(calls.map((call) => call.init.cache)).toEqual(['no-store', 'no-store', 'no-store', 'no-store']);
+  });
+
   it('sets the headers of each URL it reads: a variant\'s too', async () => {
     const {fetch} = server({
       'https://cdn.example/m.m3u8': {body: '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nv/index.m3u8\n'},
