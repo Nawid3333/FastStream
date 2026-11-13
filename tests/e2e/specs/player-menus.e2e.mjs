@@ -492,6 +492,57 @@ describe('Player menus', function() {
     expect(time).toBe(1);
   });
 
+  it('rests the loop\'s check while the video is paused, and loops at the end point once it plays', async function() {
+    // It asked for every animation frame while the loop was on, a paused video too: 60 to 144
+    // calls a second for nothing (the review of 2026-11-13).
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const count = () => browser.execute(() => new Promise((done) => {
+      const loop = window.fastStream.interfaceController.loopControls;
+      const ask = window.requestAnimationFrame;
+      let asked = 0;
+      window.requestAnimationFrame = (callback) => {
+        if (callback === loop.loopHandler) asked++;
+        return ask.call(window, callback);
+      };
+      let highest = 0;
+      const watch = setInterval(() => {
+        highest = Math.max(highest, window.fastStream.currentTime);
+      }, 50);
+      setTimeout(() => {
+        window.requestAnimationFrame = ask;
+        clearInterval(watch);
+        done({asked, highest, paused: window.fastStream.paused});
+      }, 1000);
+    }));
+    await browser.execute(() => {
+      const loop = window.fastStream.interfaceController.loopControls;
+      for (const [name, value] of [['start', '00:00:01'], ['end', '00:00:02']]) {
+        const input = document.querySelector(`.mainplayer input[name="${name}"]`);
+        input.value = value;
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+      }
+      loop.loopEnabled = true;
+      loop.updateLoopAndGif();
+    });
+    const paused = await count();
+    console.log('      paused:', JSON.stringify(paused));
+    expect(paused.paused).toBe(true);
+    expect(paused.asked).toBeLessThan(5);
+
+    await browser.execute(() => window.fastStream.play());
+    await browser.waitUntil(async () => browser.execute(() => !window.fastStream.paused),
+        {timeout: 10000, timeoutMsg: 'the video did not play'});
+    // A second and a half of a one-second loop: it goes back to the start at 2 s.
+    const playing = await count();
+    const more = await count();
+    console.log('      playing:', JSON.stringify(playing), JSON.stringify(more));
+    expect(playing.asked).toBeGreaterThan(20);
+    expect(Math.max(playing.highest, more.highest)).toBeLessThan(2.3);
+    expect(Math.max(playing.highest, more.highest)).toBeGreaterThan(1.5);
+  });
+
   it('names a dropdown\'s new value when the keyboard changes it', async function() {
     // Only a click on an item renamed it, so a screen reader kept the old value.
     await openEmptyPlayer();

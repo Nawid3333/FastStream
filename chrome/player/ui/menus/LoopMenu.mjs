@@ -28,9 +28,10 @@ export class LoopMenu extends EventEmitter {
 
     this.loopHandler = this.checkLoopLoop.bind(this);
     // A background tab gets no animation frames: the video played past the loop's end. Its
-    // timeupdate (four a second, also in the background) keeps it within the loop there.
+    // timeupdate (four a second, also in the background) keeps it within the loop there. And
+    // while paused, when the frames rest (checkLoopLoop): there it comes with a seek.
     this.timeupdateHandler = () => {
-      if (document.hidden) this.keepWithinLoop();
+      if (document.hidden || this.client.paused) this.keepWithinLoop();
     };
     this.timeupdateVideo = null;
   }
@@ -444,6 +445,16 @@ export class LoopMenu extends EventEmitter {
     const player = this.client.player;
     if (!player || !this.loopEnabled || !this.loopRangeValid) {
       this.loopLoopRunning = false;
+      return;
+    }
+
+    // Paused, the time moves only by a seek, which the video's timeupdate keeps within the
+    // loop: the check asked for every frame of the screen, 60 to 144 a second for nothing (as
+    // the progress loop did until 2026-10-06). Playing starts it again (InterfaceController's
+    // play). A GIF being recorded keeps it.
+    if (this.client.paused && !this.gifLoopRunning) {
+      this.loopLoopRunning = false;
+      this.keepWithinLoop();
       return;
     }
 

@@ -1378,6 +1378,8 @@ export class InterfaceController {
   play() {
     const previousValue = this.state.playing;
     this.state.playing = true;
+    // The A-B loop's check rests while paused (LoopMenu.checkLoopLoop).
+    this.loopControls.startLoopLoop();
     // progressLoop stops while paused.
     if (this.shouldRunProgressLoop) {
       this.runProgressLoop();
