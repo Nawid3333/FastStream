@@ -66,8 +66,9 @@ function sharedLine(mbit) {
  * @param {string} file
  * @param {{start: number, end: number}} range
  * @param {(bytes: number) => number} line
+ * @param {number} ttfb - How long the first byte is held back, in ms.
  */
-function sendPaced(res, file, {start, end}, line) {
+function sendPaced(res, file, {start, end}, line, ttfb) {
   const fd = fs.openSync(file, 'r');
   let at = start;
   const next = () => {
@@ -87,7 +88,7 @@ function sendPaced(res, file, {start, end}, line) {
       res.write(piece) ? next() : res.once('drain', next);
     }, line(piece.length));
   };
-  setTimeout(next, ttfbMs);
+  setTimeout(next, ttfb);
 }
 
 /**
@@ -120,15 +121,16 @@ function benchServer(buildDir) {
       res.writeHead(416, {'Content-Range': `bytes */${size}`});
       return res.end();
     }
-    // Only the media goes over the slow line: the player's own files come at once, as from
-    // the extension's package.
+    // Only the media goes over the slow line and waits for its first byte: the player's own
+    // files come at once, as from the extension's package (they waited too at first, 150 ms
+    // for each module, and every start took 4.5 s).
     const pace = fromFixtures ? line : () => 0;
     if (range) {
       res.writeHead(206, {...headers, 'Content-Range': `bytes ${range.start}-${range.end}/${size}`, 'Content-Length': range.end - range.start + 1});
-      return sendPaced(res, abs, range, pace);
+      return sendPaced(res, abs, range, pace, fromFixtures ? ttfbMs : 0);
     }
     res.writeHead(200, {...headers, 'Content-Length': size});
-    sendPaced(res, abs, {start: 0, end: size - 1}, pace);
+    sendPaced(res, abs, {start: 0, end: size - 1}, pace, fromFixtures ? ttfbMs : 0);
   });
 }
 
