@@ -1119,7 +1119,12 @@
     const parentElementsWithSameBounds = getParentElementsWithSameBounds(iframeObj.iframe)
         .filter((parent) => parent.tagName !== 'BODY');
     const element = parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : iframeObj.iframe;
-    const placeholder = document.createElement(element.tagName);
+    // Of the element's own tag, so the page's rules for it (margins) hold the page's layout
+    // as the element did. Not for the player's iframe, nor a site's custom element: a new
+    // iframe was a browsing context of its own (about:blank) for each miniplayer, and a
+    // custom element ran the site's own code again (its constructor, its connectedCallback
+    // once put in), a second copy of its player. transferStyles sizes the <div> as it did.
+    const placeholder = document.createElement(element.tagName === 'IFRAME' || element.tagName.includes('-') ? 'div' : element.tagName);
 
     miniplayerState.element = element;
 

@@ -555,6 +555,46 @@ describe('TOGGLE_MINIPLAYER', () => {
     expect(iframe.style.getPropertyValue('position')).toBe('fixed');
   });
 
+  // The placeholder was made with the element's own tag. For the player's iframe itself that
+  // was a new iframe, a browsing context of its own (about:blank, with the page's classes),
+  // for each miniplayer; for a site's custom element, the site's own code ran again in it
+  // (its constructor, and connectedCallback once put in): a second copy of its player (a
+  // review, 2026-11-13).
+  it('stands a <div> in for the player\'s iframe', async () => {
+    const {page, iframe} = await pageWithPlayer();
+    expect(await requestMiniplayer(page)).toBe('enter');
+    expect(page.document.querySelectorAll('iframe')).toEqual([iframe]);
+    const siblings = iframe.parentNode.children;
+    expect(siblings[siblings.indexOf(iframe) - 1].tagName).toBe('DIV');
+  });
+
+  it('stands a <div> in for a site\'s custom element, and its own tag for any other wrapper', async () => {
+    // Any other: the page's rules for that tag (margins) hold the page's layout as it did.
+    for (const tag of ['site-player', 'section']) {
+      const page = loadContentScript();
+      const {document} = page;
+      document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 2000};
+      document.body.rect = {x: 0, y: 0, width: 1280, height: 2000};
+      // The site's player: its video, and a bar below it.
+      const sitePlayer = document.createElement(tag);
+      sitePlayer.rect = {x: 0, y: 0, width: 640, height: 400};
+      const wrap = document.createElement('div');
+      wrap.rect = {x: 0, y: 0, width: 640, height: 360};
+      const video = document.createElement('video');
+      video.rect = {x: 0, y: 0, width: 640, height: 360};
+      wrap.appendChild(video);
+      sitePlayer.appendChild(wrap);
+      document.body.appendChild(sitePlayer);
+      const {iframe} = await openPlayer(page);
+      await linkPlayer(page, iframe, 5);
+      expect(iframe.parentNode).toBe(sitePlayer);
+      // The player fills the site's player now: that is what the miniplayer takes.
+      iframe.rect = {x: 0, y: 0, width: 640, height: 400};
+      expect(await requestMiniplayer(page)).toBe('enter');
+      expect(document.body.children.map((el) => el.tagName)).toEqual([tag === 'section' ? 'SECTION' : 'DIV', tag.toUpperCase()]);
+    }
+  });
+
   it('gives the miniplayer a size when its placeholder has none', async () => {
     // Here the placeholder is laid out at 0x0: the sizes were NaN.
     const {page, iframe} = await pageWithPlayer();
