@@ -139,10 +139,11 @@ export class FakeElement {
     return node === this.ownerDocument;
   }
 
-  // The document, or the top of a tree out of it: this stand-in has no shadow roots.
+  // The document, the shadow root the element is in (a test's stand-in element whose
+  // nodeType is 11), or the top of a tree out of the document.
   getRootNode() {
     let node = this;
-    while (node.parentNode) node = node.parentNode;
+    while (node.parentNode && node.nodeType !== 11) node = node.parentNode;
     return node;
   }
 

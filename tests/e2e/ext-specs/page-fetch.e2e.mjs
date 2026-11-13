@@ -16,7 +16,12 @@
 //   player is refused, tries once more through the page, and loads through it from then on.
 //
 // Both are played here from a local server, and the requests it saw are logged per test.
+//
+// Saving takes the same loader, so the same way through the page: each kind is saved through
+// the Save button and the name prompt, and the file Firefox writes must be the film byte for
+// byte. A save cancelled half-way must leave the player able to save again.
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -29,6 +34,8 @@ import {byteRange, sendFile} from '../serveFile.mjs';
 const PORT = 41901;
 const SITE = `http://127.0.0.1:${PORT}`;
 const FILM = path.resolve(import.meta.dirname, '../fixtures/long-av.mp4');
+// The folder wdio.extension.conf.mjs points Firefox's downloads at.
+const DOWNLOADS = path.resolve(import.meta.dirname, '../../../.e2e-downloads');
 // The player fetches from a moz-extension:// frame: CORS, preflight included.
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -60,7 +67,8 @@ const SW_PAGE = `<!doctype html><title>sw video</title>
     }
   </script>`;
 const SW_SCRIPT = `
-  const FILES = {'mp4/clip-1': '/sw/store/long-av.mp4', 'mp4/clip-2': '/sw/store/long-av.mp4'};
+  const FILES = {'mp4/clip-1': '/sw/store/long-av.mp4', 'mp4/clip-2': '/sw/store/long-av.mp4',
+    'mp4/clip-3': '/sw/store/long-av.mp4', 'mp4/clip-4': '/sw/store/long-av.mp4'};
   self.addEventListener('install', () => self.skipWaiting());
   self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
   self.addEventListener('fetch', (event) => {
@@ -90,6 +98,9 @@ let seen = [];
 // The cookie site's session: the page's load issues `initial`; the video's first answer with
 // it renews it to `current`, and from then on only `current` opens the video.
 const session = {loads: 0, initial: '', current: ''};
+// While set, the worker's file answers a range past its first quarter only after this many
+// milliseconds: a save then takes long enough to be cancelled half-way.
+let storeDelayMs = 0;
 
 /**
  * Notes a request and its answer's status.
@@ -113,6 +124,9 @@ function note(req, url, status) {
  * @param {Object<string, string>} [extra] - More headers (Set-Cookie).
  */
 function sendFilm(req, res, url, extra = {}) {
+  // Never from Firefox's cache: a range an earlier test loaded came back from it, and the
+  // server never saw which way a save asked.
+  extra = {'Cache-Control': 'no-store', ...extra};
   const size = fs.statSync(FILM).size;
   const range = byteRange(req.headers.range, size);
   if (range === 'unsatisfiable') {
@@ -228,6 +242,71 @@ function logSeen() {
   }
 }
 
+/**
+ * A file's SHA-256, in hex.
+ * @param {string} file
+ * @return {string}
+ */
+function sha256(file) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
+/**
+ * The save's status line and whether its banner shows, in the player's frame.
+ * @return {Promise<{banner: boolean, status: string}>}
+ */
+async function saveState() {
+  await playerState();
+  return browser.execute(() => {
+    const banner = document.querySelector('#save_notif_banner');
+    return {banner: !!banner && banner.style.display !== 'none',
+      status: Array.from(document.querySelectorAll('.status_message'), (m) => m.textContent.trim()).filter(Boolean).join(' | ')};
+  });
+}
+
+/**
+ * Starts a save as the user does: the Save button, then the name prompt, given a name.
+ * @param {string} name - The file's name, without '.mp4'.
+ */
+async function startSave(name) {
+  await playerState();
+  await browser.waitUntil(() => browser.execute(() => !!document.querySelector('.main_download, #download')),
+      {timeout: 15000, timeoutMsg: 'the player has no Save button'});
+  await browser.execute(() => {
+    /** @type {HTMLElement} */ (document.querySelector('.main_download') || document.querySelector('#download')).click();
+  });
+  await browser.waitUntil(() => browser.execute(() => !!document.querySelector('.fs-dialog .fs-dialog-input')),
+      {timeout: 15000, timeoutMsg: 'the name prompt never appeared'});
+  await browser.execute((given) => {
+    /** @type {HTMLInputElement} */ (document.querySelector('.fs-dialog .fs-dialog-input')).value = given;
+    /** @type {HTMLElement} */ (document.querySelector('.fs-dialog-confirm')).click();
+  }, name);
+}
+
+/**
+ * Waits until Firefox has written a save whole (its size, no '.part' beside it), and returns
+ * its path.
+ * @param {string} name - As given to startSave.
+ * @param {string} what - For the timeout's message.
+ * @return {Promise<string>}
+ */
+async function savedFile(name, what) {
+  const file = path.join(DOWNLOADS, name + '.mp4');
+  const size = fs.statSync(FILM).size;
+  let state = null;
+  try {
+    await browser.waitUntil(async () => {
+      state = await saveState();
+      return fs.existsSync(file) && !fs.existsSync(file + '.part') && fs.statSync(file).size === size;
+    }, {timeout: 75000, interval: 500});
+  } catch (e) {
+    const there = fs.existsSync(DOWNLOADS) ? fs.readdirSync(DOWNLOADS) : [];
+    throw new Error(`${what}; the save: ${JSON.stringify(state)}, the downloads: ${JSON.stringify(there)}, ` +
+      `the server saw: ${JSON.stringify(seen.slice(-12))}`);
+  }
+  return file;
+}
+
 describe('A video only its page can load', function() {
   before(async function() {
     server = http.createServer((req, res) => {
@@ -267,6 +346,11 @@ describe('A video only its page can load', function() {
           res.end();
           return;
         }
+        const start = Number(/^bytes=(\d+)-/.exec(String(req.headers.range || ''))?.[1] ?? 0);
+        if (storeDelayMs && start > fs.statSync(FILM).size / 4) {
+          setTimeout(() => sendFilm(req, res, url), storeDelayMs);
+          return;
+        }
         sendFilm(req, res, url);
         return;
       }
@@ -277,7 +361,7 @@ describe('A video only its page can load', function() {
         res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
           'Set-Cookie': `sess=${session.initial}; Path=/c/; SameSite=Lax`});
         res.end(`<!doctype html><title>cookie video</title><body style="margin:0;background:#000">
-          <video muted preload="auto" style="width:640px;height:360px" src="/c/video.mp4"></video>`);
+          <video muted preload="auto" style="width:640px;height:360px" src="/c/video.mp4${url.search}"></video>`);
         return;
       }
       if (url.pathname === '/c/video.mp4') {
@@ -320,6 +404,10 @@ describe('A video only its page can load', function() {
 
   after(async function() {
     await browser.switchFrame(null);
+    // The saves (17 MB each); the folder is emptied only when the next session starts.
+    for (const name of fs.existsSync(DOWNLOADS) ? fs.readdirSync(DOWNLOADS) : []) {
+      if (name.startsWith('page-fetch-')) fs.rmSync(path.join(DOWNLOADS, name), {force: true});
+    }
     if (server) {
       server.closeAllConnections();
       await new Promise((resolve) => server.close(resolve));
@@ -402,5 +490,99 @@ describe('A video only its page can load', function() {
     // Its file came from the worker of the iframe's page, past the page's own <video>'s request.
     const fromWorker = seen.filter((r) => r.path.startsWith('/sw/store/') && r.path.includes('clip-2') && r.status === 206);
     expect(fromWorker.length).toBeGreaterThan(1);
+  });
+
+  // Each save is of a video no test played before (another fragment, another query): a player
+  // takes over what the previous player of the same video loaded, and the save then asked for
+  // nothing.
+
+  /**
+   * Whether the server answered a range starting in the film's last tenth to a request that
+   * passes a check.
+   * @param {(r: Object) => boolean} check
+   * @return {boolean}
+   */
+  function farEndSeen(check) {
+    const size = fs.statSync(FILM).size;
+    return seen.some((r) => r.status === 206 && check(r) && Number(/^bytes=(\d+)-/.exec(r.range)?.[1] ?? -1) > size * 0.9);
+  }
+
+  it('saves a video its service worker answers, byte for byte', async function() {
+    // The address answers anyone but the worker "Video not found", so a whole file of the
+    // film's bytes came through the page.
+    seen = [];
+    playerPage = null;
+    await browser.url(`${SITE}/sw/page?clip=mp4/clip-3`);
+    const ready = await waitForPlayer((s) => s.readyState >= 2 || s.failed, 'FastStream never played the worker\'s video', 45000);
+    expect(ready.failed).toBe(false);
+    const name = `page-fetch-worker-${Date.now()}`;
+    await startSave(name);
+    const file = await savedFile(name, 'the worker\'s video was never saved whole');
+    const after = await saveState();
+    console.log('      saved:', JSON.stringify(after));
+    expect(after.status).not.toMatch(/fail/i);
+    expect(sha256(file)).toBe(sha256(FILM));
+    expect(farEndSeen((r) => r.worker === '1' && r.path.includes('clip-3'))).toBe(true);
+  });
+
+  it('saves a video only the page\'s current cookie opens, byte for byte', async function() {
+    seen = [];
+    playerPage = null;
+    await browser.url(`${SITE}/c/page?for=save`);
+    const ready = await waitForPlayer((s) => s.readyState >= 2 || s.failed, 'FastStream never played the cookie site\'s video', 45000);
+    expect(ready.failed).toBe(false);
+    const name = `page-fetch-cookie-${Date.now()}`;
+    await startSave(name);
+    const file = await savedFile(name, 'the cookie site\'s video was never saved whole');
+    expect(sha256(file)).toBe(sha256(FILM));
+    // Its far end came with the page's cookie as it is now (FastStream's own is spent), past
+    // the page's own <video>'s requests.
+    expect(farEndSeen((r) => r.path.startsWith('/c/video.mp4') && r.dest !== 'video' &&
+      r.cookie.includes(`sess=${session.current}`))).toBe(true);
+  });
+
+  it('cancels a save half-way through the page, and saves whole the next time', async function() {
+    seen = [];
+    playerPage = null;
+    // Every range past the first quarter takes 4 s: the save is still running when it is cancelled.
+    storeDelayMs = 4000;
+    try {
+      await browser.url(`${SITE}/sw/page?clip=mp4/clip-4`);
+      const ready = await waitForPlayer((s) => s.readyState >= 2 || s.failed, 'FastStream never played the worker\'s video', 45000);
+      expect(ready.failed).toBe(false);
+      const cancelled = `page-fetch-cancelled-${Date.now()}`;
+      await startSave(cancelled);
+      await browser.waitUntil(async () => (await saveState()).banner, {timeout: 15000, interval: 200, timeoutMsg: 'the save never began'});
+      // Save, clicked while a save runs, cancels it.
+      await browser.execute(() => {
+        /** @type {HTMLElement} */ (document.querySelector('.main_download') || document.querySelector('#download')).click();
+      });
+      const said = new Set();
+      let ended = null;
+      await browser.waitUntil(async () => {
+        ended = await saveState();
+        if (ended.status) said.add(ended.status);
+        return !ended.banner;
+      }, {timeout: 20000, interval: 200, timeoutMsg: 'the cancelled save never ended'});
+      await browser.pause(300);
+      const last = await saveState();
+      if (last.status) said.add(last.status);
+      const dialog = await browser.execute(() => document.querySelector('.fs-dialog')?.textContent || '');
+      console.log('      the cancel said:', JSON.stringify([...said]), 'dialog:', JSON.stringify(dialog),
+          'downloads:', JSON.stringify(fs.readdirSync(DOWNLOADS)));
+      // Said as cancelled, with no "failed, save what there is?" to answer.
+      expect([...said].some((s) => /cancelled/i.test(s))).toBe(true);
+      expect(dialog).toBe('');
+      const partFile = path.join(DOWNLOADS, cancelled + '.mp4');
+      expect(fs.existsSync(partFile) && fs.statSync(partFile).size === fs.statSync(FILM).size).toBe(false);
+
+      storeDelayMs = 0;
+      const again = `page-fetch-again-${Date.now()}`;
+      await startSave(again);
+      const file = await savedFile(again, 'the save after the cancelled one was never whole');
+      expect(sha256(file)).toBe(sha256(FILM));
+    } finally {
+      storeDelayMs = 0;
+    }
   });
 });

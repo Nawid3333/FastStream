@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {lengthFromAnswer} from '../../chrome/player/players/mp4/RangeAnswers.mjs';
+import {MAX_FILE_LENGTH, lengthFromAnswer} from '../../chrome/player/players/mp4/RangeAnswers.mjs';
 
 // What MP4Player learns from the answer to its first 1 MB range. A server that ignores Range
 // answers 200 with the whole file, and each later range downloaded the file from byte 0 again
@@ -36,6 +36,15 @@ describe('lengthFromAnswer', () => {
     // The next range tells which: empty (or 416) ends the file there.
     expect(lengthFromAnswer({status: 200, headers: {'content-length': '1000000'}, received: 1000000}, FIRST))
         .toEqual({length: 0, playDirectly: false});
+  });
+
+  it('hands a file longer than it loads in ranges to Firefox\'s own player', () => {
+    // MP4Player makes every range of the file at once: a Content-Range of 2^53 bytes made nine
+    // billion of them, and the extension's pages - one process for every add-on - hung.
+    const answer = (total) => ({status: 206, headers: {'content-range': `bytes 0-999999/${total}`}, received: 1000000});
+    expect(lengthFromAnswer(answer(2 ** 53 - 1), FIRST)).toEqual({length: 0, playDirectly: true, tooLong: true});
+    expect(lengthFromAnswer(answer(MAX_FILE_LENGTH + 1), FIRST)).toEqual({length: 0, playDirectly: true, tooLong: true});
+    expect(lengthFromAnswer(answer(MAX_FILE_LENGTH), FIRST)).toEqual({length: MAX_FILE_LENGTH, playDirectly: false});
   });
 
   it('knows no length from a 206 without Content-Range, and leaves the decision to the samples', () => {

@@ -454,6 +454,8 @@ export class StreamLengths {
       const response = await this.fetch(url, {
         headers: range ? {...request.regularHeaders, 'Range': `bytes=${range[0]}-${range[1] - 1}`} : request.regularHeaders,
         credentials: 'omit',
+        // Not kept in the cache: the page may be in a private window, and this request is not.
+        cache: 'no-store',
         signal: controller.signal,
       });
       if (!response.ok) {

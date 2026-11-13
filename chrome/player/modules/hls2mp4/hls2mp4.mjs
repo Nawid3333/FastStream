@@ -1,6 +1,7 @@
 // @ts-check
 import {EventEmitter} from '../eventemitter.mjs';
 import {FSBlob} from '../FSBlob.mjs';
+import {SaveFile} from '../SaveFile.mjs';
 import {MP4 as HlsMP4} from '../hls.mjs';
 import {MP4} from './MP4Generator.mjs';
 import {normalizePts} from './ptsNormalize.mjs';
@@ -114,13 +115,8 @@ export function samplesFromMoof(moof) {
  * A fragment to save, of the level (track 0) or the audio rendition (1), with what reads its
  * data (HLSPlayer.saveVideo).
  * @typedef {{track: number, fragment: import('../../players/hls/HLSFragment.mjs').HLSFragment,
- *   getEntry: () => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}} ZippedFragment
+ *   getEntry: (options?: {keepPinned?: boolean}) => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}} ZippedFragment
  */
-
-
-// The pieces of a save on their way to its file at once: the worker writes them one after
-// the other while the next ones are converted.
-const SAVE_APPENDS_AHEAD = 8;
 
 export class HLS2MP4 extends EventEmitter {
   /**
@@ -130,24 +126,9 @@ export class HLS2MP4 extends EventEmitter {
     super();
     this.blobManager = new FSBlob();
     // The converted pieces go into one file on disk as they are made (OPFS), and the saved
-    // file is that one behind the moov. Kept as Blobs until the end, a long save had the
-    // whole video in RAM: 454 MB held at the end of a 458 MB save, 30 minutes of a 2 Mbit/s
-    // stream (measured 2026-11-07, docs/notes/player.md). Blobs still where
-    // there is no OPFS (a private window, the web build without it): decided at the first
-    // piece (toDisk), as MP4Merger decides at its end.
-    /** @type {?import('../../network/OPFSManager.mjs').OPFSManager} */
-    this.opfs = this.blobManager.opfsManager || null;
-    this.saveIdentifier = this.opfs ? 'hls-' + Date.now() + '-' + Math.floor(Math.random() * 1000000) : null;
-    /** @type {?Promise<void>} */
-    this.saveReady = null;
-    if (this.opfs) {
-      this.saveReady = this.opfs.saveBegin(/** @type {string} */ (this.saveIdentifier));
-      // Awaited by toDisk; this only keeps a save cancelled before its first piece quiet.
-      this.saveReady.catch(() => {});
-    }
-    // Pieces on their way to the file, at most SAVE_APPENDS_AHEAD.
-    /** @type {Promise<void>[]} */
-    this.appends = [];
+    // file is that one behind the moov; staged in the blob store where there is no OPFS
+    // (SaveFile).
+    this.file = new SaveFile(this.blobManager, 'hls');
     if (registerCancel) {
       registerCancel(() => {
         this.cancel();
@@ -322,37 +303,7 @@ export class HLS2MP4 extends EventEmitter {
     });
     const data = remuxed.data2;
     this.datasOffset += data.byteLength;
-    if (await this.toDisk()) {
-      // Handed to the worker (transferred): a view of a larger buffer is copied first.
-      const own = data.byteOffset === 0 && data.byteLength === data.buffer.byteLength ? data : data.slice();
-      const append = /** @type {import('../../network/OPFSManager.mjs').OPFSManager} */ (this.opfs)
-          .saveAppend(/** @type {string} */ (this.saveIdentifier), own);
-      // Awaited below or in finalize; this keeps a failure after a cancel quiet.
-      append.catch(() => {});
-      this.appends.push(append);
-      if (this.appends.length >= SAVE_APPENDS_AHEAD) {
-        await this.appends.shift();
-      }
-      return;
-    }
-    /** @type {Array<*>} */ (this.datas).push(this.blobManager.saveBlob(new Blob([data], {type: 'video/mp4'})));
-  }
-
-  /**
-   * Whether the pieces go into the file on disk: OPFS's save began. Asked before the first
-   * piece is kept, so a save that could not begin keeps them all as Blobs.
-   * @return {Promise<boolean>}
-   */
-  async toDisk() {
-    if (!this.opfs) return false;
-    try {
-      await this.saveReady;
-      return true;
-    } catch (e) {
-      console.warn('The save could not write to disk; it keeps its pieces in memory', e);
-      this.opfs = null;
-      return false;
-    }
+    await this.file.add(data);
   }
 
   /**
@@ -409,8 +360,6 @@ export class HLS2MP4 extends EventEmitter {
 
     this.prevFrag = null;
     this.prevFragAudio = null;
-    /** @type {?Array<string>} The blob store's ids of the chunks' mdats, in order. */
-    this.datas = [];
     /** @type {number} Where the next mdat goes, after the init segment. */
     this.datasOffset = 0;
   }
@@ -489,6 +438,13 @@ export class HLS2MP4 extends EventEmitter {
       // engine's argument limit and throw a RangeError.
       track.samples = track.chunks.flatMap((chunk) => chunk.samples);
 
+      // The track's own length (mdhd): its samples one after the other. What its edits
+      // present goes in the tkhd, the longest in the mvhd. hls.js's duration of the whole
+      // stream was written in all three, and Firefox, which takes the duration from the moov,
+      // said a 10 minute save of an hour lasted an hour.
+      track.duration = decoded / track.timescale;
+      track.presentedDuration = track.elst.reduce((sum, edit) => sum + edit.segment_duration, 0) / movieTimescale;
+
       // The video's sample entry (avc1 or hvc1, with its parameter sets) is hls.js's own MP4
       // writer's, so hls.js's changes to it come with hls.js; FastStream's writer takes it as
       // it takes a DASH track's (codecBuffer). Its copies of the two were hls.js's, byte for
@@ -526,23 +482,8 @@ export class HLS2MP4 extends EventEmitter {
       initSeg = MP4.initSegment(tracks);
     }
 
-    if (this.opfs) {
-      const opfs = this.opfs;
-      const identifier = /** @type {string} */ (this.saveIdentifier);
-      await Promise.all(this.appends.splice(0));
-      await opfs.saveEnd(identifier);
-      // On disk; the moov in front of it. It stays until release(), with the blob store.
-      return new Blob([initSeg, await opfs.getSavedFile(identifier)], {type: 'video/mp4'});
-    }
-
-    const dataChunks = await Promise.all(/** @type {Array<*>} */ (this.datas).map((data) => {
-      return this.blobManager.getBlob(data);
-    }));
-
-    // Its own pieces, staged for this save: none is gone before it ends.
-    return new Blob([initSeg, .../** @type {Blob[]} */ (dataChunks)], {
-      type: 'video/mp4',
-    });
+    // The moov in front of the media; it stays until release(), with the blob store.
+    return this.file.finish(initSeg);
   }
   /**
    * @param {import('../hls.mjs').Level} level - The level saved.
@@ -593,9 +534,7 @@ export class HLS2MP4 extends EventEmitter {
       // was kept, so the blob store goes now, as MP4Merger's does. Only a cancel closed
       // it; after a failure its worker and the fragments on disk stayed until the tab
       // closed.
-      if (this.opfs) {
-        await this.opfs.saveAbort(/** @type {string} */ (this.saveIdentifier)).catch(() => {});
-      }
+      await this.file.abort();
       this.destroy(/* immediate */ true);
       throw e;
     }
@@ -612,24 +551,24 @@ export class HLS2MP4 extends EventEmitter {
     this.videoTrack = null;
     this.audioTrack = null;
     this.prevFrag = null;
-    this.datas = null;
     this.datasOffset = 0;
 
     // After a save that worked, the file convert() returned is made of what the blob
     // store keeps: it stays until release().
     if (immediate) {
-      this.release();
+      this.release(/* removeFiles */ true);
     }
   }
 
   /**
    * Closes the blob store the saved file is made of, once nothing will read the file
    * again (SaveManager: its URL dropped and the download of it over). See MP4Merger's.
+   * @param {boolean} [removeFiles] - Its files on disk go too (MP4Merger.release).
    */
-  release() {
+  release(removeFiles = false) {
     const blobManager = this.blobManager;
     // The last use of it: nothing reads the store once it is released.
     this.blobManager = /** @type {any} */ (null);
-    blobManager?.close();
+    blobManager?.close(removeFiles);
   }
 }

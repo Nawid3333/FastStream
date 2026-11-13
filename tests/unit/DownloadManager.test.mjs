@@ -64,6 +64,15 @@ describe('DownloadManager', () => {
     expect(() => vi.advanceTimersByTime(2000)).not.toThrow();
   });
 
+  it('stays destroyed when a reset comes after it', async () => {
+    // A player reset as it went (FastStreamClient.destroy, after a save it waited for): the reset
+    // threw on the downloaders that were gone (Array.from(null)), an unhandled rejection.
+    const manager = new DownloadManager({predownloadFragments: vi.fn()});
+    manager.destroy();
+    await expect(manager.reset()).resolves.toBeUndefined();
+    expect(manager.downloaders).toBe(null);
+  });
+
   /** A downloader that takes one download and keeps it. */
   function idleDownloader() {
     const downloader = {
@@ -1012,5 +1021,66 @@ describe('DownloadManager stopping every download (a new source, a failed load)'
     expect(downloaders.every((downloader) => downloader.entry === null)).toBe(true);
     expect(manager.lastFailed).toBe(0);
     vi.unstubAllGlobals();
+  });
+});
+
+describe('DownloadManager sparing a download at least half done (setYield, cancelIfCheap)', () => {
+  // Both read how far a running download is from its downloader's stats. Those were null until
+  // FetchLoader's first progress, which it gives once, after the whole body: no running download
+  // ever counted as half done, and every seek cancelled the downloads ahead, nearly finished ones
+  // too, which then came again from their first byte.
+
+  /**
+   * A manager whose real downloaders run two downloads ahead, each answered with `sent` of its
+   * 1000 bytes and then nothing more.
+   * @param {number[]} sent - The bytes each download has, in order.
+   * @return {Promise<{manager: DownloadManager, details: Object[], watchers: Object[]}>}
+   */
+  async function downloading(sent) {
+    globalThis.self = globalThis;
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      const bytes = sent[Number(new URL(url).pathname.match(/\d+/)[0])];
+      return new Response(new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(bytes));
+        },
+      }), {status: 200, headers: {'content-length': '1000'}});
+    }));
+    const manager = new DownloadManager({predownloadFragments: vi.fn()});
+    manager.downloaders = sent.map(() => new StandardDownloader(manager));
+    const details = sent.map((_, i) => ({url: `https://cdn.test/seg-${i}.ts`, responseType: 'arraybuffer'}));
+    const watchers = details.map((detail) => manager.getFile(detail, {onSuccess: vi.fn(), onAbort: vi.fn()}, 0));
+    // Each has its bytes so far, and waits for the rest.
+    await vi.waitFor(() => expect(manager.downloaders.map((downloader) => downloader.loader?.stats?.loaded)).toEqual(sent));
+    return {manager, details, watchers};
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('a player that leaves the network to a watched one keeps a download 900 of 1000 bytes in', async () => {
+    const {manager, watchers} = await downloading([900, 100]);
+    try {
+      manager.setYield(true);
+      expect(watchers[0].entry.status).toBe(DownloadStatus.DOWNLOAD_INITIATED);
+      expect(watchers[0].callbacks.onAbort).not.toHaveBeenCalled();
+      // One barely begun is cancelled, as before.
+      expect(watchers[1].entry.status).toBe(DownloadStatus.DOWNLOAD_FAILED);
+    } finally {
+      manager.destroy();
+    }
+  });
+
+  it('a seek keeps a download 900 of 1000 bytes in, and cancels one 100 bytes in', async () => {
+    const {manager, details, watchers} = await downloading([900, 100]);
+    try {
+      expect(manager.cancelIfCheap(details[0])).toBe(false);
+      expect(watchers[0].entry.status).toBe(DownloadStatus.DOWNLOAD_INITIATED);
+      expect(manager.cancelIfCheap(details[1])).toBe(true);
+      expect(watchers[1].entry.status).toBe(DownloadStatus.DOWNLOAD_FAILED);
+    } finally {
+      manager.destroy();
+    }
   });
 });

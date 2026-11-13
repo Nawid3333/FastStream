@@ -11,8 +11,9 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
       stores.push(this);
       this.closed = false;
     }
-    close() {
+    close(removeFiles) {
       this.closed = true;
+      this.removedFiles = !!removeFiles;
     }
   },
 }));
@@ -36,11 +37,20 @@ describe('Remuxer: the blob store of a save', () => {
 
     remuxer.release();
     expect(stores.at(-1).closed).toBe(true);
+    expect(stores.at(-1).removedFiles).toBe(false);
   });
 
-  it('closes the store at once when the save failed', () => {
+  it('deletes its files with the store when released after the download is over', () => {
+    const remuxer = new Remuxer();
+    remuxer.destroy();
+    remuxer.release(true);
+    expect(stores.at(-1).removedFiles).toBe(true);
+  });
+
+  it('closes the store at once when the save failed, with its files', () => {
     const remuxer = new Remuxer();
     remuxer.destroy(/* immediate */ true);
     expect(stores.at(-1).closed).toBe(true);
+    expect(stores.at(-1).removedFiles).toBe(true);
   });
 });

@@ -3,6 +3,7 @@ import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {getCodecDisplayName, getDecodingLabel} from '../../players/DecodingCapabilities.mjs';
 import {DOMElements} from '../DOMElements.mjs';
+import {WebUtils} from '../../utils/WebUtils.mjs';
 
 /** @typedef {import('../../players/Levels.mjs').VideoLevel} VideoLevel */
 
@@ -49,6 +50,7 @@ export class VideoQualityChanger extends EventEmitter {
     });
 
     /** @type {HTMLElement} */ (DOMElements.videoSourceList).style.display = '';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.videoSource), true);
     if (!dontSetStayVisible) {
       this.stayOpen = true;
     }
@@ -59,6 +61,7 @@ export class VideoQualityChanger extends EventEmitter {
       return false;
     }
     /** @type {HTMLElement} */ (DOMElements.videoSourceList).style.display = 'none';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.videoSource), false);
     this.stayOpen = false;
     return true;
   }
@@ -149,6 +152,10 @@ export class VideoQualityChanger extends EventEmitter {
         e.stopPropagation();
       }
     });
+    // After the list's keys, which take an Enter that chooses: Enter and Space press the
+    // button as they press the others. Enter could not open the list again once a click had
+    // closed it, and Space played or paused the video.
+    WebUtils.setupKeyPress(/** @type {HTMLElement} */ (DOMElements.videoSource));
 
     /** @type {HTMLElement} */ (DOMElements.videoSourceList).addEventListener('mousedown', (e) => {
       e.stopPropagation();

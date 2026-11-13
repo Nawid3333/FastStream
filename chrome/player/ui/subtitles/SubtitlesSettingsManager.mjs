@@ -40,7 +40,8 @@ export class SubtitlesSettingsManager extends EventEmitter {
 
   setupSettingsUI() {
     /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).addEventListener('keydown', (e) => {
-      e.stopPropagation();
+      // Escape goes on to the player, which closes the menu (escapeAll).
+      if (e.key !== 'Escape') e.stopPropagation();
     });
 
     /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).addEventListener('keyup', (e) => {

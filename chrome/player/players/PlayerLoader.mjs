@@ -18,7 +18,7 @@ export class PlayerLoader {
    *
    * @param {string} mode a PlayerModes value
    * @param {import('../FastStreamClient.mjs').FastStreamClient} client the FastStreamClient
-   * @param {{isPreview?: boolean, isAudioOnly?: boolean, isAnalyzer?: boolean}} options passed through to the player
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} options passed through to the player
    * @return {Promise<import('../FastStreamClient.mjs').Player>} the constructed player
    */
   async createPlayer(mode, client, options) {

@@ -15,6 +15,20 @@ const PlayerURL = chrome.runtime.getURL('player/index.html');
  *     second after it went up.
  */
 
+/**
+ * Sets the toolbar button for a tab. The tab can be closed by the time this runs (the "Off"
+ * badge's second, a start that waited for the page): Firefox then rejects the call, and that
+ * is nothing to report - unhandled, each was an error in the background's console.
+ * @param {'setBadgeText'|'setTitle'|'setIcon'} method
+ * @param {*} details
+ */
+function setAction(method, details) {
+  // One signature for the three: each takes its details and gives a promise.
+  const call = /** @type {(details: *) => (Promise<void>|void)} */ (chrome.action[method]);
+  const done = call.call(chrome.action, details);
+  if (done && typeof done.catch === 'function') done.catch(() => {});
+}
+
 export class BackgroundUtils {
   /**
    * The answers content.js gives OPEN_PLAYER when a player is on its way: the frame is
@@ -127,7 +141,7 @@ export class BackgroundUtils {
       // outdated host says so in the tooltip only: since the thin helper (2026-10-13) an
       // older one still plays everything it is sent (through the messages it knows) and
       // lacks only newer features, which is no error to flag. A failure's reason comes first.
-      chrome.action.setBadgeText({
+      setAction('setBadgeText', {
         text: tab.mpvError ? '!' : '',
         tabId: tab.tabId,
       });
@@ -162,53 +176,53 @@ export class BackgroundUtils {
       } else {
         title = chrome.i18n.getMessage('extension_toggle_label_mpv') || 'FastStream - Playing in MPV';
       }
-      chrome.action.setTitle({
+      setAction('setTitle', {
         title,
         tabId: tab.tabId,
       });
-      chrome.action.setIcon({
+      setAction('setIcon', {
         path: '/icon3_128.png',
         tabId: tab.tabId,
       });
     } else if (tab.isOn) {
       // A copy-protected video stays in the page's own player (tab.protectedVideo): on, and
       // no player opened, the button says why.
-      chrome.action.setBadgeText({
+      setAction('setBadgeText', {
         text: tab.protectedVideo ? 'DRM' : 'On',
         tabId: tab.tabId,
       });
-      chrome.action.setTitle({
+      setAction('setTitle', {
         title: tab.protectedVideo ?
           chrome.i18n.getMessage('extension_toggle_label_drm') ||
             'FastStream - This video is copy-protected (DRM), and FastStream cannot play it: the site\'s own player keeps it' :
           chrome.i18n.getMessage('extension_toggle_label') || 'Toggle FastStream',
         tabId: tab.tabId,
       });
-      chrome.action.setIcon({
+      setAction('setIcon', {
         path: '/icon2_128.png',
         tabId: tab.tabId,
       });
     } else {
-      chrome.action.setTitle({
+      setAction('setTitle', {
         title: chrome.i18n.getMessage('extension_toggle_label') || 'Toggle FastStream',
         tabId: tab.tabId,
       });
-      chrome.action.setIcon({
+      setAction('setIcon', {
         path: '/icon128.png',
         tabId: tab.tabId,
       });
       if (skipNotify) {
-        chrome.action.setBadgeText({
+        setAction('setBadgeText', {
           text: '',
           tabId: tab.tabId,
         });
       } else {
-        chrome.action.setBadgeText({
+        setAction('setBadgeText', {
           text: 'Off',
           tabId: tab.tabId,
         });
         tab.tabIconTimeout = setTimeout(() => {
-          chrome.action.setBadgeText({
+          setAction('setBadgeText', {
             text: '',
             tabId: tab.tabId,
           });

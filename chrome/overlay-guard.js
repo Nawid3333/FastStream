@@ -281,8 +281,16 @@ const OverlayGuard = (() => {
       guards.set(iframe, {src: iframe.src, timer: setInterval(() => check(iframe), CHECK_MS), hidden: new Map()});
       check(iframe);
     },
+    // The player under the iframe went, the iframe stays (RELEASE_OVERLAY_GUARD).
+    /** @param {HTMLIFrameElement} iframe */
+    release(iframe) {
+      release(iframe);
+    },
     releaseAll() {
       for (const iframe of [...guards.keys()]) release(iframe);
     },
+    // For content.js, which runs after this script in the same frame (the manifest's order).
+    focused,
+    allElements,
   };
 })();

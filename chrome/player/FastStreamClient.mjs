@@ -47,10 +47,6 @@ import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
 import {VideoLevel} from './players/Levels.mjs';
 
 
-/**
- * Main FastStream video player client. Handles playback, UI, options, and state management.
- * @extends EventEmitter
- */
 const SET_VOLUME_USING_NODE = EnvUtils.isWebAudioSupported();
 
 // The quality menu's id of one of the page's qualities, followed by its index in
@@ -148,6 +144,10 @@ const AutoNextTries = 5;
  * @property {boolean} [mpvPausePage]
  */
 
+/**
+ * Main FastStream video player client. Handles playback, UI, options, and state management.
+ * @extends EventEmitter
+ */
 export class FastStreamClient extends EventEmitter {
   /**
    * Constructs a FastStreamClient instance.
@@ -257,11 +257,14 @@ export class FastStreamClient extends EventEmitter {
       this.audioOutput.setupNodes(this.audioContext);
     }
 
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('keydown', (e) => {
+    // On the document, as the keybinds are: heard only on the player, Escape did nothing once
+    // the focus was on <body> (leaving the control bar blurs its control, so a menu opened by
+    // a click stayed open). A dialog keeps its own keys (AlertPolyfill), and the player's
+    // fields and menus let Escape through to here.
+    document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.escapeAll();
         e.preventDefault();
-        e.stopPropagation();
       }
     });
 
@@ -338,7 +341,6 @@ export class FastStreamClient extends EventEmitter {
    * @return {Promise<void>}
    */
   async setup() {
-    await this.downloadManager.setup();
     if (SecureMemory.isSupported()) {
       const progressMemory = new SecureMemory('faststream-progress', {maxAgeMs: PROGRESS_MAX_AGE_MS});
       try {
@@ -507,8 +509,15 @@ export class FastStreamClient extends EventEmitter {
     clearTimeout(this.progressPruneTimer);
     document.removeEventListener('visibilitychange', this.onPeersVisibility);
     this.peers.stop();
-    this.resetPlayer();
-    this.downloadManager.destroy();
+    // The download manager goes once the reset is over: its files on the disk deleted first,
+    // unless they were handed over (handOffBuffer). Not awaited, the reset's clear (FSBlob.clear
+    // waits for its store first) reached the OPFS worker after the store's close: it ran after
+    // the worker's 'destroy', and deleted the files just handed over to the next player, or did
+    // not run at all as the page went. A reset that first waited for a save to stop ran on the
+    // destroyed manager, and threw.
+    const downloadManager = this.downloadManager;
+    this.resetPlayer().catch((e) => console.error('Could not reset the player as it went', e))
+        .finally(() => downloadManager.destroy());
     this.interfaceController.destroy();
     if (this.progressMemory) {
       this.progressMemory.destroy();
@@ -722,7 +731,12 @@ export class FastStreamClient extends EventEmitter {
   updatePreview() {
     if (!this.previewPlayer) return;
 
-    if (this.previewPlayer.getVideo().readyState > 1) {
+    // Its frame, where it was pointed: an MP4 preview holds a place past the duration it knew
+    // of a fragmented file while it reads on (MP4Player's previewSeek), its element still at
+    // the place before, and showed that place's frame for it. Every other player's time is its
+    // element's.
+    const video = this.previewPlayer.getVideo();
+    if (video.readyState > 1 && this.previewPlayer.currentTime === video.currentTime) {
       this.showPreview();
       return;
     }
@@ -1928,10 +1942,6 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
-   * Handles failure to load the player or fragments.
-   * @param {string} reason
-   */
-  /**
    * Loads the source playing again, from scratch, once a video codec failed to decode for
    * good (DashPlayer.takeCodecReload): the new player picks without it, as its failures are
    * carried over the reset that would forget them (setSourceInternal). At most once per
@@ -2226,6 +2236,9 @@ export class FastStreamClient extends EventEmitter {
     chrome.runtime.sendMessage({type: MessageTypes.BUFFER_STASH, page: this.bufferPage.page,
       identifier: source.identifier, url: source.url, session, entries})
         .catch((e) => console.warn('Could not hand the buffer over', e));
+    // Its files on the disk are the stash's now, which lets them go if nobody takes them back:
+    // the reset as this player goes (destroy) must not delete them.
+    this.downloadManager.keepStorageOnce();
   }
 
   /**
@@ -2505,10 +2518,6 @@ export class FastStreamClient extends EventEmitter {
       this.updateQualityLevels();
     });
 
-    this.context.on(DefaultPlayerEvents.ABORT, (/** @type {undefined} */ event) => {
-
-    });
-
     this.context.on(DefaultPlayerEvents.CANPLAY, (/** @type {undefined} */ event) => {
       this.player.playbackRate = this.state.playbackRate;
 
@@ -2523,23 +2532,11 @@ export class FastStreamClient extends EventEmitter {
       }
     });
 
-    this.context.on(DefaultPlayerEvents.CANPLAYTHROUGH, (/** @type {undefined} */ event) => {
-
-    });
-
-    this.context.on(DefaultPlayerEvents.COMPLETE, (/** @type {undefined} */ event) => {
-
-    });
-
     this.context.on(DefaultPlayerEvents.DURATIONCHANGE, (/** @type {undefined} */ event) => {
       this.updateDuration();
       this.interfaceController.updateFragmentsLoaded();
       this.mediaKeys()?.updatePosition();
     });
-
-    this.context.on(DefaultPlayerEvents.EMPTIED, (/** @type {undefined} */ event) => {
-    });
-
 
     this.context.on(DefaultPlayerEvents.ENDED, (/** @type {undefined} */ event) => {
       this.pause();
@@ -2615,6 +2612,8 @@ export class FastStreamClient extends EventEmitter {
       this.audioOutput?.updateChannelCount();
       // A frame is decoded: the overlay's first picture.
       this.takeArtwork();
+      // And the settings page may load now, out of the start's way (OptionsWindow).
+      this.interfaceController?.optionsWindow?.loadFrameWhenIdle();
     });
 
 
@@ -2650,10 +2649,6 @@ export class FastStreamClient extends EventEmitter {
     });
 
 
-    this.context.on(DefaultPlayerEvents.PROGRESS, (/** @type {undefined} */ event) => {
-    });
-
-
     this.context.on(DefaultPlayerEvents.RATECHANGE, (/** @type {undefined} */ event) => {
       this.mediaKeys()?.updatePosition();
       this.droppedFrameWatch.interrupt();
@@ -2673,14 +2668,6 @@ export class FastStreamClient extends EventEmitter {
     });
 
 
-    this.context.on(DefaultPlayerEvents.STALLED, (/** @type {undefined} */ event) => {
-    });
-
-
-    this.context.on(DefaultPlayerEvents.SUSPEND, (/** @type {undefined} */ event) => {
-    });
-
-
     this.context.on(DefaultPlayerEvents.TIMEUPDATE, (/** @type {undefined} */ event) => {
       if (this.interfaceController.isUserSeeking()) return;
 
@@ -2694,11 +2681,6 @@ export class FastStreamClient extends EventEmitter {
       // `waiting`: a video that stood still in its last second with neither a wait nor an end
       // told showed "1 s" for good.
       this.watchEndStall();
-    });
-
-
-    this.context.on(DefaultPlayerEvents.VOLUMECHANGE, (/** @type {undefined} */ event) => {
-
     });
 
 

@@ -339,29 +339,49 @@ export class OPFSManager {
     await this.call('clear');
   }
 
-  async close() {
-    if (!this.worker) return;
-    try {
-      // Bounded: 'destroy' only clears in-memory state and closes a couple
-      // of sync access handles, so it should be fast. A worker wedged on
-      // something else (e.g. blocked file I/O) must not be able to stop
-      // close() from ever reaching terminate() below.
-      await Promise.race([
-        this.call('destroy'),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('OPFS destroy timed out')), 3000)),
-      ]);
-    } catch (e) {
-      // Best-effort - the worker may already be unresponsive or too slow.
-    }
+  /**
+   * Ends the worker. Its session directory stays (a finished save file may still be read by
+   * its download) until the next prune, 60 s past its last heartbeat, unless removeSession.
+   * @param {boolean} [removeSession] - Deletes the session directory too, once the worker
+   *   ended: only when nothing will read its files again (a save whose download Firefox said
+   *   is over, or that failed). A saved video's copy stayed on disk until another FastStream
+   *   player started.
+   * @return {Promise<void>}
+   */
+  async close(removeSession = false) {
     if (this.worker) {
-      this.worker.terminate();
+      try {
+        // Bounded: 'destroy' only clears in-memory state and closes a couple
+        // of sync access handles, so it should be fast. A worker wedged on
+        // something else (e.g. blocked file I/O) must not be able to stop
+        // close() from ever reaching terminate() below.
+        await Promise.race([
+          this.call('destroy'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('OPFS destroy timed out')), 3000)),
+        ]);
+      } catch (e) {
+        // Best-effort - the worker may already be unresponsive or too slow.
+      }
+      if (this.worker) {
+        this.worker.terminate();
+      }
+      this.worker = null;
+      clearTimeout(/** @type {number} */ (this.watchdog));
+      OPFSManager.live.delete(this);
+      for (const {reject} of this.pending.values()) {
+        reject(new Error('OPFSManager closed'));
+      }
+      this.pending.clear();
     }
-    this.worker = null;
-    clearTimeout(/** @type {number} */ (this.watchdog));
-    OPFSManager.live.delete(this);
-    for (const {reject} of this.pending.values()) {
-      reject(new Error('OPFSManager closed'));
+    if (removeSession && this.sessionName) {
+      try {
+        const root = await navigator.storage.getDirectory();
+        const fsblobRoot = await root.getDirectoryHandle('fsblob');
+        await fsblobRoot.removeEntry(this.sessionName, {recursive: true});
+      } catch (e) {
+        // Gone already, or a file still held: the next prune takes it.
+        console.warn('Could not delete the files of a closed save; the next player start will', e);
+      }
     }
-    this.pending.clear();
   }
 }

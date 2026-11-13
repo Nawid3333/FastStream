@@ -193,6 +193,30 @@ export function applySpeedPreset(preset, currentRate, maxRate, remembered) {
 }
 
 /**
+ * A key string's modifiers and its key. The modifiers lead, each with its '+', since the key
+ * itself may be a typed '+' ('+', 'Control++'): split at every '+', those named no key. The
+ * s flag lets the key hold any character, so every string matches.
+ * @param {string} keyString - As WebUtils.getKeyString builds it, e.g. 'Shift+KeyW'.
+ * @return {{modifiers: string[], key: string}} key is '' when the string names none ('Shift+').
+ */
+function splitKeyString(keyString) {
+  const match = /** @type {RegExpExecArray} */ (/^((?:(?:Meta|Control|Alt|Shift)\+)*)(.*)$/s.exec(keyString));
+  return {modifiers: match[1] ? match[1].slice(0, -1).split('+') : [], key: match[2]};
+}
+
+/**
+ * Whether a saved binding can be a key string. The longest WebUtils.getKeyString builds is
+ * four modifiers (23 characters) and a key's name (25 at most, 'TVAudioDescriptionMixDown');
+ * a key names no control character. An imported binding with a line break in it broke the
+ * options page, and one of many kilobytes froze it.
+ * @param {*} value - A saved binding.
+ * @return {boolean}
+ */
+export function isKeyString(value) {
+  return typeof value === 'string' && value.length <= 64 && !/\p{Cc}/u.test(value);
+}
+
+/**
  * Finds the actions a key string triggers.
  * An action listed in KeybindsWithModifiers also fires when extra modifiers are held.
  * @param {string} keyString - As WebUtils.getKeyString builds it, e.g. 'Shift+KeyW'.
@@ -210,8 +234,7 @@ export function actionsForKey(keyString, keybinds, withModifiers = KeybindsWithM
   } else {
     entries = Object.entries(keybinds);
   }
-  const modifiers = keyString.split('+');
-  const baseKey = modifiers.pop();
+  const {modifiers, key: baseKey} = splitKeyString(keyString);
   // A press with no key code (some virtual keyboards, unmapped keys, synthetic events)
   // names no key. A binding recorded from one was '' and fired on every such press.
   if (!baseKey) {
@@ -223,8 +246,7 @@ export function actionsForKey(keyString, keybinds, withModifiers = KeybindsWithM
     if (value === keyString) {
       results.push(action);
     } else if (withModifiers.includes(action) && typeof value === 'string') {
-      const testModifiers = value.split('+');
-      const testBase = testModifiers.pop();
+      const {modifiers: testModifiers, key: testBase} = splitKeyString(value);
       if (testBase === baseKey && testModifiers.every((mod) => modifiers.includes(mod))) {
         results.push(action);
       }
@@ -294,10 +316,12 @@ export function keyDisplayName(keyString, noneText = 'None') {
   if (!keyString || keyString === 'None') {
     return noneText;
   }
-  // The modifiers lead, each with its '+': the key itself may be a typed '+'.
-  const match = /** @type {RegExpExecArray} */ (/^((?:(?:Meta|Control|Alt|Shift)\+)*)(.+)$/.exec(keyString));
-  const modifiers = match[1] ? match[1].slice(0, -1).split('+').map((m) => (m === 'Control' ? 'Ctrl' : m)) : [];
-  const key = match[2];
+  // The modifiers lead, each with its '+': the key itself may be a typed '+'. splitKeyString
+  // matches every string; the pattern here matched no line break, and reading the match of an
+  // imported "Space\n" threw, which left the options page half drawn.
+  const split = splitKeyString(keyString);
+  const modifiers = split.modifiers.map((m) => (m === 'Control' ? 'Ctrl' : m));
+  const key = split.key;
   const named = /^Key([A-Z])$/.exec(key)?.[1] ?? /^Digit(\d)$/.exec(key)?.[1] ??
     (/^Numpad(\d)$/.test(key) ? 'Num ' + key.slice(6) : KeyDisplayNames[key] ?? key);
   return [...modifiers, named].join('+');

@@ -302,7 +302,7 @@ describe('AudioAnalyzer, a background player destroyed before its metadata came'
     });
     vi.useFakeTimers();
     try {
-      const video = {readyState: 0, paused: true, playbackRate: 1, currentTime: 0};
+      const video = Object.assign(new EventTarget(), {readyState: 0, paused: true, playbackRate: 1, currentTime: 0});
       const player = Object.assign(new EventEmitter(), {
         setup: vi.fn(async () => {}),
         setSource: vi.fn(async () => {}),
@@ -355,6 +355,32 @@ describe('AudioAnalyzer, an audio track switched after the analysis finished', (
     expect(analyzer.loadPlayer).toHaveBeenCalledTimes(2);
   });
 
+  // The switch reset the whole analyzer, and with it the main player's volume node, which
+  // only the start of a video makes (FastStreamClient.initiateWebAudio): the live volume
+  // stopped for the rest of the video once the silence skipper had run to its end.
+  it('keeps the main player\'s volume node', async () => {
+    const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
+    const client = makeClient(null);
+    client.getCurrentAudioLevelID = () => 'a1';
+    const analyzer = new AudioAnalyzer(client);
+    const loads = [];
+    analyzer.loadPlayer = vi.fn(async (source, ranges, onDone) => {
+      loads.push({onDone});
+      return {destroy: vi.fn()};
+    });
+    const main = {destroy: vi.fn(), configure: vi.fn()};
+    analyzer.analyzerNodes.set('main', main);
+    await analyzer.startBackgroundAnalyzer();
+    loads[0].onDone(true);
+
+    analyzer.setLevel('0:0', 'a2');
+    expect(main.destroy).not.toHaveBeenCalled();
+    expect(analyzer.analyzerNodes.get('main')).toBe(main);
+    expect(analyzer.backgroundAnalyzerStatus).toBe('idle');
+    analyzer.addVolumeDependent({});
+    expect(main.configure).toHaveBeenCalledWith({volume: true});
+  });
+
   it('keeps the volumes when only the video changed and the audio is its own track', async () => {
     const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
     const client = makeClient(null);
@@ -372,5 +398,76 @@ describe('AudioAnalyzer, an audio track switched after the analysis finished', (
     analyzer.setLevel('1:0', 'a1');
     expect(analyzer.volumeBuffer[3]).toBe(-20);
     expect(analyzer.backgroundAnalyzerStatus).toBe('finished');
+  });
+});
+
+// The volume loop measured every 64 ms divided by the playback rate even while the sound was
+// paused, when there is nothing to measure: the background analysis plays at 8x and waits
+// paused whenever it is far enough ahead, most of the time, and its loop woke the page 125
+// times a second for the whole video; the main player's 15 times a second while paused.
+describe('AudioAnalyzerNode, its volume loop while the sound is paused', () => {
+  it('wakes the page a few times a second while paused, and measures again at once on play', async () => {
+    const {AudioAnalyzerNode} = await import('../../chrome/player/modules/analyzer/AudioAnalyzerNode.mjs');
+    const {AudioUtils} = await import('../../chrome/player/utils/AudioUtils.mjs');
+    vi.spyOn(AudioUtils, 'getVolume').mockReturnValue(-20);
+    vi.useFakeTimers();
+    try {
+      const element = Object.assign(new EventTarget(), {paused: true, playbackRate: 8, readyState: 4, currentTime: 10});
+      const node = new AudioAnalyzerNode();
+      const volumes = [];
+      node.on('volume', (time, volume) => volumes.push(volume));
+      node.attach(element, {connect: vi.fn(), disconnect: vi.fn()}, {createAnalyser: () => ({})});
+      const rounds = vi.spyOn(node, 'recordVolume');
+      node.configure({volume: true});
+      rounds.mockClear();
+
+      vi.advanceTimersByTime(1000);
+      expect(rounds.mock.calls.length).toBeLessThanOrEqual(4);
+      expect(volumes).toEqual([]);
+
+      element.paused = false;
+      element.dispatchEvent(new Event('play'));
+      expect(volumes).toEqual([-20]);
+      vi.advanceTimersByTime(100);
+      // Every 8 ms at 8x, as before.
+      expect(volumes.length).toBeGreaterThanOrEqual(12);
+      expect(vi.getTimerCount()).toBe(1);
+
+      node.destroy();
+      expect(vi.getTimerCount()).toBe(0);
+      element.dispatchEvent(new Event('play'));
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('runs one loop however often the measuring is switched off and on, or play comes', async () => {
+    const {AudioAnalyzerNode} = await import('../../chrome/player/modules/analyzer/AudioAnalyzerNode.mjs');
+    const {AudioUtils} = await import('../../chrome/player/utils/AudioUtils.mjs');
+    vi.spyOn(AudioUtils, 'getVolume').mockReturnValue(-20);
+    vi.useFakeTimers();
+    try {
+      const element = Object.assign(new EventTarget(), {paused: false, playbackRate: 1, readyState: 4, currentTime: 10});
+      const node = new AudioAnalyzerNode();
+      node.attach(element, {connect: vi.fn(), disconnect: vi.fn()}, {createAnalyser: () => ({})});
+      node.configure({volume: true});
+      node.configure({volume: false});
+      node.configure({volume: true});
+      element.dispatchEvent(new Event('play'));
+      element.dispatchEvent(new Event('play'));
+      expect(vi.getTimerCount()).toBe(1);
+      const rounds = vi.spyOn(node, 'recordVolume');
+      vi.advanceTimersByTime(640);
+      expect(rounds.mock.calls.length).toBe(10);
+
+      node.configure({volume: false});
+      expect(vi.getTimerCount()).toBe(0);
+      element.dispatchEvent(new Event('play'));
+      expect(vi.getTimerCount()).toBe(0);
+      node.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

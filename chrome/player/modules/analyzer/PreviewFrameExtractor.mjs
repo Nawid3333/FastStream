@@ -196,7 +196,6 @@ export class PreviewFrameExtractor extends EventEmitter {
    */
   async loadPlayer(source, doneRanges, onDone) {
     const player = await this.client.playerLoader.createPlayer(source.mode, this.client, {
-      isAnalyzer: true,
     });
 
     try {

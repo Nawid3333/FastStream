@@ -19,4 +19,13 @@ declare namespace chrome.tabs {
     /** The cookie store to open the tab in (a container). */
     cookieStoreId?: string;
   }
+
+  /**
+   * tabs.onUpdated as Firefox has it: addListener takes a filter too, and the listener hears
+   * only a change of a property it lists ("url" since Firefox 88).
+   */
+  interface FirefoxUpdatedEvent {
+    addListener(callback: (tabId: number, changeInfo: OnUpdatedInfo, tab: Tab) => void,
+      filter: {properties?: string[], tabId?: number, windowId?: number, urls?: string[]}): void;
+  }
 }

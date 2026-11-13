@@ -27,6 +27,7 @@ export class AudioQualityChanger extends EventEmitter {
     });
 
     /** @type {HTMLElement} */ (DOMElements.audioSourceList).style.display = '';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.audioTracksBtn), true);
     if (!dontSetStayVisible) {
       this.stayOpen = true;
     }
@@ -37,6 +38,7 @@ export class AudioQualityChanger extends EventEmitter {
       return false;
     }
     /** @type {HTMLElement} */ (DOMElements.audioSourceList).style.display = 'none';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.audioTracksBtn), false);
     this.stayOpen = false;
     return true;
   }
@@ -47,8 +49,7 @@ export class AudioQualityChanger extends EventEmitter {
 
   setupUI() {
     // Its click opened the audio settings window, its right click this list; since the
-    // window went (2026-10-10), both open the list.
-    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.audioTracksBtn));
+    // window went (2026-10-10), both open the list. Its keys: setupTabIndex, below.
     /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('click', (e) => {
       if (this.isOpen() || !this.enabled) {
         this.closeUI();
@@ -146,6 +147,10 @@ export class AudioQualityChanger extends EventEmitter {
         e.stopPropagation();
       }
     }, true);
+    // After the list's keys, whatever order Firefox calls two listeners of one element in: the
+    // button's own Enter came first, closed the list, and the list's Enter then chose nothing.
+    // It now leaves an Enter the list took (preventDefault) alone.
+    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.audioTracksBtn));
 
     /** @type {HTMLElement} */ (DOMElements.audioSourceList).addEventListener('mousedown', (e) => {
       e.stopPropagation();

@@ -35,6 +35,13 @@ import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPending
 export let Options = /** @type {PlayerOptions} */ ({});
 /** @type {{customSourcePatterns?: string}} What loadCustomPatterns last compiled. */
 const OptionsCache = {};
+// The redirect rules as this background last gave them to declarativeNetRequest, by id
+// (setupRedirectRule, removeRule): the rule, or RedirectRuleRemoved. Every options save loads
+// the options again, and each load made both rules again, unchanged: two updates of the
+// browser's rules per save, some 120 for a slider dragged for two seconds.
+/** @type {Map<number, string>} */
+const RedirectRulesMade = new Map();
+const RedirectRuleRemoved = 'removed';
 
 // "Auto-enable URLs": prefix, `~` regex and `!` exclusion like the MPV allowlist, and
 // `-domain` to exclude a whole site, from the redirect of manifest links too.
@@ -584,7 +591,12 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
   inheritMpv(openerTab, /** @type {number} */ (newTab.id));
 });
 
-chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
+// Address and load changes only (Firefox's filter, below): Firefox fires onUpdated for every
+// title, favicon and sound change of every tab (a site's title counts its player's time up),
+// each of which set the toolbar button again and kept the event page awake. The listener reads
+// the address; the load's status stays in, as Firefox resets a tab's button on every new
+// document, a reload's too, whose changeInfo need not carry the address it already had.
+/** @type {chrome.tabs.FirefoxUpdatedEvent} */ (chrome.tabs.onUpdated).addListener(async (tabid, changeInfo, tabobj) => {
   await ensureOptions();
 
   const tab = Tabs.getTabOrCreate(tabid);
@@ -593,8 +605,19 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     const url = new URL(changeInfo.url);
     const oldURL = tab.url ? new URL(tab.url) : null;
     if (oldURL && oldURL.hostname !== url.hostname) {
+      // The next episode's instructions go along to the page FastStream went to by itself,
+      // on another site too, with how far the tab went (below): the reset dropped them, and
+      // that episode played with no autoplay and gave the fullscreen back. MPV's (mpvNext)
+      // end their own way (MpvMode).
+      const next = tab.continuationOptions && !tab.continuationOptions.mpvNext ?
+        {options: tab.continuationOptions, arrived: tab.continuationArrived, page: tab.continuationPage} : null;
       // Keeps the new site's page when it named itself first (TabHolder.resetForNewSite).
       tab.resetForNewSite(changeInfo.url);
+      if (next) {
+        tab.continuationOptions = next.options;
+        tab.continuationArrived = next.arrived;
+        tab.continuationPage = next.page;
+      }
       // A different site is a fresh decision. mpvMatched is what stops the
       // allowlist from re-arming MPV mode after the user switched it off, so
       // it has to be dropped here or MPV stays off for the rest of the tab's
@@ -613,11 +636,32 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     tab.url = changeInfo.url;
 
     if (!samePage) {
+      // The next episode's instructions (autoplay, fullscreen, no remembered place) are for
+      // the page FastStream went to by itself, the first after its click, and only a player
+      // there takes them (sendSources). A page after that one is the user's own: they stayed
+      // on the tab, and the next video opened in it, minutes later, took them (a review,
+      // 2026-11-13). The pages are the documents frame 0 names (noteContinuationPage), not the
+      // addresses: the next page's own pushState or replaceState (?server=, a canonical slug)
+      // names none, and counted as a page after it, the episode its player asked for next
+      // played with no autoplay and gave the fullscreen back. An address counts only until the
+      // next page named itself: one that never does (an error page, a PDF: no content script)
+      // has no player to take them, and they end at the address after it. MPV's (mpvNext) end
+      // their own way (MpvMode).
+      if (tab.continuationOptions && !tab.continuationOptions.mpvNext) {
+        if (!tab.continuationArrived) {
+          tab.continuationArrived = true;
+          // The next page can name itself before its address comes (resetForNewSite).
+          const zero = tab.getFrame(0);
+          tab.continuationPage = zero?.documentKey && zero.url === changeInfo.url ? zero.documentKey : null;
+        } else if (tab.continuationPage === null) {
+          tab.continuationOptions = null;
+        }
+      }
       // A carried fullscreen goes on only into the next episode (its continuation says so),
       // whose player takes it over (setCarriedFullscreen). A page the user went to himself,
-      // or a second page before any player took it, gets the window as it was.
+      // or one after the next before any player took it, gets the window as it was.
       if (tab.windowStateBefore) {
-        if (tab.continuationOptions?.fullscreenState === 'fullscreen' && !tab.carryAwaited) {
+        if (tab.continuationOptions?.fullscreenState === 'fullscreen') {
           tab.carryAwaited = true;
           tab.carriedFullscreenFrameId = null;
         } else {
@@ -711,7 +755,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
   }
 
   BackgroundUtils.updateTabIcon(tab, true);
-});
+}, {properties: ['url', 'status']});
 
 // How long a start by address (the MPV allowlist, the auto-enable list) waits before it
 // acts on the streams the tab already tracks (startWithTrackedLater).
@@ -733,10 +777,12 @@ const UrlStartSettleMs = 500;
  * @param {(foundBefore: number) => *} start - The start, given the address change's time.
  */
 function startWithTrackedLater(tab, url, stillWanted, start) {
-  // The tab's next address change cancels it (tabs.onUpdated).
+  // The tab's next address change cancels it (tabs.onUpdated). One after the # only (the page
+  // sets #t=... or an anchor) is the same page, which no new start would take up: it goes on.
   const changedAt = Date.now();
   tab.urlStartTimer = setTimeout(() => {
-    if (Tabs.getTab(tab.tabId) === tab && tab.url === url && tab.isOn && stillWanted()) {
+    const samePage = tab.url === url || BackgroundUtils.isSamePageUrlChange(url, tab.url);
+    if (Tabs.getTab(tab.tabId) === tab && samePage && tab.isOn && stillWanted()) {
       start(changedAt);
     }
   }, UrlStartSettleMs);
@@ -765,6 +811,7 @@ export const MessageSenders = {
   [MessageTypes.PING]: 'own',
   [MessageTypes.VPN_STATUS]: 'own',
   [MessageTypes.VPN_OPEN_PERMISSION]: 'own',
+  [MessageTypes.OPEN_EXTERNAL_URL]: 'own',
   [MessageTypes.LOAD_OPTIONS]: 'own',
   [MessageTypes.MPV_TEST]: 'own',
   [MessageTypes.MPV_OPEN]: 'own',
@@ -825,6 +872,34 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (opener) opener.popupGuardArmedUntil = 0;
     }
     chrome.tabs.create(create).catch((e) => console.error('Opening the permissions page failed', e));
+    sendResponse(true);
+    return;
+  } else if (msg.type === MessageTypes.OPEN_EXTERNAL_URL) {
+    // EnvUtils.openExternalURL in a player framed in a page, which has no chrome.tabs: the
+    // OpenSubtitles page of a subtitle, the error dialog's report did nothing there; nor did the
+    // settings page's report and update buttons, an iframe in that player. Only those two pages
+    // ask, and only for a web page: tabs.create also opens the extension's own pages.
+    // No opener, as the player's own tabs.create has none: the popup guard, armed by the
+    // click into the player's iframe, would close a tab the page opened.
+    let url = null;
+    try {
+      url = new URL(String(msg.url));
+    } catch (e) {
+      // No address at all.
+    }
+    let asker = null;
+    try {
+      asker = new URL(String(sender.url));
+    } catch (e) {
+      // No sender's address.
+    }
+    const fromOwnPage = !!asker && ['player/index.html', 'player/options/index.html']
+        .some((page) => `${asker.protocol}//${asker.host}${asker.pathname}` === chrome.runtime.getURL(page));
+    if (!url || !/^https?:$/.test(url.protocol) || !fromOwnPage) {
+      sendResponse(false);
+      return;
+    }
+    chrome.tabs.create({url: url.href}).catch((e) => console.error('Opening a page for the player failed', e));
     sendResponse(true);
     return;
   } else if (msg.type === MessageTypes.LOAD_OPTIONS) {
@@ -1003,6 +1078,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (tab.playingPlayers.size > 0) {
       sendPageMediaHold(tab);
     }
+    if (frame.frameId === 0 && documentKey) {
+      noteContinuationPage(tab, documentKey);
+    }
     // The next episode's page, after FastStream went there by itself: its player may wait
     // for a click (startPagePlayers).
     if (tab.continuationOptions?.autoPlay) {
@@ -1014,12 +1092,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   } else if (msg.type === MessageTypes.FRAME_REMOVED) {
     const removed = msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame;
-    const wasPlaying = !!removed && tab.playingPlayers.delete(removed.frameId);
+    const going = removed ? frameAndInside(removed) : [];
+    if (removed) releaseOverlayGuards(tab, removed);
     tab.forgetRemovedFrame(removed, msg.document);
-    if (removed && removed.frameId in tab.playerPageFrames) {
-      delete tab.playerPageFrames[removed.frameId];
-      Tabs.saveTabState(tab);
+    // The frames forgotten with it - a player inside a page that went too. A player's own
+    // FRAME_REMOVED can come after its page's: kept in playerPageFrames, it was taken for a
+    // player lost while Firefox had unloaded the background (restorePlayerFrame), made again
+    // with its page frame, and counted gone a second time (a review, 2026-11-13).
+    let wasPlaying = false;
+    let keptChanged = false;
+    for (const gone of going) {
+      if (tab.getFrame(gone.frameId) === gone) continue; // a late message: the frame shows a newer page
+      wasPlaying = tab.playingPlayers.delete(gone.frameId) || wasPlaying;
+      if (gone.frameId in tab.playerPageFrames) {
+        delete tab.playerPageFrames[gone.frameId];
+        keptChanged = true;
+      }
     }
+    if (keptChanged) Tabs.saveTabState(tab);
     // A player that goes lets the page's media go, also one this background no longer
     // knew to be playing (it was restarted meanwhile).
     if (wasPlaying || BackgroundUtils.isUrlPlayerUrl(sender.url || '')) {
@@ -1037,7 +1127,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   } else if (msg.type === MessageTypes.REQUEST_FRESH_LINK) {
     // A player whose stream the server refused asks its page for the link anew (FreshLink.mjs).
-    if (!BackgroundUtils.isUrlPlayerUrl(sender.url || '') || typeof msg.url !== 'string') {
+    // Not in a private window or a container tab: the background is neither, and its fetch of
+    // the page went with the normal window's cookies (a container's login is another one), left
+    // what the page set in the normal cookie jar, and missed a private window's proxy
+    // (VpnProxyMirror). The player there says the link was refused, as before FreshLink.
+    const store = senderTab.cookieStoreId;
+    if (!BackgroundUtils.isUrlPlayerUrl(sender.url || '') || typeof msg.url !== 'string' ||
+        senderTab.incognito || (store && store !== 'firefox-default')) {
       sendResponse(null);
       return;
     }
@@ -1226,15 +1322,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === MessageTypes.EXIT_CARRIED_FULLSCREEN) {
     // Escape in the page: the player that carried the fullscreen ends it. One that never
     // took it over (an error page, no player there) leaves it to this background.
-    const playerFrameId = frame.tab.carriedFullscreenFrameId;
-    if (frame.tab.carryAwaited || typeof playerFrameId !== 'number') {
-      frame.tab.carryAwaited = false;
-      frame.tab.carriedFullscreenFrameId = null;
-      tellPageCarried(frame.tab, false);
-      chrome.tabs.get(frame.tab.tabId).then((t) => restoreWindowState(frame.tab, t.windowId), () => {});
+    const tab = frame.tab;
+    const playerFrameId = tab.carriedFullscreenFrameId;
+    const endHere = () => {
+      tab.carryAwaited = false;
+      tab.carriedFullscreenFrameId = null;
+      tellPageCarried(tab, false);
+      chrome.tabs.get(tab.tabId).then((t) => restoreWindowState(tab, t.windowId), () => {});
+    };
+    if (tab.carryAwaited || typeof playerFrameId !== 'number') {
+      endHere();
     } else {
-      chrome.tabs.sendMessage(frame.tab.tabId, {type: MessageTypes.EXIT_CARRIED_FULLSCREEN}, {frameId: playerFrameId}, () => {
-        void chrome.runtime.lastError;
+      // A player whose frame went (taken out of the page, its hoster's page gone) answers
+      // nothing, and a new one in its frame (a reload) false: neither ends it, and the window
+      // stayed fullscreen with Escape doing nothing (a review, 2026-11-13). Ended here then.
+      chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.EXIT_CARRIED_FULLSCREEN}, {frameId: playerFrameId}, (ended) => {
+        if (chrome.runtime.lastError || ended !== true) endHere();
       });
     }
     return;
@@ -1261,6 +1364,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         BackgroundUtils.checkMessageError('playlist_navigation');
         if (response === 'clicked') {
           tab.continuationOptions = msg.continuationOptions;
+          // Not on its page yet: the navigation the click started comes next.
+          tab.continuationArrived = false;
+          tab.continuationPage = null;
           if (msg.continuationOptions?.autoPlay) watchNextEpisodeArrives(tab, msg.continuationOptions, 'player');
         }
         sendResponse(response);
@@ -1432,6 +1538,32 @@ async function setCarriedFullscreen(frame, on) {
   tellPageCarried(tab, false);
   await restoreWindowState(tab, windowId);
   return 'exit';
+}
+
+/**
+ * A page names itself in the tab's top frame (FRAME_ADDED) while the next episode's
+ * instructions wait for their player (tabs.onUpdated): the first document since the click's
+ * address change is the page they are for, and another one after it - the user went on, or
+ * back - ends them, with a fullscreen carried for them that no player took over. The same
+ * page naming itself again (Firefox's back-forward cache, a leave that never happened) is none.
+ * @param {TabHolder} tab
+ * @param {string} documentKey - The page's name.
+ */
+function noteContinuationPage(tab, documentKey) {
+  if (!tab.continuationOptions || tab.continuationOptions.mpvNext || !tab.continuationArrived ||
+      tab.continuationPage === documentKey) {
+    return;
+  }
+  if (tab.continuationPage === null) {
+    tab.continuationPage = documentKey;
+    return;
+  }
+  tab.continuationOptions = null;
+  if (tab.carryAwaited) {
+    tab.carryAwaited = false;
+    tab.carriedFullscreenFrameId = null;
+    chrome.tabs.get(tab.tabId).then((t) => restoreWindowState(tab, t.windowId), () => {});
+  }
 }
 
 /**
@@ -1703,8 +1835,52 @@ function restorePlayerFrame(tab, frame, sender) {
   if (frame.pageFrame || !BackgroundUtils.isUrlPlayerUrl(sender.url || '')) return;
   const pageFrameId = tab.playerPageFrames[frame.frameId];
   if (typeof pageFrameId !== 'number') return;
-  frame.isPlayer = true;
+  // Counted as acceptPlayer counts one: uncounted, the next player in the tab was its main
+  // player too, and played without a click as this one does. Its leaving counts it gone.
+  if (!frame.isPlayer) {
+    frame.isPlayer = true;
+    tab.playerCount++;
+  }
   frame.pageFrame = tab.getFrameOrCreate(pageFrameId);
+}
+
+/**
+ * @param {FrameHolder} frame
+ * @return {FrameHolder[]} The frame and every frame inside it, at any depth.
+ */
+function frameAndInside(frame) {
+  const all = [frame];
+  for (const each of all) all.push(...each.children);
+  return all;
+}
+
+/**
+ * A frame that goes with a player in it, or that is one: each frame above it, asked IS_FULL
+ * as the player opened, guards the iframe on the way down (content.js, overlay-guard.js), and
+ * is told to let go - unless another player still lives under that iframe. Only the leaving of
+ * the page that held the player did that before: an embed whose own page went elsewhere, or
+ * took its player out, kept the page around it hiding its own menu over the embed, and
+ * checking it every second (a review, 2026-11-13).
+ * @param {TabHolder} tab
+ * @param {FrameHolder} removed
+ */
+function releaseOverlayGuards(tab, removed) {
+  /** @param {FrameHolder} frame @param {FrameHolder} above */
+  const under = (frame, above) => {
+    for (let f = /** @type {?FrameHolder} */ (frame); f; f = f.parent) {
+      if (f === above) return true;
+    }
+    return false;
+  };
+  const players = [...tab.frames.values()].filter((f) => f.isPlayer);
+  if (!players.some((f) => under(f, removed))) return;
+  for (let child = removed; child.parent; child = child.parent) {
+    if (players.some((f) => under(f, child) && !under(f, removed))) return;
+    chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.RELEASE_OVERLAY_GUARD, frameId: child.frameId},
+        {frameId: child.parent.frameId}, () => {
+          void chrome.runtime.lastError;
+        });
+  }
 }
 
 /**
@@ -1849,7 +2025,7 @@ async function setupRedirectRule(ruleID, filetypes, wanted = () => true) {
       resourceTypes: ['main_frame'],
     },
   };
-  return chrome.declarativeNetRequest.updateDynamicRules({
+  return updateRedirectRule(ruleID, JSON.stringify(rule), {
     removeRuleIds: [rule.id],
     addRules: [rule],
   });
@@ -1859,8 +2035,25 @@ async function setupRedirectRule(ruleID, filetypes, wanted = () => true) {
  * @param {number} ruleID
  */
 async function removeRule(ruleID) {
-  return chrome.declarativeNetRequest.updateDynamicRules({
+  return updateRedirectRule(ruleID, RedirectRuleRemoved, {
     removeRuleIds: [ruleID],
+  });
+}
+
+/**
+ * Gives a redirect rule to declarativeNetRequest, unless it has it so already
+ * (RedirectRulesMade): the first load of this background gives it in any case.
+ * @param {number} ruleID
+ * @param {string} made - The rule as given (JSON), or RedirectRuleRemoved.
+ * @param {chrome.declarativeNetRequest.UpdateRuleOptions} update - The update that gives it.
+ */
+async function updateRedirectRule(ruleID, made, update) {
+  if (RedirectRulesMade.get(ruleID) === made) return;
+  RedirectRulesMade.set(ruleID, made);
+  return chrome.declarativeNetRequest.updateDynamicRules(update).catch((e) => {
+    // Not given: the next load gives it again.
+    if (RedirectRulesMade.get(ruleID) === made) RedirectRulesMade.delete(ruleID);
+    throw e;
   });
 }
 
@@ -1948,6 +2141,35 @@ function addSource(frame, url, mode, headers, time = Date.now(), requestedUrl = 
 }
 
 /**
+ * Whether a stream of a frame is a piece of one whose pieces were read as such: a file not
+ * read, of the shape of one read as a piece (StreamLengths.lengthsOf counts it as one).
+ * @param {FrameHolder} frame - The frame it was detected in.
+ * @param {string} url - The stream.
+ * @return {boolean}
+ */
+function isKnownPiece(frame, url) {
+  const sources = frame.getSources();
+  const index = sources.findIndex((source) => source.url === url);
+  return index !== -1 && Lengths.lengthsOf(sources)[index] === PIECE_LENGTH;
+}
+
+/**
+ * Whether a file of a frame is another piece of a stream the frame holds a piece of already:
+ * a file of the same shape (StreamLengths.shape), as seg-15.mp4 is of seg-14.mp4.
+ * @param {FrameHolder} frame - The frame it was detected in.
+ * @param {string} url - The file.
+ * @param {string} mode - Its PlayerModes value.
+ * @return {boolean}
+ */
+function isRepeatPiece(frame, url, mode) {
+  /** @type {(m: string) => boolean} */
+  const isFile = (m) => m === PlayerModes.ACCELERATED_MP4 || m === PlayerModes.DIRECT;
+  const shape = StreamLengths.shape(url);
+  return isFile(mode) && frame.getSources().some((source) =>
+    source.url !== url && isFile(source.mode) && StreamLengths.shape(source.url) === shape);
+}
+
+/**
  * The quality lists a frame's page holds for its player's files (content.js, page-qualities.js).
  * @param {TabHolder} tab
  * @param {number} frameId
@@ -2015,6 +2237,8 @@ async function attachPageQualities(tab, sources) {
  *     script (getPageFrame).
  * @property {ReturnType<typeof setTimeout>} [openTimeout] - The wait before a stream found in
  *     it opens the player (onSourceRecieved).
+ * @property {{document: ?string, taken: Promise<void>}} [captionsScrape] - The last ask for
+ *     its page's <track> captions (onSourceRecieved): for which page, and its answer taken in.
  */
 
 /**
@@ -2571,6 +2795,10 @@ async function isPlayerParentProven(tab, frame, parentFrameId, opener) {
  */
 function acceptPlayer(tab, frame, sender, sendResponse) {
   if (Logging) console.log('Found FastStream window', frame);
+  // A frame counted already - restorePlayerFrame's, when this is the first word of a player
+  // after Firefox unloaded the background - is not counted twice: a frame's leaving counts
+  // it gone once (resetSelfAndChildren).
+  const counted = frame.isPlayer;
   frame.isPlayer = true;
 
   if (tab.downloadInfo) {
@@ -2600,7 +2828,9 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
   } else if (frame.parent) {
     frame.parent.playerOpening = false;
   }
-  tab.playerCount++;
+  if (!counted) {
+    tab.playerCount++;
+  }
   const isMainPlayer = tab.playerCount === 1;
 
   getPageFrame(frame).then((pageFrame) => {
@@ -2756,8 +2986,12 @@ async function onSourceRecieved(details, frame, mode) {
       details.requestId !== undefined ? frame.tab.redirectOrigin(details.requestId) : null);
 
   await ensureOptions();
-  // Its length, read now: by the time a player asks for the page's streams, it is known.
-  if (frame.tab.isOn) {
+  // Its length, read now: by the time a player asks for the page's streams, it is known. Not
+  // that of a piece of a stream whose pieces were read as such (seg-15.mp4 after seg-14.mp4):
+  // lengthsOf counts it as one unread, and a pick that waits for the lengths reads it then
+  // (Lengths.settle). A page's own player fetches thousands of them in an evening, and each
+  // was a read and a header rule added and taken away.
+  if (frame.tab.isOn && !isKnownPiece(frame, url)) {
     Lengths.probe({url, mode, headers: customHeaders});
   }
 
@@ -2797,7 +3031,20 @@ async function onSourceRecieved(details, frame, mode) {
     return;
   }
 
-  takeScrapedCaptions(frame, await scrapeCaptionsTags(frame));
+  // Another piece of a stream the frame's page holds pieces of (seg-15.mp4 after seg-14.mp4):
+  // the page's <track> captions were asked for at the first, and that answer is waited for,
+  // not asked for again. Each piece made content.js walk the page and fetch every <track> file
+  // again, thousands of times in an evening. Another stream, or the next page, asks again: its
+  // page may have added tracks for it.
+  let scrape = frame.captionsScrape;
+  if (!scrape || scrape.document !== frame.documentKey || !isRepeatPiece(frame, url, mode)) {
+    scrape = {
+      document: frame.documentKey,
+      taken: scrapeCaptionsTags(frame).then((subs) => takeScrapedCaptions(frame, subs)),
+    };
+    frame.captionsScrape = scrape;
+  }
+  await scrape.taken;
 
   if (frame.tab.isOn) {
     clearTimeout(frame.openTimeout);

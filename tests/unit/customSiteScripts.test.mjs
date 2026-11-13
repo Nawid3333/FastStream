@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import vm from 'node:vm';
 import {beforeAll, describe, expect, it} from 'vitest';
 
@@ -297,6 +299,18 @@ describe('instagram_content.js', () => {
     post(listeners, {type: 'fs_source_detected', value: '<MPD/>', ext: 'mpd'});
     post(listeners, {type: 'fs_source_detected', value: '<MPD>2</MPD>', ext: 'mpd'});
     expect(sent).toHaveLength(2);
+  });
+
+  // Only this script puts instagram_inject.js in a page, in Instagram's pages only. Listed for
+  // <all_urls> with the player's page, any site could load it into itself (a review, 2026-11-13).
+  it('has instagram_inject.js reachable from the pages it runs in only', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../../chrome/manifest.json'), 'utf8'));
+    const listed = (file) => manifest.web_accessible_resources.filter((entry) => entry.resources.includes(file));
+    const own = manifest.content_scripts.find((entry) => entry.js.includes('custom/instagram_content.js'));
+    expect(own.matches).toEqual(['https://www.instagram.com/*']);
+    expect(listed('custom/instagram_inject.js')).toEqual([{resources: ['custom/instagram_inject.js'], matches: own.matches}]);
+    // The player's page stays open to every page: the in-page player is an iframe of it.
+    expect(listed('player/index.html')).toEqual([{resources: ['player/index.html'], matches: ['<all_urls>']}]);
   });
 
   it('passes on no report of another type, or with no manifest', () => {

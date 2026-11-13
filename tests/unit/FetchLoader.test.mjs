@@ -652,6 +652,53 @@ describe('FetchLoader', () => {
       expect(new Uint8Array(response.data)).toEqual(file);
     });
   });
+
+  // A broken server or proxy that answers each range with 206, no Content-Range and the rest of
+  // the file: it was read to its end (the rest of a 2 GB file for each 1 MB range), all of it held
+  // in RAM and stored, and MP4Player cut the range out only then.
+  it('stops reading a 206 without Content-Range once the range is in', async () => {
+    let pulled = 0;
+    let cancelled = false;
+    const rest = new ReadableStream({
+      pull(controller) {
+        if (pulled === 10) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(new Uint8Array(1024).fill(pulled++));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }, {highWaterMark: 0});
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(rest, {status: 206, headers: {'content-length': '10240'}})));
+    const loader = new FetchLoader();
+    const recorder = makeCallbackRecorder();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest({rangeStart: 4096, rangeEnd: 4096 + 2048}), makeConfig());
+    await vi.runAllTimersAsync();
+
+    const [response, stats] = recorder.calls.find((c) => c.type === 'onSuccess').args;
+    expect(response.status).toBe(206);
+    expect(response.data.byteLength).toBe(2048);
+    expect([...new Uint8Array(response.data, 1020, 8)]).toEqual([0, 0, 0, 0, 1, 1, 1, 1]);
+    expect(stats.loaded).toBe(2048);
+    expect(cancelled).toBe(true);
+    expect(pulled).toBeLessThanOrEqual(3);
+  });
+
+  it('takes a 206 without Content-Range that is no longer than the range as it is', async () => {
+    const range = Uint8Array.from({length: 10}, (_, i) => i);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(range, {status: 206})));
+    const loader = new FetchLoader();
+    const recorder = makeCallbackRecorder();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest({rangeStart: 0, rangeEnd: 20}), makeConfig());
+    await vi.runAllTimersAsync();
+
+    const [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
+    expect(new Uint8Array(response.data)).toEqual(range);
+  });
 });
 
 // A server that is overloaded or limits its clients answers 503 or 429 with a Retry-After:

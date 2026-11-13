@@ -273,6 +273,7 @@ export class PlaybackRateChanger extends EventEmitter {
     });
 
     /** @type {HTMLElement} */ (DOMElements.playbackRateMenuContainer).style.display = '';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.playbackRate), true);
 
     this.scrollToPosition();
     if (!dontSetStayVisible) {
@@ -300,6 +301,7 @@ export class PlaybackRateChanger extends EventEmitter {
       return false;
     }
     /** @type {HTMLElement} */ (DOMElements.playbackRateMenuContainer).style.display = 'none';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.playbackRate), false);
     this.stayOpen = false;
     return true;
   }
@@ -446,20 +448,31 @@ export class PlaybackRateChanger extends EventEmitter {
 
     if (!noEmit) {
       this.emit('rateChanged', this.playbackRate);
+      this.chooseSpeed();
+    }
+  }
 
-      if (this.silenceSkipperActive) {
-        if (this.shouldSkipSilence(this.client.currentTime)) {
-          if (this.playbackRate > this.regularSpeed) {
-            this.silenceSkipSpeed = this.playbackRate;
-          }
-        } else {
-          if (this.playbackRate < this.silenceSkipSpeed) {
-            this.regularSpeed = this.playbackRate;
-          }
+  /**
+   * The speed now in effect is the user's: picked here, or set by a speed key
+   * (KeybindManager.rememberSpeed). With the silence skipper on it becomes the skipper's
+   * regular speed (in a silence, its skip speed), and it is saved. Only a pick here did
+   * this: the skipper's loop put a key's speed back within 100 ms while the OSD showed it.
+   * The skipper's own switches and a speed held for a moment (holding the video, a GIF's
+   * 4x) do not come here, so they never become the regular speed.
+   */
+  chooseSpeed() {
+    if (this.silenceSkipperActive) {
+      if (this.shouldSkipSilence(this.client.currentTime)) {
+        if (this.playbackRate > this.regularSpeed) {
+          this.silenceSkipSpeed = this.playbackRate;
+        }
+      } else {
+        if (this.playbackRate < this.silenceSkipSpeed) {
+          this.regularSpeed = this.playbackRate;
         }
       }
-
-      this.scheduleSave();
     }
+
+    this.scheduleSave();
   }
 }

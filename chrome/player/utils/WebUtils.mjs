@@ -67,12 +67,47 @@ export class WebUtils {
   static setupTabIndex(element) {
     element.tabIndex = 0;
     element.role = 'button';
+    WebUtils.setupKeyPress(element);
+  }
+
+  /**
+   * Makes Enter and Space press a control as they press a <button> (setupTabIndex's keys,
+   * for a control with a tab index and role of its own, such as the menu buttons and the
+   * autoplay switch). A key a listener before this one took (preventDefault) is left to it:
+   * a menu's Enter that chose in its open list also pressed the button, which closed the list.
+   * @param {HTMLElement} element
+   * @param {(e: KeyboardEvent) => void} [press] - What a press does: a click by default.
+   */
+  static setupKeyPress(element, press = () => element.click()) {
     element.addEventListener('keydown', (e) => {
+      if (e.defaultPrevented) return;
       if (e.key === 'Enter') {
-        element.click();
+        press(e);
         e.stopPropagation();
+        return;
+      }
+      // Space presses a button the keyboard went to, as it does a <button>. A button clicked
+      // with the mouse keeps the focus too, without :focus-visible: there Space stays the
+      // player's play/pause. A form control (the options page's fields come here too) has
+      // Space of its own: a space typed, a box ticked once.
+      if (e.key === ' ' && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey &&
+          !/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(element.tagName) && !element.isContentEditable &&
+          element.matches(':focus-visible')) {
+        e.preventDefault();
+        e.stopPropagation();
+        press(e);
       }
     });
+  }
+
+  /**
+   * Tells assistive technology that a button opens a menu, and whether the menu is open.
+   * @param {HTMLElement} button
+   * @param {boolean} open
+   */
+  static setExpanded(button, open) {
+    button.setAttribute('aria-haspopup', 'true');
+    button.setAttribute('aria-expanded', String(open));
   }
 
   /**

@@ -365,6 +365,22 @@ describe('a same-site link into an allowlisted or auto-enabled path', () => {
     await bg.wait(1000);
     expect(bg.toMpv()).toEqual([EPISODE]);
   });
+
+  it('still starts when only the part after # changes during the wait', async () => {
+    // The page sets its own #t=... (or an anchor) right after it changed its address: still
+    // the same page, which no new start takes up (the tab is on already), so the start
+    // waiting must not give up on it (a review, 2026-11-13).
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch']},
+      tabs: [{id: 1, url: HOME}]});
+    await bg.navigated(1, HOME);
+    await bg.frameAdded(1, 0, HOME, 'app');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.navigated(1, PAGE);
+    await bg.wait(100);
+    await bg.navigated(1, PAGE + '#t=10');
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
 });
 
 describe('the allowlist\'s MPV, an address that changes only after its #', () => {
@@ -2762,6 +2778,68 @@ describe('a copy-protected stream (DRM)', () => {
     await bg.request({tabId: 1, url: AD});
     await bg.wait(2000);
     expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('is not handed to mpv by the toolbar\'s On -> MPV, nor the page\'s next stream', async () => {
+    // The toolbar's MPV sends from the streams the tab tracks (openMpvWithSources). Its
+    // refusal let the page's next stream go to mpv, as the allowlist's did before (#606): an
+    // ad went, the "!" was cleared, and the page was paused.
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists(network, 50)});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    // MPV -> Off before the page loads its stream; then Off -> On -> MPV.
+    await bg.click(1);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.click(1);
+    await bg.click(1);
+    await bg.wait(2000);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true});
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.titles.get(1)).toContain('copy-protected');
+    await bg.request({tabId: 1, url: AD});
+    await bg.wait(2000);
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.sent('PAUSE_MEDIA')).toEqual([]);
+    expect(bg.titles.get(1)).toContain('copy-protected');
+  });
+
+  it('is not handed to mpv by the allowlist\'s start by address, nor the page\'s next stream', async () => {
+    // A page that changes its own address onto the allowlist (pushState): the start by
+    // address sends what the tab tracks (startWithTrackedLater, openMpvWithSources).
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch']},
+      tabs: [{id: 1, url: 'https://site.test/'}], fetch: playlists(network, 50)});
+    await bg.navigated(1, 'https://site.test/');
+    await bg.frameAdded(1, 0, 'https://site.test/', 'app');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.navigated(1, PAGE);
+    await bg.wait(2000);
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.titles.get(1)).toContain('copy-protected');
+    await bg.request({tabId: 1, url: AD});
+    await bg.wait(2000);
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.sent('PAUSE_MEDIA')).toEqual([]);
+  });
+
+  it('is not paused by the shortcut\'s MPV when the user plays it again', async () => {
+    // A play the host refused lets the next play try again (sendPlayedToMpv), copy-protected
+    // too: kept as sent, a second play within MpvPlayRepeatMs only paused the page, whose own
+    // player is the one that plays the video.
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: playlists(network, 50)});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    await bg.command('toggle_mpv', 1);
+    const play = {type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: 'blob:https://site.test/1', duration: 1400}};
+    await bg.message(play, {tabId: 1, frameId: 0});
+    await bg.wait(2000);
+    expect(bg.titles.get(1)).toContain('copy-protected');
+    await bg.message(play, {tabId: 1, frameId: 0});
+    await bg.wait(2000);
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.sent('PAUSE_MEDIA')).toEqual([]);
   });
 
   it('is not sent by the player\'s mpv button, whose answer says why, read only then', async () => {

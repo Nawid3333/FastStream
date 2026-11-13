@@ -58,8 +58,10 @@ jobs:
       deployment: false
     # Up to 15 minutes for a release.yml run to finish, the build, and 40 for AMO.
     timeout-minutes: 75
+    # No GH_TOKEN here: each step that calls gh gets it itself, so the install and the build
+    # of the tag (dependencies' install scripts included) never see it
+    # (tests/unit/workflowSecrets.test.mjs).
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SIGNING_PREFIX: 'AMO signing incomplete: '
       PATH_PREFIX: 'Update path broken: '
 
@@ -75,6 +77,8 @@ jobs:
 
       - name: Look at the newest tag and the latest release
         id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           # Read into a variable first: a failed gh inside `read <<< "$(...)"` went unnoticed
@@ -100,6 +104,12 @@ jobs:
              [ "$(printf '%s\n%s\n' "$tag" "$newest" | sort -V | tail -1)" = "$newest" ] &&
              ! gh release view "$newest" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             orphan=$newest
+          fi
+          # A release comes from main only (release.yml's "Check the tag is on main" refuses
+          # any other tag): a tag on another commit is not started again here.
+          if [ -n "$orphan" ] && ! git merge-base --is-ancestor "$orphan" refs/remotes/origin/main; then
+            echo "::warning::$orphan is not on main, so it is not released. Delete the tag, and tag a commit of main."
+            orphan=
           fi
           echo "Latest release $tag, published ${age_hours} h ago, complete: $complete. Newest tag: ${newest:-none}${orphan:+, which has no release}."
           {
@@ -138,6 +148,7 @@ jobs:
 
       - name: Close the issues that are resolved
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.release.outputs.tag }}
           COMPLETE: ${{ steps.release.outputs.complete }}
         run: |
@@ -163,6 +174,7 @@ jobs:
       - name: Start release.yml again for a tag it did not publish
         if: steps.release.outputs.orphan != ''
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ORPHAN: ${{ steps.release.outputs.orphan }}
         run: |
           set -euo pipefail
@@ -233,6 +245,7 @@ jobs:
       - name: Check the update path Firefox follows
         if: steps.release.outputs.complete == 'true'
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
@@ -272,12 +285,19 @@ jobs:
       # --- The latest release is incomplete: collect what AMO signed.
 
       # The build is the tag's; the release tools stay main's, since a tag's own copies may
-      # predate what this workflow asks of them (--wait, the network retries).
+      # predate what this workflow asks of them (--wait, the network retries). A tag that is
+      # not on main is neither built nor signed: release.yml refuses one too, so a release of
+      # it was published by other means, and this run fails for a person to look.
       - name: Check out the release's tag, with main's release tools
         if: steps.release.outputs.complete == 'false'
         env:
           TAG: ${{ steps.release.outputs.tag }}
         run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor "$TAG" refs/remotes/origin/main; then
+            echo "::error::The latest release, $TAG, is not on main: it is neither built nor signed here."
+            exit 1
+          fi
           git checkout -q "$TAG"
           git checkout -q "$GITHUB_SHA" -- tools/fetch-amo-signed.mjs tools/sign-amo.mjs tools/gen-update-manifest.mjs
 
@@ -330,6 +350,7 @@ jobs:
       - name: Attach the xpi and updates.json to the release
         if: steps.sign.outputs.state == 'signed'
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.release.outputs.tag }}
           ASSETS: ${{ steps.release.outputs.assets }}
         run: |
@@ -352,6 +373,7 @@ jobs:
           steps.sign.outputs.state != 'signed' &&
           (steps.sign.outputs.state == 'rejected' || steps.release.outputs.age_hours >= 24)
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.release.outputs.tag }}
           STATE: ${{ steps.sign.outputs.state }}
           AGE: ${{ steps.release.outputs.age_hours }}
@@ -383,6 +405,7 @@ jobs:
       - name: Report this workflow's own failure
         if: failure()
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TITLE: 'Release failsafe failed'
         run: |

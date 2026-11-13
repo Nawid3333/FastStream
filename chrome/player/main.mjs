@@ -67,8 +67,9 @@ if (EnvUtils.isExtension()) {
         } else if (request.type === MessageTypes.VPN_ALLOWED && /** @type {FastStreamWindow} */ (window).fastStream) {
           /** @type {FastStreamWindow} */ (window).fastStream.vpnPrompt.onAllowed();
         } else if (request.type === MessageTypes.EXIT_CARRIED_FULLSCREEN && /** @type {FastStreamWindow} */ (window).fastStream) {
-          // Escape in the page around a carried fullscreen (content.js).
-          /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.exitCarriedFullscreen();
+          // Escape in the page around a carried fullscreen (content.js). false: this player had
+          // none (a new one in the frame), and the background ends it.
+          sendResponse(/** @type {FastStreamWindow} */ (window).fastStream.interfaceController.exitCarriedFullscreen());
         } else if (request.type === MessageTypes.UPDATE_OPTIONS) {
           if (request.time !== optionSendTime) {
             optionSendTime = request.time;

@@ -29,12 +29,32 @@ export class SourceBufferWrapper extends EventEmitter {
     this.removing = null;
     /** @type {Array<SourceBufferOp>} */
     this.toDo = [];
-    this.sourceBuffer.addEventListener('updateend', () => {
+    // Set by dispose(): the player is gone, and nothing more runs.
+    this.disposed = false;
+    // Kept to be taken off again (dispose).
+    this.onUpdateEnd = () => {
       this.updating = false;
       this.removing = null;
       this.emit('updateend');
       this.sourceBufferDo();
-    });
+    };
+    this.sourceBuffer.addEventListener('updateend', this.onUpdateEnd);
+  }
+
+  /**
+   * The player is destroyed: what is queued is dropped, and nothing starts any more. Destroyed
+   * with appends queued (peaks of 2,000-3,000 one-frame segments are measured), the release of
+   * a duration started the next one on the dying player, and the abort's updateend ran every
+   * queued operation against a SourceBuffer the MediaSource had let go: each threw, was logged
+   * and rejected, one exception and one console line per queued frame. The dropped operations'
+   * promises stay unsettled: nothing waits for them (the player's appends and removals go on
+   * with then/catch alone), and a rejection would have its handlers warn, or report an error,
+   * about a player that is gone.
+   */
+  dispose() {
+    this.disposed = true;
+    this.toDo.length = 0;
+    this.sourceBuffer.removeEventListener('updateend', this.onUpdateEnd);
   }
 
   /**
@@ -140,7 +160,7 @@ export class SourceBufferWrapper extends EventEmitter {
   }
 
   sourceBufferDo() {
-    if (this.updating || this.held) return;
+    if (this.updating || this.held || this.disposed) return;
     if (this.toDo.length) {
       const current = this.toDo[0];
 

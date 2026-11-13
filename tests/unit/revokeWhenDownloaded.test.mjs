@@ -91,3 +91,31 @@ describe('Utils.revokeWhenDownloaded', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
   });
 });
+
+// A save's files on disk go with its download only when Firefox said that download is over:
+// a link click is not followed, and one still running after half an hour may be paused.
+describe('Utils.whenDownloaded', () => {
+  it('says true when Firefox said the download is over', async () => {
+    items.set(7, {id: 7, state: 'in_progress'});
+    const told = Utils.whenDownloaded(7);
+    await vi.advanceTimersByTimeAsync(0);
+    change({id: 7, state: {current: 'complete'}});
+    expect(await told).toBe(true);
+
+    items.set(8, {id: 8, state: 'interrupted'});
+    const before = Utils.whenDownloaded(8);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await before).toBe(true);
+  });
+
+  it('says false when it stopped waiting without knowing', async () => {
+    const linkClick = Utils.whenDownloaded(true);
+    await vi.advanceTimersByTimeAsync(60 * 1000);
+    expect(await linkClick).toBe(false);
+
+    items.set(9, {id: 9, state: 'in_progress'});
+    const never = Utils.whenDownloaded(9);
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
+    expect(await never).toBe(false);
+  });
+});

@@ -110,3 +110,83 @@ describe('PlaybackRateChanger.loadState', () => {
     getConfig.mockRestore();
   });
 });
+
+describe('the silence skipper and a speed set by key', () => {
+  // The review of 2026-11-13: with the skipper on, D, S and the preset keys changed the
+  // speed for a moment only. Only a pick in the speed menu became the skipper's regular
+  // speed; within 100 ms its loop put the old one back, while the OSD showed the new one,
+  // and the old one was what got saved. The real KeybindManager and PlaybackRateChanger,
+  // on a client whose rate goes through FastStreamClient.setPlaybackRate.
+  const setup = async () => {
+    const {DOMElements} = await import('../../chrome/player/ui/DOMElements.mjs');
+    DOMElements.playbackRateBanner = {style: {}, textContent: ''};
+    DOMElements.playerContainer = {addEventListener: () => {}};
+    vi.stubGlobal('document', {addEventListener: () => {}});
+    const {Utils} = await import('../../chrome/player/utils/Utils.mjs');
+    vi.spyOn(Utils, 'setConfig').mockResolvedValue();
+    const {PlaybackRateChanger} = await import('../../chrome/player/ui/menus/PlaybackRateChanger.mjs');
+    const {KeybindManager} = await vi.importActual('../../chrome/player/ui/KeybindManager.mjs');
+    const fake = client();
+    Object.defineProperty(fake, 'playbackRate', {get: () => fake.player.playbackRate, set: setRate});
+    fake.currentTime = 10;
+    fake.audioAnalyzer = {addVolumeDependent: vi.fn(), addBackgroundDependent: vi.fn(),
+      removeVolumeDependent: vi.fn(), removeBackgroundDependent: vi.fn()};
+    const changer = new PlaybackRateChanger(fake);
+    changer.playbackElements = Array.from({length: 80}, () => ({classList: {add: () => {}, remove: () => {}}}));
+    changer.speedList = {};
+    changer.openSilenceSkipperUI = () => {};
+    changer.closeSilenceSkipperUI = () => {};
+    // No silence where the video is.
+    changer.shouldSkipSilence = () => false;
+    fake.interfaceController = {
+      updatePlaybackRate: () => changer.setPlaybackRate(fake.state.playbackRate, true),
+      showControlBarTemporarily: () => {},
+      playbackRateChanger: changer,
+    };
+    changer.enableSilenceSkipper();
+    const keys = new KeybindManager(fake);
+    return {fake, changer, keys, Utils};
+  };
+
+  it('keeps it, and saves it, as a pick in the menu', async () => {
+    vi.useFakeTimers();
+    try {
+      const {fake, changer, keys, Utils} = await setup();
+      for (const [key, rate] of [['KeyD', 1.1], ['KeyS', 1], ['KeyQ', 3], ['KeyA', 4], ['KeyS', 3.9]]) {
+        keys.handleKeyString(key, {});
+        vi.advanceTimersByTime(300);
+        expect(fake.playbackRate).toBeCloseTo(rate);
+      }
+      expect(changer.regularSpeed).toBeCloseTo(3.9);
+      Utils.setConfig.mockClear();
+      vi.advanceTimersByTime(600);
+      expect(JSON.parse(Utils.setConfig.mock.calls.at(-1)[1]).playbackRate).toBeCloseTo(3.9);
+      changer.disableSilenceSkipper();
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+      vi.stubGlobal('window', {});
+    }
+  });
+
+  it('leaves a speed the player sets for a moment out of it: holding the video, a GIF', async () => {
+    vi.useFakeTimers();
+    try {
+      const {fake, changer} = await setup();
+      // Holding the video doubles the speed (InterfaceController), then puts it back.
+      fake.setPlaybackRate(2, true);
+      expect(changer.regularSpeed).toBe(1);
+      fake.setPlaybackRate(1, true);
+      // A GIF records at 4x (LoopMenu.recordGif).
+      fake.playbackRate = 4;
+      expect(changer.regularSpeed).toBe(1);
+      vi.advanceTimersByTime(300);
+      expect(fake.playbackRate).toBe(1);
+      changer.disableSilenceSkipper();
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+      vi.stubGlobal('window', {});
+    }
+  });
+});

@@ -34,6 +34,7 @@
     "test:ext:github": "node tools/test-ext-github.mjs",
     "test:pbm": "wdio run tests/e2e/wdio.pbm.conf.mjs",
     "test:live": "wdio run tests/e2e/wdio.live.conf.mjs",
+    "bench:ab": "node tools/bench-ab.mjs",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build:keep && pnpm run lint:github && pnpm run lint:amo && pnpm run test:e2e && pnpm run test:ext && pnpm run test:ext:github && pnpm run test:pbm && pnpm run verify:vtt && pnpm run verify:fsaunpack",
     "verify:linux": "node tools/verify-linux.mjs",
     "verify:vtt": "node tools/verify-vtt.mjs",

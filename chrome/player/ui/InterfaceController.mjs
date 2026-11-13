@@ -665,13 +665,9 @@ export class InterfaceController {
       this.toggleAutoplayNext();
       e.stopPropagation();
     });
-    /** @type {HTMLElement} */ (DOMElements.autoplaySwitch).addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        this.toggleAutoplayNext();
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    });
+    // Enter, and Space as on the other buttons: after a click on the switch, Space toggled it
+    // again instead of playing or pausing the video. Its role stays switch.
+    WebUtils.setupKeyPress(/** @type {HTMLElement} */ (DOMElements.autoplaySwitch));
 
     WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.nextVideo));
 
@@ -779,14 +775,8 @@ export class InterfaceController {
           }
         }
         break;
-      // VisChangeActions has no PIP at present (commented out there), so this reads undefined.
-      case /** @type {Record<string, string|undefined>} */ (VisChangeActions).PIP:
-        if (!isVisible) {
-          await this.enterPip();
-        } else {
-          await this.exitPip();
-        }
-        break;
+      // No picture-in-picture case: VisChangeActions has no PIP (commented out there), and its
+      // case was a `case undefined:`, which entered it on every hide for an action not set.
       case VisChangeActions.MINI_PLAYER:
         if (!this.state.miniplayer && !isVisible && !this.state.windowedFullscreen && Date.now() > MiniplayerCooldown) {
           this.requestMiniplayer(!isVisible);
@@ -1257,6 +1247,12 @@ export class InterfaceController {
     const timeText = StringUtils.formatTime(this.state.currentTime) + ' / ' + StringUtils.formatTime(duration);
     if (/** @type {HTMLElement} */ (DOMElements.duration).textContent !== timeText) {
       /** @type {HTMLElement} */ (DOMElements.duration).textContent = timeText;
+      // The seek bar's values (a slider, ProgressBar.setupUI), in whole seconds as the text.
+      const bar = /** @type {HTMLElement} */ (DOMElements.progressContainer);
+      const end = duration > 0 && Number.isFinite(duration) ? Math.floor(duration) : 0;
+      bar.setAttribute('aria-valuemax', String(end));
+      bar.setAttribute('aria-valuenow', String(Utils.clamp(Math.floor(this.state.currentTime), 0, end)));
+      bar.setAttribute('aria-valuetext', timeText);
     }
 
     this.subtitlesManager.renderSubtitles();
@@ -1290,15 +1286,20 @@ export class InterfaceController {
     });
   }
 
-  /** Ends a carried fullscreen: the page and the window as they were. */
+  /**
+   * Ends a carried fullscreen: the page and the window as they were.
+   * @return {boolean} Whether this player had one to end (the background ends one this
+   *   player never took over, as after a reload in its frame).
+   */
   exitCarriedFullscreen() {
-    if (!this.state.carriedFullscreen) return;
+    if (!this.state.carriedFullscreen) return false;
     this.state.carriedFullscreen = false;
     this.toggleWindowedFullscreen(false);
     /** @type {HTMLElement} */ (DOMElements.fullscreen).classList.remove('out');
     chrome.runtime.sendMessage({type: MessageTypes.REQUEST_WINDOW_FULLSCREEN, force: false}, () => {
       void chrome.runtime.lastError;
     });
+    return true;
   }
 
   /**
@@ -1371,6 +1372,8 @@ export class InterfaceController {
   play() {
     const previousValue = this.state.playing;
     this.state.playing = true;
+    // The A-B loop's check rests while paused (LoopMenu.checkLoopLoop).
+    this.loopControls.startLoopLoop();
     // progressLoop stops while paused.
     if (this.shouldRunProgressLoop) {
       this.runProgressLoop();

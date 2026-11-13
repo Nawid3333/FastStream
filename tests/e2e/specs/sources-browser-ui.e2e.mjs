@@ -23,6 +23,9 @@
 //    The web build has no background script, so this spec only pins the
 //    mirror-side behaviour; ext-specs/embed-page-query.e2e.mjs checks that the
 //    background's store is empty after the click.
+//
+// And (2026-11-13) the mode dropdown no longer takes the focus from the address field when
+// the pointer passes over it.
 
 import {browser, expect} from '@wdio/globals';
 
@@ -250,5 +253,29 @@ describe('Sources Browser (Quellen Browser) UI', function() {
     console.log('      after a failed source:', JSON.stringify(state));
     expect(state.tried).toBe(true);
     expect(state.loading).toBe(false);
+  });
+
+  it('keeps the typing in the address field while the pointer passes over the mode dropdown', async function() {
+    // The review of 2026-11-13: the dropdown took the focus when the pointer came over it.
+    // The address field's change ran on half an address (in Auto, a mode picked from it and
+    // "Auto" gone for good), and the next letters went to the player's shortcuts.
+    await openPlayer();
+    await (await browser.$('.mainplayer .fluid_button_link')).click();
+    const url = await browser.$('.linkui-source-url');
+    await url.waitForDisplayed();
+    await url.click();
+    await browser.keys(['h', 't', 't', 'p']);
+    await (await browser.$('.linkui-source-mode')).moveTo();
+    // F fullscreen, D faster, Space play, 1 a seek: in the field, letters.
+    await browser.keys(['f', 'd', ' ', '1']);
+    const state = await browser.execute(() => ({
+      value: /** @type {HTMLInputElement} */ (document.querySelector('.linkui-source-url')).value,
+      focus: document.activeElement?.className,
+      mode: /** @type {HTMLElement} */ (document.querySelector('.linkui-source-mode')).dataset.val,
+      fullscreen: !!document.fullscreenElement || window.fastStream.state.windowedFullscreen,
+      rate: window.fastStream.playbackRate,
+    }));
+    expect(state).toMatchObject({value: 'httpfd 1', focus: 'text_input linkui-source-url', mode: 'auto',
+      fullscreen: false, rate: 1});
   });
 });

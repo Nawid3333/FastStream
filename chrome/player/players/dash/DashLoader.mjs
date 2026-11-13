@@ -156,17 +156,12 @@ export function DASHLoaderFactory(player) {
           return;
         }
 
-        const activeRequests = player.activeRequests;
         const segmentKey = level + ':' + segmentIndex;
 
         const loader = player.fragmentRequester.requestFragment(frag, /** @type {import('./DashFragmentRequester.mjs').FragmentCallbacks} */ ({
           onSuccess: (entry, data) => {
             segmentFailures.delete(segmentKey);
             end.success(data, /** @type {string} */ (entry.responseURL)); // set on success
-            const index = activeRequests.indexOf(loader);
-            if (index > -1) {
-              activeRequests.splice(index, 1);
-            }
           },
           onProgress: (stats, context, data, xhr) => {
 
@@ -180,17 +175,9 @@ export function DASHLoaderFactory(player) {
               end.fail();
               player.emit(DefaultPlayerEvents.ERROR, 'Segment ' + segmentKey + ' failed to load');
             }
-            const index = activeRequests.indexOf(loader);
-            if (index > -1) {
-              activeRequests.splice(index, 1);
-            }
           },
           onAbort: (entry) => {
             end.abort();
-            const index = activeRequests.indexOf(loader);
-            if (index > -1) {
-              activeRequests.splice(index, 1);
-            }
           },
         }), null, 1000);
 
@@ -199,10 +186,6 @@ export function DASHLoaderFactory(player) {
         };
 
         httpRequest._loader = loader;
-
-        if (segmentIndex !== -1) {
-          activeRequests.push(loader);
-        }
       } catch (e) {
         console.error(e);
         // The request has to end one way or another: dash.js waited for this one forever.

@@ -619,6 +619,26 @@ describe('A site\'s overlays around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
+  it('gives the embedding page\'s bar back when the embed\'s own page goes elsewhere', async function() {
+    // A review (2026-11-13): the iframe stayed (same src) while its page went to one with no
+    // video, the player with it, and the bar over the embed stayed hidden for the page's life.
+    await openPage('/embedding', true);
+    await clickToolbar();
+    await browser.waitUntil(async () => (await visibilities(['bar'])).bar === 'hidden',
+        {timeout: 15000, timeoutMsg: 'the embedding page\'s bar stayed over the player'}).catch(() => {});
+    expect(await visibilities(['bar'])).toEqual({bar: 'hidden'});
+
+    await browser.switchFrame(await browser.$('.player iframe'));
+    await browser.execute(() => {
+      location.href = '/elsewhere';
+    });
+    await browser.switchFrame(null);
+    await browser.waitUntil(async () => (await visibilities(['bar'])).bar === 'visible',
+        {timeout: 15000, timeoutMsg: 'the bar stayed hidden after the embed went elsewhere'}).catch(() => {});
+    expect(await visibilities(['bar'])).toEqual({bar: 'visible'});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
   // #392: in the player a site's page holds, the bar stayed up after fullscreen was left and
   // entered again with its button, until the video was paused and played again. The lost
   // mouseleave behind it comes and goes (player-controls.e2e.mjs forces it); this is the path.

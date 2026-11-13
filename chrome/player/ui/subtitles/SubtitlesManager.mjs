@@ -2,6 +2,7 @@
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {Localize} from '../../modules/Localize.mjs';
 import {WebVTT} from '../../modules/vtt.mjs';
+import {isTextEntryTarget} from '../../options/KeybindUtils.mjs';
 import {SubtitleTrack} from '../../SubtitleTrack.mjs';
 import {AlertPolyfill} from '../../utils/AlertPolyfill.mjs';
 import {RequestUtils} from '../../utils/RequestUtils.mjs';
@@ -205,6 +206,7 @@ export class SubtitlesManager extends EventEmitter {
       return false;
     }
     /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).style.display = 'none';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.subtitles), false);
     // Opened again, it showed the settings it was closed on, not the list of tracks.
     this.settingsManager.closeUI();
     WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.subtitles), Localize.getMessage('player_subtitlesmenu_open_label'));
@@ -216,6 +218,7 @@ export class SubtitlesManager extends EventEmitter {
       target: DOMElements.subtitles,
     });
     /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).style.display = '';
+    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.subtitles), true);
 
     WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.subtitles), Localize.getMessage('player_subtitlesmenu_close_label'));
   }
@@ -228,11 +231,9 @@ export class SubtitlesManager extends EventEmitter {
     /** @type {HTMLElement} */ (DOMElements.subtitles).addEventListener('click', this.onCaptionsButtonInteract.bind(this));
     /** @type {HTMLElement} */ (DOMElements.subtitles).tabIndex = 0;
 
-    /** @type {HTMLElement} */ (DOMElements.subtitles).addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        this.onCaptionsButtonInteract(e);
-      }
-    });
+    // Enter (Shift+Enter the subtitle search, as a Shift+click) and Space, as the other
+    // buttons have them: Space played or paused the video instead.
+    WebUtils.setupKeyPress(/** @type {HTMLElement} */ (DOMElements.subtitles), (e) => this.onCaptionsButtonInteract(e));
 
     /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsTestButton).addEventListener('click', (e) => {
       this.isTestSubtitleActive = !this.isTestSubtitleActive;
@@ -494,7 +495,9 @@ export class SubtitlesManager extends EventEmitter {
 
 
     trackElement.addEventListener('mouseenter', () => {
-      trackElement.focus();
+      // Not from a field being typed in (the subtitle search): the next letters went to the
+      // row's keys (D saves the track, R opens the resync tool).
+      if (!isTextEntryTarget(document.activeElement)) trackElement.focus();
     });
 
     trackElement.addEventListener('mouseleave', () => {

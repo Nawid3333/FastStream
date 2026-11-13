@@ -34,7 +34,7 @@ class FastStreamAbrController extends /** @type {any} */ (AbrController) {
 export default class HLSPlayer extends EventEmitter {
   /**
    * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
-   * @param {{isPreview?: boolean, isAudioOnly?: boolean, isAnalyzer?: boolean}} [config] -
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config] -
    *   What the player is for (PlayerLoader.createPlayer's callers).
    */
   constructor(client, config) {
@@ -241,9 +241,14 @@ export default class HLSPlayer extends EventEmitter {
 
     zippedFragments.forEach((data, index) => {
       data.fragment.addReference(ReferenceTypes.SAVER);
-      data.getEntry = async () => {
+      // Let go of once read: the converter keeps a copy of its own. Not for the remuxer
+      // (keepPinned), which reads the store's own Blobs as it writes, after it read them all:
+      // freed before that, a fragment's File read nothing. Those stay pinned until the save
+      // ends (below); one the merger let go of before it gave up is pinned again.
+      data.getEntry = async ({keepPinned = false} = {}) => {
+        if (keepPinned) data.fragment.addReference(ReferenceTypes.SAVER);
         const entry = await fetcher.entry(index, () => this.client.downloadManager.getEntry(data.fragment.getContext()));
-        data.fragment.removeReference(ReferenceTypes.SAVER);
+        if (!keepPinned) data.fragment.removeReference(ReferenceTypes.SAVER);
         return entry;
       };
     });
@@ -289,7 +294,7 @@ export default class HLSPlayer extends EventEmitter {
           extension: 'mp4',
           blob: blob,
           // The file reads from the converter's blob store: closed once nothing reads it.
-          release: () => dash2mp4.release(),
+          release: (/** @type {boolean|undefined} */ removeFiles) => dash2mp4.release(removeFiles),
         };
       } else {
         if (levelInitData || audioLevelInitData) {
@@ -308,15 +313,17 @@ export default class HLSPlayer extends EventEmitter {
         return {
           extension: 'mp4',
           blob: blob,
-          release: () => hls2mp4.release(),
+          release: (/** @type {boolean|undefined} */ removeFiles) => hls2mp4.release(removeFiles),
         };
       }
     } catch (e) {
       fetcher.cancel();
+      throw e;
+    } finally {
+      // Whatever is still pinned for the save: what it never read, what the remuxer read.
       zippedFragments.forEach((data) => {
         data.fragment.removeReference(ReferenceTypes.SAVER);
       });
-      throw e;
     }
   }
 

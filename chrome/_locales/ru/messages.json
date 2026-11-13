@@ -446,6 +446,9 @@
     "player_qualitymenu_label": {
         "message": "Качество видео"
     },
+    "player_seekbar_label": {
+        "message": "Позиция воспроизведения"
+    },
     "player_languagemenu_label": {
         "message": "Выбор языка"
     },
