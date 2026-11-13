@@ -424,6 +424,13 @@ export function HLSLoaderFactory(player) {
       // As hls.js's own loaders do: it reads this to tell an aborted load from a failed one.
       this.stats.aborted = true;
       if (this.loader) {
+        // Out of the player's loading list (a segment's, loadFragmentInternal): the download
+        // tells only the last of its watchers that it was aborted (DownloadEntry.abortWatcher),
+        // and a segment the client was downloading as well stayed in the list for good.
+        const index = player.activeRequests.indexOf(this.loader);
+        if (index > -1) {
+          player.activeRequests.splice(index, 1);
+        }
         this.loader.abort();
       }
     };
