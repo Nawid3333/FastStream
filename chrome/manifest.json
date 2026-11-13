@@ -90,11 +90,18 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "player/index.html",
-        "custom/instagram_inject.js"
+        "player/index.html"
       ],
       "matches": [
         "<all_urls>"
+      ]
+    },
+    {
+      "resources": [
+        "custom/instagram_inject.js"
+      ],
+      "matches": [
+        "https://www.instagram.com/*"
       ]
     }
   ],

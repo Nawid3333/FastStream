@@ -223,10 +223,14 @@
       return true;
     } else if (request.type === MessageTypes.PAGE_TYPING) {
       // Whether the user types in this page, or looks elsewhere: the next episode's player
-      // takes the keyboard only when not (main.mjs; the reviews of 2026-10-11).
-      const active = /** @type {HTMLElement | null} */ (document.activeElement);
+      // takes the keyboard only when not (main.mjs; the reviews of 2026-10-11). The field
+      // with the focus inside a shadow root too (document.activeElement gives a web
+      // component's field as its host). An iframe with the focus counts too, a chat's or a
+      // comment box's, whose field this frame cannot see; not a player's, nor one it plays in.
+      const active = /** @type {HTMLElement | null} */ (OverlayGuard.focused());
       sendResponse(document.visibilityState !== 'visible' ||
-        !!active && (active.isContentEditable === true || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)));
+        !!active && (active.isContentEditable === true || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) ||
+          (active.tagName === 'IFRAME' && !holdsPlayer(/** @type {HTMLIFrameElement} */ (active)))));
       return;
     }
   });
@@ -832,6 +836,19 @@
   }
 
   /**
+   * Whether an element is the one in fullscreen, asked of the tree it is in. For an iframe
+   * in a shadow root (an embed's, which the frame links find in closed roots too), the
+   * document's fullscreenElement is the root's host; the root's own is the iframe. Compared
+   * with the document's, the toggle entered fullscreen again instead of leaving it, and
+   * fullscreenchange told the player it had left as it entered.
+   * @param {Element} element
+   * @return {boolean}
+   */
+  function isFullscreenElement(element) {
+    return /** @type {Document|ShadowRoot} */ (element.getRootNode()).fullscreenElement === element;
+  }
+
+  /**
    * @param {*} request
    * @param {*} sender
    * @param {Function} sendResponse
@@ -855,7 +872,7 @@
     const element = iframeObj.iframe;
     const force = request.force;
 
-    const newValue = force === undefined ? document.fullscreenElement !== element : force;
+    const newValue = force === undefined ? !isFullscreenElement(element) : force;
     fullscreenState.active = newValue;
     if (!newValue) {
       if (document.fullscreenElement) {
@@ -869,7 +886,7 @@
         // Refused (no user gesture, an iframe the page took out): the player hears 'error'.
         // Rethrown, it was an unhandled rejection besides. Not fullscreen, as the page is:
         // left "on", the next toggle went the wrong way.
-        fullscreenState.active = document.fullscreenElement === element;
+        fullscreenState.active = isFullscreenElement(element);
         console.error(e);
         sendResponse('error');
       });
@@ -1106,7 +1123,12 @@
     const parentElementsWithSameBounds = getParentElementsWithSameBounds(iframeObj.iframe)
         .filter((parent) => parent.tagName !== 'BODY');
     const element = parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : iframeObj.iframe;
-    const placeholder = document.createElement(element.tagName);
+    // Of the element's own tag, so the page's rules for it (margins) hold the page's layout
+    // as the element did. Not for the player's iframe, nor a site's custom element: a new
+    // iframe was a browsing context of its own (about:blank) for each miniplayer, and a
+    // custom element ran the site's own code again (its constructor, its connectedCallback
+    // once put in), a second copy of its player. transferStyles sizes the <div> as it did.
+    const placeholder = document.createElement(element.tagName === 'IFRAME' || element.tagName.includes('-') ? 'div' : element.tagName);
 
     miniplayerState.element = element;
 
@@ -1248,8 +1270,9 @@
       // shadow root was never hidden (#233).
       const trace = new Set(flatTreeParents(iframe));
 
-      // Gather all elements not parents of the iframe
-      const elements = allElementsIncludingShadows();
+      // Gather all elements not parents of the iframe. Every element of the page, those in
+      // shadow roots (open or closed) too, each root's after its host.
+      const elements = OverlayGuard.allElements();
       for (let i = 0; i < elements.length; i++) {
         const element = /** @type {HTMLElement} */ (elements[i]);
         if (element === iframe) {
@@ -1757,22 +1780,11 @@
   // Answers with the response's text, read as a subtitle file (decodeSubtitleBytes): its one
   // use is the page's subtitle files, which can be Windows-1252.
   /**
-   * @param {...*} args - The url, then callback and bust, or post, callback and bust.
+   * @param {string} url - What to ask for, with a GET.
+   * @param {Function} callback - Called with the error (true, or none), the response, and
+   *   its text (false for none).
    */
-  function httpRequest(...args) {
-    const url = args[0];
-    let post = undefined;
-    let callback;
-    let bust = false;
-
-    if (args[2]) { // post
-      post = args[1];
-      callback = args[2];
-      bust = args[3];
-    } else {
-      callback = args[1];
-      bust = args[2];
-    }
+  function httpRequest(url, callback) {
     // fetch() since 2026-10-06 (XMLHttpRequest before). The whole request has
     // HttpRequestTimeoutMs; it stops when nothing has come for HttpRequestStallMs, before
     // the headers or between pieces of the body. A failed or stopped request calls back
@@ -1785,28 +1797,13 @@
       stallTimer = setTimeout(() => stall.abort(), HttpRequestStallMs);
     };
     /** @type {RequestInit} */ const init = {
-      method: post ? 'POST' : 'GET',
+      method: 'GET',
       signal: AbortSignal.any([stall.signal, AbortSignal.timeout(HttpRequestTimeoutMs)]),
     };
-    try {
-      if (post) {
-        const toPost = [];
-        for (const i in post) {
-          if (Object.hasOwn(post, i)) {
-            toPost.push(encodeURIComponent(i) + '=' + encodeURIComponent(post[i]));
-          }
-        }
-        init.headers = {'Content-type': 'application/x-www-form-urlencoded'};
-        init.body = toPost.join('&');
-      }
-    } catch (e) {
-      callback(e);
-      return;
-    }
 
     const load = async () => {
       armStallTimer();
-      const response = await fetch(url + (bust ? ('?' + Date.now()) : ''), init);
+      const response = await fetch(url, init);
       if (response.status !== 200) {
         response.body?.cancel().catch(() => {});
         return [true, response, false];
@@ -1840,6 +1837,17 @@
   function hasPlayerIframe() {
     const playerUrl = chrome.runtime.getURL('player/index.html');
     return querySelectorAllIncludingShadows('iframe').some((iframe) => /** @type {HTMLIFrameElement} */ (iframe).src.startsWith(playerUrl));
+  }
+
+  /**
+   * Whether an iframe is a FastStream player's, or one a player plays in below it (an
+   * embed's, which the background linked to this frame).
+   * @param {HTMLIFrameElement} iframe
+   * @return {boolean}
+   */
+  function holdsPlayer(iframe) {
+    return iframe.src.startsWith(chrome.runtime.getURL('player/index.html')) ||
+      [...iframeMap.values()].some((iframeObj) => iframeObj.iframe === iframe);
   }
 
   /**
@@ -1904,25 +1912,6 @@
   }
 
   const NotLayerTags = new Set(['STYLE', 'SCRIPT', 'LINK', 'TEMPLATE']);
-
-  /**
-   * Every element of the page, those in shadow roots (open or closed) too, each root's
-   * after its host.
-   * @param {Document|ShadowRoot} [root]
-   * @param {Element[]} [found]
-   * @return {Element[]}
-   */
-  function allElementsIncludingShadows(root = document, found = []) {
-    for (const element of root.querySelectorAll('*')) {
-      found.push(element);
-      // Firefox lets a content script into closed roots too.
-      const shadow = /** @type {ShadowHost} */ (element).openOrClosedShadowRoot || element.shadowRoot;
-      if (shadow) {
-        allElementsIncludingShadows(shadow, found);
-      }
-    }
-    return found;
-  }
 
   /**
    * The element and what it is drawn inside, up to <html>: the slot that shows it before
@@ -2686,7 +2675,18 @@
     // check if href leads to different page and origin
     const url = /** @type {HTMLAnchorElement} */ (current).href;
     if (isLinkToDifferentPageOnWebsite(url)) {
-      removePlayers();
+      // Decided once the page's own listeners had the click (this one runs first, in the
+      // capture phase), as the shortcut listener below does. A link the page handles
+      // itself - a "Sign in" that opens a dialog, comments paged in place - it cancels: the
+      // page stays, and its player with it. One it cancels and then goes to by itself (a
+      // single-page site's router) still takes the player down, by the address changed
+      // meanwhile, and in the top frame by the background's REMOVE_PLAYERS on a later change.
+      const address = window.location.pathname + window.location.search;
+      setTimeout(() => {
+        if (!e.defaultPrevented || window.location.pathname + window.location.search !== address) {
+          removePlayers();
+        }
+      }, 0);
     }
   }, true);
 
@@ -2696,7 +2696,7 @@
     iframeMap.forEach((iframeObj) => {
       const fullscreenState = iframeObj.fullscreenState;
       const element = iframeObj.iframe;
-      const active = document.fullscreenElement === element;
+      const active = isFullscreenElement(element);
       if (active !== fullscreenState.active) {
         fullscreenState.active = active;
         changedFor.push(iframeObj);
@@ -2781,21 +2781,52 @@
   // made that many (ads, trackers) before its video asks for its manifest: the manifest was
   // never in it. An observer is told of every request, buffer full or not (Firefox's
   // Performance::InsertResourceEntry queues each entry to observers first), from this
-  // script's start at document_start. The ones loadedMedia reports are kept here, the
-  // first ObservedMediaLimit of them (a URL once), past the buffer. Nothing the page can
-  // see changes, as it would with setResourceTimingBufferSize.
+  // script's start at document_start. The ones loadedMedia reports are kept here (a URL
+  // once), past the buffer: the newest ObservedMediaLimit of them. Keeping the first ones
+  // only, a page that lives long (a single-page site going on to its next episode) never
+  // reported its newest manifest, but an older one. When full, the oldest one that names
+  // no manifest goes: a manifest is asked for once, and its segments by the thousand after
+  // it. Nothing the page can see changes, as it would with setResourceTimingBufferSize.
   const ObservedMediaLimit = 1000;
   const observedMedia = new Map();
+  // An HLS or DASH manifest's address.
+  const ManifestAddress = /\.(?:m3u8|m3u|mpd)$/i;
+
+  /**
+   * Whether a request is for a manifest: by its address, or by the one a proxy's query names.
+   * @param {string} url - The request's.
+   * @return {boolean}
+   */
+  function namesManifest(url) {
+    try {
+      const parsed = new URL(url);
+      return ManifestAddress.test(parsed.pathname) ||
+        [...parsed.searchParams.values()].some((value) => ManifestAddress.test(value.split(/[?#]/)[0]));
+    } catch (e) {
+      return false;
+    }
+  }
+
   try {
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
-        if (observedMedia.size >= ObservedMediaLimit) break;
         if (!LoadedMediaInitiators.includes(/** @type {PerformanceResourceTiming} */ (entry).initiatorType) || observedMedia.has(entry.name)) continue;
+        if (observedMedia.size >= ObservedMediaLimit) {
+          let oldest = observedMedia.keys().next().value;
+          for (const [url, media] of observedMedia) {
+            if (!media.manifest) {
+              oldest = url;
+              break;
+            }
+          }
+          observedMedia.delete(oldest);
+        }
         observedMedia.set(entry.name, {
           name: entry.name,
           initiatorType: /** @type {PerformanceResourceTiming} */ (entry).initiatorType,
           responseStatus: /** @type {PerformanceResourceTiming} */ (entry).responseStatus,
           startTime: entry.startTime,
+          manifest: namesManifest(entry.name),
         });
       }
     }).observe({type: 'resource', buffered: true});
