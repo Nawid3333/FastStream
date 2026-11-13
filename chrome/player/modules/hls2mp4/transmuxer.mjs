@@ -171,7 +171,10 @@ export default class Transmuxer {
    * @param {boolean} discontinuity - Whether it does not follow the last one pushed.
    */
   pushData(data, discontinuity) {
-    const uintData = new Uint8Array(data);
+    // HLS2MP4 hands over a Uint8Array over the fragment's own buffer, read for this save and
+    // used for nothing else: copied here, a 458 MB save copied 458 MB more. Nothing below
+    // writes into it or hands it to another thread.
+    const uintData = data instanceof Uint8Array ? data : new Uint8Array(data);
 
     if (!this.demuxer || !this.remuxer) {
       this.configureTransmuxer(uintData);

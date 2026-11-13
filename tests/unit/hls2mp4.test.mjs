@@ -682,3 +682,26 @@ describe('HLS2MP4: a save written to disk as it goes', () => {
     expect(stores.at(-1).closed).toBe(true);
   });
 });
+
+// HLS2MP4 hands the transmuxer each fragment as a Uint8Array, and the transmuxer copied it
+// before demuxing: a 458 MB save copied 458 MB more, a fragment at a time.
+describe('Transmuxer: the fragment it is given', () => {
+  it('demuxes the bytes it is given, not a copy of them', async () => {
+    const {default: Transmuxer} = await import('../../chrome/player/modules/hls2mp4/transmuxer.mjs');
+    const transmuxer = new Transmuxer({audioCodec: 'mp4a.40.2', videoCodec: 'avc1.42c014', initSegmentData: [], duration: 10, defaultInitPts: 0});
+    const segment = muxSegment({video: {
+      type: StreamTypes.H264,
+      units: videoUnits({start: ticks(1.4), count: 25, frame: FRAME, picture: h264AccessUnit}),
+    }});
+    const data = new Uint8Array(segment);
+    transmuxer.configureTransmuxer(data);
+    const demux = vi.spyOn(transmuxer.demuxer, 'demux');
+    const result = transmuxer.pushData(data, true);
+    expect(result.video).toBeTruthy();
+    // hls.js's own reset demuxes an empty array first.
+    const demuxed = demux.mock.calls.map((call) => call[0]).filter((arg) => arg instanceof Uint8Array);
+    expect(demuxed).toHaveLength(1);
+    expect(demuxed[0].buffer).toBe(data.buffer);
+    transmuxer.destroy();
+  });
+});
