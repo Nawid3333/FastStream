@@ -386,6 +386,26 @@ describe('Utils.getOptionsFromStorage', () => {
     expect(keybinds).toEqual(DefaultKeybinds);
   });
 
+  it('drops a binding that is no key string: a line break in it, or a page of text', async () => {
+    // An imported "Space\n" broke the options page for good (keyDisplayName threw, and the
+    // import had saved it), and a binding of many kilobytes froze it.
+    const bad = {PlayPause: 'Space\n', Mute: 'K'.repeat(10 * 1024), Fullscreen: 'Key\u0000F', Screenshot: 'Shift+\tKeyS'};
+    store({keybindsVersion: KEYBINDS_VERSION, keybinds: {...bad, SeekForward10s: 'KeyL'}});
+    const {keybinds} = await Utils.getOptionsFromStorage();
+    const imported = Utils.mergeOptions(DefaultOptions, {keybinds: {...bad, SeekForward10s: 'KeyL'}}).keybinds;
+    for (const action of Object.keys(bad)) {
+      expect(keybinds[action]).toBe(DefaultKeybinds[action]);
+      expect(imported[action]).toBe(DefaultKeybinds[action]);
+    }
+    expect(keybinds.SeekForward10s).toBe('KeyL');
+    expect(imported.SeekForward10s).toBe('KeyL');
+
+    // What getKeyString builds is kept: every modifier and the longest key name, a typed
+    // character, none at all.
+    const good = {PlayPause: 'Meta+Control+Alt+Shift+TVAudioDescriptionMixDown', Mute: 'Control++', Fullscreen: 'ß', Screenshot: 'None'};
+    expect(Utils.mergeOptions(DefaultOptions, {keybinds: good}).keybinds).toEqual({...DefaultKeybinds, ...good});
+  });
+
   it('keeps a layout version that a newer build saved', async () => {
     store({keybindsVersion: KEYBINDS_VERSION + 1, keybinds: {...legacyBinds}});
     const options = await Utils.getOptionsFromStorage();

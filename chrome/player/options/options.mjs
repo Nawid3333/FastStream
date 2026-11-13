@@ -751,8 +751,20 @@ if (EnvUtils.isExtension()) {
 }
 renderProblems().catch((e) => console.error(e));
 
+// The number fields' limits, by option, in the unit it is saved in: a field holds what is typed
+// in it to them (readNumberField), and an imported file is held to them too (holdToFields).
+/** @type {Object<string, {min: number, max: number, whole: boolean}>} */
+const NUMBER_LIMITS = {
+  autoplayCountdown: {min: 0, max: 30, whole: true},
+  seekStepSize: {min: 0.1, max: 3600, whole: false},
+  replaceDelay: {min: 0, max: 60000, whole: true},
+  // A part of the player; its field shows it in percent, 1 to 100.
+  miniSize: {min: 0.01, max: 1, whole: false},
+  maximumDownloaders: {min: 1, max: 6, whole: true},
+};
+
 autoplayCountdown.addEventListener('change', () => {
-  Options.autoplayCountdown = readNumberField(autoplayCountdown, DefaultOptions.autoplayCountdown, 0, 30, true);
+  Options.autoplayCountdown = readNumberField(autoplayCountdown, DefaultOptions.autoplayCountdown, NUMBER_LIMITS.autoplayCountdown);
   optionChanged();
 });
 
@@ -891,17 +903,16 @@ bufferToDisk.addEventListener('change', () => {
  * back in the field. An emptied "Seek step size" or "Replace delay" was saved as NaN, and a
  * negative one as it was.
  * @param {HTMLInputElement} input - The field.
- * @param {number} fallback - The value for an empty or unreadable field.
- * @param {number} min - The smallest value allowed.
- * @param {number} [max] - The largest value allowed.
- * @param {boolean} [whole] - Whole numbers only.
- * @return {number}
+ * @param {number} fallback - The value for an empty or unreadable field, as the field shows it.
+ * @param {{min: number, max: number, whole: boolean}} limits - The option's (NUMBER_LIMITS).
+ * @param {number} [scale] - The field's units in one of the option's: 100 for a percent.
+ * @return {number} As the field shows it.
  */
-function readNumberField(input, fallback, min, max = Infinity, whole = false) {
+function readNumberField(input, fallback, {min, max, whole}, scale = 1) {
   // A decimal comma, as in the size fields (readLimit): "2,5" seconds was 2.
   const text = String(input.value).trim().replace(',', '.');
   const value = whole ? parseInt(text) : parseFloat(text);
-  const result = Number.isFinite(value) ? Math.min(Math.max(value, min), max) : fallback;
+  const result = Number.isFinite(value) ? Math.min(Math.max(value, min * scale), max * scale) : fallback;
   input.value = /** @type {string} */ (/** @type {unknown} */ (result));
   return result;
 }
@@ -931,17 +942,17 @@ for (const [input, option] of /** @type {[HTMLInputElement, 'bufferAhead'|'buffe
 }
 
 seekStepSize.addEventListener('change', () => {
-  Options.seekStepSize = readNumberField(seekStepSize, DefaultOptions.seekStepSize, 0.1, 3600);
+  Options.seekStepSize = readNumberField(seekStepSize, DefaultOptions.seekStepSize, NUMBER_LIMITS.seekStepSize);
   optionChanged();
 });
 
 replaceDelay.addEventListener('change', () => {
-  Options.replaceDelay = readNumberField(replaceDelay, DefaultOptions.replaceDelay, 0, 60000, true);
+  Options.replaceDelay = readNumberField(replaceDelay, DefaultOptions.replaceDelay, NUMBER_LIMITS.replaceDelay);
   optionChanged();
 });
 
 miniSize.addEventListener('change', () => {
-  Options.miniSize = readNumberField(miniSize, DefaultOptions.miniSize * 100, 1, 100) / 100;
+  Options.miniSize = readNumberField(miniSize, DefaultOptions.miniSize * 100, NUMBER_LIMITS.miniSize, 100) / 100;
   optionChanged();
 });
 
@@ -950,7 +961,7 @@ miniSize.addEventListener('change', () => {
 // Empty is no limit, the most a browser opens to one server (6, the default); 0 is the least
 // that still downloads, 1. 0 was read as the default 6, the most (2026-10-09).
 maxdownloaders.addEventListener('change', () => {
-  Options.maximumDownloaders = readNumberField(maxdownloaders, DefaultOptions.maximumDownloaders, 1, 6, true);
+  Options.maximumDownloaders = readNumberField(maxdownloaders, DefaultOptions.maximumDownloaders, NUMBER_LIMITS.maximumDownloaders);
   optionChanged();
 });
 
@@ -1061,6 +1072,35 @@ customSourcePatterns.addEventListener('change', (e) => {
 
 [mpvAllowlistInput, autoEnableURLSInput, customSourcePatterns].forEach(saveOnLeavingPage);
 
+// The menus' choices, by option. Not the aspect ratio's and the default quality's: the player
+// takes any ratio and any height (VideoTransformUtils, LevelManager), beyond what they list.
+/** @type {Object<string, Object<string, string>>} */
+const MENU_CHOICES = {
+  singleClickAction: ClickActions, doubleClickAction: ClickActions, tripleClickAction: ClickActions,
+  visChangeAction: VisChangeActions, colorTheme: ColorThemes, miniPos: MiniplayerPositions,
+};
+
+/**
+ * Holds an imported file's numbers to what their fields take (NUMBER_LIMITS), and a menu's
+ * value to the menu's choices: a seek step of -5 seeked forward on the left arrow, a mini
+ * player of 50 was 50 times the player, and a value no menu has showed as a blank menu. A
+ * value within them stays as it is.
+ * @param {Object<string, *>} options - Merged over DefaultOptions; changed in place.
+ */
+function holdToFields(options) {
+  /** @type {Object<string, *>} */
+  const defaults = DefaultOptions;
+  for (const [option, {min, max, whole}] of Object.entries(NUMBER_LIMITS)) {
+    const value = whole ? Math.trunc(options[option]) : options[option];
+    options[option] = Number.isFinite(value) ? Math.min(Math.max(value, min), max) : defaults[option];
+  }
+  for (const [option, choices] of Object.entries(MENU_CHOICES)) {
+    if (!Object.values(choices).includes(options[option])) {
+      options[option] = defaults[option];
+    }
+  }
+}
+
 importButton.addEventListener('click', () => {
   const picker = document.createElement('input');
   picker.type = 'file';
@@ -1082,6 +1122,7 @@ importButton.addEventListener('click', () => {
     }
     const newOptions = Utils.migrateClickActions(Utils.migrateSizes(Utils.migrateKeybinds(
         Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj), newOptionsObj), newOptionsObj);
+    holdToFields(newOptions);
     const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
     const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
     loadOptions(newOptions);

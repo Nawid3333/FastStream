@@ -66,6 +66,14 @@ describe('keyDisplayName', () => {
     expect(keyDisplayName('Control++')).toBe('Ctrl++');
   });
 
+  it('shows a binding with a line break in it instead of throwing', () => {
+    // An imported "Space\n" matched nothing (. stops at a line break), and reading the match
+    // threw: the options page stopped half drawn.
+    expect(keyDisplayName('Space\n')).toBe('Space\n');
+    expect(keyDisplayName('Shift+\nKeyW')).toBe('Shift+\nKeyW');
+    expect(keyDisplayName('Control+Alt+\n')).toBe('Ctrl+Alt+\n');
+  });
+
   it('shows no key as the text it is given', () => {
     expect(keyDisplayName('None', 'Keine')).toBe('Keine');
     expect(keyDisplayName('None')).toBe('None');

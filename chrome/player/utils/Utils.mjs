@@ -2,7 +2,7 @@
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {ClickActions} from '../options/defaults/ClickActions.mjs';
 import {DefaultOptions} from '../options/defaults/DefaultOptions.mjs';
-import {migrateKeybinds} from '../options/KeybindUtils.mjs';
+import {isKeyString, migrateKeybinds} from '../options/KeybindUtils.mjs';
 import {DefaultSubtitlesSettings} from '../options/defaults/DefaultSubtitlesSettings.mjs';
 import {EnvUtils} from './EnvUtils.mjs';
 
@@ -109,6 +109,13 @@ export class Utils {
             newOptions[prop].filter((item) => typeof item === 'string') : opt.slice();
         } else if (typeof opt === 'object') {
           options[prop] = this.mergeOptions(opt, newOptions[prop] || {});
+          // A binding that can be no key (a line break in it, a page of text) is the default's,
+          // as one that is no text: imported, it broke or froze the options page, for good.
+          if (opt === DefaultOptions.keybinds) {
+            for (const [action, key] of Object.entries(options[prop])) {
+              if (!isKeyString(key)) options[prop][action] = opt[action];
+            }
+          }
         } else {
           options[prop] = (Object.hasOwn(newOptions, prop) && typeof newOptions[prop] === typeof opt) ? newOptions[prop] : opt;
         }
