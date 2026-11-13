@@ -2274,3 +2274,39 @@ describe('FastStreamClient, going while its buffer is on the disk', () => {
     expect(manager.downloaders).toBe(null);
   });
 });
+
+describe('FastStreamClient, the seek preview shown', () => {
+  /**
+   * A client whose seek preview's element is at 9 s with its frame there, the preview's
+   * player pointed at `time`.
+   * @param {number} time
+   * @return {Object}
+   */
+  function previewAt(time) {
+    const client = makeClient({previewEnabled: true});
+    client.previewPlayer = {
+      getVideo: () => ({readyState: 2, currentTime: 9, style: {}}),
+      currentTime: time,
+      buffered: {length: 1, start: () => 0, end: () => 9},
+    };
+    vi.spyOn(client, 'showPreview').mockImplementation(() => {});
+    vi.spyOn(client, 'hidePreview').mockImplementation(() => {});
+    return client;
+  }
+
+  it('is hidden while its player holds a place its element is not at yet', () => {
+    // An MP4 preview of a fragmented file reads on to a place past the duration it knew
+    // (MP4Player's previewSeek): its element still shows the frame of the place before.
+    const client = previewAt(120);
+    client.updatePreview();
+    expect(client.hidePreview).toHaveBeenCalledTimes(1);
+    expect(client.showPreview).not.toHaveBeenCalled();
+  });
+
+  it('is shown once its element has a frame at the place', () => {
+    const client = previewAt(9);
+    client.updatePreview();
+    expect(client.showPreview).toHaveBeenCalledTimes(1);
+    expect(client.hidePreview).not.toHaveBeenCalled();
+  });
+});

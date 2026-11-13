@@ -50,4 +50,43 @@ describe('Video delay', function() {
     expect(result.uncaught).toEqual([]);
     expect(result.audioPlayers).toBe(2);
   });
+
+  // Each of those players played the picture too: a video SourceBuffer in its <audio>, every
+  // frame cut into a segment and appended (MP4Player.playedVideoTrack).
+  it('gives its separate audio players the sound only', async function() {
+    await browser.url('/player/index.html?t=' + Date.now() + '#' +
+      globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/sample-av.mp4');
+    await browser.waitUntil(
+        async () => browser.execute(() => {
+          const video = document.querySelector('video');
+          return !!(video && video.readyState >= 2);
+        }),
+        {timeout: 60000, timeoutMsg: 'video never became ready'});
+    await browser.execute(() => {
+      const client = window.fastStream;
+      client.setOptions({...client.options, videoDelay: 200});
+    });
+
+    let state;
+    await browser.waitUntil(async () => {
+      state = await browser.execute(() => {
+        const client = window.fastStream;
+        const players = client.syncedAudioPlayer ? client.syncedAudioPlayer.audioPlayers : [];
+        return {
+          main: client.player.mediaSource.sourceBuffers.length,
+          audio: players.map((player) => ({
+            parsed: !!player.metaData,
+            sourceBuffers: player.mediaSource.sourceBuffers.length,
+            buffered: player.getVideo().buffered.length,
+          })),
+        };
+      });
+      return state.audio.length === 2 && state.audio.every((player) => player.parsed && player.buffered > 0);
+    }, {timeout: 20000, interval: 250}).catch(() => {
+      throw new Error('the audio players did not load: ' + JSON.stringify(state));
+    });
+    console.log('      state:', JSON.stringify(state));
+    expect(state.main).toBe(2);
+    expect(state.audio.map((player) => player.sourceBuffers)).toEqual([1, 1]);
+  });
 });

@@ -7,7 +7,13 @@
 // buffered held only the old tail, nothing was queued, the element was not seeking - so
 // the video could not play again without another seek.
 
+import path from 'node:path';
 import {browser, expect} from '@wdio/globals';
+
+import {ensureMp4Shape, fixturesDir} from '../mp4Shapes.mjs';
+
+// 160 s, 17 MB: 18 of MP4Player's 1 MB ranges. wdio.conf.mjs writes it.
+const LONG_FIXTURE = path.join(fixturesDir, 'long-av.mp4');
 
 const videoPath = (fixture) => '/player/index.html?t=' + Date.now() + '#' +
   globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/' + fixture;
@@ -205,5 +211,66 @@ describe('MP4 back buffer', function() {
     // it, so [0, 14) takes the frames up to the next keyframe too - the same as before.
     expect(counts.removes).toBeGreaterThan(0);
     expect(counts.behind).toBeLessThan(12);
+  });
+});
+
+// A seek past the end of one of the file's tracks: mp4box's seek left a track that ends before
+// the time where it was, at a place nothing loads again, so it never finished, the stream never
+// ended, and the seek never completed (MP4Player.seekMp4box). The picture of the long fixture's
+// first 100 s, its sound cut to 98 s: longer than the 30 s the player loads ahead, so the sound
+// is not all appended before the seek (a file loaded whole has both tracks finished already).
+describe('MP4 whose sound ends before its picture', function() {
+  before(function() {
+    ensureMp4Shape('sound-ends-early.mp4', ['-i', LONG_FIXTURE, '-t', '100', '-map', '0:v', '-map', '0:a',
+      '-c:v', 'copy', '-af', 'atrim=end=98', '-c:a', 'aac', '-movflags', '+faststart']);
+  });
+
+  it('completes a seek into the last seconds, past the sound\'s end, and plays to the end', async function() {
+    await browser.url(videoPath('mp4-shapes/sound-ends-early.mp4'));
+    await browser.waitUntil(async () => browser.execute(() => {
+      const video = document.querySelector('video');
+      return !!(window.fastStream?.player && video && video.readyState >= 2);
+    }), {timeout: 60000, timeoutMsg: 'video never became ready'});
+    const tracks = await browser.execute(() => window.fastStream.player.mp4box.fragmentedTracks
+        .map(({trak}) => ({end: window.fastStream.player.mp4box.getTrackDuration(trak),
+          appended: trak.nextSample === trak.samples.length})));
+    // The file is what this checks: a picture of 100 s and a sound of 98, neither appended to
+    // its end yet.
+    const ends = tracks.map((track) => track.end);
+    expect(Math.max(...ends) - Math.min(...ends)).toBeGreaterThan(1.5);
+    expect(tracks.map((track) => track.appended)).toEqual([false, false]);
+
+    const duration = await browser.execute(() => window.fastStream.duration);
+    await browser.execute((duration) => {
+      window.__ended = false;
+      window.fastStream.player.getVideo().addEventListener('ended', () => {
+        window.__ended = true;
+      });
+      window.fastStream.currentTime = duration - 0.5;
+    }, duration);
+    let last;
+    try {
+      await browser.waitUntil(async () => {
+        last = await state();
+        return !last.seeking;
+      }, {timeout: 20000, interval: 250});
+    } catch (e) {
+      throw new Error('the seek past the sound\'s end never completed: ' + JSON.stringify(last));
+    }
+
+    await browser.execute(() => {
+      window.fastStream.play().catch((e) => {
+        window.__playError = String(e);
+      });
+    });
+    try {
+      await browser.waitUntil(async () => {
+        last = {...(await state()), ended: await browser.execute(() => window.__ended),
+          playError: await browser.execute(() => window.__playError || null)};
+        return last.ended;
+      }, {timeout: 20000, interval: 250});
+    } catch (e) {
+      throw new Error('playback never ended: ' + JSON.stringify(last));
+    }
   });
 });

@@ -147,6 +147,33 @@ describe('HLSLoader, a download that failed', () => {
     expect(loader.stats.aborted).toBe(true);
   });
 
+  it('leaves the player\'s loading list when hls.js aborts it, while others still want the segment', async () => {
+    // The download entry tells only the last of its watchers that it was aborted
+    // (DownloadEntry.abortWatcher): a segment the client was downloading as well stayed in the
+    // list for good, and the seek preview took it for a segment still loading.
+    const {DownloadEntry} = await import('../../chrome/player/network/DownloadEntry.mjs');
+    const {DownloadStatus} = await import('../../chrome/player/enums/DownloadStatus.mjs');
+    const {player, requestFragment} = makePlayer({getFrag: () => ({})});
+    const entry = new DownloadEntry({url: 'http://127.0.0.1/seg5.ts', responseType: 'arraybuffer'});
+    entry.status = DownloadStatus.DOWNLOAD_INITIATED;
+    entry.downloader = {abort: vi.fn()};
+    entry.addWatcher({callbacks: {onSuccess() {}, onFail() {}, onAbort() {}}});
+    requestFragment.mockImplementation((frag, callbacks) => {
+      const watcher = {entry, callbacks, abort: () => entry.abortWatcher(watcher)};
+      entry.addWatcher(watcher);
+      return watcher;
+    });
+    const loader = new (hlsLoaderFactory(player))();
+    loader.load({url: 'http://127.0.0.1/seg5.ts', frag: {sn: 5, trackID: 0, level: 0}}, {}, fragmentCallbacks());
+    expect(player.activeRequests.length).toBe(1);
+
+    loader.abort();
+    expect(player.activeRequests).toEqual([]);
+    // The other watcher's download goes on.
+    expect(entry.downloader.abort).not.toHaveBeenCalled();
+    expect(entry.watchers.length).toBe(1);
+  });
+
   it('says nothing once hls.js has destroyed the loader', () => {
     const {player, getFile} = makePlayer();
     const callbacks = playlistCallbacks();
