@@ -1,0 +1,584 @@
+{
+  "_comment": [
+    "What tools/firefox-api-watch.mjs counts as relevant to FastStream in a Firefox release.",
+    "keywords: regular expressions (case-insensitive) tried on a release-note bullet, a Bugzilla summary or a blog title.",
+    "bcd: browser-compat-data path prefixes; a feature under one whose Firefox support starts or ends in the release is reported.",
+    "WebExtensions are matched by what the extension uses (its chrome.*/browser.* namespaces and manifest keys), not listed here.",
+    "priority: how much a match matters before the code check; a match whose API the code uses ranks higher.",
+    "kind: the default kind of a new feature in this area (a removal is always a compatibility risk).",
+    "modules: where FastStream's code for the area lives, named when no identifier of the change is found in the code.",
+    "excludeText: changes in platform areas FastStream does not use, dropped whatever topic they match (tried on the change's text, not its section)."
+  ],
+  "topics": [
+    {
+      "id": "webextensions",
+      "area": "WebExtensions",
+      "priority": "medium",
+      "kind": "New feature",
+      "keywords": [
+        "\\bWebExtensions?\\b",
+        "\\badd-ons?\\b",
+        "\\bextensions? API\\b",
+        "native messaging",
+        "\\bconnectNative\\b",
+        "content scripts?",
+        "\\bevent pages?\\b",
+        "\\bManifest V3\\b",
+        "\\bMV3\\b"
+      ],
+      "bcd": [
+        "webextensions."
+      ],
+      "modules": [
+        "chrome/background/",
+        "chrome/content.js",
+        "chrome/manifest.json"
+      ]
+    },
+    {
+      "id": "mse",
+      "area": "Media Source Extensions",
+      "priority": "high",
+      "kind": "Optimisation opportunity",
+      "keywords": [
+        "\\bMediaSource\\b",
+        "\\bManagedMediaSource\\b",
+        "\\bSourceBuffer",
+        "\\bMSE\\b",
+        "\\bappendBuffer\\b",
+        "\\bchangeType\\b",
+        "Media Source Extensions"
+      ],
+      "bcd": [
+        "api.MediaSource",
+        "api.ManagedMediaSource",
+        "api.SourceBuffer",
+        "api.SourceBufferList",
+        "api.BufferedChangeEvent",
+        "api.MediaSourceHandle",
+        "api.ManagedSourceBuffer"
+      ],
+      "modules": [
+        "chrome/player/players/",
+        "chrome/player/network/"
+      ]
+    },
+    {
+      "id": "playback",
+      "area": "Media playback",
+      "priority": "high",
+      "kind": "New feature",
+      "keywords": [
+        "\\bHTMLMediaElement\\b",
+        "\\bHTMLVideoElement\\b",
+        "\\bHTMLAudioElement\\b",
+        "<video>",
+        "\\{\\{\\s*HTMLElement\\(\"(video|audio|source|track)\"",
+        "requestVideoFrameCallback",
+        "preservesPitch",
+        "getVideoPlaybackQuality",
+        "\\bautoplay\\b",
+        "\\bMediaSession\\b",
+        "\\bmediaSession\\b",
+        "\\bsetSinkId\\b",
+        "selectAudioOutput",
+        "\\bmedia playback\\b",
+        "\\bvideo playback\\b",
+        "\\bseeking\\b"
+      ],
+      "bcd": [
+        "api.HTMLMediaElement",
+        "api.HTMLVideoElement",
+        "api.HTMLAudioElement",
+        "api.MediaSession",
+        "api.MediaMetadata",
+        "api.VideoPlaybackQuality",
+        "html.elements.video",
+        "html.elements.audio",
+        "html.elements.source"
+      ],
+      "modules": [
+        "chrome/player/players/",
+        "chrome/player/ui/",
+        "chrome/content.js"
+      ]
+    },
+    {
+      "id": "codecs",
+      "area": "Codecs, WebCodecs and MediaCapabilities",
+      "priority": "high",
+      "kind": "Optimisation opportunity",
+      "keywords": [
+        "\\bVideoDecoder\\b",
+        "\\bAudioDecoder\\b",
+        "\\bVideoEncoder\\b",
+        "\\bAudioEncoder\\b",
+        "\\bEncodedVideoChunk\\b",
+        "\\bEncodedAudioChunk\\b",
+        "\\bVideoFrame\\b",
+        "\\bWebCodecs\\b",
+        "\\bMediaCapabilities\\b",
+        "\\bdecodingInfo\\b",
+        "\\bcanPlayType\\b",
+        "\\bisTypeSupported\\b",
+        "\\bHEVC\\b",
+        "\\bH\\.?265\\b",
+        "\\bH\\.?264\\b",
+        "\\bAV1\\b",
+        "\\bVP9\\b",
+        "\\bOpus\\b",
+        "\\bAAC\\b",
+        "\\bE?-?AC-?3\\b",
+        "\\bFLAC\\b",
+        "hardware(-accelerated)? (video )?decod",
+        "\\bcodecs?\\b"
+      ],
+      "bcd": [
+        "api.VideoDecoder",
+        "api.AudioDecoder",
+        "api.VideoEncoder",
+        "api.AudioEncoder",
+        "api.EncodedVideoChunk",
+        "api.EncodedAudioChunk",
+        "api.VideoFrame",
+        "api.AudioData",
+        "api.MediaCapabilities",
+        "api.ImageDecoder"
+      ],
+      "modules": [
+        "chrome/player/players/",
+        "chrome/player/modules/"
+      ]
+    },
+    {
+      "id": "formats",
+      "area": "Media formats and streaming",
+      "priority": "high",
+      "kind": "New feature",
+      "keywords": [
+        "\\bHLS\\b",
+        "\\bDASH\\b",
+        "\\bm3u8\\b",
+        "\\bfMP4\\b",
+        "\\bMP4\\b",
+        "\\bWebM\\b",
+        "\\bMatroska\\b",
+        "\\bMKV\\b",
+        "\\bOgg\\b",
+        "media formats?",
+        "video formats?",
+        "\\bcontainers?\\b.*\\b(media|video|audio)\\b",
+        "\\bEncrypted Media\\b",
+        "\\bEME\\b",
+        "\\bWidevine\\b",
+        "\\bDRM\\b"
+      ],
+      "bcd": [
+        "api.MediaKeys",
+        "api.MediaKeySession",
+        "api.MediaKeySystemAccess",
+        "api.Navigator.requestMediaKeySystemAccess"
+      ],
+      "modules": [
+        "chrome/player/players/",
+        "chrome/player/network/"
+      ]
+    },
+    {
+      "id": "subtitles",
+      "area": "Subtitles and text tracks",
+      "priority": "medium",
+      "kind": "New feature",
+      "keywords": [
+        "\\bTextTrack",
+        "\\bVTTCue\\b",
+        "\\bWebVTT\\b",
+        "\\bVTTRegion\\b",
+        "\\bsubtitles?\\b",
+        "\\bcaptions?\\b",
+        "::cue\\b"
+      ],
+      "bcd": [
+        "api.TextTrack",
+        "api.TextTrackCue",
+        "api.TextTrackCueList",
+        "api.TextTrackList",
+        "api.VTTCue",
+        "api.VTTRegion",
+        "html.elements.track",
+        "css.selectors.cue"
+      ],
+      "modules": [
+        "chrome/player/ui/subtitles/",
+        "chrome/player/utils/SubtitleUtils.mjs"
+      ]
+    },
+    {
+      "id": "fullscreen-pip",
+      "area": "Fullscreen and Picture-in-Picture",
+      "priority": "medium",
+      "kind": "New feature",
+      "keywords": [
+        "\\bfullscreen\\b",
+        "requestFullscreen",
+        "Picture-in-Picture",
+        "\\bPiP\\b",
+        "requestPictureInPicture",
+        "documentPictureInPicture",
+        "DocumentPictureInPicture"
+      ],
+      "bcd": [
+        "api.Element.requestFullscreen",
+        "api.Document.fullscreenElement",
+        "api.Document.exitFullscreen",
+        "api.Document.fullscreenEnabled",
+        "api.DocumentPictureInPicture",
+        "api.HTMLVideoElement.requestPictureInPicture",
+        "api.PictureInPictureWindow",
+        "css.selectors.fullscreen",
+        "css.selectors.picture-in-picture"
+      ],
+      "modules": [
+        "chrome/player/ui/",
+        "chrome/content.js"
+      ]
+    },
+    {
+      "id": "storage",
+      "area": "Storage (OPFS, IndexedDB, quotas, locks)",
+      "priority": "high",
+      "kind": "Optimisation opportunity",
+      "keywords": [
+        "\\bOPFS\\b",
+        "origin private file system",
+        "\\bFileSystem(File|Directory)?Handle\\b",
+        "\\bFileSystemSyncAccessHandle\\b",
+        "\\bcreateSyncAccessHandle\\b",
+        "\\bcreateWritable\\b",
+        "\\bFileSystemWritableFileStream\\b",
+        "\\bStorageManager\\b",
+        "navigator\\.storage",
+        "\\bstorage (quota|estimate|buckets?)\\b",
+        "\\bIndexedDB\\b",
+        "\\bIDB[A-Z]\\w+",
+        "\\bLockManager\\b",
+        "\\bWeb Locks\\b",
+        "navigator\\.locks"
+      ],
+      "bcd": [
+        "api.FileSystemHandle",
+        "api.FileSystemFileHandle",
+        "api.FileSystemDirectoryHandle",
+        "api.FileSystemSyncAccessHandle",
+        "api.FileSystemWritableFileStream",
+        "api.StorageManager",
+        "api.IDBFactory",
+        "api.IDBDatabase",
+        "api.IDBObjectStore",
+        "api.IDBTransaction",
+        "api.IDBIndex",
+        "api.IDBCursor",
+        "api.LockManager",
+        "api.Lock",
+        "api.Blob"
+      ],
+      "modules": [
+        "chrome/player/modules/FSBlob.mjs",
+        "chrome/player/network/",
+        "chrome/player/utils/"
+      ]
+    },
+    {
+      "id": "network",
+      "area": "Network (Fetch, CORS, cookies, service workers, streams)",
+      "priority": "high",
+      "kind": "New feature",
+      "keywords": [
+        "\\bfetch\\(",
+        "\\bFetch API\\b",
+        "\\bfetch\\b.*\\b(request|response)s?\\b",
+        "\\bCORS\\b",
+        "cross-origin",
+        "\\bcookies?\\b",
+        "\\bSameSite\\b",
+        "\\bpartitioned\\b",
+        "Total Cookie Protection",
+        "\\bReferr?er(-Policy)?\\b",
+        "\\bRange\\b.*\\brequests?\\b",
+        "\\bpartial content\\b",
+        "\\b206\\b",
+        "fetchpriority",
+        "Fetch Priority",
+        "\\bservice workers?\\b",
+        "\\bServiceWorker\\w*",
+        "\\bReadableStream\\b",
+        "\\bReadableByteStream",
+        "\\bCompressionStream\\b",
+        "\\bDecompressionStream\\b",
+        "\\bAbortSignal\\b",
+        "\\bAbortController\\b",
+        "\\bHTTP/[23]\\b",
+        "\\bredirects?\\b"
+      ],
+      "bcd": [
+        "api.fetch",
+        "api.Window.fetch",
+        "api.WorkerGlobalScope.fetch",
+        "api.Request",
+        "api.Response",
+        "api.Headers",
+        "api.ReadableStream",
+        "api.ReadableStreamBYOBReader",
+        "api.ReadableByteStreamController",
+        "api.CompressionStream",
+        "api.DecompressionStream",
+        "api.AbortSignal",
+        "api.AbortController",
+        "http.headers.Range",
+        "http.headers.Content-Range",
+        "http.headers.Referrer-Policy",
+        "http.headers.Set-Cookie",
+        "http.headers.Retry-After"
+      ],
+      "modules": [
+        "chrome/player/network/",
+        "chrome/page-fetch.js",
+        "chrome/background/"
+      ]
+    },
+    {
+      "id": "workers",
+      "area": "Workers and off-main-thread work",
+      "priority": "medium",
+      "kind": "Optimisation opportunity",
+      "keywords": [
+        "\\bWeb Workers?\\b",
+        "\\bDedicatedWorker",
+        "\\bSharedWorker\\b",
+        "\\bmodule workers?\\b",
+        "\\bin (dedicated )?workers\\b",
+        "\\bOffscreenCanvas\\b",
+        "\\bcanConstructInDedicatedWorker\\b",
+        "\\bscheduler\\.(postTask|yield)\\b",
+        "\\bscheduler\\b"
+      ],
+      "bcd": [
+        "api.Worker",
+        "api.DedicatedWorkerGlobalScope",
+        "api.SharedWorker",
+        "api.OffscreenCanvas",
+        "api.Scheduler",
+        "api.TaskController"
+      ],
+      "modules": [
+        "chrome/player/workers/",
+        "chrome/player/"
+      ]
+    },
+    {
+      "id": "ui-platform",
+      "area": "UI platform features (player and settings pages)",
+      "priority": "low",
+      "kind": "New feature",
+      "keywords": [
+        "\\bpopover\\b",
+        "\\{\\{\\s*HTMLElement\\(\"dialog\"",
+        "<dialog>",
+        "\\binert\\b",
+        ":focus-visible",
+        "\\bcommandfor\\b",
+        "\\bInvoker Commands?\\b",
+        "customizable <select>",
+        "\\bappearance: base-select\\b",
+        "\\bfield-sizing\\b",
+        "\\bcontainer queries\\b",
+        "@container",
+        "anchor positioning",
+        "\\bposition-anchor\\b",
+        "\\blight-dark\\(\\)",
+        "\\bprefers-reduced-motion\\b",
+        "\\bprefers-contrast\\b",
+        "\\bforced-colors\\b",
+        "\\bARIA\\b",
+        "\\baria-\\w+",
+        "\\baccessibility\\b",
+        "\\bWeb Animations\\b",
+        "\\bAnimation\\.\\w+"
+      ],
+      "bcd": [
+        "api.HTMLElement.popover",
+        "api.HTMLElement.showPopover",
+        "api.HTMLDialogElement",
+        "api.HTMLElement.inert",
+        "html.global_attributes.popover",
+        "html.elements.dialog",
+        "html.elements.button.command",
+        "html.elements.select",
+        "css.at-rules.container",
+        "css.properties.position-anchor",
+        "css.properties.field-sizing",
+        "css.types.color.light-dark"
+      ],
+      "modules": [
+        "chrome/player/index.html",
+        "chrome/player/options/",
+        "chrome/player/assets/fluidplayer/css/"
+      ]
+    },
+    {
+      "id": "security",
+      "area": "Security and privacy",
+      "priority": "medium",
+      "kind": "Security change",
+      "keywords": [
+        "\\bContent Security Policy\\b",
+        "\\bCSP\\b",
+        "\\bsandbox(ed)?\\b",
+        "\\bmixed content\\b",
+        "\\bHTTPS-Only\\b",
+        "\\bHTTPS-First\\b",
+        "\\bTrusted Types\\b",
+        "\\bTracking Protection\\b",
+        "\\bbounce tracking\\b",
+        "\\bcross-origin isolat",
+        "\\bCOOP\\b",
+        "\\bCOEP\\b",
+        "\\bpermissions?\\b"
+      ],
+      "bcd": [
+        "http.headers.Content-Security-Policy",
+        "api.TrustedTypePolicyFactory"
+      ],
+      "modules": [
+        "chrome/manifest.json",
+        "chrome/background/"
+      ]
+    },
+    {
+      "id": "rendering",
+      "area": "Rendering, GPU and power",
+      "priority": "medium",
+      "kind": "Optimisation opportunity",
+      "keywords": [
+        "\\bWebRender\\b",
+        "\\bGPU\\b",
+        "hardware acceleration",
+        "\\bvideo overlays?\\b",
+        "\\bHDR\\b",
+        "\\bpower (usage|consumption|saving)\\b",
+        "\\bbattery\\b",
+        "\\bframe ?rate\\b",
+        "\\bvsync\\b"
+      ],
+      "bcd": [],
+      "modules": [
+        "chrome/player/players/",
+        "chrome/player/ui/"
+      ]
+    },
+    {
+      "id": "e2e-harness",
+      "area": "WebDriver (the e2e test harness)",
+      "priority": "low",
+      "kind": "Compatibility risk",
+      "keywords": [
+        "\\bWebDriver\\b",
+        "\\bMarionette\\b",
+        "\\bgeckodriver\\b",
+        "\\bBiDi\\b"
+      ],
+      "bcd": [],
+      "modules": [
+        "tests/e2e/"
+      ]
+    }
+  ],
+  "bugzilla": {
+    "_comment": "WebExtensions bugs are all read (a handful a release) and matched by the namespaces the code uses; Core media bugs only with a documentation/compatibility keyword or a summary naming a high-priority media term, and never the Android-only ones.",
+    "coreComponents": [
+      "Audio/Video",
+      "Audio/Video: Playback",
+      "Audio/Video: Web Codecs",
+      "DOM: Networking",
+      "DOM: Service Workers",
+      "Networking: Cookies",
+      "Storage: IndexedDB",
+      "Storage: Quota Manager"
+    ],
+    "coreKeywords": [
+      "dev-doc-needed",
+      "dev-doc-complete",
+      "site-compat",
+      "addon-compat"
+    ],
+    "coreSummary": "\\b(MediaSource|SourceBuffer|MSE|fMP4|HLS|DASH|seek(ing)?|WMF|Media Foundation|hardware[- ]decod\\w*|VideoDecoder|AudioDecoder|WebCodecs|MediaCapabilities|decodingInfo|HEVC|AV1|OPFS|SyncAccessHandle|createWritable|Range requests?|partial content)\\b",
+    "excludeSummary": "\\b(Android|GeckoView|Fenix|iOS|macOS|V4L2|VA-?API|test(s|ing)? only|intermittent|xpcshell|mochitest|wpt-sync|Sync PR|crashtest|reftest|Perma|tier \\d|metrics expiring|Remove or update metrics|Assertion failure|Crash in|moz-src|about:newtab|accesskey|telemetry|Glean|lint|eslint|refactor|rename|clean ?up)\\b|\\.(html|js) fails\\b|^Skip |\\btest_\\w+|\\bbrowser_\\w+\\.js\\b|\\[tier|\\w::\\w|\\b(tests?|testing|subtests?|submanifests?)\\b|\\.(cpp|h|cc|rs)\\b|\\b(Wayland|X11|GTK|logging|benchmark|unused)\\b"
+  },
+  "stopIdentifiers": [
+    "type",
+    "types",
+    "name",
+    "names",
+    "value",
+    "values",
+    "options",
+    "option",
+    "details",
+    "detail",
+    "data",
+    "error",
+    "errors",
+    "event",
+    "events",
+    "length",
+    "status",
+    "result",
+    "results",
+    "source",
+    "target",
+    "window",
+    "document",
+    "element",
+    "elements",
+    "headers",
+    "header",
+    "request",
+    "response",
+    "context",
+    "params",
+    "string",
+    "number",
+    "object",
+    "boolean",
+    "function",
+    "default",
+    "loading",
+    "blocking",
+    "content",
+    "context",
+    "readable",
+    "writable",
+    "bytes",
+    "label",
+    "title",
+    "style",
+    "width",
+    "height",
+    "state",
+    "query",
+    "frame",
+    "frames",
+    "range",
+    "start",
+    "end",
+    "time",
+    "true",
+    "false",
+    "null",
+    "undefined",
+    "about:config",
+    "Firefox",
+    "Nightly"
+  ],
+  "excludeText": "\\b(WebRTC|RTCPeerConnection|RTCRtp\\w*|getUserMedia|WebTransport\\w*|Web Speech|speech (recognition|synthesis)|WebXR|WebGPU|WebAuthn|Credential Management|Notifications? API|showNotification|Notification\\(\\)|Gamepad|Web ?MIDI|WebHID|WebUSB|Web Serial|Web Bluetooth|JPEG XL|image/jxl|AVIF|MathML|Payment Request|WebAssembly)\\b|\\b(Firefox )?for Android\\b"
+}

@@ -211,6 +211,7 @@ const CHECKED = [
   'tools/e2e-spec-weights.mjs',
   'tools/fetch-amo-signed.mjs',
   'tools/find-base.mjs',
+  'tools/firefox-api-watch.mjs',
   'tools/gen-update-manifest.mjs',
   'tools/hash-build.mjs',
   'tools/launch-ff-fresh.mjs',
