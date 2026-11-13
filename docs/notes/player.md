@@ -1082,20 +1082,36 @@ failed before. Fixed:
   tells each frame above to let go of the iframe on the way (`RELEASE_OVERLAY_GUARD`), unless
   another player still lives under it. `content-overlays.e2e.mjs` (failed on main),
   `backgroundOverlayGuard.test.mjs`, `contentScript.test.mjs`.
+- **A player gone with its page was counted gone twice.** A frame that goes takes the frames
+  inside it along; a player inside sends its own `FRAME_REMOVED` too, and it can come last. Its
+  entry in `playerPageFrames` was still there, so it was taken for a player lost while Firefox
+  had unloaded the background (`restorePlayerFrame`): made again with its page frame, and
+  counted gone a second time. With two players in a tab, the next one to open was told it was
+  the tab's main player. Every frame forgotten with the removed one now leaves
+  `playerPageFrames` and `playingPlayers`. `backgroundFrameRemoved.test.mjs`.
+- **Toolbar calls for a closed tab were rejected unhandled** (the "Off" badge's second, a start
+  that waited for its page). They go through `setAction` (`BackgroundUtils.mjs`), which takes
+  the rejection. `backgroundRobustness.test.mjs`.
+- **A start by address was lost when only the part after `#` changed during its half-second
+  wait** (a page setting `#t=...` at once): the wait checked the address string. The same page
+  (`isSamePageUrlChange`) keeps it; a `#/` or `#!` route still cancels it. `backgroundMpv.test.mjs`.
 
-Found and not changed yet (smaller; each with its trigger in the review):
+Found and not changed yet:
 
 - MP4 and DASH seek previews restart the hovered range's download on every pointer move while it
   loads (HLS has a guard: `HLSPlayer`, "a pointer still inside the segment that is loading");
-  the DASH preview buffers 10-18 s at each hovered place, HLS's 1 s.
+  the DASH preview buffers 10-18 s at each hovered place, HLS's 1 s. Not a copy of HLS's guard:
+  skipping `resetHLS` for a place inside the range on its way leaves mp4box at the last place's
+  sync sample, so a place before it in the same range would get no samples. Needs its own
+  design (mp4box's seek point) and a slow-line A/B (`tools/bench-ab.mjs --rate`); on a local
+  file the preview is ready in about 35 ms.
 - An iframe the page takes out (no `beforeunload`) never sends `FRAME_REMOVED`: its frame and
-  sources stay in the background until the page navigates.
-- A player's `FRAME_REMOVED` handled after its page frame's can re-create the page frame's
-  holder and lower `playerCount` twice (two players in a tab).
-- A tab closed within the 500 ms replace delay: the toolbar calls on its id reject unhandled.
-- A start by address (auto-enable list) is lost when only the fragment changes within 500 ms.
-- Synced audio (a video delay set) follows play, pause and seek from media keys or PiP only at the
-  next `watcherLoop` round, about a second later.
+  sources stay in the background until the page navigates. Memory only; nothing acts on them.
+- Synced audio (a video delay set) follows play, pause and seek made on the element itself -
+  Firefox's picture-in-picture window - only at the next `watcherLoop` round, about a second
+  later; media keys go through the client and are followed at once. Forwarding the element's
+  own events has to keep the resync guards (`SyncedAudioPlayer.test.mjs`: a pause during a
+  resync, a resync after destroy) and wants a test of its own.
 
 ## Measuring two builds: tools/bench-ab.mjs (2026-11-13)
 
