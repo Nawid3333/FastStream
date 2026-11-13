@@ -832,6 +832,19 @@
   }
 
   /**
+   * Whether an element is the one in fullscreen, asked of the tree it is in. For an iframe
+   * in a shadow root (an embed's, which the frame links find in closed roots too), the
+   * document's fullscreenElement is the root's host; the root's own is the iframe. Compared
+   * with the document's, the toggle entered fullscreen again instead of leaving it, and
+   * fullscreenchange told the player it had left as it entered.
+   * @param {Element} element
+   * @return {boolean}
+   */
+  function isFullscreenElement(element) {
+    return /** @type {Document|ShadowRoot} */ (element.getRootNode()).fullscreenElement === element;
+  }
+
+  /**
    * @param {*} request
    * @param {*} sender
    * @param {Function} sendResponse
@@ -855,7 +868,7 @@
     const element = iframeObj.iframe;
     const force = request.force;
 
-    const newValue = force === undefined ? document.fullscreenElement !== element : force;
+    const newValue = force === undefined ? !isFullscreenElement(element) : force;
     fullscreenState.active = newValue;
     if (!newValue) {
       if (document.fullscreenElement) {
@@ -869,7 +882,7 @@
         // Refused (no user gesture, an iframe the page took out): the player hears 'error'.
         // Rethrown, it was an unhandled rejection besides. Not fullscreen, as the page is:
         // left "on", the next toggle went the wrong way.
-        fullscreenState.active = document.fullscreenElement === element;
+        fullscreenState.active = isFullscreenElement(element);
         console.error(e);
         sendResponse('error');
       });
@@ -2707,7 +2720,7 @@
     iframeMap.forEach((iframeObj) => {
       const fullscreenState = iframeObj.fullscreenState;
       const element = iframeObj.iframe;
-      const active = document.fullscreenElement === element;
+      const active = isFullscreenElement(element);
       if (active !== fullscreenState.active) {
         fullscreenState.active = active;
         changedFor.push(iframeObj);

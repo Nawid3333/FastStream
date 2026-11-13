@@ -888,6 +888,61 @@ describe('frame links', () => {
   });
 });
 
+// Fullscreen of an iframe in a shadow root (an embed's, linked in a closed one above): the
+// document's fullscreenElement is the root's host, the root's is the iframe. Compared with
+// the document's, the toggle entered fullscreen again instead of leaving it, and on entering
+// the page told the player it had left, which then left (a review, 2026-11-13).
+describe('fullscreen of an iframe in a shadow root', () => {
+  /**
+   * A page with an embed's iframe (frame 7) in a closed shadow root, linked, and Firefox's
+   * fullscreen of it.
+   * @return {Promise<{page: Object, root: Object, embed: Object}>}
+   */
+  async function embedInShadowRoot() {
+    const page = loadContentScript();
+    const host = page.document.createElement('div');
+    page.document.body.appendChild(host);
+    const root = closedShadowRoot(page, host);
+    root.nodeType = 11;
+    root.host = host;
+    root.fullscreenElement = null;
+    const embed = page.document.createElement('iframe');
+    root.appendChild(embed);
+    embed.requestFullscreen = async () => {
+      page.document.fullscreenElement = host;
+      root.fullscreenElement = embed;
+    };
+    page.document.exitFullscreen = async () => {
+      page.document.fullscreenElement = null;
+      root.fullscreenElement = null;
+    };
+    await linkPlayer(page, embed, 7);
+    return {page, root, embed};
+  }
+
+  const toggle = (page) => page.send({type: 'TOGGLE_FULLSCREEN', frameId: 7, playerFrameId: 7});
+
+  it('leaves fullscreen on the toggle', async () => {
+    const {page, root} = await embedInShadowRoot();
+    expect(await toggle(page)).toBe('enter');
+    page.dispatchDocument('fullscreenchange');
+    expect(await toggle(page)).toBe('exit');
+    expect(root.fullscreenElement).toBe(null);
+  });
+
+  it('tells the player nothing on entering, and that it left on leaving', async () => {
+    const {page} = await embedInShadowRoot();
+    await toggle(page);
+    page.sent.length = 0;
+    page.dispatchDocument('fullscreenchange');
+    expect(page.sent).toEqual([]);
+    // Left by Escape.
+    await page.document.exitFullscreen();
+    page.dispatchDocument('fullscreenchange');
+    expect(page.sent.map((m) => m.data)).toEqual([{type: 'fullscreen-state', value: false}]);
+  });
+});
+
 describe('a player put in a shadow root', () => {
   // A video straight in a shadow root, in a host with a bar below it (so the host is not
   // the player's box): the player goes into the root, next to the video. The resize
