@@ -1,13 +1,20 @@
 # Firefox API watch, optimisation and UI review (2026-11-13)
 
 The owner's two briefs of 2026-11-13: a watcher for what each Firefox release changes, research into
-Firefox-only improvements, and an incremental modernisation of the player's and settings' UI.
-Nothing here is merged or released: two draft pull requests wait for the owner's test and decision.
+Firefox-only improvements, and an incremental modernisation of the player's and settings' UI. His
+follow-up asked for the same work to be proven: benchmarks, regression tests, and validation that each
+change is an improvement. It also asked for bugs to be looked for and fixed, CodeQL's findings to be
+fixed, and the add-on renamed "FastStream for Firefox". Nothing here is merged or released: three
+draft pull requests wait for the owner's test and decision.
 
 | Branch | Draft PR | Ships to users |
 |---|---|---|
-| `feature/firefox-api-watch` | #674 | no (a workflow and its tool) |
+| `feature/firefox-api-watch` | #674 | no (a workflow and its tool; `auto-release.yml` skips it) |
 | `feature/firefox-optimization-ui-modernization` | #675 | yes, once merged (a merge to main releases) |
+| `feature/rename-faststream-for-firefox` | #676 | yes; **rename the repository on GitHub first** (section 7) |
+
+The three merge without a conflict in any order. Their combination was built and tested as the main
+they would make (section 5).
 
 ## 1. Firefox API watch (branch `feature/firefox-api-watch`)
 
@@ -51,6 +58,20 @@ The issue's life, as asked:
 
   All eight are fixed, each with a test; see the commit "what an independent review found".
   `docs/notes/workflows.md` holds the rules.
+- **CodeQL:** the repository's CodeQL runs the extended suite with the remote-and-local threat
+  model, so the command line, the environment and files read at run time count as untrusted. It
+  found 13 alerts in the watcher's first version, one of them critical. Each is fixed where it
+  starts, not dismissed:
+  - Requests go only to https URLs on the five sources' hosts. The environment variable that
+    could point a source at any URL or file is gone; the test names a fixtures folder instead.
+  - The npm tarball's URL is built from its file name, not taken from the registry's answer.
+  - Every folder or file the runner names (memo, fixtures, the job summary, the step outputs)
+    must lie in the runner's temporary folder.
+  - The topic patterns are `RegExp` literals in `firefox-api-watch.topics.mjs`; all 186 were
+    checked identical to the JSON strings before.
+  - HTML comments are stripped until none is left.
+
+  CodeQL on #674 is green, and main has no open code-scanning alert.
 
 **Live dry run** over Firefox 153-160 (the releases since the floor): 96 findings, of which 6 high,
 43 medium and 47 low. The six high ones, checked by hand:
@@ -123,7 +144,15 @@ Floor: `strict_min_version` 153 (ESR 153); current Stable 160, 161 due 2026-11-2
 | `<button>` elements instead of ARIA `div`s | Recommended for later |
 | `<label for>` on the settings page | Rejected: each row already ticks its box or focuses its field on a click anywhere in it, and every field has an accessible name (`aria-label`). A label would toggle a box twice |
 | Transitions, "subtle animations" | Rejected: the owner's zero-motion rule (`playerA11y.test.mjs` enforces it) |
-| Performance changes (modulepreload, earlier player choice, paused wake-ups, RAM budget for two players) | Recommended for later: none was measured in this round, and the notes' rule is no change without an A/B. The recorded rejections in `docs/notes/player.md` still stand |
+| A/B benchmark that stays (`tools/bench-ab.mjs`): two builds by turns, slow-line option, rank-sum verdicts | Implemented and verified (section 4) |
+| MP4 player's loop paced while paused or ended; woken at once by a seek or play | Implemented and verified: measured, with e2e limits |
+| MP4 played again after its end never started (on main) | Fixed and verified (e2e fails on main) |
+| Audio-only MP4's seek preview busy-looped for the tab's life (on main) | Fixed and verified (e2e fails on main) |
+| Six background/content-script bugs found by a review (section 4) | Fixed and verified (each test fails on main) |
+| Other performance ideas (modulepreload, earlier player choice, RAM budget for two players) | Recommended for later: each needs its own A/B with the harness. The recorded rejections in `docs/notes/player.md` still stand |
+| MP4/DASH seek preview restarting its download on every pointer move | Recommended for later: a guard like HLS's would leave mp4box at the wrong sync sample; needs its own design and a slow-line A/B |
+| HLS first frame on a slow line in two modes (about 1.47 s or 2.0 s by the round, both builds) | Needs more evidence: seen in the 12 Mbit/s runs on main as well; a guess is the seek preview's first segment sharing the line with the video's |
+| Synced audio following Firefox's PiP controls about a second late (with an audio delay set) | Recommended for later (needs a test for its resync guards) |
 | MSE in workers | Recommended for later (monitor: not in Stable) |
 | WebCodecs players | Rejected for now (no measured problem it solves) |
 
