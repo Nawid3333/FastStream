@@ -174,7 +174,7 @@ jobs:
             gh release upload "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" \
-              --title "FastStream $TAG" --generate-notes
+              --title "FastStream for Firefox $TAG" --generate-notes
           fi
 
       # After every run, published or not: the failsafe completes a release whose

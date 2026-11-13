@@ -1,6 +1,6 @@
 {
     "extension_name": {
-        "message": "FastStream 影片播放器"
+        "message": "FastStream for Firefox"
     },
     "extension_description": {
         "message": "無緩衝串流。修復網路上壞掉的影片播放器。"
@@ -1176,7 +1176,7 @@
         "message": "錯誤：$1"
     },
     "error_popup_body": {
-        "message": "請將此錯誤與下方的堆疊追蹤一併回報給開發者，網址：https://github.com/Nawid3333/FastStream/issues："
+        "message": "請將此錯誤與下方的堆疊追蹤一併回報給開發者，網址：https://github.com/Nawid3333/FastStream-for-Firefox/issues："
     },
     "error_popup_send": {
         "message": "回報錯誤"

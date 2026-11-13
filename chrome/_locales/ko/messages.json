@@ -1,6 +1,6 @@
 {
     "extension_name": {
-        "message": "FastStream 비디오 플레이어"
+        "message": "FastStream for Firefox"
     },
     "extension_description": {
         "message": "버퍼링 없이 스트리밍하세요. 인터넷의 문제 있는 동영상 플레이어를 바로잡습니다."
@@ -1176,7 +1176,7 @@
         "message": "오류: $1"
     },
     "error_popup_body": {
-        "message": "아래 스택 트레이스와 함께 https://github.com/Nawid3333/FastStream/issues에 개발자에게 이 오류를 신고해 주세요:"
+        "message": "아래 스택 트레이스와 함께 https://github.com/Nawid3333/FastStream-for-Firefox/issues에 개발자에게 이 오류를 신고해 주세요:"
     },
     "error_popup_send": {
         "message": "오류 신고"

@@ -219,7 +219,7 @@ export function errorTitleText(error) {
  */
 export function errorReportURL(error, version) {
   const body = `## Version:\n${version}\n\n## Error message:\n${errorText(error)}\n\n## Stack trace:\n\`\`\`\n${error?.stack || 'No stack trace'}\n\`\`\``;
-  const urlBase = `https://github.com/Nawid3333/FastStream/issues/new?`;
+  const urlBase = `https://github.com/Nawid3333/FastStream-for-Firefox/issues/new?`;
   return `${urlBase}title=${encodeURIComponent('Error report')}&body=${encodeURIComponent(body)}`;
 }
 

@@ -1,6 +1,6 @@
 {
     "extension_name": {
-        "message": "FastStream Pemutar Video"
+        "message": "FastStream for Firefox"
     },
     "extension_description": {
         "message": "Streaming tanpa buffering. Memperbaiki pemutar video bermasalah di internet."
@@ -1176,7 +1176,7 @@
         "message": "Kesalahan: $1"
     },
     "error_popup_body": {
-        "message": "Silakan laporkan kesalahan ini ke pengembang di https://github.com/Nawid3333/FastStream/issues beserta stack trace di bawah:"
+        "message": "Silakan laporkan kesalahan ini ke pengembang di https://github.com/Nawid3333/FastStream-for-Firefox/issues beserta stack trace di bawah:"
     },
     "error_popup_send": {
         "message": "Laporkan Kesalahan"

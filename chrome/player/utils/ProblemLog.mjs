@@ -136,6 +136,6 @@ export function issueUrl(entry, about) {
     '',
     '_Sent from FastStream\'s options page. GitHub issues are public: remove anything you do not want to share before you submit._',
   ].join('\n');
-  return 'https://github.com/Nawid3333/FastStream/issues/new?' +
+  return 'https://github.com/Nawid3333/FastStream-for-Firefox/issues/new?' +
     new URLSearchParams({title, body}).toString();
 }

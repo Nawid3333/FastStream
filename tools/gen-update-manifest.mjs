@@ -9,7 +9,7 @@
 //
 // Run after signing, from the repo root:
 //   node tools/gen-update-manifest.mjs <owner/repo> <tag>
-// e.g. node tools/gen-update-manifest.mjs Nawid3333/FastStream v1.3.80.0
+// e.g. node tools/gen-update-manifest.mjs Nawid3333/FastStream-for-Firefox v1.3.80.0
 //
 // Reads the extension id and version from the just-built
 // build_firefox_amo/manifest.json (build:keep leaves it on disk) and finds

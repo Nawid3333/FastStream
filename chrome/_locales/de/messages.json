@@ -1,6 +1,6 @@
 {
     "extension_name": {
-        "message": "FastStream Video Player"
+        "message": "FastStream for Firefox"
     },
     "extension_description": {
         "message": "Streame ohne Puffern. Repariere schlechte Videoplayer im Internet."
@@ -1176,7 +1176,7 @@
         "message": "Fehler: $1"
     },
     "error_popup_body": {
-        "message": "Bitte melde diesen Fehler den Entwicklern auf https://github.com/Nawid3333/FastStream/issues mit den folgenden Fehlerinformationen:"
+        "message": "Bitte melde diesen Fehler den Entwicklern auf https://github.com/Nawid3333/FastStream-for-Firefox/issues mit den folgenden Fehlerinformationen:"
     },
     "error_popup_send": {
         "message": "Fehler melden"

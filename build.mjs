@@ -111,7 +111,7 @@ async function buildFirefoxAmo() {
       // under that filename, so this URL never has to change between
       // releases - release.yml regenerates and re-uploads updates.json
       // (and the xpi it points at) every time it cuts one.
-      update_url: 'https://github.com/Nawid3333/FastStream/releases/latest/download/updates.json',
+      update_url: 'https://github.com/Nawid3333/FastStream-for-Firefox/releases/latest/download/updates.json',
     },
   };
 

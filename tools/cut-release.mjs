@@ -112,4 +112,4 @@ try {
 console.log(`\nPushed ${branch} and tag ${tag}.`);
 console.log('release.yml is now building and will publish the GitHub Release ' +
     'automatically once it finishes (a few minutes) -- ' +
-    'https://github.com/Nawid3333/FastStream/actions/workflows/release.yml');
+    'https://github.com/Nawid3333/FastStream-for-Firefox/actions/workflows/release.yml');

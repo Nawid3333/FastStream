@@ -1185,7 +1185,7 @@ if (EnvUtils.isExtension()) {
 
   /** @type {HTMLElement} */ (document.getElementById('update')).addEventListener('click', (e) => {
     chrome.tabs.create({
-      url: 'https://github.com/Nawid3333/FastStream/releases',
+      url: 'https://github.com/Nawid3333/FastStream-for-Firefox/releases',
     });
   });
 

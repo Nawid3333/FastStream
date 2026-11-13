@@ -1,6 +1,6 @@
 {
     "extension_name": {
-        "message": "FastStream Video Player"
+        "message": "FastStream for Firefox"
     },
     "extension_description": {
         "message": "Потоковая передача без буферизации. Исправляет плохие видеоплееры в интернете."
@@ -1176,7 +1176,7 @@
         "message": "Ошибка: $1"
     },
     "error_popup_body": {
-        "message": "Пожалуйста, сообщите об этой ошибке разработчикам по адресу https://github.com/Nawid3333/FastStream/issues с приведённой ниже трассировкой стека:"
+        "message": "Пожалуйста, сообщите об этой ошибке разработчикам по адресу https://github.com/Nawid3333/FastStream-for-Firefox/issues с приведённой ниже трассировкой стека:"
     },
     "error_popup_send": {
         "message": "Сообщить об ошибке"
