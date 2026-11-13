@@ -34,7 +34,7 @@ function createWriteStreamBlob(filename, opts, size) {
   // for a several-hundred-MB video, which froze the tab and looked like the
   // save never happened. Instead: write chunks progressively into ONE OPFS
   // file (disk-backed, flat memory), then hand the download a disk-backed
-  // File. mp4merger.mjs's finalize() does the same via OPFSManager.
+  // File. The MP4 converters (HLS2MP4, MP4Merger) do the same through SaveFile.mjs.
 
   // Which of the two sinks below this uses can only be decided once the blob
   // store's backend has finished setting up. Reading blobManager.opfsManager
