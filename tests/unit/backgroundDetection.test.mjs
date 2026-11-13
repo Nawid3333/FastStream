@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest';
 
+import {PIECE_LENGTH} from '../../chrome/player/utils/StreamLength.mjs';
 import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
 // What the background detects from a page's requests (onBeforeSendHeaders, then
@@ -171,6 +172,96 @@ describe('a page that is never left', () => {
       ...Array.from({length: 19}, (_, i) => `https://cdn.test/v/video-${42 + i}.mp4`),
     ]);
     expect(subtitles).toHaveLength(20);
+  });
+});
+
+// A page whose own player fetches a stream's pieces named .mp4 (seg-14.mp4): each is a source
+// of its own, thousands in an evening. Each was read in the background in a tab that is on
+// (a 64 KB range request, and a header rule added and taken away for it), and each asked the
+// page for its <track> captions, which content.js answers by walking the page and fetching
+// every <track> file again - also in a tab that is off.
+describe('a page whose own player fetches a stream\'s pieces', () => {
+  const MANIFEST = 'https://cdn.test/v/manifest.mpd';
+  const piece = (n) => `https://cdn.test/v/seg-${n}.mp4`;
+  const MP4 = {responseHeaders: [{name: 'Content-Type', value: 'video/mp4'}]};
+
+  /**
+   * The start of a media segment, as the background's read gets it: a styp box, then a moof.
+   * @return {Uint8Array} Its bytes.
+   */
+  function segmentBytes() {
+    const bytes = new Uint8Array(32);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(0, 24);
+    bytes.set(new TextEncoder().encode('stypmsdh'), 4);
+    view.setUint32(24, 8);
+    bytes.set(new TextEncoder().encode('moof'), 28);
+    return bytes;
+  }
+
+  /**
+   * An auto-enabled page (its tab on) whose reads are answered as the CDN would, and counted.
+   * @param {Object} [setup] - More for loadBackground (onTabMessage).
+   * @return {Promise<Array<string>>} The URLs the background fetched, as it goes on.
+   */
+  async function onPage(setup = {}) {
+    const fetched = [];
+    bg = await loadBackground({
+      options: {autoEnableURLs: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
+      fetch: async (url) => {
+        fetched.push(url);
+        return url === MANIFEST ? response('<MPD type="static" mediaPresentationDuration="PT20M"></MPD>') :
+          response(segmentBytes(), 206, 'video/mp4');
+      },
+      ...setup,
+    });
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    return fetched;
+  }
+
+  it('reads one piece\'s length, not each one\'s, and counts the rest as pieces', async () => {
+    const fetched = await onPage();
+    await bg.request({tabId: 1, url: MANIFEST});
+    for (let n = 1; n <= 20; n++) {
+      await bg.request({tabId: 1, url: piece(n)}, MP4);
+    }
+    expect(fetched).toEqual([MANIFEST, piece(1)]);
+    expect(bg.sessionRuleUpdates.filter((update) => update.addRules?.length)).toHaveLength(2);
+    // The player gets the film's manifest and pieces of a stream, as when each was read.
+    const sources = await sourcesForPlayer();
+    expect(sources.map((s) => s.duration)).toEqual([1200, ...Array(20).fill(PIECE_LENGTH)]);
+  });
+
+  it('asks a page that is off for its captions once for them, and again for another stream', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    for (let n = 1; n <= 20; n++) {
+      await bg.request({tabId: 1, url: piece(n)}, MP4);
+    }
+    expect(bg.sent('SCRAPE_CAPTIONS')).toHaveLength(1);
+    // A stream of another shape: its page may have added tracks for it meanwhile.
+    await bg.request({tabId: 1, url: 'https://cdn.test/v/film.mp4'}, MP4);
+    expect(bg.sent('SCRAPE_CAPTIONS')).toHaveLength(2);
+    // The next page in the frame.
+    await bg.frameAdded(1, 0, PAGE, 'page-2');
+    await bg.request({tabId: 1, url: piece(21)}, MP4);
+    await bg.request({tabId: 1, url: piece(22)}, MP4);
+    expect(bg.sent('SCRAPE_CAPTIONS')).toHaveLength(3);
+  });
+
+  it('still opens the player after the page\'s captions came', async () => {
+    const track = {data: 'WEBVTT\n', source: 'https://site.test/en.vtt', label: 'English', language: 'en'};
+    await onPage({onTabMessage: ({message}) => message.type === 'SCRAPE_CAPTIONS' ?
+      new Promise((resolve) => setTimeout(() => resolve([track]), 2000)) : undefined});
+    await bg.request({tabId: 1, url: piece(1)}, MP4);
+    await bg.request({tabId: 1, url: piece(2)}, MP4);
+    // Past the opening delay (replaceDelay, 500 ms), before the captions' answer.
+    await bg.wait(1000);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+    await bg.wait(2000);
+    expect(bg.sent('OPEN_PLAYER')).toHaveLength(1);
+    expect(bg.sent('SCRAPE_CAPTIONS')).toHaveLength(1);
   });
 });
 

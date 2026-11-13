@@ -2029,6 +2029,35 @@ function addSource(frame, url, mode, headers, time = Date.now(), requestedUrl = 
 }
 
 /**
+ * Whether a stream of a frame is a piece of one whose pieces were read as such: a file not
+ * read, of the shape of one read as a piece (StreamLengths.lengthsOf counts it as one).
+ * @param {FrameHolder} frame - The frame it was detected in.
+ * @param {string} url - The stream.
+ * @return {boolean}
+ */
+function isKnownPiece(frame, url) {
+  const sources = frame.getSources();
+  const index = sources.findIndex((source) => source.url === url);
+  return index !== -1 && Lengths.lengthsOf(sources)[index] === PIECE_LENGTH;
+}
+
+/**
+ * Whether a file of a frame is another piece of a stream the frame holds a piece of already:
+ * a file of the same shape (StreamLengths.shape), as seg-15.mp4 is of seg-14.mp4.
+ * @param {FrameHolder} frame - The frame it was detected in.
+ * @param {string} url - The file.
+ * @param {string} mode - Its PlayerModes value.
+ * @return {boolean}
+ */
+function isRepeatPiece(frame, url, mode) {
+  /** @type {(m: string) => boolean} */
+  const isFile = (m) => m === PlayerModes.ACCELERATED_MP4 || m === PlayerModes.DIRECT;
+  const shape = StreamLengths.shape(url);
+  return isFile(mode) && frame.getSources().some((source) =>
+    source.url !== url && isFile(source.mode) && StreamLengths.shape(source.url) === shape);
+}
+
+/**
  * The quality lists a frame's page holds for its player's files (content.js, page-qualities.js).
  * @param {TabHolder} tab
  * @param {number} frameId
@@ -2096,6 +2125,8 @@ async function attachPageQualities(tab, sources) {
  *     script (getPageFrame).
  * @property {ReturnType<typeof setTimeout>} [openTimeout] - The wait before a stream found in
  *     it opens the player (onSourceRecieved).
+ * @property {{document: ?string, taken: Promise<void>}} [captionsScrape] - The last ask for
+ *     its page's <track> captions (onSourceRecieved): for which page, and its answer taken in.
  */
 
 /**
@@ -2837,8 +2868,12 @@ async function onSourceRecieved(details, frame, mode) {
       details.requestId !== undefined ? frame.tab.redirectOrigin(details.requestId) : null);
 
   await ensureOptions();
-  // Its length, read now: by the time a player asks for the page's streams, it is known.
-  if (frame.tab.isOn) {
+  // Its length, read now: by the time a player asks for the page's streams, it is known. Not
+  // that of a piece of a stream whose pieces were read as such (seg-15.mp4 after seg-14.mp4):
+  // lengthsOf counts it as one unread, and a pick that waits for the lengths reads it then
+  // (Lengths.settle). A page's own player fetches thousands of them in an evening, and each
+  // was a read and a header rule added and taken away.
+  if (frame.tab.isOn && !isKnownPiece(frame, url)) {
     Lengths.probe({url, mode, headers: customHeaders});
   }
 
@@ -2878,7 +2913,20 @@ async function onSourceRecieved(details, frame, mode) {
     return;
   }
 
-  takeScrapedCaptions(frame, await scrapeCaptionsTags(frame));
+  // Another piece of a stream the frame's page holds pieces of (seg-15.mp4 after seg-14.mp4):
+  // the page's <track> captions were asked for at the first, and that answer is waited for,
+  // not asked for again. Each piece made content.js walk the page and fetch every <track> file
+  // again, thousands of times in an evening. Another stream, or the next page, asks again: its
+  // page may have added tracks for it.
+  let scrape = frame.captionsScrape;
+  if (!scrape || scrape.document !== frame.documentKey || !isRepeatPiece(frame, url, mode)) {
+    scrape = {
+      document: frame.documentKey,
+      taken: scrapeCaptionsTags(frame).then((subs) => takeScrapedCaptions(frame, subs)),
+    };
+    frame.captionsScrape = scrape;
+  }
+  await scrape.taken;
 
   if (frame.tab.isOn) {
     clearTimeout(frame.openTimeout);
