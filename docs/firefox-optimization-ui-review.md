@@ -7,7 +7,7 @@ Nothing here is merged or released: two draft pull requests wait for the owner's
 | Branch | Draft PR | Ships to users |
 |---|---|---|
 | `feature/firefox-api-watch` | #674 | no (a workflow and its tool) |
-| `feature/firefox-optimization-ui-modernization` | this branch's PR | yes, once merged (a merge to main releases) |
+| `feature/firefox-optimization-ui-modernization` | #675 | yes, once merged (a merge to main releases) |
 
 ## 1. Firefox API watch (branch `feature/firefox-api-watch`)
 
