@@ -867,8 +867,14 @@ Only where its bytes come from changes, and only after FastStream's own request 
   first version kept every fragment but media fragments).
 
 Saving uses the same loader (FetchLoader, through StandardDownloader), so it takes the same way
-through the page (the owner's choice: saving allowed everywhere). Not measured end to end for a
-service-worker video yet: save-flow and save-transport passed, on ordinary files.
+through the page (the owner's choice: saving allowed everywhere). Measured end to end since
+2026-11-13 (`page-fetch.e2e.mjs`): a service-worker video and a current-cookie video, saved through
+the Save button and the name prompt, are the film byte for byte (SHA-256), their far end asked
+for through the page; a save cancelled at about a quarter says "Save cancelled!" with no
+"failed, save what there is?" question, leaves no file, and the next save is whole. Two things
+the first version of those tests ran into: a player takes over what the previous player of the
+same video loaded (the save then asked for nothing, so each save test has a video of its own),
+and Firefox's cache answered ranges an earlier test had loaded (the film is sent `no-store`).
 
 Limits, known:
 
@@ -902,7 +908,8 @@ the page" block of `FetchLoader.test.mjs`, `URLUtils.mediaIdentifier`, and
 serves (its id in the fragment, "Video not found" to anyone else), a video only the page's current
 session cookie opens (renewed by its first answer), and a second worker video at the same address
 in a cross-origin iframe, which starts from 0 and loads through that frame. Each plays, and the
-first two seek to 120 s.
+first two seek to 120 s. Then the saves above: the worker's video and the cookie's video whole,
+and a cancelled save followed by a whole one.
 
 ## Optimisation review of the whole player, 2026-11-07
 
