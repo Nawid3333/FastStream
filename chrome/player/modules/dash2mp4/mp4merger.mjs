@@ -42,7 +42,7 @@ import {SaveFile} from '../SaveFile.mjs';
  * A fragment to save, in time order (DashPlayer.saveVideo): its track (0 the video, 1 the
  * audio), and what reads its data.
  * @typedef {{track: number, fragment: import('../../players/dash/DashFragment.mjs').DashFragment,
- *   getEntry: () => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}} ZippedFragment
+ *   getEntry: (options?: {keepPinned?: boolean}) => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}} ZippedFragment
  */
 
 const VideoCodecs = ['avc1', 'avc2', 'avc3', 'avc4', 'av01', 'dav1', 'hvc1', 'hev1', 'hvt1', 'lhe1', 'dvh1', 'dvhe', 'vvc1', 'vvi1', 'vvs1', 'vvcN', 'vp08', 'vp09', 'avs3', 'j2ki', 'mjp2', 'mjpg', 'uncv'];

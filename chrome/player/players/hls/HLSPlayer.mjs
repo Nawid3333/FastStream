@@ -241,9 +241,14 @@ export default class HLSPlayer extends EventEmitter {
 
     zippedFragments.forEach((data, index) => {
       data.fragment.addReference(ReferenceTypes.SAVER);
-      data.getEntry = async () => {
+      // Let go of once read: the converter keeps a copy of its own. Not for the remuxer
+      // (keepPinned), which reads the store's own Blobs as it writes, after it read them all:
+      // freed before that, a fragment's File read nothing. Those stay pinned until the save
+      // ends (below); one the merger let go of before it gave up is pinned again.
+      data.getEntry = async ({keepPinned = false} = {}) => {
+        if (keepPinned) data.fragment.addReference(ReferenceTypes.SAVER);
         const entry = await fetcher.entry(index, () => this.client.downloadManager.getEntry(data.fragment.getContext()));
-        data.fragment.removeReference(ReferenceTypes.SAVER);
+        if (!keepPinned) data.fragment.removeReference(ReferenceTypes.SAVER);
         return entry;
       };
     });
@@ -313,10 +318,12 @@ export default class HLSPlayer extends EventEmitter {
       }
     } catch (e) {
       fetcher.cancel();
+      throw e;
+    } finally {
+      // Whatever is still pinned for the save: what it never read, what the remuxer read.
       zippedFragments.forEach((data) => {
         data.fragment.removeReference(ReferenceTypes.SAVER);
       });
-      throw e;
     }
   }
 

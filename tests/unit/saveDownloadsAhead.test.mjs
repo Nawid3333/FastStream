@@ -31,6 +31,15 @@ class FakeConverter {
       const entry = await data.getEntry();
       parts.push(new Uint8Array(await entry.getDataFromBlob()));
     }
+    if (FakeConverter.remuxes) {
+      // DASH2MP4's fallback: the merger gave up, and the remuxer reads every fragment again,
+      // keeping each one's own Blob until it has written the file.
+      for (const data of zipped) {
+        await data.getEntry({keepPinned: true});
+      }
+      await settle();
+      FakeConverter.pinnedWhileRemuxing = zipped.map((data) => !data.fragment.canFree());
+    }
     return new Blob(parts);
   }
 }
@@ -284,5 +293,29 @@ describe('saveVideo, a downloaded fragment whose stored data is gone', () => {
     gone = false;
     network.requests[0].succeed();
     expect(await output(await saving, written)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+});
+
+// The remuxer (what MP4Merger cannot join) puts every fragment's own Blob - the player's
+// store, in RAM or a File on its disk - into the inputs it reads as it writes, after it read
+// them all. Each getEntry let go of its fragment at once, so the player could free one, and
+// its File, before the remuxer read it.
+describe.each([['HLSPlayer', HLSPlayer], ['DashPlayer', DashPlayer]])('%s.saveVideo through the remuxer', (name, Player) => {
+  afterEach(() => {
+    FakeConverter.remuxes = false;
+    FakeConverter.pinnedWhileRemuxing = null;
+  });
+
+  it('keeps the fragments pinned until the save is done with them, then lets them all go', async () => {
+    FakeConverter.remuxes = true;
+    const {saving, network, frags} = startSave(Player);
+    await settle();
+    while (network.running().length) {
+      network.requests.find((r) => !r.settled).succeed();
+      await settle();
+    }
+    await saving;
+    expect(FakeConverter.pinnedWhileRemuxing).toEqual(frags.map(() => true));
+    expect(frags.filter((frag) => !frag.canFree()).map((frag) => frag.sn)).toEqual([]);
   });
 });

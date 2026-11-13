@@ -92,7 +92,7 @@ export class Remuxer extends EventEmitter {
    * @param {string|null|undefined} audioMimeType unused, as videoMimeType
    * @param {number} audioDuration in seconds; 0 when there is no separate audio
    * @param {?(ArrayBuffer|Blob)} audioInitSegment - null without one
-   * @param {Array<{track: number, getEntry: () => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}>} zippedFragments
+   * @param {Array<{track: number, getEntry: (options?: {keepPinned?: boolean}) => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}>} zippedFragments
    *     the saved fragments in order, each with what reads its data; track 0 is the video, 1 the audio
    * @return {Promise<Blob>} the MP4
    */
@@ -104,12 +104,15 @@ export class Remuxer extends EventEmitter {
       }
 
       // One Blob per track. A Blob made of Blobs only refers to them, so nothing is read
-      // into memory here; Mediabunny reads what it needs as it goes.
+      // into memory here; Mediabunny reads what it needs as it goes. They are the player's
+      // stored fragments, so the player keeps them (keepPinned) until the save is over: let
+      // go of once read, a fragment could be freed, and its File on disk deleted, before
+      // Mediabunny read it.
       const videoParts = videoDuration && videoInitSegment ? [videoInitSegment] : [];
       const audioParts = separateAudio ? [audioInitSegment] : [];
       for (const fragment of zippedFragments) {
         this.checkCancelled();
-        const blob = await (await fragment.getEntry()).getData();
+        const blob = await (await fragment.getEntry({keepPinned: true})).getData();
         (fragment.track === 0 ? videoParts : audioParts).push(blob);
       }
 

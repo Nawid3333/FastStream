@@ -115,7 +115,7 @@ export function samplesFromMoof(moof) {
  * A fragment to save, of the level (track 0) or the audio rendition (1), with what reads its
  * data (HLSPlayer.saveVideo).
  * @typedef {{track: number, fragment: import('../../players/hls/HLSFragment.mjs').HLSFragment,
- *   getEntry: () => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}} ZippedFragment
+ *   getEntry: (options?: {keepPinned?: boolean}) => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}} ZippedFragment
  */
 
 export class HLS2MP4 extends EventEmitter {
