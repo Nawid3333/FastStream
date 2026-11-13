@@ -101,11 +101,11 @@ lock() {
 
 # The workflow's env: blocks, as GitHub would set them.
 export GH_TOKEN=stub
-export GH_REPO='Nawid3333/FastStream' OWNER='Nawid3333' PREFIX='Security alert: '
-export RUN_URL='https://github.com/Nawid3333/FastStream/actions/runs/1'
+export GH_REPO='Nawid3333/FastStream-for-Firefox' OWNER='Nawid3333' PREFIX='Security alert: '
+export RUN_URL='https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/1'
 export TITLE='Security alerts workflow failed'
 export BRANCH=security/overrides
-base=https://github.com/Nawid3333/FastStream/security/dependabot
+base=https://github.com/Nawid3333/FastStream-for-Firefox/security/dependabot
 
 export NOW=1790000000              # 2026-09-21T14:13:20Z
 old=2026-09-20T00:00:00Z           # a day and a half before NOW
@@ -118,7 +118,7 @@ edge_out=2026-09-21T08:13:21Z      # 1 second under 6 hours before NOW
 al() {
   jq -nc --argjson n "$1" --arg p "$2" --arg c "$3" --arg m "${4:-pnpm-lock.yaml}" --arg f "${5-1.2.3}" \
     --arg s "${6:-A flaw in $2}" \
-    '{number: $n, state: "open", created_at: $c, html_url: "https://github.com/Nawid3333/FastStream/security/dependabot/\($n)",
+    '{number: $n, state: "open", created_at: $c, html_url: "https://github.com/Nawid3333/FastStream-for-Firefox/security/dependabot/\($n)",
       dependency: {package: {ecosystem: "npm", name: $p}, manifest_path: $m, scope: "development"},
       security_advisory: {severity: "high", summary: $s},
       security_vulnerability: {vulnerable_version_range: "< 1.2.3",
@@ -478,7 +478,7 @@ check 'succeeds' test "$status" -eq 0
 check 'opens "Security alerts workflow failed"' contains "$LOG" \
   'CREATE [--title] [Security alerts workflow failed]'
 check 'names the run URL' contains "$LOG" \
-  'security-alerts.yml failed: https://github.com/Nawid3333/FastStream/actions/runs/1'
+  'security-alerts.yml failed: https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/1'
 
 scenario 's37 failure report, already open -> a comment on it' "$report_step" \
   FX_OPEN='[{"number":3,"title":"Other"},{"number":12,"title":"Security alerts workflow failed"}]'
@@ -486,7 +486,7 @@ check 'succeeds' test "$status" -eq 0
 check 'opens nothing' lacks "$LOG" 'CREATE'
 check 'comments on the open one' contains "$LOG" 'COMMENT [12] [--body-file]'
 check 'the comment links this run' contains "$LOG" \
-  'Failed again: https://github.com/Nawid3333/FastStream/actions/runs/1'
+  'Failed again: https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/1'
 
 scenario 's38 failure report, the open issues unreadable -> opens one anyway' "$report_step" FX_OPEN='not json'
 check 'succeeds' test "$status" -eq 0

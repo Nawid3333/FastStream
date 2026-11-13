@@ -10,7 +10,7 @@ import {checkUpdatesJson, checkXpi, download, geckoIdFromBuild, readZip, Unreach
 // pin what it calls broken. The real v1.3.82.37 passed it (checked 2026-09-28).
 
 const ID = 'thanatus@Nawid';
-const REPO = 'Nawid3333/FastStream';
+const REPO = 'Nawid3333/FastStream-for-Firefox';
 
 /**
  * A zip archive, deflated or stored, with sizes and offsets a reader can rely on (the CRC

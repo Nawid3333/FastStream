@@ -76,8 +76,8 @@ EOF
 fi
 
 export GH_TOKEN=stub GITHUB_SERVER_URL='https://github.com'
-export GH_REPO='Nawid3333/FastStream' OWNER='Nawid3333' PREFIX='Flaky e2e specs: week to '
-RUN_URL='https://github.com/Nawid3333/FastStream/actions/runs/1'
+export GH_REPO='Nawid3333/FastStream-for-Firefox' OWNER='Nawid3333' PREFIX='Flaky e2e specs: week to '
+RUN_URL='https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/1'
 TITLE='Flaky specs workflow failed'
 export -n RUN_URL TITLE
 check "the job's env: gives the prefix" contains "$WORKFLOWS_DIR/flaky-specs.yml" "PREFIX: '$PREFIX'"
@@ -150,9 +150,9 @@ check "opens \"${PREFIX}$today\"" contains "$LOG" \
   "CREATE [--title] [${PREFIX}$today]"
 check 'its text' contains "$LOG" "E2e spec files that failed once and were run again in the CI runs of the 7 days to $today"
 check 'download-names: run again 3 times, passed 3, failed twice 0, both OSes, both branches, 3 runs' contains "$LOG" \
-  '| `tests/e2e/specs/download-names.e2e.mjs` | 3 | 3 | 0 | ext-amo (linux), ext-amo (win32), pbm-github (win32) | claude/y, main | [501](https://github.com/Nawid3333/FastStream/actions/runs/501) [503](https://github.com/Nawid3333/FastStream/actions/runs/503) |'
+  '| `tests/e2e/specs/download-names.e2e.mjs` | 3 | 3 | 0 | ext-amo (linux), ext-amo (win32), pbm-github (win32) | claude/y, main | [501](https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/501) [503](https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/503) |'
 check 'save-fmp4: run again once, failed twice once' contains "$LOG" \
-  '| `tests/e2e/specs/save-fmp4.e2e.mjs` | 1 | 0 | 1 | web (win32) | main | [501](https://github.com/Nawid3333/FastStream/actions/runs/501) |'
+  '| `tests/e2e/specs/save-fmp4.e2e.mjs` | 1 | 0 | 1 | web (win32) | main | [501](https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/501) |'
 check 'the most retried spec comes first' test "$(grep -n 'download-names' "$LOG" | head -1 | cut -d: -f1)" -lt "$(grep -n 'save-fmp4' "$LOG" | head -1 | cut -d: -f1)"
 check 'skips the half-written line' lacks "$LOG" '"sp'
 check 'opens no list from before the week' lacks "$LOG" 'ZIP [12]'
@@ -201,7 +201,7 @@ zip_list 11 '{"suite":{"x":1},"spec":"tests/e2e/specs/a|`b`\n@Nawid3333.e2e.mjs"
 run "s4b a record whose texts would break the table -> one row, only a path's characters" "$fold_step"
 check 'succeeds' test "$status" -eq 0
 check 'the row, each odd character an underscore' contains "$LOG" \
-  '| `tests/e2e/specs/a__b___Nawid3333.e2e.mjs` | 1 | 1 | 0 | __x__1_ (_img_src_x_) | claude/a_b | [501](https://github.com/Nawid3333/FastStream/actions/runs/501) |'
+  '| `tests/e2e/specs/a__b___Nawid3333.e2e.mjs` | 1 | 1 | 0 | __x__1_ (_img_src_x_) | claude/a_b | [501](https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/501) |'
 check 'no mention from the record' lacks "$LOG" '@Nawid3333.e2e'
 
 fixtures "[$(artifact 11 "$recent" 501 main)]" '[]' '[]'
@@ -215,7 +215,7 @@ check 'succeeds' test "$status" -eq 0
 check 'opens "Flaky specs workflow failed"' contains "$LOG" \
   'CREATE [--title] [Flaky specs workflow failed]'
 check 'names the run URL' contains "$LOG" \
-  'flaky-specs.yml failed: https://github.com/Nawid3333/FastStream/actions/runs/1'
+  'flaky-specs.yml failed: https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/1'
 
 fixtures '[]' '[]' '[]' '[{"number":3,"title":"Other"},{"number":12,"title":"Flaky specs workflow failed"}]'
 run 's7 failure report, already open -> a comment on it' "$report_step"

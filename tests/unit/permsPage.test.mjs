@@ -33,7 +33,7 @@ describe('The permissions page', () => {
   it('links to this repository\'s code, not to upstream\'s', () => {
     const links = [...html.matchAll(/href="(https:\/\/github\.com\/[^"]+)"/g)].map((match) => match[1]);
     expect(links.length).toBeGreaterThan(5);
-    expect(links.filter((link) => !link.startsWith('https://github.com/Nawid3333/FastStream'))).toEqual([]);
+    expect(links.filter((link) => !link.startsWith('https://github.com/Nawid3333/FastStream-for-Firefox'))).toEqual([]);
     // Line numbers drift with every change; the files do not.
     expect(links.filter((link) => link.includes('#L'))).toEqual([]);
   });
