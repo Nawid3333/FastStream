@@ -129,7 +129,7 @@ export class UrlMatchList {
         return null;
       }
     } else {
-      urlStr = urlStr.toLowerCase();
+      urlStr = UrlMatchList.punycodeHost(urlStr.toLowerCase());
       if (urlStr.length === 0) {
         return null;
       }
@@ -137,6 +137,25 @@ export class UrlMatchList {
     }
 
     return entry;
+  }
+
+  /**
+   * A plain entry with its site in punycode, as Firefox gives a page's address: typed as
+   * `bücher.example`, the entry matched no page, which came as https://xn--bcher-kva.example/.
+   * A site in ASCII, or one that does not parse, stays as written, and so does the rest.
+   * @param {string} entry - The entry, lowercased.
+   * @return {string} It, its site in punycode.
+   */
+  static punycodeHost(entry) {
+    const parts = /^([a-z][a-z0-9+.-]*:\/\/)?([^/?#:@]*)([\s\S]*)$/.exec(entry);
+    if (!parts || !/[\u0080-￿]/.test(parts[2])) {
+      return entry;
+    }
+    try {
+      return (parts[1] || '') + new URL('http://' + parts[2]).hostname + parts[3];
+    } catch (e) {
+      return entry;
+    }
   }
 
   /**
