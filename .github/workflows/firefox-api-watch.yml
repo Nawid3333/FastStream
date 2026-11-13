@@ -1,0 +1,133 @@
+name: Firefox API watch
+
+# What each new Firefox Stable release changed that could break or improve FastStream, for the
+# owner's review: MDN's notes for developers, browser-compat-data, Bugzilla and the add-ons blog,
+# matched against what the extension's code uses (tools/firefox-api-watch.mjs, its topics in
+# tools/firefox-api-watch.topics.json).
+#
+# One review issue, "Firefox API Watch: starting with Firefox N":
+#   - a release with findings and no open issue opens one; with one open, it is a comment on it;
+#   - the watcher never edits or deletes what it posted: ticked boxes and notes stay;
+#   - closing the issue means "reviewed": it is never touched again, and what it lists is never
+#     listed again; the next release with findings opens a new issue;
+#   - a release with nothing relevant posts nothing; the run's summary says it was reviewed.
+# What was reported is read back from hidden markers in the bot's own posts, open and closed
+# issues alike. Nothing is committed: a push to main releases.
+#
+# Once a day it reads the current Stable version (product-details). A release is reviewed once
+# its MDN notes are no longer a work in progress (or 10 days after it shipped); a source that is
+# down leaves it for the next run. Once every release from the current one back was reviewed, the
+# cache entry firefox-api-watch-<version> lets the following runs stop after the version check,
+# until the next release; losing that entry costs one more review, never a duplicate. The run
+# fails (and opens "Firefox API watch failed") when a source answers wrongly or a release could
+# not be reviewed for 10 days.
+#
+# By hand: run it with dry_run to see what it would post, or with "from" to review older
+# releases again (what was posted before is not repeated).
+
+on:
+  schedule:
+    - cron: '40 7 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only show what would be posted'
+        type: boolean
+        default: false
+      from:
+        description: 'Review from this Firefox version on (empty: the usual window)'
+        type: string
+        default: ''
+
+concurrency:
+  group: firefox-api-watch
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  watch:
+    name: Review new Firefox releases
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read  # the extension's code, to see what it uses
+      issues: write   # the review issue and the failure issue
+    env:
+      GH_REPO: ${{ github.repository }}
+    steps:
+      # The token is not kept in .git/config: no later step needs it there.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      # The newest entry, whichever version it was saved for (the key never matches exactly).
+      - name: Restore the last reviewed version
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/firefox-api-watch
+          key: firefox-api-watch-${{ github.run_id }}
+          restore-keys: firefox-api-watch-
+
+      - name: Review the new Firefox releases
+        id: review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          FROM: ${{ inputs.from }}
+        run: |
+          set -euo pipefail
+          args=(--memo "$RUNNER_TEMP/firefox-api-watch")
+          if [ "${DRY_RUN:-false}" = true ]; then
+            args+=(--dry-run)
+          fi
+          if [ -n "${FROM:-}" ]; then
+            args+=(--from "$FROM")
+          fi
+          node tools/firefox-api-watch.mjs "${args[@]}"
+
+      - name: Remember the reviewed version
+        if: success() && steps.review.outputs.memo_changed == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/firefox-api-watch
+          key: firefox-api-watch-${{ steps.review.outputs.memo }}
+
+      # A run that got this far succeeded, so an earlier failure has cleared. By the exact
+      # title in the list of open issues, as everywhere here: the search index lags.
+      - name: Close the failure issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: 'Firefox API watch failed'
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh issue list --state open --limit 200 --json number,title \
+            --jq '.[] | select(.title == env.TITLE) | .number' > "$RUNNER_TEMP/failed-issues.txt"
+          while read -r issue; do
+            gh issue close "$issue" --comment "The Firefox API watch ran cleanly again: $RUN_URL"
+          done < "$RUNNER_TEMP/failed-issues.txt"
+
+      # One issue by title, commented on when it fails again, so daily failures do not pile up.
+      - name: Notify on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: 'Firefox API watch failed'
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          # When the issues cannot be read, a second issue is better than none.
+          EXISTING=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || EXISTING=''
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "Failed again: $RUN_URL"
+          else
+            gh issue create --title "$TITLE" \
+              --body "The Firefox API watch failed; the run's summary says why. Run: $RUN_URL"
+          fi
