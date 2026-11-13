@@ -24,6 +24,7 @@ every agent session). Where a note names a section in quotes, this is where it i
 | AMO lint (firefox-amo, current: 0 errors / 3 warnings, needs `--self-hosted`) | [build-and-release.md](build-and-release.md) |
 | Baseline verification | [build-and-release.md](build-and-release.md) |
 | Workflows (reworked 2026-09-25) | [workflows.md](workflows.md) |
+| Firefox API watch (2026-11-13) | [workflows.md](workflows.md) |
 | Vendored libraries | [libraries.md](libraries.md) |
 | The binary blobs are identifiable published artifacts | [libraries.md](libraries.md) |
 | Type checking | [type-checking.md](type-checking.md) |
