@@ -244,6 +244,20 @@ repeat request for the identical URL can be satisfied out of Firefox's HTTP
 cache with no network traffic, which would leave nothing for `onHeadersReceived`
 to redetect.
 
+**One latch for every automatic hand-off (2026-11-13, a review).** The toolbar's
+MPV on a page with no player up (`startMpv`) and a start by address (the MPV
+allowlist's, `startWithTrackedLater`) send through `openMpvWithSources`, which
+had its own copy of the allowlist's hand-off and re-armed the once-per-page latch
+(`tab.mpvAutoOpened`) after every failure, a DRM refusal too. Since #606
+`autoOpenInMpv` keeps the latch after one (docs/notes/player.md, "A copy-protected
+video stays in the page's player"), but on a copy-protected video the toolbar's
+MPV was refused with "!", and then the page's next stream (an ad, or a piece of
+the film) went to mpv, cleared the "!" and paused the page. `openMpvWithSources`
+now sends through `autoOpenInMpv`: one latch, and a refusal does the same to it on
+every path. The MPV key's play (`sendPlayedToMpv`) re-arms after a DRM refusal on
+purpose: kept, a repeat play within `MpvPlayRepeatMs` only paused the page, whose
+own player is the one that plays it. `backgroundMpv.test.mjs`.
+
 **A player whose page reloaded while it started (2026-09-30).** The other end of
 that window: the reload (`tab.reset()` + `chrome.tabs.reload`) can come while the
 player iframe is still starting. Its `beforeunload` (which sends `FRAME_REMOVED`)
