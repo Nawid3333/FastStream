@@ -314,8 +314,13 @@ describe.each([['HLSPlayer', HLSPlayer], ['DashPlayer', DashPlayer]])('%s.saveVi
       network.requests.find((r) => !r.settled).succeed();
       await settle();
     }
-    await saving;
+    const result = await saving;
     expect(FakeConverter.pinnedWhileRemuxing).toEqual(frags.map(() => true));
     expect(frags.filter((frag) => !frag.canFree()).map((frag) => frag.sn)).toEqual([]);
+
+    // SaveManager's word that the download is over reaches the converter's store.
+    const release = vi.spyOn(FakeConverter.prototype, 'release');
+    result.release(true);
+    expect(release).toHaveBeenCalledWith(true);
   });
 });

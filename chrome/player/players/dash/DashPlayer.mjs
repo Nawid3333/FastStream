@@ -530,7 +530,7 @@ export default class DashPlayer extends EventEmitter {
    * @param {{filestream?: WritableStream<Uint8Array>, partialSave: boolean,
    *   registerCancel: (cancel: () => void) => void, onProgress: (progress: number) => void}} options -
    *   SaveManager's: no stream for a DASH save (canSave says nothing of streaming).
-   * @return {Promise<{extension: string, blob: Blob, release: () => void}>}
+   * @return {Promise<{extension: string, blob: Blob, release: (removeFiles?: boolean) => void}>}
    */
   async saveVideo(options) {
     // A DASH player's store holds DashFragments.
@@ -616,7 +616,7 @@ export default class DashPlayer extends EventEmitter {
         extension: 'mp4',
         blob: blob,
         // The file reads from the converter's blob store: closed once nothing reads it.
-        release: () => dash2mp4.release(),
+        release: (/** @type {boolean|undefined} */ removeFiles) => dash2mp4.release(removeFiles),
       };
     } catch (e) {
       fetcher.cancel();

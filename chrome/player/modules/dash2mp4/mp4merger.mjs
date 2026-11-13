@@ -483,7 +483,7 @@ export class MP4Merger extends EventEmitter {
     // After a save that worked, the file convert() returned reads from the blob store:
     // it stays until release().
     if (immediate) {
-      this.release();
+      this.release(/* removeFiles */ true);
     }
   }
 
@@ -492,12 +492,14 @@ export class MP4Merger extends EventEmitter {
    * again (SaveManager: its URL dropped and the download of it over). It was closed two
    * minutes after the save, and a closed OPFS session is deleted by the next player or
    * save that starts: a longer download, or the same file saved again, lost it.
+   * @param {boolean} [removeFiles] - Its files on disk go too: Firefox said every download of
+   *   the file is over, or the save failed. Otherwise they stay for the next prune.
    */
-  release() {
+  release(removeFiles = false) {
     const blobManager = this.blobManager;
     // The last use of it: nothing reads the store once it is released.
     this.blobManager = /** @type {any} */ (null);
-    blobManager?.close();
+    blobManager?.close(removeFiles);
   }
 }
 

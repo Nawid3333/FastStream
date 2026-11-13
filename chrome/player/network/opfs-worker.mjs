@@ -254,7 +254,9 @@ async function destroy() {
   // file may still be mid-download from the main thread (the File was handed
   // to chrome.downloads). Once the heartbeat stops, prune() reaps this
   // directory on the next FSBlob init - same staleness semantics as before,
-  // just deferred so in-flight downloads can finish.
+  // just deferred so in-flight downloads can finish. A save whose download
+  // Firefox said is over deletes it from the main thread once this worker
+  // ended (OPFSManager.close(true)).
 }
 
 /**

@@ -219,17 +219,18 @@ export class Remuxer extends EventEmitter {
     }
 
     if (immediate) {
-      this.release();
+      this.release(/* removeFiles */ true);
     }
   }
 
   /**
    * Closes the blob store the saved file's pieces are in, once nothing will read the file
    * again (SaveManager: its URL dropped and the download of it over). See MP4Merger's.
+   * @param {boolean} [removeFiles] - Its files on disk go too (MP4Merger.release).
    */
-  release() {
+  release(removeFiles = false) {
     const blobManager = this.blobManager;
     this.blobManager = null;
-    blobManager?.close();
+    blobManager?.close(removeFiles);
   }
 }

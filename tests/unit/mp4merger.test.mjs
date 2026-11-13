@@ -27,8 +27,9 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
     getBlob(id) {
       return this.blobs.get(id);
     }
-    close() {
+    close(removeFiles) {
       this.closed = true;
+      this.removedFiles = !!removeFiles;
     }
   },
 }));
@@ -171,6 +172,18 @@ describe('MP4Merger: the blob store of a save', () => {
     expect(store.closed).toBe(false);
     merger.release();
     expect(store.closed).toBe(true);
+    // Its files stay: SaveManager does not know that the download is over.
+    expect(store.removedFiles).toBe(false);
+  });
+
+  it('deletes its files with the store when released after the download is over', async () => {
+    const track = videoTrack({timescale: 90000});
+    const data = fragment(track, 1, 0, [{duration: 3000, cts: 0, key: true}]);
+    const merger = new MP4Merger();
+    await merger.convert(3000 / 90000, initSegment(track), 0, null,
+        [{track: 0, getEntry: async () => ({getDataFromBlob: async () => data.arrayBuffer()})}]);
+    merger.release(true);
+    expect(stores.at(-1).removedFiles).toBe(true);
   });
 
   it('closes the store at once when the save fails', async () => {
@@ -180,6 +193,8 @@ describe('MP4Merger: the blob store of a save', () => {
     await expect(merger.convert(1, initSegment(track), 0, null, [broken])).rejects.toThrow();
 
     expect(stores.at(-1).closed).toBe(true);
+    // Nothing will read them.
+    expect(stores.at(-1).removedFiles).toBe(true);
   });
 });
 

@@ -80,18 +80,19 @@ function createWriteStreamBlob(filename, opts, size) {
  * deleted by the next prune (any player or save starting, 10 s after its last heartbeat):
  * closed on a fixed two-minute timer, a longer download (a big video to a slow disk) lost
  * its file midway, with no message. Never sooner than those two minutes, which is all a
- * download without an id to follow (a link click) has.
+ * download without an id to follow (a link click) has. Once Firefox said the download is
+ * over, the file on disk goes with the store; it stayed until another player started.
  * @param {FSBlob} blobManager
  * @param {string} url - The blob: URL being downloaded.
  * @param {*} download - What Utils.downloadURL resolved with.
  * @return {Promise<void>} Not awaited: the save is done before its download is.
  */
 async function closeWhenDownloaded(blobManager, url, download) {
-  await Promise.all([
+  const [over] = await Promise.all([
     Utils.revokeWhenDownloaded(url, download),
     Utils.asyncTimeout(120000),
   ]);
-  blobManager.close();
+  blobManager.close(over);
 }
 
 /**
@@ -134,7 +135,7 @@ function createOPFSSink(filename, blobManager) {
           URL.revokeObjectURL(url);
         }
         await opfs.saveAbort(identifier).catch(() => {});
-        blobManager.close();
+        blobManager.close(/* removeFiles */ true);
         throw e;
       }
       // chrome.downloads resolves before Firefox has read the blob URL: kept until the
@@ -144,7 +145,7 @@ function createOPFSSink(filename, blobManager) {
     async abort() {
       await opfsWriterReady.catch(() => {});
       await opfs.saveAbort(identifier).catch(() => {});
-      blobManager.close();
+      blobManager.close(/* removeFiles */ true);
     },
   };
 }

@@ -770,3 +770,56 @@ describe('OPFSManager.setup', () => {
     }
   });
 });
+
+// A saved video's copy on disk stayed after its download until another FastStream player
+// started (a prune): days, for someone who saves and closes the tab. A save's store, once
+// nothing will read its file again (its download over, or the save failed), deletes its
+// session directory as it closes.
+describe('OPFSManager.close, a save\'s session', () => {
+  /**
+   * A manager whose session holds a finished save's file.
+   * @return {Promise<{root: FakeDir, manager: OPFSManager}>}
+   */
+  async function withSavedFile() {
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    await manager.saveBegin('save');
+    await manager.saveAppend('save', new Uint8Array([1, 2, 3]));
+    await manager.saveEnd('save');
+    expect(sessionOf(root, manager).children.size).toBe(2);
+    return {root, manager};
+  }
+
+  it('deletes the session directory, once its worker ended, when asked to', async () => {
+    const {root, manager} = await withSavedFile();
+    const worker = manager.worker;
+    await manager.close(true);
+    expect(worker.terminate).toHaveBeenCalled();
+    expect(root.children.get('fsblob').children.has(manager.sessionName)).toBe(false);
+  });
+
+  it('keeps it on a plain close: a download may still read the file', async () => {
+    const {root, manager} = await withSavedFile();
+    await manager.close();
+    expect(sessionOf(root, manager).children.size).toBe(2);
+  });
+
+  it('deletes it after a worker that is gone already, and minds no directory left to delete', async () => {
+    const {root, manager} = await withSavedFile();
+    manager.worker.terminate();
+    manager.worker = null;
+    await manager.close(true);
+    expect(root.children.get('fsblob').children.has(manager.sessionName)).toBe(false);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(manager.close(true)).resolves.toBeUndefined();
+  });
+
+  it('is what FSBlob.close(true) does', async () => {
+    const store = new FSBlob({memoryOnly: true});
+    store.opfsManager = {close: vi.fn(async () => {})};
+    await store.close(true);
+    expect(store.opfsManager.close).toHaveBeenCalledWith(true);
+    await store.close();
+    expect(store.opfsManager.close).toHaveBeenLastCalledWith(false);
+  });
+});

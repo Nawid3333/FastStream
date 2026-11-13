@@ -31,8 +31,9 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
     getBlob(id) {
       return this.blobs.get(id);
     }
-    close() {
+    close(removeFiles) {
       this.closed = true;
+      this.removedFiles = !!removeFiles;
     }
   },
 }));
