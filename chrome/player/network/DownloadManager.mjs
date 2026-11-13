@@ -10,6 +10,18 @@ import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 // How many of a hand-off's disk files are moved at a time (DownloadManager.adoptDiskFiles).
 const AdoptAtOnce = 8;
 
+/**
+ * Whether a running download is at least half in, by its downloader's stats (FetchLoader's, as
+ * the body comes): cancelled, it would come again from its first byte. One whose size the
+ * server did not tell (no Content-Length) never is.
+ * @param {?StandardDownloader} downloader
+ * @return {boolean}
+ */
+function halfDone(downloader) {
+  const stats = downloader?.stats;
+  return !!stats && stats.total > 0 && stats.loaded / stats.total >= 0.5;
+}
+
 /** @typedef {import('./DownloadEntry.mjs').DownloadRequest} DownloadRequest */
 /**
  * A file an earlier player of this video left on the disk, taken back (adopt): its entry, its
@@ -807,9 +819,7 @@ export class DownloadManager {
       }
       for (const downloader of this.downloaders.slice()) {
         const entry = downloader.entry;
-        if (!entry || downloader.delivering || !cancellable(entry)) continue;
-        const stats = downloader.stats;
-        if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) continue;
+        if (!entry || downloader.delivering || !cancellable(entry) || halfDone(downloader)) continue;
         entry.abort();
       }
     }
@@ -841,9 +851,7 @@ export class DownloadManager {
     }
     if (entry.status !== DownloadStatus.DOWNLOAD_INITIATED) return false;
     const downloader = entry.downloader;
-    if (downloader?.delivering) return false;
-    const stats = downloader?.stats;
-    if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) return false;
+    if (downloader?.delivering || halfDone(downloader)) return false;
     entry.abort();
     return true;
   }
