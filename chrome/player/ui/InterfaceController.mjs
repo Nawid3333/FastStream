@@ -1296,15 +1296,20 @@ export class InterfaceController {
     });
   }
 
-  /** Ends a carried fullscreen: the page and the window as they were. */
+  /**
+   * Ends a carried fullscreen: the page and the window as they were.
+   * @return {boolean} Whether this player had one to end (the background ends one this
+   *   player never took over, as after a reload in its frame).
+   */
   exitCarriedFullscreen() {
-    if (!this.state.carriedFullscreen) return;
+    if (!this.state.carriedFullscreen) return false;
     this.state.carriedFullscreen = false;
     this.toggleWindowedFullscreen(false);
     /** @type {HTMLElement} */ (DOMElements.fullscreen).classList.remove('out');
     chrome.runtime.sendMessage({type: MessageTypes.REQUEST_WINDOW_FULLSCREEN, force: false}, () => {
       void chrome.runtime.lastError;
     });
+    return true;
   }
 
   /**

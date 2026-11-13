@@ -378,6 +378,9 @@ export class TabHolder {
     // How the autoplay next going on in the tab goes on (background.mjs), null when none.
     /** @type {?import('./background.mjs').Continuation} */
     this.continuationOptions = null;
+    // Whether the tab went on to the page the continuation is for (background.mjs
+    // tabs.onUpdated): a page after that one drops it.
+    this.continuationArrived = false;
     // regexMatched/mpvMatched are deliberately NOT cleared here: the
     // leave-a-site detection in the onUpdated handler relies on them
     // surviving hostname changes (upstream semantics for regexMatched).

@@ -593,8 +593,14 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     const url = new URL(changeInfo.url);
     const oldURL = tab.url ? new URL(tab.url) : null;
     if (oldURL && oldURL.hostname !== url.hostname) {
+      // The next episode's instructions go along to the page FastStream went to by itself,
+      // on another site too: the reset dropped them, and that episode played with no
+      // autoplay and gave the fullscreen back. MPV's (mpvNext) end their own way (MpvMode).
+      const next = tab.continuationOptions && !tab.continuationOptions.mpvNext && !tab.continuationArrived ?
+        tab.continuationOptions : null;
       // Keeps the new site's page when it named itself first (TabHolder.resetForNewSite).
       tab.resetForNewSite(changeInfo.url);
+      tab.continuationOptions = next;
       // A different site is a fresh decision. mpvMatched is what stops the
       // allowlist from re-arming MPV mode after the user switched it off, so
       // it has to be dropped here or MPV stays off for the rest of the tab's
@@ -624,6 +630,19 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
           tab.carryAwaited = false;
           tab.carriedFullscreenFrameId = null;
           restoreWindowState(tab, tabobj.windowId);
+        }
+      }
+      // The next episode's instructions (autoplay, fullscreen, no remembered place) are for
+      // the page FastStream went to by itself, the first after its click, and only a player
+      // there takes them (sendSources). A page after that one is the user's own: they stayed
+      // on the tab, and the next video opened in it, minutes later, took them (a review,
+      // 2026-11-13). MPV's (mpvNext) end their own way (MpvMode).
+      if (tab.continuationOptions && !tab.continuationOptions.mpvNext) {
+        if (tab.continuationArrived) {
+          tab.continuationOptions = null;
+          tab.continuationArrived = false;
+        } else {
+          tab.continuationArrived = true;
         }
       }
       // The auto-open latch is per page, not per tab. The reset above only runs on
@@ -1015,6 +1034,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === MessageTypes.FRAME_REMOVED) {
     const removed = msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame;
     const wasPlaying = !!removed && tab.playingPlayers.delete(removed.frameId);
+    if (removed) releaseOverlayGuards(tab, removed);
     tab.forgetRemovedFrame(removed, msg.document);
     if (removed && removed.frameId in tab.playerPageFrames) {
       delete tab.playerPageFrames[removed.frameId];
@@ -1226,15 +1246,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === MessageTypes.EXIT_CARRIED_FULLSCREEN) {
     // Escape in the page: the player that carried the fullscreen ends it. One that never
     // took it over (an error page, no player there) leaves it to this background.
-    const playerFrameId = frame.tab.carriedFullscreenFrameId;
-    if (frame.tab.carryAwaited || typeof playerFrameId !== 'number') {
-      frame.tab.carryAwaited = false;
-      frame.tab.carriedFullscreenFrameId = null;
-      tellPageCarried(frame.tab, false);
-      chrome.tabs.get(frame.tab.tabId).then((t) => restoreWindowState(frame.tab, t.windowId), () => {});
+    const tab = frame.tab;
+    const playerFrameId = tab.carriedFullscreenFrameId;
+    const endHere = () => {
+      tab.carryAwaited = false;
+      tab.carriedFullscreenFrameId = null;
+      tellPageCarried(tab, false);
+      chrome.tabs.get(tab.tabId).then((t) => restoreWindowState(tab, t.windowId), () => {});
+    };
+    if (tab.carryAwaited || typeof playerFrameId !== 'number') {
+      endHere();
     } else {
-      chrome.tabs.sendMessage(frame.tab.tabId, {type: MessageTypes.EXIT_CARRIED_FULLSCREEN}, {frameId: playerFrameId}, () => {
-        void chrome.runtime.lastError;
+      // A player whose frame went (taken out of the page, its hoster's page gone) answers
+      // nothing, and a new one in its frame (a reload) false: neither ends it, and the window
+      // stayed fullscreen with Escape doing nothing (a review, 2026-11-13). Ended here then.
+      chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.EXIT_CARRIED_FULLSCREEN}, {frameId: playerFrameId}, (ended) => {
+        if (chrome.runtime.lastError || ended !== true) endHere();
       });
     }
     return;
@@ -1261,6 +1288,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         BackgroundUtils.checkMessageError('playlist_navigation');
         if (response === 'clicked') {
           tab.continuationOptions = msg.continuationOptions;
+          // Not on its page yet: the navigation the click started comes next.
+          tab.continuationArrived = false;
           if (msg.continuationOptions?.autoPlay) watchNextEpisodeArrives(tab, msg.continuationOptions, 'player');
         }
         sendResponse(response);
@@ -1705,6 +1734,35 @@ function restorePlayerFrame(tab, frame, sender) {
   if (typeof pageFrameId !== 'number') return;
   frame.isPlayer = true;
   frame.pageFrame = tab.getFrameOrCreate(pageFrameId);
+}
+
+/**
+ * A frame that goes with a player in it, or that is one: each frame above it, asked IS_FULL
+ * as the player opened, guards the iframe on the way down (content.js, overlay-guard.js), and
+ * is told to let go - unless another player still lives under that iframe. Only the leaving of
+ * the page that held the player did that before: an embed whose own page went elsewhere, or
+ * took its player out, kept the page around it hiding its own menu over the embed, and
+ * checking it every second (a review, 2026-11-13).
+ * @param {TabHolder} tab
+ * @param {FrameHolder} removed
+ */
+function releaseOverlayGuards(tab, removed) {
+  /** @param {FrameHolder} frame @param {FrameHolder} above */
+  const under = (frame, above) => {
+    for (let f = /** @type {?FrameHolder} */ (frame); f; f = f.parent) {
+      if (f === above) return true;
+    }
+    return false;
+  };
+  const players = [...tab.frames.values()].filter((f) => f.isPlayer);
+  if (!players.some((f) => under(f, removed))) return;
+  for (let child = removed; child.parent; child = child.parent) {
+    if (players.some((f) => under(f, child) && !under(f, removed))) return;
+    chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.RELEASE_OVERLAY_GUARD, frameId: child.frameId},
+        {frameId: child.parent.frameId}, () => {
+          void chrome.runtime.lastError;
+        });
+  }
 }
 
 /**

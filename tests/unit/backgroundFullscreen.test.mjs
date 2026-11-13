@@ -56,10 +56,29 @@ describe('a fullscreen carried over to the next episode', () => {
   });
 
   it('ends it through the player that carried it when Escape is pressed in the page', async () => {
-    await playerInPage();
+    // The player ends it (InterfaceController.exitCarriedFullscreen answers true) and asks
+    // for the window back itself.
+    await playerInPage({onTabMessage: ({message}) => (message.type === 'EXIT_CARRIED_FULLSCREEN' ? true : undefined)});
     await carry(true);
     await bg.message({type: 'EXIT_CARRIED_FULLSCREEN'}, {tabId: 1, frameId: 0});
+    await bg.wait(50);
     expect(bg.sent('EXIT_CARRIED_FULLSCREEN').map((m) => m.frameId)).toEqual([5]);
+    expect(states()).toEqual(['fullscreen']);
+  });
+
+  it('ends it in the background when the player that carried it is gone or never took it over', async () => {
+    // A review (2026-11-13): its frame taken out of the page, or a new player loaded in it,
+    // and Escape in the page left the window fullscreen for good.
+    for (const answer of [undefined, false]) {
+      await playerInPage({onTabMessage: ({message}) => (message.type === 'EXIT_CARRIED_FULLSCREEN' ? answer : undefined)});
+      await carry(true);
+      await bg.message({type: 'EXIT_CARRIED_FULLSCREEN'}, {tabId: 1, frameId: 0});
+      await bg.wait(50);
+      expect(states()).toEqual(['fullscreen', 'maximized']);
+      expect(pageTold()).toEqual([true, false]);
+      bg.unload();
+      bg = null;
+    }
   });
 
   it('keeps it into the next episode, and gives the window back on a page the user went to', async () => {
@@ -94,6 +113,47 @@ describe('a fullscreen carried over to the next episode', () => {
     expect(pageTold()).toEqual([true, false]);
     // No player of the page before was asked: its frame went with it.
     expect(bg.sent('EXIT_CARRIED_FULLSCREEN')).toEqual([]);
+  });
+
+  it('hands the next episode\'s instructions to its player, and to no player on a later page', async () => {
+    // A review (2026-11-13): the next page got no player (a failed hoster), the user went on in
+    // the same tab, and the next video opened there, minutes later, was made fullscreen, played
+    // by itself and skipped its remembered place: the instructions stayed on the tab until some
+    // player took them.
+    const sourcesTo = async (frameId, opener) => {
+      await bg.message({type: 'PLAYER_LOADED', url: `moz-extension://bg-test/player/index.html?opener=${opener}`,
+        parentFrameId: 0}, {tabId: 1, frameId});
+      bg.sentToTabs.length = 0;
+      await bg.message({type: 'REQUEST_SOURCES'}, {tabId: 1, frameId});
+      await bg.wait(1500);
+      return bg.sent('SOURCES').filter((m) => m.frameId === frameId).map((m) => m.message.continuationOptions ?? null);
+    };
+    const next = {type: 'REQUEST_PLAYLIST_NAVIGATION', direction: 'next', continuationOptions: {autoPlay: true}};
+
+    // The next episode's own player gets them.
+    await playerInPage();
+    await bg.message(next, {tabId: 1, frameId: 5});
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'page-2');
+    expect(await sourcesTo(7, 'page-2')).toEqual([{autoPlay: true}]);
+    bg.unload();
+
+    // A page after it, where the user went himself, does not.
+    await playerInPage();
+    await bg.message(next, {tabId: 1, frameId: 5});
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'page-2');
+    await bg.navigated(1, 'https://site.test/watch/9');
+    await bg.frameAdded(1, 0, 'https://site.test/watch/9', 'page-9');
+    expect(await sourcesTo(8, 'page-9')).toEqual([null]);
+    bg.unload();
+
+    // The next episode on another site still gets them (the new site's reset dropped them).
+    await playerInPage();
+    await bg.message(next, {tabId: 1, frameId: 5});
+    await bg.navigated(1, 'https://mirror.test/watch/2');
+    await bg.frameAdded(1, 0, 'https://mirror.test/watch/2', 'page-2');
+    expect(await sourcesTo(7, 'page-2')).toEqual([{autoPlay: true}]);
   });
 
   it('lets the next episode\'s player take the keyboard only when the page says nobody types', async () => {

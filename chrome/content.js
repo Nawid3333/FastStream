@@ -8,6 +8,7 @@
     FRAME_ADDED: 'FRAME_ADDED',
     REMOVE_PLAYERS: 'REMOVE_PLAYERS',
     IS_FULL: 'IS_FULL',
+    RELEASE_OVERLAY_GUARD: 'RELEASE_OVERLAY_GUARD',
     FRAME_LINK_SENDER: 'FRAME_LINK_SENDER',
     FRAME_LINK_RECEIVER: 'FRAME_LINK_RECEIVER',
     SEND_TO_PLAYER: 'SEND_TO_PLAYER',
@@ -116,6 +117,14 @@
       } else {
         sendResponse(false);
       }
+      return;
+    } else if (request.type === MessageTypes.RELEASE_OVERLAY_GUARD) {
+      // The player under that iframe went and the iframe stayed (its page went elsewhere, or
+      // took the player out): what this page lays over it is the page's own again
+      // (background.mjs, FRAME_REMOVED). Only the player's leaving page did it before
+      // (removePlayers), and the page's own menu over an embed stayed hidden.
+      const iframeObj = iframeMap.get(request.frameId);
+      if (iframeObj) OverlayGuard.release(iframeObj.iframe);
       return;
     } else if (request.type === MessageTypes.FRAME_LINK_RECEIVER) {
       linkRequests.set(request.key, {

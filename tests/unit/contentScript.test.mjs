@@ -348,6 +348,35 @@ describe('windowed fullscreen', () => {
     expect(bar.style.getPropertyValue('visibility')).toBe('');
   });
 
+  it('gives the page its own bar over an embed back once the player under it went', async () => {
+    // A review (2026-11-13): the embed's own page went elsewhere (the iframe stayed, same
+    // src), and the bar the guard hid over it stayed hidden for the page's life.
+    const page = loadContentScript();
+    const {document} = page;
+    document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 2000};
+    document.body.rect = {x: 0, y: 0, width: 1280, height: 2000};
+    const embed = document.createElement('iframe');
+    embed.src = 'https://embed.example/e/1';
+    embed.rect = {x: 0, y: 0, width: 640, height: 360};
+    document.body.appendChild(embed);
+    const bar = document.createElement('div');
+    bar.rect = {x: 0, y: 320, width: 640, height: 40};
+    document.body.appendChild(bar);
+    await linkPlayer(page, embed, 7);
+    await page.send({type: 'IS_FULL', frameId: 7});
+    expect(bar.style.getPropertyValue('visibility')).toBe('hidden');
+
+    // Another iframe's release leaves this one's guard alone.
+    await page.send({type: 'RELEASE_OVERLAY_GUARD', frameId: 8});
+    expect(bar.style.getPropertyValue('visibility')).toBe('hidden');
+
+    await page.send({type: 'RELEASE_OVERLAY_GUARD', frameId: 7});
+    expect(bar.style.getPropertyValue('visibility')).toBe('');
+    // Let go for good: the guard's check no longer runs.
+    page.runIntervals();
+    expect(bar.style.getPropertyValue('visibility')).toBe('');
+  });
+
   it('fits the player to its place at once when it ends', async () => {
     // The fit waited a second after the page got its styles back, with the player at the
     // size it had before windowed fullscreen (glm's audit, 2026-10-13).
