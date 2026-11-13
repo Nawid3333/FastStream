@@ -1,6 +1,6 @@
 {
     "extension_name": {
-        "message": "FastStream Video Player"
+        "message": "FastStream for Firefox"
     },
     "extension_description": {
         "message": "Ara belleğe alma olmadan yayın yapın. İnternetteki hatalı video oynatıcılarını düzeltin."
@@ -1179,7 +1179,7 @@
         "message": "Hata: $1"
     },
     "error_popup_body": {
-        "message": "Lütfen bu hatayı ve aşağıdaki stack trace'i geliştiricilere https://github.com/Nawid3333/FastStream/issues adresinden bildirin:"
+        "message": "Lütfen bu hatayı ve aşağıdaki stack trace'i geliştiricilere https://github.com/Nawid3333/FastStream-for-Firefox/issues adresinden bildirin:"
     },
     "error_popup_send": {
         "message": "Hata Bildir"

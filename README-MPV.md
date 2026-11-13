@@ -48,7 +48,7 @@ double-click **`install.bat`**. It needs no admin rights, no Git and no Node.js.
   `native-host\install.ps1` and `faststream-mpv-host.mjs`, run with that
   `mpv.exe` and a private `node.exe` in `%LOCALAPPDATA%\FastStreamMpvHost\node\`)
   and registers it for Firefox;
-- opens the signed FastStream add-on in Firefox: click **Add**;
+- opens the signed FastStream for Firefox add-on in Firefox: click **Add**;
 - adds a Start menu folder **mpv** with *mpv*, *Update mpv* and *Uninstall mpv*.
 
 Details are in mpv-config's README, under
@@ -59,7 +59,7 @@ offer it too: once the helper answers, a banner at the top asks *"The mpv
 helper is installed - open videos in mpv?"*, and its button turns MPV mode on.
 
 To update later: Start menu ▸ mpv ▸ *Update mpv* (or run the line above
-again). It also brings the helper to the newest FastStream release.
+again). It also brings the helper to the newest FastStream for Firefox release.
 
 ### By hand (developers, other setups)
 

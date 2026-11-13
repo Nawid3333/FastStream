@@ -3,7 +3,7 @@
 
 import {RequestUtils} from './RequestUtils.mjs';
 
-const PACKAGE_JSON_URL = 'https://raw.githubusercontent.com/Nawid3333/FastStream/main/package.json';
+const PACKAGE_JSON_URL = 'https://raw.githubusercontent.com/Nawid3333/FastStream-for-Firefox/main/package.json';
 
 // The time between two checks, failed or not.
 const CHECK_INTERVAL = 1000 * 60 * 60 * 12;

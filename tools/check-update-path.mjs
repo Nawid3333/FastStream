@@ -71,6 +71,14 @@ export function readZip(buffer) {
 }
 
 /**
+ * The names this repository had before, whose links GitHub redirects to it: a release made
+ * before the rename (2026-11-13, docs/notes/build-and-release.md) lists its xpi under the old
+ * name, and Firefox follows the redirect. No new repository may take one of these names.
+ */
+/** @type {Object<string, string[]>} */
+export const FORMER_REPOS = {'Nawid3333/FastStream-for-Firefox': ['Nawid3333/FastStream']};
+
+/**
  * What is wrong with a release's updates.json.
  * @typedef {{version: string, update_link: string, update_hash: string, applications?: {gecko?: {strict_min_version?: string}}}} UpdateEntry
  * @typedef {{addons?: Object<string, {updates: UpdateEntry[]}>}} UpdatesJson
@@ -93,8 +101,9 @@ export function checkUpdatesJson(json, {id, version, repo, tag}) {
     return {problems: [`updates.json offers ${updates.map((u) => u.version).join(', ')}, not ${version}`]};
   }
   const problems = [];
-  const releaseFiles = `https://github.com/${repo}/releases/download/${tag}/`;
-  if (typeof entry.update_link !== 'string' || !entry.update_link.startsWith(releaseFiles)) {
+  const names = [repo, ...(FORMER_REPOS[repo] ?? [])];
+  const link = entry.update_link;
+  if (typeof link !== 'string' || !names.some((name) => link.startsWith(`https://github.com/${name}/releases/download/${tag}/`))) {
     problems.push(`update_link ${entry.update_link} is not a file of ${tag}`);
   }
   if (!/^sha256:[0-9a-f]{64}$/.test(entry.update_hash || '')) {

@@ -1,6 +1,6 @@
 {
     "extension_name": {
-        "message": "Odtwarzacz wideo FastStream"
+        "message": "FastStream for Firefox"
     },
     "extension_description": {
         "message": "Oglądaj bez buforowania. Naprawia wadliwe odtwarzacze wideo w internecie."
@@ -1179,7 +1179,7 @@
         "message": "Błąd: $1"
     },
     "error_popup_body": {
-        "message": "Prosimy zgłosić ten błąd programistom pod adresem https://github.com/Nawid3333/FastStream/issues, dołączając poniższy ślad stosu:"
+        "message": "Prosimy zgłosić ten błąd programistom pod adresem https://github.com/Nawid3333/FastStream-for-Firefox/issues, dołączając poniższy ślad stosu:"
     },
     "error_popup_send": {
         "message": "Zgłoś błąd"

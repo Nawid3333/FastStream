@@ -148,6 +148,32 @@ version and the add-on id `build.mjs` sets); broken -> the issue "Update path br
 repeated by mail. The decision steps were dry-run with a stub `gh` (17 scenarios) before
 the change went in.
 
+**Renamed to "FastStream for Firefox"** (2026-11-13): the add-on's name (`extension_name`,
+the same English text in all 16 locales) and the repository, now
+`Nawid3333/FastStream-for-Firefox`; `build.mjs`'s `update_url` and every link followed. The
+gecko add-on id is unchanged, so Firefox treats the renamed add-on as the same one. A copy
+installed before the rename asks the old repository's `update_url` until its first update
+brings the new one; that relies on GitHub redirecting a renamed repository's old URLs
+(documented by GitHub, not measured here). So no new repository may ever take the old name
+under this owner: it would end those redirects. web-ext names the zips after the name:
+`firefox-github-faststream_for_firefox-<version>.zip` (was `..._video_player-...`); the
+workflows' `firefox-github-*.zip` globs match both. The last release made before the rename
+lists the old repository in its `updates.json`'s `update_link`: `check-update-path.mjs`
+takes a link under a former name (`FORMER_REPOS`, redirected) as the release's own.
+
+The order matters, both ways:
+
+1. Rename the repository on GitHub first (Settings -> General, or
+   `gh repo rename FastStream-for-Firefox`). Old URLs redirect from then on, so every installed
+   copy keeps finding its updates.
+2. Then merge the change that renames the add-on. Its release is the first whose manifest
+   asks the new `update_url`, and whose `updates.json` links the new name.
+
+Merged first, the release would ask an `update_url` under a name that does not exist yet: its
+copies would find no update until the repository was renamed. Local checkouts follow with
+`git remote set-url origin https://github.com/Nawid3333/FastStream-for-Firefox.git` (GitHub
+redirects pushes and fetches too, so nothing breaks in the meantime).
+
 ## AMO lint (firefox-amo, current: 0 errors / 0 warnings, needs `--self-hosted`)
 
 Verified 2026-10-27: both `firefox-amo` and `firefox-github` are **0 errors, 0 notices,

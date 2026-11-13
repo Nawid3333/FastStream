@@ -26,7 +26,7 @@ EOF
 chmod +x "$here/bin/gh"
 
 failures=0
-export FIX="$here" LOG="$here/log" RUNNER_TEMP="$here" GH_TOKEN=stub GITHUB_REPOSITORY=Nawid3333/FastStream
+export FIX="$here" LOG="$here/log" RUNNER_TEMP="$here" GH_TOKEN=stub GITHUB_REPOSITORY=Nawid3333/FastStream-for-Firefox
 export OWNER=Nawid3333 RUN_URL=https://example.test/run DETECT=success
 export LATEST_IMAGES='ubuntu-24.04, windows-2025' NEXT_IMAGES='ubuntu-26.04, windows-2025'
 

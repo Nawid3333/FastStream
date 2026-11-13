@@ -70,7 +70,7 @@ describe('ProblemLog', () => {
     await recordProblem({url: 'https://series-site.example/serie/x/episode-5', kind: ProblemKinds.NO_STREAM, mode: 'mpv'}, Date.UTC(2026, 9, 11));
     const [entry] = await readProblems();
     const url = new URL(issueUrl(entry, {version: '1.3.82.90', browser: 'Firefox 157'}));
-    expect(url.origin + url.pathname).toBe('https://github.com/Nawid3333/FastStream/issues/new');
+    expect(url.origin + url.pathname).toBe('https://github.com/Nawid3333/FastStream-for-Firefox/issues/new');
     expect(url.searchParams.get('title')).toBe('Autoplay: series-site.example - next episode brought no video');
     const body = url.searchParams.get('body');
     expect(body).toContain('**Page:** https://series-site.example/serie/x/episode-5');

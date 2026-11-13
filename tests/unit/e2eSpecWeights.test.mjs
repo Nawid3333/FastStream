@@ -8,7 +8,7 @@ const JOB = 'e2e (Windows, playback 1/3)';
 const line = (step, time, text) => `${JOB}\t${step}\t2026-10-05T22:${time}Z ${text}`;
 const PLAY = 'End-to-end playback (Windows Firefox)';
 const EXT = 'End-to-end extension tests (Windows Firefox)';
-const spec = (file) => `file:///D:/a/FastStream/FastStream/tests/e2e/${file}`;
+const spec = (file) => `file:///D:/a/FastStream-for-Firefox/FastStream-for-Firefox/tests/e2e/${file}`;
 const started = (workers) => `Execution of ${workers} workers started at 2026-10-05T22:00:00.000Z`;
 
 describe('timesFromLog', () => {

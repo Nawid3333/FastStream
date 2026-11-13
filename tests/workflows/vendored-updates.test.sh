@@ -61,8 +61,8 @@ if [ -f "$f" ]; then cp "$f" "$out"; printf 200; else : > "$out"; printf 404; fi
 EOF
 chmod +x "$here/bin/gh" "$here/bin/curl"
 
-export GH_TOKEN=stub GH_REPO='Nawid3333/FastStream' OWNER='Nawid3333'
-export RUN_URL='https://github.com/Nawid3333/FastStream/actions/runs/1'
+export GH_TOKEN=stub GH_REPO='Nawid3333/FastStream-for-Firefox' OWNER='Nawid3333'
+export RUN_URL='https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/1'
 bot='{"login":"github-actions[bot]"}'
 human='{"login":"Nawid3333"}'
 
@@ -109,7 +109,7 @@ run 'v1 dash.js changed vtt.js -> an issue with the change, older ones closed' "
 check 'succeeds' test "$status" -eq 0
 check 'opens "vtt.js changed in dash.js v5.3.0"' contains "$LOG" 'ISSUECREATE [--title] [vtt.js changed in dash.js v5.3.0]'
 check 'counts the changed lines and links the compare' contains "$LOG" 'changes 3 lines of it: https://github.com/Dash-Industry-Forum/dash.js/compare/v5.1.0...v5.3.0'
-check 'closes the older #60, pointing at the new one' contains "$LOG" "ISSUECLOSE [60] [--reason] [not planned] [--comment] [dash.js v5.3.0 is out: https://github.com/Nawid3333/FastStream/issues/99 replaces this one.]"
+check 'closes the older #60, pointing at the new one' contains "$LOG" "ISSUECLOSE [60] [--reason] [not planned] [--comment] [dash.js v5.3.0 is out: https://github.com/Nawid3333/FastStream-for-Firefox/issues/99 replaces this one.]"
 check 'closes #61, whose release the pin has passed' contains "$LOG" 'ISSUECLOSE [61] [--comment] [tools/verify-vtt.mjs pins dash.js v5.1.0 now.]'
 
 fixtures v5.3.0 '[]'

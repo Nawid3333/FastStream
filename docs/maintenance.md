@@ -350,7 +350,7 @@ code. Without it the comment asks you to use **Update branch** on such a PR your
    **Fine-grained tokens**, **Generate new token**.
 2. Name it `FastStream update-prs`. Expiration: the longest offered (GitHub emails you a week
    before it runs out; an expired token fails `update-prs.yml`, which opens an issue).
-3. **Repository access**: Only select repositories, `Nawid3333/FastStream`.
+3. **Repository access**: Only select repositories, `Nawid3333/FastStream-for-Firefox`.
 4. **Permissions**, Repository permissions: **Contents**, **Pull requests** and **Workflows**,
    each Read and write. (Metadata: read-only is added by itself.)
 5. **Generate token**, and copy it.

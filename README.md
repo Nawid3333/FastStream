@@ -1,10 +1,10 @@
 ![logotext1](https://github.com/user-attachments/assets/cefd20ba-606a-482c-a522-36b3419e93c7)
 
-# FastStream
+# FastStream for Firefox
+
+FastStream for Firefox is a Firefox-only fork of Andrew S's FastStream ([Andrews54757/FastStream](https://github.com/Andrews54757/FastStream)). Its code builds on his; this fork is not affiliated with or endorsed by him. It is released here on GitHub (see [Installation](#installation)) and is not listed on addons.mozilla.org. Nawid3333 has maintained it on its own since 2026-10-09 (it no longer follows upstream). It adds a hand-off to the mpv player and leaves out upstream's YouTube support.
 
 Tired of having videos buffer with slow internet speeds? Frustrated by a website's lack of accessibility features? This extension will replace videos on websites with a video player designed for your convenience. Say goodbye to buffering and hello to a more accessible video experience!
-
-This is a Firefox-only fork of [Andrews54757/FastStream](https://github.com/Andrews54757/FastStream), maintained by Nawid3333 on its own since 2026-10-09 (it no longer follows upstream). It adds a hand-off to the mpv player and leaves out upstream's YouTube support.
 
 1. Watch videos without interruptions by pre-buffering the video in the background. Automatic fragmentation and up to 6 parallel requests make downloads faster.
 2. Advanced subtitling features include: customizable subtitle appearance, built-in OpenSubtitles support to find subtitles on the internet, and an intuitive subtitle syncing tool to adjust subtitle timings on the fly.
@@ -26,7 +26,7 @@ To use the player, simply:
 Notes:
 - Live HLS and DASH streams play.
 - This player will not function with DRM protected content. This is intended. Please be mindful of how you use this tool. FastStream should not be used to infringe copyright. When its manifest says a page's video is copy-protected, FastStream leaves it to the site's own player (the toolbar button shows "DRM" and says why), and mpv mode does not send it to mpv (the button's "!" says why).
-- Please report bugs, accessibility problems and feature requests on the issue tracker: https://github.com/Nawid3333/FastStream/issues
+- Please report bugs, accessibility problems and feature requests on the issue tracker: https://github.com/Nawid3333/FastStream-for-Firefox/issues
 - For your privacy, this extension **does not collect telemetry** and has no server of its own. Besides the sites whose videos you play, it connects only to OpenSubtitles when you search for subtitles, and to GitHub for updates. Everything it runs ships inside the add-on. The details, permission by permission, are in [docs/privacy-policy.md](docs/privacy-policy.md).
 - The default maximum size for predownloading is 5 GB. This can be changed in the settings page (0 = predownload nothing, empty = no limit). Where the downloaded video is kept, in RAM or on the disk, is your choice too: see [RAM and disk](#ram-and-disk).
 
@@ -54,7 +54,7 @@ FastStream is built for Firefox on the desktop. Chrome and other Chromium browse
 
 ## Installation
 
-Download the `.xpi` from the [Releases page](https://github.com/Nawid3333/FastStream/releases) and open it in Firefox (drag it into a window, or `about:addons` → the gear → Install Add-on From File). It needs Firefox 153 or newer. The release is signed by Mozilla for self-distribution, so it installs in an ordinary Firefox, and Firefox checks for updates by itself: every release publishes an `updates.json` that the extension points at.
+FastStream for Firefox is not on addons.mozilla.org: install it from GitHub. Download the `.xpi` from the [Releases page](https://github.com/Nawid3333/FastStream-for-Firefox/releases) and open it in Firefox (drag it into a window, or `about:addons` → the gear → Install Add-on From File). It needs Firefox 153 or newer. The release is signed by Mozilla for self-distribution (an unlisted add-on), so it installs in an ordinary Firefox, and Firefox checks for updates by itself: every release publishes an `updates.json` that the extension points at.
 
 The `firefox-github-*.zip` on the same page is an unsigned build for development; loading it needs Firefox Developer Edition or a temporary add-on (`about:debugging`).
 
@@ -107,3 +107,7 @@ Many thanks to the contributors of this project.
 ## Disclaimer
 
 While it may be possible for FastStream to save videos from any website as long as there is no DRM, that doesn't mean you have the legal right to do so if you don't own the content. Please be mindful of how you use this tool. FastStream should not be used to infringe copyright.
+
+## License
+
+FastStream for Firefox is offered under no open-source license. [LICENSE.md](LICENSE.md) is upstream's license, unchanged: Andrew S's FastStream code is "All rights reserved", and the third-party libraries it lists keep their own licenses.

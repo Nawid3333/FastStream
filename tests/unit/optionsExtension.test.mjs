@@ -148,7 +148,7 @@ describe('the update check', () => {
   it('opens the releases as the player opens a page', async () => {
     const page = await openOptionsPage({latestVersion: '1.3.82.200'});
     page.byId('update').fire('click');
-    expect(page.opened).toHaveBeenCalledWith('https://github.com/Nawid3333/FastStream/releases');
+    expect(page.opened).toHaveBeenCalledWith('https://github.com/Nawid3333/FastStream-for-Firefox/releases');
     expect(page.chrome.tabs.create).not.toHaveBeenCalled();
   });
 });

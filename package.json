@@ -45,13 +45,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Nawid3333/FastStream.git"
+    "url": "git+https://github.com/Nawid3333/FastStream-for-Firefox.git"
   },
   "author": "Nawid3333",
   "bugs": {
-    "url": "https://github.com/Nawid3333/FastStream/issues"
+    "url": "https://github.com/Nawid3333/FastStream-for-Firefox/issues"
   },
-  "homepage": "https://github.com/Nawid3333/FastStream#readme",
+  "homepage": "https://github.com/Nawid3333/FastStream-for-Firefox#readme",
   "devDependencies": {
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/chrome": "^0.3.7",

@@ -74,8 +74,8 @@ chmod +x "$here/bin/gh"
 # The workflow's env: blocks, as GitHub would set them: the job's for both steps, the
 # enable step's FORCE and the report step's (RUN_URL, TITLE) only for their own step.
 export GH_TOKEN=stub
-export GH_REPO='Nawid3333/FastStream' OWNER='Nawid3333'
-RUN_URL='https://github.com/Nawid3333/FastStream/actions/runs/1'
+export GH_REPO='Nawid3333/FastStream-for-Firefox' OWNER='Nawid3333'
+RUN_URL='https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/1'
 TITLE='Keepalive failed'
 export -n RUN_URL TITLE
 check "the enable step's env: gives the force input" contains "$WORKFLOWS_DIR/keepalive.yml" \
@@ -254,7 +254,7 @@ check 'succeeds' test "$status" -eq 0
 check 'opens it' contains "$LOG" \
   'CREATE [--title] [Keepalive failed]'
 check 'links this run' contains "$LOG" \
-  'keepalive.yml failed: https://github.com/Nawid3333/FastStream/actions/runs/1'
+  'keepalive.yml failed: https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/1'
 
 scenario 's6 failure report, already open: comments on it' \
   "$report_step" '{}' false '{}' '[{"number":3,"title":"Other"},{"number":12,"title":"Keepalive failed"}]' ''
@@ -262,7 +262,7 @@ check 'succeeds' test "$status" -eq 0
 check 'creates nothing' lacks "$LOG" 'CREATE'
 check 'comments on the open one' contains "$LOG" 'COMMENT [12] [--body-file]'
 check 'the comment links this run' contains "$LOG" \
-  'Failed again: https://github.com/Nawid3333/FastStream/actions/runs/1'
+  'Failed again: https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/1'
 
 scenario 's7 a committer date that is not an ISO date: refused, nothing enabled' \
   "$enable_step" '{"commit":{"committer":{"date":"whenever the wind blows"}}}' false "$workflows" '[]' ''

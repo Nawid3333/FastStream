@@ -85,8 +85,8 @@ EOF
 chmod +x "$here/bin/gh" "$here/bin/date"
 
 # The job's env: block, as GitHub would set it.
-export GH_TOKEN=stub GH_REPO='Nawid3333/FastStream' OWNER='Nawid3333'
-export RUN_URL='https://github.com/Nawid3333/FastStream/actions/runs/1'
+export GH_TOKEN=stub GH_REPO='Nawid3333/FastStream-for-Firefox' OWNER='Nawid3333'
+export RUN_URL='https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/1'
 export NOW=1792500000   # 2026-10-20T12:40:00Z
 sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 other=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -347,7 +347,7 @@ check 'touches no issue' test ! -s "$LOG"
 scenario 'f1 failure -> opens "Update PR watch failed"' "$report_step" TITLE='Update PR watch failed'
 check 'succeeds' test "$status" -eq 0
 check 'opens it' contains "$LOG" 'CREATE [--title] [Update PR watch failed] [--body-file]'
-check 'with the run' contains "$LOG" 'https://github.com/Nawid3333/FastStream/actions/runs/1'
+check 'with the run' contains "$LOG" 'https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/1'
 
 scenario 'f2 failure while it is open -> a comment' "$report_step" TITLE='Update PR watch failed' \
   FX_ISSUES="$(arr "$(iss 95 'Update PR watch failed' 'x')")"

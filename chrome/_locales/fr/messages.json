@@ -1,6 +1,6 @@
 {
     "extension_name": {
-        "message": "FastStream Lecteur vidéo"
+        "message": "FastStream for Firefox"
     },
     "extension_description": {
         "message": "Streaming sans mise en mémoire tampon. Corrige les mauvais lecteurs vidéo sur Internet."
@@ -1179,7 +1179,7 @@
         "message": "Erreur : $1"
     },
     "error_popup_body": {
-        "message": "Veuillez signaler cette erreur aux développeurs à https://github.com/Nawid3333/FastStream/issues en joignant la trace de la pile ci-dessous :"
+        "message": "Veuillez signaler cette erreur aux développeurs à https://github.com/Nawid3333/FastStream-for-Firefox/issues en joignant la trace de la pile ci-dessous :"
     },
     "error_popup_send": {
         "message": "Signaler l'erreur"

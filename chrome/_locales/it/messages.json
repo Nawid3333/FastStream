@@ -1,6 +1,6 @@
 {
     "extension_name": {
-        "message": "FastStream Video Player"
+        "message": "FastStream for Firefox"
     },
     "extension_description": {
         "message": "Streaming fluido, senza buffering. Dì addio ai lettori video scadenti."
@@ -1179,7 +1179,7 @@
         "message": "Errore: $1"
     },
     "error_popup_body": {
-        "message": "Segnala questo errore agli sviluppatori su https://github.com/Nawid3333/FastStream/issues con la seguente traccia dello stack:"
+        "message": "Segnala questo errore agli sviluppatori su https://github.com/Nawid3333/FastStream-for-Firefox/issues con la seguente traccia dello stack:"
     },
     "error_popup_send": {
         "message": "Segnala un Errore"

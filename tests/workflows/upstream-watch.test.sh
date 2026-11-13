@@ -50,9 +50,9 @@ esac
 EOF
 chmod +x "$here/bin/gh"
 
-export GH_TOKEN=stub GH_REPO='Nawid3333/FastStream' UPSTREAM_REPO='Andrews54757/FastStream'
+export GH_TOKEN=stub GH_REPO='Nawid3333/FastStream-for-Firefox' UPSTREAM_REPO='Andrews54757/FastStream'
 export OWNER=Nawid3333 PREFIX='Upstream: ' MAX_COMMITS=60 MAX_FILES=8
-export RUN_URL='https://github.com/Nawid3333/FastStream/actions/runs/1'
+export RUN_URL='https://github.com/Nawid3333/FastStream-for-Firefox/actions/runs/1'
 
 # fixtures: a new scenario. Upstream's repository with two files; this project's main, a
 # clone of it (the last merge of upstream) with a commit of its own that deletes one of them.

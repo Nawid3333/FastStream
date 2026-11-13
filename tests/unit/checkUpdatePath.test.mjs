@@ -10,7 +10,7 @@ import {checkUpdatesJson, checkXpi, download, geckoIdFromBuild, readZip, Unreach
 // pin what it calls broken. The real v1.3.82.37 passed it (checked 2026-09-28).
 
 const ID = 'thanatus@Nawid';
-const REPO = 'Nawid3333/FastStream';
+const REPO = 'Nawid3333/FastStream-for-Firefox';
 
 /**
  * A zip archive, deflated or stored, with sizes and offsets a reader can rely on (the CRC
@@ -107,6 +107,14 @@ describe('checkUpdatesJson', () => {
         .toEqual(['updates.json offers 1.3.82.37, not 1.3.82.38']);
     expect(checkUpdatesJson({addons: {'other@id': {updates: [entry(xpi)]}}}, release).problems[0])
         .toMatch(/no updates for thanatus@Nawid \(it lists: other@id\)/);
+  });
+
+  it('takes a link under the former name of the repository, which GitHub redirects, and no other', () => {
+    const xpi = signed();
+    const old = entry(xpi, {update_link: 'https://github.com/Nawid3333/FastStream/releases/download/v1.3.82.38/abc.xpi'});
+    expect(checkUpdatesJson({addons: {[ID]: {updates: [old]}}}, release).problems).toEqual([]);
+    const other = entry(xpi, {update_link: 'https://github.com/someone/FastStream/releases/download/v1.3.82.38/abc.xpi'});
+    expect(checkUpdatesJson({addons: {[ID]: {updates: [other]}}}, release).problems[0]).toMatch(/is not a file of v1.3.82.38/);
   });
 
   it('reports a link to another release and a hash that is not one', () => {

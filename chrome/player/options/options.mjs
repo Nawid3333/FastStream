@@ -1210,7 +1210,7 @@ if (EnvUtils.isExtension()) {
   });
 
   /** @type {HTMLElement} */ (document.getElementById('update')).addEventListener('click', (e) => {
-    EnvUtils.openExternalURL('https://github.com/Nawid3333/FastStream/releases');
+    EnvUtils.openExternalURL('https://github.com/Nawid3333/FastStream-for-Firefox/releases');
   });
 
   /** @type {HTMLElement} */ (document.getElementById('noupdate')).addEventListener('click', (e) => {

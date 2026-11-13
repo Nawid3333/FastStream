@@ -1,6 +1,6 @@
 {
     "extension_name": {
-        "message": "FastStream Video Player"
+        "message": "FastStream for Firefox"
     },
     "extension_description": {
         "message": "Assista a transmissões sem pré-carregamento. Conserte tocadores de vídeo problemáticos na internet."
@@ -1179,7 +1179,7 @@
         "message": "Erro: $1"
     },
     "error_popup_body": {
-        "message": "Informe esse erro aos desenvolvedores em https://github.com/Nawid3333/FastStream/issues com o rastreamento de pilha a seguir:"
+        "message": "Informe esse erro aos desenvolvedores em https://github.com/Nawid3333/FastStream-for-Firefox/issues com o rastreamento de pilha a seguir:"
     },
     "error_popup_send": {
         "message": "Relatar erro"

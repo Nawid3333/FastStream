@@ -25,12 +25,12 @@ case "$1 $2" in
     cat "$FIX/tag" ;;
   'run download')
     d=$(opt --dir); mkdir -p "$d"
-    cp "$FIX/new-github.zip" "$d/firefox-github-faststream_video_player-1.3.82.52.zip"
-    cp "$FIX/new-amo.zip" "$d/firefox-amo-faststream_video_player-1.3.82.52.zip" ;;
+    cp "$FIX/new-github.zip" "$d/firefox-github-faststream_for_firefox-1.3.82.52.zip"
+    cp "$FIX/new-amo.zip" "$d/firefox-amo-faststream_for_firefox-1.3.82.52.zip" ;;
   'release download')
     d=$(opt --dir); mkdir -p "$d"
     pats=$(for ((i = 0; i < ${#args[@]} - 1; i++)); do if [ "${args[i]}" = --pattern ]; then printf '%s\n' "${args[i + 1]}"; fi; done)
-    if grep -qxF 'firefox-github-*.zip' <<< "$pats"; then cp "$FIX/old-github.zip" "$d/firefox-github-faststream_video_player-1.3.82.52.zip"; fi
+    if grep -qxF 'firefox-github-*.zip' <<< "$pats"; then cp "$FIX/old-github.zip" "$d/firefox-github-faststream_for_firefox-1.3.82.52.zip"; fi
     if grep -qxF '*.xpi' <<< "$pats" && [ -f "$FIX/old.xpi" ]; then cp "$FIX/old.xpi" "$d/99f1b8e844554f46b28a-1.3.82.52.xpi"; fi ;;
   *)
     echo "stub gh: unexpected call: $*" >&2; exit 2 ;;
@@ -51,7 +51,7 @@ EOF
 fi
 chmod +x "$here/bin/gh"
 
-export GH_TOKEN=stub GITHUB_REPOSITORY='Nawid3333/FastStream' RUN_ID=37065133847
+export GH_TOKEN=stub GITHUB_REPOSITORY='Nawid3333/FastStream-for-Firefox' RUN_ID=37065133847
 
 # build <zip name> <update_url or ""> <player.js> [signed]: a build of 1.3.82.52 (an AMO one
 # when given an update_url), with Mozilla's META-INF/ when signed.
@@ -69,7 +69,7 @@ build() {
   if [ -n "${4:-}" ]; then mkdir -p "$d/META-INF"; printf 'sig\n' > "$d/META-INF/mozilla.rsa"; files+=(META-INF); fi
   (cd "$d" && python3 -m zipfile -c "$FIX/$1" "${files[@]}")
 }
-URL=https://github.com/Nawid3333/FastStream/releases/latest/download/updates.json
+URL=https://github.com/Nawid3333/FastStream-for-Firefox/releases/latest/download/updates.json
 # fixtures: a release v1.3.82.52 and CI's build of a commit after it, the same files.
 fixtures() {
   export FIX="$here/fix" RUNNER_TEMP="$here/fix/tmp" GITHUB_OUTPUT="$here/fix/output"

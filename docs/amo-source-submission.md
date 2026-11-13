@@ -32,7 +32,7 @@ pnpm run build:keep
 That produces the submitted add-on at:
 
 ```
-built/firefox-amo-faststream_video_player-<version>.zip
+built/firefox-amo-faststream_for_firefox-<version>.zip
 ```
 
 `build.mjs` moves it there from web-ext's artifacts folder
@@ -45,9 +45,9 @@ To confirm it is clean:
 pnpm run lint:amo               # web-ext lint against build_firefox_amo
 ```
 
-Expected result: **0 errors, 0 notices, 3 warnings.** Each of the three
-warnings is in third-party library code and is explained individually in
-`docs/amo-linter-warnings.md`.
+Expected result: **0 errors, 0 notices, 0 warnings** (measured 2026-11-13).
+`docs/amo-linter-warnings.md` lists the warnings in third-party library code
+that earlier builds had, and how each was fixed.
 
 To compare a rebuild with the submitted package, unzip the submitted package
 and run `node tools/hash-build.mjs <dir>` on it and on `build_firefox_amo`,

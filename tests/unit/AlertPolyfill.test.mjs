@@ -40,7 +40,7 @@ describe('AlertPolyfill', () => {
     const error = new Error('Bad <b>thing</b> & more');
     error.stack = 'Error: Bad thing\n    at play (FastStreamClient.mjs:1:2)';
     const url = new URL(errorReportURL(error, '1.3.82.72'));
-    expect(url.origin + url.pathname).toBe('https://github.com/Nawid3333/FastStream/issues/new');
+    expect(url.origin + url.pathname).toBe('https://github.com/Nawid3333/FastStream-for-Firefox/issues/new');
     expect(url.searchParams.get('title')).toBe('Error report');
     expect(url.searchParams.get('body')).toBe('## Version:\n1.3.82.72\n\n## Error message:\nBad <b>thing</b> & more\n\n' +
       '## Stack trace:\n```\nError: Bad thing\n    at play (FastStreamClient.mjs:1:2)\n```');

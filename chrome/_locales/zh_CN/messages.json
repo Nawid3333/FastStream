@@ -1,6 +1,6 @@
 {
     "extension_name": {
-        "message": "FastStream 视频播放器"
+        "message": "FastStream for Firefox"
     },
     "extension_description": {
         "message": "无缓冲播放，修复网络上的问题视频播放器。"
@@ -1179,7 +1179,7 @@
         "message": "错误：$1"
     },
     "error_popup_body": {
-        "message": "请将此错误及下面的堆栈信息报告给开发者，地址：https://github.com/Nawid3333/FastStream/issues："
+        "message": "请将此错误及下面的堆栈信息报告给开发者，地址：https://github.com/Nawid3333/FastStream-for-Firefox/issues："
     },
     "error_popup_send": {
         "message": "报告错误"
