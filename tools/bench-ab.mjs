@@ -10,6 +10,8 @@
 //   --where             also lists which places in the player's code woke it up
 //   --label-a/--label-b names for the report (default: the ref and its commit)
 //   --clean             removes the worktrees and builds made for earlier runs, and stops
+//   --render <report>   prints the report of an earlier run again from its .json in logs/bench
+//                       (its name; the verdicts as they are now)
 //
 // A git ref is checked out into a worktree of its own (outside this checkout, under the
 // system's temporary folder unless --trees names another) and built there with this
@@ -34,7 +36,17 @@ const {values: args} = parseArgs({options: {
   'clean': {type: 'boolean', default: false},
   'where': {type: 'boolean', default: false},
   'label-a': {type: 'string'}, 'label-b': {type: 'string'},
+  'render': {type: 'string'},
 }});
+
+if (args.render) {
+  // Only a report's name counts: the file is the one of that name in logs/bench.
+  const file = path.join(root, 'logs', 'bench', path.basename(args.render));
+  const {renderReport} = await import('../tests/e2e/bench/report.mjs');
+  const run = JSON.parse(fs.readFileSync(file, 'utf8'));
+  console.log(renderReport({at: path.basename(file, '.json').replace(/^ab-/, ''), ...run}));
+  process.exit(0);
+}
 
 /**
  * @param {string[]} gitArgs

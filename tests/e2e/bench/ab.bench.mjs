@@ -24,35 +24,14 @@ import path from 'node:path';
 import {browser} from '@wdio/globals';
 
 import {bench, boundedNumber} from './settings.mjs';
-import {compare, renderTable, roundOrder} from './stats.mjs';
+import {renderReport} from './report.mjs';
+import {roundOrder} from './stats.mjs';
 
 const PLAY_MS = boundedNumber('BENCH_PLAY_MS', 5000, 600000);
 const PAUSED_MS = boundedNumber('BENCH_PAUSED_MS', 10000, 600000);
 const IDLE_MS = boundedNumber('BENCH_IDLE_MS', 5000, 600000);
 const WARMUP = bench.warmup;
 const SEEK_TO = 80;
-
-/**
- * What each measure is, for the report. floor: below this a difference says nothing (a
- * timeupdate comes about every 250 ms; a frame is 16 ms).
- * @type {Record<string, {label: string, unit: string, floor: number, lowerIsBetter?: boolean}>}
- */
-const MEASURES = {
-  client: {label: 'player modules ready', unit: 'ms', floor: 5},
-  firstFrame: {label: 'first frame', unit: 'ms', floor: 10},
-  playing: {label: 'playing', unit: 'ms', floor: 10},
-  seeked: {label: 'seek to 80 s: seeked', unit: 'ms', floor: 10},
-  resumed: {label: 'seek to 80 s: playing past it', unit: 'ms', floor: 250},
-  playWake: {label: 'wake-ups while playing', unit: '/s', floor: 1},
-  playMutations: {label: 'DOM changes while playing', unit: '/s', floor: 1},
-  longFrames: {label: 'frames > 50 ms apart while playing', unit: '', floor: 1},
-  dropped: {label: 'dropped video frames while playing', unit: '', floor: 1},
-  pausedWake: {label: 'wake-ups while paused', unit: '/s', floor: 0.5},
-  previewReady: {label: 'seek preview at 120 s shown', unit: 'ms', floor: 10},
-  afterPreviewWake: {label: 'wake-ups while paused, after a seek preview', unit: '/s', floor: 0.5},
-  endedWake: {label: 'wake-ups once the video has ended', unit: '/s', floor: 0.5},
-  idleWake: {label: 'wake-ups, idle player (no video)', unit: '/s', floor: 0.5},
-};
 
 /**
  * The scenarios: a source, and what to measure on it.
@@ -381,31 +360,12 @@ describe('A/B benchmark', function() {
   }
 
   after(function() {
-    const rows = [];
-    for (const [scenario, {A, B}] of Object.entries(results)) {
-      for (const [measure, how] of Object.entries(MEASURES)) {
-        if (!A[measure] && !B[measure]) continue;
-        rows.push({scenario, measure: how.label, unit: how.unit,
-          result: compare(A[measure] || [], B[measure] || [], {floor: how.floor, lowerIsBetter: how.lowerIsBetter ?? true})});
-      }
-    }
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const line = bench.line.rateMbit ? `${bench.line.rateMbit} Mbit/s shared line, ${bench.line.ttfbMs} ms to first byte` :
-      (bench.line.ttfbMs ? `no rate limit, ${bench.line.ttfbMs} ms to first byte` : 'local, no limit');
-    const header = [
-      `# A/B benchmark ${new Date().toISOString()}`,
-      '',
-      `A = ${bench.labels.A}, B = ${bench.labels.B}. ${bench.rounds} rounds a build (ABBA), ` +
-        `${WARMUP} warm-up round thrown away; media: ${line}.`,
-      'Verdict: B against A, only where the medians differ by more than twice the larger MAD ' +
-        'and the measure\'s floor; "same" otherwise.',
-      '',
-    ];
-    const markdown = [...header, renderTable(rows, bench.labels), '',
-      ...(failures.length ? ['Failed runs:', '', ...failures.map((failure) => `- ${failure}`), ''] : [])].join('\n');
+    const at = new Date().toISOString();
+    const stamp = at.replace(/[:.]/g, '-');
+    const run = {at, labels: bench.labels, line: bench.line, rounds: bench.rounds, warmup: WARMUP, results, failures};
+    const markdown = renderReport(run);
     fs.writeFileSync(path.join(bench.out, `ab-${stamp}.md`), markdown);
-    fs.writeFileSync(path.join(bench.out, `ab-${stamp}.json`),
-        JSON.stringify({labels: bench.labels, line: bench.line, rounds: bench.rounds, warmup: WARMUP, results, failures}, null, 2));
+    fs.writeFileSync(path.join(bench.out, `ab-${stamp}.json`), JSON.stringify(run, null, 2));
     console.log('\n' + markdown);
   });
 });
