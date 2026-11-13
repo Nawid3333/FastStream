@@ -263,6 +263,33 @@ describe('the "use the player for stream links" redirect', () => {
           .toBe('moz-extension://bg-test/player/index.html?address=' + key + '#\\0');
     }
   });
+
+  it('is changed only when what it is made of changes', async () => {
+    // Every options save loads the options here again, and each load made both rules again:
+    // two declarativeNetRequest updates, the rules unchanged. A slider dragged for two seconds
+    // on the options page saves some 120 times.
+    const both = {playMP4URLs: true, playStreamURLs: true, autoEnableURLs: ['https://site.test/']};
+    bg = await loadBackground({options: both});
+    const load = async (options) => {
+      const before = bg.dynamicRules.length;
+      bg.options = options;
+      await bg.message({type: 'LOAD_OPTIONS', time: Date.now()}, {tabId: 99});
+      await bg.wait(100);
+      return bg.dynamicRules.slice(before);
+    };
+    expect(bg.dynamicRules).toHaveLength(2);
+    expect(await load(both)).toEqual([]);
+    expect(await load({...both, replaceDelay: 700, autoEnableURLs: ['https://site.test/', 'https://other.test/']})).toEqual([]);
+    // A -domain entry: both rules leave its site alone.
+    const excluded = await load({...both, autoEnableURLs: ['https://site.test/', '-github.com']});
+    expect(excluded.map((update) => update.addRules[0].condition.excludedRequestDomains))
+        .toEqual([['bg-test', 'github.com'], ['bg-test', 'github.com']]);
+    expect(await load({...both, autoEnableURLs: ['-github.com']})).toEqual([]);
+    // A switch turned off takes its rule away, once; turned on again, the rule comes back.
+    expect(await load({...both, playMP4URLs: false, autoEnableURLs: ['-github.com']})).toEqual([{removeRuleIds: [1]}]);
+    expect(await load({...both, playMP4URLs: false, autoEnableURLs: ['-github.com']})).toEqual([]);
+    expect((await load({...both, autoEnableURLs: ['-github.com']})).map((update) => update.addRules[0].id)).toEqual([1]);
+  });
 });
 
 // The Auto-enable URLs list as the background turns a tab on by it (tabs.onUpdated). The

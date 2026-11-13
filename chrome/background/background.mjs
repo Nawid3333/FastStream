@@ -35,6 +35,13 @@ import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPending
 export let Options = /** @type {PlayerOptions} */ ({});
 /** @type {{customSourcePatterns?: string}} What loadCustomPatterns last compiled. */
 const OptionsCache = {};
+// The redirect rules as this background last gave them to declarativeNetRequest, by id
+// (setupRedirectRule, removeRule): the rule, or RedirectRuleRemoved. Every options save loads
+// the options again, and each load made both rules again, unchanged: two updates of the
+// browser's rules per save, some 120 for a slider dragged for two seconds.
+/** @type {Map<number, string>} */
+const RedirectRulesMade = new Map();
+const RedirectRuleRemoved = 'removed';
 
 // "Auto-enable URLs": prefix, `~` regex and `!` exclusion like the MPV allowlist, and
 // `-domain` to exclude a whole site, from the redirect of manifest links too.
@@ -1930,7 +1937,7 @@ async function setupRedirectRule(ruleID, filetypes, wanted = () => true) {
       resourceTypes: ['main_frame'],
     },
   };
-  return chrome.declarativeNetRequest.updateDynamicRules({
+  return updateRedirectRule(ruleID, JSON.stringify(rule), {
     removeRuleIds: [rule.id],
     addRules: [rule],
   });
@@ -1940,8 +1947,25 @@ async function setupRedirectRule(ruleID, filetypes, wanted = () => true) {
  * @param {number} ruleID
  */
 async function removeRule(ruleID) {
-  return chrome.declarativeNetRequest.updateDynamicRules({
+  return updateRedirectRule(ruleID, RedirectRuleRemoved, {
     removeRuleIds: [ruleID],
+  });
+}
+
+/**
+ * Gives a redirect rule to declarativeNetRequest, unless it has it so already
+ * (RedirectRulesMade): the first load of this background gives it in any case.
+ * @param {number} ruleID
+ * @param {string} made - The rule as given (JSON), or RedirectRuleRemoved.
+ * @param {chrome.declarativeNetRequest.UpdateRuleOptions} update - The update that gives it.
+ */
+async function updateRedirectRule(ruleID, made, update) {
+  if (RedirectRulesMade.get(ruleID) === made) return;
+  RedirectRulesMade.set(ruleID, made);
+  return chrome.declarativeNetRequest.updateDynamicRules(update).catch((e) => {
+    // Not given: the next load gives it again.
+    if (RedirectRulesMade.get(ruleID) === made) RedirectRulesMade.delete(ruleID);
+    throw e;
   });
 }
 
