@@ -7,10 +7,11 @@
 
 ## Vendored libraries
 
-hls.js is the npm release, **1.7.3**, plus `patches/hls.js@1.7.3.patch` (the extra
+hls.js is the npm release, **1.7.4**, plus `patches/hls.js@1.7.4.patch` (the extra
 demuxer exports, `outputSamples` on the remux result and the VTT part-loading guard, all in
 `dist/hls.mjs`), which pnpm applies at install; the playback worker is hls.js's own
-`dist/hls.worker.js`, unpatched (2026-10-22); dash.js is `dashjs@5.2.1` with its patch the same way. The
+`dist/hls.worker.js`, unpatched (2026-10-22); dash.js is `dashjs@5.3.0` with its patch the same way
+(the versions as of 2026-11-13: package.json and pnpm-workspace.yaml's patchedDependencies). The
 in-tree hls.js they replaced was 1.6.9 with 466 lines of divergence across 22 hunks (1.3%),
 not a fork; that diff is kept as `docs/hls.js-1.6.9-faststream.patch`. See
 [docs/vendored-libraries.md](docs/vendored-libraries.md) for the hunk classification.
@@ -18,6 +19,19 @@ not a fork; that diff is kept as `docs/hls.js-1.6.9-faststream.patch`. See
 Do not try to replace these with wrapper classes — the extra demuxer exports
 that `hls2mp4/transmuxer.mjs` needs have no public-API equivalent in any
 hls.js release, including 1.7.1.
+
+**dash.js's patch lists at most 100000 segments of a representation** (2026-11-13, a review).
+A 1 KB manifest froze the player page until it ran out of memory - and with it every add-on's
+pages, which share its process: 100000000 hours of 1 s segments, a live stream whose every
+segment is available (`availabilityTimeOffset="INF"`), `<S d="1" r="1000000000"/>`, or a
+SegmentList starting at number 10^12. The patch's `getAllSegments` (`DashPlayer.extractFragments`,
+for every representation) listed until the getter had no next segment, one object each. The
+template and list getters now ask for segment 100000 first and list none when it exists (their
+available segments are one run of numbers, so that is exactly "more than 100000"); the timeline
+getter stops at the 100001st. Such a representation stores no fragments, and `DashLoader`
+fetches each segment as dash.js asks for it (its "Fragment not found" path). Up to 100000
+segments are listed as before. `tests/unit/dashAllSegments.test.mjs`; what else the patch
+changes is in `docs/vendored-libraries.md`.
 
 ## The binary blobs are identifiable published artifacts
 

@@ -121,8 +121,12 @@ What that fix put in place, and the invariants to keep:
 - Anything reading `blobManager.opfsManager` **synchronously** is a bug in
   waiting — at construction time OPFS setup cannot have settled yet.
   `StreamSaver.mjs` picks its sink on first write via `ready()` for exactly
-  this reason, and `mp4merger.mjs`'s `finalize()` falls back to Blob
-  accumulation if its OPFS writes throw.
+  this reason. So does `SaveFile.mjs`, which since 2026-11-13 keeps the media
+  of both converters (`mp4merger`, `hls2mp4`): it decides at the first piece
+  whether the save's OPFS file began, and stages its own copies of the pieces
+  in the converter's blob store when it did not. Until then `mp4merger.mjs`'s
+  `finalize()` fell back to Blob accumulation whenever an OPFS write threw;
+  once a piece is on disk, a failed write now fails the save (below).
 - **A download's `blob:` URL must outlive the download** (2026-10-01).
   `downloads.download()` resolves before Firefox has read the URL: revoked at once, 8 of
   60 small downloads were interrupted (`CRASH`) with no file and no message - a subtitle
@@ -132,6 +136,19 @@ What that fix put in place, and the invariants to keep:
   (`<a download>`) reads the blob at once: 40 of 40 survived a revoke right after it.
   `ext-specs/download-blob-lifetime.e2e.mjs`; found through download-names' CI flake, whose
   test page closed with its blob before Firefox read it.
+- **A saved video's copy on disk goes once its download is over** (2026-11-13, a review).
+  Closing a save's blob store ended its OPFS worker and kept the session's folder on purpose
+  (a finished file may still be downloading), and only `prune()` in a later worker deleted
+  it: every saved video stayed a second time in the extension's storage (OPFS, persisted)
+  until some other FastStream player started - for days, for someone who saves and closes
+  the tab. `OPFSManager.close(true)` (through `FSBlob.close(true)`) now also removes
+  `fsblob/<session>` once the worker has ended, best-effort; the prune stays the safety net.
+  `Utils.whenDownloaded` tells whether Firefox said the download is over (complete,
+  interrupted, gone) or the wait stopped without knowing (a link click, the 30 min cap):
+  `SaveManager` passes "every download over" to the converters' `release()`, and
+  `StreamSaver`'s `closeWhenDownloaded` passes it to `close()`. A failed or cancelled save
+  deletes its files at once (nothing reads them). **Behaviour change:** the copy goes right
+  after Firefox reports the download finished, instead of at the next player's start.
 - `OPFSManager.isSupported()` additionally refuses up front when
   `EnvUtils.isIncognito()`, purely to avoid spawning
   a worker and logging a `SecurityError` per player open. It is not the
@@ -174,6 +191,24 @@ takes an *identifier*. Every chunk came back `undefined`, and
 "undefined" once per fragment. It now builds the output from the slices
 directly.
 
+**Since 2026-11-13 it keeps no slices** (a review). A slice of the player's own
+stored fragment reads nothing once the player has freed that fragment (a quality
+change, the automatic lowering on dropped frames, the buffer moving on: the OPFS
+file is removed). `finalize()`'s copy then failed, its `catch` took every error
+for an OPFS failure and returned a Blob of the same dead slices: "Save complete",
+and then Firefox's download failed. Slices of RAM Blobs kept their parents alive,
+so a save bigger than the RAM budget held up to the whole video in RAM, and wrote
+every byte only after the progress showed 100 %. Now each fragment's mdat goes
+into the save's own OPFS file as it is read (`SaveFile`, taken from `hls2mp4`,
+`SAVE_APPENDS_AHEAD` on their way at once), or is staged as the converter's own
+Blob where that file cannot begin (a private window); `finalize()` puts the moov
+in front of it. A failed read or write fails the save, so does a staged piece the
+store no longer has (it used to become the word "undefined" again), and a failed
+save drops its file (`saveAbort`), as an HLS save does. **Behaviour change:**
+once media is on disk, a write that fails mid-save (disk or quota full) fails a
+DASH or fMP4 save, as it already failed an HLS one, instead of falling back to
+RAM; only a save that cannot begin on disk stages in memory.
+
 `tests/e2e/specs/save-video.e2e.mjs` had been passing on that file the whole
 time, on Chromium, where the web build always takes this path:
 `decodeOk` and `duration` are both read out of the `moov`, so a header with
@@ -198,6 +233,22 @@ weaker, but not writing an entire video to disk during a private session is
 a defensible privacy stance, and changing it is a behaviour change rather
 than a fix. (2026-10-09: a private window now keeps nothing on disk at all, and its
 buffering is bounded by the RAM budget as well as by this window.)
+
+**The background is no private window and in no container** (2026-11-13, a review): what
+it fetches for such a tab goes with the normal window's cookies, cache and proxy. Two of
+its requests did:
+
+- **FreshLink** (`REQUEST_FRESH_LINK`) fetched a refused stream's page again, credentials
+  included: what the page set landed in the normal cookie jar, a container's own login was
+  not the one sent, and the request missed a private window's proxy (`VpnProxyMirror`). The
+  background now answers no link to a player in a private window's tab or a container tab
+  (a cookie store other than `firefox-default`). **Behaviour change:** fresh links are off
+  there; the player handles the refusal as it did before FreshLink.
+  `backgroundRobustness.test.mjs`.
+- **The length reads** (`StreamLengths.get`): a private window's playlists and the first
+  64 KB of its files stayed in the normal disk cache after the window closed. They passed
+  `credentials: 'omit'` and no cache option; now `cache: 'no-store'` too, as `MpvSubtitles`'
+  reads already did for the same reason. `StreamLengths.test.mjs`.
 
 ## RAM first, a budget, and private windows in RAM only (2026-10-09)
 
@@ -325,7 +376,16 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   session directory. Plain records only (no `DownloadEntry`, no functions); no playlist or
   manifest (text: they carry the old signatures, a live one moves on), no key (raw), nothing in
   the Cache API or IndexedDB. Measured: 256 MB of Blobs sent in 1 ms, the data shared, not copied,
-  and intact after the sender's page was gone.
+  and intact after the sender's page was gone. Since 2026-11-13 (a review) the hand-off keeps its
+  files from the player's reset (`DownloadManager.keepStorageOnce`), and `destroy()` closes the
+  download manager only once the reset is over. Before, `destroy()` did not await the reset: its
+  clear of the files on disk (`FSBlob.clear` waits for its store first) reached the OPFS worker
+  after the store's close, so it ran after the worker's `destroy` and deleted the files just
+  handed over (the next player downloaded them again), or did not run at all as the page went,
+  leaving the player's own files for another player's prune. Without a hand-off, a player that
+  goes now deletes its own files before its store closes. A reset that first waited for a
+  running save then ran on the destroyed manager and threw; a destroyed manager's reset does
+  nothing now. `DownloadManager.test.mjs`, `FastStreamClient.test.mjs`.
 - **`runtime.getBackgroundPage()` is not there in a player iframe inside a web page** (it is in an
   extension tab), so the hand-off is a runtime message; from such an iframe, messages and ports
   still go out at `beforeunload` and `pagehide` as its page reloads (measured).
@@ -354,4 +414,5 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   under the new link finds the file with those left out (`DownloadManager.stored`, an alias: the
   entry's data stays under its old store id, `entry.blobId`). Parameters that did not change still
   tell files apart. FreshLink uses the same (`DownloadManager.relink`): a refused link's fresh one
-  no longer downloads everything again.
+  no longer downloads everything again. (FreshLink gives no link in a private window or a
+  container tab since 2026-11-13: "Storage in a private window".)

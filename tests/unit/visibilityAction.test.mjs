@@ -18,37 +18,23 @@ describe('InterfaceController, the visibility action', () => {
 describe('InterfaceController.handleVisibilityChange', () => {
   // VisChangeActions has no PIP (it is commented out there), so the switch's PIP case was a
   // `case undefined:` - an action that was not set entered picture-in-picture whenever the
-  // page was hidden (the review of 2026-11-13). The method runs here as written in the
-  // source, on a stand-in controller.
+  // page was hidden (the review of 2026-11-13). Each of the switch's cases must name an action
+  // the list declares.
   const start = source.indexOf('  async handleVisibilityChange(isVisible) {');
   const end = source.indexOf('\n  }\n', start);
-  const method = new Function('VisChangeActions', 'MiniplayerCooldown',
-      `return {${source.slice(start, end)}\n  }}.handleVisibilityChange;`);
+  const method = source.slice(start, end);
+  const actions = fs.readFileSync(new URL('../../chrome/player/options/defaults/VisChangeActions.mjs', import.meta.url), 'utf8');
+  // The declared ones, as `KEY: 'value',` lines; a commented-out one (// PIP: 'pip') is none.
+  const declared = [...actions.matchAll(/^ {2}([A-Z_]+): '[a-z]+',$/gm)].map((match) => match[1]);
 
-  /**
-   * A controller whose page was visible, its player playing.
-   * @param {*} action - options.visChangeAction.
-   * @return {Object}
-   */
-  const controller = (action) => ({
-    client: {needsUserInteraction: () => false, options: {visChangeAction: action}, state: {playing: true},
-      player: {pause: async () => {}, play: async () => {}}},
-    state: {fullscreen: false, miniplayer: false, windowedFullscreen: false},
-    lastPageVisibility: true,
-    isInPip: () => false,
-    enterPip: async () => {
-      throw new Error('picture-in-picture');
-    },
-    exitPip: async () => {},
-    requestMiniplayer: () => {},
-  });
-
-  it('does nothing for an action that is not set, nor for one it does not know', async () => {
-    // The options page's list, the web build's (no miniplayer there: its key is deleted).
-    const VisChangeActions = {NOTHING: 'nothing', PLAY_PAUSE: 'playpause', MINI_PLAYER: 'miniplayer'};
-    for (const action of [undefined, 'pip', null]) {
-      const run = method(VisChangeActions, 0);
-      await expect(run.call(controller(action), false), String(action)).resolves.toBe(undefined);
+  it('has a case only for an action the list declares', () => {
+    expect(start).toBeGreaterThan(-1);
+    expect(declared).toEqual(['NOTHING', 'PLAY_PAUSE', 'MINI_PLAYER']);
+    const cases = [...method.matchAll(/^\s*case ([^:]+):/gm)].map((match) => match[1].trim());
+    expect(cases.length).toBeGreaterThan(0);
+    for (const label of cases) {
+      expect(label, label).toMatch(/^VisChangeActions\.[A-Z_]+$/);
+      expect(declared, label).toContain(label.slice('VisChangeActions.'.length));
     }
   });
 });
