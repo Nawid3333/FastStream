@@ -47,3 +47,25 @@ describe('A/B benchmark numbers', () => {
     expect(table).toContain('| mp4 | first frame | 210 ms | 160 ms | -50 (-23.8 %) | 10 | 3/3 | better |');
   });
 });
+
+describe('A/B benchmark settings', () => {
+  it('takes a number from the environment only inside its range', async () => {
+    const {boundedNumber} = await import('../e2e/bench/settings.mjs');
+    const saved = process.env.BENCH_TEST_NUMBER;
+    try {
+      delete process.env.BENCH_TEST_NUMBER;
+      expect(boundedNumber('BENCH_TEST_NUMBER', 7, 10)).toBe(7);
+      process.env.BENCH_TEST_NUMBER = '';
+      expect(boundedNumber('BENCH_TEST_NUMBER', 7, 10)).toBe(7);
+      process.env.BENCH_TEST_NUMBER = '10';
+      expect(boundedNumber('BENCH_TEST_NUMBER', 7, 10)).toBe(10);
+      for (const wrong of ['11', '-1', 'soon', 'Infinity']) {
+        process.env.BENCH_TEST_NUMBER = wrong;
+        expect(() => boundedNumber('BENCH_TEST_NUMBER', 7, 10)).toThrow('BENCH_TEST_NUMBER must be a number from 0 to 10');
+      }
+    } finally {
+      if (saved === undefined) delete process.env.BENCH_TEST_NUMBER;
+      else process.env.BENCH_TEST_NUMBER = saved;
+    }
+  });
+});

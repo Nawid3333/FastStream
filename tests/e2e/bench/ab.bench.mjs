@@ -23,12 +23,12 @@ import path from 'node:path';
 
 import {browser} from '@wdio/globals';
 
-import {bench} from './settings.mjs';
+import {bench, boundedNumber} from './settings.mjs';
 import {compare, renderTable, roundOrder} from './stats.mjs';
 
-const PLAY_MS = Number(process.env.BENCH_PLAY_MS || 5000);
-const PAUSED_MS = Number(process.env.BENCH_PAUSED_MS || 10000);
-const IDLE_MS = Number(process.env.BENCH_IDLE_MS || 5000);
+const PLAY_MS = boundedNumber('BENCH_PLAY_MS', 5000, 600000);
+const PAUSED_MS = boundedNumber('BENCH_PAUSED_MS', 10000, 600000);
+const IDLE_MS = boundedNumber('BENCH_IDLE_MS', 5000, 600000);
 const WARMUP = bench.warmup;
 const SEEK_TO = 80;
 
@@ -338,9 +338,16 @@ describe('A/B benchmark', function() {
     await browser.addInitScript(probe, bench.where);
   });
 
-  for (const name of bench.scenarios) {
+  // A name asked for that no scenario has fails loudly, as a test of its own.
+  for (const name of bench.scenarios.filter((asked) => !Object.hasOwn(SCENARIOS, asked))) {
+    it(`measures ${name}`, function() {
+      throw new Error(`no scenario ${name} (have ${Object.keys(SCENARIOS).join(', ')})`);
+    });
+  }
+
+  // The names come from SCENARIOS itself, so nothing passed in names a key of the results.
+  for (const name of Object.keys(SCENARIOS).filter((known) => bench.scenarios.includes(known))) {
     it(`measures ${name}`, async function() {
-      if (!SCENARIOS[name]) throw new Error(`no scenario ${name} (have ${Object.keys(SCENARIOS).join(', ')})`);
       results[name] = {A: {}, B: {}};
       for (let round = -WARMUP; round < bench.rounds; round++) {
         for (const build of roundOrder(round + WARMUP)) {

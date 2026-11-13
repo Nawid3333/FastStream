@@ -73,7 +73,15 @@ function buildRef(ref) {
   const tree = path.join(args.trees, sha);
   const web = path.join(tree, 'built', 'web');
   const stamp = path.join(tree, '.bench-built');
-  if (fs.existsSync(stamp) && fs.existsSync(path.join(web, 'player', 'index.html'))) {
+  // The stamp names the commit its build was made from; a missing one or another commit's
+  // means build again.
+  let stamped = '';
+  try {
+    stamped = fs.readFileSync(stamp, 'utf8').trim();
+  } catch {
+    // never built here
+  }
+  if (stamped === sha && fs.existsSync(path.join(web, 'player', 'index.html'))) {
     console.log(`${label}: using its build from before (${web})`);
     return {dir: web, label};
   }
