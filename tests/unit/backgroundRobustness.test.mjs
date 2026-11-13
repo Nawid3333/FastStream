@@ -118,6 +118,57 @@ describe('a download from a container tab', () => {
   });
 });
 
+describe('a new link for a stream the server refused', () => {
+  // The player asks the page that gave the link for it anew (REQUEST_FRESH_LINK, FreshLink.mjs):
+  // the background fetches that page again, with its site's cookies.
+  const OLD = 'https://cdn.test/hls/master.m3u8?t=old&s=1';
+  const NEW = 'https://cdn.test/hls/master.m3u8?t=new&s=2';
+
+  /**
+   * Has the page give its link, then the player in it ask for a new one.
+   * @param {Object} tab - The tab, as Firefox describes it to the sender.
+   * @return {Promise<{answer: *, pageFetches: Array<Object>}>} The player's answer, and the
+   *   fetches of the page (their init).
+   */
+  async function askFromTab(tab) {
+    const pageFetches = [];
+    bg = await loadBackground({
+      tabs: [tab],
+      fetch: async (url, init) => {
+        if (url !== PAGE) return response('', 404);
+        pageFetches.push(init);
+        return new Response(`<script>var file = "${NEW}";</script>`, {status: 200, headers: {'Content-Type': 'text/html'}});
+      },
+    });
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await bg.request({tabId: 1, url: OLD});
+    const answer = await bg.message({type: 'REQUEST_FRESH_LINK', url: OLD}, {tab, frameId: 3});
+    return {answer, pageFetches};
+  }
+
+  it('is read from the page again in an ordinary tab', async () => {
+    const {answer, pageFetches} = await askFromTab({id: 1, url: PAGE, incognito: false, cookieStoreId: 'firefox-default'});
+    expect(answer).toBe(NEW);
+    expect(pageFetches).toHaveLength(1);
+    expect(pageFetches[0]).toMatchObject({credentials: 'include', cache: 'no-store'});
+  });
+
+  it('is not read from a private window\'s page', async () => {
+    // The background is no private window: its fetch went with the normal window's cookies,
+    // kept what the page set in the normal cookie jar, and missed a private window's proxy.
+    const {answer, pageFetches} = await askFromTab({id: 1, url: PAGE, incognito: true, cookieStoreId: 'firefox-private'});
+    expect(answer).toBeNull();
+    expect(pageFetches).toEqual([]);
+  });
+
+  it('is not read from a container tab\'s page', async () => {
+    // The container's own login is another than the default cookie store's the fetch went with.
+    const {answer, pageFetches} = await askFromTab({id: 1, url: PAGE, incognito: false, cookieStoreId: 'firefox-container-1'});
+    expect(answer).toBeNull();
+    expect(pageFetches).toEqual([]);
+  });
+});
+
 describe('the toolbar\'s On with players for several frames', () => {
   it('opens the one over the largest video first, also when a frame gives no size', async () => {
     // A frame without a content script answers nothing: its size was undefined, the sort

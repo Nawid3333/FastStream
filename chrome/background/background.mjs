@@ -1070,7 +1070,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   } else if (msg.type === MessageTypes.REQUEST_FRESH_LINK) {
     // A player whose stream the server refused asks its page for the link anew (FreshLink.mjs).
-    if (!BackgroundUtils.isUrlPlayerUrl(sender.url || '') || typeof msg.url !== 'string') {
+    // Not in a private window or a container tab: the background is neither, and its fetch of
+    // the page went with the normal window's cookies (a container's login is another one), left
+    // what the page set in the normal cookie jar, and missed a private window's proxy
+    // (VpnProxyMirror). The player there says the link was refused, as before FreshLink.
+    const store = senderTab.cookieStoreId;
+    if (!BackgroundUtils.isUrlPlayerUrl(sender.url || '') || typeof msg.url !== 'string' ||
+        senderTab.incognito || (store && store !== 'firefox-default')) {
       sendResponse(null);
       return;
     }
