@@ -507,8 +507,15 @@ export class FastStreamClient extends EventEmitter {
     clearTimeout(this.progressPruneTimer);
     document.removeEventListener('visibilitychange', this.onPeersVisibility);
     this.peers.stop();
-    this.resetPlayer();
-    this.downloadManager.destroy();
+    // The download manager goes once the reset is over: its files on the disk deleted first,
+    // unless they were handed over (handOffBuffer). Not awaited, the reset's clear (FSBlob.clear
+    // waits for its store first) reached the OPFS worker after the store's close: it ran after
+    // the worker's 'destroy', and deleted the files just handed over to the next player, or did
+    // not run at all as the page went. A reset that first waited for a save to stop ran on the
+    // destroyed manager, and threw.
+    const downloadManager = this.downloadManager;
+    this.resetPlayer().catch((e) => console.error('Could not reset the player as it went', e))
+        .finally(() => downloadManager.destroy());
     this.interfaceController.destroy();
     if (this.progressMemory) {
       this.progressMemory.destroy();
@@ -2226,6 +2233,9 @@ export class FastStreamClient extends EventEmitter {
     chrome.runtime.sendMessage({type: MessageTypes.BUFFER_STASH, page: this.bufferPage.page,
       identifier: source.identifier, url: source.url, session, entries})
         .catch((e) => console.warn('Could not hand the buffer over', e));
+    // Its files on the disk are the stash's now, which lets them go if nobody takes them back:
+    // the reset as this player goes (destroy) must not delete them.
+    this.downloadManager.keepStorageOnce();
   }
 
   /**

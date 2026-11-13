@@ -64,6 +64,15 @@ describe('DownloadManager', () => {
     expect(() => vi.advanceTimersByTime(2000)).not.toThrow();
   });
 
+  it('stays destroyed when a reset comes after it', async () => {
+    // A player reset as it went (FastStreamClient.destroy, after a save it waited for): the reset
+    // threw on the downloaders that were gone (Array.from(null)), an unhandled rejection.
+    const manager = new DownloadManager({predownloadFragments: vi.fn()});
+    manager.destroy();
+    await expect(manager.reset()).resolves.toBeUndefined();
+    expect(manager.downloaders).toBe(null);
+  });
+
   /** A downloader that takes one download and keeps it. */
   function idleDownloader() {
     const downloader = {

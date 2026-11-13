@@ -1145,6 +1145,9 @@ export class DownloadManager {
   }
 
   async reset() {
+    // Destroyed: nothing to reset. It threw on the downloaders that went, an unhandled
+    // rejection (a player reset as it went, once a save it waited for had stopped).
+    if (!this.downloaders) return;
     this.abortAll();
 
     this.testing = true;
