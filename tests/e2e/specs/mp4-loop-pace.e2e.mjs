@@ -137,4 +137,48 @@ describe('An MP4 player with nothing to do', function() {
       throw new Error(`play after the end did not start it over: ${JSON.stringify(state)}`);
     });
   });
+
+  it('plays again after its end when it was never sought', async function() {
+    // A review (2026-11-13): the client sets the start right after setSource, before the
+    // element has data; no seek runs then and no seeked ever came, and that mark made the
+    // element's own seek to 0 at the replay look like the player's. The test above sought
+    // before its end, which hid it.
+    const source = globalThis.__E2E_FIXTURES_ORIGIN__ + `/fixtures/long-av.mp4?unsought=${Date.now()}`;
+    await browser.url(`/player/index.html?t=${Date.now()}#${source}`);
+    await browser.waitUntil(async () => ((await videoState())?.readyState ?? 0) >= 2,
+        {timeout: 20000, interval: 100, timeoutMsg: 'the video did not load'});
+    // Fast, to its end, without a seek.
+    await browser.execute(() => {
+      const client = /** @type {any} */ (window).fastStream;
+      client.player.getVideo().playbackRate = 8;
+      client.play();
+    });
+    await browser.waitUntil(async () => !!(await videoState())?.ended,
+        {timeout: 60000, interval: 200, timeoutMsg: 'the video did not reach its end at 8x'});
+    await browser.execute(() => {
+      const client = /** @type {any} */ (window).fastStream;
+      client.player.getVideo().playbackRate = 1;
+      client.play().catch(() => {});
+    });
+    let state;
+    await browser.waitUntil(async () => {
+      state = await videoState();
+      return !!state && !state.paused && !state.ended && state.time > 0.5 && state.time < 30;
+    }, {timeout: 10000, interval: 100}).catch(() => {
+      throw new Error(`play after an unsought end did not start it over: ${JSON.stringify(state)}`);
+    });
+  });
+
+  it('wakes the page rarely for an audio-only MP4, whose seek preview has nothing to show', async function() {
+    // A review (2026-11-13): the preview made no SourceBuffer for a file without a picture,
+    // its element stayed at HAVE_NOTHING, and its loop ran every 4 ms for the tab's life.
+    const source = globalThis.__E2E_FIXTURES_ORIGIN__ + `/fixtures/mp4-shapes/long-audio-only.mp4?pace=${Date.now()}`;
+    await browser.url(`/player/index.html?t=${Date.now()}#${source}`);
+    await browser.waitUntil(async () => ((await videoState())?.readyState ?? 0) >= 2,
+        {timeout: 20000, interval: 100, timeoutMsg: 'the audio did not load'});
+    await browser.pause(1500);
+    const paused = await wakeUpsPerSecond(3000);
+    console.log(`      audio only, paused: ${paused.toFixed(1)} wake-ups a second`);
+    expect(paused).toBeLessThan(MAX_IDLE_WAKE_UPS);
+  });
 });

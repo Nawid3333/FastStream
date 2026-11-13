@@ -109,6 +109,9 @@ export default class MP4Player extends EventEmitter {
     this.fragmentRequester = new MP4FragmentRequester(this);
 
     this.running = false;
+    // A seek preview of a file without a picture: it stopped once the metadata was in
+    // (onMetadataParsed).
+    this.nothingToPreview = false;
 
     this.loaded = false;
 
@@ -421,6 +424,15 @@ export default class MP4Player extends EventEmitter {
     this.currentAudioTrack = this.firstAudioTrack();
     this.emit(DefaultPlayerEvents.MANIFEST_PARSED);
     this.updateDuration();
+    // A seek preview of a file without a picture (audio only) has nothing to show, and stops
+    // here. It made no SourceBuffer (a preview plays no audio), so its element never left
+    // HAVE_NOTHING, and its loop, waiting for a first frame (needsInit), woke the page every
+    // 4 ms for as long as the tab stayed open (a review, 2026-11-13).
+    if (this.isPreview && this.videoTracks.length === 0) {
+      this.nothingToPreview = true;
+      this.running = false;
+      return;
+    }
     this.setupHLS();
     this.load();
   }
@@ -675,7 +687,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   runLoad() {
-    if (this.metaData && !this.loaded) return;
+    if (this.nothingToPreview || (this.metaData && !this.loaded)) return;
 
     if (this.isPreview && this.readyState >= 2) {
       return;
@@ -1141,7 +1153,7 @@ export default class MP4Player extends EventEmitter {
 
   /** @param {boolean} [noLoad] - Leaves the loading to the caller. */
   resetHLS(noLoad) {
-    if (!this.metaData) return;
+    if (!this.metaData || this.nothingToPreview) return;
     this.segmentAppender.reloaded();
     // The media segments still queued would be appended only for the removal below to take
     // them away again: dropped instead, so the new place's segments follow the removal at
@@ -1193,7 +1205,11 @@ export default class MP4Player extends EventEmitter {
     }
     this.pendingSeek = null;
     this.video.currentTime = value;
-    this.ownSeek = this.video.currentTime;
+    // Only a seek the element started: with no data yet (readyState 0, as when the client sets
+    // the start right after setSource) the time is only where it will start, no seek runs, and
+    // no seeked would ever clear the mark - the element's own seek to 0 when the video was
+    // played again after its end was then taken for this one (a review, 2026-11-13).
+    this.ownSeek = this.video.seeking ? this.video.currentTime : null;
 
     // What matters is where the element is going: a seek to -3 s lands on 0, which may well
     // be buffered, and throwing the whole buffer away for it made every arrow press near the

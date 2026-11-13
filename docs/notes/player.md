@@ -1043,10 +1043,59 @@ for each timer callback), on main and the branch alike:
   setter checks its own (`reloadUnlessBuffered`); one made through the setter is recognised by
   where it took the element (`ownSeek`, cleared on `seeked`) and not checked twice. The stall
   watchdog's nudge is such a seek too: it lands in what is buffered, so nothing is reloaded.
+  `ownSeek` is set only when the element started a seek (`video.seeking` right after the
+  assignment): the client sets the start right after `setSource`, at readyState 0, where no seek
+  runs and no `seeked` ever came - a video played to its end without a seek was then still stuck
+  at the replay (an independent review found it; the first version of the test sought first).
+- **An audio-only MP4's seek preview woke the page every 4 ms.** The preview plays no audio, so
+  for a file without a picture it made no SourceBuffer, its element never left HAVE_NOTHING, and
+  its loop waited for a first frame (`needsInit`) at 1 ms for the tab's life: 236 callbacks a
+  second. Such a preview now stops once the metadata is in (`nothingToPreview`), and loads
+  nothing: 6.7 a second.
 
 `tests/e2e/specs/mp4-loop-pace.e2e.mjs`: wake-ups paused and ended under 20 a second (failed on
 the old build at 41), a seek while paused lands, play after the end starts the video over
-(failed on main and the old build: seeking at 0, readyState 1).
+(failed on main and the old build: seeking at 0, readyState 1), also after a play-through
+without a seek, and an audio-only MP4 under 20 a second (236 before).
+
+## What an independent review of the player, background and content scripts found (2026-11-13)
+
+Two Claude agents read the player's lifecycle and the background/content scripts for bugs of the
+kind above; each finding was checked against the code and, where fixed, shown by a test that
+failed before. Fixed:
+
+- **The next episode's instructions reached a later, unrelated player.** After FastStream went on
+  to the next episode by itself, its continuation (autoplay, the carried fullscreen, no
+  remembered place) stayed on the tab until some player took it. A next page with no player (a
+  failed hoster), then a page the user went to himself, and the next video opened there - minutes
+  later - went fullscreen, played by itself and skipped its place. It now holds only for the first
+  page after the click (`continuationArrived`); MPV's own (`mpvNext`) is unchanged. The opposite
+  case too: a next episode on another hostname lost it to the new site's reset; it goes along now.
+  `backgroundFullscreen.test.mjs`.
+- **Escape could not end a carried fullscreen whose player's frame went or reloaded.** The
+  background passed Escape on to that frame, which was gone or held a new player that had never
+  taken it over; the window stayed fullscreen. The player now answers whether it ended it
+  (`exitCarriedFullscreen` returns true), and the background ends it otherwise.
+- **The page around an embed kept its own menu hidden after the player left the embed** (the
+  embed's page went elsewhere or took its player out, the iframe stayed): only the player's
+  leaving page released the overlay guard. On a player frame's `FRAME_REMOVED` the background now
+  tells each frame above to let go of the iframe on the way (`RELEASE_OVERLAY_GUARD`), unless
+  another player still lives under it. `content-overlays.e2e.mjs` (failed on main),
+  `backgroundOverlayGuard.test.mjs`, `contentScript.test.mjs`.
+
+Found and not changed yet (smaller; each with its trigger in the review):
+
+- MP4 and DASH seek previews restart the hovered range's download on every pointer move while it
+  loads (HLS has a guard: `HLSPlayer`, "a pointer still inside the segment that is loading");
+  the DASH preview buffers 10-18 s at each hovered place, HLS's 1 s.
+- An iframe the page takes out (no `beforeunload`) never sends `FRAME_REMOVED`: its frame and
+  sources stay in the background until the page navigates.
+- A player's `FRAME_REMOVED` handled after its page frame's can re-create the page frame's
+  holder and lower `playerCount` twice (two players in a tab).
+- A tab closed within the 500 ms replace delay: the toolbar calls on its id reject unhandled.
+- A start by address (auto-enable list) is lost when only the fragment changes within 500 ms.
+- Synced audio (a video delay set) follows play, pause and seek from media keys or PiP only at the
+  next `watcherLoop` round, about a second later.
 
 ## Measuring two builds: tools/bench-ab.mjs (2026-11-13)
 
