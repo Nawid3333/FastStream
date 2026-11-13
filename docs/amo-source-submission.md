@@ -32,7 +32,7 @@ pnpm run build:keep
 That produces the submitted add-on at:
 
 ```
-built/firefox-amo-faststream_video_player-<version>.zip
+built/firefox-amo-faststream_for_firefox-<version>.zip
 ```
 
 `build.mjs` moves it there from web-ext's artifacts folder

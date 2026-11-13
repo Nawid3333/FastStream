@@ -47,12 +47,12 @@ appears (`docs/upstream-sync-log.md`), and every green push to `main` is
 released automatically. Open decisions (the licence) are unchanged, below.
 
 **Date:** 2026-09-07 (MPV section added 2026-09-09)
-**Fork:** https://github.com/Nawid3333/FastStream
+**Fork:** https://github.com/Nawid3333/FastStream-for-Firefox
 **Branch:** `main` (the only branch, and the default). Until 2026-09-19 the work
 lived on `dev/mv3-modernization` and `main` mirrored upstream; `Mpv-feature`
 carried the MPV work and was **merged** on 2026-09-09
 **Base:** upstream `d5fe931` (V1.3.77)
-**CI:** green — https://github.com/Nawid3333/FastStream/actions
+**CI:** green — https://github.com/Nawid3333/FastStream-for-Firefox/actions
 **Plan doc:** a private planning page (not published)
 
 Everything in this checkpoint reflects a verified state: the full suite

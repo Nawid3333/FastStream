@@ -4,6 +4,6 @@ To uninstall the extension, simply right click the icon and click "Remove Extens
 
 ## Before you leave
 
-Please let us know if you are uninstalling because of a bug. Report all bugs to the [issue tracker](https://github.com/Nawid3333/FastStream/issues).
+Please let us know if you are uninstalling because of a bug. Report all bugs to the [issue tracker](https://github.com/Nawid3333/FastStream-for-Firefox/issues).
 
 #### Please report any bugs you notice! We won't know about it otherwise!

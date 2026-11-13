@@ -1,9 +1,10 @@
 ![logotext1](https://github.com/user-attachments/assets/cefd20ba-606a-482c-a522-36b3419e93c7)
 
-# FastStream
-Cansado de ver vídeos travando por causa da internet lenta? Frustrado com a falta de recursos de acessibilidade em alguns sites? Esta extensão substitui os vídeos dos sites por um reprodutor de vídeo projetado para sua conveniência. Diga adeus ao pré-carregamento e olá para uma experiência de vídeo mais acessível!
+# FastStream for Firefox
 
-Este é um fork só para Firefox de [Andrews54757/FastStream](https://github.com/Andrews54757/FastStream), mantido por Nawid3333. Ele acrescenta o envio de vídeos para o reprodutor mpv e deixa de fora o suporte ao YouTube do projeto original.
+O FastStream for Firefox é um fork só para Firefox do FastStream de Andrew S ([Andrews54757/FastStream](https://github.com/Andrews54757/FastStream)). O código parte do dele; este fork não é afiliado a ele nem endossado por ele. Ele é distribuído aqui no GitHub (veja [Instalação](#instalação)) e não está listado no addons.mozilla.org. É mantido por Nawid3333 de forma independente desde 09/10/2026 (não segue mais o projeto original). Ele acrescenta o envio de vídeos para o reprodutor mpv e deixa de fora o suporte ao YouTube do projeto original.
+
+Cansado de ver vídeos travando por causa da internet lenta? Frustrado com a falta de recursos de acessibilidade em alguns sites? Esta extensão substitui os vídeos dos sites por um reprodutor de vídeo projetado para sua conveniência. Diga adeus ao pré-carregamento e olá para uma experiência de vídeo mais acessível!
 
 1. Assista a vídeos sem interrupções, pré-carregando o vídeo em segundo plano. Fragmentação automática e até 6 solicitações paralelas tornam os downloads mais rápidos.
 2. Recursos avançados de legendas incluem: personalização da aparência das legendas, suporte integrado ao OpenSubtitles para encontrar legendas na internet e uma ferramenta intuitiva de sincronização para ajustar o tempo das legendas em tempo real.
@@ -25,7 +26,7 @@ Para usar o player, basta:
 Observações:
 - Transmissões ao vivo em HLS e DASH são reproduzidas.
 - Este player não funciona com conteúdo protegido por DRM (Netflix/Amazon etc). Isso é intencional. Por favor, use esta ferramenta de forma responsável. O FastStream não deve ser usado para violar direitos autorais.
-- Por favor, relate problemas, dificuldades de acessibilidade e sugestões de recursos no Github: https://github.com/Nawid3333/FastStream/issues
+- Por favor, relate problemas, dificuldades de acessibilidade e sugestões de recursos no Github: https://github.com/Nawid3333/FastStream-for-Firefox/issues
 - Para sua privacidade, esta extensão **não coleta dados de telemetria** e não tem servidor próprio. Além dos sites cujos vídeos você reproduz, ela só se conecta ao OpenSubtitles quando você procura legendas e ao GitHub para atualizações. Tudo o que ela executa vem dentro do complemento. Os detalhes, permissão por permissão, estão em [docs/privacy-policy.md](docs/privacy-policy.md) (em inglês).
 - O tamanho máximo padrão para pré-carregamento é de 5 GB. Isso pode ser alterado na página de configurações (0 = não pré-carregar nada, vazio = sem limite). Onde o vídeo baixado fica guardado, na RAM ou no disco, também é sua escolha: duas configurações decidem isso, explicadas em [RAM and disk](README.md#ram-and-disk) (em inglês).
 
@@ -35,14 +36,14 @@ O FastStream é construído para o Firefox no desktop. Chrome e outros navegador
 
 ## Instalação
 
-Baixe o `.xpi` na [página de Releases](https://github.com/Nawid3333/FastStream/releases) e abra-o no Firefox (arraste-o para uma janela, ou `about:addons` → a engrenagem → Instalar complemento a partir de arquivo). Ele requer o Firefox 153 ou mais recente. A versão é assinada pela Mozilla para autodistribuição, então ela instala em um Firefox comum, e o Firefox verifica atualizações sozinho: cada release publica um `updates.json` para o qual a extensão aponta.
+O FastStream for Firefox não está no addons.mozilla.org: instale-o pelo GitHub. Baixe o `.xpi` na [página de Releases](https://github.com/Nawid3333/FastStream-for-Firefox/releases) e abra-o no Firefox (arraste-o para uma janela, ou `about:addons` → a engrenagem → Instalar complemento a partir de arquivo). Ele requer o Firefox 153 ou mais recente. A versão é assinada pela Mozilla para autodistribuição (um complemento não listado), então ela instala em um Firefox comum, e o Firefox verifica atualizações sozinho: cada release publica um `updates.json` para o qual a extensão aponta.
 
 O `firefox-github-*.zip` na mesma página é um build não assinado para desenvolvimento; carregá-lo requer o Firefox Developer Edition ou um complemento temporário (`about:debugging`).
 
 ## Instruções de Build (criar pacotes)
 Para criar os pacotes do Firefox, você precisa compilar o FastStream seguindo estes passos:
 
-1. Instale o Node.js (22 ou mais novo) e o pnpm 11
+1. Instale o Node.js (22 ou mais novo) e o pnpm 12
 2. Execute `pnpm install` para instalar as dependências
 3. Execute `pnpm run build`
 4. Os pacotes do Firefox e o build web estarão disponíveis no diretório `built`
@@ -86,3 +87,7 @@ Muito obrigado aos colaboradores deste projeto.
 ## Aviso Legal
 
 Embora seja possível que o FastStream salve vídeos de qualquer site, desde que não haja DRM, isso não significa que você tenha o direito legal de fazê-lo se não for o proprietário do conteúdo. Por favor, use esta ferramenta com responsabilidade. O FastStream não deve ser utilizado para violar direitos autorais.
+
+## Licença
+
+O FastStream for Firefox não é oferecido sob nenhuma licença de código aberto. O [LICENSE.md](LICENSE.md) é a licença do projeto original, sem alterações: o código do FastStream de Andrew S é "All rights reserved" (todos os direitos reservados), e as bibliotecas de terceiros listadas nele mantêm as suas próprias licenças.
