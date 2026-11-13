@@ -111,11 +111,23 @@
   building, and runs lint + unit tests (a hand-cut tag reaches it without CI). Only
   lowercase `v` tags: the 106 capital-`V` tags in the repository are upstream's, copied at
   the fork. Run again for a tag that has a release, it replaces the files. Its last step,
-  whatever happened, starts the failsafe.
+  whatever happened, starts the failsafe. Since 2026-11-13 it also refuses a tag whose
+  commit is not on `main` ("Check the tag is on main", before the install, the build and the
+  signing; `tests/workflows/release-provenance.test.sh`): `auto-release.yml` pushes `main` and
+  the tag together and `tools/cut-release.mjs` runs on `main`, so only a tag cut on a branch
+  by mistake stops there. The check is in the tag's own copy of the file, so it guards
+  against mistakes only; the failsafe below runs `main`'s copy, and a tag ruleset (only the
+  owner and the workflows create `v*` tags) would close the rest (an owner question).
 - **`amo-signing-failsafe.yml`** ("Release failsafe"; after every release run, and every
   3 h): completes a release whose AMO signing did not finish, re-runs one that did not
   publish, checks the update path; see "AMO signing no longer depends on a timer" and
-  "Every release is checked to reach Firefox" above.
+  "Every release is checked to reach Firefox" above. Since 2026-11-13: a newest tag not on
+  `main` is not started again (a warning), and a latest release whose tag is not on `main`
+  is neither built nor signed (the run fails, which opens "Release failsafe failed"); the
+  repository token is given to each step that calls `gh`, not to the job, so the tag's
+  install and build (`geckodriver`'s and `esbuild`'s install scripts) never see it
+  (`tests/unit/workflowSecrets.test.mjs` fails for a token in the env of a job that holds
+  the AMO keys, or of its install or build step).
 - **`live-streams.yml`** (Mondays; 2026-09-28): `pnpm run test:live` on Linux and Windows,
   one issue while it fails. Also on a PR that changes the live suite or the e2e setup, and on
   the player libraries' rolling update PR (dispatched there; 2026-10-24), where a last job,
@@ -202,7 +214,10 @@
   for a run a workflow's token started, which sends none, `ci.yml`'s hand-off starts it by
   `workflow_dispatch`, and opens "Update PRs hand-off failed" when GitHub refuses all three
   tries) for this repository's `dependabot/*`, `toolchain/*` and `patched/*` branches
-  (`sync/upstream` too until 2026-10-09), and never checks out PR code. `gh pr list --head`
+  (`sync/upstream` too until 2026-10-09), and never checks out PR code. One decision per
+  branch at a time, by a concurrency group on the job (since 2026-11-13; before, on the
+  workflow, where the runs whose job is skipped queued too and could cancel a pending
+  decision, as `auto-release.yml` found). `gh pr list --head`
   lists a fork's pull request from a branch of the same name too: it and `mpv-updates.yml`
   drop those (`isCrossRepository`, #169; `tests/unit/workflowGh.test.mjs`
   fails for a `--head` list that does not ask). CI red: CI is started once more

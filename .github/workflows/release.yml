@@ -74,8 +74,10 @@ jobs:
     steps:
       # The token is not kept in .git/config (persist-credentials: false): every later
       # step could read it there, dev dependencies' install scripts included.
+      # The whole history, main's included: "Check the tag is on main" needs both.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       # Reads the pnpm version from package.json "packageManager", so this
@@ -108,6 +110,21 @@ jobs:
             exit 1
           fi
           echo "tag $TAG matches package.json and chrome/manifest.json ($pkg_version)"
+
+      # A release comes from main only: auto-release.yml pushes main and the tag together, and
+      # tools/cut-release.mjs is run on main. A tag on another commit (cut on a branch by
+      # mistake) stops here, before the install, the build and the signing. The failsafe, which
+      # runs main's copy of its workflow, refuses such a tag as well.
+      - name: Check the tag is on main
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+            echo "::error::$TAG ($(git rev-parse --short HEAD)) is not on main: a release is made from a commit of main only. Delete the tag, and tag a commit of main."
+            exit 1
+          fi
+          echo "$TAG is on main"
 
       # --frozen-lockfile also applies patches/ during install, which the
       # build needs: chrome/player/modules/hls.mjs is generated from the

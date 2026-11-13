@@ -59,6 +59,9 @@ cat > "$here/bin/git" <<'EOF'
 case "$1" in
   # git tag -l 'v*': the repository's tags.
   tag) cat "$FIX/tags" 2> /dev/null || true ;;
+  # git merge-base --is-ancestor <tag> refs/remotes/origin/main: whether the tag is on main;
+  # every tag is, but those listed in off-main.
+  merge-base) ! grep -qxF -- "$3" "$FIX/off-main" 2> /dev/null ;;
   # git for-each-ref --format='%(creatordate:unix)' refs/tags/<tag>: when the tag was made.
   *) cat "$FIX/tagged" ;;
 esac
@@ -166,6 +169,17 @@ check 'the step passes' look
 check 'names the tag' grep -qx 'tag=v1.3.82.57' "$FIX/output"
 check 'complete' grep -qx 'complete=true' "$FIX/output"
 check 'no orphan' grep -qx 'orphan=' "$FIX/output"
+
+echo 'a newer tag without a release: an orphan, release.yml is started again for it'
+fresh; latest v1.3.82.57; printf 'v1.3.82.57\nv1.3.82.58\n' > "$FIX/tags"
+check 'the step passes' look
+check 'the orphan' grep -qx 'orphan=v1.3.82.58' "$FIX/output"
+
+echo 'a newer tag without a release, not on main: not released'
+fresh; latest v1.3.82.57; printf 'v1.3.82.57\nv1.3.82.58\n' > "$FIX/tags"; echo v1.3.82.58 > "$FIX/off-main"
+check 'the step passes' look
+check 'no orphan' grep -qx 'orphan=' "$FIX/output"
+check 'says why' contains "$FIX/out" 'v1.3.82.58 is not on main'
 
 echo 'reading the latest release fails once (the API hiccups), then answers'
 fresh; latest v1.3.82.57; printf 'v1.3.82.57\n' > "$FIX/tags"; : > "$FIX/fail-first"
