@@ -240,6 +240,53 @@ describe('the next episode, within the series', () => {
     expect(await p.send({type: 'PAGE_TYPING'})).toBe(true);
   });
 
+  // Only a field document.activeElement named counted: typing in a web component's field
+  // (activeElement is its host) or in a chat's iframe counted as not typing, and the next
+  // episode's player took the keyboard mid-word (a review, 2026-11-13).
+  it('counts a field in a shadow root as typing', async () => {
+    const p = episodePage().p;
+    p.document.visibilityState = 'visible';
+    const host = p.document.createElement('chat-box');
+    p.document.body.appendChild(host);
+    // Its closed root, as Firefox shows one to a content script.
+    const root = p.document.createElement('div');
+    root.nodeType = 11;
+    root.host = host;
+    root.parentNode = host;
+    host.openOrClosedShadowRoot = root;
+    const field = p.document.createElement('textarea');
+    root.appendChild(field);
+    root.activeElement = field;
+    p.document.activeElement = host;
+    expect(await p.send({type: 'PAGE_TYPING'})).toBe(true);
+    // Nothing in it has the focus: the host itself is no field.
+    root.activeElement = null;
+    expect(await p.send({type: 'PAGE_TYPING'})).toBe(false);
+  });
+
+  it('counts an iframe as typing, unless it is the player\'s or holds it', async () => {
+    const p = episodePage().p;
+    p.document.visibilityState = 'visible';
+    const iframe = (src) => {
+      const el = p.document.createElement('iframe');
+      el.src = src;
+      p.document.body.appendChild(el);
+      return el;
+    };
+    // A chat's or a comment box's, whose field this frame cannot see.
+    p.document.activeElement = iframe('https://chat.example/room');
+    expect(await p.send({type: 'PAGE_TYPING'})).toBe(true);
+    // FastStream's player: the keyboard is the next episode's.
+    p.document.activeElement = iframe('moz-extension://test/player/index.html#abc');
+    expect(await p.send({type: 'PAGE_TYPING'})).toBe(false);
+    // A hoster's embed the player plays in, which the background linked to this frame.
+    const embed = iframe('https://embed.example/e/1');
+    await p.send({type: 'FRAME_LINK_RECEIVER', key: 'embed-key', frameId: 7});
+    p.postMessage('embed-key', embed.contentWindow);
+    p.document.activeElement = embed;
+    expect(await p.send({type: 'PAGE_TYPING'})).toBe(false);
+  });
+
   it('does not press a "next episode" button on a series page its links tell all of (kimi\'s review)', async () => {
     const {p, next, clicked} = seasonPage(3, 12);
     const button = p.document.createElement('button');

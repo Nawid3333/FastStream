@@ -223,10 +223,14 @@
       return true;
     } else if (request.type === MessageTypes.PAGE_TYPING) {
       // Whether the user types in this page, or looks elsewhere: the next episode's player
-      // takes the keyboard only when not (main.mjs; the reviews of 2026-10-11).
-      const active = /** @type {HTMLElement | null} */ (document.activeElement);
+      // takes the keyboard only when not (main.mjs; the reviews of 2026-10-11). The field
+      // with the focus inside a shadow root too (document.activeElement gives a web
+      // component's field as its host). An iframe with the focus counts too, a chat's or a
+      // comment box's, whose field this frame cannot see; not a player's, nor one it plays in.
+      const active = /** @type {HTMLElement | null} */ (OverlayGuard.focused());
       sendResponse(document.visibilityState !== 'visible' ||
-        !!active && (active.isContentEditable === true || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)));
+        !!active && (active.isContentEditable === true || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) ||
+          (active.tagName === 'IFRAME' && !holdsPlayer(/** @type {HTMLIFrameElement} */ (active)))));
       return;
     }
   });
@@ -1858,6 +1862,17 @@
   function hasPlayerIframe() {
     const playerUrl = chrome.runtime.getURL('player/index.html');
     return querySelectorAllIncludingShadows('iframe').some((iframe) => /** @type {HTMLIFrameElement} */ (iframe).src.startsWith(playerUrl));
+  }
+
+  /**
+   * Whether an iframe is a FastStream player's, or one a player plays in below it (an
+   * embed's, which the background linked to this frame).
+   * @param {HTMLIFrameElement} iframe
+   * @return {boolean}
+   */
+  function holdsPlayer(iframe) {
+    return iframe.src.startsWith(chrome.runtime.getURL('player/index.html')) ||
+      [...iframeMap.values()].some((iframeObj) => iframeObj.iframe === iframe);
   }
 
   /**
