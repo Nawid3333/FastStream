@@ -708,7 +708,7 @@ export class FastStreamClient extends EventEmitter {
         // plain UI debounce rather than something tied to the player's
         // lifecycle.
         if (this.previewPlayer && parseFloat(this.previewPlayer.getVideo().style.opacity) === 0) {
-          /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).classList.add('loading');
+          DOMElements.seekPreviewVideo.classList.add('loading');
         }
       }, 200);
     }
@@ -720,7 +720,7 @@ export class FastStreamClient extends EventEmitter {
   showPreview() {
     if (this.previewPlayer) {
       this.previewPlayer.getVideo().style.opacity = /** @type {any} */ (1);
-      /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).classList.remove('loading');
+      DOMElements.seekPreviewVideo.classList.remove('loading');
       clearTimeout(this.previewPlayerLoadingTimeout);
     }
   }
@@ -1366,7 +1366,7 @@ export class FastStreamClient extends EventEmitter {
       }
     }
 
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).style.backgroundColor = 'black';
+    DOMElements.playerContainer.style.backgroundColor = 'black';
 
     this.emit('setsource', this);
   }

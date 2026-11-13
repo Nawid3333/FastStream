@@ -25,7 +25,7 @@ export class OptionsWindow {
     if (this.frameLoaded) return;
     this.frameLoaded = true;
     clearTimeout(this.frameTimer);
-    const frame = /** @type {HTMLIFrameElement} */ (DOMElements.optionsFrame);
+    const frame = DOMElements.optionsFrame;
     frame.src = /** @type {string} */ (frame.dataset.src);
   }
 
@@ -42,15 +42,15 @@ export class OptionsWindow {
   }
 
   setupUI() {
-    /** @type {HTMLElement} */ (DOMElements.optionsContainer).addEventListener('click', (e) => {
+    DOMElements.optionsContainer.addEventListener('click', (e) => {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.optionsContainer).addEventListener('keyup', (e) => {
+    DOMElements.optionsContainer.addEventListener('keyup', (e) => {
       e.stopPropagation();
     });
 
-    const closeBtn = /** @type {HTMLElement} */ (/** @type {HTMLElement} */ (DOMElements.optionsContainer).getElementsByClassName('close_button')[0]);
+    const closeBtn = /** @type {HTMLElement} */ (DOMElements.optionsContainer.getElementsByClassName('close_button')[0]);
     closeBtn.addEventListener('click', (e) => {
       this.closeUI();
     });
@@ -58,21 +58,21 @@ export class OptionsWindow {
   }
 
   isOpen() {
-    return /** @type {HTMLElement} */ (DOMElements.optionsContainer).style.display !== 'none';
+    return DOMElements.optionsContainer.style.display !== 'none';
   }
 
   openUI() {
     this.loadFrame();
     InterfaceUtils.closeWindows();
-    /** @type {HTMLElement} */ (DOMElements.optionsContainer).style.display = '';
+    DOMElements.optionsContainer.style.display = '';
 
-    WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.settingsButton), Localize.getMessage('player_settings_close_label'));
+    WebUtils.setLabels(DOMElements.settingsButton, Localize.getMessage('player_settings_close_label'));
   }
 
   closeUI() {
-    /** @type {HTMLElement} */ (DOMElements.optionsContainer).style.display = 'none';
+    DOMElements.optionsContainer.style.display = 'none';
 
-    WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.settingsButton), Localize.getMessage('player_settings_open_label'));
+    WebUtils.setLabels(DOMElements.settingsButton, Localize.getMessage('player_settings_open_label'));
   }
 
   toggleUI() {

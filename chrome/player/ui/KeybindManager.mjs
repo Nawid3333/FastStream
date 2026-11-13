@@ -30,7 +30,7 @@ export class KeybindManager extends EventEmitter {
       }
     }
 
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('keydown', (e) => {
+    DOMElements.playerContainer.addEventListener('keydown', (e) => {
       this.onKeyDown(e);
     });
 
