@@ -319,6 +319,48 @@ describe('background.mjs and MpvMode.mjs', () => {
   });
 });
 
+// Firefox gives a page's address with its host in punycode (https://xn--bcher-kva.example/),
+// and a plain entry was compared as typed: `bücher.example` on either list matched nothing.
+// A `-domain` entry went through URL and worked.
+describe('a site written in Unicode', () => {
+  it('matches its pages, which Firefox gives in punycode', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['bücher.example', 'https://www.Münchner.example/filme/', 'kinö.example:8080']);
+    expect(list.matches(new URL('https://bücher.example/x').href)).toBe(true);
+    expect(list.matches('https://www.xn--bcher-kva.example/')).toBe(true);
+    expect(list.matches(new URL('https://münchner.example/filme/1').href)).toBe(true);
+    expect(list.matches(new URL('https://münchner.example/serien/1').href)).toBe(false);
+    expect(list.matches(new URL('https://kinö.example:8080/v').href)).toBe(true);
+    expect(list.matches(new URL('https://kinö.example/v').href)).toBe(false);
+    expect(list.matches('https://xn--bcher-kva.example.evil.test/')).toBe(false);
+  });
+
+  it('keeps the rest of the entry as written', () => {
+    expect(UrlMatchList.parseEntry('Bücher.example/Filme/?a=1 @movie').match).toBe('xn--bcher-kva.example/filme/?a=1');
+    expect(UrlMatchList.parseEntry('https://example.com/movie/').match).toBe('https://example.com/movie/');
+  });
+});
+
+// The text after a page's scheme starts with its user name and password, when it has them:
+// `example.com` matched https://example.com:x@evil.com/, a page of evil.com, as the ':' after
+// the user name read as the start of a port.
+describe('a page whose address has a user name', () => {
+  it('is matched by its host, not by the user name', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['example.com', 'https://crunchyroll.com', 'site.test:8080', 'films.test/watch/']);
+    expect(list.matches('https://example.com:x@evil.com/')).toBe(false);
+    expect(list.matches('https://example.com@evil.com/')).toBe(false);
+    expect(list.matches('https://www.example.com:x@evil.com/watch')).toBe(false);
+    expect(list.matches('https://crunchyroll.com:pw@evil.test/watch/1')).toBe(false);
+    expect(list.matches('https://site.test:8080:x@evil.com/')).toBe(false);
+    // The page of the site itself, a user name before it or not.
+    expect(list.matches('https://user:pw@example.com/watch')).toBe(true);
+    expect(list.matches('https://site.test:8080/v')).toBe(true);
+    expect(list.matches('https://u@films.test/watch/1')).toBe(true);
+    expect(list.matches('https://films.test/other/1')).toBe(false);
+  });
+});
+
 describe('an entry that is only "www."', () => {
   it('matches no page, not every one', () => {
     // A site begun and left at "www.": after its www. there was nothing, and the empty site
