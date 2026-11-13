@@ -113,16 +113,16 @@ export class OpenSubtitlesSearch extends EventEmitter {
 
   openUI() {
     InterfaceUtils.closeWindows();
-    /** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display = '';
+    DOMElements.subuiContainer.style.display = '';
     this.subui.search.focus();
   }
 
   closeUI() {
-    /** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display = 'none';
+    DOMElements.subuiContainer.style.display = 'none';
   }
 
   isOpen() {
-    return /** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display !== 'none';
+    return DOMElements.subuiContainer.style.display !== 'none';
   }
 
   toggleUI() {
@@ -158,24 +158,24 @@ export class OpenSubtitlesSearch extends EventEmitter {
   }
 
   setupUI() {
-    /** @type {HTMLElement} */ (DOMElements.subuiContainer).addEventListener('click', (e) => {
+    DOMElements.subuiContainer.addEventListener('click', (e) => {
       e.stopPropagation();
     });
-    /** @type {HTMLElement} */ (DOMElements.subuiContainer).addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-    });
-
-    /** @type {HTMLElement} */ (DOMElements.subuiContainer).addEventListener('keyup', (e) => {
+    DOMElements.subuiContainer.addEventListener('dblclick', (e) => {
       e.stopPropagation();
     });
 
-    const closeBtn = /** @type {HTMLElement} */ (/** @type {HTMLElement} */ (DOMElements.subuiContainer).getElementsByClassName('close_button')[0]);
+    DOMElements.subuiContainer.addEventListener('keyup', (e) => {
+      e.stopPropagation();
+    });
+
+    const closeBtn = /** @type {HTMLElement} */ (DOMElements.subuiContainer.getElementsByClassName('close_button')[0]);
     closeBtn.addEventListener('click', (e) => {
       this.closeUI();
     });
 
     WebUtils.setupTabIndex(closeBtn);
-    const contentContainer = /** @type {HTMLElement} */ (DOMElements.subuiContainer).getElementsByClassName('content_container')[0];
+    const contentContainer = DOMElements.subuiContainer.getElementsByClassName('content_container')[0];
 
     this.subui.searchContainer = document.createElement('div');
     this.subui.searchContainer.classList.add('subtitle-search-container');
@@ -692,7 +692,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
       // Before the check below: with the search closed during the download, the result
       // stayed "downloading" and ignored every click after.
       item.downloading = false;
-      if (/** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display === 'none') return;
+      if (DOMElements.subuiContainer.style.display === 'none') return;
       await AlertPolyfill.alert(Localize.getMessage('player_opensubtitles_down_alert'), 'error');
       await OpenSubtitlesSearch.offerResultPage(item);
       return;

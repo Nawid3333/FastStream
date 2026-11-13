@@ -67,29 +67,29 @@ export class LoopMenu extends EventEmitter {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
   }
   setupUI() {
-    /** @type {HTMLElement} */ (DOMElements.loopMenu).addEventListener('keydown', (e) => {
+    DOMElements.loopMenu.addEventListener('keydown', (e) => {
       // Escape goes on to the player, which closes the menu (escapeAll): kept here, the menu
       // could not be closed from its own fields.
       if (e.key !== 'Escape') e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.loopMenu).addEventListener('keyup', (e) => {
+    DOMElements.loopMenu.addEventListener('keyup', (e) => {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.loopMenu).addEventListener('mousedown', (e) => {
+    DOMElements.loopMenu.addEventListener('mousedown', (e) => {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.loopMenu).addEventListener('mouseup', (e) => {
+    DOMElements.loopMenu.addEventListener('mouseup', (e) => {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.loopMenu).addEventListener('click', (e) => {
+    DOMElements.loopMenu.addEventListener('click', (e) => {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.loopButton).addEventListener('click', (e) => {
+    DOMElements.loopButton.addEventListener('click', (e) => {
       if (this.isOpen()) {
         this.closeUI();
       } else {
@@ -97,7 +97,7 @@ export class LoopMenu extends EventEmitter {
       }
       e.stopPropagation();
     });
-    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.loopButton));
+    WebUtils.setupTabIndex(DOMElements.loopButton);
 
     const timeSettings = this.loopTimeSettings;
 
@@ -155,12 +155,12 @@ export class LoopMenu extends EventEmitter {
       option.appendChild(input);
 
 
-      /** @type {HTMLElement} */ (DOMElements.loopMenu).appendChild(option);
+      DOMElements.loopMenu.appendChild(option);
     }
 
     const loopButtonContainer = document.createElement('div');
     loopButtonContainer.style = 'display: flex; justify-content: center';
-    /** @type {HTMLElement} */ (DOMElements.loopMenu).appendChild(loopButtonContainer);
+    DOMElements.loopMenu.appendChild(loopButtonContainer);
 
     const toggleLoopButton = document.createElement('div');
     this.toggleLoopButton = toggleLoopButton;
@@ -281,7 +281,7 @@ export class LoopMenu extends EventEmitter {
   }
 
   isOpen() {
-    return /** @type {HTMLElement} */ (DOMElements.loopMenu).style.display !== 'none';
+    return DOMElements.loopMenu.style.display !== 'none';
   }
 
   openUI() {
@@ -289,16 +289,16 @@ export class LoopMenu extends EventEmitter {
       target: DOMElements.loopButton,
     });
 
-    /** @type {HTMLElement} */ (DOMElements.loopMenu).style.display = '';
-    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.loopButton), true);
+    DOMElements.loopMenu.style.display = '';
+    WebUtils.setExpanded(DOMElements.loopButton, true);
   }
 
   closeUI() {
-    if (/** @type {HTMLElement} */ (DOMElements.loopMenu).style.display === 'none') {
+    if (DOMElements.loopMenu.style.display === 'none') {
       return false;
     }
-    /** @type {HTMLElement} */ (DOMElements.loopMenu).style.display = 'none';
-    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.loopButton), false);
+    DOMElements.loopMenu.style.display = 'none';
+    WebUtils.setExpanded(DOMElements.loopButton, false);
     return true;
   }
 

@@ -16,40 +16,40 @@ export class LanguageChanger extends EventEmitter {
       target: DOMElements.languageButton,
     });
 
-    /** @type {HTMLElement} */ (DOMElements.languageMenu).style.display = '';
-    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.languageButton), true);
+    DOMElements.languageMenu.style.display = '';
+    WebUtils.setExpanded(DOMElements.languageButton, true);
     if (!dontSetStayVisible) {
       this.stayOpen = true;
     }
   }
 
   closeUI() {
-    if (/** @type {HTMLElement} */ (DOMElements.languageMenu).style.display === 'none') {
+    if (DOMElements.languageMenu.style.display === 'none') {
       return false;
     }
-    /** @type {HTMLElement} */ (DOMElements.languageMenu).style.display = 'none';
-    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.languageButton), false);
+    DOMElements.languageMenu.style.display = 'none';
+    WebUtils.setExpanded(DOMElements.languageButton, false);
     this.stayOpen = false;
     return true;
   }
 
   isOpen() {
-    return /** @type {HTMLElement} */ (DOMElements.languageMenu).style.display !== 'none';
+    return DOMElements.languageMenu.style.display !== 'none';
   }
 
   setupUI() {
-    /** @type {HTMLElement} */ (DOMElements.languageButton).tabIndex = 0;
+    DOMElements.languageButton.tabIndex = 0;
 
     let isMouseDown = false;
-    /** @type {HTMLElement} */ (DOMElements.languageButton).addEventListener('mousedown', (e) => {
+    DOMElements.languageButton.addEventListener('mousedown', (e) => {
       isMouseDown = true;
     }, true);
 
-    /** @type {HTMLElement} */ (DOMElements.languageButton).addEventListener('mouseup', (e) => {
+    DOMElements.languageButton.addEventListener('mouseup', (e) => {
       isMouseDown = false;
     }, true);
 
-    /** @type {HTMLElement} */ (DOMElements.languageButton).addEventListener('click', (e) => {
+    DOMElements.languageButton.addEventListener('click', (e) => {
       if (this.isOpen()) {
         this.closeUI();
       } else {
@@ -58,19 +58,19 @@ export class LanguageChanger extends EventEmitter {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.languageButton).addEventListener('focus', () => {
+    DOMElements.languageButton.addEventListener('focus', () => {
       if (!this.isOpen() && !isMouseDown) {
         this.openUI(true);
       }
     });
 
-    /** @type {HTMLElement} */ (DOMElements.languageButton).addEventListener('blur', () => {
+    DOMElements.languageButton.addEventListener('blur', () => {
       isMouseDown = false;
       if (!this.stayOpen) {
         this.closeUI();
       }
 
-      const candidates = Array.from(/** @type {HTMLElement} */ (DOMElements.languageMenu).getElementsByClassName('language_track'));
+      const candidates = Array.from(DOMElements.languageMenu.getElementsByClassName('language_track'));
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
         current = candidates.find((el) => el.classList.contains('active'));
@@ -80,12 +80,12 @@ export class LanguageChanger extends EventEmitter {
       }
       current.classList.remove('candidate');
     });
-    /** @type {HTMLElement} */ (DOMElements.languageButton).addEventListener('keydown', (e) => {
+    DOMElements.languageButton.addEventListener('keydown', (e) => {
       // The button keeps the focus after a click closes the menu; its keys are then the
       // player's again (the arrows are the volume), not a choice in a menu no one sees.
       if (!this.isOpen()) return;
       // A filler is the empty cell of a language that has no track of that type.
-      const candidates = Array.from(/** @type {HTMLElement} */ (DOMElements.languageMenu).getElementsByClassName('language_track'))
+      const candidates = Array.from(DOMElements.languageMenu.getElementsByClassName('language_track'))
           .filter((el) => !el.classList.contains('language_track_filler'));
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
@@ -127,18 +127,18 @@ export class LanguageChanger extends EventEmitter {
     // After the menu's keys, which take an Enter that chooses: Enter and Space press the
     // button as they press the others. Enter could not open the menu again once a click had
     // closed it, and Space played or paused the video.
-    WebUtils.setupKeyPress(/** @type {HTMLElement} */ (DOMElements.languageButton));
+    WebUtils.setupKeyPress(DOMElements.languageButton);
 
-    /** @type {HTMLElement} */ (DOMElements.languageMenu).addEventListener('click', (e) => {
+    DOMElements.languageMenu.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.languageMenu).addEventListener('mousedown', (e) => {
+    DOMElements.languageMenu.addEventListener('mousedown', (e) => {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.languageMenu).addEventListener('mouseup', (e) => {
+    DOMElements.languageMenu.addEventListener('mouseup', (e) => {
       e.stopPropagation();
     });
   }
@@ -172,20 +172,20 @@ export class LanguageChanger extends EventEmitter {
     const currentAudioLevelID = client.getLevelManager().getCurrentAudioLevelID();
 
     if (videoLanguageMap.size < 2 && audioLanguageMap.size < 2) {
-      /** @type {HTMLElement} */ (DOMElements.languageButton).classList.add('hidden');
+      DOMElements.languageButton.classList.add('hidden');
       // An open menu stayed with the previous video's languages (review of 2026-10-14), as
       // the audio menu once did.
-      /** @type {HTMLElement} */ (DOMElements.languageMenu).replaceChildren();
+      DOMElements.languageMenu.replaceChildren();
       this.closeUI();
       return;
     } else {
-      /** @type {HTMLElement} */ (DOMElements.languageButton).classList.remove('hidden');
+      DOMElements.languageButton.classList.remove('hidden');
     }
 
-    /** @type {HTMLElement} */ (DOMElements.languageMenu).replaceChildren();
+    DOMElements.languageMenu.replaceChildren();
     const languageTable = document.createElement('div');
     languageTable.classList.add('language_table');
-    /** @type {HTMLElement} */ (DOMElements.languageMenu).appendChild(languageTable);
+    DOMElements.languageMenu.appendChild(languageTable);
 
     /** @type {string[]} */
     const languages = [];
@@ -258,7 +258,7 @@ export class LanguageChanger extends EventEmitter {
         }
         languageElement.appendChild(trackElement);
         trackElement.addEventListener('click', (e) => {
-          /** @type {HTMLElement[]} */ (Array.from(/** @type {HTMLElement} */ (DOMElements.languageMenu).getElementsByClassName('active'))).forEach((element) => {
+          /** @type {HTMLElement[]} */ (Array.from(DOMElements.languageMenu.getElementsByClassName('active'))).forEach((element) => {
             if (element.dataset.type === type) {
               element.classList.remove('active');
             }

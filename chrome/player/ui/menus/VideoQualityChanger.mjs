@@ -49,8 +49,8 @@ export class VideoQualityChanger extends EventEmitter {
       target: DOMElements.videoSource,
     });
 
-    /** @type {HTMLElement} */ (DOMElements.videoSourceList).style.display = '';
-    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.videoSource), true);
+    DOMElements.videoSourceList.style.display = '';
+    WebUtils.setExpanded(DOMElements.videoSource, true);
     if (!dontSetStayVisible) {
       this.stayOpen = true;
     }
@@ -60,29 +60,29 @@ export class VideoQualityChanger extends EventEmitter {
     if (!this.isOpen()) {
       return false;
     }
-    /** @type {HTMLElement} */ (DOMElements.videoSourceList).style.display = 'none';
-    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.videoSource), false);
+    DOMElements.videoSourceList.style.display = 'none';
+    WebUtils.setExpanded(DOMElements.videoSource, false);
     this.stayOpen = false;
     return true;
   }
 
   isOpen() {
-    return /** @type {HTMLElement} */ (DOMElements.videoSourceList).style.display !== 'none';
+    return DOMElements.videoSourceList.style.display !== 'none';
   }
 
   setupUI() {
-    /** @type {HTMLElement} */ (DOMElements.videoSource).tabIndex = 0;
+    DOMElements.videoSource.tabIndex = 0;
 
     let isMouseDown = false;
-    /** @type {HTMLElement} */ (DOMElements.videoSource).addEventListener('mousedown', (e) => {
+    DOMElements.videoSource.addEventListener('mousedown', (e) => {
       isMouseDown = true;
     }, true);
 
-    /** @type {HTMLElement} */ (DOMElements.videoSource).addEventListener('mouseup', (e) => {
+    DOMElements.videoSource.addEventListener('mouseup', (e) => {
       isMouseDown = false;
     }, true);
 
-    /** @type {HTMLElement} */ (DOMElements.videoSource).addEventListener('click', (e) => {
+    DOMElements.videoSource.addEventListener('click', (e) => {
       if (this.isOpen()) {
         this.closeUI();
       } else {
@@ -91,19 +91,19 @@ export class VideoQualityChanger extends EventEmitter {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.videoSource).addEventListener('focus', () => {
+    DOMElements.videoSource.addEventListener('focus', () => {
       if (!this.isOpen() && !isMouseDown) {
         this.openUI(true);
       }
     });
 
-    /** @type {HTMLElement} */ (DOMElements.videoSource).addEventListener('blur', () => {
+    DOMElements.videoSource.addEventListener('blur', () => {
       isMouseDown = false;
       if (!this.stayOpen) {
         this.closeUI();
       }
 
-      const candidates = Array.from(/** @type {HTMLElement} */ (DOMElements.videoSourceList).children);
+      const candidates = Array.from(DOMElements.videoSourceList.children);
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
         current = candidates.find((el) => el.classList.contains('source_active'));
@@ -116,11 +116,11 @@ export class VideoQualityChanger extends EventEmitter {
       current.classList.remove('candidate');
     });
 
-    /** @type {HTMLElement} */ (DOMElements.videoSource).addEventListener('keydown', (e) => {
+    DOMElements.videoSource.addEventListener('keydown', (e) => {
       // The button keeps the focus after a click closes the list; its keys are then the
       // player's again (the arrows are the volume), not a choice in a list no one sees.
       if (!this.isOpen()) return;
-      const candidates = Array.from(/** @type {HTMLElement} */ (DOMElements.videoSourceList).children);
+      const candidates = Array.from(DOMElements.videoSourceList.children);
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
         current = candidates.find((el) => el.classList.contains('source_active'));
@@ -155,13 +155,13 @@ export class VideoQualityChanger extends EventEmitter {
     // After the list's keys, which take an Enter that chooses: Enter and Space press the
     // button as they press the others. Enter could not open the list again once a click had
     // closed it, and Space played or paused the video.
-    WebUtils.setupKeyPress(/** @type {HTMLElement} */ (DOMElements.videoSource));
+    WebUtils.setupKeyPress(DOMElements.videoSource);
 
-    /** @type {HTMLElement} */ (DOMElements.videoSourceList).addEventListener('mousedown', (e) => {
+    DOMElements.videoSourceList.addEventListener('mousedown', (e) => {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.videoSourceList).addEventListener('mouseup', (e) => {
+    DOMElements.videoSourceList.addEventListener('mouseup', (e) => {
       e.stopPropagation();
     });
   }
@@ -189,20 +189,20 @@ export class VideoQualityChanger extends EventEmitter {
     // The page's own qualities when it offers its file in several (FastStreamClient.getMenuVideoLevels).
     const videoLevels = client.getMenuVideoLevels();
     if (!videoLevels || videoLevels.size < 1) {
-      /** @type {HTMLElement} */ (DOMElements.videoSource).classList.add('hidden');
+      DOMElements.videoSource.classList.add('hidden');
       // An open list stayed open under no button, with the last video's qualities - a
       // click on one asked this video for a level it does not have (as the audio menu did).
-      /** @type {HTMLElement} */ (DOMElements.videoSourceList).replaceChildren();
+      DOMElements.videoSourceList.replaceChildren();
       this.closeUI();
       return;
     } else {
-      /** @type {HTMLElement} */ (DOMElements.videoSource).classList.remove('hidden');
+      DOMElements.videoSource.classList.remove('hidden');
     }
 
     const videoLevelsByDimensions = this.groupLevelsByDimensions(client.getLevelManager().filterVideoLevelsByLanguage(Array.from(videoLevels.values())));
     const currentVideoLevelID = client.getMenuVideoLevelID();
 
-    /** @type {HTMLElement} */ (DOMElements.videoSourceList).replaceChildren();
+    DOMElements.videoSourceList.replaceChildren();
 
     videoLevelsByDimensions.forEach((levels) => {
       const isLevelActive = levels.some((level) => level.id === currentVideoLevelID);
@@ -243,7 +243,7 @@ export class VideoQualityChanger extends EventEmitter {
           return;
         }
 
-        Array.from(/** @type {HTMLElement} */ (DOMElements.videoSourceList).getElementsByClassName('source_active')).forEach((element) => {
+        Array.from(DOMElements.videoSourceList.getElementsByClassName('source_active')).forEach((element) => {
           element.classList.remove('source_active');
         });
         // With the versions it was picked from: LevelManager.rememberVideoChoice saves a
@@ -327,7 +327,7 @@ export class VideoQualityChanger extends EventEmitter {
         levelelement.appendChild(groupBadge);
       }
 
-      /** @type {HTMLElement} */ (DOMElements.videoSourceList).appendChild(levelelement);
+      DOMElements.videoSourceList.appendChild(levelelement);
 
       if (levels.length > 1 && isLevelActive) {
         // Add sub-level elements
@@ -384,14 +384,14 @@ export class VideoQualityChanger extends EventEmitter {
               return;
             }
 
-            Array.from(/** @type {HTMLElement} */ (DOMElements.videoSourceList).getElementsByClassName('source_active')).forEach((element) => {
+            Array.from(DOMElements.videoSourceList.getElementsByClassName('source_active')).forEach((element) => {
               element.classList.remove('source_active');
             });
             this.emit('qualityChanged', level, true, levels);
             subLevelElement.classList.add('source_active');
             e.stopPropagation();
           });
-          /** @type {HTMLElement} */ (DOMElements.videoSourceList).appendChild(subLevelElement);
+          DOMElements.videoSourceList.appendChild(subLevelElement);
         });
       }
     });
@@ -423,7 +423,7 @@ export class VideoQualityChanger extends EventEmitter {
       }
 
       // Find element with .quality-<quality> class
-      const element = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (DOMElements.videoSource).querySelector(`.quality-${quality}`));
+      const element = /** @type {HTMLElement|null} */ (DOMElements.videoSource.querySelector(`.quality-${quality}`));
       if (!element) {
         console.warn('No element for quality', quality);
         continue;

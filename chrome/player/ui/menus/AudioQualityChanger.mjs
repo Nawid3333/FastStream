@@ -26,8 +26,8 @@ export class AudioQualityChanger extends EventEmitter {
       target: DOMElements.audioTracksBtn,
     });
 
-    /** @type {HTMLElement} */ (DOMElements.audioSourceList).style.display = '';
-    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.audioTracksBtn), true);
+    DOMElements.audioSourceList.style.display = '';
+    WebUtils.setExpanded(DOMElements.audioTracksBtn, true);
     if (!dontSetStayVisible) {
       this.stayOpen = true;
     }
@@ -37,20 +37,20 @@ export class AudioQualityChanger extends EventEmitter {
     if (!this.isOpen()) {
       return false;
     }
-    /** @type {HTMLElement} */ (DOMElements.audioSourceList).style.display = 'none';
-    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.audioTracksBtn), false);
+    DOMElements.audioSourceList.style.display = 'none';
+    WebUtils.setExpanded(DOMElements.audioTracksBtn, false);
     this.stayOpen = false;
     return true;
   }
 
   isOpen() {
-    return /** @type {HTMLElement} */ (DOMElements.audioSourceList).style.display !== 'none';
+    return DOMElements.audioSourceList.style.display !== 'none';
   }
 
   setupUI() {
     // Its click opened the audio settings window, its right click this list; since the
     // window went (2026-10-10), both open the list. Its keys: setupTabIndex, below.
-    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('click', (e) => {
+    DOMElements.audioTracksBtn.addEventListener('click', (e) => {
       if (this.isOpen() || !this.enabled) {
         this.closeUI();
       } else {
@@ -60,15 +60,15 @@ export class AudioQualityChanger extends EventEmitter {
     });
 
     let isMouseDown = false;
-    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('mousedown', (e) => {
+    DOMElements.audioTracksBtn.addEventListener('mousedown', (e) => {
       isMouseDown = true;
     }, true);
 
-    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('mouseup', (e) => {
+    DOMElements.audioTracksBtn.addEventListener('mouseup', (e) => {
       isMouseDown = false;
     }, true);
 
-    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('contextmenu', (e) => {
+    DOMElements.audioTracksBtn.addEventListener('contextmenu', (e) => {
       if (this.isOpen() || !this.enabled) {
         this.closeUI();
       } else {
@@ -78,19 +78,19 @@ export class AudioQualityChanger extends EventEmitter {
       e.preventDefault();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('focus', ()=>{
+    DOMElements.audioTracksBtn.addEventListener('focus', ()=>{
       if ( this.enabled &&!this.isOpen() && !isMouseDown) {
         this.openUI(true);
       }
     });
 
-    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('blur', ()=>{
+    DOMElements.audioTracksBtn.addEventListener('blur', ()=>{
       isMouseDown = false;
       if (!this.stayOpen) {
         this.closeUI();
       }
 
-      const candidates = Array.from(/** @type {HTMLElement} */ (DOMElements.audioSourceList).children);
+      const candidates = Array.from(DOMElements.audioSourceList.children);
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
         current = candidates.find((el) => el.classList.contains('source_active'));
@@ -103,11 +103,11 @@ export class AudioQualityChanger extends EventEmitter {
       current.classList.remove('candidate');
     });
 
-    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).addEventListener('keydown', (e) => {
+    DOMElements.audioTracksBtn.addEventListener('keydown', (e) => {
       // The button keeps the focus after a click; with the list closed, its keys are the
       // player's again (the arrows are the volume), not a choice in a list no one sees.
       if (!this.isOpen()) return;
-      const candidates = Array.from(/** @type {HTMLElement} */ (DOMElements.audioSourceList).children);
+      const candidates = Array.from(DOMElements.audioSourceList.children);
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
         current = candidates.find((el) => el.classList.contains('source_active'));
@@ -150,13 +150,13 @@ export class AudioQualityChanger extends EventEmitter {
     // After the list's keys, whatever order Firefox calls two listeners of one element in: the
     // button's own Enter came first, closed the list, and the list's Enter then chose nothing.
     // It now leaves an Enter the list took (preventDefault) alone.
-    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.audioTracksBtn));
+    WebUtils.setupTabIndex(DOMElements.audioTracksBtn);
 
-    /** @type {HTMLElement} */ (DOMElements.audioSourceList).addEventListener('mousedown', (e) => {
+    DOMElements.audioSourceList.addEventListener('mousedown', (e) => {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.audioSourceList).addEventListener('mouseup', (e) => {
+    DOMElements.audioSourceList.addEventListener('mouseup', (e) => {
       e.stopPropagation();
     });
   }
@@ -168,7 +168,7 @@ export class AudioQualityChanger extends EventEmitter {
     const audioLevels = client.getLevelManager().filterAudioLevelsByLanguage(Array.from(client.getAudioLevels().values()));
     const canChooseOutput = !!this.outputDevice?.isSupported();
     this.hasChoice = !!audioLevels && audioLevels.length > 1;
-    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).classList.toggle('hidden', !this.hasChoice && !canChooseOutput);
+    DOMElements.audioTracksBtn.classList.toggle('hidden', !this.hasChoice && !canChooseOutput);
     // With one track (and no output to choose) the button hides, and an open list stayed
     // open under no button.
     if (!this.hasChoice && !canChooseOutput) {
@@ -179,13 +179,13 @@ export class AudioQualityChanger extends EventEmitter {
         // No tracks, but the output is a choice: the last video's tracks go, the output
         // part stays.
         this.enabled = true;
-        /** @type {HTMLElement} */ (DOMElements.audioSourceList).replaceChildren();
+        DOMElements.audioSourceList.replaceChildren();
         this.renderOutputs();
         return;
       }
       this.enabled = false;
       // An open list kept the previous video's tracks (final review, 2026-10-10).
-      /** @type {HTMLElement} */ (DOMElements.audioSourceList).replaceChildren();
+      DOMElements.audioSourceList.replaceChildren();
       this.closeUI();
       return;
     } else {
@@ -199,7 +199,7 @@ export class AudioQualityChanger extends EventEmitter {
 
     const currentAudioLevelID = client.getCurrentAudioLevelID();
 
-    /** @type {HTMLElement} */ (DOMElements.audioSourceList).replaceChildren();
+    DOMElements.audioSourceList.replaceChildren();
 
     audioLevels.forEach((level) => {
       const levelelement = document.createElement('div');
@@ -213,7 +213,7 @@ export class AudioQualityChanger extends EventEmitter {
           return;
         }
 
-        Array.from(/** @type {HTMLElement} */ (DOMElements.audioSourceList).getElementsByClassName('source_active')).forEach((element) => {
+        Array.from(DOMElements.audioSourceList.getElementsByClassName('source_active')).forEach((element) => {
           element.classList.remove('source_active');
         });
         this.emit('qualityChanged', level);
@@ -258,7 +258,7 @@ export class AudioQualityChanger extends EventEmitter {
 
       levelelement.appendChild(text);
 
-      /** @type {HTMLElement} */ (DOMElements.audioSourceList).appendChild(levelelement);
+      DOMElements.audioSourceList.appendChild(levelelement);
     });
 
     this.renderOutputs();
@@ -285,7 +285,7 @@ export class AudioQualityChanger extends EventEmitter {
     this.outputItems = [];
     const device = this.outputDevice;
     if (!device?.isSupported()) return;
-    const list = /** @type {HTMLElement} */ (DOMElements.audioSourceList);
+    const list = DOMElements.audioSourceList;
     const header = document.createElement('div');
     header.classList.add('fluid_audio_source_list_header');
     header.textContent = Localize.getMessage('player_audio_output_label');
@@ -304,7 +304,7 @@ export class AudioQualityChanger extends EventEmitter {
         () => device.choose()));
     this.outputItems.forEach((element) => list.appendChild(element));
     // A list with the output part is one to open, tracks or none.
-    /** @type {HTMLElement} */ (DOMElements.audioTracksBtn).classList.remove('hidden');
+    DOMElements.audioTracksBtn.classList.remove('hidden');
     this.enabled = true;
   }
 

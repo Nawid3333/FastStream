@@ -272,8 +272,8 @@ export class PlaybackRateChanger extends EventEmitter {
       target: DOMElements.playbackRate,
     });
 
-    /** @type {HTMLElement} */ (DOMElements.playbackRateMenuContainer).style.display = '';
-    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.playbackRate), true);
+    DOMElements.playbackRateMenuContainer.style.display = '';
+    WebUtils.setExpanded(DOMElements.playbackRate, true);
 
     this.scrollToPosition();
     if (!dontSetStayVisible) {
@@ -300,8 +300,8 @@ export class PlaybackRateChanger extends EventEmitter {
     if (!this.isOpen()) {
       return false;
     }
-    /** @type {HTMLElement} */ (DOMElements.playbackRateMenuContainer).style.display = 'none';
-    WebUtils.setExpanded(/** @type {HTMLElement} */ (DOMElements.playbackRate), false);
+    DOMElements.playbackRateMenuContainer.style.display = 'none';
+    WebUtils.setExpanded(DOMElements.playbackRate, false);
     this.stayOpen = false;
     return true;
   }
@@ -315,7 +315,7 @@ export class PlaybackRateChanger extends EventEmitter {
   }
 
   isOpen() {
-    return /** @type {HTMLElement} */ (DOMElements.playbackRateMenuContainer).style.display !== 'none';
+    return DOMElements.playbackRateMenuContainer.style.display !== 'none';
   }
 
   setupUI() {
@@ -324,31 +324,31 @@ export class PlaybackRateChanger extends EventEmitter {
     this.speedList = speedList;
     speedList.classList.add('rate-changer-list');
 
-    /** @type {HTMLElement} */ (DOMElements.rateMenu).appendChild(speedList);
+    DOMElements.rateMenu.appendChild(speedList);
 
     let isMouseDown = false;
-    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('mousedown', (e) => {
+    DOMElements.playbackRate.addEventListener('mousedown', (e) => {
       isMouseDown = true;
     }, true);
 
-    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('mouseup', (e) => {
+    DOMElements.playbackRate.addEventListener('mouseup', (e) => {
       isMouseDown = false;
     }, true);
 
-    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('focus', (e) => {
+    DOMElements.playbackRate.addEventListener('focus', (e) => {
       if (!this.isOpen() && !isMouseDown) {
         this.openUI(true);
       }
     });
 
-    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('blur', (e) => {
+    DOMElements.playbackRate.addEventListener('blur', (e) => {
       isMouseDown = false;
       if (!this.stayOpen) {
         this.closeUI();
       }
     });
 
-    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('click', (e) => {
+    DOMElements.playbackRate.addEventListener('click', (e) => {
       if (e.shiftKey || e.altKey) {
         this.toggleSilenceSkipper();
         e.stopPropagation();
@@ -363,13 +363,13 @@ export class PlaybackRateChanger extends EventEmitter {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('contextmenu', (e) => {
+    DOMElements.playbackRate.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.toggleSilenceSkipper();
     });
 
-    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.playbackRate));
+    WebUtils.setupTabIndex(DOMElements.playbackRate);
 
     for (let i = 1; i <= this.maxPlaybackRate * 10; i += 1) {
       ((i) => {
@@ -391,7 +391,7 @@ export class PlaybackRateChanger extends EventEmitter {
 
     this.playbackElements = els;
 
-    /** @type {HTMLElement} */ (DOMElements.playbackRate).addEventListener('keydown', (e) => {
+    DOMElements.playbackRate.addEventListener('keydown', (e) => {
       // The button keeps the focus after a click closes the list; its keys are then the
       // player's again (the arrows are the volume), as for the quality and language lists.
       if (!this.isOpen()) return;
@@ -406,11 +406,11 @@ export class PlaybackRateChanger extends EventEmitter {
       }
     });
 
-    /** @type {HTMLElement} */ (DOMElements.rateMenu).addEventListener('mousedown', (e) => {
+    DOMElements.rateMenu.addEventListener('mousedown', (e) => {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.rateMenu).addEventListener('mouseup', (e) => {
+    DOMElements.rateMenu.addEventListener('mouseup', (e) => {
       e.stopPropagation();
     });
 
@@ -439,11 +439,11 @@ export class PlaybackRateChanger extends EventEmitter {
     this.scrollToPosition();
     element.classList.add('rate-selected');
 
-    /** @type {HTMLElement} */ (DOMElements.playbackRateBanner).textContent = this.playbackRate.toFixed(1).padStart(1, '0');
+    DOMElements.playbackRateBanner.textContent = this.playbackRate.toFixed(1).padStart(1, '0');
     if (this.playbackRate === 1) {
-      /** @type {HTMLElement} */ (DOMElements.playbackRateBanner).style.display = 'none';
+      DOMElements.playbackRateBanner.style.display = 'none';
     } else {
-      /** @type {HTMLElement} */ (DOMElements.playbackRateBanner).style.display = '';
+      DOMElements.playbackRateBanner.style.display = '';
     }
 
     if (!noEmit) {

@@ -153,7 +153,7 @@ export class SourcesBrowser {
       // Nothing to copy: the clipboard was emptied, and the button said "Copied".
       if (!copyURL) return;
 
-      await WebUtils.copyText(copyURL, /** @type {HTMLElement} */ (DOMElements.playerContainer));
+      await WebUtils.copyText(copyURL, DOMElements.playerContainer);
 
       sourceCopyBtn.textContent = Localize.getMessage('player_source_copybtn_copied');
       setTimeout(() => {
@@ -283,21 +283,21 @@ export class SourcesBrowser {
 
   openUI() {
     InterfaceUtils.closeWindows();
-    /** @type {HTMLElement} */ (DOMElements.linkuiContainer).style.display = '';
-    WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.linkButton), Localize.getMessage('player_sourcesbrowser_close_label'));
+    DOMElements.linkuiContainer.style.display = '';
+    WebUtils.setLabels(DOMElements.linkButton, Localize.getMessage('player_sourcesbrowser_close_label'));
   }
 
   closeUI() {
-    /** @type {HTMLElement} */ (DOMElements.linkuiContainer).style.display = 'none';
-    WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.linkButton), Localize.getMessage('player_sourcesbrowser_open_label'));
+    DOMElements.linkuiContainer.style.display = 'none';
+    WebUtils.setLabels(DOMElements.linkButton, Localize.getMessage('player_sourcesbrowser_open_label'));
   }
 
   isOpen() {
-    return /** @type {HTMLElement} */ (DOMElements.linkuiContainer).style.display !== 'none';
+    return DOMElements.linkuiContainer.style.display !== 'none';
   }
 
   setupUI() {
-    /** @type {HTMLElement} */ (DOMElements.linkButton).addEventListener('click', (e) => {
+    DOMElements.linkButton.addEventListener('click', (e) => {
       if (!this.isOpen()) {
         this.openUI();
       } else {
@@ -306,17 +306,17 @@ export class SourcesBrowser {
       e.stopPropagation();
     });
 
-    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.linkButton));
+    WebUtils.setupTabIndex(DOMElements.linkButton);
 
-    /** @type {HTMLElement} */ (DOMElements.linkuiContainer).addEventListener('click', (e) => {
+    DOMElements.linkuiContainer.addEventListener('click', (e) => {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.linkuiContainer).addEventListener('keyup', (e) => {
+    DOMElements.linkuiContainer.addEventListener('keyup', (e) => {
       e.stopPropagation();
     });
 
-    const closeBtn = /** @type {HTMLElement} */ (/** @type {HTMLElement} */ (DOMElements.linkuiContainer).getElementsByClassName('close_button')[0]);
+    const closeBtn = /** @type {HTMLElement} */ (DOMElements.linkuiContainer.getElementsByClassName('close_button')[0]);
     closeBtn.addEventListener('click', (e) => {
       this.closeUI();
     });
@@ -324,7 +324,7 @@ export class SourcesBrowser {
 
     this.linkui = /** @type {{sourcesFound: HTMLElement, addNewButton: HTMLElement, clearButton: HTMLElement, sourcesList: HTMLElement}} */ ({});
 
-    const contentContainer = /** @type {HTMLElement} */ (DOMElements.linkuiContainer).getElementsByClassName('content_container')[0];
+    const contentContainer = DOMElements.linkuiContainer.getElementsByClassName('content_container')[0];
 
     this.linkui.sourcesFound = WebUtils.create('div', /** @type {any} */ (null), 'linkui-sources-found');
     this.linkui.sourcesFound.textContent = Localize.getMessage('player_source_nonelisted');
