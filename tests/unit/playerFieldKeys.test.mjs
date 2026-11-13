@@ -79,12 +79,14 @@ describe('Escape in the player\'s fields and menus', () => {
   it('goes on to the player from the loop menu and the subtitle settings too', () => {
     // Read from the source: both import a library the build generates (gif.mjs,
     // coloris.mjs), which is not there when CI runs the unit tests.
-    const passesEscape = /^\s*(\/\/[^\n]*\s*)*if \(e\.key !== 'Escape'\) e\.stopPropagation\(\);\s*\}\);/;
     for (const [file, menu] of [['ui/menus/LoopMenu.mjs', 'loopMenu'], ['ui/subtitles/SubtitlesSettingsManager.mjs', 'subtitlesOptionsList']]) {
       const listener = `DOMElements.${menu}.addEventListener('keydown', (e) => {`;
       const source = read(file);
       expect(source, file).toContain(listener);
-      expect(source.slice(source.indexOf(listener) + listener.length), file).toMatch(passesEscape);
+      // The listener's statements, its comments left out: the Escape test, then its end.
+      const body = source.slice(source.indexOf(listener) + listener.length).split('\n')
+          .map((line) => line.trim()).filter((line) => line && !line.startsWith('//'));
+      expect(body.slice(0, 2), file).toEqual(['if (e.key !== \'Escape\') e.stopPropagation();', '});']);
     }
   });
 

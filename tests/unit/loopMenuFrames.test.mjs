@@ -1,8 +1,5 @@
 import fs from 'node:fs';
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {EventEmitter} from '../../chrome/player/modules/eventemitter.mjs';
-import {Utils} from '../../chrome/player/utils/Utils.mjs';
-import {WebUtils} from '../../chrome/player/utils/WebUtils.mjs';
 
 // The A-B loop's check (LoopMenu.checkLoopLoop) asked for the next animation frame whenever
 // the loop was on, a paused video too: 60 to 144 calls a second for nothing, as the progress
@@ -10,23 +7,13 @@ import {WebUtils} from '../../chrome/player/utils/WebUtils.mjs';
 // playing starts it again (InterfaceController.play), and a seek while paused is kept within
 // the loop by the video's timeupdate (the review of 2026-11-13).
 //
-// LoopMenu imports gif.mjs, which the build generates and which is not there when CI runs the
-// unit tests: the class is read from its source, with its imports handed in (GIF a stand-in).
+// LoopMenu imports gif.mjs, which the build generates (tools/sync-vendor.mjs): a stand-in here,
+// as are the player's elements and its strings.
+vi.mock('../../chrome/player/modules/gif/gif.mjs', () => ({GIF: class {}}));
+vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({DOMElements: {}}));
+vi.mock('../../chrome/player/modules/Localize.mjs', () => ({Localize: {getMessage: (key) => key}}));
 
-/** @return {typeof import('../../chrome/player/ui/menus/LoopMenu.mjs').LoopMenu} */
-function loadLoopMenu() {
-  const source = fs.readFileSync(new URL('../../chrome/player/ui/menus/LoopMenu.mjs', import.meta.url), 'utf8');
-  const names = [];
-  const body = source.replace(/^import \{([^}]+)\} from '[^']+';$/gm, (line, list) => {
-    names.push(...list.split(',').map((name) => name.trim()));
-    return '';
-  }).replace('export class LoopMenu', 'class LoopMenu');
-  const modules = {EventEmitter, Utils, WebUtils, DOMElements: {}, Localize: {getMessage: (key) => key}, GIF: class {}};
-  expect(names.filter((name) => !(name in modules))).toEqual([]);
-  return new Function(...names, `${body}\nreturn LoopMenu;`)(...names.map((name) => modules[name]));
-}
-
-const LoopMenu = loadLoopMenu();
+const {LoopMenu} = await import('../../chrome/player/ui/menus/LoopMenu.mjs');
 
 afterEach(() => {
   vi.unstubAllGlobals();
