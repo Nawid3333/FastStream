@@ -775,14 +775,8 @@ export class InterfaceController {
           }
         }
         break;
-      // VisChangeActions has no PIP at present (commented out there), so this reads undefined.
-      case /** @type {Record<string, string|undefined>} */ (VisChangeActions).PIP:
-        if (!isVisible) {
-          await this.enterPip();
-        } else {
-          await this.exitPip();
-        }
-        break;
+      // No picture-in-picture case: VisChangeActions has no PIP (commented out there), and its
+      // case was a `case undefined:`, which entered it on every hide for an action not set.
       case VisChangeActions.MINI_PLAYER:
         if (!this.state.miniplayer && !isVisible && !this.state.windowedFullscreen && Date.now() > MiniplayerCooldown) {
           this.requestMiniplayer(!isVisible);
