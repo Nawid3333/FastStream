@@ -2792,21 +2792,52 @@
   // made that many (ads, trackers) before its video asks for its manifest: the manifest was
   // never in it. An observer is told of every request, buffer full or not (Firefox's
   // Performance::InsertResourceEntry queues each entry to observers first), from this
-  // script's start at document_start. The ones loadedMedia reports are kept here, the
-  // first ObservedMediaLimit of them (a URL once), past the buffer. Nothing the page can
-  // see changes, as it would with setResourceTimingBufferSize.
+  // script's start at document_start. The ones loadedMedia reports are kept here (a URL
+  // once), past the buffer: the newest ObservedMediaLimit of them. Keeping the first ones
+  // only, a page that lives long (a single-page site going on to its next episode) never
+  // reported its newest manifest, but an older one. When full, the oldest one that names
+  // no manifest goes: a manifest is asked for once, and its segments by the thousand after
+  // it. Nothing the page can see changes, as it would with setResourceTimingBufferSize.
   const ObservedMediaLimit = 1000;
   const observedMedia = new Map();
+  // An HLS or DASH manifest's address.
+  const ManifestAddress = /\.(?:m3u8|m3u|mpd)$/i;
+
+  /**
+   * Whether a request is for a manifest: by its address, or by the one a proxy's query names.
+   * @param {string} url - The request's.
+   * @return {boolean}
+   */
+  function namesManifest(url) {
+    try {
+      const parsed = new URL(url);
+      return ManifestAddress.test(parsed.pathname) ||
+        [...parsed.searchParams.values()].some((value) => ManifestAddress.test(value.split(/[?#]/)[0]));
+    } catch (e) {
+      return false;
+    }
+  }
+
   try {
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
-        if (observedMedia.size >= ObservedMediaLimit) break;
         if (!LoadedMediaInitiators.includes(/** @type {PerformanceResourceTiming} */ (entry).initiatorType) || observedMedia.has(entry.name)) continue;
+        if (observedMedia.size >= ObservedMediaLimit) {
+          let oldest = observedMedia.keys().next().value;
+          for (const [url, media] of observedMedia) {
+            if (!media.manifest) {
+              oldest = url;
+              break;
+            }
+          }
+          observedMedia.delete(oldest);
+        }
         observedMedia.set(entry.name, {
           name: entry.name,
           initiatorType: /** @type {PerformanceResourceTiming} */ (entry).initiatorType,
           responseStatus: /** @type {PerformanceResourceTiming} */ (entry).responseStatus,
           startTime: entry.startTime,
+          manifest: namesManifest(entry.name),
         });
       }
     }).observe({type: 'resource', buffered: true});

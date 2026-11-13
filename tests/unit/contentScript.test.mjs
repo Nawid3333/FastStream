@@ -675,6 +675,47 @@ describe('REPORT_LOADED_MEDIA', () => {
     expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
   });
 
+  /**
+   * Requests a page's player makes with fetch, each to an address of its own.
+   * @param {number} count - How many.
+   * @param {function(number): string} url - The i-th one's address.
+   * @param {number} from - The first one's start time.
+   * @return {Array<Object>} Resource Timing entries.
+   */
+  function fetches(count, url, from) {
+    return Array.from({length: count}, (_, i) =>
+      ({name: url(i), initiatorType: 'fetch', responseStatus: 200, startTime: from + i}));
+  }
+
+  // The observer kept the first 1,000 of these requests and none after them: on a page that
+  // lives long (a single-page site going on to its next episode), the newest manifest was
+  // never reported, an older one was (a review, 2026-11-13).
+  it('reports a manifest the page asked for after 1,200 other requests of the kind', async () => {
+    const entries = requests(300).slice(0, 300);
+    entries.push(...fetches(1200, (i) => `https://api.example/item${i}.json`, 300));
+    entries.push({name: 'https://cdn.example/next.m3u8', initiatorType: 'fetch', responseStatus: 200, startTime: 1500});
+    const urls = await reported(loadContentScript({entries, observer: true}));
+    expect(urls).toContain('https://cdn.example/next.m3u8');
+    // The timeline's 250 are images; the observer keeps 1,000 at most.
+    expect(urls.length).toBeLessThanOrEqual(1000);
+  });
+
+  it('keeps a manifest asked for once while thousands of its segments follow', async () => {
+    for (const [manifest, segment] of [
+      ['https://cdn.example/film.m3u8', (i) => `https://cdn.example/seg${i}.ts`],
+      // Through a proxy that names the stream in its query, segments as well.
+      ['https://proxy.example/get?url=https%3A%2F%2Fcdn.example%2Ffilm.m3u8',
+        (i) => `https://proxy.example/get?url=https%3A%2F%2Fcdn.example%2Fseg${i}.ts`],
+    ]) {
+      const entries = requests(300).slice(0, 300);
+      entries.push({name: manifest, initiatorType: 'fetch', responseStatus: 200, startTime: 300});
+      entries.push(...fetches(3000, segment, 301));
+      const urls = await reported(loadContentScript({entries, observer: true}));
+      expect(urls).toContain(manifest);
+      expect(urls.length).toBeLessThanOrEqual(1000);
+    }
+  });
+
   it('reports what the timeline has where there is no observer', async () => {
     const page = loadContentScript({entries: requests(10)});
     expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
