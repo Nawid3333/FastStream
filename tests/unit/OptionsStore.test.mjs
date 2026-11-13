@@ -46,7 +46,7 @@ describe('OptionsStore.init', () => {
     const first = OptionsStore.init();
     resolveLoad({maxSpeed: 5});
     await first;
-    await OptionsStore.set({maxSpeed: 7});
+    await OptionsStore.replace({...OptionsStore.get(), maxSpeed: 7});
     expect((await OptionsStore.init()).maxSpeed).toBe(7);
   });
 });

@@ -58,16 +58,6 @@ export class OptionsStore {
   }
 
   /**
-   * Merge a partial set of options, persist and broadcast.
-   * @param {Object} partial
-   */
-  static async set(partial) {
-    const merged = {...(this.#options ?? DefaultOptions), ...(partial || {})};
-    this.#options = Utils.mergeOptions(DefaultOptions, merged);
-    await this.#persistAndNotify();
-  }
-
-  /**
    * Subscribe to changes. Returns unsubscribe function.
    * @param {(opts: Object)=>void} fn
    */
