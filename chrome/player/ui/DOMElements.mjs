@@ -79,6 +79,7 @@ export const DOMElements = {
   timelineSyncer: document.querySelector('.mainplayer .fluid_controls_timeline_syncer'),
 
   optionsContainer: document.querySelector('.mainplayer .options_container'),
+  optionsFrame: document.querySelector('.mainplayer .options_frame'),
   audioTracksBtn: document.querySelector('.mainplayer .fluid_button_soundwave'),
   hideButton: document.querySelector('.mainplayer .hide_button'),
   playinfo: document.querySelector('.mainplayer .playinfo'),

@@ -304,7 +304,8 @@
                 <div class="title" data-i18n="player_settings_title"></div>
                 <div role="button" class="close_button" data-i18n-label="player_settings_close_label"></div>
             </div>
-            <iframe class="options_frame" src="./options/index.html" allowtransparency="true" data-i18n-label="player_settings_title"></iframe>
+            <!-- Loaded by OptionsWindow after the first frame, or when the window opens. -->
+            <iframe class="options_frame" data-src="./options/index.html" allowtransparency="true" data-i18n-label="player_settings_title"></iframe>
         </div>
         <div class="flicker-fix" style="width: 1px; height: 1px; position: absolute; background: transparent;">&nbsp;
         </div>

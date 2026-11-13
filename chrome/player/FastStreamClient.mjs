@@ -2604,6 +2604,8 @@ export class FastStreamClient extends EventEmitter {
       this.audioOutput?.updateChannelCount();
       // A frame is decoded: the overlay's first picture.
       this.takeArtwork();
+      // And the settings page may load now, out of the start's way (OptionsWindow).
+      this.interfaceController?.optionsWindow?.loadFrameWhenIdle();
     });
 
 
