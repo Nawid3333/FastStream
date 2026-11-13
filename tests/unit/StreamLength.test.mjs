@@ -439,6 +439,56 @@ describe('StreamLength.hlsProtected', () => {
   });
 });
 
+// A page's own manifest, made to hold the background: StreamLengths reads up to 4 MB of one
+// on the background's thread, where nothing stops a parse once it runs (SourceLengthWaitMs
+// only stops the wait for it). Patterns that looked from every tag, or every character of a
+// name, to the end of the text took seconds for 1 MB, and minutes for 4.
+describe('a manifest made to hold the background', () => {
+  const MB = 1024 * 1024;
+  const repeat = (text) => text.repeat(Math.ceil(MB / text.length));
+  // A read through the text takes milliseconds; those patterns took seconds and more.
+  const quickly = (read) => {
+    const start = performance.now();
+    const result = read();
+    expect(performance.now() - start).toBeLessThan(250);
+    return result;
+  };
+
+  it('reads adaptation sets never closed, or never ended, at once', () => {
+    expect(quickly(() => StreamLength.dashProtected('<MPD><Period>' + repeat('<AdaptationSet>')))).toBe(false);
+    expect(quickly(() => StreamLength.dashProtected(repeat('<AdaptationSet ')))).toBe(false);
+    // A set closed before them still counts.
+    expect(quickly(() => StreamLength.dashProtected('<MPD><Period><AdaptationSet contentType="video">' +
+      '<ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011"/></AdaptationSet>' + repeat('<AdaptationSet>')))).toBe(true);
+  });
+
+  it('reads MPD and Period tags never ended at once', () => {
+    expect(quickly(() => StreamLength.fromDash(repeat('<MPD ')))).toBeNull();
+    expect(quickly(() => StreamLength.fromDash('<MPD>' + repeat('<Period ')))).toBeNull();
+    // The periods ended before them still count.
+    expect(quickly(() => StreamLength.fromDash('<MPD><Period duration="PT1M">' + repeat('<Period ')))).toBe(60);
+  });
+
+  it('reads a tag of a megabyte of name characters at once', () => {
+    expect(quickly(() => StreamLength.fromDash('<MPD ' + 'a'.repeat(MB) + ' mediaPresentationDuration="PT2S">'))).toBe(2);
+    expect(quickly(() => StreamLength.fromDash('<MPD ' + 'a'.repeat(MB / 2) + '="' + 'b'.repeat(MB / 2) + '>'))).toBeNull();
+    expect(quickly(() => StreamLength.hlsProtected('#EXTM3U\n#EXT-X-KEY:' + 'A'.repeat(MB) + '\nseg0.ts\n'))).toBe(false);
+    expect(quickly(() => StreamLength.hlsAttributes('A'.repeat(MB) + ',METHOD=AES-128'))).toEqual({METHOD: 'AES-128'});
+  });
+
+  it('reads thousands of variant tags before one URI at once, each for that URI', () => {
+    const tags = repeat('#EXT-X-STREAM-INF:BANDWIDTH=1\n');
+    const master = quickly(() => StreamLength.hlsVariants('#EXTM3U\n' + tags + 'v.m3u8\n'));
+    expect(master.variants).toHaveLength(tags.split('\n').length - 1);
+    expect(master.variants.every((variant) => variant.uri === 'v.m3u8')).toBe(true);
+    // Tags before one URI share it; a tag after it has its own.
+    expect(StreamLength.hlsVariants('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2\n#EXT-X-STREAM-INF:BANDWIDTH=1\n\nv.m3u8\n' +
+      '#EXT-X-STREAM-INF:BANDWIDTH=3\nw.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=4\n').variants).toEqual([
+      {uri: 'v.m3u8', bandwidth: 2, height: 0}, {uri: 'v.m3u8', bandwidth: 1, height: 0}, {uri: 'w.m3u8', bandwidth: 3, height: 0},
+    ]);
+  });
+});
+
 describe('StreamLength.parseIsoDuration', () => {
   it('reads the parts MPDs use', () => {
     expect(StreamLength.parseIsoDuration('PT1.5S')).toBe(1.5);
