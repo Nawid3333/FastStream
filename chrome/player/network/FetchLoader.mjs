@@ -90,7 +90,6 @@ export class FetchLoader {
     };
     this.retryDelay = 0;
     this.controller = null;
-    this.response = null;
   }
 
   /** @param {LoaderCallbacks} callbacks - The load's progress and error callbacks. */
@@ -323,7 +322,6 @@ export class FetchLoader {
       return;
     }
 
-    this.response = response;
     // A server that ignores Range answers 200 with the whole file, from its first byte. That
     // was taken for the range asked for (the file's start, labelled as a range further in);
     // the range is cut out of it now (readBody). A 200 that says it is the range (a
@@ -583,10 +581,5 @@ export class FetchLoader {
       callbacks.onTimeout(this.stats, this.request, null);
     });
     this.abortInternal();
-  }
-
-  getCacheAge() {
-    const ageHeader = this.response?.headers.get('age');
-    return ageHeader ? parseFloat(ageHeader) : null;
   }
 };

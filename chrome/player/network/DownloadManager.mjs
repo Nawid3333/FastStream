@@ -942,9 +942,6 @@ export class DownloadManager {
   }
 
   /**
-   * @return {boolean} Whether downloads can go to disk at all (not in a private window).
-   */
-  /**
    * Whether what does not fit in the RAM budget may go to disk: the option "Keep video on
    * disk when this RAM is full". A private window never does.
    * @param {boolean} allowed
@@ -953,6 +950,10 @@ export class DownloadManager {
     this.blobStore?.setMemoryOnly(EnvUtils.isIncognito() || !allowed);
   }
 
+  /**
+   * @return {boolean} Whether downloads can go to disk at all: not in a private window, nor with
+   *   "Keep video on disk" off, nor once no disk store works.
+   */
   canSpill() {
     return !!this.blobStore && !this.blobStore.memoryOnly && !this.blobStore.diskGone;
   }
@@ -1188,10 +1189,6 @@ export class DownloadManager {
     // (canGetFile), and the next player's request for the same manifest joined it: a live
     // DASH stream reloaded without a failed codec never loaded (2026-10-06).
     if (this.downloaders) this.queueNext();
-  }
-
-  async setup() {
-
   }
 
   /** @param {boolean} value - Keep the downloads at every reset() (a loaded archive's). */
