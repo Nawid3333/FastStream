@@ -339,7 +339,9 @@ export function playHereInstead(tab, result) {
 
 /**
  * The allowlist's MPV: hands a page's stream to mpv, once per page
- * (tab.mpvAutoOpened), then pauses the page.
+ * (tab.mpvAutoOpened), then pauses the page. The toolbar's MPV and a start by address send
+ * through here too (openMpvWithSources): the latch is the same one, and so is what a refusal
+ * does to it.
  *
  * @param {TabHolder} tab - The tab the stream is in.
  * @param {string} url - The stream.
@@ -1132,7 +1134,9 @@ export function sendPlayedToMpv(tab, source, video = null) {
     if (result.ok) {
       pauseAfterHandOff(tab, result);
     } else if (tab.mpvLastPlaySend && tab.mpvLastPlaySend.url === source.url) {
-      // The host never launched mpv, so let the next play try again.
+      // The host never launched mpv, so let the next play try again. A copy-protected video's
+      // too, unlike autoOpenInMpv's latch: kept as sent, its next play within MpvPlayRepeatMs
+      // only paused the page, whose own player is the one that plays it.
       tab.mpvLastPlaySend = null;
       Tabs.saveTabState(tab);
     }
@@ -1173,30 +1177,10 @@ export function openMpvWithSources(tab) {
     return false;
   }
 
-  tab.mpvAutoOpened = true;
-  Tabs.saveTabState(tab);
-  const page = tab.mpvPage;
-  tabTitle(tab.tabId).then((title) =>
-    openInMpv(tab.tabId, source.url, tab, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
-    if (Logging) console.log('[MPV] openStream result:', source.url, JSON.stringify(result));
-    if (!isHandOffPage(tab, page) || playHereInstead(tab, result)) {
-      return;
-    }
-    setMpvError(tab, result);
-    followMpvDecoder(tab, result);
-    if (result.ok) {
-      pauseAfterHandOff(tab, result);
-    } else {
-      // The host never launched mpv, so let the next detected stream try.
-      tab.mpvAutoOpened = false;
-      Tabs.saveTabState(tab);
-    }
-  }).catch((e) => {
-    console.error('Handing the stream to mpv failed', e);
-    if (isHandOffPage(tab, page)) {
-      setMpvError(tab, {ok: false, error: String(e)});
-    }
-  });
+  // The allowlist's own hand-off, latch and answer included. A copy of it here re-armed the
+  // latch after a copy-protected video's refusal too, and the page's next stream (an ad, a
+  // piece of the film) went to mpv, cleared the "!" and paused the page.
+  autoOpenInMpv(tab, source.url, source.headers);
   return true;
 }
 
