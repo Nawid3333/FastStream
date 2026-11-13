@@ -2,6 +2,7 @@
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {Localize} from '../../modules/Localize.mjs';
 import {WebVTT} from '../../modules/vtt.mjs';
+import {isTextEntryTarget} from '../../options/KeybindUtils.mjs';
 import {SubtitleTrack} from '../../SubtitleTrack.mjs';
 import {AlertPolyfill} from '../../utils/AlertPolyfill.mjs';
 import {RequestUtils} from '../../utils/RequestUtils.mjs';
@@ -496,7 +497,9 @@ export class SubtitlesManager extends EventEmitter {
 
 
     trackElement.addEventListener('mouseenter', () => {
-      trackElement.focus();
+      // Not from a field being typed in (the subtitle search): the next letters went to the
+      // row's keys (D saves the track, R opens the resync tool).
+      if (!isTextEntryTarget(document.activeElement)) trackElement.focus();
     });
 
     trackElement.addEventListener('mouseleave', () => {

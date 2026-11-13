@@ -10,10 +10,17 @@ import {FakeDocument} from './helpers/fakeDom.mjs';
 //   heard Escape only inside itself: with the focus on <body> (leaving the control bar blurs
 //   its control) a menu opened by a click stayed open. The full presses are in
 //   tests/e2e/specs/player-a11y.e2e.mjs.
+// - The pointer took the focus out of a field. A dropdown (the sources browser's mode, beside
+//   its address) and a subtitle track's row take the focus when the pointer comes over them:
+//   passing over one while typing an address ended the typing there (the field's change ran
+//   on half an address), and the next letters went to the player's shortcuts (F fullscreen,
+//   D speed, Space play) or to the row's own keys (D saves the track).
 
 const doc = new FakeDocument('<html><body></body></html>');
 vi.stubGlobal('document', doc);
 vi.stubGlobal('window', {getSelection: () => ({selectAllChildren() {}, removeAllRanges() {}})});
+// A text node, as the dropdown's label has: an element that matches no selector here.
+doc.createTextNode = (text) => Object.assign(doc.createElement('#text'), {textContent: text});
 const el = (tag = 'div') => doc.body.appendChild(doc.createElement(tag));
 globalThis.__fieldKeysDom = {playerContainer: el()};
 
@@ -22,8 +29,13 @@ vi.mock('../../chrome/player/modules/Localize.mjs', () => ({Localize: {getMessag
 vi.mock('../../chrome/player/utils/AlertPolyfill.mjs', () => ({AlertPolyfill: {}}));
 vi.mock('../../chrome/player/utils/InterfaceUtils.mjs', () => ({InterfaceUtils: {}}));
 vi.mock('../../chrome/player/modules/vtt.mjs', () => ({WebVTT: {}}));
-vi.mock('../../chrome/player/ui/components/Dropdown.mjs', () => ({createDropdown: () => document.createElement('div')}));
+// It imports coloris.mjs, which the build generates: not there when CI runs the unit tests.
+vi.mock('../../chrome/player/ui/subtitles/SubtitlesSettingsManager.mjs', () => ({SubtitlesSettingsManager: class {}, SubtitlesSettingsManagerEvents: {}}));
+vi.mock('../../chrome/player/ui/subtitles/SubtitleSyncer.mjs', () => ({SubtitleSyncer: class {}}));
 
+const {WebUtils} = await import('../../chrome/player/utils/WebUtils.mjs');
+vi.spyOn(WebUtils, 'createSVGIcon').mockImplementation(() => document.createElement('svg'));
+const {SubtitlesManager} = await import('../../chrome/player/ui/subtitles/SubtitlesManager.mjs');
 const {OpenSubtitlesSearch} = await import('../../chrome/player/ui/subtitles/OpenSubtitlesSearch.mjs');
 const {SourcesBrowser} = await import('../../chrome/player/ui/SourcesBrowser.mjs');
 const {createPagesBar} = await import('../../chrome/player/ui/components/PagesBar.mjs');
@@ -81,5 +93,38 @@ describe('Escape in the player\'s fields and menus', () => {
     expect(client).toMatch(/\n {4}document\.addEventListener\('keydown', \(e\) => \{\s*if \(e\.key === 'Escape'\) \{\s*this\.escapeAll\(\);/);
     // Once: not on the player as well.
     expect(client.match(/this\.escapeAll\(\)/g)).toHaveLength(1);
+  });
+});
+
+describe('the pointer over a dropdown or a subtitle track', () => {
+  it('leaves the focus in the field being typed in', () => {
+    const browser = {linkui: {sourcesList: el()}, updateSources() {}, client: {}};
+    const source = new VideoSource('', null, PlayerModes.AUTO);
+    SourcesBrowser.prototype.setupSourceListing.call(browser, source);
+    const {url, mode} = source.sourceBrowserElements;
+    const {trackElement} = SubtitlesManager.prototype.createTrackEntryElements.call({}, 0);
+    for (const [name, hovered] of [['the mode dropdown', mode], ['a subtitle track', trackElement]]) {
+      url.focus();
+      hovered.fire('mouseenter');
+      expect(doc.activeElement, name).toBe(url);
+      hovered.fire('mouseleave');
+      expect(doc.activeElement, name).toBe(url);
+    }
+  });
+
+  it('still takes the focus otherwise, for the keys of its own', () => {
+    // The dropdown's arrows and Enter, the row's Delete and brackets, under the pointer.
+    const browser = {linkui: {sourcesList: el()}, updateSources() {}, client: {}};
+    const source = new VideoSource('', null, PlayerModes.AUTO);
+    SourcesBrowser.prototype.setupSourceListing.call(browser, source);
+    const {mode} = source.sourceBrowserElements;
+    const {trackElement} = SubtitlesManager.prototype.createTrackEntryElements.call({}, 0);
+    for (const hovered of [mode, trackElement]) {
+      doc.body.focus();
+      hovered.fire('mouseenter');
+      expect(doc.activeElement).toBe(hovered);
+      hovered.fire('mouseleave');
+      expect(doc.activeElement).toBe(doc.body);
+    }
   });
 });
