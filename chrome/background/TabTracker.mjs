@@ -379,8 +379,11 @@ export class TabHolder {
     /** @type {?import('./background.mjs').Continuation} */
     this.continuationOptions = null;
     // Whether the tab went on to the page the continuation is for (background.mjs
-    // tabs.onUpdated): a page after that one drops it.
+    // tabs.onUpdated), and that page's name once it named itself (noteContinuationPage): a
+    // page after that one drops it.
     this.continuationArrived = false;
+    /** @type {?string} */
+    this.continuationPage = null;
     // regexMatched/mpvMatched are deliberately NOT cleared here: the
     // leave-a-site detection in the onUpdated handler relies on them
     // surviving hostname changes (upstream semantics for regexMatched).
