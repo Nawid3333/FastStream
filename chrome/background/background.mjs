@@ -752,10 +752,12 @@ const UrlStartSettleMs = 500;
  * @param {(foundBefore: number) => *} start - The start, given the address change's time.
  */
 function startWithTrackedLater(tab, url, stillWanted, start) {
-  // The tab's next address change cancels it (tabs.onUpdated).
+  // The tab's next address change cancels it (tabs.onUpdated). One after the # only (the page
+  // sets #t=... or an anchor) is the same page, which no new start would take up: it goes on.
   const changedAt = Date.now();
   tab.urlStartTimer = setTimeout(() => {
-    if (Tabs.getTab(tab.tabId) === tab && tab.url === url && tab.isOn && stillWanted()) {
+    const samePage = tab.url === url || BackgroundUtils.isSamePageUrlChange(url, tab.url);
+    if (Tabs.getTab(tab.tabId) === tab && samePage && tab.isOn && stillWanted()) {
       start(changedAt);
     }
   }, UrlStartSettleMs);

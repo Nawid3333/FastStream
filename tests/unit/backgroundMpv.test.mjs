@@ -365,6 +365,22 @@ describe('a same-site link into an allowlisted or auto-enabled path', () => {
     await bg.wait(1000);
     expect(bg.toMpv()).toEqual([EPISODE]);
   });
+
+  it('still starts when only the part after # changes during the wait', async () => {
+    // The page sets its own #t=... (or an anchor) right after it changed its address: still
+    // the same page, which no new start takes up (the tab is on already), so the start
+    // waiting must not give up on it (a review, 2026-11-13).
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch']},
+      tabs: [{id: 1, url: HOME}]});
+    await bg.navigated(1, HOME);
+    await bg.frameAdded(1, 0, HOME, 'app');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.navigated(1, PAGE);
+    await bg.wait(100);
+    await bg.navigated(1, PAGE + '#t=10');
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
 });
 
 describe('the allowlist\'s MPV, an address that changes only after its #', () => {
