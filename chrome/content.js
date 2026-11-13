@@ -2686,7 +2686,18 @@
     // check if href leads to different page and origin
     const url = /** @type {HTMLAnchorElement} */ (current).href;
     if (isLinkToDifferentPageOnWebsite(url)) {
-      removePlayers();
+      // Decided once the page's own listeners had the click (this one runs first, in the
+      // capture phase), as the shortcut listener below does. A link the page handles
+      // itself - a "Sign in" that opens a dialog, comments paged in place - it cancels: the
+      // page stays, and its player with it. One it cancels and then goes to by itself (a
+      // single-page site's router) still takes the player down, by the address changed
+      // meanwhile, and in the top frame by the background's REMOVE_PLAYERS on a later change.
+      const address = window.location.pathname + window.location.search;
+      setTimeout(() => {
+        if (!e.defaultPrevented || window.location.pathname + window.location.search !== address) {
+          removePlayers();
+        }
+      }, 0);
     }
   }, true);
 

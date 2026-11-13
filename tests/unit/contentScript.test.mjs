@@ -420,10 +420,13 @@ describe('windowed fullscreen', () => {
     a.href = 'https://site.example/other';
     page.document.body.appendChild(a);
     page.dispatchDocument('click', {target: a, button: 0});
+    page.advance(0);
     expect(iframe.isConnected).toBe(true);
-    // Without one, the link leaves the page here, and the player goes as before.
+    // Without one, the link leaves the page here, and the player goes as before (once the
+    // page's own listeners had the click).
     base.remove();
     page.dispatchDocument('click', {target: a, button: 0});
+    page.advance(0);
     expect(iframe.isConnected).toBe(false);
   });
 
@@ -438,6 +441,65 @@ describe('windowed fullscreen', () => {
     iframe.remove();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(plain.style.getPropertyValue('display')).toBe('');
+  });
+});
+
+// A click on a link to another page of the site takes the player down: the page goes. A link
+// the page handles itself - a "Sign in" that opens a dialog, comments paged in place - the
+// page's own listener cancels, after content.js's (a capture listener) ran: the page stayed,
+// and its player was taken down all the same (a review, 2026-11-13).
+describe('a click on a link to another page of the site', () => {
+  /**
+   * Clicks a link in the page: content.js's listener has the click first, then the page's.
+   * @param {Object} page - From loadContentScript.
+   * @param {Object} a - The link.
+   * @param {function(Object): void} [pageListener] - The page's own listener.
+   */
+  function click(page, a, pageListener) {
+    const event = {type: 'click', isTrusted: true, target: a, button: 0, defaultPrevented: false,
+      preventDefault() {
+        this.defaultPrevented = true;
+      }};
+    for (const {type, listener} of page.document.listeners) {
+      if (type === 'click') listener(event);
+    }
+    if (pageListener) pageListener(event);
+  }
+
+  /**
+   * @param {Object} page - From loadContentScript.
+   * @return {Object} A link to another page of the site.
+   */
+  function linkElsewhere(page) {
+    const a = page.document.createElement('a');
+    a.href = 'https://site.example/login';
+    page.document.body.appendChild(a);
+    return a;
+  }
+
+  it('keeps the player when the page handles the link itself', async () => {
+    const {page, iframe} = await pageWithPlayer();
+    click(page, linkElsewhere(page), (event) => event.preventDefault());
+    page.advance(0);
+    expect(iframe.isConnected).toBe(true);
+  });
+
+  it('takes the player down when the page leaves the link to the browser', async () => {
+    const {page, iframe} = await pageWithPlayer();
+    click(page, linkElsewhere(page));
+    page.advance(0);
+    expect(iframe.isConnected).toBe(false);
+  });
+
+  it('takes the player down when the page cancels the link and goes there itself', async () => {
+    // A single-page site's router: the address changes, the page does not load.
+    const {page, iframe} = await pageWithPlayer();
+    click(page, linkElsewhere(page), (event) => {
+      event.preventDefault();
+      page.window.location.pathname = '/login';
+    });
+    page.advance(0);
+    expect(iframe.isConnected).toBe(false);
   });
 });
 

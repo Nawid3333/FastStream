@@ -1160,6 +1160,26 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
+  it('keeps the player for a link to another page that the page handles itself', async function() {
+    // A "Sign in" that opens a dialog, comments paged in place: the page cancels the click,
+    // and the player was taken down though the page stayed (a review, 2026-11-13).
+    await openPage('/cleanup');
+    await openPlayer();
+    await inPage(() => {
+      const a = document.createElement('a');
+      a.id = 'pagehandled';
+      a.href = '/login';
+      a.textContent = 'sign in';
+      a.addEventListener('click', (e) => e.preventDefault());
+      document.body.appendChild(a);
+    });
+    await browser.$('#pagehandled').click();
+    await browser.pause(1000);
+    expect(await inPage(() => location.pathname)).toBe('/cleanup');
+    expect(await hasPlayer()).toBe(true);
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
   it('finds the next episode past a list whose next entry has no link', async function() {
     await browser.switchToWindow(siteHandle);
     await browser.url(`${SITE}/episodes/ep2`);
