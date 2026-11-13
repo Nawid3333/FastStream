@@ -58,7 +58,8 @@ export function createPagesBar(page, totalPages, callback) {
               el.textContent = /** @type {*} */ (i);
             }
           }
-          e.stopPropagation();
+          // Escape goes on to the player, which closes the search (escapeAll).
+          if (e.key !== 'Escape') e.stopPropagation();
         });
       } else {
         el.addEventListener('click', () => {

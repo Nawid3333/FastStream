@@ -145,7 +145,9 @@ export class OpenSubtitlesSearch extends EventEmitter {
     input.classList.add(className);
     input.ariaLabel = input.placeholder;
     input.addEventListener('keydown', (e) => {
-      e.stopPropagation();
+      // Escape goes on to the player, which closes the search (escapeAll): kept here, the
+      // search could not be closed from its own fields.
+      if (e.key !== 'Escape') e.stopPropagation();
       if (e.key === 'Enter') {
         this.subui.search.blur();
         this.startSearch();

@@ -4,7 +4,8 @@
 //   arrows seek from it;
 // - Space presses a control the keyboard went to, as a <button>; after a mouse click on one
 //   it stays play/pause;
-// - a menu button says whether its menu is open.
+// - a menu button says whether its menu is open;
+// - Escape closes what is open, wherever the keyboard is: on <body>, or in a field.
 import {browser, expect} from '@wdio/globals';
 import fs from 'node:fs';
 
@@ -162,5 +163,46 @@ describe('the player\'s controls, for the keyboard and a screen reader', functio
     await until(subtitles, (v) => v === 'true', 'the subtitles button did not say its menu opened');
     await browser.$('.mainplayer .fluid_control_subtitles').click();
     await until(subtitles, (v) => v === 'false', 'the subtitles button did not say its menu closed');
+  });
+
+  it('closes what is open with Escape, wherever the keyboard is', async function() {
+    // The review of 2026-11-13: the player heard Escape only inside itself, and the loop menu,
+    // the subtitle search and the sources browser kept it in their fields.
+    await openFilm();
+    const state = () => browser.execute(() => {
+      const ui = window.fastStream.interfaceController;
+      return {rate: document.querySelector('.mainplayer .fluid_button_playback_rate').getAttribute('aria-expanded'),
+        loop: ui.loopControls.isOpen(), search: ui.subtitlesManager.openSubtitlesSearch.isOpen(),
+        typed: ui.subtitlesManager.openSubtitlesSearch.subui.search.value, focus: document.activeElement?.tagName};
+    });
+
+    // A menu opened by a click, the focus then on <body>, as the pointer leaving the control
+    // bar leaves it (onControlsMouseLeave blurs the button).
+    await browser.$('.mainplayer').moveTo();
+    await browser.$('.mainplayer .fluid_button_playback_rate').click();
+    await until(state, (s) => s.rate === 'true', 'a click did not open the rate menu');
+    await browser.execute(() => /** @type {HTMLElement} */ (document.activeElement)?.blur());
+    expect((await state()).focus).toBe('BODY');
+    await browser.keys('Escape');
+    await until(state, (s) => s.rate === 'false', 'Escape with the focus on <body> left the rate menu open');
+
+    // The loop menu, from one of its time fields. Its button is among the extra tools, behind
+    // the "more" button.
+    await browser.execute(() => {
+      /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_control_more')).click();
+      /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_control_loop')).click();
+      /** @type {HTMLElement} */ (document.querySelector('.mainplayer .loop_menu input[name="start"]')).focus();
+    });
+    expect(await state()).toMatchObject({loop: true, focus: 'INPUT'});
+    await browser.keys('Escape');
+    await until(state, (s) => !s.loop, 'Escape in a loop time field left the loop menu open');
+
+    // The subtitle search, from its own field (openUI puts the focus there), after a search
+    // was typed: the letters stay the field's.
+    await browser.execute(() => window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.openUI());
+    await browser.keys(['d', 'u', 'n', 'e']);
+    expect(await state()).toMatchObject({search: true, typed: 'dune', focus: 'INPUT'});
+    await browser.keys('Escape');
+    await until(state, (s) => !s.search, 'Escape in the subtitle search\'s field left it open');
   });
 });

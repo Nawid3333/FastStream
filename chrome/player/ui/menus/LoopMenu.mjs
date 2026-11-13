@@ -67,7 +67,9 @@ export class LoopMenu extends EventEmitter {
   }
   setupUI() {
     /** @type {HTMLElement} */ (DOMElements.loopMenu).addEventListener('keydown', (e) => {
-      e.stopPropagation();
+      // Escape goes on to the player, which closes the menu (escapeAll): kept here, the menu
+      // could not be closed from its own fields.
+      if (e.key !== 'Escape') e.stopPropagation();
     });
 
     /** @type {HTMLElement} */ (DOMElements.loopMenu).addEventListener('keyup', (e) => {
