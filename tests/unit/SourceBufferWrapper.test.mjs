@@ -375,3 +375,87 @@ describe('a reset with media segments still queued', () => {
     expect([reload.mock.calls.length, fail.mock.calls.length]).toEqual([0, 0]);
   });
 });
+
+// A player destroyed with appends still queued (peaks of 2,000-3,000 one-frame segments are
+// measured): the duration's release started the next one on the dying player, and the abort's
+// updateend ran every queued operation against a SourceBuffer its MediaSource had let go - each
+// threw, was logged and rejected, one exception and one console line per queued frame.
+describe('a player destroyed with appends queued', () => {
+  beforeEach(() => {
+    globalThis.MediaSource = {isTypeSupported: () => true};
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    globalThis.MediaSource = originalMediaSource;
+  });
+
+  /**
+   * A SourceBuffer the MediaSource has let go: every operation throws.
+   * @param {FakeSourceBuffer} sourceBuffer
+   */
+  const removed = (sourceBuffer) => {
+    sourceBuffer.appendBuffer.mockImplementation(() => {
+      throw new DOMException('This SourceBuffer has been removed from the parent media source.', 'InvalidStateError');
+    });
+  };
+
+  it('runs nothing it had queued once disposed, the update running or not', async () => {
+    const {sourceBuffer, wrapper} = makeWrapper();
+    const outcomes = [];
+    for (let i = 0; i < 100; i++) {
+      wrapper.appendBuffer(new ArrayBuffer(1), {media: true}).then(() => outcomes.push('taken'), () => outcomes.push('refused'));
+    }
+    expect(sourceBuffer.appendBuffer).toHaveBeenCalledTimes(1);
+
+    wrapper.dispose();
+    removed(sourceBuffer);
+    // The running append's end, as its abort fires it; then a release, as DurationSync makes.
+    sourceBuffer.updateEnd();
+    wrapper.release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(sourceBuffer.appendBuffer).toHaveBeenCalledTimes(1);
+    expect(console.log).not.toHaveBeenCalled();
+    // Only the one that ran was taken; nothing waits on the others.
+    expect(outcomes).toEqual(['taken']);
+    expect(wrapper.toDo).toEqual([]);
+  });
+
+  it('starts no append when MP4Player.destroy lets go of the duration', async () => {
+    const {default: MP4Player} = await import('../../chrome/player/players/mp4/MP4Player.mjs');
+    const {DurationSync} = await import('../../chrome/player/players/mp4/DurationSync.mjs');
+    const video = makeWrapper();
+    const audio = makeWrapper();
+    const mediaSource = {readyState: 'open', duration: 10};
+    const player = {
+      running: true, mediaSource, videoSourceBuffer: video.wrapper, audioSourceBuffer: audio.wrapper,
+      mediaSourceURL: null, loader: null, currentFragments: [], loopTimeout: null,
+      video: {pause: vi.fn(), removeAttribute: vi.fn(), load: vi.fn()}, emit: vi.fn(),
+    };
+    player.durationSync = new DurationSync(() => mediaSource, () => [video.wrapper, audio.wrapper]);
+    // The audio's SourceBuffer updating: a new duration holds both until it ends.
+    audio.wrapper.appendBuffer(new ArrayBuffer(1));
+    audio.sourceBuffer.updating = true;
+    player.durationSync.set(20);
+    expect(video.wrapper.held).toBe(true);
+    for (let i = 0; i < 100; i++) {
+      video.wrapper.appendBuffer(new ArrayBuffer(1), {media: true}).catch(() => {});
+    }
+    expect(video.sourceBuffer.appendBuffer).not.toHaveBeenCalled();
+
+    removed(video.sourceBuffer);
+    removed(audio.sourceBuffer);
+    MP4Player.prototype.destroy.call(player);
+    audio.sourceBuffer.updating = false;
+    audio.sourceBuffer.updateEnd();
+    video.sourceBuffer.updateEnd();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(video.sourceBuffer.appendBuffer).not.toHaveBeenCalled();
+    expect(audio.sourceBuffer.appendBuffer).toHaveBeenCalledTimes(1);
+    expect(console.log).not.toHaveBeenCalled();
+    expect(player.emit).toHaveBeenCalledTimes(1);
+  });
+});

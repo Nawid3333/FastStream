@@ -1103,6 +1103,10 @@ export default class MP4Player extends EventEmitter {
 
   destroy() {
     this.running = false;
+    // First: the release of a duration held (clear, below) started the next append on the
+    // dying player, and the abort's updateend every queued one (SourceBufferWrapper.dispose).
+    this.videoSourceBuffer?.dispose();
+    this.audioSourceBuffer?.dispose();
     this.durationSync?.clear();
     this.pendingSeek = null;
     // SourceBuffer.abort() throws unless the MediaSource is open, and after endOfStream()
