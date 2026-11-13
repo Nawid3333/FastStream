@@ -341,6 +341,26 @@ describe('a site written in Unicode', () => {
   });
 });
 
+// The text after a page's scheme starts with its user name and password, when it has them:
+// `example.com` matched https://example.com:x@evil.com/, a page of evil.com, as the ':' after
+// the user name read as the start of a port.
+describe('a page whose address has a user name', () => {
+  it('is matched by its host, not by the user name', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['example.com', 'https://crunchyroll.com', 'site.test:8080', 'films.test/watch/']);
+    expect(list.matches('https://example.com:x@evil.com/')).toBe(false);
+    expect(list.matches('https://example.com@evil.com/')).toBe(false);
+    expect(list.matches('https://www.example.com:x@evil.com/watch')).toBe(false);
+    expect(list.matches('https://crunchyroll.com:pw@evil.test/watch/1')).toBe(false);
+    expect(list.matches('https://site.test:8080:x@evil.com/')).toBe(false);
+    // The page of the site itself, a user name before it or not.
+    expect(list.matches('https://user:pw@example.com/watch')).toBe(true);
+    expect(list.matches('https://site.test:8080/v')).toBe(true);
+    expect(list.matches('https://u@films.test/watch/1')).toBe(true);
+    expect(list.matches('https://films.test/other/1')).toBe(false);
+  });
+});
+
 describe('an entry that is only "www."', () => {
   it('matches no page, not every one', () => {
     // A site begun and left at "www.": after its www. there was nothing, and the empty site

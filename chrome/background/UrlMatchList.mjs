@@ -252,14 +252,25 @@ export class UrlMatchList {
     const site = withoutWww(written);
     // "www." alone (a site begun and not finished) is no page, not every one; a scheme alone
     // ("https://") is every page of it, on purpose.
-    if (site === '' && written !== '') {
+    if (site === '') {
+      return written === '';
+    }
+    // The page from its host on, as its address parses, less a user name and password: the
+    // text after the scheme starts with those, and `example.com` matched
+    // https://example.com:x@evil.com/, a page of evil.com.
+    let address;
+    try {
+      address = new URL(normalizedUrl);
+    } catch (e) {
       return false;
     }
-    const page = withoutWww(normalizedUrl.slice(/** @type {string} */ (urlScheme).length));
+    address.username = '';
+    address.password = '';
+    const page = withoutWww(address.href.slice(/** @type {string} */ (urlScheme).length));
     if (!page.startsWith(site)) {
       return false;
     }
     // Only a host (and port): the page's host ends there too.
-    return site === '' || site.includes('/') || /^$|^[/?#:]/.test(page.slice(site.length));
+    return site.includes('/') || /^$|^[/?#:]/.test(page.slice(site.length));
   }
 }
