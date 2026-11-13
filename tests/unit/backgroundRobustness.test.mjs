@@ -484,6 +484,16 @@ describe('a web page a player in a page opens', () => {
       {id: 1000, url: 'https://www.opensubtitles.com/en/subtitles/x'}, {id: 1001, url: 'http://example.test/report?e=1'}]);
   });
 
+  it('is opened for the settings page in that player too', async () => {
+    // Its report and update buttons (options.mjs): an iframe in the player, as short of
+    // chrome.tabs as the player itself.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    const page = 'https://github.com/example/releases';
+    expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url: page},
+        from('moz-extension://bg-test/player/options/index.html'))).toBe(true);
+    expect(bg.createdTabs).toEqual([{id: 1000, url: page}]);
+  });
+
   it('is no other address, and not for a content script or another of FastStream\'s pages', async () => {
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
     for (const url of ['javascript:alert(1)', 'data:text/html,<p>x', 'moz-extension://bg-test/player/index.html',
@@ -493,9 +503,10 @@ describe('a web page a player in a page opens', () => {
     const page = 'https://www.opensubtitles.com/en/subtitles/x';
     // A content script runs in every page: not answered at all (MessageSenders).
     expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url: page}, from(PAGE))).toBe(undefined);
-    // The options page has chrome.tabs of its own.
-    expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url: page}, from('moz-extension://bg-test/player/options/index.html')))
-        .toBe(false);
+    // Another of its pages does not ask (the welcome page, a page named like the player's).
+    for (const other of ['moz-extension://bg-test/welcome.html', 'moz-extension://bg-test/player/index.htmlx/../evil.html']) {
+      expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url: page}, from(other)), other).toBe(false);
+    }
     expect(bg.createdTabs).toEqual([]);
   });
 });

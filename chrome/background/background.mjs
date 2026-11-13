@@ -876,8 +876,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   } else if (msg.type === MessageTypes.OPEN_EXTERNAL_URL) {
     // EnvUtils.openExternalURL in a player framed in a page, which has no chrome.tabs: the
-    // OpenSubtitles page of a subtitle, the error dialog's report did nothing there. Only the
-    // player asks, and only for a web page: tabs.create also opens the extension's own pages.
+    // OpenSubtitles page of a subtitle, the error dialog's report did nothing there; nor did the
+    // settings page's report and update buttons, an iframe in that player. Only those two pages
+    // ask, and only for a web page: tabs.create also opens the extension's own pages.
     // No opener, as the player's own tabs.create has none: the popup guard, armed by the
     // click into the player's iframe, would close a tab the page opened.
     let url = null;
@@ -886,7 +887,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     } catch (e) {
       // No address at all.
     }
-    if (!url || !/^https?:$/.test(url.protocol) || !String(sender.url).startsWith(chrome.runtime.getURL('player/index.html'))) {
+    let asker = null;
+    try {
+      asker = new URL(String(sender.url));
+    } catch (e) {
+      // No sender's address.
+    }
+    const fromOwnPage = !!asker && ['player/index.html', 'player/options/index.html']
+        .some((page) => `${asker.protocol}//${asker.host}${asker.pathname}` === chrome.runtime.getURL(page));
+    if (!url || !/^https?:$/.test(url.protocol) || !fromOwnPage) {
       sendResponse(false);
       return;
     }
