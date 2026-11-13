@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {fragment, initSegment, videoTrack} from './helpers/fmp4.mjs';
-import {readMp4} from './helpers/mp4boxes.mjs';
+import {find, readDuration, readMp4} from './helpers/mp4boxes.mjs';
 
 // The merger (MP4Merger), which joins a DASH or fMP4 HLS stream's fragments into one MP4
 // with mp4box (the patched npm build: see vitest.config.mjs), and the file it writes read
@@ -343,5 +343,24 @@ describe('MP4Merger: a save written as it goes, holding nothing of the player\'s
     expect(opfs.log.at(-1)).toBe('abort');
     expect(opfs.files.size).toBe(0);
     expect(stores.at(-1).closed).toBe(true);
+  });
+});
+
+// A partial save (Alt-click: what is downloaded) wrote the whole stream's length into the
+// file's headers - the DASH period's, hls.js's total duration - and Firefox, which takes a
+// video's duration from the moov, said a 10 minute save of an hour-long stream lasted an hour.
+describe('MP4Merger: the length a partial save says it has', () => {
+  it('is the length of the fragments saved, in mdhd, tkhd and mvhd', async () => {
+    const track = videoTrack({timescale: 90000});
+    const fragments = [0, 1, 2, 3, 4].map((i) => fragment(track, i + 1, i * 6000,
+        [{duration: 3000, cts: 0, key: true}, {duration: 3000, cts: 0}]));
+    const zipped = fragments.slice(0, 3).map((data) => ({track: 0, getEntry: async () => ({getDataFromBlob: async () => data.arrayBuffer()})}));
+    // The period: all five fragments.
+    const blob = await new MP4Merger().convert(5 * 6000 / 90000, initSegment(track), 0, null, zipped);
+    const {boxes, tracks} = readMp4(new Uint8Array(await blob.arrayBuffer()));
+    const trak = tracks.vide.trak;
+    expect(readDuration(find(trak.children, 'mdia/mdhd')) / tracks.vide.timescale).toBeCloseTo(0.2, 6);
+    expect(readDuration(find(trak.children, 'tkhd')) / tracks.vide.movieTimescale).toBeCloseTo(0.2, 6);
+    expect(readDuration(find(boxes, 'moov/mvhd')) / tracks.vide.movieTimescale).toBeCloseTo(0.2, 6);
   });
 });

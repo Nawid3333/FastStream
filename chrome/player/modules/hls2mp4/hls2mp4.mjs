@@ -438,6 +438,13 @@ export class HLS2MP4 extends EventEmitter {
       // engine's argument limit and throw a RangeError.
       track.samples = track.chunks.flatMap((chunk) => chunk.samples);
 
+      // The track's own length (mdhd): its samples one after the other. What its edits
+      // present goes in the tkhd, the longest in the mvhd. hls.js's duration of the whole
+      // stream was written in all three, and Firefox, which takes the duration from the moov,
+      // said a 10 minute save of an hour lasted an hour.
+      track.duration = decoded / track.timescale;
+      track.presentedDuration = track.elst.reduce((sum, edit) => sum + edit.segment_duration, 0) / movieTimescale;
+
       // The video's sample entry (avc1 or hvc1, with its parameter sets) is hls.js's own MP4
       // writer's, so hls.js's changes to it come with hls.js; FastStream's writer takes it as
       // it takes a DASH track's (codecBuffer). Its copies of the two were hls.js's, byte for

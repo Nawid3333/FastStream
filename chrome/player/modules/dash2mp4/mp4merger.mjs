@@ -32,6 +32,7 @@ import {SaveFile} from '../SaveFile.mjs';
  * and what finalize() works out from them.
  * @typedef {{type: 'video'|'audio', id: number, sourceTrackId: number, timescale: number,
  *   duration: number, samples: Array<OutputSample>, chunks: Array<MergerChunk>,
+ *   presentedDuration?: number,
  *   use64Offsets: boolean, nextChunkId: number, elst: Array<{media_time: number, segment_duration: number}>,
  *   trexs: NonNullable<ISOFile['moov']['mvex']>['trexs'], codecBuffer: ArrayBuffer,
  *   movieTimescale?: number, width?: number, height?: number, pixelRatio?: Array<number>,
@@ -368,6 +369,13 @@ export class MP4Merger extends EventEmitter {
       // flatMap, not push(...samples): a spread of a very long chunk's samples can pass the
       // engine's argument limit and throw a RangeError.
       track.samples = track.chunks.flatMap((chunk) => chunk.samples);
+
+      // The track's own length (mdhd): its samples one after the other, the holes of a
+      // partial save padded (pushFragment). What its edits present goes in the tkhd, the
+      // longest in the mvhd. The period's length was written in all three, and Firefox, which
+      // takes the duration from the moov, said a 10 minute save of an hour lasted an hour.
+      track.duration = track.samples.reduce((sum, sample) => sum + sample.duration, 0) / track.timescale;
+      track.presentedDuration = track.elst.reduce((sum, edit) => sum + edit.segment_duration, 0) / movieTimescale;
     });
     let initSeg;
     try {
