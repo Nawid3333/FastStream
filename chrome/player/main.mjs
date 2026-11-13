@@ -21,9 +21,10 @@ const PlayerNotices = ['player_mpv_page_only'];
 const PlayerNoticeMs = 12000;
 
 /**
- * The player's window: it holds the client from setup() until beforeunload deletes it,
- * marked optionsApplied for the tests once loadOptions() gave it the saved options.
- * @typedef {Window & typeof globalThis & {fastStream: FastStreamClient & {optionsApplied?: boolean}}} FastStreamWindow
+ * The player's window while it has its client (window.fastStream, types/player-window.d.ts),
+ * for the two functions that read the client without a check of their own: recieveSources()
+ * is called only once there is one, and loadOptions() catches what a missing one throws.
+ * @typedef {Window & typeof globalThis & {fastStream: NonNullable<Window['fastStream']>}} FastStreamWindow
  */
 
 /**
@@ -57,30 +58,30 @@ if (EnvUtils.isExtension()) {
           // player has no content script left, so the player answers.
           sendResponse(true);
           return;
-        } else if (request.type === MessageTypes.SOURCES && /** @type {FastStreamWindow} */ (window).fastStream) {
+        } else if (request.type === MessageTypes.SOURCES && window.fastStream) {
           // Answered whatever happens: the background waits for it.
           recieveSources(request, sendResponse).catch((e) => {
             console.error('Taking the sources failed', e);
             sendResponse('sources_recieved');
           });
           return true;
-        } else if (request.type === MessageTypes.VPN_ALLOWED && /** @type {FastStreamWindow} */ (window).fastStream) {
-          /** @type {FastStreamWindow} */ (window).fastStream.vpnPrompt.onAllowed();
-        } else if (request.type === MessageTypes.EXIT_CARRIED_FULLSCREEN && /** @type {FastStreamWindow} */ (window).fastStream) {
+        } else if (request.type === MessageTypes.VPN_ALLOWED && window.fastStream) {
+          window.fastStream.vpnPrompt.onAllowed();
+        } else if (request.type === MessageTypes.EXIT_CARRIED_FULLSCREEN && window.fastStream) {
           // Escape in the page around a carried fullscreen (content.js). false: this player had
           // none (a new one in the frame), and the background ends it.
-          sendResponse(/** @type {FastStreamWindow} */ (window).fastStream.interfaceController.exitCarriedFullscreen());
+          sendResponse(window.fastStream.interfaceController.exitCarriedFullscreen());
         } else if (request.type === MessageTypes.UPDATE_OPTIONS) {
           if (request.time !== optionSendTime) {
             optionSendTime = request.time;
             loadOptions();
           }
-        } else if (request.type === MessageTypes.MESSAGE_FROM_PAGE && /** @type {FastStreamWindow} */ (window).fastStream) {
+        } else if (request.type === MessageTypes.MESSAGE_FROM_PAGE && window.fastStream) {
           const data = request.data;
           if (data.type === 'fullscreen-state') {
-            /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.setFullscreenStatus(data.value);
+            window.fastStream.interfaceController.setFullscreenStatus(data.value);
           } else if (data.type === 'miniplayer-state') {
-            /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.setMiniplayerStatus(data.value);
+            window.fastStream.interfaceController.setMiniplayerStatus(data.value);
           }
           sendResponse('recieved');
           return;
@@ -310,9 +311,9 @@ async function loadOptions() {
 }
 
 async function setup() {
-  if (!/** @type {FastStreamWindow} */ (window).fastStream) {
-    /** @type {FastStreamWindow} */ (window).fastStream = new FastStreamClient();
-    await /** @type {FastStreamWindow} */ (window).fastStream.setup();
+  if (!window.fastStream) {
+    window.fastStream = new FastStreamClient();
+    await window.fastStream.setup();
   }
 
   await loadOptions();
@@ -327,15 +328,15 @@ async function setup() {
     }).then((data) => {
       // Nor once the client went (beforeunload) before the background answered: its answer
       // then threw on the missing client.
-      if (!data || !/** @type {FastStreamWindow} */ (window).fastStream) {
+      if (!data || !window.fastStream) {
         return;
       }
-      /** @type {FastStreamWindow} */ (window).fastStream.setMediaInfo(data.mediaInfo);
-      /** @type {FastStreamWindow} */ (window).fastStream.setPage(data.tabId, data.pageFrameId);
-      /** @type {FastStreamWindow} */ (window).fastStream.setNeedsUserInteraction(!data.isMainPlayer);
+      window.fastStream.setMediaInfo(data.mediaInfo);
+      window.fastStream.setPage(data.tabId, data.pageFrameId);
+      window.fastStream.setNeedsUserInteraction(!data.isMainPlayer);
 
       console.log('Recieved data', data);
-      /** @type {FastStreamWindow} */ (window).fastStream.setupPoll();
+      window.fastStream.setupPoll();
 
       chrome.runtime.sendMessage({
         type: MessageTypes.REQUEST_SOURCES,
@@ -344,11 +345,11 @@ async function setup() {
   } else {
     // if in iframe, require interaction
     if (window.self !== window.top) {
-      /** @type {FastStreamWindow} */ (window).fastStream.setNeedsUserInteraction(true);
+      window.fastStream.setNeedsUserInteraction(true);
     }
   }
 
-  const version = /** @type {FastStreamWindow} */ (window).fastStream.version;
+  const version = window.fastStream.version;
   Utils.printWelcome(version);
 
   // Tells the background this player's frame is gone, once. Only the extension has a
@@ -377,13 +378,13 @@ async function setup() {
   /** @type {any} */
   let stayTimer = null;
   window.addEventListener('beforeunload', () => {
-    const time = /** @type {FastStreamWindow} */ (window).fastStream?.source ? /** @type {FastStreamWindow} */ (window).fastStream.currentTime : 0;
-    if (/** @type {FastStreamWindow} */ (window).fastStream) {
+    const time = window.fastStream?.source ? window.fastStream.currentTime : 0;
+    if (window.fastStream) {
       // Its buffer to the next player of this video on this page, a reload's (BufferStash).
       // For a navigation that never happens too: the player loads again below, and takes it back.
-      /** @type {FastStreamWindow} */ (window).fastStream.handOffBuffer();
-      /** @type {FastStreamWindow} */ (window).fastStream.destroy();
-      delete /** @type {Window & {fastStream?: FastStreamClient}} */ (window).fastStream;
+      window.fastStream.handOffBuffer();
+      window.fastStream.destroy();
+      delete window.fastStream;
     }
     sendFrameRemoved();
     clearTimeout(stayTimer);
@@ -415,7 +416,7 @@ async function setup() {
   // starts again; one that content.js put in a page is taken down with the page's own
   // REMOVE_PLAYERS (its URL has the opener), and a player tab is never cached.
   window.addEventListener('pageshow', (e) => {
-    if (e.persisted && !/** @type {FastStreamWindow} */ (window).fastStream && !new URLSearchParams(window.location.search).has('opener')) {
+    if (e.persisted && !window.fastStream && !new URLSearchParams(window.location.search).has('opener')) {
       window.location.reload();
     }
   });
@@ -443,7 +444,7 @@ async function setup() {
     const source = new VideoSource(url, {}, mode);
     source.parseHeadersParam(!EnvUtils.isExtension() || await isAddressFromRedirect(window.location.search));
 
-    /** @type {FastStreamWindow} */ (window).fastStream.addSource(source, true).catch((e) => console.error('Opening the stream in the address failed', e));
+    window.fastStream.addSource(source, true).catch((e) => console.error('Opening the stream in the address failed', e));
   }
 
   if (!EnvUtils.isExtension()) {

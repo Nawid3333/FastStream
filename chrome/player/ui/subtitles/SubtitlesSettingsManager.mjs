@@ -39,21 +39,21 @@ export class SubtitlesSettingsManager extends EventEmitter {
   }
 
   setupSettingsUI() {
-    /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).addEventListener('keydown', (e) => {
+    DOMElements.subtitlesOptionsList.addEventListener('keydown', (e) => {
       // Escape goes on to the player, which closes the menu (escapeAll).
       if (e.key !== 'Escape') e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).addEventListener('keyup', (e) => {
+    DOMElements.subtitlesOptionsList.addEventListener('keyup', (e) => {
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsBackButton).addEventListener('click', (e) => {
+    DOMElements.subtitlesOptionsBackButton.addEventListener('click', (e) => {
       this.closeUI();
       e.stopPropagation();
     });
 
-    /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).addEventListener('click', (e) => {
+    DOMElements.subtitlesOptionsList.addEventListener('click', (e) => {
       Coloris.close();
     }, true);
 
@@ -104,7 +104,7 @@ export class SubtitlesSettingsManager extends EventEmitter {
   }
 
   updateSettingsUI() {
-    /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).replaceChildren();
+    DOMElements.subtitlesOptionsList.replaceChildren();
     for (const key in this.settings) {
       if (!Object.hasOwn(this.settings, key)) continue;
       const config = /** @type {Object<string, {type?: string, property?: string, isColor?: boolean}>} */ (SubtitleSettingsConfigData)[key];
@@ -151,7 +151,7 @@ export class SubtitlesSettingsManager extends EventEmitter {
       });
       option.appendChild(label);
       option.appendChild(input);
-      /** @type {HTMLElement} */ (DOMElements.subtitlesOptionsList).appendChild(option);
+      DOMElements.subtitlesOptionsList.appendChild(option);
     }
   }
 
@@ -162,15 +162,15 @@ export class SubtitlesSettingsManager extends EventEmitter {
   }
 
   openUI() {
-    /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).classList.add('settings');
+    DOMElements.subtitlesMenu.classList.add('settings');
   }
 
   closeUI() {
-    /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).classList.remove('settings');
+    DOMElements.subtitlesMenu.classList.remove('settings');
     Coloris.close();
   }
 
   isOpen() {
-    return /** @type {HTMLElement} */ (DOMElements.subtitlesMenu).classList.contains('settings');
+    return DOMElements.subtitlesMenu.classList.contains('settings');
   }
 }

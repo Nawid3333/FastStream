@@ -64,29 +64,29 @@ export class SaveManager {
   }
 
   setupUI() {
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('drop', this.onFileDrop.bind(this), false);
+    DOMElements.playerContainer.addEventListener('drop', this.onFileDrop.bind(this), false);
 
-    /** @type {HTMLElement} */ (DOMElements.download).addEventListener('click', this.saveVideo.bind(this));
+    DOMElements.download.addEventListener('click', this.saveVideo.bind(this));
 
-    /** @type {HTMLElement} */ (DOMElements.download).addEventListener('contextmenu', (e) => {
+    DOMElements.download.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.saveVideo(e, true);
     });
 
-    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.download));
+    WebUtils.setupTabIndex(DOMElements.download);
 
-    /** @type {HTMLElement} */ (DOMElements.mpv).addEventListener('click', this.openInMpv.bind(this));
-    /** @type {HTMLElement} */ (DOMElements.mpv).addEventListener('contextmenu', (e) => {
+    DOMElements.mpv.addEventListener('click', this.openInMpv.bind(this));
+    DOMElements.mpv.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.cycleMpvContentType();
     });
-    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.mpv));
+    WebUtils.setupTabIndex(DOMElements.mpv);
     this.updateMpvContentBadge();
 
-    /** @type {HTMLElement} */ (DOMElements.screenshot).addEventListener('click', this.saveScreenshot.bind(this));
-    WebUtils.setupTabIndex(/** @type {HTMLElement} */ (DOMElements.screenshot));
+    DOMElements.screenshot.addEventListener('click', this.saveScreenshot.bind(this));
+    WebUtils.setupTabIndex(DOMElements.screenshot);
   }
 
   /**
@@ -195,25 +195,25 @@ export class SaveManager {
    * @return {void}
    */
   updateMpvContentBadge() {
-    const banner = /** @type {?HTMLElement} */ (DOMElements.mpvContentBanner);
+    const banner = DOMElements.mpvContentBanner;
     if (this.mpvContentType === 'anime') {
       if (banner) {
         banner.textContent = 'A';
         banner.style.display = '';
       }
-      WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.mpv), Localize.getMessage('player_mpv_content_anime'));
+      WebUtils.setLabels(DOMElements.mpv, Localize.getMessage('player_mpv_content_anime'));
     } else if (this.mpvContentType === 'movie') {
       if (banner) {
         banner.textContent = 'M';
         banner.style.display = '';
       }
-      WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.mpv), Localize.getMessage('player_mpv_content_movie'));
+      WebUtils.setLabels(DOMElements.mpv, Localize.getMessage('player_mpv_content_movie'));
     } else {
       if (banner) {
         banner.textContent = '';
         banner.style.display = 'none';
       }
-      WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.mpv), Localize.getMessage('player_mpv_content_unset'));
+      WebUtils.setLabels(DOMElements.mpv, Localize.getMessage('player_mpv_content_unset'));
     }
   }
 
@@ -307,7 +307,7 @@ export class SaveManager {
     if (this.makingDownload) {
       if (this.downloadCancel) {
         this.downloadCancel();
-        /** @type {HTMLElement} */ (DOMElements.saveNotifBanner).style.color = 'gold';
+        DOMElements.saveNotifBanner.style.color = 'gold';
         this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_cancelling'), 'info');
       } else {
         await AlertPolyfill.alert(Localize.getMessage('player_savevideo_inprogress_alert'), 'error');
@@ -379,8 +379,8 @@ export class SaveManager {
       this.makingDownload = true;
       this.askingToSave = false;
       this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_start'), 'info');
-      /** @type {HTMLElement} */ (DOMElements.saveNotifBanner).style.display = '';
-      /** @type {HTMLElement} */ (DOMElements.saveNotifBanner).style.color = '';
+      DOMElements.saveNotifBanner.style.display = '';
+      DOMElements.saveNotifBanner.style.color = '';
       try {
         const start = performance.now();
         this.pendingSave = player.saveVideo({
@@ -414,7 +414,7 @@ export class SaveManager {
         this.makingDownload = false;
         this.downloadCancel = null;
         this.pendingSave = null;
-        /** @type {HTMLElement} */ (DOMElements.saveNotifBanner).style.display = 'none';
+        DOMElements.saveNotifBanner.style.display = 'none';
 
         if (/** @type {Error} */ (e).message === 'Cancelled') {
           console.error(e);
@@ -432,7 +432,7 @@ export class SaveManager {
         return;
       }
 
-      /** @type {HTMLElement} */ (DOMElements.saveNotifBanner).style.display = 'none';
+      DOMElements.saveNotifBanner.style.display = 'none';
       this.downloadCancel = null;
       this.makingDownload = false;
 

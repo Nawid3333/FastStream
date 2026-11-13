@@ -10,7 +10,7 @@ import {PressTracker} from './PressTracker.mjs';
 const MAX_VOLUME = EnvUtils.isWebAudioSupported() ? 3 : 1;
 
 if (!EnvUtils.isWebAudioSupported()) {
-  /** @type {HTMLElement} */ (DOMElements.volumeUnity).style.display = 'none';
+  DOMElements.volumeUnity.style.display = 'none';
 }
 
 const VolumeSaveDelayMs = 500;
@@ -30,14 +30,14 @@ export class VolumeControls extends EventEmitter {
   }
 
   setupUI() {
-    /** @type {HTMLElement} */ (DOMElements.volumeContainer).addEventListener('mousedown', this.onVolumeBarMouseDown.bind(this));
-    /** @type {HTMLElement} */ (DOMElements.volumeContainer).addEventListener('dblclick', (e) => {
+    DOMElements.volumeContainer.addEventListener('mousedown', this.onVolumeBarMouseDown.bind(this));
+    DOMElements.volumeContainer.addEventListener('dblclick', (e) => {
       this.setVolume(1);
       e.stopPropagation();
     });
-    /** @type {HTMLElement} */ (DOMElements.muteBtn).addEventListener('click', this.muteToggle.bind(this));
-    /** @type {HTMLElement} */ (DOMElements.volumeBlock).tabIndex = 0;
-    /** @type {HTMLElement} */ (DOMElements.volumeBlock).addEventListener('keydown', (e) => {
+    DOMElements.muteBtn.addEventListener('click', this.muteToggle.bind(this));
+    DOMElements.volumeBlock.tabIndex = 0;
+    DOMElements.volumeBlock.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         this.muteToggle();
         e.stopPropagation();
@@ -50,7 +50,7 @@ export class VolumeControls extends EventEmitter {
       }
     });
 
-    /** @type {HTMLElement} */ (DOMElements.volumeBlock).addEventListener('wheel', (e) => {
+    DOMElements.volumeBlock.addEventListener('wheel', (e) => {
       let delta = e.deltaY;
       if (!EnvUtils.isMacOS()) {
         delta = -delta;
@@ -108,7 +108,7 @@ export class VolumeControls extends EventEmitter {
 
     /** @param {number} volumeBarX */
     const shiftVolume = (volumeBarX) => {
-      const totalWidth = /** @type {HTMLElement} */ (DOMElements.volumeControlBar).clientWidth;
+      const totalWidth = DOMElements.volumeControlBar.clientWidth;
 
       if (totalWidth) {
         const newVolume = volumeBarX / totalWidth * MAX_VOLUME;
@@ -126,7 +126,7 @@ export class VolumeControls extends EventEmitter {
     };
 
     /** @param {MouseEvent|TouchEvent} event */
-    const volumeBarX = (event) => /** @type {MouseEvent} */ (event).clientX - WebUtils.getOffsetLeft(/** @type {HTMLElement} */ (DOMElements.volumeContainer)) - 10;
+    const volumeBarX = (event) => /** @type {MouseEvent} */ (event).clientX - WebUtils.getOffsetLeft(DOMElements.volumeContainer) - 10;
 
     // Follows the pointer until the button is let go, wherever, which sets the volume there,
     // or the press ends without a release (PressTracker): the volume stays as it is.
@@ -145,8 +145,8 @@ export class VolumeControls extends EventEmitter {
 
   /** @param {number} volume */
   updateVolumeBar(volume) {
-    const currentVolumeTag = /** @type {HTMLElement} */ (DOMElements.currentVolume);
-    const muteButtonTag = /** @type {HTMLElement} */ (DOMElements.muteBtn);
+    const currentVolumeTag = DOMElements.currentVolume;
+    const muteButtonTag = DOMElements.muteBtn;
 
     if (volume === 0) {
       muteButtonTag.classList.add('muted');
@@ -155,22 +155,22 @@ export class VolumeControls extends EventEmitter {
     }
 
     currentVolumeTag.style.width = (volume * 100) / MAX_VOLUME + '%';
-    /** @type {HTMLElement} */ (DOMElements.currentVolumeText).textContent = Math.round(volume * 100) + '%';
+    DOMElements.currentVolumeText.textContent = Math.round(volume * 100) + '%';
 
-    /** @type {HTMLElement} */ (DOMElements.volumeBanner).textContent = Math.round(volume * 100) + '%';
+    DOMElements.volumeBanner.textContent = Math.round(volume * 100) + '%';
     if (volume === 1 || volume === 0) {
-      /** @type {HTMLElement} */ (DOMElements.volumeBanner).style.display = 'none';
+      DOMElements.volumeBanner.style.display = 'none';
     } else {
-      /** @type {HTMLElement} */ (DOMElements.volumeBanner).style.display = '';
+      DOMElements.volumeBanner.style.display = '';
     }
 
-    WebUtils.setLabels(/** @type {HTMLElement} */ (DOMElements.volumeBlock), Localize.getMessage('player_volume_label', [Math.round(volume * 100)]));
+    WebUtils.setLabels(DOMElements.volumeBlock, Localize.getMessage('player_volume_label', [Math.round(volume * 100)]));
     // The block is a slider (role="slider"), and a screen reader reads a slider's value
     // from these; it had none.
-    /** @type {HTMLElement} */ (DOMElements.volumeBlock).setAttribute('aria-valuemin', /** @type {any} */ (0));
-    /** @type {HTMLElement} */ (DOMElements.volumeBlock).setAttribute('aria-valuemax', /** @type {any} */ (Math.round(MAX_VOLUME * 100)));
-    /** @type {HTMLElement} */ (DOMElements.volumeBlock).setAttribute('aria-valuenow', /** @type {any} */ (Math.round(volume * 100)));
-    /** @type {HTMLElement} */ (DOMElements.volumeBlock).setAttribute('aria-valuetext', Math.round(volume * 100) + '%');
+    DOMElements.volumeBlock.setAttribute('aria-valuemin', /** @type {any} */ (0));
+    DOMElements.volumeBlock.setAttribute('aria-valuemax', /** @type {any} */ (Math.round(MAX_VOLUME * 100)));
+    DOMElements.volumeBlock.setAttribute('aria-valuenow', /** @type {any} */ (Math.round(volume * 100)));
+    DOMElements.volumeBlock.setAttribute('aria-valuetext', Math.round(volume * 100) + '%');
   }
 
   async loadVolumeState() {

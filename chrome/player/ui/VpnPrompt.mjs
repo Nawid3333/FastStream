@@ -21,7 +21,7 @@ export class VpnPrompt {
   constructor(client) {
     this.client = client;
     this.source = null;
-    const button = /** @type {HTMLElement} */ (DOMElements.vpnButton);
+    const button = DOMElements.vpnButton;
     if (!button) return;
     button.textContent = Localize.getMessage('player_vpn_allow');
     button.title = Localize.getMessage('player_vpn_allow_tooltip');
@@ -76,14 +76,14 @@ export class VpnPrompt {
   }
 
   isShown() {
-    return !!DOMElements.vpnButton && /** @type {HTMLElement} */ (DOMElements.vpnButton).style.display !== 'none';
+    return !!DOMElements.vpnButton && DOMElements.vpnButton.style.display !== 'none';
   }
 
   show() {
-    if (DOMElements.vpnButton) /** @type {HTMLElement} */ (DOMElements.vpnButton).style.display = '';
+    if (DOMElements.vpnButton) DOMElements.vpnButton.style.display = '';
   }
 
   hide() {
-    if (DOMElements.vpnButton) /** @type {HTMLElement} */ (DOMElements.vpnButton).style.display = 'none';
+    if (DOMElements.vpnButton) DOMElements.vpnButton.style.display = 'none';
   }
 }

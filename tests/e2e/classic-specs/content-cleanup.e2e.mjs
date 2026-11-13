@@ -1040,12 +1040,37 @@ describe('content.js around an in-page player', function() {
       expect(await sendToPage({type: 'FRAME_LINK_RECEIVER', key: 'fs-shadow-link', frameId: 424244})).toBe('ok');
       await inPage(() => window.__shadowed.iframe.contentWindow.postMessage('fs-shadow-link', '*'));
       await browser.pause(300);
-      // Fullscreen is refused to a tab in the background: sent with the site's tab in front.
-      expect(await sendToPageInFront({type: 'TOGGLE_FULLSCREEN', frameId: 424244}, 1000)).toBe('enter');
-      expect(await inPage(() => document.fullscreenElement === window.__shadowed.host)).toBe(true);
-      expect(await sendToPageInFront({type: 'TOGGLE_FULLSCREEN', frameId: 424244}, 1000)).toBe('exit');
-      await browser.waitUntil(async () => inPage(() => document.fullscreenElement === null),
-          {timeout: 5000, timeoutMsg: 'the toggle did not leave fullscreen'});
+      // Fullscreen is refused to a tab in the background, and Firefox leaves it as soon as
+      // another tab comes to the front, as the extension's does to read an answer
+      // (sendToPageInFront). Both toggles go out from it on timers while the site's tab stays
+      // in front, and the page records what is in fullscreen after each change.
+      await inPage(() => {
+        window.__fullscreenSeen = [];
+        document.addEventListener('fullscreenchange', () => {
+          const element = document.fullscreenElement;
+          window.__fullscreenSeen.push(element === window.__shadowed.host ? 'host' : element ? element.tagName : null);
+        });
+      });
+      const tabId = await siteTabId();
+      await browser.switchToWindow(extHandle);
+      await browser.execute((tabId, message) => {
+        window.__answers = [];
+        const send = () => chrome.tabs.sendMessage(tabId, message, {frameId: 0}, (response) => {
+          window.__answers.push(chrome.runtime.lastError ? {error: chrome.runtime.lastError.message} : response);
+        });
+        // A timer in a background tab may come up to a second late.
+        setTimeout(send, 1000);
+        setTimeout(send, 4000);
+      }, tabId, {type: 'TOGGLE_FULLSCREEN', frameId: 424244});
+      await browser.switchToWindow(siteHandle);
+      await browser.waitUntil(async () => (await browser.execute(() => window.__fullscreenSeen.length)) >= 2,
+          {timeout: 8000, interval: 200}).catch(() => {});
+      const seen = await browser.execute(() => window.__fullscreenSeen);
+      await browser.switchToWindow(extHandle);
+      const answers = await browser.execute(() => window.__answers);
+      // Entered on the first, left on the second; compared with the document's
+      // fullscreenElement, the second entered again: ['enter', 'enter'], seen ['host'].
+      expect({answers, seen}).toEqual({answers: ['enter', 'exit'], seen: ['host', null]});
       expect(await takeContentErrors()).toEqual([]);
     } finally {
       await inPage(() => document.fullscreenElement && document.exitFullscreen());
