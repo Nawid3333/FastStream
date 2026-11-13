@@ -307,8 +307,27 @@ export default class MP4Player extends EventEmitter {
     }
 
     // From the keyframe before the playhead when the audio changed mid-way, as resetHLS seeks.
-    this.mp4box.seek(this.currentTime, audioOnly);
+    this.seekMp4box(this.currentTime, audioOnly);
     this.mp4box.start();
+  }
+
+  /**
+   * Takes mp4box's segmentation to a time: each track from its sample there (mp4box.seek), and
+   * a track that ends before it - a sound 2 s shorter than the picture, a seek to the end - from
+   * its own last keyframe. mp4box leaves such a track where it was (ISOFile.seek skips a time
+   * past the track's duration), at a place whose bytes the reset threw away and nothing loads
+   * again: the track never finished, the stream never ended (checkEndOfStream), and Firefox
+   * waited at the seek for good, the loop running at 1 ms. Its last keyframe is in what runLoad
+   * reads from (keyframeOffset takes each track's last keyframe at or before the time).
+   * @param {number} time - Seconds.
+   * @param {boolean} useRap - From the keyframe at or before the time.
+   */
+  seekMp4box(time, useRap) {
+    this.mp4box.seek(time, useRap);
+    for (const {trak} of this.mp4box.fragmentedTracks) {
+      const end = this.mp4box.getTrackDuration(trak);
+      if (time > end) this.mp4box.seekTrack(end, true, trak);
+    }
   }
 
 
@@ -1195,7 +1214,7 @@ export default class MP4Player extends EventEmitter {
     // A seek (or any reset) tries a failed range afresh: one whose three retries a network
     // blip used up failed on sight for good, even after seeking away and back.
     this.rangeRetries.clear();
-    this.mp4box.seek(this.currentTime, true);
+    this.seekMp4box(this.currentTime, true);
     if (!noLoad) this.runLoad();
   }
 

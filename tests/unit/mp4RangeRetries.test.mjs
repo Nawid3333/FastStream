@@ -14,6 +14,7 @@ function playerWithSpentRetries() {
     segmentAppender: {reloaded: vi.fn()},
     removeFromBuffers: vi.fn(),
     mp4box: {flush: vi.fn(), seek: vi.fn(), stream: {buffers: []}},
+    seekMp4box: vi.fn(),
     freeSamples: vi.fn(),
     loader: null,
     video: {duration: 100},
