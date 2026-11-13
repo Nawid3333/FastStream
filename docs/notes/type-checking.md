@@ -144,3 +144,13 @@ Node's types loaded, `setTimeout` returns a `Timeout`, not a number), `Quality`,
 Each script's typedefs sit inside its own scope: at the top level of a classic script they
 would be global to every script in the program. `window.location = url` needs its cast
 (`string & Location`): that is the type TypeScript's DOM types give the setter.
+
+Since 2026-11-13 `DOMElements.mjs` types each entry once where it is found: a cast to its
+element type, without null (every one of the 80 selectors is in `player/index.html`), so code
+uses `DOMElements.x` without a cast of its own; 437 casts at the uses went. `window.fastStream`
+is declared once, optional, in `types/player-window.d.ts`; the code's own checks narrow it,
+and only `recieveSources()` and `loadOptions()` in `main.mjs` keep the `FastStreamWindow` cast,
+as they read the client with no check of their own (a local const would hold it across an
+`await`). In all, 1,384 inline casts became 1,001, the minified code of each changed file
+the same as before. Casts at a `querySelector` stay: JSDoc has no non-null element type there
+without one.
