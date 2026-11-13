@@ -8,8 +8,6 @@ registerProcessor('channelcounter-worklet', class ChannelCounter extends AudioWo
     this.port.onmessage = (event) => {
       if (event.data.type === 'close') {
         this.close();
-      } else if (event.data.type === 'configure') {
-        this.configure(event.data.options);
       }
     };
   }
