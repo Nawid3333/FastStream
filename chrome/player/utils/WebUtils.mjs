@@ -67,9 +67,22 @@ export class WebUtils {
   static setupTabIndex(element) {
     element.tabIndex = 0;
     element.role = 'button';
+    WebUtils.setupKeyPress(element);
+  }
+
+  /**
+   * Makes Enter and Space press a control as they press a <button> (setupTabIndex's keys,
+   * for a control with a tab index and role of its own, such as the menu buttons and the
+   * autoplay switch). A key a listener before this one took (preventDefault) is left to it:
+   * a menu's Enter that chose in its open list also pressed the button, which closed the list.
+   * @param {HTMLElement} element
+   * @param {(e: KeyboardEvent) => void} [press] - What a press does: a click by default.
+   */
+  static setupKeyPress(element, press = () => element.click()) {
     element.addEventListener('keydown', (e) => {
+      if (e.defaultPrevented) return;
       if (e.key === 'Enter') {
-        element.click();
+        press(e);
         e.stopPropagation();
         return;
       }
@@ -82,7 +95,7 @@ export class WebUtils {
           element.matches(':focus-visible')) {
         e.preventDefault();
         e.stopPropagation();
-        element.click();
+        press(e);
       }
     });
   }

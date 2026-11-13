@@ -115,7 +115,8 @@ export class SourcesBrowser {
     });
 
     sourceURL.addEventListener('keydown', (e) => {
-      e.stopPropagation();
+      // Escape goes on to the player, which closes this window (escapeAll).
+      if (e.key !== 'Escape') e.stopPropagation();
     });
 
     const sourceHeadersBtn = WebUtils.create('div', /** @type {any} */ (null), 'linkui-source-headers-button');
@@ -236,7 +237,8 @@ export class SourcesBrowser {
     });
 
     headersInput.addEventListener('keydown', (e) => {
-      e.stopPropagation();
+      // Escape goes on to the player, which closes this window (escapeAll).
+      if (e.key !== 'Escape') e.stopPropagation();
     });
 
     headersInput.style.display = 'none';

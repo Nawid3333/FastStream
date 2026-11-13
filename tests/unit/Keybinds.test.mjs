@@ -166,8 +166,9 @@ describe('KeybindManager wiring', () => {
       expect(handler?.[1], action).toContain('this.rememberSpeed();');
     }
     expect(source).toMatch(/const action = speedPresetAction\(preset\);[\s\S]*?this\.rememberSpeed\(\);\s*\}\);\s*\}/);
-    // through the menu's own save, 500 ms after the last change (playerDrags.test.mjs)
-    expect(source).toMatch(/rememberSpeed\(\) \{\s*this\.client\.interfaceController\.playbackRateChanger\?\.scheduleSave\(\);/);
+    // through the menu's own save, 500 ms after the last change (playerDrags.test.mjs), as
+    // the menu's pick (chooseSpeed: the silence skipper's regular speed too, playbackRateLimit.test.mjs)
+    expect(source).toMatch(/rememberSpeed\(\) \{\s*this\.client\.interfaceController\.playbackRateChanger\?\.chooseSpeed\(\);/);
   });
 });
 

@@ -1,4 +1,5 @@
 // @ts-check
+import {isTextEntryTarget} from '../../options/KeybindUtils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 
 /**
@@ -101,7 +102,9 @@ function setupDropdown(itemListElement, text, container, call, title) {
   });
 
   container.addEventListener('mouseenter', (e) => {
-    container.focus();
+    // Not from a field being typed in (the sources browser's address beside it): the pointer
+    // passing over ended the typing, and the next letters went to the player's shortcuts.
+    if (!isTextEntryTarget(document.activeElement)) container.focus();
   });
 
 

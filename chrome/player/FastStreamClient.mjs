@@ -257,11 +257,14 @@ export class FastStreamClient extends EventEmitter {
       this.audioOutput.setupNodes(this.audioContext);
     }
 
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('keydown', (e) => {
+    // On the document, as the keybinds are: heard only on the player, Escape did nothing once
+    // the focus was on <body> (leaving the control bar blurs its control, so a menu opened by
+    // a click stayed open). A dialog keeps its own keys (AlertPolyfill), and the player's
+    // fields and menus let Escape through to here.
+    document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.escapeAll();
         e.preventDefault();
-        e.stopPropagation();
       }
     });
 

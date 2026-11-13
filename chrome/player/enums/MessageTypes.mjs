@@ -63,6 +63,8 @@ export const MessageTypes = {
   HOLD_PAGE_MEDIA: 'HOLD_PAGE_MEDIA',
   VPN_STATUS: 'VPN_STATUS',
   VPN_OPEN_PERMISSION: 'VPN_OPEN_PERMISSION',
+  // A web page a player framed in a page opens (EnvUtils.openExternalURL): it has no chrome.tabs.
+  OPEN_EXTERNAL_URL: 'OPEN_EXTERNAL_URL',
   VPN_ALLOWED: 'VPN_ALLOWED',
   REQUEST_FRESH_LINK: 'REQUEST_FRESH_LINK',
 };

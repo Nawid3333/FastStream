@@ -290,10 +290,12 @@ export class KeybindManager extends EventEmitter {
    * Keeps the speed a key set for the next video, as the speed menu keeps its own (and
    * mpv's remember-speed every speed): only the menu saved it. The menu's save, 500 ms
    * after the last change; a 16x left by its key comes back as 8x (PlaybackRateChanger's
-   * loadState). Holding the video's double speed is not a key's and is not kept.
+   * loadState). Holding the video's double speed is not a key's and is not kept. With the
+   * silence skipper on, the speed becomes its regular (or skip) speed as a menu pick does:
+   * the skipper put the old one back within 100 ms.
    */
   rememberSpeed() {
-    this.client.interfaceController.playbackRateChanger?.scheduleSave();
+    this.client.interfaceController.playbackRateChanger?.chooseSpeed();
   }
 
   showSpeed() {

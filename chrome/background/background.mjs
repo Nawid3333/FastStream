@@ -811,6 +811,7 @@ export const MessageSenders = {
   [MessageTypes.PING]: 'own',
   [MessageTypes.VPN_STATUS]: 'own',
   [MessageTypes.VPN_OPEN_PERMISSION]: 'own',
+  [MessageTypes.OPEN_EXTERNAL_URL]: 'own',
   [MessageTypes.LOAD_OPTIONS]: 'own',
   [MessageTypes.MPV_TEST]: 'own',
   [MessageTypes.MPV_OPEN]: 'own',
@@ -871,6 +872,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (opener) opener.popupGuardArmedUntil = 0;
     }
     chrome.tabs.create(create).catch((e) => console.error('Opening the permissions page failed', e));
+    sendResponse(true);
+    return;
+  } else if (msg.type === MessageTypes.OPEN_EXTERNAL_URL) {
+    // EnvUtils.openExternalURL in a player framed in a page, which has no chrome.tabs: the
+    // OpenSubtitles page of a subtitle, the error dialog's report did nothing there. Only the
+    // player asks, and only for a web page: tabs.create also opens the extension's own pages.
+    // No opener, as the player's own tabs.create has none: the popup guard, armed by the
+    // click into the player's iframe, would close a tab the page opened.
+    let url = null;
+    try {
+      url = new URL(String(msg.url));
+    } catch (e) {
+      // No address at all.
+    }
+    if (!url || !/^https?:$/.test(url.protocol) || !String(sender.url).startsWith(chrome.runtime.getURL('player/index.html'))) {
+      sendResponse(false);
+      return;
+    }
+    chrome.tabs.create({url: url.href}).catch((e) => console.error('Opening a page for the player failed', e));
     sendResponse(true);
     return;
   } else if (msg.type === MessageTypes.LOAD_OPTIONS) {

@@ -152,6 +152,10 @@ export class VideoQualityChanger extends EventEmitter {
         e.stopPropagation();
       }
     });
+    // After the list's keys, which take an Enter that chooses: Enter and Space press the
+    // button as they press the others. Enter could not open the list again once a click had
+    // closed it, and Space played or paused the video.
+    WebUtils.setupKeyPress(/** @type {HTMLElement} */ (DOMElements.videoSource));
 
     /** @type {HTMLElement} */ (DOMElements.videoSourceList).addEventListener('mousedown', (e) => {
       e.stopPropagation();

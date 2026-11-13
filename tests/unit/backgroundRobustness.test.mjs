@@ -467,6 +467,39 @@ describe('the permissions tab the player\'s VPN button opens', () => {
   });
 });
 
+describe('a web page a player in a page opens', () => {
+  // EnvUtils.openExternalURL: the OpenSubtitles page of a subtitle, the error dialog's report.
+  // A player framed in a page has no chrome.tabs (measured, PageFetchRelay.mjs), and both did
+  // nothing there; the background opens them for it (the review of 2026-11-13).
+  const PLAYER_FRAME = 'moz-extension://bg-test/player/index.html#https://site.test/video.mp4';
+  const from = (url = PLAYER_FRAME) => ({tab: {id: 1, index: 0, url: PAGE}, frameId: 3, url});
+
+  it('is opened for the player, an http or https one', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    for (const url of ['https://www.opensubtitles.com/en/subtitles/x', 'http://example.test/report?e=1']) {
+      expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url}, from()), url).toBe(true);
+    }
+    // With no opener: the popup guard, armed by the click into the player, leaves it alone.
+    expect(bg.createdTabs).toEqual([
+      {id: 1000, url: 'https://www.opensubtitles.com/en/subtitles/x'}, {id: 1001, url: 'http://example.test/report?e=1'}]);
+  });
+
+  it('is no other address, and not for a content script or another of FastStream\'s pages', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    for (const url of ['javascript:alert(1)', 'data:text/html,<p>x', 'moz-extension://bg-test/player/index.html',
+      '/player/index.html#https://site.test/video.mp4', 'file:///C:/x', 'about:config', '', undefined, 7]) {
+      expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url}, from()), String(url)).toBe(false);
+    }
+    const page = 'https://www.opensubtitles.com/en/subtitles/x';
+    // A content script runs in every page: not answered at all (MessageSenders).
+    expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url: page}, from(PAGE))).toBe(undefined);
+    // The options page has chrome.tabs of its own.
+    expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url: page}, from('moz-extension://bg-test/player/options/index.html')))
+        .toBe(false);
+    expect(bg.createdTabs).toEqual([]);
+  });
+});
+
 describe('the toolbar button of a tab that closed', () => {
   it('leaves no rejected call unhandled', async () => {
     // Firefox rejects a toolbar call for a tab that is gone ("Invalid tab ID"): the "Off"
