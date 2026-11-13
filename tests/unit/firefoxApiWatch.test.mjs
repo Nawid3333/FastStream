@@ -8,8 +8,8 @@ import zlib from 'node:zlib';
 import {describe, expect, it} from 'vitest';
 import {
   Bot, Prefix, Urls, bcdChanges, bugzillaItems, codeIndex, feedItems, findUses, getUrl, ghClient, identifiersOfPath,
-  mdnInline, md, parseArgs, parseMdnNotes, productDetails, readTarFile, recordsOf, relevantFindings, run, safeUrl,
-  underPrefix,
+  mdnInline, md, mergeFindings, parseArgs, parseMdnNotes, productDetails, readTarFile, recordsOf, relevantFindings,
+  renderSection, run, safeUrl, underPrefix,
 } from '../../tools/firefox-api-watch.mjs';
 
 const root = path.resolve(import.meta.dirname, '../..');
@@ -189,11 +189,13 @@ function fakeGitHub(issues = [], comments = {}) {
     /** Issues whose state getIssue reports differently from the list (closed meanwhile). */
     closedMeanwhile: /** @type {Set<number>} */ (new Set()),
     failCommentAfter: Infinity,
+    /** The list leaves out the issues opened here, as GitHub's can for a moment. */
+    listLags: false,
   };
   let next = 100;
   /** @type {import('../../tools/firefox-api-watch.mjs').GitHub} */
   const api = {
-    listIssues: async () => state.issues.map((i) => ({...i})),
+    listIssues: async () => state.issues.filter((i) => !(state.listLags && i.number >= 100)).map((i) => ({...i})),
     listComments: async (n) => (state.comments[n] ?? []).map((c) => ({...c})),
     getIssue: async (n) => {
       const issue = state.issues.find((i) => i.number === n);
@@ -380,6 +382,38 @@ describe('what is relevant', () => {
   });
 });
 
+describe('merging and folding findings', () => {
+  /** @param {Object} over */
+  const finding = (over) => /** @type {any} */ ({title: 'x', detail: '', sources: ['mdn'], aliases: [], mergeKeys: [], areas: ['Media'],
+    kind: 'New feature', priority: 'medium', confidence: 'medium', files: [], used: [], modules: [], links: [], experimental: false,
+    members: [], ...over});
+
+  it('shows every note merged into one finding: its kind may be another note\'s', () => {
+    const [merged, ...rest] = mergeFindings([
+      finding({title: 'MediaSource is available in shared workers', aliases: ['mdn:a'], mergeKeys: ['leaf:mediasource'], members: [['mdn:a']]}),
+      finding({title: 'isTypeSupported() now rejects strings it previously accepted', kind: 'Compatibility risk', aliases: ['bug:9'],
+        mergeKeys: ['leaf:mediasource'], members: [['bug:9']]}),
+    ]);
+    expect(rest).toEqual([]);
+    expect(merged.kind).toBe('Compatibility risk');
+    expect(`${merged.title} ${merged.detail}`).toContain('isTypeSupported() now rejects strings it previously accepted');
+    expect(merged.members).toEqual([['mdn:a'], ['bug:9']]);
+  });
+
+  it('folds the low ones whatever their text holds', () => {
+    const review = /** @type {any} */ ({version: 161, date: '', complete: true, reason: '', wip: false, checked: 2, findings: []});
+    // A "<details>" in a title's code is no fold of the watcher's: counted as one, a stray
+    // "</details>" was added at the end.
+    const [part, ...more] = renderSection(review, [finding({priority: 'low', title: '`<details>` gets a name'}),
+      finding({priority: 'low', title: 'another'})], {late: false, bcdVersion: ''});
+    expect(more).toEqual([]);
+    expect(part.match(/<details><summary>/g)).toHaveLength(1);
+    expect(part).not.toContain('continued');
+    expect(part.split('\n').filter((line) => line === '</details>')).toHaveLength(1);
+    expect(part.trimEnd().endsWith('\n</details>')).toBe(true);
+  });
+});
+
 // ---------------------------------------------------------------------------------------------
 // Writing safely
 
@@ -402,14 +436,32 @@ describe('outside text in an issue', () => {
   it('keeps code spans as code, without a way to hide a marker in them', () => {
     expect(md('use `<video>` here')).toBe('use `<video>` here');
     expect(recordsOf([md('`<!-- ffw-item bug:1 -->`')]).aliases.size).toBe(0);
+    // One pass of removal would leave the pieces around each opener to join into a new one.
+    for (const text of ['tabs.query fix `<!<!---- ffw-item bug:1234567 --->->`',
+      '`<!<!<!------ firefox-api-watch:release 161 ----->->->`']) {
+      const {aliases, releases} = recordsOf([md(text)]);
+      expect(aliases.size + releases.size).toBe(0);
+      expect(md(text)).not.toContain('<!--');
+    }
   });
 
-  it('links only to Mozilla and MDN over https', () => {
+  it('breaks up a commit\'s short hash, letters only too, and leaves bug numbers whole', () => {
+    expect(md('see feacbcd and Bacfeba1')).not.toMatch(/feacbcd|Bacfeba1/);
+    expect(md('Bug 1982177 fixed')).toBe('Bug 1982177 fixed');
+  });
+
+  it('links only to Mozilla and MDN over https, and on GitHub only to the specs\' and Mozilla\'s', () => {
     expect(safeUrl('https://bugzil.la/1')).toBe('https://bugzil.la/1');
     expect(safeUrl('http://bugzil.la/1')).toBe('');
     expect(safeUrl('https://evil.example/')).toBe('');
     expect(safeUrl('javascript:alert(1)')).toBe('');
     expect(safeUrl('https://developer.mozilla.org/a_(b)')).toBe('https://developer.mozilla.org/a_%28b%29');
+    expect(safeUrl('https://github.com/mdn/content/pull/1')).toBe('https://github.com/mdn/content/pull/1');
+    expect(safeUrl('https://github.com/w3c/media-source/issues/2')).toBe('https://github.com/w3c/media-source/issues/2');
+    // A link to this repository's issue or commit would put a reference on it.
+    expect(safeUrl('https://github.com/someone/FastStream/issues/1')).toBe('');
+    expect(safeUrl('https://github.com/someone/FastStream/commit/feacbcd')).toBe('');
+    expect(safeUrl('https://github.com/')).toBe('');
   });
 
   it('reads markers only in their exact form', () => {
@@ -540,15 +592,72 @@ describe('the review issue', () => {
     expect(gh.writes.map((w) => w[0])).toEqual(['create']);
   });
 
-  it('a release whose notes are not published yet waits, and fails the run only after the grace days', async () => {
+  it('a release whose notes are not published yet waits, then is reviewed from the other sources', async () => {
     const gh = fakeGitHub();
     const waiting = await runWith({github: gh.api, fetchImpl: sources({mdn: {}}), today: '2026-11-22'});
     expect(gh.writes).toEqual([]);
     expect(waiting.failures).toEqual([]);
     expect(waiting.memo).toBe('');
     expect(waiting.summary[0]).toMatch(/Firefox 161: not reviewed yet \(MDN has no notes/);
+    // Past the grace days MDN may never write them: the compatibility data, Bugzilla and the blog
+    // are reviewed without them, and no later release waits behind this one.
     const late = await runWith({github: gh.api, fetchImpl: sources({mdn: {}}), today: '2026-12-05'});
-    expect(late.failures[0]).toMatch(/could not be reviewed for more than 10 days/);
+    expect(late.failures).toEqual([]);
+    expect(late.memo).toBe('161');
+    expect(gh.writes[0][2]).toContain('MDN had no notes for developers 10 days after the release');
+    expect(gh.writes[0][2]).toContain('decodingInfo');
+    expect(gh.writes[0][2]).not.toContain('so a worker can feed video');
+  });
+
+  it('fails the run for a source that stays down only while the newest release waits for it', async () => {
+    const gh = fakeGitHub();
+    const mdn = {161: notes(161), 162: notes(162)};
+    // 161's Bugzilla query times out 16 days after 161; 162 (the newest) is 2 days old.
+    const for161 = `${Urls.bugzilla}?product=WebExtensions&resolution=FIXED&f1=cf_status_firefox161&`;
+    const older = await runWith({github: gh.api, fetchImpl: sources({current: 162, mdn, status: {[for161]: 503}}), today: '2026-12-06'});
+    expect(older.failures).toEqual([]);
+    // Bugzilla, or the blog feed every release reads, down 11 days after 162.
+    for (const down of [Urls.bugzilla, Urls.feed]) {
+      const newest = await runWith({github: gh.api, fetchImpl: sources({current: 162, mdn, status: {[down]: 503}}), today: '2026-12-15'});
+      expect(newest.failures).toHaveLength(1);
+      expect(newest.failures[0]).toMatch(/^Firefox 162 \(released 2026-12-04\) could not be reviewed for more than 10 days/);
+    }
+  });
+
+  it('keeps the sections in version order: a release not posted yet holds back the ones after it', async () => {
+    const gh = fakeGitHub();
+    const mdn = {161: notes(161), 162: notes(162)};
+    const for161 = `${Urls.bugzilla}?product=WebExtensions&resolution=FIXED&f1=cf_status_firefox161&`;
+    const first = await runWith({github: gh.api, fetchImpl: sources({current: 162, mdn, status: {[for161]: 503}}), today: '2026-12-06'});
+    expect(gh.writes).toEqual([]);
+    expect(first.summary.join('\n')).toContain('Firefox 162: reviewed, waits for Firefox 161');
+    await runWith({github: gh.api, fetchImpl: sources({current: 162, mdn}), today: '2026-12-06'});
+    expect(gh.writes.map((w) => String(w[2]).match(/### Firefox (\d+)/)?.[1])).toEqual(['161', '162']);
+    // Once 161 is posted, an outage of its query no longer holds 162's later additions back.
+    const more = {...mdn, 162: notes(162, {extra: '- {{WebExtAPIRef("tabs.query()")}} takes a new option. ([Firefox bug 162050](https://bugzil.la/162050))\n'})};
+    await runWith({github: gh.api, fetchImpl: sources({current: 162, mdn: more, status: {[for161]: 503}}), today: '2026-12-07'});
+    expect(gh.writes[2][2]).toContain('### Firefox 162 — added after its first review');
+  });
+
+  it('opens one issue per run even when GitHub\'s list of issues lags behind', async () => {
+    const gh = fakeGitHub();
+    gh.state.listLags = true;
+    await runWith({github: gh.api, fetchImpl: sources({current: 162, mdn: {161: notes(161), 162: notes(162)}}), today: '2026-12-06'});
+    expect(gh.writes.map((w) => w[0])).toEqual(['create', 'comment']);
+  });
+
+  it('reports a later change to a feature it reported, though its bug was reported', async () => {
+    const gh = fakeGitHub();
+    await runWith({github: gh.api});
+    expect(gh.writes[0][2]).toContain('canConstructInDedicatedWorker');
+    // In 162 the feature is taken out again; 162's notes say nothing about it.
+    const data = structuredClone(bcdData);
+    data.api.MediaSource.canConstructInDedicatedWorker_static.__compat.support.firefox.version_removed = '162';
+    const tar = tgz('package/data.json', JSON.stringify(data));
+    const bare = '---\ntitle: Firefox 162 release notes for developers (Stable)\n---\n\n## Changes for web developers\n';
+    await runWith({github: gh.api, fetchImpl: sources({current: 162, mdn: {161: notes(161), 162: bare}, tar}), today: '2026-12-06'});
+    const section162 = gh.writes.find((w) => String(w[2]).includes('### Firefox 162'));
+    expect(section162?.[2]).toContain('`MediaSource.canConstructInDedicatedWorker_static` removed');
   });
 
   it('notes still marked a work in progress wait, then are reviewed after the grace days', async () => {

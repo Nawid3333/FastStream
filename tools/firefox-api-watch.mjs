@@ -60,6 +60,10 @@ export const Urls = {
 /** Hosts a link in a post may point to; any other link is left out. */
 export const LinkHosts = new Set(['developer.mozilla.org', 'bugzilla.mozilla.org', 'bugzil.la', 'blog.mozilla.org',
   'www.mozilla.org', 'www.firefox.com', 'github.com', 'whattrainisitnow.com', 'firefox-source-docs.mozilla.org']);
+/** The most bugs asked of Bugzilla per query; an answer this long fails the run (cut short). */
+export const BugzillaLimit = 1000;
+/** The only owners a github.com link may point to. */
+export const GitHubOwners = new Set(['mdn', 'mozilla', 'mozilla-firefox', 'w3c', 'whatwg', 'tc39', 'webassembly']);
 
 /**
  * @typedef {'Compatibility risk'|'Security change'|'Optimisation opportunity'|'New feature'|'Bug fix'} Kind
@@ -83,13 +87,16 @@ export const LinkHosts = new Set(['developer.mozilla.org', 'bugzilla.mozilla.org
  * @typedef {{
  *   title: string, detail: string, sources: string[], aliases: string[], mergeKeys: string[], areas: string[],
  *   kind: Kind, priority: Level, confidence: Level, files: string[], used: string[], modules: string[],
- *   links: Link[], experimental: boolean,
+ *   links: Link[], experimental: boolean, members: string[][],
  * }} Finding
+ *   members: each merged item's own keys (its bugs and BCD change, else its text's): a finding
+ *   with an item that has a key not reported before is news, even when it merged with items
+ *   that were reported. A note reworded under the same bug is not.
  * @typedef {{id: string, area: string, priority: Level, kind: Kind, keywords: string[], bcd: string[], modules: string[]}} Topic
  * @typedef {{topics: Topic[], bugzilla: {coreComponents: string[], coreKeywords: string[], coreSummary: string,
  *   excludeSummary: string}, excludeText: string, stopIdentifiers: string[]}} Config
  * @typedef {{version: number, date: string, complete: boolean, reason: string, wip: boolean, checked: number,
- *   findings: Finding[]}} Review
+ *   findings: Finding[], noNotes?: boolean}} Review
  * @typedef {{number: number, state: string, title: string, body: string, user: string}} Issue
  * @typedef {{
  *   listIssues: () => Promise<Issue[]>,
@@ -454,7 +461,8 @@ export function bcdChanges(data, version, wanted) {
         items.push({
           source: 'bcd', title, detail: '', section: at.split('.')[0], bugs: [...new Set(bugs)], bcd: [at],
           links: mdnUrl ? [{label: 'MDN', url: mdnUrl}] : [], identifiers: identifiersOfPath(at),
-          textKey: '', experimental: false, removal: !!removed && !added, flagged: false,
+          textKey: `bcd:${hash(`${at}|${version}|${removed && !added ? 'removed' : 'added'}`)}`,
+          experimental: false, removal: !!removed && !added, flagged: false,
         });
       } else if (!key.startsWith('__')) {
         walk(child, at ? `${at}.${key}` : key);
@@ -776,7 +784,10 @@ export function relevantFindings(items, config, index) {
     // extension; MDN's curated notes keep their weight.
     else if (webext === 'general' && item.source === 'bugzilla') finalPriority = 'low';
     else if (confidence === 'low' || item.experimental) finalPriority = shift(priority, -1);
-    const aliases = [...item.bugs.map((b) => `bug:${b}`), ...item.bcd.map((b) => `bcd:${hash(b)}`), ...(item.textKey ? [item.textKey] : [])];
+    // A BCD entry's key is its change (textKey: path, release, added or removed), so a later
+    // change to a reported feature is reported again.
+    const aliases = [...item.bugs.map((b) => `bug:${b}`), ...(item.textKey ? [item.textKey] : [])];
+    const own = aliases.filter((a) => a.startsWith('bug:') || a.startsWith('bcd:'));
     // Only for merging items of this release, never recorded (a later change to the same API is
     // reported again): the API a note and a BCD entry both name, a BCD entry's parent
     // (runtime.PlatformArch.arm64 and .aarch64), and a distinctive member name shared by many
@@ -792,7 +803,7 @@ export function relevantFindings(items, config, index) {
       title: item.title, detail: item.detail, sources: [item.source], aliases, mergeKeys, areas: matched.map((t) => t.area),
       kind, priority: finalPriority, confidence, files: uses.files, used: uses.used,
       modules: [...new Set(matched.flatMap((t) => t.modules))], links: [...item.links, ...item.bugs.map((b) => ({label: `Bug ${b}`, url: `https://bugzil.la/${b}`}))],
-      experimental: item.experimental,
+      experimental: item.experimental, members: [own.length > 0 ? own : aliases],
     });
   }
   return mergeFindings(findings);
@@ -878,8 +889,13 @@ export function mergeFindings(findings) {
     if (onlyBcd && group.length > 1) {
       title = group.length <= 3 ? bcdTitles.join('; ') : `${group.length} compatibility-data changes: ${bcdTitles.slice(0, 2).join('; ')} and ${group.length - 2} more`;
       detail = group.length <= 3 ? '' : bcdTitles.join('; ');
-    } else if (bcdTitles.length > 0 && lead !== group.find((f) => f.sources.includes('bcd'))) {
-      detail = [detail, `Compatibility data: ${bcdTitles.slice(0, 8).join('; ')}${bcdTitles.length > 8 ? ` and ${bcdTitles.length - 8} more` : ''}.`].filter(Boolean).join(' ');
+    } else {
+      // Other notes merged in (they name the same API) are shown too: the kind may be theirs.
+      const notes = group.filter((f) => f !== lead && (f.sources[0] === 'mdn' || f.sources[0] === 'blog')).map((f) => f.title);
+      if (notes.length > 0) detail = [detail, `Also in the notes: ${notes.join('; ')}`].filter(Boolean).join(' ');
+      if (bcdTitles.length > 0 && lead !== group.find((f) => f.sources.includes('bcd'))) {
+        detail = [detail, `Compatibility data: ${bcdTitles.slice(0, 8).join('; ')}${bcdTitles.length > 8 ? ` and ${bcdTitles.length - 8} more` : ''}.`].filter(Boolean).join(' ');
+      }
     }
     return {
       ...lead,
@@ -897,6 +913,7 @@ export function mergeFindings(findings) {
       modules: [...new Set(group.flatMap((f) => f.modules))],
       links: [...links.values()],
       experimental: group.every((f) => f.experimental),
+      members: group.flatMap((f) => f.members),
     };
   }).sort((a, b) => Levels.indexOf(b.priority) - Levels.indexOf(a.priority) ||
     KindOrder.indexOf(b.kind) - KindOrder.indexOf(a.kind) || a.title.localeCompare(b.title));
@@ -918,6 +935,9 @@ export function safeUrl(url) {
     return '';
   }
   if (parsed.protocol !== 'https:' || !LinkHosts.has(parsed.hostname) || parsed.username || parsed.password) return '';
+  // On GitHub only the specs' and Mozilla's own: a link to this repository's issue or commit
+  // would put a reference on it.
+  if (parsed.hostname === 'github.com' && !GitHubOwners.has(parsed.pathname.split('/')[1]?.toLowerCase() ?? '')) return '';
   return parsed.href.replace(/[()\s<>"'`\\]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'));
 }
 
@@ -938,13 +958,22 @@ export function md(text, limit = 600) {
       .replace(/\s+/g, ' ').trim();
   const clipped = flat.length > limit ? flat.slice(0, limit - 1).replace(/\s+\S*$/, '') + '…' : flat;
   return clipped.split(/(`[^`]{1,120}`)/).map((part, i) => {
-    if (i % 2 === 1) return '`' + part.slice(1, -1).replace(/<!--|-->/g, '') + '`';
+    if (i % 2 === 1) {
+      // Until none is left: one pass leaves pieces that join ("<!<!---- x --->->" is "<!-- x -->").
+      let code = part.slice(1, -1);
+      for (let before = ''; before !== code;) {
+        before = code;
+        code = code.replace(/<!--|-->/g, '');
+      }
+      return '`' + code + '`';
+    }
     // The zero-width spaces added below are entities holding "#8203": "#<digit>" is defused
     // first, before any of them exists.
     return part.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/#(\d)/g, '#&#8203;$1')
         .replace(/GH-(\d)/gi, (m) => m.slice(0, 3) + '&#8203;' + m.slice(3))
-        .replace(/\b([0-9a-f]{7,40})\b/g, (m) => /[a-f]/.test(m) && /\d/.test(m) ? m.slice(0, 4) + '&#8203;' + m.slice(4) : m)
+        // A commit's short hash, letters only too ("feacbcd"); digits only stay (bug numbers).
+        .replace(/\b([0-9a-f]{7,40})\b/gi, (m) => /[a-f]/i.test(m) ? m.slice(0, 4) + '&#8203;' + m.slice(4) : m)
         .replace(/:\/\//g, ':&#8203;//')
         .replace(/\bwww\./gi, (m) => m.slice(0, 3) + '&#8203;.')
         .replace(/([\\[\]!*_|~])/g, '\\$1')
@@ -976,7 +1005,7 @@ export function renderFinding(f) {
     `- [ ] **${f.kind}: ${md(f.title, 200)}** <!-- ffw-item ${f.aliases.join(' ')} -->`,
     `  - Area: ${f.areas.map((a) => md(a, 80)).join(', ')}${f.experimental ? ' (experimental, behind a preference)' : ''}`,
   ];
-  if (f.detail) lines.push(`  - Change: ${md(f.detail)}`);
+  if (f.detail) lines.push(`  - Change: ${md(f.detail, 1000)}`);
   lines.push(
       `  - FastStream: ${where}`,
       `  - Priority: ${f.priority} · Confidence: ${f.confidence} · Sources: ${f.sources.join(', ')}`,
@@ -1006,35 +1035,41 @@ export function renderSection(review, findings, {late, bcdVersion}) {
   ].filter(Boolean).join(' · ');
   const counts = Levels.slice().reverse().map((l) => `${findings.filter((f) => f.priority === l).length} ${l}`).join(', ');
   const intro = [`<!-- firefox-api-watch:release ${v} -->`, heading, '', meta, '',
-    `${findings.length} finding(s): ${counts}.${review.wip ? ' MDN still marked these notes as a work in progress; what it adds later comes as a further section.' : ''}`, ''];
+    `${findings.length} finding(s): ${counts}.${review.wip ? ' MDN still marked these notes as a work in progress; what it adds later comes as a further section.' : ''}` +
+    `${review.noNotes ? ` MDN had no notes for developers ${GraceDays} days after the release: reviewed from the compatibility data, Bugzilla and the add-ons blog; notes MDN writes later come as a further section.` : ''}`, ''];
   const main = findings.filter((f) => f.priority !== 'low').map(renderFinding);
   const low = findings.filter((f) => f.priority === 'low').map(renderFinding);
-  /** @type {string[][]} */
-  const parts = [[]];
+  // Each part's blocks, and where the folded list of low ones starts and ends in them (the
+  // findings' own text can hold "<details>" in code).
+  /** @type {{blocks: string[], opens: boolean, closes: boolean}[]} */
+  const parts = [{blocks: [], opens: false, closes: false}];
   let size = 0;
-  /** @param {string} block */
-  const add = (block) => {
-    if (size + block.length > MaxPost - 2000 && parts[parts.length - 1].length > 0) {
-      parts.push([]);
+  /** @param {string} block @param {'opens'|'closes'} [fold] */
+  const add = (block, fold) => {
+    let part = parts[parts.length - 1];
+    if (size + block.length > MaxPost - 2000 && part.blocks.length > 0) {
+      parts.push(part = {blocks: [], opens: false, closes: false});
       size = 0;
     }
-    parts[parts.length - 1].push(block);
+    part.blocks.push(block);
+    if (fold) part[fold] = true;
     size += block.length + 1;
   };
   for (const block of main) add(block);
   if (low.length > 0) {
-    add(`\n<details><summary>${low.length} lower-priority finding(s)</summary>\n`);
+    add(`\n<details><summary>${low.length} lower-priority finding(s)</summary>\n`, 'opens');
     for (const block of low) add(block);
-    add('\n</details>');
+    add('\n</details>', 'closes');
   }
-  return parts.map((blocks, i) => {
+  let folded = false;
+  return parts.map((part, i) => {
     const head = parts.length > 1 ? intro.map((line) => line === heading ? `${heading} (part ${i + 1} of ${parts.length})` : line) : intro;
-    let text = blocks.join('\n');
+    let text = part.blocks.join('\n');
     // A part that starts inside the folded list opens it again; one that ends inside closes it.
-    const opens = (text.match(/<details>/g) ?? []).length;
-    const closes = (text.match(/<\/details>/g) ?? []).length;
-    if (closes > opens) text = `<details><summary>Lower-priority findings, continued</summary>\n\n${text}`;
-    if (opens > closes) text += '\n\n</details>';
+    if (folded) text = `<details><summary>Lower-priority findings, continued</summary>\n\n${text}`;
+    if (part.opens) folded = true;
+    if (part.closes) folded = false;
+    if (folded) text += '\n\n</details>';
     return [...head, text].join('\n');
   });
 }
@@ -1218,23 +1253,35 @@ export async function run(options = {}) {
       continue;
     }
     try {
+      const overdue = !!date && daysBetween(date, today) > GraceDays;
       const notes = await getUrl(urls.mdn.replace('{version}', String(version)), fetchOptions);
+      /** @type {RawItem[]|null} */
+      let mdnItems = null;
       if (notes.status === 404) {
-        review.reason = 'MDN has no notes for developers for it yet';
+        // Past the grace days, the release is reviewed from the other sources: MDN may never
+        // write notes for it, and waiting would hold every later release back.
+        if (overdue) {
+          review.noNotes = true;
+          mdnItems = [];
+        } else {
+          review.reason = 'MDN has no notes for developers for it yet';
+        }
       } else {
         const mdn = parseMdnNotes(notes.text, version);
         review.wip = mdn.wip || mdn.beta;
-        const overdue = daysBetween(date, today) > GraceDays;
         if (review.wip && !overdue) {
           review.reason = 'MDN still marks its notes as a work in progress';
         } else {
-          const bugs = await bugzillaFor(version, config, index.namespaces, urls, fetchOptions);
-          const raw = [...mdn.items, ...bcdChanges(bcd.data, version, (at) => wantedPath(at, config, index)), ...bugs,
-            ...feedItems(feed, version)];
-          review.checked = raw.length;
-          review.findings = relevantFindings(raw, config, index);
-          review.complete = true;
+          mdnItems = mdn.items;
         }
+      }
+      if (mdnItems) {
+        const bugs = await bugzillaFor(version, config, index.namespaces, urls, fetchOptions);
+        const raw = [...mdnItems, ...bcdChanges(bcd.data, version, (at) => wantedPath(at, config, index)), ...bugs,
+          ...feedItems(feed, version)];
+        review.checked = raw.length;
+        review.findings = relevantFindings(raw, config, index);
+        review.complete = true;
       }
     } catch (error) {
       const e = /** @type {SourceError} */ (error);
@@ -1242,20 +1289,31 @@ export async function run(options = {}) {
       if (!e.outage) failures.push(e.message);
       review.reason = e.message;
     }
-    if (!review.complete && date && daysBetween(date, today) > GraceDays) {
-      failures.push(`Firefox ${version} (released ${date}) could not be reviewed for more than ${GraceDays} days: ${review.reason}`);
-    }
+  }
+  // A source that stays down: the newest release unreviewed past the grace days fails the run.
+  // An older release was the newest before and had its days then; a short outage while it is
+  // looked at again (for notes added later) is no failure.
+  const newest = reviews[reviews.length - 1];
+  if (newest && !newest.complete && newest.date && daysBetween(newest.date, today) > GraceDays) {
+    failures.push(`Firefox ${newest.version} (released ${newest.date}) could not be reviewed for more than ${GraceDays} days: ${newest.reason}`);
   }
 
   // What is new, oldest release first; a key reported for one release is not repeated for the next.
   /** @type {{review: Review, findings: Finding[], late: boolean}[]} */
   const due = [];
+  // A release that was never posted holds back the ones after it: the sections stay in version order.
+  let waitsFor = 0;
   for (const review of reviews) {
     if (!review.complete) {
       summary.push(`Firefox ${review.version}: not reviewed yet (${review.reason || 'a source is unavailable'}); the next run tries again.`);
+      if (!waitsFor && !records.releases.has(review.version)) waitsFor = review.version;
       continue;
     }
-    const fresh = review.findings.filter((f) => !f.aliases.some((a) => records.aliases.has(a)));
+    if (waitsFor) {
+      summary.push(`Firefox ${review.version}: reviewed, waits for Firefox ${waitsFor} (the sections go in version order).`);
+      continue;
+    }
+    const fresh = review.findings.filter((f) => f.members.some((m) => m.some((a) => !records.aliases.has(a))));
     for (const f of fresh) for (const a of f.aliases) records.aliases.add(a);
     if (fresh.length === 0) {
       const why = review.findings.length === 0 ? 'none relevant' : `${review.findings.length} relevant, all reported before`;
@@ -1266,6 +1324,7 @@ export async function run(options = {}) {
     records.releases.add(review.version);
   }
 
+  let lastIssue = 0;
   for (const {review, findings, late} of due) {
     for (const body of renderSection(review, findings, {late, bcdVersion: bcd?.version ?? ''})) {
       if (dryRun || !github) {
@@ -1273,7 +1332,7 @@ export async function run(options = {}) {
         log(body);
         continue;
       }
-      const issue = await postSection(github, review.version, body);
+      const issue = lastIssue = await postSection(github, review.version, body, lastIssue);
       posted.push({version: review.version, issue, body});
     }
     summary.push(`Firefox ${review.version}: ${findings.length} finding(s) ${dryRun || !github ? 'would be posted (dry run)' : `posted to #${posted[posted.length - 1].issue}`}.`);
@@ -1290,15 +1349,18 @@ export async function run(options = {}) {
  * @param {GitHub} github
  * @param {number} version
  * @param {string} body
+ * @param {number} [last] - The issue this run posted to before: GitHub's list of issues can
+ *   lag behind an issue just opened, and a second one would be opened.
  * @return {Promise<number>}
  */
-export async function postSection(github, version, body) {
-  const open = (await github.listIssues()).filter((i) => isWatcherIssue(i) && i.state === 'open').sort((a, b) => a.number - b.number);
-  for (const candidate of open) {
-    const now = await github.getIssue(candidate.number);
+export async function postSection(github, version, body, last = 0) {
+  const listed = (await github.listIssues()).filter((i) => isWatcherIssue(i) && i.state === 'open');
+  const numbers = [...new Set([...listed.map((i) => i.number), ...(last ? [last] : [])])].sort((a, b) => a - b);
+  for (const number of numbers) {
+    const now = await github.getIssue(number);
     if (now.state !== 'open') continue;
-    await github.comment(candidate.number, body);
-    return candidate.number;
+    await github.comment(number, body);
+    return number;
   }
   return github.createIssue(`${Prefix}starting with Firefox ${version}`, `${IssueIntro}\n${body}`);
 }
@@ -1313,7 +1375,7 @@ export async function postSection(github, version, body) {
  */
 async function bugzillaFor(version, config, namespaces, urls, fetchOptions) {
   const common = `resolution=FIXED&f1=cf_status_firefox${version}&o1=anyexact&v1=fixed%2Cverified` +
-    '&include_fields=id,summary,product,component,keywords&limit=500';
+    `&include_fields=id,summary,product,component,keywords&limit=${BugzillaLimit}`;
   const local = urls.bugzilla.startsWith('file:');
   const webext = local ? `${urls.bugzilla}/webextensions-${version}.json` : `${urls.bugzilla}?product=WebExtensions&${common}`;
   const core = local ? `${urls.bugzilla}/core-${version}.json` :
@@ -1323,6 +1385,10 @@ async function bugzillaFor(version, config, namespaces, urls, fetchOptions) {
   for (const url of [webext, core]) {
     const json = await getJson(url, fetchOptions);
     if (json?.error) throw new SourceError(`${url.split('?')[0]}: ${String(json.message ?? 'error').slice(0, 120)}`, false);
+    // As many as asked for: the list may have been cut, and what is missing would go unseen.
+    if (Array.isArray(json?.bugs) && json.bugs.length >= BugzillaLimit) {
+      throw new SourceError(`${url.split('?')[0]}: ${BugzillaLimit} bugs or more for one release; narrow the filter in firefox-api-watch.topics.json`, false);
+    }
     items.push(...bugzillaItems(json, config.bugzilla, namespaces));
   }
   return items;

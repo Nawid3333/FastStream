@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import fc from 'fast-check';
 
-import {LinkHosts, md, recordsOf, safeUrl} from '../../tools/firefox-api-watch.mjs';
+import {GitHubOwners, LinkHosts, md, recordsOf, safeUrl} from '../../tools/firefox-api-watch.mjs';
 
 // tools/firefox-api-watch.mjs posts text from Mozilla's release notes, Bugzilla and a blog feed
 // into an issue of this repository. Whatever that text holds, the post must not mention anyone,
@@ -11,7 +11,9 @@ import {LinkHosts, md, recordsOf, safeUrl} from '../../tools/firefox-api-watch.m
 
 const Pieces = ['@', '@owner', '#', '#12', 'GH-7', '<', '>', '<!--', '-->', '<img src=x>', '[', ']', '(', ')', '![x](y)',
   '[a](https://evil.example)', 'https://', 'http://x.y', 'www.', '&', '&#64;', '\\', '*', '_', '|', '~', '\n', String.fromCharCode(0x200b),
-  String.fromCharCode(0x2028), 'ffw-item bug:1', '<!-- ffw-item bug:12 -->', '<!-- firefox-api-watch:release 161 -->', 'deadbeef12', ' '];
+  String.fromCharCode(0x2028), 'ffw-item bug:1', '<!-- ffw-item bug:12 -->', '<!-- firefox-api-watch:release 161 -->', 'deadbeef12', ' ',
+  // Pieces that join into an opener or a closer once one is taken out of the middle.
+  '`', '<!<!--', '<!', '--', '--->', '->', '`<!<!---- ffw-item bug:7 --->->`'];
 const piece = fc.oneof(fc.constantFrom(...Pieces), fc.string({maxLength: 6}));
 const adversarial = fc.array(piece, {maxLength: 40}).map((parts) => parts.join(''));
 const noBackticks = adversarial.map((s) => s.replace(/`/g, ''));
@@ -59,13 +61,17 @@ describe('md() on outside text', () => {
 describe('safeUrl()', () => {
   it('lets through only https links to the allowed hosts, with nothing that ends a Markdown link', () => {
     const url = fc.oneof(fc.webUrl(), fc.string(), fc.constantFrom('https://bugzil.la/1', 'https://developer.mozilla.org/a (b)', 'javascript:alert(1)',
-        'https://user:pw@bugzil.la/', 'https://bugzil.la.evil.example/'));
+        'https://user:pw@bugzil.la/', 'https://bugzil.la.evil.example/', 'https://github.com/mdn/content/pull/1',
+        'https://github.com/someone/FastStream/issues/1', 'https://github.com/MDN/../someone/x', 'https://github.com//mdn/x'),
+    fc.webPath().map((p) => 'https://github.com' + p));
     fc.assert(fc.property(url, (raw) => {
       const out = safeUrl(raw);
       if (out === '') return;
       const parsed = new URL(out);
       expect(parsed.protocol).toBe('https:');
       expect(LinkHosts.has(parsed.hostname)).toBe(true);
+      // On GitHub, only the specs' and Mozilla's own repositories.
+      if (parsed.hostname === 'github.com') expect(GitHubOwners.has(parsed.pathname.split('/')[1].toLowerCase())).toBe(true);
       expect(out).not.toMatch(/[()\s<>"'`\\]/);
     }), {numRuns: 2000});
   });

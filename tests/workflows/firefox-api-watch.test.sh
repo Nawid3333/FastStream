@@ -149,11 +149,19 @@ check 'says so' contains "$GITHUB_STEP_SUMMARY" 'all reported before'
 fixtures
 rm "$FIX/src/161.md"
 export FFW_TODAY=2026-12-05
-review 'r7 the notes are still missing 15 days after the release -> the run fails'
-check 'fails' test "$status" -ne 0
-check 'says why' contains "$GITHUB_STEP_SUMMARY" 'could not be reviewed for more than 10 days'
-check 'posts nothing' test ! -s "$LOG"
+review 'r7 the notes are still missing 15 days after the release -> reviewed from the other sources'
+check 'succeeds' test "$status" -eq 0
+check 'says so' contains "$GITHUB_STEP_SUMMARY" 'Firefox 161: reviewed, nothing new'
+check 'posts nothing (nothing relevant in the other sources)' test ! -s "$LOG"
+check 'memo: saved' contains "$GITHUB_OUTPUT" 'memo_changed=true'
 export FFW_TODAY=2026-11-21
+
+fixtures
+echo 'not json' > "$FIX/src/webextensions-161.json"
+review 'r8 a source answers with something that is no answer -> the run fails, posts nothing'
+check 'fails' test "$status" -ne 0
+check 'posts nothing' test ! -s "$LOG"
+check 'memo: not saved' bash -c '! grep -q "memo_changed=true" "$0"' "$GITHUB_OUTPUT"
 
 # The failure issue's steps take its title from their env:, as the workflow sets it.
 export TITLE='Firefox API watch failed'

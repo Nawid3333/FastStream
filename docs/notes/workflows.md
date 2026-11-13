@@ -778,27 +778,43 @@ relevant is `tools/firefox-api-watch.topics.json`.
   (GitHub has no conditional PATCH). Closing the issue means "reviewed": a closed issue is never
   touched, and its markers still count, so nothing is listed twice.
 - **State lives in the posts.** Each section carries `<!-- firefox-api-watch:release N -->`,
-  each finding `<!-- ffw-item bug:123 bcd:<hash> mdn:<hash> -->` (all its keys; a finding counts
-  as reported when any key is). They are read from the bot's own issue bodies and comments
-  only (another user's post or a non-watcher issue is never a record), in their exact form.
-  Outside text is made safe (`md()`): no HTML, `@` and `#N`/`GH-N` defused with a zero-width
-  space, brackets and backticks escaped, no autolink, links only to Mozilla/MDN hosts; a marker
-  cannot be forged (property-tested). Nothing is committed: a push to main releases.
+  each finding `<!-- ffw-item bug:123 bcd:<hash> mdn:<hash> -->` (all its keys). A BCD key is
+  the change (feature, release, added or removed), so a feature taken out after it was reported
+  as added comes again. A finding is news when one of the items merged into it has a key of its
+  own not reported before (its bugs and BCD change; a note without either, its text's hash): a
+  note reworded under the same bug is not news, a new note merged with a reported one is.
+  Markers are read from the bot's own issue bodies and comments only (another user's post or a
+  non-watcher issue is never a record), in their exact form. Outside text is made safe (`md()`):
+  no HTML, `@`, `#N`, `GH-N` and short commit hashes broken with a zero-width space, brackets
+  and backticks escaped, no autolink; links only to Mozilla/MDN hosts, and on github.com only to
+  the specs' and Mozilla's owners (a link to this repository's issue would put a reference on
+  it). Comment openers are taken out of code spans until none is left (one pass let
+  `<!<!---- x --->->` become a marker: an independent review found it). A marker cannot be
+  forged (property-tested). Several notes merged into one finding are all shown ("Also in the
+  notes"): the finding's kind may be another note's. Nothing is committed: a push to main
+  releases.
 - **When a release is reviewed:** the window is the current Stable and the two before it, from
-  Firefox 161 on (older ones by hand: the dispatch's `from`). A release waits
-  while MDN has no notes or still calls them a work in progress, up to 10 days after it shipped;
-  a source that is down (no answer, 5xx, 408, 429) leaves it for the next run. The run fails,
-  and opens "Firefox API watch failed", when a source answers wrongly (a 4xx, bad JSON, a
-  tarball whose hash does not match) or a release stays unreviewed for 10 days. A change
-  Mozilla adds to a release after it was posted comes as "Firefox N - added after its first
-  review" (only new keys).
+  Firefox 161 on (older ones by hand: the dispatch's `from`). A release waits while MDN has no
+  notes or still calls them a work in progress, up to 10 days after it shipped; after that it is
+  reviewed anyway (without MDN's notes when there are none, said in the section). A source
+  that is down (no answer, 5xx, 408, 429) leaves the release for the next run, and a release
+  never posted holds back the ones after it, so the sections stay in version order. The run
+  fails, and opens "Firefox API watch failed", when a source answers wrongly (a 4xx, bad JSON,
+  a tarball whose hash does not match, 1000 bugs or more for one query) or the newest release
+  is still unreviewed 10 days after it shipped (a source that stays down). An older release
+  that times out while it is looked at again is no failure: it had its days as the newest. A
+  change Mozilla adds to a release after it was posted comes as "Firefox N - added after its
+  first review".
 - **Light days:** once every release in the window was reviewed, the Actions cache entry
   `firefox-api-watch-<current>` (a file holding the version) lets later runs stop after the
   version check until the next release. It is only a shortcut: a lost entry costs one more
   review, which finds everything reported and posts nothing.
 - **Concurrency:** one run at a time (`concurrency`, not cancelled); right before posting, the
   open watcher issues are listed again and the chosen one's state read again, so an issue closed
-  meanwhile is left alone and a new one opened; of two open ones the oldest gets the comment.
+  meanwhile is left alone and a new one opened; of two open ones the oldest gets the comment. The
+  issue a run posted to is tried too, as GitHub's list can lag behind an issue just opened. An
+  issue closed between that read and the comment gets the comment (closed, not reopened): GitHub
+  has no conditional write. The failure issue is found by its title, as every workflow here does.
 - **Permissions:** `permissions: {}` for the workflow, `contents: read` + `issues: write` for the
   job; no secret, no environment. It never pushes or dispatches, so it cannot start a release.
 - **By hand:** `node tools/firefox-api-watch.mjs --dry-run --no-github --from 158 --to 160` prints
@@ -807,7 +823,8 @@ relevant is `tools/firefox-api-watch.topics.json`.
 - **Tests:** `tests/unit/firefoxApiWatch.test.mjs` (sources through a fake fetch, GitHub in
   memory: first run, append, ticks and notes kept, close then a new cycle, missed releases,
   repeated runs, stale state, nothing relevant, notes missing or in progress, sources down or
-  wrong, partial failure and recovery, late additions, foreign and broken markers),
+  wrong, partial failure and recovery, late additions, foreign and broken markers, version
+  order, a list that lags, a later change to a reported feature, merged notes, folding),
   `firefoxApiWatch.property.test.mjs` (`md()` and `safeUrl()` against adversarial text), and
   `tests/workflows/firefox-api-watch.test.sh` (the real step with a stub `gh` and file sources:
   arguments, the memo outputs, the "from" input refused, the failure issue).
