@@ -217,11 +217,12 @@ describe('MP4 back buffer', function() {
 // A seek past the end of one of the file's tracks: mp4box's seek left a track that ends before
 // the time where it was, at a place nothing loads again, so it never finished, the stream never
 // ended, and the seek never completed (MP4Player.seekMp4box). The picture of the long fixture's
-// first 20 s, its sound cut to 18 s.
+// first 100 s, its sound cut to 98 s: longer than the 30 s the player loads ahead, so the sound
+// is not all appended before the seek (a file loaded whole has both tracks finished already).
 describe('MP4 whose sound ends before its picture', function() {
   before(function() {
-    ensureMp4Shape('sound-ends-early.mp4', ['-i', LONG_FIXTURE, '-t', '20', '-map', '0:v', '-map', '0:a',
-      '-c:v', 'copy', '-af', 'atrim=end=18', '-c:a', 'aac', '-movflags', '+faststart']);
+    ensureMp4Shape('sound-ends-early.mp4', ['-i', LONG_FIXTURE, '-t', '100', '-map', '0:v', '-map', '0:a',
+      '-c:v', 'copy', '-af', 'atrim=end=98', '-c:a', 'aac', '-movflags', '+faststart']);
   });
 
   it('completes a seek into the last seconds, past the sound\'s end, and plays to the end', async function() {
@@ -231,9 +232,13 @@ describe('MP4 whose sound ends before its picture', function() {
       return !!(window.fastStream?.player && video && video.readyState >= 2);
     }), {timeout: 60000, timeoutMsg: 'video never became ready'});
     const tracks = await browser.execute(() => window.fastStream.player.mp4box.fragmentedTracks
-        .map(({trak}) => window.fastStream.player.mp4box.getTrackDuration(trak)));
-    // The file is what this checks: a picture of 20 s and a sound of 18.
-    expect(Math.max(...tracks) - Math.min(...tracks)).toBeGreaterThan(1.5);
+        .map(({trak}) => ({end: window.fastStream.player.mp4box.getTrackDuration(trak),
+          appended: trak.nextSample === trak.samples.length})));
+    // The file is what this checks: a picture of 100 s and a sound of 98, neither appended to
+    // its end yet.
+    const ends = tracks.map((track) => track.end);
+    expect(Math.max(...ends) - Math.min(...ends)).toBeGreaterThan(1.5);
+    expect(tracks.map((track) => track.appended)).toEqual([false, false]);
 
     const duration = await browser.execute(() => window.fastStream.duration);
     await browser.execute((duration) => {
