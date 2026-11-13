@@ -355,6 +355,32 @@ describe('AudioAnalyzer, an audio track switched after the analysis finished', (
     expect(analyzer.loadPlayer).toHaveBeenCalledTimes(2);
   });
 
+  // The switch reset the whole analyzer, and with it the main player's volume node, which
+  // only the start of a video makes (FastStreamClient.initiateWebAudio): the live volume
+  // stopped for the rest of the video once the silence skipper had run to its end.
+  it('keeps the main player\'s volume node', async () => {
+    const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
+    const client = makeClient(null);
+    client.getCurrentAudioLevelID = () => 'a1';
+    const analyzer = new AudioAnalyzer(client);
+    const loads = [];
+    analyzer.loadPlayer = vi.fn(async (source, ranges, onDone) => {
+      loads.push({onDone});
+      return {destroy: vi.fn()};
+    });
+    const main = {destroy: vi.fn(), configure: vi.fn()};
+    analyzer.analyzerNodes.set('main', main);
+    await analyzer.startBackgroundAnalyzer();
+    loads[0].onDone(true);
+
+    analyzer.setLevel('0:0', 'a2');
+    expect(main.destroy).not.toHaveBeenCalled();
+    expect(analyzer.analyzerNodes.get('main')).toBe(main);
+    expect(analyzer.backgroundAnalyzerStatus).toBe('idle');
+    analyzer.addVolumeDependent({});
+    expect(main.configure).toHaveBeenCalledWith({volume: true});
+  });
+
   it('keeps the volumes when only the video changed and the audio is its own track', async () => {
     const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
     const client = makeClient(null);
