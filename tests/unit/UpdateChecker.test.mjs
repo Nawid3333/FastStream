@@ -26,3 +26,49 @@ describe('UpdateChecker.getLatestVersion', () => {
     }
   });
 });
+
+// The options page, an iframe in every player, stored the update data at every load (which
+// told every open options page), a failed check wrote null over the version known, and with
+// no version known it asked GitHub again at every player opened.
+describe('UpdateChecker.refreshUpdateData', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const HOUR = 1000 * 60 * 60;
+  const now = 1000 * HOUR;
+  const latest = (version) => vi.spyOn(UpdateChecker, 'getLatestVersion').mockResolvedValue(version);
+
+  it('checks when it never did, and gives what to store', async () => {
+    const asked = latest('1.3.82.200');
+    expect(await UpdateChecker.refreshUpdateData({}, now)).toEqual({latestVersion: '1.3.82.200', lastUpdateCheck: now});
+    expect(asked).toHaveBeenCalledTimes(1);
+  });
+
+  it('checks again after 12 hours, and keeps the version the user said no to', async () => {
+    latest('1.3.82.201');
+    const data = {latestVersion: '1.3.82.200', lastUpdateCheck: now - 13 * HOUR, ignoreVersion: '1.3.82.200'};
+    expect(await UpdateChecker.refreshUpdateData(data, now)).toEqual({
+      latestVersion: '1.3.82.201', lastUpdateCheck: now, ignoreVersion: '1.3.82.200',
+    });
+  });
+
+  it('neither asks nor gives anything to store within 12 hours of a check', async () => {
+    const asked = latest('1.3.82.201');
+    expect(await UpdateChecker.refreshUpdateData({latestVersion: '1.3.82.200', lastUpdateCheck: now - HOUR}, now)).toBe(null);
+    expect(asked).not.toHaveBeenCalled();
+  });
+
+  it('keeps the version known when a check fails', async () => {
+    latest(null);
+    expect(await UpdateChecker.refreshUpdateData({latestVersion: '1.3.82.200', lastUpdateCheck: now - 13 * HOUR}, now))
+        .toEqual({latestVersion: '1.3.82.200', lastUpdateCheck: now});
+    expect(await UpdateChecker.refreshUpdateData({}, now)).toEqual({latestVersion: null, lastUpdateCheck: now});
+  });
+
+  it('waits 12 hours after a failed check too, with no version known', async () => {
+    const asked = latest('1.3.82.200');
+    expect(await UpdateChecker.refreshUpdateData({latestVersion: null, lastUpdateCheck: now - HOUR}, now)).toBe(null);
+    expect(asked).not.toHaveBeenCalled();
+  });
+});

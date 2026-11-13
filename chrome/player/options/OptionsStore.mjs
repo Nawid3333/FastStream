@@ -11,8 +11,14 @@ export class OptionsStore {
   /** @type {Object|null} */
   static #options = null;
   static #listeners = new Set();
-  /** @type {number|null} */
-  static #lastSendTime = null;
+  /**
+   * The times of this page's saves whose echo (UPDATE_OPTIONS) has not come back yet, one per
+   * save. Only the latest save's was known: a dragged slider saves once a frame, and an earlier
+   * save's echo that came after the next save was taken for a change made elsewhere, which
+   * redrew the page and put the slider back mid-drag.
+   * @type {number[]}
+   */
+  static #pendingSendTimes = [];
   /** @type {?Promise<void>} The first init()'s load, which every later caller waits for. */
   static #initialized = null;
 
@@ -52,16 +58,6 @@ export class OptionsStore {
   }
 
   /**
-   * Merge a partial set of options, persist and broadcast.
-   * @param {Object} partial
-   */
-  static async set(partial) {
-    const merged = {...(this.#options ?? DefaultOptions), ...(partial || {})};
-    this.#options = Utils.mergeOptions(DefaultOptions, merged);
-    await this.#persistAndNotify();
-  }
-
-  /**
    * Subscribe to changes. Returns unsubscribe function.
    * @param {(opts: Object)=>void} fn
    */
@@ -76,10 +72,13 @@ export class OptionsStore {
 
     // Broadcast to other contexts
     if (EnvUtils.isExtension()) {
-      this.#lastSendTime = Date.now();
+      const time = Date.now();
+      this.#pendingSendTimes.push(time);
+      // Bounded: an echo may never come (a tab the background does not know of).
+      if (this.#pendingSendTimes.length > 100) this.#pendingSendTimes.shift();
       chrome.runtime?.sendMessage?.({
         type: MessageTypes.LOAD_OPTIONS,
-        time: this.#lastSendTime,
+        time,
       });
     } else {
       const postWindow = window.opener || window.parent || window;
@@ -100,8 +99,12 @@ export class OptionsStore {
     if (EnvUtils.isExtension()) {
       chrome.runtime?.onMessage?.addListener?.((request) => {
         if (request?.type === MessageTypes.UPDATE_OPTIONS) {
-          // Ignore our own echo
-          if (request.time && request.time === this.#lastSendTime) return;
+          // Ignore our own echo, each one once.
+          const own = request.time ? this.#pendingSendTimes.indexOf(request.time) : -1;
+          if (own !== -1) {
+            this.#pendingSendTimes.splice(own, 1);
+            return;
+          }
           this.#reloadFromStorage();
         }
       });
