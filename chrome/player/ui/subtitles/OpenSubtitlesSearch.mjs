@@ -530,6 +530,22 @@ export class OpenSubtitlesSearch extends EventEmitter {
   }
 
   /**
+   * After a failed download or at the quota, offers to open the result's page on
+   * OpenSubtitles. Its address is the API's answer, which the download treats as hostile:
+   * it went to tabs.create unchecked, which opens any site, and one of the extension's own
+   * pages for a relative address. Only an https page on OpenSubtitles' own hosts is offered
+   * (the download link's check); for any other, nothing is asked.
+   * @param {SubtitleItem} item - A subtitle from the API.
+   */
+  static async offerResultPage(item) {
+    const url = item.attributes.url;
+    if (!SubtitleUtils.isOpenSubtitlesDownloadLink(url)) return;
+    if (await AlertPolyfill.confirm(Localize.getMessage('player_opensubtitles_askopen'), 'question')) {
+      EnvUtils.openExternalURL(url);
+    }
+  }
+
+  /**
    * One subtitle of the results: its release name (which version of the video it was made
    * for), how often it was downloaded, and what kind it is. A click loads it.
    * @param {SubtitleItem} item - A subtitle from the API.
@@ -628,9 +644,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
         if (!data.link && data.remaining !== undefined && data.remaining !== null && Number(data.remaining) <= 0) {
           item.downloading = false;
           await AlertPolyfill.alert(Localize.getMessage('player_opensubtitles_quota', [data.reset_time]), 'warning');
-          if (await AlertPolyfill.confirm(Localize.getMessage('player_opensubtitles_askopen'), 'question')) {
-            EnvUtils.openExternalURL(item.attributes.url);
-          }
+          await OpenSubtitlesSearch.offerResultPage(item);
           return;
         }
 
@@ -680,9 +694,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
       item.downloading = false;
       if (/** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display === 'none') return;
       await AlertPolyfill.alert(Localize.getMessage('player_opensubtitles_down_alert'), 'error');
-      if (await AlertPolyfill.confirm(Localize.getMessage('player_opensubtitles_askopen'), 'question')) {
-        EnvUtils.openExternalURL(item.attributes.url);
-      }
+      await OpenSubtitlesSearch.offerResultPage(item);
       return;
     }
 
