@@ -23,7 +23,9 @@
  * @property {number} timescale
  * @property {number} [movieTimescale] - The movie's (its first track's): tkhd and the edits count in
  *   it. Set before the file is written (hls2mp4, MP4Merger.finalize).
- * @property {number} duration - In seconds.
+ * @property {number} duration - In seconds: the media's (mdhd).
+ * @property {number} [presentedDuration] - In seconds: what its edits present (tkhd). The movie
+ *   (mvhd) lasts as long as its longest track. duration where it is not given.
  * @property {number} [width]
  * @property {number} [height]
  * @property {Array<Mp4Sample>} samples
@@ -240,7 +242,8 @@ export class MP4 {
    * @return {Uint8Array}
    */
   static mdhd(timescale, duration) {
-    duration *= timescale;
+    // Rounded: a length the saves worked out in ticks comes back as it was.
+    duration = Math.round(duration * timescale);
     const upperWordDuration = Math.floor(duration / (UINT32_MAX + 1));
     const lowerWordDuration = Math.floor(duration % (UINT32_MAX + 1));
     return MP4.box(MP4.types.mdhd, new Uint8Array([0x01,
@@ -288,7 +291,9 @@ export class MP4 {
     while (i--) {
       boxes[i] = MP4.trak(tracks[i]);
     }
-    return MP4.box(MP4.types.moov, MP4.mvhd(tracks[0].timescale, tracks[0].duration), ...boxes);
+    // As long as its longest track presents (ISO 14496-12: the longest tkhd).
+    const duration = Math.max(...tracks.map((track) => track.presentedDuration ?? track.duration));
+    return MP4.box(MP4.types.moov, MP4.mvhd(tracks[0].timescale, duration), ...boxes);
   }
   /**
    * @param {number} timescale
@@ -296,7 +301,7 @@ export class MP4 {
    * @return {Uint8Array}
    */
   static mvhd(timescale, duration) {
-    duration *= timescale;
+    duration = Math.round(duration * timescale);
     const upperWordDuration = Math.floor(duration / (UINT32_MAX + 1));
     const lowerWordDuration = Math.floor(duration % (UINT32_MAX + 1));
     const bytes = new Uint8Array([0x01,
@@ -749,7 +754,8 @@ export class MP4 {
    */
   static tkhd(track) {
     const id = track.id;
-    const duration = track.duration * /** @type {number} */ (track.movieTimescale);
+    // What its edits present, in the movie's timescale.
+    const duration = Math.round((track.presentedDuration ?? track.duration) * /** @type {number} */ (track.movieTimescale));
     const width = /** @type {number} */ (track.width);
     const height = /** @type {number} */ (track.height);
     const upperWordDuration = Math.floor(duration / (UINT32_MAX + 1));

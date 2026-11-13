@@ -378,8 +378,9 @@ export class Utils {
    * stays a minute.
    * @param {string} url - The blob: URL.
    * @param {*} download - What downloadURL resolved with: the download's id, or not.
-   * @return {Promise<void>} Settles once the URL is revoked: whatever else the download
-   *     reads from (a save's OPFS session) can be let go then too.
+   * @return {Promise<boolean>} Settles once the URL is revoked: whatever else the download
+   *     reads from (a save's OPFS session) can be let go then too. True when Firefox said
+   *     the download is over (whenDownloaded).
    */
   static revokeWhenDownloaded(url, download) {
     return Utils.whenDownloaded(download, () => URL.revokeObjectURL(url));
@@ -390,41 +391,45 @@ export class Utils {
    * is over, or a minute after a link click, or 30 minutes at most.
    * @param {*} download - What downloadURL resolved with: the download's id, or not.
    * @param {() => void} [atOver] - Run at that moment, before the promise settles.
-   * @return {Promise<void>}
+   * @return {Promise<boolean>} Whether Firefox said the download is over (complete,
+   *     interrupted, or no longer in its list); false when this stopped waiting without
+   *     knowing (a link click, one still running after half an hour, perhaps paused).
    */
   static whenDownloaded(download, atOver = () => {}) {
-    /** @type {PromiseWithResolvers<void>} */
+    /** @type {PromiseWithResolvers<boolean>} */
     const {promise: over, resolve: revoked} = Promise.withResolvers();
-    const revoke = () => {
+    /** @param {boolean} known */
+    const revoke = (known) => {
       atOver();
-      revoked();
+      revoked(known);
     };
     const downloads = globalThis.chrome?.downloads;
     if (typeof download !== 'number' || !downloads?.onChanged || !downloads.search) {
-      setTimeout(revoke, 60000);
+      setTimeout(() => revoke(false), 60000);
       return over;
     }
     let done = false;
-    const finish = () => {
+    /** @param {boolean} known */
+    const finish = (known) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
       downloads.onChanged.removeListener(changed);
-      revoke();
+      revoke(known);
     };
     /** @type {(delta: chrome.downloads.DownloadDelta) => void} */
     const changed = (delta) => {
       if (delta.id === download && delta.state && delta.state.current !== 'in_progress') {
-        finish();
+        finish(true);
       }
     };
     // A download that never ends keeps its data no longer than this.
-    const timer = setTimeout(finish, 30 * 60 * 1000);
+    const timer = setTimeout(() => finish(false), 30 * 60 * 1000);
     downloads.onChanged.addListener(changed);
     // It may have ended before the listener was there.
     downloads.search({id: download}).then(([item]) => {
-      if (!item || item.state !== 'in_progress') finish();
-    }).catch(finish);
+      if (!item || item.state !== 'in_progress') finish(true);
+    }).catch(() => finish(false));
     return over;
   }
 

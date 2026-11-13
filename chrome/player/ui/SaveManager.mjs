@@ -26,16 +26,18 @@ import {StatusTypes} from './StatusManager.mjs';
  * Revokes a save's URL once every download of it is over, then closes the blob store its
  * file reads from (when it has one). A complete video saved again downloads the same URL
  * again: with only the newest download followed, its end revoked the URL and closed the
- * store under an older one still reading it (paused in the downloads panel).
+ * store under an older one still reading it (paused in the downloads panel). When Firefox
+ * said every one of them is over, the file's copy on disk goes with the store: it stayed
+ * until another FastStream player started.
  * @param {string} url
  * @param {Array<*>} downloads - What each Utils.downloadURL of it resolved with.
- * @param {(() => void)|null} release
+ * @param {((removeFiles?: boolean) => void)|null} release
  * @return {Promise<void>} Not awaited: the save is done before its download is.
  */
 async function releaseWhenDownloaded(url, downloads, release) {
-  await Promise.all(downloads.map((download) => Utils.whenDownloaded(download)));
+  const over = await Promise.all(downloads.map((download) => Utils.whenDownloaded(download)));
   URL.revokeObjectURL(url);
-  release?.();
+  release?.(over.every(Boolean));
 }
 
 export class SaveManager {

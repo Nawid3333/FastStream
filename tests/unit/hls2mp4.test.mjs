@@ -4,7 +4,7 @@ import {
   ParameterSets, StreamTypes, TS_CLOCK, ac3Frame, audioUnits, h264AccessUnit, hevcAccessUnit, mp3Frame,
   muxSegment, videoUnits,
 } from './helpers/mpegts.mjs';
-import {find, readBoxes, readMp4, readSampleEntry} from './helpers/mp4boxes.mjs';
+import {find, readBoxes, readDuration, readMp4, readSampleEntry} from './helpers/mp4boxes.mjs';
 
 // The HLS save (HLS2MP4) on transport streams, through the real hls.js demuxer and remuxer
 // (the patched npm build: see vitest.config.mjs), with the file it writes read back box by
@@ -31,8 +31,9 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
     getBlob(id) {
       return this.blobs.get(id);
     }
-    close() {
+    close(removeFiles) {
       this.closed = true;
+      this.removedFiles = !!removeFiles;
     }
   },
 }));
@@ -680,5 +681,57 @@ describe('HLS2MP4: a save written to disk as it goes', () => {
     expect(opfs.log.at(-1)).toBe('abort');
     expect(opfs.files.size).toBe(0);
     expect(stores.at(-1).closed).toBe(true);
+  });
+});
+
+// HLS2MP4 hands the transmuxer each fragment as a Uint8Array, and the transmuxer copied it
+// before demuxing: a 458 MB save copied 458 MB more, a fragment at a time.
+describe('Transmuxer: the fragment it is given', () => {
+  it('demuxes the bytes it is given, not a copy of them', async () => {
+    const {default: Transmuxer} = await import('../../chrome/player/modules/hls2mp4/transmuxer.mjs');
+    const transmuxer = new Transmuxer({audioCodec: 'mp4a.40.2', videoCodec: 'avc1.42c014', initSegmentData: [], duration: 10, defaultInitPts: 0});
+    const segment = muxSegment({video: {
+      type: StreamTypes.H264,
+      units: videoUnits({start: ticks(1.4), count: 25, frame: FRAME, picture: h264AccessUnit}),
+    }});
+    const data = new Uint8Array(segment);
+    transmuxer.configureTransmuxer(data);
+    const demux = vi.spyOn(transmuxer.demuxer, 'demux');
+    const result = transmuxer.pushData(data, true);
+    expect(result.video).toBeTruthy();
+    // hls.js's own reset demuxes an empty array first.
+    const demuxed = demux.mock.calls.map((call) => call[0]).filter((arg) => arg instanceof Uint8Array);
+    expect(demuxed).toHaveLength(1);
+    expect(demuxed[0].buffer).toBe(data.buffer);
+    transmuxer.destroy();
+  });
+});
+
+// A partial save (Alt-click: what is downloaded) wrote hls.js's total duration of the whole
+// stream into the file's headers: Firefox, which takes a video's duration from the moov,
+// said a 10 minute save of an hour-long stream lasted an hour.
+describe('HLS2MP4: the length a partial save says it has', () => {
+  it('is the length of the fragments saved, in mdhd, tkhd and mvhd', async () => {
+    // Three 1 s segments of a stream hls.js says lasts 10 s (save() gives it totalduration 10).
+    const {boxes, tracks} = await save([0, 1, 2].map((sn) => fragment(0, {sn, cc: 0, start: sn}, muxSegment({video: {
+      type: StreamTypes.H264,
+      units: videoUnits({start: ticks(1.4 + sn), count: 25, frame: FRAME, picture: h264AccessUnit}),
+    }}))));
+    const trak = tracks.vide.trak;
+    expect(readDuration(find(trak.children, 'mdia/mdhd')) / tracks.vide.timescale).toBeCloseTo(3, 1);
+    expect(readDuration(find(trak.children, 'tkhd')) / tracks.vide.movieTimescale).toBeCloseTo(3, 1);
+    expect(readDuration(find(boxes, 'moov/mvhd')) / tracks.vide.movieTimescale).toBeCloseTo(3, 1);
+  });
+
+  it('gives each track its own length, and the movie that of the longer', async () => {
+    const segment = (sn) => muxSegment({
+      video: {type: StreamTypes.H264, units: videoUnits({start: ticks(1.4 + sn), count: 25, frame: FRAME, picture: h264AccessUnit})},
+      audio: {type: StreamTypes.AAC, units: audioUnits({start: ticks(1.4 + sn), count: 47, sampleRate: RATE})},
+    });
+    const {boxes, tracks} = await save([0, 1, 2].map((sn) => fragment(0, {sn, cc: 0, start: sn}, segment(sn))));
+    const ticksOf = (track) => readDuration(find(track.trak.children, 'tkhd'));
+    expect(readDuration(find(tracks.soun.trak.children, 'mdia/mdhd')) / tracks.soun.timescale).toBeCloseTo(3, 1);
+    expect(ticksOf(tracks.soun) / tracks.soun.movieTimescale).toBeCloseTo(3, 1);
+    expect(readDuration(find(boxes, 'moov/mvhd'))).toBe(Math.max(ticksOf(tracks.vide), ticksOf(tracks.soun)));
   });
 });

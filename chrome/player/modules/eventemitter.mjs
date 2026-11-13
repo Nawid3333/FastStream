@@ -113,17 +113,12 @@ export class EventEmitter {
   constructor() {
     this.mainContext = new EventEmitterContext(this);
     this.contexts = [this.mainContext];
-    this.debug = false;
   }
 
   createContext() {
     const context = new EventEmitterContext(this);
     this.contexts.push(context);
     return context;
-  }
-
-  logAllEvents() {
-    this.debug = true;
   }
 
   /**
@@ -173,9 +168,6 @@ export class EventEmitter {
    * @param {...*} args - What the event's listeners are called with.
    */
   emit(event, ...args) {
-    if (this.debug) {
-      console.log(event, ...args);
-    }
     // A copy, as in the context's emit(): a context destroyed by its own handler skipped
     // the one after it.
     if (![...this.contexts].every((context) => {
@@ -211,14 +203,6 @@ export class EmitterRelay {
    */
   appendOutput(out) {
     this.outs.push(out);
-    return this;
-  }
-
-  /**
-   * @param {EventEmitter} out
-   */
-  prependOutput(out) {
-    this.outs.unshift(out);
     return this;
   }
 
