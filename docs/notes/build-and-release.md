@@ -158,9 +158,21 @@ brings the new one; that relies on GitHub redirecting a renamed repository's old
 under this owner: it would end those redirects. web-ext names the zips after the name:
 `firefox-github-faststream_for_firefox-<version>.zip` (was `..._video_player-...`); the
 workflows' `firefox-github-*.zip` globs match both. The last release made before the rename
-lists the old repository in its `updates.json`'s `update_link`, which
-`check-update-path.mjs` (given the new `GITHUB_REPOSITORY`) reports as "not a file of
-<tag>" until the next release replaces it.
+lists the old repository in its `updates.json`'s `update_link`: `check-update-path.mjs`
+takes a link under a former name (`FORMER_REPOS`, redirected) as the release's own.
+
+The order matters, both ways:
+
+1. Rename the repository on GitHub first (Settings -> General, or
+   `gh repo rename FastStream-for-Firefox`). Old URLs redirect from then on, so every installed
+   copy keeps finding its updates.
+2. Then merge the change that renames the add-on. Its release is the first whose manifest
+   asks the new `update_url`, and whose `updates.json` links the new name.
+
+Merged first, the release would ask an `update_url` under a name that does not exist yet: its
+copies would find no update until the repository was renamed. Local checkouts follow with
+`git remote set-url origin https://github.com/Nawid3333/FastStream-for-Firefox.git` (GitHub
+redirects pushes and fetches too, so nothing breaks in the meantime).
 
 ## AMO lint (firefox-amo, current: 0 errors / 0 warnings, needs `--self-hosted`)
 

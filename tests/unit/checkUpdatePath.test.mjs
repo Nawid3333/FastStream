@@ -109,6 +109,14 @@ describe('checkUpdatesJson', () => {
         .toMatch(/no updates for thanatus@Nawid \(it lists: other@id\)/);
   });
 
+  it('takes a link under the former name of the repository, which GitHub redirects, and no other', () => {
+    const xpi = signed();
+    const old = entry(xpi, {update_link: 'https://github.com/Nawid3333/FastStream/releases/download/v1.3.82.38/abc.xpi'});
+    expect(checkUpdatesJson({addons: {[ID]: {updates: [old]}}}, release).problems).toEqual([]);
+    const other = entry(xpi, {update_link: 'https://github.com/someone/FastStream/releases/download/v1.3.82.38/abc.xpi'});
+    expect(checkUpdatesJson({addons: {[ID]: {updates: [other]}}}, release).problems[0]).toMatch(/is not a file of v1.3.82.38/);
+  });
+
   it('reports a link to another release and a hash that is not one', () => {
     const xpi = signed();
     const bad = entry(xpi, {
