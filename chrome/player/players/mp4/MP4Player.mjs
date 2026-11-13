@@ -776,11 +776,15 @@ export default class MP4Player extends EventEmitter {
     const frags = this.client.getFragments(this.getCurrentVideoLevelID()) || [];
 
     const time = this.video.currentTime;
+    // A seek preview reading on to a place past the duration it knew (previewSeek) needs none
+    // of the ranges it has read on the way: held, they would all be held until it got there,
+    // and the memory budget cannot let go of a range a player holds.
+    const keptFrom = this.previewSeek ?? time;
     for (let i = 0; i < this.currentFragments.length; i++) {
       const frag = this.currentFragments[i];
       if (frag.sn >= currentFragment.sn) continue;
 
-      if (frag.end < time - this.options.backBufferLength) {
+      if (frag.end < keptFrom - this.options.backBufferLength) {
         this.currentFragments.splice(i, 1);
         frag.removeReference(ReferenceTypes.MP4PLAYER);
         i--;

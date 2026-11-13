@@ -82,6 +82,23 @@ describe('MP4Player, the seek preview of a fragmented file without its duration'
     expect(player.fragmentRequester.requestFragment).not.toHaveBeenCalled();
   });
 
+  it('lets go of the ranges behind it as it reads on: the memory budget cannot', () => {
+    const {player} = previewOfFragmentedFile();
+    // Its keyframes known up to the one at 60 s, in range 5; ranges 0-4 read on the way.
+    const keyframe = (seconds, offset) => ({cts: seconds * 1000, timescale: 1000, offset, is_sync: true});
+    player.metaData.videoTracks = [{id: 1}];
+    player.videoTracks = [{sortedSamples: [keyframe(0, 1000), keyframe(60, 5500000)]}];
+    const read = [0, 1, 2, 3, 4].map((sn) => ({sn, end: (sn + 1) * 12, removeReference: vi.fn()}));
+    player.currentFragments.push(...read);
+    player._duration = 61;
+    player.currentTime = 120;
+    player.runLoad();
+    expect(player.currentFragments).toEqual([]);
+    for (const frag of read) expect(frag.removeReference).toHaveBeenCalledTimes(1);
+    // On from the range its last keyframe is in.
+    expect(player.fragmentRequester.requestFragment.mock.calls[0][0].sn).toBe(5);
+  });
+
   it('appends nothing it reads on the way: the seek\'s reset takes it away again', () => {
     const {player} = previewOfFragmentedFile();
     player.metaData.videoTracks = [{id: 1, codec: 'avc1.42E01E'}];
