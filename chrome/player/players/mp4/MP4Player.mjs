@@ -191,9 +191,25 @@ export default class MP4Player extends EventEmitter {
     }
   }
 
+  /**
+   * The video track this player plays. None for a player made for sound only (isAudioOnly: the
+   * two a video delay adds, SyncedAudioPlayer, and the audio analyzer's) of a file with sound:
+   * each made a video SourceBuffer in its <audio>, had mp4box cut every frame into a segment and
+   * appended it, about 30 s ahead and 10 s behind of video - the MediaSource memory and the
+   * per-frame work three times over with a video delay. The seek preview leaves out the sound
+   * the same way (currentAudioTrack null). A file without sound keeps its picture there, as
+   * before: such a player has nothing else to play.
+   * @return {Track|undefined} Once the metadata is in.
+   */
+  playedVideoTrack() {
+    const metaData = /** @type {Movie} */ (this.metaData);
+    if (this.isAudioOnly && metaData.audioTracks.length) return undefined;
+    return metaData.videoTracks[this.currentVideoTrack];
+  }
+
   makeSourceBuffers() {
     // Only setupHLS calls this, once the metadata is in.
-    const videoTrack = /** @type {Movie} */ (this.metaData).videoTracks[this.currentVideoTrack];
+    const videoTrack = this.playedVideoTrack();
     if (videoTrack) {
       const videoCodec = 'video/mp4; codecs=\"' + videoTrack.codec + '\"';
       this.videoSourceBuffer = new SourceBufferWrapper(/** @type {MediaSource} */ (this.mediaSource), videoCodec);
@@ -242,7 +258,7 @@ export default class MP4Player extends EventEmitter {
     this.mp4box.fragmentedTracks.length = 0;
 
     // Only once the metadata is in (setupHLS, switchAudioTrack).
-    const videoTrack = /** @type {Movie} */ (this.metaData).videoTracks[this.currentVideoTrack];
+    const videoTrack = this.playedVideoTrack();
     const audioTrack = /** @type {Movie} */ (this.metaData).audioTracks[/** @type {number} */ (this.currentAudioTrack)];
 
     this.mp4box.onSegment = (id, user, buffer, sampleNumber, last) => {
@@ -1492,7 +1508,9 @@ export default class MP4Player extends EventEmitter {
     } else if (this.videoTracks.length || this.audioTracks.length) {
       const time = this.currentTime;
       const sortedSamples = [];
-      if (this.videoTracks[this.currentVideoTrack]) {
+      // Only the tracks it plays: a player for sound only reads from the sound's place, not
+      // from the picture's keyframe before it (playedVideoTrack).
+      if (this.videoTracks[this.currentVideoTrack] && this.playedVideoTrack()) {
         sortedSamples.push(this.videoTracks[parseInt(/** @type {any} */ (this.currentVideoTrack))].sortedSamples);
       }
 
