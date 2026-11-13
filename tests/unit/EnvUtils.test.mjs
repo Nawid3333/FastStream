@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 import {EnvUtils} from '../../chrome/player/utils/EnvUtils.mjs';
 
 // EnvUtils.isChrome, isFirefox and isSafari were removed when this project became Firefox
@@ -50,5 +50,37 @@ describe('EnvUtils', () => {
     for (const method of ['isChrome', 'isFirefox', 'isSafari']) {
       expect(EnvUtils[method]).toBeUndefined();
     }
+  });
+});
+
+describe('EnvUtils.openExternalURL', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /**
+   * The extension's chrome, with or without tabs.
+   * @param {boolean} withTabs - A player on its own tab has them; one framed in a page not.
+   * @return {Object}
+   */
+  const extension = (withTabs) => {
+    const chrome = {extension: {}, runtime: {sendMessage: vi.fn(async () => true)}};
+    if (withTabs) chrome.tabs = {create: vi.fn(async () => ({}))};
+    vi.stubGlobal('chrome', chrome);
+    return chrome;
+  };
+
+  it('opens a tab itself where it can', () => {
+    const chrome = extension(true);
+    EnvUtils.openExternalURL('https://www.opensubtitles.com/en/subtitles/x');
+    expect(chrome.tabs.create).toHaveBeenCalledWith({url: 'https://www.opensubtitles.com/en/subtitles/x'});
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('asks the background in a player framed in a page, which has no chrome.tabs', () => {
+    // It did nothing there (the review of 2026-11-13).
+    const chrome = extension(false);
+    EnvUtils.openExternalURL('https://www.opensubtitles.com/en/subtitles/x');
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({type: 'OPEN_EXTERNAL_URL', url: 'https://www.opensubtitles.com/en/subtitles/x'});
   });
 });

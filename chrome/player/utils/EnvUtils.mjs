@@ -1,4 +1,6 @@
 // @ts-check
+import {MessageTypes} from '../enums/MessageTypes.mjs';
+
 /**
  * Utility functions for environment and platform detection.
  */
@@ -20,12 +22,20 @@ export class EnvUtils {
    * an opener-attributed tab creation the background's popup/popunder guard
    * (chrome.tabs.onCreated) would otherwise have to special-case, and
    * chrome.tabs.create from extension-context code doesn't set openerTabId
-   * unless told to, so it's naturally exempt.
+   * unless told to, so it's naturally exempt. A player framed in a page has no
+   * chrome.tabs (measured: PageFetchRelay.mjs), and the call did nothing there:
+   * the background opens it then (OPEN_EXTERNAL_URL, an http(s) page only),
+   * with no opener either.
    * @param {string} url
    */
   static openExternalURL(url) {
     if (EnvUtils.isExtension()) {
-      chrome?.tabs?.create({url});
+      if (chrome.tabs) {
+        chrome.tabs.create({url});
+      } else {
+        chrome.runtime.sendMessage({type: MessageTypes.OPEN_EXTERNAL_URL, url})
+            .catch((e) => console.error('Opening the page failed', e));
+      }
     } else {
       window.open(url, '_blank');
     }
