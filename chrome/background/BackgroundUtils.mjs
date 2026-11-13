@@ -23,7 +23,9 @@ const PlayerURL = chrome.runtime.getURL('player/index.html');
  * @param {*} details
  */
 function setAction(method, details) {
-  const done = chrome.action[method](details);
+  // One signature for the three: each takes its details and gives a promise.
+  const call = /** @type {(details: *) => (Promise<void>|void)} */ (chrome.action[method]);
+  const done = call.call(chrome.action, details);
   if (done && typeof done.catch === 'function') done.catch(() => {});
 }
 
