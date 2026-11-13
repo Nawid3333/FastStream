@@ -251,7 +251,6 @@ export class AudioAnalyzer extends EventEmitter {
    */
   async loadPlayer(source, doneRanges, onDone) {
     const player = await this.client.playerLoader.createPlayer(source.mode, this.client, {
-      isAnalyzer: true,
       isAudioOnly: true,
     });
 
