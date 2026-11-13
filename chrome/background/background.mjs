@@ -1033,13 +1033,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   } else if (msg.type === MessageTypes.FRAME_REMOVED) {
     const removed = msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame;
-    const wasPlaying = !!removed && tab.playingPlayers.delete(removed.frameId);
+    const going = removed ? frameAndInside(removed) : [];
     if (removed) releaseOverlayGuards(tab, removed);
     tab.forgetRemovedFrame(removed, msg.document);
-    if (removed && removed.frameId in tab.playerPageFrames) {
-      delete tab.playerPageFrames[removed.frameId];
-      Tabs.saveTabState(tab);
+    // The frames forgotten with it - a player inside a page that went too. A player's own
+    // FRAME_REMOVED can come after its page's: kept in playerPageFrames, it was taken for a
+    // player lost while Firefox had unloaded the background (restorePlayerFrame), made again
+    // with its page frame, and counted gone a second time (a review, 2026-11-13).
+    let wasPlaying = false;
+    let keptChanged = false;
+    for (const gone of going) {
+      if (tab.getFrame(gone.frameId) === gone) continue; // a late message: the frame shows a newer page
+      wasPlaying = tab.playingPlayers.delete(gone.frameId) || wasPlaying;
+      if (gone.frameId in tab.playerPageFrames) {
+        delete tab.playerPageFrames[gone.frameId];
+        keptChanged = true;
+      }
     }
+    if (keptChanged) Tabs.saveTabState(tab);
     // A player that goes lets the page's media go, also one this background no longer
     // knew to be playing (it was restarted meanwhile).
     if (wasPlaying || BackgroundUtils.isUrlPlayerUrl(sender.url || '')) {
@@ -1734,6 +1745,16 @@ function restorePlayerFrame(tab, frame, sender) {
   if (typeof pageFrameId !== 'number') return;
   frame.isPlayer = true;
   frame.pageFrame = tab.getFrameOrCreate(pageFrameId);
+}
+
+/**
+ * @param {FrameHolder} frame
+ * @return {FrameHolder[]} The frame and every frame inside it, at any depth.
+ */
+function frameAndInside(frame) {
+  const all = [frame];
+  for (const each of all) all.push(...each.children);
+  return all;
 }
 
 /**

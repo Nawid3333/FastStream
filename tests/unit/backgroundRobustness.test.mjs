@@ -364,3 +364,37 @@ describe('the permissions tab the player\'s VPN button opens', () => {
     expect(bg.removedTabs).toEqual([201]);
   });
 });
+
+describe('the toolbar button of a tab that closed', () => {
+  it('leaves no rejected call unhandled', async () => {
+    // Firefox rejects a toolbar call for a tab that is gone ("Invalid tab ID"): the "Off"
+    // badge's second, a start that waited for its page. Each was an unhandled error in the
+    // background's console (a review, 2026-11-13). Each call's answer here records whether
+    // anything took its rejection.
+    const answers = [];
+    const gone = () => {
+      const answer = {handled: false};
+      answers.push(answer);
+      return {
+        then(onDone, onFailed) {
+          if (onFailed) answer.handled = true;
+          return this;
+        },
+        catch() {
+          answer.handled = true;
+          return this;
+        },
+      };
+    };
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    bg.chrome.action.setBadgeText = gone;
+    bg.chrome.action.setTitle = gone;
+    bg.chrome.action.setIcon = gone;
+    await bg.click(1); // On
+    await bg.click(1); // Off, and its badge goes a second later
+    await bg.wait(1500);
+    expect(answers.length).toBeGreaterThanOrEqual(7);
+    expect(answers.filter((answer) => !answer.handled)).toEqual([]);
+  });
+});
