@@ -19,7 +19,7 @@ import {SaveFragmentFetcher, savedEntry} from '../SaveFragmentFetcher.mjs';
 export default class DashPlayer extends EventEmitter {
   /**
    * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
-   * @param {{isPreview?: boolean, isAudioOnly?: boolean, isAnalyzer?: boolean}} [config] -
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config] -
    *   What the player is for (PlayerLoader.createPlayer's callers).
    */
   constructor(client, config) {
@@ -27,14 +27,10 @@ export default class DashPlayer extends EventEmitter {
     this.client = client;
     this.isPreview = config?.isPreview || false;
     this.isAudioOnly = config?.isAudioOnly || false;
-    this.isAnalyzer = config?.isAnalyzer || false;
     this.defaultQuality = client.options.defaultQuality || 'Auto';
     this.video = /** @type {HTMLVideoElement} */ (document.createElement(this.isAudioOnly ? 'audio' : 'video'));
 
     this.fragmentRequester = new DashFragmentRequester(this);
-    // The segment downloads under way (DashLoader).
-    /** @type {Array<ReturnType<DashFragmentRequester['requestFragment']>>} */
-    this.activeRequests = [];
     // Download-manager keys of the manifests this player has loaded; a second load of one
     // is a live refresh (DashLoader).
     this.loadedManifests = new Set();

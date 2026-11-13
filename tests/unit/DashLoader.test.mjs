@@ -123,7 +123,6 @@ describe('DashLoader, a segment that keeps failing', () => {
     const requestFragment = vi.fn(() => ({abort() {}}));
     const player = {
       source: {headers: {}},
-      activeRequests: [],
       loadedManifests: new Set(),
       emit: vi.fn(),
       client: {getFragment: () => ({request: {url: 'http://127.0.0.1/seg7.m4s'}}), getFragments: () => []},
@@ -212,7 +211,7 @@ describe('DashLoader, how a request ends for dash.js', () => {
   function segment() {
     const requestFragment = vi.fn(() => ({abort() {}}));
     const player = {
-      source: {headers: {}}, activeRequests: [], emit: vi.fn(),
+      source: {headers: {}}, emit: vi.fn(),
       client: {getFragment: () => ({request: {url: 'http://127.0.0.1/seg7.m4s'}}), getFragments: () => []},
       fragmentRequester: {requestFragment},
     };
@@ -341,7 +340,6 @@ describe('DashLoader, a manifest of several periods', () => {
     const getFragment = vi.fn(() => ({request: stored}));
     const player = {
       source: {headers: {}},
-      activeRequests: [],
       loadedManifests: new Set(),
       emit: vi.fn(),
       client: {getFragment, getFragments: () => []},
