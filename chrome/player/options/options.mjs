@@ -1199,16 +1199,15 @@ if (EnvUtils.isExtension()) {
   chrome.storage.local.get({
     updateData: '{}',
   }, async (result) => {
-    const data = result?.updateData ? JSON.parse(/** @type {string} */ (result.updateData)) : {};
-    const now = Date.now();
-    if (!data.latestVersion || now - data.lastUpdateCheck > 1000 * 60 * 60 * 12) {
-      data.latestVersion = await UpdateChecker.getLatestVersion();
-      data.lastUpdateCheck = now;
+    const stored = result?.updateData ? JSON.parse(/** @type {string} */ (result.updateData)) : {};
+    const checked = await UpdateChecker.refreshUpdateData(stored, Date.now());
+    // Stored only after a check: each write tells every open options page (storage.onChanged).
+    if (checked) {
+      chrome.storage.local.set({
+        updateData: JSON.stringify(checked),
+      });
     }
-
-    chrome.storage.local.set({
-      updateData: JSON.stringify(data),
-    });
+    const data = checked ?? stored;
 
     const currentVersion = EnvUtils.getVersion();
     const latestVersion = data.latestVersion;
