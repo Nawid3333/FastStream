@@ -584,10 +584,11 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
   inheritMpv(openerTab, /** @type {number} */ (newTab.id));
 });
 
-// Address changes only (Firefox's filter, below): the listener reads nothing else, and Firefox
-// fires onUpdated for every title, favicon and sound change of every tab (a site's title counts
-// its player's time up), each of which set the toolbar button again and kept the event page
-// awake. Firefox's own reset of a tab's button, on a new document, comes with its address.
+// Address and load changes only (Firefox's filter, below): Firefox fires onUpdated for every
+// title, favicon and sound change of every tab (a site's title counts its player's time up),
+// each of which set the toolbar button again and kept the event page awake. The listener reads
+// the address; the load's status stays in, as Firefox resets a tab's button on every new
+// document, a reload's too, whose changeInfo need not carry the address it already had.
 /** @type {chrome.tabs.FirefoxUpdatedEvent} */ (chrome.tabs.onUpdated).addListener(async (tabid, changeInfo, tabobj) => {
   await ensureOptions();
 
@@ -747,7 +748,7 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
   }
 
   BackgroundUtils.updateTabIcon(tab, true);
-}, {properties: ['url']});
+}, {properties: ['url', 'status']});
 
 // How long a start by address (the MPV allowlist, the auto-enable list) waits before it
 // acts on the streams the tab already tracks (startWithTrackedLater).

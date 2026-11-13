@@ -170,11 +170,10 @@ describe('a new link for a stream the server refused', () => {
 });
 
 describe('a change of a tab other than its address', () => {
-  it('does not set the toolbar button again: a title, a favicon, a sound, a load\'s end', async () => {
+  it('does not set the toolbar button again for a title, a favicon or a sound', async () => {
     // Firefox fires tabs.onUpdated for each of them, in every tab (a player's title counts its
     // time up): each set the button's title, icon and badge again and kept the event page
-    // awake. Firefox's filter lets only an address change through; its own reset of a tab's
-    // button comes with a new document, whose address comes too.
+    // awake. Firefox's filter lets only address and load changes through.
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}, {id: 2, url: 'https://other.test/'}]});
     await bg.navigated(1, PAGE);
     expect(bg.titles.has(1)).toBe(true);
@@ -183,10 +182,13 @@ describe('a change of a tab other than its address', () => {
     await bg.tabChanged(1, {title: 'Episode 1 - 12:03'});
     await bg.tabChanged(1, {favIconUrl: 'https://site.test/favicon.ico'});
     await bg.tabChanged(1, {audible: true});
-    await bg.tabChanged(2, {status: 'complete'});
     expect([...bg.titles.keys(), ...bg.badges.keys()]).toEqual([]);
-    // An address change still does.
+    // An address change still does, and a load without one (a reload: Firefox resets the
+    // button on every new document).
     await bg.navigated(1, 'https://site.test/watch/2');
+    expect(bg.titles.has(1)).toBe(true);
+    bg.titles.clear();
+    await bg.tabChanged(1, {status: 'loading'});
     expect(bg.titles.has(1)).toBe(true);
   });
 });
