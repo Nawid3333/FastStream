@@ -722,7 +722,12 @@ export class FastStreamClient extends EventEmitter {
   updatePreview() {
     if (!this.previewPlayer) return;
 
-    if (this.previewPlayer.getVideo().readyState > 1) {
+    // Its frame, where it was pointed: an MP4 preview holds a place past the duration it knew
+    // of a fragmented file while it reads on (MP4Player's previewSeek), its element still at
+    // the place before, and showed that place's frame for it. Every other player's time is its
+    // element's.
+    const video = this.previewPlayer.getVideo();
+    if (video.readyState > 1 && this.previewPlayer.currentTime === video.currentTime) {
       this.showPreview();
       return;
     }

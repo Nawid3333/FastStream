@@ -144,6 +144,10 @@ export default class MP4Player extends EventEmitter {
     // A seek past the element's duration, waiting for the duration to be set; null: none.
     /** @type {?number} */
     this.pendingSeek = null;
+    // A seek preview's place past the duration it knows of a fragmented file, held while it
+    // reads on to learn it (the currentTime setter, runLoad); null: none.
+    /** @type {?number} */
+    this.previewSeek = null;
 
     // Still stuck once its nudges are spent: an error the player shows, rather than a
     // video frozen for good with nothing said.
@@ -250,6 +254,14 @@ export default class MP4Player extends EventEmitter {
       // which gives the samples of the audio before the switch that it still had - after the
       // removal, so they would have stayed in the SourceBuffer (glm's review). Dropped.
       const playedAudio = this.currentAudioTrack === null ? undefined : this.metaData?.audioTracks[this.currentAudioTrack];
+      // A seek preview reading on to a place past the duration it knew (previewSeek): what it
+      // reads on the way is not that place, and the seek's reset would take it away again. Only
+      // the duration it tells is kept.
+      if (this.previewSeek !== null) {
+        this.freeSamples(id);
+        this.updateDuration();
+        return;
+      }
       if (videoTrack?.id === id) {
         this.segmentAppender.append(/** @type {SourceBufferWrapper} */ (this.videoSourceBuffer), buffer);
 
@@ -715,7 +727,18 @@ export default class MP4Player extends EventEmitter {
   runLoad() {
     if (this.nothingToPreview || (this.metaData && !this.loaded)) return;
 
-    if (this.isPreview && this.readyState >= 2) {
+    // A seek preview's place past the duration it knew (the setter): sought to once the
+    // duration has reached it, or once the file's last range is in (a place past the end lands
+    // on the end). Until then the preview reads on, its first frame shown or not.
+    if (this.previewSeek !== null && (this._duration >= this.previewSeek || this.hasLastRange())) {
+      const time = this.previewSeek;
+      this.previewSeek = null;
+      // Its reset loads from there (reloadUnlessBuffered).
+      this.currentTime = time;
+      return;
+    }
+
+    if (this.isPreview && this.readyState >= 2 && this.previewSeek === null) {
       return;
     }
 
@@ -1228,6 +1251,19 @@ export default class MP4Player extends EventEmitter {
   set currentTime(value) {
     // A seek held below for the duration waits for the loop's next round (durationSync).
     this.wakeLoop();
+    // A seek preview of a fragmented file without its duration in the metadata (no mehd box,
+    // as ffmpeg's frag_keyframe+empty_moov writes it) knows only as much of it as it has read,
+    // and it reads only up to its first frame: the element landed a place past that on the
+    // duration it had, about 9 s of a 160 s file, and every place past 9 s showed the frame at
+    // 9 s. Such a place is held (previewSeek) while the preview reads on, and sought to once
+    // the duration reaches it (runLoad). The client hides the preview meanwhile: it is not
+    // where it was pointed (FastStreamClient.updatePreview).
+    if (this.isPreview && this.metaData?.isFragmented && value > this._duration && !this.hasLastRange()) {
+      this.pendingSeek = null;
+      this.previewSeek = value;
+      return;
+    }
+    this.previewSeek = null;
     // The element would land a seek past its duration on that duration: one waiting to be set
     // (DurationSync) is set first. So does any seek while the element has none yet (NaN, or
     // +Infinity from an initialization segment without one): it is then held to what is
@@ -1292,7 +1328,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   get currentTime() {
-    return this.pendingSeek ?? this.video.currentTime;
+    return this.pendingSeek ?? this.previewSeek ?? this.video.currentTime;
   }
 
   get readyState() {
