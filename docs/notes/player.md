@@ -1015,3 +1015,53 @@ server) before deciding. Interleaved runs, a brief try before each long run.
 - **Preview thumbnails only after their seek ended**: 32 frames in 12 s and none taken during
   a pending seek, old and new alike (Firefox's `readyState` gated it already); kept for the
   `toBlob` encoding.
+
+## An MP4 paused, at its end, and played again (2026-11-13)
+
+Found with the A/B benchmark below (its `--where` lists which place in the player's code asked
+for each timer callback), on main and the branch alike:
+
+- **The main loop woke the page while there was nothing to do.** `MP4Player.mainLoop` ran every
+  50 ms while paused - in each MP4 player, and the seek preview is a second one that is always
+  paused - and every 1 ms (4 in Firefox) once the video had ended: an ended video's `readyState`
+  stays below 3 with nothing ahead, which counted as urgent. 41 timer callbacks a second paused,
+  250 a second ended, for as long as the tab stayed open. Paused or ended it now runs every
+  250 ms (`PAUSED_LOOP_MS`); a seek (the setter, and the element's `seeking`) and a `play` run
+  its next round at once (`wakeLoop`), so nothing that matters waits: downloads go on by
+  themselves (`onSuccess` runs `runLoad`), the stall watchdog does nothing while paused, the end
+  of the stream, a duration to set or a range to retry can wait a quarter second. A round that
+  seeks by itself (the start's seek to the buffered start) does not wake the loop a second time:
+  `loopTimeout` is null while a round runs. Measured: 9.3 callbacks a second paused and ended
+  (the two players at 4 a second and the client's one-second loop); a seek while paused landed
+  62-109 ms after it was asked for.
+- **Played again after its end, an MP4 never started.** `play()` on an ended element seeks it to
+  0 by itself, past `MP4Player`'s `currentTime` setter - the only place that called `resetHLS`,
+  which takes mp4box to the new place. mp4box went on from the end, the start had left the
+  buffer (10 s of back buffer), and the video stood seeking at 0 for good: the play button after
+  the end of any MP4 longer than about 40 s. Firefox's picture-in-picture seek controls seek the
+  element the same way. `onElementSeeking` now checks a seek the element made itself as the
+  setter checks its own (`reloadUnlessBuffered`); one made through the setter is recognised by
+  where it took the element (`ownSeek`, cleared on `seeked`) and not checked twice. The stall
+  watchdog's nudge is such a seek too: it lands in what is buffered, so nothing is reloaded.
+
+`tests/e2e/specs/mp4-loop-pace.e2e.mjs`: wake-ups paused and ended under 20 a second (failed on
+the old build at 41), a seek while paused lands, play after the end starts the video over
+(failed on main and the old build: seeking at 0, readyState 1).
+
+## Measuring two builds: tools/bench-ab.mjs (2026-11-13)
+
+The by-turns comparisons above were each made with a harness thrown away afterwards. This one
+stays: `node tools/bench-ab.mjs --a main` builds main in a worktree of its own (outside the
+checkout, node_modules linked; both need the same lockfile), builds this checkout, and runs
+`tests/e2e/wdio.bench.conf.mjs`: one server per build on its own port, the same fixtures, both in
+one e2e Firefox, ABBA order per round, one warm-up round thrown away. `--rate`/`--ttfb` put the
+media (not the player's own files) on one shared slow line. A probe added before the page's
+scripts (`browser.addInitScript`) records the moments (player modules ready, first frame,
+playing, a seek to 80 s, a seek preview at 120 s) and counts timer, interval, animation-frame
+and idle callbacks, DOM changes, frames more than 50 ms apart and dropped video frames while
+playing, paused, after a seek preview, once ended, and in an idle player. The report
+(`logs/bench/ab-<time>.md` and `.json`) gives medians, the spread (MAD) and a verdict only where
+the medians differ by more than twice the larger spread and the measure's floor (a timeupdate's
+250 ms, one frame). `--where` adds, per phase, the places in the player's code that asked for
+the callbacks. `--clean` removes the worktrees (the node_modules link first). It measures; it
+never fails on a number, only when a build cannot play.

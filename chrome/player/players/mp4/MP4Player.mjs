@@ -47,6 +47,9 @@ const BACK_BUFFER_SLACK = 1;
 const RANGE_RETRY_DELAYS_MS = [2000, 4000, 8000];
 // How often the main loop runs while the video plays with media ahead, in ms (mainLoop).
 const STEADY_LOOP_MS = 50;
+// How often it runs while the video is paused or has ended, in ms. A seek or a play runs the
+// next round at once (wakeLoop).
+const PAUSED_LOOP_MS = 250;
 
 const VIDEO_TRACK = 0;
 const AUDIO_TRACK = 1;
@@ -77,6 +80,18 @@ export default class MP4Player extends EventEmitter {
     this.isAudioOnly = config?.isAudioOnly || false;
     // An <audio> for an audio-only player, used only as a media element (sound, time).
     this.video = /** @type {HTMLVideoElement} */ (document.createElement(this.isAudioOnly ? 'audio' : 'video'));
+    // A seek or a play while the main loop waits at its paused pace: its next round at once.
+    this.video.addEventListener('play', () => this.wakeLoop());
+    this.video.addEventListener('seeking', () => {
+      this.wakeLoop();
+      this.onElementSeeking();
+    });
+    // Where the last seek made through currentTime here took the element; null once it landed.
+    /** @type {number|null} */
+    this.ownSeek = null;
+    this.video.addEventListener('seeked', () => {
+      this.ownSeek = null;
+    });
 
     this.mp4box = createFile(false);
 
@@ -440,6 +455,9 @@ export default class MP4Player extends EventEmitter {
     if (!this.running) {
       return;
     }
+    // A round runs now: a wake while it runs (a seek it makes itself, below) leaves the next
+    // round to it, or the loop would run twice over from then on.
+    this.loopTimeout = null;
 
     try {
       // Nothing to do while nothing is buffered: a seek to the time it is already at went
@@ -478,8 +496,32 @@ export default class MP4Player extends EventEmitter {
     // to play. Playing with media ahead, nothing is: a range that ends starts the next itself
     // (onSuccess runs runLoad), and the stall watchdog counts seconds. The loop woke the page
     // about 250 times a second for as long as an MP4 played.
-    const urgent = this.needsInit || this.readyState < 3 || this.video.seeking;
-    this.loopTimeout = setTimeout(this.boundMainLoop, urgent ? 1 : STEADY_LOOP_MS);
+    // Paused, or at its end, nothing is: downloads go on by themselves all the same, a seek or
+    // a play wakes the loop (wakeLoop), and the rest (the end of the stream, a duration to
+    // set, a range to try again) can wait a quarter of a second. Every player woke the page
+    // 20 times a second while paused - the seek preview, a second player, always is - and an
+    // MP4 that had ended, whose readyState stays below 3 with nothing ahead, 250 times a
+    // second, for as long as its tab stayed open (measured with tools/bench-ab.mjs).
+    const video = this.video;
+    let delay = STEADY_LOOP_MS;
+    if (video.ended) {
+      delay = PAUSED_LOOP_MS;
+    } else if (this.needsInit || video.seeking || (!video.paused && this.readyState < 3)) {
+      delay = 1;
+    } else if (video.paused) {
+      delay = PAUSED_LOOP_MS;
+    }
+    this.loopTimeout = setTimeout(this.boundMainLoop, delay);
+  }
+
+  /**
+   * Runs the main loop's next round at once, not at its paused pace: a seek or a play.
+   */
+  wakeLoop() {
+    // null: a round is running now, and arms the next itself.
+    if (!this.running || this.loopTimeout === null) return;
+    clearTimeout(this.loopTimeout);
+    this.loopTimeout = setTimeout(this.boundMainLoop, 1);
   }
 
   /**
@@ -1053,7 +1095,7 @@ export default class MP4Player extends EventEmitter {
     this.videoTracks = /** @type {any} */ (null);
     this.audioTracks = /** @type {any} */ (null);
 
-    clearTimeout(this.loopTimeout);
+    if (this.loopTimeout) clearTimeout(this.loopTimeout);
 
     VideoUtils.destroyVideo(/** @type {HTMLVideoElement} */ (this.video));
     this.video = /** @type {any} */ (null);
@@ -1134,6 +1176,8 @@ export default class MP4Player extends EventEmitter {
   }
 
   set currentTime(value) {
+    // A seek held below for the duration waits for the loop's next round (durationSync).
+    this.wakeLoop();
     // The element would land a seek past its duration on that duration: one waiting to be set
     // (DurationSync) is set first. So does any seek while the element has none yet (NaN, or
     // +Infinity from an initialization segment without one): it is then held to what is
@@ -1149,6 +1193,7 @@ export default class MP4Player extends EventEmitter {
     }
     this.pendingSeek = null;
     this.video.currentTime = value;
+    this.ownSeek = this.video.currentTime;
 
     // What matters is where the element is going: a seek to -3 s lands on 0, which may well
     // be buffered, and throwing the whole buffer away for it made every arrow press near the
@@ -1160,11 +1205,36 @@ export default class MP4Player extends EventEmitter {
     if (Number.isFinite(duration)) {
       target = Math.min(target, duration);
     }
+    this.reloadUnlessBuffered(target);
+  }
+
+  /**
+   * Starts loading at a time sought to, unless it is buffered: resetHLS takes mp4box there.
+   * @param {number} target
+   */
+  reloadUnlessBuffered(target) {
     // A removal still queued takes away what `buffered` shows (removalPending, #265).
     if (!VideoUtils.isBuffered(this.buffered, target) ||
         removalPending(/** @type {Array<SourceBufferWrapper|null>} */ ([this.videoSourceBuffer, this.audioSourceBuffer]), target)) {
       this.resetHLS();
     }
+  }
+
+  /**
+   * A seek the element made itself, not through currentTime here: play() on a video that has
+   * ended starts it over from 0, and Firefox's picture-in-picture controls seek the element.
+   * Without resetHLS mp4box went on from where it was, never gave the new place's samples,
+   * and the video stood seeking at 0 for good once its start had left the buffer: played
+   * again after its end, an MP4 longer than about 40 s never started (tools/bench-ab.mjs
+   * found it, 2026-11-13; tests/e2e/specs/mp4-loop-pace.e2e.mjs). A seek made through the
+   * setter was checked there.
+   */
+  onElementSeeking() {
+    const video = this.video;
+    if (!this.running || !this.metaData || !video) return;
+    const at = video.currentTime;
+    if (this.ownSeek !== null && Math.abs(at - this.ownSeek) < 0.001) return;
+    this.reloadUnlessBuffered(at);
   }
 
   get currentTime() {
