@@ -741,3 +741,76 @@
   were closed by hand each week and no fix came from them, while it carried a 131-line patch
   of its vitest runner, an override and 34 MB of packages. The fixes kept their own check: a
   hand-made mutation of each one, which its test must catch.
+
+## Firefox API watch (2026-11-13)
+
+`firefox-api-watch.yml` (daily, 07:40 UTC) tells the owner what each new Firefox Stable release
+changed that could break or improve FastStream. It sits beside `firefox-stable.yml`/`firefox-beta.yml`,
+which run the e2e suites on a new Firefox and open an issue when they fail: those catch what
+broke, this one what changed. The logic is `tools/firefox-api-watch.mjs`; what counts as
+relevant is `tools/firefox-api-watch.topics.json`.
+
+- **Sources, all machine-readable** (checked 2026-11-13): product-details
+  (`firefox_versions.json` for the current Stable, `firefox_history_major_releases.json` for the
+  dates; no hard-coded calendar, so a delayed release is simply seen later); MDN's notes for
+  developers as markdown from mdn/content (`files/en-us/mozilla/firefox/releases/<N>/index.md`;
+  bullets carry `bugzil.la` links; a page still in Beta says "work in progress"); the newest
+  `@mdn/browser-compat-data` tarball from npm, its sha512 checked against the registry (features
+  whose Firefox `version_added`/`version_removed` is N, without a preference); Bugzilla REST
+  (`cf_status_firefox<N>` fixed/verified: all WebExtensions bugs, about 6 a release, and Core
+  media/network bugs only with a doc/compat keyword or a media term in the summary; unfiltered,
+  Core media alone is about 50 a release); the add-ons blog feed (posts naming the release).
+- **Relevance is measured against the code**, not guessed: the namespaces `chrome.*`/`browser.*`
+  calls, the manifest's keys and permissions, and each change's names searched in the tracked
+  files under `chrome/` (git's list; the walk without what `.gitignore` names when git cannot
+  tell, as in the WSL copy). A dotted name or a member with its interface in the same file is
+  high confidence; a bare distinctive name medium; a topic keyword only, low. A WebExtensions
+  note about an API the extension does not use (userScripts, themes, publicSuffix) is dropped.
+  Items about the same bug, BCD feature or API merge into one finding. MDN's "Developer Tools"
+  notes are skipped; its WebDriver notes count only when they can break the e2e harness. A dry
+  run over 153-160 (2026-11-13) gave 96 findings for the eight releases: 6 high, 43 medium,
+  47 low. The six high ones were real: decodingInfo() never resolving on Windows, range
+  requests through a service worker, storage.local auto-reset, PiP events, two WebCodecs fixes.
+- **The issue is write-once.** The bot opens "Firefox API Watch: starting with Firefox N" with the
+  first release in its body and adds every later release as a comment, in version order. It
+  never edits or deletes what it posted: upstream-watch rewrites its issue body each time, which
+  here would lose the owner's ticks, and a read-modify-write of a body races with his edits
+  (GitHub has no conditional PATCH). Closing the issue means "reviewed": a closed issue is never
+  touched, and its markers still count, so nothing is listed twice.
+- **State lives in the posts.** Each section carries `<!-- firefox-api-watch:release N -->`,
+  each finding `<!-- ffw-item bug:123 bcd:<hash> mdn:<hash> -->` (all its keys; a finding counts
+  as reported when any key is). They are read from the bot's own issue bodies and comments
+  only (another user's post or a non-watcher issue is never a record), in their exact form.
+  Outside text is made safe (`md()`): no HTML, `@` and `#N`/`GH-N` defused with a zero-width
+  space, brackets and backticks escaped, no autolink, links only to Mozilla/MDN hosts; a marker
+  cannot be forged (property-tested). Nothing is committed: a push to main releases.
+- **When a release is reviewed:** the window is the current Stable and the two before it, from
+  Firefox 161 on (older ones by hand: the dispatch's `from`). A release waits
+  while MDN has no notes or still calls them a work in progress, up to 10 days after it shipped;
+  a source that is down (no answer, 5xx, 408, 429) leaves it for the next run. The run fails,
+  and opens "Firefox API watch failed", when a source answers wrongly (a 4xx, bad JSON, a
+  tarball whose hash does not match) or a release stays unreviewed for 10 days. A change
+  Mozilla adds to a release after it was posted comes as "Firefox N - added after its first
+  review" (only new keys).
+- **Light days:** once every release in the window was reviewed, the Actions cache entry
+  `firefox-api-watch-<current>` (a file holding the version) lets later runs stop after the
+  version check until the next release. It is only a shortcut: a lost entry costs one more
+  review, which finds everything reported and posts nothing.
+- **Concurrency:** one run at a time (`concurrency`, not cancelled); right before posting, the
+  open watcher issues are listed again and the chosen one's state read again, so an issue closed
+  meanwhile is left alone and a new one opened; of two open ones the oldest gets the comment.
+- **Permissions:** `permissions: {}` for the workflow, `contents: read` + `issues: write` for the
+  job; no secret, no environment. It never pushes or dispatches, so it cannot start a release.
+- **By hand:** `node tools/firefox-api-watch.mjs --dry-run --no-github --from 158 --to 160` prints
+  what it would post from the live sources without reading GitHub; the workflow's dispatch takes
+  `dry_run` and `from` (a version; anything else is refused before the script runs).
+- **Tests:** `tests/unit/firefoxApiWatch.test.mjs` (sources through a fake fetch, GitHub in
+  memory: first run, append, ticks and notes kept, close then a new cycle, missed releases,
+  repeated runs, stale state, nothing relevant, notes missing or in progress, sources down or
+  wrong, partial failure and recovery, late additions, foreign and broken markers),
+  `firefoxApiWatch.property.test.mjs` (`md()` and `safeUrl()` against adversarial text), and
+  `tests/workflows/firefox-api-watch.test.sh` (the real step with a stub `gh` and file sources:
+  arguments, the memo outputs, the "from" input refused, the failure issue).
+- **Tuning:** a false positive is fixed in the topics file (a keyword too broad, a Bugzilla
+  summary pattern for `excludeSummary`, a platform area for `excludeText`), with a unit test
+  case; the last dry run's numbers above say what "normal" looks like.
