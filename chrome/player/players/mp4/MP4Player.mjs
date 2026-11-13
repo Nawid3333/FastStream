@@ -90,7 +90,10 @@ export default class MP4Player extends EventEmitter {
     /** @type {number|null} */
     this.ownSeek = null;
     this.video.addEventListener('seeked', () => {
-      this.ownSeek = null;
+      // Not the `seeked` of an earlier seek, queued before the next began: that one dropped
+      // the next seek's mark, its `seeking` was taken for a seek the element made itself, and
+      // the player was reset a second time, aborting the range the first reset had asked for.
+      if (!this.video?.seeking) this.ownSeek = null;
     });
 
     this.mp4box = createFile(false);
