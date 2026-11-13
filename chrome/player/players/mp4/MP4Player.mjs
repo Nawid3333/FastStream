@@ -67,7 +67,7 @@ function warnRefused(e) {
 export default class MP4Player extends EventEmitter {
   /**
    * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
-   * @param {{isPreview?: boolean, isAudioOnly?: boolean, isAnalyzer?: boolean}} [config] -
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config] -
    *   What the player is for (PlayerLoader.createPlayer's callers).
    */
   constructor(client, config) {

@@ -34,7 +34,7 @@ class FastStreamAbrController extends /** @type {any} */ (AbrController) {
 export default class HLSPlayer extends EventEmitter {
   /**
    * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
-   * @param {{isPreview?: boolean, isAudioOnly?: boolean, isAnalyzer?: boolean}} [config] -
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config] -
    *   What the player is for (PlayerLoader.createPlayer's callers).
    */
   constructor(client, config) {
