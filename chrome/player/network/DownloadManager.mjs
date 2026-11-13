@@ -10,6 +10,18 @@ import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 // How many of a hand-off's disk files are moved at a time (DownloadManager.adoptDiskFiles).
 const AdoptAtOnce = 8;
 
+/**
+ * Whether a running download is at least half in, by its downloader's stats (FetchLoader's, as
+ * the body comes): cancelled, it would come again from its first byte. One whose size the
+ * server did not tell (no Content-Length) never is.
+ * @param {?StandardDownloader} downloader
+ * @return {boolean}
+ */
+function halfDone(downloader) {
+  const stats = downloader?.stats;
+  return !!stats && stats.total > 0 && stats.loaded / stats.total >= 0.5;
+}
+
 /** @typedef {import('./DownloadEntry.mjs').DownloadRequest} DownloadRequest */
 /**
  * A file an earlier player of this video left on the disk, taken back (adopt): its entry, its
@@ -807,9 +819,7 @@ export class DownloadManager {
       }
       for (const downloader of this.downloaders.slice()) {
         const entry = downloader.entry;
-        if (!entry || downloader.delivering || !cancellable(entry)) continue;
-        const stats = downloader.stats;
-        if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) continue;
+        if (!entry || downloader.delivering || !cancellable(entry) || halfDone(downloader)) continue;
         entry.abort();
       }
     }
@@ -841,9 +851,7 @@ export class DownloadManager {
     }
     if (entry.status !== DownloadStatus.DOWNLOAD_INITIATED) return false;
     const downloader = entry.downloader;
-    if (downloader?.delivering) return false;
-    const stats = downloader?.stats;
-    if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) return false;
+    if (downloader?.delivering || halfDone(downloader)) return false;
     entry.abort();
     return true;
   }
@@ -934,9 +942,6 @@ export class DownloadManager {
   }
 
   /**
-   * @return {boolean} Whether downloads can go to disk at all (not in a private window).
-   */
-  /**
    * Whether what does not fit in the RAM budget may go to disk: the option "Keep video on
    * disk when this RAM is full". A private window never does.
    * @param {boolean} allowed
@@ -945,6 +950,10 @@ export class DownloadManager {
     this.blobStore?.setMemoryOnly(EnvUtils.isIncognito() || !allowed);
   }
 
+  /**
+   * @return {boolean} Whether downloads can go to disk at all: not in a private window, nor with
+   *   "Keep video on disk" off, nor once no disk store works.
+   */
   canSpill() {
     return !!this.blobStore && !this.blobStore.memoryOnly && !this.blobStore.diskGone;
   }
@@ -1137,6 +1146,9 @@ export class DownloadManager {
   }
 
   async reset() {
+    // Destroyed: nothing to reset. It threw on the downloaders that went, an unhandled
+    // rejection (a player reset as it went, once a save it waited for had stopped).
+    if (!this.downloaders) return;
     this.abortAll();
 
     this.testing = true;
@@ -1177,10 +1189,6 @@ export class DownloadManager {
     // (canGetFile), and the next player's request for the same manifest joined it: a live
     // DASH stream reloaded without a failed codec never loaded (2026-10-06).
     if (this.downloaders) this.queueNext();
-  }
-
-  async setup() {
-
   }
 
   /** @param {boolean} value - Keep the downloads at every reset() (a loaded archive's). */

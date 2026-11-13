@@ -2178,3 +2178,99 @@ describe('FastStreamClient, a video its player cannot read', () => {
     }
   });
 });
+
+describe('FastStreamClient, going while its buffer is on the disk', () => {
+  // As its page goes (main.mjs's beforeunload) the player hands its buffer over (handOffBuffer),
+  // then is destroyed. destroy() did not await the reset: the download manager's clear of the
+  // disk's files waited for its store first, and the store's close went out before it. The OPFS
+  // worker got 'clear' after 'destroy': it deleted the files just handed over to the next player
+  // (each then downloaded again), or nothing at all as the page went. With a save running, the
+  // reset waited for it and ran on the destroyed manager: a TypeError nobody caught.
+
+  /**
+   * A client whose download manager is the real one, its store's OPFS worker a stand-in that
+   * records each call and answers them in order, a task later, as the worker's queue does.
+   * @return {Promise<{client: FastStreamClient, manager: Object, ops: string[]}>}
+   */
+  async function goingClient() {
+    vi.useFakeTimers();
+    vi.stubGlobal('document', {removeEventListener: vi.fn()});
+    // IndexedDBManager, which the store imports, listens on the window as it loads.
+    vi.stubGlobal('window', {...window, addEventListener: vi.fn()});
+    const {DownloadManager} = await vi.importActual('../../chrome/player/network/DownloadManager.mjs');
+    const {OPFSManager} = await import('../../chrome/player/network/OPFSManager.mjs');
+    const {DownloadEntry} = await import('../../chrome/player/network/DownloadEntry.mjs');
+    const client = makeClient();
+    client.peers = {stop: vi.fn()};
+    client.interfaceController.destroy = vi.fn();
+    const manager = new DownloadManager(client);
+    client.downloadManager = manager;
+    const ops = [];
+    const opfs = new OPFSManager();
+    opfs.sessionName = 'fsblob-1-1';
+    opfs.worker = {
+      postMessage: ({id, op}) => {
+        ops.push(op);
+        setTimeout(() => opfs.handleMessage({id, ok: true}));
+      },
+      terminate: () => ops.push('terminated'),
+    };
+    Object.assign(manager.blobStore, {opfsManager: opfs, setupPromise: Promise.resolve()});
+
+    // A finished segment, written to the disk since: a file in the session, no longer in RAM.
+    const url = 'https://cdn.test/v/master.m3u8';
+    const entry = new DownloadEntry({url: 'https://cdn.test/v/seg-1.ts', responseType: 'arraybuffer'});
+    entry.status = DownloadStatus.DOWNLOAD_COMPLETE;
+    entry.data = new Blob(['segment']);
+    await manager.archiveEntryData(entry);
+    const id = manager.getIdentifier(entry);
+    manager.keepEntry(entry, id);
+    opfs.fileName(id, true);
+    manager.blobStore.inRam.delete(id);
+
+    client.source = makeSource(url);
+    client.bufferPage = {page: 'https://site.test/watch', identifier: url};
+    return {client, manager, ops};
+  }
+
+  it('leaves the files it handed over on the disk', async () => {
+    const {client, ops} = await goingClient();
+    chrome.runtime.sendMessage = vi.fn(async () => {});
+    client.handOffBuffer();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: MessageTypes.BUFFER_STASH, session: 'fsblob-1-1', entries: [expect.objectContaining({file: 'f0'})]}));
+    client.destroy();
+    await vi.runAllTimersAsync();
+
+    expect(ops).toEqual(['destroy', 'terminated']);
+  });
+
+  it('deletes its files on the disk before it closes its store, with nothing handed over', async () => {
+    const {client, manager, ops} = await goingClient();
+    client.destroy();
+    await vi.runAllTimersAsync();
+
+    expect(ops).toEqual(['clear', 'destroy', 'terminated']);
+    expect(manager.blobStore).toBe(null);
+  });
+
+  it('goes the same way while a save runs', async () => {
+    const {client, manager, ops} = await goingClient();
+    let saveEnded;
+    client.interfaceController.saveManager = {
+      makingDownload: true,
+      downloadCancel: vi.fn(),
+      pendingSave: new Promise((resolve) => {
+        saveEnded = resolve;
+      }),
+      resetMpvContentType: vi.fn(),
+    };
+    client.destroy();
+    expect(client.interfaceController.saveManager.downloadCancel).toHaveBeenCalled();
+    setTimeout(saveEnded, 100);
+    await vi.runAllTimersAsync();
+
+    expect(ops).toEqual(['clear', 'destroy', 'terminated']);
+    expect(manager.downloaders).toBe(null);
+  });
+});

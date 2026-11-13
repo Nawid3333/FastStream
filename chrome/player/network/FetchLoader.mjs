@@ -90,7 +90,6 @@ export class FetchLoader {
     };
     this.retryDelay = 0;
     this.controller = null;
-    this.response = null;
   }
 
   /** @param {LoaderCallbacks} callbacks - The load's progress and error callbacks. */
@@ -323,7 +322,6 @@ export class FetchLoader {
       return;
     }
 
-    this.response = response;
     // A server that ignores Range answers 200 with the whole file, from its first byte. That
     // was taken for the range asked for (the file's start, labelled as a range further in);
     // the range is cut out of it now (readBody). A 200 that says it is the range (a
@@ -331,10 +329,16 @@ export class FetchLoader {
     const length = parseInt(/** @type {string} */ (response.headers.get('content-length')), 10);
     const wholeFile = status === 200 && !!request.rangeEnd && !response.headers.has('content-range') &&
         !(request.rangeStart > 0 && length === request.rangeEnd - request.rangeStart);
+    // A 206 without Content-Range (a broken server or proxy) does not say what it sends: one that
+    // answered each range with the rest of the file was read to its end, gigabytes for a 1 MB
+    // range, all of it held in RAM and stored before MP4Player cut the range out. It is taken as
+    // starting where the range does, as a 206 does, and reading stops once the range is in.
+    const unsized = status === 206 && !!request.rangeEnd && !response.headers.has('content-range');
+    const cut = wholeFile ? request : unsized ? {rangeStart: 0, rangeEnd: request.rangeEnd - (request.rangeStart || 0)} : null;
 
     let data;
     try {
-      data = await this.readBody(response, isArrayBuffer, isStale, wholeFile ? request : null);
+      data = await this.readBody(response, isArrayBuffer, isStale, cut);
     } catch (e) {
       if (isStale()) {
         return;
@@ -402,9 +406,9 @@ export class FetchLoader {
    * @param {boolean} isArrayBuffer - true to return an ArrayBuffer, false for text.
    * @param {() => boolean} [isStale] - true once this attempt has been torn down;
    *   a chunk still delivered then must not re-arm the next attempt's stall timer.
-   * @param {?{rangeStart: number, rangeEnd: number}} [range] - for a body that is the whole
-   *   file although a range was asked for: only that range is returned, and reading stops
-   *   once it is in.
+   * @param {?{rangeStart: number, rangeEnd: number}} [range] - for a body that may be longer
+   *   than the range asked for (the whole file, or a 206 without Content-Range): only the bytes
+   *   from rangeStart to rangeEnd of the body are returned, and reading stops once they are in.
    * @return {Promise<ArrayBuffer|string>} the concatenated response body.
    */
   async readBody(response, isArrayBuffer, isStale = () => false, range = null) {
@@ -577,10 +581,5 @@ export class FetchLoader {
       callbacks.onTimeout(this.stats, this.request, null);
     });
     this.abortInternal();
-  }
-
-  getCacheAge() {
-    const ageHeader = this.response?.headers.get('age');
-    return ageHeader ? parseFloat(ageHeader) : null;
   }
 };

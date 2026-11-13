@@ -559,11 +559,10 @@ export class SaveManager {
           name: file.name.substring(0, file.name.length - 4),
         });
       } else if (audioFormats.includes(ext)) {
-        // Passing the File itself (rather than a pre-made object URL) routes
-        // through VideoSource.fromFile(), which is the only path that sets
-        // shouldRevoke - so VideoSource.destroy() actually frees the blob
-        // when this source is replaced, instead of leaking it for the tab's
-        // whole lifetime.
+        // The File itself: VideoSource makes its blob: URL (fromFile). That URL is not
+        // revoked when another source replaces this one: the client plays and lists a copy
+        // (addSource), which does not carry shouldRevoke, and the Sources browser plays the
+        // file again from that URL. It lives as long as the player page.
         newSource = new VideoSource(file, {}, PlayerModes.DIRECT);
         newSource.identifier = file.name + 'size' + file.size;
       } else if (URLUtils.getModeFromExtension(ext)) {
