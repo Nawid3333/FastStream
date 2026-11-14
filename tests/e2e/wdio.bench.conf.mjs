@@ -35,6 +35,12 @@ for (const [name, dir] of Object.entries(bench.dirs)) {
   }
 }
 const {rateMbit, ttfbMs} = bench.line;
+// BENCH_TRACE=1: the media requests' trace (benchServer), in logs/bench.
+const traceFile = process.env.BENCH_TRACE === '1' ?
+  path.join(__dirname, '..', '..', 'logs', 'bench', `trace-${new Date().toISOString().replaceAll(':', '-')}.jsonl`) : null;
+if (traceFile) fs.mkdirSync(path.dirname(traceFile), {recursive: true});
+/** @type {Map<string, number>} How many media requests each address and port had. */
+const traceCounts = new Map();
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
@@ -100,12 +106,21 @@ function sendPaced(res, file, {start, end}, line, ttfb) {
 function benchServer(buildDir) {
   const line = sharedLine(rateMbit);
   return http.createServer((req, res) => {
-    // BENCH_TRACE=<file>: each media request's start and end, one JSON line each, to see who
-    // had the line when (the tabs scenario).
-    if (process.env.BENCH_TRACE && req.url.startsWith('/fixtures/')) {
-      const entry = {host: req.headers.host, url: req.url, range: req.headers.range};
-      fs.appendFileSync(process.env.BENCH_TRACE, JSON.stringify({at: Date.now(), event: 'start', ...entry}) + '\n');
-      res.on('close', () => fs.appendFileSync(/** @type {string} */ (process.env.BENCH_TRACE),
+    // BENCH_TRACE=1: each media request's start and end, one JSON line each, to see who had
+    // the line when (the tabs scenario). Only what the server knows itself goes in it - the
+    // address and port it was asked on (a tab's host, a build), the kind of file, a count -
+    // and into a file of its own choosing: nothing a request sends ends up in a file or a path
+    // (CodeQL, 2026-11-14).
+    if (traceFile && req.url.startsWith('/fixtures/')) {
+      const socket = req.socket;
+      const where = `${socket.localAddress}:${socket.localPort}`;
+      // wdio loads this file in each of its processes; the servers run in one of them.
+      if (traceCounts.size === 0) console.log(`Trace: ${traceFile}`);
+      const count = (traceCounts.get(where) || 0) + 1;
+      traceCounts.set(where, count);
+      const entry = {where, kind: req.url.includes('.m3u8') ? 'playlist' : 'segment', count};
+      fs.appendFileSync(traceFile, JSON.stringify({at: Date.now(), event: 'start', ...entry}) + '\n');
+      res.on('close', () => fs.appendFileSync(traceFile,
           JSON.stringify({at: Date.now(), event: res.writableFinished ? 'end' : 'cut', ...entry}) + '\n'));
     }
     const rel = decodePath(req.url.split('?')[0].split('#')[0]);

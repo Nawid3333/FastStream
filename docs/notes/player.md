@@ -1397,8 +1397,12 @@ a run on a slow line) opens three players, paused, in background tabs and one pl
 each video on a loopback host of its own (`BENCH_TABS_HOSTS=same`: all on one), and tells when
 the one in front has its whole video, when all four have, the seconds ahead in front 10 s in, the
 first frame from the page's first request for the video, and the page's start.
-`BENCH_TABS_VIDEO_S` is the videos' length (90). `BENCH_TRACE=<file>` writes a line of JSON for
-each media request's start, end and cut, with its host and the time: who had the line when.
+`BENCH_TABS_VIDEO_S` is the videos' length (90). `BENCH_TRACE=1` writes a line of JSON for each
+media request's start, end and cut to `logs/bench/trace-<time>.jsonl`: the address and port the
+server was asked on (a tab's host, a build), playlist or segment, its count there, and the time:
+who had the line when. Nothing the request sends goes into the file or its name (CodeQL found
+both in the first version, which took the file's name from the variable and wrote the request's
+address and headers).
 
 ## Players in several tabs take turns (2026-11-14)
 
