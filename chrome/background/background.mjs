@@ -2194,9 +2194,17 @@ function isKnownPiece(frame, url) {
   return index !== -1 && Lengths.lengthsOf(sources)[index] === PIECE_LENGTH;
 }
 
+// How long after a file a file like it, neither read yet, is taken for the next piece of
+// the same stream (isRepeatPiece): a player's pieces follow each other within seconds.
+const NextPieceWithinMs = 15000;
+
 /**
  * Whether a file of a frame is another piece of a stream the frame holds a piece of already:
- * a file of the same shape (StreamLengths.shape), as seg-15.mp4 is of seg-14.mp4.
+ * a file of the same shape (StreamLengths.shape), as seg-15.mp4 is of seg-14.mp4. Not when
+ * one of that shape was read as a film: lesson-1.mp4 and lesson-2.mp4 are two videos, and the
+ * page may have other captions for the second. Where none was read (a tab that is off, a
+ * read under way or refused), the next piece is one that comes within NextPieceWithinMs of
+ * the last.
  * @param {FrameHolder} frame - The frame it was detected in.
  * @param {string} url - The file.
  * @param {string} mode - Its PlayerModes value.
@@ -2205,9 +2213,18 @@ function isKnownPiece(frame, url) {
 function isRepeatPiece(frame, url, mode) {
   /** @type {(m: string) => boolean} */
   const isFile = (m) => m === PlayerModes.ACCELERATED_MP4 || m === PlayerModes.DIRECT;
+  if (!isFile(mode)) return false;
   const shape = StreamLengths.shape(url);
-  return isFile(mode) && frame.getSources().some((source) =>
+  const sources = frame.getSources();
+  const own = sources.find((source) => source.url === url);
+  const alike = sources.filter((source) =>
     source.url !== url && isFile(source.mode) && StreamLengths.shape(source.url) === shape);
+  if (alike.length === 0) return false;
+  const lengths = alike.map((source) => Lengths.lengthOf(source.url));
+  if (lengths.includes(PIECE_LENGTH)) return true;
+  if (lengths.some((length) => typeof length === 'number')) return false;
+  const now = own?.time ?? Date.now();
+  return alike.some((source) => Math.abs(now - source.time) < NextPieceWithinMs);
 }
 
 /**

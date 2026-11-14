@@ -250,6 +250,50 @@ describe('a page whose own player fetches a stream\'s pieces', () => {
     expect(bg.sent('SCRAPE_CAPTIONS')).toHaveLength(3);
   });
 
+  it('asks again for a file like the last that comes long after it, in a page that is off', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    // A stream's pieces, one every six seconds for two minutes: asked once.
+    for (let n = 1; n <= 20; n++) {
+      await bg.request({tabId: 1, url: piece(n)}, MP4);
+      await bg.wait(6000);
+    }
+    expect(bg.sent('SCRAPE_CAPTIONS')).toHaveLength(1);
+    // A minute later the page plays another file named alike: the next video of a page that
+    // changes its video without loading again, its own captions on the page by now.
+    await bg.wait(60000);
+    await bg.request({tabId: 1, url: piece(21)}, MP4);
+    expect(bg.sent('SCRAPE_CAPTIONS')).toHaveLength(2);
+  });
+
+  it('asks again for each film of a page whose films are named alike', async () => {
+    // lesson-1.mp4, then lesson-2.mp4: each read as a film with a length, not as a piece.
+    const film = new Uint8Array(8 + 8 + 100);
+    const view = new DataView(film.buffer);
+    view.setUint32(0, film.length);
+    film.set(new TextEncoder().encode('moov'), 4);
+    view.setUint32(8, 108);
+    film.set(new TextEncoder().encode('mvhd'), 12);
+    view.setUint32(16 + 12, 1000);
+    view.setUint32(16 + 16, 600 * 1000);
+    const lesson = (n) => `https://cdn.test/course/lesson-${n}.mp4`;
+    bg = await loadBackground({
+      options: {autoEnableURLs: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
+      fetch: async () => response(film, 206, 'video/mp4'),
+    });
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await bg.request({tabId: 1, url: lesson(1)}, MP4);
+    await bg.wait(100);
+    expect(bg.sent('SCRAPE_CAPTIONS')).toHaveLength(1);
+    // The next lesson, clicked at once: the page has put its captions in.
+    await bg.request({tabId: 1, url: lesson(2)}, MP4);
+    await bg.wait(100);
+    expect(bg.sent('SCRAPE_CAPTIONS')).toHaveLength(2);
+    const sources = await sourcesForPlayer();
+    expect(sources.map((s) => s.duration)).toEqual([600, 600]);
+  });
+
   it('still opens the player after the page\'s captions came', async () => {
     const track = {data: 'WEBVTT\n', source: 'https://site.test/en.vtt', label: 'English', language: 'en'};
     await onPage({onTabMessage: ({message}) => message.type === 'SCRAPE_CAPTIONS' ?
