@@ -1,7 +1,7 @@
 # Privacy Policy
 
-**FastStream for Firefox**
-Last updated: 2026-11-13
+**FastStream Video Player (Firefox)**
+Last updated: 2026-10-03
 
 ## Summary
 
@@ -109,4 +109,4 @@ the `patches/` directory in the source repository.
 
 ## Contact
 
-Issues and questions: https://github.com/Nawid3333/FastStream-for-Firefox/issues
+Issues and questions: https://github.com/Nawid3333/FastStream/issues

@@ -10,14 +10,17 @@ its fixes (section 4).
 **2026-11-14.** The owner's decision: no hand test. `test/all-prs` holds all of it and the work
 of 2026-11-14 on top (players in several tabs take turns; a page loaded again keeps the player; a
 third review's fixes; two fuzz tests: `docs/notes/player.md`, the three sections of that date),
-and goes to main in one merge, which releases (section 7). The table and sections 1 to 6 are
-as written on 2026-11-13, when three draft pull requests waited for his test.
+and goes to main in one merge, which releases (section 7), after a second review round
+(`docs/review-2026-11-14.md`). **The rename is dropped** (his word, 2026-11-14): the add-on
+and the repository stay "FastStream"; #676's changes were reverted on `test/all-prs`. The table
+and sections 1 to 6 are as written on 2026-11-13, when three draft pull requests waited for his
+test.
 
 | Branch | Draft PR | Ships to users |
 |---|---|---|
 | `feature/firefox-api-watch` | #674 | no (a workflow and its tool; `auto-release.yml` skips it) |
 | `feature/firefox-optimization-ui-modernization` | #675 | yes, once merged (a merge to main releases) |
-| `feature/rename-faststream-for-firefox` | #676 | yes; **rename the repository on GitHub first** (section 7) |
+| `feature/rename-faststream-for-firefox` | #676 | dropped on 2026-11-14 (no rename) |
 
 #676 conflicts with #675 in one place (section 7). Every open pull request but the mpv update was
 merged into a test branch, `test/all-prs`, built and tested as the main the merges would make
@@ -508,35 +511,28 @@ worktree's `built` folder.
     run's summary lists what it would post. Locally: `node tools/firefox-api-watch.mjs --dry-run
     --no-github --from 158 --to 160`.
 
-## 7. Merging, the rename, and git
+## 7. Merging and git
 
 Order, as decided on 2026-11-14 (one merge of `test/all-prs`, not one per pull request):
 
-1. **First** rename the repository on GitHub (`gh repo rename FastStream-for-Firefox`; the name
-   exactly so). GitHub then redirects the old address, and every installed copy keeps finding
-   its updates. Merged before the rename, the release's manifest would point at an address that
-   does not exist yet. Never create a new repository called `FastStream` on the account
-   afterwards: it would end the redirects for copies installed before.
-   When: just after a run of the fail-safe (`15 */3 * * *`, UTC), and the merge straight after.
-   Between the rename and the release, main still has the update-path check that knows the old
-   name only; a fail-safe run in that gap would open a false "Update path broken" issue.
-2. Merge `test/all-prs` into main with a merge commit, not a squash: each area keeps its
-   history, and the commits of #672 to #676 are in main as they were reviewed (those pull
+1. The review round of `docs/review-2026-11-14.md` first; its fixes go on `test/all-prs`.
+2. Merge `test/all-prs` into main (PR #679) with a merge commit, not a squash: each area keeps
+   its history, and the commits of #672 to #675 are in main as they were reviewed (those pull
    requests were closed on 2026-11-14 and their branches deleted, since this branch holds
    them). The merge runs the whole CI on main; the automatic release follows it.
 3. Watch the first release run: "Check the tag is on main" is new in it. Then the signed file
-   and `updates.json` under the new address.
+   and `updates.json`.
 4. #634 (the mpv update) stays open, as decided.
 
-After the rename, the repository's "About" text and website link on GitHub can be updated to
-the new name (a setting, not a file).
+No rename: #676 was merged into `test/all-prs` and reverted there (2026-11-14), so its commits
+and their revert are both in the history; the files are as on main.
 
 | Branch | What it holds (on main 4813fbee) |
 |---|---|
 | `feature/firefox-api-watch` | the watcher: tool, workflow, tests, docs, the review's fixes |
 | `feature/firefox-optimization-ui-modernization` | saving through the page (tests); Space, menus and the seek slider; the MP4 loop's pace and its bugs; the A/B benchmark; the first round's background fixes; the review's fixes (eight area branches, merged with their history); the settings page after the first frame; the workflow hardening; the type cleanup; this report |
-| `feature/rename-faststream-for-firefox` | rename in all 16 locales and every link; README; tests and fixtures; reviewer notes; the update-path check takes the former name |
-| `test/all-prs` | the release branch: the merges above, the test URL fix after the rename's merge, and the work of 2026-11-14 |
+| `feature/rename-faststream-for-firefox` | the rename: merged into `test/all-prs` and reverted there, dropped |
+| `test/all-prs` | the release branch: the merges above, the work of 2026-11-14, the rename's revert |
 
 The three feature branches are deleted already (their commits are in `test/all-prs`), and
 `test/all-prs` goes after the merge: only `main` stays, and `mpv-update` for #634.

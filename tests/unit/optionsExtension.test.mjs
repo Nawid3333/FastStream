@@ -148,7 +148,7 @@ describe('the update check', () => {
   it('opens the releases as the player opens a page', async () => {
     const page = await openOptionsPage({latestVersion: '1.3.82.200'});
     page.byId('update').fire('click');
-    expect(page.opened).toHaveBeenCalledWith('https://github.com/Nawid3333/FastStream-for-Firefox/releases');
+    expect(page.opened).toHaveBeenCalledWith('https://github.com/Nawid3333/FastStream/releases');
     expect(page.chrome.tabs.create).not.toHaveBeenCalled();
   });
 });
@@ -162,7 +162,7 @@ describe('the problems list', () => {
     report.fire('click');
     expect(page.win.open).not.toHaveBeenCalled();
     expect(page.opened).toHaveBeenCalledTimes(1);
-    expect(page.opened.mock.calls[0][0]).toMatch(/^https:\/\/github\.com\/Nawid3333\/FastStream-for-Firefox\/issues\/new\?.*example\.com/);
+    expect(page.opened.mock.calls[0][0]).toMatch(/^https:\/\/github\.com\/Nawid3333\/FastStream\/issues\/new\?.*example\.com/);
   });
 });
 
