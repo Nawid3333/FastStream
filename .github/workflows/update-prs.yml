@@ -91,12 +91,16 @@ on:
 
 permissions: {}  # each job asks for what it needs
 
-concurrency:
-  group: update-prs-${{ github.event.workflow_run.head_branch || inputs.branch }}
-  cancel-in-progress: false
-
 jobs:
   decide:
+    # One decision per branch at a time, at job level: every CI run of the repository starts
+    # this workflow, and a workflow-wide group would put the runs whose job is skipped (main's,
+    # a feature branch's, a token-started run's workflow_run beside its dispatch) in the
+    # queue too, where GitHub keeps one pending run and cancels it when another arrives: a
+    # skipped run could have dropped the pending decision (as auto-release.yml found).
+    concurrency:
+      group: update-prs-${{ github.event.workflow_run.head_branch || inputs.branch }}
+      cancel-in-progress: false
     permissions:
       contents: write       # bring a branch up to date
       pull-requests: write  # comment, label

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {webExtSpawn} from '../../tools/rebuild.mjs';
+import {nodeVersionNote, webExtSpawn} from '../../tools/rebuild.mjs';
 
 // How `pnpm run start:ff` and `start:ff:fresh` start web-ext. They joined pnpm and its
 // arguments into one string and spawned it with `shell: false` everywhere but Windows, so on
@@ -49,6 +49,32 @@ describe('webExtSpawn', () => {
       expect(text, launcher).toContain('= webExtSpawn([');
       expect(text, launcher).toMatch(/spawn\(command, args, \{[^}]*\bshell,/);
       expect(text, launcher).not.toContain('.join(\' \')');
+    }
+  });
+});
+
+describe('nodeVersionNote', () => {
+  it('says so on a newer Node than the project is made for, where web-ext could not connect', () => {
+    expect(nodeVersionNote('27.0.0-alpha', '26\n')).toMatch(/Node 27\.0\.0-alpha.*made for Node 26.*start it with Node 26/);
+    expect(nodeVersionNote('28.1.0', 'v26.2.0')).toContain('Node 26');
+  });
+
+  it('says nothing on the project\'s Node or an older one', () => {
+    expect(nodeVersionNote('26.6.1', '26\n')).toBeNull();
+    expect(nodeVersionNote('22.3.0', '26')).toBeNull();
+  });
+
+  it('reads the project\'s Node from .nvmrc', () => {
+    const wanted = Number(fs.readFileSync(path.join(root, '.nvmrc'), 'utf8'));
+    expect(nodeVersionNote(`${wanted + 1}.0.0`)).toContain(`made for Node ${wanted} `);
+    expect(nodeVersionNote(`${wanted}.0.0`)).toBeNull();
+  });
+
+  it('is printed by both launchers before they start web-ext', () => {
+    for (const launcher of ['launch-ff.mjs', 'launch-ff-fresh.mjs']) {
+      const source = fs.readFileSync(path.join(root, 'tools', launcher), 'utf8');
+      expect(source.indexOf('nodeVersionNote()'), launcher).toBeGreaterThan(-1);
+      expect(source.indexOf('nodeVersionNote()'), launcher).toBeLessThan(source.indexOf('spawn(command'));
     }
   });
 });

@@ -20,9 +20,9 @@ import {splice} from '../../tools/splicer.mjs';
 vi.mock('../../chrome/player/utils/SearchUtils.mjs', () => ({
   initsearch: vi.fn(), resetSearch: vi.fn(), searchWithQuery: vi.fn(),
 }));
-// The update banner's check, which runs in the extension too: no newer version.
+// The update banner's check, which runs in the extension too: none due, no newer version.
 vi.mock('../../chrome/player/utils/UpdateChecker.mjs', () => ({
-  UpdateChecker: {getLatestVersion: async () => null, compareVersions: () => false},
+  UpdateChecker: {getLatestVersion: async () => null, refreshUpdateData: async () => null, compareVersions: () => false},
 }));
 
 const root = path.resolve(import.meta.dirname, '..', '..');

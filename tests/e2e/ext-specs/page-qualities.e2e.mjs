@@ -213,10 +213,14 @@ describe('A page that offers its video in several qualities', function() {
       }, 20);
       window.fastStream.setCurrentVideoLevelID('page-quality:0');
     });
+    // Until the watcher has noted a time too: 'playing' may come before it is on the new
+    // video, and 'timeupdate' only four times a second, so the time could move on with nothing
+    // noted yet (firstPlayed -1, the Linux runner, 2026-11-14).
     let after;
     await browser.waitUntil(async () => {
       after = await playerState();
-      return after.width === 640 && after.time > before.time;
+      return after.width === 640 && after.time > before.time &&
+        await browser.execute(() => window.__playedAt.length > 0);
     }, {timeout: 30000, interval: 250}).catch(() => {});
     const firstPlayed = await browser.execute(() => {
       clearInterval(window.__watch);

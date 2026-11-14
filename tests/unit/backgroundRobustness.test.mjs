@@ -118,6 +118,81 @@ describe('a download from a container tab', () => {
   });
 });
 
+describe('a new link for a stream the server refused', () => {
+  // The player asks the page that gave the link for it anew (REQUEST_FRESH_LINK, FreshLink.mjs):
+  // the background fetches that page again, with its site's cookies.
+  const OLD = 'https://cdn.test/hls/master.m3u8?t=old&s=1';
+  const NEW = 'https://cdn.test/hls/master.m3u8?t=new&s=2';
+
+  /**
+   * Has the page give its link, then the player in it ask for a new one.
+   * @param {Object} tab - The tab, as Firefox describes it to the sender.
+   * @return {Promise<{answer: *, pageFetches: Array<Object>}>} The player's answer, and the
+   *   fetches of the page (their init).
+   */
+  async function askFromTab(tab) {
+    const pageFetches = [];
+    bg = await loadBackground({
+      tabs: [tab],
+      fetch: async (url, init) => {
+        if (url !== PAGE) return response('', 404);
+        pageFetches.push(init);
+        return new Response(`<script>var file = "${NEW}";</script>`, {status: 200, headers: {'Content-Type': 'text/html'}});
+      },
+    });
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await bg.request({tabId: 1, url: OLD});
+    const answer = await bg.message({type: 'REQUEST_FRESH_LINK', url: OLD}, {tab, frameId: 3});
+    return {answer, pageFetches};
+  }
+
+  it('is read from the page again in an ordinary tab', async () => {
+    const {answer, pageFetches} = await askFromTab({id: 1, url: PAGE, incognito: false, cookieStoreId: 'firefox-default'});
+    expect(answer).toBe(NEW);
+    expect(pageFetches).toHaveLength(1);
+    expect(pageFetches[0]).toMatchObject({credentials: 'include', cache: 'no-store'});
+  });
+
+  it('is not read from a private window\'s page', async () => {
+    // The background is no private window: its fetch went with the normal window's cookies,
+    // kept what the page set in the normal cookie jar, and missed a private window's proxy.
+    const {answer, pageFetches} = await askFromTab({id: 1, url: PAGE, incognito: true, cookieStoreId: 'firefox-private'});
+    expect(answer).toBeNull();
+    expect(pageFetches).toEqual([]);
+  });
+
+  it('is not read from a container tab\'s page', async () => {
+    // The container's own login is another than the default cookie store's the fetch went with.
+    const {answer, pageFetches} = await askFromTab({id: 1, url: PAGE, incognito: false, cookieStoreId: 'firefox-container-1'});
+    expect(answer).toBeNull();
+    expect(pageFetches).toEqual([]);
+  });
+});
+
+describe('a change of a tab other than its address', () => {
+  it('does not set the toolbar button again for a title, a favicon or a sound', async () => {
+    // Firefox fires tabs.onUpdated for each of them, in every tab (a player's title counts its
+    // time up): each set the button's title, icon and badge again and kept the event page
+    // awake. Firefox's filter lets only address and load changes through.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}, {id: 2, url: 'https://other.test/'}]});
+    await bg.navigated(1, PAGE);
+    expect(bg.titles.has(1)).toBe(true);
+    bg.titles.clear();
+    bg.badges.clear();
+    await bg.tabChanged(1, {title: 'Episode 1 - 12:03'});
+    await bg.tabChanged(1, {favIconUrl: 'https://site.test/favicon.ico'});
+    await bg.tabChanged(1, {audible: true});
+    expect([...bg.titles.keys(), ...bg.badges.keys()]).toEqual([]);
+    // An address change still does, and a load without one (a reload: Firefox resets the
+    // button on every new document).
+    await bg.navigated(1, 'https://site.test/watch/2');
+    expect(bg.titles.has(1)).toBe(true);
+    bg.titles.clear();
+    await bg.tabChanged(1, {status: 'loading'});
+    expect(bg.titles.has(1)).toBe(true);
+  });
+});
+
 describe('the toolbar\'s On with players for several frames', () => {
   it('opens the one over the largest video first, also when a frame gives no size', async () => {
     // A frame without a content script answers nothing: its size was undefined, the sort
@@ -263,6 +338,33 @@ describe('the "use the player for stream links" redirect', () => {
           .toBe('moz-extension://bg-test/player/index.html?address=' + key + '#\\0');
     }
   });
+
+  it('is changed only when what it is made of changes', async () => {
+    // Every options save loads the options here again, and each load made both rules again:
+    // two declarativeNetRequest updates, the rules unchanged. A slider dragged for two seconds
+    // on the options page saves some 120 times.
+    const both = {playMP4URLs: true, playStreamURLs: true, autoEnableURLs: ['https://site.test/']};
+    bg = await loadBackground({options: both});
+    const load = async (options) => {
+      const before = bg.dynamicRules.length;
+      bg.options = options;
+      await bg.message({type: 'LOAD_OPTIONS', time: Date.now()}, {tabId: 99});
+      await bg.wait(100);
+      return bg.dynamicRules.slice(before);
+    };
+    expect(bg.dynamicRules).toHaveLength(2);
+    expect(await load(both)).toEqual([]);
+    expect(await load({...both, replaceDelay: 700, autoEnableURLs: ['https://site.test/', 'https://other.test/']})).toEqual([]);
+    // A -domain entry: both rules leave its site alone.
+    const excluded = await load({...both, autoEnableURLs: ['https://site.test/', '-github.com']});
+    expect(excluded.map((update) => update.addRules[0].condition.excludedRequestDomains))
+        .toEqual([['bg-test', 'github.com'], ['bg-test', 'github.com']]);
+    expect(await load({...both, autoEnableURLs: ['-github.com']})).toEqual([]);
+    // A switch turned off takes its rule away, once; turned on again, the rule comes back.
+    expect(await load({...both, playMP4URLs: false, autoEnableURLs: ['-github.com']})).toEqual([{removeRuleIds: [1]}]);
+    expect(await load({...both, playMP4URLs: false, autoEnableURLs: ['-github.com']})).toEqual([]);
+    expect((await load({...both, autoEnableURLs: ['-github.com']})).map((update) => update.addRules[0].id)).toEqual([1]);
+  });
 });
 
 // The Auto-enable URLs list as the background turns a tab on by it (tabs.onUpdated). The
@@ -362,5 +464,83 @@ describe('the permissions tab the player\'s VPN button opens', () => {
     }
     await bg.wait(10);
     expect(bg.removedTabs).toEqual([201]);
+  });
+});
+
+describe('a web page a player in a page opens', () => {
+  // EnvUtils.openExternalURL: the OpenSubtitles page of a subtitle, the error dialog's report.
+  // A player framed in a page has no chrome.tabs (measured, PageFetchRelay.mjs), and both did
+  // nothing there; the background opens them for it (the review of 2026-11-13).
+  const PLAYER_FRAME = 'moz-extension://bg-test/player/index.html#https://site.test/video.mp4';
+  const from = (url = PLAYER_FRAME) => ({tab: {id: 1, index: 0, url: PAGE}, frameId: 3, url});
+
+  it('is opened for the player, an http or https one', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    for (const url of ['https://www.opensubtitles.com/en/subtitles/x', 'http://example.test/report?e=1']) {
+      expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url}, from()), url).toBe(true);
+    }
+    // With no opener: the popup guard, armed by the click into the player, leaves it alone.
+    expect(bg.createdTabs).toEqual([
+      {id: 1000, url: 'https://www.opensubtitles.com/en/subtitles/x'}, {id: 1001, url: 'http://example.test/report?e=1'}]);
+  });
+
+  it('is opened for the settings page in that player too', async () => {
+    // Its report and update buttons (options.mjs): an iframe in the player, as short of
+    // chrome.tabs as the player itself.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    const page = 'https://github.com/example/releases';
+    expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url: page},
+        from('moz-extension://bg-test/player/options/index.html'))).toBe(true);
+    expect(bg.createdTabs).toEqual([{id: 1000, url: page}]);
+  });
+
+  it('is no other address, and not for a content script or another of FastStream\'s pages', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    for (const url of ['javascript:alert(1)', 'data:text/html,<p>x', 'moz-extension://bg-test/player/index.html',
+      '/player/index.html#https://site.test/video.mp4', 'file:///C:/x', 'about:config', '', undefined, 7]) {
+      expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url}, from()), String(url)).toBe(false);
+    }
+    const page = 'https://www.opensubtitles.com/en/subtitles/x';
+    // A content script runs in every page: not answered at all (MessageSenders).
+    expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url: page}, from(PAGE))).toBe(undefined);
+    // Another of its pages does not ask (the welcome page, a page named like the player's).
+    for (const other of ['moz-extension://bg-test/welcome.html', 'moz-extension://bg-test/player/index.htmlx/../evil.html']) {
+      expect(await bg.message({type: 'OPEN_EXTERNAL_URL', url: page}, from(other)), other).toBe(false);
+    }
+    expect(bg.createdTabs).toEqual([]);
+  });
+});
+
+describe('the toolbar button of a tab that closed', () => {
+  it('leaves no rejected call unhandled', async () => {
+    // Firefox rejects a toolbar call for a tab that is gone ("Invalid tab ID"): the "Off"
+    // badge's second, a start that waited for its page. Each was an unhandled error in the
+    // background's console (a review, 2026-11-13). Each call's answer here records whether
+    // anything took its rejection.
+    const answers = [];
+    const gone = () => {
+      const answer = {handled: false};
+      answers.push(answer);
+      return {
+        then(onDone, onFailed) {
+          if (onFailed) answer.handled = true;
+          return this;
+        },
+        catch() {
+          answer.handled = true;
+          return this;
+        },
+      };
+    };
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    bg.chrome.action.setBadgeText = gone;
+    bg.chrome.action.setTitle = gone;
+    bg.chrome.action.setIcon = gone;
+    await bg.click(1); // On
+    await bg.click(1); // Off, and its badge goes a second later
+    await bg.wait(1500);
+    expect(answers.length).toBeGreaterThanOrEqual(7);
+    expect(answers.filter((answer) => !answer.handled)).toEqual([]);
   });
 });

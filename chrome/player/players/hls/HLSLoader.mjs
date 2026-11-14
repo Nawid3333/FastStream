@@ -1,4 +1,5 @@
 // @ts-check
+import {STALL_TIMEOUT_MS} from '../../network/FetchLoader.mjs';
 import {storeIndex} from './HLSFragmentStore.mjs';
 
 // How many times in a row one segment may fail before hls.js hears an error. Until then a
@@ -201,8 +202,14 @@ export function HLSLoaderFactory(player) {
       this.callbacks = callbacks;
       // Set here, before the loading below reads them; null once destroyed. hls.js's Loader
       // has its context as T | null.
+      // hls.js's `timeout` is the longest a whole load may take (its load policy's
+      // maxLoadTimeMs: 120 s for a segment, 20 s for a playlist or a key), and FetchLoader
+      // takes `timeout` for how long nothing may come. A segment whose connection went dead
+      // held the playback that waited for it for two minutes before it was asked for again;
+      // a download ahead gives up after STALL_TIMEOUT_MS. The rest stays hls.js's: no retry
+      // inside the download (maxRetry 0), each failure told to hls.js (reportFailure).
       /** @type {?import('../../modules/hls.mjs').LoaderConfiguration} */
-      this.config = config;
+      this.config = config ? {...config, timeout: Math.min(config.timeout ?? STALL_TIMEOUT_MS, STALL_TIMEOUT_MS)} : config;
       /** @type {?HlsLoadContext} */
       this.context = context;
 
@@ -424,6 +431,13 @@ export function HLSLoaderFactory(player) {
       // As hls.js's own loaders do: it reads this to tell an aborted load from a failed one.
       this.stats.aborted = true;
       if (this.loader) {
+        // Out of the player's loading list (a segment's, loadFragmentInternal): the download
+        // tells only the last of its watchers that it was aborted (DownloadEntry.abortWatcher),
+        // and a segment the client was downloading as well stayed in the list for good.
+        const index = player.activeRequests.indexOf(this.loader);
+        if (index > -1) {
+          player.activeRequests.splice(index, 1);
+        }
         this.loader.abort();
       }
     };

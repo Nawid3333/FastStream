@@ -37,6 +37,7 @@ merged themselves.
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
 | actionlint and zizmor images | a Dependabot PR (docker, daily) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | "ready to merge" when it changes only those files: CI ran every workflow file through the new checks | the PR |
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
+| what a new Firefox changed (APIs, removals, media and WebExtensions fixes) | `firefox-api-watch.yml` (daily) reads each new Stable release's MDN notes for developers, browser-compat-data, its fixed Bugzilla bugs and the add-ons blog, and keeps what touches the APIs FastStream's code uses | nothing to merge; a release with nothing relevant posts nothing | one issue, "Firefox API Watch: starting with Firefox N": a section per release, a box per finding (priority, confidence, the files that use it, the links); tick what you dealt with, close it when reviewed, and the next release with findings opens a new one |
 | security alerts | a Dependabot alert on the Security tab, and a Dependabot PR that fixes it (the rows above); `security-alerts.yml` (daily) watches for an alert with no such PR | as the PR's row says | GitHub's alert email; for an alert over 6 hours old with no Dependabot PR, an issue per package, "Security alert: <package>", closed once its alerts are fixed on `main` or dismissed |
 | security alerts Dependabot cannot fix, when an override floor fixes them | ONE rolling PR from `security-alerts.yml` (daily) on `security/overrides`, "Security fixes: override floors": a floor per package and major in `pnpm-workspace.yaml`'s `overrides` (raised, or added with a comment), and `pnpm-lock.yaml` rewritten for it (`--lockfile-only --ignore-scripts`, in a job with no write token), checked to fix every alert it takes and to move nothing else; CI and the dependency review are started on it | "ready to merge" when CI and the dependency review pass and it changes only those two files. An alert it cannot take (no patched version, the fix a new major, a floor `main` has already, a parent-scoped override, two overrides reaching the same major) gets the issue above, with the reason. Closing the PR unmerged hands its alerts to you as issues | the PR |
 
@@ -186,7 +187,10 @@ toolchain PR leaves the lockfile alone.
 
 Some failures arrive as an issue rather than a red PR: the mpv build, a runner
 image, a Firefox version, the upstream watch, a patched library whose patch could
-not be cut. Each names what failed. The Firefox, runner-image and upstream-watch issues
+not be cut. (The "Firefox API Watch" review issue is not a failure: it lists what a new
+Firefox changed, for you to tick off and close. "Firefox API watch failed" is its failure
+issue: a source answering wrongly, or a release whose notes stayed missing for 10 days.)
+Each names what failed. The Firefox, runner-image and upstream-watch issues
 close themselves on the next green run, a patched-library one when the patch is
 cut against that version or newer, a "Security alert" one when its alerts are fixed or
 dismissed. If `update-prs.yml`, `toolchain-updates.yml` or `security-alerts.yml` itself

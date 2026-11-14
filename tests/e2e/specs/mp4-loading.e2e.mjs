@@ -12,16 +12,14 @@
 //   time it was at, on every tick; nothing being buffered there, each seek reset the
 //   player. Opening a long fragmented file at 30 s reset it 482 times (measured).
 
-import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
 
+import {SINE_10_MIN, ensureLongAudioOnly, ensureMp4Shape as ensureFile, fixturesDir} from '../mp4Shapes.mjs';
 import {byteRange} from '../serveFile.mjs';
 
-const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures');
 // 160 s, 17 MB: 18 of MP4Player's 1 MB ranges. wdio.conf.mjs writes it.
 const LONG_FIXTURE = path.join(fixturesDir, 'long-av.mp4');
 const RANGE = 1000000;
@@ -31,24 +29,6 @@ const ORIGIN = `http://127.0.0.1:${PORT}`;
 let server;
 // How often each file's failing range has been asked for.
 const asked = {dead: 0, flaky: 0};
-
-/**
- * Writes one file with ffmpeg under fixtures/mp4-shapes/, unless it is already there.
- * @param {string} name - The file's name.
- * @param {string[]} args - ffmpeg's arguments before the output file.
- */
-function ensureFile(name, args) {
-  const dir = path.join(fixturesDir, 'mp4-shapes');
-  const file = path.join(dir, name);
-  if (fs.existsSync(file)) return;
-  fs.mkdirSync(dir, {recursive: true});
-  const partial = file + '.part.mp4';
-  const {status, error, stderr} = spawnSync('ffmpeg', ['-y', '-v', 'error', ...args, partial], {encoding: 'utf8'});
-  if (status !== 0) {
-    throw new Error(`could not write ${name} with ffmpeg${error ? ` (${error.message})` : ''}.\n${stderr || ''}`);
-  }
-  fs.renameSync(partial, file);
-}
 
 /**
  * The player's state: its video's time and buffer, and whether it shows its error.
@@ -69,10 +49,9 @@ function playerState() {
 
 describe('MP4Player loading', function() {
   before(async function() {
-    const sine = ['-f', 'lavfi', '-i', 'sine=frequency=440:duration=600', '-c:a', 'aac', '-b:a', '128k'];
-    ensureFile('long-audio-only.mp4', [...sine, '-movflags', '+faststart']);
+    ensureLongAudioOnly();
     // ffmpeg's default: the moov after the media.
-    ensureFile('long-audio-moov-end.mp4', sine);
+    ensureFile('long-audio-moov-end.mp4', SINE_10_MIN);
     ensureFile('long-moov-end.mp4', ['-i', LONG_FIXTURE, '-c', 'copy']);
     // As mp4-files.e2e.mjs writes it (one spec runs at a time).
     ensureFile('long-fragmented.mp4', ['-i', LONG_FIXTURE, '-c', 'copy', '-movflags', 'frag_keyframe+empty_moov']);

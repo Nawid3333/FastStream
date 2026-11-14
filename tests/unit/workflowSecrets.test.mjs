@@ -64,6 +64,21 @@ describe('secrets kept in environments', () => {
     expect(whole).toEqual([]);
   });
 
+  it('keep the repository token away from installs and builds in the jobs that hold the AMO keys', () => {
+    // A dependency's install script (geckodriver's, esbuild's: allowBuilds in
+    // pnpm-workspace.yaml) and the build run in the jobs that sign; a token in the job's env
+    // reaches them. Each step that calls gh gets it itself (a review, 2026-11-13).
+    const token = /secrets\s*\.\s*GITHUB_TOKEN|github\s*\.\s*token/;
+    const signers = jobs.filter(({job}) => environmentOf(job) === 'release');
+    expect(signers.length).toBeGreaterThanOrEqual(2);
+    const leaks = signers.flatMap(({where, job}) => [
+      ...(token.test(JSON.stringify(job.env || {})) ? [`${where}: the job's env`] : []),
+      ...(job.steps || []).filter((step) => /\bpnpm (install|run build)|\bnpm (ci|install)\b/.test(step.run || '') &&
+          token.test(JSON.stringify(step.env || {}))).map((step) => `${where}: step "${step.name}"`),
+    ]);
+    expect(leaks).toEqual([]);
+  });
+
   it('finds each way a job can name a secret', () => {
     expect(secretsOf({env: {A: '${{ secrets.AMO_API_KEY }}'}})).toEqual(['AMO_API_KEY']);
     expect(secretsOf({steps: [{with: {t: '${{ secrets[\'UPDATE_PRS_TOKEN\'] }}'}}]})).toEqual(['UPDATE_PRS_TOKEN']);

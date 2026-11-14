@@ -13,6 +13,7 @@
 // Keep this list in step with the "build:keep" script in package.json.
 
 import {spawn} from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
@@ -60,6 +61,22 @@ export function webExtSpawn(args, platform = process.platform) {
     return {command: ['pnpm', ...pnpmArgs].map(quote).join(' '), args: [], shell: true};
   }
   return {command: 'pnpm', args: pnpmArgs, shell: false};
+}
+
+/**
+ * What to tell someone who starts web-ext on a newer Node than the project is made for
+ * (.nvmrc): web-ext's connection to Firefox failed on Node 27 (10.8.0: the second try to
+ * connect threw outside its error handling, ECONNREFUSED, and web-ext ended), and nothing
+ * said why. The launchers print it before they start web-ext.
+ * @param {string} [running] - This Node's version, as process.versions.node.
+ * @param {string} [wanted] - The project's, as .nvmrc has it.
+ * @return {?string} The note, or null on the project's Node or an older one.
+ */
+export function nodeVersionNote(running = process.versions.node, wanted = fs.readFileSync(path.join(root, '.nvmrc'), 'utf8')) {
+  const major = (/** @type {string} */ version) => Number(/\d+/.exec(version)?.[0]);
+  if (!(major(running) > major(wanted))) return null;
+  return `This is Node ${running}; the project is made for Node ${major(wanted)} (.nvmrc). ` +
+    `If web-ext cannot connect to Firefox (ECONNREFUSED), start it with Node ${major(wanted)}.`;
 }
 
 /**

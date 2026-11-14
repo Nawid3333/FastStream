@@ -94,7 +94,7 @@ export class StatusManager {
 
     let displayCount = 0;
     toDisplayList.forEach((toDisplay, index) => {
-      const element = /** @type {HTMLElement} */ (elements[index]);
+      const element = elements[index];
       if (!toDisplay) {
         element.style.display = 'none';
         return;

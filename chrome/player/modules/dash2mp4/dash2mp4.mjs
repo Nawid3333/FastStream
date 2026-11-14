@@ -66,8 +66,9 @@ export class DASH2MP4 extends EventEmitter {
 
   /**
    * Closes the blob store the saved file reads from: see MP4Merger.release().
+   * @param {boolean} [removeFiles] - Its files on disk go too.
    */
-  release() {
-    this.converter?.release();
+  release(removeFiles = false) {
+    this.converter?.release(removeFiles);
   }
 }

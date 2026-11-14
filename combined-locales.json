@@ -2681,6 +2681,24 @@
     "zh_CN": "视频质量",
     "zh_TW": "影片品質"
   },
+  "player_seekbar_label": {
+    "en": "Playback position",
+    "de": "Wiedergabeposition",
+    "es": "Posición de reproducción",
+    "fr": "Position de lecture",
+    "id": "Posisi pemutaran",
+    "it": "Posizione di riproduzione",
+    "ja": "再生位置",
+    "ko": "재생 위치",
+    "ms": "Kedudukan main balik",
+    "nl": "Afspeelpositie",
+    "pl": "Pozycja odtwarzania",
+    "pt_BR": "Posição de reprodução",
+    "ru": "Позиция воспроизведения",
+    "tr": "Oynatma konumu",
+    "zh_CN": "播放位置",
+    "zh_TW": "播放位置"
+  },
   "player_languagemenu_label": {
     "en": "Language selection",
     "de": "Sprachauswahl",

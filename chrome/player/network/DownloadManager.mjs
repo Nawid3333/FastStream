@@ -73,8 +73,20 @@ export class DownloadManager {
     this.keepStorageNext = false;
     // Leaving the network to a watched player that is short of video (setYield).
     this.yielding = false;
-    // ...and holding even its own playback's requests: it is paused (setYield).
+    // ...and holding even its own playback's requests: it is paused (setYield), or it is
+    // paused, waits for its turn and has its next seconds (setWaiting). yieldHold and waitHold
+    // say which of the two asked for it.
     this.holdingPlayback = false;
+    this.yieldHold = false;
+    this.waitHold = false;
+    // Waiting for its turn among the players in background tabs (setWaiting, PlayerTurns).
+    this.waiting = false;
+    // Bytes of the downloads that finished (received): with what the running ones have so far,
+    // what this player tells the others of its speed (PlayerPeers.measure).
+    this.receivedDone = 0;
+    // The host of the download started last: players on one host share Firefox's connections
+    // to it (PlayerTurns.leavesRoom).
+    this.lastHost = '';
     // The speed test's samples of the total speed, until SamplesPerStep are averaged.
     /** @type {number[]} */
     this.speedTestBuffer = [];
@@ -774,8 +786,8 @@ export class DownloadManager {
    * of video (PlayerPeers.shouldYield), or takes it back. While yielding the client starts no
    * downloads ahead (predownloadFragments), what still goes out asks Firefox for 'low'
    * priority (StandardDownloader), and the downloads ahead that are running are cancelled -
-   * not those this player's own playback waits for (priority 1000 and up), nor one at least
-   * half done, nor one being delivered. A cancelled one is downloaded again later, from the
+   * not those this player's own playback waits for (priority 1000 and up), nor one being
+   * delivered; one nearly done goes too (cancelIfCheap says why). A cancelled one is downloaded again later, from the
    * start: DownloadEntry.abort() puts its fragment back to waiting. Not pause(): that is the
    * user's, and stops everything.
    * A paused player holds its playback's requests too (holdPlayback): they wait in the queue
@@ -788,14 +800,16 @@ export class DownloadManager {
   setYield(yielding, holdPlayback = false) {
     if (!this.downloaders) return;
     const hold = yielding && holdPlayback;
-    const holdChanged = this.holdingPlayback !== hold;
+    const holdChanged = this.yieldHold !== hold;
     const yieldChanged = this.yielding !== yielding;
     // Both set before anything starts again: queueNext and the client read them.
-    this.holdingPlayback = hold;
+    this.yieldHold = hold;
+    this.holdingPlayback = hold || this.waitHold;
     this.yielding = yielding;
     if (yieldChanged && yielding) {
-      // The downloads ahead: queued ones leave the queue, running ones under half done stop.
-      // Not a save's (priority below 0: the user asked for it), not what playback waits for.
+      // The downloads ahead: queued ones leave the queue, running ones stop, however far in
+      // (cancelIfCheap says why). Not a save's (priority below 0: the user asked for it), not
+      // what playback waits for.
       /** @param {DownloadEntry} entry */
       const cancellable = (entry) => {
         const priority = entry.priority || 0;
@@ -808,8 +822,6 @@ export class DownloadManager {
       for (const downloader of this.downloaders.slice()) {
         const entry = downloader.entry;
         if (!entry || downloader.delivering || !cancellable(entry)) continue;
-        const stats = downloader.stats;
-        if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) continue;
         entry.abort();
       }
     }
@@ -823,10 +835,58 @@ export class DownloadManager {
   }
 
   /**
+   * Waits for this player's turn to download ahead, or ends the wait (PlayerPeers.shouldWait:
+   * a player in a background tab, while one that goes before it still downloads on a line
+   * they share). Softer than setYield: the client starts no new downloads ahead
+   * (predownloadFragments) and what goes out asks for 'low' priority, but what runs finishes
+   * - nothing is cancelled, so a wait that ends a second later has cost nothing - and its own
+   * playback's requests go as always.
+   * Unless it is told to hold them (holdPlayback: a paused player that has its next seconds,
+   * PlayerPeers.waitHoldsPlayback): they wait in the queue then, as a paused player's do
+   * while it yields. A paused MP4 player's own loading reads 30 ranges ahead of the playhead
+   * (30 MB) at playback's priority; waiting with nothing held, it took them while it was
+   * another player's turn.
+   * @param {boolean} waiting
+   * @param {boolean} [holdPlayback] - Hold its playback's requests as well.
+   */
+  setWaiting(waiting, holdPlayback = false) {
+    if (!this.downloaders) return;
+    const hold = waiting && holdPlayback;
+    const changed = this.waiting !== waiting;
+    const holdChanged = this.waitHold !== hold;
+    if (!changed && !holdChanged) return;
+    this.waiting = waiting;
+    this.waitHold = hold;
+    this.holdingPlayback = this.yieldHold || hold;
+    if (changed && !waiting) this.client?.predownloadFragments?.();
+    if ((changed && !waiting) || holdChanged) this.queueNext();
+  }
+
+  /**
+   * Bytes this player's downloads have received: the finished ones, and what the running ones
+   * have so far (FetchLoader counts as the body comes). It goes down when a running download
+   * is cancelled; PlayerPeers reads only that it moves, and how fast it grows.
+   * @return {number}
+   */
+  received() {
+    let bytes = this.receivedDone;
+    for (const downloader of this.downloaders || []) {
+      if (downloader.entry) bytes += downloader.loader?.stats?.loaded || 0;
+    }
+    return bytes;
+  }
+
+  /**
    * Cancels the download of a request, when that is cheap and harmless: not one this player's
-   * playback waits for (priority 1000 and up), not one at least half done, not one being
-   * delivered. A queued one leaves the queue. Its fragment goes back to waiting
-   * (DownloadEntry.abort tells the watchers) and is downloaded again when it is wanted.
+   * playback waits for (priority 1000 and up), not one being delivered. A queued one leaves the
+   * queue. Its fragment goes back to waiting (DownloadEntry.abort tells the watchers) and is
+   * downloaded again when it is wanted.
+   *
+   * A running one goes however far it is in. Sparing those at least half in (2026-11-13, a
+   * check that had held nothing until then) made a seek to 80 s in an MP4 on a 12 Mbit/s line
+   * take a second longer, 1557 -> 2547 ms in 7 of 7 rounds (tools/bench-ab.mjs): the spared
+   * downloads, outside the new place's window, shared the line with the ones the seek waited
+   * for. Their half comes again from its first byte only if the user goes back there.
    * @param {DownloadRequest} details - The request (a fragment's getContext()).
    * @return {boolean} Whether it was cancelled.
    */
@@ -842,8 +902,6 @@ export class DownloadManager {
     if (entry.status !== DownloadStatus.DOWNLOAD_INITIATED) return false;
     const downloader = entry.downloader;
     if (downloader?.delivering) return false;
-    const stats = downloader?.stats;
-    if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) return false;
     entry.abort();
     return true;
   }
@@ -934,9 +992,6 @@ export class DownloadManager {
   }
 
   /**
-   * @return {boolean} Whether downloads can go to disk at all (not in a private window).
-   */
-  /**
    * Whether what does not fit in the RAM budget may go to disk: the option "Keep video on
    * disk when this RAM is full". A private window never does.
    * @param {boolean} allowed
@@ -945,6 +1000,10 @@ export class DownloadManager {
     this.blobStore?.setMemoryOnly(EnvUtils.isIncognito() || !allowed);
   }
 
+  /**
+   * @return {boolean} Whether downloads can go to disk at all: not in a private window, nor with
+   *   "Keep video on disk" off, nor once no disk store works.
+   */
   canSpill() {
     return !!this.blobStore && !this.blobStore.memoryOnly && !this.blobStore.diskGone;
   }
@@ -974,6 +1033,7 @@ export class DownloadManager {
     if (this.paused || !this.downloaders || this.stopping) return;
 
     const failed = entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted;
+    if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE) this.receivedDone += downloader.stats?.loaded || 0;
     // A 429/503 was already signalled when the answer came (StandardDownloader.onSlowDown ->
     // slowDown). It is not an ordinary failure: no lastFailed and no downloader dropped.
     // (A download without an error has no code: includes(undefined) is false.)
@@ -1082,6 +1142,9 @@ export class DownloadManager {
 
     this.client.predownloadFragments();
     this.queueNext();
+    // The others hear at once when this player has all it wanted: the next in turn starts then,
+    // not at this page's next tick, which in a background tab can be 15 s away.
+    this.client.updatePeers?.();
   }
 
   /**
@@ -1137,6 +1200,9 @@ export class DownloadManager {
   }
 
   async reset() {
+    // Destroyed: nothing to reset. It threw on the downloaders that went, an unhandled
+    // rejection (a player reset as it went, once a save it waited for had stopped).
+    if (!this.downloaders) return;
     this.abortAll();
 
     this.testing = true;
@@ -1163,6 +1229,7 @@ export class DownloadManager {
     const keep = this.dontClearStorage || this.keepStorageNext;
     this.keepStorageNext = false;
     this.memoryFull = false;
+    this.lastHost = '';
     if (!keep) {
       await this.clearStorage();
     }
@@ -1177,10 +1244,6 @@ export class DownloadManager {
     // (canGetFile), and the next player's request for the same manifest joined it: a live
     // DASH stream reloaded without a failed codec never loaded (2026-10-06).
     if (this.downloaders) this.queueNext();
-  }
-
-  async setup() {
-
   }
 
   /** @param {boolean} value - Keep the downloads at every reset() (a loaded archive's). */

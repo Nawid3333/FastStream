@@ -583,7 +583,13 @@ export class FSBlob {
     }
   }
 
-  close() {
-    return this.opfsManager?.close() ?? this.indexedDBManager?.close();
+  /**
+   * @param {boolean} [removeFiles] - Deletes its OPFS session's files too (OPFSManager.close):
+   *   only when nothing will read them again. The other backends keep nothing after a close
+   *   (the Cache API's cache is orphaned from the start).
+   * @return {Promise<void>|void}
+   */
+  close(removeFiles = false) {
+    return this.opfsManager?.close(removeFiles) ?? this.indexedDBManager?.close();
   }
 }

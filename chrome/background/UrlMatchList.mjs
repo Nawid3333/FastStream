@@ -129,7 +129,7 @@ export class UrlMatchList {
         return null;
       }
     } else {
-      urlStr = urlStr.toLowerCase();
+      urlStr = UrlMatchList.punycodeHost(urlStr.toLowerCase());
       if (urlStr.length === 0) {
         return null;
       }
@@ -137,6 +137,25 @@ export class UrlMatchList {
     }
 
     return entry;
+  }
+
+  /**
+   * A plain entry with its site in punycode, as Firefox gives a page's address: typed as
+   * `bücher.example`, the entry matched no page, which came as https://xn--bcher-kva.example/.
+   * A site in ASCII, or one that does not parse, stays as written, and so does the rest.
+   * @param {string} entry - The entry, lowercased.
+   * @return {string} It, its site in punycode.
+   */
+  static punycodeHost(entry) {
+    const parts = /^([a-z][a-z0-9+.-]*:\/\/)?([^/?#:@]*)([\s\S]*)$/.exec(entry);
+    if (!parts || !/[\u0080-￿]/.test(parts[2])) {
+      return entry;
+    }
+    try {
+      return (parts[1] || '') + new URL('http://' + parts[2]).hostname + parts[3];
+    } catch (e) {
+      return entry;
+    }
   }
 
   /**
@@ -233,14 +252,25 @@ export class UrlMatchList {
     const site = withoutWww(written);
     // "www." alone (a site begun and not finished) is no page, not every one; a scheme alone
     // ("https://") is every page of it, on purpose.
-    if (site === '' && written !== '') {
+    if (site === '') {
+      return written === '';
+    }
+    // The page from its host on, as its address parses, less a user name and password: the
+    // text after the scheme starts with those, and `example.com` matched
+    // https://example.com:x@evil.com/, a page of evil.com.
+    let address;
+    try {
+      address = new URL(normalizedUrl);
+    } catch (e) {
       return false;
     }
-    const page = withoutWww(normalizedUrl.slice(/** @type {string} */ (urlScheme).length));
+    address.username = '';
+    address.password = '';
+    const page = withoutWww(address.href.slice(/** @type {string} */ (urlScheme).length));
     if (!page.startsWith(site)) {
       return false;
     }
     // Only a host (and port): the page's host ends there too.
-    return site === '' || site.includes('/') || /^$|^[/?#:]/.test(page.slice(site.length));
+    return site.includes('/') || /^$|^[/?#:]/.test(page.slice(site.length));
   }
 }

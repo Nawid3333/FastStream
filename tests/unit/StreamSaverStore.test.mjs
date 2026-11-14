@@ -40,8 +40,9 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
       this.cleared = true;
       this.blobStore.clear();
     }
-    close() {
+    close(removeFiles) {
       this.closed = true;
+      this.removedFiles = !!removeFiles;
     }
   },
 }));
@@ -189,5 +190,39 @@ describe('StreamSaver: the blob store of a save', () => {
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();
     expect(globalThis.fakeOpfs.saveAbort).not.toHaveBeenCalled();
     expect(stores[0].closed).toBe(false);
+  });
+});
+
+// A saved video's copy on disk stayed after its download until another FastStream player
+// started (a prune). Closed once Firefox said the download is over, its files go with it.
+describe('StreamSaver: a finished save\'s files on disk', () => {
+  it('go with the store once Firefox said the download is over', async () => {
+    globalThis.fakeOpfs = makeOpfs();
+    Utils.revokeWhenDownloaded.mockResolvedValue(true);
+    const writer = streamSaver.createWriteStream('video.mp4').getWriter();
+    await writer.write(new Uint8Array(4));
+    await writer.close();
+    await vi.advanceTimersByTimeAsync(120000);
+    expect(stores[0].closed).toBe(true);
+    expect(stores[0].removedFiles).toBe(true);
+  });
+
+  it('stay for the next prune when it could not tell (a link click)', async () => {
+    globalThis.fakeOpfs = makeOpfs();
+    Utils.revokeWhenDownloaded.mockResolvedValue(false);
+    const writer = streamSaver.createWriteStream('video.mp4').getWriter();
+    await writer.write(new Uint8Array(4));
+    await writer.close();
+    await vi.advanceTimersByTimeAsync(120000);
+    expect(stores[0].closed).toBe(true);
+    expect(stores[0].removedFiles).toBe(false);
+  });
+
+  it('go at once with a save that failed', async () => {
+    globalThis.fakeOpfs = makeOpfs({saveEnd: new Error('saveEnd failed')});
+    const writer = streamSaver.createWriteStream('video.mp4').getWriter();
+    await writer.write(new Uint8Array(4));
+    await expect(writer.close()).rejects.toThrow('saveEnd failed');
+    expect(stores[0].removedFiles).toBe(true);
   });
 });

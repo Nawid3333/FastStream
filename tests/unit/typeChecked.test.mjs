@@ -1,3 +1,4 @@
+import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
@@ -56,6 +57,7 @@ const CHECKED = [
   'chrome/player/modules/FSBlob.mjs',
   'chrome/player/modules/LargeBuffer.mjs',
   'chrome/player/modules/Localize.mjs',
+  'chrome/player/modules/SaveFile.mjs',
   'chrome/player/modules/SecureMemory.mjs',
   'chrome/player/modules/StreamSaver.mjs',
   'chrome/player/modules/analyzer/AudioAnalyzer.mjs',
@@ -85,9 +87,11 @@ const CHECKED = [
   'chrome/player/network/OpQueue.mjs',
   'chrome/player/network/PageFetch.mjs',
   'chrome/player/network/PlayerPeers.mjs',
+  'chrome/player/network/PlayerTurns.mjs',
   'chrome/player/network/PlayheadFirst.mjs',
   'chrome/player/network/SpeedTracker.mjs',
   'chrome/player/network/StandardDownloader.mjs',
+  'chrome/player/network/UntimedSpans.mjs',
   'chrome/player/network/opfs-worker.mjs',
   'chrome/player/options/KeybindUtils.mjs',
   'chrome/player/options/MpvSuggestion.mjs',
@@ -211,6 +215,7 @@ const CHECKED = [
   'tools/e2e-spec-weights.mjs',
   'tools/fetch-amo-signed.mjs',
   'tools/find-base.mjs',
+  'tools/firefox-api-watch.mjs',
   'tools/gen-update-manifest.mjs',
   'tools/hash-build.mjs',
   'tools/launch-ff-fresh.mjs',
@@ -289,6 +294,24 @@ describe('type-checked files', () => {
     expect(CHECKED.filter((file) => file.endsWith('.js') && !files.includes(file) &&
       !patterns.some((re) => re.test(file)))).toEqual([]);
   });
+
+  it('are all in the program tsc checks, asked of tsc itself', () => {
+    // The pattern test above reads tsconfig.json's globs the way this file thinks tsc does,
+    // and only for classic scripts. Three modules passed it and were in no project
+    // (2026-11-14): chrome/perms.mjs and chrome/player/preload.mjs, which their pages load
+    // and nothing imports, and the channel counter's worklet, which addModule() loads.
+    // `pnpm run typecheck` was green without reading them (perms.mjs had 10 errors, the
+    // worklet 8), and an editor opened them in a project of its own, without `strict` or
+    // the extension's types. tsc's own list is what counts.
+    const tsc = path.join(root, 'node_modules', 'typescript', 'bin', 'tsc');
+    const listed = execFileSync(process.execPath, [tsc, '--listFilesOnly', '-p', root],
+        {cwd: root, encoding: 'utf8', maxBuffer: 1 << 28});
+    const base = root.replace(/\\/g, '/').toLowerCase() + '/';
+    const program = new Set(listed.split(/\r?\n/).map((line) => line.replace(/\\/g, '/').toLowerCase())
+        .filter((line) => line.startsWith(base)).map((line) => line.slice(base.length)));
+    expect(program.size).toBeGreaterThan(CHECKED.length);
+    expect(CHECKED.filter((file) => !program.has(file.toLowerCase()))).toEqual([]);
+  }, 120000);
 
   it('see a declaration beside every vendored library they import', () => {
     // Absent until the build copies it, a vendored library was an untyped import; once

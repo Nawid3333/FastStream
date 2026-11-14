@@ -119,6 +119,8 @@ describe('SaveManager: the URL of a finished save', () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:save-1');
     expect(release).toHaveBeenCalledTimes(1);
+    // Waited a minute without knowing: its files on disk stay for the next prune.
+    expect(release).toHaveBeenCalledWith(false);
   });
 
   it('reuses the URL of a complete save', async () => {
@@ -171,6 +173,8 @@ describe('SaveManager: the URL of a finished save', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:save-1');
     expect(release).toHaveBeenCalledTimes(1);
+    // Firefox said both are over: its files on disk go too.
+    expect(release).toHaveBeenCalledWith(true);
     vi.unstubAllGlobals();
   });
 

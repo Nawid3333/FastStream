@@ -446,6 +446,9 @@
     "player_qualitymenu_label": {
         "message": "Video kalitesi"
     },
+    "player_seekbar_label": {
+        "message": "Oynatma konumu"
+    },
     "player_languagemenu_label": {
         "message": "Dil seçimi"
     },

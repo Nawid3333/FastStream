@@ -251,7 +251,6 @@ export class AudioAnalyzer extends EventEmitter {
    */
   async loadPlayer(source, doneRanges, onDone) {
     const player = await this.client.playerLoader.createPlayer(source.mode, this.client, {
-      isAnalyzer: true,
       isAudioOnly: true,
     });
 
@@ -540,7 +539,12 @@ export class AudioAnalyzer extends EventEmitter {
       this.backgroundDoneRanges.length = 0;
       this.volumeBuffer = [];
       if (this.backgroundAnalyzerStatus !== AnalyzerStatus.RUNNING) {
-        this.reset();
+        // Only the analysis starts again. reset() destroyed the main player's volume node
+        // too, which only the start of a video makes (FastStreamClient.initiateWebAudio):
+        // the live volume stopped for the rest of the video.
+        this.stopBackgroundAnalyzer();
+        this.backgroundAnalyzerStatus = AnalyzerStatus.IDLE;
+        this.analyzedLevels = null;
       }
       this.emit('audioLevelChanged', audioLevel);
     }

@@ -144,3 +144,31 @@ Node's types loaded, `setTimeout` returns a `Timeout`, not a number), `Quality`,
 Each script's typedefs sit inside its own scope: at the top level of a classic script they
 would be global to every script in the program. `window.location = url` needs its cast
 (`string & Location`): that is the type TypeScript's DOM types give the setter.
+
+Since 2026-11-13 `DOMElements.mjs` types each entry once where it is found: a cast to its
+element type, without null (every one of the 80 selectors is in `player/index.html`), so code
+uses `DOMElements.x` without a cast of its own; 437 casts at the uses went. `window.fastStream`
+is declared once, optional, in `types/player-window.d.ts`; the code's own checks narrow it,
+and only `recieveSources()` and `loadOptions()` in `main.mjs` keep the `FastStreamWindow` cast,
+as they read the client with no check of their own (a local const would hold it across an
+`await`). In all, 1,384 inline casts became 1,001, the minified code of each changed file
+the same as before. Casts at a `querySelector` stay: JSDoc has no non-null element type there
+without one.
+
+### Every opted-in script is in tsc's program (2026-11-14)
+
+`tsconfig.json`'s `include` named five folders under `chrome/`, and the rest of the player came
+in through imports. Three scripts with `// @ts-check` are loaded by a page or by
+`audioWorklet.addModule()` and imported by nothing: `chrome/perms.mjs`,
+`chrome/player/preload.mjs` and `chrome/player/modules/channelcounter/channelcounter.worklet.mjs`.
+They were in no project: `pnpm run typecheck` passed without reading them (`perms.mjs` had 10
+errors under `strict`, the worklet 8), and an editor showed them in a project of its own, without
+`strict` or the extension's types. `include` is now `chrome/**/*.mjs` and `chrome/**/*.js`, the
+libraries' folder still excluded; a script in that folder that nothing imports goes into `files`
+(the HLS decrypter's worker, the worklet). `types/audio-worklet.d.ts` declares the worklet's two
+globals. The three files were typed with comments only (`handoff`'s same-code check: the minified
+code is the same). `typeChecked.test.mjs` asks tsc for its file list (`--listFilesOnly`) and fails
+on an opted-in script that is not in it; with the old `include` it names the three.
+
+An error an editor shows on a `tsconfig.json` of a worktree that no longer exists ("File ...
+decrypter-worker.js not found") is the editor's memory of a deleted folder: close that tab.

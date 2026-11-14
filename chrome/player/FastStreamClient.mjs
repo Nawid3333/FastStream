@@ -41,16 +41,13 @@ import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {PageFetch} from './network/PageFetch.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate} from './network/PlayheadFirst.mjs';
+import {isTimed, untimedSpans} from './network/UntimedSpans.mjs';
 import {SILENT_MAX_PLAYBACK_RATE} from './options/KeybindUtils.mjs';
 import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
 import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
 import {VideoLevel} from './players/Levels.mjs';
 
 
-/**
- * Main FastStream video player client. Handles playback, UI, options, and state management.
- * @extends EventEmitter
- */
 const SET_VOLUME_USING_NODE = EnvUtils.isWebAudioSupported();
 
 // The quality menu's id of one of the page's qualities, followed by its index in
@@ -148,6 +145,10 @@ const AutoNextTries = 5;
  * @property {boolean} [mpvPausePage]
  */
 
+/**
+ * Main FastStream video player client. Handles playback, UI, options, and state management.
+ * @extends EventEmitter
+ */
 export class FastStreamClient extends EventEmitter {
   /**
    * Constructs a FastStreamClient instance.
@@ -228,13 +229,11 @@ export class FastStreamClient extends EventEmitter {
     this.frameStepper = new FrameStepper();
     this.downloadManager = new DownloadManager(this);
     // The other FastStream players: one the user watches and that is short of video gets
-    // the network (PlayerPeers.shouldYield, DownloadManager.setYield).
+    // the network (PlayerPeers.shouldYield, DownloadManager.setYield), and those in background
+    // tabs download in turns behind the ones that are seen (shouldWait, setWaiting).
     this.peers = new PlayerPeers({
-      state: () => ({playing: !!this.state.playing, ahead: this.getVideoAhead(),
-        ramBytes: this.downloadManager?.ramBytes?.() || 0}),
-      onChange: () => {
-        if (!this.destroyed) this.downloadManager.setYield(this.peers.shouldYield(), !this.state.playing);
-      },
+      state: () => this.peerState(),
+      onChange: () => this.applyPeers(),
     });
     this.peers.start();
     this.onPeersVisibility = () => this.updatePeers();
@@ -257,11 +256,14 @@ export class FastStreamClient extends EventEmitter {
       this.audioOutput.setupNodes(this.audioContext);
     }
 
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).addEventListener('keydown', (e) => {
+    // On the document, as the keybinds are: heard only on the player, Escape did nothing once
+    // the focus was on <body> (leaving the control bar blurs its control, so a menu opened by
+    // a click stayed open). A dialog keeps its own keys (AlertPolyfill), and the player's
+    // fields and menus let Escape through to here.
+    document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.escapeAll();
         e.preventDefault();
-        e.stopPropagation();
       }
     });
 
@@ -338,7 +340,6 @@ export class FastStreamClient extends EventEmitter {
    * @return {Promise<void>}
    */
   async setup() {
-    await this.downloadManager.setup();
     if (SecureMemory.isSupported()) {
       const progressMemory = new SecureMemory('faststream-progress', {maxAgeMs: PROGRESS_MAX_AGE_MS});
       try {
@@ -507,8 +508,15 @@ export class FastStreamClient extends EventEmitter {
     clearTimeout(this.progressPruneTimer);
     document.removeEventListener('visibilitychange', this.onPeersVisibility);
     this.peers.stop();
-    this.resetPlayer();
-    this.downloadManager.destroy();
+    // The download manager goes once the reset is over: its files on the disk deleted first,
+    // unless they were handed over (handOffBuffer). Not awaited, the reset's clear (FSBlob.clear
+    // waits for its store first) reached the OPFS worker after the store's close: it ran after
+    // the worker's 'destroy', and deleted the files just handed over to the next player, or did
+    // not run at all as the page went. A reset that first waited for a save to stop ran on the
+    // destroyed manager, and threw.
+    const downloadManager = this.downloadManager;
+    this.resetPlayer().catch((e) => console.error('Could not reset the player as it went', e))
+        .finally(() => downloadManager.destroy());
     this.interfaceController.destroy();
     if (this.progressMemory) {
       this.progressMemory.destroy();
@@ -699,7 +707,7 @@ export class FastStreamClient extends EventEmitter {
         // plain UI debounce rather than something tied to the player's
         // lifecycle.
         if (this.previewPlayer && parseFloat(this.previewPlayer.getVideo().style.opacity) === 0) {
-          /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).classList.add('loading');
+          DOMElements.seekPreviewVideo.classList.add('loading');
         }
       }, 200);
     }
@@ -711,7 +719,7 @@ export class FastStreamClient extends EventEmitter {
   showPreview() {
     if (this.previewPlayer) {
       this.previewPlayer.getVideo().style.opacity = /** @type {any} */ (1);
-      /** @type {HTMLElement} */ (DOMElements.seekPreviewVideo).classList.remove('loading');
+      DOMElements.seekPreviewVideo.classList.remove('loading');
       clearTimeout(this.previewPlayerLoadingTimeout);
     }
   }
@@ -722,7 +730,12 @@ export class FastStreamClient extends EventEmitter {
   updatePreview() {
     if (!this.previewPlayer) return;
 
-    if (this.previewPlayer.getVideo().readyState > 1) {
+    // Its frame, where it was pointed: an MP4 preview holds a place past the duration it knew
+    // of a fragmented file while it reads on (MP4Player's previewSeek), its element still at
+    // the place before, and showed that place's frame for it. Every other player's time is its
+    // element's.
+    const video = this.previewPlayer.getVideo();
+    if (video.readyState > 1 && this.previewPlayer.currentTime === video.currentTime) {
       this.showPreview();
       return;
     }
@@ -1352,7 +1365,7 @@ export class FastStreamClient extends EventEmitter {
       }
     }
 
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).style.backgroundColor = 'black';
+    DOMElements.playerContainer.style.backgroundColor = 'black';
 
     this.emit('setsource', this);
   }
@@ -1652,10 +1665,12 @@ export class FastStreamClient extends EventEmitter {
         if (manager.isSpilling(fragment.getContext())) continue;
         let start = fragment.start;
         let end = fragment.end;
-        if (!Number.isFinite(start) || !Number.isFinite(end)) {
+        if (!isTimed(fragment)) {
           // No times yet (a fragmented MP4's ranges before they are parsed): placed by their
           // distance from the fragment playing, far behind or far ahead; next to it, kept.
-          // Never released, they let a private window's RAM grow without a bound.
+          // Never released, they let a private window's RAM grow without a bound. (No times
+          // is -1, which is finite: asked for a finite number, this never ran, and they were
+          // placed a second before the video's start, the first to go.)
           if (!current || current.level !== fragment.level || Math.abs(fragment.sn - current.sn) <= 2) continue;
           const distance = fragment.sn - current.sn;
           start = distance > 0 ? time + 1e7 + distance : time - 1e7 + distance;
@@ -1686,7 +1701,82 @@ export class FastStreamClient extends EventEmitter {
   updatePeers() {
     if (this.destroyed || !this.peers) return;
     this.peers.announce();
-    this.downloadManager?.setYield?.(this.peers.shouldYield(), !this.state.playing);
+    this.applyPeers();
+  }
+
+  /**
+   * Steps aside for a watched player that is short of video (setYield), waits for this
+   * player's turn among those in background tabs (setWaiting), or downloads.
+   */
+  applyPeers() {
+    if (this.destroyed || !this.peers || !this.downloadManager) return;
+    this.downloadManager.setYield?.(this.peers.shouldYield(), !this.state.playing);
+    this.downloadManager.setWaiting?.(this.peers.shouldWait(), this.peers.waitHoldsPlayback());
+  }
+
+  /**
+   * How this player is doing, for the other players (PlayerPeers).
+   * @return {import('./network/PlayerPeers.mjs').OwnState}
+   */
+  peerState() {
+    const manager = this.downloadManager;
+    const ahead = this.getVideoAhead();
+    const live = this.isLive();
+    const duration = this.duration;
+    return {
+      playing: !!this.state.playing,
+      ahead,
+      ramBytes: manager?.ramBytes?.() || 0,
+      live,
+      buffering: !!this.state.buffering,
+      // What there is beyond what it has: nothing at the video's end. A live stream's end
+      // moves on, and a video without a length has none to compare with.
+      room: !live && Number.isFinite(duration) && duration > 0 ? duration - this.state.currentTime - ahead : undefined,
+      wants: this.wantsNetwork(),
+      received: manager?.received?.() || 0,
+      rate: this.videoRate(),
+      shared: manager?.perConnection !== true,
+      host: manager?.lastHost || '',
+      saving: !!this.interfaceController?.saveManager?.makingDownload,
+    };
+  }
+
+  /**
+   * Whether this player has video to download ahead that it would start now if the network
+   * were its own: what the players in background tabs take turns for (PlayerTurns). Not a live
+   * stream, which takes what its server makes at the stream's own pace; not one whose downloads
+   * the user paused or limited to nothing, or whose RAM share is used up.
+   * @return {boolean}
+   */
+  wantsNetwork() {
+    const manager = this.downloadManager;
+    if (this.destroyed || !this.player || !manager?.downloaders || manager.paused || manager.memoryFull) return false;
+    if (!navigator.onLine || this.needsUserInteraction() || this.options.maxSpeed === 0 || this.isLive()) return false;
+    if (manager.activeCount() > 0) return true;
+    const next = this.getNextToDownload();
+    if (!next) return false;
+    // The window predownloadFragments keeps to when the whole video is not wanted.
+    if (next.canFree() && !this.shouldDownloadAll() &&
+        (next.start > this.state.currentTime + this.state.bufferAhead ||
+         next.end < this.state.currentTime - this.state.bufferBehind)) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Bytes a second this video plays at: measured from what is downloaded, else what its
+   * quality level says; 0 when neither is known.
+   * @return {number}
+   */
+  videoRate() {
+    let bitrate = this.fragments ? Utils.measuredBitrate(this.fragments) : null;
+    if (!(Number(bitrate) > 0)) {
+      const levels = this.getVideoLevels();
+      const id = this.getCurrentVideoLevelID();
+      bitrate = levels && id !== null && id !== undefined ? levels.get(/** @type {string} */ (id))?.bitrate ?? null : null;
+    }
+    return Number(bitrate) > 0 ? Number(bitrate) / 8 : 0;
   }
 
   /**
@@ -1709,8 +1799,9 @@ export class FastStreamClient extends EventEmitter {
    * @return {boolean} True if any fragments were downloaded.
    */
   predownloadFragments() {
-    // Another player that the user watches needs the network (DownloadManager.setYield).
-    if (this.downloadManager.yielding) {
+    // Another player that the user watches needs the network (DownloadManager.setYield), or
+    // it is another player's turn (setWaiting).
+    if (this.downloadManager.yielding || this.downloadManager.waiting) {
       return false;
     }
 
@@ -1750,14 +1841,19 @@ export class FastStreamClient extends EventEmitter {
     let nextDownload = this.getNextToDownload();
     let hasDownloaded = false;
     let index = 0;
+    /** @type {Map<string|number, Map<number, import('./network/UntimedSpans.mjs').Span>>} */
+    const untimed = new Map();
 
     while (nextDownload) {
       if (nextDownload.canFree() && !this.shouldDownloadAll()) {
-        if (nextDownload.start > this.state.currentTime + this.state.bufferAhead) {
+        // One without times and nothing to place it by is downloaded: the RAM budget lets go
+        // of such by their distance (keepWithinMemoryBudget).
+        const span = this.windowSpan(nextDownload, untimed);
+        if (span && span.start > this.state.currentTime + this.state.bufferAhead) {
           break;
         }
 
-        if (nextDownload.end < this.state.currentTime - this.state.bufferBehind) {
+        if (span && span.end < this.state.currentTime - this.state.bufferBehind) {
           break;
         }
       }
@@ -1786,6 +1882,26 @@ export class FastStreamClient extends EventEmitter {
       hasDownloaded = this.predownloadReservedFragments();
     }
     return hasDownloaded;
+  }
+
+  /**
+   * Where a fragment lies in the video, for the download window: its times, or, for one that
+   * has none yet (a fragmented MP4's range the player has not parsed), about where
+   * (UntimedSpans). Such a range counted as one long behind the playhead once that passed
+   * 19 s: no download ahead was started any more.
+   * @param {Fragment} fragment
+   * @param {Map<string|number, Map<number, import('./network/UntimedSpans.mjs').Span>>} placed -
+   *   The levels placed in this pass, kept between its fragments.
+   * @return {import('./network/UntimedSpans.mjs').Span|null} None when nothing tells.
+   */
+  windowSpan(fragment, placed) {
+    if (isTimed(fragment)) return fragment;
+    let spans = placed.get(fragment.level);
+    if (!spans) {
+      spans = untimedSpans(this.getFragments(fragment.level) || []);
+      placed.set(fragment.level, spans);
+    }
+    return spans.get(fragment.sn) || null;
   }
 
   /**
@@ -1848,10 +1964,22 @@ export class FastStreamClient extends EventEmitter {
    * @param {Array<Fragment>} fragments - A level's, by sn.
    */
   freeFragments(fragments) {
+    /** @type {Map<number, import('./network/UntimedSpans.mjs').Span>|null} */
+    let untimed = null;
     for (let i = 0; i < fragments.length; i++) {
       const fragment = fragments[i];
       if (fragment && fragment.status === DownloadStatus.DOWNLOAD_COMPLETE && fragment.canFree()) {
-        if (fragment.end < this.state.currentTime - this.state.bufferBehind || fragment.start > this.state.currentTime + this.state.bufferAhead) {
+        /** @type {import('./network/UntimedSpans.mjs').Span|undefined} */
+        let span = fragment;
+        if (!isTimed(fragment)) {
+          // Downloaded ahead of the parser (windowSpan): each was let go of at the next tick,
+          // as one long behind the playhead. One nothing places stays (the RAM budget lets go
+          // of it by its distance).
+          untimed ??= untimedSpans(fragments);
+          span = untimed.get(i);
+        }
+        if (span && (span.end < this.state.currentTime - this.state.bufferBehind ||
+            span.start > this.state.currentTime + this.state.bufferAhead)) {
           this.freeFragment(fragment);
         }
       }
@@ -1927,10 +2055,6 @@ export class FastStreamClient extends EventEmitter {
     return true;
   }
 
-  /**
-   * Handles failure to load the player or fragments.
-   * @param {string} reason
-   */
   /**
    * Loads the source playing again, from scratch, once a video codec failed to decode for
    * good (DashPlayer.takeCodecReload): the new player picks without it, as its failures are
@@ -2226,6 +2350,9 @@ export class FastStreamClient extends EventEmitter {
     chrome.runtime.sendMessage({type: MessageTypes.BUFFER_STASH, page: this.bufferPage.page,
       identifier: source.identifier, url: source.url, session, entries})
         .catch((e) => console.warn('Could not hand the buffer over', e));
+    // Its files on the disk are the stash's now, which lets them go if nobody takes them back:
+    // the reset as this player goes (destroy) must not delete them.
+    this.downloadManager.keepStorageOnce();
   }
 
   /**
@@ -2505,10 +2632,6 @@ export class FastStreamClient extends EventEmitter {
       this.updateQualityLevels();
     });
 
-    this.context.on(DefaultPlayerEvents.ABORT, (/** @type {undefined} */ event) => {
-
-    });
-
     this.context.on(DefaultPlayerEvents.CANPLAY, (/** @type {undefined} */ event) => {
       this.player.playbackRate = this.state.playbackRate;
 
@@ -2523,23 +2646,11 @@ export class FastStreamClient extends EventEmitter {
       }
     });
 
-    this.context.on(DefaultPlayerEvents.CANPLAYTHROUGH, (/** @type {undefined} */ event) => {
-
-    });
-
-    this.context.on(DefaultPlayerEvents.COMPLETE, (/** @type {undefined} */ event) => {
-
-    });
-
     this.context.on(DefaultPlayerEvents.DURATIONCHANGE, (/** @type {undefined} */ event) => {
       this.updateDuration();
       this.interfaceController.updateFragmentsLoaded();
       this.mediaKeys()?.updatePosition();
     });
-
-    this.context.on(DefaultPlayerEvents.EMPTIED, (/** @type {undefined} */ event) => {
-    });
-
 
     this.context.on(DefaultPlayerEvents.ENDED, (/** @type {undefined} */ event) => {
       this.pause();
@@ -2615,6 +2726,8 @@ export class FastStreamClient extends EventEmitter {
       this.audioOutput?.updateChannelCount();
       // A frame is decoded: the overlay's first picture.
       this.takeArtwork();
+      // And the settings page may load now, out of the start's way (OptionsWindow).
+      this.interfaceController?.optionsWindow?.loadFrameWhenIdle();
     });
 
 
@@ -2650,10 +2763,6 @@ export class FastStreamClient extends EventEmitter {
     });
 
 
-    this.context.on(DefaultPlayerEvents.PROGRESS, (/** @type {undefined} */ event) => {
-    });
-
-
     this.context.on(DefaultPlayerEvents.RATECHANGE, (/** @type {undefined} */ event) => {
       this.mediaKeys()?.updatePosition();
       this.droppedFrameWatch.interrupt();
@@ -2673,14 +2782,6 @@ export class FastStreamClient extends EventEmitter {
     });
 
 
-    this.context.on(DefaultPlayerEvents.STALLED, (/** @type {undefined} */ event) => {
-    });
-
-
-    this.context.on(DefaultPlayerEvents.SUSPEND, (/** @type {undefined} */ event) => {
-    });
-
-
     this.context.on(DefaultPlayerEvents.TIMEUPDATE, (/** @type {undefined} */ event) => {
       if (this.interfaceController.isUserSeeking()) return;
 
@@ -2694,11 +2795,6 @@ export class FastStreamClient extends EventEmitter {
       // `waiting`: a video that stood still in its last second with neither a wait nor an end
       // told showed "1 s" for good.
       this.watchEndStall();
-    });
-
-
-    this.context.on(DefaultPlayerEvents.VOLUMECHANGE, (/** @type {undefined} */ event) => {
-
     });
 
 

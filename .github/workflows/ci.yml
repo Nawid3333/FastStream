@@ -590,6 +590,15 @@ jobs:
           SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TITLE: 'Auto release failed'
         run: |
+          # Releases turned off by the owner (the workflow's page, "Disable workflow"): no
+          # release is wanted, and GitHub would refuse every start - not a failure to report.
+          # Any other state (active, or disabled by GitHub for inactivity) goes on as before.
+          state=$(gh api "repos/$GH_REPO/actions/workflows/auto-release.yml" --jq .state) || state=''
+          if [ "$state" = disabled_manually ]; then
+            echo "Auto release is turned off (disabled_manually): no release for CI run $RUN_ID on main." \
+              | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
+            exit 0
+          fi
           start() { gh workflow run auto-release.yml --ref main -f run_id="$RUN_ID" -f sha="$SHA"; }
           if start || { sleep 30; start; } || { sleep 120; start; }; then
             exit 0

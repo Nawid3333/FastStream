@@ -3,22 +3,7 @@ import {EventEmitter} from '../eventemitter.mjs';
 import {createFile, DataStream, Endianness} from '../mp4box/mp4box.all.mjs';
 import {MP4} from '../hls2mp4/MP4Generator.mjs';
 import {FSBlob} from '../FSBlob.mjs';
-import {BlobManager} from '../../utils/BlobManager.mjs';
-
-/**
- * Copies any ArrayBuffer-or-TypedArray view into a fresh, transferable
- * ArrayBuffer. FileReader can return either shape depending on platform/
- * storage backend (OPFS-backed Blobs have been observed yielding views),
- * and OPFS saveAppend needs a plain buffer to transfer.
- * @param {ArrayBuffer|ArrayBufferView} data
- * @return {ArrayBuffer}
- */
-function toStandaloneBuffer(data) {
-  if (data instanceof ArrayBuffer) {
-    return data.slice(0);
-  }
-  return /** @type {ArrayBuffer} */ (data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
-}
+import {SaveFile} from '../SaveFile.mjs';
 
 /** @typedef {import('../mp4box/mp4box.all.mjs').ISOFile} ISOFile */
 /** @typedef {import('../mp4box/mp4box.all.mjs').SampleEntry} SampleEntry */
@@ -47,6 +32,7 @@ function toStandaloneBuffer(data) {
  * and what finalize() works out from them.
  * @typedef {{type: 'video'|'audio', id: number, sourceTrackId: number, timescale: number,
  *   duration: number, samples: Array<OutputSample>, chunks: Array<MergerChunk>,
+ *   presentedDuration?: number,
  *   use64Offsets: boolean, nextChunkId: number, elst: Array<{media_time: number, segment_duration: number}>,
  *   trexs: NonNullable<ISOFile['moov']['mvex']>['trexs'], codecBuffer: ArrayBuffer,
  *   movieTimescale?: number, width?: number, height?: number, pixelRatio?: Array<number>,
@@ -57,7 +43,7 @@ function toStandaloneBuffer(data) {
  * A fragment to save, in time order (DashPlayer.saveVideo): its track (0 the video, 1 the
  * audio), and what reads its data.
  * @typedef {{track: number, fragment: import('../../players/dash/DashFragment.mjs').DashFragment,
- *   getEntry: () => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}} ZippedFragment
+ *   getEntry: (options?: {keepPinned?: boolean}) => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}} ZippedFragment
  */
 
 const VideoCodecs = ['avc1', 'avc2', 'avc3', 'avc4', 'av01', 'dav1', 'hvc1', 'hev1', 'hvt1', 'lhe1', 'dvh1', 'dvhe', 'vvc1', 'vvi1', 'vvs1', 'vvcN', 'vp08', 'vp09', 'avs3', 'j2ki', 'mjp2', 'mjpg', 'uncv'];
@@ -70,21 +56,15 @@ export class MP4Merger extends EventEmitter {
   constructor(registerCancel) {
     super();
     this.blobManager = new FSBlob();
-    // Progressive finalize: when OPFS is available (Firefox), mdat chunks
-    // stream into ONE disk-backed file instead of accumulating as in-RAM
-    // Blobs - finalize() then hands the download a File, not a full in-memory
-    // copy of the video. Without OPFS (web build), falls back to the
-    // original Blob accumulation.
-    this.opfs = this.blobManager.opfsManager || null;
-    this.saveIdentifier = this.opfs ?
-      'merge-' + Date.now() + '-' + Math.floor(Math.random() * 1000000) : null;
-    if (this.opfs) {
-      // Handled where it is awaited in finalize(); the silent catch only
-      // keeps a merge that is cancelled before finalize() from surfacing as
-      // an unhandled rejection.
-      this.saveReady = this.opfs.saveBegin(this.saveIdentifier);
-      this.saveReady.catch(() => {});
-    }
+    // Each fragment's media goes into one file on disk as it is read (OPFS), as an HLS
+    // save's does, and the saved file is that one behind the moov; staged in this blob store
+    // where there is no OPFS (SaveFile). It kept a slice of each fragment's own Blob (the
+    // player's store) until the end and wrote the file only then: the player lets go of a
+    // fragment once the save read it, and a slice of a File it freed meanwhile (a quality
+    // change, the buffer moving on) read nothing - the copy failed, and its fallback handed
+    // the download a Blob of the same dead slices behind a "Save complete". Slices of Blobs
+    // in RAM kept the whole video there, past the RAM budget.
+    this.file = new SaveFile(this.blobManager, 'merge');
     if (registerCancel) {
       registerCancel(() => {
         this.cancel();
@@ -94,28 +74,6 @@ export class MP4Merger extends EventEmitter {
 
   cancel() {
     this.cancelled = true;
-  }
-
-  /**
-   * @param {ArrayLike<*>} a
-   * @param {ArrayLike<*>} b
-   * @return {boolean} Whether they hold the same values, in the same order.
-   */
-  arrayEquals(a, b) {
-    let i;
-
-    if (a.length !== b.length) {
-      return false;
-    } // compare the value of each element in the array
-
-
-    for (i = 0; i < a.length; i++) {
-      if (a[i] !== b[i]) {
-        return false;
-      }
-    }
-
-    return true;
   }
 
   /**
@@ -141,28 +99,25 @@ export class MP4Merger extends EventEmitter {
   }
 
   /**
-   * A fragment's data, and the blob its mdat is sliced from.
+   * A fragment's data, from the store.
    * @param {ZippedFragment} fragData
-   * @return {Promise<{data: *, blob: *}>}
+   * @return {Promise<*>} Its bytes (an ArrayBuffer of its own).
    */
   async readFragment(fragData) {
     const entry = await fragData.getEntry();
-    // getDataFromBlob first, not getData and BlobManager: it tells the store a read of data
-    // it lost, and the save downloads the fragment again (savedEntry); the blob sliced
-    // in pushFragment is then the new download's.
-    const data = await entry.getDataFromBlob('arraybuffer');
-    const blob = await entry.getData();
-    return {data, blob};
+    // getDataFromBlob, not getData and BlobManager: it tells the store a read of data it
+    // lost, and the save downloads the fragment again (savedEntry).
+    return entry.getDataFromBlob('arraybuffer');
   }
 
   /**
    * Adds a fragment's samples to its track, and its mdat to the file's data.
    * @param {MergerTrack} defaultTrack - The track the fragment was queued against.
    * @param {ZippedFragment} fragData - The fragment.
-   * @param {{data: *, blob: *}} read - Its data and its blob (readFragment).
+   * @param {*} data - Its bytes (readFragment).
    * @return {Promise<void>}
    */
-  async pushFragment(defaultTrack, fragData, {data, blob}) {
+  async pushFragment(defaultTrack, fragData, data) {
     data.fileStart = 0;
     const mp4boxfile = createFile(false);
     mp4boxfile.onError = function(module, message) {
@@ -237,13 +192,11 @@ export class MP4Merger extends EventEmitter {
       });
     });
 
-    // The raw Blob slice, not an FSBlob identifier: finalize() streams these straight into
-    // the OPFS file, or into the output Blob when OPFS is not available, and neither goes
-    // through blobManager.getBlob(), which would answer undefined for a slice. Upstream
-    // stores `blobManager.saveBlob(slice)` here; taking that line as it stands produces a
-    // file with a valid header and no media in it.
-    /** @type {Array<*>} */ (this.datas).push(blob.slice(mdat.start, /** @type {number} */ (mdat.start) + mdat.size));
     /** @type {number} */ (this.datasOffset) += mdat.size;
+    // The whole mdat box, from this save's own copy of the fragment: nothing of the player's
+    // store is kept (SaveFile). subarray, as the Blob slice before it, stops at the data's end.
+    const start = /** @type {number} */ (mdat.start);
+    await this.file.add(new Uint8Array(/** @type {ArrayBuffer} */ (data)).subarray(start, start + mdat.size));
   }
 
   /**
@@ -347,9 +300,7 @@ export class MP4Merger extends EventEmitter {
       }
     }
 
-    // The fragments' mdats, as slices of their Blobs; null once destroyed.
-    /** @type {?Array<Blob>} */
-    this.datas = [];
+    // Where the next mdat goes, after the init segment.
     this.datasOffset = 0;
   }
 
@@ -418,6 +369,13 @@ export class MP4Merger extends EventEmitter {
       // flatMap, not push(...samples): a spread of a very long chunk's samples can pass the
       // engine's argument limit and throw a RangeError.
       track.samples = track.chunks.flatMap((chunk) => chunk.samples);
+
+      // The track's own length (mdhd): its samples one after the other, the holes of a
+      // partial save padded (pushFragment). What its edits present goes in the tkhd, the
+      // longest in the mvhd. The period's length was written in all three, and Firefox, which
+      // takes the duration from the moov, said a 10 minute save of an hour lasted an hour.
+      track.duration = track.samples.reduce((sum, sample) => sum + sample.duration, 0) / track.timescale;
+      track.presentedDuration = track.elst.reduce((sum, edit) => sum + edit.segment_duration, 0) / movieTimescale;
     });
     let initSeg;
     try {
@@ -449,63 +407,9 @@ export class MP4Merger extends EventEmitter {
       initSeg = MP4.initSegment(tracks);
     }
 
-    // Two output strategies:
-    // - OPFS (Firefox): stream the init segment + every mdat chunk into one
-    //   disk-backed file, then return that File. RAM stays flat no matter
-    //   the video size - this is what un-freezes large DASH saves.
-    // - No OPFS (web build): the original behavior - one big in-RAM Blob.
-    //
-    // this.opfs was decided in the constructor, before OPFS setup could have
-    // settled, so it can still turn out to be unusable here - a Firefox
-    // private window exposes navigator.storage.getDirectory and throws
-    // SecurityError from it. Nothing below touches this.datas until the file
-    // is finished, so falling through to the Blob path costs the work done so
-    // far and nothing else. Without this the merge threw and the whole save
-    // failed instead of just being slower.
-    if (this.opfs) {
-      try {
-        await this.saveReady;
-        // init segment first...
-        await this.opfs.saveAppend(this.saveIdentifier,
-            new Uint8Array(toStandaloneBuffer(initSeg)));
-        // ...then every mdat chunk, in fragment order. This runs after the progress has
-        // reached 100 %, and for a large video takes a while: a cancel still ends it.
-        for (const slice of /** @type {Array<*>} */ (this.datas)) {
-          if (this.cancelled) {
-            throw new Error('Cancelled');
-          }
-          const buf = /** @type {ArrayBuffer} */ (await BlobManager.getDataFromBlob(slice, 'arraybuffer'));
-          // A fresh buffer of its own (Blob.arrayBuffer()), handed to the worker as it is:
-          // toStandaloneBuffer copied it once more, the whole file over, chunk by chunk.
-          await this.opfs.saveAppend(this.saveIdentifier,
-              new Uint8Array(buf instanceof ArrayBuffer ? buf : toStandaloneBuffer(buf)));
-        }
-        await this.opfs.saveEnd(this.saveIdentifier);
-        const file = await this.opfs.getSavedFile(/** @type {string} */ (this.saveIdentifier));
-        /** @type {Array<*>} */ (this.datas).length = 0;
-        return file;
-      } catch (e) {
-        await this.opfs.saveAbort(this.saveIdentifier).catch(() => {});
-        if (this.cancelled) {
-          throw e;
-        }
-        console.warn('OPFS merge failed, falling back to an in-memory Blob', e);
-        this.opfs = null;
-      }
-    }
-
-    // this.datas holds the mdat Blob slices themselves, so they go straight
-    // into the output Blob. Until now this mapped them through
-    // blobManager.getBlob(), which expects an FSBlob *identifier*: upstream
-    // pushed `blobManager.saveBlob(slice)` here, and 9ef061b1 changed the
-    // push to the raw slice for the OPFS path above without updating this
-    // side. Every entry came back undefined and the fallback produced a Blob
-    // full of the string "undefined" instead of a video - invisible because
-    // Firefox always took the OPFS path, until OPFS stopped being available
-    // (a private window) and this became the path that runs.
-    return new Blob([initSeg, .../** @type {Array<*>} */ (this.datas)], {
-      type: 'video/mp4',
-    });
+    // The moov in front of the media, which is on disk already (or staged where there is
+    // no OPFS: a private window). It stays until release(), with the blob store.
+    return this.file.finish(initSeg);
   }
   /**
    * @param {number} videoDuration - Seconds; 0 without video.
@@ -513,7 +417,7 @@ export class MP4Merger extends EventEmitter {
    * @param {number} audioDuration - Seconds; 0 without a separate audio track.
    * @param {?ArrayBuffer} audioInitSegment - Its init segment; null without one.
    * @param {Array<ZippedFragment>} zippedFragments - The fragments of both tracks, by time.
-   * @return {Promise<Blob>} The MP4 file (a File from OPFS, else a Blob).
+   * @return {Promise<Blob>} The MP4 file: the moov in front of its media (SaveFile.finish).
    */
   async convert(videoDuration, videoInitSegment, audioDuration, audioInitSegment, zippedFragments) {
     try {
@@ -531,7 +435,7 @@ export class MP4Merger extends EventEmitter {
         if (this.cancelled) {
           throw new Error('Cancelled');
         }
-        const read = /** @type {{data: *, blob: *}} */ (await next);
+        const read = await next;
         next = i + 1 < zippedFragments.length ? this.readFragment(zippedFragments[i + 1]) : null;
         next?.catch(() => {});
         // setup made the track of each duration given: a track's fragments come with its
@@ -555,7 +459,10 @@ export class MP4Merger extends EventEmitter {
       // A cancellation or a mux failure (bad fragment, mp4box parse error)
       // both leave a live OPFS-backed blobManager behind if nothing closes
       // it - unlike the success path, there's no result that still needs
-      // to read from it, so close it right away rather than deferring.
+      // to read from it, so close it right away rather than deferring. The
+      // file on disk goes first, as an HLS save's does: only the store was
+      // closed, and the file stayed until the session was pruned.
+      await this.file.abort();
       this.destroy(/* immediate */ true);
       throw e;
     }
@@ -571,13 +478,12 @@ export class MP4Merger extends EventEmitter {
 
     this.videoTrack = null;
     this.audioTrack = null;
-    this.datas = null;
     this.datasOffset = 0;
 
     // After a save that worked, the file convert() returned reads from the blob store:
     // it stays until release().
     if (immediate) {
-      this.release();
+      this.release(/* removeFiles */ true);
     }
   }
 
@@ -586,12 +492,14 @@ export class MP4Merger extends EventEmitter {
    * again (SaveManager: its URL dropped and the download of it over). It was closed two
    * minutes after the save, and a closed OPFS session is deleted by the next player or
    * save that starts: a longer download, or the same file saved again, lost it.
+   * @param {boolean} [removeFiles] - Its files on disk go too: Firefox said every download of
+   *   the file is over, or the save failed. Otherwise they stay for the next prune.
    */
-  release() {
+  release(removeFiles = false) {
     const blobManager = this.blobManager;
     // The last use of it: nothing reads the store once it is released.
     this.blobManager = /** @type {any} */ (null);
-    blobManager?.close();
+    blobManager?.close(removeFiles);
   }
 }
 

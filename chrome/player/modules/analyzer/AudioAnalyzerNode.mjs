@@ -5,12 +5,22 @@ import {EventEmitter} from '../eventemitter.mjs';
 
 /** @typedef {MediaElementAudioSourceNode|import('../../ui/audio/VirtualAudioNode.mjs').VirtualAudioNode} SoundSource */
 
+// How often the volume loop looks while the sound is paused, when there is nothing to measure
+// (recordVolume); a play runs its next round at once (wakeLoop). It ran every 64 ms divided by
+// the playback rate all the same: the background analysis plays at 8x and waits paused most
+// of the time (AudioAnalyzer, when it is far enough ahead), and woke the page 125 times a
+// second for the whole video; the main player 15 times a second while paused.
+const PAUSED_LOOP_MS = 250;
+
 export class AudioAnalyzerNode extends EventEmitter {
   constructor() {
     super();
     this.loopHandle = this.volumeLoop.bind(this);
+    this.wakeHandle = this.wakeLoop.bind(this);
     this.volumeLoopRunning = false;
     this.volumeLoopShouldRun = false;
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    this.volumeLoopTimeout = undefined;
   }
 
   recordVolume() {
@@ -37,6 +47,10 @@ export class AudioAnalyzerNode extends EventEmitter {
   stopRecordingVolume() {
     if (!this.volumeLoopShouldRun) return;
     this.volumeLoopShouldRun = false;
+    // Its next round goes too: left to end the loop by itself, it kept the page's timer for
+    // up to a quarter second after a destroy.
+    clearTimeout(this.volumeLoopTimeout);
+    this.volumeLoopRunning = false;
     try {
       // Both set: the loop was running, and destroy() comes here before it takes the source.
       /** @type {SoundSource} */ (this.audioSource).disconnect(/** @type {AnalyserNode} */ (this.volumeAnalyserNode));
@@ -52,13 +66,26 @@ export class AudioAnalyzerNode extends EventEmitter {
       return;
     }
 
-    this.volumeLoopTimeout = setTimeout(this.loopHandle, Math.floor(64 / this.audioElement.playbackRate));
+    const audioElement = this.audioElement;
+    this.volumeLoopTimeout = setTimeout(this.loopHandle, audioElement.paused ? PAUSED_LOOP_MS : Math.floor(64 / audioElement.playbackRate));
 
     this.recordVolume();
   }
 
+  /**
+   * Measures at once when the sound starts playing, and from then on at the playing pace:
+   * the background analysis at 8x would lose up to 2 s of its sound waiting for the paused
+   * loop's next round. The round that was waiting is dropped, so one loop runs.
+   */
+  wakeLoop() {
+    if (!this.volumeLoopRunning) return;
+    clearTimeout(this.volumeLoopTimeout);
+    this.volumeLoop();
+  }
+
   destroy() {
     this.stopRecordingVolume();
+    this.audioElement?.removeEventListener('play', this.wakeHandle);
 
     // Through a cast: TypeScript takes the assignment below, the first in the file, for the
     // field's declaration, and this read for a use before it.
@@ -84,6 +111,7 @@ export class AudioAnalyzerNode extends EventEmitter {
     this.audioSource = audioSource;
     /** @type {() => number} */
     this.getCurrentTime = getCurrentTime || (() => audioElement.currentTime);
+    audioElement.addEventListener('play', this.wakeHandle);
   }
 
   /** @param {{volume: boolean}} options - Whether the volume is measured. */

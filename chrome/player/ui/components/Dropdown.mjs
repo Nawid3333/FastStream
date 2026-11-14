@@ -1,4 +1,5 @@
 // @ts-check
+import {isTextEntryTarget} from '../../options/KeybindUtils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 
 /**
@@ -55,7 +56,9 @@ export function createDropdown(defaultChoice, title, items, call, editableCallba
     });
 
     span.addEventListener('keydown', (e)=>{
-      if (e.key === 'Tab') {
+      // Escape goes on to the player, which closes the menu the field is in (escapeAll), as
+      // from the player's other fields; every other key typed here stays the field's.
+      if (e.key === 'Tab' || e.key === 'Escape') {
         return;
       } else if (e.key === 'Enter') {
         span.blur();
@@ -101,7 +104,9 @@ function setupDropdown(itemListElement, text, container, call, title) {
   });
 
   container.addEventListener('mouseenter', (e) => {
-    container.focus();
+    // Not from a field being typed in (the sources browser's address beside it): the pointer
+    // passing over ended the typing, and the next letters went to the player's shortcuts.
+    if (!isTextEntryTarget(document.activeElement)) container.focus();
   });
 
 

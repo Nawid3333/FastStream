@@ -59,7 +59,7 @@ export function saveExtension(source) {
 export default class DirectVideoPlayer extends EventEmitter {
   /**
    * @param {import('../FastStreamClient.mjs').FastStreamClient} client
-   * @param {{isPreview?: boolean, isAudioOnly?: boolean, isAnalyzer?: boolean}} [config] - What the
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config] - What the
    *   player is for (PlayerLoader.createPlayer's callers).
    */
   constructor(client, config) {

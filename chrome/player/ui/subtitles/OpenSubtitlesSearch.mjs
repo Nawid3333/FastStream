@@ -113,16 +113,16 @@ export class OpenSubtitlesSearch extends EventEmitter {
 
   openUI() {
     InterfaceUtils.closeWindows();
-    /** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display = '';
+    DOMElements.subuiContainer.style.display = '';
     this.subui.search.focus();
   }
 
   closeUI() {
-    /** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display = 'none';
+    DOMElements.subuiContainer.style.display = 'none';
   }
 
   isOpen() {
-    return /** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display !== 'none';
+    return DOMElements.subuiContainer.style.display !== 'none';
   }
 
   toggleUI() {
@@ -145,7 +145,9 @@ export class OpenSubtitlesSearch extends EventEmitter {
     input.classList.add(className);
     input.ariaLabel = input.placeholder;
     input.addEventListener('keydown', (e) => {
-      e.stopPropagation();
+      // Escape goes on to the player, which closes the search (escapeAll): kept here, the
+      // search could not be closed from its own fields.
+      if (e.key !== 'Escape') e.stopPropagation();
       if (e.key === 'Enter') {
         this.subui.search.blur();
         this.startSearch();
@@ -156,24 +158,24 @@ export class OpenSubtitlesSearch extends EventEmitter {
   }
 
   setupUI() {
-    /** @type {HTMLElement} */ (DOMElements.subuiContainer).addEventListener('click', (e) => {
+    DOMElements.subuiContainer.addEventListener('click', (e) => {
       e.stopPropagation();
     });
-    /** @type {HTMLElement} */ (DOMElements.subuiContainer).addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-    });
-
-    /** @type {HTMLElement} */ (DOMElements.subuiContainer).addEventListener('keyup', (e) => {
+    DOMElements.subuiContainer.addEventListener('dblclick', (e) => {
       e.stopPropagation();
     });
 
-    const closeBtn = /** @type {HTMLElement} */ (/** @type {HTMLElement} */ (DOMElements.subuiContainer).getElementsByClassName('close_button')[0]);
+    DOMElements.subuiContainer.addEventListener('keyup', (e) => {
+      e.stopPropagation();
+    });
+
+    const closeBtn = /** @type {HTMLElement} */ (DOMElements.subuiContainer.getElementsByClassName('close_button')[0]);
     closeBtn.addEventListener('click', (e) => {
       this.closeUI();
     });
 
     WebUtils.setupTabIndex(closeBtn);
-    const contentContainer = /** @type {HTMLElement} */ (DOMElements.subuiContainer).getElementsByClassName('content_container')[0];
+    const contentContainer = DOMElements.subuiContainer.getElementsByClassName('content_container')[0];
 
     this.subui.searchContainer = document.createElement('div');
     this.subui.searchContainer.classList.add('subtitle-search-container');
@@ -528,6 +530,22 @@ export class OpenSubtitlesSearch extends EventEmitter {
   }
 
   /**
+   * After a failed download or at the quota, offers to open the result's page on
+   * OpenSubtitles. Its address is the API's answer, which the download treats as hostile:
+   * it went to tabs.create unchecked, which opens any site, and one of the extension's own
+   * pages for a relative address. Only an https page on OpenSubtitles' own hosts is offered
+   * (the download link's check); for any other, nothing is asked.
+   * @param {SubtitleItem} item - A subtitle from the API.
+   */
+  static async offerResultPage(item) {
+    const url = item.attributes.url;
+    if (!SubtitleUtils.isOpenSubtitlesDownloadLink(url)) return;
+    if (await AlertPolyfill.confirm(Localize.getMessage('player_opensubtitles_askopen'), 'question')) {
+      EnvUtils.openExternalURL(url);
+    }
+  }
+
+  /**
    * One subtitle of the results: its release name (which version of the video it was made
    * for), how often it was downloaded, and what kind it is. A click loads it.
    * @param {SubtitleItem} item - A subtitle from the API.
@@ -626,9 +644,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
         if (!data.link && data.remaining !== undefined && data.remaining !== null && Number(data.remaining) <= 0) {
           item.downloading = false;
           await AlertPolyfill.alert(Localize.getMessage('player_opensubtitles_quota', [data.reset_time]), 'warning');
-          if (await AlertPolyfill.confirm(Localize.getMessage('player_opensubtitles_askopen'), 'question')) {
-            EnvUtils.openExternalURL(item.attributes.url);
-          }
+          await OpenSubtitlesSearch.offerResultPage(item);
           return;
         }
 
@@ -676,11 +692,9 @@ export class OpenSubtitlesSearch extends EventEmitter {
       // Before the check below: with the search closed during the download, the result
       // stayed "downloading" and ignored every click after.
       item.downloading = false;
-      if (/** @type {HTMLElement} */ (DOMElements.subuiContainer).style.display === 'none') return;
+      if (DOMElements.subuiContainer.style.display === 'none') return;
       await AlertPolyfill.alert(Localize.getMessage('player_opensubtitles_down_alert'), 'error');
-      if (await AlertPolyfill.confirm(Localize.getMessage('player_opensubtitles_askopen'), 'question')) {
-        EnvUtils.openExternalURL(item.attributes.url);
-      }
+      await OpenSubtitlesSearch.offerResultPage(item);
       return;
     }
 

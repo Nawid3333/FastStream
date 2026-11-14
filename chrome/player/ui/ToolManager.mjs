@@ -22,9 +22,9 @@ export class ToolManager {
 
   setupUI() {
     this.updateToolVisibility();
-    /** @type {Element} */ (DOMElements.playerContainer).addEventListener('click', (e) => {
+    DOMElements.playerContainer.addEventListener('click', (e) => {
       this.stopReorderUI();
-      /** @type {Element} */ (DOMElements.extraTools).classList.remove('visible');
+      DOMElements.extraTools.classList.remove('visible');
     });
 
     const options = {
@@ -52,7 +52,7 @@ export class ToolManager {
       this.sortableExtra.option('disabled', true);
     }
 
-    const tools = /** @type {HTMLElement[]} */ (Array.from(/** @type {Element} */ (DOMElements.leftToolsContainer).children).concat(Array.from(/** @type {Element} */ (DOMElements.rightToolsContainer).children), Array.from(/** @type {Element} */ (DOMElements.extraTools).children)));
+    const tools = /** @type {HTMLElement[]} */ (Array.from(DOMElements.leftToolsContainer.children).concat(Array.from(DOMElements.rightToolsContainer.children), Array.from(DOMElements.extraTools.children)));
 
     tools.forEach((el) => {
       // A tool held 800 ms starts the reordering. It ended only on a mouseup in the player:
@@ -100,61 +100,61 @@ export class ToolManager {
   }
 
   updateToolVisibility() {
-    /** @type {HTMLElement} */ (DOMElements.playinfo).style.display = this.client.player ? 'none' : '';
+    DOMElements.playinfo.style.display = this.client.player ? 'none' : '';
 
     if ((this.client.player && document.pictureInPictureEnabled) || this.interfaceController.shouldDoDocumentPip()) {
-      /** @type {Element} */ (DOMElements.pip).classList.remove('hidden');
+      DOMElements.pip.classList.remove('hidden');
     } else {
-      /** @type {Element} */ (DOMElements.pip).classList.add('hidden');
+      DOMElements.pip.classList.add('hidden');
     }
 
     if (this.client.player) {
-      /** @type {Element} */ (DOMElements.screenshot).classList.remove('hidden');
-      /** @type {Element} */ (DOMElements.loopButton).classList.remove('hidden');
-      /** @type {Element} */ (DOMElements.skipForwardButton).classList.remove('hidden');
-      /** @type {Element} */ (DOMElements.skipBackwardButton).classList.remove('hidden');
+      DOMElements.screenshot.classList.remove('hidden');
+      DOMElements.loopButton.classList.remove('hidden');
+      DOMElements.skipForwardButton.classList.remove('hidden');
+      DOMElements.skipBackwardButton.classList.remove('hidden');
     } else {
-      /** @type {Element} */ (DOMElements.screenshot).classList.add('hidden');
-      /** @type {Element} */ (DOMElements.loopButton).classList.add('hidden');
-      /** @type {Element} */ (DOMElements.skipForwardButton).classList.add('hidden');
-      /** @type {Element} */ (DOMElements.skipBackwardButton).classList.add('hidden');
+      DOMElements.screenshot.classList.add('hidden');
+      DOMElements.loopButton.classList.add('hidden');
+      DOMElements.skipForwardButton.classList.add('hidden');
+      DOMElements.skipBackwardButton.classList.add('hidden');
     }
 
     if (this.client.player && !this.client.player.canSave().cantSave) {
-      /** @type {Element} */ (DOMElements.download).classList.remove('hidden');
+      DOMElements.download.classList.remove('hidden');
     } else {
-      /** @type {Element} */ (DOMElements.download).classList.add('hidden');
+      DOMElements.download.classList.add('hidden');
     }
 
     // MPV button: only meaningful when the extension can talk to the native
     // host (extension context, MPV mode enabled) and a source is playing.
     if (this.client.player && this.client.source && EnvUtils.isExtension() && this.client.options.mpvMode) {
-      /** @type {Element} */ (DOMElements.mpv).classList.remove('hidden');
+      DOMElements.mpv.classList.remove('hidden');
     } else {
-      /** @type {Element} */ (DOMElements.mpv).classList.add('hidden');
+      DOMElements.mpv.classList.add('hidden');
     }
 
     if (this.client.player && window.self !== window.top) {
-      /** @type {Element} */ (DOMElements.windowedFullscreen).classList.remove('hidden');
+      DOMElements.windowedFullscreen.classList.remove('hidden');
     } else {
-      /** @type {Element} */ (DOMElements.windowedFullscreen).classList.add('hidden');
+      DOMElements.windowedFullscreen.classList.add('hidden');
     }
 
     if (this.client.hasPreviousVideo()) {
-      /** @type {Element} */ (DOMElements.previousVideo).classList.remove('hidden');
+      DOMElements.previousVideo.classList.remove('hidden');
     } else {
-      /** @type {Element} */ (DOMElements.previousVideo).classList.add('hidden');
+      DOMElements.previousVideo.classList.add('hidden');
     }
 
     // The next button only with a next video; the autoplay switch always (his wish, 2026-10-11:
     // it went with the next button, and was never there where FastStream found no next link).
-    /** @type {Element} */ (DOMElements.nextVideo).classList.toggle('hidden', !this.client.hasNextVideo());
+    DOMElements.nextVideo.classList.toggle('hidden', !this.client.hasNextVideo());
     // The keyboard's next- and previous-track keys go where those buttons go.
     this.mediaKeys.update();
 
     // The audio-track list's button: only where there is a track to choose (2026-10-10; it
     // opened the audio settings until they went).
-    /** @type {Element} */ (DOMElements.audioTracksBtn).classList.toggle('hidden', !this.interfaceController.audioQualityChanger?.hasChoice);
+    DOMElements.audioTracksBtn.classList.toggle('hidden', !this.interfaceController.audioQualityChanger?.hasChoice);
 
     const toolSettings = this.client.options.toolSettings;
     const toolElements = /** @type {Record<string, HTMLElement>} */ (/** @type {unknown} */ ({
@@ -215,37 +215,37 @@ export class ToolManager {
 
     leftToolPairs.sort((a, b) => a[1].priority - b[1].priority);
     for (const [element] of leftToolPairs) {
-      /** @type {Element} */ (DOMElements.leftToolsContainer).appendChild(element);
+      DOMElements.leftToolsContainer.appendChild(element);
     }
 
     rightToolPairs.sort((a, b) => a[1].priority - b[1].priority);
     for (const [element] of rightToolPairs) {
-      /** @type {Element} */ (DOMElements.rightToolsContainer).appendChild(element);
+      DOMElements.rightToolsContainer.appendChild(element);
     }
 
     extraToolPairs.sort((a, b) => a[1].priority - b[1].priority);
     for (const [element] of extraToolPairs) {
-      /** @type {Element} */ (DOMElements.extraTools).appendChild(element);
+      DOMElements.extraTools.appendChild(element);
     }
 
     this.checkMoreTool();
   }
 
   checkMoreTool() {
-    if (Array.from(/** @type {HTMLElement} */ (DOMElements.extraTools).children).some((el) => {
+    if (Array.from(DOMElements.extraTools.children).some((el) => {
       return !el.classList.contains('hidden');
     })) {
-      /** @type {HTMLButtonElement} */ (DOMElements.moreButton).classList.remove('hidden');
+      DOMElements.moreButton.classList.remove('hidden');
     } else {
-      /** @type {HTMLButtonElement} */ (DOMElements.moreButton).classList.add('hidden');
-      /** @type {HTMLElement} */ (DOMElements.extraTools).classList.remove('visible');
+      DOMElements.moreButton.classList.add('hidden');
+      DOMElements.extraTools.classList.remove('visible');
     }
 
-    if (/** @type {HTMLElement} */ (DOMElements.leftToolsContainer).children.length === 0 && /** @type {HTMLElement} */ (DOMElements.rightToolsContainer).children.length === 0) {
-      this.moveMoreTool(/** @type {HTMLElement} */ (DOMElements.extraTools), /** @type {HTMLElement} */ (DOMElements.rightToolsContainer));
-    } else if (/** @type {HTMLElement} */ (DOMElements.extraTools).children.length === 0) {
-      this.moveMoreTool(/** @type {HTMLElement} */ (DOMElements.rightToolsContainer), /** @type {HTMLElement} */ (DOMElements.extraTools));
-      this.moveMoreTool(/** @type {HTMLElement} */ (DOMElements.leftToolsContainer), /** @type {HTMLElement} */ (DOMElements.extraTools));
+    if (DOMElements.leftToolsContainer.children.length === 0 && DOMElements.rightToolsContainer.children.length === 0) {
+      this.moveMoreTool(DOMElements.extraTools, DOMElements.rightToolsContainer);
+    } else if (DOMElements.extraTools.children.length === 0) {
+      this.moveMoreTool(DOMElements.rightToolsContainer, DOMElements.extraTools);
+      this.moveMoreTool(DOMElements.leftToolsContainer, DOMElements.extraTools);
     }
   }
 
@@ -265,19 +265,19 @@ export class ToolManager {
   checkToolsAndSave() {
     this.checkMoreTool();
 
-    Array.from(/** @type {HTMLElement} */ (DOMElements.leftToolsContainer).children).forEach((el, i) => {
+    Array.from(DOMElements.leftToolsContainer.children).forEach((el, i) => {
       const tool = /** @type {string} */ (/** @type {HTMLElement} */ (el).dataset.tool);
       this.client.options.toolSettings[tool].priority = (i + 1) * 100;
       this.client.options.toolSettings[tool].location = 'left';
     });
 
-    Array.from(/** @type {HTMLElement} */ (DOMElements.rightToolsContainer).children).forEach((el, i) => {
+    Array.from(DOMElements.rightToolsContainer.children).forEach((el, i) => {
       const tool = /** @type {string} */ (/** @type {HTMLElement} */ (el).dataset.tool);
       this.client.options.toolSettings[tool].priority = (i + 1) * 100;
       this.client.options.toolSettings[tool].location = 'right';
     });
 
-    Array.from(/** @type {HTMLElement} */ (DOMElements.extraTools).children).forEach((el, i) => {
+    Array.from(DOMElements.extraTools.children).forEach((el, i) => {
       const tool = /** @type {string} */ (/** @type {HTMLElement} */ (el).dataset.tool);
       this.client.options.toolSettings[tool].priority = (i + 1) * 100;
       this.client.options.toolSettings[tool].location = 'extra';
@@ -290,9 +290,9 @@ export class ToolManager {
     if (this.specialReorderModeEnabled) return;
     this.interfaceController.closeAllMenus();
     this.specialReorderModeEnabled = true;
-    /** @type {HTMLElement} */ (DOMElements.rightToolsContainer).classList.add('reordering');
-    /** @type {HTMLElement} */ (DOMElements.leftToolsContainer).classList.add('reordering');
-    /** @type {HTMLElement} */ (DOMElements.extraTools).classList.add('reordering');
+    DOMElements.rightToolsContainer.classList.add('reordering');
+    DOMElements.leftToolsContainer.classList.add('reordering');
+    DOMElements.extraTools.classList.add('reordering');
 
     if (EnvUtils.isMobile()) {
       this.sortableRight.option('disabled', false);
@@ -304,9 +304,9 @@ export class ToolManager {
   stopReorderUI() {
     if (!this.specialReorderModeEnabled) return;
     this.specialReorderModeEnabled = false;
-    /** @type {HTMLElement} */ (DOMElements.rightToolsContainer).classList.remove('reordering');
-    /** @type {HTMLElement} */ (DOMElements.leftToolsContainer).classList.remove('reordering');
-    /** @type {HTMLElement} */ (DOMElements.extraTools).classList.remove('reordering');
+    DOMElements.rightToolsContainer.classList.remove('reordering');
+    DOMElements.leftToolsContainer.classList.remove('reordering');
+    DOMElements.extraTools.classList.remove('reordering');
 
     if (EnvUtils.isMobile()) {
       this.sortableRight.option('disabled', true);

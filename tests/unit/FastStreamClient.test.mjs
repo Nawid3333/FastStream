@@ -2178,3 +2178,230 @@ describe('FastStreamClient, a video its player cannot read', () => {
     }
   });
 });
+
+describe('FastStreamClient, going while its buffer is on the disk', () => {
+  // As its page goes (main.mjs's beforeunload) the player hands its buffer over (handOffBuffer),
+  // then is destroyed. destroy() did not await the reset: the download manager's clear of the
+  // disk's files waited for its store first, and the store's close went out before it. The OPFS
+  // worker got 'clear' after 'destroy': it deleted the files just handed over to the next player
+  // (each then downloaded again), or nothing at all as the page went. With a save running, the
+  // reset waited for it and ran on the destroyed manager: a TypeError nobody caught.
+
+  /**
+   * A client whose download manager is the real one, its store's OPFS worker a stand-in that
+   * records each call and answers them in order, a task later, as the worker's queue does.
+   * @return {Promise<{client: FastStreamClient, manager: Object, ops: string[]}>}
+   */
+  async function goingClient() {
+    vi.useFakeTimers();
+    vi.stubGlobal('document', {removeEventListener: vi.fn()});
+    // IndexedDBManager, which the store imports, listens on the window as it loads.
+    vi.stubGlobal('window', {...window, addEventListener: vi.fn()});
+    const {DownloadManager} = await vi.importActual('../../chrome/player/network/DownloadManager.mjs');
+    const {OPFSManager} = await import('../../chrome/player/network/OPFSManager.mjs');
+    const {DownloadEntry} = await import('../../chrome/player/network/DownloadEntry.mjs');
+    const client = makeClient();
+    client.peers = {stop: vi.fn()};
+    client.interfaceController.destroy = vi.fn();
+    const manager = new DownloadManager(client);
+    client.downloadManager = manager;
+    const ops = [];
+    const opfs = new OPFSManager();
+    opfs.sessionName = 'fsblob-1-1';
+    opfs.worker = {
+      postMessage: ({id, op}) => {
+        ops.push(op);
+        setTimeout(() => opfs.handleMessage({id, ok: true}));
+      },
+      terminate: () => ops.push('terminated'),
+    };
+    Object.assign(manager.blobStore, {opfsManager: opfs, setupPromise: Promise.resolve()});
+
+    // A finished segment, written to the disk since: a file in the session, no longer in RAM.
+    const url = 'https://cdn.test/v/master.m3u8';
+    const entry = new DownloadEntry({url: 'https://cdn.test/v/seg-1.ts', responseType: 'arraybuffer'});
+    entry.status = DownloadStatus.DOWNLOAD_COMPLETE;
+    entry.data = new Blob(['segment']);
+    await manager.archiveEntryData(entry);
+    const id = manager.getIdentifier(entry);
+    manager.keepEntry(entry, id);
+    opfs.fileName(id, true);
+    manager.blobStore.inRam.delete(id);
+
+    client.source = makeSource(url);
+    client.bufferPage = {page: 'https://site.test/watch', identifier: url};
+    return {client, manager, ops};
+  }
+
+  it('leaves the files it handed over on the disk', async () => {
+    const {client, ops} = await goingClient();
+    chrome.runtime.sendMessage = vi.fn(async () => {});
+    client.handOffBuffer();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: MessageTypes.BUFFER_STASH, session: 'fsblob-1-1', entries: [expect.objectContaining({file: 'f0'})]}));
+    client.destroy();
+    await vi.runAllTimersAsync();
+
+    expect(ops).toEqual(['destroy', 'terminated']);
+  });
+
+  it('deletes its files on the disk before it closes its store, with nothing handed over', async () => {
+    const {client, manager, ops} = await goingClient();
+    client.destroy();
+    await vi.runAllTimersAsync();
+
+    expect(ops).toEqual(['clear', 'destroy', 'terminated']);
+    expect(manager.blobStore).toBe(null);
+  });
+
+  it('goes the same way while a save runs', async () => {
+    const {client, manager, ops} = await goingClient();
+    let saveEnded;
+    client.interfaceController.saveManager = {
+      makingDownload: true,
+      downloadCancel: vi.fn(),
+      pendingSave: new Promise((resolve) => {
+        saveEnded = resolve;
+      }),
+      resetMpvContentType: vi.fn(),
+    };
+    client.destroy();
+    expect(client.interfaceController.saveManager.downloadCancel).toHaveBeenCalled();
+    setTimeout(saveEnded, 100);
+    await vi.runAllTimersAsync();
+
+    expect(ops).toEqual(['clear', 'destroy', 'terminated']);
+    expect(manager.downloaders).toBe(null);
+  });
+});
+
+describe('FastStreamClient, the seek preview shown', () => {
+  /**
+   * A client whose seek preview's element is at 9 s with its frame there, the preview's
+   * player pointed at `time`.
+   * @param {number} time
+   * @return {Object}
+   */
+  function previewAt(time) {
+    const client = makeClient({previewEnabled: true});
+    client.previewPlayer = {
+      getVideo: () => ({readyState: 2, currentTime: 9, style: {}}),
+      currentTime: time,
+      buffered: {length: 1, start: () => 0, end: () => 9},
+    };
+    vi.spyOn(client, 'showPreview').mockImplementation(() => {});
+    vi.spyOn(client, 'hidePreview').mockImplementation(() => {});
+    return client;
+  }
+
+  it('is hidden while its player holds a place its element is not at yet', () => {
+    // An MP4 preview of a fragmented file reads on to a place past the duration it knew
+    // (MP4Player's previewSeek): its element still shows the frame of the place before.
+    const client = previewAt(120);
+    client.updatePreview();
+    expect(client.hidePreview).toHaveBeenCalledTimes(1);
+    expect(client.showPreview).not.toHaveBeenCalled();
+  });
+
+  it('is shown once its element has a frame at the place', () => {
+    const client = previewAt(9);
+    client.updatePreview();
+    expect(client.showPreview).toHaveBeenCalledTimes(1);
+    expect(client.hidePreview).not.toHaveBeenCalled();
+  });
+});
+
+// A fragmented MP4's ranges have their times only once the player parsed them; those
+// downloaded ahead of the parser have none (start and end -1). A player that keeps a window of
+// the video (a private window, "download all" off) took them for ranges long behind the
+// playhead once that was past 19 s: it started no download ahead any more, and let go of
+// every range it had downloaded ahead (a review, 2026-11-14).
+describe('FastStreamClient, a fragmented MP4\'s ranges not parsed yet, in a download window', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /**
+   * A 600 s file in ten ranges of 60 s: the first four parsed, the next two downloaded
+   * ahead of the parser, the last four waiting.
+   * @param {number} time - Where it plays.
+   * @param {Object} [options]
+   * @return {{client: Object, frags: Array<Object>}}
+   */
+  function windowed(time, options = {}) {
+    vi.stubGlobal('navigator', {onLine: true});
+    const client = makeClient({downloadAll: false, maxSpeed: -1, ...options});
+    const frags = [];
+    for (let i = 0; i < 10; i++) {
+      const fragment = new Fragment('L', i);
+      fragment.getContext = () => ({url: 'u', rangeStart: i * 1e6, rangeEnd: (i + 1) * 1e6});
+      if (i <= 3) {
+        fragment.start = i * 60;
+        fragment.end = i === 3 ? 600 : (i + 1) * 60;
+        fragment.status = DownloadStatus.DOWNLOAD_COMPLETE;
+        fragment.addReference(ReferenceTypes.MP4PLAYER);
+      } else if (i <= 5) {
+        fragment.status = DownloadStatus.DOWNLOAD_COMPLETE;
+      }
+      frags.push(fragment);
+    }
+    client.fragmentsStore = {L: frags};
+    client.state.currentTime = time;
+    client.state.bufferAhead = options.bufferAhead ?? 300;
+    client.state.bufferBehind = 20;
+    client.getVideoAhead = () => 120;
+    client.needsUserInteraction = () => false;
+    client.interfaceController.saveManager = {makingDownload: false};
+    client.downloadManager = {yielding: false, waiting: false, memoryFull: false, getSpeed: () => 0, removeFile: vi.fn(),
+      canGetFile: () => true, activeCount: () => 0, urgentParallel: () => 6};
+    client.player = {duration: 600, currentFragment: frags[Math.min(3, Math.floor(time / 60))], currentAudioFragment: null,
+      getCurrentVideoLevelID: () => 'L', getCurrentAudioLevelID: () => null,
+      downloadFragment: vi.fn((fragment) => {
+        fragment.status = DownloadStatus.DOWNLOAD_INITIATED;
+        return Promise.resolve();
+      })};
+    return {client, frags};
+  }
+
+  const started = (client) => client.player.downloadFragment.mock.calls.map(([fragment]) => fragment.sn);
+
+  it('goes on downloading them ahead past 19 s, as far as the window reaches', () => {
+    const {client} = windowed(25);
+    expect(client.shouldDownloadAll()).toBeFalsy();
+    client.predownloadFragments();
+    // 300 s ahead of 25 s: the ranges that start, about, at 360 s and after wait.
+    expect(started(client)).toEqual([]);
+    const far = windowed(100);
+    far.client.predownloadFragments();
+    expect(started(far.client)).toEqual([6]);
+    const farther = windowed(200);
+    farther.client.predownloadFragments();
+    expect(started(farther.client)).toEqual([6, 7, 8]);
+  });
+
+  it('keeps the ones it downloaded ahead, and lets go of those the window has passed', () => {
+    const {client, frags} = windowed(25);
+    client.freeFragments(frags);
+    expect(client.downloadManager.removeFile).not.toHaveBeenCalled();
+    expect(frags[4].status).toBe(DownloadStatus.DOWNLOAD_COMPLETE);
+
+    // Sought back to the start with a short window: they lie past it now.
+    const short = windowed(5, {bufferAhead: 120});
+    short.client.freeFragments(short.frags);
+    expect(short.frags[4].status).toBe(DownloadStatus.WAITING);
+    expect(short.frags[5].status).toBe(DownloadStatus.WAITING);
+  });
+
+  it('downloads them, and keeps them, while nothing tells where they lie', () => {
+    // Only the first range parsed: no pace to place the others by.
+    const {client, frags} = windowed(25);
+    for (const fragment of frags.slice(1, 4)) {
+      fragment.start = -1;
+      fragment.end = -1;
+    }
+    client.freeFragments(frags);
+    expect(client.downloadManager.removeFile).not.toHaveBeenCalled();
+    client.predownloadFragments();
+    expect(started(client)).toEqual([6, 7, 8, 9]);
+  });
+});

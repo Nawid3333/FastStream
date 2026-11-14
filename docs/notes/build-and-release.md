@@ -65,6 +65,26 @@ codebase (playback-rate caps, the 7.1-audio workaround, OPFS backend
 selection, SponsorBlock's extension ID), left in place on 2026-09-11, went
 with the rest of Chrome's code on 2026-09-20; none is left.
 
+**The GitHub build's update check** (`UpdateChecker.mjs` and its block in
+`options.mjs`, both `NO_UPDATE_CHECKER`, so the AMO and web builds have none of
+it). Since 2026-11-13 (a review) `UpdateChecker.refreshUpdateData` decides: a
+check is due 12 hours after the last one, failed or not, or when none ran, and a
+failed check keeps the version known. The options page, an iframe in every
+player, stores `updateData` only after a check. Before, it wrote the data to
+`storage.local` at every load, which fired `storage.onChanged` in every open
+options page; a failed check wrote null over the version known, and with no
+version known the next player asked GitHub again at once: after one failure,
+every player opened fetched `package.json`, with no back-off.
+`UpdateChecker.test.mjs`.
+
+**`custom/instagram_inject.js` is web-accessible to Instagram's pages only**
+(2026-11-13, a review). It shared the player page's `web_accessible_resources`
+entry, open to `<all_urls>`, though only `instagram_content.js` puts it in a page,
+and that runs on `https://www.instagram.com/*` only: any site could load it into
+itself. It has an entry of its own now, with the content script's match. The
+player's page stays open to every page (a page frames it: mpv.md, "A player a
+page frames itself"). `customSiteScripts.test.mjs`.
+
 ## Releasing (auto-release.yml, added 2026-09-12)
 
 Every push to `main` that passes CI now gets released

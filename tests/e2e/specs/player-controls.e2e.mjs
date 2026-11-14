@@ -428,7 +428,10 @@ describe('Player controls', function() {
     expect(await read()).toEqual({shown: true, next: true, icon: 'play', checked: 'true', option: true,
       session: 'true', badge: ''});
 
-    await browser.execute(() => document.querySelector('.mainplayer .fluid_autoplay_switch').focus());
+    // The keyboard's focus (focusVisible, as Tab gives it): Space presses a control only then,
+    // and is play/pause after a mouse click (WebUtils.setupKeyPress, the review of 2026-11-13).
+    await browser.execute(() => /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_autoplay_switch'))
+        .focus(/** @type {FocusOptions} */ ({focusVisible: true})));
     await browser.keys([' ']);
     expect(await read()).toEqual({shown: true, next: true, icon: 'pause', checked: 'false', option: false,
       session: 'false', badge: 'none'});

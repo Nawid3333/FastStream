@@ -99,7 +99,12 @@
   there has shown that it emails the pusher (2026-09-30). The hand-off takes a run either
   of whose actors is the token: the owner's re-run of such a run keeps the token as its
   actor and sends no `workflow_run` either (CI run 36618653582, attempt 2), and released
-  nothing while only the triggering actor was checked. Each failure issue here and in the
+  nothing while only the triggering actor was checked. With Auto release turned off by the
+  owner (its state `disabled_manually`: Release, Auto release and Release failsafe were, from
+  2026-11-15, while main is polished before the next release), the hand-off says so in the
+  run's summary and starts nothing: GitHub refuses a disabled workflow, and every such run
+  opened "Auto release failed" (`release-hand-off.test.sh`). Disabled by GitHub for inactivity,
+  it is still reported. Each failure issue here and in the
   other workflows' "Report this workflow's own failure" is one issue while it is open, and
   a failure while it is open adds a comment with its run's link (before, it was dropped).
   The concurrency group is per commit, at job level: a workflow-wide
@@ -111,11 +116,23 @@
   building, and runs lint + unit tests (a hand-cut tag reaches it without CI). Only
   lowercase `v` tags: the 106 capital-`V` tags in the repository are upstream's, copied at
   the fork. Run again for a tag that has a release, it replaces the files. Its last step,
-  whatever happened, starts the failsafe.
+  whatever happened, starts the failsafe. Since 2026-11-13 it also refuses a tag whose
+  commit is not on `main` ("Check the tag is on main", before the install, the build and the
+  signing; `tests/workflows/release-provenance.test.sh`): `auto-release.yml` pushes `main` and
+  the tag together and `tools/cut-release.mjs` runs on `main`, so only a tag cut on a branch
+  by mistake stops there. The check is in the tag's own copy of the file, so it guards
+  against mistakes only; the failsafe below runs `main`'s copy, and a tag ruleset (only the
+  owner and the workflows create `v*` tags) would close the rest (an owner question).
 - **`amo-signing-failsafe.yml`** ("Release failsafe"; after every release run, and every
   3 h): completes a release whose AMO signing did not finish, re-runs one that did not
   publish, checks the update path; see "AMO signing no longer depends on a timer" and
-  "Every release is checked to reach Firefox" above.
+  "Every release is checked to reach Firefox" above. Since 2026-11-13: a newest tag not on
+  `main` is not started again (a warning), and a latest release whose tag is not on `main`
+  is neither built nor signed (the run fails, which opens "Release failsafe failed"); the
+  repository token is given to each step that calls `gh`, not to the job, so the tag's
+  install and build (`geckodriver`'s and `esbuild`'s install scripts) never see it
+  (`tests/unit/workflowSecrets.test.mjs` fails for a token in the env of a job that holds
+  the AMO keys, or of its install or build step).
 - **`live-streams.yml`** (Mondays; 2026-09-28): `pnpm run test:live` on Linux and Windows,
   one issue while it fails. Also on a PR that changes the live suite or the e2e setup, and on
   the player libraries' rolling update PR (dispatched there; 2026-10-24), where a last job,
@@ -202,7 +219,10 @@
   for a run a workflow's token started, which sends none, `ci.yml`'s hand-off starts it by
   `workflow_dispatch`, and opens "Update PRs hand-off failed" when GitHub refuses all three
   tries) for this repository's `dependabot/*`, `toolchain/*` and `patched/*` branches
-  (`sync/upstream` too until 2026-10-09), and never checks out PR code. `gh pr list --head`
+  (`sync/upstream` too until 2026-10-09), and never checks out PR code. One decision per
+  branch at a time, by a concurrency group on the job (since 2026-11-13; before, on the
+  workflow, where the runs whose job is skipped queued too and could cancel a pending
+  decision, as `auto-release.yml` found). `gh pr list --head`
   lists a fork's pull request from a branch of the same name too: it and `mpv-updates.yml`
   drop those (`isCrossRepository`, #169; `tests/unit/workflowGh.test.mjs`
   fails for a `--head` list that does not ask). CI red: CI is started once more
@@ -651,6 +671,19 @@
   before it is written, so dismissed as a false positive). #320's five fixes (the direct
   player's `video.src`, the fsaunpack rate limiter, firefox.e2e.mjs) were real but were not
   open alerts: the count matched by chance, a mistake not to repeat.
+- **"1 configuration not found" on a pull request's CodeQL check** (2026-11-14, #679) is the
+  default setup's state between its two uploads: the Actions analysis comes first (about a
+  minute), the CodeQL check is posted at once, and main's JavaScript configuration is not on the
+  new commit yet. The check is neutral, gates nothing, and is posted again, with the real
+  verdict, when the JavaScript analysis lands (#679: "No new alerts" 10 minutes later). Read the
+  check again after the JavaScript analysis (`code-scanning/analyses?ref=refs/pull/<n>/head`),
+  never this state. On a Dependabot PR it stays (default setup does not scan those). Whether an
+  advanced setup (a codeql.yml of our own) would avoid it was not looked into; it would replace
+  the default setup in the repository's settings.
+- **"No new alerts" on a pull request is about the changed lines only** (diff-informed), and
+  environment variables count as untrusted there too: the benchmark's `BENCH_TRACE=<file>`, a
+  path from a variable written with request data, was two high and two medium alerts on #679
+  (fixed: `BENCH_TRACE=1`, a file the server names, only what the server knows itself in it).
 - **`vendored-updates.yml`** (daily, 06:45 UTC), 2026-10-01, U1: the two vendored files no
   other workflow watches. (The silero VAD model's job, which opened a PR on
   `vendored/silero-vad-<tag>` for a newer model, went with the speech detector on
@@ -741,3 +774,93 @@
   were closed by hand each week and no fix came from them, while it carried a 131-line patch
   of its vitest runner, an override and 34 MB of packages. The fixes kept their own check: a
   hand-made mutation of each one, which its test must catch.
+
+## Firefox API watch (2026-11-13)
+
+`firefox-api-watch.yml` (daily, 07:40 UTC) tells the owner what each new Firefox Stable release
+changed that could break or improve FastStream. It sits beside `firefox-stable.yml`/`firefox-beta.yml`,
+which run the e2e suites on a new Firefox and open an issue when they fail: those catch what
+broke, this one what changed. The logic is `tools/firefox-api-watch.mjs`; what counts as
+relevant is `tools/firefox-api-watch.topics.mjs`.
+
+- **Sources, all machine-readable** (checked 2026-11-13): product-details
+  (`firefox_versions.json` for the current Stable, `firefox_history_major_releases.json` for the
+  dates; no hard-coded calendar, so a delayed release is simply seen later); MDN's notes for
+  developers as markdown from mdn/content (`files/en-us/mozilla/firefox/releases/<N>/index.md`;
+  bullets carry `bugzil.la` links; a page still in Beta says "work in progress"); the newest
+  `@mdn/browser-compat-data` tarball from npm, its sha512 checked against the registry (features
+  whose Firefox `version_added`/`version_removed` is N, without a preference); Bugzilla REST
+  (`cf_status_firefox<N>` fixed/verified: all WebExtensions bugs, about 6 a release, and Core
+  media/network bugs only with a doc/compat keyword or a media term in the summary; unfiltered,
+  Core media alone is about 50 a release); the add-ons blog feed (posts naming the release).
+- **Relevance is measured against the code**, not guessed: the namespaces `chrome.*`/`browser.*`
+  calls, the manifest's keys and permissions, and each change's names searched in the tracked
+  files under `chrome/` (git's list; the walk without what `.gitignore` names when git cannot
+  tell, as in the WSL copy). A dotted name or a member with its interface in the same file is
+  high confidence; a bare distinctive name medium; a topic keyword only, low. A WebExtensions
+  note about an API the extension does not use (userScripts, themes, publicSuffix) is dropped.
+  Items about the same bug, BCD feature or API merge into one finding. MDN's "Developer Tools"
+  notes are skipped; its WebDriver notes count only when they can break the e2e harness. A dry
+  run over 153-160 (2026-11-13) gave 96 findings for the eight releases: 6 high, 43 medium,
+  47 low. The six high ones were real: decodingInfo() never resolving on Windows, range
+  requests through a service worker, storage.local auto-reset, PiP events, two WebCodecs fixes.
+- **The issue is write-once.** The bot opens "Firefox API Watch: starting with Firefox N" with the
+  first release in its body and adds every later release as a comment, in version order. It
+  never edits or deletes what it posted: upstream-watch rewrites its issue body each time, which
+  here would lose the owner's ticks, and a read-modify-write of a body races with his edits
+  (GitHub has no conditional PATCH). Closing the issue means "reviewed": a closed issue is never
+  touched, and its markers still count, so nothing is listed twice.
+- **State lives in the posts.** Each section carries `<!-- firefox-api-watch:release N -->`,
+  each finding `<!-- ffw-item bug:123 bcd:<hash> mdn:<hash> -->` (all its keys). A BCD key is
+  the change (feature, release, added or removed), so a feature taken out after it was reported
+  as added comes again. A finding is news when one of the items merged into it has a key of its
+  own not reported before (its bugs and BCD change; a note without either, its text's hash): a
+  note reworded under the same bug is not news, a new note merged with a reported one is.
+  Markers are read from the bot's own issue bodies and comments only (another user's post or a
+  non-watcher issue is never a record), in their exact form. Outside text is made safe (`md()`):
+  no HTML, `@`, `#N`, `GH-N` and short commit hashes broken with a zero-width space, brackets
+  and backticks escaped, no autolink; links only to Mozilla/MDN hosts, and on github.com only to
+  the specs' and Mozilla's owners (a link to this repository's issue would put a reference on
+  it). Comment openers are taken out of code spans until none is left (one pass let
+  `<!<!---- x --->->` become a marker: an independent review found it). A marker cannot be
+  forged (property-tested). Several notes merged into one finding are all shown ("Also in the
+  notes"): the finding's kind may be another note's. Nothing is committed: a push to main
+  releases.
+- **When a release is reviewed:** the window is the current Stable and the two before it, from
+  Firefox 161 on (older ones by hand: the dispatch's `from`). A release waits while MDN has no
+  notes or still calls them a work in progress, up to 10 days after it shipped; after that it is
+  reviewed anyway (without MDN's notes when there are none, said in the section). A source
+  that is down (no answer, 5xx, 408, 429) leaves the release for the next run, and a release
+  never posted holds back the ones after it, so the sections stay in version order. The run
+  fails, and opens "Firefox API watch failed", when a source answers wrongly (a 4xx, bad JSON,
+  a tarball whose hash does not match, 1000 bugs or more for one query) or the newest release
+  is still unreviewed 10 days after it shipped (a source that stays down). An older release
+  that times out while it is looked at again is no failure: it had its days as the newest. A
+  change Mozilla adds to a release after it was posted comes as "Firefox N - added after its
+  first review".
+- **Light days:** once every release in the window was reviewed, the Actions cache entry
+  `firefox-api-watch-<current>` (a file holding the version) lets later runs stop after the
+  version check until the next release. It is only a shortcut: a lost entry costs one more
+  review, which finds everything reported and posts nothing.
+- **Concurrency:** one run at a time (`concurrency`, not cancelled); right before posting, the
+  open watcher issues are listed again and the chosen one's state read again, so an issue closed
+  meanwhile is left alone and a new one opened; of two open ones the oldest gets the comment. The
+  issue a run posted to is tried too, as GitHub's list can lag behind an issue just opened. An
+  issue closed between that read and the comment gets the comment (closed, not reopened): GitHub
+  has no conditional write. The failure issue is found by its title, as every workflow here does.
+- **Permissions:** `permissions: {}` for the workflow, `contents: read` + `issues: write` for the
+  job; no secret, no environment. It never pushes or dispatches, so it cannot start a release.
+- **By hand:** `node tools/firefox-api-watch.mjs --dry-run --no-github --from 158 --to 160` prints
+  what it would post from the live sources without reading GitHub; the workflow's dispatch takes
+  `dry_run` and `from` (a version; anything else is refused before the script runs).
+- **Tests:** `tests/unit/firefoxApiWatch.test.mjs` (sources through a fake fetch, GitHub in
+  memory: first run, append, ticks and notes kept, close then a new cycle, missed releases,
+  repeated runs, stale state, nothing relevant, notes missing or in progress, sources down or
+  wrong, partial failure and recovery, late additions, foreign and broken markers, version
+  order, a list that lags, a later change to a reported feature, merged notes, folding),
+  `firefoxApiWatch.property.test.mjs` (`md()` and `safeUrl()` against adversarial text), and
+  `tests/workflows/firefox-api-watch.test.sh` (the real step with a stub `gh` and file sources:
+  arguments, the memo outputs, the "from" input refused, the failure issue).
+- **Tuning:** a false positive is fixed in the topics file (a keyword too broad, a Bugzilla
+  summary pattern for `excludeSummary`, a platform area for `excludeText`), with a unit test
+  case; the last dry run's numbers above say what "normal" looks like.

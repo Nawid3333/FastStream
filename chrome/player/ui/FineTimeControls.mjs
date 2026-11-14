@@ -124,10 +124,10 @@ export class FineTimeControls extends EventEmitter {
     /** @type {Record<string, HTMLElement>} */
     this.ui = {};
     this.ui.currentPosition = WebUtils.create('div', '', 'current_position_bar');
-    /** @type {HTMLElement} */ (DOMElements.timelineSyncer).appendChild(this.ui.currentPosition);
+    DOMElements.timelineSyncer.appendChild(this.ui.currentPosition);
 
     this.ui.timelineContainer = WebUtils.create('div', '', 'timeline_container');
-    /** @type {HTMLElement} */ (DOMElements.timelineSyncer).appendChild(this.ui.timelineContainer);
+    DOMElements.timelineSyncer.appendChild(this.ui.timelineContainer);
 
     this.ui.timelineTicks = WebUtils.create('div', '', 'timeline_ticks');
     this.ui.timelineContainer.appendChild(this.ui.timelineTicks);
@@ -290,7 +290,7 @@ export class FineTimeControls extends EventEmitter {
     this.client.audioAnalyzer.addBackgroundDependent(this);
     this.client.audioAnalyzer.updateBackgroundAnalyzer();
 
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.add('expanded');
+    DOMElements.playerContainer.classList.add('expanded');
     this.client.interfaceController.runProgressLoop();
     this.renderTimeline();
   }
@@ -305,7 +305,7 @@ export class FineTimeControls extends EventEmitter {
     this.client.audioAnalyzer.off('audioLevelChanged', this.resetAudioHandle);
 
     this.client.interfaceController.durationChanged();
-    /** @type {HTMLElement} */ (DOMElements.playerContainer).classList.remove('expanded');
+    DOMElements.playerContainer.classList.remove('expanded');
   }
 
   onVideoTimeUpdate() {

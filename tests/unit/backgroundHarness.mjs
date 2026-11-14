@@ -20,14 +20,20 @@ const UnknownMessage = Object.freeze({ok: false, error: 'unknown message', hostV
  */
 function event() {
   const listeners = [];
+  // Firefox's filter, by listener (tabs.onUpdated's {properties}).
+  const filters = new Map();
   return {
-    addListener: (fn) => listeners.push(fn),
+    addListener: (fn, filter) => {
+      listeners.push(fn);
+      if (filter) filters.set(fn, filter);
+    },
     removeListener: (fn) => {
       const i = listeners.indexOf(fn);
       if (i !== -1) listeners.splice(i, 1);
     },
     hasListener: (fn) => listeners.includes(fn),
     listeners,
+    filters,
   };
 }
 
@@ -463,7 +469,22 @@ export async function loadBackground({
   bg.navigated = async (tabId, url) => {
     const tab = bg.tabs.find((t) => t.id === tabId);
     if (tab) tab.url = url;
-    for (const listener of tabEvents.onUpdated.listeners) listener(tabId, {url}, {id: tabId, url});
+    await bg.tabChanged(tabId, {url});
+  };
+
+  /**
+   * Something of a tab changes (tabs.onUpdated): its address, title, sound, loading state.
+   * A listener added with Firefox's filter hears only a change of a property it lists.
+   * @param {number} tabId - The tab.
+   * @param {Object} changeInfo - What changed, as Firefox tells it.
+   * @return {Promise<void>}
+   */
+  bg.tabChanged = async (tabId, changeInfo) => {
+    const tab = {id: tabId, ...changeInfo};
+    for (const listener of tabEvents.onUpdated.listeners) {
+      const properties = tabEvents.onUpdated.filters.get(listener)?.properties;
+      if (!properties || properties.some((name) => name in changeInfo)) listener(tabId, changeInfo, tab);
+    }
     await settle();
   };
 

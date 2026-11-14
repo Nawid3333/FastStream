@@ -1015,6 +1015,72 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
+  // An iframe in a closed shadow root, as an embed's can be (the frame links find it there):
+  // the document's fullscreenElement is the root's host, the root's own is the iframe.
+  // Compared with the document's, the toggle entered fullscreen again instead of leaving it
+  // (a review, 2026-11-13). Firefox wants a click for fullscreen; this case lets it go without.
+  it('leaves fullscreen of an iframe in a closed shadow root on the toggle', async function() {
+    await openPage('/cleanup');
+    await inChrome((done) => {
+      Services.prefs.setBoolPref('full-screen-api.allow-trusted-requests-only', false);
+      done(true);
+    });
+    try {
+      await inPage(() => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const iframe = document.createElement('iframe');
+        // It posts back what it is sent, as a player posts its link key to its parent.
+        iframe.srcdoc = '<script>addEventListener("message", (e) => parent.postMessage(e.data, "*"));</' + 'script>';
+        host.attachShadow({mode: 'closed'}).appendChild(iframe);
+        window.__shadowed = {host, iframe};
+      });
+      await browser.waitUntil(async () => inPage(() => window.__shadowed.iframe.contentDocument?.readyState === 'complete'),
+          {timeout: 10000, timeoutMsg: 'the iframe in the shadow root never loaded'});
+      expect(await sendToPage({type: 'FRAME_LINK_RECEIVER', key: 'fs-shadow-link', frameId: 424244})).toBe('ok');
+      await inPage(() => window.__shadowed.iframe.contentWindow.postMessage('fs-shadow-link', '*'));
+      await browser.pause(300);
+      // Fullscreen is refused to a tab in the background, and Firefox leaves it as soon as
+      // another tab comes to the front, as the extension's does to read an answer
+      // (sendToPageInFront). Both toggles go out from it on timers while the site's tab stays
+      // in front, and the page records what is in fullscreen after each change.
+      await inPage(() => {
+        window.__fullscreenSeen = [];
+        document.addEventListener('fullscreenchange', () => {
+          const element = document.fullscreenElement;
+          window.__fullscreenSeen.push(element === window.__shadowed.host ? 'host' : element ? element.tagName : null);
+        });
+      });
+      const tabId = await siteTabId();
+      await browser.switchToWindow(extHandle);
+      await browser.execute((tabId, message) => {
+        window.__answers = [];
+        const send = () => chrome.tabs.sendMessage(tabId, message, {frameId: 0}, (response) => {
+          window.__answers.push(chrome.runtime.lastError ? {error: chrome.runtime.lastError.message} : response);
+        });
+        // A timer in a background tab may come up to a second late.
+        setTimeout(send, 1000);
+        setTimeout(send, 4000);
+      }, tabId, {type: 'TOGGLE_FULLSCREEN', frameId: 424244});
+      await browser.switchToWindow(siteHandle);
+      await browser.waitUntil(async () => (await browser.execute(() => window.__fullscreenSeen.length)) >= 2,
+          {timeout: 8000, interval: 200}).catch(() => {});
+      const seen = await browser.execute(() => window.__fullscreenSeen);
+      await browser.switchToWindow(extHandle);
+      const answers = await browser.execute(() => window.__answers);
+      // Entered on the first, left on the second; compared with the document's
+      // fullscreenElement, the second entered again: ['enter', 'enter'], seen ['host'].
+      expect({answers, seen}).toEqual({answers: ['enter', 'exit'], seen: ['host', null]});
+      expect(await takeContentErrors()).toEqual([]);
+    } finally {
+      await inPage(() => document.fullscreenElement && document.exitFullscreen());
+      await inChrome((done) => {
+        Services.prefs.clearUserPref('full-screen-api.allow-trusted-requests-only');
+        done(true);
+      });
+    }
+  });
+
   // One case since 2026-10-13 with "removes a player that overlays the whole page", which
   // opened the same overlay and left the page the same way.
   it('removes a player that overlays the whole page, and opens a player for the next video after that navigation', async function() {
@@ -1156,6 +1222,26 @@ describe('content.js around an in-page player', function() {
         {timeout: 10000, timeoutMsg: 'the Ctrl+click opened no tab'});
     await browser.switchToWindow(siteHandle);
     // The tab never navigated, and the player used to be torn down anyway.
+    expect(await hasPlayer()).toBe(true);
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('keeps the player for a link to another page that the page handles itself', async function() {
+    // A "Sign in" that opens a dialog, comments paged in place: the page cancels the click,
+    // and the player was taken down though the page stayed (a review, 2026-11-13).
+    await openPage('/cleanup');
+    await openPlayer();
+    await inPage(() => {
+      const a = document.createElement('a');
+      a.id = 'pagehandled';
+      a.href = '/login';
+      a.textContent = 'sign in';
+      a.addEventListener('click', (e) => e.preventDefault());
+      document.body.appendChild(a);
+    });
+    await browser.$('#pagehandled').click();
+    await browser.pause(1000);
+    expect(await inPage(() => location.pathname)).toBe('/cleanup');
     expect(await hasPlayer()).toBe(true);
     expect(await takeContentErrors()).toEqual([]);
   });

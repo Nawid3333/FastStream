@@ -21,6 +21,9 @@ cat > "$here/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FIX/calls"
 case "$1 $2" in
+  'api repos/o/r/actions/workflows/auto-release.yml')
+    if [ -n "${STATE_FAILS-}" ]; then exit 1; fi
+    echo "${AUTO_STATE:-active}" ;;
   'workflow run')
     n=$(( $(cat "$FIX/starts" 2>/dev/null || echo 0) + 1 ))
     echo "$n" > "$FIX/starts"
@@ -121,7 +124,26 @@ scenario hand-off 'refused three times, the open issues unreadable'
 check 'fails' test "$status" -ne 0
 check 'opens the issue anyway' contains "$FIX/calls" 'issue create --title Auto release failed'
 
-export START_FAILS=0 OPEN_ISSUES='[{"number":4,"title":"Other"}]' LIST_FAILS=''
+export START_FAILS=3 OPEN_ISSUES='[]' LIST_FAILS='' AUTO_STATE=disabled_manually
+scenario hand-off 'auto-release turned off by the owner'
+check 'succeeds' test "$status" -eq 0
+check 'starts nothing' test "$(starts)" -eq 0
+check 'opens no issue' lacks "$FIX/calls" 'issue'
+check 'says why' contains "$FIX/out" 'Auto release is turned off (disabled_manually): no release for CI run 777 on main.'
+
+export AUTO_STATE=disabled_inactivity
+scenario hand-off 'auto-release disabled by GitHub for inactivity, refused three times'
+check 'fails' test "$status" -ne 0
+check 'tries three times' test "$(starts)" -eq 3
+check 'opens the issue' contains "$FIX/calls" 'issue create --title Auto release failed'
+
+export AUTO_STATE='' STATE_FAILS=1
+scenario hand-off 'its state unreadable, refused three times'
+check 'fails' test "$status" -ne 0
+check 'tries three times' test "$(starts)" -eq 3
+check 'opens the issue' contains "$FIX/calls" 'issue create --title Auto release failed'
+
+export START_FAILS=0 OPEN_ISSUES='[{"number":4,"title":"Other"}]' LIST_FAILS='' STATE_FAILS=''
 scenario report 'auto-release failed, no issue open'
 check 'succeeds' test "$status" -eq 0
 check 'looks for the issue among all open ones' contains "$FIX/calls" "$LIST"

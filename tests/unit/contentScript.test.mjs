@@ -61,6 +61,18 @@ describe('SCRAPE_CAPTIONS', () => {
     expect(tracks[0].data).toBe('WEBVTT');
   });
 
+  it('asks for a track with a plain GET of its own address', async () => {
+    const asked = [];
+    const page = loadContentScript({responses: {'https://cdn.example/en.vtt': (init) => {
+      asked.push({method: init.method, body: init.body, headers: init.headers});
+      return new Response('WEBVTT', {status: 200});
+    }}});
+    addTrack(page, 'https://cdn.example/en.vtt');
+    const tracks = await page.send({type: 'SCRAPE_CAPTIONS'});
+    expect(tracks.map((track) => track.data)).toEqual(['WEBVTT']);
+    expect(asked).toEqual([{method: 'GET', body: undefined, headers: undefined}]);
+  });
+
   it('answers once, with nothing, for a page without tracks', async () => {
     const page = loadContentScript();
     expect(await page.send({type: 'SCRAPE_CAPTIONS'})).toEqual([]);
@@ -348,6 +360,35 @@ describe('windowed fullscreen', () => {
     expect(bar.style.getPropertyValue('visibility')).toBe('');
   });
 
+  it('gives the page its own bar over an embed back once the player under it went', async () => {
+    // A review (2026-11-13): the embed's own page went elsewhere (the iframe stayed, same
+    // src), and the bar the guard hid over it stayed hidden for the page's life.
+    const page = loadContentScript();
+    const {document} = page;
+    document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 2000};
+    document.body.rect = {x: 0, y: 0, width: 1280, height: 2000};
+    const embed = document.createElement('iframe');
+    embed.src = 'https://embed.example/e/1';
+    embed.rect = {x: 0, y: 0, width: 640, height: 360};
+    document.body.appendChild(embed);
+    const bar = document.createElement('div');
+    bar.rect = {x: 0, y: 320, width: 640, height: 40};
+    document.body.appendChild(bar);
+    await linkPlayer(page, embed, 7);
+    await page.send({type: 'IS_FULL', frameId: 7});
+    expect(bar.style.getPropertyValue('visibility')).toBe('hidden');
+
+    // Another iframe's release leaves this one's guard alone.
+    await page.send({type: 'RELEASE_OVERLAY_GUARD', frameId: 8});
+    expect(bar.style.getPropertyValue('visibility')).toBe('hidden');
+
+    await page.send({type: 'RELEASE_OVERLAY_GUARD', frameId: 7});
+    expect(bar.style.getPropertyValue('visibility')).toBe('');
+    // Let go for good: the guard's check no longer runs.
+    page.runIntervals();
+    expect(bar.style.getPropertyValue('visibility')).toBe('');
+  });
+
   it('fits the player to its place at once when it ends', async () => {
     // The fit waited a second after the page got its styles back, with the player at the
     // size it had before windowed fullscreen (glm's audit, 2026-10-13).
@@ -391,10 +432,13 @@ describe('windowed fullscreen', () => {
     a.href = 'https://site.example/other';
     page.document.body.appendChild(a);
     page.dispatchDocument('click', {target: a, button: 0});
+    page.advance(0);
     expect(iframe.isConnected).toBe(true);
-    // Without one, the link leaves the page here, and the player goes as before.
+    // Without one, the link leaves the page here, and the player goes as before (once the
+    // page's own listeners had the click).
     base.remove();
     page.dispatchDocument('click', {target: a, button: 0});
+    page.advance(0);
     expect(iframe.isConnected).toBe(false);
   });
 
@@ -409,6 +453,65 @@ describe('windowed fullscreen', () => {
     iframe.remove();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(plain.style.getPropertyValue('display')).toBe('');
+  });
+});
+
+// A click on a link to another page of the site takes the player down: the page goes. A link
+// the page handles itself - a "Sign in" that opens a dialog, comments paged in place - the
+// page's own listener cancels, after content.js's (a capture listener) ran: the page stayed,
+// and its player was taken down all the same (a review, 2026-11-13).
+describe('a click on a link to another page of the site', () => {
+  /**
+   * Clicks a link in the page: content.js's listener has the click first, then the page's.
+   * @param {Object} page - From loadContentScript.
+   * @param {Object} a - The link.
+   * @param {function(Object): void} [pageListener] - The page's own listener.
+   */
+  function click(page, a, pageListener) {
+    const event = {type: 'click', isTrusted: true, target: a, button: 0, defaultPrevented: false,
+      preventDefault() {
+        this.defaultPrevented = true;
+      }};
+    for (const {type, listener} of page.document.listeners) {
+      if (type === 'click') listener(event);
+    }
+    if (pageListener) pageListener(event);
+  }
+
+  /**
+   * @param {Object} page - From loadContentScript.
+   * @return {Object} A link to another page of the site.
+   */
+  function linkElsewhere(page) {
+    const a = page.document.createElement('a');
+    a.href = 'https://site.example/login';
+    page.document.body.appendChild(a);
+    return a;
+  }
+
+  it('keeps the player when the page handles the link itself', async () => {
+    const {page, iframe} = await pageWithPlayer();
+    click(page, linkElsewhere(page), (event) => event.preventDefault());
+    page.advance(0);
+    expect(iframe.isConnected).toBe(true);
+  });
+
+  it('takes the player down when the page leaves the link to the browser', async () => {
+    const {page, iframe} = await pageWithPlayer();
+    click(page, linkElsewhere(page));
+    page.advance(0);
+    expect(iframe.isConnected).toBe(false);
+  });
+
+  it('takes the player down when the page cancels the link and goes there itself', async () => {
+    // A single-page site's router: the address changes, the page does not load.
+    const {page, iframe} = await pageWithPlayer();
+    click(page, linkElsewhere(page), (event) => {
+      event.preventDefault();
+      page.window.location.pathname = '/login';
+    });
+    page.advance(0);
+    expect(iframe.isConnected).toBe(false);
   });
 });
 
@@ -462,6 +565,46 @@ describe('TOGGLE_MINIPLAYER', () => {
     expect(page.document.documentElement.children.map((el) => el.tagName)).toEqual(['HEAD', 'BODY']);
     expect(page.document.body.getAttribute('style')).toBeNull();
     expect(iframe.style.getPropertyValue('position')).toBe('fixed');
+  });
+
+  // The placeholder was made with the element's own tag. For the player's iframe itself that
+  // was a new iframe, a browsing context of its own (about:blank, with the page's classes),
+  // for each miniplayer; for a site's custom element, the site's own code ran again in it
+  // (its constructor, and connectedCallback once put in): a second copy of its player (a
+  // review, 2026-11-13).
+  it('stands a <div> in for the player\'s iframe', async () => {
+    const {page, iframe} = await pageWithPlayer();
+    expect(await requestMiniplayer(page)).toBe('enter');
+    expect(page.document.querySelectorAll('iframe')).toEqual([iframe]);
+    const siblings = iframe.parentNode.children;
+    expect(siblings[siblings.indexOf(iframe) - 1].tagName).toBe('DIV');
+  });
+
+  it('stands a <div> in for a site\'s custom element, and its own tag for any other wrapper', async () => {
+    // Any other: the page's rules for that tag (margins) hold the page's layout as it did.
+    for (const tag of ['site-player', 'section']) {
+      const page = loadContentScript();
+      const {document} = page;
+      document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 2000};
+      document.body.rect = {x: 0, y: 0, width: 1280, height: 2000};
+      // The site's player: its video, and a bar below it.
+      const sitePlayer = document.createElement(tag);
+      sitePlayer.rect = {x: 0, y: 0, width: 640, height: 400};
+      const wrap = document.createElement('div');
+      wrap.rect = {x: 0, y: 0, width: 640, height: 360};
+      const video = document.createElement('video');
+      video.rect = {x: 0, y: 0, width: 640, height: 360};
+      wrap.appendChild(video);
+      sitePlayer.appendChild(wrap);
+      document.body.appendChild(sitePlayer);
+      const {iframe} = await openPlayer(page);
+      await linkPlayer(page, iframe, 5);
+      expect(iframe.parentNode).toBe(sitePlayer);
+      // The player fills the site's player now: that is what the miniplayer takes.
+      iframe.rect = {x: 0, y: 0, width: 640, height: 400};
+      expect(await requestMiniplayer(page)).toBe('enter');
+      expect(document.body.children.map((el) => el.tagName)).toEqual([tag === 'section' ? 'SECTION' : 'DIV', tag.toUpperCase()]);
+    }
   });
 
   it('gives the miniplayer a size when its placeholder has none', async () => {
@@ -582,6 +725,47 @@ describe('REPORT_LOADED_MEDIA', () => {
   it('reports it once when the timeline has it too', async () => {
     const page = loadContentScript({entries: requests(10), observer: true});
     expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
+  });
+
+  /**
+   * Requests a page's player makes with fetch, each to an address of its own.
+   * @param {number} count - How many.
+   * @param {function(number): string} url - The i-th one's address.
+   * @param {number} from - The first one's start time.
+   * @return {Array<Object>} Resource Timing entries.
+   */
+  function fetches(count, url, from) {
+    return Array.from({length: count}, (_, i) =>
+      ({name: url(i), initiatorType: 'fetch', responseStatus: 200, startTime: from + i}));
+  }
+
+  // The observer kept the first 1,000 of these requests and none after them: on a page that
+  // lives long (a single-page site going on to its next episode), the newest manifest was
+  // never reported, an older one was (a review, 2026-11-13).
+  it('reports a manifest the page asked for after 1,200 other requests of the kind', async () => {
+    const entries = requests(300).slice(0, 300);
+    entries.push(...fetches(1200, (i) => `https://api.example/item${i}.json`, 300));
+    entries.push({name: 'https://cdn.example/next.m3u8', initiatorType: 'fetch', responseStatus: 200, startTime: 1500});
+    const urls = await reported(loadContentScript({entries, observer: true}));
+    expect(urls).toContain('https://cdn.example/next.m3u8');
+    // The timeline's 250 are images; the observer keeps 1,000 at most.
+    expect(urls.length).toBeLessThanOrEqual(1000);
+  });
+
+  it('keeps a manifest asked for once while thousands of its segments follow', async () => {
+    for (const [manifest, segment] of [
+      ['https://cdn.example/film.m3u8', (i) => `https://cdn.example/seg${i}.ts`],
+      // Through a proxy that names the stream in its query, segments as well.
+      ['https://proxy.example/get?url=https%3A%2F%2Fcdn.example%2Ffilm.m3u8',
+        (i) => `https://proxy.example/get?url=https%3A%2F%2Fcdn.example%2Fseg${i}.ts`],
+    ]) {
+      const entries = requests(300).slice(0, 300);
+      entries.push({name: manifest, initiatorType: 'fetch', responseStatus: 200, startTime: 300});
+      entries.push(...fetches(3000, segment, 301));
+      const urls = await reported(loadContentScript({entries, observer: true}));
+      expect(urls).toContain(manifest);
+      expect(urls.length).toBeLessThanOrEqual(1000);
+    }
   });
 
   it('reports what the timeline has where there is no observer', async () => {
@@ -753,6 +937,61 @@ describe('frame links', () => {
     closedShadowRoot(page, host).appendChild(embed);
     await linkPlayer(page, embed, 7);
     expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 7})).toBe('enter');
+  });
+});
+
+// Fullscreen of an iframe in a shadow root (an embed's, linked in a closed one above): the
+// document's fullscreenElement is the root's host, the root's is the iframe. Compared with
+// the document's, the toggle entered fullscreen again instead of leaving it, and on entering
+// the page told the player it had left, which then left (a review, 2026-11-13).
+describe('fullscreen of an iframe in a shadow root', () => {
+  /**
+   * A page with an embed's iframe (frame 7) in a closed shadow root, linked, and Firefox's
+   * fullscreen of it.
+   * @return {Promise<{page: Object, root: Object, embed: Object}>}
+   */
+  async function embedInShadowRoot() {
+    const page = loadContentScript();
+    const host = page.document.createElement('div');
+    page.document.body.appendChild(host);
+    const root = closedShadowRoot(page, host);
+    root.nodeType = 11;
+    root.host = host;
+    root.fullscreenElement = null;
+    const embed = page.document.createElement('iframe');
+    root.appendChild(embed);
+    embed.requestFullscreen = async () => {
+      page.document.fullscreenElement = host;
+      root.fullscreenElement = embed;
+    };
+    page.document.exitFullscreen = async () => {
+      page.document.fullscreenElement = null;
+      root.fullscreenElement = null;
+    };
+    await linkPlayer(page, embed, 7);
+    return {page, root, embed};
+  }
+
+  const toggle = (page) => page.send({type: 'TOGGLE_FULLSCREEN', frameId: 7, playerFrameId: 7});
+
+  it('leaves fullscreen on the toggle', async () => {
+    const {page, root} = await embedInShadowRoot();
+    expect(await toggle(page)).toBe('enter');
+    page.dispatchDocument('fullscreenchange');
+    expect(await toggle(page)).toBe('exit');
+    expect(root.fullscreenElement).toBe(null);
+  });
+
+  it('tells the player nothing on entering, and that it left on leaving', async () => {
+    const {page} = await embedInShadowRoot();
+    await toggle(page);
+    page.sent.length = 0;
+    page.dispatchDocument('fullscreenchange');
+    expect(page.sent).toEqual([]);
+    // Left by Escape.
+    await page.document.exitFullscreen();
+    page.dispatchDocument('fullscreenchange');
+    expect(page.sent.map((m) => m.data)).toEqual([{type: 'fullscreen-state', value: false}]);
   });
 });
 

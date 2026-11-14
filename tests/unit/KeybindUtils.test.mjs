@@ -66,6 +66,14 @@ describe('keyDisplayName', () => {
     expect(keyDisplayName('Control++')).toBe('Ctrl++');
   });
 
+  it('shows a binding with a line break in it instead of throwing', () => {
+    // An imported "Space\n" matched nothing (. stops at a line break), and reading the match
+    // threw: the options page stopped half drawn.
+    expect(keyDisplayName('Space\n')).toBe('Space\n');
+    expect(keyDisplayName('Shift+\nKeyW')).toBe('Shift+\nKeyW');
+    expect(keyDisplayName('Control+Alt+\n')).toBe('Ctrl+Alt+\n');
+  });
+
   it('shows no key as the text it is given', () => {
     expect(keyDisplayName('None', 'Keine')).toBe('Keine');
     expect(keyDisplayName('None')).toBe('None');
@@ -273,6 +281,18 @@ describe('actionsForKey', () => {
     expect(actionsForKey('Control+Shift+', keybinds)).toEqual([]);
     expect(actionsForKey('Space', keybinds)).toEqual(['PlayPause']);
   });
+
+  it('fires a binding to a typed "+", with a modifier or without', () => {
+    // WebUtils.getKeyString names "+" (German + key, numpad +, US Shift+=) by its character.
+    // Split at every '+', '+' and 'Control++' named no key, and no such binding ever fired.
+    expect(actionsForKey('+', {A: '+'})).toEqual(['A']);
+    expect(actionsForKey('Control++', {A: 'Control++'})).toEqual(['A']);
+    expect(actionsForKey('+', {A: 'Control++'})).toEqual([]);
+    expect(actionsForKey('Control++', {A: '+'})).toEqual([]);
+    // An action that ignores extra modifiers, on "+".
+    expect(actionsForKey('Control++', {SaveVideo: '+'})).toEqual(['SaveVideo']);
+    expect(actionsForKey('Alt++', {SaveVideo: 'Control++'})).toEqual([]);
+  });
 });
 
 describe('findKeybindConflicts and conflictPartners', () => {
@@ -298,6 +318,12 @@ describe('findKeybindConflicts and conflictPartners', () => {
     const keybinds = {A: 'KeyQ', B: 'KeyQ', C: 'KeyQ', D: 'KeyR'};
     expect(findKeybindConflicts(keybinds)).toHaveLength(1);
     expect(conflictPartners(keybinds).get('A')).toEqual(['B', 'C']);
+  });
+
+  it('finds two actions on a typed "+"', () => {
+    expect(findKeybindConflicts({A: '+', B: '+'})).toEqual([{key: '+', actions: ['A', 'B']}]);
+    expect(findKeybindConflicts({A: 'Control++', B: 'Control++'})).toEqual([{key: 'Control++', actions: ['A', 'B']}]);
+    expect(findKeybindConflicts({A: '+', B: 'Control++'})).toEqual([]);
   });
 
   it('ignores unbound actions, however many there are', () => {

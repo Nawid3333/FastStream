@@ -91,8 +91,14 @@ class FakeFile {
 class FakeDir {
   constructor() {
     this.children = new Map();
+    // Removed from its parent: a handle to it finds nothing any more, as Firefox's.
+    this.gone = false;
+  }
+  check() {
+    if (this.gone) throw new Error('NotFoundError: the directory is gone');
   }
   async getDirectoryHandle(name, {create = false} = {}) {
+    this.check();
     checkName(name);
     if (!this.children.has(name)) {
       if (!create) throw new Error('NotFoundError: ' + name);
@@ -103,6 +109,7 @@ class FakeDir {
     return child;
   }
   async getFileHandle(name, {create = false} = {}) {
+    this.check();
     checkName(name);
     if (!this.children.has(name)) {
       if (!create) throw new Error('NotFoundError: ' + name);
@@ -111,10 +118,14 @@ class FakeDir {
     return this.children.get(name);
   }
   async removeEntry(name) {
+    this.check();
     checkName(name);
+    const child = this.children.get(name);
     if (!this.children.delete(name)) throw new Error('NotFoundError: ' + name);
+    if (child instanceof FakeDir) child.gone = true;
   }
   async* keys() {
+    this.check();
     yield* [...this.children.keys()];
   }
 }
@@ -323,6 +334,50 @@ describe('opfs-worker: cleaning up other tabs\' sessions', () => {
         manager.sessionName,
       ].sort());
     } finally {
+      await manager.close();
+    }
+  });
+});
+
+describe('opfs-worker: a session whose directory another player deleted', () => {
+  // A live session with no heartbeat for a minute (the computer slept) is a dead one to the
+  // next player that starts (prune), which deletes its directory. Every write of the session
+  // failed from then on, for as long as its page lived.
+  it('makes its directory again for the next fragment, and for the next save', async () => {
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    try {
+      await manager.setFile('blob0', new Blob([new Uint8Array([1, 2, 3])]));
+      await root.children.get('fsblob').removeEntry(manager.sessionName);
+      expect(root.children.get('fsblob').children.has(manager.sessionName)).toBe(false);
+
+      await manager.setFile('blob1', new Blob([new Uint8Array([4, 5])]));
+      // Only the new one: what was in the deleted directory is gone.
+      expect(sessionOf(root, manager).children.size).toBe(1);
+      expect([...(await manager.getFile('blob1')).disk.bytes]).toEqual([4, 5]);
+
+      await root.children.get('fsblob').removeEntry(manager.sessionName);
+      await manager.saveBegin('save-1');
+      await manager.saveAppend('save-1', new Uint8Array([7]));
+      await manager.saveEnd('save-1');
+      expect([...(await manager.getSavedFile('save-1')).disk.bytes]).toEqual([7]);
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it('makes it again at its next heartbeat, so the players after it see a live session', async () => {
+    vi.useFakeTimers();
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    try {
+      await root.children.get('fsblob').removeEntry(manager.sessionName);
+      await vi.advanceTimersByTimeAsync(5000);
+      const meta = sessionOf(root, manager)?.children.get('_meta.json');
+      expect(meta).toBeDefined();
+      expect(JSON.parse(new TextDecoder().decode(meta.bytes)).updated_time).toBe(Date.now());
+    } finally {
+      vi.useRealTimers();
       await manager.close();
     }
   });
@@ -768,5 +823,58 @@ describe('OPFSManager.setup', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+// A saved video's copy on disk stayed after its download until another FastStream player
+// started (a prune): days, for someone who saves and closes the tab. A save's store, once
+// nothing will read its file again (its download over, or the save failed), deletes its
+// session directory as it closes.
+describe('OPFSManager.close, a save\'s session', () => {
+  /**
+   * A manager whose session holds a finished save's file.
+   * @return {Promise<{root: FakeDir, manager: OPFSManager}>}
+   */
+  async function withSavedFile() {
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    await manager.saveBegin('save');
+    await manager.saveAppend('save', new Uint8Array([1, 2, 3]));
+    await manager.saveEnd('save');
+    expect(sessionOf(root, manager).children.size).toBe(2);
+    return {root, manager};
+  }
+
+  it('deletes the session directory, once its worker ended, when asked to', async () => {
+    const {root, manager} = await withSavedFile();
+    const worker = manager.worker;
+    await manager.close(true);
+    expect(worker.terminate).toHaveBeenCalled();
+    expect(root.children.get('fsblob').children.has(manager.sessionName)).toBe(false);
+  });
+
+  it('keeps it on a plain close: a download may still read the file', async () => {
+    const {root, manager} = await withSavedFile();
+    await manager.close();
+    expect(sessionOf(root, manager).children.size).toBe(2);
+  });
+
+  it('deletes it after a worker that is gone already, and minds no directory left to delete', async () => {
+    const {root, manager} = await withSavedFile();
+    manager.worker.terminate();
+    manager.worker = null;
+    await manager.close(true);
+    expect(root.children.get('fsblob').children.has(manager.sessionName)).toBe(false);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(manager.close(true)).resolves.toBeUndefined();
+  });
+
+  it('is what FSBlob.close(true) does', async () => {
+    const store = new FSBlob({memoryOnly: true});
+    store.opfsManager = {close: vi.fn(async () => {})};
+    await store.close(true);
+    expect(store.opfsManager.close).toHaveBeenCalledWith(true);
+    await store.close();
+    expect(store.opfsManager.close).toHaveBeenLastCalledWith(false);
   });
 });

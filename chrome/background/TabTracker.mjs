@@ -86,6 +86,16 @@ export class FrameHolder {
     this.playerOpening = false;
     // Which openPlayer attempt playerOpening is for (content.js's PLAYER_OPEN_GONE names it).
     this.playerOpeningAttempt = 0;
+    // Opens of this page's player that ended without one (background.mjs noteOpenMissed),
+    // and when the last open was asked for (openPlayer).
+    /** @type {number} */
+    this.openMissed = 0;
+    /** @type {number} */
+    this.openTriedAt = 0;
+    // The last one ended because the page took the player out: only a play the user starts
+    // opens it again, not the page's own requests (reopenMissed).
+    /** @type {boolean} */
+    this.openGone = false;
     // The page here came back from Firefox's back-forward cache, with the streams it had
     // (TabHolder.restoreGoneDocument); it fetches nothing again.
     this.restoredFromCache = false;
@@ -378,6 +388,12 @@ export class TabHolder {
     // How the autoplay next going on in the tab goes on (background.mjs), null when none.
     /** @type {?import('./background.mjs').Continuation} */
     this.continuationOptions = null;
+    // Whether the tab went on to the page the continuation is for (background.mjs
+    // tabs.onUpdated), and that page's name once it named itself (noteContinuationPage): a
+    // page after that one drops it.
+    this.continuationArrived = false;
+    /** @type {?string} */
+    this.continuationPage = null;
     // regexMatched/mpvMatched are deliberately NOT cleared here: the
     // leave-a-site detection in the onUpdated handler relies on them
     // surviving hostname changes (upstream semantics for regexMatched).

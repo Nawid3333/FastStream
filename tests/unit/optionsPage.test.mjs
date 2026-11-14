@@ -43,6 +43,7 @@ vi.stubGlobal('cancelAnimationFrame', (id) => clearTimeout(id));
 
 const {Utils} = await import('../../chrome/player/utils/Utils.mjs');
 const {DefaultKeybinds} = await import('../../chrome/player/options/defaults/DefaultKeybinds.mjs');
+const {DefaultOptions} = await import('../../chrome/player/options/defaults/DefaultOptions.mjs');
 const {KEYBINDS_VERSION} = await import('../../chrome/player/options/KeybindUtils.mjs');
 
 // What the user saved earlier: their own key for PlayPause, a list, a seek step.
@@ -231,5 +232,83 @@ describe('the options page\'s controls', () => {
   it('hides the Welcome Page link in the web build, which has no welcome page', () => {
     expect(byId('welcomeitem').style.display).toBe('none');
     expect(byId('welcomeitem').querySelector('#welcome')).not.toBe(null);
+  });
+});
+
+describe('importing a settings file', () => {
+  beforeAll(async () => {
+    deliverSaved();
+    await settle();
+  });
+
+  afterEach(async () => {
+    await settle();
+    writes.length = 0;
+  });
+
+  // Picks the file in the picker the Import button opens.
+  const importFile = async (settings) => {
+    const createElement = doc.createElement.bind(doc);
+    let picker = null;
+    const spy = vi.spyOn(doc, 'createElement').mockImplementation((tag) => {
+      const element = createElement(tag);
+      if (tag === 'input') picker = element;
+      return element;
+    });
+    byId('import').fire('click');
+    spy.mockRestore();
+    picker.fire('change', {target: {files: [{text: async () => JSON.stringify(settings)}]}});
+    await settle();
+  };
+
+  it('shows and saves a file with a broken binding in it, the binding\'s default in its place', async () => {
+    // "Space\n" made keyDisplayName throw: the page stopped half drawn (the lists, the video
+    // options, the search never filled), and the import had saved it, so every later visit
+    // broke the same way until "Reset keybinds".
+    await importFile({
+      keybindsVersion: KEYBINDS_VERSION,
+      keybinds: {...DefaultKeybinds, PlayPause: 'Space\n', Mute: 'M'.repeat(10 * 1024), Fullscreen: 'KeyG'},
+      autoEnableURLs: ['https://imported.example'],
+    });
+    expect(byId('autoEnableURLs').value).toBe('https://imported.example');
+    expect(keybindBox('PlayPause').dataset.key).toBe(DefaultKeybinds.PlayPause);
+    expect(keybindBox('Fullscreen').dataset.key).toBe('KeyG');
+    const {keybinds} = optionWrites().at(-1).value;
+    expect(keybinds.PlayPause).toBe(DefaultKeybinds.PlayPause);
+    expect(keybinds.Mute).toBe(DefaultKeybinds.Mute);
+    expect(keybinds.Fullscreen).toBe('KeyG');
+  });
+
+  it('holds the numbers to what their fields take, and a menu to its choices', async () => {
+    // A seek step of -5 seeked forward on the left arrow, a mini player of 50 was 50 times
+    // the player, and a value no menu has showed as a blank menu.
+    await importFile({
+      seekStepSize: -5, miniSize: 50, replaceDelay: 999999, maximumDownloaders: 2.5, autoplayCountdown: 99,
+      singleClickAction: 'nosuchaction', colorTheme: 'nosuchtheme', miniPos: 'middle', doubleClickAction: 'pip',
+    });
+    const saved = optionWrites().at(-1).value;
+    expect(saved.seekStepSize).toBe(0.1);
+    expect(saved.miniSize).toBe(1);
+    expect(saved.replaceDelay).toBe(60000);
+    expect(saved.maximumDownloaders).toBe(2);
+    expect(saved.autoplayCountdown).toBe(30);
+    expect(byId('seekstepsize').value).toBe(0.1);
+    expect(byId('minisize').value).toBe(100);
+    expect(saved.singleClickAction).toBe(DefaultOptions.singleClickAction);
+    expect(saved.colorTheme).toBe(DefaultOptions.colorTheme);
+    expect(saved.miniPos).toBe(DefaultOptions.miniPos);
+    // A choice the menu has stays.
+    expect(saved.doubleClickAction).toBe('pip');
+  });
+
+  it('keeps every number and choice that is within them as it is', async () => {
+    const settings = {
+      seekStepSize: 0.15, miniSize: 0.333, replaceDelay: 0, maximumDownloaders: 6, autoplayCountdown: 0,
+      singleClickAction: 'nothing', colorTheme: 'oled', miniPos: 'topleft', visChangeAction: 'playpause',
+      // The player takes any ratio and any height, beyond the menus' (VideoTransformUtils, LevelManager).
+      videoAspectRatio: '2:1', defaultQuality: '360p',
+    };
+    await importFile(settings);
+    expect(optionWrites().at(-1).value).toMatchObject(settings);
   });
 });

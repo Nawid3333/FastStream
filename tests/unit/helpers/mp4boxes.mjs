@@ -137,6 +137,19 @@ export function readStts(box) {
 }
 
 /**
+ * @param {Box} box an mvhd, mdhd or tkhd
+ * @return {number} the duration it states, in its timescale (the movie's for mvhd and tkhd,
+ *     the track's for mdhd)
+ */
+export function readDuration(box) {
+  const wide = box.body.getUint8(0) === 1;
+  // After the version and flags, creation and modification times, then the timescale
+  // (mvhd, mdhd) or the track ID and a reserved word (tkhd).
+  const offset = 4 + (wide ? 16 : 8) + (box.type === 'tkhd' ? 8 : 4);
+  return field(box.body, offset, wide);
+}
+
+/**
  * @param {Box} box an mvhd or mdhd (both carry the timescale at the same place)
  * @return {number}
  */

@@ -63,7 +63,13 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   way the speed menu saves its own (`KeybindManager.rememberSpeed()`, the menu's
   `scheduleSave()`, 500 ms after the last change). Until then only the menu saved. A 16x left
   by its key starts the next video at 8x, with sound (`PlaybackRateChanger.loadState`);
-  holding the video's double speed is no key's and is not kept.
+  holding the video's double speed is no key's and is not kept. **With the silence skipper on**
+  (2026-11-13, a review) a speed key becomes the skipper's regular speed, or its skip speed in a
+  silence, as a pick in the speed menu does (`PlaybackRateChanger.chooseSpeed`). Until then D, S
+  and the presets changed the speed for a moment only: the OSD showed the new speed, the
+  skipper's loop put its regular speed back within 100 ms, and that was what got saved. A speed
+  held for a moment (holding the video, a GIF's 4x) and the skipper's own switches do not go
+  through `chooseSpeed`, so they never become the regular speed. `playbackRateLimit.test.mjs`.
 - **Speed steps on S and D** (layout version 4, 2026-10-10, as in Nawid's mpv `input.conf`:
   s -0.1, d +0.1): `DecreasePlaybackRate` on S, `IncreasePlaybackRate` on D (Shift+Down/Up
   before), and `SaveVideo` moved from D to Shift+D (still with any extra modifier:
@@ -93,6 +99,30 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
 - **Typing is not a command.** `KeybindManager.onKeyDown` ignores a press whose target is a text
   field, text area, select or editable element, unless Ctrl, Alt or Meta is held (Right Alt hides
   the player). Ranges, checkboxes and buttons still pass keys through.
+- **Escape closes menus and windows wherever the focus is** (2026-11-13, a review). The player
+  heard it only on its own element, so with the focus on `<body>` (leaving the control bar
+  blurs the clicked control) a menu opened by a click stayed open. And the loop menu, the
+  subtitle settings, the subtitle search (its fields and page number) and the sources browser's
+  fields kept every key from the player, Escape too: the subtitle search could not be closed
+  from its own field. Escape is now heard on the document, as the keybinds are (once: the
+  player's own listener is gone), and those fields and menus stop every key but Escape
+  (`if (e.key !== 'Escape') e.stopPropagation()`). Dialogs keep their own keys.
+  `playerFieldKeys.test.mjs`, `player-a11y.e2e.mjs`.
+- **Space and Enter press a control the keyboard went to** (2026-11-13).
+  `WebUtils.setupKeyPress` gives a control with a tab index and role of its own the keys of a
+  `<button>`: Enter presses it, and so does Space without a modifier when the control shows the
+  keyboard's focus (`:focus-visible`). After a mouse click the control keeps the focus without
+  `:focus-visible`, and Space stays play/pause. A form control (input, text area, select,
+  button) keeps its own Space: the options page's fields come through `setupTabIndex` too, and
+  the first version swallowed every space typed in them ("1 2" in the speed limit became "12").
+  The subtitles, quality and language buttons had an Enter of their own and no Space, Enter
+  could not open the quality or language list again once a click had closed it, and Space after
+  a click on the autoplay switch toggled it again instead of playing. They all go through
+  `setupKeyPress` now, as `setupTabIndex` does. It leaves alone a key that a listener before
+  it took (`preventDefault`), so Enter in an open list chooses and does not also press the
+  button, which closed the list; the audio button's is set up after its list's keys (it had
+  two Enter listeners, and its own closed the list before the list's could choose).
+  `playerA11y.test.mjs`, `player-a11y.e2e.mjs`, `player-menus.e2e.mjs`.
 - **Keys follow the keyboard's layout** (2026-10-07). `WebUtils.getKeyString`, which
   `KeybindManager` and the options page's keybind recorder both use, named every key by
   `e.code`, its place on a US keyboard. On a German QWERTZ keyboard the key labelled Y is `KeyZ`
@@ -136,6 +166,20 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   migration, which skipped it silently, so the migration never ran in the extension; the unit
   tests fed plain objects and passed. `tests/unit/Keybinds.test.mjs` now goes through
   `getOptionsFromStorage` with a stubbed `getConfig`.
+- **A settings file can no longer break the options page** (2026-11-13, a review). An imported
+  binding with a line break in it ("Space\n") made `keyDisplayName` throw: the page stopped half
+  drawn, and as the import had saved it, every later visit broke the same way until "Reset
+  keybinds". A binding of many kilobytes froze the page (the pattern backtracked over it).
+  `mergeOptions` now keeps a binding only when it can be a key string (`isKeyString`: at most 64
+  characters, no control character) and gives the action its default otherwise, as it did for a
+  binding that is no text; this also heals options already saved that way. `keyDisplayName`
+  reads a binding with `splitKeyString`, which takes any string in linear time. An import holds
+  the five number fields' options to the fields' own limits (`NUMBER_LIMITS` in options.mjs,
+  which `readNumberField` reads too: a seek step of -5 or a mini player of 50 were taken as they
+  were) and the click, visibility, theme and mini player menus to their choices (a value no menu
+  has showed as a blank menu). Values within them stay exactly as they are. The aspect ratio and
+  the quality are left alone: the player takes any ratio and height. `optionsPage.test.mjs`,
+  `Keybinds.test.mjs`, `KeybindUtils.test.mjs`.
 - **Options page shows nothing before the saved options are read.** `OptionsStore.get()` returns
   the defaults until `init()` has read storage, and the page's visibility refresh
   (IntersectionObserver) used to call `loadOptions` with that, so a slow start drew the default
@@ -143,9 +187,25 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   options. The refresh now waits for `init()` (`optionsLoaded`). Found as a flaky failure of
   `keybinds-storage.e2e.mjs` under the full `verify` load; reproduced every time with a 1.5 s
   delay injected into `OptionsStore.init()`, and passing with the guard.
+- **The page knows every echo of its own saves** (2026-11-13). While a slider was dragged, the
+  page saved once a frame, and now and then redrew every keybind row and the search and put the
+  slider back to the stored value mid-drag. Each save goes to the background, which tells every
+  tab with the save's time; the page ignored only the echo of its latest save, so an earlier
+  save's echo that came after the next save was taken for a change made elsewhere.
+  `OptionsStore` now keeps the times of its saves whose echo has not come back (at most 100) and
+  drops each one as its echo arrives; any other time still reloads the options.
+  `OptionsStore.set()`, which only a test called, went the same day: the page saves through
+  `replace()` alone. `OptionsStore.test.mjs`.
 - **Options page menu.** Rows are named by `keybindLabel` ("Seek to 50%", "Speed preset 2.5x"),
   and a row whose key another action shares is marked with a warning naming the other action
   (`conflictPartners`; nothing stops the choice, the user may be mid-rearrangement).
+- **A binding to the "+" key fires and shows its clashes** (2026-11-13). `getKeyString` names
+  that key by its character (the German + key, the numpad +, Shift+= on a US keyboard), so it is
+  saved as `+` or `Control++`. `actionsForKey` split the string at every '+', found an empty key
+  and gave up before the exact match: the key never fired, and two actions on it got no warning.
+  The modifiers and the key are now read the way `keyDisplayName` reads them (`splitKeyString`):
+  the leading Meta/Control/Alt/Shift, each with its '+', and the rest is the key. `Shift+` still
+  names no key. `KeybindUtils.test.mjs`.
 - Locale keys `welcome_page_keybinds_content10` and `content11` exist in all 16 locales.
   **Gotcha:** the 16 `messages.json` files are the source; edit those, then run
   `pnpm run combine-locales` to bring `combined-locales.json` along. `tests/unit/localeKeys.test.mjs`

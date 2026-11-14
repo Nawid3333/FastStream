@@ -143,9 +143,28 @@ function writeAll(accessHandle, data, at) {
 // (saveEnd): read back as the Blob the user downloads, in this session too. Its flush at the
 // end took about 0.5 s of a 458 MB HLS save (1770 ms against 1259 ms, medians of 6, 2026-11-07).
 
+/**
+ * A file of this session, made when it is not there. The session's directory is made again
+ * when it is gone: another player's prune took it for a dead session's - no heartbeat for
+ * STALE_MS, as after the computer slept, when that player starts before this one's next
+ * beat. Its handle then failed every write for the rest of the page's life: nothing was
+ * stored on disk any more, each fragment the RAM budget let go of was downloaded again, and
+ * no save could be written.
+ * @param {string} name
+ * @return {Promise<FileSystemFileHandle>}
+ */
+async function sessionFile(name) {
+  try {
+    return await /** @type {FileSystemDirectoryHandle} */ (sessionDir).getFileHandle(name, {create: true});
+  } catch (e) {
+    sessionDir = await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).getDirectoryHandle(/** @type {string} */ (sessionName), {create: true});
+    return sessionDir.getFileHandle(name, {create: true});
+  }
+}
+
 /** Overwrites this session's heartbeat marker with the current time. */
 async function writeHeartbeat() {
-  const handle = await /** @type {FileSystemDirectoryHandle} */ (sessionDir).getFileHandle(META_FILE, {create: true});
+  const handle = await sessionFile(META_FILE);
   const accessHandle = await handle.createSyncAccessHandle();
   try {
     const bytes = new TextEncoder().encode(JSON.stringify({updated_time: Date.now()}));
@@ -189,7 +208,7 @@ async function init() {
  * @param {ArrayBuffer|ArrayBufferView} data
  */
 async function setFile(identifier, data) {
-  const fileHandle = await /** @type {FileSystemDirectoryHandle} */ (sessionDir).getFileHandle(identifier, {create: true});
+  const fileHandle = await sessionFile(identifier);
   const accessHandle = await fileHandle.createSyncAccessHandle();
   try {
     writeAll(accessHandle, data, 0);
@@ -254,7 +273,9 @@ async function destroy() {
   // file may still be mid-download from the main thread (the File was handed
   // to chrome.downloads). Once the heartbeat stops, prune() reaps this
   // directory on the next FSBlob init - same staleness semantics as before,
-  // just deferred so in-flight downloads can finish.
+  // just deferred so in-flight downloads can finish. A save whose download
+  // Firefox said is over deletes it from the main thread once this worker
+  // ended (OPFSManager.close(true)).
 }
 
 /**
@@ -268,7 +289,7 @@ async function destroy() {
  * @param {string} identifier
  */
 async function saveBegin(identifier) {
-  const fileHandle = await /** @type {FileSystemDirectoryHandle} */ (sessionDir).getFileHandle(identifier, {create: true});
+  const fileHandle = await sessionFile(identifier);
   const accessHandle = await fileHandle.createSyncAccessHandle();
   saveStreams.set(identifier, {handle: accessHandle, offset: 0});
 }

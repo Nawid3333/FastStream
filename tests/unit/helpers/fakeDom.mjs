@@ -157,6 +157,11 @@ export class FakeElement {
     return child;
   }
 
+  // Elements only: no text nodes here.
+  append(...children) {
+    children.forEach((child) => this.appendChild(child));
+  }
+
   insertBefore(child, reference) {
     if (!reference) return this.appendChild(child);
     child.remove();

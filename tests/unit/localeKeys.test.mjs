@@ -46,7 +46,8 @@ function namedKeys() {
       add(keys, match[1], name);
       add(keys, match[2], name);
     }
-    for (const match of source.matchAll(/\bdata-i18n(?:-label)?="([^"]+)"/g)) {
+    // Each attribute the pages' i18n reads: the text, the label, a field's placeholder.
+    for (const match of source.matchAll(/\bdata-i18n(?:-label|-placeholder)?="([^"]+)"/g)) {
       add(keys, match[1], name);
     }
     for (const match of source.matchAll(/__MSG_(\w+)__/g)) {

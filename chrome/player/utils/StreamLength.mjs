@@ -123,6 +123,11 @@ export class StreamLength {
     /** @type {Array<string>} */
     const media = [];
     let renditions = false;
+    // The line of the URI the last STREAM-INF tag is for: the first after it that is no tag.
+    // Tags before the same URI share it, and it is looked for once: each looked through all
+    // the lines after it, and a page's playlist of thousands of tags and one URI at the end
+    // held the background for seconds.
+    let uriLine = -1;
     for (let i = first + 1; i < lines.length; i++) {
       const line = lines[i];
       const mediaAttributes = line.startsWith('#EXT-X-MEDIA:') ? line.slice('#EXT-X-MEDIA:'.length) : null;
@@ -131,7 +136,13 @@ export class StreamLength {
         const uri = /(?:^|,)\s*URI\s*=\s*"([^"]+)"/i.exec(mediaAttributes)?.[1];
         if (uri) media.push(uri);
       } else if (line.startsWith('#EXT-X-STREAM-INF:')) {
-        const uri = lines.slice(i + 1).find((next) => next !== '' && !next.startsWith('#'));
+        if (uriLine <= i) {
+          uriLine = i + 1;
+          while (uriLine < lines.length && (lines[uriLine] === '' || lines[uriLine].startsWith('#'))) {
+            uriLine++;
+          }
+        }
+        const uri = lines[uriLine];
         if (!uri) continue;
         const attributes = line.slice('#EXT-X-STREAM-INF:'.length);
         const bandwidth = Number(/(?:^|,)\s*BANDWIDTH\s*=\s*(\d+)/i.exec(attributes)?.[1]) || 0;
@@ -186,11 +197,33 @@ export class StreamLength {
    * @return {boolean}
    */
   static dashProtected(text) {
-    const sets = [...text.matchAll(/<(?:[\w-]+:)?AdaptationSet\b([^>]*)>([\s\S]*?)<\/(?:[\w-]+:)?AdaptationSet\s*>/g)]
-        .map((match) => ({
-          video: /\bcontentType\s*=\s*["']video["']|\bmimeType\s*=\s*["']video\/|\bwidth\s*=/i.test(match[1] + match[2]),
-          protected: /<(?:[\w-]+:)?ContentProtection\b/.test(match[2]),
-        }));
+    // Each set's tags are found one after the other, from where the last one ended. One
+    // pattern for a whole set looked from each opening tag to the end of the text for its
+    // closing one, and a page's MPD of opening tags alone (up to StreamLengths' 4 MB) held
+    // the background for minutes. With no closing tag after one, there is none after any
+    // later one either.
+    const open = /<(?:[\w-]+:)?AdaptationSet\b/g;
+    const close = /<\/(?:[\w-]+:)?AdaptationSet\s*>/g;
+    /** @type {Array<{video: boolean, protected: boolean}>} */
+    const sets = [];
+    while (open.exec(text)) {
+      const end = text.indexOf('>', open.lastIndex);
+      if (end === -1) {
+        break;
+      }
+      close.lastIndex = end + 1;
+      const closing = close.exec(text);
+      if (!closing) {
+        break;
+      }
+      const attributes = text.slice(open.lastIndex, end);
+      const inner = text.slice(end + 1, closing.index);
+      sets.push({
+        video: /\bcontentType\s*=\s*["']video["']|\bmimeType\s*=\s*["']video\/|\bwidth\s*=/i.test(attributes + inner),
+        protected: /<(?:[\w-]+:)?ContentProtection\b/.test(inner),
+      });
+      open.lastIndex = close.lastIndex;
+    }
     const videos = sets.filter((set) => set.video);
     const judged = videos.length > 0 ? videos : sets;
     return judged.length > 0 && judged.every((set) => set.protected);
@@ -205,7 +238,10 @@ export class StreamLength {
   static hlsAttributes(text) {
     /** @type {Object<string, string>} */
     const attributes = {};
-    for (const match of text.matchAll(/([A-Za-z0-9-]+)\s*=\s*("[^"]*"|[^,]*)/g)) {
+    // A name is read from its first character only (the lookbehind): tried from each
+    // character of a long run of them with no `=` after it, a page's playlist line of
+    // megabytes held the background for minutes. The matches are the same.
+    for (const match of text.matchAll(/(?<![A-Za-z0-9-])([A-Za-z0-9-]+)\s*=\s*("[^"]*"|[^,]*)/g)) {
       attributes[match[1].toUpperCase()] = match[2].trim().replace(/^"(.*)"$/, '$1');
     }
     return attributes;
@@ -217,12 +253,17 @@ export class StreamLength {
    * @return {number|null} Its length in seconds (Infinity for a live one), or null.
    */
   static fromDash(text) {
-    const mpd = /<(?:[\w-]+:)?MPD\b([^>]*)>/.exec(text);
-    if (!mpd) {
+    // Each tag's end is looked for once, from where its name ends: a pattern for the whole
+    // tag looked from each `<MPD` (and each `<Period`) to the end of the text when none
+    // had a `>`, and a page's MPD of those alone held the background for seconds. With no
+    // `>` after one, there is none after any later one either.
+    const mpd = /<(?:[\w-]+:)?MPD\b/.exec(text);
+    const mpdEnd = mpd ? text.indexOf('>', mpd.index + mpd[0].length) : -1;
+    if (!mpd || mpdEnd === -1) {
       return null;
     }
 
-    const attributes = StreamLength.attributes(mpd[1]);
+    const attributes = StreamLength.attributes(text.slice(mpd.index + mpd[0].length, mpdEnd));
     if ((attributes.type || '').toLowerCase() === 'dynamic') {
       return Infinity;
     }
@@ -235,13 +276,19 @@ export class StreamLength {
     // No total: the periods', when each one has its own.
     let sum = 0;
     let count = 0;
-    for (const match of text.matchAll(/<(?:[\w-]+:)?Period\b([^>]*)>/g)) {
-      const period = StreamLength.parseIsoDuration(StreamLength.attributes(match[1]).duration);
+    const periodTag = /<(?:[\w-]+:)?Period\b/g;
+    while (periodTag.exec(text)) {
+      const end = text.indexOf('>', periodTag.lastIndex);
+      if (end === -1) {
+        break;
+      }
+      const period = StreamLength.parseIsoDuration(StreamLength.attributes(text.slice(periodTag.lastIndex, end)).duration);
       if (!period) {
         return null;
       }
       sum += period;
       count++;
+      periodTag.lastIndex = end + 1;
     }
     return count > 0 ? sum : null;
   }
@@ -556,7 +603,9 @@ export class StreamLength {
   static attributes(text) {
     /** @type {Object<string, string>} */
     const attributes = {};
-    for (const match of text.matchAll(/([\w:.-]+)\s*=\s*(["'])(.*?)\2/g)) {
+    // A name is read from its first character only (the lookbehind), as in hlsAttributes:
+    // a page's MPD tag of megabytes of name characters held the background for minutes.
+    for (const match of text.matchAll(/(?<![\w:.-])([\w:.-]+)\s*=\s*(["'])(.*?)\2/g)) {
       attributes[match[1]] = match[3];
     }
     return attributes;

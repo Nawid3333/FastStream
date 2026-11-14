@@ -122,6 +122,17 @@ describe('Remuxer, a WebM saved as an MP4', () => {
     expect(progress.at(-1)).toBe(1);
   });
 
+  it('asks the player to keep each fragment it reads until the save is over', async () => {
+    // Its inputs are the player's stored Blobs, read as the file is written: one let go of
+    // once read could be freed, its File on disk deleted, before Mediabunny read it.
+    const webm = new Blob([Buffer.from(WEBM, 'base64')]);
+    const getEntry = vi.fn(async () => ({getData: async () => webm}));
+    const remuxer = new Remuxer(() => {});
+    await remuxer.convert(null, 10, null, null, 0, null, [{track: 0, getEntry}]);
+    remuxer.release();
+    expect(getEntry).toHaveBeenCalledWith({keepPinned: true});
+  });
+
   it('says which codec it cannot save, rather than writing a broken file', async () => {
     const remuxer = new Remuxer(() => {});
     const garbage = new Blob([new Uint8Array(4096).fill(7)]);
