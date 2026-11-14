@@ -295,6 +295,10 @@ export class StreamLengths {
    * stream, and as the newest, the one that plays. The caller takes the sources right
    * after, before another can come, and their lengths from lengthsOf, which counts one
    * still unread at the deadline, or not readable, as a piece when its like was read as one.
+   * Of the unread files like one read as a piece, only the newest is read and waited for
+   * (unreadOf): the background does not read those as they are detected, and a player opened
+   * on a page that had played for a while read up to 19 of them first, four at a time,
+   * before it was told the page's streams.
    * @param {() => Array<{url: string, mode: string, headers: *}>} getSources - The detected sources as they are now,
    *   asked again after each wait.
    * @param {number} waitMs - The longest to wait.
@@ -302,22 +306,46 @@ export class StreamLengths {
    */
   async settle(getSources, waitMs) {
     const deadline = Date.now() + waitMs;
-    let sources = getSources();
-    while (sources.some((source) => this.lengthOf(source.url) === undefined)) {
+    let unread = this.unreadOf(getSources());
+    while (unread.length > 0) {
       const left = deadline - Date.now();
       if (left <= 0) {
         return;
       }
       let timer;
       await Promise.race([
-        Promise.all(sources.map((source) => this.probe(source))),
+        Promise.all(unread.map((source) => this.probe(source))),
         new Promise((resolve) => {
           timer = setTimeout(resolve, left);
         }),
       ]);
       clearTimeout(timer);
-      sources = getSources();
+      unread = this.unreadOf(getSources());
     }
+  }
+
+  /**
+   * The sources whose length is to be read before they are ranked: those not read yet, but
+   * of the files like one read as a piece (lengthsOf counts them as pieces unread) only the
+   * newest of each shape - the one that would play, were it a film after all.
+   * @template {{url: string, mode: string}} T
+   * @param {Array<T>} sources - The detected sources, oldest first.
+   * @return {Array<T>} Those to read.
+   */
+  unreadOf(sources) {
+    const pieces = new Set(sources.filter((source) => this.lengthOf(source.url) === PIECE_LENGTH)
+        .map((source) => StreamLengths.shape(source.url)));
+    /** @type {(source: T) => boolean} */
+    const like = (source) => pieces.has(StreamLengths.shape(source.url)) &&
+      (source.mode === PlayerModes.ACCELERATED_MP4 || source.mode === PlayerModes.DIRECT);
+    // The newest file of each such shape, read or not: once it is read, none is left to read.
+    /** @type {Map<string, T>} */
+    const newest = new Map();
+    for (const source of sources) {
+      if (like(source)) newest.set(StreamLengths.shape(source.url), source);
+    }
+    return sources.filter((source) => this.lengthOf(source.url) === undefined &&
+      (!like(source) || newest.get(StreamLengths.shape(source.url)) === source));
   }
 
   /**

@@ -549,6 +549,54 @@ describe('StreamLengths', () => {
     expect(lengths.lengthOf('https://cdn.example/s1.mp4')).toBe(PIECE_LENGTH);
   });
 
+  it('reads only the newest of the unread files like one read as a piece', async () => {
+    // A page's player went on fetching pieces; the background reads the first of a shape
+    // and none after it (background.mjs isKnownPiece). A player that opens then waited for
+    // the read of every one of them: up to 19 reads before it was told the page's streams.
+    const segment = concat(box('styp', new TextEncoder().encode('msdh')), box('moof', box('mfhd', new Uint8Array(8))));
+    const files = {'https://cdn.example/v/p.m3u8': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'}};
+    const sources = [{url: 'https://cdn.example/v/p.m3u8', mode: HLS}];
+    for (let i = 1; i <= 20; i++) {
+      files[`https://cdn.example/v/seg-${i}.mp4`] = {body: segment};
+      files[`https://cdn.example/a/seg-${i}.mp4`] = {body: segment};
+      sources.push({url: `https://cdn.example/v/seg-${i}.mp4`, mode: MP4}, {url: `https://cdn.example/a/seg-${i}.mp4`, mode: MP4});
+    }
+    // A film, not like them, detected among them: read as ever.
+    files['https://cdn.example/film.mp4'] = {body: concat(ftyp, moov(1400))};
+    sources.splice(9, 0, {url: 'https://cdn.example/film.mp4', mode: MP4});
+    const {fetch, calls} = server(files);
+    const lengths = new StreamLengths({fetch});
+    await lengths.probe(sources[0]);
+    await lengths.probe(sources[1]);
+    await lengths.probe(sources[2]);
+    calls.length = 0;
+
+    await lengths.settle(() => sources, 60000);
+    expect(calls.map((call) => call.url).sort()).toEqual(
+        ['https://cdn.example/a/seg-20.mp4', 'https://cdn.example/film.mp4', 'https://cdn.example/v/seg-20.mp4']);
+    // Ranked as before: every piece a piece, the film its length.
+    const told = lengths.lengthsOf(sources);
+    expect(told.filter((length) => length === PIECE_LENGTH)).toHaveLength(40);
+    expect(told[9]).toBe(1400);
+    expect(told[0]).toBe(60);
+  });
+
+  it('reads a file like the pieces that is the newest: a film after all keeps its length', async () => {
+    // One address for everything (/get?id=): a piece was read, and the film asked for after
+    // it has the pieces' shape. It is the newest, the one that would play: read, not guessed.
+    const segment = concat(box('styp', new TextEncoder().encode('msdh')), box('moof', box('mfhd', new Uint8Array(8))));
+    const {fetch} = server({
+      'https://proxy.example/get?id=11': {body: segment},
+      'https://proxy.example/get?id=12': {body: segment},
+      'https://proxy.example/get?id=13': {body: concat(ftyp, moov(5400))},
+    });
+    const lengths = new StreamLengths({fetch});
+    const sources = [11, 12, 13].map((id) => ({url: `https://proxy.example/get?id=${id}`, mode: MP4}));
+    await lengths.probe(sources[0]);
+    await lengths.settle(() => sources, 60000);
+    expect(lengths.lengthsOf(sources)).toEqual([PIECE_LENGTH, PIECE_LENGTH, 5400]);
+  });
+
   it('stops waiting at its limit, however many sources keep coming', async () => {
     // Each read ends at once, and each time a new source has come.
     const lengths = new StreamLengths({fetch: async () => new Response('', {status: 404})});
