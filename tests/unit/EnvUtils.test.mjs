@@ -77,6 +77,15 @@ describe('EnvUtils.openExternalURL', () => {
     expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
   });
 
+  it('opens a page from the web player with no opener', () => {
+    // The update notice's link to the issue page was opened so before it came through here.
+    vi.stubGlobal('chrome', undefined);
+    const open = vi.fn();
+    vi.stubGlobal('window', {open});
+    EnvUtils.openExternalURL('https://example.com/page');
+    expect(open).toHaveBeenCalledWith('https://example.com/page', '_blank', 'noopener');
+  });
+
   it('asks the background in a player framed in a page, which has no chrome.tabs', () => {
     // It did nothing there (the review of 2026-11-13).
     const chrome = extension(false);

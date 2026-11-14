@@ -25,7 +25,8 @@ export class EnvUtils {
    * unless told to, so it's naturally exempt. A player framed in a page has no
    * chrome.tabs (measured: PageFetchRelay.mjs), and the call did nothing there:
    * the background opens it then (OPEN_EXTERNAL_URL, an http(s) page only),
-   * with no opener either.
+   * with no opener either. Nor has the page opened by the web player one: a page that is
+   * not FastStream's gets no handle on the player (window.opener).
    * @param {string} url
    */
   static openExternalURL(url) {
@@ -37,7 +38,7 @@ export class EnvUtils {
             .catch((e) => console.error('Opening the page failed', e));
       }
     } else {
-      window.open(url, '_blank');
+      window.open(url, '_blank', 'noopener');
     }
   }
 

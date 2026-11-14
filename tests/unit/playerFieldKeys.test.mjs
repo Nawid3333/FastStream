@@ -39,6 +39,7 @@ const {SubtitlesManager} = await import('../../chrome/player/ui/subtitles/Subtit
 const {OpenSubtitlesSearch} = await import('../../chrome/player/ui/subtitles/OpenSubtitlesSearch.mjs');
 const {SourcesBrowser} = await import('../../chrome/player/ui/SourcesBrowser.mjs');
 const {createPagesBar} = await import('../../chrome/player/ui/components/PagesBar.mjs');
+const {createDropdown} = await import('../../chrome/player/ui/components/Dropdown.mjs');
 const {VideoSource} = await import('../../chrome/player/VideoSource.mjs');
 const {PlayerModes} = await import('../../chrome/player/enums/PlayerModes.mjs');
 
@@ -64,6 +65,8 @@ describe('Escape in the player\'s fields and menus', () => {
       ['the subtitle search\'s page number', pages.querySelector('.selected')],
       ['the sources browser\'s address', source.sourceBrowserElements.url],
       ['the sources browser\'s headers', browser.linkui.sourcesList.querySelector('.linkui-source-headers')],
+      // A dropdown whose choice has a name to type (the sound profiles'): it kept Escape.
+      ['a dropdown\'s name field', createDropdown('a', 'Profile', {a: 'One'}, () => {}, () => {}).querySelector('.dropdown_text')],
     ];
   };
 

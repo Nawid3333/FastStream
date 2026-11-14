@@ -56,7 +56,9 @@ export function createDropdown(defaultChoice, title, items, call, editableCallba
     });
 
     span.addEventListener('keydown', (e)=>{
-      if (e.key === 'Tab') {
+      // Escape goes on to the player, which closes the menu the field is in (escapeAll), as
+      // from the player's other fields; every other key typed here stays the field's.
+      if (e.key === 'Tab' || e.key === 'Escape') {
         return;
       } else if (e.key === 'Enter') {
         span.blur();
