@@ -4,6 +4,9 @@
 import path from 'node:path';
 
 export const BENCH_PORTS = {A: 41890, B: 41891};
+// Other names each build's server answers to (all of 127.0.0.0/8 is this computer): Firefox
+// counts its connections, and orders what waits for one, per host.
+export const BENCH_MEDIA_HOSTS = ['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5'];
 
 const env = process.env;
 
@@ -30,6 +33,9 @@ export const bench = {
   warmup: boundedNumber('BENCH_WARMUP', 1, 10),
   where: env.BENCH_WHERE === '1',
   scenarios: (env.BENCH_SCENARIOS || 'mp4,hls,dash,idle').split(','),
+  // The tabs scenario: every tab's video from one host (BENCH_TABS_HOSTS=same) or each from
+  // its own (the default).
+  tabsOwnHosts: env.BENCH_TABS_HOSTS !== 'same',
   line: {rateMbit: boundedNumber('BENCH_RATE_MBIT', 0, 10000), ttfbMs: boundedNumber('BENCH_TTFB_MS', 0, 10000)},
   out: path.resolve(import.meta.dirname, '../../../logs/bench'),
 };

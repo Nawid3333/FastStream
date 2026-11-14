@@ -5,7 +5,8 @@
 //   node tools/bench-ab.mjs --a-dir <web build> --b-dir <web build>   two builds made before
 //
 //   --rounds N          runs a build per scenario, besides the warm-up (default 5)
-//   --scenarios a,b     mp4, hls, dash, idle (default all four)
+//   --scenarios a,b     mp4, hls, dash, idle (default all four); tabs (several players in
+//                       several tabs; with --rate, as it measures who gets a slow line)
 //   --rate M --ttfb T   media over one shared M Mbit/s line, T ms to each answer's first byte
 //   --where             also lists which places in the player's code woke it up
 //   --label-a/--label-b names for the report (default: the ref and its commit)

@@ -87,6 +87,7 @@ const CHECKED = [
   'chrome/player/network/OpQueue.mjs',
   'chrome/player/network/PageFetch.mjs',
   'chrome/player/network/PlayerPeers.mjs',
+  'chrome/player/network/PlayerTurns.mjs',
   'chrome/player/network/PlayheadFirst.mjs',
   'chrome/player/network/SpeedTracker.mjs',
   'chrome/player/network/StandardDownloader.mjs',

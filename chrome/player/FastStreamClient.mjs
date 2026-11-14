@@ -228,13 +228,11 @@ export class FastStreamClient extends EventEmitter {
     this.frameStepper = new FrameStepper();
     this.downloadManager = new DownloadManager(this);
     // The other FastStream players: one the user watches and that is short of video gets
-    // the network (PlayerPeers.shouldYield, DownloadManager.setYield).
+    // the network (PlayerPeers.shouldYield, DownloadManager.setYield), and those in background
+    // tabs download in turns behind the ones that are seen (shouldWait, setWaiting).
     this.peers = new PlayerPeers({
-      state: () => ({playing: !!this.state.playing, ahead: this.getVideoAhead(),
-        ramBytes: this.downloadManager?.ramBytes?.() || 0}),
-      onChange: () => {
-        if (!this.destroyed) this.downloadManager.setYield(this.peers.shouldYield(), !this.state.playing);
-      },
+      state: () => this.peerState(),
+      onChange: () => this.applyPeers(),
     });
     this.peers.start();
     this.onPeersVisibility = () => this.updatePeers();
@@ -1700,7 +1698,82 @@ export class FastStreamClient extends EventEmitter {
   updatePeers() {
     if (this.destroyed || !this.peers) return;
     this.peers.announce();
-    this.downloadManager?.setYield?.(this.peers.shouldYield(), !this.state.playing);
+    this.applyPeers();
+  }
+
+  /**
+   * Steps aside for a watched player that is short of video (setYield), waits for this
+   * player's turn among those in background tabs (setWaiting), or downloads.
+   */
+  applyPeers() {
+    if (this.destroyed || !this.peers || !this.downloadManager) return;
+    this.downloadManager.setYield?.(this.peers.shouldYield(), !this.state.playing);
+    this.downloadManager.setWaiting?.(this.peers.shouldWait(), this.peers.waitHoldsPlayback());
+  }
+
+  /**
+   * How this player is doing, for the other players (PlayerPeers).
+   * @return {import('./network/PlayerPeers.mjs').OwnState}
+   */
+  peerState() {
+    const manager = this.downloadManager;
+    const ahead = this.getVideoAhead();
+    const live = this.isLive();
+    const duration = this.duration;
+    return {
+      playing: !!this.state.playing,
+      ahead,
+      ramBytes: manager?.ramBytes?.() || 0,
+      live,
+      buffering: !!this.state.buffering,
+      // What there is beyond what it has: nothing at the video's end. A live stream's end
+      // moves on, and a video without a length has none to compare with.
+      room: !live && Number.isFinite(duration) && duration > 0 ? duration - this.state.currentTime - ahead : undefined,
+      wants: this.wantsNetwork(),
+      received: manager?.received?.() || 0,
+      rate: this.videoRate(),
+      shared: manager?.perConnection !== true,
+      host: manager?.lastHost || '',
+      saving: !!this.interfaceController?.saveManager?.makingDownload,
+    };
+  }
+
+  /**
+   * Whether this player has video to download ahead that it would start now if the network
+   * were its own: what the players in background tabs take turns for (PlayerTurns). Not a live
+   * stream, which takes what its server makes at the stream's own pace; not one whose downloads
+   * the user paused or limited to nothing, or whose RAM share is used up.
+   * @return {boolean}
+   */
+  wantsNetwork() {
+    const manager = this.downloadManager;
+    if (this.destroyed || !this.player || !manager?.downloaders || manager.paused || manager.memoryFull) return false;
+    if (!navigator.onLine || this.needsUserInteraction() || this.options.maxSpeed === 0 || this.isLive()) return false;
+    if (manager.activeCount() > 0) return true;
+    const next = this.getNextToDownload();
+    if (!next) return false;
+    // The window predownloadFragments keeps to when the whole video is not wanted.
+    if (next.canFree() && !this.shouldDownloadAll() &&
+        (next.start > this.state.currentTime + this.state.bufferAhead ||
+         next.end < this.state.currentTime - this.state.bufferBehind)) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Bytes a second this video plays at: measured from what is downloaded, else what its
+   * quality level says; 0 when neither is known.
+   * @return {number}
+   */
+  videoRate() {
+    let bitrate = this.fragments ? Utils.measuredBitrate(this.fragments) : null;
+    if (!(Number(bitrate) > 0)) {
+      const levels = this.getVideoLevels();
+      const id = this.getCurrentVideoLevelID();
+      bitrate = levels && id !== null && id !== undefined ? levels.get(/** @type {string} */ (id))?.bitrate ?? null : null;
+    }
+    return Number(bitrate) > 0 ? Number(bitrate) / 8 : 0;
   }
 
   /**
@@ -1723,8 +1796,9 @@ export class FastStreamClient extends EventEmitter {
    * @return {boolean} True if any fragments were downloaded.
    */
   predownloadFragments() {
-    // Another player that the user watches needs the network (DownloadManager.setYield).
-    if (this.downloadManager.yielding) {
+    // Another player that the user watches needs the network (DownloadManager.setYield), or
+    // it is another player's turn (setWaiting).
+    if (this.downloadManager.yielding || this.downloadManager.waiting) {
       return false;
     }
 

@@ -21,9 +21,10 @@ import * as url from 'node:url';
 import {config as base} from './wdio.conf.mjs';
 import {ensureFixtures} from './buildFixtures.mjs';
 import {listenOrStop} from './listen-or-stop.mjs';
+import {loopedPlaylist} from './loopedPlaylist.mjs';
 import {ensureMp4Fixture} from './mp4Fixture.mjs';
 import {byteRange, decodePath, resolveInside} from './serveFile.mjs';
-import {BENCH_PORTS, bench} from './bench/settings.mjs';
+import {BENCH_MEDIA_HOSTS, BENCH_PORTS, bench} from './bench/settings.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const fixturesDir = path.join(__dirname, 'fixtures');
@@ -99,10 +100,28 @@ function sendPaced(res, file, {start, end}, line, ttfb) {
 function benchServer(buildDir) {
   const line = sharedLine(rateMbit);
   return http.createServer((req, res) => {
+    // BENCH_TRACE=<file>: each media request's start and end, one JSON line each, to see who
+    // had the line when (the tabs scenario).
+    if (process.env.BENCH_TRACE && req.url.startsWith('/fixtures/')) {
+      const entry = {host: req.headers.host, url: req.url, range: req.headers.range};
+      fs.appendFileSync(process.env.BENCH_TRACE, JSON.stringify({at: Date.now(), event: 'start', ...entry}) + '\n');
+      res.on('close', () => fs.appendFileSync(/** @type {string} */ (process.env.BENCH_TRACE),
+          JSON.stringify({at: Date.now(), event: res.writableFinished ? 'end' : 'cut', ...entry}) + '\n'));
+    }
     const rel = decodePath(req.url.split('?')[0].split('#')[0]);
     if (rel === null) {
       res.writeHead(400);
       return res.end();
+    }
+    // A video as long as a scenario needs, at a film's bitrate (about 2.1 Mbit/s): the hls-ts
+    // fixture's segments over and over, each under an address of its own, the run's name in it
+    // (the tabs scenario: four players, each its own video).
+    if (rel === '/fixtures/looped.m3u8') {
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const seconds = Math.min(Math.max(Number(query.get('seconds')) || 90, 9), 3600);
+      const run = encodeURIComponent(query.get('run') || '');
+      res.writeHead(200, {'Content-Type': MIME['.m3u8'], 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'});
+      return res.end(loopedPlaylist(seconds, '/fixtures/hls-ts/', {unique: true}).replaceAll('?i=', `?run=${run}&i=`));
     }
     const fromFixtures = rel.startsWith('/fixtures/');
     const abs = resolveInside(fromFixtures ? fixturesDir : buildDir, fromFixtures ? rel.slice('/fixtures'.length) : rel);
@@ -153,6 +172,21 @@ export const config = {
       const server = benchServer(bench.dirs[name]);
       servers.push(server);
       await new Promise((resolve) => listenOrStop(server, BENCH_PORTS[name], resolve));
+      // The same server under other hosts' names, on the same line (the tabs scenario: a
+      // video host of its own for each tab, as tabs on different sites have).
+      for (const host of BENCH_MEDIA_HOSTS) {
+        const other = http.createServer((req, res) => server.emit('request', req, res));
+        servers.push(other);
+        await new Promise((resolve) => {
+          other.on('error', (error) => {
+            console.error(`
+The test server on ${host}:${BENCH_PORTS[name]} failed: ${error.message}
+`);
+            process.exit(1);
+          });
+          other.listen(BENCH_PORTS[name], host, () => resolve(undefined));
+        });
+      }
     }
   },
   beforeTest: undefined,

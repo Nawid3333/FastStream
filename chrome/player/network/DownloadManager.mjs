@@ -73,8 +73,20 @@ export class DownloadManager {
     this.keepStorageNext = false;
     // Leaving the network to a watched player that is short of video (setYield).
     this.yielding = false;
-    // ...and holding even its own playback's requests: it is paused (setYield).
+    // ...and holding even its own playback's requests: it is paused (setYield), or it is
+    // paused, waits for its turn and has its next seconds (setWaiting). yieldHold and waitHold
+    // say which of the two asked for it.
     this.holdingPlayback = false;
+    this.yieldHold = false;
+    this.waitHold = false;
+    // Waiting for its turn among the players in background tabs (setWaiting, PlayerTurns).
+    this.waiting = false;
+    // Bytes of the downloads that finished (received): with what the running ones have so far,
+    // what this player tells the others of its speed (PlayerPeers.measure).
+    this.receivedDone = 0;
+    // The host of the download started last: players on one host share Firefox's connections
+    // to it (PlayerTurns.leavesRoom).
+    this.lastHost = '';
     // The speed test's samples of the total speed, until SamplesPerStep are averaged.
     /** @type {number[]} */
     this.speedTestBuffer = [];
@@ -788,10 +800,11 @@ export class DownloadManager {
   setYield(yielding, holdPlayback = false) {
     if (!this.downloaders) return;
     const hold = yielding && holdPlayback;
-    const holdChanged = this.holdingPlayback !== hold;
+    const holdChanged = this.yieldHold !== hold;
     const yieldChanged = this.yielding !== yielding;
     // Both set before anything starts again: queueNext and the client read them.
-    this.holdingPlayback = hold;
+    this.yieldHold = hold;
+    this.holdingPlayback = hold || this.waitHold;
     this.yielding = yielding;
     if (yieldChanged && yielding) {
       // The downloads ahead: queued ones leave the queue, running ones stop, however far in
@@ -819,6 +832,48 @@ export class DownloadManager {
       // Freed connections go to what may run now.
       this.queueNext();
     }
+  }
+
+  /**
+   * Waits for this player's turn to download ahead, or ends the wait (PlayerPeers.shouldWait:
+   * a player in a background tab, while one that goes before it still downloads on a line
+   * they share). Softer than setYield: the client starts no new downloads ahead
+   * (predownloadFragments) and what goes out asks for 'low' priority, but what runs finishes
+   * - nothing is cancelled, so a wait that ends a second later has cost nothing - and its own
+   * playback's requests go as always.
+   * Unless it is told to hold them (holdPlayback: a paused player that has its next seconds,
+   * PlayerPeers.waitHoldsPlayback): they wait in the queue then, as a paused player's do
+   * while it yields. A paused MP4 player's own loading reads 30 ranges ahead of the playhead
+   * (30 MB) at playback's priority; waiting with nothing held, it took them while it was
+   * another player's turn.
+   * @param {boolean} waiting
+   * @param {boolean} [holdPlayback] - Hold its playback's requests as well.
+   */
+  setWaiting(waiting, holdPlayback = false) {
+    if (!this.downloaders) return;
+    const hold = waiting && holdPlayback;
+    const changed = this.waiting !== waiting;
+    const holdChanged = this.waitHold !== hold;
+    if (!changed && !holdChanged) return;
+    this.waiting = waiting;
+    this.waitHold = hold;
+    this.holdingPlayback = this.yieldHold || hold;
+    if (changed && !waiting) this.client?.predownloadFragments?.();
+    if ((changed && !waiting) || holdChanged) this.queueNext();
+  }
+
+  /**
+   * Bytes this player's downloads have received: the finished ones, and what the running ones
+   * have so far (FetchLoader counts as the body comes). It goes down when a running download
+   * is cancelled; PlayerPeers reads only that it moves, and how fast it grows.
+   * @return {number}
+   */
+  received() {
+    let bytes = this.receivedDone;
+    for (const downloader of this.downloaders || []) {
+      if (downloader.entry) bytes += downloader.loader?.stats?.loaded || 0;
+    }
+    return bytes;
   }
 
   /**
@@ -978,6 +1033,7 @@ export class DownloadManager {
     if (this.paused || !this.downloaders || this.stopping) return;
 
     const failed = entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted;
+    if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE) this.receivedDone += downloader.stats?.loaded || 0;
     // A 429/503 was already signalled when the answer came (StandardDownloader.onSlowDown ->
     // slowDown). It is not an ordinary failure: no lastFailed and no downloader dropped.
     // (A download without an error has no code: includes(undefined) is false.)
@@ -1086,6 +1142,9 @@ export class DownloadManager {
 
     this.client.predownloadFragments();
     this.queueNext();
+    // The others hear at once when this player has all it wanted: the next in turn starts then,
+    // not at this page's next tick, which in a background tab can be 15 s away.
+    this.client.updatePeers?.();
   }
 
   /**
@@ -1170,6 +1229,7 @@ export class DownloadManager {
     const keep = this.dontClearStorage || this.keepStorageNext;
     this.keepStorageNext = false;
     this.memoryFull = false;
+    this.lastHost = '';
     if (!keep) {
       await this.clearStorage();
     }

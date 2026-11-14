@@ -15,6 +15,12 @@
 //   them; workers and event listeners are not counted)
 // - DOM changes a second while playing (a MutationObserver's records)
 // - jank: animation frames more than 50 ms apart while playing, and dropped video frames
+// - tabs: three players that were played, paused and left in background tabs, each loading its
+//   own video, and a fourth opened in front: when the one in front shows its first frame, how
+//   many seconds it has ahead ten seconds in, when it has its whole video, and when all four
+//   have theirs (what the turns between tabs cost the line as a whole). Each video is 90 s
+//   at about 2.1 Mbit/s. Meant for a line slow beside that (--rate 8: under four times the
+//   video's rate, where a player in front holds the line; --rate 40: fast, all at once).
 //
 // Builds alternate in each round (ABBA). One round per build is run first and thrown away:
 // the first load of a build compiles its modules.
@@ -23,7 +29,7 @@ import path from 'node:path';
 
 import {browser} from '@wdio/globals';
 
-import {bench, boundedNumber} from './settings.mjs';
+import {bench, BENCH_MEDIA_HOSTS, boundedNumber} from './settings.mjs';
 import {renderReport} from './report.mjs';
 import {roundOrder} from './stats.mjs';
 
@@ -32,17 +38,23 @@ const PAUSED_MS = boundedNumber('BENCH_PAUSED_MS', 10000, 600000);
 const IDLE_MS = boundedNumber('BENCH_IDLE_MS', 5000, 600000);
 const WARMUP = bench.warmup;
 const SEEK_TO = 80;
+const BACKGROUND_TABS = 3;
+// The tabs scenario's videos: so long, at about 2.1 Mbit/s (wdio.bench.conf.mjs, looped.m3u8).
+const TABS_VIDEO_S = boundedNumber('BENCH_TABS_VIDEO_S', 90, 3600);
+// How long a tabs run may take: four videos over the slowest line it is meant for.
+const TABS_TIMEOUT_MS = boundedNumber('BENCH_TABS_TIMEOUT_MS', 240000, 3600000);
 
 /**
  * The scenarios: a source, and what to measure on it.
  * @type {Record<string, {source: ((origin: string, run: string) => string) | null, seek?: boolean,
- *   paused?: boolean, playMs?: number}>}
+ *   paused?: boolean, playMs?: number, tabs?: boolean}>}
  */
 const SCENARIOS = {
   mp4: {source: (origin, run) => `${origin}/fixtures/long-av.mp4?run=${run}`, seek: true, paused: true},
   hls: {source: (origin, run) => `${origin}/fixtures/hls-fmp4/index.m3u8?run=${run}`, playMs: 3000},
   dash: {source: (origin, run) => `${origin}/fixtures/dash-template/manifest.mpd?run=${run}`, playMs: 3000},
   idle: {source: null},
+  tabs: {source: (origin, run) => `${origin}/fixtures/looped.m3u8?seconds=${TABS_VIDEO_S}&run=${run}`, tabs: true},
 };
 
 /**
@@ -127,6 +139,19 @@ function probe(where) {
     if (found.readyState >= 2) mark('firstFrame');
     original.clearInterval(watch);
   }, 5);
+  // The tabs scenario: each player tells the others, twice a second, whether it has its whole
+  // video (a background tab cannot be asked: switching to it would bring it to the front).
+  B.tabs = {};
+  const tabs = new BroadcastChannel('bench-tabs');
+  tabs.onmessage = (event) => {
+    B.tabs[event.data.key] = event.data.all;
+  };
+  original.setInterval(() => {
+    const counts = client?.interfaceController?.progressBar?.getFragmentCounts?.();
+    const all = !!counts && counts.total > 0 && counts.loaded === counts.total;
+    if (all && B.allAt === undefined) B.allAt = now();
+    if (client?.source) tabs.postMessage({key: location.search, all});
+  }, 500);
 }
 
 /**
@@ -190,15 +215,93 @@ function logSites(what, {seconds, sites}) {
  * @param {() => any} read - Runs in the page; done when it returns something not undefined.
  * @param {number} timeout
  * @param {string} what
+ * @param {...any} args - Given to `read`.
  * @return {Promise<any>}
  */
-async function waitFor(read, timeout, what) {
+async function waitFor(read, timeout, what, ...args) {
   let value;
   await browser.waitUntil(async () => {
-    value = await browser.execute(read);
+    value = await browser.execute(read, ...args);
     return value !== undefined && value !== null;
   }, {timeout, interval: 50, timeoutMsg: `timed out waiting for ${what}`});
   return value;
+}
+
+/**
+ * The tabs scenario on one build: three players played, paused and left in background tabs,
+ * then one in front.
+ * @param {string} build
+ * @param {string} run
+ * @return {Promise<Record<string, number>>} The measures.
+ */
+async function runTabs(build, run) {
+  const scenario = SCENARIOS.tabs;
+  const origin = bench.origins[build];
+  // Each tab's video from a host of its own: on one host Firefox itself serves the tab in
+  // front first (its six connections to a host go to the active tab's requests before the
+  // others'; measured 2026-11-14: the player in front had its video in 29.5 s on main as
+  // well, the others waiting in Firefox's queue), which tabs on different sites do not get.
+  let tabs = 0;
+  const address = (name) => {
+    const media = bench.tabsOwnHosts ? origin.replace('127.0.0.1', BENCH_MEDIA_HOSTS[tabs++ % BENCH_MEDIA_HOSTS.length]) : origin;
+    return `${origin}/player/index.html?t=${run}-${name}#${scenario.source(media, `${run}-${name}`)}`;
+  };
+  const main = await browser.getWindowHandle();
+  /** @type {string[]} */
+  const opened = [];
+  // The probe is put into one tab (addInitScript is for the window it is called in): each
+  // new tab gets its own, before its page loads.
+  /** @type {Array<{remove: () => Promise<unknown>}>} */
+  const probes = [];
+  const openTab = async () => {
+    const tab = await browser.createWindow('tab');
+    opened.push(tab.handle);
+    await browser.switchToWindow(tab.handle);
+    probes.push(await browser.addInitScript(probe, bench.where));
+  };
+  try {
+    for (let index = 0; index < BACKGROUND_TABS; index++) {
+      if (index > 0) await openTab();
+      await browser.url(address(`back${index}`));
+      await waitFor(() => /** @type {any} */ (window).__bench?.marks.playing, 30000, `background player ${index} playing`);
+      await browser.execute(() => /** @type {any} */ (window).fastStream.pause());
+    }
+    // The one the user looks at: showing its tab hides the others (createWindow and
+    // switchToWindow do, in this session; measured 2026-11-14).
+    await openTab();
+    await browser.url(address('front'));
+    await waitFor(() => /** @type {any} */ (window).__bench?.marks.playing, 60000, 'the player in front playing');
+    /** @type {Record<string, number>} */
+    const result = {};
+    // The first frame is counted from the page's first request for the video, and the page's
+    // own start (its modules loaded and run) is told beside it. A new tab's start came in two
+    // speeds in this Firefox, about 0.23 s and 0.55 s, whatever the build: two copies of one
+    // build showed both, and two builds gave the same picture with their places swapped
+    // (measured 2026-11-14). Counted from the navigation, that was told as a first frame
+    // 0.27 s later, 7 rounds of 7, for the build that had the line free sooner.
+    const start = await browser.execute(() => {
+      const media = performance.getEntriesByType('resource').filter((entry) => entry.name.includes('/fixtures/'));
+      return {marks: /** @type {any} */ (window).__bench.marks, asked: Math.min(...media.map((entry) => entry.startTime))};
+    });
+    result.tabsModules = start.marks.client;
+    result.tabsFirstFrame = start.marks.firstFrame - start.asked;
+    const sinceStart = await browser.execute(() => performance.now());
+    await browser.pause(Math.max(0, 10000 - sinceStart));
+    result.tabsAhead10 = await browser.execute(() => /** @type {any} */ (window).fastStream.getVideoAhead());
+    result.tabsFrontAll = await waitFor(() => /** @type {any} */ (window).__bench.allAt, TABS_TIMEOUT_MS, 'the player in front having its whole video');
+    result.tabsEveryAll = await waitFor((count) => {
+      const B = /** @type {any} */ (window).__bench;
+      const told = Object.values(B.tabs);
+      return told.length >= count && told.every(Boolean) ? performance.now() : undefined;
+    }, TABS_TIMEOUT_MS, 'every player having its whole video', BACKGROUND_TABS);
+    return result;
+  } finally {
+    for (const added of probes) await added.remove().catch(() => {});
+    for (const handle of opened.reverse()) {
+      await browser.switchToWindow(handle).then(() => browser.closeWindow()).catch(() => {});
+    }
+    await browser.switchToWindow(main);
+  }
 }
 
 /**
@@ -211,6 +314,7 @@ async function waitFor(read, timeout, what) {
  */
 async function runOnce(name, build, run) {
   const scenario = SCENARIOS[name];
+  if (scenario.tabs) return runTabs(build, run);
   const origin = bench.origins[build];
   const source = scenario.source ? '#' + scenario.source(origin, run) : '';
   await browser.url(`${origin}/player/index.html?t=${run}${source}`);

@@ -23,6 +23,11 @@ export const MEASURES = {
   afterPreviewWake: {label: 'wake-ups while paused, after a seek preview', unit: '/s', floor: 0.5},
   endedWake: {label: 'wake-ups once the video has ended', unit: '/s', floor: 0.5},
   idleWake: {label: 'wake-ups, idle player (no video)', unit: '/s', floor: 0.5},
+  tabsModules: {label: 'in front of 3 background players: player modules ready', unit: 'ms', floor: 10},
+  tabsFirstFrame: {label: '... first frame, after its first request for the video', unit: 'ms', floor: 10},
+  tabsAhead10: {label: '... seconds of video ahead, 10 s in', unit: 's', floor: 1, lowerIsBetter: false},
+  tabsFrontAll: {label: '... has its whole video', unit: 'ms', floor: 500},
+  tabsEveryAll: {label: '... all four players have theirs', unit: 'ms', floor: 500},
 };
 
 /**

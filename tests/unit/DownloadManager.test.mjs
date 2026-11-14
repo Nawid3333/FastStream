@@ -262,6 +262,95 @@ describe('DownloadManager', () => {
     expect(playback.status).toBe(DownloadStatus.ENQUEUED);
   });
 
+  it('waiting for its turn cancels nothing and holds nothing: only the client starts no more ahead', () => {
+    // A player in a background tab while another's turn it is (PlayerPeers.shouldWait,
+    // PlayerTurns). Soft, unlike a yield: a wait that ends a second later has cost nothing.
+    const client = {predownloadFragments: vi.fn()};
+    const manager = new DownloadManager(client);
+    const ahead = {entry: {priority: 0, abort: vi.fn()}, delivering: false, stats: null, canHandle: () => false};
+    manager.downloaders = [ahead, idleDownloader()];
+    const queuedAhead = {status: DownloadStatus.ENQUEUED, priority: 0, details: {}, abort: vi.fn()};
+    manager.queue.push(queuedAhead);
+
+    manager.setWaiting(true);
+    expect(manager.waiting).toBe(true);
+    expect(manager.yielding).toBe(false);
+    expect(ahead.entry.abort).not.toHaveBeenCalled();
+    expect(queuedAhead.abort).not.toHaveBeenCalled();
+    expect(client.predownloadFragments).not.toHaveBeenCalled();
+    // Its own playback's request goes at once, paused or not.
+    manager.queue.length = 0;
+    const playback = manager.getFile({url: 'https://example.com/p', responseType: 'arraybuffer'}, {}, 1000).entry;
+    expect(manager.downloaders[1].entry).toBe(playback);
+
+    // Its turn: the downloads ahead start again, once.
+    manager.setWaiting(false);
+    manager.setWaiting(false);
+    expect(manager.waiting).toBe(false);
+    expect(client.predownloadFragments).toHaveBeenCalledTimes(1);
+  });
+
+  it('a paused player that waits with its next seconds holds its playback\'s requests, a save\'s never', () => {
+    // A paused MP4 player's own loading reads 30 ranges ahead at playback's priority: while
+    // it waited for its turn, it took them all the same.
+    const client = {predownloadFragments: vi.fn()};
+    const manager = new DownloadManager(client);
+    const running = {entry: {priority: 1000, abort: vi.fn()}, delivering: false, stats: null, canHandle: () => false};
+    manager.downloaders = [running, idleDownloader()];
+
+    manager.setWaiting(true, true);
+    // What runs finishes: nothing is cancelled.
+    expect(running.entry.abort).not.toHaveBeenCalled();
+    const playback = manager.getFile({url: 'https://example.com/p', responseType: 'arraybuffer'}, {}, 1000).entry;
+    expect(playback.status).toBe(DownloadStatus.ENQUEUED);
+    expect(manager.downloaders[1].entry).toBe(null);
+    const save = manager.getFile({url: 'https://example.com/s', responseType: 'arraybuffer'}, {}, -1).entry;
+    expect(manager.downloaders[1].entry).toBe(save);
+    manager.downloaders[1].entry = null;
+
+    // Played (still waiting: a player that plays unseen keeps its own next seconds): it goes.
+    manager.setWaiting(true, false);
+    expect(manager.downloaders[1].entry).toBe(playback);
+    expect(client.predownloadFragments).not.toHaveBeenCalled();
+  });
+
+  it('keeps a yield\'s hold when a wait\'s ends, and a wait\'s when a yield\'s ends', () => {
+    const manager = new DownloadManager({predownloadFragments: vi.fn()});
+    manager.downloaders = [idleDownloader()];
+    manager.setYield(true, true);
+    manager.setWaiting(true, true);
+    const playback = manager.getFile({url: 'https://example.com/p', responseType: 'arraybuffer'}, {}, 1000).entry;
+    manager.setWaiting(false);
+    expect(playback.status).toBe(DownloadStatus.ENQUEUED);
+    manager.setWaiting(true, true);
+    manager.setYield(false);
+    expect(playback.status).toBe(DownloadStatus.ENQUEUED);
+    manager.setWaiting(false);
+    expect(manager.downloaders[0].entry).toBe(playback);
+  });
+
+  it('counts what it has received: the finished downloads and what the running ones have so far', () => {
+    // What a player tells the others of its speed (PlayerPeers.measure), and whether a byte
+    // came at all (a dead server holds nobody).
+    const manager = new DownloadManager({predownloadFragments: vi.fn(), updatePeers: vi.fn()});
+    const running = {entry: {priority: 0}, loader: {stats: {loaded: 300}}, stats: null};
+    const idle = {entry: null, loader: {stats: {loaded: 999}}};
+    manager.downloaders = [running, idle, {entry: {priority: 0}, loader: null}];
+    expect(manager.received()).toBe(300);
+    running.loader.stats.loaded = 700;
+    expect(manager.received()).toBe(700);
+    // Finished: counted for good, the downloader's next download starts from 0.
+    const done = {entry: {status: DownloadStatus.DOWNLOAD_COMPLETE}, stats: {loaded: 1000}};
+    manager.downloaders = [];
+    manager.testing = false;
+    manager.onDownloaderFinished(done, done.entry);
+    expect(manager.received()).toBe(1000);
+    // A failed one brought nothing that stays.
+    const failed = {entry: {status: DownloadStatus.DOWNLOAD_FAILED, aborted: true}, stats: {loaded: 50}};
+    manager.onDownloaderFinished(failed, failed.entry);
+    expect(manager.received()).toBe(1000);
+  });
+
   it('ignores a watcher that gives up after its download is over', async () => {
     // It was told "aborted" after "done", and the finished entry was aborted: a stored
     // fragment marked failed, downloaded again on the next request.

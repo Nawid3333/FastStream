@@ -15,6 +15,18 @@ export const PLAYBACK_PRIORITY = 1000;
  * (LoaderCallbacks): onSuccess, onError and onTimeout get FetchLoader's request where they
  * name an entry, and do not read it.
  */
+/**
+ * @param {string} url
+ * @return {string} Its host, '' for an address without one (blob:, data:) or none at all.
+ */
+function hostOf(url) {
+  try {
+    return new URL(url).host;
+  } catch (e) {
+    return '';
+  }
+}
+
 export class StandardDownloader {
   /** @param {import('./DownloadManager.mjs').DownloadManager} manager */
   constructor(manager) {
@@ -86,6 +98,7 @@ export class StandardDownloader {
 
     entry.downloader = this;
     entry.status = DownloadStatus.DOWNLOAD_INITIATED;
+    if (this.manager) this.manager.lastHost = hostOf(entry.url) || this.manager.lastHost;
 
     const defaultConfig = {
       timeout: STALL_TIMEOUT_MS,
@@ -96,9 +109,10 @@ export class StandardDownloader {
       // What playback waits for (a library's request, priority 1000: HLSLoader, DashLoader,
       // MP4Player) goes first in Firefox's queue for the host; asked at each attempt, so a
       // retry has the priority of a request that joined the download meanwhile.
-      // While the player leaves the network to a watched one (DownloadManager.setYield),
-      // the rest goes 'low'.
-      fetchPriority: () => (entry.priority >= PLAYBACK_PRIORITY ? 'high' : (this.manager?.yielding ? 'low' : 'auto')),
+      // While the player leaves the network to a watched one (DownloadManager.setYield) or
+      // waits for its turn (setWaiting), the rest goes 'low'.
+      fetchPriority: () => (entry.priority >= PLAYBACK_PRIORITY ? 'high' :
+        (this.manager?.yielding || this.manager?.waiting ? 'low' : 'auto')),
     };
 
     entry.getRequest().then((request)=>{
