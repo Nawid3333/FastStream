@@ -214,6 +214,18 @@ const EmptyTabUrls = ['about:blank', 'about:home', 'about:newtab', 'about:privat
 
 // How many players openPlayer has asked for, to number each attempt (frame.playerOpeningAttempt).
 let playerOpeningAttempts = 0;
+// An open that ended without a player (noteOpenMissed) is tried again by itself this long
+// after, then twice and four times as long (1, 3 and 7 s after the first miss): a page just
+// loaded, or loaded again, has its video a moment later.
+const ReopenMissedFirstMs = 1000;
+const ReopenMissedTimes = 3;
+// ...and when the page asks for the stream again, no sooner than this after the last try,
+// doubling with each miss up to the longest: a page that plays a video nobody sees (a live
+// playlist loads every few seconds) is asked less and less.
+const ReopenMissedEveryMs = 2000;
+const ReopenMissedLongestMs = 60000;
+// A play the user starts tries at once, but not twice within this (one press, two events).
+const ReopenOnPlayEveryMs = 500;
 
 /**
  * Whether the tab has FastStream's in-page player up, or on its way.
@@ -995,6 +1007,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   } else if (msg.type === MessageTypes.MPV_USER_PLAY) {
     onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '', msg.video || null);
+    reopenOnUserPlay(sender);
     return;
   } else if (msg.type === MessageTypes.SHORTCUT_CANCELLED) {
     if (sender.tab && typeof msg.key === 'string' && typeof msg.code === 'string') {
@@ -1029,9 +1042,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // The player names the frame it is in (TabHolder.playerParentProof): taken on trust,
       // a page framing the player page could make any frame of the tab hold a player.
       isPlayerParentProven(tab, frame, msg.parentFrameId, opener).then((proven) => {
-        if (!proven) {
-          if (Logging) console.log('Ignoring a player whose page did not open it', frame);
+        // Or gone while its page was asked (the page took the iframe out, FRAME_REMOVED):
+        // accepted then, the page's frame held a player that is not there, and every later
+        // stream of that page was dropped as the player's own.
+        if (!proven || !frame.isTracked()) {
+          if (Logging) console.log('Ignoring a player whose page did not open it, or that is gone', frame);
           tab.forgetFrame(frame);
+          // Its page's opening is over with it: left set, that frame opened no player again.
+          const page = proven ? tab.getFrame(msg.parentFrameId) : null;
+          if (page?.playerOpening && !page.hasPlayer()) {
+            page.playerOpening = false;
+            noteOpenMissed(page, 'gone');
+          }
           sendResponse(null);
           return;
         }
@@ -1094,7 +1116,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const removed = msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame;
     const going = removed ? frameAndInside(removed) : [];
     if (removed) releaseOverlayGuards(tab, removed);
+    // The players among them whose page stays (read now: forgetting a frame empties it).
+    const lonePlayers = going.filter((gone) => gone.isPlayer && gone.parent && !going.includes(gone.parent))
+        .map((player) => ({player, page: /** @type {FrameHolder} */ (player.parent)}));
     tab.forgetRemovedFrame(removed, msg.document);
+    // A player gone while its page stays (the page took its iframe out, or its players were
+    // removed as the page changed its address): the page has its own video back, and a play
+    // the user starts there opens the player again (reopenOnUserPlay). It did nothing.
+    for (const {player, page} of lonePlayers) {
+      if (tab.getFrame(player.frameId) !== player && tab.getFrame(page.frameId) === page && !page.hasPlayer()) {
+        page.openMissed = Math.max(page.openMissed, 1);
+        page.openGone = true;
+      }
+    }
     // The frames forgotten with it - a player inside a page that went too. A player's own
     // FRAME_REMOVED can come after its page's: kept in playerPageFrames, it was taken for a
     // player lost while Firefox had unloaded the background (restorePlayerFrame), made again
@@ -1164,6 +1198,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // to end the opening, and openPlayer refused this frame until the page navigated.
     if (frame.playerOpening && frame.playerOpeningAttempt === msg.attempt) {
       frame.playerOpening = false;
+      // Not tried again by itself: the page took the player out, and would again. A play the
+      // user starts, or the stream asked for again, opens it (reopenMissed).
+      noteOpenMissed(frame, 'gone');
     }
   } else if (msg.type === MessageTypes.REQUEST_SOURCES) {
     sendSources(frame);
@@ -1174,8 +1211,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // the page that told it, still shown: a tab gone on to the next page within the wait
       // had the frame emptied (FRAME_REMOVED), whose unnamed page took the last page's file
       // as its first stream, and that went to mpv again instead of its own (mpv.e2e.mjs).
+      // A background started again since the page loaded knows no name for it yet
+      // (recoverFrameSources takes this one): it dropped the report, the file made no request,
+      // and content.js tells a file once - the page's own player played on for good.
+      const unnamed = !frame.documentKey;
       setTimeout(() => {
-        if (frame.isTracked() && frame.documentKey === msg.document) {
+        if (frame.isTracked() && (frame.documentKey === msg.document || (unnamed && !frame.documentKey))) {
           recoverFrameSources(frame, msg);
         }
       }, LiveMediaReportWaitMs);
@@ -2269,6 +2310,12 @@ async function attachPageQualities(tab, sources) {
  */
 
 /**
+ * A page's report of its media (content.js: loadedMedia's answer, or LOADED_MEDIA).
+ * @typedef {{url?: string, document?: string, live?: boolean,
+ *   resources?: {url: string, media: boolean, cors?: boolean, time: number}[]}} MediaReport
+ */
+
+/**
  * Whether a frame's streams include one that may show a video, and not only playlists of
  * stills: the seek bar's thumbnails, which a page may ask for just before its video
  * (StreamLength STILLS_LENGTH). Nor when the one the player would play is copy-protected
@@ -2362,10 +2409,8 @@ function recoverSources(tab) {
  * default stand in for them (pageHeaders). A stream found is then taken in as a detected
  * one is (onSourceRecieved), which opens the player: after the page's <track> captions
  * are read, and after Options.replaceDelay, as for a stream the page asks for now.
- * @param {FrameHolder} frame - The frame that answered.
- * @param {{url?: string, document?: string,
- *   resources?: Array<{url: string, media: boolean, cors?: boolean, time: number}>}} msg - Its
- *   LOADED_MEDIA (content.js loadedMedia, or one video's).
+ * @param {FrameHolder & FrameExtras} frame - The frame that answered.
+ * @param {MediaReport} msg - Its report; live for one told as a video got its file.
  */
 function recoverFrameSources(frame, msg) {
   // The answer of a page since navigated away from: the frame's streams are the next one's.
@@ -2396,7 +2441,12 @@ function recoverFrameSources(frame, msg) {
     }
 
     const mode = URLUtils.getModeFromExtension(ext) || (media ? PlayerModes.ACCELERATED_MP4 : modeFromQuery(url, CustomSourcePatternsMatcher));
-    if (!mode || getSourceFromURL(frame, url)) continue;
+    if (!mode) continue;
+    if (getSourceFromURL(frame, url)) {
+      // Known already, and the page's video has it now: an open that was missed may not be.
+      if (msg.live) reopenMissed(frame);
+      continue;
+    }
     onSourceRecieved({
       url,
       requestId: -1,
@@ -2828,6 +2878,13 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
   } else if (frame.parent) {
     frame.parent.playerOpening = false;
   }
+  // The player is here: nothing missed any more, in its own frame (a redirect) or its page's.
+  for (const opened of [frame, frame.parent]) {
+    if (opened) {
+      opened.openMissed = 0;
+      opened.openGone = false;
+    }
+  }
   if (!counted) {
     tab.playerCount++;
   }
@@ -2882,6 +2939,7 @@ async function openPlayer(frame) {
   }
 
   frame.playerOpening = true;
+  frame.openTriedAt = Date.now();
   // Named in content.js's report of a player iframe the page took out before it loaded
   // (PLAYER_OPEN_GONE), so a report of an earlier attempt never ends this one.
   frame.playerOpeningAttempt = ++playerOpeningAttempts;
@@ -2908,6 +2966,8 @@ async function openPlayer(frame) {
 
       if (!BackgroundUtils.isPlayerOpeningResponse(response)) {
         frame.playerOpening = false;
+        // No answer at all: the frame went on to another page, whose own streams open it.
+        if (typeof response === 'string') noteOpenMissed(frame, response);
       }
 
       resolve(response);
@@ -2960,6 +3020,99 @@ async function sendSourcesToMainFramePlayers(frame) {
 }
 
 /**
+ * An open of a frame's player ended without one: content.js found no video on screen
+ * ('no_video': not made yet, or further down the page), its players were removed meanwhile
+ * ('error'), or the page took the player's iframe out before it loaded ('gone').
+ *
+ * Nothing tried again until 2026-11-14: openPlayer is called once per stream, when it is
+ * first seen, and every later request for it is a stream already known. So a tab that was on
+ * and is loaded again - its stream asked for half a second in, the page's video not on screen
+ * yet - kept the page's own player, and pressing play there changed nothing (the owner's
+ * report). Now it is tried again by itself a few times, a moment apart, for a video that
+ * comes late, and after that whenever the page asks for the stream again or the user starts
+ * a video (reopenMissed).
+ * @param {FrameHolder & FrameExtras} frame
+ * @param {string} answer - content.js's answer to OPEN_PLAYER, or 'gone'.
+ */
+function noteOpenMissed(frame, answer) {
+  frame.openMissed++;
+  frame.openGone = answer === 'gone';
+  if (frame.openGone || frame.openMissed > ReopenMissedTimes) return;
+  clearTimeout(frame.openTimeout);
+  frame.openTimeout = setTimeout(() => reopenMissed(frame, 0), ReopenMissedFirstMs * 2 ** (frame.openMissed - 1));
+}
+
+/**
+ * Tries again to open a frame's player after an open that ended without one (noteOpenMissed),
+ * if the tab is still on and the page still has a video stream.
+ * @param {FrameHolder & FrameExtras} frame
+ * @param {number} [wait] - How long after the last try, at least: by default longer with each
+ *   miss (ReopenMissedEveryMs, doubling).
+ * @param {boolean} [byUser] - The user started a video. Without that, a player the page took
+ *   out stays out: the page's own requests would put it back in, to be taken out again.
+ */
+function reopenMissed(frame, wait, byUser = false) {
+  if (!frame.openMissed || frame.playerOpening || frame.hasPlayer() || !frame.isTracked() ||
+      !frame.tab.isOn || frame.tab.isMpv || (frame.openGone && !byUser)) {
+    return;
+  }
+  const least = wait ?? Math.min(ReopenMissedEveryMs * 2 ** (frame.openMissed - 1), ReopenMissedLongestMs);
+  if (Date.now() - frame.openTriedAt < least) return;
+  // Now, not when openPlayer sends: the check for a video stream before it can wait for the
+  // streams' lengths, and the stream's next request would start a second try meanwhile.
+  frame.openTriedAt = Date.now();
+  openPlayerIfVideo(frame);
+}
+
+/**
+ * A play the user started in a page (content.js reportUserPlay): a tab that is on, where an
+ * open ended without a player, opens it now - in the frame that played, or the nearest one
+ * around it whose open was missed (a stream asked for by the page around the video's frame).
+ * @param {chrome.runtime.MessageSender} sender
+ */
+async function reopenOnUserPlay(sender) {
+  await ensureOptions();
+  const tab = sender.tab?.id !== undefined ? Tabs.getTab(sender.tab.id) : null;
+  if (!tab || !tab.isOn || tab.isMpv || typeof sender.frameId !== 'number') return;
+  for (let frame = tab.getFrame(sender.frameId); frame; frame = frame.parent) {
+    if (frame.openMissed) {
+      reopenMissed(frame, ReopenOnPlayEveryMs, true);
+      return;
+    }
+  }
+}
+
+/**
+ * Opens a frame's player if its tab is on, not in MPV mode, and its page has a video stream.
+ * @param {FrameHolder & FrameExtras} frame
+ */
+async function openPlayerIfVideo(frame) {
+  // A frame the tab no longer tracks - forgotten, or dropped by the reset on a new
+  // site with this page's streams still on it - opens nothing: OPEN_PLAYER goes by
+  // frame id, to whatever page now has it. A new page in the frame keeps it tracked,
+  // and a stream found before that page's FRAME_ADDED still opens (preservedSources).
+  if (!frame.isTracked()) {
+    return;
+  }
+  // MPV counts as on too: a switch to it within the delay found no player to
+  // reload away, and this would open one under it.
+  if (!frame.tab.isOn || frame.tab.isMpv) {
+    return;
+  }
+  // Not on the seek bar's thumbnails alone, which a page may ask for before its video:
+  // the player would take them, and the video's stream, asked for later, would be
+  // dropped as one of the player's own.
+  if (!await hasVideoSource(frame)) {
+    return;
+  }
+  // Again after the wait for the lengths (up to SourceLengthWaitMs): a tab that went on
+  // to another site meanwhile dropped the frame (glm's second look, 2026-10-13).
+  if (frame.isTracked() && frame.tab.isOn && !frame.tab.isMpv) {
+    openPlayer(frame);
+  }
+}
+
+/**
  * @param {{url: string, requestId: string|number, customHeaders?: *, time?: number}} details - The
  *   request's (webRequest's), or one made up for a stream the page told: requestId -1, its
  *   headers as customHeaders.
@@ -2978,7 +3131,12 @@ async function onSourceRecieved(details, frame, mode) {
   // Taken before the first await too: the same stream told by the page (content.js on
   // loadedmetadata, recoverFrameSources) came in while this one waited, and the page's
   // stand-in headers won over the request's own (an Origin lost: mpv.e2e.mjs).
-  if (getSourceFromURL(frame, url)) return;
+  if (getSourceFromURL(frame, url)) {
+    // Asked for again (a file's next range, a live playlist): the page plays it, and an open
+    // that found no video on screen before may find it now.
+    reopenMissed(frame);
+    return;
+  }
 
   // A stream recovered from the page (recoverFrameSources) keeps when the page asked for it.
   // A redirected one, the address the page asked for (the one its player lists).
@@ -3048,31 +3206,7 @@ async function onSourceRecieved(details, frame, mode) {
 
   if (frame.tab.isOn) {
     clearTimeout(frame.openTimeout);
-    frame.openTimeout = setTimeout(async () => {
-      // A frame the tab no longer tracks - forgotten, or dropped by the reset on a new
-      // site with this page's streams still on it - opens nothing: OPEN_PLAYER goes by
-      // frame id, to whatever page now has it. A new page in the frame keeps it tracked,
-      // and a stream found before that page's FRAME_ADDED still opens (preservedSources).
-      if (!frame.isTracked()) {
-        return;
-      }
-      // MPV counts as on too: a switch to it within the delay found no player to
-      // reload away, and this would open one under it.
-      if (!frame.tab.isOn || frame.tab.isMpv) {
-        return;
-      }
-      // Not on the seek bar's thumbnails alone, which a page may ask for before its video:
-      // the player would take them, and the video's stream, asked for later, would be
-      // dropped as one of the player's own.
-      if (!await hasVideoSource(frame)) {
-        return;
-      }
-      // Again after the wait for the lengths (up to SourceLengthWaitMs): a tab that went on
-      // to another site meanwhile dropped the frame (glm's second look, 2026-10-13).
-      if (frame.isTracked() && frame.tab.isOn && !frame.tab.isMpv) {
-        openPlayer(frame);
-      }
-    }, Options.replaceDelay);
+    frame.openTimeout = setTimeout(() => openPlayerIfVideo(frame), Options.replaceDelay);
   }
 
   sendSourcesToMainFramePlayers(frame);

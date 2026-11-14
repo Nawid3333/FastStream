@@ -86,6 +86,16 @@ export class FrameHolder {
     this.playerOpening = false;
     // Which openPlayer attempt playerOpening is for (content.js's PLAYER_OPEN_GONE names it).
     this.playerOpeningAttempt = 0;
+    // Opens of this page's player that ended without one (background.mjs noteOpenMissed),
+    // and when the last open was asked for (openPlayer).
+    /** @type {number} */
+    this.openMissed = 0;
+    /** @type {number} */
+    this.openTriedAt = 0;
+    // The last one ended because the page took the player out: only a play the user starts
+    // opens it again, not the page's own requests (reopenMissed).
+    /** @type {boolean} */
+    this.openGone = false;
     // The page here came back from Firefox's back-forward cache, with the streams it had
     // (TabHolder.restoreGoneDocument); it fetches nothing again.
     this.restoredFromCache = false;
