@@ -657,15 +657,17 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
       // names none, and counted as a page after it, the episode its player asked for next
       // played with no autoplay and gave the fullscreen back. An address counts only until the
       // next page named itself: one that never does (an error page, a PDF: no content script)
-      // has no player to take them, and they end at the address after it. MPV's (mpvNext) end
-      // their own way (MpvMode).
+      // has no player to take them, and they end at the address after it - as they do at an
+      // address that comes once the next page is gone from the tab (its FRAME_REMOVED, below):
+      // the page there may never name itself, and the window stayed fullscreen on it. MPV's
+      // (mpvNext) end their own way (MpvMode).
       if (tab.continuationOptions && !tab.continuationOptions.mpvNext) {
         if (!tab.continuationArrived) {
           tab.continuationArrived = true;
           // The next page can name itself before its address comes (resetForNewSite).
           const zero = tab.getFrame(0);
           tab.continuationPage = zero?.documentKey && zero.url === changeInfo.url ? zero.documentKey : null;
-        } else if (tab.continuationPage === null) {
+        } else if (tab.continuationPage === null || tab.getFrame(0)?.documentKey !== tab.continuationPage) {
           tab.continuationOptions = null;
         }
       }
@@ -1133,6 +1135,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // FRAME_REMOVED can come after its page's: kept in playerPageFrames, it was taken for a
     // player lost while Firefox had unloaded the background (restorePlayerFrame), made again
     // with its page frame, and counted gone a second time (a review, 2026-11-13).
+    // The next episode's page went before a player took its instructions, and the address
+    // after it is there already (the two come in either order): they end here, whatever
+    // the page there is - one with no content script (a PDF, an error page) never names
+    // itself, and kept the fullscreen carried for them.
+    if (removed && removed.frameId === 0 && tab.getFrame(0) !== removed && typeof msg.document === 'string' &&
+        tab.continuationPage === msg.document && tab.continuationArrived &&
+        tab.continuationOptions && !tab.continuationOptions.mpvNext) {
+      endContinuation(tab);
+    }
     let wasPlaying = false;
     let keptChanged = false;
     for (const gone of going) {
@@ -1599,6 +1610,15 @@ function noteContinuationPage(tab, documentKey) {
     tab.continuationPage = documentKey;
     return;
   }
+  endContinuation(tab);
+}
+
+/**
+ * Ends the next episode's instructions no player took, and gives the window back when a
+ * fullscreen was carried for them.
+ * @param {TabHolder} tab
+ */
+function endContinuation(tab) {
   tab.continuationOptions = null;
   if (tab.carryAwaited) {
     tab.carryAwaited = false;
@@ -2300,6 +2320,12 @@ async function attachPageQualities(tab, sources) {
  */
 
 /**
+ * A page's report of its media (content.js: loadedMedia's answer, or LOADED_MEDIA).
+ * @typedef {{url?: string, document?: string, live?: boolean,
+ *   resources?: {url: string, media: boolean, cors?: boolean, time: number}[]}} MediaReport
+ */
+
+/**
  * A stream as a player is handed it (collectSources): with its frame, how far above the
  * player's that is, and, once sendSources read them, its length and its page's qualities.
  * @typedef {TrackedSource & {depth: number, frameId: number, duration?: number|null,
@@ -2324,12 +2350,6 @@ async function attachPageQualities(tab, sources) {
  * of a stream Firefox VPN carries, a copy-protected one, or one only its page loads.
  * @typedef {Awaited<ReturnType<MpvBackend['openStream']>>|{ok: false, vpn: true, error: string}|
  *   {ok: false, drm: true, error: string}|{ok: false, pageOnly: true, error: string}} MpvHandOff
- */
-
-/**
- * A page's report of its media (content.js: loadedMedia's answer, or LOADED_MEDIA).
- * @typedef {{url?: string, document?: string, live?: boolean,
- *   resources?: {url: string, media: boolean, cors?: boolean, time: number}[]}} MediaReport
  */
 
 /**
@@ -2993,50 +3013,6 @@ async function openPlayer(frame) {
 }
 
 /**
- * @param {FrameHolder} frame - The frame a stream was detected in.
- */
-async function sendSourcesToMainFramePlayers(frame) {
-  // Only a tab that is on and has a main player is sent to (below): with none, the query of
-  // every tab is for nothing - and this runs for every stream detected, each segment of a
-  // page's own player.
-  if (!Array.from(Tabs.tabs.values()).some((tab) => tab.isOn && tab.getMainPlayer())) {
-    return;
-  }
-  // query all tabs
-  const tabs = await BackgroundUtils.queryTabs();
-  // Only to player tabs on the same side of private browsing as the page: a private
-  // window's streams, with the requests' cookies, showed in an ordinary window's player
-  // tab, and the other way round. A tab no longer open says nothing of its side.
-  const from = tabs.find(/** @param {chrome.tabs.Tab} t */ (t) => t.id === frame.tab.tabId);
-  if (!from) {
-    return;
-  }
-
-  // for each tab
-  for (let i = 0; i < tabs.length; i++) {
-    if (!!tabs[i].incognito !== !!from.incognito) continue;
-    // Nor across containers: one container's streams, with its cookies, showed in another's
-    // player tab, which fetched them with its own session.
-    if ((tabs[i].cookieStoreId || null) !== (from.cookieStoreId || null)) continue;
-    const tab = Tabs.getTab(tabs[i].id);
-    if (!tab || !tab.isOn) continue;
-    // if the tab is a faststream tab
-    const mainPlayerFrame = tab.getMainPlayer();
-    if (mainPlayerFrame) {
-      // send the source to the tab
-      chrome.tabs.sendMessage(tab.tabId, {
-        type: MessageTypes.SOURCES,
-        subtitles: frame.getSubtitles(),
-        sources: frame.getSources(),
-        autoSetSource: false,
-      }, () => {
-        BackgroundUtils.checkMessageError('sources');
-      });
-    }
-  }
-}
-
-/**
  * An open of a frame's player ended without one: content.js found no video on screen
  * ('no_video': not made yet, or further down the page), its players were removed meanwhile
  * ('error'), or the page took the player's iframe out before it loaded ('gone').
@@ -3126,6 +3102,50 @@ async function openPlayerIfVideo(frame) {
   // to another site meanwhile dropped the frame (glm's second look, 2026-10-13).
   if (frame.isTracked() && frame.tab.isOn && !frame.tab.isMpv) {
     openPlayer(frame);
+  }
+}
+
+/**
+ * @param {FrameHolder} frame - The frame a stream was detected in.
+ */
+async function sendSourcesToMainFramePlayers(frame) {
+  // Only a tab that is on and has a main player is sent to (below): with none, the query of
+  // every tab is for nothing - and this runs for every stream detected, each segment of a
+  // page's own player.
+  if (!Array.from(Tabs.tabs.values()).some((tab) => tab.isOn && tab.getMainPlayer())) {
+    return;
+  }
+  // query all tabs
+  const tabs = await BackgroundUtils.queryTabs();
+  // Only to player tabs on the same side of private browsing as the page: a private
+  // window's streams, with the requests' cookies, showed in an ordinary window's player
+  // tab, and the other way round. A tab no longer open says nothing of its side.
+  const from = tabs.find(/** @param {chrome.tabs.Tab} t */ (t) => t.id === frame.tab.tabId);
+  if (!from) {
+    return;
+  }
+
+  // for each tab
+  for (let i = 0; i < tabs.length; i++) {
+    if (!!tabs[i].incognito !== !!from.incognito) continue;
+    // Nor across containers: one container's streams, with its cookies, showed in another's
+    // player tab, which fetched them with its own session.
+    if ((tabs[i].cookieStoreId || null) !== (from.cookieStoreId || null)) continue;
+    const tab = Tabs.getTab(tabs[i].id);
+    if (!tab || !tab.isOn) continue;
+    // if the tab is a faststream tab
+    const mainPlayerFrame = tab.getMainPlayer();
+    if (mainPlayerFrame) {
+      // send the source to the tab
+      chrome.tabs.sendMessage(tab.tabId, {
+        type: MessageTypes.SOURCES,
+        subtitles: frame.getSubtitles(),
+        sources: frame.getSources(),
+        autoSetSource: false,
+      }, () => {
+        BackgroundUtils.checkMessageError('sources');
+      });
+    }
   }
 }
 

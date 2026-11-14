@@ -236,6 +236,44 @@ describe('a fullscreen carried over to the next episode', () => {
     expect(await sourcesTo(8, 'page-1')).toEqual([null]);
   });
 
+  it('gives the fullscreen back on a page after the next episode that never names itself', async () => {
+    // The next episode's page named itself, no player took the fullscreen yet, and the user
+    // went on to a PDF (no content script): nothing named itself there, and the window
+    // stayed fullscreen. The page's leave (FRAME_REMOVED) and the new address come in either
+    // order.
+    const fullscreenNext = {type: 'REQUEST_PLAYLIST_NAVIGATION', direction: 'next',
+      continuationOptions: {fullscreenState: 'fullscreen', autoPlay: true}};
+    const PDF = 'https://site.test/files/guide.pdf';
+    for (const leaveFirst of [true, false]) {
+      await playerInPage();
+      await carry(true);
+      await bg.message(fullscreenNext, {tabId: 1, frameId: 5});
+      await bg.navigated(1, EP2);
+      await bg.frameAdded(1, 0, EP2, 'page-2');
+      expect(states()).toEqual(['fullscreen']);
+
+      const leave = () => bg.message({type: 'FRAME_REMOVED', document: 'page-2'}, {tabId: 1, frameId: 0, url: EP2});
+      if (leaveFirst) await leave();
+      await bg.navigated(1, PDF);
+      if (!leaveFirst) await leave();
+      await bg.wait(50);
+      expect(states()).toEqual(['fullscreen', 'maximized']);
+
+      // And a video opened there later takes none of the episode's instructions.
+      await bg.navigated(1, 'https://site.test/watch/9');
+      await bg.frameAdded(1, 0, 'https://site.test/watch/9', 'page-9');
+      await bg.message({type: 'PLAYER_LOADED', url: 'moz-extension://bg-test/player/index.html?opener=page-9',
+        parentFrameId: 0}, {tabId: 1, frameId: 8});
+      bg.sentToTabs.length = 0;
+      await bg.message({type: 'REQUEST_SOURCES'}, {tabId: 1, frameId: 8});
+      await bg.wait(1500);
+      expect(bg.sent('SOURCES').map((m) => m.message.continuationOptions ?? null)).toEqual([null]);
+      expect(states()).toEqual(['fullscreen', 'maximized']);
+      bg.unload();
+      bg = null;
+    }
+  });
+
   it('lets the next episode\'s player take the keyboard only when the page says nobody types', async () => {
     // The reviews (2026-10-11): the player took the keyboard even from a field the user typed in.
     for (const [typing, may] of [[false, true], [true, false], [undefined, false]]) {
