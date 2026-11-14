@@ -5,8 +5,13 @@ Firefox-only improvements, and an incremental modernisation of the player's and 
 follow-up asked for the same work to be proven: benchmarks, regression tests, and validation that each
 change is an improvement. It also asked for bugs to be looked for and fixed, CodeQL's findings to be
 fixed, and the add-on renamed "FastStream for Firefox". A review of the whole code followed, with
-its fixes (section 4). Nothing here is merged or released: three draft pull requests wait for the
-owner's test and decision.
+its fixes (section 4).
+
+**2026-11-14.** The owner's decision: no hand test. `test/all-prs` holds all of it and the work
+of 2026-11-14 on top (players in several tabs take turns; a page loaded again keeps the player; a
+third review's fixes; two fuzz tests: `docs/notes/player.md`, the three sections of that date),
+and goes to main in one merge, which releases (section 7). The table and sections 1 to 6 are
+as written on 2026-11-13, when three draft pull requests waited for his test.
 
 | Branch | Draft PR | Ships to users |
 |---|---|---|
@@ -384,7 +389,7 @@ Most of the growth is comments: the files grew most where the fixes explain them
 
 ## 5. Verification
 
-**The test branch** `test/all-prs` (V:\fs-work\combo) is main with every open pull request except
+**The test branch** `test/all-prs` is main with every open pull request except
 the mpv update #634, merged in this order: #674 (watcher), #675 (this branch), #676 (rename; one
 conflict with this branch, resolved), #673 (player libraries), #672 (`express-rate-limit`). It is
 the main the merges would make, and the build to test.
@@ -433,11 +438,49 @@ Run on this PC (Windows 11, Firefox 160), on the test branch's last commit unles
 - Not done: the usual glm-5.3-flash reviews (Ollama was not available). Independent Claude
   reviewers covered each area instead, and each of their claims was checked against the code.
 
+**2026-11-14, the release branch** with that day's work (the commit before this report's last
+change, which changes nothing else), on the same PC:
+
+- `pnpm run lint`, `pnpm run typecheck`: clean. Unit suite: 249 files passed, 1 skipped; 3867
+  tests passed, 6 skipped. `build:keep`, `lint:github`, `lint:amo` (0 errors, 0 warnings, 0
+  notices), `verify:vtt`, `verify:fsaunpack`: pass. Workflow tests in WSL: 29 files, all pass.
+- e2e, every spec but the five mpv ones, each suite with its specs listed by name: web 50 of 50,
+  extension 27 of 27, classic 10 of 10, private browsing 1 of 1, the GitHub build's smoke set 3
+  of 3. No spec was retried; the logs name no mpv spec and no pattern that matched nothing.
+- CI on GitHub (Windows and Linux, the mpv specs included) and the Firefox Beta run: green, and
+  neither retried a spec.
+- A/B against main, 7 rounds each (`tools/bench-ab.mjs`), on local files and on a 12 Mbit/s line
+  with 150 ms to the first byte. Nothing is slower. The verdicts other than "same":
+
+  | | main | branch | |
+  |---|---:|---:|---|
+  | MP4, local: player modules ready | 673 ms | 607 ms | better |
+  | MP4, local: first frame | 997 ms | 915 ms | better |
+  | MP4, local: seek preview shown | 68 ms | 31 ms | better |
+  | MP4: wake-ups a second, playing | 40.9 | 25.0 | better |
+  | MP4: wake-ups a second, paused | 41.3 | 9.5 | better |
+  | MP4: wake-ups a second, ended | 253 | 9.4 | better |
+  | HLS: player modules ready (local; slow line) | 705; 686 ms | 608; 587 ms | better |
+  | Idle player: modules ready | 736 ms | 581 ms | better |
+  | MP4: DOM changes a second, playing (local; slow line) | 28.1; 56.3 | 31.1; 59.4 | worse: the seek slider's ARIA values, accepted |
+  | DASH: DOM changes a second, playing | 37.5 | 41.2 | worse: the same |
+
+  Seeks on the slow line: 1572 and 1581 ms to `seeked`, 1856 and 1864 ms to playing: the same.
+  No frame was dropped or more than 50 ms late on either build.
+- Several tabs (`--scenarios tabs`, 8 Mbit/s, three players in background tabs and one in front,
+  7 rounds): the player in front has its whole video after 29.6 s, was 66.1 s; all four after
+  92.3 s, was 109.1 s; its first frame 0.09 s sooner. On a 40 Mbit/s line both builds are the
+  same. `docs/notes/player.md`, "Players in several tabs take turns", has the control runs.
+- Size: the GitHub zip is 2,610,553 B, was 2,577,753 B on main (1.3 % more). The manifest asks
+  for the same permissions.
+- Not done, again: the glm reviews (Ollama could not be reached). Six Claude reviewers read the
+  branch against main before the last fixes; each claim was checked against the code.
+
 ## 6. Manual test (the owner)
 
-`pnpm run start:ff` in V:\fs-work\combo builds the test branch and opens its own development
-profile; `pnpm run start:ff` in the main checkout is the comparison. The zips are in
-V:\fs-work\combo\built.
+`pnpm run start:ff` in the test branch's worktree builds it and opens its own development
+profile; `pnpm run start:ff` in the main checkout is the comparison. The zips are in the
+worktree's `built` folder.
 
 1. Play an MP4, an HLS and a DASH video and a live stream; seek; change quality, audio and speed.
 2. Play an MP4 longer than a minute to its end, then press play: it starts over. Pause it and
@@ -467,34 +510,36 @@ V:\fs-work\combo\built.
 
 ## 7. Merging, the rename, and git
 
-Order (each is the owner's decision; nothing is merged by this work):
+Order, as decided on 2026-11-14 (one merge of `test/all-prs`, not one per pull request):
 
-1. #674 (watcher) at any time: it ships nothing, so no release.
-2. #672 and #673 (Dependabot and the player libraries), then #675 (this branch): its merge
-   releases a new version.
-3. The rename: **first** rename the repository on GitHub (Settings → General, or
-   `gh repo rename FastStream-for-Firefox`); GitHub then redirects the old address, and every
-   installed copy keeps finding its updates. **Then** merge #676; its release is the first whose
-   manifest names the new address. Merged before the rename, its release would point at an
-   address that does not exist yet. Never create a new repository called `FastStream` on the
-   account afterwards: it would end the redirects for copies installed before.
-   #676 conflicts with #675 in one place, the settings page's update button: keep
-   `EnvUtils.openExternalURL(...)` with the new address, and in `optionsExtension.test.mjs` the
-   releases URL and the issues pattern take the new name (done this way on the test branch).
-   After the rename, the repository's "About" text and website link on GitHub can be updated
-   to the new name (a setting, not a file).
+1. **First** rename the repository on GitHub (`gh repo rename FastStream-for-Firefox`; the name
+   exactly so). GitHub then redirects the old address, and every installed copy keeps finding
+   its updates. Merged before the rename, the release's manifest would point at an address that
+   does not exist yet. Never create a new repository called `FastStream` on the account
+   afterwards: it would end the redirects for copies installed before.
+   When: just after a run of the fail-safe (`15 */3 * * *`, UTC), and the merge straight after.
+   Between the rename and the release, main still has the update-path check that knows the old
+   name only; a fail-safe run in that gap would open a false "Update path broken" issue.
+2. Merge `test/all-prs` into main with a merge commit, not a squash: each area keeps its
+   history, and the commits of #672 to #676 are in main as they were reviewed (those pull
+   requests were closed on 2026-11-14 and their branches deleted, since this branch holds
+   them). The merge runs the whole CI on main; the automatic release follows it.
+3. Watch the first release run: "Check the tag is on main" is new in it. Then the signed file
+   and `updates.json` under the new address.
 4. #634 (the mpv update) stays open, as decided.
+
+After the rename, the repository's "About" text and website link on GitHub can be updated to
+the new name (a setting, not a file).
 
 | Branch | What it holds (on main 4813fbee) |
 |---|---|
 | `feature/firefox-api-watch` | the watcher: tool, workflow, tests, docs, the review's fixes |
 | `feature/firefox-optimization-ui-modernization` | saving through the page (tests); Space, menus and the seek slider; the MP4 loop's pace and its bugs; the A/B benchmark; the first round's background fixes; the review's fixes (eight area branches, merged with their history); the settings page after the first frame; the workflow hardening; the type cleanup; this report |
 | `feature/rename-faststream-for-firefox` | rename in all 16 locales and every link; README; tests and fixtures; reviewer notes; the update-path check takes the former name |
-| `test/all-prs` | the test branch: the merges above, and the test URL fix after the rename's merge |
+| `test/all-prs` | the release branch: the merges above, the test URL fix after the rename's merge, and the work of 2026-11-14 |
 
-All are pushed; the three feature branches have draft PRs; nothing is merged. To drop a branch
-after the decision: close its PR, `git push origin --delete <branch>`, `git worktree remove
-<path>`, `git branch -D <branch>`.
+The three feature branches are deleted already (their commits are in `test/all-prs`), and
+`test/all-prs` goes after the merge: only `main` stays, and `mpv-update` for #634.
 
 ## 8. Decisions for the owner
 
@@ -504,7 +549,14 @@ Nothing here is built (except where it says so); each is a recommendation.
 container tabs; a page-handled same-site link keeps the player; a mid-save write failure fails a
 DASH save; a saved video's copy is deleted after its
 download; `user@site` addresses match the site's entry; files over 256 GiB play in Firefox's own
-player; the settings page loads after the first frame.
+player; the settings page loads after the first frame. Two more that this list missed until
+2026-11-14: a next episode on another host name keeps autoplay and the carried fullscreen (it
+was the same host only); a frame of the page with the focus (a chat, a comment box) counts as
+typing, so the next episode's player does not take the keyboard from it.
+
+Built on 2026-11-14, each asked for by the owner: players in background tabs wait for their turn
+to download ahead on a slow line; a page whose player missed its video is asked again (1, 2 and
+4 s later, at the page's next requests, and at a play the user starts).
 
 Playback and engines
 
@@ -517,6 +569,28 @@ Playback and engines
   Recommended: keep a download that continues what is buffered at the new place.
 - PE-7 (security): a per-file sample budget (about 4 million, 13 h at 30 fps); beyond it Firefox
   plays the file itself, as it now does a file over 256 GiB.
+
+Added on 2026-11-14
+
+- The next episode through a page in between. The next episode's instructions (autoplay, the
+  carried fullscreen) are for the first page after the click and end at a second one. A site
+  that shows a check page between episodes, or sets the address twice without a new page, loses
+  them: the episode waits for a click. On main they stayed until some player took them, which
+  made a video opened minutes later play by itself. Recommended: carry them on to a second page
+  for 20 s after the click, the time the page is asked to start its player. The price: a page
+  the user goes to himself within those 20 s would start by itself too.
+- The silence skipper sets the speed every 100 ms, so holding a key for 2x and the GIF
+  recorder's 4x last a tenth of a second while it is on. Recommended: the held or recording
+  speed wins for as long as it lasts.
+- After a mouse click on the volume button or bar, the Left and Right keys change the volume,
+  not the time, until the focus goes elsewhere. Recommended: only when the focus came by keyboard.
+- A toast's time is a bar that runs out: the one animation left in the player. Recommended:
+  the toast without the bar, gone after the same time.
+- Every video starts on three connections, tries six, and keeps what was faster. A host's
+  verdict could be remembered until Firefox closes (in memory, nothing stored), so the next video
+  from it starts with what was faster. Recommended: yes, once measured on real sites.
+- More than six connections to a server that speaks HTTP/2 or HTTP/3 (one connection carries
+  them all there). Recommended: not without a measurement that shows servers allow it.
 
 Background and MPV
 
