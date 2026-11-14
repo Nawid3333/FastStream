@@ -23,6 +23,10 @@ import {PageFetch} from './PageFetch.mjs';
 // more through the page (PageFetch), when there is one.
 const REFUSALS = new Set([401, 403, 404, 410]);
 
+// How long a download may bring nothing before it is given up (LoaderConfig.timeout), unless
+// its request says otherwise (StandardDownloader).
+export const STALL_TIMEOUT_MS = 30000;
+
 /**
  * Whether an answer refuses what was asked: one of REFUSALS, or a web page where media was asked
  * for (abyss.to's player address answers "Video not found" from anywhere but its page, #665).

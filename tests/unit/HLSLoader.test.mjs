@@ -118,6 +118,27 @@ describe('HLSLoader, a download that failed', () => {
     });
   }
 
+  it('gives up a segment or a playlist that brings nothing after 30 s, not hls.js\'s two minutes', () => {
+    // hls.js's settings for a segment's load (FragmentLoader): the longest the whole load
+    // may take as `timeout`, and no retries of the loader's own.
+    const hlsConfig = (timeout) => ({loadPolicy: {maxLoadTimeMs: timeout}, timeout, maxRetry: 0, retryDelay: 0, maxRetryDelay: 0});
+    // One in FastStream's store, and one that is not (the direct download).
+    const hlsFrag = {sn: 5, trackID: 0, level: 0, start: 50};
+    const stored = makePlayer({getFrag: () => hlsFrag});
+    new (hlsLoaderFactory(stored.player))().load({url: 'http://127.0.0.1/seg5.ts', frag: hlsFrag}, hlsConfig(120000), fragmentCallbacks());
+    expect(stored.requestFragment.mock.calls[0][2]).toMatchObject({timeout: 30000, maxRetry: 0});
+
+    const direct = makePlayer(null);
+    new (hlsLoaderFactory(direct.player))().load({url: 'http://127.0.0.1/seg5.ts', frag: hlsFrag}, hlsConfig(120000), fragmentCallbacks());
+    expect(direct.getFile.mock.calls[0][0].config).toMatchObject({timeout: 30000, maxRetry: 0});
+
+    // A playlist's 20 s stay.
+    const playlist = makePlayer();
+    new (hlsLoaderFactory(playlist.player))().load({url: 'http://127.0.0.1/a.m3u8', type: 'manifest', responseType: 'text'},
+        hlsConfig(20000), playlistCallbacks());
+    expect(playlist.getFile.mock.calls[0][0].config).toMatchObject({timeout: 20000, maxRetry: 0});
+  });
+
   it('reports a failing segment as an abort twice, for hls.js to ask again, then as an error', () => {
     // Asked for again forever, a dead segment (an expired token's 403) kept the player
     // spinning with no error. Not in FastStream's store: the direct download path.

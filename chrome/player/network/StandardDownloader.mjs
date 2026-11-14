@@ -1,7 +1,7 @@
 // @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {SpeedTracker} from './SpeedTracker.mjs';
-import {FetchLoader} from './FetchLoader.mjs';
+import {FetchLoader, STALL_TIMEOUT_MS} from './FetchLoader.mjs';
 
 // The priority the playback libraries' requests have (HLSLoader, DashLoader, MP4Player).
 export const PLAYBACK_PRIORITY = 1000;
@@ -88,7 +88,7 @@ export class StandardDownloader {
     entry.status = DownloadStatus.DOWNLOAD_INITIATED;
 
     const defaultConfig = {
-      timeout: 30000,
+      timeout: STALL_TIMEOUT_MS,
       maxRetry: 6,
       retryDelay: 1000,
       maxRetryDelay: 64000,
