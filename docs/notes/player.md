@@ -448,8 +448,10 @@ video's `loadedmetadata`, and the CDN's address) and played the CDN's.
 - **hls.js's playlist loader has no `onAbort`** (`hls.mjs`, `PlaylistLoader.load` passes
   `onSuccess`/`onError`/`onTimeout`). `HLSLoader` reports a failed playlist with `onError`
   and `FetchLoader`'s `stats.error` (`{code, text}`). A fragment or key that fails gets
-  `onAbort` after 1 s, and hls.js picks it again: upstream's design, on top of
-  `FetchLoader`'s own six retries. From the third failure in a row of the same one it gets
+  `onAbort` after 1 s, and hls.js picks it again: upstream's design. (`FetchLoader` itself
+  does not retry a segment hls.js asks for: hls.js's `maxRetry` for it is 0. The six retries
+  are those of a download ahead, and of DASH and MP4; corrected 2026-11-14.) From the third
+  failure in a row of the same one it gets
   `onError` (`SEGMENT_FAILURES_BEFORE_ERROR`), so hls.js retries it by its own policy and
   fails the player once it gives up; for good, a dead segment (an expired token's 403) spun
   forever. `DashLoader` counts the same way and then gives dash.js `onFail` and the player an
