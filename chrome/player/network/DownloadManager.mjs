@@ -10,18 +10,6 @@ import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 // How many of a hand-off's disk files are moved at a time (DownloadManager.adoptDiskFiles).
 const AdoptAtOnce = 8;
 
-/**
- * Whether a running download is at least half in, by its downloader's stats (FetchLoader's, as
- * the body comes): cancelled, it would come again from its first byte. One whose size the
- * server did not tell (no Content-Length) never is.
- * @param {?StandardDownloader} downloader
- * @return {boolean}
- */
-function halfDone(downloader) {
-  const stats = downloader?.stats;
-  return !!stats && stats.total > 0 && stats.loaded / stats.total >= 0.5;
-}
-
 /** @typedef {import('./DownloadEntry.mjs').DownloadRequest} DownloadRequest */
 /**
  * A file an earlier player of this video left on the disk, taken back (adopt): its entry, its
@@ -786,8 +774,8 @@ export class DownloadManager {
    * of video (PlayerPeers.shouldYield), or takes it back. While yielding the client starts no
    * downloads ahead (predownloadFragments), what still goes out asks Firefox for 'low'
    * priority (StandardDownloader), and the downloads ahead that are running are cancelled -
-   * not those this player's own playback waits for (priority 1000 and up), nor one at least
-   * half done, nor one being delivered. A cancelled one is downloaded again later, from the
+   * not those this player's own playback waits for (priority 1000 and up), nor one being
+   * delivered; one nearly done goes too (cancelIfCheap says why). A cancelled one is downloaded again later, from the
    * start: DownloadEntry.abort() puts its fragment back to waiting. Not pause(): that is the
    * user's, and stops everything.
    * A paused player holds its playback's requests too (holdPlayback): they wait in the queue
@@ -806,8 +794,9 @@ export class DownloadManager {
     this.holdingPlayback = hold;
     this.yielding = yielding;
     if (yieldChanged && yielding) {
-      // The downloads ahead: queued ones leave the queue, running ones under half done stop.
-      // Not a save's (priority below 0: the user asked for it), not what playback waits for.
+      // The downloads ahead: queued ones leave the queue, running ones stop, however far in
+      // (cancelIfCheap says why). Not a save's (priority below 0: the user asked for it), not
+      // what playback waits for.
       /** @param {DownloadEntry} entry */
       const cancellable = (entry) => {
         const priority = entry.priority || 0;
@@ -819,7 +808,7 @@ export class DownloadManager {
       }
       for (const downloader of this.downloaders.slice()) {
         const entry = downloader.entry;
-        if (!entry || downloader.delivering || !cancellable(entry) || halfDone(downloader)) continue;
+        if (!entry || downloader.delivering || !cancellable(entry)) continue;
         entry.abort();
       }
     }
@@ -834,9 +823,15 @@ export class DownloadManager {
 
   /**
    * Cancels the download of a request, when that is cheap and harmless: not one this player's
-   * playback waits for (priority 1000 and up), not one at least half done, not one being
-   * delivered. A queued one leaves the queue. Its fragment goes back to waiting
-   * (DownloadEntry.abort tells the watchers) and is downloaded again when it is wanted.
+   * playback waits for (priority 1000 and up), not one being delivered. A queued one leaves the
+   * queue. Its fragment goes back to waiting (DownloadEntry.abort tells the watchers) and is
+   * downloaded again when it is wanted.
+   *
+   * A running one goes however far it is in. Sparing those at least half in (2026-11-13, a
+   * check that had held nothing until then) made a seek to 80 s in an MP4 on a 12 Mbit/s line
+   * take a second longer, 1557 -> 2547 ms in 7 of 7 rounds (tools/bench-ab.mjs): the spared
+   * downloads, outside the new place's window, shared the line with the ones the seek waited
+   * for. Their half comes again from its first byte only if the user goes back there.
    * @param {DownloadRequest} details - The request (a fragment's getContext()).
    * @return {boolean} Whether it was cancelled.
    */
@@ -851,7 +846,7 @@ export class DownloadManager {
     }
     if (entry.status !== DownloadStatus.DOWNLOAD_INITIATED) return false;
     const downloader = entry.downloader;
-    if (downloader?.delivering || halfDone(downloader)) return false;
+    if (downloader?.delivering) return false;
     entry.abort();
     return true;
   }

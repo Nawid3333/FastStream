@@ -68,7 +68,9 @@ describe('DownloadManager.cancelIfCheap', () => {
     return result;
   }
 
-  it('cancels a download ahead, queued or just started, and nothing playback needs', () => {
+  // One nearly done goes too: sparing it (stats null in the real downloader, so it never was;
+  // made to hold on 2026-11-13) made a seek on a 12 Mbit/s line a second slower.
+  it('cancels a download ahead, queued, just started or nearly done, and nothing playback needs', () => {
     const ahead = entry('https://example.com/ahead.ts', {loaded: 10, total: 1000});
     const queued = entry('https://example.com/queued.ts', {status: DownloadStatus.ENQUEUED});
     const playback = entry('https://example.com/playback.ts', {priority: 1000});
@@ -80,13 +82,15 @@ describe('DownloadManager.cancelIfCheap', () => {
     expect(manager.activeCount()).toBe(5);
     expect(manager.cancelIfCheap(ahead.details)).toBe(true);
     expect(manager.cancelIfCheap(queued.details)).toBe(true);
+    expect(manager.cancelIfCheap(nearlyDone.details)).toBe(true);
     expect(manager.queue).not.toContain(queued);
-    for (const kept of [playback, nearlyDone, delivering, finished]) {
+    for (const kept of [playback, delivering, finished]) {
       expect(manager.cancelIfCheap(kept.details)).toBe(false);
       expect(kept.abort).not.toHaveBeenCalled();
     }
     expect(ahead.abort).toHaveBeenCalledTimes(1);
     expect(queued.abort).toHaveBeenCalledTimes(1);
+    expect(nearlyDone.abort).toHaveBeenCalledTimes(1);
     expect(manager.cancelIfCheap({url: 'https://example.com/unknown.ts', responseType: 'arraybuffer'})).toBe(false);
   });
 });

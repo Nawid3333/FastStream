@@ -25,8 +25,7 @@ export class StandardDownloader {
     this.loader = null;
     /** @type {DownloadEntry|null} */
     this.entry = null;
-    // This download's FetchLoader's stats, from the moment its request goes out: how much of
-    // the body is in as it comes (FetchLoader.readBody), its error once it failed. Null before.
+    // The last stats FetchLoader gave (updateSpeed); null until this download's first.
     /** @type {(LoaderStats & {lastUpdate?: number})|null} */
     this.stats = null;
     // True while entry.onSuccess is awaited: a slow-down must not take this downloader
@@ -107,10 +106,6 @@ export class StandardDownloader {
         return;
       }
       this.loader = new FetchLoader();
-      // Read while it downloads: DownloadManager spares a download at least half in from a
-      // seek or a yield. Taken from FetchLoader's progress alone, they came after the whole
-      // body (it gives its progress once), so every running download counted as not begun.
-      this.stats = this.loader.stats;
       this.loader.addCallbacks(this);
       this.loader.load(request, defaultConfig);
     }).catch((err) => {

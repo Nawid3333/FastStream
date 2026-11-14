@@ -754,15 +754,19 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
 - **`PlayheadFirst`.** Under 10 s ahead a player runs at most two downloads, only within 30 s of
   the playhead, and cancels the cheap ones outside (`cancelIfCheap`); from 20 s on it
   downloads ahead in parallel as before. A seek does the same at once.
-- **The half-done check held nothing until 2026-11-13** (a review). It read the downloader's
-  stats, which were null until FetchLoader's progress, and FetchLoader gives that once, after
-  the whole body: every seek (arrow keys, frame step, a click on the timeline) and every yield to
-  a watched player cancelled the running downloads ahead, nearly finished ones too, which then
-  came again from their first byte. `StandardDownloader.stats` is now its FetchLoader's own
-  stats from the moment the request goes out (loaded and total as the body comes), and the
-  yield and `cancelIfCheap` share one check (`halfDone`; a download whose server sent no length
-  never counts as half in). **Behaviour change:** a download at least half in survives a seek or
-  a yield. `DownloadManager.test.mjs`.
+- **The half-done check held nothing, and is gone (2026-11-13).** A seek and a yield were to
+  spare a running download at least half in. The check read the downloader's stats, which were
+  null until FetchLoader's progress, and FetchLoader gives that once, after the whole body: every
+  seek (arrow keys, frame step, a click on the timeline) and every yield to a watched player
+  cancelled the running downloads ahead, nearly finished ones too. A review made the check work
+  (the downloader took FetchLoader's stats as its request went out). The A/B of the finished
+  branch then showed a seek to 80 s in an MP4 on a 12 Mbit/s line a second slower, 1557 -> 2547
+  ms in 7 of 7 rounds, and on local files no change (348 -> 345 ms): the spared downloads,
+  outside the new place's window, shared the line with the ones the seek waited for. With the
+  check off, the same build seeks as main did: 2370 -> 1543 ms, 5 of 5 rounds, p 0.008. So the check went: a running download
+  ahead is cancelled however far in, as it always was in practice, and its first half comes again
+  only if the user goes back there. A later idea, measured first: spare one that would end within
+  a fraction of a second at its own speed. `DownloadManager.test.mjs`.
 - **Result**, same measurement, three background players: HLS 4.4 s (alone 3.9 s), MP4 3.4 s
   (alone 3.1 s), no stalls; the background players resumed about 13-20 s after the seek and
   buffered to the end.
