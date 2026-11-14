@@ -59,14 +59,14 @@ async function wakeUpsPerSecond(ms) {
 /**
  * The player's video state.
  * @return {Promise<{time: number, paused: boolean, ended: boolean, seeking: boolean,
- *   readyState: number, duration: number}|null>}
+ *   readyState: number, duration: number, rate: number}|null>}
  */
 function videoState() {
   return browser.execute(() => {
     const video = /** @type {any} */ (window).fastStream?.player?.getVideo?.();
     if (!video) return null;
     return {time: video.currentTime, paused: video.paused, ended: video.ended, seeking: video.seeking,
-      readyState: video.readyState, duration: video.duration};
+      readyState: video.readyState, duration: video.duration, rate: video.playbackRate};
   });
 }
 
@@ -152,20 +152,27 @@ describe('An MP4 player with nothing to do', function() {
     await browser.url(`/player/index.html?t=${Date.now()}#${source}`);
     await browser.waitUntil(async () => ((await videoState())?.readyState ?? 0) >= 2,
         {timeout: 20000, interval: 100, timeoutMsg: 'the video did not load'});
-    // Fast, to its end, without a seek.
+    // Fast, to its end, without a seek. Through the client: set on the element alone, the rate
+    // went back to the client's 1x at the next canplay, which comes again after every stall
+    // (FastStreamClient's CANPLAY handler), and the 160 s clip could not end within the wait
+    // (CI, Windows, 2026-11-13).
     await browser.execute(() => {
       const client = /** @type {any} */ (window).fastStream;
-      client.player.getVideo().playbackRate = 8;
+      client.setPlaybackRate(8);
       client.play();
     });
-    await browser.waitUntil(async () => !!(await videoState())?.ended,
-        {timeout: 60000, interval: 200, timeoutMsg: 'the video did not reach its end at 8x'});
+    let state;
+    await browser.waitUntil(async () => {
+      state = await videoState();
+      return !!state?.ended;
+    }, {timeout: 60000, interval: 200}).catch(() => {
+      throw new Error(`the video did not reach its end at 8x: ${JSON.stringify(state)}`);
+    });
     await browser.execute(() => {
       const client = /** @type {any} */ (window).fastStream;
-      client.player.getVideo().playbackRate = 1;
+      client.setPlaybackRate(1);
       client.play().catch(() => {});
     });
-    let state;
     await browser.waitUntil(async () => {
       state = await videoState();
       return !!state && !state.paused && !state.ended && state.time > 0.5 && state.time < 30;

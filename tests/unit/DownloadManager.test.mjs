@@ -191,8 +191,11 @@ describe('DownloadManager', () => {
     expect(manager.canGetFile(at(3))).toBe(true);
   });
 
-  it('yielding cancels the downloads ahead, not what playback waits for, nor one nearly done', () => {
-    // Another player the user watches is short of video (PlayerPeers.shouldYield).
+  it('yielding cancels the downloads ahead, one nearly done too, not what playback waits for', () => {
+    // Another player the user watches is short of video (PlayerPeers.shouldYield). One at least
+    // half in was to be spared, by stats that were null in the real downloader until the whole
+    // body was in: it never was. Made to hold (2026-11-13), the same check made a seek on a
+    // 12 Mbit/s line a second slower, and it went (cancelIfCheap); a nearly done one goes too.
     const client = {predownloadFragments: vi.fn()};
     const manager = new DownloadManager(client);
     const running = (priority, loaded, total, delivering = false) => {
@@ -211,7 +214,7 @@ describe('DownloadManager', () => {
     expect(ahead.entry.abort).toHaveBeenCalledTimes(1);
     expect(unknownSize.entry.abort).toHaveBeenCalledTimes(1);
     expect(playback.entry.abort).not.toHaveBeenCalled();
-    expect(nearlyDone.entry.abort).not.toHaveBeenCalled();
+    expect(nearlyDone.entry.abort).toHaveBeenCalledTimes(1);
     expect(delivering.entry.abort).not.toHaveBeenCalled();
     // Once, not on every tick.
     manager.setYield(true);
@@ -1024,11 +1027,12 @@ describe('DownloadManager stopping every download (a new source, a failed load)'
   });
 });
 
-describe('DownloadManager sparing a download at least half done (setYield, cancelIfCheap)', () => {
-  // Both read how far a running download is from its downloader's stats. Those were null until
-  // FetchLoader's first progress, which it gives once, after the whole body: no running download
-  // ever counted as half done, and every seek cancelled the downloads ahead, nearly finished ones
-  // too, which then came again from their first byte.
+describe('DownloadManager cancelling a running download however far in (setYield, cancelIfCheap)', () => {
+  // Both spared a download at least half in, by a check that held nothing until 2026-11-13 (the
+  // downloader's stats were null until the whole body was in). Made to work, it made a seek to
+  // 80 s in an MP4 on a 12 Mbit/s line a second slower (1557 -> 2547 ms, 7 of 7 rounds): the
+  // spared downloads shared the line with the ones the seek waited for. The check went again;
+  // these keep it gone.
 
   /**
    * A manager whose real downloaders run two downloads ahead, each answered with `sent` of its
@@ -1059,26 +1063,24 @@ describe('DownloadManager sparing a download at least half done (setYield, cance
     vi.unstubAllGlobals();
   });
 
-  it('a player that leaves the network to a watched one keeps a download 900 of 1000 bytes in', async () => {
+  it('a player that leaves the network to a watched one cancels a download 900 of 1000 bytes in', async () => {
     const {manager, watchers} = await downloading([900, 100]);
     try {
       manager.setYield(true);
-      expect(watchers[0].entry.status).toBe(DownloadStatus.DOWNLOAD_INITIATED);
-      expect(watchers[0].callbacks.onAbort).not.toHaveBeenCalled();
-      // One barely begun is cancelled, as before.
-      expect(watchers[1].entry.status).toBe(DownloadStatus.DOWNLOAD_FAILED);
+      expect(watchers.map((watcher) => watcher.entry.status))
+          .toEqual([DownloadStatus.DOWNLOAD_FAILED, DownloadStatus.DOWNLOAD_FAILED]);
     } finally {
       manager.destroy();
     }
   });
 
-  it('a seek keeps a download 900 of 1000 bytes in, and cancels one 100 bytes in', async () => {
+  it('a seek cancels a download 900 of 1000 bytes in, as one 100 bytes in', async () => {
     const {manager, details, watchers} = await downloading([900, 100]);
     try {
-      expect(manager.cancelIfCheap(details[0])).toBe(false);
-      expect(watchers[0].entry.status).toBe(DownloadStatus.DOWNLOAD_INITIATED);
+      expect(manager.cancelIfCheap(details[0])).toBe(true);
       expect(manager.cancelIfCheap(details[1])).toBe(true);
-      expect(watchers[1].entry.status).toBe(DownloadStatus.DOWNLOAD_FAILED);
+      expect(watchers.map((watcher) => watcher.entry.status))
+          .toEqual([DownloadStatus.DOWNLOAD_FAILED, DownloadStatus.DOWNLOAD_FAILED]);
     } finally {
       manager.destroy();
     }
