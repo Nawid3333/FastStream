@@ -1,24 +1,25 @@
 // @ts-check
 async function updatePerms() {
   const perms = await chrome.permissions.getAll();
+  /** @type {NodeListOf<HTMLElement>} */
   const permsEl = document.querySelectorAll('.permstatus');
   for (const el of permsEl) {
     let hasPerms = false;
     if (el.dataset.perm === 'all-urls') {
-      hasPerms = perms.origins.includes('<all_urls>');
+      hasPerms = /** @type {string[]} */ (perms.origins).includes('<all_urls>');
     } else {
-      hasPerms = perms.permissions.includes(el.dataset.perm);
+      hasPerms = /** @type {string[]} */ (perms.permissions).includes(/** @type {string} */ (el.dataset.perm));
     }
 
     if (hasPerms) {
       el.classList.add('has-perms');
       el.classList.remove('no-perms');
-      el.textContent = window.getI18nMessage('perms_page_granted');
+      el.textContent = /** @type {any} */ (window).getI18nMessage('perms_page_granted');
       el.onclick = null;
     } else {
       el.classList.remove('has-perms');
       el.classList.add('no-perms');
-      el.textContent = window.getI18nMessage('perms_page_notgranted');
+      el.textContent = /** @type {any} */ (window).getI18nMessage('perms_page_notgranted');
       // onclick, not a listener: updatePerms runs again at every permission change, and each
       // run added one more - a click then asked for the permission that many times.
       el.onclick = () => {
@@ -28,7 +29,7 @@ async function updatePerms() {
           });
         } else {
           chrome.permissions.request({
-            permissions: [el.dataset.perm],
+            permissions: /** @type {chrome.runtime.ManifestPermission[]} */ ([el.dataset.perm]),
           });
         }
       };

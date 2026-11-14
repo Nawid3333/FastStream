@@ -15,7 +15,14 @@
     "FastStream's patches add and what the types lack (docs/notes/type-checking.md).",
     "Without one, the check failed once the library was there: TypeScript read its",
     "JavaScript and guessed types the code does not fit. typeChecked.test.mjs keeps",
-    "a declaration beside each imported one; the build ships none (tools/splicer.mjs)."
+    "a declaration beside each imported one; the build ships none (tools/splicer.mjs).",
+    "",
+    "include takes every script under chrome/ but the libraries' folder (exclude), whose own",
+    "files come in through the imports that reach them. A script nothing imports - a worker,",
+    "a worklet - is named in files. Until 2026-11-14 include named five folders, and three",
+    "opted-in scripts outside them were in no project: the check passed without reading them,",
+    "and the editor showed them with errors. typeChecked.test.mjs now asks tsc for its file",
+    "list and fails on an opted-in script that is not in it."
   ],
   "compilerOptions": {
     "module": "ESNext",
@@ -41,18 +48,15 @@
   },
   "include": [
     "types/**/*.d.ts",
-    "chrome/background/**/*.mjs",
-    "chrome/*.js",
-    "chrome/custom/*.js",
-    "chrome/player/utils/**/*.mjs",
-    "chrome/player/enums/**/*.mjs",
-    "chrome/player/network/**/*.mjs",
+    "chrome/**/*.mjs",
+    "chrome/**/*.js",
     "native-host/**/*.mjs",
     "tests/**/*.mjs",
     "tools/**/*.mjs"
   ],
   "files": [
-    "chrome/player/modules/decrypter-worker.js"
+    "chrome/player/modules/decrypter-worker.js",
+    "chrome/player/modules/channelcounter/channelcounter.worklet.mjs"
   ],
   "exclude": [
     "node_modules",

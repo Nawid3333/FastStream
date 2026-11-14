@@ -11,6 +11,12 @@ registerProcessor('channelcounter-worklet', class ChannelCounter extends AudioWo
       }
     };
   }
+  /**
+   * @param {Float32Array[][]} input
+   * @param {Float32Array[][]} output
+   * @param {Record<string, Float32Array>} parameters
+   * @return {boolean}
+   */
   process(input, output, parameters) {
     if (this._closed) {
       return false;

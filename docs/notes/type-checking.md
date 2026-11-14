@@ -154,3 +154,21 @@ as they read the client with no check of their own (a local const would hold it 
 `await`). In all, 1,384 inline casts became 1,001, the minified code of each changed file
 the same as before. Casts at a `querySelector` stay: JSDoc has no non-null element type there
 without one.
+
+### Every opted-in script is in tsc's program (2026-11-14)
+
+`tsconfig.json`'s `include` named five folders under `chrome/`, and the rest of the player came
+in through imports. Three scripts with `// @ts-check` are loaded by a page or by
+`audioWorklet.addModule()` and imported by nothing: `chrome/perms.mjs`,
+`chrome/player/preload.mjs` and `chrome/player/modules/channelcounter/channelcounter.worklet.mjs`.
+They were in no project: `pnpm run typecheck` passed without reading them (`perms.mjs` had 10
+errors under `strict`, the worklet 8), and an editor showed them in a project of its own, without
+`strict` or the extension's types. `include` is now `chrome/**/*.mjs` and `chrome/**/*.js`, the
+libraries' folder still excluded; a script in that folder that nothing imports goes into `files`
+(the HLS decrypter's worker, the worklet). `types/audio-worklet.d.ts` declares the worklet's two
+globals. The three files were typed with comments only (`handoff`'s same-code check: the minified
+code is the same). `typeChecked.test.mjs` asks tsc for its file list (`--listFilesOnly`) and fails
+on an opted-in script that is not in it; with the old `include` it names the three.
+
+An error an editor shows on a `tsconfig.json` of a worktree that no longer exists ("File ...
+decrypter-worker.js not found") is the editor's memory of a deleted folder: close that tab.
