@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
-import {rebuild, resolveTarget, webExtSpawn} from './rebuild.mjs';
+import {nodeVersionNote, rebuild, resolveTarget, webExtSpawn} from './rebuild.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -72,6 +72,9 @@ if (!fs.existsSync(sourceDir)) {
 console.log('\nLaunching fresh Firefox dev instance with FastStream + uBlock...');
 console.log(`Profile: ${profileDir} (reset, add-ons preserved)\n`);
 
+const note = nodeVersionNote();
+if (note) console.warn(note + '\n');
+
 // webExtSpawn: a shell and quoting on Windows (pnpm.cmd), the arguments as they are elsewhere.
 const {command, args, shell} = webExtSpawn([
   'run',
@@ -100,4 +103,5 @@ webExt.on('error', (e) => {
   console.error(`Could not start web-ext through pnpm: ${e.message}`);
   process.exit(1);
 });
-webExt.on('exit', (code) => process.exit(code ?? 0));
+// No code: a signal ended it, which is no success.
+webExt.on('exit', (code) => process.exit(code ?? 1));

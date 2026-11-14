@@ -41,8 +41,10 @@ function ubuntuReleases(readme) {
 /**
  * @param {string} cmd
  * @param {string[]} args
+ * @return {number} Its exit code; 1 for one that had none (it could not be started, or a
+ *   signal ended it): given on as it was (null), the script ended with 0, "passed".
  */
-const run = (cmd, args) => spawnSync(cmd, args, {stdio: 'inherit'}).status;
+const run = (cmd, args) => spawnSync(cmd, args, {stdio: 'inherit'}).status ?? 1;
 
 // wsl.exe writes its own messages in UTF-16.
 function wslDistros() {

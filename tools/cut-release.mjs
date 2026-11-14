@@ -73,7 +73,14 @@ if (remoteTags) {
   process.exit(1);
 }
 
+// 2b. Only from main. release.yml refuses a tag that is not on main, but only once the bump
+//     and its tag are on GitHub: a release cut on a branch left both there with nothing
+//     released.
 const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
+if (branch !== 'main') {
+  console.error(`A release is cut from main, not from ${branch}.`);
+  process.exit(1);
+}
 console.log(`Cutting ${newVersion} from ${branch}...`);
 
 // 3. Bump both files in the same commit. These two have drifted apart

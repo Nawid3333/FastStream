@@ -75,6 +75,19 @@ describe('cut-release.mjs', {timeout: 30000}, () => {
     expect(ref(origin, 'main')).toBe(start);
   });
 
+  it('refuses to cut a release from another branch than main, before committing anything', () => {
+    const {work, origin} = repo();
+    git(work, 'checkout', '-q', '-b', 'feature');
+    const start = ref(work, 'HEAD');
+    const result = cut(work, '1.3.90.0');
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('cut from main, not from feature');
+    expect(ref(work, 'HEAD')).toBe(start);
+    expect(ref(origin, 'refs/heads/feature')).toBe(null);
+    expect(ref(origin, 'refs/tags/v1.3.90.0')).toBe(null);
+    expect(ref(work, 'refs/tags/v1.3.90.0')).toBe(null);
+  });
+
   it('leaves origin as it was when the tag is refused: no release commit without its tag', () => {
     const {work, origin} = repo();
     // The remote refuses every tag, as it would one it already had.
