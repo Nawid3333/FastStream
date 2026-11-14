@@ -95,6 +95,11 @@ export default class MP4Player extends EventEmitter {
       // the player was reset a second time, aborting the range the first reset had asked for.
       if (!this.video?.seeking) this.ownSeek = null;
     });
+    // A start set before the element had data (the setter, below) that it never sought to:
+    // the mark goes once the element has its first frame without a seek under way.
+    this.video.addEventListener('loadeddata', () => {
+      if (!this.video?.seeking) this.ownSeek = null;
+    });
 
     this.mp4box = createFile(false);
 
@@ -1299,11 +1304,16 @@ export default class MP4Player extends EventEmitter {
     }
     this.pendingSeek = null;
     this.video.currentTime = value;
-    // Only a seek the element started: with no data yet (readyState 0, as when the client sets
-    // the start right after setSource) the time is only where it will start, no seek runs, and
-    // no seeked would ever clear the mark - the element's own seek to 0 when the video was
-    // played again after its end was then taken for this one (a review, 2026-11-13).
-    this.ownSeek = this.video.seeking ? this.video.currentTime : null;
+    // Only a seek the element started, or will start. With no data yet (readyState 0, as when
+    // the client sets the start right after setSource) the time is only where it will start.
+    // At 0 no seek ever runs, and no seeked would clear the mark - the element's own seek to 0
+    // when the video was played again after its end was then taken for this one (a review,
+    // 2026-11-13). Past 0 the element seeks there once it has its metadata, and that
+    // `seeking` is this seek, checked below: unmarked, it reset the player a second time and
+    // aborted the range the first reset had just asked for (a seek preview pointed at while it
+    // still loads, the player of a sound set to start late).
+    const video = this.video;
+    this.ownSeek = video.seeking || (video.readyState === 0 && video.currentTime > 0) ? video.currentTime : null;
 
     // What matters is where the element is going: a seek to -3 s lands on 0, which may well
     // be buffered, and throwing the whole buffer away for it made every arrow press near the

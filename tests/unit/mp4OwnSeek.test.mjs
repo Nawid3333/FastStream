@@ -40,6 +40,46 @@ describe('MP4Player, its own seeks', () => {
     expect(player.resetHLS).toHaveBeenCalledTimes(1);
   });
 
+  it('resets once for a start set before the element has data: the element seeks there later', () => {
+    const {player, video} = bufferedPlayer();
+    video.ranges = [];
+    video.readyState = 0;
+    player.currentTime = 30;
+    expect(video.seeking).toBe(false);
+    expect(player.resetHLS).toHaveBeenCalledTimes(1);
+    // The metadata came: the element seeks to where it was told to start.
+    video.readyState = 1;
+    video.seeking = true;
+    video.dispatchEvent(new Event('seeking'));
+    expect(player.resetHLS).toHaveBeenCalledTimes(1);
+    video.seeking = false;
+    video.dispatchEvent(new Event('seeked'));
+    expect(player.ownSeek).toBeNull();
+  });
+
+  it('keeps no mark for a start at 0 set before the element has data, where no seek follows', () => {
+    const {player, video} = bufferedPlayer();
+    video.readyState = 0;
+    player.currentTime = 0;
+    expect(player.ownSeek).toBeNull();
+    // Played again after its end: the element's own seek to 0 is checked.
+    video.readyState = 4;
+    video.ranges = [[40, 100]];
+    video.seeking = true;
+    video.dispatchEvent(new Event('seeking'));
+    expect(player.resetHLS).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops the mark of a start the element never sought to, with its first frame', () => {
+    const {player, video} = bufferedPlayer();
+    video.readyState = 0;
+    player.currentTime = 30;
+    expect(player.ownSeek).toBe(30);
+    video.readyState = 2;
+    video.dispatchEvent(new Event('loadeddata'));
+    expect(player.ownSeek).toBeNull();
+  });
+
   it('forgets its seek once it has landed: a later seek the element makes itself is checked', () => {
     const {player, video} = bufferedPlayer();
     player.currentTime = 60;
