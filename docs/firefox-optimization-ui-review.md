@@ -10,8 +10,9 @@ its fixes (section 4).
 **2026-11-14.** The owner's decision: no hand test. `test/all-prs` holds all of it and the work
 of 2026-11-14 on top (players in several tabs take turns; a page loaded again keeps the player; a
 third review's fixes; two fuzz tests: `docs/notes/player.md`, the three sections of that date),
-and goes to main in one merge, which releases (section 7), after a second review round
-(`docs/review-2026-11-14.md`). **The rename is dropped** (his word, 2026-11-14): the add-on
+and goes to main in one merge (PR #679) while the releases are turned off (the owner's
+decision, 2026-11-15); a second review round on main follows (`docs/review-2026-11-14.md`),
+and the owner turns the releases on again for one final version. **The rename is dropped** (his word, 2026-11-14): the add-on
 and the repository stay "FastStream"; #676's changes were reverted on `test/all-prs`. The table
 and sections 1 to 6 are as written on 2026-11-13, when three draft pull requests waited for his
 test.
@@ -515,14 +516,16 @@ worktree's `built` folder.
 
 Order, as decided on 2026-11-14 (one merge of `test/all-prs`, not one per pull request):
 
-1. The review round of `docs/review-2026-11-14.md` first; its fixes go on `test/all-prs`.
+1. The owner turned off Release, Auto release and Release failsafe (2026-11-15), so a merge
+   into main releases nothing; CI's hand-off to Auto release says so and stops.
 2. Merge `test/all-prs` into main (PR #679) with a merge commit, not a squash: each area keeps
    its history, and the commits of #672 to #675 are in main as they were reviewed (those pull
    requests were closed on 2026-11-14 and their branches deleted, since this branch holds
-   them). The merge runs the whole CI on main; the automatic release follows it.
-3. Watch the first release run: "Check the tag is on main" is new in it. Then the signed file
-   and `updates.json`.
-4. #634 (the mpv update) stays open, as decided.
+   them).
+3. The review round of `docs/review-2026-11-14.md` on main; each fix a pull request.
+4. The owner turns the releases on again. The first release run after that: watch "Check the
+   tag is on main" (new in it), then the signed file and `updates.json`.
+5. #634 (the mpv update) stays open, as decided.
 
 No rename: #676 was merged into `test/all-prs` and reverted there (2026-11-14), so its commits
 and their revert are both in the history; the files are as on main.

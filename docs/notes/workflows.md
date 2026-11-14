@@ -99,7 +99,12 @@
   there has shown that it emails the pusher (2026-09-30). The hand-off takes a run either
   of whose actors is the token: the owner's re-run of such a run keeps the token as its
   actor and sends no `workflow_run` either (CI run 36618653582, attempt 2), and released
-  nothing while only the triggering actor was checked. Each failure issue here and in the
+  nothing while only the triggering actor was checked. With Auto release turned off by the
+  owner (its state `disabled_manually`: Release, Auto release and Release failsafe were, from
+  2026-11-15, while main is polished before the next release), the hand-off says so in the
+  run's summary and starts nothing: GitHub refuses a disabled workflow, and every such run
+  opened "Auto release failed" (`release-hand-off.test.sh`). Disabled by GitHub for inactivity,
+  it is still reported. Each failure issue here and in the
   other workflows' "Report this workflow's own failure" is one issue while it is open, and
   a failure while it is open adds a comment with its run's link (before, it was dropped).
   The concurrency group is per commit, at job level: a workflow-wide
@@ -666,6 +671,19 @@
   before it is written, so dismissed as a false positive). #320's five fixes (the direct
   player's `video.src`, the fsaunpack rate limiter, firefox.e2e.mjs) were real but were not
   open alerts: the count matched by chance, a mistake not to repeat.
+- **"1 configuration not found" on a pull request's CodeQL check** (2026-11-14, #679) is the
+  default setup's state between its two uploads: the Actions analysis comes first (about a
+  minute), the CodeQL check is posted at once, and main's JavaScript configuration is not on the
+  new commit yet. The check is neutral, gates nothing, and is posted again, with the real
+  verdict, when the JavaScript analysis lands (#679: "No new alerts" 10 minutes later). Read the
+  check again after the JavaScript analysis (`code-scanning/analyses?ref=refs/pull/<n>/head`),
+  never this state. On a Dependabot PR it stays (default setup does not scan those). Whether an
+  advanced setup (a codeql.yml of our own) would avoid it was not looked into; it would replace
+  the default setup in the repository's settings.
+- **"No new alerts" on a pull request is about the changed lines only** (diff-informed), and
+  environment variables count as untrusted there too: the benchmark's `BENCH_TRACE=<file>`, a
+  path from a variable written with request data, was two high and two medium alerts on #679
+  (fixed: `BENCH_TRACE=1`, a file the server names, only what the server knows itself in it).
 - **`vendored-updates.yml`** (daily, 06:45 UTC), 2026-10-01, U1: the two vendored files no
   other workflow watches. (The silero VAD model's job, which opened a PR on
   `vendored/silero-vad-<tag>` for a newer model, went with the speech detector on
