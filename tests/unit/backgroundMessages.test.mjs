@@ -64,6 +64,16 @@ describe('Who may send the background a message', () => {
     expect([...sent].filter((type) => MessageSenders[type] === 'own')).toEqual([]);
   });
 
+  it('is a content script too only for a type a content script sends', async () => {
+    // A type marked 'any' with no content script that sends it is open to every page for
+    // nothing (backgroundMessages.property.test.mjs sends the 'own' ones from a page, by
+    // this list: one moved to 'any' would leave its sight).
+    bg = await loadBackground();
+    const {MessageSenders} = await import('../../chrome/background/background.mjs');
+    const sent = contentScriptTypes();
+    expect(Object.keys(MessageSenders).filter((type) => MessageSenders[type] === 'any' && !sent.has(type))).toEqual([]);
+  });
+
   it('ignores a content script that asks to read the options anew', async () => {
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
     await bg.message({type: 'LOAD_OPTIONS', time: 7}, {tabId: 1, url: PAGE});
