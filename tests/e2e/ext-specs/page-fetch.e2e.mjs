@@ -252,15 +252,22 @@ function sha256(file) {
 }
 
 /**
- * The save's status line and whether its banner shows, in the player's frame.
- * @return {Promise<{banner: boolean, status: string}>}
+ * The save's status line and whether its banner shows, in the player's frame; and, for a
+ * timeout's message, the dialog open and where the save manager stands. A save that never
+ * began on the Linux runner (2026-11-14, passed on its retry) left nothing else to go by.
+ * @return {Promise<{banner: boolean, status: string, dialog: ?string, asking: boolean,
+ *   making: boolean}>}
  */
 async function saveState() {
   await playerState();
   return browser.execute(() => {
     const banner = document.querySelector('#save_notif_banner');
+    const dialog = document.querySelector('dialog.fs-dialog[open]');
+    const save = /** @type {any} */ (window).fastStream?.interfaceController?.saveManager;
     return {banner: !!banner && banner.style.display !== 'none',
-      status: Array.from(document.querySelectorAll('.status_message'), (m) => m.textContent.trim()).filter(Boolean).join(' | ')};
+      status: Array.from(document.querySelectorAll('.status_message'), (m) => m.textContent.trim()).filter(Boolean).join(' | '),
+      dialog: dialog ? dialog.textContent.trim().slice(0, 200) : null,
+      asking: !!save?.askingToSave, making: !!save?.makingDownload};
   });
 }
 
