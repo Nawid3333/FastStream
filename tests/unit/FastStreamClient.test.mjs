@@ -2310,3 +2310,98 @@ describe('FastStreamClient, the seek preview shown', () => {
     expect(client.hidePreview).not.toHaveBeenCalled();
   });
 });
+
+// A fragmented MP4's ranges have their times only once the player parsed them; those
+// downloaded ahead of the parser have none (start and end -1). A player that keeps a window of
+// the video (a private window, "download all" off) took them for ranges long behind the
+// playhead once that was past 19 s: it started no download ahead any more, and let go of
+// every range it had downloaded ahead (a review, 2026-11-14).
+describe('FastStreamClient, a fragmented MP4\'s ranges not parsed yet, in a download window', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /**
+   * A 600 s file in ten ranges of 60 s: the first four parsed, the next two downloaded
+   * ahead of the parser, the last four waiting.
+   * @param {number} time - Where it plays.
+   * @param {Object} [options]
+   * @return {{client: Object, frags: Array<Object>}}
+   */
+  function windowed(time, options = {}) {
+    vi.stubGlobal('navigator', {onLine: true});
+    const client = makeClient({downloadAll: false, maxSpeed: -1, ...options});
+    const frags = [];
+    for (let i = 0; i < 10; i++) {
+      const fragment = new Fragment('L', i);
+      fragment.getContext = () => ({url: 'u', rangeStart: i * 1e6, rangeEnd: (i + 1) * 1e6});
+      if (i <= 3) {
+        fragment.start = i * 60;
+        fragment.end = i === 3 ? 600 : (i + 1) * 60;
+        fragment.status = DownloadStatus.DOWNLOAD_COMPLETE;
+        fragment.addReference(ReferenceTypes.MP4PLAYER);
+      } else if (i <= 5) {
+        fragment.status = DownloadStatus.DOWNLOAD_COMPLETE;
+      }
+      frags.push(fragment);
+    }
+    client.fragmentsStore = {L: frags};
+    client.state.currentTime = time;
+    client.state.bufferAhead = options.bufferAhead ?? 300;
+    client.state.bufferBehind = 20;
+    client.getVideoAhead = () => 120;
+    client.needsUserInteraction = () => false;
+    client.interfaceController.saveManager = {makingDownload: false};
+    client.downloadManager = {yielding: false, waiting: false, memoryFull: false, getSpeed: () => 0, removeFile: vi.fn(),
+      canGetFile: () => true, activeCount: () => 0, urgentParallel: () => 6};
+    client.player = {duration: 600, currentFragment: frags[Math.min(3, Math.floor(time / 60))], currentAudioFragment: null,
+      getCurrentVideoLevelID: () => 'L', getCurrentAudioLevelID: () => null,
+      downloadFragment: vi.fn((fragment) => {
+        fragment.status = DownloadStatus.DOWNLOAD_INITIATED;
+        return Promise.resolve();
+      })};
+    return {client, frags};
+  }
+
+  const started = (client) => client.player.downloadFragment.mock.calls.map(([fragment]) => fragment.sn);
+
+  it('goes on downloading them ahead past 19 s, as far as the window reaches', () => {
+    const {client} = windowed(25);
+    expect(client.shouldDownloadAll()).toBeFalsy();
+    client.predownloadFragments();
+    // 300 s ahead of 25 s: the ranges that start, about, at 360 s and after wait.
+    expect(started(client)).toEqual([]);
+    const far = windowed(100);
+    far.client.predownloadFragments();
+    expect(started(far.client)).toEqual([6]);
+    const farther = windowed(200);
+    farther.client.predownloadFragments();
+    expect(started(farther.client)).toEqual([6, 7, 8]);
+  });
+
+  it('keeps the ones it downloaded ahead, and lets go of those the window has passed', () => {
+    const {client, frags} = windowed(25);
+    client.freeFragments(frags);
+    expect(client.downloadManager.removeFile).not.toHaveBeenCalled();
+    expect(frags[4].status).toBe(DownloadStatus.DOWNLOAD_COMPLETE);
+
+    // Sought back to the start with a short window: they lie past it now.
+    const short = windowed(5, {bufferAhead: 120});
+    short.client.freeFragments(short.frags);
+    expect(short.frags[4].status).toBe(DownloadStatus.WAITING);
+    expect(short.frags[5].status).toBe(DownloadStatus.WAITING);
+  });
+
+  it('downloads them, and keeps them, while nothing tells where they lie', () => {
+    // Only the first range parsed: no pace to place the others by.
+    const {client, frags} = windowed(25);
+    for (const fragment of frags.slice(1, 4)) {
+      fragment.start = -1;
+      fragment.end = -1;
+    }
+    client.freeFragments(frags);
+    expect(client.downloadManager.removeFile).not.toHaveBeenCalled();
+    client.predownloadFragments();
+    expect(started(client)).toEqual([6, 7, 8, 9]);
+  });
+});

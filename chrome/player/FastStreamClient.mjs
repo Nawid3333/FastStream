@@ -41,6 +41,7 @@ import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {PageFetch} from './network/PageFetch.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate} from './network/PlayheadFirst.mjs';
+import {isTimed, untimedSpans} from './network/UntimedSpans.mjs';
 import {SILENT_MAX_PLAYBACK_RATE} from './options/KeybindUtils.mjs';
 import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
 import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
@@ -1664,10 +1665,12 @@ export class FastStreamClient extends EventEmitter {
         if (manager.isSpilling(fragment.getContext())) continue;
         let start = fragment.start;
         let end = fragment.end;
-        if (!Number.isFinite(start) || !Number.isFinite(end)) {
+        if (!isTimed(fragment)) {
           // No times yet (a fragmented MP4's ranges before they are parsed): placed by their
           // distance from the fragment playing, far behind or far ahead; next to it, kept.
-          // Never released, they let a private window's RAM grow without a bound.
+          // Never released, they let a private window's RAM grow without a bound. (No times
+          // is -1, which is finite: asked for a finite number, this never ran, and they were
+          // placed a second before the video's start, the first to go.)
           if (!current || current.level !== fragment.level || Math.abs(fragment.sn - current.sn) <= 2) continue;
           const distance = fragment.sn - current.sn;
           start = distance > 0 ? time + 1e7 + distance : time - 1e7 + distance;
@@ -1838,14 +1841,19 @@ export class FastStreamClient extends EventEmitter {
     let nextDownload = this.getNextToDownload();
     let hasDownloaded = false;
     let index = 0;
+    /** @type {Map<string|number, Map<number, import('./network/UntimedSpans.mjs').Span>>} */
+    const untimed = new Map();
 
     while (nextDownload) {
       if (nextDownload.canFree() && !this.shouldDownloadAll()) {
-        if (nextDownload.start > this.state.currentTime + this.state.bufferAhead) {
+        // One without times and nothing to place it by is downloaded: the RAM budget lets go
+        // of such by their distance (keepWithinMemoryBudget).
+        const span = this.windowSpan(nextDownload, untimed);
+        if (span && span.start > this.state.currentTime + this.state.bufferAhead) {
           break;
         }
 
-        if (nextDownload.end < this.state.currentTime - this.state.bufferBehind) {
+        if (span && span.end < this.state.currentTime - this.state.bufferBehind) {
           break;
         }
       }
@@ -1874,6 +1882,26 @@ export class FastStreamClient extends EventEmitter {
       hasDownloaded = this.predownloadReservedFragments();
     }
     return hasDownloaded;
+  }
+
+  /**
+   * Where a fragment lies in the video, for the download window: its times, or, for one that
+   * has none yet (a fragmented MP4's range the player has not parsed), about where
+   * (UntimedSpans). Such a range counted as one long behind the playhead once that passed
+   * 19 s: no download ahead was started any more.
+   * @param {Fragment} fragment
+   * @param {Map<string|number, Map<number, import('./network/UntimedSpans.mjs').Span>>} placed -
+   *   The levels placed in this pass, kept between its fragments.
+   * @return {import('./network/UntimedSpans.mjs').Span|null} None when nothing tells.
+   */
+  windowSpan(fragment, placed) {
+    if (isTimed(fragment)) return fragment;
+    let spans = placed.get(fragment.level);
+    if (!spans) {
+      spans = untimedSpans(this.getFragments(fragment.level) || []);
+      placed.set(fragment.level, spans);
+    }
+    return spans.get(fragment.sn) || null;
   }
 
   /**
@@ -1936,10 +1964,22 @@ export class FastStreamClient extends EventEmitter {
    * @param {Array<Fragment>} fragments - A level's, by sn.
    */
   freeFragments(fragments) {
+    /** @type {Map<number, import('./network/UntimedSpans.mjs').Span>|null} */
+    let untimed = null;
     for (let i = 0; i < fragments.length; i++) {
       const fragment = fragments[i];
       if (fragment && fragment.status === DownloadStatus.DOWNLOAD_COMPLETE && fragment.canFree()) {
-        if (fragment.end < this.state.currentTime - this.state.bufferBehind || fragment.start > this.state.currentTime + this.state.bufferAhead) {
+        /** @type {import('./network/UntimedSpans.mjs').Span|undefined} */
+        let span = fragment;
+        if (!isTimed(fragment)) {
+          // Downloaded ahead of the parser (windowSpan): each was let go of at the next tick,
+          // as one long behind the playhead. One nothing places stays (the RAM budget lets go
+          // of it by its distance).
+          untimed ??= untimedSpans(fragments);
+          span = untimed.get(i);
+        }
+        if (span && (span.end < this.state.currentTime - this.state.bufferBehind ||
+            span.start > this.state.currentTime + this.state.bufferAhead)) {
           this.freeFragment(fragment);
         }
       }

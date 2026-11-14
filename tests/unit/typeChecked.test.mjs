@@ -91,6 +91,7 @@ const CHECKED = [
   'chrome/player/network/PlayheadFirst.mjs',
   'chrome/player/network/SpeedTracker.mjs',
   'chrome/player/network/StandardDownloader.mjs',
+  'chrome/player/network/UntimedSpans.mjs',
   'chrome/player/network/opfs-worker.mjs',
   'chrome/player/options/KeybindUtils.mjs',
   'chrome/player/options/MpvSuggestion.mjs',
