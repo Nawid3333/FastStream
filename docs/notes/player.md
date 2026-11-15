@@ -1642,3 +1642,80 @@ Looked at and left:
 - Loading `sortable.mjs`, the subtitle search and `gif.mjs` only when first used (176 KB of
   1.4 MB the player loads at its start): not measured and not built. Each is a way for a menu
   to open late, and what it could save is the parsing of an eighth of the player's code.
+
+## The polish round (2026-11-15)
+
+What the review of 2026-11-14 left open, done or measured on main, before the review round of
+2026-11-17.
+
+- **An MP4 start that gets nowhere no longer runs its loop every millisecond.** While the
+  player waits for its first frame (`needsInit`) the main loop ran at the urgent pace (1 ms,
+  4 ms in Firefox) for as long as it took, and for good when the element could not decode the
+  data. It runs so only for 2 s after the start last got somewhere - an append (`updateend`), a
+  seek, a play - and then at the steady 50 ms; `loadeddata` and each append wake it at once.
+  `LoopPace.mjs` holds the choice (`LoopPace.test.mjs`). A/B against main
+  (`tools/bench-ab.mjs --scenarios mp4`, 7 rounds), with the files local and on a 12 Mbit/s
+  line with 150 ms to the first byte: every measure "same" (first frame 562/561 ms local,
+  887/879 ms slow; seek to 80 s and playing past it 349/350 and 1839/1851 ms; wake-ups while
+  playing, paused and ended 25.0/9.5/9.4 a second on both). The change is for a start that
+  never gets its first frame, which the benchmark does not play.
+- **A fragmented MP4's keyframe index takes in only the new samples.** `refreshSampleIndex`
+  filtered and sorted every sample of every track again after each range: 7.7 ms a range on a
+  2-hour file (Node, synthetic samples: 216,000 video, 338,000 audio, every audio sample a
+  keyframe), on the player's thread. `addKeyframes` (`SampleIndex.mjs`) sorts in only what
+  mp4box added since: appended when it all comes later (a file played on: about nothing),
+  merged in otherwise (an earlier part read after a seek back: 0.75 ms). mp4box builds a
+  track's list once, at the moov, and only appends to it, so the result is the full sort's,
+  ties included (`SampleIndex.test.mjs`, a property test). `setFragmentTimes`, run with it,
+  stays linear in the samples (a binary search per range, then the range's samples).
+- **One fragment status for the three requesters.** DASH's, HLS's and MP4's fragment requesters
+  kept a fragment's status in three copies of the same 40 lines; `players/FragmentStatus.mjs`
+  holds it (`FragmentStatus.test.mjs`). DASH's `preProcessFragment`/`postProcessFragment`
+  hooks, which no player had, are gone from `DashFragmentRequester` and `DashLoader`.
+- **A dropped `.fsa` archive is read from the File.** `parseFSAFile` fetched the file's own
+  object URL in Range requests (`RequestUtils.httpGetLarge`, its only use, now gone) and read
+  the length back from `Content-Range`; it reads `file.slice()` chunks now, the next one
+  ahead as before.
+- **PC-4, measured and not built.** A body read in 64 KiB pieces and joined at the end holds
+  its bytes twice at the peak; one buffer the size of the `Content-Length`, written in place,
+  was to hold them once. Measured in Node with a 64 MB body: the peak was 128 MB as it is and
+  123.8 MB written in place, the time the same. The pieces are freed only at the next garbage
+  collection, which comes after the copy either way, so the body is in memory twice all the
+  same.
+- **CS-7, measured and left.** The content script walks the page and its shadow roots on a
+  click or key (at most every 2 s, in the frame that got it). In the page's own realm the walk
+  takes under 1 ms for 10,000 elements, 2 ms for 50,000 and 15 ms for 200,000; from the
+  content script (through Xray wrappers) 3, 17 and 72 ms. Asking only for open-or-closed shadow
+  roots, or a live `getElementsByTagName` list, changes nothing (4/18/80 and 3/17/69 ms): the
+  cost is the iteration. A walk spread over idle time could miss a play that comes right
+  after the click, which is what the walk is for.
+- **Zero motion, in the stylesheet itself.** `fluidplayer.css` declared 20 transitions and 2
+  animations (and the "shaking" keyframes) that the global override cancelled; they are gone,
+  with the rules and selectors nothing in the player uses (`.no_volume_bar`, the playback-rate
+  menu's, the pseudo poster, `.freeze`'s buffered bar), and `options.css`'s `#submitter`.
+  `playerA11y.test.mjs` now fails on any transition, animation or `@keyframes` that is not
+  `none`. The locale key `options_general_vischangeaction_pip` (a choice removed long ago) is
+  gone from the 16 locales.
+- **SEC-3**: `patched-libraries.yml` in two jobs (`docs/notes/workflows.md`, "Patched libraries:
+  two jobs").
+- **R-1** was done already: `update-prs.yml`'s concurrency is per job.
+
+Looked at and left:
+
+- `SaveFile.add` copies a view of a fragment (`slice()`) before handing it to the OPFS worker:
+  the worker takes the buffer (transferred), and the fragment's buffer holds more than the
+  mdat. Writing a view in the worker would spare one copy of each fragment, a memcpy of a few
+  MB, for a change to the worker's protocol.
+- The progress bar reads every fragment of the level per fragment event (about two a
+  fragment) and writes the DOM only where something changed.
+- Skipping a `saveTabState` write whose state is the one written last: most writes come with
+  an address change, and the address is part of the state.
+- The settings sliders save once a frame while dragged (OP-6) - not at every input event, as
+  the review of 2026-11-14 had it.
+- `content.js` keeps a copy of `SubtitleUtils.decodeSubtitleBytes` and `MpvTarget.mjs` builds
+  what the mpv helper built until host 14, byte for byte: a classic script cannot import a
+  module, and the helper is a program of its own. Each copy has a test that keeps it the same
+  (`decodeSubtitleBytes.test.mjs`, `MpvTarget.test.mjs`).
+- The site scripts in `chrome/custom/` (bilibili, Facebook, Instagram) are still in the
+  manifest. Retiring them once the general detection is shown to play those sites (the owner's
+  rule of 2026-10-28) needs those sites tested, signed in: for the owner.
