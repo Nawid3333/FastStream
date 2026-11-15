@@ -93,6 +93,9 @@ let requestCounter = 0;
  *   Windows, whatever the system the tests run on.
  * @param {function(): void} [setup.beforeImport] - Runs once the stand-in is in place,
  *   before the background loads: to make an API fail from the start.
+ * @param {Promise<void>} [setup.sessionReady] - storage.session answers once it settles: a
+ *   message can then come before the kept tab state is back, as the message that wakes an
+ *   event page does.
  * @return {Promise<Object>} The background's handle.
  */
 export async function loadBackground({
@@ -105,6 +108,7 @@ export async function loadBackground({
   thinHost = false,
   os = 'win',
   beforeImport = () => {},
+  sessionReady = Promise.resolve(),
 } = {}) {
   vi.useFakeTimers();
   vi.resetModules();
@@ -229,7 +233,10 @@ export async function loadBackground({
         },
       },
       session: {
-        get: async () => structuredClone(session),
+        get: async () => {
+          await sessionReady;
+          return structuredClone(session);
+        },
         set: async (items) => {
           Object.assign(session, structuredClone(items));
         },

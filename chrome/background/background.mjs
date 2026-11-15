@@ -873,6 +873,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.type === MessageTypes.PING) {
     sendResponse(MessageTypes.PONG);
+    // A player's keep-alive (every 10 s), and all a paused one sends: a player this background
+    // did not see load is counted here too (restorePlayerFrame), as at any other message of its
+    // tab. Answered only, it stayed uncounted until another came, and a second player in the
+    // tab was its main player, playing without a click. Once the kept tab state is back
+    // (ensureOptions): the ping is often what wakes the event page, and comes before it.
+    const tabId = sender.tab?.id;
+    if (typeof tabId === 'number') {
+      ensureOptions().then(() => {
+        const tab = /** @type {TabHolder & TabExtras} */ (Tabs.getTabOrCreate(tabId));
+        restorePlayerFrame(tab, /** @type {FrameHolder & FrameExtras} */ (tab.getFrameOrCreate(/** @type {number} */ (sender.frameId))), sender);
+      }).catch((e) => console.error(e));
+    }
     return;
   } else if (msg.type === MessageTypes.VPN_STATUS) {
     // The player, about its source: did the page reach it through Firefox VPN, and may
