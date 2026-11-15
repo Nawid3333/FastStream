@@ -229,8 +229,14 @@ export function DASHLoaderFactory(player) {
         responseType: request.responseType,
         rangeStart: rangeStart,
         rangeEnd: rangeEnd,
+        // A segment gets the download manager's retries (StandardDownloader: 6, from 1 s,
+        // doubling), as one in the store has: dash.js retries nothing itself (DashPlayer). With
+        // none, an answer cut part-way failed the segment at once, and dash.js did not ask for
+        // it again after a seek: a seek into the 30th Period of a manifest sat there for good
+        // (the A/B benchmark, --drop, 2026-11-15; cut-answer.e2e.mjs). A manifest fails at the
+        // first error as before, so a source that is down shows so at once.
         config: {
-          maxRetry: 0,
+          maxRetry: isSegment ? 6 : 0,
           timeout: 10000,
           retryDelay: 1000,
           maxRetryDelay: 64000,
