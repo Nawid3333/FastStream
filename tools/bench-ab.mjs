@@ -8,6 +8,11 @@
 //   --scenarios a,b     mp4, hls, dash, idle (default all four); tabs (several players in
 //                       several tabs; with --rate, as it measures who gets a slow line)
 //   --rate M --ttfb T   media over one shared M Mbit/s line, T ms to each answer's first byte
+//   --jitter P [--jitter-factor F]  the line falls to F (0.25) of its rate every other P ms
+//   --conn C            each answer at most C Mbit/s, as servers that throttle a connection
+//   --drop D            D percent of answers cut part-way (the same ones for both builds; a
+//                       retry gets through)
+//   --stall-ms S        how long the stall-* scenarios play before their seeks (60000)
 //   --where             also lists which places in the player's code woke it up
 //   --label-a/--label-b names for the report (default: the ref and its commit)
 //   --clean             removes the worktrees and builds made for earlier runs, and stops
@@ -33,6 +38,11 @@ const {values: args} = parseArgs({options: {
   'scenarios': {type: 'string', default: 'mp4,hls,dash,idle'},
   'rate': {type: 'string', default: '0'},
   'ttfb': {type: 'string', default: '0'},
+  'jitter': {type: 'string', default: '0'},
+  'jitter-factor': {type: 'string', default: '0.25'},
+  'conn': {type: 'string', default: '0'},
+  'drop': {type: 'string', default: '0'},
+  'stall-ms': {type: 'string', default: '60000'},
   'trees': {type: 'string', default: path.join(os.tmpdir(), 'faststream-bench')},
   'clean': {type: 'boolean', default: false},
   'where': {type: 'boolean', default: false},
@@ -162,6 +172,8 @@ const run = spawnSync(process.execPath, [wdio, 'run', path.join(root, 'tests', '
     BENCH_WHERE: args.where ? '1' : '0',
     BENCH_ROUNDS: args.rounds, BENCH_SCENARIOS: args.scenarios,
     BENCH_RATE_MBIT: args.rate, BENCH_TTFB_MS: args.ttfb,
+    BENCH_JITTER_MS: args.jitter, BENCH_JITTER_FACTOR: args['jitter-factor'],
+    BENCH_CONN_MBIT: args.conn, BENCH_DROP_PCT: args.drop, BENCH_STALL_MS: args['stall-ms'],
   },
 });
 process.exit(run.status ?? 1);
