@@ -18,7 +18,7 @@ function playing(error) {
   const levelManager = Object.create(LevelManager.prototype);
   levelManager.videoDecodeFailures = new Map();
   const player = {
-    dash: {},
+    dash: {updateSettings: vi.fn()},
     video: {error},
     client: {getLevelManager: () => levelManager},
     getCurrentVideoLevelID: () => 'video-6',
@@ -73,6 +73,45 @@ describe('DashPlayer, a decode error', () => {
       DashPlayer.prototype.onVideoError.call(player);
       expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(false);
     }
+  });
+
+  const INIT_IPDL = 'NS_ERROR_DOM_MEDIA_FATAL_ERR (0x806e0005) - MediaResult __cdecl mozilla::RemoteVideoDecoderChild::InitIPDL(const VideoInfo &)';
+
+  it('leaves dash.js\'s recovery as it was at the first failure, which loads the source again', () => {
+    const {player} = playing(decodeError(INIT_IPDL));
+    DashPlayer.prototype.onVideoError.call(player);
+    expect(player.dash.updateSettings).not.toHaveBeenCalled();
+    expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(true);
+  });
+
+  it('ends dash.js\'s resets when the load again had no other codec and its decoder still cannot start', () => {
+    // A bilibili video whose levels all named HEVC (2026-11-15): the load again without it had
+    // nothing else to pick, and dash.js reset the video ~130 times a second for ever. The new
+    // player has the failure carried over (restoreVideoDecodeFailures).
+    const {player, levelManager} = playing(decodeError(INIT_IPDL));
+    levelManager.noteVideoDecodeFailure(AV1, true);
+    DashPlayer.prototype.onVideoError.call(player);
+    expect(player.dash.updateSettings).toHaveBeenCalledWith({errors: {recoverAttempts: {mediaErrorDecode: 0}}});
+    expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(false);
+  });
+
+  it('loads the source again, and keeps dash.js\'s recovery, for a codec left out but picked by hand while another is there', () => {
+    // The quality menu still lists the versions of a codec that failed: one picked there fails
+    // to start again, and the pick of the load again takes the codec that plays.
+    const {player, levelManager} = playing(decodeError(INIT_IPDL));
+    player.getVideoLevels = () => new Map([['video-6', {id: 'video-6', videoCodec: AV1}],
+      ['video-7', {id: 'video-7', videoCodec: 'avc1.64001F'}]]);
+    levelManager.noteVideoDecodeFailure(AV1, true);
+    DashPlayer.prototype.onVideoError.call(player);
+    expect(player.dash.updateSettings).not.toHaveBeenCalled();
+    expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(true);
+  });
+
+  it('leaves dash.js\'s recovery to any other decode error of a codec left out', () => {
+    // A bad segment: dash.js skips it and plays on, the only codec there or not.
+    const {player} = playing(decodeError('Decode error: NS_ERROR_DOM_MEDIA_DECODE_ERR'));
+    for (let i = 0; i < 4; i++) DashPlayer.prototype.onVideoError.call(player);
+    expect(player.dash.updateSettings).not.toHaveBeenCalled();
   });
 
   it('does not count an audio decoder\'s failure against the video codec', () => {
