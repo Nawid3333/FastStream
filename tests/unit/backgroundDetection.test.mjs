@@ -620,3 +620,34 @@ describe('a copy-protected video', () => {
     expect(bg.badges.get(1)).toBe('On');
   });
 });
+
+// The text of a page's <track> files is kept with its frame and copied to its players.
+// content.js reads at most 64 MB at a time but asks again for each new stream: a page that
+// named new track files each time had them all kept, without end (a review, 2026-11-15).
+describe('a frame\'s read <track> files', () => {
+  /** @param {number} n @param {number} length @return {Object} A read track. */
+  const track = (n, length) => ({data: 'x'.repeat(length), source: `https://site.test/${n}.vtt`, label: String(n), language: 'en'});
+
+  it('keep at most 64M characters, the oldest going first', async () => {
+    bg = await loadBackground();
+    const {takeScrapedCaptions, ScrapedCaptionsKeptMax} = await import('../../chrome/background/background.mjs');
+    const subtitles = [{source: 'https://site.test/seen.vtt'}];
+    const frame = /** @type {*} */ ({getSubtitles: () => subtitles});
+    const size = 20 * 1024 * 1024;
+    for (let n = 1; n <= 6; n++) takeScrapedCaptions(frame, [track(n, size)]);
+    // The address the frame was seen to load has no text, and stays.
+    expect(subtitles.map((s) => s.source)).toEqual(['https://site.test/seen.vtt', ...[4, 5, 6].map((n) => `https://site.test/${n}.vtt`)]);
+    // 3 x 20M characters: under the bound, a fourth would be over it.
+    expect(ScrapedCaptionsKeptMax).toBe(64 * 1024 * 1024);
+  });
+
+  it('keep a track read again in its place, as its latest copy', async () => {
+    bg = await loadBackground();
+    const {takeScrapedCaptions} = await import('../../chrome/background/background.mjs');
+    const subtitles = [];
+    const frame = /** @type {*} */ ({getSubtitles: () => subtitles});
+    takeScrapedCaptions(frame, [track(1, 3), track(2, 3)]);
+    takeScrapedCaptions(frame, [track(1, 5)]);
+    expect(subtitles.map((s) => [s.label, s.data.length])).toEqual([['1', 5], ['2', 3]]);
+  });
+});

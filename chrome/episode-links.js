@@ -36,8 +36,23 @@ const EpisodeLinks = (() => {
   };
   // A page of a list, not an episode: "next page", "nächste Seite", 下一页...
   const PAGE = /\b(page|seite|página|pagina|pagine|strona|stron|sayfa|halaman)\b|страниц|ページ|页|頁|페이지/i;
-  // Arrows and marks around a link's words ("Next episode »", "‹ Zurück").
-  const MARKS = /^[\s«»‹›<>←→⟨⟩❮❯|·•…:\-–—]+|[\s«»‹›<>←→⟨⟩❮❯|·•…:\-–—]+$/g;
+  // Arrows and marks around a link's words ("Next episode »", "‹ Zurück"), and the space left
+  // of whitespace once it is collapsed. Each is one UTF-16 unit. Taken off both ends by a loop:
+  // a regex anchored at the end (`[…]+$`) was quadratic in a run of them inside a text, a
+  // second for 60,000 dashes, at every poll for the next episode (a review, 2026-11-15).
+  const MARKS = new Set(' «»‹›<>←→⟨⟩❮❯|·•…:-–—');
+
+  /**
+   * @param {string} text
+   * @return {string} It without the marks at either end.
+   */
+  function stripMarks(text) {
+    let start = 0;
+    let end = text.length;
+    while (start < end && MARKS.has(text[start])) start++;
+    while (end > start && MARKS.has(text[end - 1])) end--;
+    return text.slice(start, end);
+  }
 
   /**
    * Lower case, single spaces, no arrows at either end. The same in every locale, with the
@@ -48,7 +63,7 @@ const EpisodeLinks = (() => {
    * @return {string}
    */
   function normalize(text) {
-    return String(text || '').replace(/\s+/g, ' ').replace(MARKS, '').trim().toLowerCase()
+    return stripMarks(String(text || '').replace(/\s+/g, ' ')).trim().toLowerCase()
         .replace(/i̇/g, 'i').replace(/ı/g, 'i');
   }
 
