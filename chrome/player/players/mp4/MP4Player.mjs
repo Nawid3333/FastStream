@@ -34,6 +34,7 @@ import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
  */
 import {keyframeOffset, sampledDuration} from './SampleIndex.mjs';
 import {DurationSync} from './DurationSync.mjs';
+import {loopDelay} from './LoopPace.mjs';
 import {SegmentAppender} from './SegmentAppender.mjs';
 import {SourceBufferWrapper, removalPending} from './SourceBufferWrapper.mjs';
 import {SaveFragmentFetcher, savedEntry} from '../SaveFragmentFetcher.mjs';
@@ -45,11 +46,6 @@ const BACK_BUFFER_SLACK = 1;
 // again after each of these waits, in ms. Still failing, it is the player's error once
 // playback has reached it.
 const RANGE_RETRY_DELAYS_MS = [2000, 4000, 8000];
-// How often the main loop runs while the video plays with media ahead, in ms (mainLoop).
-const STEADY_LOOP_MS = 50;
-// How often it runs while the video is paused or has ended, in ms. A seek or a play runs the
-// next round at once (wakeLoop).
-const PAUSED_LOOP_MS = 250;
 
 const VIDEO_TRACK = 0;
 const AUDIO_TRACK = 1;
@@ -75,6 +71,9 @@ export default class MP4Player extends EventEmitter {
     this.client = client;
     // One function for every round of the main loop, not a new one each time.
     this.boundMainLoop = this.mainLoop.bind(this);
+    // Waiting for the first frame (setSource), and when that start last got somewhere.
+    this.needsInit = false;
+    this.initProgressAt = 0;
 
     this.isPreview = config?.isPreview || false;
     this.isAudioOnly = config?.isAudioOnly || false;
@@ -82,6 +81,10 @@ export default class MP4Player extends EventEmitter {
     this.video = /** @type {HTMLVideoElement} */ (document.createElement(this.isAudioOnly ? 'audio' : 'video'));
     // A seek or a play while the main loop waits at its paused pace: its next round at once.
     this.video.addEventListener('play', () => this.wakeLoop());
+    // The first frame's data: the start is over (needsInit), at the loop's next round.
+    this.video.addEventListener('loadeddata', () => {
+      if (this.needsInit) this.wakeLoop();
+    });
     this.video.addEventListener('seeking', () => {
       this.wakeLoop();
       this.onElementSeeking();
@@ -145,7 +148,12 @@ export default class MP4Player extends EventEmitter {
     // The element gets _duration once its SourceBuffers let it (DurationSync.mjs).
     this.durationSync = new DurationSync(() => this.mediaSource,
         () => /** @type {SourceBufferWrapper[]} */ ([this.videoSourceBuffer, this.audioSourceBuffer].filter(Boolean)));
-    this.boundApplyDuration = () => this.durationSync.apply();
+    // On each SourceBuffer's updateend. While the player waits for its first frame, an
+    // append is its progress: the loop's next round at once (it seeks to the buffered start).
+    this.boundApplyDuration = () => {
+      this.durationSync.apply();
+      if (this.needsInit) this.wakeLoop();
+    };
     // A seek past the element's duration, waiting for the duration to be set; null: none.
     /** @type {?number} */
     this.pendingSeek = null;
@@ -508,6 +516,7 @@ export default class MP4Player extends EventEmitter {
 
     this.source = source;
     this.needsInit = true;
+    this.initProgressAt = performance.now();
 
     const levelID = this.getCurrentVideoLevelID();
     if (!this.client.getFragment(levelID, 0)) {
@@ -573,15 +582,11 @@ export default class MP4Player extends EventEmitter {
     // 20 times a second while paused - the seek preview, a second player, always is - and an
     // MP4 that had ended, whose readyState stays below 3 with nothing ahead, 250 times a
     // second, for as long as its tab stayed open (measured with tools/bench-ab.mjs).
+    // A start that gets nowhere (no first frame 2 s after its last append, seek or play: data
+    // the element cannot decode) waits at the steady pace: LoopPace.mjs.
     const video = this.video;
-    let delay = STEADY_LOOP_MS;
-    if (video.ended) {
-      delay = PAUSED_LOOP_MS;
-    } else if (this.needsInit || video.seeking || (!video.paused && this.readyState < 3)) {
-      delay = 1;
-    } else if (video.paused) {
-      delay = PAUSED_LOOP_MS;
-    }
+    const delay = loopDelay({ended: video.ended, paused: video.paused, seeking: video.seeking,
+      readyState: this.readyState, needsInit: this.needsInit, sinceProgress: performance.now() - this.initProgressAt});
     this.loopTimeout = setTimeout(this.boundMainLoop, delay);
   }
 
@@ -589,6 +594,8 @@ export default class MP4Player extends EventEmitter {
    * Runs the main loop's next round at once, not at its paused pace: a seek or a play.
    */
   wakeLoop() {
+    // Progress for a start that waits for its first frame (LoopPace.INIT_URGENT_MS).
+    this.initProgressAt = performance.now();
     // null: a round is running now, and arms the next itself.
     if (!this.running || this.loopTimeout === null) return;
     clearTimeout(this.loopTimeout);

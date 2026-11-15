@@ -131,6 +131,7 @@ const CHECKED = [
   'chrome/player/players/mp4/AacLayout.mjs',
   'chrome/player/players/mp4/AudioTracks.mjs',
   'chrome/player/players/mp4/DurationSync.mjs',
+  'chrome/player/players/mp4/LoopPace.mjs',
   'chrome/player/players/mp4/MP4Fragment.mjs',
   'chrome/player/players/mp4/MP4FragmentRequester.mjs',
   'chrome/player/players/mp4/MP4Player.mjs',
