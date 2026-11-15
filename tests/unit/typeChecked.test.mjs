@@ -226,6 +226,7 @@ const CHECKED = [
   'tools/privacy-check.mjs',
   'tools/rebuild.mjs',
   'tools/recut-patch.mjs',
+  'tools/same-code.mjs',
   'tools/security-overrides.mjs',
   'tools/setup-dev-profile.mjs',
   'tools/sign-amo.mjs',

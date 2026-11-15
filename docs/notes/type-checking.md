@@ -166,8 +166,10 @@ errors under `strict`, the worklet 8), and an editor showed them in a project of
 `strict` or the extension's types. `include` is now `chrome/**/*.mjs` and `chrome/**/*.js`, the
 libraries' folder still excluded; a script in that folder that nothing imports goes into `files`
 (the HLS decrypter's worker, the worklet). `types/audio-worklet.d.ts` declares the worklet's two
-globals. The three files were typed with comments only (`handoff`'s same-code check: the minified
-code is the same). `typeChecked.test.mjs` asks tsc for its file list (`--listFilesOnly`) and fails
+globals. The three files were typed with comments only: `node tools/same-code.mjs <base>` parses
+each changed script as it was and as it is, and finds the same program (positions, comments, the
+parentheses a JSDoc cast needs and a literal's quotes aside); it names each file whose code
+differs, with the line. `typeChecked.test.mjs` asks tsc for its file list (`--listFilesOnly`) and fails
 on an opted-in script that is not in it; with the old `include` it names the three.
 
 An error an editor shows on a `tsconfig.json` of a worktree that no longer exists ("File ...
