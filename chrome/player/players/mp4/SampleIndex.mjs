@@ -124,3 +124,113 @@ export function keyframeOffset(sampleLists, time) {
   }
   return offset;
 }
+
+/**
+ * The earliest composition time of the samples whose byte offsets lie in a range, its end
+ * included: where a range of the file starts in time (MP4Player.setFragmentTimes). Finds the
+ * range's first sample by a binary search, so it reads `samples` as sorted by offset.
+ * @param {Sample[]} samples - One track's samples; not empty.
+ * @param {number} offset - The range's first byte.
+ * @param {number} end - The range's end.
+ * @return {?number} Seconds; null when no sample lies in the range.
+ */
+export function minTimeIn(samples, offset, end) {
+  let index = Utils.binarySearch(samples, offset, /** @param {number} offset @param {Sample} sample */ (offset, sample) => {
+    return offset - sample.offset;
+  });
+
+  if (index < 0) {
+    index = Math.max(-1 - index, 0);
+  }
+
+  let minTime = Infinity;
+  for (let i = index; i < samples.length; i++) {
+    if (samples[i].offset > end) {
+      break;
+    }
+    minTime = Math.min(minTime, samples[i].cts);
+  }
+
+  if (minTime !== Infinity) {
+    return minTime / samples[0].timescale;
+  } else {
+    return null;
+  }
+}
+
+/**
+ * What minTimeIn gives for each range of a file, kept per range and worked out again only for
+ * the ranges new samples fall in. A fragmented file's samples come one moof at a time, and
+ * setFragmentTimes worked out every range's time from every sample again at each one: 10 ms a
+ * call on a 2-hour file, once for each megabyte read.
+ *
+ * Kept only while the list stays sorted by offset, which minTimeIn's search takes it to be:
+ * then a range's time changes only when a sample in it comes. A list that gets an earlier
+ * part after a later one (a seek back, parsed after the part played) is worked out whole each
+ * time from then on, as before, so the times are always what minTimeIn gives.
+ */
+export class RangeTimes {
+  constructor() {
+    /**
+     * Per sample list: how many samples were seen, whether they are sorted by offset, and each
+     * range's time with the bounds it was worked out for.
+     * @type {WeakMap<Sample[], {count: number, sorted: boolean, ranges: Map<object, {start: number, end: number, time: ?number}>}>}
+     */
+    this.lists = new WeakMap();
+  }
+
+  /**
+   * @param {Sample[]} samples - One track's samples (mp4box only appends to it); not empty.
+   * @param {Array<{rangeStart: number, rangeEnd: number}>} ranges
+   * @return {Array<?number>} minTimeIn(samples, range.rangeStart, range.rangeEnd) for each.
+   */
+  times(samples, ranges) {
+    let list = this.lists.get(samples);
+    if (!list) {
+      list = {count: 0, sorted: true, ranges: new Map()};
+      this.lists.set(samples, list);
+    }
+    if (samples.length !== list.count) {
+      // A shorter list is no longer the one the times were made from.
+      if (samples.length < list.count) {
+        list.sorted = false;
+      }
+      let low = Infinity;
+      let high = -Infinity;
+      for (let i = list.count; i < samples.length && list.sorted; i++) {
+        const offset = samples[i].offset;
+        if (i > 0 && !(offset > samples[i - 1].offset)) {
+          list.sorted = false;
+        }
+        low = Math.min(low, offset);
+        high = Math.max(high, offset);
+      }
+      list.count = samples.length;
+      if (!list.sorted) {
+        list.ranges.clear();
+      } else {
+        // Every kept range the new samples fall in, the ones not asked for this time too.
+        for (const [range, kept] of list.ranges) {
+          if (!(high < kept.start || low > kept.end)) {
+            list.ranges.delete(range);
+          }
+        }
+      }
+    }
+    if (!list.sorted) {
+      return ranges.map((range) => minTimeIn(samples, range.rangeStart, range.rangeEnd));
+    }
+    // Only the ranges asked for are kept: one the player dropped (the file's end found) is not
+    // held on to, and one asked for again later is worked out again.
+    const kept = list.ranges;
+    list.ranges = new Map();
+    return ranges.map((range) => {
+      let entry = kept.get(range);
+      if (!entry || entry.start !== range.rangeStart || entry.end !== range.rangeEnd) {
+        entry = {start: range.rangeStart, end: range.rangeEnd, time: minTimeIn(samples, range.rangeStart, range.rangeEnd)};
+      }
+      list.ranges.set(range, entry);
+      return entry.time;
+    });
+  }
+}
