@@ -199,11 +199,12 @@ describe('facebook_content.js', () => {
   });
 
   it('reports the reel on screen, not the ones the page preloads after it', () => {
+    // The preloaded ones first: only the path tells the reel on screen apart.
     const data = {
-      video: {creation_story: {short_form_video_context: {playback_video: reelVideo('<MPD id="on-screen"/>')}}},
       viewer: {lasso_blue_feed: {edges: [
         {node: {short_form_video_context: {playback_video: reelVideo('<MPD id="next"/>')}}},
       ]}},
+      video: {creation_story: {short_form_video_context: {playback_video: reelVideo('<MPD id="on-screen"/>')}}},
     };
     const page = [{type: 'application/json', textContent: JSON.stringify({require: [[{__bbox: {result: {data}}}]]})}];
     const {sent} = runSiteScript('facebook_content.js', page);
