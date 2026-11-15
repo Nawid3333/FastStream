@@ -37,6 +37,9 @@ function program(src) {
   }));
 }
 
+/** @param {any} node */
+const rawStart = (node) => (typeof node?.start === 'number' ? node.start : -1);
+
 /**
  * The first node of `b` that differs from `a`, with its start in the source.
  * @param {any} a
@@ -47,26 +50,23 @@ function program(src) {
 function firstDifference(a, b, rawB) {
   if (a === b) return null;
   if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) {
-    return typeof rawB?.start === 'number' ? rawB.start : -1;
+    return rawStart(rawB);
   }
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-  if (Array.isArray(a) && a.length !== b.length) keys.add('length');
+  const lists = Array.isArray(a);
+  // A list is compared over the part both have, before a missing element is looked at: that
+  // has no position of its own.
+  const keys = lists ? Array.from({length: Math.min(a.length, b.length)}, (_, i) => i) :
+    new Set([...Object.keys(a), ...Object.keys(b)]);
   for (const key of keys) {
-    if (key === 'length' && Array.isArray(a)) {
-      if (a.length !== b.length) {
-        const at = b[Math.min(a.length, b.length)] ?? b[b.length - 1];
-        return typeof at?.start === 'number' ? at.start : rawStart(rawB);
-      }
-      continue;
-    }
     const found = firstDifference(a[key], b[key], rawB?.[key]);
     if (found !== null) return found === -1 ? rawStart(rawB) : found;
   }
+  if (lists && a.length !== b.length) {
+    // the first element added, or the last one left when some were removed
+    return rawStart(rawB?.[a.length < b.length ? a.length : b.length - 1]);
+  }
   return null;
 }
-
-/** @param {any} node */
-const rawStart = (node) => (typeof node?.start === 'number' ? node.start : -1);
 
 /** @param {string} src @param {number} at */
 const lineOf = (src, at) => (at < 0 ? '?' : String(src.slice(0, at).split('\n').length));
