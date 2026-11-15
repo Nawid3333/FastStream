@@ -28,10 +28,14 @@ const CORS = {
 let server;
 let pages = 0;
 let slowLoads = 0;
+// When the server got the slow load (Date.now()).
+let slowAskedAt = 0;
+/** @type {Array<{sig: ?string, at: number}>} */
+let manifests = [];
 // Longer than the 3 s after which a player gone at a beforeunload with no navigation after
 // it loads again (main.mjs StayedMs).
 const SLOW_MS = 5000;
-/** @type {Array<{sig: ?string, place: ?string}>} */
+/** @type {Array<{sig: ?string, place: ?string, at: number}>} */
 let segments = [];
 
 /**
@@ -58,7 +62,7 @@ async function playerState() {
   const state = await browser.execute(() => {
     const client = window.fastStream;
     const video = client?.player?.getVideo?.();
-    return {player: true, url: client?.source?.url || '', time: client?.currentTime || 0,
+    return {player: true, client: !!client, url: client?.source?.url || '', time: client?.currentTime || 0,
       readyState: video?.readyState || 0, failed: !!client?.interfaceController?.failed,
       tookBack: client?.bufferTakenBack || null};
   });
@@ -255,6 +259,7 @@ describe('A reload of the page', function() {
         // meanwhile, its player gone at beforeunload.
         slowLoads += url.pathname === '/watch-slow' ? 1 : 0;
         if (url.pathname === '/watch-slow' && slowLoads > 1) {
+          slowAskedAt = Date.now();
           setTimeout(answer, SLOW_MS);
           return;
         }
@@ -266,11 +271,12 @@ describe('A reload of the page', function() {
       }
       if (url.pathname === '/v/master.m3u8') {
         const sig = url.searchParams.get('sig');
+        manifests.push({sig, at: Date.now()});
         res.writeHead(200, {...CORS, 'Content-Type': 'application/vnd.apple.mpegurl'});
         return res.end(loopedPlaylist(180, '/v/seg/', {unique: true}).replace(/\.ts\?i=/g, `.ts?sig=${sig}&i=`));
       }
       if (url.pathname.startsWith('/v/seg/')) {
-        segments.push({sig: url.searchParams.get('sig'), place: url.searchParams.get('i')});
+        segments.push({sig: url.searchParams.get('sig'), place: url.searchParams.get('i'), at: Date.now()});
         res.writeHead(200, {...CORS, 'Content-Type': 'video/mp2t'});
         return res.end(fs.readFileSync(path.join(SEGMENTS, path.basename(url.pathname))));
       }
@@ -311,19 +317,28 @@ describe('A reload of the page', function() {
   it('keeps what was buffered when the page takes longer than 3 s to come', async function() {
     await setOptions({autoEnableURLs: [SITE + '/']});
     segments = [];
+    manifests = [];
+    slowLoads = 0;
     const first = await loadAndBuffer('/watch-slow', 8);
     const buffered = placesFor(first);
-    const asked = segments.length;
     await reloadPage();
+    // The case itself: 4 s on, the old page is still there, and its player, gone at
+    // beforeunload, has loaded again (main.mjs StayedMs, 3 s). Measured on 2026-11-15: it has
+    // no stream then, so it takes nothing back, and asks the old link for nothing.
+    await browser.pause(Math.max(0, slowAskedAt + 4000 - Date.now()));
+    const old = await playerState();
+    const oldAsked = [...manifests, ...segments].filter((s) => s.sig === first && s.at >= slowAskedAt + 3000).length;
+    expect(Date.now() - slowAskedAt).toBeLessThan(SLOW_MS);
     const second = `s${pages}`;
     await playsLink(second, 'the reloaded page\'s player never played');
     const tookBack = await tookBackAll();
     const again = [...placesFor(second)].filter((place) => buffered.has(place));
-    // What the old page asked for while the new one was on its way: its player loaded again.
-    const meanwhile = segments.slice(asked).filter((s) => s.sig === first).length;
-    console.log(`      buffered ${buffered.size} before the reload; took back ${JSON.stringify(tookBack)};`,
-        `asked for again after it: ${again.length}; under the old link meanwhile: ${meanwhile}`);
+    console.log(`      4 s into the reload, the old page's player: ${JSON.stringify(old)}; the old link asked for`,
+        `${oldAsked} after 3 s; buffered ${buffered.size} before the reload; took back ${JSON.stringify(tookBack)};`,
+        `asked for again after it: ${again.length}`);
+    expect(old.client).toBe(true);
     expect(tookBack.of).toBeGreaterThan(0);
+    expect(tookBack.taken).toBe(tookBack.of);
     expect(again).toEqual([]);
     expect((await playerState()).failed).toBe(false);
   });
