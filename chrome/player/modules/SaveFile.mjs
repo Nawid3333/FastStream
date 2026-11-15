@@ -67,11 +67,14 @@ export class SaveFile {
    * are on their way to the disk; a write that failed fails here or in finish().
    * @param {Uint8Array<ArrayBuffer>} data - The piece. Nothing keeps it: a view of a larger
    *   buffer is copied, a whole buffer is handed to the worker as it is (transferred).
+   * @param {boolean} [ownsBuffer] - The caller gives up the whole buffer under the view: it is
+   *   handed over as it is, view and all, and the worker writes the view's bytes only. Saves
+   *   the copy of a piece cut out of a buffer nothing else reads (MP4Merger's fragment).
    * @return {Promise<void>}
    */
-  async add(data) {
+  async add(data, ownsBuffer = false) {
     if (await this.toDisk()) {
-      const own = data.byteOffset === 0 && data.byteLength === data.buffer.byteLength ? data : data.slice();
+      const own = ownsBuffer || (data.byteOffset === 0 && data.byteLength === data.buffer.byteLength) ? data : data.slice();
       const append = /** @type {import('../network/OPFSManager.mjs').OPFSManager} */ (this.opfs)
           .saveAppend(this.identifier, own);
       // Awaited below or in finish(); this keeps a failure after a cancel quiet.
