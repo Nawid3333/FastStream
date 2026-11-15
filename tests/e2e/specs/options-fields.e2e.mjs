@@ -161,6 +161,23 @@ describe('Options page settings import', function() {
         {timeout: 10000, timeoutMsg: 'the imported seekStepSize (7) was never saved'});
     expect(await browser.execute(() => window.__alerts)).toEqual([]);
   });
+
+  it('keeps this computer\'s mpv path, whatever the file says', async function() {
+    // The path is the one program FastStream's helper starts: a settings file from someone
+    // else could name a program they had put on this computer (a review, 2026-11-15). And a
+    // path is this computer's: a file without one emptied it.
+    const MINE = 'C:\\Tools\\mpv\\mpv.exe';
+    await browser.execute((path) => localStorage.setItem('options', JSON.stringify({mpvPath: path})), MINE);
+    await browser.url(optionsPagePath());
+    const savedPath = () => browser.execute(() => JSON.parse(localStorage.getItem('options'))?.mpvPath);
+    for (const [step, file] of [[8, {mpvPath: 'D:\\Shared\\Downloads\\mpv.exe'}], [9, {}]]) {
+      await importText(JSON.stringify({seekStepSize: step, ...file}), false);
+      await browser.waitUntil(
+          async () => (await browser.execute(() => JSON.parse(localStorage.getItem('options'))?.seekStepSize)) === step,
+          {timeout: 10000, timeoutMsg: `the imported seekStepSize (${step}) was never saved`});
+      expect(await savedPath()).toBe(MINE);
+    }
+  });
 });
 
 describe('Options page search box', function() {
