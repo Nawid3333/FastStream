@@ -218,6 +218,9 @@ let playerOpeningAttempts = 0;
 // after, then twice and four times as long (1, 3 and 7 s after the first miss): a page just
 // loaded, or loaded again, has its video a moment later.
 const ReopenMissedFirstMs = 1000;
+// How long the next episode's instructions wait for its player: a page that takes longer is
+// the user's own by then (endContinuation).
+const ContinuationKeepMs = 120000;
 const ReopenMissedTimes = 3;
 // ...and when the page asks for the stream again, no sooner than this after the last try,
 // doubling with each miss up to the longest: a page that plays a video nobody sees (a live
@@ -1447,10 +1450,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }, (response) => {
         BackgroundUtils.checkMessageError('playlist_navigation');
         if (response === 'clicked') {
-          tab.continuationOptions = msg.continuationOptions;
+          const continuation = msg.continuationOptions;
+          tab.continuationOptions = continuation;
           // Not on its page yet: the navigation the click started comes next.
           tab.continuationArrived = false;
           tab.continuationPage = null;
+          // Nor kept for good: on a site that changes its video without loading a page, a page
+          // whose player never took them kept them, and the user's own next video there, minutes
+          // later, took the autoplay and the fullscreen (the owner's pick, 2026-11-15).
+          clearTimeout(tab.continuationTimer);
+          tab.continuationTimer = setTimeout(() => {
+            if (tab.continuationOptions === continuation) endContinuation(tab);
+          }, ContinuationKeepMs);
           if (msg.continuationOptions?.autoPlay) watchNextEpisodeArrives(tab, msg.continuationOptions, 'player');
         }
         sendResponse(response);
