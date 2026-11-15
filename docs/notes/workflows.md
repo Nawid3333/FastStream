@@ -766,6 +766,23 @@
   path: PR, issue, too new, already raised, caught up, no longer patched, push).
   `tests/unit/checkPatchedUpdates.test.mjs` fails if Dependabot's ignore list and
   `patchedDependencies` drift apart; `tests/unit/recutPatch.test.mjs` covers the tool.
+- **Patched libraries: two jobs** (2026-11-15, SEC-3 of the review of 2026-11-13). The re-cut
+  installs the new release, and its install scripts are its authors' code: in one job with the
+  write token they could read the token from the step's environment, or plant something in the
+  later steps through `$GITHUB_ENV`. Now `recut` (contents and issues read) installs, re-cuts and
+  hands each result on as the artifact `recuts` (one folder per library: `library.json`,
+  `report.txt`, `outcome` - `cut` with `change.patch` from `git format-patch`, or `stopped`);
+  `publish` (the write permissions) installs nothing, closes and supersedes as before, and
+  publishes what it was handed in order. As that came from a job that ran foreign code, it is
+  checked first: the name and versions as npm has them (no shell or path characters), and the
+  change, applied with `git am` onto main, may touch `package.json`, `pnpm-lock.yaml`,
+  `pnpm-workspace.yaml`, `patches/*.patch`, `tools/sync-vendor.mjs` and `.github/dependabot.yml`
+  only; anything else stops the run before a push. A push to main skips `recut` and only closes.
+  `report` opens the failure issue for either job. `tests/workflows/patched-libraries-publish.test.sh`
+  runs the publish step with a real git repository, a bare origin and a stub `gh`: a clean re-cut
+  becomes a branch, a pull request and two dispatches, a stopped one an issue; a change to a
+  workflow and a name with a `;` fail with nothing pushed or opened (each check, broken by hand,
+  turns it red).
 - All of it was dry-run with a stub `gh` against the real upstream history (sync: adopted
   -> closed, push -> no rebuild, new release named, comment only on upstream movement;
   patched libraries: open once, no duplicates, close when caught up or unpatched).
