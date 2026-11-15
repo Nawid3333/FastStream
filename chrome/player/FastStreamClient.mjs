@@ -581,6 +581,11 @@ export class FastStreamClient extends EventEmitter {
         console.error(e);
       });
     } else {
+      // Its context too: switched on again, the next preview's took its place undestroyed.
+      if (this.previewContext) {
+        this.previewContext.destroy();
+        this.previewContext = null;
+      }
       if (this.previewPlayer) {
         this.previewPlayer.destroy();
         this.previewPlayer = null;

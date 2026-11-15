@@ -641,9 +641,12 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
       // it has to be dropped here or MPV stays off for the rest of the tab's
       // life. Cleared here rather than in tab.reset(), which also runs on the
       // toolbar's Off path, where re-arming would undo the click. The user's Off on the
-      // site before goes with it (userTurnedOff).
-      tab.mpvMatched = false;
-      tab.mpvTurnedOff = false;
+      // site before goes with it (userTurnedOff). Not from an empty tab: a tab opened on a
+      // link (openLinkIn) may show about:blank first, and the player chosen for the link went.
+      if (!EmptyTabUrls.includes(oldURL.href)) {
+        tab.mpvMatched = false;
+        tab.mpvTurnedOff = false;
+      }
     }
 
     // Only the fragment changed (an anchor, #t=...): still the same page, whose player
@@ -1255,8 +1258,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       f.forgetHandedToPlayer();
     }
     // A player tab is sent other tabs' streams too, the whole of a tab's list each time it
-    // finds one: those found before now stay cleared here.
-    tab.sourcesClearedAt = Date.now();
+    // finds one: those they hold now stay cleared here.
+    tab.clearedSources = new WeakSet();
+    for (const other of Tabs.tabs.values()) {
+      for (const f of other.getFrames()) {
+        for (const found of [...f.getSources(), ...f.getSubtitles()]) tab.clearedSources.add(found);
+      }
+    }
     sendResponse('cleared');
     return;
   } else if (msg.type === MessageTypes.SET_HEADERS) {
@@ -3148,8 +3156,7 @@ async function sendSourcesToMainFramePlayers(frame) {
     const mainPlayerFrame = tab.getMainPlayer();
     if (mainPlayerFrame) {
       // send the source to the tab: what was found since its player cleared its list
-      // A subtitle the page told has no time: it stays.
-      const since = (/** @type {*} */ found) => !(Number(found.time) <= tab.sourcesClearedAt);
+      const since = (/** @type {object} */ found) => !tab.clearedSources.has(found);
       chrome.tabs.sendMessage(tab.tabId, {
         type: MessageTypes.SOURCES,
         subtitles: frame.getSubtitles().filter(since),

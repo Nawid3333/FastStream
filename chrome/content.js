@@ -75,7 +75,11 @@
   let MiniplayerCooldown = 0;
   // Set when this frame is sent to the player (handlePlayerOpen's redirect). The frame is
   // not going away: the player takes it over, and asks the background for the sources
-  // detected in it.
+  // detected in it. 'sent', then 'leaving' from the redirect's beforeunload on; a second
+  // beforeunload is a leave of the page's own (the redirect's was cancelled: a "Leave page?"
+  // the user said no to), and ends it. Not a timer: an unload slower than one sent
+  // FRAME_REMOVED for the redirect, and the player got no sources (review, 2026-11-15).
+  /** @type {false|'sent'|'leaving'} */
   let RedirectingToPlayer = false;
   // This page's name, for the background to tell a player it opens from one a page this
   // frame showed before opened (FRAME_ADDED, and the player URL's opener). Not
@@ -489,15 +493,6 @@
     const address = episodeLinkAddress(button);
     if (address) {
       window.location.assign(address);
-    } else if (!button.isConnected) {
-      // The next season's link made from the address (getNextOrPreviousButton), where the
-      // page's <base target> sends links elsewhere: a link out of the page cannot navigate,
-      // and its click did nothing. In the page for the click, as the page's own would be.
-      const link = /** @type {HTMLAnchorElement} */ (button);
-      link.hidden = true;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
     } else {
       /** @type {HTMLElement} */ (button).click();
     }
@@ -623,13 +618,8 @@
           if (request.parentFrameId > -1) {
             newURL.searchParams.set('parent_frame_id', request.parentFrameId);
           }
-          RedirectingToPlayer = true;
+          RedirectingToPlayer = 'sent';
           window.location = /** @type {string & Location} */ (newURL.href);
-          // A page still here a moment later did not go (a "Leave page?" the user said no to):
-          // its next leave is reported again. Set for good, every later one was skipped.
-          setTimeout(() => {
-            RedirectingToPlayer = false;
-          }, LeaveSettledMs);
           sendResponse('redirect');
         } else {
           const iframe = document.createElement('iframe');
@@ -2238,18 +2228,21 @@
     'button[class*="play" i]', '[class*="big-play" i]', '[class*="play-button" i]', '[class*="playbutton" i]',
   ].join(', ');
 
+  // The words the selectors above find "play" in that are no play button: a control bar's
+  // "Display settings", "Autoplay", "Replay", "Playlist", "Playback speed", and any "player-..."
+  // class. Written in any case, joined or apart (autoPlayToggle, play_list, play-rate).
+  const NotPlayWords = /display|auto[\s_-]?play|(?<![a-z])re[_-]?play|play[\s_-]?list|play[\s_-]?back|play[\s_-]?speed|play[\s_-]?rate|player/g;
+
   /**
-   * Whether a generic play button's label, title or class says "play" as a word of its own:
-   * the selectors above match inside other words too, and a control bar's "Display settings",
-   * "Autoplay", "Replay", "Playlist" or "Playback speed" was clicked instead of playing.
-   * "playButton" (a capital after it) and "playbutton" still say it.
+   * Whether a generic play button's label, title or class still says "play" once the words
+   * that only hold it are taken out: those were clicked instead of playing. "playbtn",
+   * "bigPlay", "playPause" say it.
    * @param {Element} element
    * @return {boolean}
    */
   function saysPlay(element) {
     const words = [element.getAttribute('aria-label'), element.getAttribute('title'), element.getAttribute('class')];
-    return words.some((text) => /(?:^|[^a-z])play(?:button)?(?:[^a-z]|$)/.test(
-        String(text || '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()));
+    return words.some((text) => String(text || '').toLowerCase().replace(NotPlayWords, ' ').includes('play'));
   }
 
   /**
@@ -3222,10 +3215,14 @@
   window.addEventListener('beforeunload', () => {
     // FRAME_REMOVED makes the background forget this frame and its sources. For the
     // redirect to the player that is exactly wrong: the player loads in this same frame
-    // and asks for them straight away, and got none.
-    if (RedirectingToPlayer) {
+    // and asks for them straight away, and got none. A page still here at its next leave did
+    // not go (RedirectingToPlayer): that one is reported. Set for good, every later one was
+    // skipped.
+    if (RedirectingToPlayer === 'sent') {
+      RedirectingToPlayer = 'leaving';
       return;
     }
+    RedirectingToPlayer = false;
     if (leaveState !== 'left') {
       reportLeaving();
     }

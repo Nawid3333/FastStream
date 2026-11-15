@@ -1666,6 +1666,31 @@ describe('FastStreamClient, the seek preview\'s player', () => {
     expect(client.previewContext).toBeNull();
     expect(client.setupPreviewPlayer).toHaveBeenCalledTimes(1);
   });
+
+  it('lets go of its listeners when the preview is switched off', () => {
+    // The review of the fix (2026-11-15): switched on again, the next preview's context took
+    // the field over, and the old one was never destroyed.
+    vi.stubGlobal('document', {body: {dataset: {}}, getElementById: () => null});
+    vi.stubGlobal('localStorage', {setItem: () => {}, getItem: () => null});
+    vi.stubGlobal('sessionStorage', {setItem: () => {}, getItem: () => null});
+    try {
+      const client = makeClient({previewEnabled: true});
+      client.videoAnalyzer.disable = vi.fn();
+      client.interfaceController.updateAutoNextIndicator = vi.fn();
+      client.interfaceController.resetPreviewVideo = vi.fn();
+      client.loadProgressData = vi.fn(async () => {});
+      const shown = previewOf(async () => {});
+      client.previewPlayer = shown;
+      client.previewContext = client.bindPreviewPlayer(shown);
+      client.setOptions({previewEnabled: false});
+      expect(shown.destroy).toHaveBeenCalledTimes(1);
+      // Its main context stays.
+      expect(shown.contexts).toHaveLength(1);
+      expect(client.previewContext).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
 
 describe('FastStreamClient, a player that fails to set up', () => {

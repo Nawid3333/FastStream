@@ -201,6 +201,20 @@ describe('the right-click menu', () => {
     expect(bg.session[`tabState:${id}`]).toMatchObject({isOn: true, isMpv: false});
   });
 
+  it('keeps that choice when the new tab shows about:blank first', async () => {
+    // The review of the fix (2026-11-15): the step from about:blank was taken for a new site,
+    // and the reset dropped what kept the allowlist off.
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: 'https://other.test/', index: 0, windowId: 1}]});
+    await bg.menuClick(MenuIds.LINK_PLAYER, 1, {linkUrl: NEXT});
+    const id = bg.createdTabs[0].id;
+    bg.tabs.push({id, url: 'about:blank'});
+    await bg.navigated(id, 'about:blank');
+    bg.tabs[bg.tabs.length - 1].url = NEXT;
+    await bg.navigated(id, NEXT);
+    expect(bg.session[`tabState:${id}`]).toMatchObject({isOn: true, isMpv: false});
+  });
+
   it('opens nothing for a link that is no web page, nor in MPV with MPV mode off', async () => {
     bg = await loadBackground({options: {mpvMode: false}, tabs: [{id: 1, url: PAGE}]});
     await bg.menuClick(MenuIds.LINK_PLAYER, 1, {linkUrl: 'javascript:void(0)'});

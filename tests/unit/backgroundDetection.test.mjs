@@ -78,6 +78,20 @@ describe('the streams a player tab lists from other tabs', () => {
     expect(listed(2)).toEqual(['https://cdn.test/v/two.m3u8']);
   });
 
+  it('include a stream found after the clear that the page asked for before it', async () => {
+    // The review of the fix (2026-11-15): a page's report keeps its request's time, and a
+    // filter by time left out a stream the background first learned of after the clear.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}, {id: 2, url: PLAYER}]});
+    await openPlayerTab(2);
+    const before = Date.now() - 60000;
+    await bg.message({type: 'CLEAR_SOURCES'}, {tabId: 2, frameId: 0});
+    await bg.message({type: 'LOADED_MEDIA', url: PAGE, resources: [
+      {url: 'https://cdn.test/v/old.m3u8', time: before},
+    ]}, {tabId: 1, frameId: 0, url: PAGE});
+    await bg.wait(10);
+    expect(listed(2)).toEqual(['https://cdn.test/v/old.m3u8']);
+  });
+
   it('leave out what was fetched outside any tab', async () => {
     // A service worker's requests have no tab (-1). Nothing ever reset what was kept for
     // them, and every player tab got the growing list, from a private window too.

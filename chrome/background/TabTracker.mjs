@@ -280,9 +280,11 @@ export class TabHolder {
     // webRequest's id, a string; looked up with -1 too, as requestHeaders.
     /** @type {Map<string|number, string>} */
     this.redirectOrigins = new Map();
-    // When the player in this tab cleared its sources (CLEAR_SOURCES): what other tabs had
-    // found before then is not pushed to it again (sendSourcesToMainFramePlayers).
-    this.sourcesClearedAt = 0;
+    // What other tabs held when the player in this tab cleared its sources (CLEAR_SOURCES):
+    // it is not pushed to it again (sendSourcesToMainFramePlayers). The entries themselves,
+    // not a time: a stream recovered later keeps the page's request time.
+    /** @type {WeakSet<object>} */
+    this.clearedSources = new WeakSet();
 
     this.isOn = false;
     this.isMpv = false;

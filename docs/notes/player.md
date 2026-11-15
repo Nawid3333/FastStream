@@ -1723,16 +1723,25 @@ without its fix (but one):
 - `content.js`: an exit asked of a windowed fullscreen or miniplayer never entered entered it;
   the pop-up guard missed a player in a shadow root, the pending-player watch missed one taken
   out of a shadow root, and the link-click check missed a link inside one (composedPath);
-  "Display", "Autoplay", "Replay", "Playlist" were clicked as play buttons; the next season's
-  link made from the address could not navigate out of the page; a redirect to the player that
-  did not happen stopped every later leave report; `pauseAllWithin` and `loadedMedia` skipped
-  closed shadow roots. The test page (`contentDom.mjs`) now runs an observer only for its own
-  tree, as Firefox does.
+  "Display", "Autoplay", "Replay", "Playlist", "Playback speed" and any "player-..." class were
+  clicked as play buttons (`saysPlay` takes those words out, in any case, and looks for "play"
+  in what is left: "playbtn", "bigPlay" stay); a redirect to the player that did not happen
+  stopped every later leave report (the redirect now owns only the first `beforeunload` after
+  it, not a time: an old page that unloads slowly must not report itself gone);
+  `pauseAllWithin` and `loadedMedia` skipped closed shadow roots. The test page
+  (`contentDom.mjs`) now runs an observer only for its own tree, as Firefox does.
 - `background.mjs`: "Clear Sources" in a player tab was undone by the next stream another tab
-  found; "Open link in player" went to MPV on an allowlisted site; an Off whose question to the
-  tab outlasted an On clicked meanwhile reloaded that On's player away (no test: the question
-  waits only after a restart); the next-episode request of a player in a top frame was asked of
-  the player itself.
+  found (the tab keeps the entries other tabs held at the clear, not a time: a page's report
+  keeps its request's time); "Open link in player" went to MPV on an allowlisted site, also
+  through a first `about:blank`; an Off whose question to the tab outlasted an On clicked
+  meanwhile reloaded that On's player away (no test: the question waits only after a restart);
+  the next-episode request of a player in a top frame was asked of the player itself.
+
+The fixes themselves went through a second API review. Kept from it: the play-button words, the
+clear by entries, the redirect's `beforeunload`, the `about:blank` step, and the preview's
+context let go of when the preview is switched off. Dropped: a next-season link put into the
+page so it could navigate. A link out of the page navigates by the HTML spec (only other
+elements must be in the document), and in the page it passed through the page's click handlers.
 
 Checked and not real: page qualities and fresh links carrying a source's headers elsewhere
 (the background keeps both to the source's host); a `resetPlayer` that rejects (`FSBlob.clear`

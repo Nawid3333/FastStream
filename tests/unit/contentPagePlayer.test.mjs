@@ -107,17 +107,20 @@ describe('the page\'s own play button, for a video with nothing loaded', () => {
     // A control bar over the video: its display, autoplay and playlist controls came first.
     const {p, see, made} = pageWithButtons([
       {'aria-label': 'Display settings'}, {'title': 'Autoplay'}, {'class': 'playlist-toggle'},
-      {'class': 'player-replay'}, {'aria-label': 'Playback speed'}, {'aria-label': 'Play video'},
+      {'class': 'player-replay'}, {'aria-label': 'Playback speed'}, {'class': 'autoPlayToggle'},
+      {'class': 'playList'}, {'class': 'playSpeed'}, {'class': 'player-fullscreen'}, {'aria-label': 'Play video'},
     ]);
     const answer = p.send({type: 'START_PAGE_PLAYER'});
     see();
     expect(await answer).toBe('button');
-    expect(made.map((button) => button.clicks())).toEqual([0, 0, 0, 0, 0, 1]);
+    expect(made.map((button) => button.clicks())).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
   });
 
   it('takes a class or label that says play however it is joined', async () => {
+    // Lower-case compounds too: a word boundary lost "playbtn" and "bigplay" (review, 2026-11-15).
     for (const attributes of [{'class': 'vjs-big-play-button'}, {'class': 'bigPlayButton'}, {'class': 'playbutton'},
-      {'aria-label': 'Play'}, {'title': 'Pause/Play (k)'}, {'class': 'ctrl play_btn'}]) {
+      {'aria-label': 'Play'}, {'title': 'Pause/Play (k)'}, {'class': 'ctrl play_btn'}, {'class': 'playbtn'},
+      {'class': 'bigplay'}, {'class': 'playpause'}, {'class': 'player-play-button'}, {'aria-label': 'Prepare play'}]) {
       const {p, see, made} = pageWithButtons([attributes]);
       const answer = p.send({type: 'START_PAGE_PLAYER'});
       see();

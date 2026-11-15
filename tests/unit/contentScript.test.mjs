@@ -306,8 +306,24 @@ describe('the redirect to the player', () => {
     page.dispatchWindow('beforeunload');
     expect(removed()).toBe(0);
     // A "Leave page?" the user said no to: the page is still here. Its next leave is told.
-    page.advance(2000);
     page.dispatchWindow('beforeunload');
+    expect(removed()).toBe(1);
+  });
+
+  it('tells nothing when the old page goes slowly, after a leave that never happened', async () => {
+    // The review of the fix (2026-11-15): a timer ended the redirect after two seconds, and
+    // a page that had come back from a cancelled leave reported its pagehide after that.
+    const page = loadContentScript();
+    page.document.fullscreenEnabled = false;
+    const removed = () => page.sent.filter((message) => message.type === 'FRAME_REMOVED').length;
+    page.dispatchWindow('beforeunload');
+    page.advance(2000);
+    expect(removed()).toBe(1);
+    expect(await page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, frameId: 0, parentFrameId: -1,
+      attempt: 1, force: true})).toBe('redirect');
+    page.dispatchWindow('beforeunload');
+    page.advance(5000);
+    page.dispatchWindow('pagehide', {persisted: false});
     expect(removed()).toBe(1);
   });
 });
