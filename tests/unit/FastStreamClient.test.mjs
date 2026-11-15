@@ -1268,17 +1268,17 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
      * Runs the predownloader once at 10.5 s, short of video, with the fragments of a video
      * track (2 s each, 10-16 s) and of an audio track (the same), the nearest first.
      * @param {{sharesLine: boolean, video?: {seeking: boolean, paused: boolean, readyState: number, played: {length: number}},
-     *   asked?: boolean, live?: boolean, untimed?: boolean}} line - asked: playback has a request
-     *   running.
+     *   asked?: boolean, live?: boolean, untimed?: boolean, from?: number}} line - asked: playback has a
+     *   request running; from: where the first waiting fragment starts.
      * @return {string[]} The fragments it started, as track:start.
      */
-    const startedAt = ({sharesLine, video = SEEKING, asked = false, live = false, untimed = false}) => {
+    const startedAt = ({sharesLine, video = SEEKING, asked = false, live = false, untimed = false, from = 10}) => {
       vi.stubGlobal('navigator', {onLine: true});
       const client = makeClient({maxSpeed: -1});
       const make = (track, start) => ({track, start: untimed ? -1 : start, end: untimed ? -1 : start + 2,
         canFree: () => true, getContext: () => ({})});
       const waiting = [];
-      for (let start = 10; start < 16; start += 2) waiting.push(make('video', start), make('audio', start));
+      for (let start = from; start < 16; start += 2) waiting.push(make('video', start), make('audio', start));
       client.state.currentTime = 10.5;
       client.getNextToDownload = () => waiting.shift() || null;
       client.getVideoAhead = () => 0;
@@ -1302,6 +1302,8 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
       // A seek's segment shared the line with the one after it: an HLS seek on a 6 Mbit/s line
       // waited 1.9 s for a segment that alone came in 0.8 s (stall-hls, 2026-11-15).
       expect(startedAt({sharesLine: true})).toEqual(['video:10', 'audio:10']);
+      // Not one behind it, where the next waiting is one that ended before the playhead.
+      expect(startedAt({sharesLine: true, from: 8})).toEqual([]);
       // Playing with nothing ahead (a stall) is waiting too.
       expect(startedAt({sharesLine: true, video: {seeking: false, paused: false, readyState: 2, played: PLAYED}})).toEqual(['video:10', 'audio:10']);
     });

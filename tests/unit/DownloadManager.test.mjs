@@ -1239,7 +1239,7 @@ describe('DownloadManager cancelling a running download however far in (setYield
     // kept playback's priority, the seek's cancelling spared it, and it shared the line with
     // the new place's segment (stall-hls's trace, 2026-11-15: 1.2 s beside a seek's segment).
 
-    it('falls back to the priority of the download ahead, and is cancelled outside the window', async () => {
+    it('falls back to the priority of the download ahead, and has the client cancel the far ones (its window)', async () => {
       const {manager, details, watchers} = await downloading([100]);
       try {
         const playback = manager.getFile(details[0], {onSuccess: vi.fn(), onAbort: vi.fn()}, 1000);

@@ -614,7 +614,8 @@ export class DownloadManager {
   letGo(watcher) {
     const entry = watcher.entry;
     entry.abortWatcher(watcher);
-    if (!entry.watchers.length) return;
+    // Destroyed (a player gone, its loaders giving up after): nothing to reorder or cancel.
+    if (!entry.watchers.length || !this.downloaders) return;
     const priority = Math.max(...entry.watchers.map((other) => other.priority ?? 0));
     const was = entry.priority || 0;
     if (priority >= was) return;

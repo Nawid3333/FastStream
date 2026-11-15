@@ -1909,10 +1909,11 @@ export class FastStreamClient extends EventEmitter {
           (!this.isLive() && nextDownload.start > this.state.currentTime + KEEP_AHEAD_S))) {
         break;
       }
-      // getNextToDownload gives the nearest first: past the playhead's, the rest waits. (One
-      // without times, start -1, is not placed: the limit above holds it.) Checked before each:
-      // the playhead's fragment started here is joined by playback's request once it asks.
-      if (playheadOnly && (this.downloadManager.playbackAsked() || nextDownload.start > this.state.currentTime + 0.1)) {
+      // Only one the playhead is in; the rest waits. (One without times, start -1, cannot be
+      // placed: only the limit above holds it, as before.) Checked before each: the playhead's
+      // fragment started here is joined by playback's request once it asks.
+      if (playheadOnly && (this.downloadManager.playbackAsked() || (isTimed(nextDownload) &&
+          (nextDownload.start > this.state.currentTime + 0.1 || nextDownload.end <= this.state.currentTime)))) {
         break;
       }
 
