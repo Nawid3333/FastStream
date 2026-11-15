@@ -11,8 +11,8 @@ its fixes (section 4).
 of 2026-11-14 on top (players in several tabs take turns; a page loaded again keeps the player; a
 third review's fixes; two fuzz tests: `docs/notes/player.md`, the three sections of that date),
 and goes to main in one merge (PR #679) while the releases are turned off (the owner's
-decision, 2026-11-15); a second review round on main follows (`docs/review-2026-11-14.md`),
-and the owner turns the releases on again for one final version. **The rename is dropped** (his word, 2026-11-14): the add-on
+decision, 2026-11-15); a second review round on main followed (section 9), and the owner
+turned the releases on again on 2026-11-15, to test each release as it comes. **The rename is dropped** (his word, 2026-11-14): the add-on
 and the repository stay "FastStream"; #676's changes were reverted on `test/all-prs`. The table
 and sections 1 to 6 are as written on 2026-11-13, when three draft pull requests waited for his
 test.
@@ -517,13 +517,15 @@ worktree's `built` folder.
 Order, as decided on 2026-11-14 (one merge of `test/all-prs`, not one per pull request):
 
 1. The owner turned off Release, Auto release and Release failsafe (2026-11-15), so a merge
-   into main releases nothing; CI's hand-off to Auto release says so and stops.
+   into main released nothing; CI's hand-off to Auto release said so and stopped. (Done: on
+   again since the evening of 2026-11-15; v1.3.82.181 was the first release of the round's
+   work, and every merge into main releases again.)
 2. Merge `test/all-prs` into main (PR #679) with a merge commit, not a squash: each area keeps
    its history, and the commits of #672 to #675 are in main as they were reviewed (those pull
    requests were closed on 2026-11-14 and their branches deleted, since this branch holds
    them).
-3. The review round of `docs/review-2026-11-14.md` on main; each fix a pull request.
-4. The owner turns the releases on again. The first release run after that: watch "Check the
+3. The review round on main (section 9); each fix a pull request. (Done.)
+4. The owner turns the releases on again. (Done, 2026-11-15.) The first release run after that: watch "Check the
    tag is on main" (new in it), then the signed file and `updates.json`.
 5. #634 (the mpv update) stays open, as decided.
 
@@ -577,7 +579,8 @@ Added on 2026-11-14
   them: the episode waits for a click. On main they stayed until some player took them, which
   made a video opened minutes later play by itself. Recommended: carry them on to a second page
   for 20 s after the click, the time the page is asked to start its player. The price: a page
-  the user goes to himself within those 20 s would start by itself too.
+  the user goes to himself within those 20 s would start by itself too. (Since 2026-11-15, #688:
+  instructions no player took end 2 minutes after the click, and the window comes back.)
 - The silence skipper sets the speed every 100 ms, so holding a key for 2x and the GIF
   recorder's 4x last a tenth of a second while it is on. Recommended: the held or recording
   speed wins for as long as it lasts.
@@ -609,6 +612,8 @@ Settings
 - `-domain` in Auto-enable excludes that host only, not its subdomains. Recommended: subdomains
   too.
 - Import replaces every setting. Recommended: keep it (a backup restore), and say so on the button.
+  Except the mpv path since 2026-11-15 (#690): it is this computer's, and the one program the helper
+  starts, so an import keeps the current one.
 
 Player UI
 
@@ -635,3 +640,65 @@ Workflows and the helper (hardening; none exploitable today)
   compare the files inside.
 - `fsaunpack` answers with `Access-Control-Allow-Origin: *`; the signing job also runs the tests
   (dev tooling beside the AMO keys). Recommended: split the build and signing jobs.
+
+## 9. The review round on main (2026-11-15)
+
+The second round, on main after #679, with the releases off until its end. Its brief
+(`docs/review-2026-11-14.md`) was deleted when it was done; its benchmark summary is in
+`docs/bench/2026-11-14/README.md`. Each change below is a pull request with a test that fails
+before it, an A/B run where it touches loading, and a Claude API review of its diff, every
+claim of which was checked before anything was changed.
+
+**Built**
+
+| PR | What |
+|---|---|
+| #682 | Instagram and Facebook reels again (their pages' data moved), bilibili's half-height player |
+| #683 | `SaveFile.add` takes a fragment's own buffer as it is (one copy less per fragment) |
+| #684 | After the event page restarted, a player is counted at its keep-alive `PING`: a second player in the tab was the main one and autoplayed (R-4) |
+| #685 | `RangeTimes`: a fragmented MP4's range times worked out again only where new samples fall (1.65 ms a call to 0.07-0.13 ms at 2 h) |
+| #686 | A page's `<track>` files: at most 64 tracks and 64 MB a reading, a frame keeps at most 64M characters; `episode-links.js`'s title clean-up linear (11.7 s on 200k dashes before) |
+| #687 | A reload whose page takes over 3 s keeps the buffer (an e2e that also checks the old page's player came back); guard tests |
+| #688 | Next-episode instructions no player took end 2 minutes after the click (the owner's pick) |
+| #689 | A public page's report after an event-page restart names no local-network address (`LocalAddress.mjs`; the owner's pick). Not caught: a public name that resolves to a local address (no DNS lookup without the `dns` permission) |
+| #690 | A settings import keeps this computer's mpv path |
+| #691 | Property tests of the background's length reads (what a server sends): nothing found, a guard |
+
+**Checked, nothing to change**
+
+- C-1's premise holds in Firefox 160: with the MediaSource's duration set first, a start time
+  set at `readyState` 0 is kept, and `seeking` fires twice after `loadedmetadata`; without a
+  duration it is dropped silently; a plain file keeps it.
+- C-4: a write past the disk's space fails cleanly (`writeAll` throws on a short write) and the
+  fragment stays in RAM. C-2: two tabs with one page and video reloaded within 20 s share a
+  buffer key; the second hand-off flushes the first, the other tab downloads again. Nothing
+  crosses a container or a private window.
+- Security: a page's quality lists count only with the file the browser itself requested, and
+  only entries on its host; the page transport fetches in the frame the stream was detected in;
+  `fs-*` tags a page puts in a URL are dropped; subtitle text is drawn from an allowlist of tags;
+  the mpv helper passes each value as its own argument, quoted for Windows, titles without
+  control characters, headers by fixed patterns, subtitles in a random folder; header rules hold
+  one tab, the extension's own requests and one URL's host, for seconds; no option but the mpv
+  path names a path, command or key.
+- The turns between tabs: a dead server holds the players after it for `STUCK_MS` (15 s) at most;
+  a finished download announces at once (`onDownloaderFinished`, tested). The reload retry needs
+  the user's play after a page took the player out. Two windows side by side are both seen.
+- Measured: the page transport carries 170 MB/s against 375 MB/s direct (17 MB, medians of 5),
+  about 3 ms a MB more, far above any video's rate. A `SET_HEADERS` round trip: 5 ms median,
+  16 ms p90 for a new rule, about 1 ms for a kept one. The startup modules (sortable, the subtitle
+  search, gif): 3-7 ms each warm against a 37-49 ms page load; sortable and the search are made at
+  startup, gif's 3-4 ms is below what the bench tells apart.
+
+**Left as they are, with the reason**
+
+- A server that trickles a byte now and then keeps its player "not stuck", and the hidden
+  players after it wait (the owner: too rare for more logic).
+- A regex the user types in `UrlMatchList` runs on every address (the owner: only the user can
+  type one).
+- MP4Player's loop at 50 ms while playing with media ahead: at 250 ms it would notice up to 250 ms
+  later that the video ran dry, for 16 fewer tiny wake-ups a second.
+- Downloads ahead start at the client's tick after a seek (A3): started earlier, they would take
+  the player's own request's priority.
+- `runtime.getVersion()` needs Firefox 158; the floor is 153.
+- bilibili.tv's own player (MSE) after the first visit: new site code, against the rule of core
+  fixes.
