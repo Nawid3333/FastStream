@@ -410,9 +410,11 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
 
         if (tab.isOn) {
           openPlayersWithSources(tab);
-        } else if (await tabHasPlayer(tab)) {
+        } else if (await tabHasPlayer(tab) && !tab.isOn) {
           // A player still loading counts: the MPV cycle already checks it, and without
-          // it an Off clicked right after On left the player on the page.
+          // it an Off clicked right after On left the player on the page. Still Off after
+          // the question (the tab is asked after a restart): an On clicked meanwhile opened
+          // its player, which the reload took away again.
           tab.resetForReload();
           chrome.tabs.reload(tab.tabId, () => BackgroundUtils.checkMessageError('reload', true)); // closed meanwhile: no unhandled error
         }
@@ -518,6 +520,10 @@ async function openLinkIn(tabobj, linkUrl, mpv) {
   tab.isOn = true;
   tab.isMpv = mpv;
   tab.mpvOnPlay = mpv;
+  // The player chosen for it: the MPV Allowlist does not decide this site's pages again, as
+  // it does not once it has (another site is a fresh decision). It started MPV on the link's
+  // own page when the list named its site.
+  if (!mpv) tab.mpvMatched = true;
   BackgroundUtils.updateTabIcon(tab);
   Tabs.saveTabState(tab);
 }
@@ -1248,6 +1254,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       f.getSources().length = 0;
       f.forgetHandedToPlayer();
     }
+    // A player tab is sent other tabs' streams too, the whole of a tab's list each time it
+    // finds one: those found before now stay cleared here.
+    tab.sourcesClearedAt = Date.now();
     sendResponse('cleared');
     return;
   } else if (msg.type === MessageTypes.SET_HEADERS) {
@@ -1402,7 +1411,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     ensureOptions().then(() => {
       restorePlayerFrame(tab, frame, sender);
       const pageFrame = frame.pageFrame;
-      if (!pageFrame) {
+      // A player in the tab's top frame has no page around it (its own tab, or the page went
+      // to it): as for the poll below. The click was asked of the player's own frame, where
+      // nothing answers.
+      if (!pageFrame || frame.frameId === 0) {
         sendResponse('error');
         return;
       }
@@ -2124,7 +2136,7 @@ async function loadCustomPatterns() {
     OptionsCache.customSourcePatterns = customSourcePatterns;
 
     const matcher = new MultiRegexMatcher();
-    await loadCustomPatternsFile(matcher, Options.customSourcePatterns, true);
+    await loadCustomPatternsFile(matcher, Options.customSourcePatterns);
 
     if (OptionsCache.customSourcePatterns !== customSourcePatterns) return;
 
@@ -2136,9 +2148,8 @@ async function loadCustomPatterns() {
 /**
  * @param {MultiRegexMatcher} matcher
  * @param {string} fileStr - The patterns, one per line.
- * @param {boolean} [isPrimary]
  */
-async function loadCustomPatternsFile(matcher, fileStr, isPrimary = false) {
+async function loadCustomPatternsFile(matcher, fileStr) {
   const {patterns, errors} = parseCustomSourcePatterns(fileStr);
   for (const {line, text, reason} of errors) {
     console.warn(`Custom source pattern on line ${line} left out (${reason}): ${text}`);
@@ -3136,11 +3147,13 @@ async function sendSourcesToMainFramePlayers(frame) {
     // if the tab is a faststream tab
     const mainPlayerFrame = tab.getMainPlayer();
     if (mainPlayerFrame) {
-      // send the source to the tab
+      // send the source to the tab: what was found since its player cleared its list
+      // A subtitle the page told has no time: it stays.
+      const since = (/** @type {*} */ found) => !(Number(found.time) <= tab.sourcesClearedAt);
       chrome.tabs.sendMessage(tab.tabId, {
         type: MessageTypes.SOURCES,
-        subtitles: frame.getSubtitles(),
-        sources: frame.getSources(),
+        subtitles: frame.getSubtitles().filter(since),
+        sources: frame.getSources().filter(since),
         autoSetSource: false,
       }, () => {
         BackgroundUtils.checkMessageError('sources');

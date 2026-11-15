@@ -280,6 +280,9 @@ export class TabHolder {
     // webRequest's id, a string; looked up with -1 too, as requestHeaders.
     /** @type {Map<string|number, string>} */
     this.redirectOrigins = new Map();
+    // When the player in this tab cleared its sources (CLEAR_SOURCES): what other tabs had
+    // found before then is not pushed to it again (sendSourcesToMainFramePlayers).
+    this.sourcesClearedAt = 0;
 
     this.isOn = false;
     this.isMpv = false;

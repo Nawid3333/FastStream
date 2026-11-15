@@ -81,6 +81,17 @@ describe('the player\'s autoplay next', () => {
     expect(answer).toEqual({next: true, previous: false});
   });
 
+  it('answers a player in its own tab that there is no page to go on in, as its poll does', async () => {
+    const PLAYER = 'moz-extension://bg-test/player/index.html';
+    bg = await loadBackground({tabs: [{id: 2, url: PLAYER}],
+      onTabMessage: ({message}) => (message.type === 'PLAYLIST_NAVIGATION' ? 'clicked' : undefined)});
+    await bg.navigated(2, PLAYER);
+    await bg.message({type: 'PLAYER_LOADED', url: PLAYER}, {tabId: 2, frameId: 0});
+    expect(await bg.message({type: 'REQUEST_PLAYLIST_POLL'}, {tabId: 2, frameId: 0, url: PLAYER})).toBe('error');
+    expect(await bg.message(NEXT, {tabId: 2, frameId: 0, url: PLAYER})).toBe('error');
+    expect(bg.sent('PLAYLIST_NAVIGATION')).toEqual([]);
+  });
+
   it('has no page follow a link for a frame that never was a player, nor one whose player went', async () => {
     const session = {};
     await playerInPage(session);

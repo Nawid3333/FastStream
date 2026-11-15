@@ -187,6 +187,20 @@ describe('the right-click menu', () => {
     expect(bg.session[`tabState:${created.id}`]).toMatchObject({isOn: true, isMpv: false});
   });
 
+  it('keeps the player for a link opened in it on a site the MPV Allowlist names', async () => {
+    // The allowlist started MPV on the new tab's first address, over the choice of the player.
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: 'https://other.test/', index: 0, windowId: 1}]});
+    await bg.menuClick(MenuIds.LINK_PLAYER, 1, {linkUrl: NEXT});
+    const id = bg.createdTabs[0].id;
+    bg.tabs.push({id, url: NEXT});
+    await bg.navigated(id, NEXT);
+    expect(bg.session[`tabState:${id}`]).toMatchObject({isOn: true, isMpv: false});
+    // Its next page on the site too: the choice was the player, for the tab.
+    await bg.navigated(id, 'https://site.test/watch/3');
+    expect(bg.session[`tabState:${id}`]).toMatchObject({isOn: true, isMpv: false});
+  });
+
   it('opens nothing for a link that is no web page, nor in MPV with MPV mode off', async () => {
     bg = await loadBackground({options: {mpvMode: false}, tabs: [{id: 1, url: PAGE}]});
     await bg.menuClick(MenuIds.LINK_PLAYER, 1, {linkUrl: 'javascript:void(0)'});

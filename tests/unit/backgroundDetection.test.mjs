@@ -64,6 +64,20 @@ describe('the streams a player tab lists from other tabs', () => {
     expect(listed(2)).toEqual(['https://cdn.test/v/master.m3u8']);
   });
 
+  it('leave out what was found before the player tab cleared its list', async () => {
+    // "Clear Sources" emptied the player tab's own frames only: the next stream another tab
+    // found sent that tab's whole list again, the cleared ones with it.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}, {id: 2, url: PLAYER}]});
+    await openPlayerTab(2);
+    await bg.request({tabId: 1, url: 'https://cdn.test/v/one.m3u8'});
+    expect(listed(2)).toEqual(['https://cdn.test/v/one.m3u8']);
+    await bg.wait(10);
+    await bg.message({type: 'CLEAR_SOURCES'}, {tabId: 2, frameId: 0});
+    await bg.wait(10);
+    await bg.request({tabId: 1, url: 'https://cdn.test/v/two.m3u8'});
+    expect(listed(2)).toEqual(['https://cdn.test/v/two.m3u8']);
+  });
+
   it('leave out what was fetched outside any tab', async () => {
     // A service worker's requests have no tab (-1). Nothing ever reset what was kept for
     // them, and every player tab got the growing list, from a private window too.
