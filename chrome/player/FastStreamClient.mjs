@@ -871,12 +871,15 @@ export class FastStreamClient extends EventEmitter {
     const ramOnly = EnvUtils.isIncognito() || this.options.bufferToDisk === false || diskGone;
     const ramRoom = ramOnly ? this.memoryShare().share * 8 * LOW : Infinity;
 
+    // Where the room does not decide it below, "Buffer ahead" does, on every tick: the fit in
+    // the RAM share at the end only lowers it, and one share that shrank (another player
+    // watched) held it there until the next video, as it held a "Buffer ahead" raised meanwhile.
     if (EnvUtils.isIncognito()) {
+      this.state.bufferAhead = this.options.bufferAhead;
       // Only for a predownload asked for: without it there is nothing to fit, and turned on
       // later, it warns then.
       if (this.hasDownloadSpace && this.options.downloadAll) {
         this.state.bufferBehind = this.options.bufferBehind;
-        this.state.bufferAhead = this.options.bufferAhead;
         // Without a limit on either, the whole video is buffered all the same: nothing to say.
         const windowSeconds = this.state.bufferBehind + this.state.bufferAhead;
         if (Number.isFinite(windowSeconds)) {
@@ -889,6 +892,7 @@ export class FastStreamClient extends EventEmitter {
         // A live stream has no size to fit, and is freed behind playback as it plays. Its
         // infinite duration made it "too big" on its first tick: a storage warning on every
         // live stream, and everything downloaded so far pinned for the session.
+        this.state.bufferAhead = this.options.bufferAhead;
         this.hasDownloadSpace = false;
       } else if (bitrate && this.duration) {
         // With nothing on disk, the room is RAM: the disk's free space does not count.
@@ -939,6 +943,7 @@ export class FastStreamClient extends EventEmitter {
         }
         this.hasDownloadSpace = newHasDownloadSpace || !this.options.downloadAll;
       } else {
+        this.state.bufferAhead = this.options.bufferAhead;
         this.hasDownloadSpace = true;
       }
     }
@@ -1022,14 +1027,20 @@ export class FastStreamClient extends EventEmitter {
       isPreview: true,
     }));
 
+    // Stored with the preview only once it is the one shown: a build for a video since
+    // replaced, still running beside the next one's, took the field over, and the shown
+    // preview's context was never let go of.
+    /** @type {?ReturnType<import('./modules/eventemitter.mjs').EventEmitter['createContext']>} */
+    let context = null;
     try {
       await previewPlayer.setup();
-      this.bindPreviewPlayer(previewPlayer);
+      context = this.bindPreviewPlayer(previewPlayer);
 
       await previewPlayer.setSource(source);
     } catch (e) {
       // Nothing else holds it: its video and its loader, which may go on fetching, lived on
       // for the page's life, one for each failed build (glm's review, 2026-10-13).
+      context?.destroy();
       try {
         previewPlayer.destroy();
       } catch (destroyError) {
@@ -1043,10 +1054,12 @@ export class FastStreamClient extends EventEmitter {
     // in the page. Nor does one that was switched off while it was being built, which
     // setOptions() could not destroy because it was not stored yet.
     if (this.previewPlayer || !this.options.previewEnabled || this.player?.getSource() !== source) {
+      context.destroy();
       previewPlayer.destroy();
       return;
     }
 
+    this.previewContext = context;
     this.previewPlayer = previewPlayer;
     this.interfaceController.addPreviewVideo(previewPlayer.getVideo());
     this.updateVideoTransform();
@@ -1353,7 +1366,15 @@ export class FastStreamClient extends EventEmitter {
         } catch (destroyError) {
           console.warn('Could not destroy a player that failed to set up', destroyError);
         }
-        if (this.player === built) this.player = null;
+        if (this.player === built) {
+          this.player = null;
+          // Its listeners and its wait for a picture, as resetPlayer lets go of them: after the
+          // load error no reset follows, and the wait polled once a second for good.
+          this.context?.destroy();
+          this.context = null;
+          this.initPromise = null;
+          clearInterval(this.initHookInterval);
+        }
       }
       // Its player could not be built or given the source: that stream failed as surely
       // as one whose player reports an error, and the next of those picked from plays
@@ -1755,11 +1776,15 @@ export class FastStreamClient extends EventEmitter {
     if (manager.activeCount() > 0) return true;
     const next = this.getNextToDownload();
     if (!next) return false;
-    // The window predownloadFragments keeps to when the whole video is not wanted.
-    if (next.canFree() && !this.shouldDownloadAll() &&
-        (next.start > this.state.currentTime + this.state.bufferAhead ||
-         next.end < this.state.currentTime - this.state.bufferBehind)) {
-      return false;
+    // The window predownloadFragments keeps to when the whole video is not wanted, its
+    // fragments placed as it places them: one without times read as -1 counted as behind the
+    // playhead, and a background player said it wanted nothing it would have downloaded.
+    if (next.canFree() && !this.shouldDownloadAll()) {
+      const span = this.windowSpan(next, new Map());
+      if (span && (span.start > this.state.currentTime + this.state.bufferAhead ||
+          span.end < this.state.currentTime - this.state.bufferBehind)) {
+        return false;
+      }
     }
     return true;
   }
@@ -2417,7 +2442,6 @@ export class FastStreamClient extends EventEmitter {
     saveManager?.resetMpvContentType();
 
     const promises = [];
-    this.lastTime = 0;
     // The next video starts at 0. Until its first time update, the previous one's time
     // stayed on the progress bar, and the downloads were planned around it.
     this.state.currentTime = 0;
@@ -2520,8 +2544,6 @@ export class FastStreamClient extends EventEmitter {
     this.storageAvailable = 0;
     /** @type {boolean|undefined} Whether the whole video fits in the room kept for it (updateHasDownloadSpace); none before the first reset. */
     this.hasDownloadSpace = true;
-    this.previousLevel = -1;
-    this.previousAudioLevel = -1;
     this.getLevelManager().reset();
 
     await Promise.all(promises);
@@ -2818,35 +2840,44 @@ export class FastStreamClient extends EventEmitter {
   /**
    * Binds event listeners to the preview player.
    * @param {Player} player
+   * @return {ReturnType<import('./modules/eventemitter.mjs').EventEmitter['createContext']>}
+   *   Their context, for the build to store once the preview is the one shown.
    */
   bindPreviewPlayer(player) {
-    this.previewContext = player.createContext();
+    const context = player.createContext();
 
-    this.previewContext.on(DefaultPlayerEvents.MANIFEST_PARSED, () => {
+    context.on(DefaultPlayerEvents.MANIFEST_PARSED, () => {
       player.setCurrentVideoLevelID(this.getCurrentVideoLevelID());
       player.setCurrentAudioLevelID(this.getCurrentAudioLevelID());
     });
 
-    this.previewContext.on(DefaultPlayerEvents.FRAGMENT_UPDATE, (/** @type {Fragment} */ fragment) => {
+    context.on(DefaultPlayerEvents.FRAGMENT_UPDATE, (/** @type {Fragment} */ fragment) => {
       this.interfaceController.updateFragmentsLoaded();
     });
 
-    this.previewContext.on(DefaultPlayerEvents.SEEKED, (/** @type {undefined} */ event) => {
+    context.on(DefaultPlayerEvents.SEEKED, (/** @type {undefined} */ event) => {
       this.updatePreview();
     });
 
 
-    this.previewContext.on(DefaultPlayerEvents.SEEKING, (/** @type {undefined} */ event) => {
+    context.on(DefaultPlayerEvents.SEEKING, (/** @type {undefined} */ event) => {
       this.updatePreview();
     });
 
 
-    this.previewContext.on(DefaultPlayerEvents.ERROR, (/** @type {unknown} */ e) => {
+    context.on(DefaultPlayerEvents.ERROR, (/** @type {unknown} */ e) => {
       console.log('Preview player error', e);
+      // Another preview's: one built for a video since replaced, beside the one shown, which
+      // it destroyed. Its own build lets go of it.
+      if (this.previewPlayer && this.previewPlayer !== player) return;
       // Still null while the preview player is being built: it is only stored once its
       // source has loaded, and a source that fails to load is exactly what gets here.
       this.previewPlayer?.destroy();
       this.previewPlayer = null;
+      if (this.previewContext === context) {
+        context.destroy();
+        this.previewContext = null;
+      }
       this.interfaceController.resetPreviewVideo();
 
       if (!this.interfaceController.failed) {
@@ -2863,9 +2894,10 @@ export class FastStreamClient extends EventEmitter {
         this.previewReloads.push(now);
         this.lastPreviewReload = now;
         console.error('Reloading preview player');
-        this.setupPreviewPlayer();
+        this.setupPreviewPlayer().catch((error) => console.warn('The preview player could not be built again', error));
       }
     });
+    return context;
   }
 
   /**
@@ -3595,16 +3627,15 @@ export class FastStreamClient extends EventEmitter {
    */
   setVolume(volume) {
     this.state.volume = volume;
-    if (SET_VOLUME_USING_NODE || (volume > 1 && EnvUtils.isWebAudioSupported())) {
+    // Through the audio graph wherever there is one (above 100 % too); the element's own
+    // volume only without Web Audio, which cannot go above it.
+    if (SET_VOLUME_USING_NODE) {
       if (this.player && (!this.syncedAudioPlayer || !this.syncedAudioPlayer.setVolume(1))) {
         this.player.volume = 1;
       }
       this.audioOutput?.updateVolume(volume);
-    } else {
-      if (this.player && (!this.syncedAudioPlayer || !this.syncedAudioPlayer.setVolume(volume))) {
-        this.player.volume = volume;
-      }
-      if (EnvUtils.isWebAudioSupported()) this.audioOutput.updateVolume(1);
+    } else if (this.player && (!this.syncedAudioPlayer || !this.syncedAudioPlayer.setVolume(volume))) {
+      this.player.volume = volume;
     }
   }
 

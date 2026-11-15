@@ -1142,6 +1142,39 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
     expect(client.hasDownloadSpace).toBe(false);
     expect(client.state.bufferAhead).toBe(fits(100 * MB));
   });
+
+  it('gives a private window\'s buffer back when its share grows again, and takes a new "Buffer ahead"', () => {
+    // Fitted to a share that shrank while another player was watched, it stayed there for
+    // the rest of the video: the fit only ever lowered it.
+    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(true);
+    const client = clientWithVideo({ramBudget: 2 * GB, bufferAhead: 1200});
+    client.state.playing = true;
+    client.peers = {visible: () => true, livePeers: () => [{ramBytes: 1.9 * GB, visible: true, playing: true}]};
+    client.updateHasDownloadSpace();
+    const shared = client.state.bufferAhead;
+    expect(shared).toBe(fits(1 * GB));
+    client.peers = {visible: () => true, livePeers: () => []};
+    client.updateHasDownloadSpace();
+    // Alone, all of "Buffer ahead" fits again.
+    expect(fits(2 * GB)).toBeGreaterThan(1200);
+    expect(client.state.bufferAhead).toBe(1200);
+    client.options.bufferAhead = 600;
+    client.updateHasDownloadSpace();
+    expect(client.state.bufferAhead).toBe(600);
+  });
+
+  it('takes a new "Buffer ahead" during a live stream with nothing on disk', () => {
+    const client = clientWithVideo({bufferToDisk: false, ramBudget: 2 * GB});
+    client.player.duration = Infinity;
+    client.updateHasDownloadSpace();
+    expect(client.state.bufferAhead).toBe(300);
+    client.options.bufferAhead = 60;
+    client.updateHasDownloadSpace();
+    expect(client.state.bufferAhead).toBe(60);
+    client.options.bufferAhead = 120;
+    client.updateHasDownloadSpace();
+    expect(client.state.bufferAhead).toBe(120);
+  });
 });
 
 describe('FastStreamClient, limits of 0 and no limit', () => {
@@ -1231,6 +1264,28 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
     expect(predownloadOnce({maxSpeed: -1, speed: 1e9})).toBe(1);
     expect(predownloadOnce({maxSpeed: 125000, speed: 1000})).toBe(1);
     expect(predownloadOnce({maxSpeed: 125000, speed: 200000})).toBe(0);
+  });
+
+  it('wants the network for a fragment without times that it would download', () => {
+    // A fragmented MP4's ranges not parsed yet have times of -1. predownloadFragments places
+    // them (windowSpan); wantsNetwork read -1 as behind the playhead, and a player in a
+    // background tab told its peers it wanted nothing past 20 s in.
+    vi.stubGlobal('navigator', {onLine: true});
+    const client = makeClient({maxSpeed: -1});
+    const fragment = (sn, start, end) => ({level: 'video-1', sn, start, end, canFree: () => true});
+    const fragments = [fragment(0, 0, 10), fragment(1, 10, 20), fragment(2, 20, 600), fragment(3, -1, -1)];
+    client.player = {};
+    client.getFragments = () => fragments;
+    client.getNextToDownload = () => fragments[3];
+    client.needsUserInteraction = () => false;
+    client.isLive = () => false;
+    client.downloadManager = {downloaders: [], paused: false, memoryFull: false, activeCount: () => 0};
+    client.state.currentTime = 35;
+    expect(client.wantsNetwork()).toBe(true);
+    // Placed far ahead of what it keeps ahead: not wanted, as predownloadFragments would not start it.
+    client.state.bufferAhead = 2;
+    client.state.currentTime = 1;
+    expect(client.wantsNetwork()).toBe(false);
   });
 
   /** Whether the RAM budget counts this player full, holding this many bytes in RAM. */
@@ -1560,6 +1615,57 @@ describe('FastStreamClient, the seek preview\'s player', () => {
     expect(preview.destroy).toHaveBeenCalledTimes(1);
     expect(client.previewPlayer).toBeNull();
   });
+
+  /** A preview player: an emitter whose contexts can be counted. */
+  const previewOf = (setSource) => Object.assign(new EventEmitter(), {
+    setup: async () => {}, setSource, destroy: vi.fn(), getVideo: () => ({}),
+  });
+
+  it('keeps its listeners only on a build that is shown', async () => {
+    // A build for a video replaced meanwhile, beside the next one's, took the context field
+    // over: the shown preview's was never let go of, and the stale one's stayed.
+    const client = makeClient({previewEnabled: true});
+    let playing = {mode: 'hls', url: 'https://cdn.test/a.m3u8'};
+    client.player = {getSource: () => playing};
+    const stale = previewOf(async () => {
+      playing = {mode: 'hls', url: 'https://cdn.test/b.m3u8'};
+    });
+    client.playerLoader.createPlayer = vi.fn(async () => stale);
+    await client.buildPreviewPlayer();
+    expect(stale.destroy).toHaveBeenCalledTimes(1);
+    expect(stale.contexts).toHaveLength(1);
+    expect(client.previewContext).toBeNull();
+
+    const shown = previewOf(async () => {});
+    client.playerLoader.createPlayer = vi.fn(async () => shown);
+    client.interfaceController.addPreviewVideo = vi.fn();
+    client.updateVideoTransform = vi.fn();
+    await client.buildPreviewPlayer();
+    expect(client.previewPlayer).toBe(shown);
+    expect(shown.contexts).toContain(client.previewContext);
+  });
+
+  it('lets the shown preview be when another one fails', () => {
+    const client = makeClient({previewEnabled: true});
+    client.interfaceController.resetPreviewVideo = vi.fn();
+    client.setupPreviewPlayer = vi.fn(async () => {});
+    const shown = previewOf(async () => {});
+    client.previewPlayer = shown;
+    client.previewContext = client.bindPreviewPlayer(shown);
+    const stale = previewOf(async () => {});
+    client.bindPreviewPlayer(stale);
+    stale.emit(DefaultPlayerEvents.ERROR, new Error('the old video\'s level failed'));
+    expect(shown.destroy).not.toHaveBeenCalled();
+    expect(client.previewPlayer).toBe(shown);
+    expect(client.setupPreviewPlayer).not.toHaveBeenCalled();
+
+    // Its own error lets go of it and of its listeners, and builds it again.
+    shown.emit(DefaultPlayerEvents.ERROR, new Error('segment expired'));
+    expect(shown.destroy).toHaveBeenCalledTimes(1);
+    expect(shown.contexts).toHaveLength(1);
+    expect(client.previewContext).toBeNull();
+    expect(client.setupPreviewPlayer).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('FastStreamClient, a player that fails to set up', () => {
@@ -1581,6 +1687,26 @@ describe('FastStreamClient, a player that fails to set up', () => {
     expect(client.player).toBeNull();
   });
 
+  it('leaves no listeners and no wait for a picture when it could not take the source', async () => {
+    vi.useFakeTimers();
+    try {
+      const client = makeClient();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const made = await setSource(client, makeSource('https://cdn.test/z.m3u8'), (player) => {
+        player.setSource = vi.fn(async () => {
+          throw new Error('no level');
+        });
+      });
+      expect(client.player).toBeNull();
+      expect(client.context).toBeNull();
+      expect(made.contexts).toHaveLength(1);
+      expect(client.initPromise).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('is not destroyed once it has taken the source', async () => {
     const client = makeClient();
     const player = await setSource(client, makeSource('https://cdn.test/y.m3u8'), (made) => {
@@ -1600,7 +1726,7 @@ describe('FastStreamClient, a seek preview that keeps failing', () => {
     const client = makeClient({previewEnabled: true});
     client.interfaceController.resetPreviewVideo = vi.fn();
     const context = new EventEmitter();
-    client.setupPreviewPlayer = vi.fn();
+    client.setupPreviewPlayer = vi.fn(async () => {});
     client.bindPreviewPlayer({createContext: () => context});
     return {client, context};
   }
