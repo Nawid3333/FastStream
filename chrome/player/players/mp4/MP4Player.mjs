@@ -5,7 +5,6 @@ import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
 import {EmitterCancel, EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
 import {createFile} from '../../modules/mp4box/mp4box.all.mjs';
 import {startsLikeMp4} from '../../utils/ContainerSniff.mjs';
-import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {relabelEsdsAacLayout} from './AacLayout.mjs';
@@ -32,7 +31,7 @@ import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
  * @typedef {{trak: TrakBox|undefined, track: Track, samples: Array<Sample>,
  *   sortedSamples: Array<Sample>, sortedCount: number}} PlayedTrack
  */
-import {addKeyframes, keyframeOffset, sampledDuration, sortKeyframes} from './SampleIndex.mjs';
+import {RangeTimes, addKeyframes, keyframeOffset, sampledDuration, sortKeyframes} from './SampleIndex.mjs';
 import {DurationSync} from './DurationSync.mjs';
 import {loopDelay} from './LoopPace.mjs';
 import {SegmentAppender} from './SegmentAppender.mjs';
@@ -105,6 +104,8 @@ export default class MP4Player extends EventEmitter {
     });
 
     this.mp4box = createFile(false);
+    // Where each range of the file starts in time, per track (setFragmentTimes).
+    this.rangeTimes = new RangeTimes();
 
     this.options = {
       backBufferLength: 10,
@@ -679,9 +680,11 @@ export default class MP4Player extends EventEmitter {
       let currentFragment = frags[0];
       currentFragment.start = 0;
       const indexes = this.getIndexes(l);
+      // Each range's earliest time (minTimeIn), worked out again only where samples came.
+      const times = this.rangeTimes.times(tracks[indexes.levelID].samples, frags);
       for (let i = 1; i < frags.length; i++) {
         const frag = frags[i];
-        const dt = this.getMinTimeFromOffset(tracks[indexes.levelID].samples, frag.rangeStart, frag.rangeEnd);
+        const dt = times[i];
         if (dt !== null) {
           const time = Math.floor(dt);
           currentFragment.end = time;
@@ -1535,38 +1538,6 @@ export default class MP4Player extends EventEmitter {
 
     // The player's ranges are MP4Fragments (makeFragment above).
     return /** @type {?MP4Fragment} */ (this.client.getFragment(this.getCurrentVideoLevelID(), index));
-  }
-
-  /**
-   * The earliest time a sample in a byte range is shown.
-   * @param {Array<Sample>} samples - A track's, in file order.
-   * @param {number} offset - Where the range starts, in bytes.
-   * @param {number} end - Where it ends.
-   * @return {?number} Seconds; null when no sample starts in the range.
-   */
-  getMinTimeFromOffset(samples, offset, end) {
-    let index = Utils.binarySearch(samples, offset, /** @param {number} offset @param {Sample} sample */ (offset, sample) => {
-      return offset - sample.offset;
-    });
-
-    if (index < 0) {
-      index = Math.max(-1 - index, 0);
-    }
-
-    let minTime = Infinity;
-    for (let i = index; i < samples.length; i++) {
-      if (samples[i].offset > end) {
-        break;
-      }
-      minTime = Math.min(minTime, samples[i].cts);
-    }
-
-
-    if (minTime !== Infinity) {
-      return minTime / samples[0].timescale;
-    } else {
-      return null;
-    }
   }
 
   canSave() {

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import fc from 'fast-check';
-import {addKeyframes, sortKeyframes} from '../../chrome/player/players/mp4/SampleIndex.mjs';
+import {RangeTimes, addKeyframes, minTimeIn, sortKeyframes} from '../../chrome/player/players/mp4/SampleIndex.mjs';
 
 // A fragmented MP4's keyframe index (MP4Player.refreshSampleIndex) is brought up to date with
 // the samples mp4box adds as each range is parsed. It was made again from all of them each
@@ -53,5 +53,93 @@ describe('addKeyframes', () => {
           }
           expect(sorted.map((s) => s.id)).toEqual(sortKeyframes(full).map((s) => s.id));
         }), {numRuns: 500});
+  });
+});
+
+// Where each range of a fragmented MP4 starts in time (MP4Player.setFragmentTimes) was worked
+// out from every sample again for each range read: 10 ms a call on a 2-hour file. RangeTimes
+// keeps each range's time and must give exactly what minTimeIn gives on the whole list, at
+// every step, whatever comes in what order.
+describe('RangeTimes', () => {
+  const SIZE = 100;
+  /** @param {number} count @return {Array<{rangeStart: number, rangeEnd: number}>} */
+  const grid = (count) => Array.from({length: count}, (_, i) => ({rangeStart: i * SIZE, rangeEnd: (i + 1) * SIZE}));
+  /** @param {number} offset @param {number} cts */
+  const at = (offset, cts) => ({cts, is_sync: true, offset, timescale: 1000});
+
+  it('gives minTimeIn\'s time for every range, at every step, for any samples in any order', () => {
+    fc.assert(fc.property(
+        // Offsets, mostly rising (a file read on), sometimes going back (a seek back).
+        fc.array(fc.tuple(fc.integer({min: -60, max: 80}), fc.integer({min: 0, max: 5000})), {minLength: 1, maxLength: 150}),
+        fc.array(fc.nat({max: 150}), {maxLength: 8}),
+        fc.nat({max: 12}),
+        (steps, cuts, extra) => {
+          let offset = 0;
+          const full = steps.map(([step, cts]) => at(offset = Math.max(0, offset + step), cts));
+          const ranges = grid(Math.ceil(full.at(-1).offset / SIZE) + 1);
+          const times = new RangeTimes();
+          const samples = [];
+          const ends = [...new Set(cuts.map((cut) => Math.max(1, Math.min(cut, full.length))))].sort((a, b) => a - b);
+          for (const end of [...ends, full.length]) {
+            samples.push(...full.slice(samples.length, end));
+            // Some calls ask for only some of the ranges, some for ranges added later.
+            const asked = ranges.slice(0, Math.max(1, ranges.length - (end % 3) * extra));
+            expect(times.times(samples, asked)).toEqual(asked.map((r) => minTimeIn(samples, r.rangeStart, r.rangeEnd)));
+          }
+        }), {numRuns: 1000});
+  });
+
+  it('starts from a track with no samples yet, as a fragmented file\'s metadata has', () => {
+    const samples = [];
+    const ranges = grid(3);
+    const times = new RangeTimes();
+    expect(times.times(samples, ranges)).toEqual([null, null, null]);
+    samples.push(at(120, 300), at(180, 200));
+    expect(times.times(samples, ranges)).toEqual([null, 0.2, null]);
+    samples.push(at(250, 900));
+    expect(times.times(samples, ranges)).toEqual([null, 0.2, 0.9]);
+  });
+
+  it('keeps only the ranges asked for: one dropped is not held', () => {
+    const samples = [at(10, 500), at(150, 100)];
+    const ranges = grid(2);
+    const times = new RangeTimes();
+    times.times(samples, ranges);
+    times.times(samples, ranges.slice(0, 1));
+    expect([...times.lists.get(samples).ranges.keys()]).toEqual([ranges[0]]);
+    expect(times.times(samples, ranges)).toEqual([0.5, 0.1]);
+  });
+
+  it('works out again a range whose bounds changed (the file\'s end found later)', () => {
+    const samples = [at(10, 500), at(150, 100), at(190, 50)];
+    const ranges = grid(2);
+    const times = new RangeTimes();
+    expect(times.times(samples, ranges)).toEqual([0.5, 0.05]);
+    ranges[1].rangeEnd = 160;
+    expect(times.times(samples, ranges)).toEqual([0.5, 0.1]);
+  });
+
+  it('reads only the new samples\' ranges, not the whole list, as a file plays on', () => {
+    // A long file: 400 ranges of 50 samples. Each step appends one range's worth.
+    const perRange = 50;
+    const all = Array.from({length: 400 * perRange}, (_, i) => at(i * (SIZE / perRange), i * 40));
+    const ranges = grid(400);
+    let reads = 0;
+    const samples = [];
+    const counted = new Proxy(samples, {get(target, key, receiver) {
+      if (typeof key === 'string' && /^\d+$/.test(key)) reads++;
+      return Reflect.get(target, key, receiver);
+    }});
+    const times = new RangeTimes();
+    samples.push(...all.slice(0, 200 * perRange));
+    times.times(counted, ranges);
+    reads = 0;
+    for (let r = 200; r < 210; r++) {
+      samples.push(...all.slice(r * perRange, (r + 1) * perRange));
+      expect(times.times(counted, ranges)).toEqual(ranges.map((x) => minTimeIn(all.slice(0, (r + 1) * perRange), x.rangeStart, x.rangeEnd)));
+    }
+    // Before: every sample read in every call (over 100,000 reads for these ten calls). Now about
+    // 330 a call: each new sample twice (the order check) and the two ranges it touches again.
+    expect(reads).toBeLessThan(5000);
   });
 });
