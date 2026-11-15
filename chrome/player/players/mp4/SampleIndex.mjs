@@ -15,6 +15,7 @@ import {Utils} from '../../utils/Utils.mjs';
  * @property {number} timescale
  * @property {number} cts
  * @property {number} offset
+ * @property {boolean} is_sync
  */
 
 // MP4Player's arithmetic on mp4box's sample lists, kept apart from MP4Player so that unit
@@ -39,6 +40,51 @@ export function sampledDuration(traks) {
     if (!trak.samples?.length) return duration;
     return Math.max(duration, trak.samples_duration / trak.mdia.mdhd.timescale);
   }, 0);
+}
+
+/**
+ * A track's keyframes, by composition time (stable: of two at the same time, the one first in
+ * the list comes first).
+ * @template {Pick<Sample, 'cts'|'is_sync'>} T
+ * @param {T[]} samples
+ * @return {T[]} A new array.
+ */
+export function sortKeyframes(samples) {
+  return samples.filter((sample) => sample.is_sync).sort((a, b) => a.cts - b.cts);
+}
+
+/**
+ * A track's keyframes brought up to date with the samples mp4box added to its list since
+ * `count` (a fragmented file's, one moof at a time): what sortKeyframes(samples) gives, with
+ * only the new ones sorted. Sorting the whole list again for every range took 7.7 ms a range
+ * on a 2-hour file (338,000 audio samples, each a keyframe). New keyframes that all come at or
+ * after the last one, as they do while a file plays on, go onto the end of `sorted` itself;
+ * those of an earlier part (read after a seek back) are merged in, into a new array. mp4box
+ * only appends to a track's list (it builds it once, at the moov).
+ * @template {Pick<Sample, 'cts'|'is_sync'>} T
+ * @param {T[]} sorted - sortKeyframes(samples.slice(0, count)).
+ * @param {T[]} samples - The track's samples, `count` of them known before.
+ * @param {number} count
+ * @return {T[]} `sorted` itself or a new array.
+ */
+export function addKeyframes(sorted, samples, count) {
+  const added = sortKeyframes(samples.slice(count));
+  if (!added.length) return sorted;
+  if (!sorted.length || sorted[sorted.length - 1].cts <= added[0].cts) {
+    for (const sample of added) sorted.push(sample);
+    return sorted;
+  }
+  // Of two at the same time the one from before comes first, as in a sort of the whole list.
+  const merged = new Array(sorted.length + added.length);
+  let i = 0;
+  let j = 0;
+  let k = 0;
+  while (i < sorted.length && j < added.length) {
+    merged[k++] = sorted[i].cts <= added[j].cts ? sorted[i++] : added[j++];
+  }
+  while (i < sorted.length) merged[k++] = sorted[i++];
+  while (j < added.length) merged[k++] = added[j++];
+  return merged;
 }
 
 /**

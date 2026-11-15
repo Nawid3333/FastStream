@@ -27,12 +27,12 @@ import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
 /** @typedef {import('../../network/FetchLoader.mjs').FetchLoader['stats']} LoadStats */
 /**
  * A track of the file as this player reads it (onMetadataParsed): mp4box's trak box and
- * track, its samples, and its keyframes by time (sortSamples), sorted again when a
+ * track, its samples, and its keyframes by time (sortKeyframes), brought up to date when a
  * fragmented file's samples grow (refreshSampleIndex).
  * @typedef {{trak: TrakBox|undefined, track: Track, samples: Array<Sample>,
  *   sortedSamples: Array<Sample>, sortedCount: number}} PlayedTrack
  */
-import {keyframeOffset, sampledDuration} from './SampleIndex.mjs';
+import {addKeyframes, keyframeOffset, sampledDuration, sortKeyframes} from './SampleIndex.mjs';
 import {DurationSync} from './DurationSync.mjs';
 import {loopDelay} from './LoopPace.mjs';
 import {SegmentAppender} from './SegmentAppender.mjs';
@@ -405,20 +405,6 @@ export default class MP4Player extends EventEmitter {
     }));
   }
 
-  /**
-   * @param {Array<Sample>} samples
-   * @return {Array<Sample>} Its keyframes, by composition time.
-   */
-  sortSamples(samples) {
-    samples = samples.filter((sample) => {
-      return sample.is_sync;
-    });
-    samples.sort((a, b) => {
-      return a.cts - b.cts;
-    });
-    return samples;
-  }
-
   estimateTotalSizeFromMetadats() {
     if (this.fileLength || !this.metaData) return;
     // A fragmented file's samples are only those of the fragments parsed so far: taken for its
@@ -468,7 +454,7 @@ export default class MP4Player extends EventEmitter {
         trak,
         track: info.videoTracks[this.currentVideoTrack],
         samples: samples,
-        sortedSamples: this.sortSamples(samples),
+        sortedSamples: sortKeyframes(samples),
         sortedCount: samples.length,
       });
     }
@@ -482,7 +468,7 @@ export default class MP4Player extends EventEmitter {
         trak,
         track: info.audioTracks[l],
         samples: samples,
-        sortedSamples: this.sortSamples(samples),
+        sortedSamples: sortKeyframes(samples),
         sortedCount: samples.length,
       });
     }
@@ -666,14 +652,15 @@ export default class MP4Player extends EventEmitter {
    * mp4box adds them to the track's sample list. The keyframe index that picks the range to
    * load, and the fragments' times, were made only from the samples known when the metadata
    * was parsed, so the player loaded the first maxFragmentsBuffered ranges (30 MB) and
-   * stopped there. Both are made again whenever the list has grown.
+   * stopped there. Both are brought up to date whenever the list has grown: the keyframes
+   * with the new samples only (addKeyframes).
    */
   refreshSampleIndex() {
     if (!this.metaData?.isFragmented) return;
     const tracks = [...this.videoTracks, ...this.audioTracks];
     if (tracks.every((track) => track.sortedCount === track.samples.length)) return;
     tracks.forEach((track) => {
-      track.sortedSamples = this.sortSamples(track.samples);
+      track.sortedSamples = addKeyframes(track.sortedSamples, track.samples, track.sortedCount);
       track.sortedCount = track.samples.length;
     });
     this.setFragmentTimes();
