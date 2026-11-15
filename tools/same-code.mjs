@@ -14,16 +14,21 @@ import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import {parse} from './ast-compare.mjs';
 
-const [base, ...paths] = process.argv.slice(2);
-if (!base) {
-  console.error('usage: node tools/same-code.mjs <base commit> [path ...]');
-  process.exit(2);
-}
+const [given, ...paths] = process.argv.slice(2);
 
 /** @param {string[]} args - quotePath off: a name with other than ASCII in it comes as it is. */
 const git = (...args) => execFileSync('git', ['-c', 'core.quotePath=false', ...args], {
   encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'],
 });
+
+// Git says whether it names a commit: none given, or a mistyped one, gets the usage.
+let base = '';
+try {
+  base = git('rev-parse', '--verify', '--end-of-options', `${given ?? ''}^{commit}`).trim();
+} catch {
+  console.error('usage: node tools/same-code.mjs <base commit> [path ...]');
+  process.exit(2);
+}
 
 /**
  * The program without what carries no behaviour.
