@@ -1671,7 +1671,10 @@ What the review of 2026-11-14 left open, done or measured on main, before the re
 - **One fragment status for the three requesters.** DASH's, HLS's and MP4's fragment requesters
   kept a fragment's status in three copies of the same 40 lines; `players/FragmentStatus.mjs`
   holds it (`FragmentStatus.test.mjs`). DASH's `preProcessFragment`/`postProcessFragment`
-  hooks, which no player had, are gone from `DashFragmentRequester` and `DashLoader`.
+  hooks, which no player had, are gone from `DashFragmentRequester` and `DashLoader`. Their
+  postProcessor stays as one that changes nothing: a download with none keeps its pieces for a
+  watcher that might join on the way (`DownloadEntry.onChunk`), and nothing reads a DASH
+  download's, so it held a second copy of each while it loaded (`DashLoader.test.mjs`).
 - **A dropped `.fsa` archive is read from the File.** `parseFSAFile` fetched the file's own
   object URL in Range requests (`RequestUtils.httpGetLarge`, its only use, now gone) and read
   the length back from `Content-Range`; it reads `file.slice()` chunks now, the next one
@@ -1699,6 +1702,12 @@ What the review of 2026-11-14 left open, done or measured on main, before the re
 - **SEC-3**: `patched-libraries.yml` in two jobs (`docs/notes/workflows.md`, "Patched libraries:
   two jobs").
 - **R-1** was done already: `update-prs.yml`'s concurrency is per job.
+- **A second review of the round's diff** (the Claude API, with the changed files): seven
+  claims, each checked against the code and each real - the rename, cache and pull-request read
+  of SEC-3 above, the DASH pieces above, two in `tools/same-code.mjs` (a template's raw text, a
+  name not in ASCII) and a motion check that saw shorthands only. All fixed, with a test each
+  that fails without its fix. Writing `same-code`'s own test found one more: a removed
+  statement was reported at the enclosing node's line.
 
 Looked at and left:
 
