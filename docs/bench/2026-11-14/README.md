@@ -34,9 +34,9 @@ start) comes in two speeds, about 0.25 s and 0.6 s, by the Firefox session, not 
 main had 0.25 s in every round of one run and 0.6 s in every round of the next. Counted from
 the navigation, the first frame read 0.27 s *worse* for the branch, 7 of 7 rounds, p < 0.001 -
 an artifact. The first frame is now counted from the page's first request for the video, and
-that measure's floor is 0.5 s, so the report gives it no verdict below that. The reports in
-`docs/bench/2026-11-14/` of the tabs runs were written before the floor was raised: their
-"player modules ready: worse" line is this artifact. What causes the two speeds was not found.
+the tabs scenario's "player modules ready" has a floor of 0.5 s, so the report gives it no
+verdict below that. The tabs reports beside this file were written before that floor: their
+"player modules ready: worse" line is this two-speed artifact. What causes the two speeds was not found.
 
 ## General (main against the branch, 7 rounds)
 
@@ -58,6 +58,6 @@ the same (HLS's comes in two modes on both builds).
 
 To repeat a run: build main in a worktree (`--a main` does it), then
 `node tools/bench-ab.mjs --a main --rounds 7`, `... --scenarios mp4,hls --rate 12 --ttfb 150`,
-`... --scenarios tabs --rate 8` (about 30 minutes) and `--rate 40`. `BENCH_TRACE=1` writes each
+`... --scenarios tabs --rate 8` (about 30 minutes) and `... --scenarios tabs --rate 40 --rounds 5`. `BENCH_TRACE=1` writes each
 media request's start and end to `logs/bench/trace-<time>.jsonl`, to see who had the line when.
 

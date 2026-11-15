@@ -579,8 +579,9 @@ Added on 2026-11-14
   them: the episode waits for a click. On main they stayed until some player took them, which
   made a video opened minutes later play by itself. Recommended: carry them on to a second page
   for 20 s after the click, the time the page is asked to start its player. The price: a page
-  the user goes to himself within those 20 s would start by itself too. (Since 2026-11-15, #688:
-  instructions no player took end 2 minutes after the click, and the window comes back.)
+  the user opens on their own within those 20 s would start by itself too. (Since 2026-11-15,
+  #688: instructions no player took end 2 minutes after the click, so a video opened later no
+  longer plays by itself; the 20 s carry-over is still open.)
 - The silence skipper sets the speed every 100 ms, so holding a key for 2x and the GIF
   recorder's 4x last a tenth of a second while it is on. Recommended: the held or recording
   speed wins for as long as it lasts.
@@ -645,8 +646,8 @@ Workflows and the helper (hardening; none exploitable today)
 
 The second round, on main after #679, with the releases off until its end. Its brief
 (`docs/review-2026-11-14.md`) was deleted when it was done; its benchmark summary is in
-`docs/bench/2026-11-14/README.md`. Each change below is a pull request with a test that fails
-before it, an A/B run where it touches loading, and a Claude API review of its diff, every
+`docs/bench/2026-11-14/README.md`. Each fix below is a pull request with a test that fails
+before it (#691 and the guard tests of #687 guard what already worked), an A/B run where it touches loading, and a Claude API review of its diff, every
 claim of which was checked before anything was changed.
 
 **Built**
@@ -655,7 +656,7 @@ claim of which was checked before anything was changed.
 |---|---|
 | #682 | Instagram and Facebook reels again (their pages' data moved), bilibili's half-height player |
 | #683 | `SaveFile.add` takes a fragment's own buffer as it is (one copy less per fragment) |
-| #684 | After the event page restarted, a player is counted at its keep-alive `PING`: a second player in the tab was the main one and autoplayed (R-4) |
+| #684 | After the event page restarted, a player is counted at its keep-alive `PING`: a second player in the tab was the main one and autoplayed |
 | #685 | `RangeTimes`: a fragmented MP4's range times worked out again only where new samples fall (1.65 ms a call to 0.07-0.13 ms at 2 h) |
 | #686 | A page's `<track>` files: at most 64 tracks and 64 MB a reading, a frame keeps at most 64M characters; `episode-links.js`'s title clean-up linear (11.7 s on 200k dashes before) |
 | #687 | A reload whose page takes over 3 s keeps the buffer (an e2e that also checks the old page's player came back); guard tests |
@@ -666,11 +667,11 @@ claim of which was checked before anything was changed.
 
 **Checked, nothing to change**
 
-- C-1's premise holds in Firefox 160: with the MediaSource's duration set first, a start time
+- A start time set before the video loads holds in Firefox 160: with the MediaSource's duration set first, a start time
   set at `readyState` 0 is kept, and `seeking` fires twice after `loadedmetadata`; without a
   duration it is dropped silently; a plain file keeps it.
-- C-4: a write past the disk's space fails cleanly (`writeAll` throws on a short write) and the
-  fragment stays in RAM. C-2: two tabs with one page and video reloaded within 20 s share a
+- A full disk: a write past the disk's space fails cleanly (`writeAll` throws on a short write) and the
+  fragment stays in RAM. Two tabs with one page and video reloaded within 20 s share a
   buffer key; the second hand-off flushes the first, the other tab downloads again. Nothing
   crosses a container or a private window.
 - Security: a page's quality lists count only with the file the browser itself requested, and
@@ -697,8 +698,9 @@ claim of which was checked before anything was changed.
   type one).
 - MP4Player's loop at 50 ms while playing with media ahead: at 250 ms it would notice up to 250 ms
   later that the video ran dry, for 16 fewer tiny wake-ups a second.
-- Downloads ahead start at the client's tick after a seek (A3): started earlier, they would take
+- Downloads ahead start at the client's tick after a seek: started earlier, they would take
   the player's own request's priority.
-- `runtime.getVersion()` needs Firefox 158; the floor is 153.
+- The version is read from `runtime.getManifest()`: `runtime.getVersion()` would need Firefox
+  158, and the floor is 153.
 - bilibili.tv's own player (MSE) after the first visit: new site code, against the rule of core
   fixes.
