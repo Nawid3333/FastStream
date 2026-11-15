@@ -78,6 +78,35 @@ describe('the streams a player tab lists from other tabs', () => {
     expect(listed(2)).toEqual(['https://cdn.test/v/two.m3u8']);
   });
 
+  it('leave out a local-network address a public page reports, but not one a local page does', async () => {
+    // After the event page started again, the streams come back from the page's own report
+    // (recoverFrameSources), which the page can write: a page on the internet named a router's
+    // address there, and the background's length read and mpv asked it (a review, 2026-11-15;
+    // the owner's pick). A page on the local network itself plays from it.
+    const local = ['http://192.168.1.1/a.m3u8', 'http://10.0.0.2/b.m3u8', 'http://172.20.0.3/c.m3u8',
+      'http://127.0.0.1:8080/d.m3u8', 'http://localhost/e.m3u8', 'http://[::1]/f.m3u8', 'http://nas/g.m3u8',
+      'http://media.local/h.m3u8', 'http://169.254.0.9/i.m3u8', 'http://[fd00::5]/j.m3u8'];
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}, {id: 2, url: PLAYER}]});
+    await openPlayerTab(2);
+    await bg.message({type: 'LOADED_MEDIA', url: PAGE, resources: [
+      ...local.map((url) => ({url, time: Date.now()})),
+      {url: 'https://cdn.test/v/ok.m3u8', time: Date.now()},
+      {url: 'http://172.32.0.1/public.m3u8', time: Date.now()},
+    ]}, {tabId: 1, frameId: 0, url: PAGE});
+    await bg.wait(10);
+    expect(listed(2)).toEqual(['https://cdn.test/v/ok.m3u8', 'http://172.32.0.1/public.m3u8']);
+    bg.unload();
+
+    const NAS = 'http://192.168.1.20/watch';
+    bg = await loadBackground({tabs: [{id: 1, url: NAS}, {id: 2, url: PLAYER}]});
+    await openPlayerTab(2);
+    await bg.message({type: 'LOADED_MEDIA', url: NAS, resources: [
+      {url: 'http://192.168.1.20/v/film.m3u8', time: Date.now()},
+    ]}, {tabId: 1, frameId: 0, url: NAS});
+    await bg.wait(10);
+    expect(listed(2)).toEqual(['http://192.168.1.20/v/film.m3u8']);
+  });
+
   it('include a stream found after the clear that the page asked for before it', async () => {
     // The review of the fix (2026-11-15): a page's report keeps its request's time, and a
     // filter by time left out a stream the background first learned of after the clear.

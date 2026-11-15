@@ -11,6 +11,7 @@ import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {desiredHeight, listForSource, pickQuality} from '../player/utils/PageQualityPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {bufferKey, BufferStash} from './BufferStash.mjs';
+import {isLocalAddress} from './LocalAddress.mjs';
 import {createMenus, linkTarget, MenuIds, updateMenus} from './ContextMenu.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
 import {sanitizeDownloadFilename} from './DownloadFilename.mjs';
@@ -2507,9 +2508,15 @@ function recoverFrameSources(frame, msg) {
     return;
   }
 
+  // The report is the page's to write. A page on the internet that named a local-network
+  // address in it had the length read and mpv ask that address (blind requests outside
+  // Firefox's own checks; a review, 2026-11-15). A page on the local network plays from it.
+  const pageUrl = typeof msg.url === 'string' ? msg.url : frame.url;
+  const pageIsLocal = typeof pageUrl === 'string' && isLocalAddress(pageUrl);
   for (const resource of msg.resources) {
     const url = resource && typeof resource.url === 'string' ? resource.url : '';
     if (!/^https?:\/\//i.test(url)) continue;
+    if (!pageIsLocal && isLocalAddress(url)) continue;
     const media = !!resource.media;
     // A media element sends no Origin, unless it loads CORS (crossorigin), as content.js says.
     const headers = pageHeaders(typeof msg.url === 'string' ? msg.url : frame.url, url, media && !resource.cors);
