@@ -82,6 +82,51 @@ describe('the page\'s own player, started for an autoplay next', () => {
   });
 });
 
+describe('the page\'s own play button, for a video with nothing loaded', () => {
+  /**
+   * A page whose video has no file yet, with buttons over it.
+   * @param {Array<Object<string, string>>} buttons - Each one's attributes, in page order.
+   */
+  function pageWithButtons(buttons) {
+    const {p, video, see} = backgroundTabPage();
+    video.currentSrc = '';
+    const made = buttons.map((attributes) => {
+      const button = p.document.createElement('button');
+      for (const [name, value] of Object.entries(attributes)) button.setAttribute(name, value);
+      button.rect = {x: 300, y: 160, width: 40, height: 40};
+      let clicks = 0;
+      button.click = () => clicks++;
+      button.clicks = () => clicks;
+      p.document.body.appendChild(button);
+      return button;
+    });
+    return {p, see, made};
+  }
+
+  it('clicks the one that says play, not one whose words only hold it', async () => {
+    // A control bar over the video: its display, autoplay and playlist controls came first.
+    const {p, see, made} = pageWithButtons([
+      {'aria-label': 'Display settings'}, {'title': 'Autoplay'}, {'class': 'playlist-toggle'},
+      {'class': 'player-replay'}, {'aria-label': 'Playback speed'}, {'aria-label': 'Play video'},
+    ]);
+    const answer = p.send({type: 'START_PAGE_PLAYER'});
+    see();
+    expect(await answer).toBe('button');
+    expect(made.map((button) => button.clicks())).toEqual([0, 0, 0, 0, 0, 1]);
+  });
+
+  it('takes a class or label that says play however it is joined', async () => {
+    for (const attributes of [{'class': 'vjs-big-play-button'}, {'class': 'bigPlayButton'}, {'class': 'playbutton'},
+      {'aria-label': 'Play'}, {'title': 'Pause/Play (k)'}, {'class': 'ctrl play_btn'}]) {
+      const {p, see, made} = pageWithButtons([attributes]);
+      const answer = p.send({type: 'START_PAGE_PLAYER'});
+      see();
+      expect(await answer, JSON.stringify(attributes)).toBe('button');
+      expect(made[0].clicks(), JSON.stringify(attributes)).toBe(1);
+    }
+  });
+});
+
 describe('a hoster\'s frame made in a background tab', () => {
   // His report (2026-10-27): MPV autoplay went on to the next episode in a background tab,
   // and the hoster's player in it was never started. Measured in Firefox 158: such a frame

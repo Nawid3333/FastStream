@@ -291,10 +291,7 @@
       iframeMap.set(request.frameId, newFrameObj);
       // Watched while it is in the page too: taken out, it gives back what it took
       // (checkPendingPlayers).
-      if (!pendingPlayersWatch) {
-        pendingPlayersWatch = new MutationObserver(checkPendingPlayers);
-        pendingPlayersWatch.observe(document.documentElement, {childList: true, subtree: true});
-      }
+      watchRemovalOf(iframeElement);
       checkPendingPlayers();
 
       updateReplacedPlayers(replacedData && replacedData.convertDue ? replacedData : null);
@@ -321,9 +318,32 @@
    */
   function watchPendingPlayer(iframe, attempt) {
     pendingPlayers.set(iframe, attempt);
+    watchRemovalOf(iframe);
+  }
+
+  /** @type {WeakSet<Node>} The shadow roots pendingPlayersWatch observes besides the page. */
+  let watchedRoots = new WeakSet();
+
+  /**
+   * Has pendingPlayersWatch see a player iframe go: the page, and each shadow root it is in
+   * (a player put where the page's video was, in a web component): an observer of the page
+   * sees nothing of what changes inside one, and a component that re-rendered its own tree
+   * took the player out unseen.
+   * @param {Element} iframe
+   */
+  function watchRemovalOf(iframe) {
     if (!pendingPlayersWatch) {
       pendingPlayersWatch = new MutationObserver(checkPendingPlayers);
       pendingPlayersWatch.observe(document.documentElement, {childList: true, subtree: true});
+      watchedRoots = new WeakSet();
+    }
+    let root = iframe.getRootNode();
+    while (root && root !== document && /** @type {ShadowRoot} */ (root).host) {
+      if (!watchedRoots.has(root)) {
+        watchedRoots.add(root);
+        pendingPlayersWatch.observe(root, {childList: true, subtree: true});
+      }
+      root = /** @type {ShadowRoot} */ (root).host.getRootNode();
     }
   }
 
@@ -469,6 +489,15 @@
     const address = episodeLinkAddress(button);
     if (address) {
       window.location.assign(address);
+    } else if (!button.isConnected) {
+      // The next season's link made from the address (getNextOrPreviousButton), where the
+      // page's <base target> sends links elsewhere: a link out of the page cannot navigate,
+      // and its click did nothing. In the page for the click, as the page's own would be.
+      const link = /** @type {HTMLAnchorElement} */ (button);
+      link.hidden = true;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     } else {
       /** @type {HTMLElement} */ (button).click();
     }
@@ -558,7 +587,6 @@
    * @property {PauseWatcher} watcher
    * @property {HTMLElement} old
    * @property {boolean} softReplace
-   * @property {boolean} fillScreen
    * @property {?HTMLVideoElement} [video]
    * @property {?PlayedVideo} [played]
    * @property {boolean} [convertDue]
@@ -597,6 +625,11 @@
           }
           RedirectingToPlayer = true;
           window.location = /** @type {string & Location} */ (newURL.href);
+          // A page still here a moment later did not go (a "Leave page?" the user said no to):
+          // its next leave is reported again. Set for good, every later one was skipped.
+          setTimeout(() => {
+            RedirectingToPlayer = false;
+          }, LeaveSettledMs);
           sendResponse('redirect');
         } else {
           const iframe = document.createElement('iframe');
@@ -640,7 +673,6 @@
           watcher,
           old: video.highest,
           softReplace,
-          fillScreen: playerFillsScreen,
         };
         // The video itself, for the stream it played (GET_PLAYED_VIDEO). A site's own query
         // may have found its player's box: the one video in it, and none when there are
@@ -720,7 +752,8 @@
 
     const windowedFullscreenState = iframeObj.windowedFullscreenState;
 
-    if (request.force === undefined || request.force !== windowedFullscreenState.active) {
+    // A state not entered yet has no `active`: an exit asked of it (force false) entered.
+    if (request.force === undefined || request.force !== !!windowedFullscreenState.active) {
       windowedFullscreenToggle(iframeObj);
     }
 
@@ -761,7 +794,8 @@
     }
 
     try {
-      if ((request.force !== undefined && request.force === miniplayerState.active) || iframeObj.windowedFullscreenState.active || document.fullscreenElement) {
+      // As for windowed fullscreen: a state not entered yet is out, not unknown.
+      if ((request.force !== undefined && request.force === !!miniplayerState.active) || iframeObj.windowedFullscreenState.active || document.fullscreenElement) {
         updateMiniPlayer(iframeObj);
       } else {
         toggleMiniPlayer(iframeObj);
@@ -784,7 +818,7 @@
             value: false,
           });
 
-          if (result[0] !== 'recieved') {
+          if (result !== 'recieved') {
             console.error('Failed to send miniplayer state to player, assuming its closed');
             unmakeMiniPlayer(iframeObj);
             updateReplacedPlayers();
@@ -807,32 +841,24 @@
   }
 
   /**
-   * @param {number|number[]|'all'} frameId
+   * Tells a player something of its page (through the background, SEND_TO_PLAYER).
+   * @param {number|undefined} frameId - The player's frame: none for a state never entered.
    * @param {*} data
+   * @return {Promise<*>} Its answer; undefined when there is none, or no player to ask.
    */
-  async function sendToPlayer(frameId, data) {
-    const frameIds = [];
-    if (typeof frameId === 'number') {
-      frameIds.push(frameId);
-    } else if (Array.isArray(frameId)) {
-      frameIds.push(...frameId);
-    } else if (frameId === 'all') {
-      iframeMap.forEach((iframeObj) => {
-        frameIds.push(iframeObj.frameId);
+  function sendToPlayer(frameId, data) {
+    if (typeof frameId !== 'number') return Promise.resolve(undefined);
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({
+        type: MessageTypes.SEND_TO_PLAYER,
+        frameId,
+        data,
+      }, (response) => {
+        // A player gone meanwhile: no answer, which the caller reads as such.
+        void chrome.runtime.lastError;
+        resolve(response);
       });
-    }
-
-    return Promise.all(frameIds.map((id) => {
-      return new Promise((resolve) => {
-        chrome.runtime.sendMessage({
-          type: MessageTypes.SEND_TO_PLAYER,
-          frameId: id,
-          data,
-        }, (response) => {
-          resolve(response);
-        });
-      });
-    }));
+    });
   }
 
   /**
@@ -1621,8 +1647,8 @@
     };
 
     // Its sounds too, as for the ones added later: an <audio> already there played on
-    // under the player.
-    /** @type {HTMLMediaElement[]} */ (querySelectorAllIncludingShadows('video, audio', element)).forEach(hook);
+    // under the player. In closed shadow roots too, as pauseAllMedia looks: one there played on.
+    /** @type {HTMLMediaElement[]} */ (querySelectorAllInAllShadows('video, audio', element)).forEach(hook);
 
     // Add mutation observer to pause videos added later: added themselves, or inside an
     // added subtree, as a re-render of the page's player puts them.
@@ -1634,7 +1660,7 @@
             if (node.tagName === 'VIDEO' || node.tagName === 'AUDIO') {
               hook(/** @type {HTMLMediaElement} */ (node));
             } else if (node.nodeType === Node.ELEMENT_NODE) {
-              /** @type {HTMLMediaElement[]} */ (querySelectorAllIncludingShadows('video, audio', node)).forEach(hook);
+              /** @type {HTMLMediaElement[]} */ (querySelectorAllInAllShadows('video, audio', node)).forEach(hook);
             }
           });
         }
@@ -2105,7 +2131,6 @@
     return {
       video: largestVideo.video,
       size: largestVideo.visibleArea,
-      parents: parentElementsWithSameBounds,
       highest: /** @type {HTMLElement} */ (parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : largestVideo.video),
     };
   }
@@ -2214,6 +2239,20 @@
   ].join(', ');
 
   /**
+   * Whether a generic play button's label, title or class says "play" as a word of its own:
+   * the selectors above match inside other words too, and a control bar's "Display settings",
+   * "Autoplay", "Replay", "Playlist" or "Playback speed" was clicked instead of playing.
+   * "playButton" (a capital after it) and "playbutton" still say it.
+   * @param {Element} element
+   * @return {boolean}
+   */
+  function saysPlay(element) {
+    const words = [element.getAttribute('aria-label'), element.getAttribute('title'), element.getAttribute('class')];
+    return words.some((text) => /(?:^|[^a-z])play(?:button)?(?:[^a-z]|$)/.test(
+        String(text || '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()));
+  }
+
+  /**
    * The visible big play button of the page's player: a known player's anywhere (it shows
    * one only over its picture), another one only over the video.
    * @param {?HTMLVideoElement} video - The page's largest video, if there is one.
@@ -2232,6 +2271,7 @@
     if (!video) return null;
     const area = video.getBoundingClientRect();
     return /** @type {HTMLElement | null} */ (querySelectorAllIncludingShadows(GenericPlayButtons).find((element) => {
+      if (!saysPlay(element)) return false;
       const rect = shown(element);
       if (!rect) return false;
       const x = rect.left + rect.width / 2;
@@ -2650,7 +2690,11 @@
   }
 
   document.addEventListener('click', (e) => {
-    let current = /** @type {?Element} */ (e.target);
+    // The link by the click's path first: here the target of a click inside a web
+    // component's (open) shadow root is its host, and a walk up from there never met the link.
+    const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+    let current = /** @type {?Element} */ (path.find((node) => /** @type {?Element} */ (node)?.tagName === 'A') || null);
+    if (!current) current = /** @type {?Element} */ (e.target);
     while (current) {
       if (current.tagName === 'A') {
         break;
@@ -2725,7 +2769,9 @@
   // background-tab elsewhere on the page, which never blurs the top window
   // like this.
   window.addEventListener('blur', () => {
-    const active = document.activeElement;
+    // Inside shadow roots too, as PAGE_TYPING looks: a player put in a web component's root
+    // (as the page's video was there) has its host as the document's active element.
+    const active = OverlayGuard.focused();
     if (!active) return;
     let isOurIframe = false;
     iframeMap.forEach((iframeObj) => {
@@ -2866,7 +2912,7 @@
         time: performance.timeOrigin + entry.startTime,
       });
     }
-    querySelectorAllIncludingShadows('video, audio').forEach((media) => {
+    querySelectorAllInAllShadows('video, audio').forEach((media) => {
       const src = /** @type {HTMLMediaElement} */ (media).currentSrc || '';
       if (/^https?:\/\//i.test(src) && !found.some((entry) => entry.url === src)) {
         found.push({url: src, media: true, time: Date.now()});

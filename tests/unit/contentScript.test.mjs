@@ -294,6 +294,52 @@ function addElements(page, count) {
   return elements;
 }
 
+// A page with no video, where the frame cannot go fullscreen, goes to the player itself: its
+// beforeunload then tells the background nothing (the player asks for the frame's sources).
+describe('the redirect to the player', () => {
+  it('reports the page\'s next leave once it stayed after all', async () => {
+    const page = loadContentScript();
+    page.document.fullscreenEnabled = false;
+    expect(await page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, frameId: 0, parentFrameId: -1,
+      attempt: 1, force: true})).toBe('redirect');
+    const removed = () => page.sent.filter((message) => message.type === 'FRAME_REMOVED').length;
+    page.dispatchWindow('beforeunload');
+    expect(removed()).toBe(0);
+    // A "Leave page?" the user said no to: the page is still here. Its next leave is told.
+    page.advance(2000);
+    page.dispatchWindow('beforeunload');
+    expect(removed()).toBe(1);
+  });
+});
+
+// A click on the player moves the focus into its iframe and blurs the page: the moment a
+// site's own blur handler opens a pop-up. The background's guard is armed then.
+describe('the pop-up guard', () => {
+  const armed = (page) => page.sent.filter((message) => message.type === 'POPUP_GUARD_ARM').length;
+
+  it('is armed when the focus goes into the player, in a shadow root too', async () => {
+    const {page, iframe} = await pageWithPlayer();
+    page.document.activeElement = iframe;
+    page.dispatchWindow('blur');
+    expect(armed(page)).toBe(1);
+    // A player in a web component's root: the document's active element is the host.
+    const [host] = addElements(page, 1);
+    const root = closedShadowRoot(page, host);
+    root.activeElement = iframe;
+    page.document.activeElement = host;
+    page.dispatchWindow('blur');
+    expect(armed(page)).toBe(2);
+  });
+
+  it('is not armed when something else of the page has the focus', async () => {
+    const {page} = await pageWithPlayer();
+    const [other] = addElements(page, 1);
+    page.document.activeElement = other;
+    page.dispatchWindow('blur');
+    expect(armed(page)).toBe(0);
+  });
+});
+
 // Windowed fullscreen hides every other element of the page (fillScreenIframe). Each one
 // was looked up in an array of those already changed, and taken out of it with a splice:
 // both quadratic, seconds on the page's main thread for a page of 50,000 elements (#227).
@@ -310,6 +356,18 @@ describe('windowed fullscreen', () => {
     expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5})).toBe('exit');
     expect(plain.style.getPropertyValue('display')).toBe('');
     expect(styled.getAttribute('style')).toBe('color: red;');
+  });
+
+  it('stays out when told to leave before it was ever entered', async () => {
+    // A frame's state starts empty: force false was compared with undefined, and entered.
+    const {page, iframe} = await pageWithPlayer();
+    const [plain] = addElements(page, 1);
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5, force: false})).toBe('exit');
+    expect(plain.style.getPropertyValue('display')).toBe('');
+    expect(iframe.style.getPropertyValue('position')).not.toBe('fixed');
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5, force: true})).toBe('enter');
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5, force: true})).toBe('enter');
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5, force: false})).toBe('exit');
   });
 
   it('gives a hidden element its own display back, and leaves the rest of its style as it is now', async () => {
@@ -442,6 +500,24 @@ describe('windowed fullscreen', () => {
     expect(iframe.isConnected).toBe(false);
   });
 
+  it('takes the player down for a link clicked inside a web component', async () => {
+    // At the document a click inside an open shadow root has the host as its target: the walk
+    // up from it never met the link, and the player stayed over the next page's.
+    const {page, iframe} = await pageWithPlayer();
+    const [host] = addElements(page, 1);
+    const root = page.document.createElement('div');
+    root.nodeType = 11;
+    root.host = host;
+    root.parentNode = host;
+    host.shadowRoot = root;
+    const a = page.document.createElement('a');
+    a.href = 'https://site.example/other';
+    root.appendChild(a);
+    page.dispatchDocument('click', {target: host, button: 0, composedPath: () => [a, root, host, page.document.body]});
+    page.advance(0);
+    expect(iframe.isConnected).toBe(false);
+  });
+
   it('gives the page back when the page takes the player out', async () => {
     // A page that draws its player again (a next episode without a page load) took the
     // iframe out: the rest of the page stayed hidden until FastStream went off, and a next
@@ -554,6 +630,13 @@ describe('TOGGLE_MINIPLAYER', () => {
     const childrenBefore = page.document.body.children.length;
     expect(await requestMiniplayer(page)).toBe('exit');
     expect(page.document.body.children.length).toBe(childrenBefore);
+  });
+
+  it('stays out when told to leave before it was ever entered', async () => {
+    const {page, iframe} = await pageWithPlayer();
+    expect(await page.send({type: 'TOGGLE_MINIPLAYER', frameId: 5, playerFrameId: 5, force: false, size: 0.25,
+      styles: {bottom: '0px', right: '0px'}})).toBe('exit');
+    expect(iframe.style.getPropertyValue('position')).not.toBe('fixed');
   });
 
   it('never makes the body the miniplayer', async () => {
@@ -1030,6 +1113,17 @@ describe('a player put in a shadow root', () => {
     expect(answer).toBe('replace');
     expect(root.querySelectorAll('iframe')).toHaveLength(1);
     expect(observed).toEqual([host]);
+
+    // The component renders its tree again before the player links up, and takes the player
+    // out: a watch of the page sees nothing inside the root, and the background kept that
+    // frame's player opening until some change of the page's own tree came.
+    const [iframe] = root.querySelectorAll('iframe');
+    root.removeChild(iframe);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(page.sent.filter((message) => message.type === 'PLAYER_OPEN_GONE')).toEqual([
+      {type: 'PLAYER_OPEN_GONE', attempt: 1},
+    ]);
   });
 });
 
@@ -1037,6 +1131,20 @@ describe('a player put in a shadow root', () => {
 // is up (pauseAllWithin). A call's live stream too: a watch party's voice chat fell silent,
 // the case every other pause leaves alone (playsLiveStream).
 describe('a player over the whole page', () => {
+  it('pauses the page\'s media in a closed shadow root too', async () => {
+    const page = loadContentScript();
+    page.document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 720};
+    page.document.body.rect = {x: 0, y: 0, width: 1280, height: 720};
+    const [host] = addElements(page, 1);
+    const root = closedShadowRoot(page, host);
+    const music = page.document.createElement('audio');
+    root.appendChild(music);
+    music.paused = false;
+    await page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, noRedirect: true, frameId: 0, parentFrameId: -1,
+      attempt: 1, force: true});
+    expect(music.paused).toBe(true);
+  });
+
   it('leaves a call\'s live stream alone', async () => {
     const page = loadContentScript();
     page.document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 720};

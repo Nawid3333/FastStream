@@ -127,6 +127,23 @@ describe('the next episode, within the series', () => {
     expect(assigned).toEqual([`${SERIES}/staffel-3/episode-1`]);
   });
 
+  it('clicks the next season\'s link it made in the page, where the page sends links to the whole tab', async () => {
+    // Made from the address, not in the page: a link out of the page cannot navigate, and its
+    // click did nothing while the player was told it went on.
+    const page = seasonPage(2, 12);
+    page.base('_top');
+    const create = page.p.document.createElement.bind(page.p.document);
+    const clicks = [];
+    page.p.document.createElement = (tag) => {
+      const el = create(tag);
+      if (tag === 'a') el.click = () => clicks.push({href: el.href, inPage: el.isConnected});
+      return el;
+    };
+    expect(await page.next()).toBe('clicked');
+    expect(clicks).toEqual([{href: `${SERIES}/staffel-3/episode-1`, inPage: true}]);
+    expect(page.p.document.querySelectorAll('a').some((a) => a.href === `${SERIES}/staffel-3/episode-1`)).toBe(false);
+  });
+
   it('stops after the last season\'s last episode, and never takes another series', async () => {
     const {next, assigned, clicked} = seasonPage(3, 12);
     expect(await next()).toBe('series_end');
