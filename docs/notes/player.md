@@ -1709,7 +1709,42 @@ What the review of 2026-11-14 left open, done or measured on main, before the re
   that fails without its fix. Writing `same-code`'s own test found one more: a removed
   statement was reported at the enclosing node's line.
 
+The second pass: the three largest files, each reviewed whole through the Claude API (with
+line numbers), every claim checked against the code. Fixed, each with a test that fails
+without its fix (but one):
+
+- `FastStreamClient`: `wantsNetwork` read a fragment without times as -1, behind the
+  playhead, where `predownloadFragments` places it (`windowSpan`): a background player told
+  its peers it wanted nothing it would download. "Buffer ahead" is taken anew each tick in a
+  private window, for a live stream and without a bitrate: the fit in the RAM share only
+  lowered it. The seek preview's context is stored with the preview it belongs to: a build for
+  a replaced video took it over, and its error destroyed the shown preview. A player that
+  could not take its source lets go of its listeners and its once-a-second wait for a picture.
+- `content.js`: an exit asked of a windowed fullscreen or miniplayer never entered entered it;
+  the pop-up guard missed a player in a shadow root, the pending-player watch missed one taken
+  out of a shadow root, and the link-click check missed a link inside one (composedPath);
+  "Display", "Autoplay", "Replay", "Playlist" were clicked as play buttons; the next season's
+  link made from the address could not navigate out of the page; a redirect to the player that
+  did not happen stopped every later leave report; `pauseAllWithin` and `loadedMedia` skipped
+  closed shadow roots. The test page (`contentDom.mjs`) now runs an observer only for its own
+  tree, as Firefox does.
+- `background.mjs`: "Clear Sources" in a player tab was undone by the next stream another tab
+  found; "Open link in player" went to MPV on an allowlisted site; an Off whose question to the
+  tab outlasted an On clicked meanwhile reloaded that On's player away (no test: the question
+  waits only after a restart); the next-episode request of a player in a top frame was asked of
+  the player itself.
+
+Checked and not real: page qualities and fresh links carrying a source's headers elsewhere
+(the background keeps both to the source's host); a `resetPlayer` that rejects (`FSBlob.clear`
+never does); the container download's 30 s timeout during a save (the player answers at once,
+`forceDirect`); unguarded `localStorage` (only the unhosted web build could refuse it).
+
 Looked at and left:
+
+- Two parent walks in `content.js` differ (`getParentElement` the light tree, `flatTreeParents`
+  the flat one): which element the miniplayer takes would change with them, a behaviour change.
+- A tab closed in the milliseconds of a cold start's storage read can have its state saved
+  back once: a stale entry, nothing more.
 
 - `SaveFile.add` copies a view of a fragment (`slice()`) before handing it to the OPFS worker:
   the worker takes the buffer (transferred), and the fragment's buffer holds more than the
