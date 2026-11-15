@@ -641,6 +641,18 @@ describe('a frame\'s read <track> files', () => {
     expect(ScrapedCaptionsKeptMax).toBe(64 * 1024 * 1024);
   });
 
+  it('keep the tracks just read, before older ones', async () => {
+    bg = await loadBackground();
+    const {takeScrapedCaptions} = await import('../../chrome/background/background.mjs');
+    const subtitles = [];
+    const frame = /** @type {*} */ ({getSubtitles: () => subtitles});
+    const size = 30 * 1024 * 1024;
+    takeScrapedCaptions(frame, [track(1, size), track(2, size)]);
+    // The page has tracks 1 and 3 now: track 1, read again, keeps its place before 2.
+    takeScrapedCaptions(frame, [track(1, size), track(3, size)]);
+    expect(subtitles.map((s) => s.label)).toEqual(['1', '3']);
+  });
+
   it('keep a track read again in its place, as its latest copy', async () => {
     bg = await loadBackground();
     const {takeScrapedCaptions} = await import('../../chrome/background/background.mjs');

@@ -1814,7 +1814,7 @@
    * @param {Function} callback - Called with the error (true, or none), the response, and
    *   its text (false for none).
    * @param {{left: number}} budget - The bytes the requests sharing it may still read: one
-   *   whose body goes past it is given up, as a failed one.
+   *   whose body goes past it is given up, as a failed one. A failed one gives its bytes back.
    */
   function httpRequest(url, callback, budget) {
     // fetch() since 2026-10-06 (XMLHttpRequest before). The whole request has
@@ -1833,6 +1833,8 @@
       signal: AbortSignal.any([stall.signal, AbortSignal.timeout(HttpRequestTimeoutMs)]),
     };
 
+    // The bytes this request took from the budget.
+    let read = 0;
     const load = async () => {
       armStallTimer();
       const response = await fetch(url, init);
@@ -1843,7 +1845,6 @@
       const chunks = [];
       if (response.body) {
         const reader = response.body.getReader();
-        let read = 0;
         for (;;) {
           armStallTimer();
           const {done, value} = await reader.read();
@@ -1851,10 +1852,11 @@
           read += value.byteLength;
           budget.left -= value.byteLength;
           if (budget.left < 0) {
-            // Given up: what it read goes back to the others, which read at the same time.
+            // Given back at once: a read of another request may already be next.
             budget.left += read;
+            read = 0;
             reader.cancel().catch(() => {});
-            return [true, response, false];
+            throw new Error('past the bytes a reading of the tracks takes');
           }
           chunks.push(value);
         }
@@ -1862,8 +1864,12 @@
       const bytes = await new Blob(chunks).arrayBuffer();
       return [undefined, response, decodeSubtitleBytes(bytes, response.headers.get('Content-Type'))];
     };
-    // The callback runs outside the catch: one that throws is not a failed request.
-    load().catch(() => [true, undefined, false]).then(([err, response, text]) => {
+    // The callback runs outside the catch: one that throws is not a failed request. A failed
+    // one gives what it read back to the others, which read at the same time.
+    load().catch(() => {
+      budget.left += read;
+      return [true, undefined, false];
+    }).then(([err, response, text]) => {
       clearTimeout(stallTimer);
       callback(err, response, text);
     }).catch((e) => console.error('FastStream: a subtitle answer failed', e));

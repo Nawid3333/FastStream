@@ -2773,8 +2773,8 @@ export const ScrapedCaptionsKeptMax = 64 * 1024 * 1024;
 /**
  * Takes in a frame's own <track> elements, as content.js read them (scrapeCaptionsTags).
  * A track seen before is replaced by its latest copy, anything new is added. Past
- * ScrapedCaptionsKeptMax, the oldest read tracks go; the subtitle files the frame was seen to
- * load (addresses, no text) stay.
+ * ScrapedCaptionsKeptMax, read tracks go, oldest first, the ones in this answer last; the
+ * subtitle files the frame was seen to load (addresses, no text) stay.
  * @param {FrameHolder} frame - The frame they are in.
  * @param {*} subs - The frame's answer: [{data, source, label, language}], or nothing.
  */
@@ -2794,13 +2794,18 @@ export function takeScrapedCaptions(frame, subs) {
   /** @param {*} s @return {number} */
   const textLength = (s) => (typeof s?.data === 'string' ? s.data.length : 0);
   let kept = subtitles.reduce((sum, s) => sum + textLength(s), 0);
-  for (let i = 0; kept > ScrapedCaptionsKeptMax && i < subtitles.length;) {
-    const length = textLength(subtitles[i]);
-    if (length > 0) {
-      kept -= length;
-      subtitles.splice(i, 1);
-    } else {
-      i++;
+  // A track read again keeps its place, so the oldest place is not the oldest reading: the
+  // tracks of this answer, which the page has now, go only after all the others.
+  const current = new Set(subs.map((s) => s?.source));
+  for (const spareCurrent of [true, false]) {
+    for (let i = 0; kept > ScrapedCaptionsKeptMax && i < subtitles.length;) {
+      const length = textLength(subtitles[i]);
+      if (length > 0 && !(spareCurrent && current.has(subtitles[i].source))) {
+        kept -= length;
+        subtitles.splice(i, 1);
+      } else {
+        i++;
+      }
     }
   }
 }
