@@ -27,6 +27,10 @@ const CORS = {
 
 let server;
 let pages = 0;
+let slowLoads = 0;
+// Longer than the 3 s after which a player gone at a beforeunload with no navigation after
+// it loads again (main.mjs StayedMs).
+const SLOW_MS = 5000;
 /** @type {Array<{sig: ?string, place: ?string}>} */
 let segments = [];
 
@@ -237,13 +241,24 @@ describe('A reload of the page', function() {
         res.writeHead(204, CORS);
         return res.end();
       }
-      if (url.pathname === '/watch' || url.pathname === '/watch-disk' || url.pathname === '/watch-gone') {
+      if (['/watch', '/watch-disk', '/watch-gone', '/watch-slow'].includes(url.pathname)) {
         pages++;
-        // Never from the cache: every load issues a new link.
-        res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store'});
-        return res.end(`<!doctype html><title>watch</title>
-          <video muted style="width: 640px; height: 360px"></video>
-          <script>fetch("${SITE}/v/master.m3u8?sig=s${pages}&e=43200");</script>`);
+        const sig = `s${pages}`;
+        const answer = () => {
+          // Never from the cache: every load issues a new link.
+          res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store'});
+          res.end(`<!doctype html><title>watch</title>
+            <video muted style="width: 640px; height: 360px"></video>
+            <script>fetch("${SITE}/v/master.m3u8?sig=${sig}&e=43200");</script>`);
+        };
+        // /watch-slow answers a load after its first only SLOW_MS later: the old page stays
+        // meanwhile, its player gone at beforeunload.
+        slowLoads += url.pathname === '/watch-slow' ? 1 : 0;
+        if (url.pathname === '/watch-slow' && slowLoads > 1) {
+          setTimeout(answer, SLOW_MS);
+          return;
+        }
+        return answer();
       }
       if (url.pathname === '/elsewhere') {
         res.writeHead(200, {'Content-Type': 'text/html'});
@@ -288,6 +303,26 @@ describe('A reload of the page', function() {
     const again = [...placesFor(second)].filter((place) => buffered.has(place));
     console.log(`      buffered ${buffered.size} before the reload; took back ${JSON.stringify(tookBack)};`,
         `asked for again after it: ${again.length} (${placesFor(second).size} under the new link)`);
+    expect(tookBack.of).toBeGreaterThan(0);
+    expect(again).toEqual([]);
+    expect((await playerState()).failed).toBe(false);
+  });
+
+  it('keeps what was buffered when the page takes longer than 3 s to come', async function() {
+    await setOptions({autoEnableURLs: [SITE + '/']});
+    segments = [];
+    const first = await loadAndBuffer('/watch-slow', 8);
+    const buffered = placesFor(first);
+    const asked = segments.length;
+    await reloadPage();
+    const second = `s${pages}`;
+    await playsLink(second, 'the reloaded page\'s player never played');
+    const tookBack = await tookBackAll();
+    const again = [...placesFor(second)].filter((place) => buffered.has(place));
+    // What the old page asked for while the new one was on its way: its player loaded again.
+    const meanwhile = segments.slice(asked).filter((s) => s.sig === first).length;
+    console.log(`      buffered ${buffered.size} before the reload; took back ${JSON.stringify(tookBack)};`,
+        `asked for again after it: ${again.length}; under the old link meanwhile: ${meanwhile}`);
     expect(tookBack.of).toBeGreaterThan(0);
     expect(again).toEqual([]);
     expect((await playerState()).failed).toBe(false);
