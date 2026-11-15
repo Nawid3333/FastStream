@@ -169,7 +169,10 @@ describe('Options page settings import', function() {
     const MINE = 'C:\\Tools\\mpv\\mpv.exe';
     await browser.execute((path) => localStorage.setItem('options', JSON.stringify({mpvPath: path})), MINE);
     await browser.url(optionsPagePath());
-    const savedPath = () => browser.execute(() => JSON.parse(localStorage.getItem('options'))?.mpvPath);
+    // An import before the saved options are read saves nothing (optionChanged).
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 10000, timeoutMsg: 'the options page never loaded its options'});
+    const savedPath =() => browser.execute(() => JSON.parse(localStorage.getItem('options'))?.mpvPath);
     for (const [step, file] of [[8, {mpvPath: 'D:\\Shared\\Downloads\\mpv.exe'}], [9, {}]]) {
       await importText(JSON.stringify({seekStepSize: step, ...file}), false);
       await browser.waitUntil(
