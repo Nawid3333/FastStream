@@ -5759,24 +5759,6 @@
     "zh_CN": "OLED 纯黑",
     "zh_TW": "OLED 純黑"
   },
-  "options_general_vischangeaction_pip": {
-    "en": "Toggle picture-in-picture",
-    "de": "Bild-in-Bild umschalten",
-    "es": "Alternar imagen en imagen",
-    "fr": "Basculer l'image dans l'image",
-    "id": "Beralih gambar-dalam-gambar",
-    "it": "Attiva/disattiva il picture-in-picture",
-    "ja": "ピクチャー イン ピクチャー (PiP) を切り替え",
-    "ko": "화면 속 화면 전환",
-    "ms": "Togol gambar dalam gambar",
-    "nl": "Beeld-in-beeld in-/uitschakelen",
-    "pl": "Przełącz obraz w obrazie",
-    "pt_BR": "Alternar imagem sobreposta (pip)",
-    "ru": "Картинка в картинке",
-    "tr": "Resim içinde resim aç/kapa",
-    "zh_CN": "切换画中画",
-    "zh_TW": "切換畫中畫"
-  },
   "options_export_header": {
     "en": "Import/Export Settings",
     "de": "Import/Export der Einstellungen",

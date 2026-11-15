@@ -297,10 +297,13 @@ describe('the extension\'s pages', () => {
     // less motion; for everyone else the controls faded in over half a second.
     const css = fs.readFileSync(new URL('../../chrome/player/assets/fluidplayer/css/fluidplayer.css', import.meta.url), 'utf8');
     expect(css).not.toContain('prefers-reduced-motion');
-    // At the top level, and with the controls bar's own selector: its `transition: all 0.5s
-    // !important` needs one as specific.
-    const still = /\n\.fluid_video_wrapper\.fluid_player_layout_default \*,\n\.fluid_video_wrapper\.fluid_player_layout_default \.fluid_controls_container \{([^}]*)\}/.exec(css);
+    // At the top level, for everything in the player: a net for anything added later.
+    const still = /\n\.fluid_video_wrapper\.fluid_player_layout_default \* \{([^}]*)\}/.exec(css);
     expect(still).not.toBe(null);
     expect(still[1]).toMatch(/transition-duration: 0s !important;\s*animation-duration: 0s !important;/);
+    // And no motion declared at all (2026-11-15: the declarations the net made no-ops are gone).
+    const declared = css.replace(/\/\*[\s\S]*?\*\//g, '').match(/^\s*(transition|animation)\s*:[^;]*;/gm) || [];
+    expect(declared.filter((line) => !/:\s*none\s*;/.test(line))).toEqual([]);
+    expect(css).not.toMatch(/@keyframes/);
   });
 });

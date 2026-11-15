@@ -959,9 +959,6 @@
     "options_general_color_theme_oled": {
         "message": "OLED Black"
     },
-    "options_general_vischangeaction_pip": {
-        "message": "Toggle picture-in-picture"
-    },
     "options_export_header": {
         "message": "Import/Export Settings"
     },

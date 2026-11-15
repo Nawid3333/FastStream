@@ -959,9 +959,6 @@
     "options_general_color_theme_oled": {
         "message": "OLED 纯黑"
     },
-    "options_general_vischangeaction_pip": {
-        "message": "切换画中画"
-    },
     "options_export_header": {
         "message": "导入/导出设置"
     },

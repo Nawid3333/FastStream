@@ -959,9 +959,6 @@
     "options_general_color_theme_oled": {
         "message": "OLED Siyah"
     },
-    "options_general_vischangeaction_pip": {
-        "message": "Resim içinde resim aç/kapa"
-    },
     "options_export_header": {
         "message": "Ayarları İçe/Dışa Aktar"
     },

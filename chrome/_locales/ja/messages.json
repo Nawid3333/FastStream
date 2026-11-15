@@ -959,9 +959,6 @@
     "options_general_color_theme_oled": {
         "message": "OLEDブラック"
     },
-    "options_general_vischangeaction_pip": {
-        "message": "ピクチャー イン ピクチャー (PiP) を切り替え"
-    },
     "options_export_header": {
         "message": "設定のインポート/エクスポート"
     },

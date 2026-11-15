@@ -182,8 +182,7 @@ body {
     display: inline-block;
 }
 
-.fluid_html_on_pause,
-.fluid_pseudo_poster {
+.fluid_html_on_pause {
     position: absolute;
     top: 0;
     right: 0;
@@ -253,7 +252,6 @@ body {
     background: var(--controls-background);
     height: 53px;
     z-index: 3;
-    transition: all 0.5s !important;
 }
 
 .fluid_controls_bottom_container {
@@ -278,7 +276,6 @@ body {
     z-index: 1;
     text-align: center;
     max-width: 80%;
-    transition: bottom 0.5s;
 }
 
 .controls_visible.expanded .fluid_subtitles_container {
@@ -301,7 +298,6 @@ body {
     pointer-events: none;
     z-index: 2;
     opacity: 0;
-    transition: opacity 0.3s;
 }
 
 .osd.visible {
@@ -325,12 +321,10 @@ body {
 
 .fluid_video_wrapper.fluid_player_layout_default .fade_out {
     opacity: 0;
-    transition: visibility 0.5s, opacity 0.5s;
 }
 
 .fluid_video_wrapper.fluid_player_layout_default .fade_in {
     opacity: 1;
-    transition: visibility 0.5s, opacity 0.5s;
 }
 
 .fluid_video_wrapper.fluid_player_layout_default.pseudo_fullscreen {
@@ -417,8 +411,7 @@ body {
     height: 5px;
 }
 
-.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_controls_progress_container.freeze .fluid_controls_progress,
-.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_controls_progress_container.freeze .fluid_controls_buffered {
+.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_controls_progress_container.freeze .fluid_controls_progress {
     margin-top: -1px;
     height: 5px;
 }
@@ -439,15 +432,10 @@ body {
     opacity: 1;
 }
 
-.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_controls_progress_container.fluid_slider .fluid_controls_progress .fluid_controls_currentprogress .fluid_controls_currentpos {
-    transition: opacity 0.3s;
-}
-
 .fluid_control_volume_container {
     width: 0px;
     z-index: 2;
     opacity: 0.8;
-    transition: width 0.2s ease-in-out, visibility 0.2s;
     display: inline-block;
     visibility: hidden;
 }
@@ -456,10 +444,6 @@ body {
 .fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container div:not(.reordering)>.volume_block:hover .fluid_control_volume_container {
     width: var(--volume-block-width);
     visibility: visible;
-}
-
-.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_control_volume_container .fluid_control_volume .fluid_control_currentvolume .fluid_control_volume_currentpos {
-    transition: 0.2s ease-in-out;
 }
 
 .fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container div:not(.reordering)>.volume_block:focus .fluid_control_volume_container .fluid_control_volume .fluid_control_currentvolume .fluid_control_volume_currentpos,
@@ -524,10 +508,6 @@ body {
     position: absolute;
     top: -2px;
     border-radius: 50%;
-}
-
-.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container.no_volume_bar .fluid_control_volume_container {
-    display: none;
 }
 
 .fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_button,
@@ -597,7 +577,6 @@ body {
     border-top: none;
 }
 
-
 .fluid_button_language .fluid_language_list .language_table {
     display: table;
 }
@@ -655,7 +634,6 @@ body {
     width: 100%;
     height: 100%;
     opacity: 0.85;
-    transition: opacity 0.2s;
     display: inline-block;
 }
 
@@ -770,7 +748,6 @@ body {
     height: 12px;
     border-radius: 6px;
     background-color: color-mix(in srgb, var(--menu-text-color) 35%, transparent);
-    transition: background-color 0.2s;
 }
 
 .fluid_autoplay_switch.on .fluid_autoplay_track {
@@ -790,7 +767,6 @@ body {
     background-color: var(--menu-text-color);
     color: var(--menu-background-color);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-    transition: transform 0.2s;
 }
 
 .fluid_autoplay_switch.on .fluid_autoplay_knob {
@@ -832,16 +808,9 @@ body {
 
 .fluid_button_video_source .fluid_video_sources_list,
 .fluid_button_soundwave .fluid_audio_sources_list,
-.fluid_button_language .fluid_language_list,
-.fluid_video_playback_rates {
+.fluid_button_language .fluid_language_list {
     z-index: 888888 !important;
     opacity: 0.9 !important;
-}
-
-.fluid_video_playback_rates_item {
-    padding: 9px 25px 9px 25px;
-    line-height: 15px;
-    text-align: center;
 }
 
 .video-container {
@@ -939,7 +908,6 @@ body {
 
 .fluid_controls_progress_container .seek_preview .seek_preview_video video {
     height: 100px;
-    transition: opacity 0.15s;
 }
 
 .progress_loaded_container {
@@ -997,7 +965,6 @@ body {
 .subtitles_menu.settings .subtitles_view {
     display: none;
 }
-
 
 .fluid_button_video_source .fluid_video_sources_list,
 .fluid_button_soundwave .fluid_audio_sources_list,
@@ -1116,8 +1083,6 @@ body {
     visibility: visible;
 }
 
-
-
 .buffering_spinner {
     display: inline-block;
     vertical-align: top;
@@ -1143,7 +1108,6 @@ body {
     opacity: 0;
     width: 0px;
     height: 0px;
-    transition: bottom 0.5s;
     overflow: hidden;
 }
 
@@ -1167,7 +1131,6 @@ body {
     padding: 4px 10px;
     font-size: 18px;
     cursor: pointer;
-    transition: bottom 0.5s;
 }
 
 /* VpnPrompt.mjs: above everything at the top, where a failed load's message leaves room. */
@@ -1212,7 +1175,6 @@ body {
     padding: 4px 0;
     font-size: 18px;
     cursor: pointer;
-    transition: bottom 0.5s;
 }
 
 .next_video_cancel:hover,
@@ -1382,7 +1344,6 @@ body {
     text-align: center;
 }
 
-
 .window_header .close_button {
     right: 5px;
     top: 50%;
@@ -1402,7 +1363,6 @@ body {
     background-color: var(--popwindow-background-color);
     color: var(--popwindow-text-color);
     z-index: 2;
-    transition: bottom 0.5s;
     cursor: auto;
     outline: none;
 }
@@ -1572,7 +1532,6 @@ body {
     color: var(--popwindow-button-text-color);
 }
 
-
 .linkui-addnew-button {
     left: 20px;
     right: auto;
@@ -1674,7 +1633,6 @@ body {
     left: 13px;
     right: 13px;
     overflow: hidden;
-    transition: visibility 0.5s;
     visibility: hidden;
 }
 
@@ -1749,10 +1707,8 @@ body {
     height: 54px;
     left: 0px;
     right: 0px;
-    transition: height 0.2s, top 0.2s;
     overflow: hidden;
 }
-
 
 .timeline_audio_canvas_container {
     position: absolute;
@@ -1760,7 +1716,6 @@ body {
     left: 0px;
     right: 0px;
     height: 100%;
-    transition: height 0.2s, top 0.2s;
 }
 
 .threshold_bar {
@@ -1981,7 +1936,6 @@ body {
 .subtitle-shiftl-tool,
 .subtitle-shiftr-tool {
     opacity: 0.85;
-    transition: opacity 0.2s;
 }
 
 .subtitle-resync-tool,
@@ -2091,7 +2045,6 @@ body {
     background-color: var(--menu-list-item-active-background-color);
 }
 
-
 .subtitle-menu-option {
     padding: 8px 5px;
     color: var(--menu-text-color);
@@ -2116,11 +2069,9 @@ body {
     z-index: 2;
 }
 
-
 .tooltip {
     position: relative;
 }
-
 
 .tooltip .tooltiptext {
     visibility: hidden;
@@ -2177,7 +2128,6 @@ body {
     right: 5px;
 }
 
-
 .tooltip .tooltiptext.down {
     bottom: auto;
     top: 100%;
@@ -2190,7 +2140,6 @@ body {
     top: auto;
     border-color: transparent transparent var(--tooltip-background-color) transparent;
 }
-
 
 div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
     visibility: visible;
@@ -2230,80 +2179,18 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
     opacity: 0.5;
 }
 
-/* Make shake */
-.reordering>div>svg,
-.reordering>div.volume_block>div>svg,
-.reordering>.fluid_autoplay_switch>.fluid_autoplay_track {
-    animation: tilt-shaking 0.25s infinite;
-}
-
-.reordering>.fluid_control_duration {
-    animation: tilt-shaking-small 0.25s infinite;
-}
-
-.reordering>div.sortable-chosen>svg,
-.reordering>div.volume_block.sortable-chosen>div>svg,
-.reordering>.fluid_control_duration.sortable-chosen {
-    animation: none;
-}
-
 /* Everything at once, for everyone (his wish, 2026-10-13: "I do not want delays or
    animations"): the controls and menus appear and disappear at once, and the buttons being
    rearranged do not shake. It was only for those who asked their system for less motion;
    for everyone else the controls faded in over half a second, nearly invisible at first, on
-   a dark video above all. The controls bar needs its own selector to outrank its
-   `transition: all 0.5s !important`. The loading spinner is an animated SVG image, which
-   this leaves turning. */
-.fluid_video_wrapper.fluid_player_layout_default *,
-.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container {
+   a dark video above all. The transitions and the shaking this made no-ops were taken out on
+   2026-11-15; it stays, for any added later and for the libraries' own styles. The loading
+   spinner is an animated SVG image, which this leaves turning. */
+.fluid_video_wrapper.fluid_player_layout_default * {
     transition-duration: 0s !important;
     animation-duration: 0s !important;
     transition-delay: 0s !important;
     animation-delay: 0s !important;
-}
-
-@keyframes tilt-shaking {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    25% {
-        transform: rotate(5deg);
-    }
-
-    50% {
-        transform: rotate(0deg);
-    }
-
-    75% {
-        transform: rotate(-5deg);
-    }
-
-    100% {
-        transform: rotate(0deg);
-    }
-}
-
-@keyframes tilt-shaking-small {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    25% {
-        transform: rotate(1deg);
-    }
-
-    50% {
-        transform: rotate(0deg);
-    }
-
-    75% {
-        transform: rotate(-1deg);
-    }
-
-    100% {
-        transform: rotate(0deg);
-    }
 }
 
 .sortable-ghost {

@@ -135,11 +135,6 @@ body.frame button:hover {
 }
 
 /* Primary submit button inside frame */
-body.frame #submitter {
-  background-color: var(--popwindow-button-active-background-color);
-  color: var(--popwindow-button-text-color);
-}
-
 /* Link styling when embedded in player */
 body.frame a,
 body.frame a:visited {
@@ -198,25 +193,6 @@ small,
 }
 
 /* Legacy submitter button kept for compatibility */
-#submitter {
-  background-color: var(--color-primary);
-  color: var(--color-primary-contrast);
-  float: right;
-  width: 120px;
-  margin: var(--space-3) 0;
-  border-radius: var(--radius-1);
-  text-align: center;
-  padding: var(--space-2) var(--space-3);
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 700;
-  border: none;
-}
-
-#submitter:hover {
-  filter: brightness(0.95);
-}
-
 h2 {
   clear: both;
 }
