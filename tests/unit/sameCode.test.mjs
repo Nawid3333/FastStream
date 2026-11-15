@@ -75,6 +75,27 @@ describe('same-code in a clone', () => {
     expect(result.out).toContain('CODE  chrome/b.js:1');
   });
 
+  it('sees a template\'s raw text change, which a tag gets', () => {
+    const dir = clone();
+    write(dir, 'chrome/b.js', 'const s = String.raw`\\n`;\n');
+    execFileSync('git', ['commit', '-q', '-am', 'tag'], {cwd: dir});
+    write(dir, 'chrome/b.js', 'const s = String.raw`\\x0a`;\n');
+    const result = run(dir);
+    expect(result.code).toBe(1);
+    expect(result.out).toContain('CODE  chrome/b.js:1');
+  });
+
+  it('reads a file whose name is not ASCII', () => {
+    const dir = clone();
+    write(dir, 'chrome/é.mjs', 'export const e = 1;\n');
+    execFileSync('git', ['add', '.'], {cwd: dir});
+    execFileSync('git', ['commit', '-q', '-m', 'e'], {cwd: dir});
+    write(dir, 'chrome/é.mjs', 'export const e = 2;\n');
+    const result = run(dir);
+    expect(result.code).toBe(1);
+    expect(result.out).toContain('CODE  chrome/é.mjs:1');
+  });
+
   it('points a removed statement at the last one left', () => {
     const dir = clone();
     write(dir, 'chrome/b.js', 'const a = 1;\nconst b = 2;\nconst c = 3;\n');

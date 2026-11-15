@@ -42,6 +42,24 @@ const {AudioQualityChanger} = await import('../../chrome/player/ui/menus/AudioQu
 const {VideoQualityChanger} = await import('../../chrome/player/ui/menus/VideoQualityChanger.mjs');
 const {SubtitlesManager} = await import('../../chrome/player/ui/subtitles/SubtitlesManager.mjs');
 
+/**
+ * The declarations in a style sheet that could make something move, written however: a
+ * transition or an animation, or its name or properties, other than none, or a duration
+ * other than 0. Its delay, timing and the like move nothing alone.
+ * @param {string} css
+ * @return {string[]} each as written, without its semicolon
+ */
+function movingDeclarations(css) {
+  const declarations = css.replace(/\/\*[\s\S]*?\*\//g, '')
+      .matchAll(/(?<![\w.#-])((?:transition|animation)(?:-[a-z-]+)?)\s*:\s*([^;}]*)/g);
+  return [...declarations].filter(([, property, value]) => {
+    const v = value.replace(/!important/, '').trim();
+    if (property.endsWith('-duration')) return !/^0s?$/.test(v);
+    if (['transition', 'animation', 'transition-property', 'animation-name'].includes(property)) return v !== 'none';
+    return false;
+  }).map(([declaration]) => declaration.trim());
+}
+
 describe('a control the keyboard went to', () => {
   /**
    * A control set up as the player's are; :focus-visible as Firefox has it (keyboard focus, not a click's).
@@ -302,8 +320,22 @@ describe('the extension\'s pages', () => {
     expect(still).not.toBe(null);
     expect(still[1]).toMatch(/transition-duration: 0s !important;\s*animation-duration: 0s !important;/);
     // And no motion declared at all (2026-11-15: the declarations the net made no-ops are gone).
-    const declared = css.replace(/\/\*[\s\S]*?\*\//g, '').match(/^\s*(transition|animation)\s*:[^;]*;/gm) || [];
-    expect(declared.filter((line) => !/:\s*none\s*;/.test(line))).toEqual([]);
+    expect(movingDeclarations(css)).toEqual([]);
     expect(css).not.toMatch(/@keyframes/);
+  });
+
+  it('finds motion however it is written', () => {
+    expect(movingDeclarations('.a { transition: opacity .5s; }\n.b{animation:spin 1s}')).toEqual([
+      'transition: opacity .5s', 'animation:spin 1s',
+    ]);
+    expect(movingDeclarations('.a {\n  transition-property: opacity; transition-duration: .5s;\n  animation-name: x;\n}')).toEqual([
+      'transition-property: opacity', 'transition-duration: .5s', 'animation-name: x',
+    ]);
+    // Still: none, a duration of 0, the parts that move nothing alone, a class named so, a comment.
+    expect(movingDeclarations([
+      '.a { transition: none; animation-duration: 0s !important; transition-duration: 0;',
+      '  animation-delay: 1s; animation-timing-function: ease; }',
+      '.fluid_transition:hover {} /* transition: all 1s; */',
+    ].join('\n'))).toEqual([]);
   });
 });

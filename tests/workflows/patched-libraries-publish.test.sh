@@ -55,7 +55,8 @@ make_repo() {
   )
 }
 
-# recut <n> <library json> <outcome> [files to change...]: what the re-cut job hands on.
+# recut <n> <library json> <outcome> [change...]: what the re-cut job hands on. A change is a
+# file to write, mv:<from>:<to> to move one as it is, or x:<file> to write one executable.
 recut() {
   local n=$1 library=$2 outcome=$3
   shift 3
@@ -68,7 +69,14 @@ recut() {
     (
       cd "$here/repo" || exit 1
       git checkout -q -b tmp
-      for file in "$@"; do echo "changed $n" > "$file"; git add -A -- "$file"; done
+      local change from to
+      for change in "$@"; do
+        case "$change" in
+          mv:*) IFS=: read -r _ from to <<< "$change"; git mv -- "$from" "$to" ;;
+          x:*) echo "changed $n" > "${change#x:}"; chmod +x "${change#x:}"; git add -- "${change#x:}" ;;
+          *) echo "changed $n" > "$change"; git add -A -- "$change" ;;
+        esac
+      done
       git commit -q -m "deps: re-cut $n"
       git format-patch -1 --stdout > "$dir/change.patch"
       git checkout -q main
@@ -94,8 +102,8 @@ run() {
 pushed() { git --git-dir="$here/origin.git" rev-parse -q --verify "refs/heads/$1" > /dev/null; }
 not_pushed() { ! pushed "$1"; }
 
-HLS='{"name":"hls.js","current":"1.7.4","latest":"1.7.5","url":"https://example.invalid/hls","behind":true}'
-DASH='{"name":"dashjs","current":"5.3.0","latest":"5.4.0","url":"https://example.invalid/dash","behind":true}'
+HLS='{"name":"hls.js","current":"1.7.4","latest":"1.7.5","url":"https://www.npmjs.com/package/hls.js/v/1.7.5","behind":true}'
+DASH='{"name":"dashjs","current":"5.3.0","latest":"5.4.0","url":"https://github.com/Dash-Industry-Forum/dash.js/releases/tag/v5.4.0","behind":true}'
 
 reset
 recut 1 "$HLS" cut pnpm-lock.yaml patches/hls.js@1.7.4.patch
@@ -118,13 +126,33 @@ check 'pushes nothing' not_pushed 'patched/hls.js-1.7.5'
 check 'opens nothing' lacks "$FIX/calls" 'create'
 
 reset
-recut 1 '{"name":"hls.js;touch x","current":"1.7.4","latest":"1.7.5","url":"u"}' stopped
+recut 1 "$HLS" cut pnpm-lock.yaml mv:.github/workflows/ci.yml:patches/x.patch
+run 'a re-cut that moves a workflow into patches/ (a rename lists only its new name)'
+check 'fails' test "$status" -ne 0
+check 'says what it changed' contains "$FIX/out" '.github/workflows/ci.yml'
+check 'pushes nothing' not_pushed 'patched/hls.js-1.7.5'
+
+reset
+recut 1 "$HLS" cut pnpm-lock.yaml x:patches/hls.js@1.7.4.patch
+run 'a re-cut that makes a listed file executable'
+check 'fails' test "$status" -ne 0
+check 'says which' contains "$FIX/out" 'patches/hls.js@1.7.4.patch'
+check 'pushes nothing' not_pushed 'patched/hls.js-1.7.5'
+
+reset
+recut 1 '{"name":"hls.js;touch x","current":"1.7.4","latest":"1.7.5","url":"https://www.npmjs.com/package/x"}' stopped
 run 'a library name that is no npm name'
 check 'fails' test "$status" -ne 0
 check 'opens nothing' lacks "$FIX/calls" 'create'
 
 reset
-recut 1 '{"name":"@scope/lib","current":"1.0.0","latest":"1.0.1-beta.2","url":"u"}' stopped
+recut 1 '{"name":"hls.js","current":"1.7.4","latest":"1.7.5","url":"https://evil.example/hls.js"}' stopped
+run 'a link to anywhere but npm or GitHub'
+check 'fails' test "$status" -ne 0
+check 'opens nothing' lacks "$FIX/calls" 'create'
+
+reset
+recut 1 '{"name":"@scope/lib","current":"1.0.0","latest":"1.0.1-beta.2","url":"https://www.npmjs.com/package/%40scope%2Flib/v/1.0.1-beta.2"}' stopped
 run 'a scoped name and a pre-release'
 check 'succeeds' test "$status" -eq 0
 check 'opens the issue' contains "$FIX/calls" 'issue create --title Patched library update: @scope/lib 1.0.1-beta.2'

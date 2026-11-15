@@ -25,12 +25,14 @@ name: Patched libraries
 
 #
 # Two jobs, so that no code from a new library release runs where the write token is: "recut"
-# installs the release (its install scripts are its authors' code) and re-cuts the patch, with
-# a read-only token, and hands each result on as an artifact - the change as a git patch, or the
-# report of why it stopped. "publish" runs on a runner of its own with the write token, installs
-# nothing, and pushes, opens and closes with git, gh and jq alone (SEC-3 of the review of
-# 2026-11-13: one job did both, and a release's install script could read the token from its
-# step's environment, or plant something in the job's later steps through $GITHUB_ENV).
+# installs the release and re-cuts the patch, with a read-only token, and hands each result on
+# as an artifact - the change as a git patch, or the report of why it stopped. pnpm runs the
+# install scripts of the packages allowBuilds lists only, but a release can depend on one of
+# those in a new version. "publish" runs on a runner of its own with the write token, installs
+# nothing, checks what it was handed, and pushes, opens and closes with git, gh and jq alone
+# (SEC-3 of the review of 2026-11-13: one job did both, and an install script could read the
+# token from its step's environment, or plant something in the job's later steps through
+# $GITHUB_ENV). recut keeps no cache, which would carry what it installed to main's workflows.
 on:
   schedule:
     # Daily, 06:30 UTC.
@@ -60,8 +62,9 @@ jobs:
     # A dash.js re-cut lints a 3 MB bundle four times; the rest takes seconds.
     timeout-minutes: 30
     permissions:
-      contents: read  # the repository
-      issues: read    # the titles raised before (the issues endpoint lists pull requests too)
+      contents: read       # the repository
+      issues: read         # the titles raised before; the issues endpoint lists pull requests
+      pull-requests: read  # too, but only to a token that may read them
     outputs:
       count: ${{ steps.recut.outputs.count }}
     steps:
@@ -73,11 +76,12 @@ jobs:
 
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
+      # No pnpm cache: its post step would save the store a new release was installed into,
+      # under main's key, for CI and every other workflow on main to restore.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           check-latest: true
-          cache: pnpm
 
       # tools/recut-patch.mjs lints with the project's ESLint, and --apply installs.
       - name: Install dependencies
@@ -289,6 +293,10 @@ jobs:
             if ! [[ $name =~ ^(@[a-z0-9._-]+/)?[a-zA-Z0-9._-]+$ && $latest =~ ^[0-9A-Za-z.+-]+$ && $current =~ ^[0-9A-Za-z.+-]+$ ]]; then
               echo "Not a library and version: '$name' '$current' '$latest'."; exit 1
             fi
+            # The link in the pull request or issue: a release on npm or GitHub, nothing else.
+            if ! [[ $url =~ ^https://(www\.npmjs\.com|github\.com)/[A-Za-z0-9._~%@+/-]+$ ]]; then
+              echo "Not a release page on npm or GitHub: '$url'."; exit 1
+            fi
             title="$PREFIX$name $latest"
             cp "$dir/report.txt" "$RUNNER_TEMP/report.txt"
 
@@ -296,8 +304,12 @@ jobs:
               branch="patched/$name-$latest"
               git checkout -q -f -B "$branch" "$start"
               git am -q "$dir/change.patch"
-              stray=$(git diff --name-only "$start" HEAD |
+              # --no-renames: a rename is listed as its new name only, and would carry a file
+              # off the list away unseen. Each file stays a plain one (a deleted one: 000000):
+              # no link, no submodule, no executable.
+              stray=$(git diff --no-renames --name-only "$start" HEAD |
                 grep -vxE 'package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|patches/[^/]+\.patch|tools/sync-vendor\.mjs|\.github/dependabot\.yml' || true)
+              stray+=$(git diff --no-renames --raw "$start" HEAD | awk '$2 != "100644" && $2 != "000000"')
               if [ -n "$stray" ]; then
                 echo "The re-cut of $name $latest changed more than a re-cut may:"; echo "$stray"; exit 1
               fi

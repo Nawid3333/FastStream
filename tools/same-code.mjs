@@ -20,8 +20,8 @@ if (!base) {
   process.exit(2);
 }
 
-/** @param {string[]} args */
-const git = (...args) => execFileSync('git', args, {
+/** @param {string[]} args - quotePath off: a name with other than ASCII in it comes as it is. */
+const git = (...args) => execFileSync('git', ['-c', 'core.quotePath=false', ...args], {
   encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'],
 });
 
@@ -31,8 +31,10 @@ const git = (...args) => execFileSync('git', args, {
  * @return {any}
  */
 function program(src) {
-  return JSON.parse(JSON.stringify(parse(src), (key, value) => {
-    if (key === 'start' || key === 'end' || key === 'raw') return undefined;
+  return JSON.parse(JSON.stringify(parse(src), /** @this {any} @param {string} key @param {any} value */ function(key, value) {
+    if (key === 'start' || key === 'end') return undefined;
+    // A literal's raw text is its quotes; a template's is what a tag gets (String.raw).
+    if (key === 'raw' && this.type === 'Literal') return undefined;
     return typeof value === 'bigint' ? `${value}n` : value;
   }));
 }

@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {DASHLoaderFactory as dashLoaderFactory} from '../../chrome/player/players/dash/DashLoader.mjs';
 import {DashFragment} from '../../chrome/player/players/dash/DashFragment.mjs';
+import {DownloadEntry} from '../../chrome/player/network/DownloadEntry.mjs';
+import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
 
 // DashLoader hands dash.js's requests to FastStream's download manager, passing each URL
 // through decodeURI (since the dash.js 5 upgrade). decodeURI throws on a `%` that is not
@@ -67,6 +69,22 @@ describe('DashLoader URLs', () => {
 
   it('still decodes a URL decodeURI can decode, as before', () => {
     expect(loadManifest('http://127.0.0.1/my%20show.mpd').url).toBe('http://127.0.0.1/my show.mpd');
+  });
+});
+
+describe('DashLoader downloads', () => {
+  // Nothing reads a DASH download's pieces as they come (onChunk): an entry with no
+  // postProcessor keeps a copy of them, for a watcher that might join on the way, until the
+  // download is over - a second copy of every segment while it loads (2026-11-15: the
+  // pre/post-processing hooks went, and with them the postProcessor that had kept it from it).
+  it('keeps no pieces of what it loads, and passes the answer on as it came', async () => {
+    const details = loadManifest('http://127.0.0.1/a.mpd');
+    const entry = new DownloadEntry(details);
+    entry.status = DownloadStatus.DOWNLOAD_INITIATED;
+    entry.onChunk(new Uint8Array([1, 2]), 0, {status: 200});
+    expect(entry.pieces).toBe(null);
+    const response = {url: details.url, status: 200, headers: {}, data: 'mpd'};
+    expect(await details.postProcessor(entry, response)).toBe(response);
   });
 });
 

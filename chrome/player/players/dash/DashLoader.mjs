@@ -254,7 +254,9 @@ export function DASHLoaderFactory(player) {
         if (player.loadedManifests.has(key)) downloadManager.forgetCompletedFile(context);
         player.loadedManifests.add(key);
       }
-      const loader = downloadManager.getFile(context, {
+      // No watcher of a DASH download reads its pieces (onChunk): a postProcessor, even one that
+      // changes nothing, keeps the entry from holding a second copy of them while it loads.
+      const loader = downloadManager.getFile({...context, postProcessor: async (entry, response) => response}, {
         /**
          * @param {DownloadEntry} entry
          * @param {null} [xhr] - FetchLoader has none; none at all for a stored copy.
