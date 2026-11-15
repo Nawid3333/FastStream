@@ -325,6 +325,30 @@ describe('MP4Merger: a save written as it goes, holding nothing of the player\'s
     expect(log.at(-1)).toBe('end');
   });
 
+  it('hands each fragment\'s own buffer to the disk, without copying its media out of it', async () => {
+    // The read is the save's own (getDataFromBlob: a new ArrayBuffer each time); a copy of its
+    // mdat was one more fragment-sized allocation per fragment, held until collected.
+    const reads = new Set();
+    const ownRead = (data) => ({track: 0, getEntry: async () => ({getDataFromBlob: async () => {
+      const buffer = await data.arrayBuffer();
+      reads.add(buffer);
+      return buffer;
+    }})});
+    const expected = await bytesOf(await convert(fragments().map(alive)));
+    const opfs = fakeOpfs();
+    const handed = [];
+    const append = opfs.saveAppend;
+    opfs.saveAppend = async (id, data) => {
+      handed.push(data.buffer);
+      return append(id, data);
+    };
+    globalThis.mergerOpfs = opfs;
+    const saved = await bytesOf(await convert(fragments().map(ownRead)));
+    expect(saved).toEqual(expected);
+    expect(handed).toHaveLength(4);
+    expect(handed.every((buffer) => reads.has(buffer))).toBe(true);
+  });
+
   it('keeps its own copy of each fragment where there is no OPFS (a private window)', async () => {
     const expected = await bytesOf(await convert(fragments().map(alive)));
     const saved = await bytesOf(await convert(fragments().map((data) => freedOnceRead(data))));

@@ -195,8 +195,10 @@ export class MP4Merger extends EventEmitter {
     /** @type {number} */ (this.datasOffset) += mdat.size;
     // The whole mdat box, from this save's own copy of the fragment: nothing of the player's
     // store is kept (SaveFile). subarray, as the Blob slice before it, stops at the data's end.
+    // The buffer is the save's alone (readFragment) and nothing here reads it after this: it
+    // goes to the disk as it is, not copied (ownsBuffer).
     const start = /** @type {number} */ (mdat.start);
-    await this.file.add(new Uint8Array(/** @type {ArrayBuffer} */ (data)).subarray(start, start + mdat.size));
+    await this.file.add(new Uint8Array(/** @type {ArrayBuffer} */ (data)).subarray(start, start + mdat.size), true);
   }
 
   /**
