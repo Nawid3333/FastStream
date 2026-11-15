@@ -21,7 +21,7 @@ function box(depth) {
     fc.oneof(fc.uint8Array({maxLength: 40}), fc.array(box(depth - 1), {maxLength: 3}).map(concat)) :
     fc.uint8Array({maxLength: 40});
   return fc.tuple(type, body, fc.oneof(fc.constant(null), fc.constantFrom(0, 1, 7, 8, 0xffffffff), fc.nat()),
-      fc.boolean(), fc.nat({max: 2})).map(([name, inner, size, wide, version]) => {
+      fc.boolean(), fc.nat({max: 2}), fc.oneof(fc.constant(0), fc.nat(), fc.constant(0xffffffff))).map(([name, inner, size, wide, version, high]) => {
     const head = new Uint8Array(wide ? 16 : 8);
     const view = new DataView(head.buffer);
     const full = (name === 'mvhd' || name === 'mdhd' || name === 'mehd') ? concat([Uint8Array.of(version, 0, 0, 0), inner]) : inner;
@@ -29,7 +29,7 @@ function box(depth) {
     view.setUint32(0, wide ? 1 : (size ?? real) >>> 0);
     for (let i = 0; i < 4; i++) head[4 + i] = name.charCodeAt(i);
     if (wide) {
-      view.setUint32(8, 0);
+      view.setUint32(8, high >>> 0);
       view.setUint32(12, (size ?? real) >>> 0);
     }
     return concat([head, full]);
@@ -58,7 +58,7 @@ const ebml = fc.array(fc.tuple(
 
 const HLS_LINES = ['#EXTM3U', '#EXT-X-STREAM-INF:BANDWIDTH=1280000,RESOLUTION=1280x720', '#EXT-X-STREAM-INF:', 'v.m3u8', '',
   '#EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://x",KEYFORMAT="com.apple.streamingkeydelivery"', '#EXT-X-KEY:METHOD=AES-128,URI="k"',
-  '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",URI="a.m3u8"', '#EXTINF:4,', 'seg.ts', '#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES', 'A="', ',,,', '=""='];
+  '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",URI="a.m3u8"', '#EXTINF:4,', 'seg.ts', '#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES', 'A="', ',,,', '=""=', '#EXT-X-STREAM-INF:__proto__=1,constructor=2,BANDWIDTH=1e999\r', 'v.m3u8\r', '#EXT-X-STREAM-INF:BANDWIDTH=-5,RESOLUTION=0x-1'];
 const hlsText = fc.oneof(fc.string({maxLength: 300}), fc.array(fc.oneof(fc.constantFrom(...HLS_LINES), fc.string({maxLength: 30})), {maxLength: 40})
     .map((lines) => lines.join('\n')));
 const DASH_PARTS = ['<MPD>', '</MPD>', '<ContentProtection schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"/>',
@@ -73,10 +73,11 @@ describe('The length reads of what a server sends', () => {
       if (result === null) return;
       if ('duration' in result) {
         // Seconds, or PIECE_LENGTH: the file is a piece of a stream (a moof first).
-        expect(result.duration === PIECE_LENGTH || (result.duration > 0 && !Number.isNaN(result.duration))).toBe(true);
+        expect(result.duration === PIECE_LENGTH || (Number.isFinite(result.duration) && result.duration > 0)).toBe(true);
       } else {
-        // The caller reads on only from a later place (StreamLengths: next > offset).
-        expect(Number.isFinite(result.next)).toBe(true);
+        // A place in the file. The caller reads on only from a later one (StreamLengths stops
+        // at next <= offset: nothing to read at offset, such as no bytes at all, answers offset).
+        expect(Number.isInteger(result.next) && result.next >= 0).toBe(true);
       }
     }), {numRuns: 3000});
   });
@@ -86,7 +87,7 @@ describe('The length reads of what a server sends', () => {
       const result = StreamLength.fromWebm(bytes, ended);
       if (result !== null) {
         // Seconds, or PIECE_LENGTH for an init segment.
-        expect(result === PIECE_LENGTH || (result > 0 && !Number.isNaN(result))).toBe(true);
+        expect(result === PIECE_LENGTH || (Number.isFinite(result) && result > 0)).toBe(true);
       }
     }), {numRuns: 3000});
   });
@@ -98,14 +99,16 @@ describe('The length reads of what a server sends', () => {
         expect(Array.isArray(parsed.variants)).toBe(true);
         for (const variant of parsed.variants) {
           expect(typeof variant.uri).toBe('string');
-          expect(Number.isNaN(variant.bandwidth)).toBe(false);
-          expect(Number.isNaN(variant.height)).toBe(false);
+          expect(Number.isFinite(variant.bandwidth) && variant.bandwidth >= 0).toBe(true);
+          expect(Number.isFinite(variant.height) && variant.height >= 0).toBe(true);
         }
       }
       expect(typeof StreamLength.hlsProtected(text)).toBe('boolean');
       const attributes = StreamLength.hlsAttributes(text);
       expect(attributes && typeof attributes).toBe('object');
       for (const value of Object.values(attributes)) expect(typeof value).toBe('string');
+      expect(Object.getPrototypeOf(attributes) === Object.prototype || Object.getPrototypeOf(attributes) === null).toBe(true);
+      expect(({}).polluted).toBeUndefined();
     }), {numRuns: 3000});
   });
 
