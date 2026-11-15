@@ -249,10 +249,26 @@ function logSites(what, {seconds, sites}) {
  */
 async function waitFor(read, timeout, what, ...args) {
   let value;
-  await browser.waitUntil(async () => {
-    value = await browser.execute(read, ...args);
-    return value !== undefined && value !== null;
-  }, {timeout, interval: 50, timeoutMsg: `timed out waiting for ${what}`});
+  try {
+    await browser.waitUntil(async () => {
+      value = await browser.execute(read, ...args);
+      return value !== undefined && value !== null;
+    }, {timeout, interval: 50, timeoutMsg: `timed out waiting for ${what}`});
+  } catch (error) {
+    // What the player was doing: a number missing says nothing about why.
+    const state = await browser.execute(() => {
+      const client = /** @type {any} */ (window).fastStream;
+      const video = client?.player?.getVideo?.();
+      const ranges = [];
+      for (let i = 0; video && i < video.buffered.length; i++) {
+        ranges.push(`${video.buffered.start(i).toFixed(1)}-${video.buffered.end(i).toFixed(1)}`);
+      }
+      return {time: video?.currentTime, readyState: video?.readyState, paused: video?.paused, seeking: video?.seeking,
+        error: video?.error?.message || video?.error?.code, buffered: ranges.join(' '),
+        status: Array.from(document.querySelectorAll('.status_message')).map((el) => el.textContent.trim()).filter(Boolean)};
+    }).catch((e) => ({unreadable: String(e)}));
+    throw new Error(`${error.message}; player: ${JSON.stringify(state)}`);
+  }
   return value;
 }
 
@@ -341,10 +357,15 @@ async function runTabs(build, run) {
  * @return {Promise<void>}
  */
 async function runStall(result) {
+  // The media bytes of the requests finished so far, at the start and at the end (the fixtures
+  // come from the player page's own origin, so their entries carry their sizes). A request
+  // still running at the end is not counted yet.
   const start = await browser.execute(() => {
     const B = /** @type {any} */ (window).__bench;
     B.stall = {count: 0, ms: 0, since: null};
-    return B.video.currentTime;
+    B.fetched = () => performance.getEntriesByType('resource').filter((entry) => entry.name.includes('/fixtures/'))
+        .reduce((sum, entry) => sum + (/** @type {PerformanceResourceTiming} */ (entry).transferSize || 0), 0);
+    return {time: B.video.currentTime, bytes: B.fetched()};
   });
   await browser.pause(bench.stallMs);
   const played = await browser.execute(() => {
@@ -355,12 +376,10 @@ async function runStall(result) {
       stall.ms += performance.now() - stall.since;
     }
     B.stall = null;
-    const bytes = performance.getEntriesByType('resource').filter((entry) => entry.name.includes('/fixtures/'))
-        .reduce((sum, entry) => sum + (/** @type {PerformanceResourceTiming} */ (entry).transferSize || 0), 0);
-    return {count: stall.count, ms: stall.ms, time: B.video.currentTime, duration: B.video.duration, bytes};
+    return {count: stall.count, ms: stall.ms, time: B.video.currentTime, duration: B.video.duration, bytes: B.fetched()};
   });
-  Object.assign(result, {stallCount: played.count, stallMs: played.ms, stallPlayed: played.time - start,
-    stallMB: played.bytes / 1e6});
+  Object.assign(result, {stallCount: played.count, stallMs: played.ms, stallPlayed: played.time - start.time,
+    stallMB: (played.bytes - start.bytes) / 1e6});
   const seeks = [];
   for (const part of STALL_SEEKS) {
     const to = Math.floor(played.duration * part);

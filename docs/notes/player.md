@@ -1411,8 +1411,11 @@ how long it waited for media while playing (`waiting` not caused by a seek), the
 the megabytes it fetched, and the median time from a seek to playing past the place. The line can
 be made like real ones: `--jitter P` drops it to `--jitter-factor` (0.25) of its rate every other
 P ms; `--conn C` caps each answer at C Mbit/s, as servers that throttle a connection do; `--drop D`
-cuts D % of the media answers part-way - the same requests for both builds (by path, place and
-range, not the run), and only a run's first ask, so a retry gets through. A trial, main against
+cuts D % of the media answers part-way, at the byte chosen - the same requests for both builds
+(by path, place and where the range ends, not the run), and only a run's first ask, so a retry
+gets through, also one that goes on from where the cut stopped. The megabytes count requests
+finished in the playing time. The long MP4 (17 MB) is often all loaded after a minute on a fast
+line: its seeks then time a seek into what is there. A trial, main against
 itself, 1 round, 3 Mbit/s with jitter 5000, 150 ms to the first byte, 5 % cut: first frame 9-10 s
 (MP4), 6-7 s (HLS, DASH); seeks 2.4-7.9 s.
 

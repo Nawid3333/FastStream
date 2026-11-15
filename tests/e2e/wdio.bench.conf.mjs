@@ -54,6 +54,12 @@ const traceCounts = new Map();
 function loopedManifest(seconds, run) {
   const fixture = fs.readFileSync(path.join(fixturesDir, 'dash-template', 'manifest.mpd'), 'utf8');
   const period = fixture.slice(fixture.indexOf('<Period'), fixture.indexOf('</Period>') + '</Period>'.length);
+  // What it changes must be there as written: a changed fixture would otherwise give a wrong
+  // manifest without a word (a review).
+  for (const text of ['<Period id="0" start="PT0.0S">', 'mediaPresentationDuration="PT9.0S"',
+    'initialization="init-stream', 'media="chunk-stream', '.m4s"']) {
+    if (!period.includes(text) && !fixture.includes(text)) throw new Error(`looped.mpd: the dash-template fixture has no ${text}`);
+  }
   const count = Math.ceil(seconds / 9);
   const periods = [];
   for (let p = 0; p < count; p++) {
@@ -105,8 +111,10 @@ const asked = new Map();
 
 /**
  * Where to cut an answer part-way, if at all (BENCH_DROP_PCT): the same requests for both
- * builds - by path, place in a looped playlist and range, not by run - and only the first time
- * a run asks, so a retry gets through.
+ * builds - by path, place in a looped playlist and where the range ends, not by run - and only
+ * the first time a run asks, so a retry gets through. By the range's end, not its start: a
+ * retry that goes on from where the cut answer stopped is the same request (a review: by its
+ * start, whether it was cut again would depend on how many bytes had arrived).
  * @param {string} rel - The path.
  * @param {URLSearchParams} params - The request's query.
  * @param {{start: number, end: number}} range
@@ -117,7 +125,7 @@ function cutAt(rel, params, range) {
   const run = params.get('run') || '';
   const rest = new URLSearchParams(params);
   rest.delete('run');
-  const key = `${rel}?${rest}|${range.start}`;
+  const key = `${rel}?${rest}|${range.end}`;
   const count = (asked.get(`${run}|${key}`) || 0) + 1;
   asked.set(`${run}|${key}`, count);
   const hash = crypto.createHash('sha1').update(key).digest();
@@ -142,17 +150,19 @@ function sendPaced(res, file, {start, end}, line, ttfb, {cut = Infinity, capMbit
   // The cap per connection: this answer's own line beside the shared one.
   const own = paceLine(capMbit);
   const next = () => {
+    if (!res.destroyed && at >= cut && at <= end) {
+      // Cut at the byte chosen, after what came before it has gone out (an answer smaller
+      // than a piece was never cut, a larger one only at the next piece: a review).
+      fs.closeSync(fd);
+      res.destroy();
+      return;
+    }
     if (res.destroyed || at > end) {
       fs.closeSync(fd);
       if (!res.destroyed) res.end();
       return;
     }
-    if (at >= cut) {
-      fs.closeSync(fd);
-      res.destroy();
-      return;
-    }
-    const piece = Buffer.alloc(Math.min(65536, end - at + 1));
+    const piece = Buffer.alloc(Math.min(65536, end - at + 1, cut - at));
     fs.readSync(fd, piece, 0, piece.length, at);
     at += piece.length;
     setTimeout(() => {
@@ -160,7 +170,12 @@ function sendPaced(res, file, {start, end}, line, ttfb, {cut = Infinity, capMbit
         fs.closeSync(fd);
         return;
       }
-      res.write(piece) ? next() : res.once('drain', next);
+      if (at >= cut) {
+        // The last piece before the cut: cut once it has been handed to the connection.
+        res.write(piece, () => next());
+      } else {
+        res.write(piece) ? next() : res.once('drain', next);
+      }
     }, Math.max(line(piece.length), own(piece.length)) - performance.now());
   };
   setTimeout(next, ttfb);
