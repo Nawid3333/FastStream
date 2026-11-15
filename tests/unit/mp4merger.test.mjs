@@ -340,7 +340,9 @@ describe('MP4Merger: a save written as it goes, holding nothing of the player\'s
     const append = opfs.saveAppend;
     opfs.saveAppend = async (id, data) => {
       handed.push(data.buffer);
-      return append(id, data);
+      // Moved as postMessage moves it: the merger's buffer is detached, so a read of it after
+      // the hand-over would break the file or throw here.
+      return append(id, structuredClone(data, {transfer: [data.buffer]}));
     };
     globalThis.mergerOpfs = opfs;
     const saved = await bytesOf(await convert(fragments().map(ownRead)));
