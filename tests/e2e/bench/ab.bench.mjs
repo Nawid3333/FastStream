@@ -87,6 +87,17 @@ function probe(where) {
   };
   // Every media request, for the bytes a stall scenario fetched (the default keeps 250).
   performance.setResourceTimingBufferSize(100000);
+  // The player's last errors and warnings, for a run that fails (waitFor): the page's console
+  // is not in the driver's log.
+  B.logs = [];
+  for (const level of /** @type {const} */ (['error', 'warn'])) {
+    const original = console[level].bind(console);
+    console[level] = (...args) => {
+      B.logs.push(`${level}: ${args.map((arg) => String(arg?.message ?? arg)).join(' ')}`.slice(0, 300));
+      if (B.logs.length > 40) B.logs.shift();
+      original(...args);
+    };
+  }
   // Where in the player's code a callback was asked for: the first frame of the stack that is
   // not this probe's.
   const site = () => {
@@ -265,7 +276,8 @@ async function waitFor(read, timeout, what, ...args) {
       }
       return {time: video?.currentTime, readyState: video?.readyState, paused: video?.paused, seeking: video?.seeking,
         error: video?.error?.message || video?.error?.code, buffered: ranges.join(' '),
-        status: Array.from(document.querySelectorAll('.status_message')).map((el) => el.textContent.trim()).filter(Boolean)};
+        status: Array.from(document.querySelectorAll('.status_message')).map((el) => el.textContent.trim()).filter(Boolean),
+        logs: /** @type {any} */ (window).__bench?.logs?.slice(-15)};
     }).catch((e) => ({unreadable: String(e)}));
     throw new Error(`${error.message}; player: ${JSON.stringify(state)}`);
   }
