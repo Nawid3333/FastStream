@@ -72,6 +72,16 @@ describe('a player the background lost while Firefox had unloaded it', () => {
     expect(second?.isMainPlayer).toBe(false);
   });
 
+  it('is counted at its keep-alive ping, all a paused player sends', async () => {
+    // A paused player sends nothing but PING every 10 s (main.mjs), and the background
+    // answered it before it looked at the sender: until some other message came, a second
+    // player in the tab was its main player and played without a click.
+    await playerThenRestart();
+    expect(await bg.message({type: 'PING'}, {tabId: 1, frameId: 7, url: player('page-1')})).toBe('PONG');
+    const second = await bg.message({type: 'PLAYER_LOADED', url: player('page-1'), parentFrameId: 0}, {tabId: 1, frameId: 9});
+    expect(second?.isMainPlayer).toBe(false);
+  });
+
   it('is counted once when it loads anew in its frame', async () => {
     await playerThenRestart();
     const again = await bg.message({type: 'PLAYER_LOADED', url: player('page-1'), parentFrameId: 0}, {tabId: 1, frameId: 7});

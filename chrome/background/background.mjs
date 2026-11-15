@@ -872,6 +872,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   }
   if (msg.type === MessageTypes.PING) {
+    // A player's keep-alive (every 10 s), and all a paused one sends: a player this background
+    // did not see load is counted here too (restorePlayerFrame), as at any other message of its
+    // tab. Answered first, it stayed uncounted until another came, and a second player in the
+    // tab was its main player, playing without a click.
+    if (sender.tab) {
+      const tab = /** @type {TabHolder & TabExtras} */ (Tabs.getTabOrCreate(/** @type {number} */ (sender.tab.id)));
+      restorePlayerFrame(tab, /** @type {FrameHolder & FrameExtras} */ (tab.getFrameOrCreate(/** @type {number} */ (sender.frameId))), sender);
+    }
     sendResponse(MessageTypes.PONG);
     return;
   } else if (msg.type === MessageTypes.VPN_STATUS) {
