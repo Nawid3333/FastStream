@@ -314,11 +314,24 @@ describe('bilibili_content.js', () => {
     const codecsOf = (set) => [...set.matchAll(/codecs="([^".]*)/g)].map((m) => m[1]);
     expect(sets.map((set) => [...new Set(codecsOf(set))])).toEqual([['avc1'], ['hvc1'], ['av01'], ['mp4a']]);
     expect(sets.map((set) => codecsOf(set).length)).toEqual([2, 2, 2, 2]);
+    // Each version: an id of its own, from its quality and codec, with its own codec and address.
+    const reps = [...manifestOf(sent[0].url).matchAll(/<Representation id="([^"]*)" codecs="([^"]*)"[^>]*><BaseURL>([^<]*)<\/BaseURL>/g)]
+        .map(([, id, codecs, url]) => ({id, codecs, url}));
+    expect(reps).toHaveLength(8);
+    expect(new Set(reps.map((rep) => rep.id)).size).toBe(8);
+    expect(reps).toEqual(expect.arrayContaining([...video, ...audio].map((t) =>
+      ({id: `${t.id}-${t.codecs.split('.')[0]}`, codecs: t.codecs, url: t.baseUrl}))));
+  });
+
+  it('gives a version an id of its own when its quality and codec come twice, or it names no codec', () => {
+    const track = (codecs, url) => ({id: 32, codecs, baseUrl: `https://cdn.example.com/${url}.m4s`, bandwidth: 1000,
+      mimeType: 'video/mp4', width: 852, height: 480, SegmentBase: {indexRange: '0-99', Initialization: '0-9'}});
+    const playInfo = {data: {dash: {duration: 10, minBufferTime: 1.5, audio: null,
+      video: [track('avc1.64001F', 'a'), track('avc1.64001F', 'b'), track(undefined, 'c'), track('', 'd')]}}};
+    const {sent} = runSiteScript('bilibili_content.js', [{textContent: `window.__playinfo__=${JSON.stringify(playInfo)}`}]);
     const ids = [...manifestOf(sent[0].url).matchAll(/<Representation id="([^"]*)"/g)].map((m) => m[1]);
-    expect(ids).toHaveLength(8);
-    expect(new Set(ids).size).toBe(8);
-    // Every address is still there, each with its own version.
-    for (const t of [...video, ...audio]) expect(manifestOf(sent[0].url)).toContain(`<BaseURL>${t.baseUrl}</BaseURL>`);
+    expect(ids).toEqual(['32-avc1', '32-avc1-2', '32', '32--2']);
+    expect(manifestOf(sent[0].url).match(/<AdaptationSet/g)).toHaveLength(2);
   });
 
   it('writes no width or height for a track that has none', () => {

@@ -392,13 +392,21 @@ export default class DashPlayer extends EventEmitter {
       // video!" with HEVC on a GPU-less Windows Firefox (the real-streams check, 2026-10-06).
       const cannotStart = /InitIPDL/.test(message);
       const levelManager = this.client.getLevelManager();
-      // Its decoder cannot be made, and its codec was left out already: the pick had no other
-      // codec (the load again without it, reloadWithoutFailedCodec, came back to it). dash.js
-      // would reset the video for ever (mediaErrorDecode, setup): a bilibili video whose levels
-      // all named HEVC reset ~125 times a second (2026-11-15). This error ends it; the client
-      // shows it. Not for any other decode error: dash.js skips a bad segment and plays on.
+      // Its decoder cannot be made, and its codec was left out already: a version picked by
+      // hand in the menu, or the only codec there is (the load again without it,
+      // reloadWithoutFailedCodec, came back to it). dash.js would reset the video for ever
+      // (mediaErrorDecode, setup): a bilibili video whose levels all named HEVC reset ~130
+      // times a second (2026-11-15). With another codec there, the client loads the source
+      // again and the pick takes that one; with none, this error ends it, and the client shows
+      // it. Not for any other decode error: dash.js skips a bad segment and plays on.
       if (level && cannotStart && levelManager.isVideoCodecFailed(level.videoCodec)) {
-        this.dash.updateSettings({errors: {recoverAttempts: {mediaErrorDecode: 0}}});
+        const another = Array.from(this.getVideoLevels().values())
+            .some((other) => !levelManager.isVideoCodecFailed(other.videoCodec));
+        if (another) {
+          this.codecFailedForGood = true;
+        } else {
+          this.dash.updateSettings({errors: {recoverAttempts: {mediaErrorDecode: 0}}});
+        }
       }
       if (level && levelManager.noteVideoDecodeFailure(level.videoCodec, cannotStart)) {
         console.warn('Video codec failed to decode, picking another:', level.videoCodec);
