@@ -17,8 +17,18 @@ import source from '../../chrome/custom/instagram_inject.js?raw';
  * @return {{posted: Array<Object>, errors: Array<Array<*>>, respond: function(string): void,
  *   window: {fetch: function(...*): Promise<Response>}, XHR: Function}}
  */
-function load(fetch, json) {
+function load(fetch, json, page = {}) {
   const posted = [];
+  // The page: its JSON script tags, and whether it is still being parsed.
+  const ready = [];
+  const document = {
+    readyState: page.loading ? 'loading' : 'complete',
+    querySelectorAll: (selector) => (selector === 'script[type="application/json"]' ?
+      (page.scripts || []).map((textContent) => ({textContent})) : []),
+    addEventListener: (type, listener) => {
+      if (type === 'DOMContentLoaded') ready.push(listener);
+    },
+  };
   const errors = [];
   class FakeXHR {
     constructor() {
@@ -34,6 +44,7 @@ function load(fetch, json) {
   }
   const context = {
     XMLHttpRequest: FakeXHR,
+    document,
     window: {postMessage: (data) => posted.push(data), fetch},
     console: {error: (...args) => errors.push(args), log() {}},
     ...(json ? {JSON: json} : {}),
@@ -42,6 +53,8 @@ function load(fetch, json) {
   return {
     posted,
     errors,
+    // The page parsed: what waited for DOMContentLoaded runs.
+    parsed: () => ready.splice(0).forEach((listener) => listener()),
     window: context.window,
     XHR: context.XMLHttpRequest,
     respond(text) {
@@ -55,6 +68,24 @@ function load(fetch, json) {
 }
 
 describe('instagram_inject.js', () => {
+  it('posts the manifest a reel opened by its address has in the page\'s data', () => {
+    // Live check (2026-11-15): signed out, a reel's page brings its video_dash_manifest in a
+    // JSON script tag, no response holds it, and FastStream got only the byte-range pieces.
+    const page = load(undefined, undefined, {loading: true, scripts: [
+      JSON.stringify({require: [['ScheduledServerJS', {user: {name: 'x'}}]]}),
+      JSON.stringify({require: [{items: [{video_dash_manifest: '<MPD reel/>'}]}]}),
+    ]});
+    // Read once the page is parsed: the script runs before its tags exist.
+    expect(page.posted).toEqual([]);
+    page.parsed();
+    expect(page.posted).toEqual([{type: 'fs_source_detected', value: '<MPD reel/>', ext: 'mpd'}]);
+  });
+
+  it('reads the page\'s data at once when it is parsed already', () => {
+    const page = load(undefined, undefined, {scripts: [JSON.stringify({a: {video_dash_manifest: '<MPD/>'}})]});
+    expect(page.posted).toEqual([{type: 'fs_source_detected', value: '<MPD/>', ext: 'mpd'}]);
+  });
+
   it('parses no response that cannot hold a manifest', () => {
     // Every text response of Instagram's was parsed, for a key few of them hold.
     let parsed = 0;

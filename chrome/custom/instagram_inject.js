@@ -76,6 +76,20 @@
     }, '*');
   }
 
+  // A reel or post opened by its address brings its manifest in the page's own data (a JSON
+  // script tag), not in a response: signed out, such a reel was never found, and FastStream
+  // got only the pieces Instagram's player fetches by byte range (live check, 2026-11-15).
+  function readPageData() {
+    for (const script of document.querySelectorAll('script[type="application/json"]')) {
+      readResponse(script.textContent);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', readPageData, {once: true});
+  } else {
+    readPageData();
+  }
+
   const rawOpen = XMLHttpRequest.prototype.open;
 
   XMLHttpRequest.prototype.open = function() {

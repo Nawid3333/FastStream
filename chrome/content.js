@@ -1379,9 +1379,13 @@
     }
   }
 
-  // What hideSoft sets on the page's element: no size, nothing drawn outside it.
+  // What hideSoft sets on the page's element: no size, nothing drawn outside it, and no share
+  // of a flex box. A flex item's size is its share, not its width or height: on bilibili
+  // (`flex: 1 1 0%` in a column) the hidden element kept half the box, and the player, which
+  // takes the element's classes, got the other half (live check, 2026-11-15).
   /** @type {Object<string, string>} */
-  const SoftHidden = {width: '0px', height: '0px', overflow: 'hidden', margin: '0px', contain: 'paint'};
+  const SoftHidden = {'width': '0px', 'height': '0px', 'overflow': 'hidden', 'margin': '0px', 'contain': 'paint',
+    'flex-grow': '0', 'flex-basis': '0px'};
 
   /**
    * The page's own inline values of those, with their priority, per element until it is
