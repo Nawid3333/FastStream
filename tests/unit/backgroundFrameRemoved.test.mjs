@@ -49,7 +49,7 @@ describe('a player the background lost while Firefox had unloaded it', () => {
    * A player in frame 7 of the page, then a background started anew.
    * @return {Promise<void>}
    */
-  async function playerThenRestart() {
+  async function playerThenRestart(sessionReady = Promise.resolve()) {
     const session = {};
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}], session});
     await bg.navigated(1, PAGE);
@@ -57,7 +57,7 @@ describe('a player the background lost while Firefox had unloaded it', () => {
     const first = await bg.message({type: 'PLAYER_LOADED', url: player('page-1'), parentFrameId: 0}, {tabId: 1, frameId: 7});
     expect(first?.isMainPlayer).toBe(true);
     bg.unload();
-    bg = await loadBackground({tabs: [{id: 1, url: PAGE}], session,
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}], session, sessionReady,
       // The page says it opened a player (TabHolder.playerParentProof): this background never
       // heard it name itself.
       onTabMessage: ({message}) => (message.type === 'IS_PLAYER_OPENER' ? true : undefined)});
@@ -78,6 +78,19 @@ describe('a player the background lost while Firefox had unloaded it', () => {
     // player in the tab was its main player and played without a click.
     await playerThenRestart();
     expect(await bg.message({type: 'PING'}, {tabId: 1, frameId: 7, url: player('page-1')})).toBe('PONG');
+    const second = await bg.message({type: 'PLAYER_LOADED', url: player('page-1'), parentFrameId: 0}, {tabId: 1, frameId: 9});
+    expect(second?.isMainPlayer).toBe(false);
+  });
+
+  it('is counted at the ping that wakes the background, before its kept state is back', async () => {
+    // The ping is what starts an unloaded event page, and it came before storage.session gave
+    // the kept tab state back (ensureOptions): the player's page frame was not known yet, and
+    // nothing looked again once it was (Claude API review).
+    const {promise: sessionReady, resolve: release} = Promise.withResolvers();
+    await playerThenRestart(sessionReady);
+    expect(await bg.message({type: 'PING'}, {tabId: 1, frameId: 7, url: player('page-1')})).toBe('PONG');
+    release();
+    await bg.wait();
     const second = await bg.message({type: 'PLAYER_LOADED', url: player('page-1'), parentFrameId: 0}, {tabId: 1, frameId: 9});
     expect(second?.isMainPlayer).toBe(false);
   });
