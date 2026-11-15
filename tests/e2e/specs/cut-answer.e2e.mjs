@@ -45,12 +45,16 @@ const CASES = [
  */
 function twoPeriods() {
   const fixture = fs.readFileSync(path.join(FIXTURES, 'dash-template', 'manifest.mpd'), 'utf8');
+  // Every replacement has to find its text: a fixture that changed fails here, not as a timeout.
+  const swap = (text, from, to) => {
+    if (!text.includes(from)) throw new Error(`the dash-template fixture changed: no ${from}`);
+    return text.replaceAll(from, to);
+  };
+  const tag = '<Period id="0" start="PT0.0S">';
   const period = fixture.slice(fixture.indexOf('<Period'), fixture.indexOf('</Period>') + '</Period>'.length);
-  const second = period.replace('<Period id="0" start="PT0.0S">', '<Period id="1" start="PT9.0S">')
-      .replaceAll('.m4s"', '.m4s?p=1"');
-  if (second === period) throw new Error('the dash-template fixture changed');
-  return fixture.slice(0, fixture.indexOf('<Period')).replace('mediaPresentationDuration="PT9.0S"', 'mediaPresentationDuration="PT18.0S"') +
-    period.replace('<Period id="0" start="PT0.0S">', '<Period id="0" start="PT0.0S" duration="PT9.0S">') + '\n' + second + '\n</MPD>\n';
+  const second = swap(swap(period, tag, '<Period id="1" start="PT9.0S">'), '.m4s"', '.m4s?p=1"');
+  return swap(fixture.slice(0, fixture.indexOf('<Period')), 'mediaPresentationDuration="PT9.0S"', 'mediaPresentationDuration="PT18.0S"') +
+    swap(period, tag, '<Period id="0" start="PT0.0S" duration="PT9.0S">') + '\n' + second + '\n</MPD>\n';
 }
 /** @type {string} The answer the running case cuts. */
 let cutting = '';
