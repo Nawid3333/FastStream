@@ -44,8 +44,9 @@ const DATA_GONE = new Error('The stored download is gone');
  */
 
 /**
- * One request's hold on a download (DownloadManager.getFile): abort() gives it up.
- * @typedef {{entry: DownloadEntry, abort: () => void, callbacks: DownloadCallbacks}} DownloadWatcher
+ * One request's hold on a download (DownloadManager.getFile): abort() gives it up. Its priority:
+ * what the request asked for (DownloadManager.letGo).
+ * @typedef {{entry: DownloadEntry, priority?: number, abort: () => void, callbacks: DownloadCallbacks}} DownloadWatcher
  */
 
 export class DownloadEntry {
