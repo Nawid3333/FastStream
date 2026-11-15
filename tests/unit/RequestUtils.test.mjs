@@ -24,7 +24,7 @@ describe('RequestUtils.request', () => {
     expect([...new Uint8Array(result.response)]).toEqual([1, 2, 3]);
     expect(result.getResponseHeader('content-range')).toBe('bytes 0-2/10');
     expect(result.getResponseHeader('X-None')).toBe(null);
-    // httpGetLarge parses the whole list as XMLHttpRequest gave it.
+    // The whole list, as XMLHttpRequest gave it.
     expect(URLUtils.headersStringToObj(result.getAllResponseHeaders())['content-range']).toBe('bytes 0-2/10');
   });
 
