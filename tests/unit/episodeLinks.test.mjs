@@ -1,5 +1,6 @@
 import vm from 'node:vm';
 import {describe, expect, it} from 'vitest';
+import fc from 'fast-check';
 // The script's text, as contentDom.mjs takes content.js's (?raw: CodeQL js/code-injection).
 import episodeLinksSource from '../../chrome/episode-links.js?raw';
 
@@ -162,5 +163,36 @@ describe('EpisodeLinks.nextSeason', () => {
   it('has none for an address without a season', () => {
     expect(EpisodeLinks.nextSeason('https://a.test/watch/12')).toBe(null);
     expect(EpisodeLinks.nextSeason('https://a.test/watch/episode-12')).toBe(null);
+  });
+});
+
+// normalize stripped the marks at a text's end with a regex anchored there (`[…]+$`, global):
+// tried from each mark of a run, it read to the run's end each time, quadratic in its length.
+// A link whose text holds 60,000 dashes took a second, at every poll for the next episode,
+// once per same-site link (Claude API review, 2026-11-15). The marks are now taken off both
+// ends by a loop: the same text comes out.
+describe('EpisodeLinks.normalize', () => {
+  const OLD_MARKS = /^[\s«»‹›<>←→⟨⟩❮❯|·•…:\-–—]+|[\s«»‹›<>←→⟨⟩❮❯|·•…:\-–—]+$/g;
+  const oldNormalize = (text) => String(text || '').replace(/\s+/g, ' ').replace(OLD_MARKS, '').trim().toLowerCase()
+      .replace(/i̇/g, 'i').replace(/ı/g, 'i');
+  const PIECES = ['a', 'B', 'İ', 'ı', ' ', '\t', '\n', ' ', '　', '«', '»', '‹', '›', '<', '>', '←', '→',
+    '⟨', '⟩', '❮', '❯', '|', '·', '•', '…', ':', '-', '–', '—', 'next', 'Folge', '1', '.', '_', '*'];
+
+  it('gives what the regex gave, for any text', () => {
+    fc.assert(fc.property(fc.array(fc.constantFrom(...PIECES), {maxLength: 40}), (pieces) => {
+      const text = pieces.join('');
+      expect(EpisodeLinks.normalize(text)).toBe(oldNormalize(text));
+    }), {numRuns: 3000});
+    for (const text of [undefined, null, '', 0, '  » Next episode ›  ', '———', ' - - - ']) {
+      expect(EpisodeLinks.normalize(text)).toBe(oldNormalize(text));
+    }
+  });
+
+  it('takes a long run of marks inside a text in linear time', () => {
+    const text = 'a' + '-'.repeat(200000) + 'a';
+    const t0 = performance.now();
+    expect(EpisodeLinks.normalize(text)).toBe(text);
+    // The regex: about 11 s for this text (1 s at 60,000).
+    expect(performance.now() - t0).toBeLessThan(200);
   });
 });

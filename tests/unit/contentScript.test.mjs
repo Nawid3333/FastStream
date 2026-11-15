@@ -112,6 +112,74 @@ describe('SCRAPE_CAPTIONS', () => {
     const tracks = await page.send({type: 'SCRAPE_CAPTIONS'});
     expect(tracks.map((track) => track.source)).toEqual(['https://cdn.example/cc.vtt']);
   });
+
+  // Everything read goes to the background, which keeps it with the frame: a page must not
+  // be able to send any number of files of any size.
+  it('reads at most 64 tracks', async () => {
+    const responses = {};
+    for (let i = 0; i < 70; i++) responses[`https://cdn.example/${i}.vtt`] = 'WEBVTT';
+    const page = loadContentScript({responses});
+    for (let i = 0; i < 70; i++) addTrack(page, `https://cdn.example/${i}.vtt`);
+    const tracks = await page.send({type: 'SCRAPE_CAPTIONS'});
+    expect(tracks).toHaveLength(64);
+  });
+
+  it('gives up the track that goes past 64 MB, and keeps the one read at the same time', async () => {
+    // Two 40 MB files, read a megabyte at a time by turns.
+    const megabyte = new Uint8Array(1024 * 1024).fill(0x41);
+    const big = () => {
+      let pulls = 0;
+      return new Response(new ReadableStream({
+        pull(controller) {
+          if (pulls++ === 40) controller.close();
+          else controller.enqueue(megabyte);
+        },
+      }), {status: 200});
+    };
+    const page = loadContentScript({responses: {'https://cdn.example/a.vtt': big, 'https://cdn.example/b.vtt': big}});
+    addTrack(page, 'https://cdn.example/a.vtt');
+    addTrack(page, 'https://cdn.example/b.vtt');
+    const tracks = await page.send({type: 'SCRAPE_CAPTIONS'});
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0].data).toHaveLength(40 * 1024 * 1024);
+  }, 30000);
+
+  it('gives the bytes of a track that stalled back to the others', async () => {
+    const megabyte = new Uint8Array(1024 * 1024).fill(0x41);
+    // A: 60 MB at once, then nothing; stopped when nothing has come for 2 s.
+    const stalling = (init) => new Response(new ReadableStream({
+      start(controller) {
+        for (let i = 0; i < 60; i++) controller.enqueue(megabyte);
+        init.signal.addEventListener('abort', () => controller.error(init.signal.reason));
+      },
+    }), {status: 200});
+    // B: 1 MB, 1 MB when let go, then 4 MB when let go again: 66 MB with A's.
+    const gates = [Promise.withResolvers(), Promise.withResolvers()];
+    const pieces = [() => [megabyte], async () => (await gates[0].promise, [megabyte]),
+      async () => (await gates[1].promise, [megabyte, megabyte, megabyte, megabyte])];
+    const slow = () => new Response(new ReadableStream({
+      async pull(controller) {
+        const piece = pieces.shift();
+        if (!piece) return controller.close();
+        for (const chunk of await piece()) controller.enqueue(chunk);
+      },
+    }), {status: 200});
+    const page = loadContentScript({responses: {'https://cdn.example/a.vtt': stalling, 'https://cdn.example/b.vtt': slow}});
+    addTrack(page, 'https://cdn.example/a.vtt');
+    addTrack(page, 'https://cdn.example/b.vtt');
+    const answer = page.send({type: 'SCRAPE_CAPTIONS'});
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
+    await settle();
+    // B's second megabyte a second later, so that only A has had nothing for 2 s.
+    page.advance(1000);
+    gates[0].resolve();
+    await settle();
+    page.advance(1000);
+    await settle();
+    gates[1].resolve();
+    const tracks = await answer;
+    expect(tracks.map((track) => [track.source, track.data.length])).toEqual([['https://cdn.example/b.vtt', 6 * 1024 * 1024]]);
+  }, 30000);
 });
 
 const PLAYER_URL = 'moz-extension://test/player/index.html';

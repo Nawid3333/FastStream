@@ -914,6 +914,13 @@
   // 'subtitles' is also what a <track> with no kind attribute reports, which is how most
   // pages write them.
   const ScrapedTrackKinds = ['subtitles', 'captions'];
+  // What one reading of a page's tracks takes at most. A subtitle file is kilobytes, a
+  // typeset one a few megabytes, and a page has a few dozen at most; all of it goes to the
+  // background, which keeps it with the frame. Without a bound a page could send any number
+  // of files of any size at each new stream (a review, 2026-11-15). Past the bytes, a track
+  // is given up as a failed request is.
+  const ScrapedTracksMax = 64;
+  const ScrapedBytesMax = 64 * 1024 * 1024;
 
   /**
    * @param {*} request
@@ -925,7 +932,10 @@
     // XMLHttpRequest refuses) answers inside the loop, and the answer went out then, with
     // the tracks after it never asked for.
     const trackElements = /** @type {HTMLTrackElement[]} */ (querySelectorAllIncludingShadows('track'))
-        .filter((track) => track.src && ScrapedTrackKinds.includes(track.kind));
+        .filter((track) => track.src && ScrapedTrackKinds.includes(track.kind))
+        .slice(0, ScrapedTracksMax);
+    // Shared by the requests, which run at once.
+    const budget = {left: ScrapedBytesMax};
     const pending = trackElements.length;
     let done = 0;
     /** @type {{data: string, source: string, label: string, language: string}[]} */
@@ -944,7 +954,7 @@
           });
         }
         if (done === pending) sendResponse(tracks);
-      });
+      }, budget);
     }
     if (pending === 0) sendResponse(tracks);
 
@@ -1803,8 +1813,10 @@
    * @param {string} url - What to ask for, with a GET.
    * @param {Function} callback - Called with the error (true, or none), the response, and
    *   its text (false for none).
+   * @param {{left: number}} budget - The bytes the requests sharing it may still read: one
+   *   whose body goes past it is given up, as a failed one. A failed one gives its bytes back.
    */
-  function httpRequest(url, callback) {
+  function httpRequest(url, callback, budget) {
     // fetch() since 2026-10-06 (XMLHttpRequest before). The whole request has
     // HttpRequestTimeoutMs; it stops when nothing has come for HttpRequestStallMs, before
     // the headers or between pieces of the body. A failed or stopped request calls back
@@ -1821,6 +1833,8 @@
       signal: AbortSignal.any([stall.signal, AbortSignal.timeout(HttpRequestTimeoutMs)]),
     };
 
+    // The bytes this request took from the budget.
+    let read = 0;
     const load = async () => {
       armStallTimer();
       const response = await fetch(url, init);
@@ -1835,14 +1849,27 @@
           armStallTimer();
           const {done, value} = await reader.read();
           if (done) break;
+          read += value.byteLength;
+          budget.left -= value.byteLength;
+          if (budget.left < 0) {
+            // Given back at once: a read of another request may already be next.
+            budget.left += read;
+            read = 0;
+            reader.cancel().catch(() => {});
+            throw new Error('past the bytes a reading of the tracks takes');
+          }
           chunks.push(value);
         }
       }
       const bytes = await new Blob(chunks).arrayBuffer();
       return [undefined, response, decodeSubtitleBytes(bytes, response.headers.get('Content-Type'))];
     };
-    // The callback runs outside the catch: one that throws is not a failed request.
-    load().catch(() => [true, undefined, false]).then(([err, response, text]) => {
+    // The callback runs outside the catch: one that throws is not a failed request. A failed
+    // one gives what it read back to the others, which read at the same time.
+    load().catch(() => {
+      budget.left += read;
+      return [true, undefined, false];
+    }).then(([err, response, text]) => {
       clearTimeout(stallTimer);
       callback(err, response, text);
     }).catch((e) => console.error('FastStream: a subtitle answer failed', e));
