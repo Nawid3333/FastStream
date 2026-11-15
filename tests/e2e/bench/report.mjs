@@ -32,12 +32,19 @@ export const MEASURES = {
   tabsAhead10: {label: '... seconds of video ahead, 10 s in', unit: 's', floor: 1, lowerIsBetter: false},
   tabsFrontAll: {label: '... has its whole video', unit: 'ms', floor: 500},
   tabsEveryAll: {label: '... all four players have theirs', unit: 'ms', floor: 500},
+  // The stall scenarios (ab.bench.mjs runStall).
+  stallCount: {label: 'stalls while playing (waiting for media)', unit: '', floor: 1},
+  stallMs: {label: 'time stalled while playing', unit: 'ms', floor: 250},
+  stallPlayed: {label: 'seconds played in the playing time', unit: 's', floor: 1, lowerIsBetter: false},
+  stallMB: {label: 'megabytes fetched while playing', unit: 'MB', floor: 1},
+  stallSeek: {label: 'seek far into it: playing past the place (median of 3)', unit: 'ms', floor: 250},
 };
 
 /**
  * @typedef {Object} BenchRun
  * @property {{A: string, B: string}} labels
- * @property {{rateMbit: number, ttfbMs: number}} line
+ * @property {{rateMbit: number, ttfbMs: number, jitterMs?: number, jitterFactor?: number,
+ *   connMbit?: number, dropPct?: number}} line
  * @property {number} rounds
  * @property {number} warmup
  * @property {Object<string, {A: Object<string, number[]>, B: Object<string, number[]>}>} results
@@ -58,9 +65,15 @@ export function renderReport(run) {
         result: compare(A[measure] || [], B[measure] || [], {floor: how.floor, lowerIsBetter: how.lowerIsBetter ?? true})});
     }
   }
-  const {rateMbit, ttfbMs} = run.line;
-  const line = rateMbit ? `${rateMbit} Mbit/s shared line, ${ttfbMs} ms to first byte` :
-    (ttfbMs ? `no rate limit, ${ttfbMs} ms to first byte` : 'local, no limit');
+  const {rateMbit, ttfbMs, jitterMs = 0, jitterFactor = 1, connMbit = 0, dropPct = 0} = run.line;
+  const extras = [
+    jitterMs && rateMbit ? `falling to ${jitterFactor} of its rate every other ${jitterMs} ms` : '',
+    connMbit ? `at most ${connMbit} Mbit/s an answer` : '',
+    dropPct ? `${dropPct} % of answers cut part-way` : '',
+  ].filter(Boolean);
+  const line = (rateMbit ? `${rateMbit} Mbit/s shared line, ${ttfbMs} ms to first byte` :
+    (ttfbMs ? `no rate limit, ${ttfbMs} ms to first byte` : 'local, no limit')) +
+    (extras.length ? `, ${extras.join(', ')}` : '');
   return [
     `# A/B benchmark ${run.at || ''}`.trimEnd(),
     '',

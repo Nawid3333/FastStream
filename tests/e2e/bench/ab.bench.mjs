@@ -21,6 +21,10 @@
 //   have theirs (what the turns between tabs cost the line as a whole). Each video is 90 s
 //   at about 2.1 Mbit/s. Meant for a line slow beside that (--rate 8: under four times the
 //   video's rate, where a player in front holds the line; --rate 40: fast, all at once).
+// - stall-mp4, stall-hls, stall-dash: buffering. A long video (the long MP4, a looped HLS
+//   playlist, a looped DASH manifest) played for BENCH_STALL_MS: how often and how long it
+//   waited for media (not for a seek), how far it got, the megabytes fetched; then three seeks
+//   far into it, the median time to playing past the place.
 //
 // Builds alternate in each round (ABBA). One round per build is run first and thrown away:
 // the first load of a build compiles its modules.
@@ -43,19 +47,29 @@ const BACKGROUND_TABS = 3;
 const TABS_VIDEO_S = boundedNumber('BENCH_TABS_VIDEO_S', 90, 3600);
 // How long a tabs run may take: four videos over the slowest line it is meant for.
 const TABS_TIMEOUT_MS = boundedNumber('BENCH_TABS_TIMEOUT_MS', 240000, 3600000);
+// The stall scenarios' HLS and DASH videos: so long (the MP4 is the long-av fixture).
+const STALL_VIDEO_S = boundedNumber('BENCH_STALL_VIDEO_S', 600, 3600);
 
 /**
  * The scenarios: a source, and what to measure on it.
  * @type {Record<string, {source: ((origin: string, run: string) => string) | null, seek?: boolean,
- *   paused?: boolean, playMs?: number, tabs?: boolean}>}
+ *   paused?: boolean, playMs?: number, tabs?: boolean, stall?: boolean}>}
  */
 const SCENARIOS = {
-  mp4: {source: (origin, run) => `${origin}/fixtures/long-av.mp4?run=${run}`, seek: true, paused: true},
-  hls: {source: (origin, run) => `${origin}/fixtures/hls-fmp4/index.m3u8?run=${run}`, playMs: 3000},
-  dash: {source: (origin, run) => `${origin}/fixtures/dash-template/manifest.mpd?run=${run}`, playMs: 3000},
-  idle: {source: null},
-  tabs: {source: (origin, run) => `${origin}/fixtures/looped.m3u8?seconds=${TABS_VIDEO_S}&run=${run}`, tabs: true},
+  'mp4': {source: (origin, run) => `${origin}/fixtures/long-av.mp4?run=${run}`, seek: true, paused: true},
+  'hls': {source: (origin, run) => `${origin}/fixtures/hls-fmp4/index.m3u8?run=${run}`, playMs: 3000},
+  'dash': {source: (origin, run) => `${origin}/fixtures/dash-template/manifest.mpd?run=${run}`, playMs: 3000},
+  'idle': {source: null},
+  'tabs': {source: (origin, run) => `${origin}/fixtures/looped.m3u8?seconds=${TABS_VIDEO_S}&run=${run}`, tabs: true},
+  // Buffering, per kind of player: a long video played for bench.stallMs, then seeks far into
+  // it (runStall). Meant for a line near the video's rate, an uneven one (--jitter), one with
+  // a cap per connection (--conn) or cut answers (--drop).
+  'stall-mp4': {source: (origin, run) => `${origin}/fixtures/long-av.mp4?run=${run}`, stall: true},
+  'stall-hls': {source: (origin, run) => `${origin}/fixtures/looped.m3u8?seconds=${STALL_VIDEO_S}&run=${run}`, stall: true},
+  'stall-dash': {source: (origin, run) => `${origin}/fixtures/looped.mpd?seconds=${STALL_VIDEO_S}&run=${run}`, stall: true},
 };
+// Where the stall scenarios seek to, as parts of the video's length: ahead, further, back.
+const STALL_SEEKS = [0.45, 0.75, 0.25];
 
 /**
  * Put into every page before its first script (addInitScript). Records the moments above in
@@ -68,7 +82,11 @@ function probe(where) {
   const now = () => performance.now();
   const B = /** @type {any} */ (window).__bench = {
     marks: {}, counting: false, wake: 0, mutations: 0, gaps: [], seek: null, sites: {},
+    // The stall scenarios: playback waiting for media, not for a seek (runStall sets it).
+    stall: null,
   };
+  // Every media request, for the bytes a stall scenario fetched (the default keeps 250).
+  performance.setResourceTimingBufferSize(100000);
   // Where in the player's code a callback was asked for: the first frame of the stack that is
   // not this probe's.
   const site = () => {
@@ -128,6 +146,17 @@ function probe(where) {
     B.video = found;
     found.addEventListener('loadeddata', () => mark('firstFrame'));
     found.addEventListener('playing', () => mark('playing'));
+    // A stall: 'waiting' while playing, not seeking, until 'playing' again.
+    found.addEventListener('waiting', () => {
+      if (B.stall && B.stall.since === null && !found.seeking) B.stall.since = now();
+    });
+    found.addEventListener('playing', () => {
+      if (B.stall && B.stall.since !== null) {
+        B.stall.count++;
+        B.stall.ms += now() - B.stall.since;
+        B.stall.since = null;
+      }
+    });
     found.addEventListener('seeked', () => {
       if (B.seek && B.seek.seeked === undefined) B.seek.seeked = now() - B.seek.start;
     });
@@ -305,6 +334,50 @@ async function runTabs(build, run) {
 }
 
 /**
+ * A stall scenario's run, from the moment it plays: bench.stallMs of playback (stalls, their
+ * time, how far it got, what it fetched), then seeks far into the video (STALL_SEEKS), each
+ * timed to playing past its place.
+ * @param {Record<string, number>} result - Gets the measures.
+ * @return {Promise<void>}
+ */
+async function runStall(result) {
+  const start = await browser.execute(() => {
+    const B = /** @type {any} */ (window).__bench;
+    B.stall = {count: 0, ms: 0, since: null};
+    return B.video.currentTime;
+  });
+  await browser.pause(bench.stallMs);
+  const played = await browser.execute(() => {
+    const B = /** @type {any} */ (window).__bench;
+    const stall = B.stall;
+    if (stall.since !== null) {
+      stall.count++;
+      stall.ms += performance.now() - stall.since;
+    }
+    B.stall = null;
+    const bytes = performance.getEntriesByType('resource').filter((entry) => entry.name.includes('/fixtures/'))
+        .reduce((sum, entry) => sum + (/** @type {PerformanceResourceTiming} */ (entry).transferSize || 0), 0);
+    return {count: stall.count, ms: stall.ms, time: B.video.currentTime, duration: B.video.duration, bytes};
+  });
+  Object.assign(result, {stallCount: played.count, stallMs: played.ms, stallPlayed: played.time - start,
+    stallMB: played.bytes / 1e6});
+  const seeks = [];
+  for (const part of STALL_SEEKS) {
+    const to = Math.floor(played.duration * part);
+    await browser.execute((to) => {
+      const B = /** @type {any} */ (window).__bench;
+      B.seek = {to, start: performance.now()};
+      const client = /** @type {any} */ (window).fastStream;
+      client.currentTime = to;
+      client.play();
+    }, to);
+    seeks.push(await waitFor(() => /** @type {any} */ (window).__bench.seek.resumed, 60000, `playing after the seek to ${to} s`));
+  }
+  seeks.sort((a, b) => a - b);
+  result.stallSeek = seeks[Math.floor(seeks.length / 2)];
+}
+
+/**
  * One run of a scenario on one build.
  * @param {string} name - The scenario.
  * @param {'A'|'B'} build
@@ -334,6 +407,11 @@ async function runOnce(name, build, run) {
   await waitFor(() => /** @type {any} */ (window).__bench?.marks.playing, 30000, 'playing');
   const marks = await browser.execute(() => /** @type {any} */ (window).__bench.marks);
   Object.assign(result, {client: marks.client, firstFrame: marks.firstFrame, playing: marks.playing});
+
+  if (scenario.stall) {
+    await runStall(result);
+    return result;
+  }
 
   if (scenario.seek) {
     // Two seconds in, as someone skipping ahead would.

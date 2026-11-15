@@ -13,6 +13,7 @@
 //
 // It measures and writes logs/bench/ab-<time>.json and .md; it fails only when a scenario
 // cannot run (a broken build), never on a number.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -34,13 +35,37 @@ for (const [name, dir] of Object.entries(bench.dirs)) {
     throw new Error(`BENCH_${name}_DIR must name a web build (a built/web folder); got ${dir}. Run tools/bench-ab.mjs.`);
   }
 }
-const {rateMbit, ttfbMs} = bench.line;
+const {rateMbit, ttfbMs, jitterMs, jitterFactor, connMbit, dropPct} = bench.line;
 // BENCH_TRACE=1: the media requests' trace (benchServer), in logs/bench.
 const traceFile = process.env.BENCH_TRACE === '1' ?
   path.join(__dirname, '..', '..', 'logs', 'bench', `trace-${new Date().toISOString().replaceAll(':', '-')}.jsonl`) : null;
 if (traceFile) fs.mkdirSync(path.dirname(traceFile), {recursive: true});
 /** @type {Map<string, number>} How many media requests each address and port had. */
 const traceCounts = new Map();
+
+/**
+ * A DASH manifest as long as a scenario needs: the dash-template fixture (9 s) Period after
+ * Period, each Period's segments under addresses of their own (`p=`) with the run's name in
+ * them, as the looped HLS playlist does with its discontinuities.
+ * @param {number} seconds - Rounded up to whole Periods.
+ * @param {string} run - Already URL-encoded.
+ * @return {string}
+ */
+function loopedManifest(seconds, run) {
+  const fixture = fs.readFileSync(path.join(fixturesDir, 'dash-template', 'manifest.mpd'), 'utf8');
+  const period = fixture.slice(fixture.indexOf('<Period'), fixture.indexOf('</Period>') + '</Period>'.length);
+  const count = Math.ceil(seconds / 9);
+  const periods = [];
+  for (let p = 0; p < count; p++) {
+    periods.push(period.replace('<Period id="0" start="PT0.0S">', `<Period id="${p}" start="PT${p * 9}.0S" duration="PT9.0S">`)
+        .replaceAll('initialization="init-stream', 'initialization="dash-template/init-stream')
+        .replaceAll('media="chunk-stream', 'media="dash-template/chunk-stream')
+        .replaceAll('.m4s"', `.m4s?run=${run}&amp;p=${p}"`));
+  }
+  const head = fixture.slice(0, fixture.indexOf('<Period'))
+      .replace('mediaPresentationDuration="PT9.0S"', `mediaPresentationDuration="PT${count * 9}.0S"`);
+  return `${head}${periods.join('\n')}\n</MPD>\n`;
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
@@ -50,21 +75,55 @@ const MIME = {
 };
 
 /**
- * One line shared by every answer of a server: a byte goes out no sooner than the line's rate
- * allows after the bytes before it, whichever answer they were in.
+ * A line: a byte goes out no sooner than the line's rate allows after the bytes before it,
+ * whichever answer they were in (one line for all of a server's answers; one per answer for a
+ * cap per connection).
  * @param {number} mbit - Megabits a second; 0 for no limit.
- * @return {(bytes: number) => number} How long to wait, in ms, before sending so many bytes.
+ * @param {number} [jitter] - Every so many ms the rate switches between full and `factor` of
+ *   it (0: steady). One clock for every line: a round's ABBA order spreads where in the pattern
+ *   each build's run falls.
+ * @param {number} [factor]
+ * @return {(bytes: number) => number} When (performance.now() ms) so many bytes are sent, if
+ *   they are handed over now.
  */
-function sharedLine(mbit) {
+function paceLine(mbit, jitter = 0, factor = 1) {
   let freeAt = 0;
   const bytesPerMs = mbit * 1e6 / 8 / 1000;
+  const slow = Math.max(factor, 0.01);
   return (bytes) => {
-    if (!mbit) return 0;
     const now = performance.now();
+    if (!mbit) return now;
     const start = Math.max(now, freeAt);
-    freeAt = start + bytes / bytesPerMs;
-    return freeAt - now;
+    const rate = jitter && Math.floor(start / jitter) % 2 === 1 ? bytesPerMs * slow : bytesPerMs;
+    freeAt = start + bytes / rate;
+    return freeAt;
   };
+}
+
+/** @type {Map<string, number>} How often each media request was asked for, per run (cutAt). */
+const asked = new Map();
+
+/**
+ * Where to cut an answer part-way, if at all (BENCH_DROP_PCT): the same requests for both
+ * builds - by path, place in a looped playlist and range, not by run - and only the first time
+ * a run asks, so a retry gets through.
+ * @param {string} rel - The path.
+ * @param {URLSearchParams} params - The request's query.
+ * @param {{start: number, end: number}} range
+ * @return {number} The byte to cut at; Infinity for none.
+ */
+function cutAt(rel, params, range) {
+  if (!dropPct || /\.(m3u8|mpd)$/.test(rel)) return Infinity;
+  const run = params.get('run') || '';
+  const rest = new URLSearchParams(params);
+  rest.delete('run');
+  const key = `${rel}?${rest}|${range.start}`;
+  const count = (asked.get(`${run}|${key}`) || 0) + 1;
+  asked.set(`${run}|${key}`, count);
+  const hash = crypto.createHash('sha1').update(key).digest();
+  if (count > 1 || hash.readUInt16BE(0) % 1000 >= dropPct * 10) return Infinity;
+  // Somewhere from a tenth to nine tenths in.
+  return range.start + Math.floor((range.end - range.start + 1) * (0.1 + (hash.readUInt16BE(2) % 800) / 1000));
 }
 
 /**
@@ -74,14 +133,23 @@ function sharedLine(mbit) {
  * @param {{start: number, end: number}} range
  * @param {(bytes: number) => number} line
  * @param {number} ttfb - How long the first byte is held back, in ms.
+ * @param {{cut?: number, capMbit?: number}} [media] - For the media: the byte at which the
+ *   connection is cut (cutAt), and the cap on this answer (BENCH_CONN_MBIT, 0: none).
  */
-function sendPaced(res, file, {start, end}, line, ttfb) {
+function sendPaced(res, file, {start, end}, line, ttfb, {cut = Infinity, capMbit = 0} = {}) {
   const fd = fs.openSync(file, 'r');
   let at = start;
+  // The cap per connection: this answer's own line beside the shared one.
+  const own = paceLine(capMbit);
   const next = () => {
     if (res.destroyed || at > end) {
       fs.closeSync(fd);
       if (!res.destroyed) res.end();
+      return;
+    }
+    if (at >= cut) {
+      fs.closeSync(fd);
+      res.destroy();
       return;
     }
     const piece = Buffer.alloc(Math.min(65536, end - at + 1));
@@ -93,7 +161,7 @@ function sendPaced(res, file, {start, end}, line, ttfb) {
         return;
       }
       res.write(piece) ? next() : res.once('drain', next);
-    }, line(piece.length));
+    }, Math.max(line(piece.length), own(piece.length)) - performance.now());
   };
   setTimeout(next, ttfb);
 }
@@ -104,7 +172,7 @@ function sendPaced(res, file, {start, end}, line, ttfb) {
  * @return {http.Server}
  */
 function benchServer(buildDir) {
-  const line = sharedLine(rateMbit);
+  const line = paceLine(rateMbit, jitterMs, jitterFactor);
   return http.createServer((req, res) => {
     // BENCH_TRACE=1: each media request's start and end, one JSON line each, to see who had
     // the line when (the tabs scenario). Only what the server knows itself goes in it - the
@@ -138,6 +206,14 @@ function benchServer(buildDir) {
       res.writeHead(200, {'Content-Type': MIME['.m3u8'], 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'});
       return res.end(loopedPlaylist(seconds, '/fixtures/hls-ts/', {unique: true}).replaceAll('?i=', `?run=${run}&i=`));
     }
+    // The same for DASH: the dash-template fixture's 9 s Period after Period (loopedManifest).
+    if (rel === '/fixtures/looped.mpd') {
+      const query = new URL(req.url, 'http://localhost').searchParams;
+      const seconds = Math.min(Math.max(Number(query.get('seconds')) || 90, 9), 3600);
+      const run = encodeURIComponent(query.get('run') || '');
+      res.writeHead(200, {'Content-Type': MIME['.mpd'], 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'});
+      return res.end(loopedManifest(seconds, run));
+    }
     const fromFixtures = rel.startsWith('/fixtures/');
     const abs = resolveInside(fromFixtures ? fixturesDir : buildDir, fromFixtures ? rel.slice('/fixtures'.length) : rel);
     if (abs === null || !fs.existsSync(abs) || fs.statSync(abs).isDirectory()) {
@@ -158,13 +234,15 @@ function benchServer(buildDir) {
     // Only the media goes over the slow line and waits for its first byte: the player's own
     // files come at once, as from the extension's package (they waited too at first, 150 ms
     // for each module, and every start took 4.5 s).
-    const pace = fromFixtures ? line : () => 0;
+    const pace = fromFixtures ? line : () => performance.now();
+    const span = range || {start: 0, end: size - 1};
+    const media = fromFixtures ? {cut: cutAt(rel, new URL(req.url, 'http://localhost').searchParams, span), capMbit: connMbit} : {};
     if (range) {
       res.writeHead(206, {...headers, 'Content-Range': `bytes ${range.start}-${range.end}/${size}`, 'Content-Length': range.end - range.start + 1});
-      return sendPaced(res, abs, range, pace, fromFixtures ? ttfbMs : 0);
+      return sendPaced(res, abs, range, pace, fromFixtures ? ttfbMs : 0, media);
     }
     res.writeHead(200, {...headers, 'Content-Length': size});
-    sendPaced(res, abs, {start: 0, end: size - 1}, pace, fromFixtures ? ttfbMs : 0);
+    sendPaced(res, abs, span, pace, fromFixtures ? ttfbMs : 0, media);
   });
 }
 

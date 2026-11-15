@@ -36,6 +36,21 @@ export const bench = {
   // The tabs scenario: every tab's video from one host (BENCH_TABS_HOSTS=same) or each from
   // its own (the default).
   tabsOwnHosts: env.BENCH_TABS_HOSTS !== 'same',
-  line: {rateMbit: boundedNumber('BENCH_RATE_MBIT', 0, 10000), ttfbMs: boundedNumber('BENCH_TTFB_MS', 0, 10000)},
+  line: {
+    rateMbit: boundedNumber('BENCH_RATE_MBIT', 0, 10000),
+    ttfbMs: boundedNumber('BENCH_TTFB_MS', 0, 10000),
+    // A line whose rate falls now and then, as a real one does: every BENCH_JITTER_MS the
+    // shared line's rate switches between its full rate and BENCH_JITTER_FACTOR of it (0 ms:
+    // a steady line).
+    jitterMs: boundedNumber('BENCH_JITTER_MS', 0, 600000),
+    jitterFactor: boundedNumber('BENCH_JITTER_FACTOR', 0.25, 1),
+    // A cap per answer, as servers that throttle each connection have (0: none).
+    connMbit: boundedNumber('BENCH_CONN_MBIT', 0, 10000),
+    // Answers cut part-way, in percent: decided per request by its path and range, the first
+    // time only, so both builds lose the same answers and a retry gets through.
+    dropPct: boundedNumber('BENCH_DROP_PCT', 0, 50),
+  },
+  // How long the stall scenarios play before their seeks.
+  stallMs: boundedNumber('BENCH_STALL_MS', 60000, 3600000),
   out: path.resolve(import.meta.dirname, '../../../logs/bench'),
 };
