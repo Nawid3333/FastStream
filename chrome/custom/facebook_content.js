@@ -44,6 +44,24 @@
     return new TextEncoder().encode(text).toBase64();
   }
 
+  /**
+   * A playback_video's DASH manifest: its playlist, or else its delivery fields' manifest. A
+   * reel opened signed out has no playlist; its manifest is in
+   * videoDeliveryLegacyFields.dash_manifest_xml_string, and without it FastStream played only
+   * one of the separate files the page fetches - the sound of a reel preloaded after it, no
+   * picture (live check, 2026-11-15).
+   * @param {*} video - The playback_video object.
+   * @return {?string}
+   */
+  function manifestOf(video) {
+    for (const mpd of [video?.playlist, video?.videoDeliveryLegacyFields?.dash_manifest_xml_string]) {
+      if (typeof mpd === 'string' && mpd) {
+        return mpd;
+      }
+    }
+    return null;
+  }
+
   // The page's JSON script tags already read, and the manifests already reported.
   const seenScripts = new WeakSet();
   const reported = new Set();
@@ -78,15 +96,17 @@
       return data.stack.includes('video');
     });
 
-    // The first one with its manifest not reported yet: one without (playlist) was sent as a
+    // The first one with its manifest not reported yet: one without a manifest was sent as a
     // source whose manifest was the word "undefined", and a batch whose first manifest was
     // one already reported dropped a new video after it (final review, 2026-10-10).
-    const found = datas.find((data) => typeof data.value?.playlist === 'string' && data.value.playlist &&
-      !reported.has(data.value.playlist));
+    const found = datas.find((data) => {
+      const mpd = manifestOf(data.value);
+      return mpd && !reported.has(mpd);
+    });
     if (!found) {
       return;
     }
-    const mpd = found.value.playlist;
+    const mpd = /** @type {string} */ (manifestOf(found.value));
     reported.add(mpd);
     const url = `data:application/dash+xml;base64,${base64Utf8(mpd)}`;
     chrome.runtime.sendMessage({
