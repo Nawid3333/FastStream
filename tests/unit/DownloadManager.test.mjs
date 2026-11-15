@@ -351,6 +351,19 @@ describe('DownloadManager', () => {
     expect(manager.received()).toBe(1000);
   });
 
+  it('tells the other players at once when a download ends, not at the page\'s next tick', () => {
+    // A hidden page's timers run late; the next player in turn starts when this one says it
+    // has all it wanted (PlayerTurns), so that goes out with the download's end.
+    const client = {predownloadFragments: vi.fn(), updatePeers: vi.fn()};
+    const manager = new DownloadManager(client);
+    manager.downloaders = [];
+    manager.testing = false;
+    const done = {entry: {status: DownloadStatus.DOWNLOAD_COMPLETE}, stats: {loaded: 1000}};
+    manager.onDownloaderFinished(done, done.entry);
+    expect(client.updatePeers).toHaveBeenCalledTimes(1);
+    expect(manager.activeCount()).toBe(0);
+  });
+
   it('ignores a watcher that gives up after its download is over', async () => {
     // It was told "aborted" after "done", and the finished entry was aborted: a stored
     // fragment marked failed, downloaded again on the next request.

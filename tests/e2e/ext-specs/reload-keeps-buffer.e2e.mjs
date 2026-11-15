@@ -27,7 +27,15 @@ const CORS = {
 
 let server;
 let pages = 0;
-/** @type {Array<{sig: ?string, place: ?string}>} */
+let slowLoads = 0;
+// When the server got the slow load (Date.now()).
+let slowAskedAt = 0;
+/** @type {Array<{sig: ?string, at: number}>} */
+let manifests = [];
+// Longer than the 3 s after which a player gone at a beforeunload with no navigation after
+// it loads again (main.mjs StayedMs).
+const SLOW_MS = 5000;
+/** @type {Array<{sig: ?string, place: ?string, at: number}>} */
 let segments = [];
 
 /**
@@ -54,7 +62,7 @@ async function playerState() {
   const state = await browser.execute(() => {
     const client = window.fastStream;
     const video = client?.player?.getVideo?.();
-    return {player: true, url: client?.source?.url || '', time: client?.currentTime || 0,
+    return {player: true, client: !!client, url: client?.source?.url || '', time: client?.currentTime || 0,
       readyState: video?.readyState || 0, failed: !!client?.interfaceController?.failed,
       tookBack: client?.bufferTakenBack || null};
   });
@@ -237,13 +245,25 @@ describe('A reload of the page', function() {
         res.writeHead(204, CORS);
         return res.end();
       }
-      if (url.pathname === '/watch' || url.pathname === '/watch-disk' || url.pathname === '/watch-gone') {
+      if (['/watch', '/watch-disk', '/watch-gone', '/watch-slow'].includes(url.pathname)) {
         pages++;
-        // Never from the cache: every load issues a new link.
-        res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store'});
-        return res.end(`<!doctype html><title>watch</title>
-          <video muted style="width: 640px; height: 360px"></video>
-          <script>fetch("${SITE}/v/master.m3u8?sig=s${pages}&e=43200");</script>`);
+        const sig = `s${pages}`;
+        const answer = () => {
+          // Never from the cache: every load issues a new link.
+          res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store'});
+          res.end(`<!doctype html><title>watch</title>
+            <video muted style="width: 640px; height: 360px"></video>
+            <script>fetch("${SITE}/v/master.m3u8?sig=${sig}&e=43200");</script>`);
+        };
+        // /watch-slow answers a load after its first only SLOW_MS later: the old page stays
+        // meanwhile, its player gone at beforeunload.
+        slowLoads += url.pathname === '/watch-slow' ? 1 : 0;
+        if (url.pathname === '/watch-slow' && slowLoads > 1) {
+          slowAskedAt = Date.now();
+          setTimeout(answer, SLOW_MS);
+          return;
+        }
+        return answer();
       }
       if (url.pathname === '/elsewhere') {
         res.writeHead(200, {'Content-Type': 'text/html'});
@@ -251,11 +271,12 @@ describe('A reload of the page', function() {
       }
       if (url.pathname === '/v/master.m3u8') {
         const sig = url.searchParams.get('sig');
+        manifests.push({sig, at: Date.now()});
         res.writeHead(200, {...CORS, 'Content-Type': 'application/vnd.apple.mpegurl'});
         return res.end(loopedPlaylist(180, '/v/seg/', {unique: true}).replace(/\.ts\?i=/g, `.ts?sig=${sig}&i=`));
       }
       if (url.pathname.startsWith('/v/seg/')) {
-        segments.push({sig: url.searchParams.get('sig'), place: url.searchParams.get('i')});
+        segments.push({sig: url.searchParams.get('sig'), place: url.searchParams.get('i'), at: Date.now()});
         res.writeHead(200, {...CORS, 'Content-Type': 'video/mp2t'});
         return res.end(fs.readFileSync(path.join(SEGMENTS, path.basename(url.pathname))));
       }
@@ -289,6 +310,35 @@ describe('A reload of the page', function() {
     console.log(`      buffered ${buffered.size} before the reload; took back ${JSON.stringify(tookBack)};`,
         `asked for again after it: ${again.length} (${placesFor(second).size} under the new link)`);
     expect(tookBack.of).toBeGreaterThan(0);
+    expect(again).toEqual([]);
+    expect((await playerState()).failed).toBe(false);
+  });
+
+  it('keeps what was buffered when the page takes longer than 3 s to come', async function() {
+    await setOptions({autoEnableURLs: [SITE + '/']});
+    segments = [];
+    manifests = [];
+    slowLoads = 0;
+    const first = await loadAndBuffer('/watch-slow', 8);
+    const buffered = placesFor(first);
+    await reloadPage();
+    // The case itself: 4 s on, the old page is still there, and its player, gone at
+    // beforeunload, has loaded again (main.mjs StayedMs, 3 s). Measured on 2026-11-15: it has
+    // no stream then, so it takes nothing back, and asks the old link for nothing.
+    await browser.pause(Math.max(0, slowAskedAt + 4000 - Date.now()));
+    const old = await playerState();
+    const oldAsked = [...manifests, ...segments].filter((s) => s.sig === first && s.at >= slowAskedAt + 3000).length;
+    expect(Date.now() - slowAskedAt).toBeLessThan(SLOW_MS);
+    const second = `s${pages}`;
+    await playsLink(second, 'the reloaded page\'s player never played');
+    const tookBack = await tookBackAll();
+    const again = [...placesFor(second)].filter((place) => buffered.has(place));
+    console.log(`      4 s into the reload, the old page's player: ${JSON.stringify(old)}; the old link asked for`,
+        `${oldAsked} after 3 s; buffered ${buffered.size} before the reload; took back ${JSON.stringify(tookBack)};`,
+        `asked for again after it: ${again.length}`);
+    expect(old.client).toBe(true);
+    expect(tookBack.of).toBeGreaterThan(0);
+    expect(tookBack.taken).toBe(tookBack.of);
     expect(again).toEqual([]);
     expect((await playerState()).failed).toBe(false);
   });
