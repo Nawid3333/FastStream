@@ -18,7 +18,7 @@ function playing(error) {
   const levelManager = Object.create(LevelManager.prototype);
   levelManager.videoDecodeFailures = new Map();
   const player = {
-    dash: {},
+    dash: {updateSettings: vi.fn()},
     video: {error},
     client: {getLevelManager: () => levelManager},
     getCurrentVideoLevelID: () => 'video-6',
@@ -73,6 +73,25 @@ describe('DashPlayer, a decode error', () => {
       DashPlayer.prototype.onVideoError.call(player);
       expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(false);
     }
+  });
+
+  it('ends dash.js\'s resets when the codec left out is picked again and its decoder still cannot start', () => {
+    // A bilibili video whose levels all named HEVC (2026-11-15): the load again without it had
+    // nothing else to pick, and dash.js reset the video ~125 times a second for ever.
+    const message = 'NS_ERROR_DOM_MEDIA_FATAL_ERR (0x806e0005) - MediaResult __cdecl mozilla::RemoteVideoDecoderChild::InitIPDL(const VideoInfo &)';
+    const {player} = playing(decodeError(message));
+    DashPlayer.prototype.onVideoError.call(player);
+    // The first: one load again without it, and dash.js's own recovery as it was.
+    expect(player.dash.updateSettings).not.toHaveBeenCalled();
+    DashPlayer.prototype.onVideoError.call(player);
+    expect(player.dash.updateSettings).toHaveBeenCalledWith({errors: {recoverAttempts: {mediaErrorDecode: 0}}});
+  });
+
+  it('leaves dash.js\'s recovery to any other decode error of a codec left out', () => {
+    // A bad segment: dash.js skips it and plays on, the only codec there or not.
+    const {player} = playing(decodeError('Decode error: NS_ERROR_DOM_MEDIA_DECODE_ERR'));
+    for (let i = 0; i < 4; i++) DashPlayer.prototype.onVideoError.call(player);
+    expect(player.dash.updateSettings).not.toHaveBeenCalled();
   });
 
   it('does not count an audio decoder\'s failure against the video codec', () => {

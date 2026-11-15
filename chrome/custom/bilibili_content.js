@@ -18,18 +18,41 @@
       return '<?xml version="1.0" encoding="utf-8"?>' + xml;
     }
 
-    /** @param {Array<*>} tracks */
-    loadDashTracks(tracks) {
-      const AdaptationSet = this.document.createElement('AdaptationSet');
+    /**
+     * One AdaptationSet per codec, each Representation's id unique in the manifest. Bilibili
+     * lists a quality in up to three codecs (H.264, HEVC, AV1) under one id (32 for 480p). In
+     * one set with the id three times, the player saw one level per id, all of the set's first
+     * codec: where Firefox could not start that codec's decoder (HEVC on a test Firefox,
+     * 2026-11-15), it reset the video some 125 times a second, and never tried the others.
+     * @param {Array<*>} tracks
+     * @param {Set<string>} ids - The ids given so far, in the whole manifest.
+     * @return {Array<*>} The AdaptationSets.
+     */
+    loadDashTracks(tracks, ids) {
+      /** @type {Map<string, *>} */
+      const sets = new Map();
       tracks.forEach((track)=>{
-        AdaptationSet.appendChild(this.loadDashTrack(track));
+        const family = String(track.codecs || '').split('.')[0];
+        let set = sets.get(family);
+        if (!set) {
+          set = this.document.createElement('AdaptationSet');
+          sets.set(family, set);
+        }
+        let id = family ? `${track.id}-${family}` : String(track.id);
+        for (let n = 2; ids.has(id); n++) {
+          id = `${track.id}-${family}-${n}`;
+        }
+        ids.add(id);
+        set.appendChild(this.loadDashTrack(track, id));
       });
-      return AdaptationSet;
+      return Array.from(sets.values());
     }
 
-    /** @param {*} track */
-    loadDashTrack(track) {
-      const id = track.id;
+    /**
+     * @param {*} track
+     * @param {string} id - Its Representation's id.
+     */
+    loadDashTrack(track, id) {
       const baseUrl = track.baseUrl;
       const bandwidth = track.bandwidth;
       const mimeType = track.mimeType;
@@ -72,10 +95,12 @@
     loadDashData(dashData) {
       const duration = dashData.duration;
       const minBufferTime = dashData.minBufferTime;
-      const videoAdaptationSet = this.loadDashTracks(dashData.video);
+      /** @type {Set<string>} */
+      const ids = new Set();
+      const videoAdaptationSets = this.loadDashTracks(dashData.video || [], ids);
       // A video without sound has no audio list (null): only the video then. It threw, and the
       // video was not detected at all (final review, 2026-10-10).
-      const audioAdaptationSet = dashData.audio?.length ? this.loadDashTracks(dashData.audio) : null;
+      const audioAdaptationSets = this.loadDashTracks(dashData.audio || [], ids);
 
       const MPD = this.document.createElement('MPD');
       MPD.setAttribute('xmlns', 'urn:mpeg:dash:schema:mpd:2011');
@@ -89,8 +114,7 @@
       const Period = this.document.createElement('Period');
       MPD.appendChild(Period);
 
-      Period.appendChild(videoAdaptationSet);
-      if (audioAdaptationSet) Period.appendChild(audioAdaptationSet);
+      for (const set of [...videoAdaptationSets, ...audioAdaptationSets]) Period.appendChild(set);
       return MPD;
     }
   }

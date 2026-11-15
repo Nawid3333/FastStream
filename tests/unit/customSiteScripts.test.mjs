@@ -297,6 +297,30 @@ describe('bilibili_content.js', () => {
     expect(manifest.match(/<AdaptationSet/g)).toHaveLength(1);
   });
 
+  it('gives each codec its own set, and every version an id of its own', () => {
+    // As bilibili sends them (a live page, 2026-11-15): each quality in H.264, HEVC and AV1,
+    // under the quality's id. In one set with the ids repeated, the player saw two levels, all
+    // HEVC, and reset the video ~125 times a second where Firefox could not start that decoder.
+    const track = (id, codecs, height) => ({id, codecs, height, width: height * 16 / 9, bandwidth: 1000 + id,
+      baseUrl: `https://cdn.example.com/${id}-${codecs}.m4s`, mimeType: 'video/mp4', startWithSap: 1,
+      SegmentBase: {indexRange: '0-99', Initialization: '0-9'}});
+    const video = [track(32, 'avc1.64001F', 480), track(32, 'hvc1.1.6.L120.90', 480), track(32, 'av01.0.08M.08', 480),
+      track(16, 'hvc1.1.6.L120.90', 360), track(16, 'avc1.64001E', 360), track(16, 'av01.0.08M.08', 360)];
+    const audio = [{...track(30280, 'mp4a.40.2', 0), mimeType: 'audio/mp4'}, {...track(30216, 'mp4a.40.2', 0), mimeType: 'audio/mp4'}];
+    const playInfo = {data: {dash: {duration: 10, minBufferTime: 1.5, video, audio}}};
+    const {sent} = runSiteScript('bilibili_content.js', [{textContent: `window.__playinfo__=${JSON.stringify(playInfo)}`}]);
+    expect(sent).toHaveLength(1);
+    const sets = manifestOf(sent[0].url).match(/<AdaptationSet>.*?<\/AdaptationSet>/g);
+    const codecsOf = (set) => [...set.matchAll(/codecs="([^".]*)/g)].map((m) => m[1]);
+    expect(sets.map((set) => [...new Set(codecsOf(set))])).toEqual([['avc1'], ['hvc1'], ['av01'], ['mp4a']]);
+    expect(sets.map((set) => codecsOf(set).length)).toEqual([2, 2, 2, 2]);
+    const ids = [...manifestOf(sent[0].url).matchAll(/<Representation id="([^"]*)"/g)].map((m) => m[1]);
+    expect(ids).toHaveLength(8);
+    expect(new Set(ids).size).toBe(8);
+    // Every address is still there, each with its own version.
+    for (const t of [...video, ...audio]) expect(manifestOf(sent[0].url)).toContain(`<BaseURL>${t.baseUrl}</BaseURL>`);
+  });
+
   it('writes no width or height for a track that has none', () => {
     // An audio track: the manifest read width="undefined".
     const playInfo = {data: {dash: {duration: 10, minBufferTime: 1.5, video: [], audio: [{
