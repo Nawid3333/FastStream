@@ -295,6 +295,10 @@ export class TabHolder {
     // The continuation that timer asks for.
     /** @type {?Object} */
     this.pagePlayerContinuation = null;
+    // Ends the next episode's instructions no player took in time (background.mjs
+    // ContinuationKeepMs).
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    this.continuationTimer = undefined;
     // Until when the next page's stream goes to mpv by itself, after MPV autoplay went on to
     // the next episode (background.mjs goToEpisode): also in the MPV key's mode, which
     // otherwise waits for a play in the page. The longest of its streams, not the first

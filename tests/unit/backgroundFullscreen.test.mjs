@@ -156,6 +156,31 @@ describe('a fullscreen carried over to the next episode', () => {
     expect(await sourcesTo(7, 'page-2')).toEqual([{autoPlay: true}]);
   });
 
+  it('ends the next episode\'s instructions no player took within 2 minutes, and gives the fullscreen back', async () => {
+    // A site that changes its video without loading a page keeps one document: the
+    // instructions waited there with no end, and the next video the user opened in it, minutes
+    // later, played by itself in the window still fullscreen (the owner's pick, 2026-11-15).
+    const fullscreenNext = {type: 'REQUEST_PLAYLIST_NAVIGATION', direction: 'next',
+      continuationOptions: {fullscreenState: 'fullscreen', autoPlay: true}};
+    await playerInPage();
+    await carry(true);
+    await bg.message(fullscreenNext, {tabId: 1, frameId: 5});
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'page-2');
+    await bg.wait(110000);
+    expect(states()).toEqual(['fullscreen']);
+    await bg.wait(15000);
+    expect(states()).toEqual(['fullscreen', 'maximized']);
+    // The user's own pick in the same page, later: a player with no instructions.
+    await bg.navigated(1, EP2 + '#film-9');
+    await bg.message({type: 'PLAYER_LOADED', url: 'moz-extension://bg-test/player/index.html?opener=page-2',
+      parentFrameId: 0}, {tabId: 1, frameId: 7});
+    bg.sentToTabs.length = 0;
+    await bg.message({type: 'REQUEST_SOURCES'}, {tabId: 1, frameId: 7});
+    await bg.wait(1500);
+    expect(bg.sent('SOURCES').map((m) => m.message.continuationOptions ?? null)).toEqual([null]);
+  });
+
   it('keeps the next episode\'s instructions and its fullscreen when that page changes its own address', async () => {
     // A next page that sets its own address (history.replaceState: ?server=, a canonical slug)
     // before its player asked names no new document: counted as a page after it, the episode
