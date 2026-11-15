@@ -959,9 +959,6 @@
     "options_general_color_theme_oled": {
         "message": "OLED 블랙"
     },
-    "options_general_vischangeaction_pip": {
-        "message": "화면 속 화면 전환"
-    },
     "options_export_header": {
         "message": "설정 가져오기/내보내기"
     },

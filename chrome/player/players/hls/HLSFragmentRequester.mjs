@@ -1,7 +1,7 @@
 // @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
-import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {isDecryptable} from '../../utils/Decryptable.mjs';
+import {fragmentDownloadCallbacks, markRequested} from '../FragmentStatus.mjs';
 import {HLSDecrypter} from './HLSDecrypter.mjs';
 
 /** @typedef {import('../../modules/hls.mjs').Fragment} HlsFragment */
@@ -128,7 +128,8 @@ export class HLSFragmentRequester {
 
   /**
    * Downloads a segment through the download manager, decrypting it if its decryption was
-   * taken over, keeping its status and telling the player each change of it.
+   * taken over, keeping its status and telling the player each change of it
+   * (FragmentStatus.mjs).
    * @param {import('./HLSFragment.mjs').HLSFragment} fragment
    * @param {FragmentCallbacks} callbacks
    * @param {?(Partial<import('../../modules/hls.mjs').LoaderConfiguration> & {headers?: Object<string, string>})} config -
@@ -149,10 +150,7 @@ export class HLSFragmentRequester {
       throw new Error('unexpected decryptdata');
     }
 
-    if (fragment.status === DownloadStatus.WAITING) {
-      fragment.status = DownloadStatus.DOWNLOAD_INITIATED;
-      this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-    }
+    markRequested(this.player, fragment);
 
     const headers = {
       ...config.headers,
@@ -161,42 +159,20 @@ export class HLSFragmentRequester {
     };
     const decrypt = this.decryptionFor(frag, headers);
 
-    const loader = this.player.getClient().downloadManager.getFile({
+    return this.player.getClient().downloadManager.getFile({
       ...context,
       config,
       headers,
       postProcessor: decrypt || (async (entry, response) => response),
     }, {
-      /**
-       * @param {DownloadEntry} entry
-       * @param {null} [xhr] - FetchLoader has none; none at all for a stored copy.
-       */
-      onSuccess: async (entry, xhr) => {
-        /** @type {ArrayBuffer|undefined} */
-        let data;
-        try {
-          if (!callbacks.skipProcess) {
-            // An ArrayBuffer: a segment is asked for as one (HLSFragment.getContext).
-            data = /** @type {ArrayBuffer} */ (await entry.getDataFromBlob());
-          }
-          fragment.dataSize = entry.dataSize;
-        } catch (e) {
-          console.error(e);
-          fragment.status = DownloadStatus.DOWNLOAD_FAILED;
-          this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-          callbacks.onFail(entry);
-          return;
-        }
-        if (fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE) {
-          fragment.status = DownloadStatus.DOWNLOAD_COMPLETE;
-          this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-        }
-        // The data is there exactly when skipProcess did not ask for none (FragmentCallbacks).
+      ...fragmentDownloadCallbacks(this.player, fragment, callbacks, (entry, data) => {
+        // An ArrayBuffer (a segment is asked for as one: HLSFragment.getContext), there exactly
+        // when skipProcess did not ask for none (FragmentCallbacks).
         /** @type {(response: {url: string, data: ArrayBuffer|undefined}, stats: LoaderStats, context: SegmentContext, xhr: null) => void} */ (callbacks.onSuccess)({
           url: entry.url,
-          data: data,
+          data: /** @type {ArrayBuffer|undefined} */ (data),
         }, /** @type {LoaderStats} */ (entry.stats), context, null); // set on success
-      },
+      }),
       /**
        * @param {LoaderStats} stats
        * @param {import('../../network/DownloadEntry.mjs').DownloadRequest} context2 - The request.
@@ -207,20 +183,6 @@ export class HLSFragmentRequester {
         // An ArrayBuffer: a segment is asked for as one.
         if (callbacks.onProgress) callbacks.onProgress(stats, context, /** @type {ArrayBuffer} */ (data), xhr);
       },
-      /** @param {DownloadEntry} entry */
-      onFail: (entry) => {
-        fragment.status = DownloadStatus.DOWNLOAD_FAILED;
-        this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-        callbacks.onFail(entry);
-      },
-      /** @param {DownloadEntry} entry */
-      onAbort: (entry) => {
-        fragment.status = DownloadStatus.WAITING;
-        this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-        if (callbacks.onAbort) callbacks.onAbort(entry);
-      },
     }, priority);
-
-    return loader;
   }
 }

@@ -83,23 +83,36 @@ for (const camel of CAMEL_PROPERTIES) {
 }
 
 /**
- * Whether an element matches a selector: a tag or '*', with an optional [attr],
- * [attr="value"] or [attr^="value"], or a comma-separated list of those.
+ * Whether an element matches a selector: a tag or '*', then any number of .class and
+ * [attr], [attr="value"], [attr^="value"] or [attr*="value"] (each with an optional i for
+ * case), or a comma-separated list of those.
  * @param {FakeElement} el - The element.
  * @param {string} selector - The selector.
  * @return {boolean}
  */
 function matches(el, selector) {
   return selector.split(',').some((one) => {
-    const simple = /^\s*([a-zA-Z*]+)?(?:\[([a-z-]+)(?:(\^?=)"([^"]*)")?\])?\s*$/.exec(one);
-    if (!simple) throw new Error('contentDom: unsupported selector ' + one);
-    const [, tag, attr, operator, value] = simple;
+    const compound = /^\s*([a-zA-Z*]+)?((?:\.[\w-]+|\[[a-z-]+(?:[\^*]?="[^"]*"(?:\s+i)?)?\])*)\s*$/.exec(one);
+    if (!compound) throw new Error('contentDom: unsupported selector ' + one);
+    const [, tag, parts] = compound;
     if (tag && tag !== '*' && el.tagName !== tag.toUpperCase()) return false;
-    if (attr) {
-      const actual = el.getAttribute(attr);
+    for (const [, className, attr, operator, value, caseless] of
+      parts.matchAll(/\.([\w-]+)|\[([a-z-]+)(?:([\^*]?=)"([^"]*)"(\s+i)?)?\]/g)) {
+      if (className) {
+        if (!(el.getAttribute('class') || '').split(/\s+/).includes(className)) return false;
+        continue;
+      }
+      let actual = el.getAttribute(attr);
       if (actual === null) return false;
-      if (operator === '=' && actual !== value) return false;
-      if (operator === '^=' && !actual.startsWith(value)) return false;
+      if (!operator) continue;
+      let wanted = value;
+      if (caseless) {
+        actual = actual.toLowerCase();
+        wanted = wanted.toLowerCase();
+      }
+      if (operator === '=' && actual !== wanted) return false;
+      if (operator === '^=' && !actual.startsWith(wanted)) return false;
+      if (operator === '*=' && !actual.includes(wanted)) return false;
     }
     return true;
   });
@@ -241,7 +254,7 @@ export class FakeElement {
     if (at === -1) throw new Error('contentDom: insertBefore a node that is not a child');
     this.children.splice(at, 0, node);
     node.parentNode = this;
-    this.ownerDocument.mutated();
+    this.ownerDocument.mutated(this);
     return node;
   }
 
@@ -250,7 +263,7 @@ export class FakeElement {
     if (at === -1) throw new Error('contentDom: removeChild of a node that is not a child');
     this.children.splice(at, 1);
     node.parentNode = null;
-    this.ownerDocument.mutated();
+    this.ownerDocument.mutated(this);
     return node;
   }
 
@@ -334,15 +347,27 @@ export class FakeDocument {
   removeEventListener() {}
 
   /**
-   * Runs the MutationObservers watching the document once the current task is done, as
-   * Firefox does (with no records: the scripts' own lists are what is tested).
+   * Runs the MutationObservers that see a change of a node's children once the current task
+   * is done, as Firefox does (with no records: the scripts' own lists are what is tested).
+   * An observer sees it when it watches the node or a node above it in the same tree: not
+   * from outside a shadow root (a stand-in node of type 11) the node is in.
+   * @param {Object} parent - The node whose children changed.
    */
-  mutated() {
-    if (this.mutationQueued) return;
+  mutated(parent) {
+    for (let node = parent; node; node = node.nodeType === 11 ? null : node.parentNode) {
+      for (const observer of this.observers) {
+        if (observer.targets.has(node)) (this.mutationsDue ??= new Set()).add(observer);
+      }
+    }
+    if (this.mutationQueued || !this.mutationsDue?.size) return;
     this.mutationQueued = true;
     queueMicrotask(() => {
       this.mutationQueued = false;
-      for (const observer of [...this.observers]) observer.callback([], observer);
+      const due = [...this.mutationsDue];
+      this.mutationsDue.clear();
+      for (const observer of due) {
+        if (this.observers.has(observer)) observer.callback([], observer);
+      }
     });
   }
 }
@@ -369,11 +394,14 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
   class FakeMutationObserver {
     constructor(callback) {
       this.callback = callback;
+      this.targets = new Set();
     }
-    observe() {
+    observe(target) {
+      this.targets.add(target);
       document.observers.add(this);
     }
     disconnect() {
+      this.targets.clear();
       document.observers.delete(this);
     }
   }

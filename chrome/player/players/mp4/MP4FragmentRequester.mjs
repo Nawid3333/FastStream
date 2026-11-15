@@ -1,6 +1,5 @@
 // @ts-check
-import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
-import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
+import {fragmentDownloadCallbacks, markRequested} from '../FragmentStatus.mjs';
 
 /** @typedef {import('../../network/DownloadEntry.mjs').DownloadEntry} DownloadEntry */
 /** @typedef {import('../../modules/mp4box/mp4box.all.mjs').MP4BoxBuffer} MP4BoxBuffer */
@@ -27,7 +26,7 @@ export class MP4FragmentRequester {
 
   /**
    * Downloads a range through the download manager, keeping its status and telling the
-   * player each change of it.
+   * player each change of it (FragmentStatus.mjs).
    * @param {MP4Fragment} fragment
    * @param {FragmentCallbacks} callbacks
    * @param {?{headers?: Object<string, string>}} config - The download's config (null for
@@ -39,12 +38,9 @@ export class MP4FragmentRequester {
     const context = fragment.getContext();
     config = config || {};
 
-    if (fragment.status === DownloadStatus.WAITING) {
-      fragment.status = DownloadStatus.DOWNLOAD_INITIATED;
-      this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-    }
+    markRequested(this.player, fragment);
 
-    const loader = this.player.getClient().downloadManager.getFile({
+    return this.player.getClient().downloadManager.getFile({
       ...context,
       config,
       headers: {
@@ -54,42 +50,20 @@ export class MP4FragmentRequester {
       },
     }, {
       /**
-       * @param {DownloadEntry} entry
-       * @param {null} [xhr] - FetchLoader has none; none at all for a stored copy.
-       */
-      /**
        * A piece of the range as it downloads (progressive: MP4Player.feedPiece).
        * @param {Uint8Array} chunk
        * @param {number} offset
        * @param {import('../../network/FetchLoader.mjs').PartialAnswer} answer
        */
       onChunk: (chunk, offset, answer) => callbacks.onChunk?.(chunk, offset, answer),
-      onSuccess: async (entry, xhr) => {
-        /** @type {MP4BoxBuffer|undefined} */
-        let data;
-        try {
-          if (!callbacks.skipProcess) {
-            // An ArrayBuffer (a range is asked for as one), an MP4BoxBuffer once its
-            // fileStart is set below.
-            data = /** @type {MP4BoxBuffer} */ (await entry.getDataFromBlob());
-          }
-          fragment.dataSize = entry.dataSize;
-        } catch (e) {
-          console.error(e);
-          fragment.status = DownloadStatus.DOWNLOAD_FAILED;
-          this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-          callbacks.onFail(entry);
-          return;
-        }
-        if (fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE) {
-          fragment.status = DownloadStatus.DOWNLOAD_COMPLETE;
-          this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-        }
-        // A range's entry has its start (MP4Fragment.getContext).
+      ...fragmentDownloadCallbacks(this.player, fragment, callbacks, (entry, read) => {
+        // An ArrayBuffer (a range is asked for as one), an MP4BoxBuffer once its fileStart is
+        // set: a range's entry has its start (MP4Fragment.getContext).
+        const data = /** @type {MP4BoxBuffer|undefined} */ (read);
         if (data) data.fileStart = /** @type {number} */ (entry.rangeStart);
         // The data is there exactly when skipProcess did not ask for none (FragmentCallbacks).
         /** @type {(entry: DownloadEntry, data: MP4BoxBuffer|undefined) => void} */ (callbacks.onSuccess)(entry, data);
-      },
+      }),
       /**
        * @param {import('../../network/FetchLoader.mjs').LoaderStats} stats
        * @param {import('../../network/DownloadEntry.mjs').DownloadRequest} context2 - The request.
@@ -100,20 +74,6 @@ export class MP4FragmentRequester {
         // An ArrayBuffer: a range is asked for as one.
         if (callbacks.onProgress) callbacks.onProgress(stats, context, /** @type {ArrayBuffer} */ (data), xhr);
       },
-      /** @param {DownloadEntry} entry */
-      onFail: (entry) => {
-        fragment.status = DownloadStatus.DOWNLOAD_FAILED;
-        this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-        callbacks.onFail(entry);
-      },
-      /** @param {DownloadEntry} entry */
-      onAbort: (entry) => {
-        fragment.status = DownloadStatus.WAITING;
-        this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-        if (callbacks.onAbort) callbacks.onAbort(entry);
-      },
     }, priority);
-
-    return loader;
   }
 }

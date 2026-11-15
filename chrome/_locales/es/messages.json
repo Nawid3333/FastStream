@@ -959,9 +959,6 @@
     "options_general_color_theme_oled": {
         "message": "Negro OLED"
     },
-    "options_general_vischangeaction_pip": {
-        "message": "Alternar imagen en imagen"
-    },
     "options_export_header": {
         "message": "Importar/Exportar Configuraciones"
     },

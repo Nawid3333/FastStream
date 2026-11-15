@@ -1,8 +1,6 @@
 // @ts-check
 import {MessageTypes} from '../enums/MessageTypes.mjs';
-import {LargeBuffer} from '../modules/LargeBuffer.mjs';
 import {EnvUtils} from './EnvUtils.mjs';
-import {URLUtils} from './URLUtils.mjs';
 
 
 /** @typedef {Object<string, (string|null|undefined)>} QueryParams */
@@ -255,65 +253,5 @@ export class RequestUtils {
       callback(undefined, xhr, xhr.responseType === '' || xhr.responseType === 'text' ? xhr.responseText : xhr.response);
     }
     return xhr;
-  }
-
-  /**
-   * Downloads a large file in fragments using range requests and returns a LargeBuffer.
-   * The fragments are fetched as the buffer is read, not up front, so `source` has to stay
-   * reachable until the last byte has been read.
-   * @param {string} source - The URL of the large file.
-   * @param {number} [fragSize] - Bytes per range request.
-   * @return {Promise<LargeBuffer>} Resolves with a LargeBuffer containing the file data.
-   * @throws {Error} If the request fails or headers are missing.
-   */
-  static async httpGetLarge(source, fragSize = 1e9 / 4) {
-    const headersXHR = await this.request({
-      url: source,
-      responseType: 'arraybuffer',
-      range: {
-        start: 0,
-        end: 1,
-      },
-    });
-
-    if (headersXHR.status !== 200 && headersXHR.status !== 206) {
-      throw new Error('Bad status code');
-    }
-
-    const headers = /** @type {Object<string, string>} */ (URLUtils.headersStringToObj(headersXHR.getAllResponseHeaders()));
-    const range = headers['content-range'];
-    if (!range) {
-      throw new Error('No content-range header');
-    }
-
-    const s = range.split('/');
-    const contentLength = parseInt(s[1]);
-    if (!contentLength) {
-      throw new Error('No content length');
-    }
-
-    const fragCount = Math.ceil(contentLength / fragSize);
-    const buffer = new LargeBuffer(contentLength, fragCount);
-    await buffer.initialize(/** @type {(i: number) => Promise<Uint8Array<ArrayBuffer>>} */ (async (i) => {
-      if (i >= fragCount) {
-        throw new Error('Fragment index ' + i + ' out of range');
-      }
-      const start = i * fragSize;
-      const end = Math.min(i * fragSize + fragSize - 1, contentLength - 1);
-      const xhr = await this.request({
-        url: source,
-        responseType: 'arraybuffer',
-        range: {
-          start,
-          end,
-        },
-      });
-      if (xhr.status !== 200 && xhr.status !== 206) {
-        throw new Error('Bad status code');
-      }
-      return new Uint8Array(xhr.response);
-    }));
-
-    return buffer;
   }
 }

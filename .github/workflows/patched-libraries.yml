@@ -23,6 +23,16 @@ name: Patched libraries
 # pull request closes the library's older issue and pull request, its issue only the older
 # issue (an older pull request is still a step forward while the newer version needs work).
 
+#
+# Two jobs, so that no code from a new library release runs where the write token is: "recut"
+# installs the release and re-cuts the patch, with a read-only token, and hands each result on
+# as an artifact - the change as a git patch, or the report of why it stopped. pnpm runs the
+# install scripts of the packages allowBuilds lists only, but a release can depend on one of
+# those in a new version. "publish" runs on a runner of its own with the write token, installs
+# nothing, checks what it was handed, and pushes, opens and closes with git, gh and jq alone
+# (SEC-3 of the review of 2026-11-13: one job did both, and an install script could read the
+# token from its step's environment, or plant something in the job's later steps through
+# $GITHUB_ENV). recut keeps no cache, which would carry what it installed to main's workflows.
 on:
   schedule:
     # Daily, 06:30 UTC.
@@ -36,22 +46,27 @@ on:
       - package.json
   workflow_dispatch:
 
-permissions:
-  contents: write       # push the patched/<name>-<version> branch
-  pull-requests: write  # open the update pull request
-  issues: write         # open the issue when the re-cut stops
-  actions: write        # start CI and the dependency review on the branch
+
+permissions: {}
 
 concurrency:
   group: patched-libraries
   cancel-in-progress: false
 
 jobs:
-  check:
-    name: Check patched libraries for updates
+  recut:
+    name: Re-cut the patches onto new releases
+    # A push only closes (publish); re-cutting is the daily run's job.
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     # A dash.js re-cut lints a 3 MB bundle four times; the rest takes seconds.
     timeout-minutes: 30
+    permissions:
+      contents: read       # the repository
+      issues: read         # the titles raised before; the issues endpoint lists pull requests
+      pull-requests: read  # too, but only to a token that may read them
+    outputs:
+      count: ${{ steps.recut.outputs.count }}
     steps:
       # The token is not kept in .git/config (persist-credentials: false): every later
       # step could read it there, dev dependencies' install scripts included.
@@ -61,15 +76,130 @@ jobs:
 
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
+      # No pnpm cache: its post step would save the store a new release was installed into,
+      # under main's key, for CI and every other workflow on main to restore.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           check-latest: true
-          cache: pnpm
 
       # tools/recut-patch.mjs lints with the project's ESLint, and --apply installs.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Re-cut each patch whose library has a new release
+        id: recut
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREFIX: 'Patched library update: '
+        run: |
+          set -euo pipefail
+          node tools/check-patched-updates.mjs --json > "$RUNNER_TEMP/libraries.jsonl"
+          node tools/check-patched-updates.mjs
+
+          # --- Every title raised before, as an issue or a pull request, open or closed: the issues
+          # endpoint lists pull requests too, and pages through all of them. Not the search index,
+          # which can lag behind one made minutes ago.
+          # Only this workflow's own: anyone's pull request with such a title blocks nothing.
+          gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=all&per_page=100" \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | .title' > "$RUNNER_TEMP/titles.txt"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          start=$(git rev-parse HEAD)
+          # One folder per library to publish, numbered in order: library.json, report.txt, and
+          # outcome - "cut" with change.patch, or "stopped".
+          recuts="$RUNNER_TEMP/recuts"
+          mkdir -p "$recuts"
+          count=0
+
+          # Not a pipe into the loop, and not on stdin either: a failed command in a piped loop
+          # only ends the subshell, and pnpm or gh inside it could read the list off stdin.
+          jq -c 'select(.behind)' "$RUNNER_TEMP/libraries.jsonl" > "$RUNNER_TEMP/behind.jsonl"
+          while read -r library <&3; do
+            name=$(jq -r .name <<< "$library")
+            current=$(jq -r .current <<< "$library")
+            latest=$(jq -r .latest <<< "$library")
+            title="$PREFIX$name $latest"
+            if grep -qxF "$title" "$RUNNER_TEMP/titles.txt"; then
+              echo "Already raised: $title."
+              continue
+            fi
+
+            git checkout -q -f -B recut "$start"
+            status=0
+            node tools/recut-patch.mjs "$name" "$latest" --apply --out "$RUNNER_TEMP/recut-$name" \
+              > "$RUNNER_TEMP/report.txt" 2>&1 || status=$?
+            cat "$RUNNER_TEMP/report.txt"
+
+            if [ "$status" = 3 ]; then
+              echo "$name $latest is too new to install yet; the next run tries again."
+            else
+              count=$((count + 1))
+              dir="$recuts/$count"
+              mkdir "$dir"
+              printf '%s\n' "$library" > "$dir/library.json"
+              cp "$RUNNER_TEMP/report.txt" "$dir/report.txt"
+              if [ "$status" = 0 ]; then
+                # .github/dependabot.yml: a patch dropped hands the library (and what moves
+                # with it) back to Dependabot (tools/recut-patch.mjs).
+                git add -A -- package.json pnpm-lock.yaml pnpm-workspace.yaml patches tools/sync-vendor.mjs .github/dependabot.yml
+                # Anything else changed would be a surprise worth stopping for, not committing.
+                stray=$(git status --porcelain | grep -v '^[MADR] ' || true)
+                if [ -n "$stray" ]; then
+                  echo "Unexpected changes after the re-cut:"; echo "$stray"; exit 1
+                fi
+                git commit -q -m "deps: $name $current -> $latest, patch re-cut by tools/recut-patch.mjs"
+                git format-patch -1 --stdout > "$dir/change.patch"
+                echo cut > "$dir/outcome"
+              else
+                echo stopped > "$dir/outcome"
+              fi
+            fi
+            git checkout -q -f "$start"
+            git clean -q -fd
+          done 3< "$RUNNER_TEMP/behind.jsonl"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Hand the re-cuts on
+        if: steps.recut.outputs.count != '0'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: recuts
+          path: ${{ runner.temp }}/recuts
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    name: Check patched libraries for updates
+    needs: recut
+    # On a push recut is skipped, and this only closes; a failed re-cut publishes nothing.
+    if: ${{ !cancelled() && needs.recut.result != 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write       # push the patched/<name>-<version> branch
+      pull-requests: write  # open the update pull request
+      issues: write         # open the issue when the re-cut stops
+      actions: write        # start CI and the dependency review on the branch
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # For tools/check-patched-updates.mjs, which needs nothing but Node itself: nothing is
+      # installed in this job.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+
+      - name: Take the re-cuts
+        if: needs.recut.outputs.count != '' && needs.recut.outputs.count != '0'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: recuts
+          path: ${{ runner.temp }}/recuts
 
       - name: Sync update pull requests and issues with the patched versions
         env:
@@ -146,50 +276,43 @@ jobs:
             exit 0
           fi
 
-          # --- Every title raised before, as an issue or a pull request, open or closed: the issues
-          # endpoint lists pull requests too, and pages through all of them. Not the search index,
-          # which can lag behind one made minutes ago.
-          # Only this workflow's own: anyone's pull request with such a title blocks nothing.
-          gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=all&per_page=100" \
-            --jq '.[] | select(.user.login == "github-actions[bot]") | .title' > "$RUNNER_TEMP/titles.txt"
-
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           start=$(git rev-parse HEAD)
 
-          # Not a pipe into the loop, and not on stdin either: a failed command in a piped loop
-          # only ends the subshell, and pnpm or gh inside it could read the list off stdin.
-          jq -c 'select(.behind)' "$RUNNER_TEMP/libraries.jsonl" > "$RUNNER_TEMP/behind.jsonl"
-          while read -r library <&3; do
+          # --- Publish what the re-cut job made, in its order. Its contents come from a job
+          # that ran a new release's code, so they are checked here: a name and a version as
+          # npm has them, and a change to the files a re-cut may change, nothing else.
+          find "$RUNNER_TEMP/recuts" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -V > "$RUNNER_TEMP/recut-dirs.txt" || true
+          while read -r dir <&3; do
+            library=$(cat "$dir/library.json")
             name=$(jq -r .name <<< "$library")
             current=$(jq -r .current <<< "$library")
             latest=$(jq -r .latest <<< "$library")
             url=$(jq -r .url <<< "$library")
-            title="$PREFIX$name $latest"
-            if grep -qxF "$title" "$RUNNER_TEMP/titles.txt"; then
-              echo "Already raised: $title."
-              continue
+            if ! [[ $name =~ ^(@[a-z0-9._-]+/)?[a-zA-Z0-9._-]+$ && $latest =~ ^[0-9A-Za-z.+-]+$ && $current =~ ^[0-9A-Za-z.+-]+$ ]]; then
+              echo "Not a library and version: '$name' '$current' '$latest'."; exit 1
             fi
+            # The link in the pull request or issue: a release on npm or GitHub, nothing else.
+            if ! [[ $url =~ ^https://(www\.npmjs\.com|github\.com)/[A-Za-z0-9._~%@+/-]+$ ]]; then
+              echo "Not a release page on npm or GitHub: '$url'."; exit 1
+            fi
+            title="$PREFIX$name $latest"
+            cp "$dir/report.txt" "$RUNNER_TEMP/report.txt"
 
-            branch="patched/$name-$latest"
-            git checkout -q -f -B "$branch" "$start"
-            status=0
-            node tools/recut-patch.mjs "$name" "$latest" --apply --out "$RUNNER_TEMP/recut-$name" \
-              > "$RUNNER_TEMP/report.txt" 2>&1 || status=$?
-            cat "$RUNNER_TEMP/report.txt"
-
-            if [ "$status" = 3 ]; then
-              echo "$name $latest is too new to install yet; the next run tries again."
-            elif [ "$status" = 0 ]; then
-              # .github/dependabot.yml: a patch dropped hands the library (and what moves
-              # with it) back to Dependabot (tools/recut-patch.mjs).
-              git add -A -- package.json pnpm-lock.yaml pnpm-workspace.yaml patches tools/sync-vendor.mjs .github/dependabot.yml
-              # Anything else changed would be a surprise worth stopping for, not committing.
-              stray=$(git status --porcelain | grep -v '^[MADR] ' || true)
+            if [ "$(cat "$dir/outcome")" = cut ]; then
+              branch="patched/$name-$latest"
+              git checkout -q -f -B "$branch" "$start"
+              git am -q "$dir/change.patch"
+              # --no-renames: a rename is listed as its new name only, and would carry a file
+              # off the list away unseen. Each file stays a plain one (a deleted one: 000000):
+              # no link, no submodule, no executable.
+              stray=$(git diff --no-renames --name-only "$start" HEAD |
+                grep -vxE 'package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|patches/[^/]+\.patch|tools/sync-vendor\.mjs|\.github/dependabot\.yml' || true)
+              stray+=$(git diff --no-renames --raw "$start" HEAD | awk '$2 != "100644" && $2 != "000000"')
               if [ -n "$stray" ]; then
-                echo "Unexpected changes after the re-cut:"; echo "$stray"; exit 1
+                echo "The re-cut of $name $latest changed more than a re-cut may:"; echo "$stray"; exit 1
               fi
-              git commit -q -m "deps: $name $current -> $latest, patch re-cut by tools/recut-patch.mjs"
               authgit push -q -f origin "$branch"
               # The backticks are Markdown for the body, not command substitution.
               # shellcheck disable=SC2016
@@ -223,10 +346,18 @@ jobs:
               gh issue create --title "$title" --body-file "$RUNNER_TEMP/body.md"
             fi
             git checkout -q -f "$start"
-            git clean -q -fd
-          done 3< "$RUNNER_TEMP/behind.jsonl"
+          done 3< "$RUNNER_TEMP/recut-dirs.txt"
           supersede
 
+  report:
+    name: Report a failure
+    needs: [recut, publish]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write  # the failure issue
+    steps:
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
       # whoever last changed the cron line): one issue while it is open, as
       # toolchain-updates.yml does. A failure while it is open adds a

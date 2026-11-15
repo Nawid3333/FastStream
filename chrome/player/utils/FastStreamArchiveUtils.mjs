@@ -1,7 +1,7 @@
 // @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {DownloadEntry} from '../network/DownloadEntry.mjs';
-import {RequestUtils} from './RequestUtils.mjs';
+import {LargeBuffer} from '../modules/LargeBuffer.mjs';
 import {Utils} from './Utils.mjs';
 import {withoutCredentials} from '../VideoSource.mjs';
 
@@ -131,24 +131,27 @@ export class FastStreamArchiveUtils {
   }
 
   /**
-   * Reads an archive from a local file, such as one dropped on the player.
-   *
-   * httpGetLarge fetches the file in chunks as parseFSA reads it, so the object URL has to
-   * live until parseFSA is done. Revoked any earlier, every chunk past the first two failed,
-   * and any archive over 500 MB could not be opened.
+   * Reads an archive from a local file, such as one dropped on the player: a chunk at a time
+   * (fileChunkSize), each read from the file as parseFSA gets to it, the next one ahead.
+   * Until 2026-11-15 the chunks were fetched from an object URL of the file with Range
+   * requests (RequestUtils.httpGetLarge, its only use), which held the URL for the whole read.
    * @param {File|Blob} file - The .fsa file.
    * @param {(share: number) => void} [progressCallback] - Called with the share of entries read.
    * @param {import('../network/DownloadManager.mjs').DownloadManager} [downloadManager] - Receives the entries' data.
    * @return {Promise<Object>} What parseFSA returns.
    */
   static async parseFSAFile(file, progressCallback, downloadManager) {
-    const url = URL.createObjectURL(file);
-    try {
-      const buffer = await RequestUtils.httpGetLarge(url, this.fileChunkSize);
-      return await this.parseFSA(buffer, progressCallback, downloadManager);
-    } finally {
-      URL.revokeObjectURL(url);
+    if (!file.size) {
+      throw new Error('The archive file is empty');
     }
+    const chunkSize = this.fileChunkSize;
+    const chunkCount = Math.ceil(file.size / chunkSize);
+    const buffer = new LargeBuffer(file.size, chunkCount);
+    await buffer.initialize(async (i) => {
+      const start = i * chunkSize;
+      return new Uint8Array(await file.slice(start, Math.min(start + chunkSize, file.size)).arrayBuffer());
+    });
+    return await this.parseFSA(buffer, progressCallback, downloadManager);
   }
 
   /**

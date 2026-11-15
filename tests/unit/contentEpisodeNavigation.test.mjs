@@ -127,6 +127,23 @@ describe('the next episode, within the series', () => {
     expect(assigned).toEqual([`${SERIES}/staffel-3/episode-1`]);
   });
 
+  it('clicks the next season\'s link it made outside the page, where the page sends links to the whole tab', async () => {
+    // An <a> navigates out of the page too (HTML: only other elements cannot), with the
+    // page's <base target>. Put in the page for the click, the page's own click listeners - a
+    // hoster's ad script's - would have it, and so would FastStream's own.
+    const page = seasonPage(2, 12);
+    page.base('_top');
+    const create = page.p.document.createElement.bind(page.p.document);
+    const clicks = [];
+    page.p.document.createElement = (tag) => {
+      const el = create(tag);
+      if (tag === 'a') el.click = () => clicks.push({href: el.href, inPage: el.isConnected});
+      return el;
+    };
+    expect(await page.next()).toBe('clicked');
+    expect(clicks).toEqual([{href: `${SERIES}/staffel-3/episode-1`, inPage: false}]);
+  });
+
   it('stops after the last season\'s last episode, and never takes another series', async () => {
     const {next, assigned, clicked} = seasonPage(3, 12);
     expect(await next()).toBe('series_end');
