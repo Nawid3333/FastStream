@@ -182,6 +182,41 @@ describe('facebook_content.js', () => {
     expect(sent).toEqual([]);
   });
 
+  // A reel opened signed out (live page, 2026-11-15): no playlist; the manifest is in the
+  // delivery fields. The reel on screen is under data.video; the ones the page preloads after it
+  // are under viewer.lasso_blue_feed.
+  /**
+   * @param {?string} mpd - Its dash_manifest_xml_string.
+   * @return {Object} A playback_video object of that shape.
+   */
+  const reelVideo = (mpd) => ({id: '1', videoDeliveryLegacyFields: {dash_manifest_xml_string: mpd,
+    browser_native_hd_url: 'https://video.example/m366/hd.mp4', browser_native_sd_url: 'https://video.example/m412/sd.mp4'}});
+
+  it('reports the manifest a reel has in its delivery fields', () => {
+    const {sent} = runSiteScript('facebook_content.js', [jsonScript(reelVideo('<MPD reel/>'))]);
+    expect(sent).toHaveLength(1);
+    expect(manifestOf(sent[0].url)).toBe('<MPD reel/>');
+  });
+
+  it('reports the reel on screen, not the ones the page preloads after it', () => {
+    // The preloaded ones first: only the path tells the reel on screen apart.
+    const data = {
+      viewer: {lasso_blue_feed: {edges: [
+        {node: {short_form_video_context: {playback_video: reelVideo('<MPD id="next"/>')}}},
+      ]}},
+      video: {creation_story: {short_form_video_context: {playback_video: reelVideo('<MPD id="on-screen"/>')}}},
+    };
+    const page = [{type: 'application/json', textContent: JSON.stringify({require: [[{__bbox: {result: {data}}}]]})}];
+    const {sent} = runSiteScript('facebook_content.js', page);
+    expect(sent.map((report) => manifestOf(report.url))).toEqual(['<MPD id="on-screen"/>']);
+  });
+
+  it('reports nothing for a video whose delivery fields have no manifest', () => {
+    // An older video's page: one progressive file, which FastStream finds by itself.
+    const {sent} = runSiteScript('facebook_content.js', [jsonScript(reelVideo(null))]);
+    expect(sent).toEqual([]);
+  });
+
   it('reports a manifest with characters btoa refuses', () => {
     const mpd = '<MPD><Title>Ünïcödé – 日本語</Title></MPD>';
     const {sent} = runSiteScript('facebook_content.js', [jsonScript({playlist: mpd})]);

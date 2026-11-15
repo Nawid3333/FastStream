@@ -218,6 +218,21 @@ describe('the page\'s own inline styles after a soft replace', () => {
     expect(wrap.style.getPropertyValue('width')).toBe('');
   });
 
+  it('take no share of a flex box while hidden, and the page\'s flex comes back', async () => {
+    // bilibili (live check, 2026-11-15): its element has `flex: 1 1 0%` in a column, which
+    // sizes it whatever its height says; hidden at height 0 it kept half the box, the player
+    // the other half.
+    const {page, wrap} = pageWithVideo();
+    wrap.setAttribute('style', 'flex-grow: 1; flex-basis: 0%;');
+    const {iframe} = await openPlayer(page);
+    await linkPlayer(page, iframe, 5);
+    expect(wrap.style.getPropertyValue('flex-grow')).toBe('0');
+    expect(wrap.style.getPropertyValue('flex-basis')).toBe('0px');
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(wrap.style.getPropertyValue('flex-grow')).toBe('1');
+    expect(wrap.style.getPropertyValue('flex-basis')).toBe('0%');
+  });
+
   // GLM's review: saved only at the first hide, a value the page set while the player was up
   // was hidden again at the next measurement, and the old one came back.
   it('come back as the page set them last, while the player was up', async () => {
