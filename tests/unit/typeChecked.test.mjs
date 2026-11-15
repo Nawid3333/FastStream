@@ -111,6 +111,7 @@ const CHECKED = [
   'chrome/player/players/DirectVideoPlayer.mjs',
   'chrome/player/players/DroppedFrameWatch.mjs',
   'chrome/player/players/Fragment.mjs',
+  'chrome/player/players/FragmentStatus.mjs',
   'chrome/player/players/LevelManager.mjs',
   'chrome/player/players/Levels.mjs',
   'chrome/player/players/PlayerLoader.mjs',

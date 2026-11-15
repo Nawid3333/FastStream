@@ -93,7 +93,7 @@ function isSameRequest(a, b) {
 
 
 /**
- * @param {import('./DashFragmentRequester.mjs').HookedDashPlayer} player
+ * @param {import('./DashPlayer.mjs').default} player
  */
 export function DASHLoaderFactory(player) {
   // Failures in a row, per segment, for this player; a success forgets them.
@@ -130,7 +130,7 @@ export function DASHLoaderFactory(player) {
         const representation = requestObj.representation;
         if (!representation) {
           console.error('Representation not found', requestObj);
-          request(httpRequest, end, true, requestObj.startTime || 0, true);
+          request(httpRequest, end, true);
           return;
         }
         let segmentIndex = requestObj.index;
@@ -152,7 +152,7 @@ export function DASHLoaderFactory(player) {
         if (!frag) {
           console.warn('Fragment not found', requestObj, level, player.client.getFragments(level));
           // throw new Error("Fragment not found");
-          request(httpRequest, end, true, requestObj.startTime || 0, requestObj.type === 'InitializationSegment' || isNaN(segmentIndex));
+          request(httpRequest, end, true);
           return;
         }
 
@@ -199,10 +199,8 @@ export function DASHLoaderFactory(player) {
      * @param {DashLoaderRequest} httpRequest
      * @param {ReturnType<typeof endsOf>} end
      * @param {boolean} [isSegment]
-     * @param {number} [startTime] - A segment's, in seconds.
-     * @param {boolean} [isInit] - Whether the segment is an init segment.
      */
-    function request(httpRequest, end, isSegment = false, startTime = 0, isInit = false) {
+    function request(httpRequest, end, isSegment = false) {
       // Variables will be used in the callback functions
       const request = httpRequest.customData.request;
 
@@ -256,30 +254,7 @@ export function DASHLoaderFactory(player) {
         if (player.loadedManifests.has(key)) downloadManager.forgetCompletedFile(context);
         player.loadedManifests.add(key);
       }
-      const loader = downloadManager.getFile({
-        ...context,
-        /**
-         * @param {DownloadEntry} entry
-         * @param {Awaited<ReturnType<DownloadEntry['getRequest']>>} request - The request it makes.
-         */
-        preProcessor: async (entry, request) => {
-          if (isSegment && player.preProcessFragment) {
-            return await player.preProcessFragment(entry, request, startTime, isInit);
-          }
-          return request;
-        },
-        /**
-         * @param {DownloadEntry} entry
-         * @param {{url: string, status: number, headers: Object<string, string>, data: ArrayBuffer|string}} response -
-         *   FetchLoader's answer.
-         */
-        postProcessor: async (entry, response) => {
-          if (isSegment && player.postProcessFragment) {
-            return await player.postProcessFragment(entry, response, startTime, isInit);
-          }
-          return response;
-        },
-      }, {
+      const loader = downloadManager.getFile(context, {
         /**
          * @param {DownloadEntry} entry
          * @param {null} [xhr] - FetchLoader has none; none at all for a stored copy.

@@ -1,19 +1,7 @@
 // @ts-check
-import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
-import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
+import {fragmentDownloadCallbacks, markRequested} from '../FragmentStatus.mjs';
 
 /** @typedef {import('../../network/DownloadEntry.mjs').DownloadEntry} DownloadEntry */
-
-/**
- * The DashPlayer, with the hooks a player may have to change a fragment's request or answer;
- * no player has them now, so both are optional.
- * @typedef {import('./DashPlayer.mjs').default & {
- *   preProcessFragment?: (entry: DownloadEntry, request: Awaited<ReturnType<DownloadEntry['getRequest']>>,
- *     startTime: number, isInit: boolean) => Promise<Awaited<ReturnType<DownloadEntry['getRequest']>>>,
- *   postProcessFragment?: (entry: DownloadEntry, response: import('../../network/FetchLoader.mjs').LoaderResponse,
- *     startTime: number, isInit: boolean) => Promise<import('../../network/FetchLoader.mjs').LoaderResponse>
- * }} HookedDashPlayer
- */
 
 /**
  * What a fragment's request tells (requestFragment): the download's entry once it is
@@ -29,7 +17,7 @@ import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 
 export class DashFragmentRequester {
   /**
-   * @param {HookedDashPlayer} player
+   * @param {import('./DashPlayer.mjs').default} player
    */
   constructor(player) {
     this.player = player;
@@ -37,7 +25,7 @@ export class DashFragmentRequester {
 
   /**
    * Downloads a fragment through the download manager, keeping its status and telling the
-   * player each change of it.
+   * player each change of it (FragmentStatus.mjs).
    * @param {import('./DashFragment.mjs').DashFragment} fragment
    * @param {FragmentCallbacks} callbacks
    * @param {?{headers?: Object<string, string>}} config - The download's config (null for
@@ -49,12 +37,9 @@ export class DashFragmentRequester {
     const context = fragment.getContext();
     config = config || {};
 
-    if (fragment.status === DownloadStatus.WAITING) {
-      fragment.status = DownloadStatus.DOWNLOAD_INITIATED;
-      this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-    }
+    markRequested(this.player, fragment);
 
-    const loader = this.player.getClient().downloadManager.getFile({
+    return this.player.getClient().downloadManager.getFile({
       ...context,
       config,
       headers: {
@@ -62,56 +47,8 @@ export class DashFragmentRequester {
         // Set: fragments are asked for only once the player has its source.
         ...(/** @type {import('../../VideoSource.mjs').VideoSource} */ (this.player.source)).headers,
       },
-      /**
-       * @param {DownloadEntry} entry
-       * @param {Awaited<ReturnType<DownloadEntry['getRequest']>>} request - The request it makes.
-       */
-      preProcessor: async (entry, request) => {
-        if (this.player.preProcessFragment) {
-          const startTime = fragment.start;
-          const isInit = fragment.sn === -1;
-          return await this.player.preProcessFragment(entry, request, startTime, isInit);
-        }
-        return request;
-      },
-      /**
-       * @param {DownloadEntry} entry
-       * @param {{url: string, status: number, headers: Object<string, string>, data: ArrayBuffer|string}} response -
-       *   FetchLoader's answer.
-       */
-      postProcessor: async (entry, response) => {
-        if (this.player.postProcessFragment) {
-          const startTime = fragment.start;
-          const isInit = fragment.sn === -1;
-          return await this.player.postProcessFragment(entry, response, startTime, isInit);
-        }
-        return response;
-      },
     }, {
-      /**
-       * @param {DownloadEntry} entry
-       * @param {null} [xhr] - FetchLoader has none; none at all for a stored copy.
-       */
-      onSuccess: async (entry, xhr) => {
-        let data;
-        try {
-          if (!callbacks.skipProcess) {
-            data = await entry.getDataFromBlob();
-          }
-          fragment.dataSize = entry.dataSize;
-        } catch (e) {
-          console.error(e);
-          fragment.status = DownloadStatus.DOWNLOAD_FAILED;
-          this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-          callbacks.onFail(entry);
-          return;
-        }
-        if (fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE) {
-          fragment.status = DownloadStatus.DOWNLOAD_COMPLETE;
-          this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-        }
-        callbacks.onSuccess(entry, data);
-      },
+      ...fragmentDownloadCallbacks(this.player, fragment, callbacks, (entry, data) => callbacks.onSuccess(entry, data)),
       /**
        * @param {import('../../network/FetchLoader.mjs').FetchLoader['stats']} stats
        * @param {Awaited<ReturnType<DownloadEntry['getRequest']>>} context2 - The request.
@@ -121,20 +58,6 @@ export class DashFragmentRequester {
       onProgress: (stats, context2, data, xhr) => {
         if (callbacks.onProgress) callbacks.onProgress(stats, context, data, xhr);
       },
-      /** @param {DownloadEntry} entry */
-      onFail: (entry) => {
-        fragment.status = DownloadStatus.DOWNLOAD_FAILED;
-        this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-        callbacks.onFail(entry);
-      },
-      /** @param {DownloadEntry} entry */
-      onAbort: (entry) => {
-        fragment.status = DownloadStatus.WAITING;
-        this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
-        if (callbacks.onAbort) callbacks.onAbort(entry);
-      },
     }, priority);
-
-    return loader;
   }
 }
