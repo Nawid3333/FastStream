@@ -314,6 +314,24 @@ describe('SubtitleSyncer: dragging a cue', () => {
     expect(syncer.trackElements).toEqual([]);
   });
 
+  it('draws no bar before the video has a length, and a right one once it has', () => {
+    // glm's review, 2026-11-16: each bar went to NaN%, and kept its broken width once the
+    // length came (only its left edge was redrawn).
+    const {syncer, cue} = grabbed(2);
+    fire(playerContainer, 'mouseup');
+    const video = syncer.client.player.getVideo();
+    syncer.trackElements = [];
+    cue.text = 'line';
+    syncer.visibleCues = [cue];
+    syncer.lastUpdate = Date.now();
+    video.duration = NaN;
+    syncer.renderTracks(0, 100);
+    expect(syncer.trackElements).toEqual([]);
+    video.duration = 100;
+    syncer.renderTracks(0, 100);
+    expect(syncer.trackElements.map((bar) => [bar.element.style.left, bar.element.style.width])).toEqual([['10%', '2%']]);
+  });
+
   it('moves the bars of a paused timeline at once with the shift keys', () => {
     const {syncer} = grabbed(2);
     fire(playerContainer, 'mouseup');

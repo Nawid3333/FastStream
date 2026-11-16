@@ -31,6 +31,14 @@ export class LoopMenu extends EventEmitter {
     // timeupdate (four a second, also in the background) keeps it within the loop there. And
     // while paused, when the frames rest (checkLoopLoop): there it comes with a seek.
     this.timeupdateHandler = () => {
+      // A GIF records from the animation frames, which a background tab does not get: nothing
+      // ended the recording there, and the video played on at 4x, the whole file over and
+      // over, until the tab was shown again (glm's review, 2026-11-16). It is dropped instead.
+      if (document.hidden && this.gifLoopRunning) {
+        this.stopGifRecording(true);
+        this.endGifLoop();
+        return;
+      }
       if (document.hidden || this.client.paused) this.keepWithinLoop();
     };
     this.timeupdateVideo = null;
@@ -376,32 +384,48 @@ export class LoopMenu extends EventEmitter {
       if (currentTime >= /** @type {number} */ (this.loopEnd) || (lastRecorded !== null && currentTime < lastRecorded)) {
         reachedEnd = true;
       } else if (lastRecorded === null || currentTime - lastRecorded > 1/30) {
-        if (lastRecorded !== null && this.gif) {
-          this.gif.addFrame(this.gifCanvas, {
-            delay: Math.round((currentTime - lastRecorded) * 1000),
-            copy: true,
-          });
-        }
+        try {
+          if (lastRecorded !== null && this.gif) {
+            this.gif.addFrame(this.gifCanvas, {
+              delay: Math.round((currentTime - lastRecorded) * 1000),
+              copy: true,
+            });
+          }
 
-        /** @type {CanvasRenderingContext2D} */ (this.gifCtx).drawImage(player.getVideo(), 0, 0, /** @type {HTMLCanvasElement} */ (this.gifCanvas).width, /** @type {HTMLCanvasElement} */ (this.gifCanvas).height);
-        this.lastTimeRecorded = currentTime;
+          /** @type {CanvasRenderingContext2D} */ (this.gifCtx).drawImage(player.getVideo(), 0, 0, /** @type {HTMLCanvasElement} */ (this.gifCanvas).width, /** @type {HTMLCanvasElement} */ (this.gifCanvas).height);
+          this.lastTimeRecorded = currentTime;
+        } catch (e) {
+          // A video that taints the canvas (another site's, played by the element itself)
+          // cannot be read back (a SecurityError, as MediaKeys' frame): the frames stopped
+          // with the throw, and the video played on at 4x, over and over (glm's review,
+          // 2026-11-16). The GIF is dropped, and says so.
+          console.warn('The GIF cannot be recorded from this video', e);
+          this.stopGifRecording(true);
+          this.endGifLoop();
+          return;
+        }
       }
     }
 
     if (reachedEnd || !this.loopEnabled || !this.recordingGif) {
       console.log('gif recording reached end');
-      this.gifLoopRunning = false;
-      // As it was before the GIF, unless the user switched the loop off meanwhile: that ended
-      // the recording, and was undone here (review).
-      this.loopEnabled = this.loopEnabled && !!this.loopWasEnabled;
-      this.loopWasEnabled = false;
-      this.client.pause();
-      this.client.setPlaybackRate(/** @type {number} */ (this.previousPlaybackRate), true);
-      this.updateLoopAndGif();
-      this.finishGif();
+      this.endGifLoop();
       return;
     }
     requestAnimationFrame(this.gifLoop.bind(this));
+  }
+
+  /** Ends a GIF's recording: the video paused at its own speed, the loop as before, the GIF made. */
+  endGifLoop() {
+    this.gifLoopRunning = false;
+    // As it was before the GIF, unless the user switched the loop off meanwhile: that ended
+    // the recording, and was undone here (review).
+    this.loopEnabled = this.loopEnabled && !!this.loopWasEnabled;
+    this.loopWasEnabled = false;
+    this.client.pause();
+    this.client.setPlaybackRate(/** @type {number} */ (this.previousPlaybackRate), true);
+    this.updateLoopAndGif();
+    this.finishGif();
   }
 
   finishGif() {

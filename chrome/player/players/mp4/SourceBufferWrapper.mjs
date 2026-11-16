@@ -117,7 +117,9 @@ export class SourceBufferWrapper extends EventEmitter {
   /**
    * @param {number} start - In seconds.
    * @param {number} end - In seconds.
-   * @return {Promise<void>} Resolves once the range is gone.
+   * @return {Promise<void>} Resolves once the SourceBuffer has started removing the range, not
+   *   once it is gone: `buffered` still holds it until the removal's updateend (removalPending
+   *   says so, #265). Nothing may read `buffered` after awaiting this as if it were gone.
    */
   remove(start, end) {
     return new Promise((resolve, reject) => {

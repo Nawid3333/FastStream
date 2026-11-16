@@ -1,4 +1,5 @@
 // @ts-check
+import {sourceHeadersFor} from '../../VideoSource.mjs';
 import {fragmentDownloadCallbacks, markRequested} from '../FragmentStatus.mjs';
 
 /** @typedef {import('../../network/DownloadEntry.mjs').DownloadEntry} DownloadEntry */
@@ -44,8 +45,9 @@ export class DashFragmentRequester {
       config,
       headers: {
         ...config.headers,
-        // Set: fragments are asked for only once the player has its source.
-        ...(/** @type {import('../../VideoSource.mjs').VideoSource} */ (this.player.source)).headers,
+        // Set: fragments are asked for only once the player has its source. Its login headers
+        // only to its own site (VideoSource.headersFor).
+        ...sourceHeadersFor(/** @type {import('../../VideoSource.mjs').VideoSource} */ (this.player.source), context.url),
       },
     }, {
       ...fragmentDownloadCallbacks(this.player, fragment, callbacks, (entry, data) => callbacks.onSuccess(entry, data)),

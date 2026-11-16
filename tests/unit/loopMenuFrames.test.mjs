@@ -77,3 +77,51 @@ describe('the A-B loop\'s check', () => {
     expect(ui).toMatch(/\n {2}play\(\) \{[^}]*this\.loopControls\.startLoopLoop\(\);/);
   });
 });
+
+describe('a GIF recorded in a tab that goes to the background', () => {
+  it('is dropped, and the video stops at its own speed: no frames come there to end it', () => {
+    // glm's review, 2026-11-16: the recording ended only in an animation frame, which a
+    // background tab does not get, and the video played on at 4x, over and over.
+    const {menu, client, frames} = setup();
+    const status = vi.fn();
+    const gif = {abort: vi.fn(), addFrame: vi.fn(), on: vi.fn(), render: vi.fn()};
+    Object.assign(client, {player: {getVideo: () => ({loop: true, addEventListener() {}})},
+      paused: false, playbackRate: 4, pause: vi.fn(), setPlaybackRate: vi.fn(),
+      interfaceController: {setStatusMessage: status}});
+    Object.assign(menu, {gif, gifLoopRunning: true, recordingGif: true, loopWasEnabled: false, previousPlaybackRate: 1,
+      toggleLoopButton: {classList: {add() {}, remove() {}}, textContent: ''}});
+    vi.stubGlobal('document', {hidden: true});
+    menu.timeupdateHandler();
+    expect(menu.gifLoopRunning).toBe(false);
+    expect(client.pause).toHaveBeenCalled();
+    expect(client.setPlaybackRate).toHaveBeenCalledWith(1, true);
+    expect(gif.abort).toHaveBeenCalled();
+    expect(gif.render).not.toHaveBeenCalled();
+    expect(status).toHaveBeenCalledWith('save-gif', 'loop_menu_gif_abort', 'info', 5000);
+    expect(frames).toEqual([]);
+  });
+});
+
+describe('a GIF of a video whose frames cannot be read back', () => {
+  it('is dropped, and the video stops at its own speed', () => {
+    // A video that taints the canvas: reading a frame back throws, which stopped the frames
+    // with the video playing on at 4x (glm's review, 2026-11-16).
+    const {menu, client, frames, runFrames} = setup();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const gif = {abort: vi.fn(), addFrame: vi.fn(() => {
+      throw new DOMException('The operation is insecure.', 'SecurityError');
+    }), on: vi.fn(), render: vi.fn()};
+    Object.assign(client, {player: {currentTime: 2.5, getVideo: () => ({loop: true, addEventListener() {}})},
+      paused: false, playbackRate: 4, pause: vi.fn(), setPlaybackRate: vi.fn(),
+      interfaceController: {setStatusMessage: vi.fn()}});
+    Object.assign(menu, {gif, gifLoopRunning: true, recordingGif: true, lastTimeRecorded: 2.3, loopWasEnabled: false,
+      previousPlaybackRate: 1, gifCanvas: {width: 1, height: 1}, gifCtx: {drawImage() {}},
+      toggleLoopButton: {classList: {add() {}, remove() {}}, textContent: ''}});
+    menu.gifLoop();
+    runFrames(3);
+    expect(menu.gifLoopRunning).toBe(false);
+    expect(client.setPlaybackRate).toHaveBeenCalledWith(1, true);
+    expect(gif.abort).toHaveBeenCalled();
+    expect(frames).toEqual([]);
+  });
+});

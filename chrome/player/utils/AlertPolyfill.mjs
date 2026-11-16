@@ -218,7 +218,13 @@ export function errorTitleText(error) {
  * @return {string}
  */
 export function errorReportURL(error, version) {
-  const body = `## Version:\n${version}\n\n## Error message:\n${errorText(error)}\n\n## Stack trace:\n\`\`\`\n${error?.stack || 'No stack trace'}\n\`\`\``;
+  // Clipped, as the message is: a deep stack (hls.js through the player's recovery) made an
+  // address GitHub refuses (414, about 8 kB), and nothing was reported (glm's review,
+  // 2026-11-16). And without the extension's address, which names this install (a random id
+  // per profile): the issue is public.
+  const fullStack = String(error?.stack || 'No stack trace').replace(/moz-extension:\/\/[^/\s]+\//g, 'moz-extension://.../');
+  const stack = fullStack.length > 3000 ? fullStack.slice(0, 3000) + '\n...' : fullStack;
+  const body = `## Version:\n${version}\n\n## Error message:\n${errorText(error)}\n\n## Stack trace:\n\`\`\`\n${stack}\n\`\`\``;
   const urlBase = `https://github.com/Nawid3333/FastStream/issues/new?`;
   return `${urlBase}title=${encodeURIComponent('Error report')}&body=${encodeURIComponent(body)}`;
 }

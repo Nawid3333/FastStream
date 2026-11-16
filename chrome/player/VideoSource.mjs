@@ -51,6 +51,52 @@ export function withoutCredentials(headers) {
 }
 
 
+// Second-level labels under a two-letter country code that are public (co.uk, com.au, ne.jp):
+// a site there is one label longer. Firefox's public suffix list is not open to extensions.
+const PublicSecondLevel = /^(ac|co|com|edu|gov|go|ne|net|or|org)$/;
+
+/**
+ * The site a host belongs to, as near as can be told without the public suffix list: its last
+ * two labels (three under a public second level), an IP address or a one-label host as it is.
+ * @param {string} host - A URL's hostname.
+ * @return {string}
+ */
+export function siteOfHost(host) {
+  const labels = host.toLowerCase().split('.');
+  if (labels.length <= 2 || /^\d+$/.test(labels[labels.length - 1]) || host.includes(':')) return host.toLowerCase();
+  const second = labels[labels.length - 2];
+  const count = labels[labels.length - 1].length === 2 && PublicSecondLevel.test(second) ? 3 : 2;
+  return labels.slice(-count).join('.');
+}
+
+/**
+ * Whether two addresses are http(s) of the same site (siteOfHost).
+ * @param {string} a
+ * @param {string} b
+ * @return {boolean}
+ */
+function sameSite(a, b) {
+  try {
+    const first = new URL(a);
+    const second = new URL(b);
+    if (!/^https?:$/.test(first.protocol) || !/^https?:$/.test(second.protocol)) return false;
+    return siteOfHost(first.hostname) === siteOfHost(second.hostname);
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * VideoSource.headersFor, for any source with a url and headers.
+ * @param {{url: string, headers?: Object<string, string>}} source
+ * @param {string} url - The request's address.
+ * @return {Object<string, string>}
+ */
+export function sourceHeadersFor(source, url) {
+  const headers = source.headers || {};
+  return sameSite(source.url, url) ? headers : withoutCredentials(headers);
+}
+
 export class VideoSource {
   /**
    * @param {string|File} source - The stream's URL, or a file the user opened.
@@ -94,6 +140,21 @@ export class VideoSource {
     // be loaded through when FastStream itself is refused (PageFetch.mjs).
     /** @type {?number} */
     this.pageFrameId = null;
+  }
+
+  /**
+   * The headers a request of this source's sends (a playlist's, a segment's, a key's): all of
+   * them to an address of the source's own site, and without the login ones (withoutCredentials)
+   * to another site. The source's are what the page's request sent to the source's host, its
+   * Cookie included, and a header rule sets them on each request: a playlist that named another
+   * host for a segment or a key had the source site's session cookie sent there, which the
+   * browser itself never does (glm's review, 2026-11-16). Referer and Origin go everywhere: a
+   * CDN checks them, and the browser sends them across sites too.
+   * @param {string} url - The request's address.
+   * @return {Object<string, string>}
+   */
+  headersFor(url) {
+    return sourceHeadersFor(this, url);
   }
 
   /**

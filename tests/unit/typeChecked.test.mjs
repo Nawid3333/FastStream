@@ -95,6 +95,7 @@ const CHECKED = [
   'chrome/player/network/UntimedSpans.mjs',
   'chrome/player/network/opfs-worker.mjs',
   'chrome/player/options/KeybindUtils.mjs',
+  'chrome/player/options/SettingsFile.mjs',
   'chrome/player/options/MpvSuggestion.mjs',
   'chrome/player/options/OptionsStore.mjs',
   'chrome/player/options/defaults/AspectRatios.mjs',

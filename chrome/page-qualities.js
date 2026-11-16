@@ -102,8 +102,11 @@ const PageQualities = (() => {
       if (!url || list.some((e) => e.url === url)) continue;
       const label = plainLabel(entry.label);
       list.push({url, label, height: heightOf(label)});
+      // No quality menu, whatever comes after: a page of 50,000 <source> elements had each
+      // compared with all before it, minutes on the page's main thread (glm's review, 2026-11-16).
+      if (list.length > MAX_ENTRIES) return null;
     }
-    return list.length >= 2 && list.length <= MAX_ENTRIES ? list : null;
+    return list.length >= 2 ? list : null;
   }
 
   /**

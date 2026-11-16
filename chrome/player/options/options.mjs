@@ -20,6 +20,7 @@ import {DefaultQualities} from './defaults/DefaultQualities.mjs';
 import {AspectRatios} from './defaults/AspectRatios.mjs';
 import {ColorThemes} from './defaults/ColorThemes.mjs';
 import {MpvSuggestion} from './MpvSuggestion.mjs';
+import {holdImportedNumbers, importedForMigration, settingsForExport} from './SettingsFile.mjs';
 
 // Empty until the saved options are read (loadOptions): the select menus below are built
 // before, and read none.
@@ -1106,6 +1107,7 @@ importButton.addEventListener('click', () => {
       alert(Localize.getMessage('options_import_invalid'));
       return;
     }
+    newOptionsObj = importedForMigration(newOptionsObj);
     const newOptions = Utils.migrateClickActions(Utils.migrateSizes(Utils.migrateKeybinds(
         Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj), newOptionsObj), newOptionsObj);
     // The mpv path is this computer's, and the one program the helper starts: a file from
@@ -1113,6 +1115,7 @@ importButton.addEventListener('click', () => {
     // (a review, 2026-11-15). The user sets it on this page.
     /** @type {Object<string, *>} */ (newOptions).mpvPath = typeof Options.mpvPath === 'string' ? Options.mpvPath : '';
     holdToFields(newOptions);
+    holdImportedNumbers(newOptions);
     const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
     const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
     loadOptions(newOptions);
@@ -1128,7 +1131,7 @@ importButton.addEventListener('click', () => {
 
 exportButton.addEventListener('click', async () => {
   const blob = new Blob([JSON.stringify({
-    ...(await Utils.getOptionsFromStorage()),
+    ...settingsForExport(await Utils.getOptionsFromStorage()),
     subtitlesSettings: await Utils.getSubtitlesSettingsFromStorage(),
     toolSettings: await Utils.loadAndParseOptions('toolSettings', DefaultToolSettings),
   }, null, 2)], {type: 'application/json'});

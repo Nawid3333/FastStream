@@ -134,10 +134,17 @@ export function addedLines(diff) {
   const out = [];
   let file = '';
   let line = 0;
+  // A file's header runs from its "diff " row to its first hunk. An added line whose text starts
+  // with "++ " is the row "+++ ..." too: read as a header, it went unchecked (glm's review,
+  // 2026-11-16).
+  let header = false;
   for (const row of diff.split('\n')) {
-    if (row.startsWith('+++ ')) {
+    if (row.startsWith('diff ')) {
+      header = true;
+    } else if (header && row.startsWith('+++ ')) {
       file = row.slice(4).replace(/^b\//, '');
     } else if (row.startsWith('@@')) {
+      header = false;
       const hunk = /\+(\d+)/.exec(row);
       line = hunk ? Number(hunk[1]) : 0;
     } else if (row.startsWith('+')) {
@@ -193,6 +200,25 @@ function checkCommit(sha, words, quote) {
   return out;
 }
 
+/**
+ * Checks an annotated tag object: its tagger and its message.
+ * @param {string} sha
+ * @param {string[]} words
+ * @return {string[]}
+ */
+function checkTag(sha, words) {
+  const out = [];
+  const text = git(['cat-file', 'tag', sha]);
+  const split = text.indexOf('\n\n');
+  const head = split < 0 ? text : text.slice(0, split);
+  const tagger = /^tagger (.*?>)/m.exec(head);
+  if (tagger && !isPublicIdentity(tagger[1])) out.push('a pushed tag: the tagger is not a public identity');
+  for (const found of findings(split < 0 ? '' : text.slice(split + 2), words)) {
+    out.push(`a pushed tag: its message holds ${found.rule}: ${found.text}`);
+  }
+  return out;
+}
+
 /** @return {string[]} */
 function staged() {
   const words = cloneWords();
@@ -234,6 +260,9 @@ function push(remote, refs) {
     const [, local, remoteRef, remoteSha] = row.split(' ');
     if (!local || zero.test(local)) continue; // a deletion
     for (const found of findings(remoteRef, words)) out.push(`a pushed branch or tag: its name holds ${found.rule}`);
+    // An annotated tag is an object of its own: its message and tagger are in no commit, and
+    // went out unchecked (glm's review, 2026-11-16).
+    if (git(['cat-file', '-t', local]).trim() === 'tag') out.push(...checkTag(local, words));
     // A branch new to the remote (remote sha all zeros), or one whose remote commit is not
     // here: every commit not on the remote yet. Asked before git is, which printed "fatal: Not
     // a valid object name" for the zeros on every first push of a branch.

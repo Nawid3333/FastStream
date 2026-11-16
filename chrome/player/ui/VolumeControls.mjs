@@ -83,6 +83,8 @@ export class VolumeControls extends EventEmitter {
     this.updateVolumeBar(volume);
 
     if (!dontSave) {
+      // The user's: the stored volume, read after it, does not undo it (loadVolumeState).
+      this.changedByUser = true;
       clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.saveTimer));
       this.saveTimer = setTimeout(() => this.saveVolumeNow(), VolumeSaveDelayMs);
     }
@@ -177,6 +179,9 @@ export class VolumeControls extends EventEmitter {
     const state = await Utils.loadAndParseOptions('volumeState', {
       volume: 1,
     });
+    // Changed while it was read (the player's first moments): the stored volume put the old
+    // one back over the user's, and saved that (glm's review, 2026-11-16).
+    if (this.changedByUser) return;
     this.setVolume(/** @type {{volume: number}} */ (state).volume, true);
   }
 

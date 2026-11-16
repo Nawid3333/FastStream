@@ -1898,3 +1898,40 @@ The same review's look at `content.js`:
 - Not changed: the frame-link key posted with `'*'` reaches only the parent window, which owns
   the iframe anyway, so it can take nothing from it. A Shift-only shortcut cannot exist (Firefox
   asks for Ctrl or Alt), so `couldBeExtensionShortcut` has nothing to add.
+
+## The whole-repository review, second part (2026-11-16)
+
+The rest of the repository read through by me and, file group by file group, by glm (UI,
+menus, subtitles, utils, options, players, release tools, workflows, storage, the saves'
+remuxers, vtt.js). Kept only what the code proved; each fix has a test that fails without it.
+
+- **A source's headers stay on its own site.** The headers captured with a source (its Cookie
+  among them: Firefox's webRequest gives it) went with every request the loaders made for it,
+  also to a segment, key or playlist on another site (a CDN, a key server). Now
+  `sourceHeadersFor(source, url)` (`VideoSource.mjs`) gives them only for a URL on the
+  source's own site (`siteOfHost`: the last two labels, three under a public second level such
+  as `co.uk`), and the headers without credentials otherwise. Used by `HLSLoader`,
+  `HLSFragmentRequester` (segments and keys), `DashLoader` and `DashFragmentRequester`.
+  Test: `sourceHeaders.test.mjs`.
+- **The settings file:** the export left out nothing, the mpv path too (it names the Windows
+  account); an imported `keybindsVersion` above this build's was kept, and no later layout change
+  ever applied; an imported number only had to be a number (-5 GB of RAM, an Infinity of
+  buffer, a zoom of 1e9). `options/SettingsFile.mjs` does all three. Test: `SettingsFile.test.mjs`.
+- **Long or hostile input:** `page-qualities.js` built a URL for every `<source>` of a page
+  (now it stops past its maximum); `xml2vtt` sliced the rest of the cue list for each cue with no
+  end (150,000 cues: 7.7 s, now 0.1 s). The error report put the whole stack into the issue's
+  address (52,777 characters, which GitHub refuses) with the extension's install id; it is
+  clipped, and the id replaced.
+- **UI:** a click on a source that is still loading started it a second time
+  (`SourcesBrowser`); a volume changed before the stored one was read was overwritten by it
+  (`VolumeControls`); GIF recording in a background tab never ended (no rAF there) and a
+  tainted canvas threw out of the loop (`LoopMenu`); the subtitle syncer drew bars before the
+  video had a length (`SubtitleSyncer`).
+- **The saves:** data no demuxer takes failed with "Cannot read properties of undefined
+  (reading 'demux')" (the transmuxer dropped its own error).
+- Not changed, and why: an fMP4 HLS level never reaches `samplesFromMoof` (HLSPlayer routes it
+  to DASH2MP4), so a packager's trun flags cannot fail there; dash.js's `processCues` (vtt.js's
+  `determineBidi` recursion) runs only with a rendering div, and none is attached; vtt.js's
+  `unescape` parses once per text token with an `&`, and a cue's tree is built once and kept
+  (`cue.dom`), so a hostile file freezes the player once per such cue, not per frame - left
+  for a change to vtt.js with its provenance list (`tools/verify-vtt.mjs`).

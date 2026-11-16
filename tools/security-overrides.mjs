@@ -421,8 +421,13 @@ export function planFloors(alerts, versions, workspaceText, today) {
     // Released x.y.z only: GitHub ranges cannot match prereleases either.
     const vulnerable = [...(versions.get(name) ?? [])].filter((v) => XYZ_RE.test(v) && inRange(v));
     if (vulnerable.length === 0) {
-      // Covers both "no vulnerable version" and "a floor already applied (GitHub lag)".
-      declined.push({alert: number, reason: 'stale: no vulnerable version in the lockfile'});
+      // Covers both "no vulnerable version" and "a floor already applied (GitHub lag)". A
+      // prerelease copy is not checked against the range, so it is named, not called fixed: the
+      // issue said "stale" while one was in the tree (glm's review, 2026-11-16).
+      const unchecked = [...(versions.get(name) ?? [])].filter((v) => !XYZ_RE.test(v));
+      declined.push({alert: number, reason: unchecked.length ?
+        `only versions that are no plain release in the lockfile (${unchecked.join(', ')}), not checked against '${rangeText}'` :
+        'stale: no vulnerable version in the lockfile'});
       continue;
     }
     for (const v of vulnerable) {

@@ -908,3 +908,26 @@ relevant is `tools/firefox-api-watch.topics.mjs`.
 - **Tuning:** a false positive is fixed in the topics file (a keyword too broad, a Bugzilla
   summary pattern for `excludeSummary`, a platform area for `excludeText`), with a unit test
   case; the last dry run's numbers above say what "normal" looks like.
+
+## Issues anyone can open (2026-11-16)
+
+The repository is public: anyone can open an issue, and comment. `mpv-updates.yml` took any
+open issue titled "mpv update failed: ..." for its own, and a report key in anyone's comment
+for one it had made - a stranger's comment could silence a real failure. It now takes only
+its own issue (`author.login == "app/github-actions"`) and only its own comments
+(`github-actions[bot]`). Test: `tests/workflows/mpv-updates-report.test.sh`, which takes the
+lookup and `report()` out of the real step.
+
+The other failure reporters still find their issue by title alone. Left so, weighed: someone
+else's issue of that title only gets the "failed again" comments, on an issue the owner sees
+open; nothing is silenced. (34 lookups and their fixtures, for no lost report.)
+
+`tools/privacy-check.mjs` read an added line starting `++ ` as the next file's header (the diff
+row is `+++ ...`), and checked nothing of it; a header is now only a `+++` row between a
+`diff` row and its first hunk. And a pushed annotated tag's message and tagger, in no commit,
+went out unchecked; they are checked. Tests: `privacyCheck.test.mjs`.
+
+`tools/security-overrides.mjs` declined an alert as "stale: no vulnerable version in the
+lockfile" when the lockfile held only a prerelease of the package, which it never checks
+against the range; the issue then read as if the alert were fixed. It now names the
+prerelease as not checked. Test: `securityOverrides.test.mjs`.

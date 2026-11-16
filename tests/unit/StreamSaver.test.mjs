@@ -35,6 +35,9 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
     // The memory sink waits on this once the save PR (#222/#297) is in; nothing to wait
     // for in a store that keeps everything in memory.
     async whenStored() {}
+    async clear() {
+      this.blobs.clear();
+    }
   },
 }));
 
@@ -106,4 +109,19 @@ describe.each([['OPFS', true], ['memory', false]])('a streamed save to the %s si
     await vi.advanceTimersByTimeAsync(1000);
     expect(store.close).toHaveBeenCalledTimes(1);
   });
+});
+
+// glm's review, 2026-11-16: a chunk the Cache API no longer had was put into the file as the
+// word "undefined", behind a "Save complete" - the guard SaveFile has had since that broke
+// there (docs/notes/storage.md).
+it('fails a save to the memory sink whose chunk the store lost, and downloads nothing', async () => {
+  state.opfs = false;
+  const writer = streamSaver.createWriteStream('video.mp4').getWriter();
+  await writer.write(new Uint8Array([1, 2, 3]));
+  await writer.write(new Uint8Array([4, 5]));
+  state.stores[0].blobs.delete('blob1');
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  await expect(writer.close()).rejects.toThrow('A piece of the saved file is gone');
+  expect(Utils.downloadURL).not.toHaveBeenCalled();
+  expect(state.stores[0].close).toHaveBeenCalledTimes(1);
 });

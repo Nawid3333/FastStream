@@ -416,6 +416,15 @@ describe('planFloors', () => {
     expect(plan.declined).toEqual([{alert: 88, reason: 'stale: no vulnerable version in the lockfile'}]);
   });
 
+  // glm's review, 2026-11-16: with only a prerelease in the tree, the issue called the alert
+  // stale (fixed) though nothing had checked that copy.
+  it('names a prerelease it cannot check instead of calling the alert stale', () => {
+    const plan = planFloors([mkAlert(90, 'left-pad', '< 1.3.2', '1.3.2')], versions({'left-pad': ['1.3.0-rc.1']}), WORKSPACE, TODAY);
+    expect(plan.floors).toEqual([]);
+    expect(plan.declined).toEqual([{alert: 90,
+      reason: 'only versions that are no plain release in the lockfile (1.3.0-rc.1), not checked against \'< 1.3.2\''}]);
+  });
+
   it('declines when the existing override is an npm alias value', () => {
     const plan = planFloors([mkAlert(89, 'extract-zip', '<= 1.0.5', '1.0.6')], versions({'extract-zip': ['1.0.5']}), WORKSPACE, TODAY);
     expect(plan.floors).toEqual([]);

@@ -19,7 +19,8 @@ import {createDropdown} from './components/Dropdown.mjs';
 
 /**
  * A source in the list, with its row (setupSourceListing).
- * @typedef {VideoSource & {sourceBrowserElements: SourceListing}} ListedSource
+ * @typedef {VideoSource & {sourceBrowserElements: SourceListing, loading?: boolean}} ListedSource
+ *   loading: its Play was clicked and the player is still being set up with it.
  */
 
 export class SourcesBrowser {
@@ -178,7 +179,11 @@ export class SourcesBrowser {
         return;
       }
 
-      if (sourceSetBtn.classList.contains('loading')) return;
+      // On the source, not the button: the list drawn again meanwhile (a character typed in
+      // another row) took the button's mark away, and a second click set the source up twice
+      // (glm's review, 2026-11-16).
+      if (source.loading) return;
+      source.loading = true;
       sourceSetBtn.classList.add('loading');
       sourceSetBtn.textContent = Localize.getMessage('player_source_playbtn_loading');
       try {
@@ -187,9 +192,11 @@ export class SourcesBrowser {
         // A source that failed left the button on "Loading..." for good (final review,
         // 2026-10-10): the list is drawn again either way.
         console.warn('Could not play the source', e);
+        source.loading = false;
         this.updateSources();
         return;
       }
+      source.loading = false;
       this.updateSources();
       this.client.play();
     });
@@ -270,6 +277,8 @@ export class SourcesBrowser {
       /** @type {{sourcesFound: HTMLElement}} */ (this.linkui).sourcesFound.textContent = Localize.getMessage('player_source_multilisted', [sourceLen]);
     }
     this.sources.forEach((source) => {
+      // Still being set up: it keeps its "Loading...".
+      if (source.loading) return;
       source.sourceBrowserElements.setBtn.classList.remove('loading');
       if (this.client.source && this.client.source.equals(source)) {
         source.sourceBrowserElements.container.classList.add('active');

@@ -2,6 +2,7 @@
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {PLAYBACK_PRIORITY} from '../../network/StandardDownloader.mjs';
 import {StringUtils} from '../../utils/StringUtils.mjs';
+import {sourceHeadersFor} from '../../VideoSource.mjs';
 import {DashTrackUtils} from './DashTrackUtils.mjs';
 
 // How many times in a row one segment may fail before the player gives up on it. Until
@@ -244,8 +245,9 @@ export function DASHLoaderFactory(player) {
         },
         headers: {
           ...httpRequest.headers,
-          // Set: fragments are asked for only once the player has its source.
-          ...(/** @type {import('../../VideoSource.mjs').VideoSource} */ (player.source)).headers,
+          // Set: fragments are asked for only once the player has its source. Its login
+          // headers only to its own site (VideoSource.headersFor).
+          ...sourceHeadersFor(/** @type {import('../../VideoSource.mjs').VideoSource} */ (player.source), httpRequest.url),
         },
       };
 

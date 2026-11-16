@@ -1,6 +1,7 @@
 // @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {isDecryptable} from '../../utils/Decryptable.mjs';
+import {sourceHeadersFor} from '../../VideoSource.mjs';
 import {fragmentDownloadCallbacks, markRequested} from '../FragmentStatus.mjs';
 import {HLSDecrypter} from './HLSDecrypter.mjs';
 
@@ -152,12 +153,14 @@ export class HLSFragmentRequester {
 
     markRequested(this.player, fragment);
 
+    const source = /** @type {import('../../VideoSource.mjs').VideoSource} */ (this.player.source);
     const headers = {
       ...config.headers,
-      // Set: fragments are asked for once the player has its source.
-      ...(/** @type {import('../../VideoSource.mjs').VideoSource} */ (this.player.source)).headers,
+      // Set: fragments are asked for once the player has its source. Its login headers only to
+      // its own site (VideoSource.headersFor), for the segment and for its key each.
+      ...sourceHeadersFor(source, context.url),
     };
-    const decrypt = this.decryptionFor(frag, headers);
+    const decrypt = this.decryptionFor(frag, {...config.headers, ...sourceHeadersFor(source, frag?.fs_oldcryptdata?.uri ?? '')});
 
     return this.player.getClient().downloadManager.getFile({
       ...context,

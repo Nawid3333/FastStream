@@ -105,6 +105,32 @@ describe('the volume bar', () => {
     expect(controls.volume).toBe(after);
   });
 
+  it('keeps a change made before the stored volume was read', async () => {
+    // glm's review, 2026-11-16: the stored volume, read after it, put the old one back.
+    /** @type {Function} */
+    let answer = () => {};
+    vi.spyOn(Utils, 'loadAndParseOptions').mockImplementationOnce(() => new Promise((resolve) => {
+      answer = resolve;
+    }));
+    const early = new VolumeControls({});
+    early.setupUI();
+    early.setVolume(0.3);
+    answer({volume: 1});
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(early.volume).toBe(0.3);
+    early.saveVolumeNow();
+  });
+
+  it('control: takes the stored volume when nothing was changed meanwhile', async () => {
+    vi.spyOn(Utils, 'loadAndParseOptions').mockResolvedValueOnce({volume: 0.8});
+    const fresh = new VolumeControls({});
+    fresh.setupUI();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(fresh.volume).toBe(0.8);
+  });
+
   it('stops at a move with no button held, for a mouseup it never heard', () => {
     press();
     move({clientX: 170});

@@ -46,6 +46,17 @@ describe('AlertPolyfill', () => {
       '## Stack trace:\n```\nError: Bad thing\n    at play (FastStreamClient.mjs:1:2)\n```');
   });
 
+  it('clips a deep stack, so the issue\'s address stays within what GitHub takes, and names no install', () => {
+    // glm's review, 2026-11-16: the stack went in whole, and GitHub refused the address (414).
+    const error = new Error('Deep');
+    error.stack = Array.from({length: 400}, (_, i) =>
+      `    at step${i} (moz-extension://0a1b2c3d-1111-2222-3333-444455556666/player/FastStreamClient.mjs:${i}:2)`).join('\n');
+    const url = errorReportURL(error, '1.0');
+    expect(url.length).toBeLessThan(8000);
+    expect(url).not.toContain('0a1b2c3d');
+    expect(new URL(url).searchParams.get('body')).toContain('at step0 (moz-extension://.../player/FastStreamClient.mjs:0:2)');
+  });
+
   // The dialog's title was "Error: undefined" for anything but an Error.
   it('names in the dialog\'s title what was thrown, whatever it is', () => {
     expect(errorTitleText(new Error('It broke'))).toBe('It broke');
