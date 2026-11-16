@@ -443,13 +443,16 @@ describe('A video only its page can load', function() {
         return;
       }
       if (url.pathname === '/c/page') {
+        // The page's own video names the same test as the page (?for=save), a fixed text: the
+        // request's own query went into the page as it came (CodeQL js/reflected-xss).
+        const query = url.searchParams.get('for') === 'save' ? '?for=save' : '';
         session.loads++;
         session.initial = `a${session.loads}`;
         session.current = '';
         res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
           'Set-Cookie': `sess=${session.initial}; Path=/c/; SameSite=Lax`});
         res.end(`<!doctype html><title>cookie video</title><body style="margin:0;background:#000">
-          <video muted preload="auto" style="width:640px;height:360px" src="/c/video.mp4${url.search}"></video>`);
+          <video muted preload="auto" style="width:640px;height:360px" src="/c/video.mp4${query}"></video>`);
         return;
       }
       if (url.pathname === '/c/video.mp4') {
