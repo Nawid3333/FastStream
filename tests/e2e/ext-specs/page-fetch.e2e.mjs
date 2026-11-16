@@ -282,12 +282,44 @@ async function startSave(name) {
   await browser.execute(() => {
     /** @type {HTMLElement} */ (document.querySelector('.main_download') || document.querySelector('#download')).click();
   });
-  await browser.waitUntil(() => browser.execute(() => !!document.querySelector('.fs-dialog .fs-dialog-input')),
+  await browser.waitUntil(() => browser.execute(() => !!document.querySelector('dialog.fs-dialog[open] .fs-dialog-input')),
       {timeout: 15000, timeoutMsg: 'the name prompt never appeared'});
-  await browser.execute((given) => {
-    /** @type {HTMLInputElement} */ (document.querySelector('.fs-dialog .fs-dialog-input')).value = given;
-    /** @type {HTMLElement} */ (document.querySelector('.fs-dialog-confirm')).click();
+  // On CI (2026-11-15/16, both OSes, most runs) OK left the prompt open: the save never
+  // began, and the wait for its file ran out 75 s later. A click on a dialog's button does
+  // nothing while its document has no layout (Firefox, an iframe with display: none); what
+  // the player's document and its frame were like is told here, measured only after the
+  // click, as a measurement lays the document out.
+  const ignored = await browser.execute((given) => {
+    const field = /** @type {HTMLInputElement} */ (document.querySelector('dialog.fs-dialog[open] .fs-dialog-input'));
+    const dialog = /** @type {HTMLDialogElement} */ (field.closest('dialog'));
+    const confirm = /** @type {HTMLButtonElement} */ (dialog.querySelector('.fs-dialog-confirm'));
+    field.value = given;
+    confirm.click();
+    if (!dialog.open) return null;
+    const seen = {dialogs: document.querySelectorAll('dialog.fs-dialog').length,
+      visibility: document.visibilityState, focus: document.hasFocus(),
+      width: document.documentElement.clientWidth, boxes: confirm.getClientRects().length,
+      clickedAgain: false, submitted: false};
+    confirm.click();
+    seen.clickedAgain = !dialog.open;
+    if (dialog.open) {
+      /** @type {HTMLFormElement} */ (confirm.form).requestSubmit(confirm);
+      seen.submitted = !dialog.open;
+    }
+    return seen;
   }, name);
+  if (ignored) {
+    await browser.switchFrame(null);
+    const page = await browser.execute(() => ({visibility: document.visibilityState, focus: document.hasFocus(),
+      frames: Array.from(document.querySelectorAll('iframe'), (frame) => {
+        const style = getComputedStyle(frame);
+        const box = frame.getBoundingClientRect();
+        return {player: frame.src.includes('player/index.html'), display: style.display, visibility: style.visibility,
+          box: [Math.round(box.width), Math.round(box.height)], inline: (frame.getAttribute('style') || '').slice(0, 300)};
+      })}));
+    throw new Error(`OK left the name prompt open; the player's document: ${JSON.stringify(ignored)}, ` +
+      `the page: ${JSON.stringify(page)}`);
+  }
 }
 
 /**
