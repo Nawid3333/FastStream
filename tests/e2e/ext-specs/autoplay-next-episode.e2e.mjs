@@ -141,23 +141,47 @@ async function intoPlayer(what) {
 }
 
 /**
- * Waits until the player's frame is laid out, its progress bar with a width: a click on the bar
- * seeks only then (ProgressBar). The player frame is out of process and takes its size after the
- * page lays it out; its video may already play meanwhile, at 0x0 - three CI runs in the week to
- * 2026-11-02 (#620) clicked 46 ms after playing began, on a bar 0 wide, and did not seek.
- * @param {string} what - For the message.
+ * Clicks the progress bar's last pixel (pressed and let go) once the player's frame has its size,
+ * checked in the same task as the click: a click on the bar seeks only on a bar with a width
+ * (ProgressBar). The player's frame is out of process and takes its size from the page
+ * asynchronously; its video may play meanwhile at 0x0. Three CI runs in the week to 2026-11-02
+ * (#620) clicked 46 ms after playing began, on a bar 0 wide; a wait for the bar's width before
+ * the click (one round trip earlier) still lost it twice in one run (2026-11-16: the frame 0x0 at
+ * the click). A user cannot click a bar that is not on the screen. The wait is told when it is
+ * long; a frame that never gets its size fails with what the page shows.
+ * @param {string} what - For the messages.
+ * @param {boolean} pause - Pause the video first.
+ * @return {Promise<{before: number, sought: number, time: number, duration: number, barWidth: number,
+ *   frame: string, visibility: string}>} The click's state: before it, right after the press, after.
  */
-async function barLaidOut(what) {
-  let state;
+async function clickBarEnd(what, pause) {
+  const since = Date.now();
+  /** @type {any} */
+  let at = null;
   await browser.waitUntil(async () => {
-    state = await browser.execute(() => {
-      const bar = document.querySelector('.mainplayer .fluid_controls_progress_container');
-      return {barWidth: bar?.clientWidth ?? null, frame: `${innerWidth}x${innerHeight}`};
-    });
-    return state.barWidth > 0 && !state.frame.startsWith('0x');
-  }, {timeout: 10000, interval: 100}).catch(() => {
-    throw new Error(`${what}: the player frame never got its size: ${JSON.stringify(state)}`);
+    at = await browser.execute(async (pause) => {
+      if (pause) await window.fastStream.pause();
+      const bar = /** @type {?HTMLElement} */ (document.querySelector('.mainplayer .fluid_controls_progress_container'));
+      const frame = `${innerWidth}x${innerHeight}`;
+      if (!bar || !(bar.clientWidth > 0) || !(innerWidth > 0)) return {clicked: false, barWidth: bar?.clientWidth ?? null, frame};
+      const before = window.fastStream.currentTime;
+      const rect = bar.getBoundingClientRect();
+      const x = rect.left + rect.width - 1;
+      const y = rect.top + rect.height / 2;
+      bar.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0, clientX: x, clientY: y}));
+      const sought = window.fastStream.currentTime;
+      document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, button: 0, clientX: x, clientY: y}));
+      return {clicked: true, before, sought, time: window.fastStream.currentTime, duration: window.fastStream.duration,
+        barWidth: bar.clientWidth, frame, visibility: document.visibilityState};
+    }, pause);
+    return at.clicked;
+  }, {timeout: 10000, interval: 100}).catch(async () => {
+    const state = at;
+    throw new Error(`${what}: the player frame never got its size: ${JSON.stringify(state)}; the page: ${JSON.stringify(await pageFrames())}`);
   });
+  const waited = Date.now() - since;
+  if (waited > 1000) console.log(`      ${what}: the player's frame had no size for the click for ${waited} ms`);
+  return at;
 }
 
 /**
@@ -424,21 +448,8 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
     // The keyboard's next-track key goes there as well: Firefox took the player's handler, in
     // the page's frame (MediaKeys; a key itself cannot be pressed from here).
     expect(await browser.execute(() => window.fastStream.interfaceController.toolManager.mediaKeys.offered.nexttrack)).toBe(true);
-    await barLaidOut('the first episode');
-    const at = await browser.execute(async () => {
-      await window.fastStream.pause();
-      // The bar's last pixel, pressed and let go as a click there.
-      const bar = /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_controls_progress_container'));
-      const before = window.fastStream.currentTime;
-      const rect = bar.getBoundingClientRect();
-      const x = rect.left + rect.width - 1;
-      const y = rect.top + rect.height / 2;
-      bar.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0, clientX: x, clientY: y}));
-      document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, button: 0, clientX: x, clientY: y}));
-      // With what decides whether it seeks: ProgressBar seeks only on a bar with a width.
-      return {before, time: window.fastStream.currentTime, duration: window.fastStream.duration,
-        barWidth: bar.clientWidth, frame: `${innerWidth}x${innerHeight}`, visibility: document.visibilityState};
-    });
+    // Paused, then the bar's last pixel, pressed and let go as a click there.
+    const at = await clickBarEnd('the first episode', true);
     console.log(`      clicked the bar's end: ${JSON.stringify(at)}`);
     // A click that did not seek (#583: still at the time it was paused at, once in a week's
     // runs) is said here, with that state, not after the 30 s wait for the next episode.
@@ -465,24 +476,7 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
         await browser.execute(() => window.fastStream.play());
         await browser.waitUntil(() => browser.execute(() => window.fastStream.state.playing),
             {timeout: 10000, timeoutMsg: `${page}: the video never played`});
-        await barLaidOut(page);
-        const at = await browser.execute(() => {
-          const bar = /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_controls_progress_container'));
-          const before = window.fastStream.currentTime;
-          const rect = bar.getBoundingClientRect();
-          const x = rect.left + rect.width - 1;
-          const y = rect.top + rect.height / 2;
-          bar.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0, clientX: x, clientY: y}));
-          const sought = window.fastStream.currentTime;
-          document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, button: 0, clientX: x, clientY: y}));
-          return {before, sought, barWidth: bar.clientWidth, frame: `${innerWidth}x${innerHeight}`,
-            visibility: document.visibilityState};
-        });
-        if (!(at.barWidth > 0) || at.frame.startsWith('0x')) {
-          // The frame had its size a moment before (barLaidOut): what the page made of it.
-          throw new Error(`${page}: the player's frame lost its size before the click: ${JSON.stringify(at)}; ` +
-            `the page: ${JSON.stringify(await pageFrames())}`);
-        }
+        const at = await clickBarEnd(page, false);
         await browser.pause(1500);
         const after = await browser.execute(() => ({player: window.fastStream.player.constructor.name,
           time: window.fastStream.currentTime, duration: window.fastStream.duration}));

@@ -502,6 +502,21 @@
   (wip/fs-prune, failed twice), and the pre-15 host's PowerShell start of mpv taking 46 s
   (fix/open-items). One mpv-shortcut attempt hung for two minutes with nothing logged (run
   38628691870).
+- **A script's click on the player's prompt in a page (#697, 2026-11-16).** page-fetch failed
+  on most CI runs of 2026-11-15/16, both OSes: OK left the save's name prompt open. The player's
+  out-of-process document was 0 wide, with no box for the button (a layout forced after the click
+  still 0), while the page showed its frame at 640x360. Firefox does nothing for a click on a
+  submit button with no box; `requestSubmit` still submitted. The frame takes its size from the
+  page asynchronously (and content.js hides it while it measures, entry above), the video loads
+  meanwhile, and the spec saved as soon as the video had data. #703 added a trace before the
+  click; its round trips delayed the click past that moment, and no run failed after it, which
+  hid the race rather than fixing it. autoplay-next-episode lost the frame's size between a
+  check and its bar click one round trip later. Now the check and the click are one task:
+  `tests/e2e/confirmPrompt.mjs` clicks OK only once the document has its size and the button a
+  box, retried for 15 s (page-fetch, save-flow), and autoplay's `clickBarEnd` does the same for
+  the bar. A wait over a second is logged; a document that never gets its size fails with the
+  page's frames. `tests/unit/e2eConfirmPrompt.test.mjs` fails on an ext, classic or private-window
+  spec that clicks OK from a script (`querySelector(...fs-dialog-confirm...)`) instead.
 - **e2e config, 2026-09-25:** `autoXvfb: false` - Firefox runs `-headless`, and WebdriverIO
   otherwise spawns workers through `xvfb-run`, whose Ubuntu 26.04 version closes fd 3, the
   worker IPC channel: every worker died with `write EINVAL` (webdriverio#15685, unfixed in
