@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
-import {downloadingOutside, HEALTHY_S, shouldConcentrate, SHORT_S} from '../../chrome/player/network/PlayheadFirst.mjs';
+import {besidePlayhead, downloadingOutside, HEALTHY_S, shouldConcentrate, SHORT_S} from '../../chrome/player/network/PlayheadFirst.mjs';
 
 vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
   FSBlob: class {
@@ -38,6 +38,19 @@ describe('PlayheadFirst', () => {
     // playhead, and its download was cancelled.
     const unparsed = {start: -1, end: -1, status: DownloadStatus.DOWNLOAD_INITIATED};
     expect(downloadingOutside([unparsed], 100, 5, 30)).toEqual([]);
+  });
+
+  it('at a seek, finds every running download of each track but the ones the playhead is in', () => {
+    // The next fragment, inside the window, shared a 3 Mbit/s line with the seek's own:
+    // an MP4 seek 3.6 -> 4.6 s (2026-11-16).
+    const at = (start, saved = false, status = DownloadStatus.DOWNLOAD_INITIATED) =>
+      ({start, end: start + 4, status, canFree: () => !saved});
+    const video = [at(60), at(68), at(72), at(76), at(80, true), at(84, false, DownloadStatus.DOWNLOAD_COMPLETE), at(-1)];
+    const audio = [at(70), at(74)];
+    // At 72: video 72-76 and audio 70-74 hold the playhead; 76 starts at the end of video's.
+    expect(besidePlayhead([video, audio, null], 72).map((fragment) => fragment.start)).toEqual([60, 76, 74]);
+    // A playhead on a fragment's edge keeps the one starting just after it (0.1 s).
+    expect(besidePlayhead([video], 75.95).map((fragment) => fragment.start)).toEqual([60, 68]);
   });
 });
 

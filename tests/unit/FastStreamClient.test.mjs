@@ -1271,17 +1271,27 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
      *   asked?: boolean, live?: boolean, untimed?: boolean, from?: number, testing?: boolean,
      *   held?: boolean[]}} line - asked: playback has a request running; from: where the first
      *   waiting fragment starts; testing: the speed test still runs; held: gets what
-     *   holdTest was told.
+     *   holdTest was told; running: fragments already downloading, as track:start, or
+     *   track:start:saved for one a save holds;
+     *   cancelled: gets those cancelIfCheap was asked for.
      * @return {string[]} The fragments it started, as track:start.
      */
     const startedAt = ({sharesLine, video = SEEKING, asked = false, live = false, untimed = false, from = 10,
-      testing = false, held = []}) => {
+      testing = false, held = [], running = [], cancelled = []}) => {
       vi.stubGlobal('navigator', {onLine: true});
       const client = makeClient({maxSpeed: -1});
       const make = (track, start) => ({track, start: untimed ? -1 : start, end: untimed ? -1 : start + 2,
         canFree: () => true, getContext: () => ({})});
       const waiting = [];
       for (let start = from; start < 16; start += 2) waiting.push(make('video', start), make('audio', start));
+      const downloading = running.map((name) => {
+        // saved: a save holds it (canFree false).
+        const [track, start, saved] = name.split(':');
+        return {...make(track, Number(start)), status: DownloadStatus.DOWNLOAD_INITIATED, getContext: () => ({name}),
+          canFree: () => !saved};
+      });
+      Object.defineProperty(client, 'fragments', {value: downloading.filter((fragment) => fragment.track === 'video')});
+      Object.defineProperty(client, 'audioFragments', {value: downloading.filter((fragment) => fragment.track === 'audio')});
       client.state.currentTime = 10.5;
       client.getNextToDownload = () => waiting.shift() || null;
       client.getVideoAhead = () => 0;
@@ -1293,6 +1303,7 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
       client.downloadManager = {yielding: false, memoryFull: false, getSpeed: () => 0,
         canGetFile: () => true, activeCount: () => started.length, urgentParallel: () => 6,
         sharesLine: () => sharesLine, playbackAsked: () => asked, testing,
+        cancelIfCheap: (/** @type {{name: string}} */ details) => cancelled.push(details.name),
         holdTest: (/** @type {boolean} */ hold) => held.push(hold)};
       client.player = {duration: 1400, getVideo: () => video, downloadFragment: vi.fn((fragment) => {
         started.push(`${fragment.track}:${fragment.start}`);
@@ -1347,6 +1358,30 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
       expect(startedAt({sharesLine: false, testing: true, held: start,
         video: {seeking: false, paused: false, readyState: 1, played: {length: 0}}})).toHaveLength(6);
       expect(start).toEqual([false]);
+    });
+
+    it('at a seek, cancels the downloads ahead running beside the fragments the playhead is in', () => {
+      // Started before the seek, inside the new place's window: on a 3 Mbit/s line the next
+      // fragment kept half the line from the seek's own, an MP4 seek 3.6 -> 4.6 s (2026-11-16).
+      const running = ['video:10', 'video:12', 'audio:10', 'audio:14', 'video:6'];
+      const cancelled = [];
+      startedAt({sharesLine: true, asked: true, running, cancelled});
+      expect(cancelled).toEqual(['video:12', 'video:6', 'audio:14']);
+      // Not one a save holds, nor one without times (start -1, nothing to place it by).
+      const kept = [];
+      startedAt({sharesLine: true, asked: true, running: ['video:12:saved', 'video:-1'], cancelled: kept});
+      expect(kept).toEqual([]);
+      // While the speed test runs, the same.
+      const testing = [];
+      startedAt({sharesLine: false, testing: true, asked: true, running, cancelled: testing});
+      expect(testing).toEqual(['video:12', 'video:6', 'audio:14']);
+      // A stall, or where each connection has its own speed, or playing on: they run on.
+      for (const line of [{sharesLine: true, video: {seeking: false, paused: false, readyState: 2, played: PLAYED}},
+        {sharesLine: false}, {sharesLine: true, video: {seeking: false, paused: false, readyState: 4, played: PLAYED}}]) {
+        const left = [];
+        startedAt({...line, asked: true, running, cancelled: left});
+        expect(left).toEqual([]);
+      }
     });
 
     it('not waiting - playing on, or paused - downloads ahead as before', () => {

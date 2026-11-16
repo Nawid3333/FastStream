@@ -871,6 +871,18 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
     preview ~40 s ahead can come later, as downloading ahead starts after the seek instead of
     during it (traced piece by piece): on a steady line it is still ready sooner counted from
     the seek, on the falling 3 Mbit/s line 6-10 s later.
+  - Downloads ahead already running inside the new place's window were spared at a seek
+    (`cancelFarDownloads` cancels only outside it): an MP4 seek from 45 s to 72 s on a steady
+    3 Mbit/s line had the next fragment, started before the seek at priority 0, beside the seek's
+    own for the whole wait (traced 0.3 s and 1.5 s after it), 4.5-4.7 s where a seek without it
+    took 3.3-3.7 s. Since 2026-11-16 a seek held as above also cancels the running downloads ahead
+    that do not hold the playhead (`PlayheadFirst.cancelBesidePlayhead`; playback's own and a
+    save's are left, as by `cancelIfCheap`); the next fragment comes again from its first
+    byte. A/B, 5 rounds twice, steady 3 Mbit/s: the MP4 seek 3643-3699 -> 2882-2913 ms in each of
+    the 6 rounds where the next fragment ran beside it, the others (a start phase where it did
+    not) the same; HLS and DASH the same there, and every measure the same on the 6 Mbit/s line,
+    with 3 connections capped, with 20 % of answers cut, and on the 3 Mbit/s line falling to a
+    quarter (preview, stalls and seeks). A first DASH +21 ms (p 0.032) did not repeat.
 - **The download line counts the connections again (2026-10-22, the owner's wish):**
   "3C ↓9.6 Mbit/s 50%", as upstream showed until 2026-10-09, now with the speed in Mbit/s
   (`DownloadStatusText.mjs`). The count is the downloads running at that moment
