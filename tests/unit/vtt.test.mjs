@@ -100,11 +100,12 @@ describe('convertCueToDOMTree: class names', () => {
     return [...names];
   }
 
-  it('gives a cue none of the player\'s classes, so <c.pseudo_fullscreen> cannot cover the controls', () => {
+  it('gives a cue none of the player\'s classes, so it cannot borrow their rules', () => {
     // <c.fluid_video_wrapper.fluid_player_layout_default.pseudo_fullscreen> made the cue's
-    // span a fixed, full-size element at z-index 99999 over every control.
+    // span a fixed, full-size element at z-index 99999 over every control (#292). That rule,
+    // which nothing else used, is gone since (2026-11-17); every class the player has is tried.
     const names = playerClassNames();
-    expect(names).toContain('pseudo_fullscreen');
+    expect(names).toContain('fluid_video_wrapper');
     expect(names).toContain('subtitle-track');
     const tree = WebVTT.convertCueToDOMTree(window, `<c.${names.join('.')}>covered</c>`);
     const span = tree.childNodes[0];

@@ -102,7 +102,7 @@ Many thanks to the contributors of this project.
 - [hls.js](https://github.com/video-dev/hls.js): Used for HLS playback
 - [dash.js](https://github.com/Dash-Industry-Forum/dash.js): Used for DASH playback
 - [mp4box.js](https://github.com/gpac/mp4box.js): Used for automatic fragmentation of mp4 files
-- [vtt.js](https://github.com/mozilla/vtt.js): Used for parsing VTT subtitles
+- [vtt.js](https://github.com/videojs/vtt.js) (the bundle dash.js keeps of it): Used for parsing VTT subtitles
 - [Mediabunny](https://github.com/Vanilagy/mediabunny): Used for reading WebM and copying streams into MP4 when saving
 - And some more! [docs/vendored-libraries.md](docs/vendored-libraries.md) lists every one, with its version and what this project changed in it.
 
