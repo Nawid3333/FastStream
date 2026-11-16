@@ -745,6 +745,8 @@ video waits...", "Buffering").
 | #704 | A seek in the first seconds, while the speed test runs, gets the line; the test waits for it | HLS 3140 -> 1217 ms, MP4 3556 -> 1606 ms (6 Mbit/s); 3047 -> 1922 ms where each connection is capped; MP4 10975 -> 7710 ms on a falling 3 Mbit/s line. Accepted trade-off (the owner, 2026-11-16): a hover preview ~40 s ahead right after such a seek can come later on a slow line that keeps falling (downloading ahead starts after the seek) |
 | #700 | README up to date; `SECURITY.md` (private reports through GitHub's vulnerability reporting) | - |
 | #701 | No install scripts in the patched-libraries re-cut job | - |
+| #706 | A seek also cancels the downloads ahead already running beside the playhead's fragment, inside the new place's window | MP4 seek on a steady 3 Mbit/s line 3643-3699 -> 2882-2913 ms in each of the 6 rounds where the next fragment ran beside it; all else the same on 5 lines |
+| #707 | When the network is back (`online`), a retry waiting out its backoff goes at once, and fragments that failed offline are downloaded again | unit tests (an e2e cannot take Firefox offline); up to 32 s sooner after an outage |
 
 **Flaky tests (#697)**
 
@@ -764,10 +766,15 @@ harness until an A/A run says otherwise.
 
 **Still open (buffering)**
 
-- On a 3 Mbit/s line falling to a quarter every other 5 s, the speed test was still running after
-  85 s (traced, main and #704 alike): on a line whose rate swings that much it never decides.
+- Earlier ideas, not measured yet: resume a cut download from the byte it reached; remember a
+  host's speed until Firefox closes (section 8); preconnect; `preload=auto` for files Firefox
+  plays itself.
 
-- MP4 seeks on slow lines: one 5.2 s outlier after 5 s of play (trace first).
-- Earlier ideas, not measured yet: resume a cut download from the byte it reached; retry at the
-  `online` event; remember a host's speed until Firefox closes (section 8); preconnect;
-  `preload=auto` for files Firefox plays itself.
+**Closed by measurement**
+
+- "The speed test never decides on a line that swings": traced over 90 s of play (2026-11-16), it
+  decided in 11-38 s on a steady 3 Mbit/s line and on one falling to a quarter every other 5 s,
+  MP4 and HLS (a line the downloads share). The test seen running at 85-125 s was the benchmark's
+  seek 5 s into play: a seek holds the test (#704), and its round starts again after.
+- MP4 seeks on slow lines: the slow ones had the next fragment downloading beside the seek's
+  (#706).
