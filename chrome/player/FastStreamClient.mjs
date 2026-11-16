@@ -1680,7 +1680,11 @@ export class FastStreamClient extends EventEmitter {
     for (const fragments of Object.values(this.fragmentsStore || {})) {
       for (const fragment of fragments || []) {
         // Init segments (sn -1) every fragment of their level needs.
-        if (!fragment || fragment.sn < 0 || fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE || !fragment.canFree()) continue;
+        if (!fragment || fragment.sn < 0 || fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE) continue;
+        // One kept for good when the room ran out (GRANDFATHERED) may still go to disk: it is
+        // kept there. Left out, those held in RAM then never left it, and "full" stayed on,
+        // no download ahead for the rest of the video (glm's review, 2026-11-16).
+        if (!fragment.canFree() && !(toDisk && fragment.references.every((type) => type === ReferenceTypes.GRANDFATHERED))) continue;
         const bytes = manager.ramBytesOf(fragment.getContext());
         if (!(bytes > 0)) continue;
         // On its way to disk already, and counted as gone (leaving). Chosen again on a tick

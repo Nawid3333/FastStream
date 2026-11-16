@@ -457,6 +457,35 @@ describe('windowed fullscreen', () => {
     expect(styled.getAttribute('style')).toBe('color: red;');
   });
 
+  it('gives what holds the player its style back, and keeps what the page wrote to it meanwhile', async () => {
+    // glm's review, 2026-11-16: the whole old attribute was put back, and a page whose
+    // framework drew the element again while the player filled the screen lost that.
+    for (const pageWrites of [false, true]) {
+      const {page, iframe} = await pageWithPlayer();
+      // What the page draws the player in (the player is the body's here).
+      const wrap = page.document.createElement('div');
+      page.document.body.appendChild(wrap);
+      wrap.appendChild(iframe);
+      wrap.setAttribute('style', 'width: 50px; transform: scale(2);');
+      await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5});
+      expect(wrap.style.getPropertyValue('position')).toBe('fixed');
+      expect(wrap.style.getPropertyValue('transform')).toBe('');
+      if (pageWrites) {
+        wrap.style.setProperty('color', 'blue');
+        wrap.style.setProperty('width', '70px');
+      }
+      await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5});
+      expect(wrap.style.getPropertyValue('position')).toBe('');
+      expect(wrap.style.getPropertyValue('transform')).toBe('scale(2)');
+      if (pageWrites) {
+        expect(wrap.style.getPropertyValue('color')).toBe('blue');
+        expect(wrap.style.getPropertyValue('width')).toBe('70px');
+      } else {
+        expect(wrap.getAttribute('style')).toBe('width: 50px; transform: scale(2);');
+      }
+    }
+  });
+
   it('stays out when told to leave before it was ever entered', async () => {
     // A frame's state starts empty: force false was compared with undefined, and entered.
     const {page, iframe} = await pageWithPlayer();

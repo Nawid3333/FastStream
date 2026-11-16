@@ -2178,6 +2178,34 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
       await bg.wait(500);
     }
 
+    it('goes on the same way when the tab went on to another site, whose page it leaves alone', async () => {
+      // glm's review, 2026-11-16: the episode's end clicked that site's "next" link, the
+      // user's page went away under them, and its video replaced the series in mpv.
+      for (const countdown of [0, 5]) {
+        const port = await onEpisode1({autoplayCountdown: countdown}, 'clicked', {next: true},
+            {1: linksTo(EP2, EP0)}, {});
+        await bg.wait(100);
+        await bg.navigated(1, 'https://news.test/today');
+        await bg.frameAdded(1, 0, 'https://news.test/today', 'news');
+        port.emit({type: 'ended', path: S1});
+        await bg.wait(100 + countdown * 1000);
+        expect(polls, String(countdown)).toEqual([]);
+        expect(navigations, String(countdown)).toEqual([]);
+        expect(bg.createdTabs, String(countdown)).toEqual([{id: 1000, url: EP2, active: false, windowId: 1}]);
+        bg.unload();
+      }
+    });
+
+    it('control: clicks the page\'s link when the tab is still on the series\' site', async () => {
+      const port = await onEpisode1({}, 'clicked', undefined, {1: linksTo(EP2, EP0)});
+      await bg.wait(100);
+      await bg.navigated(1, 'https://site.test/about');
+      port.emit({type: 'ended', path: S1});
+      await bg.wait(100);
+      expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
+      expect(bg.createdTabs).toEqual([]);
+    });
+
     it('opens the next episode in a tab not shown, sends its stream, closes it, and goes on from it', async () => {
       const port = await closedAfterEpisode1();
       port.emit({type: 'ended', path: S1});
@@ -2986,6 +3014,25 @@ describe('a file only its page loads', () => {
     await bg.wait(500);
     expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
     expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
+  });
+
+  it('turns the tab off at the toolbar\'s next click after Firefox stopped the event page too', async () => {
+    // glm's review, 2026-11-16: which page the On stands in for MPV on was not kept, and a
+    // woken background took the click for On -> MPV: one click late, and the page reloaded.
+    const setup = {options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}], fetch: html()};
+    bg = await loadBackground(setup);
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await pagePlays();
+    await bg.wait(3000);
+    const session = bg.session;
+    bg.unload();
+
+    bg = await loadBackground({...setup, session});
+    await bg.click(1);
+    await bg.wait(500);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false});
+    expect(bg.reloaded).toEqual([]);
   });
 
   it('lets the MPV key\'s next play of the same video go, not dropped as a repeat', async () => {

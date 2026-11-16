@@ -1885,3 +1885,16 @@ player for good:
 
 `backgroundJammedFrame.test.mjs` jams each one (an answer that never settles). All three
 tests fail without the limits.
+
+The same review's look at `content.js`:
+
+- **Leaving windowed fullscreen keeps what the page wrote meanwhile.** Each element that holds
+  the player gets its whole style attribute back (`undoFillScreenIframe`). A page whose
+  framework drew such an element again while the player filled the screen lost that change.
+  Now the old attribute goes back whole only when the attribute is still exactly what the fill
+  set (`filled`). Otherwise it goes back property by property: what the fill set returns to
+  what was there before, and what the page wrote stays. Test: `contentScript.test.mjs`, "keeps
+  what the page wrote to it meanwhile".
+- Not changed: the frame-link key posted with `'*'` reaches only the parent window, which owns
+  the iframe anyway, so it can take nothing from it. A Shift-only shortcut cannot exist (Firefox
+  asks for Ctrl or Alt), so `couldBeExtensionShortcut` has nothing to add.

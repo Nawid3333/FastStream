@@ -642,6 +642,13 @@ export class DownloadManager {
   letGo(watcher) {
     const entry = watcher.entry;
     entry.abortWatcher(watcher);
+    if (!entry.watchers.length && entry.status !== DownloadStatus.ENQUEUED) {
+      // The last one aborted it: out of the queue, as removeFile takes one. Left there failed,
+      // it kept canGetFile saying no to every download ahead until a finished download moved
+      // it to the head (glm's review, 2026-11-16: a seek's giving up of a queued segment).
+      const queued = this.queue.indexOf(entry);
+      if (queued !== -1) this.queue.splice(queued, 1);
+    }
     // Destroyed (a player gone, its loaders giving up after): nothing to reorder or cancel.
     if (!entry.watchers.length || !this.downloaders) return;
     const priority = Math.max(...entry.watchers.map((other) => other.priority ?? 0));

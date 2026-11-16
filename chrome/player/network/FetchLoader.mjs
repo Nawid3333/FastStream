@@ -328,6 +328,10 @@ export class FetchLoader {
 
     const status = response.status;
     if (status < 200 || status >= 300) {
+      // Its body is not read: let its connection go now. A retry's teardown aborts the
+      // attempt, but a final error (a 4xx, the last try) left it held until garbage collection
+      // (glm's review, 2026-11-16), once per fragment with a link that ran out.
+      response.body?.cancel().catch(() => {});
       this.handleLoadFailure(status, response.statusText, retryAfterMs(response.headers.get('retry-after')));
       return;
     }

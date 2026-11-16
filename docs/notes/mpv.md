@@ -905,3 +905,24 @@ second mpv cannot create the pipe the first holds, both loads go to the first wi
 second stays idle and empty until closed. An mpv that never answers on its pipe within 15 s
 is reported, not killed (the helper never kills a process it cannot identify as idle and its
 own).
+
+## What glm's review of MPV mode found (2026-11-16)
+
+- **MPV autoplay leaves a tab that went on to another site alone.** The user can take the tab
+  of mpv's stream to another site while mpv plays. The episode's end (or mpv's next key) then
+  asked that site's page for its "next" link and clicked it: the user's page went away under
+  them, and its video replaced the series in mpv. The watch now keeps the site the stream went
+  from (`MpvWatch.site`, its host). On another site, the episode the series' page linked to
+  opens in a tab that is not shown, as for a closed tab (his wish of 2026-10-27,
+  `goToEpisodeFromSiteLeft`), and the countdown does not ask the foreign page either. A host,
+  not a page: the series' next page, a reload, and an address the site's script changes all
+  stay on it. Tests: `backgroundMpv.test.mjs`, "goes on the same way when the tab went on to
+  another site" and its control.
+- **`mpvStandInPage` and `mpvPage` are kept over a wake** (`PersistedTabFields`). Without them, a
+  woken background took the toolbar's click on an On that stands in for MPV (#671) for On -> MPV:
+  the page reloaded, and Off came one click late. Test: "turns the tab off at the toolbar's next
+  click after Firefox stopped the event page too".
+- Left as they are: the episode links read at a hand-off are dropped when the tab closes during
+  the read (a second at most, before mpv's window is even up); a hand-off that throws keeps
+  `mpvAutoOpened` (no reachable throw: `tabTitle` catches, and the hand-off answers `{ok: false}`);
+  `watchNextEpisodeArrives`' timer dies with the event page (only its "no stream" note is lost).

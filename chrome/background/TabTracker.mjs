@@ -751,12 +751,15 @@ const TabStateKeyPrefix = 'tabState:';
 // or a player's end found no page to go on to the next episode in (his report, 2026-10-23:
 // the countdown stopped at "1 s"; measured, the event page unloads after 30 s). playerNotice,
 // or a player that loaded after a wake said nothing of why it opened in place of mpv (glm's
-// review; sendSources saves its clearing). The rest of
+// review; sendSources saves its clearing). mpvStandInPage, and the mpvPage it names, or a
+// woken background took the toolbar's click on an On that stands in for MPV for On -> MPV, one
+// click late (glm's review, 2026-11-16). The rest of
 // a TabHolder - frames, detected sources - describes the current page and is rebuilt as
 // that page makes requests.
 const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened',
   'mpvError', 'mpvHostOutdated', 'protectedVideo', 'mpvDecoder', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend',
-  'mpvTurnedOff', 'windowStateBefore', 'carriedFullscreenFrameId', 'carryAwaited', 'playerPageFrames', 'playerNotice'];
+  'mpvTurnedOff', 'windowStateBefore', 'carriedFullscreenFrameId', 'carryAwaited', 'playerPageFrames', 'playerNotice',
+  'mpvPage', 'mpvStandInPage'];
 
 export class TabTracker {
   constructor() {
