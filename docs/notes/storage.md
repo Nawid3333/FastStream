@@ -436,3 +436,26 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   tell files apart. FreshLink uses the same (`DownloadManager.relink`): a refused link's fresh one
   no longer downloads everything again. (FreshLink gives no link in a private window or a
   container tab since 2026-11-13: "Storage in a private window".)
+
+## What glm's review of the download layer found (2026-11-16)
+
+- **A queued download whose last request gives it up leaves the queue at once**
+  (`DownloadManager.letGo`). hls.js and dash.js give up their segment at a seek. When that
+  segment was still waiting in the queue, `abortWatcher` marked it failed but left it there, and
+  `canGetFile` refused every download ahead until a finished download moved it to the head.
+  `removeFile` already took entries out this way. Test: `DownloadManager.test.mjs`, "leaves it
+  when its last request gives it up".
+- **An error answer's unread body is cancelled at once** (`FetchLoader.loadInternal`). A
+  retry's teardown aborts its attempt, but a final error (a 4xx, the last try) held the body,
+  and with it the connection, until garbage collection: once per fragment of a link that ran
+  out. Test: `FetchLoader.test.mjs`, "lets a final error's unread body go at once".
+- **What was pinned when the room ran out still goes to disk.** `updateHasDownloadSpace` pins
+  every downloaded fragment (GRANDFATHERED) so that it is not deleted. `keepWithinMemoryBudget`
+  then skipped those fragments entirely, so the ones held in RAM never left it, "full" stayed on,
+  and nothing more was downloaded ahead for the rest of the video. Now they are spilled
+  (written to disk), never freed. A fragment a save holds (SAVER) stays in RAM as before.
+  Test: `FastStreamClient.test.mjs`, "writes what was kept for good ... to disk".
+- Checked and left as they are: the MP4 player halving its read-ahead after a
+  QuotaExceededError and never growing it back (the quota is fixed for the file's bitrate, so
+  growing back would only hit it again); a Content-Range total over `MAX_FILE_LENGTH`
+  (`lengthFromAnswer` already answers 0 for one).

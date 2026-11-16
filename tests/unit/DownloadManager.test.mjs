@@ -1389,5 +1389,20 @@ describe('DownloadManager cancelling a running download however far in (setYield
       expect(b.entry.status).toBe(DownloadStatus.ENQUEUED);
       expect(b.entry.priority).toBe(0);
     });
+
+    it('waiting in the queue, leaves it when its last request gives it up', () => {
+      // Left there failed, canGetFile said no to every download ahead until a finished
+      // download moved it to the head (glm's review, 2026-11-16).
+      const manager = new DownloadManager({});
+      manager.downloaders = [];
+      const get = (name, priority) => manager.getFile({url: `https://cdn.test/${name}.ts`, responseType: 'arraybuffer'}, {onSuccess: vi.fn()}, priority);
+      const a = get('a', 0);
+      const playback = get('b', 1000);
+      expect(manager.queue).toEqual([playback.entry, a.entry]);
+      playback.abort();
+      expect(playback.entry.status).toBe(DownloadStatus.DOWNLOAD_FAILED);
+      expect(manager.queue).toEqual([a.entry]);
+      expect(manager.playbackAsked()).toBe(false);
+    });
   });
 });

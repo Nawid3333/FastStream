@@ -64,7 +64,8 @@
   // What fillScreenIframe changed: each element, with what it gets back. A Map, as each
   // element is looked up in it: an array made a page of 30,000 elements take seconds on its
   // main thread (an array lookup per element, and a splice per one undone). What holds the
-  // player gets its whole style attribute back ({style}); a hidden element only its display
+  // player gets its whole style attribute back ({style, filled}: property by property when
+  // the page wrote to it meanwhile, undoFillScreenIframe); a hidden element only its display
   // ({display, priority}), as display is all that hid it: putting its whole old attribute
   // back also put back the overlay guard's visibility: hidden, which the guard had given
   // back meanwhile, and the element stayed hidden for good.
@@ -1255,8 +1256,32 @@
     const only = whitelist ? new Set(whitelist) : null;
     elementsChangedByFillscreen.forEach((old, element) => {
       if (!only || only.has(element)) {
-        if (old.style !== undefined) {
+        if (old.style !== undefined && element.getAttribute('style') === old.filled) {
           element.setAttribute('style', old.style);
+        } else if (old.style !== undefined) {
+          // The page wrote to it meanwhile (its framework drew it again): put back, its whole
+          // old attribute undid what the page wrote while the player filled the screen (glm's
+          // review, 2026-11-16). Now what the fill set goes back to what was there before,
+          // property by property, and what the page wrote stays.
+          const before = document.createElement('div').style;
+          before.cssText = old.style;
+          const filled = document.createElement('div').style;
+          filled.cssText = old.filled;
+          for (let i = 0; i < filled.length; i++) {
+            const name = filled.item(i);
+            if (element.style.getPropertyValue(name) === filled.getPropertyValue(name) &&
+              element.style.getPropertyPriority(name) === filled.getPropertyPriority(name)) {
+              // An empty value takes it out.
+              element.style.setProperty(name, before.getPropertyValue(name), before.getPropertyPriority(name));
+            }
+          }
+          // What the fill took out with the old attribute, unless the page set it since.
+          for (let i = 0; i < before.length; i++) {
+            const name = before.item(i);
+            if (!filled.getPropertyValue(name) && !element.style.getPropertyValue(name)) {
+              element.style.setProperty(name, before.getPropertyValue(name), before.getPropertyPriority(name));
+            }
+          }
         } else if (old.display) {
           element.style.setProperty('display', old.display, old.priority);
         } else {
@@ -1351,8 +1376,10 @@
         if (elementsChangedByFillscreen.has(element)) {
           return;
         }
-        elementsChangedByFillscreen.set(element, {style: element.getAttribute('style') || ''});
+        const old = element.getAttribute('style') || '';
         element.setAttribute('style', expandStyle);
+        // filled: the attribute as the fill left it, to tell whether the page wrote to it since.
+        elementsChangedByFillscreen.set(element, {style: old, filled: element.getAttribute('style')});
         addedElements.push(element);
       });
     }

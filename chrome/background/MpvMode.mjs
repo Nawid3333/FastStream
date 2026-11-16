@@ -471,7 +471,8 @@ export function tabSources(tab) {
  *   countdown: ?ReturnType<typeof setTimeout>, countdownAsks: number,
  *   stalled: ?ReturnType<typeof setTimeout>,
  *   links: ?EpisodeLinksOfTab, closedTab: ?{links: EpisodeLinksOfTab, windowId: number, windowClosing: boolean},
- *   watcher: ?{notify: Function, hide: Function, state: Function, stop: Function}}} MpvWatch
+ *   site: string, watcher: ?{notify: Function, hide: Function, state: Function, stop: Function}}} MpvWatch
+ *   site: the host of the page the stream went to mpv from (siteOf), '' for none known.
  */
 /** @type {?MpvWatch} */
 export let mpvWatch = null;
@@ -563,12 +564,13 @@ export function watchMpvFor(tab, url, qualities = null) {
     // are not this one's: closed before these are read, it has none (glm's review).
     mpvWatch.closedTab = null;
     mpvWatch.links = null;
+    mpvWatch.site = siteOf(tab.url);
     rememberEpisodeLinks(mpvWatch, tab);
     return;
   }
   /** @type {MpvWatch} */
   const state = {tabId: tab.tabId, url, qualities, alive: true, going: false, countdown: null, countdownAsks: 0,
-    stalled: null, links: null, closedTab: null, watcher: null};
+    stalled: null, links: null, closedTab: null, site: siteOf(tab.url), watcher: null};
   mpvWatch = state;
   state.watcher = Mpv.watch((event) => onMpvWatchEvent(state, event));
   rememberEpisodeLinks(state, tab);
@@ -764,9 +766,12 @@ export async function startMpvCountdown(state) {
   // A key, the switch, mpv closing or another end while the page is asked wins over this one.
   const ask = ++state.countdownAsks;
   const tab = Tabs.getTab(state.tabId);
-  // A closed tab's page said it when its stream went to mpv (rememberEpisodeLinks).
-  const page = tab && tab.isOn && tab.isMpv ? await nextEpisodeInPage(tab) :
-    !tab && state.closedTab?.links.seriesEnd ? 'series_end' : null;
+  // A closed tab's page said it when its stream went to mpv (rememberEpisodeLinks), as did
+  // the page of a tab that went on to another site since: that site's page is not asked.
+  const away = !!tab && !onWatchedSite(state, tab);
+  const links = !tab ? state.closedTab?.links : away ? state.links : null;
+  const page = tab && !away && tab.isOn && tab.isMpv ? await nextEpisodeInPage(tab) :
+    links?.seriesEnd ? 'series_end' : null;
   if (ask !== state.countdownAsks || state.countdown || !state.alive || !Options.mpvAutoplayNext) return;
   if (page === 'series_end') {
     notifySeriesEnd(state);
@@ -821,6 +826,9 @@ export async function goToEpisode(state, direction) {
   const tab = Tabs.getTab(state.tabId);
   if (!tab && state.closedTab) {
     return goToEpisodeInNewTab(state, direction, title);
+  }
+  if (tab && !onWatchedSite(state, tab)) {
+    return goToEpisodeFromSiteLeft(state, tab, direction, title);
   }
   if (!tab || !tab.isOn || !tab.isMpv) {
     notifyEpisodeUnavailable(state, title);
@@ -951,6 +959,7 @@ export async function goToEpisodeInNewTab(state, direction, title) {
   state.closedTab = null;
   state.links = null;
   state.tabId = created.id;
+  state.site = siteOf(url);
   // MPV, as the closed tab was: the lists by address decide nothing for it (tabs.onUpdated
   // keeps a tab that is on already). Matched by the MPV allowlist already, where it names the
   // address: its own start would send the page's first stream, an ad's maybe, beside the
@@ -966,6 +975,66 @@ export async function goToEpisodeInNewTab(state, direction, title) {
   awaitEpisodeStream(state, tab, title);
   // Its frames may have come before the continuation did (FRAME_ADDED starts this too).
   startPagePlayers(tab);
+}
+
+/**
+ * The host of a page's address, '' for none (no address, or one that is not a URL).
+ * @param {string|undefined} url
+ * @return {string}
+ */
+function siteOf(url) {
+  try {
+    return new URL(String(url)).hostname;
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * Whether the tab of mpv's stream still shows the site the stream went from. A tab the user
+ * took to another site while mpv played had that site's "next" link clicked at the episode's
+ * end: the user's page went away under them, and its video replaced the series in mpv (glm's
+ * review, 2026-11-16). The site, not the page: the series' own next page, a reload, an address
+ * a site's script changes, all stay on it.
+ * @param {MpvWatch} state
+ * @param {TabHolder} tab - The tab of state.tabId.
+ * @return {boolean}
+ */
+function onWatchedSite(state, tab) {
+  return !state.site || siteOf(tab.url) === state.site;
+}
+
+/**
+ * goToEpisode with the tab of mpv's stream gone on to another site: as with the tab closed
+ * (goToEpisodeInNewTab), the episode the series' page linked to opens in a tab not shown, in
+ * the same window; that site's page is left alone.
+ * @param {MpvWatch} state
+ * @param {TabHolder} tab - The tab, on another site now.
+ * @param {'next'|'previous'} direction
+ * @param {string} title - mpv's notice's title.
+ * @return {Promise<void>}
+ */
+async function goToEpisodeFromSiteLeft(state, tab, direction, title) {
+  if (!state.links || state.going) {
+    if (!state.going) notifyEpisodeUnavailable(state, title);
+    return;
+  }
+  const links = state.links;
+  /** @type {number|undefined} */
+  let windowId;
+  try {
+    windowId = (await chrome.tabs.get(tab.tabId)).windowId;
+  } catch (e) {
+    // Closed meanwhile: noteMpvTabClosed keeps its links, and the next end goes on from them.
+  }
+  if (typeof windowId !== 'number' || !state.alive || mpvWatch !== state || state.links !== links) {
+    if (typeof windowId !== 'number') notifyEpisodeUnavailable(state, title);
+    return;
+  }
+  state.closedTab = {links, windowId, windowClosing: false};
+  await goToEpisodeInNewTab(state, direction, title);
+  // Not taken (no link that way, MPV off): the tab is still there, and not closed.
+  if (state.closedTab?.links === links) state.closedTab = null;
 }
 
 /**

@@ -48,6 +48,19 @@ export class FakeStyle {
     return value;
   }
 
+  /** How many properties it has, as a CSSStyleDeclaration's longhands. */
+  get length() {
+    return this.props.size;
+  }
+
+  /**
+   * @param {number} index
+   * @return {string} The name of the property at that place, '' past the end.
+   */
+  item(index) {
+    return Array.from(this.props.keys())[index] ?? '';
+  }
+
   get cssText() {
     return Array.from(this.props, ([name, {value, priority}]) =>
       `${name}: ${value}${priority ? ' !important' : ''};`).join(' ');

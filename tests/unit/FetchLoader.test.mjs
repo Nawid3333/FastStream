@@ -226,6 +226,23 @@ describe('FetchLoader', () => {
     expect(loader.stats.error).toEqual({code: 404, text: 'Not Found'});
   });
 
+  it('lets a final error\'s unread body go at once', async () => {
+    // A retry's teardown aborts its attempt; a final error left the body held until garbage
+    // collection, and its connection with it (glm's review, 2026-11-16).
+    const cancel = vi.fn();
+    const body = new ReadableStream({pull() {}, cancel});
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {status: 403, statusText: 'Forbidden'})));
+
+    const loader = new FetchLoader();
+    const recorder = makeCallbackRecorder();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest(), makeConfig());
+    await vi.runAllTimersAsync();
+
+    expect(recorder.calls.map((c) => c.type)).toEqual(['onError']);
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
   it('counts 499 as a 4xx too (it was retried: "< 499")', async () => {
     const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 499, statusText: 'Client Closed Request'});
     vi.stubGlobal('fetch', fetchMock);

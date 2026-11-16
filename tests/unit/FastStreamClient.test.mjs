@@ -1565,6 +1565,28 @@ describe('FastStreamClient, the RAM budget while writes to disk are slow', () =>
     client.keepWithinMemoryBudget();
     expect(manager.memoryFull).toBe(false);
   });
+
+  it('writes what was kept for good when the room ran out to disk, and deletes none of it', async () => {
+    // updateHasDownloadSpace pins every downloaded fragment (GRANDFATHERED). The budget left
+    // them out, and those held in RAM never left it: full for good (glm's review, 2026-11-16).
+    const {client, manager, fragments, finishWrites} = clientWithSlowDisk(40 * BYTES);
+    for (const fragment of fragments) fragment.addReference(ReferenceTypes.GRANDFATHERED);
+    client.keepWithinMemoryBudget();
+    expect(manager.spill).toHaveBeenCalledTimes(10);
+    finishWrites();
+    await settle();
+    client.keepWithinMemoryBudget();
+    expect(manager.memoryFull).toBe(false);
+    expect(manager.removeFile).not.toHaveBeenCalled();
+    expect(fragments.every((fragment) => !fragment.canFree())).toBe(true);
+  });
+
+  it('control: keeps a fragment a save holds in RAM', () => {
+    const {client, manager, fragments} = clientWithSlowDisk(40 * BYTES);
+    for (const fragment of fragments) fragment.addReference(ReferenceTypes.SAVER);
+    client.keepWithinMemoryBudget();
+    expect(manager.spill).not.toHaveBeenCalled();
+  });
 });
 
 describe('FastStreamClient, "Buffer behind" changed while a video plays', () => {
