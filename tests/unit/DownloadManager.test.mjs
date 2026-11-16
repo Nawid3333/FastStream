@@ -463,7 +463,7 @@ describe('DownloadManager', () => {
     });
     /** A downloader that finished a download, failed with an HTTP status or not. */
     const finished = (code, retryAfter) => Object.assign(idleDownloader(), {
-      getSpeed: () => 1e6, abort: vi.fn(),
+      getSpeed: () => 1e6, abort: vi.fn(), resetSpeed: vi.fn(),
       stats: code ? {error: {code, text: '', ...(retryAfter !== undefined ? {retryAfter} : {})}} : {},
     });
     const failedEntry = {status: DownloadStatus.DOWNLOAD_FAILED};
@@ -631,6 +631,56 @@ describe('DownloadManager', () => {
         manager.slowDown(0);
         expect(manager.downloaders).toHaveLength(3);
         expect(manager.urgentParallel()).toBe(2);
+      });
+
+      it('stands still while the video waits during it, and measures afresh after (holdTest)', () => {
+        // A seek in the first seconds: playback's request downloads alone, the others idle, and
+        // an idle downloader reads slower for 10 s (SpeedTracker counts from its first sample).
+        // A round taken then read as a line the downloads share: on a server that limits each
+        // connection, two downloads for the rest of the video.
+        const perConnection = (count) => count * 2e5;
+        const diluted = (manager) => manager.downloaders.slice().forEach((d) => {
+          d.getSpeed = () => 1e5;
+          manager.onDownloaderFinished(d, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+        });
+        const firstRound = (manager) => {
+          manager.downloaders.slice().forEach((d) => {
+            d.getSpeed = () => perConnection(3) / 3;
+            manager.onDownloaderFinished(d, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+          });
+          expect(manager.downloaders).toHaveLength(4);
+        };
+
+        // What the hold prevents: the diluted round ends the test with the wrong verdict.
+        const unheld = fresh();
+        firstRound(unheld);
+        diluted(unheld);
+        expect(unheld.testing).toBe(false);
+        expect(unheld.sharesLine()).toBe(true);
+
+        const held = fresh();
+        firstRound(held);
+        held.holdTest(true);
+        diluted(held);
+        expect(held.testing).toBe(true);
+        expect(held.downloaders).toHaveLength(4);
+        for (const downloader of held.downloaders) {
+          if (!vi.isMockFunction(downloader.resetSpeed)) vi.spyOn(downloader, 'resetSpeed');
+        }
+        held.holdTest(false);
+        // Every downloader measures afresh: the idle time is not the line's.
+        for (const downloader of held.downloaders) expect(downloader.resetSpeed).toHaveBeenCalledTimes(1);
+        runTest(held, perConnection);
+        expect(held.downloaders).toHaveLength(6);
+        expect(held.sharesLine()).toBe(false);
+        expect(held.urgentParallel()).toBe(6);
+      });
+
+      it('holds nothing once the speed test is over (holdTest)', () => {
+        const manager = fresh();
+        runTest(manager, () => 1.5e6);
+        manager.holdTest(true);
+        expect(manager.testHeld).toBe(false);
       });
 
       it('tells a line the downloads share only once the speed test found it (sharesLine)', () => {

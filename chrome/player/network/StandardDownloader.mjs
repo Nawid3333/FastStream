@@ -77,6 +77,15 @@ export class StandardDownloader {
     return this.speedTracker.getSpeed();
   }
 
+  /**
+   * Forgets the speed measured so far, so that what comes next is measured afresh: a
+   * downloader left idle reads slower for the next 10 s (SpeedTracker counts the time since its
+   * first sample), and the speed test would take that for the line (DownloadManager.holdTest).
+   */
+  resetSpeed() {
+    this.speedTracker = new SpeedTracker();
+  }
+
   /** @param {DownloadEntry} entry - The download to run; this downloader must be free. */
   run(entry) {
     if (this.loader != null) {

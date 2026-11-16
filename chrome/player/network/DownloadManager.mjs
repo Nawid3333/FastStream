@@ -94,6 +94,8 @@ export class DownloadManager {
     /** @type {Set<StandardDownloader>} */
     this.speedTestSeen = new Set();
     this.testing = true;
+    // The speed test stands still while playback's request downloads alone (holdTest).
+    this.testHeld = false;
     this.lastSpeed = 0;
     // How many downloaders lastSpeed was measured with.
     this.lastSpeedCount = 0;
@@ -985,6 +987,27 @@ export class DownloadManager {
   }
 
   /**
+   * Holds the speed test while the video seeks during it and downloads playback's request
+   * alone (FastStreamClient.predownloadFragments), and starts its round again afterwards. A
+   * round needs every downloader heard: the ones left idle then read slower for 10 s
+   * (SpeedTracker), and the test would have taken that for a line the downloads share - on a
+   * server that limits each connection, two downloads for the rest of the video. So nothing
+   * measured while held counts, and the downloaders' speeds start afresh when it ends; the
+   * step's comparison (lastSpeed) is kept, the line being the same.
+   * @param {boolean} held
+   */
+  holdTest(held) {
+    held = held && this.testing;
+    if (held === this.testHeld) return;
+    this.testHeld = held;
+    this.speedTestBuffer = [];
+    this.speedTestSeen = new Set();
+    if (!held) {
+      for (const downloader of this.downloaders || []) downloader.resetSpeed();
+    }
+  }
+
+  /**
    * Whether this player's playback has a request downloading or waiting for a downloader (its
    * PLAYBACK_PRIORITY): what a waiting video waits for.
    * @return {boolean}
@@ -1136,7 +1159,7 @@ export class DownloadManager {
       console.log('Calm period over, probing the server speed');
     }
 
-    if (this.testing) {
+    if (this.testing && !this.testHeld) {
       const ind = this.downloaders.indexOf(downloader);
       if (ind !== -1) {
         if (entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted) {
@@ -1267,6 +1290,7 @@ export class DownloadManager {
     this.abortAll();
 
     this.testing = true;
+    this.testHeld = false;
     this.downloaders = [];
     this.droppedDownloaders = 0;
     this.speedTestBuffer = [];
