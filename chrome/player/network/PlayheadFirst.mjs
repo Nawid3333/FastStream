@@ -58,3 +58,21 @@ export function downloadingOutside(fragments, time, behind, ahead) {
   }
   return outside;
 }
+
+/**
+ * The downloads to cancel while a seek waits for the fragments the playhead is in, on a line
+ * the downloads share: every running one of the given tracks that does not hold the playhead.
+ * Inside the new place's window they were spared (downloadingOutside with the window), and on a
+ * 3 Mbit/s line the next fragment, started before the seek, kept half the line from the seek's
+ * own: an MP4 seek 3.6 -> 4.6 s (2026-11-16). One a save or the analyzer holds (canFree false)
+ * is theirs to finish. The caller cancels through DownloadManager.cancelIfCheap, which leaves
+ * playback's own requests.
+ * @template {{start: number, end: number, status: number, canFree: () => boolean}} F
+ * @param {Array<Array<F|undefined|null>|undefined|null>} tracks - Each track's fragments.
+ * @param {number} time - The playhead.
+ * @return {F[]}
+ */
+export function besidePlayhead(tracks, time) {
+  return tracks.flatMap((fragments) => downloadingOutside(fragments, time, 0, 0.1))
+      .filter((fragment) => fragment.canFree());
+}

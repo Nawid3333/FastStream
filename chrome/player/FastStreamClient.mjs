@@ -40,7 +40,7 @@ import {isDecodeError, isSamePlace, pastBrokenMedia} from './utils/BrokenMedia.m
 import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {PageFetch} from './network/PageFetch.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
-import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate} from './network/PlayheadFirst.mjs';
+import {besidePlayhead, downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate} from './network/PlayheadFirst.mjs';
 import {isTimed, untimedSpans} from './network/UntimedSpans.mjs';
 import {SILENT_MAX_PLAYBACK_RATE} from './options/KeybindUtils.mjs';
 import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
@@ -1875,6 +1875,12 @@ export class FastStreamClient extends EventEmitter {
     // (DownloadManager.holdTest); a stall then is left as it was (above).
     const playheadOnly = videoWaits &&
       (this.downloadManager.sharesLine() || (seeks && this.downloadManager.testing));
+    // A seek: the downloads ahead already running beside the playhead's fragment go as well.
+    if (playheadOnly && seeks) {
+      for (const fragment of besidePlayhead([this.fragments, this.audioFragments], this.state.currentTime)) {
+        this.downloadManager.cancelIfCheap(fragment.getContext());
+      }
+    }
 
     // Don't pre-download if user is offline
     if (!navigator.onLine) {
