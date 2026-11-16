@@ -22,9 +22,10 @@ const documents = /** @type {string[]} */ (ci.on.push['paths-ignore']);
  * @return {RegExp}
  */
 function glob(pattern) {
-  const source = pattern.split('**').map((part) =>
-    part.split('*').map((text) => text.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*');
-  return new RegExp(`^${source}$`);
+  const escape = (/** @type {string} */ text) => text.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+  const names = (/** @type {string} */ part) => part.split('**').map((piece) => piece.split('*').map(escape).join('[^/]*')).join('.*');
+  // 'a/**/b' takes no folder between as well ('a/b'), as GitHub reads it.
+  return new RegExp(`^${pattern.split('/**/').map(names).join('/(?:.*/)?')}$`);
 }
 
 const tracked = execFileSync('git', ['ls-files'], {cwd: root, encoding: 'utf8'}).split('\n').filter(Boolean);
@@ -52,6 +53,9 @@ describe('ci.yml skips a change of documents only', () => {
     expect(glob('docs/**').test('docs/notes/player.md')).toBe(true);
     expect(glob('README.md').test('native-host/README.md')).toBe(false);
     expect(glob('.github/ISSUE_TEMPLATE/**').test('.github/ISSUE_TEMPLATE/bug_report.md')).toBe(true);
+    expect(glob('a/**/b.md').test('a/b.md')).toBe(true);
+    expect(glob('a/**/b.md').test('a/x/y/b.md')).toBe(true);
+    expect(glob('*.md').test('docs/a.md')).toBe(false);
   });
 
   it('takes in documents only: nothing the extension ships, nor the license the build copies', () => {

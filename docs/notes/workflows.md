@@ -67,7 +67,7 @@
   paths filter holds, and that run releases both. `privacy.yml` still checks every change,
   documents included, and CodeQL runs as GitHub's default setup, which takes no paths filter.
   `tests/unit/workflowDocuments.test.mjs` keeps the list to documents: no file under `chrome/`,
-  `native-host/`, `tests/`, `tools/` or `patches/`, not `LICENSE.md` (the build copies it), no file
+  `native-host/`, `tests/`, `tools/`, `patches/` or `types/`, not `LICENSE.md` (the build copies it), no file
   a build, tool, test or workflow script reads, and the three copies the same. Not in it on
   purpose: `native-host/README.md` (beside the host's code) and `tests/manual-playback-urls.txt`.
 - **Main's CI after a merge already tested in its pull request** (2026-10-24, his choice:
