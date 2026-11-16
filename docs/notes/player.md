@@ -851,9 +851,26 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   - DASH's seeks did not change: the benchmark's manifest has a Period every 9 s, and the store
     holds only the first Period's segments (DashLoader.loadFragmentInternal: a later Period's
     have no place there), so dash.js fetches those itself, at the default priority, not
-    playback's. Open: a later Period's segments in the store, or at least at playback's priority.
-  - Open: a seek in the first seconds, while the speed test still runs four downloads, takes
-    3.1 s on the 6 Mbit/s line either way (the start's question, the entry above).
+    playback's. Since #702 (2026-11-16) they go at playback's priority (DashLoader's fallback,
+    and the manifest with them): no longer cancelled by a seek's `cancelIfCheap` or by
+    `setYield`, and counted by `playbackAsked`. The A/B was the same on three lines: the store
+    holds nothing of a later Period, so nothing competed with them there. Still open: a later
+    Period's segments in the store itself.
+  - A seek in the first seconds, while the speed test still ran four downloads, took 3.1 s on the
+    6 Mbit/s line. Since #704 (2026-11-16), while the test runs a seek (not a stall) is held as
+    above, and the test is held meanwhile (`DownloadManager.holdTest`): idle downloaders read
+    slower for 10 s (`SpeedTracker`), and a round taken then read as a line they share, which on
+    a server limiting each connection would have meant two downloads for the rest of the video.
+    Nothing measured while held counts; on release the round starts again and every downloader
+    measures afresh. A/B, seek at 2 s: HLS 3140 -> 1217 ms, MP4 3556 -> 1606 ms (6 Mbit/s),
+    3047 -> 1922 / 3512 -> 2696 ms with each connection capped at 3 Mbit/s, 2194 -> 1171 /
+    2954 -> 1529 ms with 20 % of answers cut, MP4 6802 -> 3932 ms on a steady 3 Mbit/s line
+    (p 0.008 / 0.029). Holding stalls too, as a first version did, gave 3 -> 5 HLS stalls on a
+    3 Mbit/s line falling to a quarter every other 5 s: there the test lasts long and the video
+    stalls often. Accepted trade-off (the owner, 2026-11-16): right after such a seek a hover
+    preview ~40 s ahead can come later, as downloading ahead starts after the seek instead of
+    during it (traced piece by piece): on a steady line it is still ready sooner counted from
+    the seek, on the falling 3 Mbit/s line 6-10 s later.
 - **The download line counts the connections again (2026-10-22, the owner's wish):**
   "3C ↓9.6 Mbit/s 50%", as upstream showed until 2026-10-09, now with the speed in Mbit/s
   (`DownloadStatusText.mjs`). The count is the downloads running at that moment

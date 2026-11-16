@@ -1,5 +1,23 @@
 # Firefox API watch, optimisation and UI review (2026-11-13)
 
+## Where things stand (2026-11-16)
+
+This document records three rounds of work on FastStream: the review and modernisation of
+2026-11-13/14 (sections 1 to 7, all merged with #679), the review round on main of 2026-11-15
+(section 9), and the buffering and reliability round of 2026-11-15/16 (section 10). Section 8
+is the one part still open: changes that are the owner's to decide, each with a
+recommendation. Nothing in it is built unless it says so.
+
+- Built and released: everything in sections 4, 9 and 10, except where a line says otherwise.
+- Dropped by the owner: the rename to "FastStream for Firefox" (2026-11-14); from the
+  2026-11-15 review, "the MPV link waits for the video to play" and "skip CI's re-run for merge
+  commits too" (2026-11-16).
+- Waiting on others, merged by the owner himself when they come: the mpv update pull requests
+  and the deepmerge alert (#614, a fix upstream).
+- Open: section 8.
+
+The sections below are as written at the time; later rounds add to them rather than rewrite them.
+
 The owner's two briefs of 2026-11-13: a watcher for what each Firefox release changes, research into
 Firefox-only improvements, and an incremental modernisation of the player's and settings' UI. His
 follow-up asked for the same work to be proven: benchmarks, regression tests, and validation that each
@@ -633,7 +651,9 @@ Workflows and the helper (hardening; none exploitable today)
 
 - A tag ruleset (only the owner and the workflows create `v*` tags) closes what the new provenance
   check cannot.
-- `patched-libraries.yml` installs a new npm release in a job with a write token. Recommended:
+- `patched-libraries.yml` installs a new npm release in a job with a write token. Since #701
+  (2026-11-16) no install script runs in that job and no code of the new release runs at all
+  (it is only diffed and patched). Still recommended, for the rest:
   install and test in a read-only job, push from a second one.
 - The helper starts any `mpv*.exe` path the extension names (relative ones too) and passes `fs-*`
   tags unchecked. Recommended: absolute paths only, tags checked (a new helper version).
@@ -704,3 +724,50 @@ claim of which was checked before anything was changed.
   158, and the floor is 153.
 - bilibili.tv's own player (MSE) after the first visit: new site code, against the rule of core
   fixes.
+
+## 10. Buffering and reliability round (2026-11-15/16)
+
+The owner's brief: buffering improvements for every site and player, lasting, with no
+regression; then "stable, secure, fast". Each change is a pull request with a test that fails
+without it, an A/B run of `tools/bench-ab.mjs` (5 rounds a build, several kinds of line) where
+it touches loading, and a review of its diff (Claude API or glm-5.3-flash), each claim checked
+before acting. The measurements and the reasoning are in `docs/notes/player.md` ("While the
+video waits...", "Buffering").
+
+**Built**
+
+| PR | What | Measured |
+|---|---|---|
+| #694 | The benchmark's stall scenarios and line options (`--jitter`, `--conn`, `--drop`, `--stall-ms`) | - |
+| #695 | A DASH segment outside the fragment store gets the download manager's retries | a seek into a later Period no longer sits there for good when an answer is cut |
+| #696 | While the video waits on a line the downloads share, only playback's own request downloads | HLS seek 2448 -> 1213 ms (6 Mbit/s), 6168 -> 2020 ms (a falling 3 Mbit/s line) |
+| #702 | DASH: a later Period's segments and the manifest at playback's priority | the same on 3 lines; a seek or a background tab no longer cancels them |
+| #704 | A seek in the first seconds, while the speed test runs, gets the line; the test waits for it | HLS 3140 -> 1217 ms, MP4 3556 -> 1606 ms (6 Mbit/s); 3047 -> 1922 ms where each connection is capped; MP4 10975 -> 7710 ms on a falling 3 Mbit/s line. Accepted trade-off (the owner, 2026-11-16): a hover preview ~40 s ahead right after such a seek can come later on a slow line that keeps falling (downloading ahead starts after the seek) |
+| #700 | README up to date; `SECURITY.md` (private reports through GitHub's vulnerability reporting) | - |
+| #701 | No install scripts in the patched-libraries re-cut job | - |
+
+**Flaky tests (#697)**
+
+- `page-fetch` and `autoplay-next-episode` failed on CI for the same reason: at the moment of
+  the test's click, the player's document had no layout (width 0, no boxes) while the page
+  showed its iframe at 640x360. Firefox ignores a click on a button there; `requestSubmit`
+  still works. #699 and #703 make each failure report the player document's and the page's
+  state; the next step records the timeline of the frame's style and the sizes its document is
+  told.
+- Ruled out with a cross-process probe (page on 127.0.0.1, frame on localhost, 20 cycles):
+  content.js's size measurement, which hides the iframe and forces a layout for a moment. The
+  frame saw no resize and every click worked.
+
+**Benchmark trap found:** `bench-ab`'s B (this checkout) started DASH about 60-110 ms later than
+A with no change at all (an A/A run, 10 rounds). A small first-frame gap in one direction is the
+harness until an A/A run says otherwise.
+
+**Still open (buffering)**
+
+- On a 3 Mbit/s line falling to a quarter every other 5 s, the speed test was still running after
+  85 s (traced, main and #704 alike): on a line whose rate swings that much it never decides.
+
+- MP4 seeks on slow lines: one 5.2 s outlier after 5 s of play (trace first).
+- Earlier ideas, not measured yet: resume a cut download from the byte it reached; retry at the
+  `online` event; remember a host's speed until Firefox closes (section 8); preconnect;
+  `preload=auto` for files Firefox plays itself.
