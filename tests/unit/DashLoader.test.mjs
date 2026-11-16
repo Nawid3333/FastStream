@@ -4,6 +4,7 @@ import {DASHLoaderFactory as dashLoaderFactory} from '../../chrome/player/player
 import {DashFragment} from '../../chrome/player/players/dash/DashFragment.mjs';
 import {DownloadEntry} from '../../chrome/player/network/DownloadEntry.mjs';
 import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
+import {PLAYBACK_PRIORITY} from '../../chrome/player/network/StandardDownloader.mjs';
 
 // DashLoader hands dash.js's requests to FastStream's download manager, passing each URL
 // through decodeURI (since the dash.js 5 upgrade). decodeURI throws on a `%` that is not
@@ -31,6 +32,9 @@ function heardOf(request, response) {
   return response.status >= 200 && response.status <= 299 ? 'success' : 'error';
 }
 
+/** The priority the last loadManifest asked the download manager for. */
+let manifestPriority;
+
 /**
  * Loads one manifest request through DashLoader.
  * @param {string} url - The URL dash.js asks for.
@@ -53,6 +57,7 @@ function loadManifest(url) {
     },
   }, {status: 0});
   expect(getFile).toHaveBeenCalledTimes(1);
+  manifestPriority = getFile.mock.calls[0][2];
   return getFile.mock.calls[0][0];
 }
 
@@ -85,6 +90,13 @@ describe('DashLoader downloads', () => {
     expect(entry.pieces).toBe(null);
     const response = {url: details.url, status: 200, headers: {}, data: 'mpd'};
     expect(await details.postProcessor(entry, response)).toBe(response);
+  });
+
+  // dash.js asks for the manifest to play on (a live one again and again): at the default
+  // priority, a tab giving the line to another (setYield) cancelled it.
+  it('asks for the manifest at the priority playback has', () => {
+    loadManifest('http://127.0.0.1/a.mpd');
+    expect(manifestPriority).toBe(PLAYBACK_PRIORITY);
   });
 });
 
@@ -377,6 +389,10 @@ describe('DashLoader, a manifest of several periods', () => {
     expect(requestFragment).not.toHaveBeenCalled();
     expect(getFile).toHaveBeenCalledTimes(1);
     expect(getFile.mock.calls[0][0].url).toBe('http://127.0.0.1/p2/v1-0.m4s');
+    // As a segment from the store is asked for: at the default 0, a seek (cancelIfCheap) or a
+    // tab giving the line to another (setYield) cancelled it, and downloads ahead shared the
+    // line with it while the video waited for it (playbackAsked).
+    expect(getFile.mock.calls[0][2]).toBe(PLAYBACK_PRIORITY);
   });
 
   it('tells segments of one file apart by their byte range', () => {
