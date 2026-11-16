@@ -2,18 +2,9 @@
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {EventEmitter} from '../eventemitter.mjs';
 import {AudioAnalyzerNode} from './AudioAnalyzerNode.mjs';
+import {AnalyzerStatus, coversVideo, failOnError, startBackgroundPlayer} from './BackgroundAnalysis.mjs';
 
-/**
- * A stretch of the video the background analysis has covered, in seconds.
- * @typedef {{start: number, end: number}} DoneRange
- */
-
-const AnalyzerStatus = {
-  IDLE: 'idle',
-  RUNNING: 'running',
-  FINISHED: 'finished',
-  FAILED: 'failed',
-};
+/** @typedef {import('./BackgroundAnalysis.mjs').DoneRange} DoneRange */
 
 export class AudioAnalyzer extends EventEmitter {
   /** @param {import('../../FastStreamClient.mjs').FastStreamClient} client */
@@ -39,8 +30,13 @@ export class AudioAnalyzer extends EventEmitter {
     // The video and audio levels the background analysis is made of (setLevel).
     this.analyzedLevels = null;
     this.backgroundAnalyzerEnabled = true;
-    // Counts startBackgroundAnalyzer's loads (see there).
+    // Counts the starts: only the latest one may keep its player (startBackgroundPlayer).
     this.backgroundStarts = 0;
+    // The source the background player plays, and that player while its analysis runs.
+    /** @type {*} */
+    this.backgroundAnalyzerSource = null;
+    /** @type {?import('../../FastStreamClient.mjs').Player} */
+    this.backgroundAnalyzerPlayer = null;
   }
 
   /**
@@ -178,53 +174,10 @@ export class AudioAnalyzer extends EventEmitter {
       return;
     }
 
-    this.backgroundAnalyzerSource = newSource;
     // The levels the analysis is made of (its player takes the client's), for a switch
     // after it finished (setLevel).
     this.analyzedLevels = {video: this.client.getCurrentVideoLevelID(), audio: this.client.getCurrentAudioLevelID()};
-
-    if (this.backgroundAnalyzerPlayer) {
-      this.backgroundAnalyzerPlayer.destroy();
-      this.backgroundAnalyzerPlayer = null;
-    }
-
-    console.log('[AudioAnalyzer] Starting background analyzer');
-
-    // A stop and a new start while this one loads (the tool closed and opened again, or a
-    // new video) make this start stale: only the latest one may keep its player. Two
-    // starts for the same source used to both keep theirs, and the first ran on for good.
-    const start = ++this.backgroundStarts;
-    /** @type {import('../../FastStreamClient.mjs').Player|undefined} */
-    let backgroundAnalyzerPlayer;
-    try {
-      backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (/** @type {boolean} */ completed) => {
-        // Only the running player's end counts: a stale player, destroyed below, cleared
-        // the running one's place, and nothing could stop that one any more.
-        if (this.backgroundAnalyzerPlayer !== backgroundAnalyzerPlayer) {
-          return;
-        }
-        console.log('[AudioAnalyzer] Background analyzer finished', completed ? 'successfully' : 'with errors');
-        this.backgroundAnalyzerStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
-        this.client.interfaceController.updateMarkers();
-        this.backgroundAnalyzerPlayer = null;
-      });
-    } catch (e) {
-      console.warn('[AudioAnalyzer] The background analyzer did not start', e);
-      // Forget the source, or the check above refuses every later start for it: the
-      // next play tries again.
-      if (start === this.backgroundStarts && this.backgroundAnalyzerSource === newSource) {
-        this.backgroundAnalyzerSource = null;
-      }
-      return;
-    }
-
-    if (start !== this.backgroundStarts || newSource !== this.backgroundAnalyzerSource) {
-      backgroundAnalyzerPlayer.destroy();
-      return;
-    }
-
-    this.backgroundAnalyzerStatus = AnalyzerStatus.RUNNING;
-    this.backgroundAnalyzerPlayer = backgroundAnalyzerPlayer;
+    await startBackgroundPlayer(this, '[AudioAnalyzer]', newSource);
   }
 
   stopBackgroundAnalyzer() {
@@ -303,8 +256,10 @@ export class AudioAnalyzer extends EventEmitter {
       player.setCurrentAudioLevelID(this.client.getCurrentAudioLevelID());
     });
 
+    let running = false;
     const onLoadMeta = () => {
       player.off(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
+      running = true;
       this.runAnalyzerInBackground(player, doneRanges, (/** @type {boolean} */ completed)=>{
         release();
         onDone(completed);
@@ -312,6 +267,8 @@ export class AudioAnalyzer extends EventEmitter {
     };
 
     player.on(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
+    // Its destroy lets the audio context go (release, on DESTROYED).
+    failOnError(player, '[AudioAnalyzer]', () => running, onDone);
 
     try {
       await player.setSource(source);
@@ -459,7 +416,7 @@ export class AudioAnalyzer extends EventEmitter {
       }
 
 
-      if (/** @type {DoneRange} */ (currentRange).end - /** @type {DoneRange} */ (currentRange).start >= player.duration - 5) {
+      if (coversVideo(/** @type {DoneRange} */ (currentRange), player.duration)) {
         onEnd();
         return;
       }

@@ -42,9 +42,11 @@ const UPSTREAM =
  * real product change - subtitles are rendered at a fifth of the default size
  * relative to the container. The fourth answers a CodeQL alert (2026-09-22), and
  * the next four keep a hostile cue from throwing, freezing the page or borrowing
- * the player's own classes (2026-10-03). The last decodes a cue's character
+ * the player's own classes (2026-10-03). The next four decode a cue's character
  * references without an innerHTML write, the last addons-linter warning in it
- * (2026-10-27).
+ * (2026-10-27), all of a cue's texts in one parse (2026-11-17), with the unused
+ * textarea gone. The last three find a cue's region in a Map, not by a scan of
+ * every region (2026-11-17).
  *
  * A change to vtt.mjs has to be added here in the same commit, or this check
  * fails - which is how it is meant to work, and why CI runs it.
@@ -91,11 +93,55 @@ const CHANGES = [
     to: '',
   },
   {
-    what: 'cue text: character references decoded by DOMParser, not an innerHTML write (addons-linter)',
-    from: '    TEXTAREA_ELEMENT.innerHTML = s;\n    s = TEXTAREA_ELEMENT.textContent;\n    TEXTAREA_ELEMENT.textContent = "";\n    return s;',
-    to: String.raw`if (!/[&\r\0]/.test(s)) { return s; }
-      var parsed = new DOMParser().parseFromString("<textarea>\n" + s.replace(/\0/g, "").replace(/</g, "&lt;") + "</textarea>", "text/html");
-      return parsed.querySelector("textarea").textContent;`,
+    what: 'cue text: character references decoded by DOMParser, not an innerHTML write (addons-linter), ' +
+      'all of a cue\'s texts in one parse, not one each (2026-11-17)',
+    from: '  function unescape(s) {\n    TEXTAREA_ELEMENT.innerHTML = s;\n    s = TEXTAREA_ELEMENT.textContent;\n' +
+      '    TEXTAREA_ELEMENT.textContent = "";\n    return s;\n  }',
+    to: String.raw`function unescapeAll(nodes) {
+      if (!nodes.length) { return; }
+      var html = nodes.map(function (node) {
+        return "<textarea>\n" + node.data.replace(/\0/g, "").replace(/</g, "&lt;") + "</textarea>";
+      }).join("");
+      var areas = new DOMParser().parseFromString(html, "text/html").querySelectorAll("textarea");
+      for (var i = 0; i < nodes.length; i++) { nodes[i].data = areas[i].textContent; }
+    }`,
+  },
+  {
+    what: 'cue text: the texts to decode collected (2026-11-17)',
+    from: '      t,\n      tagStack = [];',
+    to: '      t,\n      tagStack = [],\n      toDecode = [];',
+  },
+  {
+    what: 'cue text: a text node made of the text as it is, decoded with the others at the end (2026-11-17)',
+    from: '    current.appendChild(window.document.createTextNode(unescape(t)));\n  }\n\n  return rootDiv;',
+    to: String.raw`    var text = window.document.createTextNode(t);
+    if (/[&\r\0]/.test(t)) { toDecode.push(text); }
+    current.appendChild(text);
+  }
+
+  unescapeAll(toDecode);
+  return rootDiv;`,
+  },
+  {
+    what: 'the textarea the innerHTML write used, unused since (2026-11-17)',
+    from: 'var TEXTAREA_ELEMENT = document.createElement && document.createElement("textarea");\n',
+    to: '',
+  },
+  {
+    what: 'cue region: found in a Map, not by a scan of every region (2026-11-17)',
+    from: '        for (var i = regionList.length - 1; i >= 0; i--) {\n          if (regionList[i].id === v) {\n' +
+      '            settings.set(k, regionList[i].region);\n            break;\n          }\n        }',
+    to: '        if (regionList.has(v)) { settings.set(k, regionList.get(v)); }',
+  },
+  {
+    what: 'regions kept in a Map by id, the last one of an id kept, as the scan found it (2026-11-17)',
+    from: '      self.regionList.push({\n        id: settings.get("id"),\n        region: region\n      });',
+    to: '      self.regionList.set(settings.get("id"), region);',
+  },
+  {
+    what: 'the regions\' Map (2026-11-17)',
+    from: '  this.regionList = [];',
+    to: '  this.regionList = new Map();',
   },
 ];
 

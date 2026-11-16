@@ -63,6 +63,7 @@ const CHECKED = [
   'chrome/player/modules/StreamSaver.mjs',
   'chrome/player/modules/analyzer/AudioAnalyzer.mjs',
   'chrome/player/modules/analyzer/AudioAnalyzerNode.mjs',
+  'chrome/player/modules/analyzer/BackgroundAnalysis.mjs',
   'chrome/player/modules/analyzer/PreviewFrameExtractor.mjs',
   'chrome/player/modules/channelcounter/channelcounter.mjs',
   'chrome/player/modules/channelcounter/channelcounter.worklet.mjs',

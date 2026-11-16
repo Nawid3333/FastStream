@@ -70,18 +70,26 @@ class FakeElement extends FakeNode {
 }
 
 /**
- * vtt.mjs decodes a cue's text by having DOMParser parse it in a <textarea> (its unescape):
- * this gives that textarea's text, with the few character references the tests use decoded.
+ * vtt.mjs decodes a cue's texts by having DOMParser parse each in a <textarea>, all of a cue's
+ * in one document (its unescapeAll): this gives those textareas' texts, with the few character
+ * references the tests use decoded, and counts the documents parsed.
  */
-class FakeDOMParser {
+export class FakeDOMParser {
+  static parses = 0;
+
   /**
-   * @param {string} html - "<textarea>\n" + the text + "</textarea>".
-   * @return {{querySelector: () => {textContent: string}}}
+   * @param {string} html - "<textarea>\n" + a text + "</textarea>", for each text.
+   * @return {{querySelector: () => {textContent: string}, querySelectorAll: () => Array<{textContent: string}>}}
    */
   parseFromString(html) {
-    const text = html.replace(/^<textarea>\n/, '').replace(/<\/textarea>$/, '')
-        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, String.fromCharCode(0xa0)).replace(/&amp;/g, '&');
-    return {querySelector: () => ({textContent: text})};
+    FakeDOMParser.parses++;
+    // A text has every "<" written as &lt;, so none holds a </textarea>.
+    const texts = [...html.matchAll(/<textarea>\n([\s\S]*?)<\/textarea>/g)].map((match) => match[1]
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, String.fromCharCode(0xa0)).replace(/&amp;/g, '&'));
+    return {
+      querySelector: () => ({textContent: texts[0]}),
+      querySelectorAll: () => texts.map((textContent) => ({textContent})),
+    };
   }
 }
 
