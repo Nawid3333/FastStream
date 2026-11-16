@@ -1,5 +1,6 @@
 // @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
+import {PLAYBACK_PRIORITY} from '../../network/StandardDownloader.mjs';
 import {StringUtils} from '../../utils/StringUtils.mjs';
 import {DashTrackUtils} from './DashTrackUtils.mjs';
 
@@ -179,7 +180,7 @@ export function DASHLoaderFactory(player) {
           onAbort: (entry) => {
             end.abort();
           },
-        }), null, 1000);
+        }), null, PLAYBACK_PRIORITY);
 
         httpRequest.customData.abort = () => {
           loader.abort();
@@ -262,6 +263,11 @@ export function DASHLoaderFactory(player) {
       }
       // No watcher of a DASH download reads its pieces (onChunk): a postProcessor, even one that
       // changes nothing, keeps the entry from holding a second copy of them while it loads.
+      // At playback's priority, as a segment from the store is asked for: dash.js asks for each
+      // of these to play on (a later Period's segment, the manifest it loads again). At the
+      // default 0 they were what a seek (cancelIfCheap) or a tab giving the line to another
+      // (setYield) cancels, and while the video waited they were not playback's request, so
+      // downloads ahead went on beside them (playbackAsked).
       const loader = downloadManager.getFile({...context, postProcessor: async (entry, response) => response}, {
         /**
          * @param {DownloadEntry} entry
@@ -317,7 +323,7 @@ export function DASHLoaderFactory(player) {
         onAbort: (entry) => {
           end.abort();
         },
-      });
+      }, PLAYBACK_PRIORITY);
 
       httpRequest.customData.abort = () => {
         loader.abort();
