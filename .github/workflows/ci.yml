@@ -5,12 +5,40 @@ name: CI
 # are the same as `pnpm run verify`, so a green local verify predicts a green CI
 # run and the other way round. (Pushes to pr/** also ran it while this fork sent
 # pull requests upstream from such branches; that ended in September 2026.)
+#
+# A change of documents only starts no run (the owner, 2026-11-16): nothing of them is built,
+# shipped or read by a test (tests/unit/workflowDocuments.test.mjs checks the list). Not
+# LICENSE.md, which the build puts into the extension, nor a text a test reads. With no run
+# on main, auto-release.yml does not start either: nothing to release. A code change merged
+# just before still releases: its run finds main moved on to a commit with no CI run and
+# starts one by dispatch, which no paths filter holds ("Is this commit still main's newest?").
+# privacy.yml still checks every change, documents included.
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'README_Pt-Br.md'
+      - 'README-MPV.md'
+      - 'SECURITY.md'
+      - 'CODE_OF_CONDUCT.md'
+      - 'UNINSTALL.md'
+      - 'CLAUDE.md'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'README_Pt-Br.md'
+      - 'README-MPV.md'
+      - 'SECURITY.md'
+      - 'CODE_OF_CONDUCT.md'
+      - 'UNINSTALL.md'
+      - 'CLAUDE.md'
+      - '.github/ISSUE_TEMPLATE/**'
   workflow_dispatch:
   # runner-images.yml runs this on a new runner image, before and after ubuntu-latest
   # or windows-latest moves to it. A called run is not a "CI" run, so it never releases.

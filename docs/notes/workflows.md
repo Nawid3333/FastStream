@@ -55,6 +55,21 @@
   job would have checked out that commit with a write token, pushed it and released it.
   When `main` has moved past the commit while CI ran, it stops with a notice (2026-09-28):
   the later push's run releases both, and pushing the bump would only be refused.
+- **A change of documents only runs no CI and releases nothing** (2026-11-16, his rule: "md or
+  txt files that do nothing in the codebase should be skipped by the CI"). `ci.yml`'s push and
+  pull_request carry the same `paths-ignore` list (`docs/**`, the root documents but
+  `LICENSE.md`, the issue templates), and so does `dependency-review.yml`. A pull request or a
+  push touching only those starts no run, and with no CI run on main `auto-release.yml` never
+  starts. A docs merge never released before either (the build is compared file by file), but
+  every one ran the whole suite and an auto-release run for nothing. What still holds: a code
+  change merged just before a docs one is released. Its run sees main moved on to a commit with
+  no CI run and starts CI on main by dispatch ("Is this commit still main's newest?"), which no
+  paths filter holds, and that run releases both. `privacy.yml` still checks every change,
+  documents included, and CodeQL runs as GitHub's default setup, which takes no paths filter.
+  `tests/unit/workflowDocuments.test.mjs` keeps the list to documents: no file under `chrome/`,
+  `native-host/`, `tests/`, `tools/` or `patches/`, not `LICENSE.md` (the build copies it), no file
+  a build, tool, test or workflow script reads, and the three copies the same. Not in it on
+  purpose: `native-host/README.md` (beside the host's code) and `tests/manual-playback-urls.txt`.
 - **Main's CI after a merge already tested in its pull request** (2026-10-24, his choice:
   measured on #558/#559, the push run on main took ~8 minutes and the release waited for it).
   `ci.yml`'s first job, `tested-in-pr`, runs only on a push to main by CI itself. It answers

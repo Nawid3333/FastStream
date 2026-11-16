@@ -19,6 +19,17 @@ name: Dependency review
 on:
   pull_request:
     branches: [main]
+    # A change of documents only changes no dependency (ci.yml's list).
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'README_Pt-Br.md'
+      - 'README-MPV.md'
+      - 'SECURITY.md'
+      - 'CODE_OF_CONDUCT.md'
+      - 'UNINSTALL.md'
+      - 'CLAUDE.md'
+      - '.github/ISSUE_TEMPLATE/**'
   workflow_dispatch:
 
 concurrency:
