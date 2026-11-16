@@ -1220,7 +1220,7 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
     client.needsUserInteraction = () => false;
     client.videoAnalyzer = {isRunning: () => false};
     client.interfaceController.saveManager = {makingDownload: false};
-    client.downloadManager = {yielding: false, memoryFull: false, getSpeed: () => speed,
+    client.downloadManager = {yielding: false, memoryFull: false, holdTest: vi.fn(), getSpeed: () => speed,
       canGetFile: () => true, activeCount: () => 0};
     client.player = {getVideo: () => null, downloadFragment: vi.fn(() => Promise.resolve())};
     client.predownloadFragments();
@@ -1247,7 +1247,7 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
       client.needsUserInteraction = () => false;
       client.interfaceController.saveManager = {makingDownload: false};
       let running = 0;
-      client.downloadManager = {yielding: false, memoryFull: false, getSpeed: () => 0,
+      client.downloadManager = {yielding: false, memoryFull: false, holdTest: vi.fn(), getSpeed: () => 0,
         canGetFile: () => true, activeCount: () => running, urgentParallel: () => urgentParallel};
       client.player = {duration: 1400, getVideo: () => null, downloadFragment: vi.fn(() => {
         running++;
@@ -1268,11 +1268,14 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
      * Runs the predownloader once at 10.5 s, short of video, with the fragments of a video
      * track (2 s each, 10-16 s) and of an audio track (the same), the nearest first.
      * @param {{sharesLine: boolean, video?: {seeking: boolean, paused: boolean, readyState: number, played: {length: number}},
-     *   asked?: boolean, live?: boolean, untimed?: boolean, from?: number}} line - asked: playback has a
-     *   request running; from: where the first waiting fragment starts.
+     *   asked?: boolean, live?: boolean, untimed?: boolean, from?: number, testing?: boolean,
+     *   held?: boolean[]}} line - asked: playback has a request running; from: where the first
+     *   waiting fragment starts; testing: the speed test still runs; held: gets what
+     *   holdTest was told.
      * @return {string[]} The fragments it started, as track:start.
      */
-    const startedAt = ({sharesLine, video = SEEKING, asked = false, live = false, untimed = false, from = 10}) => {
+    const startedAt = ({sharesLine, video = SEEKING, asked = false, live = false, untimed = false, from = 10,
+      testing = false, held = []}) => {
       vi.stubGlobal('navigator', {onLine: true});
       const client = makeClient({maxSpeed: -1});
       const make = (track, start) => ({track, start: untimed ? -1 : start, end: untimed ? -1 : start + 2,
@@ -1289,7 +1292,8 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
       const started = [];
       client.downloadManager = {yielding: false, memoryFull: false, getSpeed: () => 0,
         canGetFile: () => true, activeCount: () => started.length, urgentParallel: () => 6,
-        sharesLine: () => sharesLine, playbackAsked: () => asked};
+        sharesLine: () => sharesLine, playbackAsked: () => asked, testing,
+        holdTest: (/** @type {boolean} */ hold) => held.push(hold)};
       client.player = {duration: 1400, getVideo: () => video, downloadFragment: vi.fn((fragment) => {
         started.push(`${fragment.track}:${fragment.start}`);
         return Promise.resolve();
@@ -1314,9 +1318,28 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
       expect(startedAt({sharesLine: true, asked: true})).toEqual([]);
     });
 
-    it('where each connection has its own speed, or before the test could tell, downloads ahead as before', () => {
+    it('where the speed test found that each connection has its own speed, downloads ahead as before', () => {
       expect(startedAt({sharesLine: false})).toHaveLength(6);
       expect(startedAt({sharesLine: false, asked: true})).toHaveLength(6);
+    });
+
+    it('while the speed test runs, as on a line the downloads share, and the test waits (holdTest)', () => {
+      // A seek in the first seconds shared the line with every download of the test: an HLS seek
+      // on a 6 Mbit/s line took 3.1 s where alone it takes 1.2 s (2026-11-16).
+      const held = [];
+      expect(startedAt({sharesLine: false, testing: true, held})).toEqual(['video:10', 'audio:10']);
+      expect(startedAt({sharesLine: false, testing: true, asked: true})).toEqual([]);
+      expect(held).toEqual([true]);
+      // The video plays on: the test goes on, and so do the downloads ahead.
+      const playing = [];
+      expect(startedAt({sharesLine: false, testing: true, held: playing,
+        video: {seeking: false, paused: false, readyState: 4, played: PLAYED}})).toHaveLength(6);
+      expect(playing).toEqual([false]);
+      // The start (nothing played yet) is left as it was, test and all.
+      const start = [];
+      expect(startedAt({sharesLine: false, testing: true, held: start,
+        video: {seeking: false, paused: false, readyState: 1, played: {length: 0}}})).toHaveLength(6);
+      expect(start).toEqual([false]);
     });
 
     it('not waiting - playing on, or paused - downloads ahead as before', () => {
@@ -2579,7 +2602,7 @@ describe('FastStreamClient, a fragmented MP4\'s ranges not parsed yet, in a down
     client.getVideoAhead = () => 120;
     client.needsUserInteraction = () => false;
     client.interfaceController.saveManager = {makingDownload: false};
-    client.downloadManager = {yielding: false, waiting: false, memoryFull: false, getSpeed: () => 0, removeFile: vi.fn(),
+    client.downloadManager = {yielding: false, waiting: false, memoryFull: false, holdTest: vi.fn(), getSpeed: () => 0, removeFile: vi.fn(),
       canGetFile: () => true, activeCount: () => 0, urgentParallel: () => 6};
     client.player = {duration: 600, getVideo: () => null, currentFragment: frags[Math.min(3, Math.floor(time / 60))], currentAudioFragment: null,
       getCurrentVideoLevelID: () => 'L', getCurrentAudioLevelID: () => null,
