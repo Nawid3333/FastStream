@@ -57,6 +57,22 @@ describe('AlertPolyfill', () => {
     expect(new URL(url).searchParams.get('body')).toContain('at step0 (moz-extension://.../player/FastStreamClient.mjs:0:2)');
   });
 
+  // Claude's review of #714: a cut through an emoji, or a lone surrogate in what was thrown,
+  // made encodeURIComponent throw; and 3000 characters of non-Latin text were 27 kB of address.
+  it('reports any text, cut or not, in an address GitHub takes', () => {
+    const emoji = new Error('bad \uD83D');
+    emoji.stack = 'x'.repeat(2999) + '🎬'.repeat(2000);
+    const url = errorReportURL(emoji, '1.0');
+    expect(url.length).toBeLessThan(8000);
+    expect(new URL(url).searchParams.get('body')).toContain('## Error message:\nbad �\n');
+
+    const wide = new Error('中'.repeat(1000));
+    wide.stack = '中文 '.repeat(3000);
+    const wideUrl = errorReportURL(wide, '1.0');
+    expect(wideUrl.length).toBeLessThan(8000);
+    expect(new URL(wideUrl).searchParams.get('body')).toMatch(/中\.\.\.\n/);
+  });
+
   // The dialog's title was "Error: undefined" for anything but an Error.
   it('names in the dialog\'s title what was thrown, whatever it is', () => {
     expect(errorTitleText(new Error('It broke'))).toBe('It broke');

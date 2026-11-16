@@ -195,10 +195,12 @@ jobs:
           # holding a key silenced a real failure once (glm's review, 2026-11-16).
           report() { # <key> <title after the prefix> <body file>
             if [ -n "$issue" ]; then
-              texts=$(gh issue view "$issue" --json body --jq '.body'
-                gh api --paginate "repos/$GH_REPO/issues/$issue/comments" \
-                  --jq '.[] | select(.user.login == "github-actions[bot]") | .body')
-              if grep -qF "<!-- mpv-updates: $1 -->" <<< "$texts"; then
+              # Two assignments: in one $( ), a failed first read went unnoticed (set -e does
+              # not reach into it), and a key in the body was missed.
+              body=$(gh issue view "$issue" --json body --jq '.body')
+              comments=$(gh api --paginate "repos/$GH_REPO/issues/$issue/comments" \
+                --jq '.[] | select(.user.login == "github-actions[bot]") | .body')
+              if grep -qF "<!-- mpv-updates: $1 -->" <<< "$body"$'\n'"$comments"; then
                 echo "Reported on #$issue before: $1."
                 return
               fi

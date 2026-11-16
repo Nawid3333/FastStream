@@ -212,6 +212,22 @@ export function errorTitleText(error) {
 }
 
 /**
+ * A text made well-formed and cut until it takes at most `limit` characters in an address.
+ * @param {string} text
+ * @param {number} limit - Encoded (encodeURIComponent) characters.
+ * @param {string} more - Put after a text that was cut.
+ * @return {string}
+ */
+function clipForAddress(text, limit, more) {
+  const whole = text.toWellFormed();
+  let clipped = whole;
+  while (encodeURIComponent(clipped).length > limit) {
+    clipped = clipped.slice(0, Math.floor(clipped.length * 0.8)).toWellFormed();
+  }
+  return clipped === whole ? whole : clipped + more;
+}
+
+/**
  * The address of a new GitHub issue that reports an error.
  * @param {*} error
  * @param {string} version - FastStream's.
@@ -223,8 +239,13 @@ export function errorReportURL(error, version) {
   // 2026-11-16). And without the extension's address, which names this install (a random id
   // per profile): the issue is public.
   const fullStack = String(error?.stack || 'No stack trace').replace(/moz-extension:\/\/[^/\s]+\//g, 'moz-extension://.../');
-  const stack = fullStack.length > 3000 ? fullStack.slice(0, 3000) + '\n...' : fullStack;
-  const body = `## Version:\n${version}\n\n## Error message:\n${errorText(error)}\n\n## Stack trace:\n\`\`\`\n${stack}\n\`\`\``;
+  // Clipped by its length in the address, not in characters: a character is up to 9 bytes
+  // there (%XX%XX%XX), and 3000 of them went past GitHub's limit. Well-formed, as
+  // encodeURIComponent needs: a lone surrogate (a cut through an emoji, or one in what was
+  // thrown) threw URIError, and the report link failed (Claude's review of #714).
+  const stack = clipForAddress(fullStack, 4000, '\n...');
+  const message = clipForAddress(errorText(error), 2000, '...');
+  const body = `## Version:\n${version}\n\n## Error message:\n${message}\n\n## Stack trace:\n\`\`\`\n${stack}\n\`\`\``;
   const urlBase = `https://github.com/Nawid3333/FastStream/issues/new?`;
   return `${urlBase}title=${encodeURIComponent('Error report')}&body=${encodeURIComponent(body)}`;
 }

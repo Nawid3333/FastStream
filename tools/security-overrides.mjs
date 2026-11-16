@@ -426,7 +426,7 @@ export function planFloors(alerts, versions, workspaceText, today) {
       // issue said "stale" while one was in the tree (glm's review, 2026-11-16).
       const unchecked = [...(versions.get(name) ?? [])].filter((v) => !XYZ_RE.test(v));
       declined.push({alert: number, reason: unchecked.length ?
-        `only versions that are no plain release in the lockfile (${unchecked.join(', ')}), not checked against '${rangeText}'` :
+        `no plain release in the lockfile is in '${rangeText}'; not checked: ${unchecked.join(', ')} (no plain release)` :
         'stale: no vulnerable version in the lockfile'});
       continue;
     }

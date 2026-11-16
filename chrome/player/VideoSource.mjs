@@ -62,6 +62,9 @@ const PublicSecondLevel = /^(ac|co|com|edu|gov|go|ne|net|or|org)$/;
  * @return {string}
  */
 export function siteOfHost(host) {
+  // A host's trailing dot (the root) names the same host: kept, every "x.com." was the
+  // site "com." (Claude's review of #714).
+  host = host.replace(/\.$/, '');
   const labels = host.toLowerCase().split('.');
   if (labels.length <= 2 || /^\d+$/.test(labels[labels.length - 1]) || host.includes(':')) return host.toLowerCase();
   const second = labels[labels.length - 2];

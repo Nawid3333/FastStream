@@ -77,4 +77,18 @@ run
 check 'a key in its own comment is reported once' contains "$here/out" 'Reported on #7 before: failed 20261116.'
 check 'and nothing more is posted' lacks "$LOG" 'comment [7]'
 
+# The key in the issue's own text: reported before too.
+echo '{"body": "failed\n<!-- mpv-updates: failed 20261116 -->"}' > "$FIX/issue-7.json"
+echo '[]' > "$FIX/comments-7.json"
+run
+check 'a key in its issue'"'"'s text is reported once' contains "$here/out" 'Reported on #7 before: failed 20261116.'
+
+# The issue's text cannot be read: the step fails, rather than report again (Claude's review
+# of #714: in one $( ) with the comments' read, the failure went unnoticed).
+rm "$FIX/issue-7.json"
+run && status=0 || status=$?
+failed_step() { [ "$status" -ne 0 ]; }
+check 'a failed read of the issue fails the step' failed_step
+check 'and posts nothing' lacks "$LOG" 'comment [7]'
+
 finish

@@ -422,7 +422,11 @@ describe('planFloors', () => {
     const plan = planFloors([mkAlert(90, 'left-pad', '< 1.3.2', '1.3.2')], versions({'left-pad': ['1.3.0-rc.1']}), WORKSPACE, TODAY);
     expect(plan.floors).toEqual([]);
     expect(plan.declined).toEqual([{alert: 90,
-      reason: 'only versions that are no plain release in the lockfile (1.3.0-rc.1), not checked against \'< 1.3.2\''}]);
+      reason: 'no plain release in the lockfile is in \'< 1.3.2\'; not checked: 1.3.0-rc.1 (no plain release)'}]);
+    // A plain release beside it, outside the range: the same words, which say nothing false.
+    const both = planFloors([mkAlert(91, 'left-pad', '< 1.3.2', '1.3.2')], versions({'left-pad': ['1.4.0', '1.3.0-rc.1']}), WORKSPACE, TODAY);
+    expect(both.declined).toEqual([{alert: 91,
+      reason: 'no plain release in the lockfile is in \'< 1.3.2\'; not checked: 1.3.0-rc.1 (no plain release)'}]);
   });
 
   it('declines when the existing override is an npm alias value', () => {

@@ -35,6 +35,9 @@ describe('importedForMigration', () => {
     expect(merged.keybindsVersion).toBe(KEYBINDS_VERSION);
     expect(file.keybindsVersion).toBe(1e9);
     expect(importedForMigration({keybindsVersion: 2}).keybindsVersion).toBe(2);
+    // JSON's 1e999 (Claude's review of #714), and NaN, which no file gives but a number is.
+    expect(importedForMigration(JSON.parse('{"keybindsVersion": 1e999}')).keybindsVersion).toBe(KEYBINDS_VERSION);
+    expect(importedForMigration({keybindsVersion: NaN}).keybindsVersion).toBe(KEYBINDS_VERSION);
   });
 });
 

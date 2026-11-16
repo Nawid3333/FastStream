@@ -35,7 +35,9 @@ export function settingsForExport(options) {
  */
 export function importedForMigration(file) {
   const out = {...file};
-  if (Number.isInteger(out.keybindsVersion) && out.keybindsVersion > KEYBINDS_VERSION) {
+  // JSON's 1e999 is Infinity, which is no integer: a number test, so it is held too (Claude's
+  // review of #714).
+  if (typeof out.keybindsVersion === 'number' && !(out.keybindsVersion <= KEYBINDS_VERSION)) {
     out.keybindsVersion = KEYBINDS_VERSION;
   }
   return out;

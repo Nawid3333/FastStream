@@ -44,6 +44,14 @@ describe('sourceHeadersFor', () => {
     expect(sourceHeadersFor(source, 'data:text/plain,x')).toEqual(PUBLIC);
     expect(sourceHeadersFor({url: 'data:application/dash+xml;base64,AA', headers: HEADERS}, MASTER)).toEqual(PUBLIC);
   });
+
+  // Claude's review of #714: with its trailing dot, every .com host was the site "com.".
+  it('takes a host with a trailing dot for the same host, not for its top-level domain', () => {
+    expect(siteOfHost('cdn.example.com.')).toBe('example.com');
+    const dotted = new VideoSource('https://video.site.test./v.m3u8', HEADERS, 'hls');
+    expect(sourceHeadersFor(dotted, 'https://collector.test./k')).toEqual(PUBLIC);
+    expect(sourceHeadersFor(dotted, 'https://cdn.site.test/seg.ts')).toEqual(HEADERS);
+  });
 });
 
 describe('a segment and its key on another site', () => {

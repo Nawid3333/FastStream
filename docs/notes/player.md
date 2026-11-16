@@ -1910,7 +1910,7 @@ remuxers, vtt.js). Kept only what the code proved; each fix has a test that fail
   also to a segment, key or playlist on another site (a CDN, a key server). Now
   `sourceHeadersFor(source, url)` (`VideoSource.mjs`) gives them only for a URL on the
   source's own site (`siteOfHost`: the last two labels, three under a public second level such
-  as `co.uk`), and the headers without credentials otherwise. Used by `HLSLoader`,
+  as `co.uk`, a trailing dot dropped first), and the headers without credentials otherwise. Used by `HLSLoader`,
   `HLSFragmentRequester` (segments and keys), `DashLoader` and `DashFragmentRequester`.
   Test: `sourceHeaders.test.mjs`.
 - **The settings file:** the export left out nothing, the mpv path too (it names the Windows

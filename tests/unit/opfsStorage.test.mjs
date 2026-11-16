@@ -690,6 +690,30 @@ describe('FSBlob', () => {
     expect(deleted).toEqual([]);
   });
 
+  it('still deletes a fragment whose write it waited for, when nothing saved it again', async () => {
+    // The control of the one above (Claude's review of #714): a delete that never deletes
+    // would pass that one.
+    let release;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    const deleted = [];
+    const {fsblob} = withOpfs({
+      worker: {},
+      setFile: () => gate,
+      deleteFile: async (id) => deleted.push(id),
+      close: vi.fn(),
+    });
+    const writing = fsblob.saveBlobAsync(new Blob(['old']), 'f1');
+    const deleting = fsblob.deleteBlob('f1');
+    release(true);
+    await writing;
+    expect(await deleting).toBe(true);
+    expect(fsblob.blobStore.has('f1')).toBe(false);
+    expect(fsblob.ramBytes()).toBe(0);
+    expect(deleted).toEqual(['f1']);
+  });
+
   it('never writes a private window\'s blob to disk', async () => {
     // Firefox keeps a private window's media in RAM; so does FastStream (memoryOnly).
     const cached = new Map();
