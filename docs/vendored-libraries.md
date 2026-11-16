@@ -621,7 +621,7 @@ The bundle's internal module map gives it away. It requires
 eighteen others - a nested layout that videojs/vtt.js does not have; its `lib/`
 is six flat files. The layout belongs to the build **dash.js** maintains at
 `contrib/videojs-vtt.js/vtt.js`, which is byte-identical across dash.js v4.7.4
-through v5.1.0.
+through v5.2.1 (`tools/verify-vtt.mjs` pins v5.2.1).
 
 `chrome/player/modules/vtt.mjs` is that file with exactly the changes below (the list
 `tools/verify-vtt.mjs` applies is the authority; this table follows it):

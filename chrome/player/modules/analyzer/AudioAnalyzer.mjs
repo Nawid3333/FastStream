@@ -2,7 +2,7 @@
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {EventEmitter} from '../eventemitter.mjs';
 import {AudioAnalyzerNode} from './AudioAnalyzerNode.mjs';
-import {AnalyzerStatus, coversVideo, failOnError, startBackgroundPlayer} from './BackgroundAnalysis.mjs';
+import {AnalyzerStatus, coversVideo, destroyPlayer, failOnError, startBackgroundPlayer} from './BackgroundAnalysis.mjs';
 
 /** @typedef {import('./BackgroundAnalysis.mjs').DoneRange} DoneRange */
 
@@ -185,7 +185,7 @@ export class AudioAnalyzer extends EventEmitter {
     if (this.backgroundAnalyzerPlayer) {
       const player = this.backgroundAnalyzerPlayer;
       this.backgroundAnalyzerPlayer = null;
-      player.destroy();
+      destroyPlayer(player);
     }
     // A failed analysis too: the start needs IDLE, so reopening the tool never tried that
     // video again (review of 2026-10-14). A finished one stays finished.
@@ -211,7 +211,7 @@ export class AudioAnalyzer extends EventEmitter {
       return await this.setupPlayer(player, source, doneRanges, onDone);
     } catch (e) {
       // A player that failed halfway would keep its downloads and audio context.
-      player.destroy();
+      destroyPlayer(player);
       throw e;
     }
   }
@@ -318,7 +318,7 @@ export class AudioAnalyzer extends EventEmitter {
 
     const onEnd = () => {
       completed = true;
-      player.destroy();
+      destroyPlayer(player);
     };
 
     context.on(DefaultPlayerEvents.ENDED, ()=>{

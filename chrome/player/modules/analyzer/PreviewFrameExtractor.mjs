@@ -1,7 +1,7 @@
 // @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {EventEmitter} from '../eventemitter.mjs';
-import {AnalyzerStatus, coversVideo, failOnError, startBackgroundPlayer} from './BackgroundAnalysis.mjs';
+import {AnalyzerStatus, coversVideo, destroyPlayer, failOnError, startBackgroundPlayer} from './BackgroundAnalysis.mjs';
 
 /** @typedef {import('./BackgroundAnalysis.mjs').DoneRange} DoneRange */
 
@@ -112,7 +112,7 @@ export class PreviewFrameExtractor extends EventEmitter {
     if (this.backgroundAnalyzerPlayer) {
       const player = this.backgroundAnalyzerPlayer;
       this.backgroundAnalyzerPlayer = null;
-      player.destroy();
+      destroyPlayer(player);
     }
     // A failed analysis too: the start needs IDLE, so reopening the tool never tried that
     // video again (review of 2026-10-14). A finished one stays finished.
@@ -156,7 +156,7 @@ export class PreviewFrameExtractor extends EventEmitter {
     } catch (e) {
       // Not left half built, downloading on its own.
       try {
-        player.destroy();
+        destroyPlayer(player);
       } catch (destroyError) {
         console.error(destroyError);
       }
@@ -197,7 +197,7 @@ export class PreviewFrameExtractor extends EventEmitter {
 
     if (videoWidth === 0 || videoHeight === 0) {
       console.error('[FrameExtractor] Invalid video dimensions');
-      player.destroy();
+      destroyPlayer(player);
       return;
     }
 
@@ -217,7 +217,7 @@ export class PreviewFrameExtractor extends EventEmitter {
 
     const onEnd = () => {
       completed = true;
-      player.destroy();
+      destroyPlayer(player);
     };
 
     context.on(DefaultPlayerEvents.ENDED, ()=>{

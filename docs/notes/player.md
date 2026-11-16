@@ -1957,7 +1957,10 @@ What the review of 2026-11-16 left open. Each fix has a test that fails without 
   manifest that failed) left the analysis "running" with a dead player. A start needs it idle,
   so that video's volume strip or seek previews never came. Tests: `backgroundAnalyzers.test.mjs`,
   "ends the analysis as failed on an error before its metadata ..." and "keeps no player that
-  failed while it loaded", for both analyzers.
+  failed while it loaded", for both analyzers. An analysis player is destroyed once
+  (`destroyPlayer`, which `failOnError`'s DESTROYED listener feeds): an error, a stop and a stale
+  start can each reach the same player, and HLSPlayer's second `destroy()` hands `destroyVideo` a
+  null video. An error after the player was destroyed ends nothing more (Claude's review of #715).
 - **A short video is analysed to its end** (`coversVideo`): an analysis is done at all but the
   last 5 s, or the last tenth for a video under 50 s. With the 5 s alone, a video of 5 s or less
   was done at its first frame, and its strip stayed empty. A long video ends as before.

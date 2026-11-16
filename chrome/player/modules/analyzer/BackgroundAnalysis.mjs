@@ -43,6 +43,19 @@ export function coversVideo(range, duration) {
   return range.end - range.start >= duration - Math.min(5, duration / 10);
 }
 
+// The analysis players destroyed (failOnError watches for it). A player is not destroyed twice:
+// HLSPlayer's second destroy() hands destroyVideo a null video. An error, a stop and a stale
+// start's end can each come to the same player (Claude's review of #715).
+const destroyedPlayers = new WeakSet();
+
+/**
+ * Destroys an analysis player, unless it is destroyed already.
+ * @param {import('../../FastStreamClient.mjs').Player} player
+ */
+export function destroyPlayer(player) {
+  if (!destroyedPlayers.has(player)) player.destroy();
+}
+
 /**
  * Ends an analysis player at its first fatal error. Before its analysis started (no metadata
  * yet: a link that expired, a manifest that failed), the analysis ends as failed here; once it
@@ -56,12 +69,17 @@ export function coversVideo(range, duration) {
  */
 export function failOnError(player, label, running, onDone) {
   let failed = false;
+  // Once destroyed (stopped, ended, failed), an error that still comes ends nothing more.
+  player.on(DefaultPlayerEvents.DESTROYED, () => {
+    destroyedPlayers.add(player);
+    failed = true;
+  });
   player.on(DefaultPlayerEvents.ERROR, (/** @type {unknown} */ error) => {
     if (failed) return;
     failed = true;
     console.warn(`${label} The background player failed`, error);
     if (!running()) onDone(false);
-    player.destroy();
+    destroyPlayer(player);
   });
 }
 
@@ -75,7 +93,7 @@ export function failOnError(player, label, running, onDone) {
 export async function startBackgroundPlayer(owner, label, newSource) {
   owner.backgroundAnalyzerSource = newSource;
   if (owner.backgroundAnalyzerPlayer) {
-    owner.backgroundAnalyzerPlayer.destroy();
+    destroyPlayer(owner.backgroundAnalyzerPlayer);
     owner.backgroundAnalyzerPlayer = null;
   }
 
@@ -122,7 +140,7 @@ export async function startBackgroundPlayer(owner, label, newSource) {
   }
 
   if (start !== owner.backgroundStarts || newSource !== owner.backgroundAnalyzerSource) {
-    player.destroy();
+    destroyPlayer(player);
     return;
   }
 
