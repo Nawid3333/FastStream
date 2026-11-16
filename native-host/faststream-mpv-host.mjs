@@ -87,7 +87,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 21;
+export const HostVersion = 22;
 
 // The messages of the thin helper (host 15) this host understands, sent with every answer
 // so that the extension knows what it may ask for without a version table of its own. A
@@ -2494,14 +2494,45 @@ export async function waitForPipe(ipcRequest, waitMs = PipeWaitMs,
 }
 
 /**
- * Ends an mpv this helper started (playMpv), as Task Manager would.
- * @param {number} pid - Its process id.
+ * The program a process id belongs to now, on Windows (tasklist's image name), or null: gone,
+ * not readable, or another platform.
+ * @param {number} pid
+ * @param {string} [platform] - process.platform, or a stand-in.
+ * @return {Promise<?string>}
  */
-export function stopMpv(pid) {
+export function processImageName(pid, platform = process.platform) {
+  if (platform !== 'win32' || !Number.isSafeInteger(pid) || pid <= 0) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    execFile('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], {timeout: 5000, windowsHide: true},
+        (error, stdout) => {
+          // "mpv.exe","1234","Console","1","45.000 K" - or a line saying no task matches.
+          const row = /^"([^"]+)","(\d+)"/m.exec(String(stdout || ''));
+          resolve(!error && row && Number(row[2]) === pid ? row[1] : null);
+        });
+  });
+}
+
+/**
+ * Ends an mpv this helper started (playMpv), as Task Manager would. On Windows only while its
+ * process id is still an mpv's: one that quit by itself during the wait for its pipe left its id
+ * to Windows, which hands ids out again, and the kill would have ended whatever program got it
+ * (glm's review, 2026-11-16).
+ * @param {number} pid - Its process id.
+ * @param {{platform?: string, name?: (pid: number) => Promise<?string>, kill?: (pid: number) => void}} [io]
+ * @return {Promise<boolean>} Whether it was ended.
+ */
+export async function stopMpv(pid, io = {}) {
+  const platform = io.platform || process.platform;
+  if (platform === 'win32') {
+    const name = await (io.name || processImageName)(pid, platform);
+    if (!name || !isMpvExecutableName(name, platform)) return false;
+  }
   try {
-    process.kill(pid);
+    (io.kill || process.kill)(pid);
+    return true;
   } catch {
     // It has gone already.
+    return false;
   }
 }
 
@@ -2644,14 +2675,16 @@ export async function playMpv(mpvPath, play, config, io = {}) {
     // or refuses the stream would be an empty window after the error (glm's review of host
     // 15). Only the one started here, by its own pid; a late answer is left alone, since mpv
     // may well have the stream.
-    const end = () => {
+    // Waited for: this helper exits once it has answered, and the check of the process id
+    // (stopMpv) runs a program.
+    const end = async () => {
       if (started.pid) {
-        (io.stop || stopMpv)(started.pid);
+        await (io.stop || stopMpv)(started.pid);
       }
     };
     if (!answered) {
       debugLog(config, 'pipe-silent', {pipe});
-      end();
+      await end();
       return {ok: false, error: `mpv started, but did not answer on its pipe within ${PipeWaitMs / 1000} s`};
     }
     // --fullscreen is on the command line already.
@@ -2659,7 +2692,7 @@ export async function playMpv(mpvPath, play, config, io = {}) {
     if (!loaded.ok) {
       debugLog(config, 'load-failed', loaded);
       if (loaded.refused) {
-        end();
+        await end();
       }
       return {ok: false, error: loaded.refused ?
         `the new mpv refused the stream (${loaded.error})` :
@@ -2700,12 +2733,20 @@ export async function runIpc(commands, io = {}) {
     return {ok: false, error: result.error || 'no mpv ipc', ...(result.busy ? {busy: true} : {})};
   }
   const replies = /** @type {Array<{request_id: number, error: *, data: *}>} */ (result.replies || []);
+  // One answer goes back as one message, and Firefox takes at most 1 MB from a host: a value
+  // past that (a stream's metadata is the page's) is told as too large, as a relay's line is
+  // (MaxRelayLineBytes), and the other replies still arrive (glm's review, 2026-11-16).
+  let room = MaxRelayLineBytes;
   return {
     ok: true,
     replies: commands.map((command, index) => {
       const reply = replies.find((r) => r && r.request_id === index + 1);
       // mpvIpcRequest gives up with the answers it has after its reply time.
-      return reply ? {error: reply.error, data: reply.data} : {error: 'no reply', data: undefined};
+      if (!reply) return {error: 'no reply', data: undefined};
+      const size = Buffer.byteLength(JSON.stringify({error: reply.error, data: reply.data}) || '', 'utf8');
+      if (size > room) return {error: 'reply too large', data: undefined};
+      room -= size;
+      return {error: reply.error, data: reply.data};
     }),
   };
 }
