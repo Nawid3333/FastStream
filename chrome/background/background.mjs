@@ -366,8 +366,11 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
         // MPV -> On. MPV never opens an in-page player, so there is none to take down
         // (a player on the page when MPV started was reloaded away), and the page's
         // video goes to the player from the sources already tracked, as Off -> On does.
+        // The user's own On, as the toolbar's: marked as the list's start (regexMatched), the
+        // first page of the site outside the list turned it off (glm's review, 2026-11-16).
         tab.isMpv = false;
         tab.mpvOnPlay = false;
+        tab.regexMatched = false;
         userTurnedOff(tab);
         BackgroundUtils.updateTabIcon(tab);
         openPlayersWithSources(tab);
@@ -1524,18 +1527,16 @@ async function cascadedFullscreen(playerFrame, finalFrame, data) {
     return 'error';
   }
 
-  const result = await new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(playerFrame.tab.tabId, {
-      ...data,
-      frameId: trace[trace.length - 2].frameId,
-      playerFrameId: playerFrame.frameId,
-    }, {
-      frameId: finalFrame.frameId,
-    }, (response) => {
-      BackgroundUtils.checkMessageError('cascade_fullscreen_' + data.type);
-      resolve(response);
-    });
-  });
+  // Each through askFrame: a frame whose page never lets go of its event loop held the
+  // player's fullscreen, windowed fullscreen or miniplayer request for good (glm's review,
+  // 2026-11-16). No answer in time is none: the player hears undefined, as for an error.
+  // The first waits longer: content.js answers a fullscreen request only once Firefox has
+  // entered it (requestFullscreen's promise), which takes its transition.
+  const result = await askFrame(playerFrame.tab.tabId, {
+    ...data,
+    frameId: trace[trace.length - 2].frameId,
+    playerFrameId: playerFrame.frameId,
+  }, {frameId: finalFrame.frameId}, 'cascade_fullscreen_' + data.type, 3 * FrameAnswerWaitMs);
 
   if (result !== 'enter' && result !== 'exit') {
     return result;
@@ -1546,18 +1547,11 @@ async function cascadedFullscreen(playerFrame, finalFrame, data) {
   for (let i = 1; i < trace.length - 1; i++) {
     const currentFrame = trace[i];
     const lastFrame = trace[i - 1];
-    promises.push(new Promise((resolve, reject) => {
-      chrome.tabs.sendMessage(currentFrame.tab.tabId, {
-        type: MessageTypes.TOGGLE_WINDOWED_FULLSCREEN,
-        force: newValue,
-        frameId: lastFrame.frameId,
-      }, {
-        frameId: currentFrame.frameId,
-      }, (response) => {
-        BackgroundUtils.checkMessageError('toggle_fullscreen_windowed');
-        resolve(response);
-      });
-    }));
+    promises.push(askFrame(currentFrame.tab.tabId, {
+      type: MessageTypes.TOGGLE_WINDOWED_FULLSCREEN,
+      force: newValue,
+      frameId: lastFrame.frameId,
+    }, {frameId: currentFrame.frameId}, 'toggle_fullscreen_windowed'));
   }
 
   await Promise.all(promises);
@@ -1999,7 +1993,10 @@ async function checkIsFull(frame) {
 /**
  * Introduces a frame to its parent frame's content script, which then knows the iframe.
  * @param {FrameHolder} frame - The frame.
- * @return {Promise<void>} Resolves once both have answered.
+ * @return {Promise<void>} Resolves once both have answered, or after FrameAnswerWaitMs: a
+ *   parent page that never let go of its event loop held the player's load answer
+ *   (acceptPlayer, through getPageFrame) for good, while the player's own page was fine (glm's
+ *   review, 2026-11-16). The introduction still goes on when the parent answers later.
  */
 async function linkToParentFrame(frame) {
   if (!frame.parent) return;
@@ -2008,6 +2005,7 @@ async function linkToParentFrame(frame) {
   const key = crypto.randomUUID();
 
   return await new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, FrameAnswerWaitMs);
     chrome.tabs.sendMessage(frame.tab.tabId, {
       type: MessageTypes.FRAME_LINK_RECEIVER,
       frameId: frame.frameId,
@@ -2024,6 +2022,7 @@ async function linkToParentFrame(frame) {
         frameId: frame.frameId,
       }, (response) => {
         BackgroundUtils.checkMessageError('link_frame_sender');
+        clearTimeout(timer);
         resolve();
       });
     });
@@ -2924,17 +2923,12 @@ async function isPlayerParentProven(tab, frame, parentFrameId, opener) {
   if (proof !== 'ask') {
     return proof === 'proven';
   }
-  const answer = await new Promise((resolve) => {
-    chrome.tabs.sendMessage(tab.tabId, {
-      type: MessageTypes.IS_PLAYER_OPENER,
-      document: opener,
-    }, {
-      frameId: parentFrameId,
-    }, (response) => {
-      BackgroundUtils.checkMessageError('is_player_opener');
-      resolve(response);
-    });
-  });
+  // No answer in time is no proof (askFrame): the player is then no page's, as when the
+  // page says no, and does not wait for good on a page that never lets go of its event loop.
+  const answer = await askFrame(tab.tabId, {
+    type: MessageTypes.IS_PLAYER_OPENER,
+    document: opener,
+  }, {frameId: parentFrameId}, 'is_player_opener');
   if (answer !== true) {
     return false;
   }

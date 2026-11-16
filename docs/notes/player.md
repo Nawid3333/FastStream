@@ -1864,3 +1864,24 @@ Looked at and left:
 - The site scripts in `chrome/custom/` (bilibili, Facebook, Instagram) are still in the
   manifest. Retiring them once the general detection is shown to play those sites (the owner's
   rule of 2026-10-28) needs those sites tested, signed in: for the owner.
+
+## The background's questions to a frame have a time limit (2026-11-16)
+
+A content script shares its page's event loop, so a page that never lets go of it never answers
+`tabs.sendMessage`. Every question the background asks a frame goes through `askFrame`, which
+answers `undefined` (as a frame without a content script does) after `FrameAnswerWaitMs`
+(3 s). glm's review of 2026-11-16 found three that still waited with no limit, each holding a
+player for good:
+
+- `isPlayerParentProven`'s IS_PLAYER_OPENER: the player's PLAYER_LOADED was never answered, and
+  the player never started. No answer is now no proof: no page's player, as when the page says no.
+- `linkToParentFrame` (FRAME_LINK_RECEIVER, then FRAME_LINK_SENDER), awaited by `getPageFrame`
+  in `acceptPlayer`: the same, for a page that is the player's parent. It now resolves after
+  `FrameAnswerWaitMs`, and the introduction still goes on when the parent answers later.
+- `cascadedFullscreen`: the player's fullscreen, windowed fullscreen and miniplayer requests.
+  The first question waits `3 * FrameAnswerWaitMs`, because content.js answers a fullscreen
+  request only once Firefox has entered it (`requestFullscreen`'s promise), after the
+  transition. The windowed-fullscreen steps of the frames in between wait the usual time.
+
+`backgroundJammedFrame.test.mjs` jams each one (an answer that never settles). All three
+tests fail without the limits.

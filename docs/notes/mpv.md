@@ -423,7 +423,10 @@ Off: Ctrl+Shift+F after Ctrl+Shift+U turned FastStream off, and getting the
 player took a second press (Nawid, 2026-09-28). Now `onClicked(tab,
 {playerKey: true})` goes MPV -> On straight away (from the allowlist's MPV
 too) and is the plain Off/On toggle otherwise, on the allowlist as well; the
-button keeps its cycle. The player page drops an MPV arm (Ctrl+Shift+F on a
+button keeps its cycle. That MPV -> On clears `regexMatched` (glm's review, 2026-11-16): left
+set, the next page of the tab that no list names counted as the allowlist's to leave, and
+turned FastStream off - the user's On undone on the next click of a link
+(`backgroundMpv.test.mjs`, "keeps the player key's On"). The player page drops an MPV arm (Ctrl+Shift+F on a
 new tab opens it). The delayed `openPlayer` in `onSourceRecieved` checks
 `!isMpv` as well, since MPV is "on" too: a switch to MPV inside
 `replaceDelay` otherwise got a player opened under it. `manifestCommands.test.mjs`

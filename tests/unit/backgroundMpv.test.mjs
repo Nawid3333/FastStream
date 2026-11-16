@@ -1548,6 +1548,21 @@ describe('a mode the user picked on a page an auto-enable list turned on', () =>
     expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
   });
 
+  // The player key's MPV -> On is the user's own On as well: left marked as the list's start
+  // (regexMatched), the first page of the site outside the list turned FastStream off, and as
+  // the user had turned MPV off, the listed pages after it did not start it either (glm's
+  // review, 2026-11-16).
+  it('keeps the player key\'s On, out of the allowlist\'s MPV, on the next page the lists do not name', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch']},
+      tabs: [{id: 1, url: 'https://site.test/watch/1'}]});
+    await bg.navigated(1, 'https://site.test/watch/1');
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true});
+    await bg.command('toggle_player', 1);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
+    await bg.navigated(1, 'https://site.test/home');
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
+  });
+
   it('still ends the On the list started when the tab leaves the list', async () => {
     await onAutoEnabledPage();
     await bg.navigated(1, NEWS);
