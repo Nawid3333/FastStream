@@ -43,12 +43,11 @@
                     parseOptions(input, function (k, v) {
                         switch (k) {
                             case "region":
-                                // Find the last region we parsed with the same region id.
-                                for (var i = regionList.length - 1; i >= 0; i--) {
-                                    if (regionList[i].id === v) {
-                                        settings.set(k, regionList[i].region);
-                                        break;
-                                    }
+                                // FastStream: the last region parsed with this id, from a Map. Found by a
+                                // scan of every region, a file of many regions and many cues naming one it
+                                // lacks took regions x cues steps.
+                                if (regionList.has(v)) {
+                                    settings.set(k, regionList.get(v));
                                 }
                                 break;
                             case "vertical":
@@ -215,7 +214,7 @@
                 this.state = "INITIAL";
                 this.buffer = "";
                 this.decoder = decoder || new window.TextDecoder("utf8");
-                this.regionList = [];
+                this.regionList = new Map();
             };
 
             // If the error is a ParsingError then report it to the consumer if
@@ -310,10 +309,7 @@
                         self.onregion && self.onregion(region);
                         // Remember the VTTRegion for later in case we parse any VTTCues that
                         // reference it.
-                        self.regionList.push({
-                            id: settings.get("id"),
-                            region: region
-                        });
+                        self.regionList.set(settings.get("id"), region);
                     }
                 }
 
@@ -1120,10 +1116,6 @@
             var document = require('global/document');
             var parseTimeStamp = require('../parser/parse-timestamp.js');
 
-            // When evaluating this file as part of a Webpack bundle for server
-            // side rendering, `document` is an empty object.
-            var TEXTAREA_ELEMENT = document.createElement && document.createElement("textarea");
-
             var NEEDS_PARENT = {
                 rt: "ruby"
             };
@@ -1177,19 +1169,27 @@
                     return consume(m[1] ? m[1] : m[2]);
                 }
 
-                function unescape(s) {
-                    // FastStream: the character references decoded as the textarea's innerHTML
-                    // did, without an innerHTML write (addons-linter warned of it). Every "<"
-                    // written as &lt; first, the parser can make nothing but the textarea's one
-                    // text node; the line break after <textarea> is the one the parser drops, so
-                    // the cue's own first one stays. A NUL goes, as the innerHTML write dropped it
-                    // (measured in modules.e2e.mjs; the parser would make it U+FFFD). Text with no
-                    // "&", CR or NUL, which the parser would leave as it is, is not parsed at all.
-                    if (!/[&\r\0]/.test(s)) {
-                        return s;
+                function unescapeAll(nodes) {
+                    // FastStream: the character references of a cue's texts decoded as a textarea's
+                    // innerHTML did, without an innerHTML write (addons-linter warned of it), and in
+                    // one parse for the whole cue: a parse for each text let a cue of many short
+                    // texts ("&a<i>&a<i>...") parse a document for every one of them. Every "<"
+                    // written as &lt; first, the parser can make nothing but one textarea per text,
+                    // each with its one text node; the line break after <textarea> is the one the
+                    // parser drops, so a text's own first one stays. A NUL goes, as the innerHTML
+                    // write dropped it (measured in modules.e2e.mjs; the parser would make it
+                    // U+FFFD). Text with no "&", CR or NUL, which the parser would leave as it is,
+                    // is not in the list.
+                    if (!nodes.length) {
+                        return;
                     }
-                    var parsed = new DOMParser().parseFromString("<textarea>\n" + s.replace(/\0/g, "").replace(/</g, "&lt;") + "</textarea>", "text/html");
-                    return parsed.querySelector("textarea").textContent;
+                    var html = nodes.map(function (node) {
+                        return "<textarea>\n" + node.data.replace(/\0/g, "").replace(/</g, "&lt;") + "</textarea>";
+                    }).join("");
+                    var areas = new DOMParser().parseFromString(html, "text/html").querySelectorAll("textarea");
+                    for (var i = 0; i < nodes.length; i++) {
+                        nodes[i].data = areas[i].textContent;
+                    }
                 }
 
                 function shouldAdd(current, element) {
@@ -1216,7 +1216,8 @@
                 var rootDiv = window.document.createElement("div"),
                     current = rootDiv,
                     t,
-                    tagStack = [];
+                    tagStack = [],
+                    toDecode = [];
 
                 while ((t = nextToken()) !== null) {
                     if (t[0] === '<') {
@@ -1286,9 +1287,16 @@
                     }
 
                     // Text nodes are leaf nodes.
-                    current.appendChild(window.document.createTextNode(unescape(t)));
+                    // FastStream: the text as it is for now; the ones to decode are decoded together
+                    // after the loop (unescapeAll).
+                    var text = window.document.createTextNode(t);
+                    if (/[&\r\0]/.test(t)) {
+                        toDecode.push(text);
+                    }
+                    current.appendChild(text);
                 }
 
+                unescapeAll(toDecode);
                 return rootDiv;
             }
 

@@ -199,3 +199,43 @@ describe('convertCueToDOMTree: arbitrary cue text', () => {
     }), {numRuns: 1000});
   });
 });
+
+// glm's review, 2026-11-16: a parse for each text of a cue, and a scan of every region for
+// each cue naming one.
+describe('convertCueToDOMTree: character references', () => {
+  it('decodes each text of a cue, beside its tags', () => {
+    const tree = WebVTT.convertCueToDOMTree(window, 'a &amp; b<i>c &lt; d</i>e &gt; f &nbsp;g');
+    expect(tree.textContent).toBe('a & bc < de > f  g');
+    expect(toMarkup('x &lt;b&gt;y')).toBe('<div>x <b>y</div>');
+  });
+
+  it('parses one document for a cue, however many of its texts need decoding', async () => {
+    const {FakeDOMParser} = await import('./fakeCueDom.mjs');
+    const before = FakeDOMParser.parses;
+    const tree = WebVTT.convertCueToDOMTree(window, '&amp;<i></i>'.repeat(5000));
+    expect(FakeDOMParser.parses - before).toBe(1);
+    expect(tree.textContent).toBe('&'.repeat(5000));
+    // And none for a cue with nothing to decode.
+    WebVTT.convertCueToDOMTree(window, 'plain <i>text</i>');
+    expect(FakeDOMParser.parses - before).toBe(1);
+  });
+});
+
+describe('Parser: regions', () => {
+  it('gives a cue the last region of its id, and none for an id no region has', () => {
+    const cues = parseCues('WEBVTT\nRegion: id=top width=40%\nRegion: id=top width=60%\n\n' +
+      '00:00.000 --> 00:01.000 region:top\nup here\n\n00:01.000 --> 00:02.000 region:missing\nnowhere\n');
+    expect(cues[0].region.width).toBe(60);
+    expect(cues[1].region).toBeNull();
+  });
+
+  it('finds the regions of a file of many regions and cues in linear time', () => {
+    const count = 40000;
+    const regions = Array.from({length: count}, (_, i) => `Region: id=r${i}`).join('\n');
+    const cues = Array.from({length: count}, (_, i) => `00:00.000 --> 00:01.000 region:none${i}\nx`).join('\n\n');
+    const started = performance.now();
+    const parsed = parseCues(`WEBVTT\n${regions}\n\n${cues}\n`);
+    expect(parsed).toHaveLength(count);
+    expect(performance.now() - started).toBeLessThan(1500);
+  });
+});

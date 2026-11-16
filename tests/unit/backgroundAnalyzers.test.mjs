@@ -471,3 +471,247 @@ describe('AudioAnalyzerNode, its volume loop while the sound is paused', () => {
     }
   });
 });
+
+// glm's review, 2026-11-16: a video of 5 s or less counted as analysed at its first frame, and
+// an analysis player's error left the analysis "running" for good.
+describe('the background analyses: when one is done', () => {
+  it('takes a short video as done only once nearly all of it is, a long one as before', async () => {
+    const {coversVideo} = await import('../../chrome/player/modules/analyzer/BackgroundAnalysis.mjs');
+    // At its first frame: nothing covered.
+    expect(coversVideo({start: 0, end: 0}, 4)).toBe(false);
+    expect(coversVideo({start: 0, end: 2}, 4)).toBe(false);
+    expect(coversVideo({start: 0, end: 4}, 4)).toBe(true);
+    // A long video: all but its last 5 s, as before.
+    expect(coversVideo({start: 0, end: 594}, 600)).toBe(false);
+    expect(coversVideo({start: 0, end: 595}, 600)).toBe(true);
+    // A length not known yet is never covered.
+    expect(coversVideo({start: 0, end: 100}, NaN)).toBe(false);
+  });
+
+  it('does not end a short video\'s frame extraction at its first frame', () => {
+    const loop = [];
+    vi.stubGlobal('requestAnimationFrame', (callback) => loop.push(callback));
+    vi.stubGlobal('document', {createElement: () => ({getContext: () => ({drawImage: () => {}}), toBlob: () => {}})});
+    const video = {videoWidth: 640, videoHeight: 360, seeking: false};
+    const player = {currentTime: 0, readyState: 4, duration: 4, getVideo: () => video,
+      createContext: () => ({on: vi.fn(), destroy: vi.fn()}), destroy: vi.fn()};
+    const client = makeClient(player);
+    client.isRegionBuffered = () => false;
+    const extractor = new PreviewFrameExtractor(client);
+    extractor.runAnalyzerInBackground(player, [], () => {});
+    // Frames at 0 and 2 s: not done yet. Before, it was done at the first.
+    loop.shift()();
+    expect(player.currentTime).toBe(2);
+    loop.shift()();
+    expect(player.destroy).not.toHaveBeenCalled();
+    // The frame at 4 s, the end, is counted at the next one (the loop checks before it
+    // records where it is): done then.
+    expect(player.currentTime).toBe(4);
+    loop.shift()();
+    expect(player.destroy).not.toHaveBeenCalled();
+    loop.shift()();
+    expect(player.destroy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the background analyses: a player that fails', () => {
+  /**
+   * A background player whose source loads, and which reports what the test makes it.
+   * @return {Promise<Object>}
+   */
+  async function emittingPlayer() {
+    const {EventEmitter} = await import('../../chrome/player/modules/eventemitter.mjs');
+    const {DefaultPlayerEvents} = await import('../../chrome/player/enums/DefaultPlayerEvents.mjs');
+    const video = Object.assign(new EventTarget(), {readyState: 0, paused: true, playbackRate: 1, currentTime: 0,
+      videoWidth: 640, videoHeight: 360});
+    const player = Object.assign(new EventEmitter(), {
+      setup: vi.fn(async () => {}),
+      setSource: vi.fn(async () => {}),
+      getVideo: () => video,
+      // What the analysis loop reads and does, once the metadata came.
+      currentTime: 0,
+      duration: 600,
+      readyState: 0,
+      paused: true,
+      play() {},
+      pause() {},
+      // A context hears its player's events, as a real one does.
+      createContext() {
+        return {on: (event, listener) => player.on(event, listener), destroy() {}};
+      },
+      destroyed: 0,
+      destroy() {
+        this.destroyed++;
+        this.emit(DefaultPlayerEvents.DESTROYED);
+      },
+    });
+    return {player, ERROR: DefaultPlayerEvents.ERROR, LOADEDMETADATA: DefaultPlayerEvents.LOADEDMETADATA};
+  }
+
+  /** @return {Promise<Array<function(Object): Object>>} Makers of both analyzers. */
+  async function analyzers() {
+    const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
+    vi.stubGlobal('AudioContext', class {
+      constructor() {
+        this.close = vi.fn(async () => {});
+      }
+      createMediaElementSource() {
+        return {connect: vi.fn(), disconnect: vi.fn()};
+      }
+      createAnalyser() {
+        return {};
+      }
+    });
+    return [(client) => new PreviewFrameExtractor(client), (client) => new AudioAnalyzer(client)];
+  }
+
+  it('ends the analysis as failed on an error before its metadata, and tries again at the next start', async () => {
+    vi.useFakeTimers();
+    try {
+      for (const make of await analyzers()) {
+        const {player, ERROR} = await emittingPlayer();
+        const client = makeClient(player);
+        const analyzer = make(client);
+        await analyzer.startBackgroundAnalyzer();
+        expect(analyzer.backgroundAnalyzerStatus).toBe('running');
+
+        player.emit(ERROR, new Error('the link expired'));
+        expect(analyzer.backgroundAnalyzerStatus).toBe('failed');
+        expect(analyzer.backgroundAnalyzerPlayer).toBeNull();
+        expect(player.destroyed).toBe(1);
+
+        analyzer.stopBackgroundAnalyzer();
+        await analyzer.startBackgroundAnalyzer();
+        expect(client.playerLoader.createPlayer).toHaveBeenCalledTimes(2);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps no player that failed while it loaded', async () => {
+    vi.useFakeTimers();
+    try {
+      for (const make of await analyzers()) {
+        const {player, ERROR} = await emittingPlayer();
+        player.setSource = vi.fn(async () => player.emit(ERROR, new Error('manifest failed')));
+        const analyzer = make(makeClient(player));
+        await analyzer.startBackgroundAnalyzer();
+        expect(analyzer.backgroundAnalyzerStatus).toBe('failed');
+        expect(analyzer.backgroundAnalyzerPlayer).toBeNull();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// Claude's review of #715: an error once the analysis runs, one during a load that also fails,
+// and one after a stop. Each player is destroyed once (HLSPlayer's second destroy() throws).
+describe('the background analyses: a player that fails at another time', () => {
+  /**
+   * A background player for the error cases (the helper above, again: describe blocks do not
+   * share their functions).
+   * @return {Promise<Object>}
+   */
+  async function emitting() {
+    const {EventEmitter} = await import('../../chrome/player/modules/eventemitter.mjs');
+    const {DefaultPlayerEvents} = await import('../../chrome/player/enums/DefaultPlayerEvents.mjs');
+    const video = Object.assign(new EventTarget(), {readyState: 0, paused: true, playbackRate: 1, currentTime: 0,
+      videoWidth: 640, videoHeight: 360});
+    const player = Object.assign(new EventEmitter(), {
+      setup: vi.fn(async () => {}),
+      setSource: vi.fn(async () => {}),
+      getVideo: () => video,
+      currentTime: 0, duration: 600, readyState: 0, paused: true,
+      play() {}, pause() {},
+      createContext() {
+        return {on: (event, listener) => player.on(event, listener), destroy() {}};
+      },
+      destroyed: 0,
+      destroy() {
+        this.destroyed++;
+        this.emit(DefaultPlayerEvents.DESTROYED);
+      },
+    });
+    return {player, events: DefaultPlayerEvents};
+  }
+
+  /** @return {Promise<Array<function(Object): Object>>} Makers of both analyzers. */
+  async function both() {
+    const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
+    vi.stubGlobal('AudioContext', class {
+      constructor() {
+        this.close = vi.fn(async () => {});
+      }
+      createMediaElementSource() {
+        return {connect: vi.fn(), disconnect: vi.fn()};
+      }
+      createAnalyser() {
+        return {};
+      }
+    });
+    vi.stubGlobal('requestAnimationFrame', () => {});
+    return [(client) => new PreviewFrameExtractor(client), (client) => new AudioAnalyzer(client)];
+  }
+
+  it('ends a running analysis as failed on an error, its player destroyed once', async () => {
+    vi.useFakeTimers();
+    try {
+      for (const make of await both()) {
+        const {player, events} = await emitting();
+        const client = makeClient(player);
+        client.isRegionBuffered = () => false;
+        const analyzer = make(client);
+        await analyzer.startBackgroundAnalyzer();
+        player.emit(events.LOADEDMETADATA);
+        expect(analyzer.backgroundAnalyzerStatus).toBe('running');
+
+        player.emit(events.ERROR, new Error('a segment expired'));
+        player.emit(events.ERROR, new Error('and another'));
+        expect(analyzer.backgroundAnalyzerStatus).toBe('failed');
+        expect(analyzer.backgroundAnalyzerPlayer).toBeNull();
+        expect(player.destroyed).toBe(1);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('destroys a player once whose load reported an error and failed', async () => {
+    vi.useFakeTimers();
+    try {
+      for (const make of await both()) {
+        const {player, events} = await emitting();
+        player.setSource = vi.fn(async () => {
+          player.emit(events.ERROR, new Error('manifest failed'));
+          throw new Error('manifest failed');
+        });
+        const analyzer = make(makeClient(player));
+        await analyzer.startBackgroundAnalyzer();
+        expect(player.destroyed).toBe(1);
+        expect(analyzer.backgroundAnalyzerPlayer).toBeNull();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does nothing more for an error after the analysis was stopped', async () => {
+    vi.useFakeTimers();
+    try {
+      for (const make of await both()) {
+        const {player, events} = await emitting();
+        const analyzer = make(makeClient(player));
+        await analyzer.startBackgroundAnalyzer();
+        analyzer.stopBackgroundAnalyzer();
+        expect(player.destroyed).toBe(1);
+        player.emit(events.ERROR, new Error('late'));
+        expect(player.destroyed).toBe(1);
+        expect(analyzer.backgroundAnalyzerStatus).toBe('idle');
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

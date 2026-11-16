@@ -444,7 +444,7 @@ what can actually change behaviour.
 | coloris | 0.25.0, git tag (not on npm) | 14 KB patch (`patches/Coloris@0.25.0.patch`); one deliberate bug fix on top | **migrated** |
 | coloris (CSS) | 0.25.0 | none - `dist/coloris.css` as published; only `normaliseText` | **generated since 2026-10-03** (was upstream's re-minified 0.21.x copy) |
 | jswebm | 0.1.2 | - | **removed 2026-09-30** with the re-encoder: Mediabunny reads WebM |
-| vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 8 changes | **verified** |
+| vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus its listed changes (`tools/verify-vtt.mjs`) | **verified** |
 | mp4box | 2.4.1 | 5 KB patch: `samples_stored` and `getSampleList`, both FastStream's additions | **migrated; 2.4.1 since 2026-09-25** |
 | libsamplerate-js | none published | - | **removed 2026-09-30** with the re-encoder |
 | knob | `jherrm/knobs@b8a39650` | was verified by `pnpm run verify:knob` | **removed 2026-10-10** with the audio settings window |
@@ -621,9 +621,10 @@ The bundle's internal module map gives it away. It requires
 eighteen others - a nested layout that videojs/vtt.js does not have; its `lib/`
 is six flat files. The layout belongs to the build **dash.js** maintains at
 `contrib/videojs-vtt.js/vtt.js`, which is byte-identical across dash.js v4.7.4
-through v5.1.0.
+through v5.2.1 (`tools/verify-vtt.mjs` pins v5.2.1).
 
-`chrome/player/modules/vtt.mjs` is that file with exactly eight changes:
+`chrome/player/modules/vtt.mjs` is that file with exactly the changes below (the list
+`tools/verify-vtt.mjs` applies is the authority; this table follows it):
 
 | Change | Why |
 |---|---|
@@ -635,6 +636,10 @@ through v5.1.0.
 | `TAG_NAME[type]` only for its own names | `<constructor>` found `Object`, and createElement threw out of the per-frame render (#291) |
 | a lookahead before the tag regex | it accepts exactly the same tags in linear time; a long unclosed tag was quadratic and froze the page (#294) |
 | `node.className = classes.join(' ')` removed | the player's own CSS matched cue classes: `<c.pseudo_fullscreen>` covered every control (#292) |
+| `unescape` decodes with DOMParser, not a textarea's `innerHTML` | the last addons-linter warning in the file (2026-10-27); the same text, checked in Firefox by `modules.e2e.mjs` |
+| ... as `unescapeAll`, all of a cue's texts in one parse (`toDecode`, three edits) | a parse per text let a cue of many short texts parse a document for every one (2026-11-17) |
+| `TEXTAREA_ELEMENT` removed | unused since the DOMParser change |
+| `regionList` a `Map` by id (three edits) | a cue's region was found by a scan of every region: regions x cues steps for a hostile file (2026-11-17) |
 
 plus `export const WebVTT = window.WebVTT;` appended so a bundle that assigns
 to a global can be imported. The list is `CHANGES` in `tools/verify-vtt.mjs`. Note
@@ -1156,7 +1161,7 @@ the set at all. The bundle's own module map settles it: it requires
 `./process/parse-content.js`, `./parser/parser.js` and eighteen more nested
 paths that videojs/vtt.js's six flat `lib/` files do not have. The file is
 **dash.js's `contrib/videojs-vtt.js/vtt.js`**, byte-identical across dash.js
-v4.7.4 through v5.1.0, plus eight changes and an export line.
+v4.7.4 through v5.2.1, plus the changes `tools/verify-vtt.mjs` lists and an export line.
 
 Imported by `SubtitleTrack.mjs` and `ui/subtitles/SubtitlesManager.mjs`.
 

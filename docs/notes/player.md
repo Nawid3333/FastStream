@@ -1931,10 +1931,8 @@ remuxers, vtt.js). Kept only what the code proved; each fix has a test that fail
   (reading 'demux')" (the transmuxer dropped its own error).
 - Not changed, and why: an fMP4 HLS level never reaches `samplesFromMoof` (HLSPlayer routes it
   to DASH2MP4), so a packager's trun flags cannot fail there; dash.js's `processCues` (vtt.js's
-  `determineBidi` recursion) runs only with a rendering div, and none is attached; vtt.js's
-  `unescape` parses once per text token with an `&`, and a cue's tree is built once and kept
-  (`cue.dom`), so a hostile file freezes the player once per such cue, not per frame - left
-  for a change to vtt.js with its provenance list (`tools/verify-vtt.mjs`).
+  `determineBidi` recursion) runs only with a rendering div, and none is attached. (vtt.js's
+  parse per text and its region scan: fixed the next day, below.)
 - **Dead code and repeats** (a scan of every first-party export and file, and of runs of 8+
   repeated code lines): gone are `npmLockVersions` (security-overrides; no caller, the repo's
   lockfile is pnpm's), `compareFiles` (ast-compare; every user imports `compare`) and the host's
@@ -1942,6 +1940,39 @@ remuxers, vtt.js). Kept only what the code proved; each fix has a test that fail
   copies did: the language filter of `LevelManager` (`bestLanguageMatches`) and the host's
   answer for an open mpv (`answerOfOpenMpv`, launchMpv and playMpv). Kept as copies on purpose:
   the BOM/charset sniff in `content.js` and `SubtitleUtils` (a classic script imports nothing),
-  `withFragmentTag` in `MpvTarget` and the host (the host is a program of its own), and the two
-  analyzers' `startBackgroundAnalyzer` (they differ where they must: the frame extractor's
-  player can end while it loads, the audio analyzer's cannot). No file is unreferenced.
+  `withFragmentTag` in `MpvTarget` and the host (the host is a program of its own). No file is
+  unreferenced. (The two analyzers' start: shared the next day, below.)
+
+## The background analyses and hostile subtitle files (2026-11-17)
+
+What the review of 2026-11-16 left open. Each fix has a test that fails without it.
+
+- **The analyses share one module**, `modules/analyzer/BackgroundAnalysis.mjs`: the status
+  values, the start of the background player (`startBackgroundPlayer`: only the latest start
+  keeps its player, an end before the load returned is no "running" player), the end rule and
+  the error handling. Before, both analyzers had their own copy of the start, and the audio
+  analyzer's lacked the end-while-loading guard the frame extractor got on 2026-10-13.
+- **An analysis player's error ends its analysis as failed** (`failOnError`). The preview player
+  had an ERROR handler; the analysis players had none, and an error (a link that expired, a
+  manifest that failed) left the analysis "running" with a dead player. A start needs it idle,
+  so that video's volume strip or seek previews never came. Tests: `backgroundAnalyzers.test.mjs`,
+  "ends the analysis as failed on an error before its metadata ..." and "keeps no player that
+  failed while it loaded", for both analyzers. An analysis player is destroyed once
+  (`destroyPlayer`, which `failOnError`'s DESTROYED listener feeds): an error, a stop and a stale
+  start can each reach the same player, and HLSPlayer's second `destroy()` hands `destroyVideo` a
+  null video. An error after the player was destroyed ends nothing more (Claude's review of #715).
+- **A short video is analysed to its end** (`coversVideo`): an analysis is done at all but the
+  last 5 s, or the last tenth for a video under 50 s. With the 5 s alone, a video of 5 s or less
+  was done at its first frame, and its strip stayed empty. A long video ends as before.
+- **vtt.js decodes a cue's texts in one parse** (`unescapeAll`): a parse per text with an `&` let
+  a cue of many short texts (`&a<i></i>` x 5000) parse a document for every one. Checked in
+  Firefox against the old way, text by text, by `modules.e2e.mjs`. And a cue's region is found
+  in a Map, not by a scan of every region: 40,000 regions and cues took 4.9 s, now 0.4 s
+  (`vtt.test.mjs`). The unused `TEXTAREA_ELEMENT` is gone. All in `tools/verify-vtt.mjs`'s list
+  and `docs/vendored-libraries.md`'s table, which had missed the DOMParser change.
+- **Facebook: one manifest per scan stays.** glm read it as losing a second new video found in
+  the same scan. On the page as recorded (live, 2026-11-15) the reels Facebook preloads sit under
+  `viewer.lasso_blue_feed`, outside any `video` key, so they are never candidates; the one on
+  screen is the one reported, which `customSiteScripts.test.mjs` pins. Reporting more would put
+  preloaded videos into the sources. No page with two `video`-path manifests in one scan is
+  known; if one turns up, the test gets that page's shape first.

@@ -628,4 +628,32 @@ describe('the colour picker', function() {
     }
     expect(ran).toEqual({ran: false});
   });
+
+  it('vtt.js decodes every text of a cue in one parse, each as the textarea did', async function() {
+    // The texts of a cue were decoded one parse each, and a cue of many short texts parsed a
+    // document for every one (glm's review, 2026-11-16); they are decoded together now. Each
+    // text between the tags is the reference here, decoded alone by the old way.
+    const result = await runInPage(async () => {
+      const {WebVTT} = await import('/player/modules/vtt.mjs');
+      const reference = document.createElement('textarea');
+      const decode = (text) => {
+        reference.innerHTML = text;
+        return reference.textContent;
+      };
+      const cues = [
+        ['Tom &amp; ', 'Jerry &lt;3', ' &eacute;t&eacute; &#x1F600;'],
+        ['\nfirst &amp;', '\nsecond &lt;/textarea&gt;', 'carriage\r\nreturn &copy'],
+        ['a\u0000b &amp; c', 'plain', '&unknown; &nbsp;|'],
+      ];
+      return cues.map((parts) => {
+        const text = parts[0] + '<i>' + parts[1] + '</i><b>' + parts[2] + '</b>';
+        const tree = WebVTT.convertCueToDOMTree(window, text);
+        return {text, want: parts.map(decode).join(''), got: tree.textContent,
+          elements: [...tree.querySelectorAll('*')].map((element) => element.localName)};
+      });
+    });
+    for (const {text, want, got, elements} of result) {
+      expect({text, got, elements}).toEqual({text, got: want, elements: ['i', 'b']});
+    }
+  });
 });

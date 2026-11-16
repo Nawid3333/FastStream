@@ -1,18 +1,9 @@
 // @ts-check
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {EventEmitter} from '../eventemitter.mjs';
+import {AnalyzerStatus, coversVideo, destroyPlayer, failOnError, startBackgroundPlayer} from './BackgroundAnalysis.mjs';
 
-/**
- * A stretch of the video whose frames are extracted, in seconds.
- * @typedef {{start: number, end: number}} DoneRange
- */
-
-const AnalyzerStatus = {
-  IDLE: 'idle',
-  RUNNING: 'running',
-  FINISHED: 'finished',
-  FAILED: 'failed',
-};
+/** @typedef {import('./BackgroundAnalysis.mjs').DoneRange} DoneRange */
 
 export class PreviewFrameExtractor extends EventEmitter {
   /** @param {import('../../FastStreamClient.mjs').FastStreamClient} client */
@@ -35,8 +26,13 @@ export class PreviewFrameExtractor extends EventEmitter {
     /** @type {DoneRange[]} */
     this.backgroundDoneRanges = [];
     this.backgroundAnalyzerEnabled = true;
-    // Counts the starts: only the latest one may keep its player (AudioAnalyzer's).
+    // Counts the starts: only the latest one may keep its player (startBackgroundPlayer).
     this.backgroundStarts = 0;
+    // The source the background player plays, and that player while its analysis runs.
+    /** @type {*} */
+    this.backgroundAnalyzerSource = null;
+    /** @type {?import('../../FastStreamClient.mjs').Player} */
+    this.backgroundAnalyzerPlayer = null;
 
     this.extractorCanvas = document.createElement('canvas');
     this.extractorContext = /** @type {CanvasRenderingContext2D} */ (this.extractorCanvas.getContext('2d'));
@@ -108,69 +104,7 @@ export class PreviewFrameExtractor extends EventEmitter {
       return;
     }
 
-    this.backgroundAnalyzerSource = newSource;
-
-    if (this.backgroundAnalyzerPlayer) {
-      this.backgroundAnalyzerPlayer.destroy();
-      this.backgroundAnalyzerPlayer = null;
-    }
-
-    console.log('[FrameExtractor] Starting background analyzer');
-
-    // A stop and a new start while this one loads (the tool closed and opened again) make
-    // this start stale: both passed the source check below, and the first player went on
-    // seeking, downloading and drawing frames with the tool closed (review of 2026-10-14).
-    const start = ++this.backgroundStarts;
-    /** @type {import('../../FastStreamClient.mjs').Player|undefined} */
-    let backgroundAnalyzerPlayer;
-    // Set by an end that came before the load returned the player (its video had no size).
-    /** @type {boolean|null} */
-    let endedWhileLoading = null;
-    try {
-      backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (/** @type {boolean} */ completed) => {
-        // Before the load returned, the check below compared two unset values and passed,
-        // and the return then kept the dead player as the running one, which blocked every
-        // later start (glm's second look, 2026-10-13).
-        if (backgroundAnalyzerPlayer === undefined) {
-          endedWhileLoading = completed;
-          return;
-        }
-        // Only the running player's end counts, as in AudioAnalyzer: a stale player,
-        // destroyed below, cleared the running one's place, and nothing could stop that
-        // one any more.
-        if (backgroundAnalyzerPlayer !== this.backgroundAnalyzerPlayer) {
-          return;
-        }
-        console.log('[FrameExtractor] Background analyzer finished', completed ? 'successfully' : 'with errors');
-        this.backgroundAnalyzerStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
-        this.client.interfaceController.updateMarkers();
-        this.backgroundAnalyzerPlayer = null;
-      });
-    } catch (e) {
-      // Thrown on, it was an unhandled rejection. The source is forgotten, as AudioAnalyzer
-      // does, so the next start (the timeline tool opened again) tries again: marked as
-      // failed, one dropped request left the timeline without frames for the whole video
-      // (glm's second look, 2026-10-13).
-      console.warn('[FrameExtractor] The background analyzer could not load', e);
-      if (start === this.backgroundStarts && newSource === this.backgroundAnalyzerSource) {
-        this.backgroundAnalyzerSource = null;
-      }
-      return;
-    }
-
-    if (start !== this.backgroundStarts || newSource !== this.backgroundAnalyzerSource) {
-      backgroundAnalyzerPlayer.destroy();
-      return;
-    }
-
-    if (endedWhileLoading !== null) {
-      this.backgroundAnalyzerStatus = endedWhileLoading ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
-      this.client.interfaceController.updateMarkers();
-      return;
-    }
-
-    this.backgroundAnalyzerStatus = AnalyzerStatus.RUNNING;
-    this.backgroundAnalyzerPlayer = backgroundAnalyzerPlayer;
+    await startBackgroundPlayer(this, '[FrameExtractor]', newSource);
   }
 
   stopBackgroundAnalyzer() {
@@ -178,7 +112,7 @@ export class PreviewFrameExtractor extends EventEmitter {
     if (this.backgroundAnalyzerPlayer) {
       const player = this.backgroundAnalyzerPlayer;
       this.backgroundAnalyzerPlayer = null;
-      player.destroy();
+      destroyPlayer(player);
     }
     // A failed analysis too: the start needs IDLE, so reopening the tool never tried that
     // video again (review of 2026-10-14). A finished one stays finished.
@@ -206,20 +140,23 @@ export class PreviewFrameExtractor extends EventEmitter {
         player.setCurrentAudioLevelID(this.client.getCurrentAudioLevelID());
       });
 
+      let running = false;
       const onLoadMeta = () => {
         player.off(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
+        running = true;
         this.runAnalyzerInBackground(player, doneRanges, (/** @type {boolean} */ completed)=>{
           onDone(completed);
         });
       };
 
       player.on(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
+      failOnError(player, '[FrameExtractor]', () => running, onDone);
 
       await player.setSource(source);
     } catch (e) {
       // Not left half built, downloading on its own.
       try {
-        player.destroy();
+        destroyPlayer(player);
       } catch (destroyError) {
         console.error(destroyError);
       }
@@ -260,7 +197,7 @@ export class PreviewFrameExtractor extends EventEmitter {
 
     if (videoWidth === 0 || videoHeight === 0) {
       console.error('[FrameExtractor] Invalid video dimensions');
-      player.destroy();
+      destroyPlayer(player);
       return;
     }
 
@@ -280,7 +217,7 @@ export class PreviewFrameExtractor extends EventEmitter {
 
     const onEnd = () => {
       completed = true;
-      player.destroy();
+      destroyPlayer(player);
     };
 
     context.on(DefaultPlayerEvents.ENDED, ()=>{
@@ -384,7 +321,7 @@ export class PreviewFrameExtractor extends EventEmitter {
       }
 
 
-      if (/** @type {DoneRange} */ (currentRange).end - /** @type {DoneRange} */ (currentRange).start >= player.duration - 5) {
+      if (coversVideo(/** @type {DoneRange} */ (currentRange), player.duration)) {
         onEnd();
         return;
       }
