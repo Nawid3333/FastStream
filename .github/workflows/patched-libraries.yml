@@ -84,8 +84,11 @@ jobs:
           check-latest: true
 
       # tools/recut-patch.mjs lints with the project's ESLint, and --apply installs.
+      # No install scripts: this job builds nothing and tests nothing, so nothing it does
+      # needs one (geckodriver's driver download, esbuild's binary check, the project's own
+      # git hooks), and none runs beside the job's token.
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Re-cut each patch whose library has a new release
         id: recut

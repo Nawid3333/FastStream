@@ -958,8 +958,10 @@ function applyUpdate(opts, cur, result, work) {
   fs.writeFileSync(ws, wsText.replace(cur.line + '\n', ''));
   fs.rmSync(path.join(root, cur.patch));
 
-  // Not frozen: pnpm freezes the lockfile by default in CI, and this has to change it.
-  const install = run('pnpm', ['install', '--no-frozen-lockfile'], {cwd: root});
+  // Not frozen: pnpm freezes the lockfile by default in CI, and this has to change it. No
+  // install scripts: the new release is only diffed and patched here, none of its code (nor any
+  // other package's) has to run; `pnpm run verify` afterwards builds and tests it.
+  const install = run('pnpm', ['install', '--no-frozen-lockfile', '--ignore-scripts'], {cwd: root});
   if (install.status !== 0) {
     const text = install.stdout + install.stderr;
     fs.writeFileSync(pj, pjText);
