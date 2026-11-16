@@ -38,6 +38,20 @@ extension changes with it, so such a push releases, Firefox updates the extensio
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run.
 
+**Host 22 (2026-11-16, glm's review of the whole host; RequiredHostVersion stays 19).**
+- `stopMpv` ended an mpv that never answered on its pipe by its bare process id. One that quit
+  by itself during the 15 s wait left its id to Windows, which hands ids out again, and the kill
+  would have ended whatever program got it. On Windows it now ends the process only while
+  tasklist names it an mpv (`processImageName`, `isMpvExecutableName`), and `playMpv` waits for
+  that before it answers (the host exits after its answer). A real tasklist run is in
+  `mpvThinHost.test.mjs` (Windows only): a lost backslash in the row's pattern read no name at all.
+- `ipc` answers went back as one message of any size, and Firefox takes at most 1 MB from a
+  host: one reply past it (a stream's metadata is the page's) is now "reply too large", within
+  the relay's limit (`MaxRelayLineBytes`), and the others still arrive.
+- Looked at and left: `play` takes the target's `fs-*` tags as given, since `MpvTarget.mpvTargetUrl`
+  strips a page's own before adding the extension's; and `script-message` arguments may hold
+  `${`, as mpv does not expand them (`mpvAllowlist.test.mjs` records it).
+
 **The thin helper (host 15, 2026-10-13).** The host changed 14 times in 10 days, each one a
 reinstall by hand, because policy lived in it. The owner chose to move the policy into the
 extension and keep only mechanics in the host, offered as allowlisted primitives: `play`

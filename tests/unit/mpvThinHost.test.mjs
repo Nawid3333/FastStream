@@ -21,8 +21,10 @@ import {
   loadInto,
   mpvNotFoundError,
   playMpv,
+  processImageName,
   relayMpv,
   runIpc,
+  stopMpv,
   takeLaunchLock,
   waitForPipe,
 } from '../../native-host/faststream-mpv-host.mjs';
@@ -620,6 +622,47 @@ describe('runIpc', () => {
       {request_id: 2, command: ['observe_property', 5, 'eof-reached']},
     ]);
     expect(await runIpc([['get_property', 'pid']], {pipe: pipeName('ipc-none')})).toEqual({ok: false, error: 'no mpv ipc'});
+  });
+
+  // Firefox takes at most 1 MB in one message from a host, and one answer is one message: a
+  // value past that (a stream's metadata is the page's) is told as too large, and the other
+  // replies still arrive (glm's review, 2026-11-16).
+  it('tells a reply too large for one message as such, and keeps the others', async () => {
+    const big = 'x'.repeat(MaxRelayLineBytes);
+    expect(await runIpc([['get_property', 'pid'], ['get_property', 'media-title'], ['get_property', 'duration']], {
+      ipcRequest: async () => ({ok: true, replies: [{request_id: 1, error: 'success', data: 5},
+        {request_id: 2, error: 'success', data: big}, {request_id: 3, error: 'success', data: 60}]}),
+    })).toEqual({ok: true, replies: [{error: 'success', data: 5}, {error: 'reply too large', data: undefined},
+      {error: 'success', data: 60}]});
+  });
+});
+
+describe('stopMpv', () => {
+  // Windows hands out a process id again: an mpv that quit by itself while the helper waited
+  // for its pipe left its id to whatever program came next, and the kill ended that program
+  // (glm's review, 2026-11-16).
+  it('ends the process only while its id is still an mpv\'s, on Windows', async () => {
+    const killed = [];
+    const kill = (pid) => killed.push(pid);
+    expect(await stopMpv(41, {platform: 'win32', name: async () => 'mpv.exe', kill})).toBe(true);
+    expect(await stopMpv(42, {platform: 'win32', name: async () => 'notepad.exe', kill})).toBe(false);
+    expect(await stopMpv(43, {platform: 'win32', name: async () => null, kill})).toBe(false);
+    expect(killed).toEqual([41]);
+    expect(await stopMpv(44, {platform: 'linux', kill})).toBe(true);
+    expect(killed).toEqual([41, 44]);
+  });
+
+  // The real tasklist, on Windows (CI's unit-windows): a lost backslash in the row's pattern
+  // read no name at all, and no mpv would have been ended.
+  it.runIf(process.platform === 'win32')('reads a running process\'s name with tasklist', async () => {
+    expect(await processImageName(process.pid)).toMatch(/^node/i);
+    expect(await processImageName(2 ** 31 - 4)).toBe(null);
+  });
+
+  it('reads no name for a process id that is not a number, nor off Windows', async () => {
+    expect(await processImageName(-1, 'win32')).toBe(null);
+    expect(await processImageName(1.5, 'win32')).toBe(null);
+    expect(await processImageName(4, 'linux')).toBe(null);
   });
 });
 
