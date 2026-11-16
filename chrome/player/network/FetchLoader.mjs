@@ -66,6 +66,11 @@ export function fetchPriorityOf(config) {
 
 export class FetchLoader {
   constructor() {
+    // The next attempt's timer while a retry waits out its backoff (retryNow).
+    /** @type {number|undefined} */
+    this.retryTimeout = undefined;
+    // The retry waiting there follows a failure with no answer (status 0).
+    this.retryOnNetwork = false;
     /** @type {any[]|null} */
     this.callbacks = [];
     /** @type {LoaderStats} */
@@ -144,6 +149,7 @@ export class FetchLoader {
   teardownAttempt() {
     self.clearTimeout(this.requestTimeout);
     self.clearTimeout(this.retryTimeout);
+    this.retryTimeout = undefined;
     if (this.controller) {
       this.controller.abort();
       this.controller = null;
@@ -550,27 +556,48 @@ export class FetchLoader {
           `${status} while loading ${request.url}, retrying in ${this.retryDelay}...`,
       );
       this.retry();
+      // No answer at all (the network gone): retryNow may send it early. A server's answer
+      // (a 5xx, a 429 with its Retry-After) is waited out.
+      this.retryOnNetwork = status === 0;
     }
   }
 
   retry() {
     const {stats, config} = this;
+    // A stall's retry (loadtimeout) is not sent early; handleLoadFailure marks one after no answer.
+    this.retryOnNetwork = false;
     // Tear down the in-flight attempt only - must not set stats.aborted, or
     // the retried attempt's own completion would be silently swallowed by
     // the `if (stats.aborted) return;` guards above.
     this.teardownAttempt();
 
     self.clearTimeout(this.retryTimeout);
-    this.retryTimeout = self.setTimeout(
-        this.loadInternal.bind(this),
-        this.retryDelay,
-    );
+    this.retryTimeout = self.setTimeout(() => {
+      this.retryTimeout = undefined;
+      this.loadInternal();
+    }, this.retryDelay);
     // set exponential backoff
     this.retryDelay = Math.min(
         2 * this.retryDelay,
         config.maxRetryDelay,
     );
     stats.retry++;
+  }
+
+  /**
+   * The network is back (the window's online event): a retry waiting out its backoff goes now.
+   * The backoff doubles from 1 s to 32 s, so a download that failed while the network was gone
+   * waited up to half a minute after it came back, and the video with it when playback needed it.
+   * The attempts count as before (stats.retry), and so does the next wait. Only a retry after no
+   * answer at all: a wait a server asked for (a 5xx, a 429 with its Retry-After) is kept.
+   * @return {boolean} Whether a retry was waiting.
+   */
+  retryNow() {
+    if (!this.retryTimeout || !this.retryOnNetwork || this.stats.aborted) return false;
+    self.clearTimeout(this.retryTimeout);
+    this.retryTimeout = undefined;
+    this.loadInternal();
+    return true;
   }
 
   loadtimeout() {

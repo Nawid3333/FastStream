@@ -20,6 +20,26 @@ Fixed along the way: a latent bug where tearing down an attempt to retry it
 swallowing the retried attempt's own outcome. 13 unit tests in
 `tests/unit/FetchLoader.test.mjs` (the file had zero coverage before).
 
+**When the network comes back (2026-11-16).** Offline, every attempt fails at once and the
+wait between them doubles: 1, 2, 4 ... 32 s (StandardDownloader's config, DashLoader's for
+segments), six retries, about a minute. A retry waiting out its backoff went up to 32 s after the
+connection returned, and the video waited with it when playback needed that download. A download
+whose retries ran out while offline left its fragment failed for good: `onDownloaderFinished`
+resets failed fragments only after a failure while `navigator.onLine`, and the predownloader
+takes only waiting ones, so nothing of them was downloaded ahead again until playback reached
+each (MP4Player's `retryFailedRange`, hls.js's own retries). Now the window's `online` event
+(fired when the browser regains network access; MDN calls it a hint, and a wrong one costs at
+most an early retry) makes `DownloadManager.onNetworkBack`
+send each waiting retry at once (`FetchLoader.retryNow`, which counts it as before; only one after
+no answer at all, not a wait a server asked for with a 5xx or 429, nor one after a stall) and,
+when a download failed while offline (`failedOffline`), set the failed fragments waiting again
+(`FastStreamClient.resetFailed`). Not otherwise: a link failed for good online (a 403) would be
+tried again at each return of a flapping Wi-Fi, each failure taking a downloader away (glm's
+review). hls.js's own segment retries,
+and DashLoader's loaders outside the store, are left to their own backoff. Unit tests only: an
+e2e cannot take Firefox offline without privileged calls, and a refused connection does not
+fire `online`. `FetchLoader.test.mjs`, `DownloadManager.test.mjs`.
+
 `chrome/player/modules/FSBlob.mjs` gained an OPFS backend
 (`chrome/player/network/OPFSManager.mjs` + a dedicated module worker,
 `opfs-worker.mjs`, since `FileSystemSyncAccessHandle` only exists inside a

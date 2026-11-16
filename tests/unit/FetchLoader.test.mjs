@@ -294,6 +294,87 @@ describe('FetchLoader', () => {
     expect(recorder.calls.map((c) => c.type)).toEqual(['onProgress', 'onSuccess']);
   });
 
+  it('retries at once when the network is back, instead of waiting out the backoff (retryNow)', async () => {
+    // Offline, every attempt fails at once and the wait doubles to 32 s (StandardDownloader's
+    // 1 s .. 64 s): the download waited that long after the network came back.
+    let online = false;
+    let call = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      call++;
+      if (!online) throw new TypeError('NetworkError when attempting to fetch resource.');
+      return new Response(new Uint8Array([9]).buffer, {status: 200, headers: {'content-length': '1'}});
+    }));
+
+    const loader = new FetchLoader();
+    const recorder = makeCallbackRecorder();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest(), makeConfig({maxRetry: 6, retryDelay: 1000, maxRetryDelay: 64000}));
+    // 1 + 2 + 4 s: the fourth attempt failed, the next waits 8 s.
+    await vi.advanceTimersByTimeAsync(7100);
+    expect(call).toBe(4);
+    expect(recorder.calls).toEqual([]);
+
+    online = true;
+    expect(loader.retryNow()).toBe(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(call).toBe(5);
+    expect(recorder.calls.map((c) => c.type)).toEqual(['onProgress', 'onSuccess']);
+    // The waiting timer went with it: no sixth attempt later.
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(call).toBe(5);
+    // Nothing waits now: a second call does nothing.
+    expect(loader.retryNow()).toBe(false);
+  });
+
+  it('retryNow keeps a wait the server asked for (a 503 or 429 answer)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('busy', {status: 503, headers: {'retry-after': '5'}})));
+    const loader = new FetchLoader();
+    loader.addCallbacks(makeCallbackRecorder());
+    loader.load(makeRequest(), makeConfig({maxRetry: 3, retryDelay: 100, maxRetryDelay: 10000}));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(loader.retryNow()).toBe(false);
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    loader.abort();
+  });
+
+  it('retryNow keeps the wait after a stall (an answer that stopped coming)', async () => {
+    vi.stubGlobal('fetch', fetchHangingUntilAborted());
+    const loader = new FetchLoader();
+    loader.addCallbacks(makeCallbackRecorder());
+    loader.load(makeRequest(), makeConfig({timeout: 500, maxRetry: 6, retryDelay: 1000}));
+    await vi.advanceTimersByTimeAsync(600);
+    expect(loader.stats.retry).toBe(1);
+    expect(loader.retryNow()).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    loader.abort();
+  });
+
+  it('retryNow does nothing while an attempt runs, nor after an abort', async () => {
+    vi.stubGlobal('fetch', fetchHangingUntilAborted());
+    const loader = new FetchLoader();
+    loader.addCallbacks(makeCallbackRecorder());
+    loader.load(makeRequest(), makeConfig());
+    expect(loader.retryNow()).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    loader.abort();
+
+    // A failed attempt waits for its retry; an abort takes the retry away.
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('NetworkError when attempting to fetch resource.');
+    }));
+    const failing = new FetchLoader();
+    failing.addCallbacks(makeCallbackRecorder());
+    failing.load(makeRequest(), makeConfig());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    failing.abort();
+    expect(failing.retryNow()).toBe(false);
+    await vi.runAllTimersAsync();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('a timeout-triggered retry can still succeed (stats.aborted must not latch true)', async () => {
     // First attempt hangs forever (simulating a stalled connection); once
     // config.timeout elapses, loadtimeout() retries. The second attempt
