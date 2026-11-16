@@ -32,7 +32,15 @@
   size-dependent parts (its media queries, subtitles) run twice. Left as it is for now
   (#501's fix was the spec's): measuring the page's element without taking the iframe out
   of the layout needs another way to measure, not tried yet. The e2e cases that click in
-  the player wait for the measurements to end (content-overlays' `playerAtRest`).
+  the player wait for the measurements to end (content-overlays' `playerAtRest`), and the
+  prompt's OK and the bar's click check the layout in the same task as the click (#697,
+  `tests/e2e/confirmPrompt.mjs`).
+  Only taking the element's styles showed the player again: a throw while measuring (the
+  page's DOM refusing a node, a page script the measurement starts) left the player hidden for
+  good, a soft replace's element shown and a hard one's stand-in in the page (glm's review,
+  2026-11-16). `updateReplacedPlayer` now puts the player's style and id back, hides the element
+  again and takes out what it put in, and returns null, which the soft-to-hard check does not
+  read as a collapsed element (`contentScript.test.mjs`, "a player whose box keeps changing").
 
 - **Measured and changed (2026-10-06).**
   - A video under five minutes is redrawn every animation frame (`progressLoop`); the loop

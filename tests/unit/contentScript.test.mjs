@@ -1393,6 +1393,70 @@ describe('a player whose box keeps changing', () => {
     page.advance(150);
     expect(iframe.style.width).toBe('900px');
   });
+
+  // The player is hidden while the page's element is measured, and only taking its styles
+  // showed it again: a throw on the way (glm's review, 2026-11-16) left it hidden for good.
+  it('keeps the player as it was when the page refuses the measurement, and measures again at the next resize', async () => {
+    const {page, wrap, video} = pageWithVideo();
+    const {iframe} = await openPlayer(page);
+    await linkPlayer(page, iframe, 5);
+    page.advance(2000);
+    const style = iframe.getAttribute('style');
+    const id = iframe.id;
+    expect(iframe.style.display).not.toBe('none');
+
+    // Whatever is measured (the page's element, or a stand-in in its place) throws.
+    const parent = iframe.parentNode;
+    const children = parent.children.length;
+    const measure = page.window.getComputedStyle;
+    page.window.getComputedStyle = (element, ...rest) => {
+      if (element !== iframe && element !== page.document.documentElement && element !== page.document.body) {
+        throw new Error('a page script threw');
+      }
+      return measure(element, ...rest);
+    };
+    wrap.rect = {x: 0, y: 0, width: 800, height: 450};
+    page.dispatchWindow('resize');
+    expect(iframe.getAttribute('style')).toBe(style);
+    expect(iframe.style.display).not.toBe('none');
+    expect(iframe.id).toBe(id);
+    expect(parent.children.length).toBe(children);
+
+    expect(wrap.parentNode !== null || video.parentNode !== null).toBe(true);
+    page.window.getComputedStyle = measure;
+    page.advance(150);
+    page.dispatchWindow('resize');
+    expect(iframe.style.width).toBe('800px');
+    expect(iframe.style.display).not.toBe('none');
+  });
+
+  it('takes out again what it put in the page to measure a hard replace, when that throws', async () => {
+    // Collapsed once replaced: the replace turns hard and the page's element leaves the page.
+    const {page, wrap} = pageWithVideo();
+    const {iframe} = await openPlayer(page);
+    wrap.rect = {x: 0, y: 0, width: 5, height: 5};
+    page.advance(500);
+    await linkPlayer(page, iframe, 5);
+    page.advance(3000);
+    expect(wrap.isConnected).toBe(false);
+    page.advance(200);
+    const style = iframe.getAttribute('style');
+    const parent = iframe.parentNode;
+    const children = parent.children.slice();
+    const measure = page.window.getComputedStyle;
+    page.window.getComputedStyle = (element, ...rest) => {
+      if (element !== iframe && element !== page.document.documentElement && element !== page.document.body) {
+        throw new Error('a page script threw');
+      }
+      return measure(element, ...rest);
+    };
+    wrap.rect = {x: 0, y: 0, width: 800, height: 450};
+    page.dispatchWindow('resize');
+    page.window.getComputedStyle = measure;
+    expect(iframe.getAttribute('style')).toBe(style);
+    expect(parent.children).toEqual(children);
+    expect(wrap.isConnected).toBe(false);
+  });
 });
 
 // Firefox fires beforeunload for a navigation that then never happens: a link answered

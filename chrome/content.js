@@ -1501,7 +1501,8 @@
           placeholder.style.setProperty('background-color', 'black', 'important');
         } else {
           const final_size = updateReplacedPlayer(old, iframe, softReplace);
-          if (convert === iframeObj.replacedData &&final_size <= 100 && softReplace) {
+          // null: not measured (updateReplacedPlayer), not a player too small.
+          if (convert === iframeObj.replacedData && final_size !== null && final_size <= 100 && softReplace) {
             makeSoftIntoHard(iframeObj.replacedData);
             updateReplacedPlayer(old, iframe, false);
           }
@@ -1513,10 +1514,13 @@
   }
 
   /**
+   * Sizes and places the player as the page's element it replaced: the player is hidden while
+   * that element is measured, and takes its styles after.
    * @param {HTMLElement} old
    * @param {HTMLElement} iframe
    * @param {boolean} softReplace
    * @param {boolean} [holdsId]
+   * @return {?number} The measured area; null when measuring failed (the player as it was).
    */
   function updateReplacedPlayer(old, iframe, softReplace, holdsId = true) {
     const parent = iframe.parentNode;
@@ -1526,36 +1530,64 @@
     if (!softReplace && !parent) {
       return 0;
     }
+    // Put back if measuring throws (the page's DOM refusing a node, a page script it starts):
+    // only transferStyles shows the player again, and a throw before it left the player hidden
+    // for good, with a soft replace the page's own element shown, and a hard one's stand-in in
+    // the page.
+    const style = iframe.getAttribute('style');
+    const id = iframe.id;
+    let shownSoft = false;
+    /** @type {?Element} */
+    let inserted = null;
     iframe.style.display = 'none';
-    let final_size;
-    if (softReplace) {
-      showSoft(old);
-      // Measured with its id, as a hard replace is: transferStyles handed it to the iframe,
-      // and without it the page's #id rules no longer sized or placed the element. From the
-      // second update on (the resize observer's first call), the player took the element's
-      // unstyled box: the page's whole width, below the page's content.
-      if (holdsId) {
-        transferId(iframe, old);
+    try {
+      let final_size;
+      if (softReplace) {
+        showSoft(old);
+        shownSoft = true;
+        // Measured with its id, as a hard replace is: transferStyles handed it to the iframe,
+        // and without it the page's #id rules no longer sized or placed the element. From the
+        // second update on (the resize observer's first call), the player took the element's
+        // unstyled box: the page's whole width, below the page's content.
+        if (holdsId) {
+          transferId(iframe, old);
+        }
+        final_size = transferStyles(old, iframe, true);
+        hideSoft(old);
+        shownSoft = false;
+      } else {
+        // The page's own element went back into the page for every measurement (every
+        // resize): its observers and custom-element callbacks ran each time, and a <video
+        // autoplay> in it started loading again (#228). A stand-in sized by the same rules is
+        // measured instead, once it measured as the element did.
+        let fits = standInFits.get(old);
+        if (fits === undefined) {
+          fits = standInMeasuresAs(old, /** @type {ParentNode} */ (parent), iframe);
+          standInFits.set(old, fits);
+        }
+        const measured = (fits && makeStandIn(old)) || old;
+        /** @type {ParentNode} */ (parent).insertBefore(measured, iframe);
+        inserted = measured;
+        transferId(iframe, measured);
+        final_size = transferStyles(measured, iframe, false);
+        /** @type {ParentNode} */ (parent).removeChild(measured);
+        inserted = null;
       }
-      final_size = transferStyles(old, iframe, true);
-      hideSoft(old);
-    } else {
-      // The page's own element went back into the page for every measurement (every
-      // resize): its observers and custom-element callbacks ran each time, and a <video
-      // autoplay> in it started loading again (#228). A stand-in sized by the same rules is
-      // measured instead, once it measured as the element did.
-      let fits = standInFits.get(old);
-      if (fits === undefined) {
-        fits = standInMeasuresAs(old, /** @type {ParentNode} */ (parent), iframe);
-        standInFits.set(old, fits);
+      return final_size;
+    } catch (e) {
+      if (style === null) iframe.removeAttribute('style');
+      else iframe.setAttribute('style', style);
+      // transferId moved the page's id to what was measured; a stand-in leaves with it.
+      if (id && iframe.id !== id) {
+        if (old.id === id) old.id = '';
+        if (inserted && inserted.id === id) inserted.id = '';
+        iframe.id = id;
       }
-      const measured = (fits && makeStandIn(old)) || old;
-      /** @type {ParentNode} */ (parent).insertBefore(measured, iframe);
-      transferId(iframe, measured);
-      final_size = transferStyles(measured, iframe, false);
-      /** @type {ParentNode} */ (parent).removeChild(measured);
+      if (shownSoft) hideSoft(old);
+      inserted?.parentNode?.removeChild(inserted);
+      console.warn('FastStream: measuring the page\'s element for the player failed; the player keeps its size', e);
+      return null;
     }
-    return final_size;
   }
 
   // Elements a stand-in cannot be sized like: what they show sizes them (media, frames,
