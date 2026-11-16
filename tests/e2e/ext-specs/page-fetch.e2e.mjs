@@ -272,10 +272,48 @@ async function saveState() {
 }
 
 /**
+ * Records, from now on, what the page does to the player's iframe (its style and class, with
+ * the display each change left; frames added and removed) and the sizes the player's document
+ * is told (its resize events), for the message of a prompt left open: the player's document
+ * then had no layout while the page showed its frame at 640x360 (CI, 2026-11-16). Leaves the
+ * context at the page.
+ */
+async function traceFrame() {
+  await playerState();
+  await browser.execute(() => {
+    const w = /** @type {any} */ (window);
+    const start = performance.now();
+    w.fsSizeTrace = [[0, innerWidth, innerHeight, document.documentElement.clientWidth]];
+    addEventListener('resize', () => w.fsSizeTrace.push([Math.round(performance.now() - start), innerWidth, innerHeight]));
+  });
+  await browser.switchFrame(null);
+  await browser.execute(() => {
+    const w = /** @type {any} */ (window);
+    const start = performance.now();
+    const at = () => Math.round(performance.now() - start);
+    const frame = /** @type {HTMLIFrameElement} */ (document.querySelector('iframe[src*="player/index.html"]'));
+    const display = (/** @type {?string} */ style) => (style || '').match(/display:[^;]*/)?.[0] || '-';
+    w.fsFrameTrace = [[0, 'start', getComputedStyle(frame).display]];
+    new MutationObserver((records) => {
+      for (const record of records) {
+        w.fsFrameTrace.push([at(), record.attributeName, 'was ' + display(record.oldValue), 'now ' + getComputedStyle(frame).display]);
+      }
+    }).observe(frame, {attributes: true, attributeOldValue: true, attributeFilter: ['style', 'class']});
+    new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) if (node.nodeName === 'IFRAME') w.fsFrameTrace.push([at(), 'iframe added']);
+        for (const node of record.removedNodes) if (node.nodeName === 'IFRAME') w.fsFrameTrace.push([at(), 'iframe removed']);
+      }
+    }).observe(document.documentElement, {childList: true, subtree: true});
+  });
+}
+
+/**
  * Starts a save as the user does: the Save button, then the name prompt, given a name.
  * @param {string} name - The file's name, without '.mp4'.
  */
 async function startSave(name) {
+  await traceFrame();
   await playerState();
   await browser.waitUntil(() => browser.execute(() => !!document.querySelector('.main_download, #download')),
       {timeout: 15000, timeoutMsg: 'the player has no Save button'});
@@ -311,14 +349,25 @@ async function startSave(name) {
   if (ignored) {
     await browser.switchFrame(null);
     const page = await browser.execute(() => ({visibility: document.visibilityState, focus: document.hasFocus(),
+      styles: /** @type {any} */ (window).fsFrameTrace,
       frames: Array.from(document.querySelectorAll('iframe'), (frame) => {
         const style = getComputedStyle(frame);
         const box = frame.getBoundingClientRect();
         return {player: frame.src.includes('player/index.html'), display: style.display, visibility: style.visibility,
           box: [Math.round(box.width), Math.round(box.height)], inline: (frame.getAttribute('style') || '').slice(0, 300)};
       })}));
+    // How long the player's document stays without layout, and the sizes it was told.
+    const since = Date.now();
+    let back = null;
+    while (back === null && Date.now() - since < 10000) {
+      await playerState();
+      if (await browser.execute(() => document.documentElement.clientWidth) > 0) back = Date.now() - since;
+      else await browser.pause(100);
+    }
+    const sizes = await browser.execute(() => /** @type {any} */ (window).fsSizeTrace);
     throw new Error(`OK left the name prompt open; the player's document: ${JSON.stringify(ignored)}, ` +
-      `the page: ${JSON.stringify(page)}`);
+      `its sizes since the save began [ms, width, height]: ${JSON.stringify(sizes)}, it had a layout again ` +
+      `after: ${back === null ? 'not within 10 s' : back + ' ms'}; the page: ${JSON.stringify(page)}`);
   }
 }
 
