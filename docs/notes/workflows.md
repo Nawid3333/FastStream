@@ -791,7 +791,10 @@
   elsewhere fail with nothing pushed or opened (each check, broken by hand, turns it red).
   What stays: code that runs in `recut` runs on main's ref, and a runner's user may use sudo, so
   it could take the job's cache token from the runner and write a cache entry other workflows
-  restore. Only a job that runs no foreign code at all would close that.
+  restore. Since 2026-11-16 both of its installs (the workflow's and the tool's, after the
+  version bump) run with `--ignore-scripts`, as `npm pack` already did: no install script
+  runs there, and no code of the new release runs at all (it is only diffed and patched). What
+  runs is main's own locked tools (ESLint, the scripts in tools/), as in CI.
 - All of it was dry-run with a stub `gh` against the real upstream history (sync: adopted
   -> closed, push -> no rebuild, new release named, comment only on upstream movement;
   patched libraries: open once, no duplicates, close when caught up or unpatched).
