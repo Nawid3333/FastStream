@@ -73,9 +73,10 @@ describe('ci.yml skips a change of documents only', () => {
       for (const line of text.split('\n')) {
         if (/^\s*(#|\/\/|\*)/.test(line) || !reads.test(line)) continue;
         for (const file of matched) {
-          const name = path.basename(file).replace(/[.+]/g, '\\$&');
           // The whole path, or a root document by its name alone ('README.md', not 'x/README.md').
-          if (line.includes(file) || (!file.includes('/') && new RegExp(`(^|[\\s'"\`(])${name}`).test(line))) {
+          const named = file.includes('/') ? line.includes(file) :
+            line.trimStart().startsWith(file) || [' ', '\'', '"', '`', '('].some((before) => line.includes(before + file));
+          if (named) {
             found.push(`${script}: ${file}: ${line.trim().slice(0, 160)}`);
           }
         }
