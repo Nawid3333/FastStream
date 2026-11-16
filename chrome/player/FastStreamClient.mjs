@@ -1829,6 +1829,14 @@ export class FastStreamClient extends EventEmitter {
    * @return {boolean} True if any fragments were downloaded.
    */
   predownloadFragments() {
+    // The video waits (a seek, a stall) once it has played: seeking, or playing without data
+    // ahead, as MP4Player's loop has it (LoopPace). Before any return below, so that the speed
+    // test stands still only as long as the video waits.
+    const video = this.currentVideo;
+    const videoWaits = !!video && video.played?.length > 0 &&
+      (video.seeking || (!video.paused && video.readyState < 3)) && !this.isLive();
+    this.downloadManager.holdTest(videoWaits);
+
     // Another player that the user watches needs the network (DownloadManager.setYield), or
     // it is another player's turn (setWaiting).
     if (this.downloadManager.yielding || this.downloadManager.waiting) {
@@ -1854,14 +1862,15 @@ export class FastStreamClient extends EventEmitter {
     // store: at a fragment's edge hls.js asked for the one before the playhead, the store had
     // those after, and two downloads ahead shared the line with it. Waiting as MP4Player's loop
     // has it (LoopPace): seeking, or playing without data ahead. Only once the video has played
-    // (its element's played ranges), and not where each connection has its own speed, nor while
-    // the speed test runs (sharesLine): the start is left as it was, where holding back cost a
+    // (its element's played ranges): the start is left as it was, where holding back cost a
     // server that limits each connection a segment ahead (docs/notes/player.md, 2026-11-06), and
     // held back there on a local server, ram-budget.e2e's stream came in after its budget held it.
-    const video = this.currentVideo;
-    const playheadOnly = !!video && video.played?.length > 0 &&
-      (video.seeking || (!video.paused && video.readyState < 3)) &&
-      !this.isLive() && this.downloadManager.sharesLine();
+    // Not where the speed test found that each connection has its own speed; while it still runs
+    // (a seek in the first seconds, where four downloads shared the line with the seek's: 3.1 s
+    // on a 6 Mbit/s line), held as well, and the test stands still meanwhile
+    // (DownloadManager.holdTest).
+    const playheadOnly = videoWaits &&
+      (this.downloadManager.sharesLine() || this.downloadManager.testing);
 
     // Don't pre-download if user is offline
     if (!navigator.onLine) {
