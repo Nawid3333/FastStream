@@ -19,7 +19,6 @@
 // have prevented the mp4box mistake, which was argued from the shape of a
 // diff rather than from the parsed program.
 
-import fs from 'node:fs';
 import * as acorn from 'acorn';
 
 /**
@@ -311,15 +310,4 @@ export function compare(a, b) {
     aCtx: fa.slice(Math.max(0, i - 100), i + 160),
     bCtx: fb.slice(Math.max(0, i - 100), i + 160),
   };
-}
-
-/**
- * Convenience wrapper for comparing two files on disk.
- *
- * @param {string} fileA path to the first file
- * @param {string} fileB path to the second file
- * @return {{equal: boolean, at?: number, aCtx?: string, bCtx?: string}} result
- */
-export function compareFiles(fileA, fileB) {
-  return compare(fs.readFileSync(fileA, 'utf8'), fs.readFileSync(fileB, 'utf8'));
 }

@@ -211,8 +211,6 @@ function keyToText(selector) {
 
 // ---- lockfiles ---------------------------------------------------------------
 
-const NODE_MODULES = 'node_modules/';
-
 /** @param {VersionMap} map @param {string} name @param {string} version */
 function addVersion(map, name, version) {
   let set = map.get(name);
@@ -300,30 +298,6 @@ export function lockVersions(lockText) {
       const nv = packageKeyToNameVersion(rawKey);
       if (nv) addVersion(map, nv.name, nv.version);
     }
-  }
-  return map;
-}
-
-/**
- * The same map from an npm package-lock.json v3; nested copies count (the name is the
- * segment after the last `node_modules/`), links and the root entry carry no version.
- * A lockfile without a packages map yields an empty map ÔÇö planFloors plans the pnpm
- * route only, so this map feeds verification rather than planning.
- * @param {{ packages?: Record<string, { link?: boolean, version?: string } | undefined> } | null | undefined} lockJson
- * @returns {VersionMap}
- */
-export function npmLockVersions(lockJson) {
-  /** @type {VersionMap} */
-  const map = new Map();
-  const packages = lockJson?.packages;
-  if (!packages) return map;
-  for (const [path, pkg] of Object.entries(packages)) {
-    if (!path || !pkg || pkg.link === true) continue;
-    // An alias ('npm:other@1.0.0') or a git/URL spec is not a registry version of this name.
-    if (typeof pkg.version !== 'string' || !SEMVER_RE.test(pkg.version)) continue;
-    const at = path.lastIndexOf(NODE_MODULES);
-    if (at === -1) continue;
-    addVersion(map, path.slice(at + NODE_MODULES.length), pkg.version);
   }
   return map;
 }

@@ -6,7 +6,6 @@ import {
   applyFloors,
   fromFlat,
   lockVersions,
-  npmLockVersions,
   parseRange,
   planBundle,
   planFloors,
@@ -280,35 +279,6 @@ describe('lockVersions', () => {
 
   it('fails loudly when no document carries packages:', () => {
     expect(() => lockVersions('lockfileVersion: \'9.0\'\n')).toThrow();
-  });
-});
-
-describe('npmLockVersions', () => {
-  it('scans all node_modules copies, skipping links and non-dependency entries', () => {
-    const lock = {
-      name: 'fsaunpack',
-      lockfileVersion: 3,
-      packages: {
-        '': {name: 'fsaunpack', devDependencies: {'basic-ftp': '^6.2.1'}},
-        'node_modules/@babel/code-frame': {version: '7.29.7'},
-        'node_modules/@puppeteer/browsers': {version: '24.10.0'},
-        'node_modules/basic-ftp': {version: '6.2.1'},
-        'node_modules/get-uri': {version: '6.0.1', dependencies: {'basic-ftp': '^5.3.1'}},
-        'node_modules/get-uri/node_modules/basic-ftp': {version: '5.3.1'},
-        'node_modules/webdriver': {link: true, resolved: 'packages/webdriver'},
-        'packages/webdriver': {version: '1.1.0'},
-      },
-    };
-    expect(objectify(npmLockVersions(lock))).toEqual({
-      '@babel/code-frame': ['7.29.7'],
-      '@puppeteer/browsers': ['24.10.0'],
-      'basic-ftp': ['5.3.1', '6.2.1'],
-      'get-uri': ['6.0.1'],
-    });
-  });
-
-  it('treats a lockfile without a packages map as an empty tree', () => {
-    expect(objectify(npmLockVersions({lockfileVersion: 1}))).toEqual({});
   });
 });
 
@@ -640,12 +610,6 @@ describe('verifyLock', () => {
     const floors = [{name: 'undici', selector: 'undici@7', floor: '^7.30.1', alerts: [], action: 'none'},
       {name: 'undici', selector: 'undici@8', floor: '^8.12.2', alerts: [], action: 'none'}];
     expect(verifyLock([], old, neu, floors)).toEqual(['the lockfile changed more than the floors: undici 6.28.1 -> 9.0.0']);
-  });
-
-  it('skips an alias version in an npm lockfile instead of failing on it', () => {
-    const lock = (v) => ({packages: {'node_modules/my-foo': {version: v}}});
-    expect(npmLockVersions(lock('npm:foo@1.0.0')).size).toBe(0);
-    expect(verifyLock([], npmLockVersions(lock('npm:foo@1.0.0')), npmLockVersions(lock('npm:foo@1.0.1')), [])).toEqual([]);
   });
 
   it('declines a package a parent-scoped override already governs', () => {

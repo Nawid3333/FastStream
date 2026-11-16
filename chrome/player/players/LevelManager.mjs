@@ -13,6 +13,33 @@ const VIDEO_DECODE_FAILURES_TO_DROP = 2;
 /** @typedef {import('./Levels.mjs').VideoLevel} VideoLevel */
 /** @typedef {import('./Levels.mjs').AudioLevel} AudioLevel */
 
+/**
+ * The levels in the language that matches best, or all of them when none matches.
+ * @template {{language?: string}} L
+ * @param {Array<L>} availableLevels
+ * @param {*} lang - The language asked for.
+ * @return {Array<L>}
+ */
+function bestLanguageMatches(availableLevels, lang) {
+  /** @type {Array<{level: L, matchLevel: number}>} */
+  const matched = [];
+  availableLevels.forEach((level) => {
+    const matchLevel = Localize.getLanguageMatchLevel(level.language, lang);
+    if (matchLevel > 0) {
+      matched.push({level, matchLevel});
+    }
+  });
+
+  if (matched.length === 0) {
+    return availableLevels;
+  }
+
+  // Only the best-matching ones: the quality or bitrate sort after this threw the order
+  // away, and with an en-GB preference an en-US 1080p beat an en-GB 720p.
+  const best = Math.max(...matched.map((item) => item.matchLevel));
+  return matched.filter((item) => item.matchLevel === best).map((item) => item.level);
+}
+
 export class LevelManager {
   /**
    * @param {import('../FastStreamClient.mjs').FastStreamClient} client
@@ -596,24 +623,7 @@ export class LevelManager {
    * @return {Array<VideoLevel>}
    */
   filterVideoLevelsByLanguage(availableLevels) {
-    const lang = this.getVideoLanguage();
-    /** @type {Array<{level: VideoLevel, matchLevel: number}>} */
-    const matched = [];
-    availableLevels.forEach((level) => {
-      const matchLevel = Localize.getLanguageMatchLevel(level.language, lang);
-      if (matchLevel > 0) {
-        matched.push({level, matchLevel});
-      }
-    });
-
-    if (matched.length === 0) {
-      return availableLevels;
-    }
-
-    // Only the best-matching ones: the quality or bitrate sort after this threw the order
-    // away, and with an en-GB preference an en-US 1080p beat an en-GB 720p.
-    const best = Math.max(...matched.map((item) => item.matchLevel));
-    return matched.filter((item) => item.matchLevel === best).map((item) => item.level);
+    return bestLanguageMatches(availableLevels, this.getVideoLanguage());
   }
 
   /**
@@ -621,23 +631,6 @@ export class LevelManager {
    * @return {Array<AudioLevel>}
    */
   filterAudioLevelsByLanguage(availableLevels) {
-    const lang = this.getAudioLanguage();
-    /** @type {Array<{level: AudioLevel, matchLevel: number}>} */
-    const matched = [];
-    availableLevels.forEach((level) => {
-      const matchLevel = Localize.getLanguageMatchLevel(level.language, lang);
-      if (matchLevel > 0) {
-        matched.push({level, matchLevel});
-      }
-    });
-
-    if (matched.length === 0) {
-      return availableLevels;
-    }
-
-    // Only the best-matching ones: the quality or bitrate sort after this threw the order
-    // away, and with an en-GB preference an en-US 1080p beat an en-GB 720p.
-    const best = Math.max(...matched.map((item) => item.matchLevel));
-    return matched.filter((item) => item.matchLevel === best).map((item) => item.level);
+    return bestLanguageMatches(availableLevels, this.getAudioLanguage());
   }
 }

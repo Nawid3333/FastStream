@@ -87,7 +87,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 22;
+export const HostVersion = 23;
 
 // The messages of the thin helper (host 15) this host understands, sent with every answer
 // so that the extension knows what it may ask for without a version table of its own. A
@@ -1647,6 +1647,38 @@ export function focusOutcome(text) {
   return outcome;
 }
 
+/**
+ * The answer when an open mpv was asked to take the stream (launchMpv, playMpv): it took it
+ * (its window raised), refused it, or was too busy to answer; null when there was none.
+ * @param {{ok: boolean, pid?: number, refused?: boolean, busy?: boolean, error?: string}} existing
+ * @param {(pid: number) => Promise<string>} focus
+ * @param {*} config
+ * @param {string} platform
+ * @return {Promise<{ok: boolean, error?: string, reused?: boolean, focus?: string, foreground?: string}|null>}
+ */
+async function answerOfOpenMpv(existing, focus, config, platform) {
+  if (existing.ok) {
+    let focused;
+    // The window is raised through PowerShell, which only Windows has.
+    if (existing.pid && platform === 'win32') {
+      focused = await focus(existing.pid);
+    }
+    debugLog(config, 'reused', {pid: existing.pid, focus: focused});
+    return {ok: true, reused: true, ...focusOutcome(focused || '')};
+  }
+  // Running, but silent or refusing: a second mpv on the same pipe would get no IPC,
+  // and every later send would go to the first one anyway.
+  if (existing.refused) {
+    debugLog(config, 'refused', {error: existing.error});
+    return {ok: false, error: `the open mpv refused the stream (${existing.error}): close it and send again`};
+  }
+  if (existing.busy) {
+    debugLog(config, 'busy', {});
+    return {ok: false, error: 'mpv is busy and did not answer: try again in a moment'};
+  }
+  return null;
+}
+
 // Win32_Process.Create's return codes (its documentation), as the user can act on them.
 const WmiCreateErrors = new Map([
   ['2', 'access denied'],
@@ -1832,25 +1864,8 @@ export async function launchMpv(mpvPath, message, config, io = {}) {
         }
       }
     }
-    if (existing.ok) {
-      let focused;
-      // The window is raised through PowerShell, which only Windows has.
-      if (existing.pid && platform === 'win32') {
-        focused = await focus(existing.pid);
-      }
-      debugLog(config, 'reused', {pid: existing.pid, focus: focused});
-      return {ok: true, reused: true, ...focusOutcome(focused || '')};
-    }
-    // Running, but silent or refusing: a second mpv on the same pipe would get no IPC,
-    // and every later send would go to the first one anyway.
-    if (existing.refused) {
-      debugLog(config, 'refused', {error: existing.error});
-      return {ok: false, error: `the open mpv refused the stream (${existing.error}): close it and send again`};
-    }
-    if (existing.busy) {
-      debugLog(config, 'busy', {});
-      return {ok: false, error: 'mpv is busy and did not answer: try again in a moment'};
-    }
+    const answer = await answerOfOpenMpv(existing, focus, config, platform);
+    if (answer) return answer;
     args.push(`--input-ipc-server=${pipe}`);
   }
 
@@ -2216,15 +2231,6 @@ export function ipcCommandRefusal(command) {
   }
 }
 
-/**
- * Whether the allowlist lets an mpv command from the extension through (ipcCommandRefusal).
- * @param {*} command - The command as the extension sent it.
- * @return {boolean}
- */
-export function allowedIpcCommand(command) {
-  return ipcCommandRefusal(command) === null;
-}
-
 // The longest target play takes (bytes, UTF-8, as JSON writes it: mpv's path line carries
 // it so to the extension, MaxRelayLineBytes): a stream URL and its fragment tags, of which
 // the page's quality list (fs-quality=) is the longest, in a message of MaxMessageBytes.
@@ -2585,24 +2591,8 @@ export async function playMpv(mpvPath, play, config, io = {}) {
       (commands) => ipcRequest(commands, undefined, undefined, pipe));
 
   if (!play.newWindow) {
-    const existing = await load(basePipe, play.fullscreen);
-    if (existing.ok) {
-      let focused;
-      // The window is raised through PowerShell, which only Windows has.
-      if (existing.pid && platform === 'win32') {
-        focused = await focus(existing.pid);
-      }
-      debugLog(config, 'reused', {pid: existing.pid, focus: focused});
-      return {ok: true, reused: true, ...focusOutcome(focused || '')};
-    }
-    if (existing.refused) {
-      debugLog(config, 'refused', {error: existing.error});
-      return {ok: false, error: `the open mpv refused the stream (${existing.error}): close it and send again`};
-    }
-    if (existing.busy) {
-      debugLog(config, 'busy', {});
-      return {ok: false, error: 'mpv is busy and did not answer: try again in a moment'};
-    }
+    const answer = await answerOfOpenMpv(await load(basePipe, play.fullscreen), focus, config, platform);
+    if (answer) return answer;
   }
 
   // Another helper is starting an mpv on this pipe (LaunchLockMs): this stream goes to that

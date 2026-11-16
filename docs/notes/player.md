@@ -1935,3 +1935,13 @@ remuxers, vtt.js). Kept only what the code proved; each fix has a test that fail
   `unescape` parses once per text token with an `&`, and a cue's tree is built once and kept
   (`cue.dom`), so a hostile file freezes the player once per such cue, not per frame - left
   for a change to vtt.js with its provenance list (`tools/verify-vtt.mjs`).
+- **Dead code and repeats** (a scan of every first-party export and file, and of runs of 8+
+  repeated code lines): gone are `npmLockVersions` (security-overrides; no caller, the repo's
+  lockfile is pnpm's), `compareFiles` (ast-compare; every user imports `compare`) and the host's
+  `allowedIpcCommand` (only a test called it; host 23). One function each now does what two
+  copies did: the language filter of `LevelManager` (`bestLanguageMatches`) and the host's
+  answer for an open mpv (`answerOfOpenMpv`, launchMpv and playMpv). Kept as copies on purpose:
+  the BOM/charset sniff in `content.js` and `SubtitleUtils` (a classic script imports nothing),
+  `withFragmentTag` in `MpvTarget` and the host (the host is a program of its own), and the two
+  analyzers' `startBackgroundAnalyzer` (they differ where they must: the frame extractor's
+  player can end while it loads, the audio analyzer's cannot). No file is unreferenced.

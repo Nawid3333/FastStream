@@ -6,7 +6,6 @@ import {
   MinHeartbeatMs,
   ReadableProperties,
   SettableProperties,
-  allowedIpcCommand,
   checkPlayMessage,
   checkRelayMessage,
   ipcCommandRefusal,
@@ -64,14 +63,13 @@ describe('isPlainText', () => {
   });
 });
 
-describe('the IPC allowlist (ipcCommandRefusal, allowedIpcCommand)', () => {
+describe('the IPC allowlist (ipcCommandRefusal)', () => {
   /**
    * Expects a command to pass, with no reason given.
    * @param {*} command
    */
   const allowed = (command) => {
     expect(ipcCommandRefusal(command), JSON.stringify(command)).toBeNull();
-    expect(allowedIpcCommand(command)).toBe(true);
   };
   /**
    * Expects a command to be refused, with a reason.
@@ -81,7 +79,6 @@ describe('the IPC allowlist (ipcCommandRefusal, allowedIpcCommand)', () => {
   const refused = (command, reason = /./) => {
     const why = ipcCommandRefusal(command);
     expect(why, JSON.stringify(command)).toMatch(reason);
-    expect(allowedIpcCommand(command)).toBe(false);
   };
 
   describe('reading properties', () => {
