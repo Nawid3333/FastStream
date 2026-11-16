@@ -2,6 +2,9 @@
 
 # FastStream
 
+[![CI](https://github.com/Nawid3333/FastStream/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Nawid3333/FastStream/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/Nawid3333/FastStream)](https://github.com/Nawid3333/FastStream/releases/latest)
+
 Tired of having videos buffer with slow internet speeds? Frustrated by a website's lack of accessibility features? This extension will replace videos on websites with a video player designed for your convenience. Say goodbye to buffering and hello to a more accessible video experience!
 
 This is a Firefox-only fork of [Andrews54757/FastStream](https://github.com/Andrews54757/FastStream), maintained by Nawid3333 on its own since 2026-10-09 (it no longer follows upstream). It adds a hand-off to the mpv player and leaves out upstream's YouTube support.
@@ -9,14 +12,17 @@ This is a Firefox-only fork of [Andrews54757/FastStream](https://github.com/Andr
 1. Watch videos without interruptions by pre-buffering the video in the background. Automatic fragmentation and up to 6 parallel requests make downloads faster.
 2. Advanced subtitling features include: customizable subtitle appearance, built-in OpenSubtitles support to find subtitles on the internet, and an intuitive subtitle syncing tool to adjust subtitle timings on the fly.
 3. A volume booster past 100 %, and the picture zoomed, flipped or rotated.
-4. Over 60 remappable keyboard shortcuts (mpv-style seeks, frame steps and speed presets among them) and accessible tool buttons for easy control of the player. The welcome page lists the defaults.
-5. Available in 16 languages.
-6. Optional: send a stream to [mpv](https://mpv.io/) on your computer instead of playing it in the browser. It needs a small helper installed once. On Windows, one line in PowerShell installs mpv, the helper and this add-on: `irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.ps1 | iex` (from [mpv-config](https://github.com/Nawid3333/mpv-config#install); it needs no admin rights, no Git and no Node.js). Then restart Firefox, turn on MPV mode in FastStream's settings, and add the sites whose videos should open in mpv to its MPV Allowlist (on any other site, the MPV shortcut, Alt+F, sends the video you start). The manual way, for developers and other setups, is in [README-MPV.md](README-MPV.md).
+4. Nearly 60 remappable keyboard shortcuts (mpv-style seeks, frame steps and speed presets among them) and accessible tool buttons for easy control of the player. The welcome page lists the defaults.
+5. Save the video as a file (MP4, HLS and DASH: the streams are copied as they are, not re-encoded), and screenshots of the picture.
+6. Several audio tracks: pick the one you want (MP4, HLS and DASH).
+7. Available in 16 languages.
+8. Optional: send a stream to [mpv](https://mpv.io/) on your computer instead of playing it in the browser. It needs a small helper installed once. On Windows, one line in PowerShell installs mpv, the helper and this add-on: `irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.ps1 | iex` (from [mpv-config](https://github.com/Nawid3333/mpv-config#install); it needs no admin rights, no Git and no Node.js). Then restart Firefox, turn on MPV mode in FastStream's settings, and add the sites whose videos should open in mpv to its MPV Allowlist (on any other site, the MPV shortcut, Alt+F, sends the video you start). The manual way, for developers and other setups, is in [README-MPV.md](README-MPV.md).
 
 The player currently supports:
 - MP4 videos (.mp4)
 - HLS streams (.m3u8)
 - DASH streams (.mpd)
+- WebM and other files Firefox plays itself (.webm), in Firefox's own playback
 
 To use the player, simply:
 1. Go to any website you want with a video and toggle the extension on. Any video it detects will be automatically replaced with the FastStream player.
@@ -26,7 +32,7 @@ To use the player, simply:
 Notes:
 - Live HLS and DASH streams play.
 - This player will not function with DRM protected content. This is intended. Please be mindful of how you use this tool. FastStream should not be used to infringe copyright. When its manifest says a page's video is copy-protected, FastStream leaves it to the site's own player (the toolbar button shows "DRM" and says why), and mpv mode does not send it to mpv (the button's "!" says why).
-- Please report bugs, accessibility problems and feature requests on the issue tracker: https://github.com/Nawid3333/FastStream/issues
+- Please report bugs, accessibility problems and feature requests on the issue tracker: https://github.com/Nawid3333/FastStream/issues. A security problem goes in a private report instead: see [SECURITY.md](SECURITY.md).
 - For your privacy, this extension **does not collect telemetry** and has no server of its own. Besides the sites whose videos you play, it connects only to OpenSubtitles when you search for subtitles, and to GitHub for updates. Everything it runs ships inside the add-on. The details, permission by permission, are in [docs/privacy-policy.md](docs/privacy-policy.md).
 - The default maximum size for predownloading is 5 GB. This can be changed in the settings page (0 = predownload nothing, empty = no limit). Where the downloaded video is kept, in RAM or on the disk, is your choice too: see [RAM and disk](#ram-and-disk).
 
@@ -103,6 +109,10 @@ Many thanks to the contributors of this project.
 ## Technical Details
 
 [CLAUDE.md](CLAUDE.md) holds the rules every change follows, [docs/notes/](docs/notes/) the working notes by area (conventions, tests, decisions), and [docs/](docs/) the runbooks: maintenance, patched and vendored libraries, upstream syncs.
+
+## License
+
+FastStream's own code is Andrews54757's, all rights reserved, and the libraries it ships keep their own licenses: [LICENSE.md](LICENSE.md) has the terms, and [docs/vendored-libraries.md](docs/vendored-libraries.md) each library's version and what this project changed in it.
 
 ## Disclaimer
 

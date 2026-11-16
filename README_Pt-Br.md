@@ -8,14 +8,17 @@ Este é um fork só para Firefox de [Andrews54757/FastStream](https://github.com
 1. Assista a vídeos sem interrupções, pré-carregando o vídeo em segundo plano. Fragmentação automática e até 6 solicitações paralelas tornam os downloads mais rápidos.
 2. Recursos avançados de legendas incluem: personalização da aparência das legendas, suporte integrado ao OpenSubtitles para encontrar legendas na internet e uma ferramenta intuitiva de sincronização para ajustar o tempo das legendas em tempo real.
 3. Amplificador de volume acima de 100 % e a imagem ampliada, espelhada ou girada.
-4. Mais de 60 atalhos de teclado remapeáveis (entre eles saltos, avanço quadro a quadro e predefinições de velocidade no estilo do mpv) e botões acessíveis para facilitar o controle do player. A página de boas-vindas lista os atalhos padrão.
-5. Disponível em 16 idiomas.
-6. Opcional: envie um stream para o [mpv](https://mpv.io/) no seu computador em vez de reproduzi-lo no navegador. É preciso instalar uma vez um pequeno programa auxiliar. No Windows, uma linha no PowerShell instala o mpv, o auxiliar e este complemento: `irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.ps1 | iex` (do [mpv-config](https://github.com/Nawid3333/mpv-config#install), sem direitos de administrador, Git ou Node.js). Depois reinicie o Firefox e ative o Modo MPV nas configurações do FastStream. O jeito manual, para desenvolvedores e outras configurações, está em [README-MPV.md](README-MPV.md) (em inglês).
+4. Quase 60 atalhos de teclado remapeáveis (entre eles saltos, avanço quadro a quadro e predefinições de velocidade no estilo do mpv) e botões acessíveis para facilitar o controle do player. A página de boas-vindas lista os atalhos padrão.
+5. Salve o vídeo como arquivo (MP4, HLS e DASH: os streams são copiados como estão, sem recodificação) e capturas de tela da imagem.
+6. Várias faixas de áudio: escolha a que quiser (MP4, HLS e DASH).
+7. Disponível em 16 idiomas.
+8. Opcional: envie um stream para o [mpv](https://mpv.io/) no seu computador em vez de reproduzi-lo no navegador. É preciso instalar uma vez um pequeno programa auxiliar. No Windows, uma linha no PowerShell instala o mpv, o auxiliar e este complemento: `irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.ps1 | iex` (do [mpv-config](https://github.com/Nawid3333/mpv-config#install), sem direitos de administrador, Git ou Node.js). Depois reinicie o Firefox e ative o Modo MPV nas configurações do FastStream. O jeito manual, para desenvolvedores e outras configurações, está em [README-MPV.md](README-MPV.md) (em inglês).
 
 O player atualmente suporta:
 - Vídeos MP4 (.mp4)
 - Streams HLS (.m3u8)
 - Streams DASH (.mpd)
+- WebM e outros arquivos que o próprio Firefox reproduz (.webm), na reprodução do próprio Firefox
 
 Para usar o player, basta:
 1. Acessar qualquer site com um vídeo e ativar a extensão. Qualquer vídeo detectado será automaticamente substituído pelo player FastStream.
@@ -25,7 +28,7 @@ Para usar o player, basta:
 Observações:
 - Transmissões ao vivo em HLS e DASH são reproduzidas.
 - Este player não funciona com conteúdo protegido por DRM (Netflix/Amazon etc). Isso é intencional. Por favor, use esta ferramenta de forma responsável. O FastStream não deve ser usado para violar direitos autorais.
-- Por favor, relate problemas, dificuldades de acessibilidade e sugestões de recursos no Github: https://github.com/Nawid3333/FastStream/issues
+- Por favor, relate problemas, dificuldades de acessibilidade e sugestões de recursos no Github: https://github.com/Nawid3333/FastStream/issues. Um problema de segurança vai em um relato privado: veja [SECURITY.md](SECURITY.md).
 - Para sua privacidade, esta extensão **não coleta dados de telemetria** e não tem servidor próprio. Além dos sites cujos vídeos você reproduz, ela só se conecta ao OpenSubtitles quando você procura legendas e ao GitHub para atualizações. Tudo o que ela executa vem dentro do complemento. Os detalhes, permissão por permissão, estão em [docs/privacy-policy.md](docs/privacy-policy.md) (em inglês).
 - O tamanho máximo padrão para pré-carregamento é de 5 GB. Isso pode ser alterado na página de configurações (0 = não pré-carregar nada, vazio = sem limite). Onde o vídeo baixado fica guardado, na RAM ou no disco, também é sua escolha: duas configurações decidem isso, explicadas em [RAM and disk](README.md#ram-and-disk) (em inglês).
 
@@ -82,6 +85,10 @@ Muito obrigado aos colaboradores deste projeto.
 ## Detalhes técnicos
 
 [CLAUDE.md](CLAUDE.md) reúne as regras que toda alteração segue, [docs/notes/](docs/notes/) as notas de trabalho por área (convenções, testes, decisões) e [docs/](docs/) os guias: manutenção, bibliotecas corrigidas e incluídas, sincronizações com o projeto original. Tudo em inglês.
+
+## Licença
+
+O código do FastStream é de Andrews54757, todos os direitos reservados, e as bibliotecas que ele inclui mantêm as próprias licenças: os termos estão em [LICENSE.md](LICENSE.md), e a versão de cada biblioteca e o que este projeto mudou nela em [docs/vendored-libraries.md](docs/vendored-libraries.md).
 
 ## Aviso Legal
 
