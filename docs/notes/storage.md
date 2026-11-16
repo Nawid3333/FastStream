@@ -459,3 +459,16 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   QuotaExceededError and never growing it back (the quota is fixed for the file's bitrate, so
   growing back would only hit it again); a Content-Range total over `MAX_FILE_LENGTH`
   (`lengthFromAnswer` already answers 0 for one).
+
+## What the second review found in storage (2026-11-16)
+
+- **The memory sink's save** (`StreamSaver.mjs`, a private window's streamed save) put a chunk
+  the Cache API had let go of into the file as the word "undefined", behind a "Save complete":
+  the guard `SaveFile` got for the same fault was missing there. Now the save fails ("A piece
+  of the saved file is gone"). Test: `StreamSaver.test.mjs`.
+- **`FSBlob.deleteBlob`** waits for the blob's write to end, then cleared the identifier again;
+  a fragment downloaded anew under it in that time was lost and downloaded a third time. Now a
+  blob saved again meanwhile is the new save's, and stays. Test: `opfsStorage.test.mjs`, "does
+  not let a delete take away a fragment saved again while it waited".
+- **IndexedDB at unload:** the beforeunload loop closed the databases over the list `close()`
+  splices, and skipped every second one. It runs over a copy. Test: `IndexedDBUnload.test.mjs`.

@@ -184,6 +184,11 @@ function createMemorySink(filename, blobManager) {
       let download;
       try {
         const chunks = /** @type {Array<Blob|File>} */ (await Promise.all(blobs.map((blob) => blobManager.getBlob(blob))));
+        // A chunk the store no longer has (the Cache API let it go) fails the save, as in
+        // SaveFile: in the file it was the word "undefined", behind a "Save complete".
+        if (chunks.some((chunk) => !chunk)) {
+          throw new Error('A piece of the saved file is gone');
+        }
         const blob = new Blob(chunks, {type: 'application/octet-stream'});
         url = URL.createObjectURL(blob);
         download = await Utils.downloadURL(url, filename);

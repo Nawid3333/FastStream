@@ -486,6 +486,10 @@ export class FSBlob {
 
     if (this.blobStorePromises.has(identifier)) {
       await this.blobStorePromises.get(identifier);
+      // Saved again while this waited (the fragment downloaded anew): the identifier is the
+      // new save's now, and so is whatever the backend holds under it. Cleared, the new
+      // fragment was lost and downloaded once more (glm's review, 2026-11-16).
+      if (this.blobStore.has(identifier)) return true;
     }
 
     this.blobStore.delete(identifier);

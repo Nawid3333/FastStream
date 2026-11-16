@@ -38,6 +38,10 @@ extension changes with it, so such a push releases, Firefox updates the extensio
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run.
 
+**Host 23 (2026-11-16, dead code; RequiredHostVersion stays 19).** `allowedIpcCommand`, a
+wrapper of `ipcCommandRefusal` that only a test called, is gone; nothing else changed, so an
+installed host 22 behaves the same.
+
 **Host 22 (2026-11-16, glm's review of the whole host; RequiredHostVersion stays 19).**
 - `stopMpv` ended an mpv that never answered on its pipe by its bare process id. One that quit
   by itself during the 15 s wait left its id to Windows, which hands ids out again, and the kill

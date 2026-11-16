@@ -1,5 +1,6 @@
 // @ts-check
 import {STALL_TIMEOUT_MS} from '../../network/FetchLoader.mjs';
+import {sourceHeadersFor} from '../../VideoSource.mjs';
 import {storeIndex} from './HLSFragmentStore.mjs';
 
 // How many times in a row one segment may fail before hls.js hears an error. Until then a
@@ -333,8 +334,9 @@ export function HLSLoaderFactory(player) {
         config: this.config,
         headers: {
           .../** @type {HlsLoadContext} */(this.context).headers,
-          // Set: hls.js loads once the player has its source.
-          ...(/** @type {import('../../VideoSource.mjs').VideoSource} */ (player.source)).headers,
+          // Set: hls.js loads once the player has its source. Its login headers only to its own
+          // site (VideoSource.headersFor).
+          ...sourceHeadersFor(/** @type {import('../../VideoSource.mjs').VideoSource} */ (player.source), /** @type {HlsLoadContext} */ (this.context).url),
         },
       };
       // A segment FastStream decrypts itself (HLSFragmentRequester.takeOverDecryption) that

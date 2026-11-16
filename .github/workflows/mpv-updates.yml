@@ -168,9 +168,10 @@ jobs:
           if [[ $offered =~ ^[0-9]{8}$ ]] && [ "$offered" -ge "$latest" ]; then waiting=1; fi
 
           # --- The open failure issue. The whole list, filtered exactly: the search index can
-          # lag behind an issue opened minutes ago.
-          issue=$(gh issue list --state open --limit 200 --json number,title \
-            --jq "[.[] | select(.title | startswith(\"$PREFIX\"))][0].number // \"\"")
+          # lag behind an issue opened minutes ago. This workflow's own only: the repository is
+          # public, and anyone's issue of that title took the reports (glm's review, 2026-11-16).
+          issue=$(gh issue list --state open --limit 200 --json number,title,author \
+            --jq "[.[] | select((.title | startswith(\"$PREFIX\")) and .author.login == \"app/github-actions\")][0].number // \"\"")
 
           if [ "$EVENT" = pull_request ]; then
             echo 'Dry run: nothing is pushed, started or reported.'
@@ -190,11 +191,16 @@ jobs:
           fi
 
           # A report is made once: its key goes into it, and a key already on the open issue
-          # (its text or a comment) is not reported again.
+          # (its text or a comment of this workflow's) is not reported again. Anyone's comment
+          # holding a key silenced a real failure once (glm's review, 2026-11-16).
           report() { # <key> <title after the prefix> <body file>
             if [ -n "$issue" ]; then
-              texts=$(gh issue view "$issue" --json body,comments --jq '.body, .comments[].body')
-              if grep -qF "<!-- mpv-updates: $1 -->" <<< "$texts"; then
+              # Two assignments: in one $( ), a failed first read went unnoticed (set -e does
+              # not reach into it), and a key in the body was missed.
+              body=$(gh issue view "$issue" --json body --jq '.body')
+              comments=$(gh api --paginate "repos/$GH_REPO/issues/$issue/comments" \
+                --jq '.[] | select(.user.login == "github-actions[bot]") | .body')
+              if grep -qF "<!-- mpv-updates: $1 -->" <<< "$body"$'\n'"$comments"; then
                 echo "Reported on #$issue before: $1."
                 return
               fi

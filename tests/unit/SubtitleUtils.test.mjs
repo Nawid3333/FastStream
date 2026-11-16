@@ -512,4 +512,25 @@ describe('xml2vtt', () => {
       delete globalThis.DOMParser;
     }
   });
+
+  it('reads a file of very many cues in well under a second', () => {
+    // The rest of the list was copied for every cue: quadratic, about 5 s for 150,000 cues.
+    const cues = Array.from({length: 150000}, (_, i) => ({
+      getAttribute: (name) => (name === 'start' ? String(i) : name === 'dur' ? '1' : null),
+      textContent: 'line',
+    }));
+    globalThis.DOMParser = class {
+      parseFromString() {
+        return {getElementsByTagName: () => cues};
+      }
+    };
+    try {
+      const start = performance.now();
+      const vtt = SubtitleUtils.xml2vtt('');
+      expect(performance.now() - start).toBeLessThan(1000);
+      expect(vtt.split('\n\n').length).toBe(150001);
+    } finally {
+      delete globalThis.DOMParser;
+    }
+  });
 });

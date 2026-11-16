@@ -135,6 +135,32 @@ describe('PageQualities.find', () => {
   });
 });
 
+describe('a page of very many <source> elements', () => {
+  it('stops reading them once the list is too long for a quality menu', () => {
+    // glm's review, 2026-11-16: each was compared with all before it, and only then was the
+    // list found too long: 50,000 of them held the page's main thread for minutes.
+    let made = 0;
+    const CountingURL = class extends URL {
+      constructor(...args) {
+        super(...args);
+        made++;
+      }
+    };
+    const counting = vm.createContext({URL: CountingURL});
+    vm.runInContext(pageQualitiesSource, counting, {filename: 'chrome/page-qualities.js'});
+    const sources = Array.from({length: 5000}, (_, i) => element('source', {src: `/v/${i}.mp4`, label: `${i}p`}));
+    const doc = documentOf([element('video', {}, sources)]);
+    made = 0;
+    expect(vm.runInContext('PageQualities', counting).find(doc, null, BASE)).toEqual([]);
+    expect(made).toBeLessThan(50);
+  });
+
+  it('control: still takes a list of up to 12', () => {
+    const sources = Array.from({length: 12}, (_, i) => element('source', {src: `/v/${i}.mp4`, label: `${(i + 1) * 100}p`}));
+    expect(PageQualities.find(documentOf([element('video', {}, sources)]), null, BASE)[0]).toHaveLength(12);
+  });
+});
+
 describe('PageQualities.parsePlayerjsFile', () => {
   it('takes the first of an entry\'s backups, and escaped slashes from JSON', () => {
     const list = PageQualities.parsePlayerjsFile('[480p]https://a.example/480.mp4 or https://b.example/480.mp4,' +

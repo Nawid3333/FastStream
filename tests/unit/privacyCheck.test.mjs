@@ -97,6 +97,18 @@ describe('addedLines and checkAdded', () => {
     expect(checkAdded(addedLines(diff), [], [], false)).toEqual(['docs/a.md:5: an e-mail address']);
     expect(checkAdded([], ['docs/my-secret.md'], ['secret'], false)).toEqual(['the file name (not shown): a private word']);
   });
+
+  // glm's review, 2026-11-16: an added line "++ ..." is the row "+++ ...", which was read as
+  // the next file's header, and never checked.
+  it('checks an added line that starts with "++ "', () => {
+    const tricky = [...diff.split('\n'), `+++ mail ${MAIL}`, '+after'].join('\n');
+    expect(addedLines(tricky)).toEqual([
+      {file: 'docs/a.md', line: 4, text: 'fine'}, {file: 'docs/a.md', line: 5, text: `mail ${MAIL}`},
+      {file: 'docs/a.md', line: 6, text: `++ mail ${MAIL}`}, {file: 'docs/a.md', line: 7, text: 'after'},
+    ]);
+    const second = [tricky, 'diff --git a/b.md b/b.md', '--- /dev/null', '+++ b/b.md', '@@ -0,0 +1 @@', '+b'].join('\n');
+    expect(addedLines(second).at(-1)).toEqual({file: 'b.md', line: 1, text: 'b'});
+  });
 });
 
 describe('the commit guard in a clone', () => {
@@ -149,5 +161,30 @@ describe('the commit guard in a clone', () => {
     const result = staged(dir);
     expect(result.code).toBe(1);
     expect(result.err).toContain('the author is not a public identity');
+  });
+
+  // glm's review, 2026-11-16: an annotated tag's message is in no commit, and was pushed
+  // unchecked.
+  it('refuses to push an annotated tag whose message holds a private word', () => {
+    const {dir, git} = clone();
+    fs.writeFileSync(path.join(dir, 'a.md'), 'x\n');
+    git('add', 'a.md');
+    git('commit', '-q', '--no-verify', '-m', 'clean');
+    const push = (tag) => {
+      const sha = git('rev-parse', `refs/tags/${tag}`).trim();
+      try {
+        execFileSync(process.execPath, ['tools/privacy-check.mjs', 'push', 'origin'],
+            {cwd: dir, encoding: 'utf8', stdio: 'pipe', input: `refs/tags/${tag} ${sha} refs/tags/${tag} ${'0'.repeat(40)}\n`});
+        return {code: 0, err: ''};
+      } catch (error) {
+        return {code: error.status, err: String(error.stderr)};
+      }
+    };
+    git('tag', '-a', 'v1', '-m', 'a clean note');
+    expect(push('v1')).toEqual({code: 0, err: ''});
+    git('tag', '-a', 'v2', '-m', 'tested while watching Secret Show');
+    const result = push('v2');
+    expect(result.code).toBe(1);
+    expect(result.err).toContain('a pushed tag: its message holds a private word');
   });
 });

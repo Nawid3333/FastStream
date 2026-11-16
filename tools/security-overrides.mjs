@@ -211,8 +211,6 @@ function keyToText(selector) {
 
 // ---- lockfiles ---------------------------------------------------------------
 
-const NODE_MODULES = 'node_modules/';
-
 /** @param {VersionMap} map @param {string} name @param {string} version */
 function addVersion(map, name, version) {
   let set = map.get(name);
@@ -300,30 +298,6 @@ export function lockVersions(lockText) {
       const nv = packageKeyToNameVersion(rawKey);
       if (nv) addVersion(map, nv.name, nv.version);
     }
-  }
-  return map;
-}
-
-/**
- * The same map from an npm package-lock.json v3; nested copies count (the name is the
- * segment after the last `node_modules/`), links and the root entry carry no version.
- * A lockfile without a packages map yields an empty map ÔÇö planFloors plans the pnpm
- * route only, so this map feeds verification rather than planning.
- * @param {{ packages?: Record<string, { link?: boolean, version?: string } | undefined> } | null | undefined} lockJson
- * @returns {VersionMap}
- */
-export function npmLockVersions(lockJson) {
-  /** @type {VersionMap} */
-  const map = new Map();
-  const packages = lockJson?.packages;
-  if (!packages) return map;
-  for (const [path, pkg] of Object.entries(packages)) {
-    if (!path || !pkg || pkg.link === true) continue;
-    // An alias ('npm:other@1.0.0') or a git/URL spec is not a registry version of this name.
-    if (typeof pkg.version !== 'string' || !SEMVER_RE.test(pkg.version)) continue;
-    const at = path.lastIndexOf(NODE_MODULES);
-    if (at === -1) continue;
-    addVersion(map, path.slice(at + NODE_MODULES.length), pkg.version);
   }
   return map;
 }
@@ -421,8 +395,13 @@ export function planFloors(alerts, versions, workspaceText, today) {
     // Released x.y.z only: GitHub ranges cannot match prereleases either.
     const vulnerable = [...(versions.get(name) ?? [])].filter((v) => XYZ_RE.test(v) && inRange(v));
     if (vulnerable.length === 0) {
-      // Covers both "no vulnerable version" and "a floor already applied (GitHub lag)".
-      declined.push({alert: number, reason: 'stale: no vulnerable version in the lockfile'});
+      // Covers both "no vulnerable version" and "a floor already applied (GitHub lag)". A
+      // prerelease copy is not checked against the range, so it is named, not called fixed: the
+      // issue said "stale" while one was in the tree (glm's review, 2026-11-16).
+      const unchecked = [...(versions.get(name) ?? [])].filter((v) => !XYZ_RE.test(v));
+      declined.push({alert: number, reason: unchecked.length ?
+        `no plain release in the lockfile is in '${rangeText}'; not checked: ${unchecked.join(', ')} (no plain release)` :
+        'stale: no vulnerable version in the lockfile'});
       continue;
     }
     for (const v of vulnerable) {

@@ -6,7 +6,6 @@ import {
   applyFloors,
   fromFlat,
   lockVersions,
-  npmLockVersions,
   parseRange,
   planBundle,
   planFloors,
@@ -283,35 +282,6 @@ describe('lockVersions', () => {
   });
 });
 
-describe('npmLockVersions', () => {
-  it('scans all node_modules copies, skipping links and non-dependency entries', () => {
-    const lock = {
-      name: 'fsaunpack',
-      lockfileVersion: 3,
-      packages: {
-        '': {name: 'fsaunpack', devDependencies: {'basic-ftp': '^6.2.1'}},
-        'node_modules/@babel/code-frame': {version: '7.29.7'},
-        'node_modules/@puppeteer/browsers': {version: '24.10.0'},
-        'node_modules/basic-ftp': {version: '6.2.1'},
-        'node_modules/get-uri': {version: '6.0.1', dependencies: {'basic-ftp': '^5.3.1'}},
-        'node_modules/get-uri/node_modules/basic-ftp': {version: '5.3.1'},
-        'node_modules/webdriver': {link: true, resolved: 'packages/webdriver'},
-        'packages/webdriver': {version: '1.1.0'},
-      },
-    };
-    expect(objectify(npmLockVersions(lock))).toEqual({
-      '@babel/code-frame': ['7.29.7'],
-      '@puppeteer/browsers': ['24.10.0'],
-      'basic-ftp': ['5.3.1', '6.2.1'],
-      'get-uri': ['6.0.1'],
-    });
-  });
-
-  it('treats a lockfile without a packages map as an empty tree', () => {
-    expect(objectify(npmLockVersions({lockfileVersion: 1}))).toEqual({});
-  });
-});
-
 describe('planFloors', () => {
   it('declines an alert whose floor main has already, while the lockfile is still vulnerable', () => {
     // The existing floors already ask for the patched versions, yet the tree holds vulnerable
@@ -414,6 +384,19 @@ describe('planFloors', () => {
     const plan = planFloors([mkAlert(88, 'left-pad', '< 1.3.2', '1.3.2')], versions({'left-pad': ['1.3.2']}), WORKSPACE, TODAY);
     expect(plan.floors).toEqual([]);
     expect(plan.declined).toEqual([{alert: 88, reason: 'stale: no vulnerable version in the lockfile'}]);
+  });
+
+  // glm's review, 2026-11-16: with only a prerelease in the tree, the issue called the alert
+  // stale (fixed) though nothing had checked that copy.
+  it('names a prerelease it cannot check instead of calling the alert stale', () => {
+    const plan = planFloors([mkAlert(90, 'left-pad', '< 1.3.2', '1.3.2')], versions({'left-pad': ['1.3.0-rc.1']}), WORKSPACE, TODAY);
+    expect(plan.floors).toEqual([]);
+    expect(plan.declined).toEqual([{alert: 90,
+      reason: 'no plain release in the lockfile is in \'< 1.3.2\'; not checked: 1.3.0-rc.1 (no plain release)'}]);
+    // A plain release beside it, outside the range: the same words, which say nothing false.
+    const both = planFloors([mkAlert(91, 'left-pad', '< 1.3.2', '1.3.2')], versions({'left-pad': ['1.4.0', '1.3.0-rc.1']}), WORKSPACE, TODAY);
+    expect(both.declined).toEqual([{alert: 91,
+      reason: 'no plain release in the lockfile is in \'< 1.3.2\'; not checked: 1.3.0-rc.1 (no plain release)'}]);
   });
 
   it('declines when the existing override is an npm alias value', () => {
@@ -627,12 +610,6 @@ describe('verifyLock', () => {
     const floors = [{name: 'undici', selector: 'undici@7', floor: '^7.30.1', alerts: [], action: 'none'},
       {name: 'undici', selector: 'undici@8', floor: '^8.12.2', alerts: [], action: 'none'}];
     expect(verifyLock([], old, neu, floors)).toEqual(['the lockfile changed more than the floors: undici 6.28.1 -> 9.0.0']);
-  });
-
-  it('skips an alias version in an npm lockfile instead of failing on it', () => {
-    const lock = (v) => ({packages: {'node_modules/my-foo': {version: v}}});
-    expect(npmLockVersions(lock('npm:foo@1.0.0')).size).toBe(0);
-    expect(verifyLock([], npmLockVersions(lock('npm:foo@1.0.0')), npmLockVersions(lock('npm:foo@1.0.1')), [])).toEqual([]);
   });
 
   it('declines a package a parent-scoped override already governs', () => {

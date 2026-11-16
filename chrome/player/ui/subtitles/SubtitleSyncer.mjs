@@ -326,7 +326,10 @@ export class SubtitleSyncer extends EventEmitter {
     if (!this.started || !this.client.player) return;
 
     const video = this.client.player.getVideo();
-
+    // No length to place the cues by (a live stream, or none known yet), as in the drag: each
+    // bar went to NaN%, and one made then kept its broken width once the length came (glm's
+    // review, 2026-11-16).
+    if (!(Number.isFinite(video.duration) && video.duration > 0)) return;
 
     const now = Date.now();
     if (now - this.lastUpdate >= 500) {
@@ -345,6 +348,7 @@ export class SubtitleSyncer extends EventEmitter {
         return false;
       } else {
         el.element.style.left = el.cue.startTime / video.duration * 100 + '%';
+        el.element.style.width = (el.cue.endTime - el.cue.startTime) / video.duration * 100 + '%';
       }
       return true;
     });

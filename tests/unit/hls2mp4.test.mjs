@@ -360,6 +360,14 @@ describe('HLS2MP4: damaged input', () => {
     expect(tracks.vide.durations).toHaveLength(25);
     expect(tracks.soun.durations.length).toBeGreaterThan(40);
   });
+
+  it('names data no demuxer takes, rather than failing on a missing demuxer', async () => {
+    // glm's review, 2026-11-16: the transmuxer's own error was dropped, and the save failed
+    // with "Cannot read properties of undefined (reading 'demux')".
+    const junk = new Uint8Array(4096).fill(0x42);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(save([fragment(0, {sn: 0, cc: 0, start: 0}, junk)])).rejects.toThrow('Failed to find demuxer by probing fragment data');
+  });
 });
 
 describe('HLS2MP4: the blob store of a save', () => {

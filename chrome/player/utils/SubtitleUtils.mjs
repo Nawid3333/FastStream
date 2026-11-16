@@ -190,7 +190,17 @@ export class SubtitleUtils {
       const start = starts[i];
       if (!Number.isFinite(start)) continue;
       const dur = parseFloat(/** @type {string} */ (cues[i].getAttribute('dur')));
-      const next = starts.slice(i + 1).find((s) => Number.isFinite(s) && s > start);
+      // Looked for only when needed, and without copying the rest of the list: copied for
+      // every cue, a file of 100,000 cues took seconds (2026-11-16).
+      let next;
+      if (!Number.isFinite(dur)) {
+        for (let j = i + 1; j < starts.length; j++) {
+          if (Number.isFinite(starts[j]) && starts[j] > start) {
+            next = starts[j];
+            break;
+          }
+        }
+      }
       const end = start + (Number.isFinite(dur) ? dur : (next !== undefined ? next - start : 2));
       const text = this.translateXMLEntities(cues[i].textContent);
       result.push(result.length + '\n' + this.vttTimeFormat(start) + ' --> ' + this.vttTimeFormat(end) + '\n' + text);

@@ -177,7 +177,10 @@ export default class Transmuxer {
     const uintData = data instanceof Uint8Array ? data : new Uint8Array(data);
 
     if (!this.demuxer || !this.remuxer) {
-      this.configureTransmuxer(uintData);
+      // Data no demuxer takes: dropped, this error became "Cannot read properties of undefined
+      // (reading 'demux')" (glm's review, 2026-11-16).
+      const error = this.configureTransmuxer(uintData);
+      if (error) throw error;
     }
 
     const {transmuxConfig} = this;
