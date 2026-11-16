@@ -23,26 +23,34 @@ import {browser} from '@wdio/globals';
  */
 export async function confirmPrompt(value, context = async () => null) {
   const since = Date.now();
-  /** @type {{clicked: boolean, closed?: boolean, open?: boolean, width: number, boxes: number}} */
+  /** @type {{clicked: boolean, closed?: boolean, open?: boolean, width: number, boxes: number, error?: string}} */
   let ok = {clicked: false, width: 0, boxes: 0};
   await browser.waitUntil(async () => {
     ok = await browser.execute((value) => {
-      const dialog = /** @type {?HTMLDialogElement} */ (document.querySelector('dialog.fs-dialog[open]'));
-      if (!dialog) return {clicked: false, open: false, width: 0, boxes: 0};
-      const field = /** @type {?HTMLInputElement} */ (dialog.querySelector('.fs-dialog-input'));
-      const confirm = /** @type {HTMLButtonElement} */ (dialog.querySelector('.fs-dialog-confirm'));
-      const laidOut = {width: document.documentElement.clientWidth, boxes: confirm.getClientRects().length};
-      if (!(laidOut.width > 0 && laidOut.boxes > 0)) return {clicked: false, open: true, ...laidOut};
-      if (field && value !== null) field.value = value;
-      confirm.click();
-      return {clicked: true, closed: !dialog.open, ...laidOut};
+      // A script error is told as itself, not as a document without a size (glm's review).
+      try {
+        const dialog = /** @type {?HTMLDialogElement} */ (document.querySelector('dialog.fs-dialog[open]'));
+        if (!dialog) return {clicked: false, open: false, width: 0, boxes: 0};
+        const field = /** @type {?HTMLInputElement} */ (dialog.querySelector('.fs-dialog-input'));
+        const confirm = /** @type {?HTMLButtonElement} */ (dialog.querySelector('.fs-dialog-confirm'));
+        if (!confirm) return {clicked: false, open: true, width: 0, boxes: 0, error: 'the prompt has no OK button'};
+        const laidOut = {width: document.documentElement.clientWidth, boxes: confirm.getClientRects().length};
+        if (!(laidOut.width > 0 && laidOut.boxes > 0)) return {clicked: false, open: true, ...laidOut};
+        if (field && value !== null) field.value = value;
+        confirm.click();
+        return {clicked: true, closed: !dialog.open, ...laidOut};
+      } catch (e) {
+        return {clicked: false, width: 0, boxes: 0, error: String(e)};
+      }
     }, value);
-    return ok.clicked;
+    // An error ends the wait at once: waiting would not mend it.
+    return ok.clicked || !!ok.error;
   }, {timeout: 15000, interval: 100}).catch(async () => {
     const state = ok;
     throw new Error(`${state.open === false ? 'no prompt was open' : 'the player\'s document never had its size for OK'} ` +
       `within 15 s: ${JSON.stringify(state)}; ${JSON.stringify(await context())}`);
   });
+  if (ok.error) throw new Error(`answering the prompt failed: ${ok.error}; ${JSON.stringify(await context())}`);
   const waited = Date.now() - since;
   if (waited > 1000) console.log(`      the player's document had no size for the prompt's OK for ${waited} ms`);
   if (!ok.closed) {

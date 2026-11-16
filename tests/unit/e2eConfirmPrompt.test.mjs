@@ -20,10 +20,15 @@ describe('e2e specs answer the player\'s prompt only once it is laid out', () =>
       if (!fs.existsSync(folder)) continue;
       for (const file of fs.readdirSync(folder).filter((name) => name.endsWith('.mjs'))) {
         const text = fs.readFileSync(path.join(folder, file), 'utf8');
-        // A script's own query for the button: document.querySelector('.fs-dialog-confirm') and
-        // the like. browser.$('.fs-dialog-confirm') is WebDriver's element, not matched here.
+        // A script's own query for the button (document.querySelector('.fs-dialog-confirm') and
+        // the like), or a form submitted from a script: requestSubmit submits even with no
+        // layout, an answer no user could give (glm's review). browser.$('.fs-dialog-confirm')
+        // is WebDriver's element, which needs the button on the screen, and is not matched here.
         text.split('\n').forEach((line, index) => {
-          if (/querySelector(All)?\([^)]*fs-dialog-confirm/.test(line)) found.push(`${dir}/${file}:${index + 1}: ${line.trim()}`);
+          if (/^\s*(\/\/|\*)/.test(line)) return;
+          if (/(querySelector(All)?|getElementsByClassName)\([^)]*fs-dialog-confirm/.test(line) || /\brequestSubmit\(/.test(line)) {
+            found.push(`${dir}/${file}:${index + 1}: ${line.trim()}`);
+          }
         });
       }
     }

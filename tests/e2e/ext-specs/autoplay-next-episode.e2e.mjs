@@ -160,25 +160,31 @@ async function clickBarEnd(what, pause) {
   let at = null;
   await browser.waitUntil(async () => {
     at = await browser.execute(async (pause) => {
-      if (pause) await window.fastStream.pause();
-      const bar = /** @type {?HTMLElement} */ (document.querySelector('.mainplayer .fluid_controls_progress_container'));
-      const frame = `${innerWidth}x${innerHeight}`;
-      if (!bar || !(bar.clientWidth > 0) || !(innerWidth > 0)) return {clicked: false, barWidth: bar?.clientWidth ?? null, frame};
-      const before = window.fastStream.currentTime;
-      const rect = bar.getBoundingClientRect();
-      const x = rect.left + rect.width - 1;
-      const y = rect.top + rect.height / 2;
-      bar.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0, clientX: x, clientY: y}));
-      const sought = window.fastStream.currentTime;
-      document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, button: 0, clientX: x, clientY: y}));
-      return {clicked: true, before, sought, time: window.fastStream.currentTime, duration: window.fastStream.duration,
-        barWidth: bar.clientWidth, frame, visibility: document.visibilityState};
+      // A script error is told as itself, not as a frame without a size (glm's review).
+      try {
+        if (pause) await window.fastStream.pause();
+        const bar = /** @type {?HTMLElement} */ (document.querySelector('.mainplayer .fluid_controls_progress_container'));
+        const frame = `${innerWidth}x${innerHeight}`;
+        if (!bar || !(bar.clientWidth > 0) || !(innerWidth > 0)) return {clicked: false, barWidth: bar?.clientWidth ?? null, frame};
+        const before = window.fastStream.currentTime;
+        const rect = bar.getBoundingClientRect();
+        const x = rect.left + rect.width - 1;
+        const y = rect.top + rect.height / 2;
+        bar.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0, clientX: x, clientY: y}));
+        const sought = window.fastStream.currentTime;
+        document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, button: 0, clientX: x, clientY: y}));
+        return {clicked: true, before, sought, time: window.fastStream.currentTime, duration: window.fastStream.duration,
+          barWidth: bar.clientWidth, frame, visibility: document.visibilityState};
+      } catch (e) {
+        return {clicked: false, error: String(e)};
+      }
     }, pause);
-    return at.clicked;
+    return at.clicked || !!at.error;
   }, {timeout: 10000, interval: 100}).catch(async () => {
     const state = at;
     throw new Error(`${what}: the player frame never got its size: ${JSON.stringify(state)}; the page: ${JSON.stringify(await pageFrames())}`);
   });
+  if (at.error) throw new Error(`${what}: the click on the bar failed: ${at.error}`);
   const waited = Date.now() - since;
   if (waited > 1000) console.log(`      ${what}: the player's frame had no size for the click for ${waited} ms`);
   return at;
