@@ -135,6 +135,31 @@ export class DownloadManager {
     // The RAM budget is used up: no downloads ahead until some is let go of
     // (FastStreamClient.enforceMemoryBudget).
     this.memoryFull = false;
+
+    // A download failed while offline: its fragment waits again when the network is back.
+    this.failedOffline = false;
+    this.onNetworkBack = this.onNetworkBack.bind(this);
+    globalThis.addEventListener?.('online', this.onNetworkBack);
+  }
+
+  /**
+   * The network is back (the window's online event: the browser has network access again; a
+   * hint only, and a wrong one costs at most an early retry). A download that failed while it was gone - its retries spent, over a
+   * minute (FetchLoader: 1 + 2 + ... + 32 s) - left its fragment failed, and only one that failed
+   * while online set the failed ones waiting again (onDownloaderFinished): the player downloaded
+   * nothing of them ahead until playback reached each. Now they wait again, and the retries still
+   * waiting out their backoff go at once (FetchLoader.retryNow).
+   */
+  onNetworkBack() {
+    if (!this.downloaders) return;
+    // A downloader still making its request holds a stand-in without retryNow (StandardDownloader.run).
+    for (const downloader of this.downloaders) downloader.loader?.retryNow?.();
+    // Only after a failure while offline: a link that failed for good (a 403) is not tried again
+    // at each return of a flapping Wi-Fi, each failure online taking a downloader away.
+    if (this.failedOffline) {
+      this.failedOffline = false;
+      this.client?.resetFailed?.();
+    }
   }
 
   /** @return {DownloadEntry[]} The finished downloads. */
@@ -504,6 +529,7 @@ export class DownloadManager {
   }
 
   destroy() {
+    globalThis.removeEventListener?.('online', this.onNetworkBack);
     // queueNext's retry after a failure would find no downloaders left.
     clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.failCooldown));
     this.failCooldown = null;
@@ -1136,6 +1162,10 @@ export class DownloadManager {
           console.log('Downloader failed, removing downloader and trying again');
         }
       }
+    } else if (failed) {
+      // Offline: no downloader taken away (the server is not to blame), and its fragment
+      // waits again when the network is back (onNetworkBack).
+      this.failedOffline = true;
     } else if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE && this.droppedDownloaders > 0 &&
         Date.now() - this.lastFailed > DownloadManager.FailureRecoveryMs) {
       // A failure takes a downloader away, easing off a server that is struggling, and it
@@ -1288,6 +1318,7 @@ export class DownloadManager {
     // rejection (a player reset as it went, once a save it waited for had stopped).
     if (!this.downloaders) return;
     this.abortAll();
+    this.failedOffline = false;
 
     this.testing = true;
     this.testHeld = false;

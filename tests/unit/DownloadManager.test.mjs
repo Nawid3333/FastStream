@@ -64,6 +64,50 @@ describe('DownloadManager', () => {
     expect(() => vi.advanceTimersByTime(2000)).not.toThrow();
   });
 
+  it('when the network is back, retries at once and sets the fragments that failed offline waiting again', () => {
+    // Offline, a download's retries ran out (1 + 2 + ... + 32 s) and its fragment stayed failed:
+    // only a failure while online set the failed ones waiting again, and the player downloaded
+    // nothing of them ahead until playback reached each. A retry still waiting out its backoff
+    // went up to 32 s after the network came back.
+    const window = new EventTarget();
+    vi.stubGlobal('addEventListener', window.addEventListener.bind(window));
+    vi.stubGlobal('removeEventListener', window.removeEventListener.bind(window));
+    try {
+      const client = {resetFailed: vi.fn(), predownloadFragments: vi.fn()};
+      const manager = new DownloadManager(client);
+      manager.testing = false;
+      const waiting = {retryNow: vi.fn(() => true)};
+      const downloader = /** @type {any} */ ({loader: waiting, destroy: vi.fn()});
+      // One still making its request holds a stand-in without retryNow (StandardDownloader.run).
+      const making = /** @type {any} */ ({loader: {abort() {}, destroy() {}}, destroy: vi.fn()});
+      manager.downloaders.push(making, downloader);
+
+      // Nothing failed offline: the waiting retry goes, and nothing failed for good (a 403
+      // online) is tried again at each return of a flapping Wi-Fi.
+      window.dispatchEvent(new Event('online'));
+      expect(waiting.retryNow).toHaveBeenCalledTimes(1);
+      expect(client.resetFailed).not.toHaveBeenCalled();
+
+      // A download failed offline: no downloader taken away, and its fragment waits again once.
+      vi.stubGlobal('navigator', {onLine: false});
+      manager.onDownloaderFinished(downloader, /** @type {any} */ ({status: DownloadStatus.DOWNLOAD_FAILED, aborted: false}));
+      expect(manager.downloaders).toHaveLength(2);
+      window.dispatchEvent(new Event('online'));
+      window.dispatchEvent(new Event('online'));
+      expect(client.resetFailed).toHaveBeenCalledTimes(1);
+      expect(waiting.retryNow).toHaveBeenCalledTimes(3);
+
+      // Gone with the player: no longer listening.
+      manager.onDownloaderFinished(downloader, /** @type {any} */ ({status: DownloadStatus.DOWNLOAD_FAILED, aborted: false}));
+      manager.destroy();
+      window.dispatchEvent(new Event('online'));
+      expect(client.resetFailed).toHaveBeenCalledTimes(1);
+      expect(waiting.retryNow).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('stays destroyed when a reset comes after it', async () => {
     // A player reset as it went (FastStreamClient.destroy, after a save it waited for): the reset
     // threw on the downloaders that were gone (Array.from(null)), an unhandled rejection.
