@@ -28,6 +28,7 @@ import path from 'node:path';
 
 import {browser, expect} from '@wdio/globals';
 
+import {confirmPrompt} from '../confirmPrompt.mjs';
 import {inExtensionPage} from '../extension-page.mjs';
 import {byteRange, sendFile} from '../serveFile.mjs';
 
@@ -272,48 +273,29 @@ async function saveState() {
 }
 
 /**
- * Records, from now on, what the page does to the player's iframe (its style and class, with
- * the display each change left; frames added and removed) and the sizes the player's document
- * is told (its resize events), for the message of a prompt left open: the player's document
- * then had no layout while the page showed its frame at 640x360 (CI, 2026-11-16). Leaves the
+ * The page's player frames as the page lays them out, for a failure's message. Leaves the
  * context at the page.
+ * @return {Promise<Object>}
  */
-async function traceFrame() {
-  await playerState();
-  await browser.execute(() => {
-    const w = /** @type {any} */ (window);
-    const start = performance.now();
-    w.fsSizeTrace = [[0, innerWidth, innerHeight, document.documentElement.clientWidth]];
-    addEventListener('resize', () => w.fsSizeTrace.push([Math.round(performance.now() - start), innerWidth, innerHeight]));
-  });
+async function pageFrames() {
   await browser.switchFrame(null);
-  await browser.execute(() => {
-    const w = /** @type {any} */ (window);
-    const start = performance.now();
-    const at = () => Math.round(performance.now() - start);
-    const frame = /** @type {HTMLIFrameElement} */ (document.querySelector('iframe[src*="player/index.html"]'));
-    const display = (/** @type {?string} */ style) => (style || '').match(/display:[^;]*/)?.[0] || '-';
-    w.fsFrameTrace = [[0, 'start', getComputedStyle(frame).display]];
-    new MutationObserver((records) => {
-      for (const record of records) {
-        w.fsFrameTrace.push([at(), record.attributeName, 'was ' + display(record.oldValue), 'now ' + getComputedStyle(frame).display]);
-      }
-    }).observe(frame, {attributes: true, attributeOldValue: true, attributeFilter: ['style', 'class']});
-    new MutationObserver((records) => {
-      for (const record of records) {
-        for (const node of record.addedNodes) if (node.nodeName === 'IFRAME') w.fsFrameTrace.push([at(), 'iframe added']);
-        for (const node of record.removedNodes) if (node.nodeName === 'IFRAME') w.fsFrameTrace.push([at(), 'iframe removed']);
-      }
-    }).observe(document.documentElement, {childList: true, subtree: true});
-  });
+  return browser.execute(() => ({visibility: document.visibilityState, focus: document.hasFocus(),
+    frames: Array.from(document.querySelectorAll('iframe'), (frame) => {
+      const style = getComputedStyle(frame);
+      const box = frame.getBoundingClientRect();
+      return {player: frame.src.includes('player/index.html'), display: style.display, visibility: style.visibility,
+        box: [Math.round(box.width), Math.round(box.height)], inline: (frame.getAttribute('style') || '').slice(0, 300)};
+    })}));
 }
 
 /**
  * Starts a save as the user does: the Save button, then the name prompt, given a name.
+ *
+ * OK goes only once the player's document has its size (confirmPrompt): on CI it was clicked
+ * before, and left the prompt open (#697).
  * @param {string} name - The file's name, without '.mp4'.
  */
 async function startSave(name) {
-  await traceFrame();
   await playerState();
   await browser.waitUntil(() => browser.execute(() => !!document.querySelector('.main_download, #download')),
       {timeout: 15000, timeoutMsg: 'the player has no Save button'});
@@ -322,53 +304,7 @@ async function startSave(name) {
   });
   await browser.waitUntil(() => browser.execute(() => !!document.querySelector('dialog.fs-dialog[open] .fs-dialog-input')),
       {timeout: 15000, timeoutMsg: 'the name prompt never appeared'});
-  // On CI (2026-11-15/16, both OSes, most runs) OK left the prompt open: the save never
-  // began, and the wait for its file ran out 75 s later. A click on a dialog's button does
-  // nothing while its document has no layout (Firefox, an iframe with display: none); what
-  // the player's document and its frame were like is told here, measured only after the
-  // click, as a measurement lays the document out.
-  const ignored = await browser.execute((given) => {
-    const field = /** @type {HTMLInputElement} */ (document.querySelector('dialog.fs-dialog[open] .fs-dialog-input'));
-    const dialog = /** @type {HTMLDialogElement} */ (field.closest('dialog'));
-    const confirm = /** @type {HTMLButtonElement} */ (dialog.querySelector('.fs-dialog-confirm'));
-    field.value = given;
-    confirm.click();
-    if (!dialog.open) return null;
-    const seen = {dialogs: document.querySelectorAll('dialog.fs-dialog').length,
-      visibility: document.visibilityState, focus: document.hasFocus(),
-      width: document.documentElement.clientWidth, boxes: confirm.getClientRects().length,
-      clickedAgain: false, submitted: false};
-    confirm.click();
-    seen.clickedAgain = !dialog.open;
-    if (dialog.open) {
-      /** @type {HTMLFormElement} */ (confirm.form).requestSubmit(confirm);
-      seen.submitted = !dialog.open;
-    }
-    return seen;
-  }, name);
-  if (ignored) {
-    await browser.switchFrame(null);
-    const page = await browser.execute(() => ({visibility: document.visibilityState, focus: document.hasFocus(),
-      styles: /** @type {any} */ (window).fsFrameTrace,
-      frames: Array.from(document.querySelectorAll('iframe'), (frame) => {
-        const style = getComputedStyle(frame);
-        const box = frame.getBoundingClientRect();
-        return {player: frame.src.includes('player/index.html'), display: style.display, visibility: style.visibility,
-          box: [Math.round(box.width), Math.round(box.height)], inline: (frame.getAttribute('style') || '').slice(0, 300)};
-      })}));
-    // How long the player's document stays without layout, and the sizes it was told.
-    const since = Date.now();
-    let back = null;
-    while (back === null && Date.now() - since < 10000) {
-      await playerState();
-      if (await browser.execute(() => document.documentElement.clientWidth) > 0) back = Date.now() - since;
-      else await browser.pause(100);
-    }
-    const sizes = await browser.execute(() => /** @type {any} */ (window).fsSizeTrace);
-    throw new Error(`OK left the name prompt open; the player's document: ${JSON.stringify(ignored)}, ` +
-      `its sizes since the save began [ms, width, height]: ${JSON.stringify(sizes)}, it had a layout again ` +
-      `after: ${back === null ? 'not within 10 s' : back + ' ms'}; the page: ${JSON.stringify(page)}`);
-  }
+  await confirmPrompt(name, async () => ({page: await pageFrames()}));
 }
 
 /**

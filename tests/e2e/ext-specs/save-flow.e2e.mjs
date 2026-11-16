@@ -17,6 +17,7 @@
 
 import {browser, expect} from '@wdio/globals';
 
+import {confirmPrompt} from '../confirmPrompt.mjs';
 import {addSourceInPlayer} from '../extension-page.mjs';
 
 /**
@@ -129,10 +130,8 @@ describe('faithful save flow (UI + embedded iframe)', function() {
     await browser.waitUntil(
         async () => browser.execute(() => !!document.querySelector('.fs-dialog .fs-dialog-input')),
         {timeout: 15000, timeoutMsg: 'filename prompt never appeared'});
-    await browser.execute(() => {
-      const confirm = document.querySelector('.fs-dialog-confirm');
-      confirm.click();
-    });
+    // OK once the player's document has its size, as a user can click it (#697).
+    await confirmPrompt(null);
 
     // Now the save runs. SaveManager hides the banner when the save settles
     // (success or failure) and sets a status message either way. Polled from
