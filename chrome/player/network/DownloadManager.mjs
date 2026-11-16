@@ -987,7 +987,7 @@ export class DownloadManager {
   }
 
   /**
-   * Holds the speed test while the video waits during it and downloads playback's request
+   * Holds the speed test while the video seeks during it and downloads playback's request
    * alone (FastStreamClient.predownloadFragments), and starts its round again afterwards. A
    * round needs every downloader heard: the ones left idle then read slower for 10 s
    * (SpeedTracker), and the test would have taken that for a line the downloads share - on a

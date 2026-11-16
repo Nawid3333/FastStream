@@ -1323,7 +1323,7 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
       expect(startedAt({sharesLine: false, asked: true})).toHaveLength(6);
     });
 
-    it('while the speed test runs, as on a line the downloads share, and the test waits (holdTest)', () => {
+    it('while the speed test runs, a seek as on a line the downloads share, and the test waits (holdTest)', () => {
       // A seek in the first seconds shared the line with every download of the test: an HLS seek
       // on a 6 Mbit/s line took 3.1 s where alone it takes 1.2 s (2026-11-16).
       const held = [];
@@ -1335,6 +1335,13 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
       expect(startedAt({sharesLine: false, testing: true, held: playing,
         video: {seeking: false, paused: false, readyState: 4, played: PLAYED}})).toHaveLength(6);
       expect(playing).toEqual([false]);
+      // A stall while the test runs is left as it was: on a slow line the test lasts long and the
+      // video stalls often; held at each stall, the test hardly ever ended and the buffer ahead
+      // stayed thin (2026-11-16, a 3 Mbit/s line falling to a quarter: 3 stalls -> 5).
+      const stalled = [];
+      expect(startedAt({sharesLine: false, testing: true, held: stalled,
+        video: {seeking: false, paused: false, readyState: 2, played: PLAYED}})).toHaveLength(6);
+      expect(stalled).toEqual([false]);
       // The start (nothing played yet) is left as it was, test and all.
       const start = [];
       expect(startedAt({sharesLine: false, testing: true, held: start,
