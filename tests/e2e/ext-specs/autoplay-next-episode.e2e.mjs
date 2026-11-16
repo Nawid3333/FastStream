@@ -161,6 +161,26 @@ async function barLaidOut(what) {
 }
 
 /**
+ * The page's player frames as the page lays them out, for a failure's message: the player's
+ * frame read 0x0 just after it had its size (CI, 2026-11-16, twice in one run), and only the
+ * page can tell whether its iframe was hidden, moved or made again. Leaves the context at the
+ * page.
+ * @return {Promise<Object>}
+ */
+async function pageFrames() {
+  await browser.switchFrame(null);
+  return browser.execute(() => ({visibility: document.visibilityState, window: `${innerWidth}x${innerHeight}`,
+    frames: Array.from(document.querySelectorAll('iframe'), (frame) => {
+      const style = getComputedStyle(frame);
+      const box = frame.getBoundingClientRect();
+      return {player: frame.src.includes('player/index.html'), connected: frame.isConnected, display: style.display,
+        visibility: style.visibility, position: style.position,
+        box: [Math.round(box.left), Math.round(box.top), Math.round(box.width), Math.round(box.height)],
+        inline: (frame.getAttribute('style') || '').slice(0, 300)};
+    })}));
+}
+
+/**
  * Waits until the player plays its video, by itself.
  * @param {string} episode - The ep= the source must name.
  * @return {Promise<Object>} The player's state.
@@ -458,6 +478,11 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
           return {before, sought, barWidth: bar.clientWidth, frame: `${innerWidth}x${innerHeight}`,
             visibility: document.visibilityState};
         });
+        if (!(at.barWidth > 0) || at.frame.startsWith('0x')) {
+          // The frame had its size a moment before (barLaidOut): what the page made of it.
+          throw new Error(`${page}: the player's frame lost its size before the click: ${JSON.stringify(at)}; ` +
+            `the page: ${JSON.stringify(await pageFrames())}`);
+        }
         await browser.pause(1500);
         const after = await browser.execute(() => ({player: window.fastStream.player.constructor.name,
           time: window.fastStream.currentTime, duration: window.fastStream.duration}));
