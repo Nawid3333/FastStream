@@ -86,21 +86,24 @@ const MIME = {
  * cap per connection).
  * @param {number} mbit - Megabits a second; 0 for no limit.
  * @param {number} [jitter] - Every so many ms the rate switches between full and `factor` of
- *   it (0: steady). One clock for every line: a round's ABBA order spreads where in the pattern
- *   each build's run falls.
+ *   it (0: steady), full first, from `since`: each run's own start (benchServer), so every run
+ *   of both builds meets the same line. On one clock for all, the ABBA order was to spread
+ *   where each build's runs fell in the pattern, and did not: in 5 rounds main's HLS first
+ *   frames came at 4.1 s three times and 6.2 and 7.7 s, the other build's at 6.7-7.7 s each time,
+ *   the same requests on the same line, its slow half or not (2026-11-15).
  * @param {number} [factor]
- * @return {(bytes: number) => number} When (performance.now() ms) so many bytes are sent, if
- *   they are handed over now.
+ * @return {(bytes: number, since?: number) => number} When (performance.now() ms) so many bytes
+ *   are sent, if they are handed over now.
  */
 function paceLine(mbit, jitter = 0, factor = 1) {
   let freeAt = 0;
   const bytesPerMs = mbit * 1e6 / 8 / 1000;
   const slow = Math.max(factor, 0.01);
-  return (bytes) => {
+  return (bytes, since = 0) => {
     const now = performance.now();
     if (!mbit) return now;
     const start = Math.max(now, freeAt);
-    const rate = jitter && Math.floor(start / jitter) % 2 === 1 ? bytesPerMs * slow : bytesPerMs;
+    const rate = jitter && Math.floor((start - since) / jitter) % 2 === 1 ? bytesPerMs * slow : bytesPerMs;
     freeAt = start + bytes / rate;
     return freeAt;
   };
@@ -188,6 +191,10 @@ function sendPaced(res, file, {start, end}, line, ttfb, {cut = Infinity, capMbit
  */
 function benchServer(buildDir) {
   const line = paceLine(rateMbit, jitterMs, jitterFactor);
+  /** @type {Set<string>} The runs this server has seen. */
+  const runsSeen = new Set();
+  // When the run going on started (paceLine's pattern starts with it).
+  let lineSince = performance.now();
   return http.createServer((req, res) => {
     // BENCH_TRACE=1: each media request's start and end, one JSON line each, to see who had
     // the line when (the tabs scenario). Only what the server knows itself goes in it - the
@@ -249,7 +256,15 @@ function benchServer(buildDir) {
     // Only the media goes over the slow line and waits for its first byte: the player's own
     // files come at once, as from the extension's package (they waited too at first, 150 ms
     // for each module, and every start took 4.5 s).
-    const pace = fromFixtures ? line : () => performance.now();
+    // A run starts its line's pattern (paceLine): the first request a server sees with a run's
+    // name (its manifest or file; a playlist's segments carry none, and come from the run going on).
+    const run = new URL(req.url, 'http://localhost').searchParams.get('run');
+    if (fromFixtures && run && !runsSeen.has(run)) {
+      runsSeen.add(run);
+      lineSince = performance.now();
+    }
+    const since = lineSince;
+    const pace = fromFixtures ? (/** @type {number} */ bytes) => line(bytes, since) : () => performance.now();
     const span = range || {start: 0, end: size - 1};
     const media = fromFixtures ? {cut: cutAt(rel, new URL(req.url, 'http://localhost').searchParams, span), capMbit: connMbit} : {};
     if (range) {

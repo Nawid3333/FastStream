@@ -1222,7 +1222,7 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
     client.interfaceController.saveManager = {makingDownload: false};
     client.downloadManager = {yielding: false, memoryFull: false, getSpeed: () => speed,
       canGetFile: () => true, activeCount: () => 0};
-    client.player = {downloadFragment: vi.fn(() => Promise.resolve())};
+    client.player = {getVideo: () => null, downloadFragment: vi.fn(() => Promise.resolve())};
     client.predownloadFragments();
     waiting = [];
     return client.player.downloadFragment.mock.calls.length;
@@ -1249,7 +1249,7 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
       let running = 0;
       client.downloadManager = {yielding: false, memoryFull: false, getSpeed: () => 0,
         canGetFile: () => true, activeCount: () => running, urgentParallel: () => urgentParallel};
-      client.player = {duration: 1400, downloadFragment: vi.fn(() => {
+      client.player = {duration: 1400, getVideo: () => null, downloadFragment: vi.fn(() => {
         running++;
         return Promise.resolve();
       })};
@@ -1258,6 +1258,82 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
     };
     expect(started(2)).toBe(2);
     expect(started(5)).toBe(5);
+  });
+
+  describe('while the video waits', () => {
+    // Each has played (its played ranges): the start is left as it was.
+    const PLAYED = {length: 1};
+    const SEEKING = {seeking: true, paused: false, readyState: 1, played: PLAYED};
+    /**
+     * Runs the predownloader once at 10.5 s, short of video, with the fragments of a video
+     * track (2 s each, 10-16 s) and of an audio track (the same), the nearest first.
+     * @param {{sharesLine: boolean, video?: {seeking: boolean, paused: boolean, readyState: number, played: {length: number}},
+     *   asked?: boolean, live?: boolean, untimed?: boolean, from?: number}} line - asked: playback has a
+     *   request running; from: where the first waiting fragment starts.
+     * @return {string[]} The fragments it started, as track:start.
+     */
+    const startedAt = ({sharesLine, video = SEEKING, asked = false, live = false, untimed = false, from = 10}) => {
+      vi.stubGlobal('navigator', {onLine: true});
+      const client = makeClient({maxSpeed: -1});
+      const make = (track, start) => ({track, start: untimed ? -1 : start, end: untimed ? -1 : start + 2,
+        canFree: () => true, getContext: () => ({})});
+      const waiting = [];
+      for (let start = from; start < 16; start += 2) waiting.push(make('video', start), make('audio', start));
+      client.state.currentTime = 10.5;
+      client.getNextToDownload = () => waiting.shift() || null;
+      client.getVideoAhead = () => 0;
+      client.concentrating = true;
+      client.isLive = () => live;
+      client.needsUserInteraction = () => false;
+      client.interfaceController.saveManager = {makingDownload: false};
+      const started = [];
+      client.downloadManager = {yielding: false, memoryFull: false, getSpeed: () => 0,
+        canGetFile: () => true, activeCount: () => started.length, urgentParallel: () => 6,
+        sharesLine: () => sharesLine, playbackAsked: () => asked};
+      client.player = {duration: 1400, getVideo: () => video, downloadFragment: vi.fn((fragment) => {
+        started.push(`${fragment.track}:${fragment.start}`);
+        return Promise.resolve();
+      })};
+      client.predownloadFragments();
+      return started;
+    };
+
+    it('on a line the downloads share, downloads only the fragments the playhead is in', () => {
+      // A seek's segment shared the line with the one after it: an HLS seek on a 6 Mbit/s line
+      // waited 1.9 s for a segment that alone came in 0.8 s (stall-hls, 2026-11-15).
+      expect(startedAt({sharesLine: true})).toEqual(['video:10', 'audio:10']);
+      // Not one behind it, where the next waiting is one that ended before the playhead.
+      expect(startedAt({sharesLine: true, from: 8})).toEqual([]);
+      // Playing with nothing ahead (a stall) is waiting too.
+      expect(startedAt({sharesLine: true, video: {seeking: false, paused: false, readyState: 2, played: PLAYED}})).toEqual(['video:10', 'audio:10']);
+    });
+
+    it('on a line the downloads share, nothing beside what playback asked for', () => {
+      // At a fragment's edge hls.js asked for the one before the playhead, and the store's own
+      // downloads ahead shared the line with it.
+      expect(startedAt({sharesLine: true, asked: true})).toEqual([]);
+    });
+
+    it('where each connection has its own speed, or before the test could tell, downloads ahead as before', () => {
+      expect(startedAt({sharesLine: false})).toHaveLength(6);
+      expect(startedAt({sharesLine: false, asked: true})).toHaveLength(6);
+    });
+
+    it('not waiting - playing on, or paused - downloads ahead as before', () => {
+      expect(startedAt({sharesLine: true, asked: true, video: {seeking: false, paused: false, readyState: 4, played: PLAYED}})).toHaveLength(6);
+      expect(startedAt({sharesLine: true, asked: true, video: {seeking: false, paused: true, readyState: 1, played: PLAYED}})).toHaveLength(6);
+    });
+
+    it('before the video has played (the start), downloads ahead as before', () => {
+      // Held back there on a local server, ram-budget.e2e's stream came in after its RAM budget
+      // held it, and never finished; the start was measured and left as it was (2026-11-06).
+      expect(startedAt({sharesLine: true, asked: true, video: {seeking: false, paused: false, readyState: 1, played: {length: 0}}})).toHaveLength(6);
+    });
+
+    it('on a live stream (its own clock), and for fragments without times, as before', () => {
+      expect(startedAt({sharesLine: true, live: true})).toHaveLength(6);
+      expect(startedAt({sharesLine: true, untimed: true})).toHaveLength(6);
+    });
   });
 
   it('downloads ahead with no speed limit, and under a limit it has not reached', () => {
@@ -2505,7 +2581,7 @@ describe('FastStreamClient, a fragmented MP4\'s ranges not parsed yet, in a down
     client.interfaceController.saveManager = {makingDownload: false};
     client.downloadManager = {yielding: false, waiting: false, memoryFull: false, getSpeed: () => 0, removeFile: vi.fn(),
       canGetFile: () => true, activeCount: () => 0, urgentParallel: () => 6};
-    client.player = {duration: 600, currentFragment: frags[Math.min(3, Math.floor(time / 60))], currentAudioFragment: null,
+    client.player = {duration: 600, getVideo: () => null, currentFragment: frags[Math.min(3, Math.floor(time / 60))], currentAudioFragment: null,
       getCurrentVideoLevelID: () => 'L', getCurrentAudioLevelID: () => null,
       downloadFragment: vi.fn((fragment) => {
         fragment.status = DownloadStatus.DOWNLOAD_INITIATED;

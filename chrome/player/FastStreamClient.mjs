@@ -1846,6 +1846,22 @@ export class FastStreamClient extends EventEmitter {
     if (this.concentrating && !wasConcentrating) {
       this.cancelFarDownloads();
     }
+    // The video waits (a seek, a stall), on a line the downloads share: what playback asked for
+    // alone, and until it asks, only the fragments the playhead is in. A download beside it
+    // took half the line it needed: an HLS seek on a 6 Mbit/s line waited 1.9 s for a 2 s
+    // segment that alone comes in 0.8 s (tools/bench-ab.mjs, stall-hls, 2026-11-15). As
+    // hls.js and dash.js load one segment per track at a time. The element tells, not the
+    // store: at a fragment's edge hls.js asked for the one before the playhead, the store had
+    // those after, and two downloads ahead shared the line with it. Waiting as MP4Player's loop
+    // has it (LoopPace): seeking, or playing without data ahead. Only once the video has played
+    // (its element's played ranges), and not where each connection has its own speed, nor while
+    // the speed test runs (sharesLine): the start is left as it was, where holding back cost a
+    // server that limits each connection a segment ahead (docs/notes/player.md, 2026-11-06), and
+    // held back there on a local server, ram-budget.e2e's stream came in after its budget held it.
+    const video = this.currentVideo;
+    const playheadOnly = !!video && video.played?.length > 0 &&
+      (video.seeking || (!video.paused && video.readyState < 3)) &&
+      !this.isLive() && this.downloadManager.sharesLine();
 
     // Don't pre-download if user is offline
     if (!navigator.onLine) {
@@ -1891,6 +1907,13 @@ export class FastStreamClient extends EventEmitter {
       // (A live stream's fragments are placed on its own clock: no window there.)
       if (this.concentrating && (this.downloadManager.activeCount() >= this.downloadManager.urgentParallel() ||
           (!this.isLive() && nextDownload.start > this.state.currentTime + KEEP_AHEAD_S))) {
+        break;
+      }
+      // Only one the playhead is in; the rest waits. (One without times, start -1, cannot be
+      // placed: only the limit above holds it, as before.) Checked before each: the playhead's
+      // fragment started here is joined by playback's request once it asks.
+      if (playheadOnly && (this.downloadManager.playbackAsked() || (isTimed(nextDownload) &&
+          (nextDownload.start > this.state.currentTime + 0.1 || nextDownload.end <= this.state.currentTime)))) {
         break;
       }
 

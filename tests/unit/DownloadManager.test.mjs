@@ -632,6 +632,52 @@ describe('DownloadManager', () => {
         expect(manager.downloaders).toHaveLength(3);
         expect(manager.urgentParallel()).toBe(2);
       });
+
+      it('tells a line the downloads share only once the speed test found it (sharesLine)', () => {
+        // The client then downloads only what the playhead waits for, while it has nothing.
+        expect(fresh().sharesLine()).toBe(false);
+        const shared = fresh();
+        runTest(shared, () => 1.5e6);
+        expect(shared.sharesLine()).toBe(true);
+        const perConnection = fresh();
+        runTest(perConnection, (count) => count * 2e5);
+        expect(perConnection.sharesLine()).toBe(false);
+        // After a slow-down nothing is known until a probe measures again. (It retires some
+        // downloaders: here the test's own.)
+        shared.downloaders.forEach((downloader) => {
+          downloader.retire ??= vi.fn();
+        });
+        shared.slowDown(0);
+        expect(shared.sharesLine()).toBe(false);
+        // Found midway, while the test still adds downloaders: not yet. That is the start, where
+        // holding back was left out (2026-11-06), and the test needs every downloader heard;
+        // held back there, ram-budget.e2e's stream did not come in before its budget held it.
+        // Each one more adds a little (as 'runs two where each one more added a little'), so the
+        // test goes on up to the limit.
+        const midway = fresh();
+        for (let round = 0; round < 2; round++) {
+          const count = midway.downloaders.length;
+          midway.downloaders.slice().forEach((downloader) => {
+            downloader.getSpeed = () => (1.5e6 + count * 1e4) / count;
+            midway.onDownloaderFinished(downloader, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+          });
+        }
+        expect(midway.testing).toBe(true);
+        expect(midway.perConnection).toBe(false);
+        expect(midway.sharesLine()).toBe(false);
+      });
+
+      it('knows when playback has a request downloading or queued (playbackAsked)', () => {
+        const manager = fresh();
+        expect(manager.playbackAsked()).toBe(false);
+        manager.queue.push({priority: 0}, {priority: -1});
+        expect(manager.playbackAsked()).toBe(false);
+        manager.downloaders[0].entry = {priority: 1000};
+        expect(manager.playbackAsked()).toBe(true);
+        manager.downloaders[0].entry = null;
+        manager.queue.push({priority: 1000});
+        expect(manager.playbackAsked()).toBe(true);
+      });
     });
 
     it('hears a real 429 through FetchLoader and StandardDownloader, with its Retry-After', async () => {
@@ -1186,5 +1232,68 @@ describe('DownloadManager cancelling a running download however far in (setYield
     } finally {
       manager.destroy();
     }
+  });
+
+  describe('a segment playback asked for and gave up (letGo)', () => {
+    // hls.js and dash.js give up their segment at a seek. The download ahead that held it too
+    // kept playback's priority, the seek's cancelling spared it, and it shared the line with
+    // the new place's segment (stall-hls's trace, 2026-11-15: 1.2 s beside a seek's segment).
+
+    it('falls back to the priority of the download ahead, and has the client cancel the far ones (its window)', async () => {
+      const {manager, details, watchers} = await downloading([100]);
+      try {
+        const playback = manager.getFile(details[0], {onSuccess: vi.fn(), onAbort: vi.fn()}, 1000);
+        expect(manager.cancelIfCheap(details[0])).toBe(false);
+        manager.client = {...manager.client, concentrating: true, cancelFarDownloads: vi.fn(() => manager.cancelIfCheap(details[0]))};
+        playback.abort();
+        expect(manager.client.cancelFarDownloads).toHaveBeenCalledTimes(1);
+        expect(watchers[0].entry.status).toBe(DownloadStatus.DOWNLOAD_FAILED);
+        expect(watchers[0].callbacks.onAbort).toHaveBeenCalled();
+      } finally {
+        manager.destroy();
+      }
+    });
+
+    it('with video enough ahead, only falls back: its downloads far ahead are wanted', async () => {
+      const {manager, details, watchers} = await downloading([100]);
+      try {
+        const playback = manager.getFile(details[0], {onSuccess: vi.fn(), onAbort: vi.fn()}, 1000);
+        manager.client = {...manager.client, concentrating: false, cancelFarDownloads: vi.fn()};
+        playback.abort();
+        expect(manager.client.cancelFarDownloads).not.toHaveBeenCalled();
+        expect(watchers[0].entry.status).toBe(DownloadStatus.DOWNLOAD_INITIATED);
+        expect(watchers[0].entry.priority).toBe(0);
+      } finally {
+        manager.destroy();
+      }
+    });
+
+    it('keeps playback\'s priority while another request of playback holds it', async () => {
+      const {manager, details, watchers} = await downloading([100]);
+      try {
+        const first = manager.getFile(details[0], {onSuccess: vi.fn()}, 1000);
+        manager.getFile(details[0], {onSuccess: vi.fn()}, 1000);
+        manager.client = {...manager.client, concentrating: true, cancelFarDownloads: vi.fn()};
+        first.abort();
+        expect(watchers[0].entry.priority).toBe(1000);
+        expect(manager.client.cancelFarDownloads).not.toHaveBeenCalled();
+      } finally {
+        manager.destroy();
+      }
+    });
+
+    it('waiting in the queue, goes back to its place by the priority left', () => {
+      const manager = new DownloadManager({});
+      manager.downloaders = [];
+      const ahead = (name) => manager.getFile({url: `https://cdn.test/${name}.ts`, responseType: 'arraybuffer'}, {onSuccess: vi.fn()}, 0);
+      const a = ahead('a');
+      const b = ahead('b');
+      const playback = manager.getFile({url: 'https://cdn.test/b.ts', responseType: 'arraybuffer'}, {onSuccess: vi.fn()}, 1000);
+      expect(manager.queue).toEqual([b.entry, a.entry]);
+      playback.abort();
+      expect(manager.queue).toEqual([a.entry, b.entry]);
+      expect(b.entry.status).toBe(DownloadStatus.ENQUEUED);
+      expect(b.entry.priority).toBe(0);
+    });
   });
 });

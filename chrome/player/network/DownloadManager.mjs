@@ -549,10 +549,12 @@ export class DownloadManager {
     storedEntry.preProcessor = details.preProcessor;
     storedEntry.postProcessor = details.postProcessor;
 
+    /** @type {import('./DownloadEntry.mjs').DownloadWatcher} */
     const watcher = {
       entry: storedEntry,
+      priority,
       abort: () => {
-        watcher.entry.abortWatcher(watcher);
+        this.letGo(watcher);
       },
       callbacks: callbacks,
 
@@ -594,6 +596,43 @@ export class DownloadManager {
     }
 
     return watcher;
+  }
+
+  /**
+   * A request gives up its hold on a download (its watcher's abort). The last one stops it; for
+   * the others it goes on, at the highest priority they asked for. It kept the one that left:
+   * hls.js and dash.js give up their segment at a seek, and the download ahead that held the
+   * same segment kept playback's priority, so the seek's cancelling of the old place
+   * (FastStreamClient's currentTime, cancelIfCheap) spared it and it shared the line with the
+   * new place's segment (stall-hls's trace, 2026-11-15: 1.2 s of it beside a seek's segment).
+   * One that playback let go of is cancelled now if it lies outside the window around the
+   * playhead, while the player keeps to that window (short of video, as after every seek:
+   * FastStreamClient.cancelFarDownloads); with video enough ahead, its downloads far ahead are
+   * wanted.
+   * @param {import('./DownloadEntry.mjs').DownloadWatcher} watcher
+   */
+  letGo(watcher) {
+    const entry = watcher.entry;
+    entry.abortWatcher(watcher);
+    // Destroyed (a player gone, its loaders giving up after): nothing to reorder or cancel.
+    if (!entry.watchers.length || !this.downloaders) return;
+    const priority = Math.max(...entry.watchers.map((other) => other.priority ?? 0));
+    const was = entry.priority || 0;
+    if (priority >= was) return;
+    if (entry.status === DownloadStatus.ENQUEUED) {
+      // Back to its place in the queue, by the priority it has now.
+      const index = this.queue.indexOf(entry);
+      if (index !== -1) this.queue.splice(index, 1);
+      entry.priority = priority;
+      this.requeueEntry(entry);
+    } else if (entry.status === DownloadStatus.DOWNLOAD_INITIATED) {
+      entry.priority = priority;
+    } else {
+      return;
+    }
+    if (was >= PLAYBACK_PRIORITY && priority < PLAYBACK_PRIORITY && this.client?.concentrating) {
+      this.client.cancelFarDownloads();
+    }
   }
 
   getSpeed() {
@@ -931,6 +970,28 @@ export class DownloadManager {
   urgentParallel() {
     if (!this.downloaders) return URGENT_PARALLEL;
     return this.testing || this.perConnection ? Math.max(URGENT_PARALLEL, this.downloaders.length) : URGENT_PARALLEL;
+  }
+
+  /**
+   * Whether the speed test is done and found a line the downloads share: one more download added
+   * nothing or little. There each one running beside the fragment playback waits for slows it.
+   * Not while the test runs: that is the start, where holding back was measured and left out
+   * (docs/notes/player.md, 2026-11-06), and the test needs every downloader heard. Not known
+   * before, nor after a slow-down until a probe has measured again.
+   * @return {boolean}
+   */
+  sharesLine() {
+    return !this.testing && this.perConnection === false;
+  }
+
+  /**
+   * Whether this player's playback has a request downloading or waiting for a downloader (its
+   * PLAYBACK_PRIORITY): what a waiting video waits for.
+   * @return {boolean}
+   */
+  playbackAsked() {
+    const playback = (/** @type {DownloadEntry|null|undefined} */ entry) => !!entry && (entry.priority || 0) >= PLAYBACK_PRIORITY;
+    return this.queue.some(playback) || !!this.downloaders?.some((downloader) => playback(downloader.entry));
   }
 
   /**

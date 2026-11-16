@@ -816,6 +816,44 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   with three others. Holding back helps only where the downloads share a line, and the player
   cannot tell which kind of server it has before the speed test: left out (the owner: no
   regressions). The patch and runs: kept by the 2026-11-06 session, not in the repository.
+- **While the video waits, on a line the downloads share: playback's request alone
+  (2026-11-15).** Traced in the A/B benchmark (`stall-hls`, a 6 Mbit/s line, 100 ms to the first
+  byte, 2 s segments of 525 kB): a seek's segment came in 1.6 s, sharing the line with the next
+  one, where alone it takes 0.8 s. Two causes, both general:
+  - `PlayheadFirst` runs two downloads while short, and nothing told the one playback waits for
+    from the one after it. Now, while the element waits (seeking, or playing without data ahead,
+    as `LoopPace` has it), once it has played (its `played` ranges), and the speed test is done
+    and found a line the downloads share (`DownloadManager.sharesLine`), nothing downloads
+    beside playback's own request (`playbackAsked`), and until it asks only the fragments the
+    playhead is in. The element tells, not the store: at a segment's edge hls.js asked for the
+    one before the playhead while the store held those after it, and counted them as video
+    ahead. The start is left as it was (the entry above). A first version held back from the
+    test's verdict on, also before the first frame: on the e2e's local server the test decides
+    within the first burst, and `ram-budget.e2e`'s stream ("writes what does not fit to disk")
+    then came in after its 2 MB budget held it and never finished, 3 of 3 runs (main 3 of 3
+    passed). That spec leans on the burst: paused with the near window (KEEP_ON_DISK_WINDOW) over
+    the budget, a player downloads nothing more until it plays on, by design.
+  - A download that playback asked for and gave up kept playback's priority. hls.js and dash.js
+    give up their segment at a seek; the download ahead that held the same segment then ran on
+    at playback's priority, the seek's `cancelIfCheap` spared it, and it took the line from the
+    new place's segment for 1.2 s. A watcher now keeps its own priority, and a download falls
+    back to the highest of those left (`DownloadManager.letGo`); one that drops below playback's
+    is cancelled with the other far ones while the player keeps to its window.
+  - A/B, 5 rounds a build, main against the first version (held back from the test's verdict
+    on): on the 6 Mbit/s line the HLS seek (median of 3) 2452 -> 1218 ms, on the same line with
+    20 % of answers cut 2102 -> 1216 ms (p 0.008, 5 of 5 each); on a server capping each
+    connection at 3 Mbit/s 1819 -> 1821 ms; on a 3 Mbit/s line falling to a quarter every other
+    5 s, 150 ms to the first byte, 30 s played, 6795 -> 2004 ms (p 0.008, with the benchmark's
+    jitter pattern starting at each run: see Buffering). Every other measure (MP4, HLS, DASH and
+    idle start, playback, stalls) the same on all four. The final version, again: 2448 -> 1213 ms
+    on the 6 Mbit/s line (every scenario run, all else the same) and 6168 -> 2020 ms on the
+    falling 3 Mbit/s line (stalls, starts and the other seeks the same), p 0.008, 5 of 5 each.
+  - DASH's seeks did not change: the benchmark's manifest has a Period every 9 s, and the store
+    holds only the first Period's segments (DashLoader.loadFragmentInternal: a later Period's
+    have no place there), so dash.js fetches those itself, at the default priority, not
+    playback's. Open: a later Period's segments in the store, or at least at playback's priority.
+  - Open: a seek in the first seconds, while the speed test still runs four downloads, takes
+    3.1 s on the 6 Mbit/s line either way (the start's question, the entry above).
 - **The download line counts the connections again (2026-10-22, the owner's wish):**
   "3C ↓9.6 Mbit/s 50%", as upstream showed until 2026-10-09, now with the speed in Mbit/s
   (`DownloadStatusText.mjs`). The count is the downloads running at that moment
@@ -1410,12 +1448,14 @@ Period, `looped.mpd`) for `--stall-ms` (60 s), then seek three times far into it
 how long it waited for media while playing (`waiting` not caused by a seek), the seconds it played,
 the megabytes it fetched, and the median time from a seek to playing past the place. The line can
 be made like real ones: `--jitter P` drops it to `--jitter-factor` (0.25) of its rate every other
-P ms; `--conn C` caps each answer at C Mbit/s, as servers that throttle a connection do; `--drop D`
+P ms, from each run's start (full first), so every run of both builds meets the same line - on
+one clock for all, main's HLS first frames came at 4.1 s three times in 5 rounds and the other
+build's at 6.7-7.7 s each time, the same requests in the line's slow half or not; `--conn C` caps each answer at C Mbit/s, as servers that throttle a connection do; `--drop D`
 cuts D % of the media answers part-way, at the byte chosen - the same requests for both builds
 (by path, place and where the range ends, not the run), and only a run's first ask, so a retry
 gets through, also one that goes on from where the cut stopped. The megabytes count requests
 finished in the playing time. The long MP4 (17 MB) is often all loaded after a minute on a fast
-line: its seeks then time a seek into what is there. A trial, main against
+line: its seeks then time a seek into what is there (after `--stall-ms 5000`, 4 MB in, mostly not). A trial, main against
 itself, 1 round, 3 Mbit/s with jitter 5000, 150 ms to the first byte, 5 % cut: first frame 9-10 s
 (MP4), 6-7 s (HLS, DASH); seeks 2.4-7.9 s.
 
