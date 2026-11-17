@@ -4,69 +4,25 @@ import {relayWatch} from './MpvRelayWatch.mjs';
 import {cutText, cutToLength, isStreamUrl, mpvTargetUrl, relayHeaderFields, startOf, streamTitle} from './MpvTarget.mjs';
 
 /**
- * Native messaging client for the FastStream mpv host
- * (see native-host/ in the repository root for the host application and
- * its installers).
- *
- * The host is registered under the name com.faststream.mpv. It receives
- * small JSON messages and launches mpv on the user's machine:
- *   {type: 'ping', mpvPath?}                      -> {ok, mpv, path}
- *   {type: 'open', url, headers?, contentType?, pageUrl?, title?, start?, subtitles?,
- *    mpvPath?, fullscreen?, singleInstance?}      -> {ok, error?, reused?, focus?, foreground?}
- *   {type: 'status', waitMs?}                     -> {ok, running, decoder}
- *   {type: 'watch'} over a port (connectNative)    -> watching, path, ended, request, closed
- * Every answer carries the host's `hostVersion` (see RequiredHostVersion below).
- *
- * The thin helper (host 15, 2026-10-13). The helper is installed by hand and never updates
- * itself, and it changed 14 times in 10 days, each one a reinstall for the owner, because
- * policy lived in it: the fs-* tags of the URL, the title, the end of a file for MPV
- * autoplay. He chose to move the policy here, where it updates with the extension, and to
- * keep in the helper only the mechanics, offered as allowlisted primitives:
- *   {type: 'play', target, title?, start?, headers?, subtitles?, mpvPath?, fullscreen?, newWindow?}
- *     -> as open's answer; target, title and the rest built here (MpvTarget.mjs)
- *   {type: 'ipc', commands}                       -> {ok, replies} (decoderStatus)
- *   {type: 'relay', heartbeat?, onStop?} over a port -> mpv's lines (MpvRelayWatch.mjs)
- * Each of its answers names them (`capabilities: ['play', 'ipc', 'relay']`), and this
- * client remembers what the helper can do from every answer. An older helper answers
- * "unknown message" to them, and gets the messages above from then on: no helper is too old
- * to use, and no feature waits for a reinstall any more.
- *
- * An open that worked on Windows (host version 3 and later) says how raising mpv's window
- * went: `focus` ("True", "False", "nowindow", ...) and `foreground` ("True" when mpv's
- * window was the foreground window 250 ms after it was raised), and `reused` when the
- * stream went into the mpv already open. openStream passes the three on as the host sent
- * them (the message list at the top of native-host/faststream-mpv-host.mjs says what each
- * value means), so a caller can log or show an mpv that opened behind the browser.
- *
- * `headers` is the subset of the original request headers mpv needs to
- * fetch CDN streams. Only Referer, Origin and User-Agent are relayed --
- * without the browser's User-Agent mpv identifies itself as "libmpv", which
- * CDNs that gate on a browser UA reject. Cookies and everything else stay in
- * the browser.
- *
- * `contentType` ('anime'|'movie', optional) is the MPV allowlist tag or the
- * player's manual override (see background.mjs's Mpv.openStream call
- * sites) for gpu-toggles.lua's content-aware shader selection on the mpv
- * side. The host appends it to the stream URL as a `#fs-content=` fragment
- * marker, which is never sent to the CDN.
- *
- * `pageUrl` is the tab's page URL (the episode page). The host hashes it into
- * an `fs-id=` marker in the same fragment, which mpv's stream-resume.lua
- * uses to save and restore the playback position -- the stream URL itself
- * usually carries an expiring token and cannot serve as that key.
+ * Native messaging client for the FastStream mpv helper (native-host/), registered as
+ * com.faststream.mpv. Every answer carries the helper's `hostVersion`.
+ *   ping, open, status, watch: the messages every helper knows.
+ *   play, ipc, relay: host 15's primitives (the thin helper: target, title and the rest are
+ *     built here, MpvTarget.mjs). A helper lists them in `capabilities`, this client learns
+ *     them from every answer, and an older helper's "unknown message" sends it back to open.
+ * Only Referer, Origin and User-Agent are relayed to mpv; cookies stay in the browser.
+ * Each message's fields and answers: the top of native-host/faststream-mpv-host.mjs. Why the
+ * helper is thin, the open's focus/foreground/reused, and the #fs-content=/fs-id= markers
+ * (contentType, pageUrl): docs/notes/mpv.md.
  */
 
 const NativeHostName = 'com.faststream.mpv';
 
-// The host this extension was released with: HostVersion in
-// native-host/faststream-mpv-host.mjs at that commit (tests/unit/mpvHostVersion.test.mjs
-// keeps the two equal). The host is not part of the extension: a PC runs the copy
-// install.ps1 made, and neither an extension update nor a `git pull` changes that copy.
-// An answer with a lower version, or none (a host from before 2026-10-04), is an
-// outdated host: the stream still goes to it, and the toolbar button's tooltip and "Test
-// mpv connection" say to install the host again. Only that: no "!" on the button and no
-// warning in the player since the thin helper (2026-10-13), as an older helper still works
-// (through the messages it knows) and lacks only newer features.
+// The helper this extension was released with: HostVersion in native-host/faststream-mpv-host.mjs
+// (mpvHostVersion.test.mjs keeps the two equal). A PC runs the copy install.ps1 made, which no
+// extension update changes. A lower version, or none, is an outdated helper: it still gets the
+// stream (through the messages it knows), and the toolbar's tooltip and "Test mpv connection"
+// say to install it again.
 export const RequiredHostVersion = 19;
 
 // The largest message the host reads (MaxMessageBytes in native-host/faststream-mpv-host.mjs),
