@@ -34,30 +34,21 @@ import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPending
 
 // Empty until the saved options are read (loadOptions; ensureOptions waits for them).
 export let Options = /** @type {PlayerOptions} */ ({});
-/** @type {{customSourcePatterns?: string}} What loadCustomPatterns last compiled. */
+/** @type {{customSourcePatterns?: string}} */
 const OptionsCache = {};
-// The redirect rules as this background last gave them to declarativeNetRequest, by id
-// (setupRedirectRule, removeRule): the rule, or RedirectRuleRemoved. Every options save loads
-// the options again, and each load made both rules again, unchanged: two updates of the
-// browser's rules per save, some 120 for a slider dragged for two seconds.
+// Each options load made both rules again, unchanged: two rule updates per save.
 /** @type {Map<number, string>} */
 const RedirectRulesMade = new Map();
 const RedirectRuleRemoved = 'removed';
 
-// "Auto-enable URLs": prefix, `~` regex and `!` exclusion like the MPV allowlist, and
-// `-domain` to exclude a whole site, from the redirect of manifest links too.
+// `-domain` excludes a whole site, from the redirect of manifest links too.
 export const AutoEnableList = new UrlMatchList({domainEntriesExclude: true});
-// FastStream's requests follow the page's through Firefox VPN (VpnProxyMirror.mjs). The
-// optional "proxy" permission, which the player asks for, lets them.
 export const VpnMirror = new VpnProxyMirror({
   origin: chrome.runtime.getURL(''),
   getProxyApi: () => /** @type {any} */ (chrome).proxy || null,
 });
 
-/**
- * Reads whether FastStream holds the "proxy" permission, for VpnMirror.
- * @return {Promise<boolean>}
- */
+/** @return {Promise<boolean>} */
 async function refreshProxyPermission() {
   let permitted = false;
   // Not in @types/chrome's list of permissions; Firefox has it (an optional one).
@@ -89,57 +80,34 @@ chrome.permissions.onRemoved.addListener(() => refreshProxyPermission());
 const ManualMpvRepeatMs = 3000;
 let LastManualMpvUrl = '';
 let LastManualMpvTime = 0;
-// The answer of that send, which a repeat click gets too: an immediate "sent" made the
-// player say so and pause the page while the first send could still fail (glm's review,
-// 2026-10-12).
+// A repeat click gets the first send's answer: an immediate "sent" was wrong when it failed.
 /** @type {?Promise<MpvHandOff>} */
 let LastManualMpvAnswer = null;
 
-// How long a tab stays "armed" after content.js reports focus moving into
-// one of its player iframes (see the tabs.onCreated listener below). Short
-// on purpose: a popup/popunder script reacting to that same blur event fires
-// within tens of ms, while a deliberate unrelated action from the user
-// (e.g. middle-clicking a different link) takes noticeably longer to
-// physically happen - so this window trades a little bit of the former for
-// a lot less risk of the latter.
+// Short: a popup script reacting to the click's blur fires within tens of ms; a deliberate new tab takes longer.
 const PopupGuardArmMs = 700;
-// How long the guard stays armed after actually closing a tab, to catch a
-// popup/popunder script that opens more than one tab off a single click
-// without leaving the guard live long enough to catch unrelated activity.
+// Re-armed this long after a close: a popup script often chains two or three tabs.
 const PopupGuardChainMs = 400;
 
-// Resolves once options have been read from storage. Clicks and navigation
-// events can arrive before the initial load completes (fresh install,
-// add-on reload); awaiting this prevents them from acting on an empty
-// Options object, where mpvMode and the allowlist would read as disabled.
-// The toolbar state saved before the event page was last unloaded comes back
-// on the same promise, for the same reason: an allowlisted site's reload would
-// otherwise find no record of the user's choice and auto-start MPV again.
+// Events can come before the options are read (install, reload): on empty options MPV mode and the lists read as off.
 /** @type {?Promise<*>} */
 let OptionsLoadPromise = null;
 export function ensureOptions() {
   if (!OptionsLoadPromise) {
-    // Firefox's word for the system first: the toolbar states restored name the mpv helper's
-    // steps for it (EnvUtils.isWindows).
+    // Firefox's word for the system first: the restored toolbar states name the mpv helper's steps for it.
     OptionsLoadPromise = EnvUtils.os().then(() => Promise.all([
       loadOptions(),
       Tabs.restoreTabStates(),
     ])).then(() => leaveMpvWhenOff()).catch((e) => {
       console.error('Loading the options failed', e);
-      // The next event tries again. Kept, the failure stood until the event page unloaded,
-      // and every event acted on no options: MPV mode and both URL lists off.
+      // The next event tries again: kept, the failure stood until the event page unloaded.
       OptionsLoadPromise = null;
     });
   }
   return OptionsLoadPromise;
 }
 const ExtensionVersion = chrome.runtime.getManifest().version;
-// The debug lines (`if (Logging)`) are on for a temporary install - the e2e suites'
-// (installAddOn(xpi, true)) and a developer's (web-ext run, about:debugging) - and off for
-// an installed release. The e2e configs print the background's console into each spec's
-// driver log, which CI keeps for a failed or retried spec: what the background detected,
-// opened and sent to mpv. getSelf() needs no permission; it answers within a tick, before
-// any page the tests open sends a request.
+// On for a temporary install (the e2e suites, web-ext run), off for an installed release.
 export let Logging = false;
 chrome.management.getSelf().then((self) => {
   Logging = self.installType === 'development';
@@ -147,50 +115,31 @@ chrome.management.getSelf().then((self) => {
 export const Tabs = new TabTracker();
 const ruleManager = new RuleManager();
 
-// How long each detected stream plays, so that the longest of a page's streams plays and
-// not the ad (StreamLength.longest). The reads go out from this background, in no tab:
-// the rule that gives them the page's headers matches on that.
+// The reads go out from this background, in no tab: the header rule matches on that.
 export const Lengths = new StreamLengths({
   setHeaders: (url, commands) => ruleManager.addHeaderRule(url, chrome.tabs.TAB_ID_NONE, commands),
 });
-// The page's subtitles for mpv (MPV mode), read as Lengths reads: from this background, in
-// no tab, with the page's Origin and Referer.
 export const PageSubtitles = new MpvSubtitles({
   setHeaders: (url, commands) => ruleManager.addHeaderRule(url, chrome.tabs.TAB_ID_NONE, commands),
 });
-// How long a frame has to tell its <track> elements before the stream goes to mpv without
-// them: content scripts share the page's event loop, and a busy page would hold mpv back.
+// Content scripts share the page's event loop: a busy page would hold mpv back.
 export const CaptionScrapeWaitMs = 1000;
 // The longest a player waits for the lengths still being read.
 export const SourceLengthWaitMs = 2500;
-// The longest a player waits for the page to say what its video played (getPlayedVideo).
-// The page answers within milliseconds unless its own scripts keep it busy; then the
-// longest decides, as before the question.
+// The page answers within milliseconds unless its scripts keep it busy.
 const PlayedVideoWaitMs = 1000;
-// The longest the other questions to a frame wait (askFrame): its video's size, its captions,
-// whether it may go fullscreen. Content scripts share the page's event loop, and one that
-// never let go held a click (no player opened) or a fullscreen request for good.
+// Content scripts share the page's event loop: one that never let go held a click or a fullscreen for good.
 const FrameAnswerWaitMs = 3000;
 // A player's port to its page, joined to the page's frame (PageFetchRelay.mjs).
 chrome.runtime.onConnect.addListener((port) => {
   relayPageFetch(port, {extensionId: chrome.runtime.id, extensionUrl: chrome.runtime.getURL(''),
     connectTab: (tabId, info) => chrome.tabs.connect(tabId, info)});
 });
-// The captions' scrape waits for the page's tracks, each up to 10 s (content.js
-// HttpRequestTimeoutMs): a little longer than that.
+// content.js waits up to 10 s per track (HttpRequestTimeoutMs): a little longer.
 const CaptionsAnswerWaitMs = 12000;
-// The longest a player, or a hand-off to mpv, waits for a page to list its player's qualities
-// (getPageQualities). It reads them from what it holds: milliseconds, unless its scripts are busy.
 const PageQualitiesWaitMs = 1000;
-// The longest a hand-off to mpv waits for an HLS master playlist to be read, for its
-// qualities (hlsQualityChoice), and for any manifest, for its copy protection (openInMpv);
-// the read starts when the stream is detected.
 export const HlsQualitiesWaitMs = 1500;
-// How long a video's file the page told as it loaded (content.js on loadedmetadata, a
-// LOADED_MEDIA with live set) waits before it is taken in. The request for it, when there
-// was one, is the one to keep: its own headers (an Origin), not the page's stand-ins. It
-// came before the video had any data, and its onHeadersReceived could still come after the
-// page's word (a fast server; mpv.e2e.mjs, whose crossorigin video's Origin was lost).
+// The page's word comes before the video has data: the request's own headers (an Origin) may still come after it.
 const LiveMediaReportWaitMs = 1000;
 
 
@@ -213,35 +162,22 @@ ensureOptions().then(() => BackgroundUtils.queryTabs()).then((ctabs) => {
 
 const EmptyTabUrls = ['about:blank', 'about:home', 'about:newtab', 'about:privatebrowsing'];
 
-// How many players openPlayer has asked for, to number each attempt (frame.playerOpeningAttempt).
 let playerOpeningAttempts = 0;
-// An open that ended without a player (noteOpenMissed) is tried again by itself this long
-// after, then twice and four times as long (1, 3 and 7 s after the first miss): a page just
-// loaded, or loaded again, has its video a moment later.
+// A page just loaded, or loaded again, has its video a moment later; then twice and four times as long.
 const ReopenMissedFirstMs = 1000;
-// How long the next episode's instructions wait for its player: a page that takes longer is
-// the user's own by then (endContinuation).
+// A page that takes longer is the user's own by then.
 const ContinuationKeepMs = 120000;
 const ReopenMissedTimes = 3;
-// ...and when the page asks for the stream again, no sooner than this after the last try,
-// doubling with each miss up to the longest: a page that plays a video nobody sees (a live
-// playlist loads every few seconds) is asked less and less.
+// Doubling up to the longest: a page playing a video nobody sees is asked less and less.
 const ReopenMissedEveryMs = 2000;
 const ReopenMissedLongestMs = 60000;
 // A play the user starts tries at once, but not twice within this (one press, two events).
 const ReopenOnPlayEveryMs = 500;
 
 /**
- * Whether the tab has FastStream's in-page player up, or on its way.
- *
- * frame.playerOpening flips true the moment OPEN_PLAYER is sent, well before
- * PLAYER_LOADED sets frame.isPlayer - checking isPlayer alone leaves a window
- * where the overlay iframe already exists on the page but goes undetected, so
- * a stale overlay survives an Off that should have torn it down, or stays up
- * while mpv plays the same stream in its own window.
- *
- * @param {TabHolder} tab - The tab to check.
- * @return {boolean} True when an in-page player is open or opening.
+ * playerOpening counts: the overlay iframe exists before PLAYER_LOADED sets isPlayer.
+ * @param {TabHolder} tab
+ * @return {boolean}
  */
 function hasOrOpeningPlayer(tab) {
   for (const frame of tab.getFrames()) {
@@ -252,20 +188,12 @@ function hasOrOpeningPlayer(tab) {
   return false;
 }
 
-// How long the tab gets to say it holds a player. Each frame answers at once or not at
-// all, so this only runs out for a tab without one.
+// Each frame answers at once or not at all.
 const HasPlayerTimeoutMs = 1000;
 
 /**
- * Whether the tab has an in-page player, asking the tab itself when this background
- * knows of none. What it knows lives in memory, and a background that was stopped and
- * started again knows nothing, while the player stays on the page. Idling does not do
- * that while a player is open - an open extension page keeps the event page running
- * (measured 2026-09-28: 60 s idle, still running; closed, it stopped) - but Firefox can
- * still stop it, after a hang or with about:debugging's Terminate. Off then left the
- * player playing under a toolbar that said Off.
- *
- * @param {TabHolder} tab - The tab to check.
+ * Asks the tab when this background knows of none: a background started again knows nothing, while the player stays.
+ * @param {TabHolder} tab
  * @return {Promise<boolean>}
  */
 export async function tabHasPlayer(tab) {
@@ -284,15 +212,7 @@ export async function tabHasPlayer(tab) {
 }
 
 /**
- * The user turned the tab off, or MPV off (the toolbar, the MPV key, the player's key from
- * MPV). Off means off: nothing in the tab goes to mpv until they turn MPV on again. Each
- * hand-off already checks the tab is in MPV; what this adds:
- * - A play still waiting for its stream is dropped, with the check of the streams that
- *   came for it (sendPendingPlay checks the mode again before it sends, too).
- * - The MPV Allowlist does not start MPV again on this site (tab.mpvTurnedOff). The page's
- *   next address on the site kept the Off, but a page of the site the list does not name
- *   (an entry for its /watch pages, and its home page) forgot it, and the next episode
- *   went to mpv by itself. Another site is a fresh decision, as before.
+ * Off means off: a play waiting for its stream is dropped, and the MPV Allowlist does not start MPV on this site again.
  * @param {TabHolder} tab
  */
 export function userTurnedOff(tab) {
@@ -303,13 +223,8 @@ export function userTurnedOff(tab) {
 }
 
 /**
- * Forgets the user's Off (tab.mpvTurnedOff) for a tab whose address the MPV Allowlist
- * covers now and did not before: putting the site on the list is a fresh decision, and the
- * tab's next page there goes to MPV as on any listed site. Kept, an Off given on a site
- * before the user listed it outlived the listing (mpv-shortcut.e2e.mjs, "on a site on the
- * MPV allowlist"). An entry for another site, or any other option, keeps the Off; so does a
- * background that has just woken, which has no list from before to compare.
- * @param {?Array<string>} before - The allowlist's entries before the options changed.
+ * Listing the site is a fresh decision; an entry for another site, or a woken background with no list before, keeps the Off.
+ * @param {?Array<string>} before
  */
 function forgetOffsForNewEntries(before) {
   if (!before) {
@@ -326,27 +241,15 @@ function forgetOffsForNewEntries(before) {
 }
 
 /**
- * The toolbar button, and the toggle_player shortcut with playerKey. That command has
- * no default key: Firefox 159 binds Ctrl+Shift+F, its key until then, to its own Add-ons
- * page, and Firefox's key wins over an extension's. A user who wants one sets it on
- * about:addons.
- *
- * The button cycles MPV -> Off -> On -> MPV on a site on the MPV Allowlist, and turns
- * FastStream off or on everywhere else; from MPV a click is Off. The key is the in-page
- * player's own switch: from MPV - the allowlist's or the MPV key's - it goes straight
- * to the player, and otherwise turns the player off or on, on the allowlist too. So
- * each key turns on its own mode whatever mode the tab is in, and the last key pressed
- * decides.
- *
- * @param {chrome.tabs.Tab} tabobj - The tab the button was clicked or the key pressed in.
- * @param {{playerKey?: boolean}} [how] - playerKey: the shortcut, not the button.
+ * toggle_player has no default key: Firefox 159 binds Ctrl+Shift+F to its own Add-ons page, and Firefox's key wins.
+ * @param {chrome.tabs.Tab} tabobj
+ * @param {{playerKey?: boolean}} [how]
  */
 async function onClicked(tabobj, {playerKey = false} = {}) {
   await ensureOptions();
 
   const tab = Tabs.getTabOrCreate(/** @type {number} */ (tabobj.id));
 
-  // check permissions
   const hasPerms = await BackgroundUtils.checkPermissions();
   if (!hasPerms) {
     chrome.tabs.create({
@@ -362,11 +265,7 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
   if (tab.url && !EmptyTabUrls.includes(tab.url)) {
     if (!BackgroundUtils.isUrlPlayerUrl(tab.url)) {
       if (playerKey && tab.isOn && tab.isMpv) {
-        // MPV -> On. MPV never opens an in-page player, so there is none to take down
-        // (a player on the page when MPV started was reloaded away), and the page's
-        // video goes to the player from the sources already tracked, as Off -> On does.
-        // The user's own On, as the toolbar's: marked as the list's start (regexMatched), the
-        // first page of the site outside the list turned it off.
+        // MPV -> On: the user's own On, so not marked as the list's start.
         tab.isMpv = false;
         tab.mpvOnPlay = false;
         tab.regexMatched = false;
@@ -374,17 +273,8 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
         BackgroundUtils.updateTabIcon(tab);
         openPlayersWithSources(tab);
       } else if (!playerKey && Options.mpvMode && MpvAllowlist.matches(tab.url)) {
-        // MPV mode only applies on allowlisted URLs; everywhere else the
-        // toolbar keeps its original Off/On behavior.
         if (Logging) console.log('[MPV] toolbar cycle on allowlisted URL:', tab.url);
-        // Cycle: MPV → Off → On → MPV. A click on the glowing purple icon
-        // turns FastStream off outright (matching the ordinary Off/On
-        // toggle's "click stops it" behavior everywhere else), rather than
-        // falling back to the in-page player; a second click turns the
-        // in-page player on; a third hands the stream to mpv again.
-        // An On that stands in for MPV, on a page whose file only the page loads
-        // (MpvMode.playHereInstead), counts as MPV: On -> MPV reloaded the page, was refused
-        // again, came back On, and Off was never reached.
+        // Cycle MPV -> Off -> On -> MPV. An On standing in for MPV (playHereInstead) counts as MPV, or Off was never reached.
         const standIn = tab.isOn && !tab.isMpv && tab.mpvStandInPage === tab.mpvPage;
         tab.mpvStandInPage = -1;
         if (tab.isMpv || standIn) {
@@ -394,9 +284,7 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
           // On -> MPV
           await startMpv(tab);
         } else {
-          // Off -> On: the user's own On, as the plain toggle's, not the list's. Marked as
-          // the list's start (regexMatched), it went off again on the first page of the
-          // site outside the list (it stays for the tab).
+          // Off -> On: the user's own On, not the list's: it stays for the tab.
           tab.isOn = true;
           tab.regexMatched = false;
           BackgroundUtils.updateTabIcon(tab);
@@ -417,10 +305,7 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
         if (tab.isOn) {
           openPlayersWithSources(tab);
         } else if (await tabHasPlayer(tab) && !tab.isOn) {
-          // A player still loading counts: the MPV cycle already checks it, and without
-          // it an Off clicked right after On left the player on the page. Still Off after
-          // the question (the tab is asked after a restart): an On clicked meanwhile opened
-          // its player, which the reload took away again.
+          // A player still loading counts, or an Off right after On left it on the page.
           tab.resetForReload();
           chrome.tabs.reload(tab.tabId, () => BackgroundUtils.checkMessageError('reload', true)); // closed meanwhile: no unhandled error
         }
@@ -455,16 +340,14 @@ chrome.commands.onCommand.addListener((command, tabobj) => {
   }
 });
 
-// The right-click menu (ContextMenu.mjs). Made at every start of the background: an event
-// page's items outlive it, so the old ones go first.
+// Made at every start: an event page's items outlive it, so the old ones go first.
 const menus = /** @type {import('./ContextMenu.mjs').Menus|undefined} */ (/** @type {any} */ (chrome).menus || chrome.contextMenus);
 const menuText = (/** @type {string} */ key) => chrome.i18n.getMessage(key) || key;
 if (menus) {
   const menusMade = ensureOptions().then(() => createMenus(menus, menuText, !!Options.mpvMode))
       .catch((e) => console.error('The right-click menu was not made', e));
 
-  // Firefox's onShown: the items named for the tab, just before the menu shows. A right-click
-  // can be what started this background: its items are named once they are made anew.
+  // A right-click can be what started this background: its items are named once made anew.
   /** @type {any} */ (menus).onShown?.addListener(async (/** @type {any} */ info, /** @type {chrome.tabs.Tab} */ tabobj) => {
     await menusMade;
     await ensureOptions();
@@ -489,14 +372,10 @@ if (menus) {
 }
 
 /**
- * Opens a link in a new tab beside the one it is in, with FastStream on there before its
- * page loads: the player takes its video, or, for MPV, the first video the user starts there
- * goes to mpv (the MPV key's way, as inheritMpv does: never a video that starts by itself,
- * most of which are ads). Opened without an opener, so inheritMpv does not overwrite the
- * choice with the old tab's mode; in the old tab's container.
- * @param {chrome.tabs.Tab} tabobj - The tab the link is in.
- * @param {string|undefined} linkUrl - The link.
- * @param {boolean} mpv - Open it in MPV.
+ * FastStream on before its page loads; opened without an opener, so inheritMpv does not overwrite the choice.
+ * @param {chrome.tabs.Tab} tabobj
+ * @param {string|undefined} linkUrl
+ * @param {boolean} mpv
  * @return {Promise<void>}
  */
 async function openLinkIn(tabobj, linkUrl, mpv) {
@@ -526,22 +405,16 @@ async function openLinkIn(tabobj, linkUrl, mpv) {
   tab.isOn = true;
   tab.isMpv = mpv;
   tab.mpvOnPlay = mpv;
-  // The player chosen for it: the MPV Allowlist does not decide this site's pages again, as
-  // it does not once it has (another site is a fresh decision). It started MPV on the link's
-  // own page when the list named its site.
+  // The player chosen for it: the MPV Allowlist does not decide this site's pages again.
   if (!mpv) tab.mpvMatched = true;
   BackgroundUtils.updateTabIcon(tab);
   Tabs.saveTabState(tab);
 }
 
 /**
- * A key press the page cancelled, which Firefox therefore never ran as a
- * shortcut (content.js reports only those). Runs the command it is bound to,
- * as Firefox would have: toggle_player (no default key) or toggle_mpv.
- * The bindings are read fresh, so a key rebound on about:addons counts at once.
- *
- * @param {import('./KeyShortcut.mjs').KeyPress} press - The key press.
- * @param {chrome.tabs.Tab} tabobj - The tab it was pressed in.
+ * A key the page cancelled, which Firefox never ran as a shortcut; the bindings are read fresh, so a rebinding counts at once.
+ * @param {import('./KeyShortcut.mjs').KeyPress} press
+ * @param {chrome.tabs.Tab} tabobj
  */
 async function onCancelledShortcut(press, tabobj) {
   const commands = await chrome.commands.getAll();
@@ -571,12 +444,7 @@ chrome.tabs.onRemoved.addListener((tabid, removed) => {
   VpnMirror.forgetTab(tabid);
 });
 
-// Closes a tab (popup or popunder) opened right after a click landed on a player iframe:
-// ad scripts open one from the top window's 'blur' that click causes (POPUP_GUARD_ARM,
-// content.js). Gated on that short window, not on "a player runs in the opener", so a tab
-// the user opens on purpose is left alone. Limits: on a cold event page a window.open() in
-// the same blur can come before the arm message, and a deliberate new tab within
-// PopupGuardArmMs of a click on the video is caught too; the window is kept short for that.
+// Closes a tab opened right after a click on a player iframe: ad scripts open one from the top window's blur.
 chrome.tabs.onCreated.addListener(async (newTab) => {
   await ensureOptions();
 
@@ -591,10 +459,6 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
     // The popup may have closed itself meanwhile (popunder chains do): nothing to do then.
     chrome.tabs.remove(/** @type {number} */ (newTab.id)).catch(() => {});
 
-    // Re-arm briefly rather than clearing outright: a single popup/popunder
-    // script commonly chains two or three tabs off one click, and this still
-    // keeps the guard from lingering long enough to catch an unrelated later
-    // tab the user opens on their own.
     openerTab.popupGuardArmedUntil = Date.now() + PopupGuardChainMs;
     return;
   }
@@ -602,11 +466,7 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
   inheritMpv(openerTab, /** @type {number} */ (newTab.id));
 });
 
-// Address and load changes only (Firefox's filter, below): Firefox fires onUpdated for every
-// title, favicon and sound change of every tab (a site's title counts its player's time up),
-// each of which set the toolbar button again and kept the event page awake. The listener reads
-// the address; the load's status stays in, as Firefox resets a tab's button on every new
-// document, a reload's too, whose changeInfo need not carry the address it already had.
+// Address and status changes only (filter below): title and favicon changes kept the event page awake; Firefox resets the button per document.
 /** @type {chrome.tabs.FirefoxUpdatedEvent} */ (chrome.tabs.onUpdated).addListener(async (tabid, changeInfo, tabobj) => {
   await ensureOptions();
 
@@ -616,10 +476,7 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
     const url = new URL(changeInfo.url);
     const oldURL = tab.url ? new URL(tab.url) : null;
     if (oldURL && oldURL.hostname !== url.hostname) {
-      // The next episode's instructions go along to the page FastStream went to by itself,
-      // on another site too, with how far the tab went (below): the reset dropped them, and
-      // that episode played with no autoplay and gave the fullscreen back. MPV's (mpvNext)
-      // end their own way (MpvMode).
+      // The next episode's instructions go along to the page FastStream went to by itself, also on another site.
       const next = tab.continuationOptions && !tab.continuationOptions.mpvNext ?
         {options: tab.continuationOptions, arrived: tab.continuationArrived, page: tab.continuationPage} : null;
       // Keeps the new site's page when it named itself first (TabHolder.resetForNewSite).
@@ -629,40 +486,19 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
         tab.continuationArrived = next.arrived;
         tab.continuationPage = next.page;
       }
-      // A different site is a fresh decision. mpvMatched is what stops the
-      // allowlist from re-arming MPV mode after the user switched it off, so
-      // it has to be dropped here or MPV stays off for the rest of the tab's
-      // life. Cleared here rather than in tab.reset(), which also runs on the
-      // toolbar's Off path, where re-arming would undo the click. The user's Off on the
-      // site before goes with it (userTurnedOff). Not from an empty tab: a tab opened on a
-      // link (openLinkIn) may show about:blank first, and the player chosen for the link went.
+      // A different site is a fresh decision: mpvMatched and the user's Off go. Not from an empty tab (openLinkIn).
       if (!EmptyTabUrls.includes(oldURL.href)) {
         tab.mpvMatched = false;
         tab.mpvTurnedOff = false;
       }
     }
 
-    // Only the fragment changed (an anchor, #t=...): still the same page, whose player
-    // plays on. Taken for a new page, the latch reset below let the page's next stream
-    // request (a quality switch) open a second mpv window, and the in-page player was
-    // taken down. content.js's link handler already keeps the player for such a link.
+    // Only the fragment changed: the same page, whose player plays on.
     const samePage = BackgroundUtils.isSamePageUrlChange(tab.url, changeInfo.url);
     tab.url = changeInfo.url;
 
     if (!samePage) {
-      // The next episode's instructions (autoplay, fullscreen, no remembered place) are for
-      // the page FastStream went to by itself, the first after its click, and only a player
-      // there takes them (sendSources). A page after that one is the user's own: they stayed
-      // on the tab, and the next video opened in it, minutes later, took them (a review,
-      // 2026-11-13). The pages are the documents frame 0 names (noteContinuationPage), not the
-      // addresses: the next page's own pushState or replaceState (?server=, a canonical slug)
-      // names none, and counted as a page after it, the episode its player asked for next
-      // played with no autoplay and gave the fullscreen back. An address counts only until the
-      // next page named itself: one that never does (an error page, a PDF: no content script)
-      // has no player to take them, and they end at the address after it - as they do at an
-      // address that comes once the next page is gone from the tab (its FRAME_REMOVED, below):
-      // the page there may never name itself, and the window stayed fullscreen on it. MPV's
-      // (mpvNext) end their own way (MpvMode).
+      // The instructions are for the first page frame 0 names after the click; a page after that is the user's own (noteContinuationPage).
       if (tab.continuationOptions && !tab.continuationOptions.mpvNext) {
         if (!tab.continuationArrived) {
           tab.continuationArrived = true;
@@ -673,9 +509,7 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
           tab.continuationOptions = null;
         }
       }
-      // A carried fullscreen goes on only into the next episode (its continuation says so),
-      // whose player takes it over (setCarriedFullscreen). A page the user went to himself,
-      // or one after the next before any player took it, gets the window as it was.
+      // A carried fullscreen goes on only into the next episode; any other page gets the window as it was.
       if (tab.windowStateBefore) {
         if (tab.continuationOptions?.fullscreenState === 'fullscreen') {
           tab.carryAwaited = true;
@@ -686,11 +520,7 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
           restoreWindowState(tab, tabobj.windowId);
         }
       }
-      // The auto-open latch is per page, not per tab. The reset above only runs on
-      // a hostname change, so without this a second episode on the same site is
-      // detected and then dropped, because the tab still looks like it has
-      // already handed a stream to mpv. A hand-off of the page before that the host
-      // answers only now applies nothing to this one (isHandOffPage).
+      // The auto-open latch is per page: a second episode on the same site would find it set.
       tab.mpvPage++;
       tab.mpvAutoOpened = false;
       tab.mpvSentUrls.clear();
@@ -703,8 +533,6 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
       tab.mpvPlayChecking = null;
       // The page before's copy-protected video, not this one's (hasVideoSource).
       tab.protectedVideo = false;
-      // Why the page before's player opened in place of mpv (MpvMode.playHereInstead), should
-      // no player have asked for it there: this page's video may be one mpv plays.
       tab.playerNotice = null;
       clearTimeout(tab.urlStartTimer);
 
@@ -726,12 +554,10 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
     if (isPlayerUrl) {
       tab.isOn = true;
       tab.regexMatched = true;
-      // The player page has no MPV mode. The MPV key's arm on a new tab would show
-      // there (the player's key on that tab opens this page), with nothing to send.
+      // The player page has no MPV mode.
       tab.isMpv = false;
       tab.mpvOnPlay = false;
     } else if (mpvSite && !tab.mpvMatched && !tab.mpvTurnedOff) {
-      // Visiting an allowlisted site auto-starts MPV mode; not one the user turned it off on.
       if (Logging) console.log('[MPV] auto-start on allowlisted URL:', tab.url);
       tab.regexMatched = true;
       tab.mpvMatched = true;
@@ -743,15 +569,9 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
       startWithTrackedLater(tab, changeInfo.url, () => tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened &&
           !(tab.mpvNextEpisodeUntil > Date.now()), () => openMpvWithSources(tab));
     } else if (shouldAutoEnable && !tab.regexMatched && !tab.isOn) {
-      // Not for a tab the user turned on (an On or MPV the lists did not start: the MPV key's
-      // arm, the toolbar's On or On -> MPV): the user's own choice for the tab outranks the
-      // standing list, so the first video they start here still goes where they chose.
-      // Checking the MPV key's arm alone, the toolbar's On -> MPV went to the in-page
-      // player on the next page the list named.
+      // Not for a tab the user turned on: their choice for the tab outranks the standing list.
       tab.regexMatched = true;
       tab.isOn = true;
-      // Allowlisted sites default to MPV mode; everything else uses the
-      // in-page player, and so does a site the user turned MPV off on.
       tab.isMpv = mpvSite && !tab.mpvTurnedOff;
       tab.mpvOnPlay = false;
       if (tab.isMpv) {
@@ -774,28 +594,17 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
   BackgroundUtils.updateTabIcon(tab, true);
 }, {properties: ['url', 'status']});
 
-// How long a start by address (the MPV allowlist, the auto-enable list) waits before it
-// acts on the streams the tab already tracks (startWithTrackedLater).
 const UrlStartSettleMs = 500;
 
 /**
- * Starts MPV or the in-page player for a tab whose address just matched a list, from the
- * streams it tracks, once the new page had the time to name itself. tabs.onUpdated can come
- * before the new page's FRAME_ADDED, which drops the page before's streams: the trailer a
- * site's home page played went to mpv for the episode the user opened from it (an
- * allowlist entry for its /watch path), the episode's own stream found the page handed off
- * already, and was only tracked. A stream the new page asks for meanwhile goes by itself
- * (onSourceRecieved), and the start leaves it to that: it acts only on streams found before
- * the address changed (start gets that time). A page that changes its address itself
- * (pushState) names no new page, and what the tab tracked then is that page's.
- * @param {TabHolder} tab - The tab.
- * @param {string} url - The address that matched.
- * @param {() => boolean} stillWanted - Whether the start still applies then.
- * @param {(foundBefore: number) => *} start - The start, given the address change's time.
+ * Waits for the new page to name itself: tabs.onUpdated can come before its FRAME_ADDED, and the page before's trailer went to mpv.
+ * @param {TabHolder} tab
+ * @param {string} url
+ * @param {() => boolean} stillWanted
+ * @param {(foundBefore: number) => *} start
  */
 function startWithTrackedLater(tab, url, stillWanted, start) {
-  // The tab's next address change cancels it (tabs.onUpdated). One after the # only (the page
-  // sets #t=... or an anchor) is the same page, which no new start would take up: it goes on.
+  // A change after the # only is the same page: it goes on.
   const changedAt = Date.now();
   tab.urlStartTimer = setTimeout(() => {
     const samePage = tab.url === url || BackgroundUtils.isSamePageUrlChange(url, tab.url);
@@ -806,8 +615,6 @@ function startWithTrackedLater(tab, url, stillWanted, start) {
 }
 
 /**
- * Whether a message comes from one of FastStream's own pages (the player, also framed in a
- * site), not from a content script, which runs in every page.
  * @param {chrome.runtime.MessageSender} sender
  * @return {boolean}
  */
@@ -815,14 +622,7 @@ function fromOwnPage(sender) {
   return String(sender.url || '').startsWith(chrome.runtime.getURL(''));
 }
 
-// Who may send each message the listener below answers. 'own': FastStream's own pages only
-// (the player, also framed in a site, and the options page: fromOwnPage). 'any': its content
-// scripts too, which run in every page. A content script sends none of the 'own' ones, so one
-// that does is not FastStream's to obey: what they do - the options read anew, the mpv test,
-// header rules, downloads, the tab's sources cleared, the next episode - is the player's or
-// the options page's to ask for. Some of them checked their sender where they were answered and
-// others not (LOAD_OPTIONS, MPV_TEST, CLEAR_SOURCES, REQUEST_PLAYLIST_NAVIGATION: glm's review,
-// 2026-10-28); every type the listener answers is listed here (backgroundMessages.test.mjs).
+// Who may send each message: 'own' is FastStream's own pages only, 'any' its content scripts too (backgroundMessages.test.mjs).
 /** @type {Object<string, 'own'|'any'>} */
 export const MessageSenders = {
   [MessageTypes.PING]: 'own',
@@ -867,11 +667,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg.type === MessageTypes.PING) {
     sendResponse(MessageTypes.PONG);
-    // A player's keep-alive (every 10 s), and all a paused one sends: a player this background
-    // did not see load is counted here too (restorePlayerFrame), as at any other message of its
-    // tab. Answered only, it stayed uncounted until another came, and a second player in the
-    // tab was its main player, playing without a click. Once the kept tab state is back
-    // (ensureOptions): the ping is often what wakes the event page, and comes before it.
+    // A player this background did not see load is counted here too (restorePlayerFrame), once the tab state is back.
     const tabId = sender.tab?.id;
     if (typeof tabId === 'number') {
       ensureOptions().then(() => {
@@ -881,22 +677,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     return;
   } else if (msg.type === MessageTypes.VPN_STATUS) {
-    // The player, about its source: did the page reach it through Firefox VPN, and may
-    // FastStream follow (VpnProxyMirror)? Only from FastStream's own pages (MessageSenders):
-    // the answer adds the URL's host to those that follow the VPN.
+    // Own pages only: the answer adds the URL's host to those that follow the VPN.
     sendResponse(VpnMirror.status(String(msg.url || ''), !!sender.tab?.incognito, sender.tab?.id));
     return;
   } else if (msg.type === MessageTypes.VPN_OPEN_PERMISSION) {
-    // The player's Firefox VPN button: a player in a page has no permissions API, so the
-    // permissions page asks, at its proxy row, in a tab of its own next to the video's.
+    // A player in a page has no permissions API: the permissions page asks, in a tab of its own.
     /** @type {chrome.tabs.CreateProperties} */
     const create = {url: chrome.runtime.getURL('perms.html') + '#proxy'};
     if (sender.tab?.id !== undefined) {
       create.openerTabId = sender.tab.id;
       create.index = sender.tab.index + 1;
-      // The click on the button was the first into the player's iframe: content.js armed
-      // the popup guard for this tab, which then closed the tab opened here as a popup -
-      // the button seemed to do nothing. This tab is no page's popup.
+      // The click into the player's iframe armed the popup guard, which closed this tab: it is no page's popup.
       const opener = Tabs.getTab(sender.tab.id);
       if (opener) opener.popupGuardArmedUntil = 0;
     }
@@ -904,12 +695,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse(true);
     return;
   } else if (msg.type === MessageTypes.OPEN_EXTERNAL_URL) {
-    // EnvUtils.openExternalURL in a player framed in a page, which has no chrome.tabs: the
-    // OpenSubtitles page of a subtitle, the error dialog's report did nothing there; nor did the
-    // settings page's report and update buttons, an iframe in that player. Only those two pages
-    // ask, and only for a web page: tabs.create also opens the extension's own pages.
-    // No opener, as the player's own tabs.create has none: the popup guard, armed by the
-    // click into the player's iframe, would close a tab the page opened.
+    // A player framed in a page has no chrome.tabs. Web pages only: tabs.create opens extension pages too. No opener, for the popup guard.
     let url = null;
     try {
       url = new URL(String(msg.url));
@@ -940,16 +726,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // mpv's autoplay switch shows the setting the options page just changed.
       syncMpvAutoplay(mpvWatch);
     }).catch((e) => console.error('Loading the new options failed', e))
-        // Answered once they are in effect: the sender heard back at once, before the storage
-        // read, and a page it opened then was checked against the old allowlist (#456,
-        // mpv-shortcut on CI's Windows runner: "mpvSite: false" for a listed site).
+        // Answered once in effect: a page the sender opened at once was checked against the old allowlist.
         .finally(() => sendResponse(true));
     sendOptionsToTabs(msg.time);
     return true;
   } else if (msg.type === MessageTypes.MPV_TEST) {
-    // Once the options are read: the message that wakes the background comes before they
-    // are, and the ping went without the user's mpv path ("mpv not found" for an mpv that
-    // is there).
+    // Once the options are read: the ping went without the user's mpv path.
     ensureOptions().then(() => Mpv.testConnection()).then(async (result) => {
       // And, when an mpv this host started is open, which decoder it plays with.
       if (result.ok && result.mpv) {
@@ -964,14 +746,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }).catch((e) => sendResponse({ok: false, error: String(e)}));
     return true;
   } else if (msg.type === MessageTypes.MPV_OPEN) {
-    // Manual "send to mpv" (player button). The per-tab dedupe is bypassed so
-    // a deliberate re-send always works, but repeat clicks inside a couple of
-    // seconds are swallowed: each one spawns its own mpv window, and a user
-    // who clicks again because nothing appeared yet should not end up with a
-    // stack of them.
-    // Only from the player (MessageSenders): a manual send skips the MPV allowlist, and this
-    // one names the URL, headers and subtitles the helper gets (#470: a content script could
-    // send it).
+    // Repeat clicks within ManualMpvRepeatMs are swallowed: each would open its own mpv window. Player only: it names what the helper gets.
     if (Logging) console.log('[MPV] MPV_OPEN request:', msg.url);
     const now = Date.now();
     if (msg.url === LastManualMpvUrl &&
@@ -983,28 +758,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     LastManualMpvUrl = msg.url;
     LastManualMpvTime = now;
 
-    // The player builds these from VideoSource.headers, which strips
-    // User-Agent (it is on VideoSource's header blacklist). Put the browser's
-    // own back, or mpv identifies itself to the CDN as "libmpv".
+    // The player's headers lack User-Agent: without the browser's own, mpv says "libmpv" to the CDN.
     /** @type {Array<{name: string, value: string}>} */
     const headers = Array.isArray(msg.headers) ? msg.headers.slice() : [];
     if (!headers.some((h) => h && /^user-agent$/i.test(h.name))) {
       headers.push({name: 'User-Agent', value: navigator.userAgent});
     }
 
-    // Once the options are read, as for MPV_TEST: the mpv path, fullscreen, one window,
-    // and the allowlist's @anime tag.
     LastManualMpvAnswer = ensureOptions().then(() => openInMpv(sender.tab?.id, msg.url, null, headers,
         resolveMpvContentType(msg.contentType, sender.tab && sender.tab.url), sender.tab && sender.tab.url,
         sender.tab && sender.tab.title, {
           startTime: msg.startTime, subtitles: msg.subtitles,
-          // The page's qualities the player has (VideoSource.qualities), or none: given either
-          // way, so that openInMpv sends the one the player plays, which the user may have picked.
+          // Given either way, so openInMpv sends the one the player plays.
           qualities: Array.isArray(msg.qualities) ? msg.qualities : null,
         })).then((result) => {
       if (Logging) console.log('[MPV] MPV_OPEN result:', JSON.stringify(result));
       if (!result.ok) {
-        // Let the user retry immediately when the launch actually failed.
         LastManualMpvTime = 0;
       }
       return result;
@@ -1033,14 +802,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   }
 
-  // The messages below come from a page in a tab, a content script's or a player's; an
-  // extension page outside any tab has none to give them.
+  // An extension page outside any tab sends none of the messages below.
   const senderTab = sender.tab;
   if (!senderTab) {
     return;
   }
-  // TabTracker's maps are not typed: these are a TabHolder and one of its FrameHolders. A
-  // tab's content script names its tab and frame.
   const tab = /** @type {TabHolder & TabExtras} */ (Tabs.getTabOrCreate(/** @type {number} */ (senderTab.id)));
   const frame = /** @type {FrameHolder & FrameExtras} */ (tab.getFrameOrCreate(/** @type {number} */ (sender.frameId)));
   restorePlayerFrame(tab, frame, sender);
@@ -1048,20 +814,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === MessageTypes.PLAYER_LOADED) {
     const opener = playerOpener(msg.url || sender.url);
     if (tab.isPlayerOfGoneDocument(frame, msg.parentFrameId, opener)) {
-      // Its page reloaded while it started (TabHolder.isPlayerOfGoneDocument): it goes
-      // with that page, and is no player of the one there now.
       if (Logging) console.log('Ignoring a player whose page is gone', frame);
       tab.forgetFrame(frame);
       sendResponse(null);
       return;
     }
     if (!frame.parent && msg.parentFrameId !== undefined) {
-      // The player names the frame it is in (TabHolder.playerParentProof): taken on trust,
-      // a page framing the player page could make any frame of the tab hold a player.
+      // Taken on trust, a page framing the player page could make any frame hold a player.
       isPlayerParentProven(tab, frame, msg.parentFrameId, opener).then((proven) => {
-        // Or gone while its page was asked (the page took the iframe out, FRAME_REMOVED):
-        // accepted then, the page's frame held a player that is not there, and every later
-        // stream of that page was dropped as the player's own.
+        // Or gone while its page was asked: accepted, every later stream of the page was dropped as the player's.
         if (!proven || !frame.isTracked()) {
           if (Logging) console.log('Ignoring a player whose page did not open it, or that is gone', frame);
           tab.forgetFrame(frame);
@@ -1087,9 +848,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     acceptPlayer(tab, frame, sender, sendResponse);
     return true;
   } else if (msg.type === MessageTypes.FRAME_ADDED) {
-    // Preserve sources key to this frame's new URL
-    // This is needed because resetSelfAndChildren clears all sources, but we might have
-    // already detected a source for this frame via onHeadersReceived (e.g. Vimeo)
+    // Sources this frame already has for its new URL (Vimeo, via onHeadersReceived) survive the reset.
     const preservedSources = frame.getSources().filter((s) => s.url === msg.url);
     const documentKey = typeof msg.document === 'string' ? msg.document : null;
 
@@ -1100,28 +859,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     frame.url = msg.url;
     frame.documentKey = documentKey;
 
-    // Restore preserved sources
     preservedSources.forEach((s) => {
       frame.getSources().push(s);
     });
-    // A page back from Firefox's back-forward cache names itself again (content.js's
-    // pageshow) and fetches nothing: what it had detected is kept for it. Only kept, for
-    // the toolbar or a shortcut: nothing here opens a player or sends to mpv.
+    // A page back from the back-forward cache fetches nothing: what it had detected is kept for it, and nothing opens.
     tab.restoreGoneDocument(frame);
 
     tab.playerCount -= playerCount;
     tab.playerCount = Math.max(0, tab.playerCount);
     checkURLMatch(frame);
-    // A page loaded in a frame while a player plays (a site's player iframe made again)
-    // holds its media too.
+    // A page loaded while a player plays holds its media too.
     if (tab.playingPlayers.size > 0) {
       sendPageMediaHold(tab);
     }
     if (frame.frameId === 0 && documentKey) {
       noteContinuationPage(tab, documentKey);
     }
-    // The next episode's page, after FastStream went there by itself: its player may wait
-    // for a click (startPagePlayers).
     if (tab.continuationOptions?.autoPlay) {
       startPagePlayers(tab);
     }
@@ -1137,23 +890,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const lonePlayers = going.filter((gone) => gone.isPlayer && gone.parent && !going.includes(gone.parent))
         .map((player) => ({player, page: /** @type {FrameHolder} */ (player.parent)}));
     tab.forgetRemovedFrame(removed, msg.document);
-    // A player gone while its page stays (the page took its iframe out, or its players were
-    // removed as the page changed its address): the page has its own video back, and a play
-    // the user starts there opens the player again (reopenOnUserPlay). It did nothing.
+    // A player gone while its page stays: a play the user starts there opens it again.
     for (const {player, page} of lonePlayers) {
       if (tab.getFrame(player.frameId) !== player && tab.getFrame(page.frameId) === page && !page.hasPlayer()) {
         page.openMissed = Math.max(page.openMissed, 1);
         page.openGone = true;
       }
     }
-    // The frames forgotten with it - a player inside a page that went too. A player's own
-    // FRAME_REMOVED can come after its page's: kept in playerPageFrames, it was taken for a
-    // player lost while Firefox had unloaded the background (restorePlayerFrame), made again
-    // with its page frame, and counted gone a second time.
-    // The next episode's page went before a player took its instructions, and the address
-    // after it is there already (the two come in either order): they end here, whatever
-    // the page there is - one with no content script (a PDF, an error page) never names
-    // itself, and kept the fullscreen carried for them.
+    // A player's FRAME_REMOVED may come after its page's; a gone next-episode page ends its instructions whatever comes next.
     if (removed && removed.frameId === 0 && tab.getFrame(0) !== removed && typeof msg.document === 'string' &&
         tab.continuationPage === msg.document && tab.continuationArrived &&
         tab.continuationOptions && !tab.continuationOptions.mpvNext) {
@@ -1170,8 +914,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
     }
     if (keptChanged) Tabs.saveTabState(tab);
-    // A player that goes lets the page's media go, also one this background no longer
-    // knew to be playing (it was restarted meanwhile).
+    // Also one this background no longer knew to be playing (it was started again).
     if (wasPlaying || BackgroundUtils.isUrlPlayerUrl(sender.url || '')) {
       sendPageMediaHold(tab);
     }
@@ -1186,11 +929,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendPageMediaHold(tab);
     }
   } else if (msg.type === MessageTypes.REQUEST_FRESH_LINK) {
-    // A player whose stream the server refused asks its page for the link anew (FreshLink.mjs).
-    // Not in a private window or a container tab: the background is neither, and its fetch of
-    // the page went with the normal window's cookies (a container's login is another one), left
-    // what the page set in the normal cookie jar, and missed a private window's proxy
-    // (VpnProxyMirror). The player there says the link was refused, as before FreshLink.
+    // Not in a private window or a container: the background's fetch goes with the normal window's cookies and proxy.
     const store = senderTab.cookieStoreId;
     if (!BackgroundUtils.isUrlPlayerUrl(sender.url || '') || typeof msg.url !== 'string' ||
         senderTab.incognito || (store && store !== 'firefox-default')) {
@@ -1203,8 +942,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
     return true;
   } else if (msg.type === MessageTypes.BUFFER_STASH) {
-    // A player going away (its page reloaded or left) hands its buffer over (BufferStash), for
-    // the page BUFFER_TAKE told it it is on: by now the page's frame is the next page's.
+    // For the page BUFFER_TAKE told it: by now the page's frame is the next page's.
     const key = BackgroundUtils.isUrlPlayerUrl(sender.url || '') ? playerBufferKey(msg.page, sender, msg.identifier) : null;
     if (key && typeof msg.url === 'string' && Array.isArray(msg.entries)) {
       bufferStash.put(key, {
@@ -1214,32 +952,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
     }
   } else if (msg.type === MessageTypes.BUFFER_TAKE) {
-    // The next player of that video on that page takes it back, and is told which page that
-    // is, for its own hand-off.
     const page = (frame.parent || frame).url;
     const key = BackgroundUtils.isUrlPlayerUrl(sender.url || '') ? playerBufferKey(page, sender, msg.identifier) : null;
     sendResponse(key ? {page, handOff: bufferStash.take(key)} : null);
   } else if (msg.type === MessageTypes.PLAYER_OPEN_GONE) {
-    // The page took the player iframe out before its player loaded: no PLAYER_LOADED comes
-    // to end the opening, and openPlayer refused this frame until the page navigated.
+    // The page took the player iframe out before it loaded: no PLAYER_LOADED will end the opening.
     if (frame.playerOpening && frame.playerOpeningAttempt === msg.attempt) {
       frame.playerOpening = false;
-      // Not tried again by itself: the page took the player out, and would again. A play the
-      // user starts, or the stream asked for again, opens it (reopenMissed).
+      // Not tried again by itself: the page took the player out, and would again.
       noteOpenMissed(frame, 'gone');
     }
   } else if (msg.type === MessageTypes.REQUEST_SOURCES) {
     sendSources(frame);
   } else if (msg.type === MessageTypes.LOADED_MEDIA) {
     if (msg.live) {
-      // A file played with no request is taken in after the wait; one with a request has
-      // been detected by then, and this changes nothing (LiveMediaReportWaitMs). Only by
-      // the page that told it, still shown: a tab gone on to the next page within the wait
-      // had the frame emptied (FRAME_REMOVED), whose unnamed page took the last page's file
-      // as its first stream, and that went to mpv again instead of its own (mpv.e2e.mjs).
-      // A background started again since the page loaded knows no name for it yet
-      // (recoverFrameSources takes this one): it dropped the report, the file made no request,
-      // and content.js tells a file once - the page's own player played on for good.
+      // Only by the page that told it, still shown; a background started again since has no name for it yet (recoverFrameSources).
       const unnamed = !frame.documentKey;
       setTimeout(() => {
         if (frame.isTracked() && (frame.documentKey === msg.document || (unnamed && !frame.documentKey))) {
@@ -1250,21 +977,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       recoverFrameSources(frame, msg);
     }
   } else if (msg.type === MessageTypes.CLEAR_SOURCES) {
-    // The SourcesBrowser's "Clear Sources" button empties its own list, but
-    // that list is only a mirror: this background's per-frame stores are the
-    // source of truth, and sendSourcesToMainFramePlayers re-pushes them to
-    // the player on every newly detected request - so a mirror-only clear
-    // was visibly undone within seconds on any page still loading media.
-    // Clear every frame's store (sources arrive on page frames, while this
-    // message comes from the player's frame), so the clear sticks.
-    // What a page frame handed its player goes too (handedTo), or the player's next
-    // REQUEST_SOURCES got the cleared list back.
+    // The player's list only mirrors this background's stores, which push it again: clear them all, and what was handed (handedTo).
     for (const f of tab.getFrames()) {
       f.getSources().length = 0;
       f.forgetHandedToPlayer();
     }
-    // A player tab is sent other tabs' streams too, the whole of a tab's list each time it
-    // finds one: those they hold now stay cleared here.
+    // Other tabs' streams too: those they hold now stay cleared here.
     tab.clearedSources = new WeakSet();
     for (const other of Tabs.tabs.values()) {
       for (const f of other.getFrames()) {
@@ -1274,16 +992,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse('cleared');
     return;
   } else if (msg.type === MessageTypes.SET_HEADERS) {
-    // Only from FastStream's own pages (MessageSenders): the rule sets the headers the
-    // message names (#470).
     if (msg.commands.length) {
       // A tab that sends a message has an id. The rule's lifetime is capped (RuleEntry).
       ruleManager.addHeaderRule(msg.url, /** @type {number} */ (senderTab.id), msg.commands, msg.lifetimeMs).then((rule) => {
         if (Logging) console.log('Added rule', msg, rule);
         sendResponse();
       }).catch((e) => {
-        // Refused (a header set to nothing, say): answered all the same, so the request goes
-        // out without it. Unanswered, the player's request failed.
+        // Answered all the same: unanswered, the player's request failed.
         console.warn('Header rule refused', e);
         sendResponse();
       });
@@ -1300,19 +1015,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }, frame, mode);
     }
   } else if (msg.type === MessageTypes.DOWNLOAD) {
-    // Only from FastStream's own pages (MessageSenders): it downloads whatever URL the
-    // message names (#470).
     const url = msg.url;
-    // Firefox refuses a name with a colon and some other characters, and the download then
-    // silently did not happen: every screenshot ("@00:05") and any title with a colon.
     const filename = sanitizeDownloadFilename(msg.filename);
-    // Check if cookieStoreId is set
     if (senderTab.cookieStoreId && senderTab.cookieStoreId !== 'firefox-default') {
       chrome.tabs.create({
         url: BackgroundUtils.getPlayerUrl(),
-        // The playing tab's window, not the last focused one: Firefox refuses a private
-        // tab's cookie store in a normal window (and a container's in a private one), and
-        // the save was answered null when the user had switched windows meanwhile.
+        // The playing tab's window: Firefox refuses a private or container cookie store in another kind of window.
         windowId: senderTab.windowId,
         cookieStoreId: senderTab.cookieStoreId,
         active: false,
@@ -1336,10 +1044,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           filename: filename,
           resolve: answer,
         };
-        // If the player in this hidden tab never sends PLAYER_LOADED (blocked
-        // page, redirect failure, site error before injection), or never answers
-        // HANDLE_DOWNLOAD, the tab and the caller's sendResponse would otherwise
-        // hang forever.
+        // The hidden tab's player may never load or answer: the caller would hang.
         setTimeout(() => {
           if (answer(null)) {
             tab2.downloadInfo = null;
@@ -1381,8 +1086,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === MessageTypes.REQUEST_WINDOWED_FULLSCREEN) {
     return handleWindowedFullscreenRequest(frame, msg, sendResponse);
   } else if (msg.type === MessageTypes.REQUEST_KEYBOARD) {
-    // The next episode's player may take the keyboard unless the user types in the page or
-    // looks elsewhere (content.js PAGE_TYPING, asked of the page's top frame).
+    // Unless the user types in the page or looks elsewhere (content.js PAGE_TYPING).
     chrome.tabs.sendMessage(frame.tab.tabId, {type: MessageTypes.PAGE_TYPING}, {frameId: 0}, (typing) => {
       void chrome.runtime.lastError;
       sendResponse(typing === false);
@@ -1395,8 +1099,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
     return true;
   } else if (msg.type === MessageTypes.EXIT_CARRIED_FULLSCREEN) {
-    // Escape in the page: the player that carried the fullscreen ends it. One that never
-    // took it over (an error page, no player there) leaves it to this background.
+    // Escape in the page: the player that carried the fullscreen ends it; one that never took it over leaves it here.
     const tab = frame.tab;
     const playerFrameId = tab.carriedFullscreenFrameId;
     const endHere = () => {
@@ -1408,9 +1111,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (tab.carryAwaited || typeof playerFrameId !== 'number') {
       endHere();
     } else {
-      // A player whose frame went (taken out of the page, its hoster's page gone) answers
-      // nothing, and a new one in its frame (a reload) false: neither ends it, and the window
-      // stayed fullscreen with Escape doing nothing. Ended here then.
+      // A player whose frame went answers nothing, a new one false: ended here then.
       chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.EXIT_CARRIED_FULLSCREEN}, {frameId: playerFrameId}, (ended) => {
         if (chrome.runtime.lastError || ended !== true) endHere();
       });
@@ -1419,15 +1120,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === MessageTypes.REQUEST_MINIPLAYER) {
     return handleMiniplayerRequest(frame, msg, sendResponse);
   } else if (msg.type === MessageTypes.REQUEST_PLAYLIST_NAVIGATION) {
-    // Once the kept tab state is back (ensureOptions): the end's request is often what wakes an
-    // event page Firefox unloaded while the episode played, and it came before the player's page
-    // frame was restored (measured, 2026-10-23: 'error' within 20 ms).
+    // Once the tab state is back: the end's request often wakes the event page.
     ensureOptions().then(() => {
       restorePlayerFrame(tab, frame, sender);
       const pageFrame = frame.pageFrame;
-      // A player in the tab's top frame has no page around it (its own tab, or the page went
-      // to it): as for the poll below. The click was asked of the player's own frame, where
-      // nothing answers.
+      // A player in the top frame has no page around it.
       if (!pageFrame || frame.frameId === 0) {
         sendResponse('error');
         return;
@@ -1446,9 +1143,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           // Not on its page yet: the navigation the click started comes next.
           tab.continuationArrived = false;
           tab.continuationPage = null;
-          // Nor kept for good: on a site that changes its video without loading a page, a page
-          // whose player never took them kept them, and the user's own next video there, minutes
-          // later, took the autoplay and the fullscreen.
+          // Nor kept for good: on a site that changes videos without a load, the user's own next video took them.
           clearTimeout(tab.continuationTimer);
           tab.continuationTimer = setTimeout(() => {
             if (tab.continuationOptions === continuation) endContinuation(tab);
@@ -1500,13 +1195,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 /**
- * Has the frames from a player up to the one that acts (finalFrame) go fullscreen, windowed
- * fullscreen or miniplayer together.
  * @param {FrameHolder} playerFrame
- * @param {FrameHolder} finalFrame - A frame above it.
- * @param {{type: string, force?: boolean, size?: number, styles?: Object<string, string>, autoExit?: boolean}} data -
- *   The message for finalFrame, without the frames.
- * @return {Promise<*>} What finalFrame answered ('enter', 'exit', ...), or 'error'.
+ * @param {FrameHolder} finalFrame
+ * @param {{type: string, force?: boolean, size?: number, styles?: Object<string, string>, autoExit?: boolean}} data
+ * @return {Promise<*>}
  */
 async function cascadedFullscreen(playerFrame, finalFrame, data) {
   const trace = traceFrames(playerFrame, finalFrame);
@@ -1514,11 +1206,7 @@ async function cascadedFullscreen(playerFrame, finalFrame, data) {
     return 'error';
   }
 
-  // Each through askFrame: a frame whose page never lets go of its event loop held the
-  // player's fullscreen, windowed fullscreen or miniplayer request for good (glm's review,
-  // 2026-11-16). No answer in time is none: the player hears undefined, as for an error.
-  // The first waits longer: content.js answers a fullscreen request only once Firefox has
-  // entered it (requestFullscreen's promise), which takes its transition.
+  // Through askFrame: a page that never lets go of its event loop held the request for good. The first waits longer: content.js answers once fullscreen is entered.
   const result = await askFrame(playerFrame.tab.tabId, {
     ...data,
     frameId: trace[trace.length - 2].frameId,
@@ -1547,10 +1235,10 @@ async function cascadedFullscreen(playerFrame, finalFrame, data) {
 }
 
 /**
- * @param {FrameHolder} frame - The player's.
- * @param {{force?: boolean}} msg - Its REQUEST_FULLSCREEN.
+ * @param {FrameHolder} frame
+ * @param {{force?: boolean}} msg
  * @param {(response?: *) => void} sendResponse
- * @return {true|undefined} True when it answers later.
+ * @return {true|undefined}
  */
 function handleFullscreenRequest(frame, msg, sendResponse) {
   if (frame.frameId === 0) {
@@ -1578,14 +1266,10 @@ function handleFullscreenRequest(frame, msg, sendResponse) {
 }
 
 /**
- * A fullscreen carried over to the next episode: the page went on
- * to it by itself, and Firefox lets no page go fullscreen without a click, so the next
- * episode played windowed. The browser window goes fullscreen instead - an extension may
- * do that - and the player fills the page (windowed fullscreen); off goes back to the
- * window's state before (left as it is when it was fullscreen already, F11).
- * @param {FrameHolder} frame - The player's frame.
+ * Firefox lets no page go fullscreen without a click: the window goes fullscreen instead, and the player fills the page.
+ * @param {FrameHolder} frame
  * @param {boolean} on
- * @return {Promise<string>} enter or exit.
+ * @return {Promise<string>}
  */
 async function setCarriedFullscreen(frame, on) {
   const tab = frame.tab;
@@ -1593,9 +1277,7 @@ async function setCarriedFullscreen(frame, on) {
   const win = await chrome.windows.get(windowId);
   if (on) {
     if (win.state !== 'fullscreen' && tab.windowStateBefore) {
-      // Carried here, and the window is no longer fullscreen: the user left it outside
-      // FastStream (F11, the browser's own Exit Full Screen), and the next episode went
-      // fullscreen again. It plays windowed, as the user left it.
+      // The user left fullscreen outside FastStream (F11): the next episode plays windowed.
       tab.windowStateBefore = null;
       tab.carryAwaited = false;
       tab.carriedFullscreenFrameId = null;
@@ -1618,13 +1300,9 @@ async function setCarriedFullscreen(frame, on) {
 }
 
 /**
- * A page names itself in the tab's top frame (FRAME_ADDED) while the next episode's
- * instructions wait for their player (tabs.onUpdated): the first document since the click's
- * address change is the page they are for, and another one after it - the user went on, or
- * back - ends them, with a fullscreen carried for them that no player took over. The same
- * page naming itself again (Firefox's back-forward cache, a leave that never happened) is none.
+ * The first document frame 0 names after the click is the page they are for; another one ends them.
  * @param {TabHolder} tab
- * @param {string} documentKey - The page's name.
+ * @param {string} documentKey
  */
 function noteContinuationPage(tab, documentKey) {
   if (!tab.continuationOptions || tab.continuationOptions.mpvNext || !tab.continuationArrived ||
@@ -1638,11 +1316,7 @@ function noteContinuationPage(tab, documentKey) {
   endContinuation(tab);
 }
 
-/**
- * Ends the next episode's instructions no player took, and gives the window back when a
- * fullscreen was carried for them.
- * @param {TabHolder} tab
- */
+/** @param {TabHolder} tab */
 function endContinuation(tab) {
   tab.continuationOptions = null;
   if (tab.carryAwaited) {
@@ -1653,7 +1327,6 @@ function endContinuation(tab) {
 }
 
 /**
- * The window back to its state before a carried fullscreen, once.
  * @param {TabHolder} tab
  * @param {number} windowId
  */
@@ -1671,7 +1344,6 @@ async function restoreWindowState(tab, windowId) {
 }
 
 /**
- * Tells the page's top frame whether Escape is to end a carried fullscreen (content.js).
  * @param {TabHolder} tab
  * @param {boolean} active
  */
@@ -1682,10 +1354,10 @@ function tellPageCarried(tab, active) {
 }
 
 /**
- * @param {FrameHolder} frame - The player's.
- * @param {{force?: boolean}} msg - Its REQUEST_WINDOWED_FULLSCREEN.
+ * @param {FrameHolder} frame
+ * @param {{force?: boolean}} msg
  * @param {(response?: *) => void} sendResponse
- * @return {true|undefined} True when it answers later.
+ * @return {true|undefined}
  */
 function handleWindowedFullscreenRequest(frame, msg, sendResponse) {
   if (frame.frameId === 0) {
@@ -1708,11 +1380,10 @@ function handleWindowedFullscreenRequest(frame, msg, sendResponse) {
 }
 
 /**
- * @param {FrameHolder & FrameExtras} frame - The player's.
- * @param {{force?: boolean, size: number, styles: Object<string, string>, autoExit: boolean}} msg -
- *   Its REQUEST_MINIPLAYER (InterfaceController).
+ * @param {FrameHolder & FrameExtras} frame
+ * @param {{force?: boolean, size: number, styles: Object<string, string>, autoExit: boolean}} msg
  * @param {(response?: *) => void} sendResponse
- * @return {true|undefined} True when it answers later.
+ * @return {true|undefined}
  */
 function handleMiniplayerRequest(frame, msg, sendResponse) {
   if (frame.frameId === 0) {
@@ -1742,8 +1413,8 @@ function handleMiniplayerRequest(frame, msg, sendResponse) {
 }
 
 /**
- * @param {FrameHolder} frame - A player's.
- * @return {Promise<?FrameHolder>} The nearest frame above it that may go fullscreen.
+ * @param {FrameHolder} frame
+ * @return {Promise<?FrameHolder>}
  */
 async function getFrameWithFullscreenPermission(frame) {
   let currentFrame = frame.parent;
@@ -1760,8 +1431,8 @@ async function getFrameWithFullscreenPermission(frame) {
 
 /**
  * @param {FrameHolder} frame
- * @param {FrameHolder} toFrame - A frame above it.
- * @return {Array<FrameHolder>} The frames from frame up to toFrame, both included.
+ * @param {FrameHolder} toFrame
+ * @return {Array<FrameHolder>}
  */
 function traceFrames(frame, toFrame) {
   if (frame === toFrame) {
@@ -1780,17 +1451,13 @@ function traceFrames(frame, toFrame) {
   return frames;
 }
 
-/**
- * @param {FrameHolder} frame
- */
+/** @param {FrameHolder} frame */
 async function checkIsFullscreenAllowed(frame) {
   return askFrame(frame.tab.tabId, {type: MessageTypes.TOGGLE_FULLSCREEN, queryPermissions: true},
       {frameId: frame.frameId}, 'check_fullscreen');
 }
 
-/**
- * @param {FrameHolder} frame
- */
+/** @param {FrameHolder} frame */
 function checkURLMatch(frame) {
   const url = frame.url;
   const ext = CustomSourcePatternsMatcher.match(url);
@@ -1806,9 +1473,8 @@ function checkURLMatch(frame) {
 
 
 /**
- * @param {FrameHolder & FrameExtras} frame - A player's.
- * @return {Promise<?FrameHolder>} The frame of the page it plays for: the first above it
- *     that it does not fill; null for none.
+ * @param {FrameHolder & FrameExtras} frame
+ * @return {Promise<?FrameHolder>}
  */
 async function getPageFrame(frame) {
   let currentFrame = frame;
@@ -1829,22 +1495,14 @@ async function getPageFrame(frame) {
   return null;
 }
 
-// The buffers of players that went away, for the next player of the same video on the same
-// page (BufferStash); what nobody takes is flushed after BufferKeepMs, its files deleted.
 const bufferStash = new BufferStash({dropSession: dropBufferSession});
 
 /**
- * Where a player's buffer may be taken back (bufferKey): its page - the frame it is in (a
- * player tab's own page), the same page after a reload - and its video, its window and container.
- * The page keeps two videos on one address apart (hls.php?v=1, ?v=2), whose files a signature
- * left out of their addresses would otherwise take for each other's.
- * The page is the one BUFFER_TAKE found and told the player: by its hand-off, as the page
- * reloads, the tab's frames are already the next page's (an empty address, measured), the
- * player's own frame a new one.
- * @param {*} pageUrl - The player's page.
+ * Keeps two videos on one address apart; the page BUFFER_TAKE told the player, as by its hand-off the frames are the next page's.
+ * @param {*} pageUrl
  * @param {chrome.runtime.MessageSender} sender
- * @param {*} identifier - The source's identifier (its URL without the query).
- * @return {?string} null when the player's page or its source is not known.
+ * @param {*} identifier
+ * @return {?string}
  */
 function playerBufferKey(pageUrl, sender, identifier) {
   if (typeof identifier !== 'string' || !identifier || typeof pageUrl !== 'string' || !pageUrl) {
@@ -1859,8 +1517,7 @@ function playerBufferKey(pageUrl, sender, identifier) {
 }
 
 /**
- * Deletes a player's OPFS session directory: a hand-off nobody took.
- * @param {string} session - Its name (BufferStash checked it is one).
+ * @param {string} session
  * @return {Promise<void>}
  */
 async function dropBufferSession(session) {
@@ -1870,12 +1527,10 @@ async function dropBufferSession(session) {
 }
 
 /**
- * The pages to ask for a new link to a stream the server refused (FreshLink.mjs): the page the
- * player plays for first, then each frame that saw the stream (the same URL less its query).
- * At most three, each fetched once.
+ * The player's page first, then each frame that saw the stream; at most three, each fetched once.
  * @param {TabHolder} tab
- * @param {FrameHolder & FrameExtras} frame - The player's.
- * @param {string} url - The refused link.
+ * @param {FrameHolder & FrameExtras} frame
+ * @param {string} url
  * @return {string[]}
  */
 function freshLinkPages(tab, frame, url) {
@@ -1896,10 +1551,8 @@ function freshLinkPages(tab, frame, url) {
 }
 
 /**
- * Keeps the frame a player goes on in (acceptPlayer) with the tab's state, for a background that
- * Firefox starts anew while the player plays (restorePlayerFrame).
  * @param {TabHolder} tab
- * @param {FrameHolder & FrameExtras} frame - The player's.
+ * @param {FrameHolder & FrameExtras} frame
  */
 function keepPlayerPageFrame(tab, frame) {
   if (!frame.pageFrame) return;
@@ -1908,21 +1561,16 @@ function keepPlayerPageFrame(tab, frame) {
 }
 
 /**
- * A player this background did not see load (Firefox unloaded the idle event page while it
- * played): its frame is a player's again, with its page frame as the tab's state kept it
- * (keepPlayerPageFrame). Without that the end's next episode, and its poll, found no page
- * frame and were answered 'error': the countdown stopped at "1 s".
- * Only for FastStream's player page, which alone names the frame it plays in to this map.
+ * Firefox unloaded the idle event page while it played: its page frame comes from the tab's kept state.
  * @param {TabHolder} tab
- * @param {FrameHolder & FrameExtras} frame - The sender's.
+ * @param {FrameHolder & FrameExtras} frame
  * @param {chrome.runtime.MessageSender} sender
  */
 function restorePlayerFrame(tab, frame, sender) {
   if (frame.pageFrame || !BackgroundUtils.isUrlPlayerUrl(sender.url || '')) return;
   const pageFrameId = tab.playerPageFrames[frame.frameId];
   if (typeof pageFrameId !== 'number') return;
-  // Counted as acceptPlayer counts one: uncounted, the next player in the tab was its main
-  // player too, and played without a click as this one does. Its leaving counts it gone.
+  // Counted as acceptPlayer counts one: uncounted, the next player in the tab played without a click too.
   if (!frame.isPlayer) {
     frame.isPlayer = true;
     tab.playerCount++;
@@ -1932,7 +1580,7 @@ function restorePlayerFrame(tab, frame, sender) {
 
 /**
  * @param {FrameHolder} frame
- * @return {FrameHolder[]} The frame and every frame inside it, at any depth.
+ * @return {FrameHolder[]}
  */
 function frameAndInside(frame) {
   const all = [frame];
@@ -1941,12 +1589,7 @@ function frameAndInside(frame) {
 }
 
 /**
- * A frame that goes with a player in it, or that is one: each frame above it, asked IS_FULL
- * as the player opened, guards the iframe on the way down (content.js, overlay-guard.js), and
- * is told to let go - unless another player still lives under that iframe. Only the leaving of
- * the page that held the player did that before: an embed whose own page went elsewhere, or
- * took its player out, kept the page around it hiding its own menu over the embed, and
- * checking it every second.
+ * Each frame above, guarding the iframe since the player opened, lets go unless another player lives under it.
  * @param {TabHolder} tab
  * @param {FrameHolder} removed
  */
@@ -1969,26 +1612,20 @@ function releaseOverlayGuards(tab, removed) {
   }
 }
 
-/**
- * @param {FrameHolder} frame - One with a parent.
- */
+/** @param {FrameHolder} frame */
 async function checkIsFull(frame) {
   return askFrame(frame.tab.tabId, {type: MessageTypes.IS_FULL, frameId: frame.frameId},
       {frameId: /** @type {FrameHolder} */ (frame.parent).frameId}, 'is_full');
 }
 
 /**
- * Introduces a frame to its parent frame's content script, which then knows the iframe.
- * @param {FrameHolder} frame - The frame.
- * @return {Promise<void>} Resolves once both have answered, or after FrameAnswerWaitMs: a
- *   parent page that never let go of its event loop held the player's load answer
- *   (acceptPlayer, through getPageFrame) for good, while the player's own page was fine.
- * The introduction still goes on when the parent answers later.
+ * Waits at most FrameAnswerWaitMs: a parent page that never let go of its event loop held the player's load answer.
+ * @param {FrameHolder} frame
+ * @return {Promise<void>}
  */
 async function linkToParentFrame(frame) {
   if (!frame.parent) return;
 
-  // Generate random string
   const key = crypto.randomUUID();
 
   return await new Promise((resolve, reject) => {
@@ -2016,12 +1653,7 @@ async function linkToParentFrame(frame) {
   });
 }
 
-/**
- * What the title of a player's tab tells of its media (guessMediaInfo); none for the player
- * page in a tab of its own.
- * @param {chrome.tabs.Tab|undefined} tab - The player's tab; undefined outside any tab. Its
- *   url is set: the extension has the "tabs" permission, which gives every tab's.
- */
+/** @param {chrome.tabs.Tab|undefined} tab */
 function getMediaInfoFromTab(tab) {
   if (!tab || BackgroundUtils.isUrlPlayerUrl(/** @type {string} */ (tab.url))) return;
   let hostname;
@@ -2030,14 +1662,10 @@ function getMediaInfoFromTab(tab) {
   } catch (e) {
     return;
   }
-  // The name, year, season and episode the tab's title tells, for the subtitle search.
   return guessMediaInfo(tab.title || '', hostname);
 }
 
-/**
- * @param {Object} [newOptions] - The options, merged over DefaultOptions (Utils, which calls
- *     them an Object); read from the storage when not given.
- */
+/** @param {Object} [newOptions] */
 async function loadOptions(newOptions) {
   newOptions = newOptions || await Utils.getOptionsFromStorage();
   Options = /** @type {PlayerOptions} */ (newOptions);
@@ -2077,8 +1705,8 @@ async function loadOptions(newOptions) {
 
 /**
  * @param {number} ruleID
- * @param {string[]} filetypes - The extensions it redirects.
- * @param {() => boolean} [wanted] - Whether it is still wanted after the wait for the key.
+ * @param {string[]} filetypes
+ * @param {() => boolean} [wanted]
  */
 async function setupRedirectRule(ruleID, filetypes, wanted = () => true) {
   const excludedRequestDomains = [(new URL(BackgroundUtils.getPlayerUrl())).hostname];
@@ -2089,14 +1717,12 @@ async function setupRedirectRule(ruleID, filetypes, wanted = () => true) {
     }
   }
 
-  // The player takes the link's headers and mode only with this key (AddressKey.mjs); without
-  // one (its storage failed) it still plays the link, without them.
+  // Without the key (its storage failed) the player still plays the link, without its headers and mode.
   const key = await getAddressKey().catch((e) => {
     console.error('No player address key', e);
     return '';
   });
-  // Turned off meanwhile (a second options load, its removeRule done during the wait): not
-  // added again behind it.
+  // Turned off during the wait: not added again.
   if (!wanted()) return;
 
   /** @type {chrome.declarativeNetRequest.Rule} */
@@ -2107,11 +1733,8 @@ async function setupRedirectRule(ruleID, filetypes, wanted = () => true) {
       redirect: {regexSubstitution: BackgroundUtils.getPlayerUrl() + '?address=' + key + '#\\0'},
     },
     condition: {
-      // exclude self
       excludedRequestDomains,
-      // only match m3u8 or mpds, up to a query or a fragment: the extension ends the path.
-      // `.+` also ran through the `?`, and a query whose last value names a stream (a search
-      // for index.m3u8, an embed page's file=...) put that search or embed page in the player.
+      // Up to a query or fragment: `.+` ran through the `?`, and a search for index.m3u8 went to the player.
       regexFilter: '^[^?#]*\\.(' + filetypes.join('|') + ')([?#].*)?$',
       resourceTypes: ['main_frame'],
     },
@@ -2122,9 +1745,7 @@ async function setupRedirectRule(ruleID, filetypes, wanted = () => true) {
   });
 }
 
-/**
- * @param {number} ruleID
- */
+/** @param {number} ruleID */
 async function removeRule(ruleID) {
   return updateRedirectRule(ruleID, RedirectRuleRemoved, {
     removeRuleIds: [ruleID],
@@ -2132,11 +1753,9 @@ async function removeRule(ruleID) {
 }
 
 /**
- * Gives a redirect rule to declarativeNetRequest, unless it has it so already
- * (RedirectRulesMade): the first load of this background gives it in any case.
  * @param {number} ruleID
- * @param {string} made - The rule as given (JSON), or RedirectRuleRemoved.
- * @param {chrome.declarativeNetRequest.UpdateRuleOptions} update - The update that gives it.
+ * @param {string} made
+ * @param {chrome.declarativeNetRequest.UpdateRuleOptions} update
  */
 async function updateRedirectRule(ruleID, made, update) {
   if (RedirectRulesMade.get(ruleID) === made) return;
@@ -2165,7 +1784,7 @@ async function loadCustomPatterns() {
 
 /**
  * @param {MultiRegexMatcher} matcher
- * @param {string} fileStr - The patterns, one per line.
+ * @param {string} fileStr
  */
 async function loadCustomPatternsFile(matcher, fileStr) {
   const {patterns, errors} = parseCustomSourcePatterns(fileStr);
@@ -2182,9 +1801,9 @@ async function loadCustomPatternsFile(matcher, fileStr) {
 }
 
 /**
- * @param {string} url - A subtitle file's.
- * @param {FrameHolder} frame - The frame that asked for it.
- * @param {*} headers - Its request's headers, as detected.
+ * @param {string} url
+ * @param {FrameHolder} frame
+ * @param {*} headers
  */
 function handleSubtitles(url, frame, headers) {
   const subtitles = frame.getSubtitles();
@@ -2214,14 +1833,12 @@ function getSourceFromURL(frame, url) {
 }
 
 /**
- * Keeps a stream a frame's page asked for.
  * @param {FrameHolder} frame
  * @param {string} url
  * @param {string} mode
  * @param {*} headers
  * @param {number} [time]
- * @param {?string} [requestedUrl] - The address the request was first made to, when a
- *   redirect brought it here: the one a page's player lists (listForSource).
+ * @param {?string} [requestedUrl]
  */
 function addSource(frame, url, mode, headers, time = Date.now(), requestedUrl = null) {
   frame.addSource({
@@ -2231,10 +1848,8 @@ function addSource(frame, url, mode, headers, time = Date.now(), requestedUrl = 
 }
 
 /**
- * Whether a stream of a frame is a piece of one whose pieces were read as such: a file not
- * read, of the shape of one read as a piece (StreamLengths.lengthsOf counts it as one).
- * @param {FrameHolder} frame - The frame it was detected in.
- * @param {string} url - The stream.
+ * @param {FrameHolder} frame
+ * @param {string} url
  * @return {boolean}
  */
 function isKnownPiece(frame, url) {
@@ -2243,20 +1858,14 @@ function isKnownPiece(frame, url) {
   return index !== -1 && Lengths.lengthsOf(sources)[index] === PIECE_LENGTH;
 }
 
-// How long after a file a file like it, neither read yet, is taken for the next piece of
-// the same stream (isRepeatPiece): a player's pieces follow each other within seconds.
+// A player's pieces follow each other within seconds.
 const NextPieceWithinMs = 15000;
 
 /**
- * Whether a file of a frame is another piece of a stream the frame holds a piece of already:
- * a file of the same shape (StreamLengths.shape), as seg-15.mp4 is of seg-14.mp4. Not when
- * one of that shape was read as a film: lesson-1.mp4 and lesson-2.mp4 are two videos, and the
- * page may have other captions for the second. Where none was read (a tab that is off, a
- * read under way or refused), the next piece is one that comes within NextPieceWithinMs of
- * the last.
- * @param {FrameHolder} frame - The frame it was detected in.
- * @param {string} url - The file.
- * @param {string} mode - Its PlayerModes value.
+ * lesson-1.mp4 and lesson-2.mp4 are two videos when one of that shape was read as a film.
+ * @param {FrameHolder} frame
+ * @param {string} url
+ * @param {string} mode
  * @return {boolean}
  */
 function isRepeatPiece(frame, url, mode) {
@@ -2277,11 +1886,9 @@ function isRepeatPiece(frame, url, mode) {
 }
 
 /**
- * The quality lists a frame's page holds for its player's files (content.js, page-qualities.js).
  * @param {TabHolder} tab
  * @param {number} frameId
- * @return {Promise<Array<Array<{url: string, label: string, height: number}>>>} None when the
- *   page did not answer within PageQualitiesWaitMs.
+ * @return {Promise<Array<Array<{url: string, label: string, height: number}>>>}
  */
 function getPageQualities(tab, frameId) {
   if (tab.tabId < 0 || typeof frameId !== 'number') return Promise.resolve([]);
@@ -2296,12 +1903,8 @@ function getPageQualities(tab, frameId) {
 }
 
 /**
- * Gives each stream the qualities its page's player offers as files of their own, as
- * `qualities`, asked of the frames the streams were found in: the player lists them and plays
- * the one the user's quality setting asks for.
  * @param {TabHolder} tab
- * @param {Array<{url: string, requestedUrl?: string, frameId: number, qualities?: Array<Object>}>} sources -
- *   collectSources'.
+ * @param {Array<{url: string, requestedUrl?: string, frameId: number, qualities?: Array<Object>}>} sources
  * @return {Promise<void>}
  */
 async function attachPageQualities(tab, sources) {
@@ -2324,78 +1927,45 @@ async function attachPageQualities(tab, sources) {
 /** @typedef {import('./MpvMode.mjs').MpvWatch} MpvWatch */
 
 /**
- * The fields this file sets on a TabHolder that TabTracker.mjs does not declare.
- * regexMatched and mpvMatched are saved with the tab's state there (PersistedTabFields).
+ * regexMatched: a list turned the tab on, not the user; mpvMatched: the MPV Allowlist started MPV on its site.
  * @typedef {Object} TabExtras
- * @property {boolean} [regexMatched] - A list (the MPV Allowlist, the auto-enable list) or
- *     the player page turned the tab on, not the user.
- * @property {boolean} [mpvMatched] - The MPV Allowlist started MPV on the tab's site.
- * @property {?{url: string, filename: string, resolve: (value: boolean|null|undefined) => boolean}} [downloadInfo] -
- *     The save a player opened in this tab is for (DOWNLOAD in a container): resolve
- *     answers the page that asked.
+ * @property {boolean} [regexMatched]
+ * @property {boolean} [mpvMatched]
+ * @property {?{url: string, filename: string, resolve: (value: boolean|null|undefined) => boolean}} [downloadInfo]
  */
 
 /**
- * The field this file sets on a player's FrameHolder that TabTracker.mjs does not declare.
  * @typedef {Object} FrameExtras
- * @property {FrameHolder} [pageFrame] - The frame of the page the player plays for
- *     (acceptPlayer).
- * @property {Promise<void>} [linkPromise] - Its introduction to its parent frame's content
- *     script (getPageFrame).
- * @property {ReturnType<typeof setTimeout>} [openTimeout] - The wait before a stream found in
- *     it opens the player (onSourceRecieved).
- * @property {{document: ?string, taken: Promise<void>}} [captionsScrape] - The last ask for
- *     its page's <track> captions (onSourceRecieved): for which page, and its answer taken in.
+ * @property {FrameHolder} [pageFrame]
+ * @property {Promise<void>} [linkPromise]
+ * @property {ReturnType<typeof setTimeout>} [openTimeout]
+ * @property {{document: ?string, taken: Promise<void>}} [captionsScrape]
  */
 
 /**
- * A page's report of its media (content.js: loadedMedia's answer, or LOADED_MEDIA).
  * @typedef {{url?: string, document?: string, live?: boolean,
  *   resources?: {url: string, media: boolean, cors?: boolean, time: number}[]}} MediaReport
  */
 
 /**
- * A stream as a player is handed it (collectSources): with its frame, how far above the
- * player's that is, and, once sendSources read them, its length and its page's qualities.
  * @typedef {TrackedSource & {depth: number, frameId: number, duration?: number|null,
  *   qualities?: Array<{url: string, label: string, height: number}>}} CollectedSource
  */
 
-/**
- * What a page's video plays, as content.js tells it (playedVideo, replacedVideo): its file's
- * URL ('' for a blob:), its length in seconds (null when not known), its currentSrc as it is,
- * and where it plays in seconds.
- * @typedef {{src: string, duration: ?number, playing?: string, time?: number}} PlayedVideo
- */
+/** @typedef {{src: string, duration: ?number, playing?: string, time?: number}} PlayedVideo */
+
+/** @typedef {{autoPlay?: boolean, fullscreenState?: string, disableLoadProgress?: boolean, mpvNext?: boolean}} Continuation */
 
 /**
- * How an autoplay next goes on: what the next episode's player starts with (the player's
- * REQUEST_PLAYLIST_NAVIGATION), or MPV autoplay's (goToEpisode).
- * @typedef {{autoPlay?: boolean, fullscreenState?: string, disableLoadProgress?: boolean, mpvNext?: boolean}} Continuation
- */
-
-/**
- * What a hand-off to mpv answers: MpvBackend.openStream's answer, or openInMpv's refusal
- * of a stream Firefox VPN carries, a copy-protected one, or one only its page loads, or its
- * drop of an MPV-mode hand-off whose page or MPV went while it was prepared.
  * @typedef {Awaited<ReturnType<MpvBackend['openStream']>>|{ok: false, vpn: true, error: string}|
  *   {ok: false, drm: true, error: string}|{ok: false, pageOnly: true, error: string}|
  *   {ok: false, dropped: true}} MpvHandOff
  */
 
 /**
- * Whether a frame's streams include one that may show a video, and not only playlists of
- * stills: the seek bar's thumbnails, which a page may ask for just before its video
- * (StreamLength STILLS_LENGTH). Nor when the one the player would play is copy-protected
- * (DRM, StreamLengths.isProtected): its player loaded it and showed nothing, in place of the
- * page's, which plays it (Vimeo, 2026-10-28); the page keeps its own, and the toolbar button
- * says why (tab.protectedVideo). The one it would play, as it picks (main.mjs: the
- * longest, StreamPick.pick), not any protected one: the film's ads and trailers are clear,
- * and one of them played in its place. The manifests' lengths are read first, when they are
- * not yet; a read takes one request, the one the player would make next.
- * @param {FrameHolder} frame - The frame a player would open in.
- * @return {Promise<boolean>} True unless every one of its streams is a playlist of stills, or
- *   the one it would play is copy-protected.
+ * Not for stills alone (the seek bar's thumbnails), nor when the stream the player would play is copy-protected.
+ * @param {FrameHolder} frame
+ * @return {Promise<boolean>}
  */
 async function hasVideoSource(frame) {
   const manifests = () => collectSources(frame).sources.filter((source) =>
@@ -2416,16 +1986,12 @@ async function hasVideoSource(frame) {
 }
 
 /**
- * Whether the toolbar button says the tab's video stays in the page's own player for being
- * copy-protected (tab.protectedVideo, hasVideoSource): "DRM", and why. Not while one of the
- * tab's FastStream players is there, which plays the video the user watches: a stream the page
- * asked for after it opened, or one of another frame, said "DRM" over it; a player that opens
- * says so no more.
- * @param {TabHolder} tab - The tab.
- * @param {boolean} copyProtected - Whether its video stays in the page's player for it.
+ * Not while a FastStream player of the tab is there, playing the video the user watches.
+ * @param {TabHolder} tab
+ * @param {boolean} copyProtected
  */
 function noteProtectedVideo(tab, copyProtected) {
-  // One still opening too: each frame's player opens on a timer of its own, in either order.
+  // One still opening too: each frame's player opens on its own timer.
   if (copyProtected && [...tab.getFrames()].some((frame) => frame.isPlayer || frame.playerOpening)) {
     return;
   }
@@ -2437,9 +2003,8 @@ function noteProtectedVideo(tab, copyProtected) {
 }
 
 /**
- * Whether this background knows a stream of the tab, outside its players.
- * @param {TabHolder} tab - The tab.
- * @return {boolean} True when a frame of it has one.
+ * @param {TabHolder} tab
+ * @return {boolean}
  */
 function tabHasSources(tab) {
   for (const frame of tab.getFrames()) {
@@ -2451,13 +2016,8 @@ function tabHasSources(tab) {
 }
 
 /**
- * Asks the page's frames what they loaded, when this background knows no stream of the
- * tab. Firefox unloads the background after ~30 idle seconds, and the detected streams go
- * with it (TabTracker keeps the toggle state only), while a page asks for its manifest
- * once, when its video starts: FastStream turned on after that found nothing until the
- * page reloaded. A page back from the back-forward cache, or loaded before FastStream
- * was, is the same. Each frame answers with LOADED_MEDIA (recoverFrameSources).
- * @param {TabHolder} tab - The tab.
+ * Firefox unloads the idle background and its detected streams, while a page asks for its manifest once.
+ * @param {TabHolder} tab
  */
 function recoverSources(tab) {
   try {
@@ -2471,14 +2031,9 @@ function recoverSources(tab) {
 }
 
 /**
- * Takes in what a frame says it loaded (recoverSources): each URL goes through the rules a
- * request's does (onHeadersReceived), by the URL alone, in the order the page asked for
- * them. The requests' own headers are gone; the Referer and Origin the page sent by
- * default stand in for them (pageHeaders). A stream found is then taken in as a detected
- * one is (onSourceRecieved), which opens the player: after the page's <track> captions
- * are read, and after Options.replaceDelay, as for a stream the page asks for now.
- * @param {FrameHolder & FrameExtras} frame - The frame that answered.
- * @param {MediaReport} msg - Its report; live for one told as a video got its file.
+ * Each URL goes through a request's rules by URL alone; the page's default Referer and Origin stand in for the lost headers.
+ * @param {FrameHolder & FrameExtras} frame
+ * @param {MediaReport} msg
  */
 function recoverFrameSources(frame, msg) {
   // The answer of a page since navigated away from: the frame's streams are the next one's.
@@ -2496,9 +2051,7 @@ function recoverFrameSources(frame, msg) {
     return;
   }
 
-  // The report is the page's to write. A page on the internet that named a local-network
-  // address in it had the length read and mpv ask that address (blind requests outside
-  // Firefox's own checks). A page on the local network plays from it.
+  // The report is the page's to write: a page on the internet must not have a local-network address it names read.
   const pageUrl = typeof msg.url === 'string' ? msg.url : frame.url;
   const pageIsLocal = typeof pageUrl === 'string' && isLocalAddress(pageUrl);
   for (const resource of msg.resources) {
@@ -2531,15 +2084,11 @@ function recoverFrameSources(frame, msg) {
 }
 
 /**
- * The Referer and Origin a page's request carries by default (strict-origin-when-cross-
- * origin): for a stream recovered from the page, whose own request headers are gone. And
- * the browser's User-Agent, which a page's request carries too: mpv sends its own
- * ("libmpv") without it, and CDNs refuse that. The player and the length reads drop it
- * (VideoSource's header blacklist).
- * @param {string|undefined} pageUrl - The page; none gives no headers.
- * @param {string} url - The stream.
- * @param {boolean} media - Whether a media element loaded it, which sends no Origin.
- * @return {Array<{name: string, value: string}>} The headers.
+ * With the browser's User-Agent too: mpv's own ("libmpv") is refused by CDNs.
+ * @param {string|undefined} pageUrl
+ * @param {string} url
+ * @param {boolean} media
+ * @return {Array<{name: string, value: string}>}
  */
 function pageHeaders(pageUrl, url, media) {
   if (!pageUrl) {
@@ -2569,10 +2118,8 @@ function pageHeaders(pageUrl, url, media) {
 }
 
 /**
- * The subtitles and streams of a player's frame, or of the nearest frame above it that has
- * streams, each with its frame and how far up it is.
- * @param {FrameHolder} frame - The player's.
- * @param {boolean} [remove] - Whether they are taken out of the frames.
+ * @param {FrameHolder} frame
+ * @param {boolean} [remove]
  */
 function collectSources(frame, remove = false) {
   /** @type {Array<TrackedSubtitle & {depth: number, frameId: number}>} */
@@ -2614,7 +2161,6 @@ function collectSources(frame, remove = false) {
     depth++;
   }
 
-  // Sort by time, oldest first
   sources.sort((a, b) => {
     return a.time - b.time;
   });
@@ -2622,19 +2168,14 @@ function collectSources(frame, remove = false) {
   return {subtitles, sources};
 }
 
-// How long, and how often, the next episode's page is asked to start its player
-// (startPagePlayers).
 const StartPagePlayerEveryMs = 2000;
 const StartPagePlayerForMs = 20000;
-// Each autoplay next's own 20 s, by its continuation: a later page load in the tab (one
-// that never brought a stream) did not start another 20 s.
+// Each autoplay next's own 20 s: a later page load did not start another.
 const startPagePlayerUntil = new WeakMap();
 
 /**
- * Notes where autoplay got stuck (ProblemLog), unless the tab is in a private window: the list
- * is kept on disk (storage.local) and shown on the options page, and a private window's pages
- * leave nothing behind - its sites were listed there for good.
- * @param {number} tabId - The tab it happened in.
+ * Not in a private window: the list is kept on disk and shown on the options page.
+ * @param {number} tabId
  * @param {{url: string, kind: string, mode: 'player'|'mpv'}} problem
  * @return {Promise<void>}
  */
@@ -2651,21 +2192,13 @@ export async function noteProblem(tabId, problem) {
 }
 
 /**
- * Asks the next episode's page, in a tab FastStream went on in by itself (the player's
- * autoplay next), to start its own player, until its stream came. A hoster's player sat
- * idle there until it was clicked (a series site's VOE, 2026-10-11): FastStream had
- * nothing to play, and the user had to click, then FastStream played. Every 2 s for 20 s:
- * the page's player may come later than the page. Only the frame with the tab's largest
- * video is asked (a video ad in another frame is no episode), and each page does it once
- * (content.js startPagePlayer). sendSources takes the continuation once the stream is
- * there, and that ends it; so do Off and MPV.
+ * A hoster's player may sit idle until clicked. Every 2 s for 20 s, only the frame with the tab's largest video.
  * @param {TabHolder} tab
  */
 export function startPagePlayers(tab) {
   const continuation = tab.continuationOptions;
   if (!continuation || (tab.pagePlayerStarter && tab.pagePlayerContinuation === continuation)) return;
-  // One still asking for an earlier next (two quick next keys): it stopped only at its own
-  // next ask, after this page's frame came, and this page was never asked.
+  // One still asking for an earlier next (two quick next keys) never asked this page.
   clearInterval(tab.pagePlayerStarter);
   tab.pagePlayerContinuation = continuation;
   if (!startPagePlayerUntil.has(continuation)) {
@@ -2703,9 +2236,7 @@ export function startPagePlayers(tab) {
   tab.pagePlayerStarter = setInterval(ask, StartPagePlayerEveryMs);
 }
 
-/**
- * @param {FrameHolder} frame - A player's, which asked for its sources.
- */
+/** @param {FrameHolder} frame */
 async function sendSources(frame) {
   const continuationOptions = frame.tab.continuationOptions;
   frame.tab.continuationOptions = null;
@@ -2731,21 +2262,14 @@ async function sendSources(frame) {
     });
   };
 
-  // A player loading again in its frame ("Reload Frame" on it) gets what its first load
-  // got: that was taken out of the page's frames (collectSources), and it sat on the
-  // welcome screen with nothing.
+  // A player loading again in its frame gets what its first load got, taken out of the frames then.
   const handed = frame.parent ? frame.parent.handedTo(frame.frameId) : null;
   if (handed && collectSources(frame).sources.length === 0) {
     send(handed.subtitles, handed.sources, handed.video);
     return;
   }
 
-  // The player plays the one the page's video played, or the longest of them: a little
-  // time for the lengths still being read. The video is asked about after that, when the
-  // page's player has most likely set its length; then a wait for the sources detected
-  // meanwhile, if any (one still unread from before is not waited for twice). A playlist
-  // is read even when it is the only source: it may be one of stills, which the player
-  // lists but does not play by itself (STILLS_LENGTH).
+  // The one the page's video played, or the longest: a little time for lengths still read; a lone playlist too (it may be stills).
   /** @type {?{src: string, duration: ?number}} */
   let video = null;
   const detected = collectSources(frame).sources;
@@ -2772,9 +2296,7 @@ async function sendSources(frame) {
   send(subtitles, sources, video);
 }
 
-/**
- * @param {FrameHolder} frame
- */
+/** @param {FrameHolder} frame */
 export async function scrapeCaptionsTags(frame) {
   const tabId = frame.tab.tabId;
   const frameId = frame.frameId;
@@ -2783,18 +2305,13 @@ export async function scrapeCaptionsTags(frame) {
   return askFrame(tabId, {type: MessageTypes.SCRAPE_CAPTIONS}, {frameId: frameId}, 'scrape_captions', CaptionsAnswerWaitMs);
 }
 
-// The text of a page's <track> files a frame keeps, in characters. content.js reads at most
-// 64 MB at a time, but asks again for each new stream: a page that named new track files each
-// time had them all kept, and copied to its players, without end.
+// content.js reads at most 64 MB at a time but asks again for each new stream: kept without end otherwise.
 export const ScrapedCaptionsKeptMax = 64 * 1024 * 1024;
 
 /**
- * Takes in a frame's own <track> elements, as content.js read them (scrapeCaptionsTags).
- * A track seen before is replaced by its latest copy, anything new is added. Past
- * ScrapedCaptionsKeptMax, read tracks go, oldest first, the ones in this answer last; the
- * subtitle files the frame was seen to load (addresses, no text) stay.
- * @param {FrameHolder} frame - The frame they are in.
- * @param {*} subs - The frame's answer: [{data, source, label, language}], or nothing.
+ * Past ScrapedCaptionsKeptMax, read tracks go oldest first, this answer's last; files seen loaded (no text) stay.
+ * @param {FrameHolder} frame
+ * @param {*} subs
  */
 export function takeScrapedCaptions(frame, subs) {
   if (!Array.isArray(subs)) {
@@ -2812,8 +2329,7 @@ export function takeScrapedCaptions(frame, subs) {
   /** @param {*} s @return {number} */
   const textLength = (s) => (typeof s?.data === 'string' ? s.data.length : 0);
   let kept = subtitles.reduce((sum, s) => sum + textLength(s), 0);
-  // A track read again keeps its place, so the oldest place is not the oldest reading: the
-  // tracks of this answer, which the page has now, go only after all the others.
+  // A track read again keeps its place: this answer's tracks go only after all others.
   const current = new Set(subs.map((s) => s?.source));
   for (const spareCurrent of [true, false]) {
     for (let i = 0; kept > ScrapedCaptionsKeptMax && i < subtitles.length;) {
@@ -2829,18 +2345,12 @@ export function takeScrapedCaptions(frame, subs) {
 }
 
 /**
- * What the page's video that a player replaced played (content.js replacedVideo), asked
- * of the frame the player's iframe is in.
- * @param {FrameHolder} player - The player's frame, one with a parent (sendSources asks
- *   only then).
- * @return {Promise<?{src: string, duration: ?number}>} Its file's URL and its length, or
- *   null when the player replaced no video (it fills the page), or the page did not answer
- *   within PlayedVideoWaitMs.
+ * @param {FrameHolder} player
+ * @return {Promise<?{src: string, duration: ?number}>}
  */
 async function getPlayedVideo(player) {
   return new Promise((resolve) => {
-    // Content scripts share the page's event loop: a page that never lets go would hold
-    // the player without sources.
+    // Content scripts share the page's event loop: a page that never lets go would hold the player.
     const timer = setTimeout(() => resolve(null), PlayedVideoWaitMs);
     chrome.tabs.sendMessage(player.tab.tabId, {
       type: MessageTypes.GET_PLAYED_VIDEO,
@@ -2856,13 +2366,12 @@ async function getPlayedVideo(player) {
 }
 
 /**
- * Asks a frame's content script, as tabs.sendMessage does, and answers undefined - as a frame
- * without one does - once FrameAnswerWaitMs have passed with no answer.
+ * As tabs.sendMessage, but undefined once FrameAnswerWaitMs passed with no answer.
  * @param {number} tabId
  * @param {Object} message
  * @param {{frameId: number}} target
- * @param {string} label - For BackgroundUtils.checkMessageError.
- * @param {number} [waitMs] - How long an answer is waited for.
+ * @param {string} label
+ * @param {number} [waitMs]
  * @return {Promise<*>}
  */
 export function askFrame(tabId, message, target, label, waitMs = FrameAnswerWaitMs) {
@@ -2876,17 +2385,14 @@ export function askFrame(tabId, message, target, label, waitMs = FrameAnswerWait
   });
 }
 
-/**
- * @param {FrameHolder} frame
- */
+/** @param {FrameHolder} frame */
 async function getVideoSize(frame) {
   return askFrame(frame.tab.tabId, {type: MessageTypes.GET_VIDEO_SIZE}, {frameId: frame.frameId}, 'get_video_size');
 }
 
 /**
- * The page that opened a player, as content.js names it in the player's URL.
- * @param {string|undefined} url - The player's URL.
- * @return {?string} The name, or null when the URL has none.
+ * @param {string|undefined} url
+ * @return {?string}
  */
 function playerOpener(url) {
   if (!url) return null;
@@ -2898,13 +2404,11 @@ function playerOpener(url) {
 }
 
 /**
- * Whether the frame a player names (PLAYER_LOADED's parentFrameId) holds the page that
- * opened it (TabHolder.playerParentProof). When this background does not know that page's
- * name (it started again since the page loaded), the frame's content script is asked.
- * @param {TabHolder} tab - The tab.
- * @param {FrameHolder} frame - The player's frame.
- * @param {*} parentFrameId - The frame it names.
- * @param {?string} opener - The page its URL names.
+ * When this background does not know that page's name (it started again since), the frame's content script is asked.
+ * @param {TabHolder} tab
+ * @param {FrameHolder} frame
+ * @param {*} parentFrameId
+ * @param {?string} opener
  * @return {Promise<boolean>}
  */
 async function isPlayerParentProven(tab, frame, parentFrameId, opener) {
@@ -2912,8 +2416,7 @@ async function isPlayerParentProven(tab, frame, parentFrameId, opener) {
   if (proof !== 'ask') {
     return proof === 'proven';
   }
-  // No answer in time is no proof (askFrame): the player is then no page's, as when the
-  // page says no, and does not wait for good on a page that never lets go of its event loop.
+  // No answer in time is no proof.
   const answer = await askFrame(tab.tabId, {
     type: MessageTypes.IS_PLAYER_OPENER,
     document: opener,
@@ -2929,24 +2432,19 @@ async function isPlayerParentProven(tab, frame, parentFrameId, opener) {
 }
 
 /**
- * Takes a player that said it loaded (PLAYER_LOADED) for one, and answers it.
- * @param {TabHolder & TabExtras} tab - The tab of the player.
- * @param {FrameHolder & FrameExtras} frame - The frame of the player, its parent set when it
- *     has one.
- * @param {chrome.runtime.MessageSender} sender - The message's sender.
- * @param {Function} sendResponse - The answer.
+ * @param {TabHolder & TabExtras} tab
+ * @param {FrameHolder & FrameExtras} frame
+ * @param {chrome.runtime.MessageSender} sender
+ * @param {Function} sendResponse
  */
 function acceptPlayer(tab, frame, sender, sendResponse) {
   if (Logging) console.log('Found FastStream window', frame);
-  // A frame counted already - restorePlayerFrame's, when this is the first word of a player
-  // after Firefox unloaded the background - is not counted twice: a frame's leaving counts
-  // it gone once (resetSelfAndChildren).
+  // Not counted twice: restorePlayerFrame may have counted it already.
   const counted = frame.isPlayer;
   frame.isPlayer = true;
 
   if (tab.downloadInfo) {
-    // Taken now: the DOWNLOAD's 30 s timeout can end it while the player saves, and the
-    // answer then found no download to give it to (a TypeError, and no answer at all).
+    // Taken now: the DOWNLOAD's 30 s timeout can end it while the player saves.
     const info = tab.downloadInfo;
     tab.downloadInfo = null;
     chrome.tabs.sendMessage(frame.tab.tabId, {
@@ -2959,7 +2457,6 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
       BackgroundUtils.checkMessageError('download');
       info.resolve(response);
 
-      // Close tab
       chrome.tabs.remove(frame.tab.tabId).catch(() => {});
     });
     sendResponse(null);
@@ -3012,20 +2509,16 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
 }
 
 /**
- * Where a player's page is, for loading through it (PageFetch.mjs): none for a player that is its
- * tab's page itself (no page script runs in an extension page).
  * @param {TabHolder} tab
- * @param {FrameHolder & FrameExtras} frame - The player's, its pageFrame set.
- * @return {{tabId: number, pageFrameId: number}} tabId -1 for none.
+ * @param {FrameHolder & FrameExtras} frame
+ * @return {{tabId: number, pageFrameId: number}}
  */
 function pageOfPlayer(tab, frame) {
   const page = frame.pageFrame && frame.pageFrame !== frame ? frame.pageFrame : null;
   return page ? {tabId: tab.tabId, pageFrameId: page.frameId} : {tabId: -1, pageFrameId: -1};
 }
 
-/**
- * @param {FrameHolder} frame
- */
+/** @param {FrameHolder} frame */
 async function openPlayer(frame) {
   if (frame.playerOpening || frame.hasPlayer()) {
     return;
@@ -3033,8 +2526,7 @@ async function openPlayer(frame) {
 
   frame.playerOpening = true;
   frame.openTriedAt = Date.now();
-  // Named in content.js's report of a player iframe the page took out before it loaded
-  // (PLAYER_OPEN_GONE), so a report of an earlier attempt never ends this one.
+  // So a report of an earlier attempt never ends this one (PLAYER_OPEN_GONE).
   frame.playerOpeningAttempt = ++playerOpeningAttempts;
   // Another frame's video, or the page's next, is one FastStream plays: no "DRM" over it.
   noteProtectedVideo(frame.tab, false);
@@ -3053,8 +2545,6 @@ async function openPlayer(frame) {
       frameId: frame.frameId,
     }, (response) => {
       BackgroundUtils.checkMessageError('player');
-      // What content.js did ('redirect', 'replace', 'no_video'...): a player that never came
-      // after "Opening player" said nothing of why (iframe-redirect.e2e on CI).
       if (Logging) console.log('Player opening answered', response, frame.frameId);
 
       if (!BackgroundUtils.isPlayerOpeningResponse(response)) {
@@ -3069,19 +2559,9 @@ async function openPlayer(frame) {
 }
 
 /**
- * An open of a frame's player ended without one: content.js found no video on screen
- * ('no_video': not made yet, or further down the page), its players were removed meanwhile
- * ('error'), or the page took the player's iframe out before it loaded ('gone').
- *
- * Nothing tried again until 2026-11-14: openPlayer is called once per stream, when it is
- * first seen, and every later request for it is a stream already known. So a tab that was on
- * and is loaded again - its stream asked for half a second in, the page's video not on screen
- * yet - kept the page's own player, and pressing play there changed nothing (the owner's
- * report). Now it is tried again by itself a few times, a moment apart, for a video that
- * comes late, and after that whenever the page asks for the stream again or the user starts
- * a video (reopenMissed).
+ * content.js found no video on screen ('no_video'), its players were removed ('error'), or the page took the iframe out ('gone').
  * @param {FrameHolder & FrameExtras} frame
- * @param {string} answer - content.js's answer to OPEN_PLAYER, or 'gone'.
+ * @param {string} answer
  */
 function noteOpenMissed(frame, answer) {
   frame.openMissed++;
@@ -3092,13 +2572,10 @@ function noteOpenMissed(frame, answer) {
 }
 
 /**
- * Tries again to open a frame's player after an open that ended without one (noteOpenMissed),
- * if the tab is still on and the page still has a video stream.
+ * Only byUser puts back a player the page took out: its own requests would put it back to be taken out again.
  * @param {FrameHolder & FrameExtras} frame
- * @param {number} [wait] - How long after the last try, at least: by default longer with each
- *   miss (ReopenMissedEveryMs, doubling).
- * @param {boolean} [byUser] - The user started a video. Without that, a player the page took
- *   out stays out: the page's own requests would put it back in, to be taken out again.
+ * @param {number} [wait]
+ * @param {boolean} [byUser]
  */
 function reopenMissed(frame, wait, byUser = false) {
   if (!frame.openMissed || frame.playerOpening || frame.hasPlayer() || !frame.isTracked() ||
@@ -3107,18 +2584,12 @@ function reopenMissed(frame, wait, byUser = false) {
   }
   const least = wait ?? Math.min(ReopenMissedEveryMs * 2 ** (frame.openMissed - 1), ReopenMissedLongestMs);
   if (Date.now() - frame.openTriedAt < least) return;
-  // Now, not when openPlayer sends: the check for a video stream before it can wait for the
-  // streams' lengths, and the stream's next request would start a second try meanwhile.
+  // Now: the check before openPlayer can wait for lengths, and the next request would start a second try.
   frame.openTriedAt = Date.now();
   openPlayerIfVideo(frame);
 }
 
-/**
- * A play the user started in a page (content.js reportUserPlay): a tab that is on, where an
- * open ended without a player, opens it now - in the frame that played, or the nearest one
- * around it whose open was missed (a stream asked for by the page around the video's frame).
- * @param {chrome.runtime.MessageSender} sender
- */
+/** @param {chrome.runtime.MessageSender} sender */
 async function reopenOnUserPlay(sender) {
   await ensureOptions();
   const tab = sender.tab?.id !== undefined ? Tabs.getTab(sender.tab.id) : null;
@@ -3131,68 +2602,47 @@ async function reopenOnUserPlay(sender) {
   }
 }
 
-/**
- * Opens a frame's player if its tab is on, not in MPV mode, and its page has a video stream.
- * @param {FrameHolder & FrameExtras} frame
- */
+/** @param {FrameHolder & FrameExtras} frame */
 async function openPlayerIfVideo(frame) {
-  // A frame the tab no longer tracks - forgotten, or dropped by the reset on a new
-  // site with this page's streams still on it - opens nothing: OPEN_PLAYER goes by
-  // frame id, to whatever page now has it. A new page in the frame keeps it tracked,
-  // and a stream found before that page's FRAME_ADDED still opens (preservedSources).
+  // OPEN_PLAYER goes by frame id, to whatever page now has it: an untracked frame opens nothing.
   if (!frame.isTracked()) {
     return;
   }
-  // MPV counts as on too: a switch to it within the delay found no player to
-  // reload away, and this would open one under it.
+  // MPV counts as on too: this would open a player under it.
   if (!frame.tab.isOn || frame.tab.isMpv) {
     return;
   }
-  // Not on the seek bar's thumbnails alone, which a page may ask for before its video:
-  // the player would take them, and the video's stream, asked for later, would be
-  // dropped as one of the player's own.
+  // Not on the seek bar's thumbnails alone: the video's stream would then be dropped as the player's own.
   if (!await hasVideoSource(frame)) {
     return;
   }
-  // Again after the wait for the lengths (up to SourceLengthWaitMs): a tab that went on
-  // to another site meanwhile dropped the frame.
+  // Again after the wait: a tab gone to another site dropped the frame.
   if (frame.isTracked() && frame.tab.isOn && !frame.tab.isMpv) {
     openPlayer(frame);
   }
 }
 
-/**
- * @param {FrameHolder} frame - The frame a stream was detected in.
- */
+/** @param {FrameHolder} frame */
 async function sendSourcesToMainFramePlayers(frame) {
-  // Only a tab that is on and has a main player is sent to (below): with none, the query of
-  // every tab is for nothing - and this runs for every stream detected, each segment of a
-  // page's own player.
+  // Runs for every stream detected: the tabs are queried only when one has a main player.
   if (!Array.from(Tabs.tabs.values()).some((tab) => tab.isOn && tab.getMainPlayer())) {
     return;
   }
-  // query all tabs
   const tabs = await BackgroundUtils.queryTabs();
-  // Only to player tabs on the same side of private browsing as the page: a private
-  // window's streams, with the requests' cookies, showed in an ordinary window's player
-  // tab, and the other way round. A tab no longer open says nothing of its side.
+  // Only to player tabs on the same side of private browsing, and in the same container.
   const from = tabs.find(/** @param {chrome.tabs.Tab} t */ (t) => t.id === frame.tab.tabId);
   if (!from) {
     return;
   }
 
-  // for each tab
   for (let i = 0; i < tabs.length; i++) {
     if (!!tabs[i].incognito !== !!from.incognito) continue;
-    // Nor across containers: one container's streams, with its cookies, showed in another's
-    // player tab, which fetched them with its own session.
     if ((tabs[i].cookieStoreId || null) !== (from.cookieStoreId || null)) continue;
     const tab = Tabs.getTab(tabs[i].id);
     if (!tab || !tab.isOn) continue;
-    // if the tab is a faststream tab
     const mainPlayerFrame = tab.getMainPlayer();
     if (mainPlayerFrame) {
-      // send the source to the tab: what was found since its player cleared its list
+      // What was found since its player cleared its list.
       const since = (/** @type {object} */ found) => !tab.clearedSources.has(found);
       chrome.tabs.sendMessage(tab.tabId, {
         type: MessageTypes.SOURCES,
@@ -3207,59 +2657,41 @@ async function sendSourcesToMainFramePlayers(frame) {
 }
 
 /**
- * @param {{url: string, requestId: string|number, customHeaders?: *, time?: number}} details - The
- *   request's (webRequest's), or one made up for a stream the page told: requestId -1, its
- *   headers as customHeaders.
- * @param {FrameHolder & FrameExtras} frame - The frame it is for.
- * @param {string} mode - A PlayerModes value.
+ * @param {{url: string, requestId: string|number, customHeaders?: *, time?: number}} details
+ * @param {FrameHolder & FrameExtras} frame
+ * @param {string} mode
  */
 async function onSourceRecieved(details, frame, mode) {
-  // Read the cached request headers before anything else. deleteHeaderCache is
-  // a second onHeadersReceived listener, so it runs the moment this function
-  // yields at its first await; reading them after that always returns
-  // undefined and the Referer/Origin the CDN needs is lost.
+  // Before any await: deleteHeaderCache, a second onHeadersReceived listener, runs at the first one.
   const customHeaders = details.customHeaders || frame.tab.requestHeaders.get(details.requestId);
 
   const url = details.url;
 
-  // Taken before the first await too: the same stream told by the page (content.js on
-  // loadedmetadata, recoverFrameSources) came in while this one waited, and the page's
-  // stand-in headers won over the request's own (an Origin lost: mpv.e2e.mjs).
+  // Before the first await too: the page's stand-in headers for the same stream must not win.
   if (getSourceFromURL(frame, url)) {
-    // Asked for again (a file's next range, a live playlist): the page plays it, and an open
-    // that found no video on screen before may find it now.
+    // Asked for again: an open that found no video on screen before may find it now.
     reopenMissed(frame);
     return;
   }
 
-  // A stream recovered from the page (recoverFrameSources) keeps when the page asked for it.
-  // A redirected one, the address the page asked for (the one its player lists).
+  // A recovered stream keeps when the page asked for it; a redirected one, its first address.
   addSource(frame, url, mode, customHeaders, details.time,
       details.requestId !== undefined ? frame.tab.redirectOrigin(details.requestId) : null);
 
   await ensureOptions();
-  // Its length, read now: by the time a player asks for the page's streams, it is known. Not
-  // that of a piece of a stream whose pieces were read as such (seg-15.mp4 after seg-14.mp4):
-  // lengthsOf counts it as one unread, and a pick that waits for the lengths reads it then
-  // (Lengths.settle). A page's own player fetches thousands of them in an evening, and each
-  // was a read and a header rule added and taken away.
+  // Not for a known piece: a page's own player fetches thousands in an evening, each a read and a header rule.
   if (frame.tab.isOn && !isKnownPiece(frame, url)) {
     Lengths.probe({url, mode, headers: customHeaders});
   }
 
-  // MPV mode: relay the detected source to the native mpv host instead of
-  // opening the in-page player. Not with MPV mode switched off (leaveMpvWhenOff).
+  // Not with MPV mode switched off (leaveMpvWhenOff).
   if (frame.tab.isOn && frame.tab.isMpv && Options.mpvMode) {
     if (frame.tab.mpvOnPlay && !(frame.tab.mpvNextEpisodeUntil > Date.now())) {
-      // The shortcut's MPV: streams are only tracked, for onUserPlay to pick
-      // from - unless the user already pressed play and the player asked
-      // for its stream only afterwards, in which case this is that stream.
+      // The shortcut's MPV: only tracked for onUserPlay, unless a play is waiting for this stream.
       const tab = frame.tab;
       const candidate = {frame, document: frame.documentKey, url, mode, headers: customHeaders};
       if (tab.mpvPlayChecking) {
-        // Another stream is being checked for the play: this one is next, should that one
-        // be another video's. Dropped, an ad's manifest and then the episode's left the
-        // play with nothing sent.
+        // Next in line should that one be another video's: dropped, the episode's own went unsent.
         tab.mpvPlayChecking.push(candidate);
       } else if (tab.mpvPlayPendingUntil > Date.now()) {
         await sendPendingPlay(tab, candidate);
@@ -3267,12 +2699,7 @@ async function onSourceRecieved(details, frame, mode) {
       return;
     }
 
-    // Auto-open only the first stream found on this page. Later ones stay
-    // tracked for the toolbar and the player's "send to mpv" button, but
-    // they must not each spawn their own mpv window. Not one already known to show no
-    // video of its own (showsNoVideo); there is no waiting here for a length still read.
-    // MPV autoplay's next page is the exception: its first stream may be an ad's
-    // (pickNextEpisodeForMpv).
+    // The first stream of a page only, unless known to show no video: each would open its own mpv window.
     if (!frame.tab.mpvAutoOpened && !showsNoVideo({url, mode}, frame)) {
       if (frame.tab.mpvNextEpisodeUntil > Date.now()) {
         pickNextEpisodeForMpv(frame.tab);
@@ -3283,11 +2710,7 @@ async function onSourceRecieved(details, frame, mode) {
     return;
   }
 
-  // Another piece of a stream the frame's page holds pieces of (seg-15.mp4 after seg-14.mp4):
-  // the page's <track> captions were asked for at the first, and that answer is waited for,
-  // not asked for again. Each piece made content.js walk the page and fetch every <track> file
-  // again, thousands of times in an evening. Another stream, or the next page, asks again: its
-  // page may have added tracks for it.
+  // Another piece of the same stream: the first piece's captions answer is reused, not asked again.
   let scrape = frame.captionsScrape;
   if (!scrape || scrape.document !== frame.documentKey || !isRepeatPiece(frame, url, mode)) {
     scrape = {
@@ -3311,19 +2734,13 @@ async function onSourceRecieved(details, frame, mode) {
 }
 
 /**
- * Opens the in-page player in each frame whose page has a video stream.
- * @param {TabHolder} tab - The tab.
- * @param {number} [foundBefore] - Only streams found before this time count (a start by
- *   address, startWithTrackedLater): a later one opens the player by itself, after the
- *   page's <track> captions are read (onSourceRecieved), and opened here as well it
- *   beat them and opened a second player.
+ * foundBefore: later streams open the player by themselves, after the page's captions.
+ * @param {TabHolder} tab
+ * @param {number} [foundBefore]
  */
 export async function openPlayersWithSources(tab, foundBefore = Infinity) {
   if (!tabHasSources(tab)) {
-    // Streams the page asked for before this background knew of it (recoverSources). Each
-    // one found opens the player as a stream detected now does (onSourceRecieved): opened
-    // here, it would beat the page's <track> captions and Options.replaceDelay of a stream
-    // the page asks for meanwhile - as it does right after an auto-enable URL loads.
+    // Each recovered stream opens the player as a detected one does, after the captions and replaceDelay.
     recoverSources(tab);
     return;
   }
@@ -3343,22 +2760,18 @@ export async function openPlayersWithSources(tab, foundBefore = Infinity) {
       return await hasVideoSource(frame) ? {frame, documentKey, videoSize: await getVideoSize(frame)} : null;
     }))).filter((entry) => entry !== null);
 
-    // The page's videos were measured with a round trip to it; a click that turned the
-    // tab off, or over to MPV, in the meantime decides.
+    // A click meanwhile that turned the tab off or to MPV decides.
     if (!tab.isOn || tab.isMpv) {
       return;
     }
 
-    // A frame that did not answer (no content script) has no size: 0, not undefined, whose
-    // NaN made the order arbitrary - and the first player opened is the one that plays.
+    // A frame without an answer sizes 0, not undefined: NaN made the order arbitrary.
     framesWithSources.sort((a, b) => {
       return (b.videoSize || 0) - (a.videoSize || 0);
     });
 
     for (let i = 0; i < framesWithSources.length; i++) {
-      // A frame the tab dropped meanwhile (it went on to another site, or the page took
-      // the frame out), or one that loaded another page: OPEN_PLAYER goes by frame id, to
-      // whatever page has it now, as onSourceRecieved's wait checks too.
+      // A frame dropped or showing another page since: OPEN_PLAYER goes by frame id.
       const {frame, documentKey} = framesWithSources[i];
       if (!frame.isTracked() || frame.documentKey !== documentKey) continue;
       openPlayer(frame);
@@ -3367,14 +2780,8 @@ export async function openPlayersWithSources(tab, foundBefore = Infinity) {
 }
 
 /**
- * Stops whatever the page is still playing once a stream has been handed to
- * mpv. Without this the site keeps streaming in the background and the user
- * has to come back to the tab just to silence it.
- *
- * Sent to every frame: on these sites the video usually lives in an iframe,
- * not the top document.
- *
- * @param {number} tabId - Tab whose media should be paused.
+ * Sent to every frame: the video usually lives in an iframe.
+ * @param {number} tabId
  * @return {void}
  */
 export function pauseTabMedia(tabId) {
@@ -3394,8 +2801,6 @@ export function pauseTabMedia(tabId) {
 }
 
 /**
- * Stores one option the background changed itself (mpv's autoplay switch), and tells an open
- * options page, as its own saves do.
  * @template {keyof PlayerOptions} K
  * @param {K} key
  * @param {PlayerOptions[K]} value
@@ -3407,9 +2812,7 @@ export async function saveOption(key, value) {
   await Utils.setConfig('options', JSON.stringify(options));
   await loadOptions(options);
   const time = Date.now();
-  // An open options page hears UPDATE_OPTIONS (OptionsStore). It was sent LOAD_OPTIONS,
-  // which only this background handles: the page went on showing the old value, and its
-  // next save wrote it back (mpv's autoplay switch, turned on again).
+  // An open options page hears UPDATE_OPTIONS; LOAD_OPTIONS left it showing, and saving back, the old value.
   chrome.runtime.sendMessage({type: MessageTypes.UPDATE_OPTIONS, time}).catch(() => {
     // No options page open.
   });
@@ -3417,10 +2820,8 @@ export async function saveOption(key, value) {
 }
 
 /**
- * Tells every known tab's pages and players that the options changed (UPDATE_OPTIONS) -
- * once the tabs are known again: right after a wake none were, and no page or player
- * heard of the new options.
- * @param {number} time - The change's time, which a player that sent it skips.
+ * Once the tabs are known again: right after a wake none were.
+ * @param {number} time
  */
 function sendOptionsToTabs(time) {
   ensureOptions().then(() => BackgroundUtils.queryTabs()).then((tabs) => {
@@ -3438,11 +2839,7 @@ function sendOptionsToTabs(time) {
   }).catch((e) => console.error('Sending the new options to the tabs failed', e));
 }
 
-/**
- * Closes a tab MPV autoplay opened for an episode (TabHolder.mpvReopened), unless the user
- * looks at it now: then it is the user's, and stays.
- * @param {TabHolder} tab
- */
+/** @param {TabHolder} tab */
 export function closeReopenedTab(tab) {
   if (!tab?.mpvReopened) return;
   tab.mpvReopened = false;
@@ -3455,16 +2852,10 @@ export function closeReopenedTab(tab) {
 }
 
 /**
- * Whether mpv plays the stream FastStream sent: the host appends its fs-* tags after a #,
- * and the rest is the URL as sent, as the URL parser writes it (mpvTargetUrl): a URL sent
- * in another spelling (an upper-case host) did not count (#470). A file the user opened in
- * mpv himself is not followed. Another of the page's qualities that went along is the
- * stream too: mpv's quality menu (faststream-quality.lua) loads it in place, and autoplay
- * stopped at the end of an episode whose quality was switched in mpv (this review,
- * 2026-10-13). The host writes each of them the same way.
- * @param {*} path - mpv's path.
- * @param {string} url - The stream sent.
- * @param {?Array<{url: string}>} [qualities] - The page's qualities sent with it.
+ * The URL as sent, as the URL parser writes it, before mpv's # tags; another quality sent along counts.
+ * @param {*} path
+ * @param {string} url
+ * @param {?Array<{url: string}>} [qualities]
  * @return {boolean}
  */
 export function isSentStream(path, url, qualities = null) {
@@ -3483,10 +2874,7 @@ export function isSentStream(path, url, qualities = null) {
   return (Array.isArray(qualities) ? qualities : []).some((entry) => parsedWithoutHash(entry?.url) === playing);
 }
 
-/**
- * mpv's notice that autoplay stops at the series' last episode.
- * @param {MpvWatch} state
- */
+/** @param {MpvWatch} state */
 export function notifySeriesEnd(state) {
   state.watcher?.notify(chrome.i18n.getMessage('player_next_video_label') || 'Next video',
       chrome.i18n.getMessage('mpv_episode_series_end') || 'the last episode of the series: autoplay stops',
@@ -3494,9 +2882,7 @@ export function notifySeriesEnd(state) {
 }
 
 /**
- * Whether the tracker still holds the tab. A closed tab's holder lives on in the callbacks
- * of what it sent, and a state saved for it put the closed tab back into storage.session,
- * for every later background to make a holder of again.
+ * A closed tab's holder lives on in callbacks: saving its state put the closed tab back into storage.session.
  * @param {TabHolder} tab
  * @return {boolean}
  */
@@ -3505,10 +2891,8 @@ export function isTabOpen(tab) {
 }
 
 /**
- * A tab's title, for mpv's window and top bar (the native host shows the stream's host
- * name without one).
- * @param {number} tabId - The tab.
- * @return {Promise<string|undefined>} Its title, or undefined when it cannot be read.
+ * @param {number} tabId
+ * @return {Promise<string|undefined>}
  */
 export async function tabTitle(tabId) {
   try {
@@ -3520,20 +2904,14 @@ export async function tabTitle(tabId) {
 }
 
 /**
- * The allowlist's MPV, after a play on a page Back gave back whose own stream is not
- * among the page's streams (an MSE player's blob:). The page may still ask for one
- * now (it moved on to another video without a load), and its detection sends it;
- * when none has gone within MpvPlayKnownAfterMs, the page's known stream goes.
- *
- * @param {TabHolder} tab - The tab the video is in.
- * @param {number} frameId - Frame the video is in.
- * @param {string} src - The video element's currentSrc.
- * @param {?PlayedVideo} video - What it plays.
+ * On a page Back gave back whose own stream is a blob: the page's known stream goes after MpvPlayKnownAfterMs.
+ * @param {TabHolder} tab
+ * @param {number} frameId
+ * @param {string} src
+ * @param {?PlayedVideo} video
  */
 function autoOpenKnownLater(tab, frameId, src, video) {
-  // The page the play came from, as onUserPlay checks it: within the wait the tab can show
-  // another page (Back once more gives one back with its streams), and that page's stream
-  // went to mpv for this page's play.
+  // The page the play came from: within the wait the tab can show another page.
   const documentIn = () => tab.getFrame(frameId)?.documentKey;
   const page = {url: tab.url, document: documentIn()};
   // isTabOpen: a tab closed within the wait still looked like itself, and its stream went to mpv.
@@ -3551,26 +2929,10 @@ function autoOpenKnownLater(tab, frameId, src, video) {
 }
 
 /**
- * A video the user started, in a tab whose MPV came from the shortcut: hands
- * that video's stream to mpv and pauses the page.
- *
- * With no stream for it yet - a player that fetches only once play() was
- * called - the next stream detected in the tab within MpvPlayPendingMs is
- * taken as this one (see onSourceRecieved).
- *
- * In the allowlist's MPV, the first stream detected on a page goes to mpv by
- * itself. A play counts only on a page Back brought out of Firefox's
- * back-forward cache (frame.restoredFromCache), while none has gone on it: it
- * fetches nothing again, so its video plays what it had loaded and nothing is
- * detected. Its streams are the ones the background kept for it
- * (TabHolder.restoreGoneDocument). Anywhere else the play's own stream is
- * detected, and goes by itself: a site that plays its next episode in the same
- * page (a URL change without a load, which lets the page's MPV send again) still
- * has the last one's streams, and the play came before the new one's.
- *
- * @param {chrome.runtime.MessageSender} sender - The message sender: its tab and frameId.
- * @param {string} src - The video element's currentSrc.
- * @param {?PlayedVideo} video - What it plays.
+ * With no stream yet, the next one within MpvPlayPendingMs is taken. In the allowlist's MPV a play counts only on a page Back gave back.
+ * @param {chrome.runtime.MessageSender} sender
+ * @param {string} src
+ * @param {?PlayedVideo} video
  */
 async function onUserPlay(sender, src, video) {
   await ensureOptions();
@@ -3591,8 +2953,7 @@ async function onUserPlay(sender, src, video) {
     return;
   }
 
-  // The page the video plays in: the tab may load another while the lengths are read, and
-  // the next page's first stream went to mpv for a video of the page before (G3).
+  // The page the video plays in: the tab may load another while the lengths are read.
   const page = {url: tab.url, document: frame ? frame.documentKey : undefined};
   const source = await findPlayedSource(tab, sender.frameId, src, video);
   // The tab may have left MPV while the lengths were read, or a stream went meanwhile.
@@ -3614,16 +2975,11 @@ async function onUserPlay(sender, src, video) {
   } else if (source) {
     sendPlayedToMpv(tab, source, video);
   } else {
-    // None yet, or only another video's by length (findPlayedSource): the next stream the
-    // page asks for decides, when its length can be the video's (onSourceRecieved).
+    // None yet, or another video's: the next stream of a fitting length decides.
     tab.mpvPlayedVideo = video || null;
     tab.mpvPlayPendingUntil = Date.now() + MpvPlayPendingMs;
     Tabs.saveTabState(tab);
-    // Nothing of the tab known at all: Firefox stopped the idle background, and the
-    // streams it had detected went with it - MPV has no extension page open to keep it
-    // running. The page asked for its manifest before, and asks for none now: the play
-    // never went to mpv. The page says what it loaded, and each stream found takes the
-    // place of the next one detected (recoverFrameSources).
+    // Nothing of the tab known: Firefox stopped the idle background; the page says what it loaded.
     if (!tabHasSources(tab)) {
       recoverSources(tab);
     }
@@ -3631,16 +2987,9 @@ async function onUserPlay(sender, src, video) {
 }
 
 /**
- * The shortcut's MPV, after a play whose stream was not detected yet (onUserPlay): checks
- * the streams detected since, in the order the page asked for them, and sends the first
- * whose length can be the video's. The length tells: the first stream after the play
- * went unchecked once, a preview's or an ad's as well. Streams found while one is checked
- * wait their turn in tab.mpvPlayChecking. None that fits: the play waits on for the next,
- * while its time lasts.
- *
- * @param {TabHolder} tab - The tab the video plays in.
- * @param {{frame: FrameHolder, document: ?string, url: string, mode: string, headers: *}} first -
- *   The stream that came first, and the page its frame showed then.
+ * The first whose length can be the video's: the first stream after a play can be a preview's or an ad's.
+ * @param {TabHolder} tab
+ * @param {{frame: FrameHolder, document: ?string, url: string, mode: string, headers: *}} first
  * @return {Promise<void>}
  */
 async function sendPendingPlay(tab, first) {
@@ -3653,15 +3002,12 @@ async function sendPendingPlay(tab, first) {
   try {
     while (queue.length > 0) {
       const candidate = /** @type {typeof first} */ (queue.shift());
-      // Its length, being read since it was detected (onSourceRecieved's probe).
       await Lengths.settle(() => [candidate], SourceLengthWaitMs);
       // A new page, a reload or MPV started again drop the play (and this queue).
       if (tab.mpvPlayChecking !== queue || tab.url !== url) {
         return;
       }
-      // Its frame went on to another page meanwhile, or its length is another video's, or
-      // it shows no video of its own: the seek bar's thumbnails, a piece of a stream. Their
-      // lengths conflict with none, and mpv showed the thumbnails, or played seconds.
+      // Another page, another video's length, or no video of its own (thumbnails, a piece).
       if (candidate.frame.documentKey !== candidate.document ||
           StreamPick.conflicts(tab.mpvPlayedVideo, Lengths.lengthOf(candidate.url)) ||
           showsNoVideo(candidate, candidate.frame)) {
@@ -3683,23 +3029,12 @@ async function sendPendingPlay(tab, first) {
 }
 
 /**
- * The detected source a started video plays. Its own URL first: a progressive
- * file, often preloaded long before the click, which no later request would
- * detect again. Otherwise the stream as long as the video (StreamPick), or the
- * newest of the longest sources of the frame it plays in, since an MSE player's
- * src is a blob: and its manifest a request of that frame - and one that ran an
- * ad first has the ad's among them. Their
- * lengths may not be read yet: the page can have asked for them before this
- * tab's MPV started, when nothing read them. A short video beside a far longer
- * stream is an ad or a preview, found by URL or not: the longest decides. A
- * pick plainly another length than the video is none: the video's stream is
- * still to come.
- *
- * @param {TabHolder} tab - The tab the video is in.
- * @param {number} frameId - Frame the video is in.
- * @param {string} src - The video element's currentSrc.
- * @param {?PlayedVideo} video - What it plays.
- * @return {Promise<?TrackedSource>} The source, or null when none is detected yet.
+ * Its own URL first (a preloaded file); else by length, the longest over a short ad; a pick plainly another length is none.
+ * @param {TabHolder} tab
+ * @param {number} frameId
+ * @param {string} src
+ * @param {?PlayedVideo} video
+ * @return {Promise<?TrackedSource>}
  */
 async function findPlayedSource(tab, frameId, src, video) {
   /** @type {TrackedSource|null|undefined} */
@@ -3723,9 +3058,7 @@ async function findPlayedSource(tab, frameId, src, video) {
     return null;
   }
 
-  // The lengths decide below, and a stream the page asked for before this tab's MPV started
-  // has none read. One stream alone too, when the video's length is known: sent unread, an
-  // ad's or a preview's went to mpv for a film the user started.
+  // A stream asked for before this tab's MPV started has no length read: read now, even alone.
   if (frame.getSources().length > 1 || StreamPick.lengthOf(video ? video.duration : null) !== null) {
     await Lengths.settle(() => frame.getSources(), SourceLengthWaitMs);
   }
@@ -3736,9 +3069,7 @@ async function findPlayedSource(tab, frameId, src, video) {
   const measured = StreamLength.withoutStills(sources.map((source, i) => ({source, url: source.url, duration: lengths[i]})));
   const videoLength = StreamPick.lengthOf(video ? video.duration : null);
   if (byUrl) {
-    // The file the video plays, unless a far longer stream plays beside it (StreamPick's
-    // rule for a video it matches by length): then the video is a preroll ad or a preview
-    // the same click started, and the longest decides.
+    // Unless a far longer stream plays beside it: then the video is a preroll or a preview.
     const length = StreamPick.lengthOf(Lengths.lengthsOf([byUrl])[0]) ?? videoLength;
     if (!StreamPick.outrun(measured.filter((entry) => entry.source !== byUrl), length)) {
       return byUrl;
@@ -3747,9 +3078,7 @@ async function findPlayedSource(tab, frameId, src, video) {
   }
 
   const picked = newestOfLongest(sources, video);
-  // A stream plainly another length than the video is not its stream, unless the video is
-  // the ad (a far longer stream beside it): an ad's or a preview's the page fetched before
-  // went to mpv for a film. None yet then: the next stream the page asks for decides.
+  // Another length is not its stream, unless the video is the ad.
   if (picked && !StreamPick.outrun(measured, videoLength) &&
       StreamPick.conflicts(video, Lengths.lengthsOf([picked])[0])) {
     return null;
@@ -3758,16 +3087,10 @@ async function findPlayedSource(tab, frameId, src, video) {
 }
 
 /**
- * The newest of the streams a video plays (StreamPick.played), or else of the longest
- * sources: an ad runs for seconds, the video for minutes (StreamLength.longest). Of
- * streams that tie, the one the page asked for last is the one it plays now. Never a
- * playlist of stills (STILLS_LENGTH): mpv would show the seek bar's thumbnails. Nor a
- * piece of a stream (PIECE_LENGTH), of which mpv plays a few seconds: a frame whose
- * manifest went undetected, or was detected by a background since stopped, has only those.
- *
- * @param {Array<TrackedSource>} sources - Detected sources.
- * @param {?PlayedVideo} [video] - What the page's video plays.
- * @return {?TrackedSource} One of them, or null when there are none.
+ * Of ties the newest; never stills (mpv would show thumbnails), nor a piece of a stream.
+ * @param {Array<TrackedSource>} sources
+ * @param {?PlayedVideo} [video]
+ * @return {?TrackedSource}
  */
 export function newestOfLongest(sources, video = null) {
   const lengths = Lengths.lengthsOf(sources);
@@ -3786,12 +3109,9 @@ export function newestOfLongest(sources, video = null) {
 }
 
 /**
- * Whether a stream is already known to show no video of its own: a playlist of stills
- * (STILLS_LENGTH), or a piece of a stream (PIECE_LENGTH), read as one or an unread file
- * shaped like a piece read beside it (StreamLengths.lengthsOf).
- * @param {{url: string, mode: string}} source - The stream.
- * @param {FrameHolder} frame - The frame it was detected in.
- * @return {boolean} False while its length is not known.
+ * @param {{url: string, mode: string}} source
+ * @param {FrameHolder} frame
+ * @return {boolean}
  */
 function showsNoVideo(source, frame) {
   const length = Lengths.lengthsOf([source, ...frame.getSources()])[0];
@@ -3799,12 +3119,8 @@ function showsNoVideo(source, frame) {
 }
 
 /**
- * Tells every frame of a tab whether a FastStream player in it plays (content.js
- * holdPageMedia): while one does, the page's own media stays paused. Opening a player
- * pauses only what is inside the box it takes over, and a site's player outside it, or in
- * another frame, played on under FastStream's. Frames the tab no longer has (a player
- * whose frame went without a word) count as stopped.
- * @param {TabHolder} tab - The tab.
+ * Opening a player pauses only what is inside its box: a site's player outside it played on.
+ * @param {TabHolder} tab
  */
 function sendPageMediaHold(tab) {
   for (const frameId of tab.playingPlayers) {
@@ -3822,11 +3138,9 @@ function sendPageMediaHold(tab) {
 }
 
 /**
- * The quality of a stream's file the user's setting asks for, when the page's player offers
- * the file in several (page-qualities.js), asked of the frame the stream was found in.
  * @param {?TabHolder} tab
- * @param {string} url - The stream.
- * @return {Promise<?{url: string, list: Array<Object>}>} The file to play and the list, or null.
+ * @param {string} url
+ * @return {Promise<?{url: string, list: Array<Object>}>}
  */
 export async function pageQualityChoice(tab, url) {
   if (!tab) return null;
@@ -3842,27 +3156,15 @@ export async function pageQualityChoice(tab, url) {
 }
 
 /**
- * The variant of an HLS stream the user's quality setting asks for, and the list, from its
- * master playlist (StreamLengths.hlsQualities). MPV mode sent the variant the page's player
- * was loading - its "Auto" pick, often not the highest - and mpv knew no other quality (his
- * report, 2026-10-14): the master and its variant run as long as each other, and of streams
- * that tie the newest goes. A master whose variants cannot play alone (audio or subtitles of
- * their own) goes as the master: mpv takes its highest bitrate by itself (hls-bitrate=max). So
- * does the playlist of such audio or subtitles, which the page's player asks for last, and
- * which has no picture (VOE, 2026-10-23: mpv played the next episode as sound only).
- * @param {?TabHolder} tab - The tab the stream was found in, if any.
- * @param {string} url - The stream: a master playlist, or a variant of one, or the playlist of
- *   one's audio or subtitles.
- * @return {Promise<?{url: string, list: ?Array<Object>}>} What to send instead, and the list;
- *   null to send the stream as it is.
+ * A master whose variants cannot play alone goes as the master (mpv's hls-bitrate=max), as do its audio and subtitles playlists.
+ * @param {?TabHolder} tab
+ * @param {string} url
+ * @return {Promise<?{url: string, list: ?Array<Object>}>}
  */
 export async function hlsQualityChoice(tab, url) {
   let hls = Lengths.hlsQualities(url);
   if (!hls) {
-    // The list comes from the master playlist's read, which started when it was detected. An
-    // allowlisted site's first stream goes at once, and the toolbar's MPV sends without waiting
-    // for the lengths: a variant whose own read ended first went while the master's still ran.
-    // So every HLS playlist of the tab still being read is waited for.
+    // Every HLS playlist of the tab still read is waited for: a variant's read may end before the master's.
     const sources = tab ? [...tab.getFrames()].flatMap((frame) => frame.getSources()) : [];
     const hlsSources = sources.filter((s) => s.mode === PlayerModes.ACCELERATED_HLS);
     const pending = hlsSources.filter((s) => Lengths.lengthOf(s.url) === undefined);
@@ -3892,13 +3194,8 @@ const webRequestPerms2 = ['responseHeaders'];
 
 
 /**
- * Whether a request belongs to no tab: a service worker's, or this background's own
- * length reads (StreamLengths). No player opens there and nothing goes to mpv from it,
- * and no tab event ever resets what is kept for it: the holder of tab -1 collected
- * every stream such requests fetched, for the session, and sent the growing list, with
- * the requests' headers, to every player tab - from a private window or a container as
- * well, which it cannot tell.
- * @param {{tabId: number}} details - webRequest's details.
+ * No player opens there: kept, tab -1 collected every such stream for the session and sent them to every player tab.
+ * @param {{tabId: number}} details
  * @return {boolean}
  */
 function isTablessRequest(details) {
@@ -3925,11 +3222,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
   urls: ['<all_urls>'],
 }, webRequestPerms);
 
-// Where a redirected request was first sent (TabHolder.noteRedirect): a page's player lists its
-// files by those addresses, and the stream is found at the end of the redirect (addSource), by
-// the type the first address names when its own names none (redirectedType).
-// A <video>'s requests and a player's own fetches: the files a player lists; and a stream link
-// opened in a tab or a frame.
+// A redirect's first address: a page's player lists its files by it, and the stream is found at the redirect's end.
 chrome.webRequest.onBeforeRedirect.addListener((details) => {
   if (isTablessRequest(details)) return;
   Tabs.getTabOrCreate(details.tabId).noteRedirect(details.requestId, details.url);
@@ -3970,8 +3263,7 @@ chrome.webRequest.onErrorOccurred.addListener(deleteHeaderCache, {
 });
 
 /**
- * Forgets a request's headers once its response or its error came.
- * @param {{tabId: number, frameId: number, requestId: string}} details - webRequest's.
+ * @param {{tabId: number, frameId: number, requestId: string}} details
  * @return {undefined}
  */
 function deleteHeaderCache(details) {
@@ -3979,8 +3271,5 @@ function deleteHeaderCache(details) {
 }
 
 ensureOptions();
-
-// Link to a form to report bugs
-// chrome.runtime.setUninstallURL('https://docs.google.com/forms/d/e/1FAIpQLSfldLYAi0xAW9tYKMcUsfYYk8KyOQDZlLFjqwwz1LajchpBvA/viewform?usp=sf_link');
 
 Utils.printWelcome(ExtensionVersion);

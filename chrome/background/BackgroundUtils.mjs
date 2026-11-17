@@ -9,40 +9,26 @@ const PlayerURL = chrome.runtime.getURL('player/index.html');
 /** @typedef {import('./TabTracker.mjs').TabHolder} TabHolder */
 
 /**
- * The field updateTabIcon sets on a TabHolder that TabTracker.mjs does not declare.
  * @typedef {Object} TabIconExtras
- * @property {ReturnType<typeof setTimeout>} [tabIconTimeout] - Clears the "Off" badge a
- *     second after it went up.
+ * @property {ReturnType<typeof setTimeout>} [tabIconTimeout]
  */
 
 /**
- * Sets the toolbar button for a tab. The tab can be closed by the time this runs (the "Off"
- * badge's second, a start that waited for the page): Firefox then rejects the call, and that
- * is nothing to report - unhandled, each was an error in the background's console.
+ * The tab may be closed by now: Firefox's rejection then is nothing to report.
  * @param {'setBadgeText'|'setTitle'|'setIcon'} method
  * @param {*} details
  */
 function setAction(method, details) {
-  // One signature for the three: each takes its details and gives a promise.
   const call = /** @type {(details: *) => (Promise<void>|void)} */ (chrome.action[method]);
   const done = call.call(chrome.action, details);
   if (done && typeof done.catch === 'function') done.catch(() => {});
 }
 
 export class BackgroundUtils {
-  /**
-   * The answers content.js gives OPEN_PLAYER when a player is on its way: the frame is
-   * sent to the player page, or a player iframe goes over or in place of the page's video.
-   * PLAYER_LOADED follows, and clears frame.playerOpening.
-   */
   static PlayerOpeningResponses = ['redirect', 'replaceall', 'replace'];
 
   /**
-   * Whether an OPEN_PLAYER answer means a player is on its way. 'no_video' does not, and
-   * neither does no answer at all - the frame navigated away, or has no content script -
-   * after which frame.playerOpening used to stay set, so that frame never opened a player
-   * again.
-   * @param {*} response - What content.js answered, undefined on a failed send.
+   * @param {*} response
    * @return {boolean}
    */
   static isPlayerOpeningResponse(response) {
@@ -50,11 +36,9 @@ export class BackgroundUtils {
   }
 
   /**
-   * The player mode of a source a site script reports (DETECTED_SOURCE, custom/*.js). Its
-   * page can post such a report too (Instagram's): one without an address, or of a type
-   * the player does not play, was recorded as a source of no mode.
-   * @param {*} msg - The message.
-   * @return {?string} The mode, or null for no source.
+   * A page can post such a report too (Instagram's): one without an address or a playable type is no source.
+   * @param {*} msg
+   * @return {?string}
    */
   static detectedSourceMode(msg) {
     if (!msg || typeof msg.url !== 'string' || !msg.url) {
@@ -64,8 +48,8 @@ export class BackgroundUtils {
   }
 
   /**
-   * @param {string} message - Names the message in the warning.
-   * @param {boolean} [suppress] - No warning: an error that is expected.
+   * @param {string} message
+   * @param {boolean} [suppress]
    */
   static checkMessageError(message, suppress = false) {
     if (chrome.runtime.lastError) {
@@ -84,10 +68,7 @@ export class BackgroundUtils {
     });
   }
 
-  /**
-   * What the audio settings window kept (removed 2026-10-10): its profiles in storage and the
-   * impulse response files in IndexedDB. Forgotten once, when an update installs.
-   */
+  /** The removed audio settings window's storage and IndexedDB files, forgotten once on an update. */
   static forgetRemovedAudioSettingsOnUpdate() {
     chrome.runtime.onInstalled.addListener((details) => {
       if (details?.reason !== 'update') return;
@@ -95,14 +76,11 @@ export class BackgroundUtils {
     });
   }
 
-  /**
-   * @return {Promise<void>} Settled once both are gone, or could not go.
-   */
+  /** @return {Promise<void>} */
   static forgetRemovedAudioSettings() {
     const profiles = Promise.resolve().then(() => chrome.storage.local.remove(['audioProfiles', 'currentAudioProfile']))
         .catch((e) => console.warn('Could not forget the old audio profiles', e));
-    // A tab of the old version that still has the database open blocks the delete until it
-    // closes (Firefox closes the extension's pages on an update); it is not dropped.
+    // A tab of the old version holding the database open blocks the delete until it closes.
     const files = /** @type {Promise<void>} */ (new Promise((resolve) => {
       const request = indexedDB.deleteDatabase('faststream-impulse-responses');
       request.onsuccess = request.onerror = () => resolve(undefined);
@@ -130,32 +108,23 @@ export class BackgroundUtils {
 
   /**
    * @param {TabHolder & TabIconExtras} tab
-   * @param {boolean} [skipNotify] - Off without the "Off" badge for a second.
+   * @param {boolean} [skipNotify]
    */
   static updateTabIcon(tab, skipNotify) {
     clearTimeout(tab.tabIconTimeout);
     if (tab.isOn && tab.isMpv) {
-      // MPV uses the plain purple icon, so clear any leftover state badge - or, when the
-      // last hand-off failed, say so: the page plays on in the browser, and nothing else
-      // would tell why. The title still names the mode ("MPV"): the tab is in it. An
-      // outdated host says so in the tooltip only: since the thin helper an
-      // older one still plays everything it is sent (through the messages it knows) and
-      // lacks only newer features, which is no error to flag. A failure's reason comes first.
+      // MPV: no state badge, or say the last hand-off failed; an outdated host shows in the tooltip only.
       setAction('setBadgeText', {
         text: tab.mpvError ? '!' : '',
         tabId: tab.tabId,
       });
-      // Locales without a translation for this key yet still get sensible
-      // English text instead of an empty tooltip (chrome.i18n.getMessage
-      // returns '' when a key is missing from a locale's messages.json).
+      // getMessage returns '' for a key a locale lacks.
       /** @type {string} */
       let title;
       if (tab.mpvError) {
         title = chrome.i18n.getMessage('extension_toggle_label_mpv_failed', [tab.mpvError]) ||
           'FastStream - MPV - the stream did not open: ' + tab.mpvError;
       } else if (tab.mpvHostOutdated) {
-        // What to run differs: on Windows the setup installed a copy (Start menu "Update
-        // mpv"); on Linux and macOS the manifest names the host file itself.
         title = EnvUtils.isWindows() ?
           chrome.i18n.getMessage('extension_toggle_label_mpv_outdated') ||
             'FastStream - MPV - the mpv helper on this computer is out of date: ' +
@@ -163,7 +132,6 @@ export class BackgroundUtils {
           chrome.i18n.getMessage('extension_toggle_label_mpv_outdated_unix') ||
             'FastStream - MPV - the mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)';
       } else if (tab.mpvDecoder && tab.mpvDecoder.hardware) {
-        // What mpv itself said about its decoder (MpvBackend.decoderStatus).
         const what = MpvBackend.describeDecoder(tab.mpvDecoder);
         title = chrome.i18n.getMessage('extension_toggle_label_mpv_hw', [what]) ||
           'FastStream - Playing in MPV - decoded by the graphics card: ' + what;
@@ -185,8 +153,7 @@ export class BackgroundUtils {
         tabId: tab.tabId,
       });
     } else if (tab.isOn) {
-      // A copy-protected video stays in the page's own player (tab.protectedVideo): on, and
-      // no player opened, the button says why.
+      // A copy-protected video stays in the page's player: the button says why.
       setAction('setBadgeText', {
         text: tab.protectedVideo ? 'DRM' : 'On',
         tabId: tab.tabId,
@@ -240,7 +207,7 @@ export class BackgroundUtils {
   }
 
   /**
-   * @param {string} ext - A file extension or type (StreamDetection.urlType).
+   * @param {string} ext
    * @return {boolean}
    */
   static isSubtitles(ext) {
@@ -256,12 +223,9 @@ export class BackgroundUtils {
   }
 
   /**
-   * Whether a tab's new URL (tabs.onUpdated) is still the same page: only its fragment
-   * changed, to an anchor (#comments) or a time (#t=120), which Firefox reports as it
-   * reports a new page. A hash route (#/episode/2, #!/...) is a page of its own, as is
-   * the same URL again (a reload).
-   * @param {?string|undefined} oldUrl - The tab's URL before.
-   * @param {string} newUrl - Its URL now.
+   * Only the fragment changed, to an anchor or a time; a hash route (#/, #!) or a reload is a new page.
+   * @param {?string|undefined} oldUrl
+   * @param {string} newUrl
    * @return {boolean}
    */
   static isSamePageUrlChange(oldUrl, newUrl) {

@@ -1,8 +1,7 @@
 // @ts-check
 /**
- * The URL as Firefox requests it: a raw "é" or space goes out percent-encoded. The rule has
- * to match that form, and Firefox refuses a rule whose urlFilter is not ASCII.
- * @param {string} url - The URL as the player has it.
+ * Firefox sends a raw "é" or space percent-encoded, and refuses a urlFilter that is not ASCII.
+ * @param {string} url
  * @return {string}
  */
 function asRequested(url) {
@@ -14,25 +13,22 @@ function asRequested(url) {
 }
 
 /**
- * The extension's own host in its moz-extension:// URLs, which is what Firefox matches
- * initiatorDomains against for its pages' requests.
+ * What Firefox matches initiatorDomains against for the extension's own requests.
  * @return {string}
  */
 function extensionHost() {
   return new URL(chrome.runtime.getURL('/')).hostname;
 }
 
-// How long a header rule lives: a request's (FetchLoader's, for each one) goes out at once.
+// A rule's request goes out at once.
 export const RULE_LIFETIME_MS = 5000;
-// The most a rule may ask for: Firefox's own player (DirectVideoPlayer) makes its requests
-// whenever it needs them, and renews its rule while it has the source.
+// Firefox's own player (DirectVideoPlayer) requests whenever it needs, and renews its rule.
 export const MAX_RULE_LIFETIME_MS = 60000;
 
 export class RuleEntry {
   /**
-   * @param {number} id - The session rule's id.
-   * @param {number} [lifetimeMs] - How long it lives: RULE_LIFETIME_MS, up to
-   *     MAX_RULE_LIFETIME_MS.
+   * @param {number} id
+   * @param {number} [lifetimeMs]
    */
   constructor(id, lifetimeMs) {
     this.id = id;
@@ -40,8 +36,8 @@ export class RuleEntry {
   }
 
   /**
-   * @param {number} [lifetimeMs] - What was asked for.
-   * @return {number} What a rule gets: RULE_LIFETIME_MS, up to MAX_RULE_LIFETIME_MS.
+   * @param {number} [lifetimeMs]
+   * @return {number}
    */
   static lifetime(lifetimeMs) {
     const lifetime = Number.isFinite(lifetimeMs) ? /** @type {number} */ (lifetimeMs) : RULE_LIFETIME_MS;
@@ -49,11 +45,7 @@ export class RuleEntry {
   }
 }
 
-/**
- * A rule the manager holds, with how often its removal failed (filterRules), what it is for
- * (its URL, tab and headers) and whether the browser took it (addHeaderRule).
- * @typedef {RuleEntry & {removeAttempts?: number, key?: string, ready?: Promise<boolean>}} HeldRule
- */
+/** @typedef {RuleEntry & {removeAttempts?: number, key?: string, ready?: Promise<boolean>}} HeldRule */
 
 export class RuleManager {
   constructor() {
@@ -62,17 +54,15 @@ export class RuleManager {
     /** @type {Array<HeldRule>} */
     this.rules = [];
     this.isLoopRunning = false;
-    // The rules a last event page left, cleared before any new one is added (addHeaderRule):
-    // a new rule given the id of one it lists was removed with them.
+    // Rules a last event page left go first: a new rule with one of their ids would be removed with them.
     this.initialClear = this.dumpRules().catch((e) => console.warn('Could not clear the header rules left from before', e));
   }
 
   /**
    * @param {number} id
-   * @return {number} Where a rule of that id goes in the list.
+   * @return {number}
    */
   getInsertionIndex(id) {
-    // use binary search
     let min = 0;
     let max = this.rules.length - 1;
     let mid = 0;
@@ -115,8 +105,6 @@ export class RuleManager {
       }
       return true;
     });
-    // Nothing ran out: no call to the browser. It went each second for as long as any rule
-    // was held - throughout playback - with nothing to remove.
     if (removed.length === 0) return;
 
     try {
@@ -124,9 +112,7 @@ export class RuleManager {
         removeRuleIds: removed.map((rule) => rule.id),
       });
     } catch (e) {
-      // The browser may still hold them. Back in the list, their ids are not handed out
-      // again (getNextID), which a new rule would be refused for, and the next round tries
-      // again - three times, then they are given up.
+      // The browser may still hold them: their ids stay taken, and the next round tries again (three times).
       for (const rule of removed) {
         rule.removeAttempts = (rule.removeAttempts || 0) + 1;
         const index = this.getInsertionIndex(rule.id);
@@ -140,17 +126,14 @@ export class RuleManager {
   }
 
   /**
-   * @param {string} url - The request URL the rule applies to.
-   * @param {number} tabId - The tab whose requests it changes; TAB_ID_NONE for the extension's own.
-   * @param {FSHeaderCommand[]} requestHeaderCommands - The headers to set or remove.
-   * @param {number} [lifetimeMs] - How long the rule lives (RuleEntry).
+   * @param {string} url
+   * @param {number} tabId
+   * @param {FSHeaderCommand[]} requestHeaderCommands
+   * @param {number} [lifetimeMs]
    */
   async addHeaderRule(url, tabId, requestHeaderCommands, lifetimeMs) {
     await this.initialClear;
-    // The same rule still held - the same URL as requested, tab and headers: an MP4's ranges,
-    // a direct video's renewals - is kept longer instead of added again. Each was a call to
-    // the browser, which compiles the session rules anew. Only once the browser has taken it:
-    // a request let go before that went out without its headers.
+    // The same rule still held is kept longer instead of added again, once the browser has taken it.
     const key = JSON.stringify([asRequested(url), tabId, requestHeaderCommands]);
     const same = this.rules.find((held) => held.key === key && !held.removeAttempts && held.expiresAt > Date.now());
     if (same && await same.ready && this.rules.includes(same) && same.expiresAt > Date.now()) {
@@ -161,7 +144,6 @@ export class RuleManager {
     /** @type {HeldRule} */
     const rule = new RuleEntry(this.getNextID(), lifetimeMs);
     rule.key = key;
-    // insert rule in order
     const index = this.getInsertionIndex(rule.id);
     if (index === -1) throw new Error('Rule already exists');
     this.rules.splice(index, 0, rule);
@@ -174,41 +156,23 @@ export class RuleManager {
         requestHeaders: requestHeaderCommands,
       },
       condition: {
-        // The URL itself, unescaped: urlFilter has no escape character. A `\`
-        // is a literal character to match (Firefox's CompiledUrlFilter in
-        // ExtensionDNR.sys.mjs; Chrome documents only * | || ^), so escaping
-        // a `*` made the rule demand a backslash no URL has, and a stream URL
-        // like an Akamai `acl=/*` token got no Referer/Origin. Unescaped, a
-        // `*`, `^` or `|` from the URL can only widen the match, never exclude
-        // the URL itself, and the rule is limited to one tab and its lifetime.
-        // Only the scheme at the start: an http URL whose query holds an https one
-        // lost that "https://" instead. A `|` at its very end anchors the end there,
-        // before that `|`, and the URL itself did not match: a `*` after it keeps it
-        // a character.
+        // urlFilter has no escape character, so the URL goes unescaped; a trailing `|` would anchor the end.
         urlFilter: '||' + asRequested(url).replace(/^https?:\/\//, '').replace(/\|$/, '|*'),
         tabIds: [tabId],
-        // Only the extension's own requests (the player, the background). The tab is
-        // the page's too, and without this the page's own requests to that URL got the
-        // player's Origin, Referer or Cookie for those 5 seconds.
+        // Only the extension's own requests: the tab is the page's too.
         initiatorDomains: [extensionHost()],
       },
     };
 
-    // Removed first, in the same call: a rule whose removal failed three times was given
-    // up (above) while the browser may still hold it, and its id, free again here, was
-    // refused - every rule after it too, until the event page restarted.
+    // Removed first, in the same call: a given-up rule's id may still be held by the browser.
     const added = chrome.declarativeNetRequest.updateSessionRules({
       removeRuleIds: [ruleObj.id],
       addRules: /** @type {chrome.declarativeNetRequest.Rule[]} */ ([ruleObj]),
     });
-    // For a request asking for the same rule meanwhile (above): false when it was refused.
     rule.ready = added.then(() => true, () => false);
     try {
       await added;
     } catch (e) {
-      // Roll back the optimistic insertion above so bookkeeping
-      // (getNextID/getInsertionIndex) doesn't think a rule exists that the
-      // browser never actually registered.
       const rollbackIndex = this.rules.indexOf(rule);
       if (rollbackIndex !== -1) this.rules.splice(rollbackIndex, 1);
       throw e;

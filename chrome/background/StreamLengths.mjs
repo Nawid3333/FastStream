@@ -4,8 +4,7 @@ import {RequestUtils} from '../player/utils/RequestUtils.mjs';
 import {PIECE_LENGTH, StreamLength} from '../player/utils/StreamLength.mjs';
 import {VideoSource, sourceHeadersFor} from '../player/VideoSource.mjs';
 
-// A manifest longer than this is not read whole: a three-hour film in two-second segments
-// lists some 5,400 of them, well under a megabyte.
+// A three-hour film in two-second segments lists some 5,400 of them, well under a megabyte.
 const MAX_TEXT_BYTES = 4 * 1024 * 1024;
 // What one read of a file takes: its first boxes, or the start of its movie header.
 const FILE_CHUNK_BYTES = 64 * 1024;
@@ -16,43 +15,29 @@ const MAX_PLAYLIST_READS = 2;
 const TIMEOUT_MS = 8000;
 // Streams read at once; a page of previews detects dozens.
 const MAX_ACTIVE = 4;
-// Lengths kept, by URL, the oldest dropped first.
 const MAX_KNOWN = 300;
 
 /**
- * A master playlist read: its variants, whether it has audio or subtitles of their own, and
- * their playlists (absolute URLs).
  * @typedef {{variants: Array<{url: string, bandwidth: number, height: number}>, renditions: boolean,
  *   media: Array<string>}} MasterInfo
  */
 
-/**
- * How long each detected stream plays, read in the background from its manifest or from
- * the start of its file, with the headers the page's own request had. Each URL is read
- * once.
- */
+/** Each detected stream's length, read from its manifest or its file's start, with the page's request headers. */
 export class StreamLengths {
   /**
    * @param {Object} [options]
-   * @param {(url: string, init: *) => Promise<Response>} [options.fetch] - fetch().
-   * @param {(url: string, commands: FSHeaderCommand[]) => Promise<unknown>} [options.setHeaders] - Makes the
-   *   background's next requests to a URL carry the page's Referer, Origin and cookies,
-   *   which a fetch() cannot set: a declarativeNetRequest rule, as the player's own
-   *   requests get.
+   * @param {(url: string, init: *) => Promise<Response>} [options.fetch]
+   * @param {(url: string, commands: FSHeaderCommand[]) => Promise<unknown>} [options.setHeaders]
    */
   constructor({fetch = (url, init) => globalThis.fetch(url, init), setHeaders = async () => {}} = {}) {
     this.fetch = fetch;
     this.setHeaders = setHeaders;
     /** @type {Map<string, {duration: (number|null|undefined), promise: Promise<number|null>, answered: Promise<void>}>} */
     this.known = new Map();
-    // The streams read as copy-protected (isProtected), by the URL detected: one of the known.
     /** @type {Set<string>} */
     this.protectedUrls = new Set();
-    // The files answered with a web page (servesWebPage), by the URL detected: one of the known.
     /** @type {Set<string>} */
     this.webPageUrls = new Set();
-    // The HLS master playlists read (by the URL detected), with their variants and their audio's
-    // and subtitles' playlists (absolute URLs), and the master of each: hlsQualities.
     /** @type {Map<string, MasterInfo>} */
     this.masters = new Map();
     /** @type {Map<string, string>} */
@@ -63,14 +48,9 @@ export class StreamLengths {
   }
 
   /**
-   * An HLS stream's qualities, as the master playlist read for it, or for the master of the
-   * variant it is, lists them (largest first, one per height, the highest bandwidth of each).
-   * @param {string} url - A detected stream.
+   * list null for fewer than two heights, or for a master with audio or subtitles of its own: a variant alone goes without them.
+   * @param {string} url
    * @return {?{master: string, list: ?Array<{url: string, label: string, height: number}>}}
-   *   Null for a URL that is no master read, and no variant or audio or subtitles playlist of
-   *   one; list null when the master names fewer than two heights, or lists audio or subtitles
-   *   of their own, which a variant played alone goes without (then only the master plays
-   *   them, and the picture, which their own playlists have not).
    */
   hlsQualities(url) {
     const master = this.masters.has(url) ? url : this.masterOf.get(url);
@@ -96,15 +76,10 @@ export class StreamLengths {
   }
 
   /**
-   * Keeps the variants of a master playlist read, and its audio's and subtitles' playlists
-   * (hlsQualities). The page's player asks for those after the variant's, and they run as long
-   * as the video: of streams that tie the newest goes, and VOE's German sound went to mpv on
-   * its own, which played no picture (a series site, 2026-10-23). Such a playlist goes as
-   * its master, as a variant of a master with audio or subtitles of their own does.
-   * @param {string} master - The URL it was detected at.
-   * @param {string} text - The playlist.
-   * @param {string} base - The URL it came from (after redirects): its variants' URIs are
-   *   relative to it, as for the page's player.
+   * An audio or subtitles playlist goes as its master: alone, it played sound and no picture in mpv.
+   * @param {string} master
+   * @param {string} text
+   * @param {string} base
    */
   noteMaster(master, text, base) {
     const parsed = StreamLength.hlsVariants(text);
@@ -141,33 +116,27 @@ export class StreamLengths {
   }
 
   /**
-   * @param {string} url - A stream's URL.
-   * @return {number|null|undefined} Its length in seconds (Infinity when live, PIECE_LENGTH
-   *   for a piece of a stream), null when it cannot be told, undefined while it is not read
-   *   yet.
+   * Infinity when live, PIECE_LENGTH for a piece of a stream, null when unknown, undefined while unread.
+   * @param {string} url
+   * @return {number|null|undefined}
    */
   lengthOf(url) {
     return this.known.get(url)?.duration;
   }
 
   /**
-   * Whether a stream was read as copy-protected (DRM): an HLS stream whose media playlist
-   * has segments FastStream cannot decrypt (StreamLength.hlsProtected), its master's read
-   * through its variant's; a DASH one whose video is (StreamLength.dashProtected). Neither
-   * FastStream's player nor mpv plays it, and the page's own player does: it stays.
-   * @param {string} url - A stream's URL.
-   * @return {boolean} False too while it is not read yet.
+   * Neither FastStream nor mpv plays a DRM stream; the page's own player does.
+   * @param {string} url
+   * @return {boolean}
    */
   isProtected(url) {
     return this.protectedUrls.has(url);
   }
 
   /**
-   * Notes what a finished read told of a stream's copy protection, either way. Not for a URL
-   * forgotten while it was read (MAX_KNOWN): nothing would forget its mark, and the stream,
-   * detected again and read as clear, still counted as protected.
-   * @param {string} url - The stream's URL, as detected.
-   * @param {boolean} copyProtected - What its manifest says.
+   * Not for a URL forgotten while it was read (MAX_KNOWN): nothing would forget its mark.
+   * @param {string} url
+   * @param {boolean} copyProtected
    */
   noteProtection(url, copyProtected) {
     if (copyProtected && this.known.has(url)) {
@@ -178,16 +147,10 @@ export class StreamLengths {
   }
 
   /**
-   * Whether a file (MP4, or one Firefox plays itself) answered its read with a web page: a
-   * 2xx `text/html`, where FetchLoader.isRefusal sees a refusal too. abyss.to's player
-   * address is one (#665): only the page's service worker gives the video, and anyone else,
-   * mpv too, gets "Video not found" (measured 2026-11-12: 200 `text/html`). FastStream's
-   * player loads such a file through its page (PageFetch); mpv cannot. Waits for the read's
-   * first answer, up to waitMs. Never for a playlist or a manifest: some servers send those as
-   * `text/html`, and FetchLoader takes them all the same.
-   * @param {string} url - A stream's URL, as detected.
-   * @param {number} waitMs - The longest to wait for the first answer.
-   * @return {Promise<boolean>} False for a URL never read (no probe), and at the deadline.
+   * A 2xx text/html for a file (abyss.to: only the page's service worker gives the video). Never for a manifest.
+   * @param {string} url
+   * @param {number} waitMs
+   * @return {Promise<boolean>}
    */
   async servesWebPage(url, waitMs) {
     const known = this.known.get(url);
@@ -206,10 +169,8 @@ export class StreamLengths {
   }
 
   /**
-   * Notes whether a file's first answer was a web page, either way. Not for a URL forgotten
-   * while it was read (MAX_KNOWN), as noteProtection.
-   * @param {string} url - The file's URL, as detected.
-   * @param {boolean} webPage - Whether it was.
+   * @param {string} url
+   * @param {boolean} webPage
    */
   noteWebPage(url, webPage) {
     if (webPage && this.known.has(url)) {
@@ -220,15 +181,9 @@ export class StreamLengths {
   }
 
   /**
-   * The lengths of a page's sources, as lengthOf tells them, but a file not read yet, or
-   * not readable, counts as a piece of a stream when another of them was read as one and
-   * has the same URL but for its numbers (seg-14.mp4, seg-15.mp4). An HLS or DASH player
-   * keeps fetching pieces, and the newest, still unread when the player opens, would rank
-   * as a stream of unknown length: above a short title's manifest, and as the newest, the
-   * one that plays. A manifest never counts as a piece: it may share an address with them
-   * (/proxy?id=123).
-   * @param {Array<{url: string, mode: string}>} sources - The detected sources.
-   * @return {Array<number|null|undefined>} Their lengths, in the same order.
+   * An unread or unreadable file counts as a piece when one of its shape was read as one; a manifest never does.
+   * @param {Array<{url: string, mode: string}>} sources
+   * @return {Array<number|null|undefined>}
    */
   lengthsOf(sources) {
     const pieces = new Set(sources.filter((source) => this.lengthOf(source.url) === PIECE_LENGTH)
@@ -244,21 +199,17 @@ export class StreamLengths {
   }
 
   /**
-   * What the pieces of one stream have in common: the URL, each run of digits as one 0, no
-   * fragment. The query stays, so letters in it tell files apart, but numbers do not: on a
-   * site that fetches everything by number through one address (/get?id=123), a film whose
-   * length is still unread counts as a piece once one of the others was read as one.
-   * @param {string} url - A URL.
-   * @return {string} Its shape.
+   * The URL with each run of digits as one 0, without its fragment.
+   * @param {string} url
+   * @return {string}
    */
   static shape(url) {
     return url.split('#')[0].replace(/\d+/g, '0');
   }
 
   /**
-   * Starts reading a stream's length, unless that has started already.
-   * @param {{url: string, mode: string, headers: *}} source - The detected source.
-   * @return {Promise<number|null>} Its length (as lengthOf tells it), or null.
+   * @param {{url: string, mode: string, headers: *}} source
+   * @return {Promise<number|null>}
    */
   probe(source) {
     const known = this.known.get(source.url);
@@ -289,19 +240,9 @@ export class StreamLengths {
   }
 
   /**
-   * Waits until the lengths of the sources are read, those of sources detected meanwhile
-   * too, or waitMs passed. An HLS or DASH player keeps fetching segments, each a source of
-   * its own, and one not read yet ranks as a stream of unknown length: above a short
-   * stream, and as the newest, the one that plays. The caller takes the sources right
-   * after, before another can come, and their lengths from lengthsOf, which counts one
-   * still unread at the deadline, or not readable, as a piece when its like was read as one.
-   * Of the unread files like one read as a piece, only the newest is read and waited for
-   * (unreadOf): the background does not read those as they are detected, and a player opened
-   * on a page that had played for a while read up to 19 of them first, four at a time,
-   * before it was told the page's streams.
-   * @param {() => Array<{url: string, mode: string, headers: *}>} getSources - The detected sources as they are now,
-   *   asked again after each wait.
-   * @param {number} waitMs - The longest to wait.
+   * An unread segment would rank as a stream of unknown length, above a short stream; of each piece shape only the newest is waited for.
+   * @param {() => Array<{url: string, mode: string, headers: *}>} getSources
+   * @param {number} waitMs
    * @return {Promise<void>}
    */
   async settle(getSources, waitMs) {
@@ -325,12 +266,9 @@ export class StreamLengths {
   }
 
   /**
-   * The sources whose length is to be read before they are ranked: those not read yet, but
-   * of the files like one read as a piece (lengthsOf counts them as pieces unread) only the
-   * newest of each shape - the one that would play, were it a film after all.
    * @template {{url: string, mode: string}} T
-   * @param {Array<T>} sources - The detected sources, oldest first.
-   * @return {Array<T>} Those to read.
+   * @param {Array<T>} sources
+   * @return {Array<T>}
    */
   unreadOf(sources) {
     const pieces = new Set(sources.filter((source) => this.lengthOf(source.url) === PIECE_LENGTH)
@@ -338,7 +276,6 @@ export class StreamLengths {
     /** @type {(source: T) => boolean} */
     const like = (source) => pieces.has(StreamLengths.shape(source.url)) &&
       (source.mode === PlayerModes.ACCELERATED_MP4 || source.mode === PlayerModes.DIRECT);
-    // The newest file of each such shape, read or not: once it is read, none is left to read.
     /** @type {Map<string, T>} */
     const newest = new Map();
     for (const source of sources) {
@@ -349,14 +286,12 @@ export class StreamLengths {
   }
 
   /**
-   * Runs a read when fewer than MAX_ACTIVE are running.
-   * @param {() => Promise<*>} task - The read.
-   * @return {Promise<*>} What it gave.
+   * @param {() => Promise<*>} task
+   * @return {Promise<*>}
    */
   async queue(task) {
     if (this.active >= MAX_ACTIVE) {
-      // A read that finishes hands its slot over (below): woken, this one already counts.
-      // Woken into a free slot, a caller arriving meanwhile took it as well: five at once.
+      // A finishing read hands its slot over: woken, this one already counts.
       await new Promise((resolve) => this.waiting.push(/** @type {() => void} */ (resolve)));
     } else {
       this.active++;
@@ -374,18 +309,16 @@ export class StreamLengths {
   }
 
   /**
-   * Reads a source's length.
-   * @param {{url: string, mode: string, headers: *}} source - The detected source.
-   * @param {() => void} [answered] - Called once a file's first answer is known (servesWebPage).
-   * @return {Promise<number|null>} Seconds (PIECE_LENGTH for a piece of a stream), or null.
+   * @param {{url: string, mode: string, headers: *}} source
+   * @param {() => void} [answered]
+   * @return {Promise<number|null>}
    */
   async read(source, answered = () => {}) {
     if (!/^https?:\/\//i.test(source.url)) {
       return null;
     }
 
-    // The headers the player would send, less the conditional ones: a read that copied
-    // the page's If-None-Match would get a 304 and no body.
+    // Less the conditional headers: a copied If-None-Match would get a 304 and no body.
     const headers = /** @type {Record<string, string>} */ (new VideoSource(source.url, source.headers, source.mode).headers);
     for (const name of Object.keys(headers)) {
       if (name.startsWith('if-')) {
@@ -407,8 +340,7 @@ export class StreamLengths {
           return null;
         }
         if ('duration' in playlist) {
-          // A media playlist: the stream's, or its master's first variant's. Its keys tell
-          // whether its segments are copy-protected; the master names none of them.
+          // Its keys tell whether its segments are copy-protected; the master names none.
           this.noteProtection(source.url, StreamLength.hlsProtected(text));
           return playlist.duration;
         }
@@ -442,8 +374,7 @@ export class StreamLengths {
             return null;
           }
         }
-        // A server that ignores the range sends the file from its start, not the part asked
-        // for, and all of it: the start is read, the rest never fetched.
+        // A server that ignores the range sends the whole file: the start is read, the rest never fetched.
         if (!response || (offset > 0 && !response.partial)) {
           return null;
         }
@@ -462,14 +393,10 @@ export class StreamLengths {
   }
 
   /**
-   * Fetches the start of a URL.
-   * @param {string} url - What to fetch.
-   * @param {ReturnType<typeof RequestUtils.splitSpecialHeaders>} request - The
-   *   page's headers: those the rule sets, and the rest.
-   * @param {Array<number>|null} range - The bytes to ask for, [start, end), or null for
-   *   up to MAX_TEXT_BYTES from the start.
+   * @param {string} url
+   * @param {ReturnType<typeof RequestUtils.splitSpecialHeaders>} request
+   * @param {Array<number>|null} range
    * @return {Promise<{bytes: Uint8Array, text: () => string, url: string, partial: boolean, contentType: string}|null>}
-   *   What came, or null for an error status.
    */
   async get(url, request, range) {
     if (request.customHeaderCommands.length > 0) {
@@ -508,10 +435,9 @@ export class StreamLengths {
   }
 
   /**
-   * Reads a response's body up to a limit, and no further.
-   * @param {Response} response - The response.
-   * @param {number} limit - The most bytes to read.
-   * @return {Promise<Uint8Array>} The bytes.
+   * @param {Response} response
+   * @param {number} limit
+   * @return {Promise<Uint8Array>}
    */
   static async readAtMost(response, limit) {
     if (!response.body) {

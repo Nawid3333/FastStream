@@ -2,48 +2,24 @@
 
 import {cutToLength} from './MpvTarget.mjs';
 
-/**
- * MPV autoplay's watch of mpv over the thin helper's `relay` port (host 15).
- *
- * Until host 14 the helper followed mpv itself (watchMpv in native-host/faststream-mpv-host.mjs)
- * and told the extension only the outcome: a file's end, a key for the next episode. Every
- * refinement of what counts as an end (host 14's pause at the end, measured on 2026-10-13)
- * was a new helper, installed by hand. The owner chose a thin helper that only
- * passes mpv's lines on and writes the allowlisted commands sent to it; the policy is here
- * now and updates with the extension. This is watchMpv's logic, line for line, over that port:
- * MpvBackend.watch() hands its events on unchanged, so background.mjs did not change.
- *
- * mpv's JSON IPC, as measured with the pinned mpv (headless, keep-open): observe_property
- * sends the current value at once; at a file's end eof-reached goes false -> true; a loadfile
- * replace sends end-file "stop", eof-reached and path unavailable, the new path, then
- * eof-reached false; "script-message faststream-next" arrives as a client-message.
- */
+/** MPV autoplay's watch of mpv over the thin helper's `relay` port: watchMpv's logic, line for line. */
 
-// The properties of mpv's setup that FastStream writes (the helper allows only
-// user-data/faststream/...). connected: mpv's episode buttons show while it holds;
-// heartbeat: and while it keeps changing (the helper writes it); autoplay: what the
-// autoplay button shows.
+// The helper allows only user-data/faststream/...; mpv's episode buttons show while `connected` holds and the heartbeat moves.
 export const ConnectedProperty = 'user-data/faststream/connected';
 export const HeartbeatProperty = 'user-data/faststream/heartbeat';
 export const AutoplayProperty = 'user-data/faststream/autoplay';
 
-// How often the helper writes the heartbeat: mpv's setup hides the episode buttons once it
-// stood still for 90 s (three beats missed), as after a helper killed hard (host 10).
+// mpv's setup hides the episode buttons once the heartbeat stood still for 90 s.
 export const HeartbeatMs = 30000;
 
-// How close to its end mpv may stop, paused or after a seek, and it is the end (host 14: a
-// skip past the end of an HLS stream with discontinuities stopped mpv there, paused, with
-// eof-reached never set).
+// An HLS stream with discontinuities can stop mpv paused at its end, eof-reached never set.
 export const EndSlackSeconds = 0.5;
 
-// At mpv's default keep-open "no" mpv lets a file go at its end and, started by the helper with
-// --idle=once, quits: autoplay's countdown went with it. While autoplay is on, the file playing
-// gets keep-open "yes" (host 24); mpv puts the user's own value back when that file goes.
+// At keep-open "no" mpv quits at a file's end, and autoplay's countdown with it; mpv restores the user's value when the file goes.
 const KeepOpenProperty = 'keep-open';
 const FileKeepOpenProperty = 'file-local-options/keep-open';
 
-// The longest a notice stays in mpv, and how long mpv's own text stays when this mpv has no
-// notify.lua and the notice names no time.
+// Also how long mpv's own text stays when this mpv has no notify.lua and the notice names no time.
 export const MaxNoticeSeconds = 60;
 const DefaultTextSeconds = 4;
 
@@ -51,11 +27,7 @@ const DefaultTextSeconds = 4;
 const MaxNoticeChars = 2048;
 
 /**
- * The script messages an mpv key, button or menu sends for the next or the previous episode
- * (input.conf: "n script-message faststream-next"), for autoplay on or off (the mpv
- * setup's autoplay button), and for a pause key (input.conf: Space and a click on the video
- * also send faststream-pause), which stops an end's countdown; mpv gives them to every IPC
- * client.
+ * Script messages from mpv's keys, buttons and menus; mpv gives them to every IPC client.
  * @type {Object<string, string>}
  */
 export const EpisodeMessages = {
@@ -65,17 +37,14 @@ export const EpisodeMessages = {
   'faststream-pause': 'pause',
 };
 
-// The ids of the observed properties.
 const PathId = 1;
 const EofId = 2;
 const PauseId = 3;
-// The decoder's properties (decoderProperties) get the ids from here on.
 const DecoderBaseId = 10;
 
 /**
- * How long a notice asks to stay: seconds between 0 (exclusive) and MaxNoticeSeconds, to a
- * tenth; undefined for anything else (notify.lua's own default then, 2 s).
- * @param {*} seconds - What the background asked for.
+ * undefined: notify.lua's own default (2 s).
+ * @param {*} seconds
  * @return {number|undefined}
  */
 export function noticeSeconds(seconds) {
@@ -84,9 +53,7 @@ export function noticeSeconds(seconds) {
 }
 
 /**
- * A notice's text as the helper takes it: one line, no `${` (mpv's own text would expand a
- * property there), at most MaxNoticeChars. The background's notices are its own sentences,
- * but one the helper refused would not show at all.
+ * One line, no `${` (mpv's own text expands a property there), at most MaxNoticeChars: the helper refuses others.
  * @param {*} text
  * @return {string}
  */
@@ -103,36 +70,14 @@ function noticeText(text) {
  *   hide: () => void, state: (state: {autoplay: boolean}) => void, stop: () => void}} MpvWatcher
  */
 
-/**
- * A message sent to the helper over the relay port: an mpv command to run, with an id when
- * its answer is to be read back, or the once-sent setup of the relay itself.
- * @typedef {{type: 'mpv', command: Array<*>, id?: number}} MpvCommand
- */
+/** @typedef {{type: 'mpv', command: Array<*>, id?: number}} MpvCommand */
 /** @typedef {MpvCommand|{type: 'relay', heartbeat: {property: string, everyMs: number}, onStop: Array<Array<*>>}} ToHelperMessage */
 
 /**
- * Follows mpv over a `relay` port of the helper: its file, its end, and its keys for the next
- * or the previous episode, each sent as it happens as watchMpv sent them (host 7's watch):
- * {type: 'watching'} once mpv is followed, {type: 'path', path}, {type: 'ended', path},
- * {type: 'request', action}, and {type: 'closed', reason} last (not after stop()). With
- * decoderProperties, also {type: 'decoder-replies', replies} whenever one of them changed:
- * their values in that order, as the ipc message's replies ({error, data}), so a caller reads
- * them as it reads an answer to get_property.
- *
- * An end is eof-reached going from false to true for the file mpv has (keep-open stops at the
- * end), or an end-file "eof" (an mpv without keep-open), or mpv in the last EndSlackSeconds of
- * its file when it pauses there or a seek lands there (playback-restart; host 14). The first
- * eof-reached and pause values are mpv's state when the watch began, not events: a file that
- * ended before is no end now. One end per file: the same path again (a loadfile replace of the
- * same episode) is a new file once mpv said it had none in between.
- *
- * @param {*} port - A connectNative port to the helper (postMessage, onMessage, onDisconnect,
- *   disconnect), nothing sent on it yet.
- * @param {(event: import('./MpvBackend.mjs').RelayEvent) => void} onEvent - Gets each event.
- * @param {{onLegacy?: () => void, decoderProperties?: Array<string>}} [options] - onLegacy:
- *   the helper answered "unknown message", one from before host 15. The watch then ends
- *   without a 'closed' event, for the caller to follow mpv the old way. decoderProperties: mpv
- *   properties to observe for its video decoder (MpvBackend's DecoderProperties).
+ * Follows mpv's file, its end and its episode keys. An end: eof-reached false -> true, an end-file "eof", or a pause or seek in the last EndSlackSeconds.
+ * @param {*} port
+ * @param {(event: import('./MpvBackend.mjs').RelayEvent) => void} onEvent
+ * @param {{onLegacy?: () => void, decoderProperties?: Array<string>}} [options]
  * @return {MpvWatcher}
  */
 export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {}) {
@@ -148,29 +93,22 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
   let endedPath = null;
   let pauseSeen = false;
   let requests = 0;
-  // The questions for the time left (endCheck), by id.
   const endChecks = new Set();
-  // The decoder's properties as mpv last said them, and the replies last told.
   /** @type {Object<string, *>} */
   const decoderValues = {};
   /** @type {?string} */
   let decoderTold = null;
-  // A notice sent to notify.lua, by id: one refused (no notify.lua in this mpv's config) is
-  // shown with mpv's own text instead.
+  // One refused (no notify.lua in this mpv) is shown with mpv's own text instead.
   /** @type {Map<number, {text: string, seconds: (number|undefined)}>} */
   const notices = new Map();
   let autoplay = false;
-  // The file's keep-open: the user's (undefined until mpv said it), and whether it is ours now.
+  // The user's keep-open (undefined until mpv said it), and whether it is ours now.
   /** @type {?{user: *, asked: boolean, kept: boolean}} */
   let keepOpen = null;
   /** @type {Map<number, {user: *, asked: boolean, kept: boolean}>} */
   const keepOpenChecks = new Map();
 
-  /**
-   * Sends a message to the helper over the port; a failure (the helper went meanwhile) is
-   * swallowed here, and onDisconnect will be heard from instead.
-   * @param {ToHelperMessage} message
-   */
+  /** @param {ToHelperMessage} message */
   const post = (message) => {
     try {
       port.postMessage(message);
@@ -179,8 +117,7 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
     }
   };
   /**
-   * One mpv command through the helper; with an id, its answer comes back as mpv-reply.
-   * Held until the helper is connected to mpv (relaying).
+   * Held until the helper is connected to mpv.
    * @param {Array<*>} command
    * @param {number} [id]
    */
@@ -195,8 +132,7 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
     }
   };
   /**
-   * Ends the watch the first time it is called, and tells the watcher why; with a null
-   * reason (an end this code chooses, in stop()) no 'closed' event goes.
+   * A null reason (stop()) sends no 'closed' event.
    * @param {string|null} reason
    */
   const end = (reason) => {
@@ -211,15 +147,13 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
       onEvent({type: 'ended', path});
     }
   };
-  // Asks mpv how much of its file is left: the answer may be an end (host 14).
   const endCheck = () => {
     if (path === null || endedPath === path) return;
     const id = 1000 + ++requests;
     endChecks.add(id);
     send(['get_property', 'time-remaining'], id);
   };
-  // The file playing stays open at its end while autoplay is on and the user's keep-open is
-  // "no"; the user's value again once autoplay is off. A helper before 24 refuses both.
+  // Keep-open "yes" while autoplay is on and the user's is "no"; a helper before 24 refuses both.
   const followKeepOpen = () => {
     if (!keepOpen) return;
     if (keepOpen.user === undefined) {
@@ -236,18 +170,15 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
       send(['set_property', FileKeepOpenProperty, keep ? 'yes' : 'no']);
     }
   };
-  /**
-   * mpv's own text in place of a notice notify.lua did not show.
-   * @param {{text: string, seconds: (number|undefined)}} notice
-   */
+  /** @param {{text: string, seconds: (number|undefined)}} notice */
   const showText = (notice) => {
     // A whole number of milliseconds: the helper takes nothing else.
     send(['show-text', notice.text, Math.round((notice.seconds || DefaultTextSeconds) * 1000)]);
   };
   /**
-   * The helper's answer to a command of ours that had an id.
+   * error: mpv's ("success" when done), or why the helper refused it.
    * @param {*} id
-   * @param {*} error - mpv's ("success" when it did it), or why the helper refused it.
+   * @param {*} error
    * @param {*} data
    */
   const onReply = (id, error, data) => {
@@ -267,10 +198,7 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
       if (error && error !== 'success' && notice) showText(notice);
     }
   };
-  /**
-   * A line mpv sent (an event).
-   * @param {*} event
-   */
+  /** @param {*} event */
   const onMpvLine = (event) => {
     if (!event || typeof event !== 'object') return;
     if (event.event === 'property-change' && event.name === 'path') {
@@ -280,8 +208,7 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
       if (path !== null) {
         onEvent({type: 'path', path});
       } else {
-        // Between two files (a loadfile replace): the next may be the same one again, and its
-        // end is another end (seen with the pinned mpv).
+        // The next file may be the same one again, and its end is another end.
         endedPath = null;
       }
     } else if (event.event === 'property-change' && event.name === 'eof-reached') {
@@ -311,16 +238,14 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
   };
 
   /**
-   * A message the helper sent over the port: the answer to our 'relay' message (ok), or a
-   * relayed line, command answer, refusal or close (type, and its fields). What a field
-   * holds is tested here before use, since the relay only passes mpv's words on.
+   * What a field holds is tested before use: the relay only passes mpv's words on.
    * @param {{ok?: boolean, type?: string, error?: *, id?: number, reason?: string, data?: *, capabilities?: Array<*>}} message
    */
   port.onMessage.addListener((/** @type {{ok?: boolean, type?: string, error?: *, id?: number, reason?: string, data?: *, capabilities?: Array<*>}} */ message) => {
     if (ended || !message || typeof message !== 'object') return;
     if (message.ok === false) {
       if (message.error === 'unknown message' && !Array.isArray(message.capabilities) && onLegacy) {
-        // A helper from before host 15: it exits after this answer.
+        // A helper from before host 15 exits after this answer.
         ended = true;
         try {
           port.disconnect();
@@ -340,8 +265,7 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
       post({type: 'mpv', command: ['observe_property', EofId, 'eof-reached']});
       post({type: 'mpv', command: ['observe_property', PauseId, 'pause']});
       decoderProperties.forEach((name, i) => post({type: 'mpv', command: ['observe_property', DecoderBaseId + i, name]}));
-      // mpv's episode buttons show while this holds (host 9); the helper clears it when this
-      // port closes (onStop below).
+      // The helper clears it when this port closes (onStop).
       post({type: 'mpv', command: ['set_property', ConnectedProperty, true]});
       for (const queued of queue.splice(0)) post(queued);
       onEvent({type: 'watching'});
@@ -362,17 +286,13 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
   });
   post({
     type: 'relay',
-    // The helper writes it at once and then every 30 s, while this port is open.
     heartbeat: {property: HeartbeatProperty, everyMs: HeartbeatMs},
-    // Written when the extension lets go (the port closes), not when mpv goes: mpv runs on,
-    // and its episode buttons would send to no one.
+    // On the port's close, not mpv's: mpv runs on, and its episode buttons would send to no one.
     onStop: [['set_property', ConnectedProperty, false]],
   });
 
   return {
-    // seconds: how long mpv shows it (notify.lua's own 2 s without), whole seconds from 1 to
-    // 60: the helper refuses "6.5", and "0" (notify.lua reads 0 as "stay until hidden").
-    // Left out when none was given.
+    // Whole seconds 1-60: the helper refuses "6.5", and notify.lua reads "0" as "stay until hidden".
     notify(title, detail = '', seconds) {
       if (ended) return;
       const id = 1000 + ++requests;
@@ -385,12 +305,10 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
       if (whole !== undefined) command.push(String(whole));
       send(command, id);
     },
-    // Takes the notice down before its time. No id: an mpv without notify.lua refuses it,
-    // and there is nothing to take down.
+    // No id: an mpv without notify.lua refuses it, and there is nothing to take down.
     hide() {
       send(['script-message-to', 'notify', 'hide', 'faststream']);
     },
-    // What mpv's autoplay button shows: {autoplay: boolean}, nothing else.
     state(state) {
       if (state && typeof state.autoplay === 'boolean') {
         send(['set_property', AutoplayProperty, state.autoplay]);

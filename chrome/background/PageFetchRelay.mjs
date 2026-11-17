@@ -1,24 +1,19 @@
 // @ts-check
-// The player's way to its page (PageFetch.mjs to page-fetch.js). A player in a page's iframe has no
-// tabs API: Firefox gives an extension frame inside a web page none (measured, Firefox 160:
-// chrome.tabs undefined there), so it cannot open a port into the page itself. It opens one to the
-// background, named for the page's frame, and the background joins it to a port into that frame of
-// the player's own tab (tabs.connect), passing every message on as it is, both ways.
+// A player in a page's iframe has no tabs API, so the background joins its port to one into that frame.
 import {PAGE_PORT_NAME, RELAY_PORT_PREFIX} from '../player/network/PageFetch.mjs';
 
 /**
- * Joins a player's port to its page's frame, when it is one (by its name).
- * @param {chrome.runtime.Port} port - From runtime.onConnect.
+ * @param {chrome.runtime.Port} port
  * @param {{extensionId: string, extensionUrl: string,
  *   connectTab: (tabId: number, info: {frameId: number, name: string}) => chrome.runtime.Port}} env
- * @return {boolean} Whether the port was a player's for its page (taken, or refused and closed).
+ * @return {boolean}
  */
 export function relayPageFetch(port, env) {
   if (typeof port.name !== 'string' || !port.name.startsWith(RELAY_PORT_PREFIX)) return false;
   const frameId = Number(port.name.slice(RELAY_PORT_PREFIX.length));
   const sender = port.sender;
   const tabId = sender?.tab?.id;
-  // Only this extension's own pages, in a tab: a page's frame of that same tab, never another tab.
+  // Only this extension's pages in a tab, joined to a frame of that same tab.
   if (sender?.id !== env.extensionId || !String(sender?.url || '').startsWith(env.extensionUrl) ||
       typeof tabId !== 'number' || tabId < 0 || !Number.isInteger(frameId) || frameId < 0 ||
       frameId === sender?.frameId) {
@@ -34,7 +29,7 @@ export function relayPageFetch(port, env) {
     return true;
   }
   let open = true;
-  // Either side going ends both: the page's requests stop, the player's fail and connect anew.
+  // Either side going ends both; the player connects anew.
   const close = () => {
     if (!open) return;
     open = false;

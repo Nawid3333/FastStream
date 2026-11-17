@@ -2083,3 +2083,89 @@ that fails without it.
   every fetch ends within 8 s); `tabs.onUpdated` re-creating a closed tab (only the first
   `ensureOptions` after a wake, and the next wake prunes it); the container download's 30 s
   timer (the player answers right after its anchor click).
+
+## Background: reasons moved out of the code comments (2026-11-18)
+
+- **`LocalAddress.mjs`** - Local is told by the host alone, with no DNS lookup (that needs the
+  `dns` permission), so a public name that resolves to a local address (`192.168.1.1.nip.io`)
+  counts as public. 100.64/10 (carrier-grade NAT, Tailscale) counts as local.
+- **`ManifestTypes.mjs`** - Many servers name a manifest only by its Content-Type, with no
+  extension in the URL. Only manifest types are listed: a segment's type (`video/mp4`,
+  `video/mp2t`) taken for the stream opens the player on a few seconds of it.
+  `modeFromMediaType` returns null for audio (a notification sound, a podcast MP3) and for an
+  HTML page (a hoster's "link expired" answer), which are no video.
+- **`DownloadFilename.mjs`** - Firefox rejects a `downloads.download()` call whose filename
+  holds a character it refuses (the colon in `clip@00:05.png`), and the user then sees nothing
+  happen; every measured refusal is mapped to a close safe name.
+- **`KeyShortcut.keyName`** - The typed character decides, as in Firefox's own key matching
+  (the key labelled Z on a German layout is "Z"); when it is no Latin letter or digit
+  (Shift+1's "!", a Cyrillic letter), the key's position stands in, as Firefox falls back to
+  the Latin character.
+- **`FreshLink.mjs`** - Firefox, on Back, gives a page's frame its old document from its cache
+  without asking the server, however stale (measured, Firefox 158), and so the signed stream
+  link it had; a page left for hours plays on until that link runs out. A hoster's every page
+  load issues a new link for the same video (same host and path, new signature and issue time),
+  so the page is fetched anew (`cache: 'no-store'`, with its site's cookies) and the link that
+  kept most of the refused one's parameters is taken.
+- **`StreamDetection.classifyResponse`** - A CORS preflight (OPTIONS, which Firefox shows
+  add-ons) or a HEAD is never taken for the stream: its headers lack the page's own (a token),
+  and the server refused the player. An HTML page is never a stream, whatever its address or
+  query names (an embed page, a hoster's "expired" answer at `.../clip.mp4`). A stream named in
+  a query counts only for a player's fetch or a page load: tracking pixels, scripts and beacons
+  name the media they report on in their query.
+- **`StreamDetection.isRedirect`** - A redirect is no stream, though its address may name one:
+  taken for the stream, each request of the player went through the redirect without the page's
+  Referer (refused by a CDN that checks it), and a link that ran out opened a player on the
+  hoster's "expired" page.
+- **`NetRequestRuleManager.addHeaderRule`** - `urlFilter` has no escape character: a `\` is a
+  literal character to match (Firefox's CompiledUrlFilter), so escaping a `*` made the rule
+  demand a backslash no URL has (an Akamai `acl=/*` token got no Referer). The URL goes in
+  unescaped: a `*`, `^` or `|` from it can only widen the match, and the rule is held to one
+  tab and a few seconds. A `|` at the very end would anchor the end, so a `*` follows it. Rules
+  whose removal failed three times are removed again in the same call that adds a new one, as
+  the browser may still hold their ids.
+- **`TabTracker.trimTracked`** - A page that is never left grew its frame's source and subtitle
+  lists without end: an HLS or DASH player's pieces are detected one by one, thousands in an
+  evening, and each went to every player tab. A list keeps at most `SameShapeLimit` files of
+  one shape (the first stays, so the shape is still known as a stream's pieces) and
+  `TrackedLimit` in all, files going before manifests.
+- **`TabHolder.requestHeaders`** - Kept per tab and not cleared by `reset()`: a request (a
+  preload, 103 Early Hints) can be sent before its page named itself or before the reset on a
+  new site, and answered after; a stream found without the Referer its CDN checks got a 403 in
+  the player.
+- **`TabHolder.noteHandedToPlayer`** - `sendSources` takes what it hands a player out of the
+  frames, so a player loading again in its frame ("Reload Frame") asked again and got nothing;
+  what it was handed is kept for that.
+- **`TabHolder.forgetRemovedFrame`** - A page's FRAME_REMOVED can arrive after the next page in
+  that frame named itself (the two race across a navigation). A known name that is not the
+  frame's is that late message, and must not forget the new page's frame and streams.
+- **`background.mjs` popup guard** (`PopupGuardArmMs`, `PopupGuardChainMs`, `tabs.onCreated`) -
+  Ad scripts open a popup or popunder from the top window's `blur` that a click into a player
+  iframe causes; a tab opened within 700 ms of such a click is closed, and the guard re-arms
+  for 400 ms after a close, as one click often chains two or three tabs. The windows are short
+  because a deliberate new tab within them is closed too, and on a cold event page a
+  `window.open()` in the same blur can come before the arm message.
+- **`background.mjs` `isTablessRequest`** - Requests of no tab (a service worker's, the
+  background's own length reads) are not tracked: no tab event ever reset the holder of tab -1,
+  which collected every such stream for the session and sent the growing list, with the
+  requests' headers, to every player tab, private windows and containers included.
+- **`background.mjs` `recoverFrameSources`** - A page's report of what it loaded is the page's
+  to write: an internet page that named a local-network address in it had the length read and
+  mpv ask that address, blind requests outside Firefox's own checks. A page on the local
+  network still plays from it.
+- **`background.mjs` `takeScrapedCaptions`** - content.js reads at most 64 MB of `<track>` text
+  at a time but asks again for each new stream, so a page naming new track files each time had
+  them all kept and copied to its players without end; past `ScrapedCaptionsKeptMax` the oldest
+  readings go, the current answer's last.
+- **`background.mjs` DOWNLOAD in a container** - The save tab opens in the playing tab's
+  window: Firefox refuses a private tab's cookie store in a normal window (and a container's in
+  a private one), and the save was answered null when the user had switched windows. Its player
+  may never load or answer, so a timeout answers the caller; the download info is taken at
+  once, as that timeout can end it while the player saves.
+- **`background.mjs` `saveOption`** - An option the background changes itself (mpv's autoplay
+  switch) is announced with UPDATE_OPTIONS, which an open options page hears; LOAD_OPTIONS
+  reached only the background, and the page went on showing the old value and wrote it back at
+  its next save.
+- **`background.mjs` `noteProblem`** - Not for a private window's tab: the problem list is kept
+  on disk and shown on the options page, so a private window's sites stayed listed there for
+  good.

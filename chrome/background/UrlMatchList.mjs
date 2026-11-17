@@ -1,33 +1,11 @@
 // @ts-check
 
 /** @typedef {{negative: boolean, regex: boolean, exclude_domain: boolean, contentType: string|null, match: RegExp|string|null}} Entry */
-/**
- * Parses and evaluates a URL allowlist in the same format as the
- * "Auto-enable URLs" option: one entry per line, pages starting with the
- * entry match (without its scheme it matches http and https, a leading
- * `www.` counts on neither side, and a site alone matches that site only, not
- * example.com.au; see prefixMatches), `~` marks a regex, `!` marks a negative (exclude) entry and
- * `-` matches by hostname only. Lines starting with `#` are comments.
- *
- * An entry may also carry a trailing content-type tag, separated by
- * whitespace: `@anime` or `@movie`, e.g. `https://crunchyroll.com @anime`.
- * This is the MPV allowlist's per-site default for gpu-toggles.lua's
- * anime/movie shader selection on the mpv side (see getContentType); it is
- * unused by any other allowlist that reuses this class.
- *
- * Entries are evaluated from last to first, so a negative entry on a later
- * line overrides positive entries above it. Both lists use this class: the
- * MPV allowlist, and background.mjs's AutoEnableList (with
- * domainEntriesExclude), which had its own copy of the parser that dropped
- * every `-domain` line and let a lone `~` match every page.
- */
+/** An allowlist in the "Auto-enable URLs" format, evaluated last to first: a later `!` entry overrides those above. */
 export class UrlMatchList {
   /**
    * @param {Object} [options]
-   * @param {boolean} [options.domainEntriesExclude] - Make every `-domain` entry an
-   *   exclusion. The Auto-enable URLs list uses `-` that way: "exclude specific domains by
-   *   prepending -" (upstream #241), for sites whose manifest links FastStream must leave
-   *   alone. The MPV allowlist keeps `-` a plain hostname match.
+   * @param {boolean} [options.domainEntriesExclude]
    */
   constructor({domainEntriesExclude = false} = {}) {
     /** @type {Array<Entry>} */
@@ -36,9 +14,7 @@ export class UrlMatchList {
   }
 
   /**
-   * Replaces the list contents with entries parsed from raw strings.
-   * Invalid entries (unparseable regexes, empty lines) are skipped.
-   * @param {Array<string>} lines - Raw allowlist entries.
+   * @param {Array<string>} lines
    * @return {void}
    */
   setEntries(lines) {
@@ -54,19 +30,14 @@ export class UrlMatchList {
     }
   }
 
-  /**
-   * The hostnames of the list's `-domain` entries.
-   * @return {Array<string>}
-   */
+  /** @return {Array<string>} */
   excludedDomains() {
     return this.entries.filter((entry) => entry.exclude_domain).map((entry) => /** @type {string} */ (entry.match));
   }
 
   /**
-   * Parses a single allowlist entry.
-   * @param {string} raw - Raw entry string.
-   * @return {Entry|null} Parsed entry, or null when the entry is empty, a
-   *   comment, or an invalid regex.
+   * @param {string} raw
+   * @return {Entry|null}
    */
   static parseEntry(raw) {
     let urlStr = String(raw || '').trim();
@@ -82,8 +53,6 @@ export class UrlMatchList {
       match: /** @type {RegExp|string|null} */ (null),
     };
 
-    // Strip a trailing "@anime"/"@movie" tag before the prefix loop below,
-    // which otherwise only ever looks at the start of the string.
     const tagMatch = /(?:^|\s+)@(anime|movie)\s*$/i.exec(urlStr);
     if (tagMatch) {
       entry.contentType = tagMatch[1].toLowerCase();
@@ -107,8 +76,7 @@ export class UrlMatchList {
 
     if (entry.exclude_domain) {
       try {
-        // A bare hostname gets a scheme to parse with. Checked in any case: with a
-        // case-sensitive check, `-HTTPS://example.com` parsed as the hostname "https".
+        // Any letter case: `-HTTPS://example.com` is no bare hostname.
         if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(urlStr)) {
           urlStr = 'http://' + urlStr;
         }
@@ -118,8 +86,7 @@ export class UrlMatchList {
         return null;
       }
     } else if (entry.regex) {
-      // An empty regex matches every URL: a stray `~` line would put every site on the
-      // list (or, as `!~`, take every site off it).
+      // An empty regex (a stray `~`) would match every URL.
       if (urlStr.length === 0) {
         return null;
       }
@@ -140,11 +107,9 @@ export class UrlMatchList {
   }
 
   /**
-   * A plain entry with its site in punycode, as Firefox gives a page's address: typed as
-   * `bücher.example`, the entry matched no page, which came as https://xn--bcher-kva.example/.
-   * A site in ASCII, or one that does not parse, stays as written, and so does the rest.
-   * @param {string} entry - The entry, lowercased.
-   * @return {string} It, its site in punycode.
+   * Firefox gives a page's address with its host in punycode.
+   * @param {string} entry
+   * @return {string}
    */
   static punycodeHost(entry) {
     const parts = /^([a-z][a-z0-9+.-]*:\/\/)?([^/?#:@]*)([\s\S]*)$/.exec(entry);
@@ -159,10 +124,8 @@ export class UrlMatchList {
   }
 
   /**
-   * Tests a URL against the list.
-   * @param {string} url - The URL to test.
-   * @return {boolean} True when the URL is allowed (a positive entry
-   *   matched, or a negative entry did not override it).
+   * @param {string} url
+   * @return {boolean}
    */
   matches(url) {
     const entry = this.findMatchingEntry(url);
@@ -170,11 +133,8 @@ export class UrlMatchList {
   }
 
   /**
-   * Returns the content-type tag ('anime'|'movie') of the entry that
-   * decides this URL, for the mpv allowlist's per-site default.
-   * @param {string} [url] - The URL to test; none matches nothing.
-   * @return {string|null} 'anime', 'movie', or null when the matching entry
-   *   (if any) carries no tag, is a negative entry, or nothing matched.
+   * @param {string} [url]
+   * @return {string|null}
    */
   getContentType(url) {
     const entry = this.findMatchingEntry(url);
@@ -185,11 +145,9 @@ export class UrlMatchList {
   }
 
   /**
-   * Finds the entry that decides a URL's match result.
-   * @param {string} [url] - The URL to test; none matches nothing.
-   * @return {Entry|null} The matching entry (later entries take
-   *   precedence, mirroring the reversed AutoEnableList), or null when
-   *   nothing matched.
+   * Later entries take precedence.
+   * @param {string} [url]
+   * @return {Entry|null}
    */
   findMatchingEntry(url) {
     if (!url) {
@@ -209,10 +167,9 @@ export class UrlMatchList {
   }
 
   /**
-   * Tests a single parsed entry against a normalized URL.
-   * @param {Entry} entry - Parsed entry.
-   * @param {string} normalizedUrl - Lowercased URL.
-   * @return {boolean} True when the entry matches the URL.
+   * @param {Entry} entry
+   * @param {string} normalizedUrl
+   * @return {boolean}
    */
   static entryMatches(entry, normalizedUrl) {
     if (entry.exclude_domain) {
@@ -230,13 +187,9 @@ export class UrlMatchList {
   }
 
   /**
-   * Whether a page starts with a plain entry, compared the way users write sites:
-   * `crunchyroll.com` (no scheme) matched nothing, and `https://crunchyroll.com` missed
-   * `https://www.crunchyroll.com/`. So an entry without a scheme matches http and https
-   * pages, a leading `www.` counts on neither side, and an entry that is only a site
-   * matches that site, not `crunchyroll.com.example.net`.
-   * @param {string} match - The entry, lowercased.
-   * @param {string} normalizedUrl - Lowercased URL.
+   * As users write sites: no scheme matches http and https, `www.` counts on neither side, a site alone matches only itself.
+   * @param {string} match
+   * @param {string} normalizedUrl
    * @return {boolean}
    */
   static prefixMatches(match, normalizedUrl) {
@@ -250,14 +203,11 @@ export class UrlMatchList {
     const withoutWww = (text) => text.replace(/^www\./, '');
     const written = match.slice(entryScheme ? entryScheme.length : 0);
     const site = withoutWww(written);
-    // "www." alone (a site begun and not finished) is no page, not every one; a scheme alone
-    // ("https://") is every page of it, on purpose.
+    // `www.` alone is no page; a scheme alone is every page of it, on purpose.
     if (site === '') {
       return written === '';
     }
-    // The page from its host on, as its address parses, less a user name and password: the
-    // text after the scheme starts with those, and `example.com` matched
-    // https://example.com:x@evil.com/, a page of evil.com.
+    // Less a user name and password: `example.com` must not match https://example.com:x@evil.com/.
     let address;
     try {
       address = new URL(normalizedUrl);

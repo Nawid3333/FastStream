@@ -1,12 +1,6 @@
 // @ts-check
 
-/**
- * The page's right-click menu: FastStream and MPV for the page and its video, as the toolbar
- * button and the MPV key switch them, and a link opened in a new tab with FastStream or MPV
- * already on. Firefox's menus API: the items are made once a start of
- * the background, and named for the tab they are shown in just before they show (onShown,
- * refresh), so "Play in FastStream" reads "Turn FastStream off" where it plays.
- */
+/** Firefox's menus API: items are made once a start, and named for their tab just before they show. */
 
 export const MenuIds = Object.freeze({
   PLAYER: 'faststream-player',
@@ -15,23 +9,20 @@ export const MenuIds = Object.freeze({
   LINK_MPV: 'faststream-link-mpv',
 });
 
-/** Web pages only: the player's own pages and other extensions' have nothing to switch. */
 const DOCUMENTS = ['http://*/*', 'https://*/*', 'file:///*'];
-/** Firefox's menus API (chrome.contextMenus in the types), with its own refresh(). */
 /** @typedef {typeof chrome.contextMenus & {refresh?: () => Promise<void>}} Menus */
 
-/** @type {any[]} the contexts' names, as Firefox takes them (an enum in the types). */
+/** @type {any[]} */
 const PAGE_CONTEXTS = ['page', 'frame', 'video', 'audio'];
 
 /**
  * @typedef {Object} MenuState
- * @property {boolean} isOn - FastStream is on for the tab.
- * @property {boolean} isMpv - It sends the tab's video to MPV.
- * @property {boolean} mpvMode - MPV mode is enabled in the options.
+ * @property {boolean} isOn
+ * @property {boolean} isMpv
+ * @property {boolean} mpvMode
  */
 
 /**
- * Each item's title and whether it shows, for a tab in this state.
  * @param {MenuState} state
  * @param {(key: string) => string} getMessage
  * @return {Array<{id: string, title: string, visible: boolean}>}
@@ -48,8 +39,7 @@ export function menuItems(state, getMessage) {
 }
 
 /**
- * Makes the items, for a tab FastStream is off in. Those of a start before go first: an
- * event page's items outlive it, and an id made twice is an error.
+ * Items of an earlier start go first: an event page's items outlive it, and an id made twice is an error.
  * @param {Menus} menus
  * @param {(key: string) => string} getMessage
  * @param {boolean} mpvMode
@@ -65,15 +55,13 @@ export async function createMenus(menus, getMessage, mpvMode) {
       visible: item.visible,
       contexts: /** @type {any} */ (link ? ['link'] : PAGE_CONTEXTS),
       documentUrlPatterns: DOCUMENTS,
-      // A link's item: to a web page only, not a javascript: or a mailto: link.
       ...(link ? {targetUrlPatterns: ['http://*/*', 'https://*/*']} : {}),
     });
   }
 }
 
 /**
- * Names the items for the tab they show in, and shows them so. Each item on its own: one
- * Firefox refuses leaves the others named, and the menu is shown again either way.
+ * Each item on its own: one Firefox refuses leaves the others named.
  * @param {Menus} menus
  * @param {MenuState} state
  * @param {(key: string) => string} getMessage
@@ -87,12 +75,11 @@ export async function updateMenus(menus, state, getMessage) {
       console.error('The right-click menu\'s item was not updated', item.id, e);
     }
   }
-  // Firefox's own: a menu already open shows the new titles.
+  // Firefox only: a menu already open shows the new titles.
   await menus.refresh?.();
 }
 
 /**
- * The link a link item opens: a web page's, never another scheme.
  * @param {string|undefined} url
  * @return {?string}
  */

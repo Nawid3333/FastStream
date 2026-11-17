@@ -1,9 +1,5 @@
 // @ts-check
-// MPV mode: handing a page's video to mpv (the native host, MpvBackend), and what follows it -
-// the autoplay watch over the page's next episode, its countdown, the hand-off's results
-// (decoder, errors) and the toolbar's MPV toggle. Moved out of background.mjs,
-// whose shared state and helpers it imports from there; background.mjs registers the
-// listeners (they have to be at its top level for the event page to wake for them).
+// The listeners are registered by background.mjs: at its top level the event page wakes for them.
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 import {ProblemKinds} from '../player/utils/ProblemLog.mjs';
@@ -23,33 +19,19 @@ export const MpvAllowlist = new UrlMatchList();
 
 export const Mpv = new MpvBackend();
 
-// The shortcut's MPV waits for the user to start a video (onUserPlay). A play
-// whose stream is not detected yet takes the next one within MpvPlayPendingMs;
-// the same video played again within MpvPlayRepeatMs is the player repeating
-// itself, not a second request.
+// A play whose stream is not detected yet takes the next one within MpvPlayPendingMs; the same video within MpvPlayRepeatMs is the player repeating itself.
 export const MpvPlayPendingMs = 15000;
 
 export const MpvPlayRepeatMs = 10000;
 
-// The allowlist's MPV, on a page Back gave back: how long a play whose stream is not
-// known waits for it to be detected before the page's known stream goes
-// (autoOpenKnownLater). 1 s: a play-triggered fetch lands within a
-// few hundred ms, and every Back + play waited the whole time before mpv started.
+// A play-triggered fetch lands within a few hundred ms.
 export const MpvPlayKnownAfterMs = 1000;
 
 /**
- * Resolves the anime/movie shader hint sent to mpv for a stream.
- *
- * Movie is the fallback on purpose: most sites on the MPV Allowlist are
- * movie sites for this user, so only the anime ones need an `@anime` tag --
- * an untagged site, or none of this ever matching, still gets an explicit
- * `movie` rather than nothing (which would leave it to mpv's own, less
- * reliable folder-name heuristic).
- *
- * @param {?string} [explicit] - The player's manual per-video override
- *   (SaveManager.mjs's mpvContentType), or anything else to fall through.
- * @param {string} [url] - Tab URL to check against the MPV Allowlist.
- * @return {string} 'anime' or 'movie', never null/undefined.
+ * Movie is the fallback: an untagged site still gets `movie`, not mpv's folder-name guess.
+ * @param {?string} [explicit]
+ * @param {string} [url]
+ * @return {string}
  */
 export function resolveMpvContentType(explicit, url) {
   if (explicit === 'anime' || explicit === 'movie') {
@@ -59,34 +41,16 @@ export function resolveMpvContentType(explicit, url) {
 }
 
 /**
- * Puts a tab in MPV mode: FastStream on, streams handed to mpv.
- *
- * An active in-page player has to come down first - the same reload the plain
- * Off/On toggle uses to undo one - because a FastStream overlay isn't
- * something a message can cleanly retract. isMpv is set before the reload, so
- * the freshly (re-)detected source is what onSourceRecieved forwards to mpv
- * once the page reloads; nothing here has to redo that forwarding itself.
- *
- * With onPlay (the shortcut) nothing is handed off here or by the page's own
- * stream requests: the tab waits for the user to start a video (onUserPlay).
- * A video they started and are still watching counts as started now.
- *
- * What the button said of the last hand-off - its failure, an outdated host, mpv's
- * decoder - goes: it is about a stream sent before, and after MPV off and on again it
- * showed with nothing sent since. The next hand-off says it again.
- *
- * @param {TabHolder & TabExtras} tab - The tab to switch.
- * @param {boolean} [onPlay] - Wait for the user to start a video.
+ * An active in-page player comes down with a reload; isMpv is set first, so the re-detected source goes to mpv.
+ * @param {TabHolder & TabExtras} tab
+ * @param {boolean} [onPlay]
  * @return {Promise<void>}
  */
 export async function startMpv(tab, onPlay = false) {
   tab.isOn = true;
   tab.isMpv = true;
   tab.mpvOnPlay = onPlay;
-  // The user's own MPV (the MPV key, the toolbar's On -> MPV), not a list's start: it stays
-  // for the tab. Still marked as the list's, it went off on the first
-  // page outside the lists of a site an auto-enable list had turned on (glm's review,
-  // 2026-10-13).
+  // The user's own MPV, not a list's start: it stays for the tab.
   tab.regexMatched = false;
   tab.mpvTurnedOff = false;
   tab.mpvError = null;
@@ -112,17 +76,12 @@ export async function startMpv(tab, onPlay = false) {
       BackgroundUtils.checkMessageError('mpv_report_playing');
     });
   } else {
-    // No player was ever requested for this page - hand off directly from
-    // whatever sources are already tracked.
     openMpvWithSources(tab);
   }
 }
 
 /**
- * Takes a tab out of MPV mode and turns FastStream off for it, tearing down
- * any in-page player that is up or on its way.
- *
- * @param {TabHolder} tab - The tab to switch.
+ * @param {TabHolder} tab
  * @return {Promise<void>}
  */
 export async function stopMpv(tab) {
@@ -138,15 +97,7 @@ export async function stopMpv(tab) {
   }
 }
 
-/**
- * Takes every tab out of MPV while MPV mode is off. That option is the switch for the
- * whole mpv integration, and a tab keeps its mode until something changes it: one in MPV
- * when the option was switched off, or put back so by a woken background, went on handing
- * its streams to mpv - on a site on both the MPV Allowlist and the auto-enable list, page
- * after page. Such a tab keeps FastStream on where the auto-enable list would turn it on,
- * for the in-page player, and is off everywhere else, as after the toolbar's MPV -> Off.
- * MPV opens no in-page player, so there is none to take down.
- */
+/** MPV mode off is the switch for the whole mpv integration: a tab still in MPV went on handing streams to mpv. */
 export function leaveMpvWhenOff() {
   if (Options.mpvMode) {
     return;
@@ -164,28 +115,8 @@ export function leaveMpvWhenOff() {
 }
 
 /**
- * The toggle_mpv shortcut (Alt+F unless the user rebinds it; Ctrl+Shift+U until
- * 2026-10-04): MPV on or
- * off for the tab, on any site. Unlike the toolbar cycle it does not need the
- * site on the MPV Allowlist - pressing it is the deliberate choice the
- * allowlist otherwise makes for the user. Off means FastStream off, the same
- * as the toolbar's MPV -> Off step. From the in-page player it goes straight to
- * MPV, as the player's key goes from MPV straight to the player (onClicked).
- *
- * Only a video the user starts goes to mpv (startMpv's onPlay, onUserPlay):
- * on an arbitrary site the first stream a page loads is as likely a preview
- * or a background clip as the video they came for.
- *
- * On a blank or new tab it arms MPV for the tab instead: nothing is playing
- * yet, and the tab's mode survives navigation, so the first video of the next
- * page opened there goes to mpv (new tab, Alt+F, paste a link). The
- * toolbar opens the player page on a blank tab; that page has no video to send.
- * On the player page itself it does nothing.
- *
- * Does nothing while MPV mode is off: that option is the switch for the whole
- * mpv integration, and openMpvWithSources refuses without it.
- *
- * @param {chrome.tabs.Tab} tabobj - The tab that was active when the key was pressed.
+ * MPV on or off for the tab on any site (armed on a blank tab); only a video the user starts goes to mpv.
+ * @param {chrome.tabs.Tab} tabobj
  */
 export async function onToggleMpv(tabobj) {
   await ensureOptions();
@@ -221,14 +152,9 @@ export async function onToggleMpv(tabobj) {
 }
 
 /**
- * A tab a tab in MPV opened - a site's player in a pop-up tab, an episode middle-clicked -
- * starts in MPV as well, the MPV key's way: only a video the user starts there goes to mpv
- * (#337). MPV belongs to a tab, and the new one had none, so its video played in the
- * browser. Never the allowlist's automatic first stream: most pop-ups are ads, and an
- * autoplaying one would go to mpv. Firefox names the opener (openerTabId) for a tab, not
- * for a pop-up window, which this cannot reach (measured 2026-10-04).
- * @param {TabHolder} openerTab - The tab that opened it.
- * @param {number} tabId - The new tab.
+ * Only a video the user starts there goes to mpv: most pop-ups are ads. Firefox names no opener for a pop-up window.
+ * @param {TabHolder} openerTab
+ * @param {number} tabId
  */
 export function inheritMpv(openerTab, tabId) {
   // isMpv only with isOn: every switch to Off clears both.
@@ -244,8 +170,6 @@ export function inheritMpv(openerTab, tabId) {
 }
 
 /**
- * Notes a next episode whose page brought no video within a minute (ProblemLog): the
- * continuation is still there, as nothing took it (its sources, or mpv's stream).
  * @param {TabHolder} tab
  * @param {Continuation} continuation
  * @param {'player'|'mpv'} mode
@@ -259,10 +183,7 @@ export function watchNextEpisodeArrives(tab, continuation, mode) {
 }
 
 /**
- * A tab's subtitles, as SubRip for mpv: the subtitle files its page asked for and its
- * <track> elements, in every frame - what the in-page player would show from that page. A
- * frame that does not tell its <track> elements within CaptionScrapeWaitMs keeps those it
- * had.
+ * A frame that does not tell its <track> elements within CaptionScrapeWaitMs keeps those it had.
  * @param {TabHolder} tab
  * @return {Promise<Array<{label: string, srt: string}>>}
  */
@@ -283,12 +204,9 @@ export async function pageSubtitlesForMpv(tab) {
 }
 
 /**
- * Pauses the page after a hand-off the host says worked, and logs how raising mpv's window
- * went (the host's focus, foreground and reused). Not when the user turned MPV off since
- * the stream went (userTurnedOff): mpv got it all the same, but the page they went back to
- * plays on. A fresh mpv answers seconds after the send.
- * @param {TabHolder} tab - The tab the stream was sent from.
- * @param {{focus?: string, foreground?: string, reused?: boolean}} result - The host's answer.
+ * Not when the user turned MPV off since the stream went: the page they went back to plays on.
+ * @param {TabHolder} tab
+ * @param {{focus?: string, foreground?: string, reused?: boolean}} result
  */
 export function pauseAfterHandOff(tab, result) {
   if (Logging) {
@@ -300,18 +218,10 @@ export function pauseAfterHandOff(tab, result) {
 }
 
 /**
- * After openInMpv refused a file only its page loads (pageOnly: abyss.to's player, #665):
- * the tab goes over from MPV to FastStream's own player, as the toolbar's MPV -> On does,
- * and that player, which loads the file through the page (PageFetch), says why
- * (tab.playerNotice). mpv's window opened and closed at once before, and nothing said why
- * (no byte relay to mpv, which would need a new helper). Not
- * the user's Off (userTurnedOff): the toolbar shows On. On this page the tab stands in for MPV
- * (tab.mpvStandInPage): the toolbar cycle's next click is MPV -> Off. As On -> MPV it reloaded
- * the page, was refused again and came back On, and Off was never reached.
- * A tab the user turned off or over to FastStream meanwhile keeps that.
- * @param {TabHolder} tab - The tab the stream was sent from.
- * @param {MpvHandOff} result - openInMpv's answer.
- * @return {boolean} Whether it was such a refusal: then nothing else is done with it.
+ * A file only its page loads: the tab goes over to FastStream's own player, which loads it through the page and says why.
+ * @param {TabHolder} tab
+ * @param {MpvHandOff} result
+ * @return {boolean}
  */
 export function playHereInstead(tab, result) {
   if (!('pageOnly' in result) || !result.pageOnly) {
@@ -338,14 +248,10 @@ export function playHereInstead(tab, result) {
 }
 
 /**
- * The allowlist's MPV: hands a page's stream to mpv, once per page
- * (tab.mpvAutoOpened), then pauses the page. The toolbar's MPV and a start by address send
- * through here too (openMpvWithSources): the latch is the same one, and so is what a refusal
- * does to it.
- *
- * @param {TabHolder} tab - The tab the stream is in.
- * @param {string} url - The stream.
- * @param {*} headers - Its request headers, as detected.
+ * Once per page (tab.mpvAutoOpened); the toolbar's MPV and a start by address share the latch.
+ * @param {TabHolder} tab
+ * @param {string} url
+ * @param {*} headers
  */
 export function autoOpenInMpv(tab, url, headers) {
   // Reached after awaits (options, a stream's length): a tab closed meanwhile sends nothing.
@@ -369,8 +275,7 @@ export function autoOpenInMpv(tab, url, headers) {
     if (result.ok) {
       pauseAfterHandOff(tab, result);
     } else if (!('drm' in result)) {
-      // The host never launched mpv, so let the next stream try. Not after a copy-protected
-      // video's: the page's next stream would be one of its pieces, or an ad's.
+      // The host never launched mpv: the next stream may try. Not after a copy-protected video's: its next would be a piece or an ad.
       tab.mpvAutoOpened = false;
       Tabs.saveTabState(tab);
     }
@@ -383,25 +288,14 @@ export function autoOpenInMpv(tab, url, headers) {
 }
 
 /**
- * MPV autoplay's next page (tab.mpvNextEpisodeUntil): the stream to send, picked as
- * openMpvWithSources picks, once the lengths of what the page loaded are read. Its first
- * stream went at once before, and here this extension started the page's player itself
- * (startPagePlayers): a hoster's player may load an ad's stream first, which went to mpv under
- * the episode's title, and the episode's own, detected after, was dropped (an anime site, season 1
- * to 2, his report 2026-10-13: mpv showed the title on a black picture). Each detection
- * starts the pick again. One known to run under StreamPick's SHORT_S (an ad, a trailer, a
- * preview) waits for a longer one until MpvNextPickGraceMs before the minute is up, and goes
- * then as the best there is. Only streams detected since the episode was asked for: a frame
- * of the page before that is not always gone from the tab (its FRAME_REMOVED never came),
- * and its episode, the longest, went to mpv again.
- * @param {TabHolder} tab - The tab gone on to the next episode.
+ * Picked once the lengths are read: a hoster's player may load an ad first. Only streams detected since the episode was asked for.
+ * @param {TabHolder} tab
  */
 export async function pickNextEpisodeForMpv(tab) {
   const pick = {};
   tab.mpvNextPick = pick;
   clearTimeout(tab.mpvNextPickTimer);
-  // Only while the episode is still waited for: another tab's stream that took the mpv window
-  // ends the wait (watchMpvFor), and a pick then sent this tab's page over it.
+  // Only while the episode is still waited for: another tab's stream may have taken the mpv window.
   const open = () => tab.mpvNextEpisodeUntil > Date.now();
   if (!open()) {
     return;
@@ -431,7 +325,6 @@ export async function pickNextEpisodeForMpv(tab) {
 }
 
 /**
- * Every stream detected in a tab's frames, once each.
  * @param {TabHolder} tab
  * @return {Array<TrackedSource>}
  */
@@ -450,21 +343,8 @@ export function tabSources(tab) {
   return sources;
 }
 
-// MPV autoplay: an episode handed to mpv that plays to its end (with
-// "Autoplay next episode in mpv" on), or mpv's key or button for the next or the previous
-// episode, goes on to that episode in the tab's page, and its stream goes into the same mpv
-// window, so a series plays episode after episode without the browser. The host (7) follows
-// mpv over a port kept open (MpvBackend.watch), which also keeps this background page from
-// unloading (measured, docs/notes/mpv.md). Host 9 (same day, his wishes): mpv shows episode buttons and an autoplay switch
-// (the mpv setup's faststream-episodes.lua), which this setting drives and the switch flips;
-// an end waits Options.autoplayCountdown seconds, which the switch or a key can cut short,
-// and Space stop.
-// The tab may be closed while mpv plays: the next and the previous
-// episode's links are read from its page at each hand-off (rememberEpisodeLinks), and an end
-// or a key then opens the episode in a tab not shown (goToEpisodeInNewTab), which closes again
-// once its stream went to mpv.
+// MPV autoplay over the host's watch, which also keeps the event page loaded (docs/notes/mpv.md).
 /**
- * The episode links of the page a stream went to mpv from, and where its tab was.
  * @typedef {{tabId: number, next: ?string, previous: ?string, seriesEnd: boolean,
  *   cookieStoreId: ?string}} EpisodeLinksOfTab
  */
@@ -474,51 +354,36 @@ export function tabSources(tab) {
  *   stalled: ?ReturnType<typeof setTimeout>,
  *   links: ?EpisodeLinksOfTab, closedTab: ?{links: EpisodeLinksOfTab, windowId: number, windowClosing: boolean},
  *   site: string, watcher: ?{notify: Function, hide: Function, state: Function, stop: Function}}} MpvWatch
- *   site: the host of the page the stream went to mpv from (siteOf), '' for none known.
  */
 /** @type {?MpvWatch} */
 export let mpvWatch = null;
 
-// How long the next page has to bring its stream (MPV key's mode: TabHolder.mpvNextEpisodeUntil).
 export const MpvNextEpisodeWaitMs = 60000;
 
-// How long before that minute is up a short stream goes as the best there is
-// (pickNextEpisodeForMpv).
 export const MpvNextPickGraceMs = 5000;
 
-// How long mpv shows a notice that is a sentence to read (host 11; before, every notice went
-// after notify.lua's 2 s). The countdown's stays for the countdown; on and off for 2 s.
+// A notice that is a sentence to read; notify.lua's own default is 2 s.
 export const MpvNoticeSeconds = 6;
 
-/**
- * The seconds between an episode's end and the next one (Options.autoplayCountdown).
- * @return {number} 0 to 30.
- */
+/** @return {number} */
 export function autoplayCountdownSeconds() {
   const seconds = Number(Options.autoplayCountdown);
   return Number.isFinite(seconds) ? Math.min(30, Math.max(0, Math.round(seconds))) : 5;
 }
 
-/**
- * Stops an end's countdown, if one runs.
- * @param {MpvWatch} state
- */
+/** @param {MpvWatch} state */
 export function cancelMpvCountdown(state) {
   // A countdown still asking the page (startMpvCountdown) does not start either.
   state.countdownAsks++;
   if (state.countdown) {
     clearTimeout(state.countdown);
     state.countdown = null;
-    // Its notice stays for the whole countdown: a new stream, or autoplay switched off on
-    // the options page, would leave "next episode in 5 s" up with nothing coming.
+    // Its notice would otherwise stay up for the whole countdown.
     state.watcher?.hide();
   }
 }
 
-/**
- * What mpv's autoplay switch shows: after the watch began, and when the setting changed.
- * @param {?MpvWatch} state
- */
+/** @param {?MpvWatch} state */
 export function syncMpvAutoplay(state) {
   if (!state?.alive) return;
   if (!Options.mpvAutoplayNext) cancelMpvCountdown(state);
@@ -526,44 +391,36 @@ export function syncMpvAutoplay(state) {
 }
 
 /**
- * Follows the mpv a stream of the tab just went to: the latest hand-off is the one an end or
- * a key goes on from. Only a single mpv window (Mpv.singleInstance), which the host can
- * follow; a window per stream has no pipe.
+ * Only a single mpv window, which the host can follow: a window per stream has no pipe.
  * @param {TabHolder} tab
- * @param {string} url - The stream sent.
- * @param {?Array<{url: string}>} [qualities] - The page's qualities of it that went along
- *   (isSentStream).
+ * @param {string} url
+ * @param {?Array<{url: string}>} [qualities]
  */
 export function watchMpvFor(tab, url, qualities = null) {
   if (!tab || typeof tab.tabId !== 'number' || !isTabOpen(tab) || !Mpv.singleInstance) {
     return;
   }
-  // The next episode came: what was asked for it is done.
   if (tab.continuationOptions?.mpvNext) {
     tab.continuationOptions = null;
   }
   tab.mpvNextEpisodeUntil = 0;
-  // Another tab's stream took the window: the episode that tab still waits for no longer
-  // goes to mpv by itself, where it would replace this one.
+  // Another tab's stream took the window: that tab's episode no longer goes to mpv by itself.
   const before = mpvWatch && mpvWatch.tabId !== tab.tabId ? Tabs.getTab(mpvWatch.tabId) : null;
   if (before) {
     before.mpvNextEpisodeUntil = 0;
     if (before.continuationOptions?.mpvNext) {
       before.continuationOptions = null;
     }
-    // One autoplay opened for an episode that no longer goes to mpv.
     closeReopenedTab(before);
   }
   if (mpvWatch?.alive) {
-    // A stream arrived: the next page's "no stream" alarm, and an end's countdown, are done.
     if (mpvWatch.stalled) clearTimeout(mpvWatch.stalled);
     mpvWatch.stalled = null;
     cancelMpvCountdown(mpvWatch);
     mpvWatch.tabId = tab.tabId;
     mpvWatch.url = url;
     mpvWatch.qualities = qualities;
-    // A tab that is open now is what an end goes on from. The links of the tab's page before
-    // are not this one's: closed before these are read, it has none.
+    // The links of the tab's page before are not this one's.
     mpvWatch.closedTab = null;
     mpvWatch.links = null;
     mpvWatch.site = siteOf(tab.url);
@@ -578,15 +435,10 @@ export function watchMpvFor(tab, url, qualities = null) {
   rememberEpisodeLinks(state, tab);
 }
 
-/** How long rememberEpisodeLinks waits to read the links again when the page had none yet. */
 export const EpisodeLinksAgainMs = 10000;
 
 /**
- * Reads the next and the previous episode's links of the page whose stream just went to mpv,
- * for an end or a key to go on with once its tab is closed (goToEpisodeInNewTab), through
- * EPISODE_LINKS, which clicks nothing. A page that lists its episodes only a while after its
- * stream (a list it fetches) is read once more, also in a tab autoplay opened for the episode
- * itself (TabHolder.mpvReopened), which closes once read.
+ * A page that lists its episodes only a while after its stream is read once more.
  * @param {MpvWatch} state
  * @param {TabHolder} tab
  * @return {Promise<void>}
@@ -611,10 +463,7 @@ export async function rememberEpisodeLinks(state, tab) {
 }
 
 /**
- * The page's episode links (EPISODE_LINKS), from its top frame only: the background opens one
- * later as a tab of its own, and a frame's (a hoster's, an ad's) went there in the tab's
- * container, where goToEpisode, with the tab open, has such a frame
- * go on only within itself. A page that does not answer within MpvPagePollMs cannot tell.
+ * Top frame only: a hoster's or an ad's frame links would open in the tab's container.
  * @param {TabHolder} tab
  * @return {Promise<EpisodeLinksOfTab>}
  */
@@ -629,16 +478,13 @@ export async function readEpisodeLinks(tab) {
     links.seriesEnd = answer.hasNext !== true && answer.seriesEnd === true;
     links.previous = address(answer.previous);
   }
-  // Its container, which the episode's tab opens in: the same cookies, the same login. The
-  // default and the private store go by the window (as the DOWNLOAD message's tab does).
+  // Its container, for the same cookies and login; the default and private stores go by the window.
   const store = await chrome.tabs.get(tab.tabId).then((info) => info?.cookieStoreId || null, () => null);
   links.cookieStoreId = store && store !== 'firefox-default' && store !== 'firefox-private' ? store : null;
   return links;
 }
 
 /**
- * The tab mpv's stream came from is closed (tabs.onRemoved): the episode links its page had
- * stay with the watch, for an end or a key to go on in a new tab (goToEpisodeInNewTab).
  * @param {number} tabId
  * @param {{windowId: number, isWindowClosing: boolean}} removed
  */
@@ -650,10 +496,8 @@ export function noteMpvTabClosed(tabId, removed) {
 }
 
 /**
- * What the host says about the watched mpv.
- * @param {MpvWatch} state - The watch (mpvWatch).
- * @param {import('./MpvBackend.mjs').MpvWatchEvent} event - watching, path, ended, request,
- *   decoder or closed.
+ * @param {MpvWatch} state
+ * @param {import('./MpvBackend.mjs').MpvWatchEvent} event
  */
 export function onMpvWatchEvent(state, event) {
   if (event.type === 'closed') {
@@ -662,16 +506,12 @@ export function onMpvWatchEvent(state, event) {
     if (state.stalled) clearTimeout(state.stalled);
     state.stalled = null;
     if (mpvWatch === state) mpvWatch = null;
-    // mpv is gone (both watches' reasons for it): the page's next play is the user's, not
-    // the player repeating itself. Within MpvPlayRepeatMs it only paused the page, and
-    // closing mpv quickly left a dead click. A helper port that went while mpv plays on
-    // keeps the window: a repeat would load the episode again from where the page is.
+    // mpv is gone: the page's next play is the user's, not the player repeating itself.
     const tab = event.reason === 'mpv closed' || event.reason === 'no mpv' ? Tabs.getTab(state.tabId) : null;
     if (tab?.mpvLastPlaySend) {
       tab.mpvLastPlaySend = null;
       Tabs.saveTabState(tab);
     }
-    // A tab autoplay opened for an episode mpv no longer waits for.
     if (tab) closeReopenedTab(tab);
     if (Logging) console.log('[MPV autoplay] the watch ended:', event.reason);
     return;
@@ -679,7 +519,6 @@ export function onMpvWatchEvent(state, event) {
   if (event.type === 'watching') {
     syncMpvAutoplay(state);
   } else if (event.type === 'decoder') {
-    // What the toolbar's tooltip names, for the tab whose stream mpv plays (followMpvDecoder).
     const tab = Tabs.getTab(state.tabId);
     if (tab) setMpvDecoder(tab, event.decoder);
   } else if (event.type === 'ended') {
@@ -693,9 +532,7 @@ export function onMpvWatchEvent(state, event) {
   } else if (event.type === 'request' && event.action === 'autoplay') {
     toggleMpvAutoplay(state);
   } else if (event.type === 'request' && event.action === 'pause') {
-    // Space at an end (the easiest key): this episode's countdown stops,
-    // and autoplay stays on for the next end, which the switch would have turned off. mpv
-    // stays paused on the last frame. Space during playback finds no countdown to stop.
+    // Space at an end stops this countdown and keeps autoplay on for the next end.
     const counting = !!state.countdown;
     cancelMpvCountdown(state);
     if (counting) {
@@ -705,30 +542,20 @@ export function onMpvWatchEvent(state, event) {
   }
 }
 
-/** How long startMpvCountdown waits for each frame of the page to answer. */
 export const MpvPagePollMs = 1000;
 
-/**
- * How long goToEpisode waits for a frame to answer its next/previous request (the content
- * script answers at once, after its click): a frame that never answered kept state.going
- * set, and every later key, button and autoplay of the session returned at it.
- */
+/** A frame that never answered kept state.going set, and every later key returned at it. */
 export const MpvPageNavigateMs = 5000;
 
 /**
- * What the page of the tab mpv's stream came from says about its next episode, asking its
- * frames top first as goToEpisode does, through PLAYLIST_POLL, which clicks nothing:
- * 'series_end' when the first frame that knows says the series ends here (no other frame is
- * asked: a hoster's links are other videos), 'next' when it has a next episode, null when no
- * frame can tell.
+ * Top frame first; the first frame that knows decides (a hoster's links are other videos).
  * @param {TabHolder} tab
  * @return {Promise<?string>}
  */
 export async function nextEpisodeInPage(tab) {
   const frameIds = tab.frames ? Array.from(tab.frames.keys()).sort((a, b) => a - b) : [];
   for (const frameId of frameIds) {
-    // A frame that never answers costs a second, not the countdown: no
-    // answer is "cannot tell".
+    // No answer is "cannot tell": a silent frame costs a second, not the countdown.
     const answer = await new Promise((resolve) => {
       const timer = setTimeout(() => resolve(undefined), MpvPagePollMs);
       chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.PLAYLIST_POLL}, {frameId}, (response) => {
@@ -746,14 +573,7 @@ export async function nextEpisodeInPage(tab) {
 }
 
 /**
- * An episode ended in mpv with autoplay on: the next one after the countdown, which mpv
- * shows. Space stops it, the autoplay switch too (and autoplay with it); the next-episode
- * key or button skips it.
- *
- * The page is asked first (2026-10-12, the mpv setup's TODO): at the series' last episode
- * mpv said "next episode in 5 s", and only when the countdown ran out that autoplay stops.
- * Now it says the series ended at once, and counts down nothing. A page that cannot tell
- * counts down as before (goToEpisode then says what it finds).
+ * The page is asked first: at the series' last episode nothing is counted down.
  * @param {MpvWatch} state
  * @return {Promise<void>}
  */
@@ -767,8 +587,7 @@ export async function startMpvCountdown(state) {
   // A key, the switch, mpv closing or another end while the page is asked wins over this one.
   const ask = ++state.countdownAsks;
   const tab = Tabs.getTab(state.tabId);
-  // A closed tab's page said it when its stream went to mpv (rememberEpisodeLinks), as did
-  // the page of a tab that went on to another site since: that site's page is not asked.
+  // A closed tab's page, or one gone to another site, said it at the hand-off: that site's page is not asked.
   const away = !!tab && !onWatchedSite(state, tab);
   const links = !tab ? state.closedTab?.links : away ? state.links : null;
   const page = tab && !away && tab.isOn && tab.isMpv ? await nextEpisodeInPage(tab) :
@@ -788,13 +607,11 @@ export async function startMpvCountdown(state) {
 }
 
 /**
- * mpv's autoplay switch: flips the setting, which mpv then shows.
  * @param {MpvWatch} state
  * @return {Promise<void>}
  */
 export function toggleMpvAutoplay(state) {
-  // One after the other: two quick presses read the same setting before either was saved,
-  // and the second was lost.
+  // One after the other: two quick presses read the same setting before either was saved.
   mpvAutoplayToggles = mpvAutoplayToggles.then(async () => {
     const on = !Options.mpvAutoplayNext;
     try {
@@ -810,15 +627,10 @@ export function toggleMpvAutoplay(state) {
   return mpvAutoplayToggles;
 }
 
-/** The switch presses not done yet (toggleMpvAutoplay). */
 export let mpvAutoplayToggles = Promise.resolve();
 
 /**
- * Goes on to the next (or the previous) episode in the page of the tab mpv's stream came
- * from: the page's own link, as the in-page player's next button does it, top frame first.
- * The next page's player is started if it waits for a click (startPagePlayers), and its
- * stream goes to mpv by itself, into the same window. mpv says what happens.
- * @param {MpvWatch} state - The watch (mpvWatch).
+ * @param {MpvWatch} state
  * @param {'next'|'previous'} direction
  */
 export async function goToEpisode(state, direction) {
@@ -853,15 +665,12 @@ export async function goToEpisode(state, direction) {
           resolve(response);
         });
       });
-      // No other frame is asked: this one may still click, and a hoster's link after it
-      // would be a second episode.
+      // No other frame is asked: this one may still click.
       if (answer === 'timeout') break;
       if (answer === 'clicked') {
         clicked = true;
         break;
       }
-      // The page is the series' last episode (content.js isSeriesEnd): no other frame (a
-      // hoster's, whose links are other videos) is asked.
       if (answer === 'series_end') {
         seriesEnd = true;
         break;
@@ -870,10 +679,7 @@ export async function goToEpisode(state, direction) {
   } finally {
     state.going = false;
   }
-  // Another tab's stream took mpv while the page was asked (watchMpvFor moves the watch to
-  // it): what this page did is no longer what mpv waits for. The old tab got the next
-  // episode's wait all the same, and a minute later mpv said "no stream" over the other
-  // tab's video.
+  // Another tab's stream took mpv while the page was asked: what this page did no longer counts.
   if (state.tabId !== tab.tabId || !state.alive) {
     return;
   }
@@ -892,8 +698,6 @@ export async function goToEpisode(state, direction) {
 }
 
 /**
- * mpv's notice that the episode cannot be gone to: its tab is closed (and its page had no
- * link to it, or its window went), or not in MPV mode.
  * @param {MpvWatch} state
  * @param {string} title
  */
@@ -903,16 +707,10 @@ export function notifyEpisodeUnavailable(state, title) {
 }
 
 /**
- * goToEpisode with the tab of mpv's stream closed: the episode its page
- * linked to (rememberEpisodeLinks) opens in a new tab that is not shown, in the window and the
- * container the closed one was in, and goes on as the tab did (awaitEpisodeStream). Measured
- * in Firefox 158: such a tab loads the hoster, its player is started, and its stream is
- * asked for, while Firefox holds the page's own play() until the tab is shown. Once the stream
- * went to mpv, the tab closes again (rememberEpisodeLinks). Not when the closed tab's window
- * went with it, nor for a page whose next was a button, not a link.
+ * The episode opens in a tab not shown, in the closed one's window and container; Firefox loads its stream there.
  * @param {MpvWatch} state
  * @param {'next'|'previous'} direction
- * @param {string} title - mpv's notice's title.
+ * @param {string} title
  * @return {Promise<void>}
  */
 export async function goToEpisodeInNewTab(state, direction, title) {
@@ -927,8 +725,7 @@ export async function goToEpisodeInNewTab(state, direction, title) {
     }
     return;
   }
-  // Its window went with it; or MPV mode was switched off since (leaveMpvWhenOff), which a
-  // tab still open shows by its isMpv.
+  // Its window went with it, or MPV mode was switched off since.
   if (closed.windowClosing || !Options.mpvMode) {
     notifyEpisodeUnavailable(state, title);
     return;
@@ -961,10 +758,7 @@ export async function goToEpisodeInNewTab(state, direction, title) {
   state.links = null;
   state.tabId = created.id;
   state.site = siteOf(url);
-  // MPV, as the closed tab was: the lists by address decide nothing for it (tabs.onUpdated
-  // keeps a tab that is on already). Matched by the MPV allowlist already, where it names the
-  // address: its own start would send the page's first stream, an ad's maybe, beside the
-  // episode's pick.
+  // MPV, as the closed tab was: matched by the allowlist, its own start would send the page's first stream too.
   const tab = Tabs.getTabOrCreate(created.id);
   tab.isOn = true;
   tab.isMpv = true;
@@ -979,7 +773,6 @@ export async function goToEpisodeInNewTab(state, direction, title) {
 }
 
 /**
- * The host of a page's address, '' for none (no address, or one that is not a URL).
  * @param {string|undefined} url
  * @return {string}
  */
@@ -992,13 +785,9 @@ function siteOf(url) {
 }
 
 /**
- * Whether the tab of mpv's stream still shows the site the stream went from. A tab the user
- * took to another site while mpv played had that site's "next" link clicked at the episode's
- * end: the user's page went away under them, and its video replaced the series in mpv.
- * The site, not the page: the series' own next page, a reload, an address
- * a site's script changes, all stay on it.
+ * The site, not the page: a tab taken to another site must not have that site's "next" clicked.
  * @param {MpvWatch} state
- * @param {TabHolder} tab - The tab of state.tabId.
+ * @param {TabHolder} tab
  * @return {boolean}
  */
 function onWatchedSite(state, tab) {
@@ -1006,13 +795,10 @@ function onWatchedSite(state, tab) {
 }
 
 /**
- * goToEpisode with the tab of mpv's stream gone on to another site: as with the tab closed
- * (goToEpisodeInNewTab), the episode the series' page linked to opens in a tab not shown, in
- * the same window; that site's page is left alone.
  * @param {MpvWatch} state
- * @param {TabHolder} tab - The tab, on another site now.
+ * @param {TabHolder} tab
  * @param {'next'|'previous'} direction
- * @param {string} title - mpv's notice's title.
+ * @param {string} title
  * @return {Promise<void>}
  */
 async function goToEpisodeFromSiteLeft(state, tab, direction, title) {
@@ -1039,22 +825,18 @@ async function goToEpisodeFromSiteLeft(state, tab, direction, title) {
 }
 
 /**
- * The tab went on to the episode: its stream goes to mpv by itself (onSourceRecieved,
- * pickNextEpisodeForMpv) for a minute, its page's player is started if it waits for a click
- * (startPagePlayers), and mpv says what happens.
  * @param {MpvWatch} state
  * @param {TabHolder} tab
- * @param {string} title - mpv's notice's title.
+ * @param {string} title
  */
 export function awaitEpisodeStream(state, tab, title) {
   tab.continuationOptions = {autoPlay: true, mpvNext: true};
   tab.mpvNextEpisodeUntil = Date.now() + MpvNextEpisodeWaitMs;
-  // Not for a tab closed meanwhile: its state went back into storage (isTabOpen; glm's review).
+  // Not for a tab closed meanwhile: its state would go back into storage.
   if (isTabOpen(tab)) Tabs.saveTabState(tab);
   state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_loading') || 'loading in mpv',
       MpvNoticeSeconds);
-  // The page gone to had its minute and brought no stream (a locked episode, a dead hoster,
-  // a login wall): mpv says so, where it otherwise sat at the old episode's end in silence.
+  // The page had its minute and brought no stream: mpv says so.
   if (state.stalled) clearTimeout(state.stalled);
   state.stalled = setTimeout(() => {
     state.stalled = null;
@@ -1066,13 +848,9 @@ export function awaitEpisodeStream(state, tab, title) {
 }
 
 /**
- * Whether the host's answer to a hand-off still belongs to the tab's page: the tab is open
- * and shows the page the stream was sent from (tab.mpvPage). A fresh mpv answers seconds
- * after the send. An answer for the page before paused the next page's video with nothing
- * sent for it, showed that page's failure or decoder on the button, and a failure opened
- * the allowlist's hand-off again, which then sent the next page's second stream as well.
- * @param {TabHolder} tab - The tab the stream was sent from.
- * @param {number} page - Its tab.mpvPage when the stream was sent.
+ * A fresh mpv answers seconds after the send: an answer for the page before must not touch the next.
+ * @param {TabHolder} tab
+ * @param {number} page
  * @return {boolean}
  */
 export function isHandOffPage(tab, page) {
@@ -1080,9 +858,7 @@ export function isHandOffPage(tab, page) {
 }
 
 /**
- * Whether an MPV-mode hand-off begun now still applies when openInMpv is ready to send: the tab
- * open, in MPV mode, and on the same document. An address the page sets itself (pushState)
- * counts a new mpvPage, not a new document.
+ * pushState counts a new mpvPage, not a new document.
  * @param {TabHolder} tab
  * @return {() => boolean}
  */
@@ -1094,15 +870,9 @@ function handOffStillWanted(tab) {
 }
 
 /**
- * Shows a failed MPV-mode hand-off on the tab's toolbar button ("!", and the reason in
- * its tooltip), or clears it after one that worked. Without it the page simply played
- * on in the browser, and nothing said why. An outdated host is kept too, for the tooltip
- * alone (no "!" since the thin helper, 2026-10-13: an older one still plays the stream):
- * it says to install the host again, as the copy a PC runs is not updated by an extension
- * update or a `git pull` (MpvBackend's RequiredHostVersion).
- * @param {TabHolder} tab - The tab the stream was sent from.
- * @param {{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean}} result -
- *   The host's answer.
+ * An outdated host shows in the tooltip only: an older helper still plays the stream.
+ * @param {TabHolder} tab
+ * @param {{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean}} result
  */
 export function setMpvError(tab, result) {
   if (!isTabOpen(tab)) {
@@ -1124,17 +894,13 @@ export function setMpvError(tab, result) {
   }
 }
 
-// How long the host may wait, after a hand-off, for mpv to start decoding: a slow stream
-// takes seconds to open, and until then mpv has no decoder to name.
+// A slow stream takes seconds to open, and until then mpv has no decoder to name.
 export const MpvDecoderWaitMs = 20000;
 
 /**
- * After a hand-off that worked, asks mpv which video decoder it plays the stream with,
- * for the toolbar button's tooltip: the hardware API, or a hint that mpv decodes in
- * software (with what to add to mpv.conf). Read-only: FastStream never overrides mpv.conf.
- * Only an mpv the host started for single-instance use has the pipe to ask over.
- * @param {TabHolder} tab - The tab the stream was sent from.
- * @param {{ok: boolean}} result - The hand-off's answer.
+ * Read-only: FastStream never overrides mpv.conf. Only an mpv started for single-instance use can be asked.
+ * @param {TabHolder} tab
+ * @param {{ok: boolean}} result
  */
 export function followMpvDecoder(tab, result) {
   const query = {};
@@ -1143,9 +909,7 @@ export function followMpvDecoder(tab, result) {
   if (!result.ok || !Mpv.singleInstance) {
     return;
   }
-  // The thin helper's relay, which the watch holds open, tells the decoder as mpv loads it
-  // (onMpvWatchEvent). Asked here, each second until mpv had one meant a new helper process
-  // (cmd and node) every second, up to MpvDecoderWaitMs.
+  // The relay tells the decoder as mpv loads it; asking each second started a helper process each time.
   if (Mpv.mayUse(Capabilities.RELAY)) {
     return;
   }
@@ -1163,8 +927,7 @@ export function followMpvDecoder(tab, result) {
  * @param {?import('./MpvBackend.mjs').MpvDecoder} decoder
  */
 export function setMpvDecoder(tab, decoder) {
-  // The answer takes up to MpvDecoderWaitMs, and the tab is often closed by then: the
-  // stream plays in mpv now.
+  // The tab is often closed by then: the stream plays in mpv.
   if (!isTabOpen(tab) || JSON.stringify(tab.mpvDecoder ?? null) === JSON.stringify(decoder)) {
     return;
   }
@@ -1173,22 +936,14 @@ export function setMpvDecoder(tab, decoder) {
   Tabs.saveTabState(tab);
 }
 
-/** @type {WeakSet<Object>} tab.mpvLastPlaySend values whose send is not answered yet. */
+/** @type {WeakSet<Object>} */
 const PlaySendsUnanswered = new WeakSet();
 
 /**
- * Hands a video the user started to mpv, then pauses the page.
- *
- * The same video again within MpvPlayRepeatMs is the player repeating itself
- * (play() called twice, or resuming after pauseTabMedia), so it only pauses
- * the page again once mpv has it. openStream gets no tab: its per-page dedupe would swallow a
- * later, deliberate play of a video already sent (after closing mpv).
- *
- * @param {TabHolder} tab - The tab the video is in.
- * @param {{url: string, headers: *}} source - Detected source: url and request headers.
- * @param {?{time?: number, duration?: ?number}} [video] - The page's video as it played
- *   (content.js playedVideo): mpv starts where it was. It started at 0:00, and the page,
- *   paused at the user's place, kept it.
+ * The same video within MpvPlayRepeatMs is the player repeating itself. No tab for openStream: its dedupe would swallow a later deliberate play.
+ * @param {TabHolder} tab
+ * @param {{url: string, headers: *}} source
+ * @param {?{time?: number, duration?: ?number}} [video]
  */
 export function sendPlayedToMpv(tab, source, video = null) {
   // As autoOpenInMpv: a tab closed while its stream was looked for sends nothing.
@@ -1211,8 +966,7 @@ export function sendPlayedToMpv(tab, source, video = null) {
   Tabs.saveTabState(tab);
   const page = tab.mpvPage;
   const wanted = handOffStillWanted(tab);
-  // Only a video of a known length (not a live one), and past its first seconds: a play
-  // from the start starts at the start.
+  // Only a video of a known length, past its first seconds.
   const time = video?.time;
   const startTime = Number.isFinite(video?.duration) && typeof time === 'number' && time > 5 ? time : undefined;
   tabTitle(tab.tabId).then((title) =>
@@ -1232,9 +986,7 @@ export function sendPlayedToMpv(tab, source, video = null) {
     if (result.ok) {
       pauseAfterHandOff(tab, result);
     } else if (tab.mpvLastPlaySend && tab.mpvLastPlaySend.url === source.url) {
-      // The host never launched mpv, so let the next play try again. A copy-protected video's
-      // too, unlike autoOpenInMpv's latch: kept as sent, its next play within MpvPlayRepeatMs
-      // only paused the page, whose own player is the one that plays it.
+      // The host never launched mpv: the next play may try. A copy-protected video's too.
       tab.mpvLastPlaySend = null;
       Tabs.saveTabState(tab);
     }
@@ -1248,27 +1000,16 @@ export function sendPlayedToMpv(tab, source, video = null) {
 }
 
 /**
- * Sends the newest of the longest sources tracked on the tab to mpv via the
- * native messaging host.
- *
- * Only one source is sent. mpv opens a window per invocation, and a page
- * routinely exposes several sources (ads, previews, one per quality), so
- * sending them all would bury the user in mpv windows. An ad or a preview
- * runs for seconds, the video for minutes, and of those that tie the newest
- * is the one the page just started playing; the rest stay tracked, so the
- * player's "send to mpv" button can still reach them.
- *
- * @param {TabHolder} tab - The tab whose tracked sources should open in mpv.
- * @return {boolean} True when a source was handed to mpv.
+ * One source only: mpv opens a window per send. The longest; of ties the newest, which the page just started.
+ * @param {TabHolder} tab
+ * @return {boolean}
  */
 export function openMpvWithSources(tab) {
   if (!Options.mpvMode) {
     return false;
   }
 
-  // Entering MPV mode is an explicit start, so forget what was already sent
-  // for this tab. Without this the dedupe in openStream silently swallows a
-  // re-entry that targets the same URL (toolbar cycled MPV -> Off -> On -> MPV).
+  // An explicit start: forget what was sent, or openStream's dedupe swallows a re-entry.
   tab.mpvSentUrls.clear();
 
   const source = newestOfLongest(tabSources(tab));
@@ -1276,28 +1017,17 @@ export function openMpvWithSources(tab) {
     return false;
   }
 
-  // The allowlist's own hand-off, latch and answer included. A copy of it here re-armed the
-  // latch after a copy-protected video's refusal too, and the page's next stream (an ad, a
-  // piece of the film) went to mpv, cleared the "!" and paused the page.
+  // The allowlist's own hand-off, latch and answer included.
   autoOpenInMpv(tab, source.url, source.headers);
   return true;
 }
 
 /**
- * Hands a stream to mpv, unless the page's request for it went through Firefox VPN: mpv
- * runs outside Firefox, asks from the user's own address, and a site that ties its stream
- * to the VPN's refuses it ("could not open the stream", VOE, 2026-10-06). Then mpv is not
- * started, and the answer says why, where a failed hand-off shows (the toolbar button's
- * "!" and tooltip, the player's status line). After the tab, arguments as
- * MpvBackend.openStream.
- * @param {number|undefined} tabId - The tab the stream is from: whether it is a private
- *   window decides which of the VPN's hosts count (VpnProxyMirror.throughBrowserVpn).
- * @param {string} url - The stream.
- * @param {...*} rest - openStream's other arguments. Its extras' `wanted` (handOffStillWanted)
- *   is asked right before the send, and not passed on.
- * @return {Promise<MpvHandOff>} openStream's answer, or {ok: false, vpn: true, error}, or
- *   {ok: false, drm: true, error}, or {ok: false, pageOnly: true, error}, or
- *   {ok: false, dropped: true} when `wanted` said no.
+ * Not through Firefox VPN: mpv asks from the user's address, and a site tying its stream to the VPN's refuses it.
+ * @param {number|undefined} tabId
+ * @param {string} url
+ * @param {...*} rest
+ * @return {Promise<MpvHandOff>}
  */
 export async function openInMpv(tabId, url, ...rest) {
   let incognito;
@@ -1308,14 +1038,9 @@ export async function openInMpv(tabId, url, ...rest) {
       // The tab went: both kinds of window count.
     }
   }
-  // The stream the page asked for: Firefox VPN is known to carry it by its host
-  // (VpnProxyMirror.noteSource). A quality file taken in its place may be on a host that check
-  // never saw - a hoster's get_file link, which redirects to its CDN - and it went to mpv on
-  // that file's host alone.
+  // VPN is known by the detected stream's host: a quality file taken in its place may be on another host.
   const detected = url;
-  // A file only its page gives (StreamLengths.servesWebPage): its length's read, started when it
-  // was detected, tells by its first answer; one detected while the tab was off is read now.
-  // Waited for alongside the reads below.
+  // A file only its page gives (servesWebPage): told by its length read's first answer.
   const file = tabId !== undefined && tabId >= 0 && Tabs.getTab(tabId) ?
     tabSources(Tabs.getTab(tabId)).find((source) => source.url === detected &&
       (source.mode === PlayerModes.ACCELERATED_MP4 || source.mode === PlayerModes.DIRECT)) : null;
@@ -1323,10 +1048,7 @@ export async function openInMpv(tabId, url, ...rest) {
     Lengths.probe(file);
   }
   const webPage = Lengths.servesWebPage(detected, HlsQualitiesWaitMs);
-  // The page's player offers this file in other qualities too (page-qualities.js): mpv gets
-  // the one the user's quality setting asks for, and the list. MPV mode sent the page's
-  // default, the lowest on a film site's hoster. Not for the player's button, which sends the
-  // one it plays and its own list (extras.qualities).
+  // The page's qualities: mpv gets the one the quality setting asks for, and the list; not for the player's button.
   if (tabId !== undefined && tabId >= 0 && !(rest[5] && 'qualities' in rest[5])) {
     const choice = await pageQualityChoice(Tabs.getTab(tabId), url);
     if (choice) {
@@ -1335,8 +1057,7 @@ export async function openInMpv(tabId, url, ...rest) {
       rest[5] = {...(rest[5] || {}), qualities: choice.list};
     }
   }
-  // An HLS stream: the quality its master playlist offers that the setting asks for, and the
-  // list for mpv's quality menu (hlsQualityChoice). Not for the player's button either.
+  // An HLS stream: its master's quality for the setting, and the list; not for the player's button.
   if (!(rest[5] && 'qualities' in rest[5])) {
     const choice = await hlsQualityChoice(tabId !== undefined && tabId >= 0 ? Tabs.getTab(tabId) : null, url);
     if (choice) {
@@ -1345,12 +1066,7 @@ export async function openInMpv(tabId, url, ...rest) {
       if (choice.list) rest[5] = {...(rest[5] || {}), qualities: choice.list};
     }
   }
-  // Copy-protected (DRM, StreamLengths.isProtected): mpv has no key system either, and its
-  // window stayed black where the page's player plays the video. Its manifest's read tells,
-  // which started when it was detected, with the tab on; a master's tells for its variants.
-  // An HLS stream's is waited for above (hlsQualityChoice) when it gives the qualities; the
-  // player's button gives its own, a DASH stream none, and a stream detected while the tab
-  // was off was not read: waited for here, as long.
+  // Copy-protected: mpv has no key system, and its window stayed black.
   const tracked = tabId !== undefined && tabId >= 0 && Tabs.getTab(tabId) ?
     tabSources(Tabs.getTab(tabId)).find((source) => source.url === detected) : null;
   if (tracked && (tracked.mode === PlayerModes.ACCELERATED_HLS || tracked.mode === PlayerModes.ACCELERATED_DASH)) {
@@ -1365,11 +1081,7 @@ export async function openInMpv(tabId, url, ...rest) {
         'This video is copy-protected (DRM), and mpv cannot play it: the site\'s own player keeps it.',
     };
   }
-  // Answered with a web page from anywhere but its page (abyss.to's player address, #665: the
-  // page's service worker gives the video). mpv got "Video not found", and its window opened
-  // and closed at once. FastStream's own player loads it through the page (PageFetch), and the
-  // callers hand the tab over to it (playHereInstead). The page's quality taken in its place
-  // (pageQualityChoice) too, as far as its own read already tells.
+  // Answered with a web page from anywhere but its page: FastStream's player loads it through the page (playHereInstead).
   if (await webPage || (url !== detected && await Lengths.servesWebPage(url, 0))) {
     if (Logging) console.log('[MPV] not handed off, only its page loads it:', url);
     return {
@@ -1388,9 +1100,7 @@ export async function openInMpv(tabId, url, ...rest) {
         'Firefox VPN carries this video, and mpv cannot use it. Turn Firefox VPN off for this site and reload the page.',
     });
   }
-  // The page's subtitles go with its stream, as the in-page player shows them: MPV mode sent
-  // the stream alone. The player's button sends the tracks it shows (subtitles given, none
-  // too), which stay its choice; a stream already sent asks nothing (openStream).
+  // The page's subtitles go with its stream; the player's button sends its own.
   const tabHolder = rest[0];
   const extras = rest[5];
   if (tabId !== undefined && tabId >= 0 && !(extras && 'subtitles' in extras) &&
@@ -1406,8 +1116,7 @@ export async function openInMpv(tabId, url, ...rest) {
     }
   }
   if (incognito) {
-    // A private window's stream: mpv keeps no resume position for it (the owner's pick,
-    // 2026-10-14; fs-private, MpvTarget.mjs).
+    // A private window's: mpv keeps no resume position (fs-private).
     rest[5] = {...(rest[5] || {}), private: true};
   }
   const wanted = rest[5]?.wanted;
@@ -1421,8 +1130,7 @@ export async function openInMpv(tabId, url, ...rest) {
     }
   }
   const result = await Mpv.openStream(url, ...rest);
-  // MPV autoplay: the mpv it went to is followed (watchMpvFor). By the tab's id: the
-  // player's button and the MPV key's play pass no tab (openStream's duplicate check).
+  // By the tab's id: the player's button and the MPV key's play pass no tab.
   if (result && result.ok && tabId !== undefined && tabId >= 0) {
     watchMpvFor(Tabs.getTab(tabId), url, rest[5]?.qualities || null);
   }
