@@ -24,10 +24,14 @@
 #     "Failed to download binary (statusCode 5xx)" or "Failed to fetch the latest Geckodriver
 #     version (statusCode 5xx)".
 #   - pnpm's "ERR_PNPM_FETCH_5xx": the npm registry's 5xx, after pnpm's own tries.
+#   - npm's own lost or refused connection, as pnpm/action-setup's self-installer prints it
+#     ("npm error code ECONNRESET", run 44134461755 on 2026-11-17). Any other code is an
+#     ordinary failure: E404, EINTEGRITY, and ENOTFOUND (a registry name that does not resolve is
+#     more likely a wrong setting than an outage).
 set -uo pipefail
 jobs_json=$1
 failed_log=$2
-signature='##\[error\]FS-OUTAGE |Failed to download binary \(statusCode 5[0-9][0-9]\)|Failed to fetch the latest Geckodriver version \(statusCode 5[0-9][0-9]\)|ERR_PNPM_FETCH_5[0-9][0-9]'
+signature='##\[error\]FS-OUTAGE |Failed to download binary \(statusCode 5[0-9][0-9]\)|Failed to fetch the latest Geckodriver version \(statusCode 5[0-9][0-9]\)|ERR_PNPM_FETCH_5[0-9][0-9]|npm error code (ECONNRESET|ETIMEDOUT|ECONNREFUSED)[[:space:]]*$'
 
 mapfile -t failed < <(jq -r '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | .name' "$jobs_json")
 if [ ${#failed[@]} = 0 ]; then

@@ -1021,6 +1021,14 @@ jobs:
           fi
           gh api "repos/$GH_REPO/actions/workflows/$id/runs?status=completed&per_page=100" > "$T/runs.json"
           # A run's display title is "<job> - Update #<id>"; the job is "npm_and_yarn in /.", say.
+          # Titles of another form would make each run a job of its own, never failing twice:
+          # with ten runs or more and no job run twice, the step fails rather than watch nothing.
+          if jq -e '[.workflow_runs[] | .display_title | sub(" - Update #[0-9]+$"; "")] |
+               length >= 10 and (group_by(.) | all(length == 1))' "$T/runs.json" > /dev/null; then
+            echo 'No Dependabot job ran twice in the last runs: their titles are no longer "<job> - Update #<id>".' >&2
+            jq -r '.workflow_runs[0:5][] | .display_title' "$T/runs.json" >&2
+            exit 1
+          fi
           # shellcheck disable=SC2016 # $now is jq's
           jq -r --argjson now "$now" '
             [.workflow_runs[] | {job: (.display_title | sub(" - Update #[0-9]+$"; "")), conclusion,

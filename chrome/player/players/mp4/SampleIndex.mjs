@@ -7,6 +7,7 @@ import {Utils} from '../../utils/Utils.mjs';
  * @property {Sample[]|undefined} samples - Filled only as a moof holding the track is parsed.
  * @property {number} samples_duration
  * @property {{mdhd: {timescale: number}}} mdia
+ * @property {{elst?: {entries?: Array<{media_time: number}>}}} [edts]
  */
 
 /**
@@ -14,6 +15,8 @@ import {Utils} from '../../utils/Utils.mjs';
  * @typedef {Object} Sample
  * @property {number} timescale
  * @property {number} cts
+ * @property {number} [dts]
+ * @property {number} [duration]
  * @property {number} offset
  * @property {boolean} is_sync
  */
@@ -31,15 +34,41 @@ import {Utils} from '../../utils/Utils.mjs';
 
 /**
  * How long a fragmented file without a mehd box is, as far as its samples are known: its
- * longest track. A track without samples yet counts for nothing.
+ * longest track. A track without samples yet counts for nothing. The samples' summed lengths
+ * leave out where the first moof starts (its tfdt): a file cut from a longer recording starts
+ * at 10 s and plays to 12 s, and the sum said 2. The last sample's end counts too, less the
+ * edit list's start, which Firefox's demuxer takes off the times as well.
  * @param {Trak[]} traks - mp4box's moov.traks.
  * @return {number} Seconds; 0 while no track has samples.
  */
 export function sampledDuration(traks) {
   return traks.reduce((duration, trak) => {
-    if (!trak.samples?.length) return duration;
-    return Math.max(duration, trak.samples_duration / trak.mdia.mdhd.timescale);
+    const samples = trak.samples;
+    if (!samples?.length) return duration;
+    const last = samples[samples.length - 1];
+    const start = trak.edts?.elst?.entries?.find((entry) => entry.media_time >= 0)?.media_time ?? 0;
+    const end = Math.max(trak.samples_duration, (last.dts ?? 0) + (last.duration ?? 0) - start);
+    return Math.max(duration, end / trak.mdia.mdhd.timescale);
   }, 0);
+}
+
+/**
+ * How far one track is, in seconds, where the other's first sample lies in the file: 0 for a
+ * file that interleaves its tracks (a second or less between them in most). A file that stores
+ * all its audio after all its video says its whole length. The player's ranges take their
+ * times from the video, and it reads no further than maxBufferLength (5 s at the least) past
+ * the playhead: the audio of the first seconds was never read, and nothing played (Codex
+ * review, 2026-11-17).
+ * @param {Array<Pick<Sample, 'cts'|'offset'|'timescale'>>} a - A track's samples, in decode order.
+ * @param {Array<Pick<Sample, 'cts'|'offset'|'timescale'>>} b
+ * @return {number} Seconds; 0 if either has no samples.
+ */
+export function apartBy(a, b) {
+  if (!a.length || !b.length) return 0;
+  /** @type {(samples: Array<Pick<Sample, 'cts'|'offset'|'timescale'>>, offset: number) => number} */
+  const reached = (samples, offset) => samples.reduce((time, sample) =>
+    sample.offset < offset ? Math.max(time, sample.cts / sample.timescale) : time, 0);
+  return Math.max(reached(a, b[0].offset), reached(b, a[0].offset));
 }
 
 /**

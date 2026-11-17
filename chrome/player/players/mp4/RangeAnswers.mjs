@@ -63,3 +63,17 @@ export function lengthFromAnswer(answer, range) {
   }
   return {length: 0, playDirectly: false};
 }
+
+/**
+ * Whether an answer is a 206 whose Content-Range starts elsewhere than the range asked for (a
+ * cache or a server that answers a range of its own): its bytes belong at another place in the
+ * file than the range's.
+ * @param {{status: number, headers: ?Object<string, string>}} answer - Lower-case header names.
+ * @param {number} start - Where the range asked for starts.
+ * @return {boolean}
+ */
+export function startsElsewhere(answer, start) {
+  if (answer.status !== 206) return false;
+  const match = /^bytes (\d+)-/.exec(String(answer.headers?.['content-range'] ?? ''));
+  return !!match && parseInt(match[1], 10) !== start;
+}
