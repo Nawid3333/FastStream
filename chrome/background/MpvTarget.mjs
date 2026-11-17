@@ -1,27 +1,9 @@
 // @ts-check
 
-/**
- * What mpv is given for a stream, built here for the thin mpv helper (host 15).
- *
- * Until host 14 the helper (native-host/faststream-mpv-host.mjs) built all of this itself
- * from the extension's `open` message: the URL with its fs-* fragment tags, the title, the
- * header list, the start. Each change to that policy was a new helper, and a helper is
- * installed by hand: 14 versions in 10 days, each one a reinstall for the owner. So he chose
- * a thin helper that keeps only the mechanics (start mpv, talk over its pipe,
- * allowlisted commands), and the policy moved here, where it updates with the extension.
- *
- * Every function below is a port of the helper's function of the same name and gives the
- * same output for the same input, byte for byte (tests/unit/MpvTarget.test.mjs compares
- * them with the helper's own): mpv's scripts read these tags (stream-resume.lua the fs-id,
- * source-info.lua the fs-page, faststream-quality.lua the fs-quality, gpu-toggles.lua the
- * fs-content), and a resume position saved under host 14's fs-id is found again under the
- * extension's.
- */
+/** Ports of the thin helper's functions, same output byte for byte (tests/unit/MpvTarget.test.mjs). */
 
 /**
- * The first `max` characters of a text, as a reader counts them: a flag or an emoji joined
- * from several is one. Cut between its code points, a part of it was left, which mpv drew
- * as a broken character (#470).
+ * As a reader counts characters: cut between code points, mpv drew a broken character.
  * @param {string} text
  * @param {number} max
  * @return {string}
@@ -37,9 +19,7 @@ export function cutText(text, max) {
 }
 
 /**
- * A text of at most `max` UTF-16 units, cut between whole characters (cutText). The helper
- * refuses a title or a notice over its limit in units, and one character as a reader counts
- * it can be any number of units (a letter with a pile of combining marks).
+ * The helper refuses a text over its limit in UTF-16 units, and one character can be many.
  * @param {string} text
  * @param {number} max
  * @return {string}
@@ -57,11 +37,8 @@ export function cutToLength(text, max) {
 }
 
 /**
- * Whether a URL may be handed to mpv: http or https, and nothing else. mpv opens local files
- * and UNC paths too, and a UNC path makes Windows sign in to that host with the user's
- * credentials. The string itself has to start with the scheme: the URL parser alone would
- * read `https:\\host\share` as https://host/share.
- * @param {*} url - The candidate.
+ * http(s) only, the string itself starting with the scheme: a UNC path makes Windows sign in with the user's credentials.
+ * @param {*} url
  * @return {boolean}
  */
 export function isStreamUrl(url) {
@@ -77,12 +54,10 @@ export function isStreamUrl(url) {
 }
 
 /**
- * Appends a key=value tag to a URL's fragment. A URL fragment is never sent to the HTTP
- * server, so this cannot break a signed CDN URL, and mpv's scripts read it back off the
- * `path` property.
- * @param {string} streamUrl - The stream URL headed to mpv.
- * @param {string} tag - The tag, e.g. `fs-content=anime`.
- * @return {string} The URL with the tag appended.
+ * A fragment never reaches the server, so a signed CDN URL stays valid.
+ * @param {string} streamUrl
+ * @param {string} tag
+ * @return {string}
  */
 function withFragmentTag(streamUrl, tag) {
   const hashIndex = streamUrl.indexOf('#');
@@ -94,12 +69,9 @@ function withFragmentTag(streamUrl, tag) {
 }
 
 /**
- * Drops fs-* tags a stream URL already carries in its fragment. The tags built here come
- * after them, and mpv's scripts must never read one a page made up (a stream URL can come
- * from a page): a forged fs-id= would move another site's resume position, a forged fs-page=
- * the "Site page" link.
- * @param {string} streamUrl - The stream URL.
- * @return {string} The URL without fs-* fragment tags.
+ * mpv's scripts must never read a tag a page made up: a forged fs-id would move another site's resume position.
+ * @param {string} streamUrl
+ * @return {string}
  */
 export function withoutFsTags(streamUrl) {
   const hashIndex = streamUrl.indexOf('#');
@@ -114,10 +86,8 @@ export function withoutFsTags(streamUrl) {
 }
 
 /**
- * Appends an fs-content=anime|movie marker to a stream URL's fragment, for gpu-toggles.lua's
- * content-aware shader selection.
- * @param {string} streamUrl - The stream URL headed to mpv.
- * @param {*} [contentType] - 'anime' or 'movie'; anything else leaves the URL as it is.
+ * @param {string} streamUrl
+ * @param {*} [contentType]
  * @return {string}
  */
 export function withContentTypeFragment(streamUrl, contentType) {
@@ -128,11 +98,9 @@ export function withContentTypeFragment(streamUrl, contentType) {
 }
 
 /**
- * The resume key for a page (fs-id=, stream-resume.lua): the first 16 hex digits of its URL's
- * SHA-256, as the helper's node:crypto made it (the text as UTF-8; a lone surrogate as
- * U+FFFD, which TextEncoder writes too). Async: crypto.subtle is what the extension has.
- * @param {*} [pageUrl] - The tab's page URL.
- * @return {Promise<string|undefined>} The key; undefined for a missing or non-http(s) URL.
+ * The first 16 hex digits of the page URL's SHA-256 (UTF-8), as the helper made it.
+ * @param {*} [pageUrl]
+ * @return {Promise<string|undefined>}
  */
 export async function resumeIdFor(pageUrl) {
   if (typeof pageUrl !== 'string' || !/^https?:\/\//i.test(pageUrl)) {
@@ -143,9 +111,7 @@ export async function resumeIdFor(pageUrl) {
 }
 
 /**
- * The page URL percent-encoded as one fragment tag value (fs-page=, source-info.lua's
- * "Site page" entry). http(s) pages only.
- * @param {*} [pageUrl] - The tab's page URL.
+ * @param {*} [pageUrl]
  * @return {string|undefined}
  */
 export function pageFragmentFor(pageUrl) {
@@ -155,18 +121,13 @@ export function pageFragmentFor(pageUrl) {
   return encodeURIComponent(pageUrl);
 }
 
-// The qualities of the page's player, at most, and the longest file address taken.
 const MaxQualities = 12;
 const MaxQualityUrlChars = 2048;
 
 /**
- * The page's qualities as one fragment tag value (fs-quality=) for mpv's
- * faststream-quality.lua: a JSON array of {label, height, url}, percent-encoded. http(s)
- * files of at most MaxQualityUrlChars, each as the URL parser writes it without a fragment
- * (the script finds the playing one by mpv's path up to its first '#'), a label of at most
- * 40 characters without control characters, a whole height or 0, at least two of them.
- * @param {*} qualities - [{url, label, height}] (MpvBackend.relayQualities).
- * @return {string|undefined} The tag's value, or undefined without a usable list.
+ * A percent-encoded JSON array of {label, height, url} for faststream-quality.lua, at least two.
+ * @param {*} qualities
+ * @return {string|undefined}
  */
 export function qualityFragmentFor(qualities) {
   if (!Array.isArray(qualities)) {
@@ -188,14 +149,8 @@ export function qualityFragmentFor(qualities) {
 }
 
 /**
- * The URL to hand mpv: the stream URL as the URL parser writes it (the form a browser
- * requests: tabs and newlines dropped, spaces and the like percent-encoded), plus its
- * fs-content=, fs-id=, fs-private=, fs-page= and fs-quality= fragment tags, in that order
- * (fs-quality last, the longest). fs-private=1 marks a private window's stream: mpv keeps no
- * resume position for it (stream-resume.lua). It keeps its
- * fs-id: mpv's episode buttons know a FastStream stream by it.
- * @param {{url: string, contentType?: *, pageUrl?: *, qualities?: *, private?: *}} stream -
- *   url passed isStreamUrl.
+ * The stream URL as the URL parser writes it, plus its fs-* fragment tags in that order (fs-quality last).
+ * @param {{url: string, contentType?: *, pageUrl?: *, qualities?: *, private?: *}} stream
  * @return {Promise<string>}
  */
 export async function mpvTargetUrl(stream) {
@@ -210,8 +165,6 @@ export async function mpvTargetUrl(stream) {
 }
 
 /**
- * The title mpv shows for a stream (window, taskbar, uosc's top bar): the tab's title, one
- * line, at most 200 characters (whole ones, #470), or else the stream's host name.
  * @param {{url: string, title?: *}} stream
  * @return {string}
  */
@@ -239,9 +192,7 @@ const RelayHeaderNames = /^(referer|origin|user-agent)$/i;
 const RelayHeaderValue = /^[ -~]{1,4096}$/;
 
 /**
- * The "Name: value" fields mpv is given for a list of headers: Referer, Origin and
- * User-Agent with printable ASCII values; the rest is dropped.
- * @param {*} headers - [{name, value}].
+ * @param {*} headers
  * @return {Array<string>}
  */
 export function relayHeaderFields(headers) {
@@ -259,9 +210,8 @@ export function relayHeaderFields(headers) {
 }
 
 /**
- * The position to start the stream at, when one is usable.
  * @param {{start?: *}} stream
- * @return {number|undefined} Seconds (millisecond precision), or undefined.
+ * @return {number|undefined}
  */
 export function startOf(stream) {
   const t = stream.start;

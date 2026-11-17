@@ -1,10 +1,7 @@
 // @ts-check
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 
-// The Content-Types a server names a manifest by. Many name theirs this way only, with no
-// extension in the URL: og.bakayaro.live/m3u8/<token>, .../playlist?id=... Manifests only:
-// a media segment says video/mp4 or video/mp2t, and taking one for the stream would open
-// the player on a few seconds of it.
+// Manifests only: a segment's type (video/mp4, video/mp2t) would open the player on a few seconds of it.
 const MANIFEST_TYPES = new Map([
   ['application/vnd.apple.mpegurl', PlayerModes.ACCELERATED_HLS],
   ['application/x-mpegurl', PlayerModes.ACCELERATED_HLS],
@@ -14,9 +11,8 @@ const MANIFEST_TYPES = new Map([
 ]);
 
 /**
- * A response's media type, without its parameters.
- * @param {Array<{name: string, value?: string}>} [headers] - webRequest's responseHeaders.
- * @return {string} It, in lower case; '' when there is none.
+ * @param {Array<{name: string, value?: string}>} [headers]
+ * @return {string}
  */
 export function contentTypeOf(headers) {
   const header = headers?.find((h) => h.name.toLowerCase() === 'content-type');
@@ -24,28 +20,20 @@ export function contentTypeOf(headers) {
 }
 
 /**
- * The player mode for a manifest, by its Content-Type.
- * @param {Array<{name: string, value?: string}>} [headers] - webRequest's responseHeaders.
- * @return {string|undefined} The mode, or undefined when the type names no manifest.
+ * @param {Array<{name: string, value?: string}>} [headers]
+ * @return {string|undefined}
  */
 export function modeFromContentType(headers) {
   return MANIFEST_TYPES.get(contentTypeOf(headers));
 }
 
-// Files a media element plays that the player's MP4 mode cannot read (it reads MP4 only):
-// played as they are, as a .webm URL already is (URLUtils) - and an .mkv one.
-// application/ogg is how many servers name an Ogg video.
+// The MP4 mode reads MP4 only; these play as they are. application/ogg is how many servers name Ogg video.
 const DIRECT_TYPES = ['video/webm', 'video/ogg', 'application/ogg', 'video/x-matroska', 'video/matroska'];
 
 /**
- * The player mode for a file a <video> or <audio> element loaded, whose URL names no type:
- * by its Content-Type. Every such file used to be taken for an MP4 video: a site's
- * notification sound or a podcast's MP3 too, which on the MPV allowlist went to mpv as the
- * page's first stream, and on a tab that is on opened the player.
- * A page is no video either: a link run out, answered with the hoster's "expired" page, opened
- * the player on it.
- * @param {Array<{name: string, value?: string}>} [headers] - webRequest's responseHeaders.
- * @return {string|null} The mode, or null for audio, which is no video, and for a page.
+ * The player mode for a <video>/<audio> file whose URL names no type, by its Content-Type; null for audio and pages.
+ * @param {Array<{name: string, value?: string}>} [headers]
+ * @return {string|null}
  */
 export function modeFromMediaType(headers) {
   const type = contentTypeOf(headers);

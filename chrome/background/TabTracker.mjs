@@ -3,26 +3,15 @@ import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {StreamLengths} from './StreamLengths.mjs';
 
-// What a frame keeps of the streams and subtitle files its page asked for (addSource,
-// addSubtitle). A page that is never left grew both lists without end: an HLS or DASH
-// player's pieces (seg-14.mp4, seg-14.vtt) are detected one by one, thousands in an
-// evening, each with its request's headers; every one went again to each player tab
-// (sendSourcesToMainFramePlayers), and a player opened then read the length of each.
-// - At most SameShapeLimit files of one shape (StreamLengths.shape): the first stays, so
-//   the shape is still known as a stream's pieces (StreamLengths.lengthsOf), and the
-//   oldest after it goes.
-// - At most TrackedLimit in all: the oldest file goes first, a manifest only once no file
-//   is left.
+// At most SameShapeLimit files of one shape (the first stays), and TrackedLimit in all: files go before manifests.
 const SameShapeLimit = 20;
 const TrackedLimit = 200;
 
 /**
- * Brings a list of a frame's streams or subtitles, just added to, back to the limits above.
- * @template T - TrackedSource or TrackedSubtitle.
- * @param {Array<T>} list - The list; its last entry is the new one.
- * @param {(entry: T) => string} urlOf - An entry's URL.
- * @param {(entry: T) => boolean} isFile - Whether an entry is a file (one piece of a
- *   stream, possibly), not a manifest.
+ * @template T
+ * @param {Array<T>} list
+ * @param {(entry: T) => string} urlOf
+ * @param {(entry: T) => boolean} isFile
  */
 function trimTracked(list, urlOf, isFile) {
   const added = list[list.length - 1];
@@ -34,46 +23,37 @@ function trimTracked(list, urlOf, isFile) {
     }
   }
   while (list.length > TrackedLimit) {
-    // Never the one just added: in a list of manifests only (a live playlist whose address
-    // changes with each reload) a new file was the only file, and went at once, every time.
+    // Never the one just added: in a list of manifests only, a new file went at once.
     const file = list.findIndex((entry) => entry !== added && isFile(entry));
     list.splice(file === -1 ? 0 : file, 1);
   }
 }
 
 /**
- * @param {TrackedSource} source - A detected source.
- * @return {boolean} Whether it is a file (MP4 or a direct one), not a manifest.
+ * @param {TrackedSource} source
+ * @return {boolean}
  */
 function isFileSource(source) {
   return source.mode === PlayerModes.ACCELERATED_MP4 || source.mode === PlayerModes.DIRECT;
 }
 
-/**
- * A stream a frame's page asked for, as background.mjs keeps it (addSource): its request's
- * headers as detected, when it was detected, and, for a redirected one, the address the
- * page asked for.
- * @typedef {{url: string, mode: string, headers: *, time: number, requestedUrl?: string}} TrackedSource
- */
+/** @typedef {{url: string, mode: string, headers: *, time: number, requestedUrl?: string}} TrackedSource */
 
 /**
- * A subtitle of a frame's page: a file it asked for (background.mjs handleSubtitles), or one
- * of its <track> elements as content.js read it, with its text (takeScrapedCaptions).
  * @typedef {{source: string, label: string, headers: *, time: number}|
  *   {source: string, label: string, data: string, language: string}} TrackedSubtitle
  */
 
 export class FrameHolder {
   /**
-   * @param {TabHolder} tab - The tab the frame is in.
-   * @param {number} frameId - The browser's id of the frame (0 for the top frame).
+   * @param {TabHolder} tab
+   * @param {number} frameId
    */
   constructor(tab, frameId) {
     this.tab = tab;
     this.frameId = frameId;
     this.parent = null;
     this.children = new Set();
-    // Set by reset(), as the rest of a frame's page state.
     /** @type {Array<TrackedSubtitle>} */
     this.trackedSubtitles = [];
     /** @type {Array<TrackedSource>} */
@@ -85,63 +65,43 @@ export class FrameHolder {
     this.playerOpening = false;
     // Which openPlayer attempt playerOpening is for (content.js's PLAYER_OPEN_GONE names it).
     this.playerOpeningAttempt = 0;
-    // Opens of this page's player that ended without one (background.mjs noteOpenMissed),
-    // and when the last open was asked for (openPlayer).
     /** @type {number} */
     this.openMissed = 0;
     /** @type {number} */
     this.openTriedAt = 0;
-    // The last one ended because the page took the player out: only a play the user starts
-    // opens it again, not the page's own requests (reopenMissed).
+    // Only a play the user starts opens it again, not the page's own requests.
     /** @type {boolean} */
     this.openGone = false;
-    // The page here came back from Firefox's back-forward cache, with the streams it had
-    // (TabHolder.restoreGoneDocument); it fetches nothing again.
+    // Came back from Firefox's back-forward cache with its streams: it fetches nothing again.
     this.restoredFromCache = false;
     this.isPlayer = false;
     this.trackedSubtitles = [];
     this.trackedSources = [];
-    // A string from the constructor on, which runs this.
     /** @type {string} */
     this.url = '';
-    /**
-     * The name content.js gave the page it shows (FRAME_ADDED); null when unknown.
-     * @type {?string}
-     */
+    /** @type {?string} */
     this.documentKey = null;
-    /**
-     * What sendSources last handed a player in a frame inside this one (noteHandedToPlayer).
-     * @type {?{frameId: number, subtitles: Array<Object>, sources: Array<Object>, video: ?Object}}
-     */
+    /** @type {?{frameId: number, subtitles: Array<Object>, sources: Array<Object>, video: ?Object}} */
     this.handedToPlayer = null;
   }
 
   /**
-   * Keeps what a player in a frame inside this one was handed (sendSources), for that
-   * player loading again in its frame ("Reload Frame" on it): sendSources takes what it
-   * hands out of the frames, so the player asked again and got nothing.
-   * @param {number} playerFrameId - The player's frame.
-   * @param {{subtitles: Array<Object>, sources: Array<Object>, video: ?Object}} handed - What
-   *   it was handed.
+   * For that player loading again in its frame: sendSources takes what it hands out of the frames.
+   * @param {number} playerFrameId
+   * @param {{subtitles: Array<Object>, sources: Array<Object>, video: ?Object}} handed
    */
   noteHandedToPlayer(playerFrameId, handed) {
     this.handedToPlayer = {frameId: playerFrameId, ...handed};
   }
 
   /**
-   * What noteHandedToPlayer kept for a player's frame.
-   * @param {number} playerFrameId - The player's frame.
+   * @param {number} playerFrameId
    * @return {?{frameId: number, subtitles: Array<Object>, sources: Array<Object>, video: ?Object}}
-   *   Null when the last player handed sources here was in another frame.
    */
   handedTo(playerFrameId) {
     return this.handedToPlayer && this.handedToPlayer.frameId === playerFrameId ? this.handedToPlayer : null;
   }
 
-  /**
-   * Forgets what noteHandedToPlayer kept: the sources browser's Clear, or the player
-   * asking again got the cleared sources back from here.
-   */
   forgetHandedToPlayer() {
     this.handedToPlayer = null;
   }
@@ -181,31 +141,20 @@ export class FrameHolder {
     return this.trackedSources;
   }
 
-  /**
-   * Keeps a stream the page asked for, within the limits (trimTracked).
-   * @param {TrackedSource} source
-   */
+  /** @param {TrackedSource} source */
   addSource(source) {
     this.trackedSources.push(source);
     trimTracked(this.trackedSources, (s) => s.url, isFileSource);
   }
 
-  /**
-   * Keeps a subtitle file the page asked for, within the limits (trimTracked).
-   * @param {{source: string, headers: *, label: string, time: number}} subtitle - The subtitle:
-   *   its URL, its request's headers, its file name, when it was detected (background.mjs
-   *   handleSubtitles).
-   */
+  /** @param {{source: string, headers: *, label: string, time: number}} subtitle */
   addSubtitle(subtitle) {
     this.trackedSubtitles.push(subtitle);
     trimTracked(this.trackedSubtitles, (s) => s.source, () => true);
   }
 
   /**
-   * Whether the tab still tracks this frame under its id. A new page in the frame keeps it
-   * (FRAME_ADDED resets it in place); a frame forgotten (FRAME_REMOVED), or dropped with its
-   * page's streams by the reset on a new site (tabs.onUpdated), is no longer the frame of
-   * that id: the next page there gets a new one.
+   * A frame forgotten, or dropped by the reset on a new site, is no longer the frame of that id.
    * @return {boolean}
    */
   isTracked() {
@@ -225,20 +174,15 @@ export class FrameHolder {
   }
 }
 
-// How many gone pages a tab remembers (TabHolder.goneDocuments). Navigating a tab would
-// otherwise grow it without end; the oldest go first.
 const GoneDocumentLimit = 16;
-// How many requests' headers a tab keeps while their responses are awaited
-// (TabHolder.requestHeaders). Each goes when its response or its error comes; this only
-// bounds those that never get either.
+// Each goes with its response or error; this bounds those that never get either.
 const RequestHeaderLimit = 500;
-// How many redirected requests' first addresses a tab keeps (TabHolder.redirectOrigins).
 const RedirectOriginLimit = 200;
 
 /**
- * @param {string} a - A URL, or anything else.
- * @param {string} b - Another.
- * @return {boolean} Whether both are URLs of one hostname.
+ * @param {string} a
+ * @param {string} b
+ * @return {boolean}
  */
 function sameHostname(a, b) {
   try {
@@ -250,192 +194,118 @@ function sameHostname(a, b) {
 
 export class TabHolder {
   /**
-   * @param {TabTracker} tracker - The tracker that holds it.
-   * @param {number} tabId - The browser's id of the tab.
+   * @param {TabTracker} tracker
+   * @param {number} tabId
    */
   constructor(tracker, tabId) {
     this.tracker = tracker;
     this.tabId = tabId;
     this.frames = new Map();
-    // The frames of FastStream's players in the tab that play (PLAYER_PLAYING): while any
-    // does, the page's own media is held paused (background.mjs sendPageMediaHold).
+    // While any plays, the page's own media is held paused.
     this.playingPlayers = new Set();
-    // Pages that left the tab, by the name each gave itself (FRAME_ADDED's document),
-    // with what each had detected: for a page Firefox's back-forward cache gives back
-    // (restoreGoneDocument), and to refuse a player still starting that names one
-    // (isPlayerOfGoneDocument). Not cleared by reset(), see there.
+    // Pages that left the tab, by name, with what each detected (Back's cache, isPlayerOfGoneDocument); not cleared by reset().
     this.goneDocuments = new Map();
-    // The headers of the tab's requests still waiting for a response, by request id
-    // (rememberRequestHeaders). The tab's, not a frame's, and not cleared by reset(): a
-    // request can be sent before the page that made it named itself (a preload, 103
-    // Early Hints) or before the reset on a new site, and answered after, and a stream
-    // found without the Referer its CDN checks got a 403 in the player. Kept by webRequest's
-    // id, a string; background.mjs also looks up -1, a stream the page told, and finds none.
+    // The tab's, not cleared by reset(): a request (a preload, 103 Early Hints) can be sent before its page named itself.
     /** @type {Map<string|number, *>} */
     this.requestHeaders = new Map();
-    // The address each redirected request was first made to, by request id (noteRedirect): a
-    // page's player lists a file by that address (a hoster's get_file/... link), and the
-    // stream is detected at the end of the redirect (a CDN's address with a token). Kept by
-    // webRequest's id, a string; looked up with -1 too, as requestHeaders.
+    // A page's player lists a file by its first address; the stream is detected at the redirect's end.
     /** @type {Map<string|number, string>} */
     this.redirectOrigins = new Map();
-    // What other tabs held when the player in this tab cleared its sources (CLEAR_SOURCES):
-    // it is not pushed to it again (sendSourcesToMainFramePlayers). The entries themselves,
-    // not a time: a stream recovered later keeps the page's request time.
+    // The entries themselves, not a time: a stream recovered later keeps the page's request time.
     /** @type {WeakSet<object>} */
     this.clearedSources = new WeakSet();
 
     this.isOn = false;
     this.isMpv = false;
-    // The timer that asks the next episode's page to start its own player, after the
-    // player's autoplay next (background.mjs startPagePlayers).
     /** @type {ReturnType<typeof setInterval>|undefined} */
     this.pagePlayerStarter = undefined;
-    // The continuation that timer asks for.
     /** @type {?Object} */
     this.pagePlayerContinuation = null;
-    // Ends the next episode's instructions no player took in time (background.mjs
-    // ContinuationKeepMs).
     /** @type {ReturnType<typeof setTimeout>|undefined} */
     this.continuationTimer = undefined;
-    // Until when the next page's stream goes to mpv by itself, after MPV autoplay went on to
-    // the next episode (background.mjs goToEpisode): also in the MPV key's mode, which
-    // otherwise waits for a play in the page. The longest of its streams, not the first
-    // (background.mjs pickNextEpisodeForMpv): the pick under way (a newer detection starts
-    // another), and its timer when it waits for a longer stream.
+    // Until when the next page's stream goes to mpv by itself, after MPV autoplay's next episode.
     this.mpvNextEpisodeUntil = 0;
     /** @type {?Object} */
     this.mpvNextPick = null;
     /** @type {ReturnType<typeof setTimeout>|undefined} */
     this.mpvNextPickTimer = undefined;
-    // A tab MPV autoplay opened for the next episode itself, its tab before closed (background.mjs
-    // goToEpisodeInNewTab): it closes again once its stream went to mpv.
+    // A tab MPV autoplay opened for the next episode: it closes again once its stream went to mpv.
     this.mpvReopened = false;
-    // A fullscreen carried over to the next episode (background.mjs setCarriedFullscreen):
-    // the window's state before it went fullscreen, to go back to, and the player that asked.
     /** @type {chrome.windows.Window['state']|null} */
     this.windowStateBefore = null;
     /** @type {?number} */
     this.carriedFullscreenFrameId = null;
     // Went on to the next episode carrying it, and no player there took it yet.
     this.carryAwaited = false;
-    // MPV started by its shortcut: only a video the user starts goes to mpv
-    // (background.mjs's onUserPlay), not the first stream the page loads.
+    // MPV by its shortcut: only a video the user starts goes to mpv.
     this.mpvOnPlay = false;
     this.mpvAutoOpened = false;
     this.mpvSentUrls = new Set();
-    // The sends to mpv still on their way, by URL (MpvBackend.openStream).
     this.mpvSending = new Map();
-    // Why the last hand-off to mpv failed, while MPV mode shows it on the toolbar button
-    // ("!" and the reason in the tooltip); null after one that worked or a new page.
     /** @type {?string} */
     this.mpvError = null;
-    // Whether the mpv host's last answer in this tab came from an outdated host
-    // (MpvBackend's RequiredHostVersion): the button's tooltip then says to install the host
-    // again (no "!": an older helper still plays the stream, 2026-10-13).
+    // An outdated host gets no "!": an older helper still plays the stream.
     /** @type {boolean} */
     this.mpvHostOutdated = false;
-    // Whether the page's video is copy-protected (StreamLengths.isProtected), and so stays
-    // in the page's own player: the toolbar button says so ("DRM", and why in its tooltip),
-    // where nothing else would tell why no player opened. False again on a new page.
     /** @type {boolean} */
     this.protectedVideo = false;
-    // Which video decoder the mpv this tab handed its stream to uses (MpvBackend's
-    // MpvDecoder), for the toolbar button's tooltip; null until mpv has said.
     /** @type {?import('./MpvBackend.mjs').MpvDecoder} */
     this.mpvDecoder = null;
     // The latest decoder question in flight: an older answer is dropped.
     /** @type {?Object} */
     this.mpvDecoderQuery = null;
-    // Counts the pages the tab showed (background.mjs, tabs.onUpdated): the host answers a
-    // hand-off seconds later, and an answer for a page the tab has left applies nothing.
+    // The host answers seconds later: an answer for a page the tab has left applies nothing.
     /** @type {number} */
     this.mpvPage = 0;
-    // The page (mpvPage) whose file only the page loads, and whose MPV went over to the in-page
-    // player (MpvMode.playHereInstead): there the toolbar cycle's On counts as MPV. -1 for none.
+    // The page whose MPV went over to the in-page player (playHereInstead): there On counts as MPV. -1 for none.
     /** @type {number} */
     this.mpvStandInPage = -1;
-    // The user turned the tab off, or MPV off, on the site it shows (background.mjs
-    // userTurnedOff): the MPV Allowlist does not start MPV there again by itself, also
-    // after a page of the site it does not list. Another site, or the user turning MPV on,
-    // ends it. Not cleared by reset(), which the Off's own reload runs.
+    // The MPV Allowlist does not start MPV here again by itself; not cleared by reset(), which the Off's own reload runs.
     /** @type {boolean} */
     this.mpvTurnedOff = false;
     this.url = '';
-    // Popup/popunder guard: set by content.js when focus moves into one of
-    // this tab's player iframes (the click that ad sites hook via a
-    // top-window 'blur' listener to fire a popup/popunder). Not touched by
-    // reset() - it's a short-lived timestamp that's harmless to carry across
-    // a same-tab navigation and naturally goes stale on its own.
+    // Set by content.js when focus moves into a player iframe (ad sites hook that click for popups); not reset().
     this.popupGuardArmedUntil = 0;
-    // A start by address waiting for the new page to name itself (background.mjs
-    // startWithTrackedLater); the next address change cancels it.
     /** @type {ReturnType<typeof setTimeout>|undefined} */
     this.urlStartTimer = undefined;
 
     this.reset();
   }
   reset() {
-    // goneDocuments stays: the reset on a new hostname (tabs.onUpdated) can come after the
-    // new page named itself, and a player the tab was sent to (a moz-extension:// URL, so
-    // a new hostname) still names the page it replaced. The names this reset drops can be
-    // live ones. The reset before a reload knows better (resetForReload).
+    // goneDocuments stays: the reset on a new hostname can come after the new page named itself.
     this.frames.clear();
-    // A number from the constructor on, which runs this.
     /** @type {number} */
     this.playerCount = 0;
-    // The frames that played are gone with the frames: a new page's frame that came back
-    // with one of their ids counted as a playing player and held the page's media paused.
+    // A new page's frame can come back with one of their ids.
     this.playingPlayers.clear();
-    // The frame each of the tab's players goes on in, by the player's frame id: the page whose
-    // links lead to the next episode (background.mjs acceptPlayer). Kept with the tab's state:
-    // Firefox unloads the idle event page while an episode plays, and the end's next episode
-    // then came to a background that knew no frame.
+    // Kept with the tab's state: Firefox unloads the idle event page while an episode plays.
     /** @type {Object<string, number>} */
     this.playerPageFrames = {};
-    // How the autoplay next going on in the tab goes on (background.mjs), null when none.
     /** @type {?import('./background.mjs').Continuation} */
     this.continuationOptions = null;
-    // Whether the tab went on to the page the continuation is for (background.mjs
-    // tabs.onUpdated), and that page's name once it named itself (noteContinuationPage): a
-    // page after that one drops it.
     this.continuationArrived = false;
     /** @type {?string} */
     this.continuationPage = null;
-    // regexMatched/mpvMatched are deliberately NOT cleared here: the
-    // leave-a-site detection in the onUpdated handler relies on them
-    // surviving hostname changes (upstream semantics for regexMatched).
+    // regexMatched/mpvMatched stay: leaving a site is told by them across hostname changes.
     this.mpvAutoOpened = false;
     this.mpvSentUrls.clear();
     // The toolbar's Off too: its next On looks at the page's video again (hasVideoSource).
     this.protectedVideo = false;
-    // A user's play whose stream has not been detected yet, and the last
-    // stream a play sent, which keeps a player that calls play() twice from
-    // opening a second window. A number from the constructor on, which runs this.
+    // The last stream a play sent keeps a player calling play() twice from opening a second window.
     /** @type {number} */
     this.mpvPlayPendingUntil = 0;
     /** @type {?{url: string, time: number}} */
     this.mpvLastPlaySend = null;
-    // What that play plays (content.js's playedVideo): a stream plainly another length is
-    // not its stream.
+    // A stream plainly another length is not its stream.
     /** @type {?import('./background.mjs').PlayedVideo} */
     this.mpvPlayedVideo = null;
-    // While a stream is checked for such a play, the streams detected meanwhile, to be
-    // checked next (background.mjs sendPendingPlay); null otherwise.
     /** @type {?Array<Object>} */
     this.mpvPlayChecking = null;
-    // What the player that opens next in the tab shows first, once: the key of a message
-    // (MpvMode.playHereInstead's 'player_mpv_page_only'), sent with its sources (sendSources).
     /** @type {?string} */
     this.playerNotice = null;
   }
 
-  /**
-   * The reset before the tab is reloaded (startMpv, stopMpv, the toolbar's Off): every
-   * page in it is about to go, so their names are marked gone first. A player still
-   * starting in an iframe names its page, and once the reload made its frame and the
-   * frame above new ones, with no names on them, only the mark tells that page is gone.
-   */
+  /** Every page in the tab is about to go: their names are marked gone first. */
   resetForReload() {
     for (const frame of this.frames.values()) {
       if (!frame.parent) {
@@ -446,16 +316,8 @@ export class TabHolder {
   }
 
   /**
-   * The reset for a tab gone to another site (tabs.onUpdated, a new hostname). It races
-   * the new page's own FRAME_ADDED: a page Firefox's back-forward cache gives back names
-   * itself again and gets its streams back (restoreGoneDocument), and a new page names
-   * itself as its content script starts. Coming after, reset() wiped that page's frame,
-   * and nothing gave it back. A frame 0 that already shows the new site - a page named in
-   * it, at a URL of the new hostname - is that page: it is kept, with the frames under it.
-   * Only a page naming itself moves a frame's URL to another host (FRAME_ADDED). The
-   * player page the tab can be sent to runs no content script, so there frame 0 still
-   * shows the page it replaced, and is dropped as before.
-   * @param {string} url - The URL the tab went to.
+   * Races the new page's FRAME_ADDED: a frame 0 already named at the new hostname is kept, with the frames under it.
+   * @param {string} url
    */
   resetForNewSite(url) {
     /** @type {Array<FrameHolder>} */
@@ -481,9 +343,8 @@ export class TabHolder {
   }
 
   /**
-   * Keeps a request's headers until its response or its error comes (forgetRequestHeaders).
-   * @param {string} requestId - webRequest's id, unique in the session.
-   * @param {*} headers - Its requestHeaders.
+   * @param {string} requestId
+   * @param {*} headers
    */
   rememberRequestHeaders(requestId, headers) {
     this.requestHeaders.delete(requestId);
@@ -494,10 +355,9 @@ export class TabHolder {
   }
 
   /**
-   * Notes a redirect: the request's first address is kept, through every hop after it
-   * (webRequest keeps the request id across redirects).
+   * webRequest keeps the request id across redirects.
    * @param {string} requestId
-   * @param {string} url - The address it was redirected from.
+   * @param {string} url
    */
   noteRedirect(requestId, url) {
     if (this.redirectOrigins.has(requestId)) return;
@@ -508,9 +368,7 @@ export class TabHolder {
   }
 
   /**
-   * The address a request was first made to, when it was redirected.
-   * @param {string|number} requestId - webRequest's id; -1, a stream the page told (a
-   *   request background.mjs made up), finds none.
+   * @param {string|number} requestId
    * @return {?string}
    */
   redirectOrigin(requestId) {
@@ -520,7 +378,7 @@ export class TabHolder {
   getFrames() {
     return this.frames.values();
   }
-  /** @param {number|undefined} frameId - undefined (a frame not named) finds none. */
+  /** @param {number|undefined} frameId */
   getFrame(frameId) {
     return this.frames.get(frameId);
   }
@@ -540,22 +398,11 @@ export class TabHolder {
   }
 
   /**
-   * Whether a player that says it loaded (PLAYER_LOADED) was opened by a page that is gone.
-   * content.js names its page in the player's URL (opener): the page is in the player's
-   * own frame when it went to the player, or in the frame above when it put the player in
-   * an iframe. A reload or a navigation replaces it, and the new page's content script
-   * gives its own name (FRAME_ADDED). A player still starting when its page reloaded can
-   * say it loaded after that, and its beforeunload, added once it has loaded, never ran.
-   * Taken for a player of the new page, it made the background drop that page's streams
-   * (FrameHolder.hasPlayer) and open no player there until the page navigated again.
-   * A player in an iframe of an iframe can come too late for either frame to tell: the
-   * reload made both new, with no names. The page's name, marked gone, still does.
-   * @param {FrameHolder} playerFrame - The player's frame.
-   * @param {number|undefined} parentFrameId - The frame above it, as the player tells it.
-   * @param {?string} opener - The page the player's URL names; null for a player no
-   *   content script opened (a page embedding it itself, the player page in a tab).
-   * @return {boolean} True when that page is known to be gone. A frame whose page this
-   *   background never heard name itself (it started again since) proves nothing.
+   * A player still starting when its page reloaded can say it loaded after that; taken for the new page's, it dropped that page's streams.
+   * @param {FrameHolder} playerFrame
+   * @param {number|undefined} parentFrameId
+   * @param {?string} opener
+   * @return {boolean}
    */
   isPlayerOfGoneDocument(playerFrame, parentFrameId, opener) {
     if (!opener) {
@@ -569,19 +416,11 @@ export class TabHolder {
   }
 
   /**
-   * Whether a player may be taken for a child of the frame it names (PLAYER_LOADED's
-   * parentFrameId, from the player's own URL). The player page is web-accessible, so any
-   * page can frame it with any parent_frame_id: one naming the top frame made the top
-   * frame count as holding a player (FrameHolder.hasPlayer), and the background dropped
-   * every stream of the page and opened no player there until it navigated. content.js
-   * names its page in each player's URL (opener), a name only its content script knows,
-   * so that name must be the named frame's page, or the player frame's own (a page that
-   * went to the player).
-   * @param {FrameHolder} playerFrame - The player's frame.
-   * @param {*} parentFrameId - The frame it names.
-   * @param {?string} opener - The page its URL names.
-   * @return {'proven'|'refused'|'ask'} 'ask' when the named frame's page never named
-   *   itself to this background (it started again since): its content script can tell.
+   * Any page can frame the player with any parent_frame_id: the opener must be the named frame's page or the player frame's own.
+   * @param {FrameHolder} playerFrame
+   * @param {*} parentFrameId
+   * @param {?string} opener
+   * @return {'proven'|'refused'|'ask'}
    */
   playerParentProof(playerFrame, parentFrameId, opener) {
     if (!opener || !Number.isInteger(parentFrameId) || parentFrameId < 0) {
@@ -594,22 +433,14 @@ export class TabHolder {
     return parent && parent.documentKey ? 'refused' : 'ask';
   }
 
-  /**
-   * Marks the page a frame shows gone, with the pages in the frames inside it, and keeps
-   * what each had detected under its name. A frame whose page never named itself has
-   * nothing to keep.
-   * @param {FrameHolder} frame - The frame whose page goes.
-   */
+  /** @param {FrameHolder} frame */
   markDocumentGone(frame) {
     /** @param {FrameHolder} f */
     const mark = (f) => {
-      // The pages inside first, so a page is newer than its frames' pages: the oldest go
-      // when there are too many, and a page marked before its frames went first when all
-      // of them had detected something.
+      // Inner pages first, so a page is newer than its frames' pages.
       f.children.forEach(mark);
       if (f.documentKey) {
-        // Deleted first: a Map keeps a key it already has at its old place, and the
-        // limit below drops the oldest, not the one just marked.
+        // Deleted first: a Map keeps an existing key at its old place.
         this.goneDocuments.delete(f.documentKey);
         this.goneDocuments.set(f.documentKey, {
           sources: f.getSources().slice(),
@@ -619,9 +450,7 @@ export class TabHolder {
     };
     mark(frame);
     while (this.goneDocuments.size > GoneDocumentLimit) {
-      // A page that detected nothing goes first, then the oldest: content.js names the page
-      // in every frame, and a page with more than the limit of them (an ad's each) pushed
-      // its own page, marked first, out with its streams, which Back then did not give back.
+      // A page that detected nothing goes first: an ad's many frames pushed the page itself out.
       let drop = this.goneDocuments.keys().next().value;
       for (const [key, kept] of this.goneDocuments) {
         if (kept.sources.length === 0 && kept.subtitles.length === 0) {
@@ -634,12 +463,9 @@ export class TabHolder {
   }
 
   /**
-   * A page names itself in a frame (FRAME_ADDED): the page the frame showed before, and
-   * the pages inside it, are gone. Their FRAME_REMOVED can come after this message, or
-   * not at all. The same name again is the same page (Firefox's back-forward cache gives
-   * a page back with its content script, which names it again), and ends nothing.
-   * @param {FrameHolder} frame - The frame the page named itself in.
-   * @param {?string} documentKey - The page's name; null when it gave none.
+   * Their FRAME_REMOVED can come after this, or never; the same name again is the same page (Back's cache).
+   * @param {FrameHolder} frame
+   * @param {?string} documentKey
    */
   noteDocumentReplaced(frame, documentKey) {
     if (frame.documentKey && frame.documentKey !== documentKey) {
@@ -647,15 +473,7 @@ export class TabHolder {
     }
   }
 
-  /**
-   * Gives a page that named itself again (FRAME_ADDED) what it had detected before it
-   * left. Firefox's back-forward cache gives a page back with its content script alive:
-   * its leaving made the background forget its frame (FRAME_REMOVED), and the page
-   * fetches nothing again, so the toolbar's next On found no stream on it. The name is
-   * the page's own, random per page, so it is the same page, wherever its URL went
-   * since. A page that came back is no longer gone.
-   * @param {FrameHolder} frame - The frame, its documentKey already set.
-   */
+  /** @param {FrameHolder} frame */
   restoreGoneDocument(frame) {
     const kept = frame.documentKey && this.goneDocuments.get(frame.documentKey);
     if (!kept) {
@@ -666,7 +484,6 @@ export class TabHolder {
     // FrameHolder.reset() sets both lists, which the checker cannot see from here.
     const sources = /** @type {Array<TrackedSource>} */ (frame.getSources());
     for (const source of kept.sources) {
-      // FRAME_ADDED keeps a source the frame already had at the page's URL.
       if (!sources.some((s) => s.url === source.url)) {
         sources.push(source);
       }
@@ -680,14 +497,9 @@ export class TabHolder {
   }
 
   /**
-   * A page says it left its frame (FRAME_REMOVED): forgets the frame, and marks the page
-   * gone. The message can come after the next page in that frame named itself (the two
-   * race across a navigation); a known name that is not the frame's is that late one,
-   * and must not forget the new page's frame and streams. A message without a name (the
-   * player page's own, content.js's for a player iframe it removed), or a frame whose
-   * page never named itself, is taken as before.
-   * @param {FrameHolder|undefined} frame - The frame the message names.
-   * @param {*} documentKey - The name of the page that sent it, if any.
+   * Can come after the next page there named itself: a known name that is not the frame's is that late one.
+   * @param {FrameHolder|undefined} frame
+   * @param {*} documentKey
    */
   forgetRemovedFrame(frame, documentKey) {
     if (!frame) {
@@ -700,12 +512,7 @@ export class TabHolder {
     this.forgetFrame(frame);
   }
 
-  /**
-   * Forgets a frame the page removed, with every frame inside it (FRAME_REMOVED).
-   * A frame this background never knew - Firefox unloaded it while the page kept its
-   * frames - is nothing to forget; it used to throw here.
-   * @param {FrameHolder|undefined} frame - The removed frame.
-   */
+  /** @param {FrameHolder|undefined} frame */
   forgetFrame(frame) {
     // One already forgotten: its frame id may hold the frame's next document now.
     if (!frame || !frame.isTracked()) {
@@ -732,13 +539,9 @@ export class TabHolder {
   }
 }
 
-// Prefix of the storage.session key each tab's toggle state is kept under.
 const TabStateKeyPrefix = 'tabState:';
 
-// Firefox unloads the idle event page (~30 s), and every TabHolder with it. These fields are
-// kept in storage.session (cleared with the browser, as tab ids are) so a woken background
-// still knows them; why each one: docs/notes/mpv.md, "What each persisted field keeps".
-// The rest of a TabHolder describes the current page and is rebuilt from its requests.
+// Persisted in storage.session, as Firefox unloads the idle event page; why each: docs/notes/mpv.md.
 const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened',
   'mpvError', 'mpvHostOutdated', 'protectedVideo', 'mpvDecoder', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend',
   'mpvTurnedOff', 'windowStateBefore', 'carriedFullscreenFrameId', 'carryAwaited', 'playerPageFrames', 'playerNotice',
@@ -750,13 +553,11 @@ export class TabTracker {
   }
 
   /**
-   * Stores the tab's toggle state so it outlives the event page.
    * @param {TabHolder} tab
    * @return {Promise<void>}
    */
   async saveTabState(tab) {
-    // A tab closed meanwhile (an await, a timer of its own): its state was written back after
-    // removeTab had deleted it, and stayed in session storage for good.
+    // A tab closed meanwhile: its state written back after removeTab stayed for good.
     if (this.tabs.get(tab.tabId) !== tab) {
       return;
     }
@@ -774,13 +575,10 @@ export class TabTracker {
   }
 
   /**
-   * Puts back the toggle state saved before the event page was unloaded.
-   * Applied onto any TabHolder that already exists, since the webRequest
-   * listeners create them synchronously as soon as the page wakes.
+   * Applied onto TabHolders that exist already: the webRequest listeners create them as the page wakes.
    * @return {Promise<void>}
    */
   async restoreTabStates() {
-    // Everything in the session's storage: a tab's state under its key, whatever else there.
     /** @type {Object<string, *>} */
     let stored;
     try {
@@ -789,8 +587,7 @@ export class TabTracker {
       console.warn('Could not restore tab states', e);
       return;
     }
-    // Only tabs that are still there: the tabs.onRemoved that woke the page may have run
-    // removeTab between the read above and here, and its tab came back for the session.
+    // Only tabs still there: tabs.onRemoved may have run removeTab meanwhile.
     /** @type {Set<number|undefined>|null} */
     let live = null;
     try {
@@ -825,7 +622,7 @@ export class TabTracker {
     return newTab;
   }
 
-  /** @param {number|undefined} tabId - undefined (a tab without an id) finds none. */
+  /** @param {number|undefined} tabId */
   getTab(tabId) {
     return this.tabs.get(tabId);
   }
@@ -842,11 +639,9 @@ export class TabTracker {
   }
 
   /**
-   * Forgets a request's headers once its response or its error came. A tab this tracker
-   * does not know (closed, its requests cancelled after tabs.onRemoved) is not made again
-   * for it: Firefox never reuses a tab id, so it would stay for the background's life.
-   * @param {number} tabId - The request's tab.
-   * @param {string} requestId - Its id.
+   * Firefox never reuses a tab id: a tab made again here would stay for the background's life.
+   * @param {number} tabId
+   * @param {string} requestId
    */
   forgetRequestHeaders(tabId, requestId) {
     this.getTab(tabId)?.requestHeaders.delete(requestId);

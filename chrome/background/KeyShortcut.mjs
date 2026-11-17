@@ -1,8 +1,6 @@
 // @ts-check
 
 /**
- * A key press as content.js reports it: the KeyboardEvent fields a shortcut
- * is matched on.
  * @typedef {{key: string, code: string, ctrlKey: boolean, altKey: boolean,
  *   shiftKey: boolean, metaKey: boolean}} KeyPress
  */
@@ -35,23 +33,13 @@ const NamedCodes = new Map([
   ['Period', 'Period'],
 ]);
 
-/**
- * Matches key presses against the shortcut strings commands.getAll() returns
- * ("Ctrl+Shift+U", "Alt+Comma", "F5", ...).
- */
+/** Matches key presses against commands.getAll()'s shortcut strings ("Ctrl+Shift+U", "Alt+Comma"). */
 export class KeyShortcut {
   /**
-   * The name a shortcut string uses for a pressed key.
-   *
-   * The character decides, as it does for Firefox's own key matching, so on
-   * a German layout the key labelled Z is "Z". When the character is not a
-   * Latin letter or digit - Shift+1 is "!" on most layouts, a Cyrillic
-   * layout types "г" on the U key - the key's position stands in for it,
-   * as Firefox's fallback to the Latin character does.
-   *
-   * @param {string} key - KeyboardEvent.key.
-   * @param {string} code - KeyboardEvent.code.
-   * @return {?string} The key's name, or null for one no shortcut can use.
+   * The character decides, as in Firefox; one that is no Latin letter or digit goes by the key's position.
+   * @param {string} key
+   * @param {string} code
+   * @return {?string}
    */
   static keyName(key, code) {
     if (/^[a-z0-9]$/i.test(key)) {
@@ -72,12 +60,10 @@ export class KeyShortcut {
   }
 
   /**
-   * Whether a key press is the given shortcut, modifiers exactly.
-   *
-   * @param {string} shortcut - As commands.getAll() gives it; "" when unset.
-   * @param {KeyPress} press - The key press.
-   * @param {boolean} [isMac] - "Ctrl" means Command on macOS; "MacCtrl" is
-   *     the Control key there.
+   * "Ctrl" means Command on macOS; "MacCtrl" is the Control key there.
+   * @param {string} shortcut
+   * @param {KeyPress} press
+   * @param {boolean} [isMac]
    * @return {boolean}
    */
   static matches(shortcut, press, isMac = false) {

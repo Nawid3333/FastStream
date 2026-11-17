@@ -1,50 +1,22 @@
 // @ts-check
 
-// Firefox VPN (the browser's own "IP protection", Firefox 149+) sends a page's requests
-// through Mozilla's proxy, but not an extension's: IPPExceptionsManager.getPrincipalRule
-// leaves out every principal that is not http(s), moz-extension:// among them (Firefox 157,
-// toolkit/components/ipprotection). A site that ties its stream to the address that asked
-// for the page then refuses FastStream: VOE's stream URL carries the VPN exit's network
-// (…&i=63.245&asn=54113, Fastly), and FastStream's player, asking from the user's own
-// address, got "Failed to load video!" while the site's own player played.
-//
-// So FastStream's requests to a host go the way the page's latest request to it went.
-// webRequest reports the proxy a page's request took (details.proxyInfo: type, host, port,
-// proxyAuthorizationHeader, connectionIsolationKey - measured in Firefox 157), and
-// proxy.onRequest gives the same one to FastStream's own requests to that host. The token
-// is the newest any page request through that proxy carried; the isolation key keeps them
-// on the page's connection, and so on its exit address. The listener asks only for those
-// hosts, and only with the optional "proxy" permission, which the player asks for when it
-// first meets such a page (VPN_STATUS).
-//
-// Only http and https proxies are copied: the VPN's servers are CONNECT proxies over TLS
-// (Remote Settings' vpn-serverlist names no other protocol, 2026-10-06). A MASQUE proxy
-// needs its URI template, which webRequest does not report, and a SOCKS one its password.
+// Firefox VPN skips an extension's requests: FastStream's to a host go the way the page's latest request to it went.
 
 /** Proxy types whose every setting webRequest reports, so a copy is the same proxy. */
 const CopyableTypes = ['http', 'https'];
 
-/** Hosts remembered at most; the oldest goes first. A filter is rebuilt per new host. */
 const MaxHosts = 200;
 
 /**
  * @typedef {Object} HostEntry
- * @property {string} key - The proxy's (keyOf).
- * @property {number} tabId - The tab whose page last reached the host that way: only its
- *   page going direct takes the host off (another tab's site may be left out of the VPN).
+ * @property {string} key
+ * @property {number} tabId
  */
 
-/**
- * A page's own loads, which say its tab now goes direct when they do. Not xmlhttprequest:
- * a content script's fetch (caption files) looks like the page's and always goes direct.
- */
+/** Not xmlhttprequest: a content script's fetch looks like the page's and always goes direct. */
 const PageLoadTypes = ['main_frame', 'sub_frame', 'script', 'stylesheet', 'image', 'font', 'media'];
 
 /**
- * The proxy a request took, as webRequest reports it (details.proxyInfo, Firefox only, which
- * @types/chrome lacks); null or absent for a request that went directly. Firefox 157 gave
- * Firefox VPN's with every field below, and username and proxyDNS, which are not read here
- * (tests/unit/VpnProxyMirror.test.mjs); a proxy of the network settings has no token.
  * @typedef {{type: string, host: string, port: number, proxyAuthorizationHeader?: string,
  *   connectionIsolationKey?: string, failoverTimeout?: number}} ProxyInfo
  */
@@ -60,7 +32,6 @@ const PageLoadTypes = ['main_frame', 'sub_frame', 'script', 'stylesheet', 'image
  */
 
 /**
- * The host of a URL, or '' when it has none.
  * @param {string} url
  * @return {string}
  */
@@ -75,30 +46,26 @@ function hostOf(url) {
 export class VpnProxyMirror {
   /**
    * @param {Object} env
-   * @param {string} env.origin - This extension's origin, e.g. moz-extension://<uuid>/.
-   * @param {() => any} env.getProxyApi - Reads chrome.proxy, which is there only while
-   *   the permission is granted.
+   * @param {string} env.origin
+   * @param {() => any} env.getProxyApi
    */
   constructor({origin, getProxyApi}) {
     this.origin = origin;
     this.getProxyApi = getProxyApi;
-    /** @type {Map<string, HostEntry>} incognito flag + host -> the way there */
+    /** @type {Map<string, HostEntry>} */
     this.hosts = new Map();
-    /** @type {Map<number, string>} tab -> proxy key of its page's latest request */
+    /** @type {Map<number, string>} */
     this.tabs = new Map();
-    /** @type {Map<string, SeenProxy>} proxy key -> its newest settings */
+    /** @type {Map<string, SeenProxy>} */
     this.proxies = new Map();
     this.permitted = false;
     /** @type {Array<(details: Parameters<VpnProxyMirror['proxyFor']>[0]) => ReturnType<VpnProxyMirror['proxyFor']>>} */
     this.listeners = [];
-    // The hosts' match patterns the listeners were registered for (the refused ones too).
     /** @type {string[]} */
     this.listenerUrls = [];
   }
 
   /**
-   * Whether a request is this extension's own: its player page, the background, an
-   * options page (originUrl, else documentUrl, is under the extension's origin).
    * @param {{originUrl?: string, documentUrl?: string}} details
    * @return {boolean}
    */
@@ -125,10 +92,8 @@ export class VpnProxyMirror {
   }
 
   /**
-   * The proxy a request took, as remembered settings and their key; null when it went
-   * directly. Its newest token is kept for every request that goes through that proxy.
-   * @param {?ProxyInfo|undefined} info - webRequest's details.proxyInfo.
-   * @return {?string} The proxy's key.
+   * @param {?ProxyInfo|undefined} info
+   * @return {?string}
    */
   rememberProxy(info) {
     if (!info || !info.type || info.type === 'direct') return null;
@@ -148,9 +113,8 @@ export class VpnProxyMirror {
   }
 
   /**
-   * Lets go of the proxies no host and no tab names any more: every one ever seen stayed for the
-   * event page's life (a VPN's servers change). Not the one just seen: its caller names it next.
-   * @param {string} keep - The key rememberProxy just set.
+   * Not the one just seen: its caller names it next.
+   * @param {string} keep
    */
   forgetUnusedProxies(keep) {
     const used = new Set([keep, ...this.tabs.values()]);
@@ -161,15 +125,7 @@ export class VpnProxyMirror {
   }
 
   /**
-   * Takes note of a request webRequest saw (onBeforeRequest, every request). A page's
-   * carries its proxy's newest token (Firefox VPN gives every request the same one), and
-   * tells whether its tab's page goes through a proxy. A remembered host goes off the list
-   * once the page of the tab it came from reaches it directly, that tab's page loads
-   * having gone direct first (the VPN turned off, or off for this site, and the page
-   * loaded again): a content script's fetch in a page still on the VPN (captions) goes
-   * direct by itself, and so may another tab's site. Hosts are added only where FastStream
-   * fetches (noteSource, own requests): with the VPN on, every page request has a proxy,
-   * and a listener for all their hosts would hold up every request.
+   * A host goes off once its own tab's page reaches it directly: a content script's fetch, or another tab, may go direct by itself.
    * @param {{url: string, tabId: number, frameId?: number, type?: string, incognito?: boolean,
    *   originUrl?: string, documentUrl?: string, proxyInfo?: ?ProxyInfo}} details
    */
@@ -192,13 +148,7 @@ export class VpnProxyMirror {
       }
       return;
     }
-    // The top frame's: a frame of another site may be on the VPN when the page is not. Only
-    // Firefox VPN's (a token on every request): the tab's proxy is a guess for hosts the page
-    // was not seen asking (noteOwnRequest). A proxy of the network settings or a PAC file
-    // applies to FastStream's requests by itself, chosen per host, and the page's sent
-    // FastStream's request to a host the PAC file routes directly (an intranet CDN) through
-    // a proxy that could not reach it. A host the page itself reached through a proxy is
-    // copied whatever the proxy (noteSource): for that host the PAC file answers alike.
+    // Only Firefox VPN's (a token): a network-settings or PAC proxy applies to FastStream's requests by itself, per host.
     if (details.tabId >= 0 && (details.frameId ?? 0) === 0) {
       if (details.proxyInfo?.proxyAuthorizationHeader) this.tabs.set(details.tabId, key);
       else this.tabs.delete(details.tabId);
@@ -213,15 +163,14 @@ export class VpnProxyMirror {
   }
 
   /**
-   * @param {string} key - A remembered proxy's.
-   * @return {boolean} Whether FastStream can send its own requests through that proxy.
+   * @param {string} key
+   * @return {boolean}
    */
   copyable(key) {
     return CopyableTypes.includes(this.proxies.get(key)?.type || '');
   }
 
   /**
-   * A stream detected from a page's request: its host goes the way that request went.
    * @param {{url: string, tabId: number, incognito?: boolean, originUrl?: string,
    *   documentUrl?: string, proxyInfo?: ?ProxyInfo}} details
    */
@@ -233,9 +182,7 @@ export class VpnProxyMirror {
   }
 
   /**
-   * FastStream's own request in a tab whose page goes through a proxy: its host goes that
-   * way too, from the next request on (a retry; the proxy is chosen before webRequest
-   * hears of a request).
+   * From the next request on: the proxy is chosen before webRequest hears of a request.
    * @param {{tabId: number, incognito?: boolean}} details
    * @param {string} host
    */
@@ -247,8 +194,8 @@ export class VpnProxyMirror {
 
   /**
    * @param {string} hostKey
-   * @param {string} key - The proxy's.
-   * @param {number} tabId - The tab it was seen in.
+   * @param {string} key
+   * @param {number} tabId
    */
   addHost(hostKey, key, tabId) {
     const known = this.hosts.get(hostKey);
@@ -260,8 +207,7 @@ export class VpnProxyMirror {
       return;
     }
     while (this.hosts.size > MaxHosts) {
-      // The oldest host behind a proxy FastStream cannot copy goes first (kept only for
-      // throughBrowserVpn): a run of them must not push out the hosts the mirror serves.
+      // Uncopyable hosts (kept only for throughBrowserVpn) go first: they must not push out those the mirror serves.
       const uncopyable = Array.from(this.hosts).find(([, entry]) =>
         !this.copyable(entry.key));
       this.hosts.delete(uncopyable ? uncopyable[0] : /** @type {string} */ (this.hosts.keys().next().value));
@@ -270,9 +216,7 @@ export class VpnProxyMirror {
   }
 
   /**
-   * Forgets a closed tab, and the hosts its page last reached through a proxy: no page
-   * going direct could take them off any more. Another tab still on them adds them again
-   * with its player's next request (noteOwnRequest).
+   * Its hosts go too: no page going direct could take them off any more.
    * @param {number} tabId
    */
   forgetTab(tabId) {
@@ -288,11 +232,9 @@ export class VpnProxyMirror {
   }
 
   /**
-   * The proxy a page's requests to this URL's host took, if any.
    * @param {string} url
    * @param {boolean} [incognito]
-   * @param {number} [tabId] - The tab asking, whose page's proxy counts for a host its
-   *   page was not seen asking.
+   * @param {number} [tabId]
    * @return {?SeenProxy}
    */
   proxyForUrl(url, incognito, tabId) {
@@ -303,9 +245,6 @@ export class VpnProxyMirror {
   }
 
   /**
-   * What the player needs to know about its source: whether the page reached it through
-   * a proxy that FastStream's requests skip, and whether FastStream can follow it. A
-   * source in a tab whose page goes through a proxy has its host added.
    * @param {string} url
    * @param {boolean} [incognito]
    * @param {number} [tabId]
@@ -326,14 +265,9 @@ export class VpnProxyMirror {
   }
 
   /**
-   * Whether the page's request for this stream went through Firefox VPN, whose proxy
-   * carries a bearer token (IPProtection's pass.asBearerToken(), Firefox 157). Nothing
-   * outside Firefox can use it: mpv asks from the user's own address, and a site that ties
-   * its stream to the VPN's refuses it. A proxy without one (one set in Firefox's network
-   * settings, say) does not count.
-   * @param {string} url - The stream.
-   * @param {boolean} [incognito] - Its tab's private-window flag: Firefox VPN can carry
-   *   private windows only (IPPMode.MODE_PB). Unknown (a closed tab), either counts.
+   * Firefox VPN's proxy carries a bearer token, which nothing outside Firefox (mpv) can use.
+   * @param {string} url
+   * @param {boolean} [incognito]
    * @return {boolean}
    */
   throughBrowserVpn(url, incognito) {
@@ -347,8 +281,6 @@ export class VpnProxyMirror {
   }
 
   /**
-   * proxy.onRequest's answer: for FastStream's own request to a host the page reached
-   * through a proxy, that proxy with its newest token; for anything else, no change.
    * @param {{url: string, tabId?: number, incognito?: boolean, originUrl?: string,
    *   documentUrl?: string}} details
    * @return {Object|undefined}
@@ -367,20 +299,13 @@ export class VpnProxyMirror {
     return answer;
   }
 
-  /**
-   * Whether FastStream holds the "proxy" permission now; registers or drops the listener.
-   * @param {boolean} permitted
-   */
+  /** @param {boolean} permitted */
   setPermitted(permitted) {
     this.permitted = permitted;
     this.updateListener();
   }
 
-  /**
-   * Listens on proxy.onRequest for the remembered hosts only: a request to one of them,
-   * the page's too, waits for the background's answer (undefined for all but FastStream's
-   * own, at once), and no other request does; without the permission or any host, none.
-   */
+  /** A request to a listed host waits for the background's answer, so only remembered hosts are listened for. */
   updateListener() {
     const api = this.permitted ? this.getProxyApi() : null;
     // A proxy FastStream cannot copy (MASQUE) would only hold its host's requests up.
@@ -409,9 +334,7 @@ export class VpnProxyMirror {
       api.onRequest.addListener(listener, {urls});
       this.listeners = [listener];
     } catch (e) {
-      // A pattern Firefox refuses throws for the whole filter: every host lost its
-      // mirroring for one bad host. One listener per host then, and only that one is left
-      // out. (A listener registers once, so each host gets its own.)
+      // A pattern Firefox refuses throws for the whole filter: one listener per host then.
       console.warn('Could not listen for proxy requests to all hosts at once', e);
       for (const url of urls) {
         /**

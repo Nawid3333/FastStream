@@ -1011,3 +1011,55 @@ own).
   click on the same stream within 3 s is what it guards against); a stale `time-remaining`
   reply ending the next file (the helper relays commands and events over one mpv connection,
   and mpv answers `get_property` synchronously, before any later event).
+
+## Background: reasons moved out of the code comments (2026-11-18)
+
+- **`MpvSubtitles.mjs`** - A track's file is read only up to twice the host's message cap
+  (`HostMaxMessageBytes`, 1 MB): a larger one could not be sent anyway, and parsing it would
+  hold up the background and every tab's detection. The parser is imported when first needed,
+  because vtt.js takes its window from the global scope when it loads.
+- **`MpvRelayWatch.relayWatch`** - mpv's JSON IPC as measured with the pinned mpv (headless,
+  keep-open): `observe_property` sends the current value at once, so the first eof-reached and
+  pause values are mpv's state when the watch began, not events; at a file's end eof-reached
+  goes false -> true; a loadfile replace sends end-file "stop", eof-reached and path
+  unavailable, the new path, then eof-reached false; `script-message faststream-next` arrives
+  as a client-message. One end per file: the same path again counts as a new file once mpv said
+  it had none in between.
+- **`MpvBackend.sendStream`** - Streams go to the helper one at a time: each send is a helper
+  process of its own, and two at once with no mpv running each found no pipe and started an
+  mpv, the second on the same pipe name and with no IPC for good. The next send starts once the
+  last has its answer, by when its mpv has the pipe.
+- **`MpvBackend.openStream`** - A URL still being sent gets that send's own answer, not an "ok"
+  at once: when that send failed, the player said it was sent and paused the page for nothing.
+  A send that failed, or whose mpv never started, forgets the URL, so a later try is not
+  reported as done without playing.
+- **`MpvBackend.sentPageUrl`** - A page URL holding half of a surrogate pair cannot be
+  percent-encoded (`encodeURIComponent` throws): a helper before host 15 threw on it, answered
+  nothing, and the hand-off said the helper was not installed.
+- **`MpvBackend.sendStreamNow`** - A private window's stream is not sent to a helper before
+  host 15: its open message has no `fs-private`, and mpv would keep the stream's position on
+  disk (stream-resume.json).
+- **`MpvMode.goToEpisode`** - Waits at most `MpvPageNavigateMs` for a frame to answer its
+  next/previous request: a frame that never answered kept `state.going` set, and every later
+  key, button and autoplay of the session returned at it. Space at an episode's end stops that
+  countdown only and keeps autoplay on for the next end; mpv stays paused on the last frame.
+  Presses of mpv's autoplay switch run one after the other, as two quick ones read the same
+  setting before either was saved.
+- **`MpvMode.MpvPlayKnownAfterMs`** - On a page Back gave back, a play waits 1 s for its stream
+  to be detected before the page's known stream goes: a play-triggered fetch lands within a few
+  hundred ms, and a longer wait delayed mpv on every Back + play.
+- **`background.mjs` `forgetOffsForNewEntries`** - Putting a site on the MPV Allowlist is a
+  fresh decision: the user's Off on a tab whose address the list newly covers is forgotten, so
+  its next page goes to MPV as on any listed site. An entry for another site, any other option,
+  or a background just woken (no list from before to compare) keeps the Off.
+- **`background.mjs` `isSentStream`** - mpv's path is the URL as sent, as the URL parser writes
+  it, then the host's fs-* tags after a `#`; a URL sent in another spelling (an upper-case
+  host) did not count. Another of the page's qualities that went along counts too: mpv's
+  quality menu loads it in place, and autoplay stopped at the end of an episode whose quality
+  was switched in mpv.
+- **`background.mjs` `findPlayedSource`, `sendPendingPlay`** - The stream a started video
+  plays: its own URL first (a progressive file, often preloaded before the click), else by
+  length (StreamPick), the longest deciding when a short video plays beside a far longer stream
+  (a preroll or a preview). A pick plainly another length than the video is none, and the next
+  stream the page asks for decides; streams found while one is checked wait their turn, as the
+  first stream after a play can be an ad's or a preview's.
