@@ -1051,6 +1051,23 @@ Only where its bytes come from changes, and only after FastStream's own request 
   `Range 2 failed to load (HTTP 403; through the page: The page did not answer)` (#732).
 - **abyss.to's addresses** are `abysscdn.com/#mp4/r2/1/<size>/<size>/<quality>/h264?maxChunkSize=5242880`
   since about 2026-11-17. Measured then: 403 direct, 206 for each 1 MB range through the page.
+- **#732 on the reporter's page (2026-11-17, 1.3.82.198).** Its "Voir 2" is abyss:
+  - It plays, every range 206 through the page, also with the reporter's options (144p, 11 s
+    ahead, download-all off).
+  - Some videos have `#mp4/chunk/<n>/<size>/2097152/<quality>/h264` instead of `r2`: the file
+    is in 2 MB pieces on the CDN. The page's service worker (`sw.import.v3.js`) answers both kinds
+    from 5 MB ranges of the CDN.
+  - A 416 asked directly for such an address is the site's own page refusing a range (the
+    fragment never reaches a server), not the video.
+
+  Its "Voir 1" is another hoster, HLS with segments named `seg_*.woff`:
+  - Its CDN answers segment 0, asked for with no Range, with `206 bytes 0-4095/<size>`, to the
+    page as well, and asked for the rest it sends those 4 KB again.
+  - hls.js took the 4 KB as the segment, found no audio in it, made no audio SourceBuffer, and
+    the next segment failed (`bufferAppendError` on the audio buffer).
+  - The site's own player fails there too.
+  - A FetchLoader change that asked for the rest of a short answer was built and dropped (the
+    owner, 2026-11-17): from this CDN it only changed the error.
 - **Detection** needed nothing new. Firefox tells add-ons nothing of an answer a service worker
   gives (webRequest fires `onBeforeRequest` only, Mozilla bugs 1626831 and 1817450), but
   content.js reports the file a page's `<video>` got (`loadedmetadata`, `LOADED_MEDIA` live) by
