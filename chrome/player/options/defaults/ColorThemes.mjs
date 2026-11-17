@@ -11,6 +11,6 @@ export const ColorThemes = {
   AMETHYST: 'amethyst',
   DESERT: 'desert',
   MINT: 'mint',
-  // True black, for OLED screens (2026-10-10).
+  // True black, for OLED screens.
   OLED: 'oled',
 };

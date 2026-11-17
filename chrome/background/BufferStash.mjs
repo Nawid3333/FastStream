@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * The buffer of a player that went away - its page reloaded, or left and came back - kept for
- * the next player of the same video on the same page, for BufferKeepMs. His wish (2026-10-28):
+ * the next player of the same video on the same page, for BufferKeepMs. His wish:
  * a reload must not throw away what was buffered, and what nobody takes back is let go 20 s
  * later, in RAM and on the disk alike.
  *

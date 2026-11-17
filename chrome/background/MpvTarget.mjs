@@ -7,7 +7,7 @@
  * from the extension's `open` message: the URL with its fs-* fragment tags, the title, the
  * header list, the start. Each change to that policy was a new helper, and a helper is
  * installed by hand: 14 versions in 10 days, each one a reinstall for the owner. So he chose
- * (2026-10-13) a thin helper that keeps only the mechanics (start mpv, talk over its pipe,
+ * a thin helper that keeps only the mechanics (start mpv, talk over its pipe,
  * allowlisted commands), and the policy moved here, where it updates with the extension.
  *
  * Every function below is a port of the helper's function of the same name and gives the
@@ -21,7 +21,7 @@
 /**
  * The first `max` characters of a text, as a reader counts them: a flag or an emoji joined
  * from several is one. Cut between its code points, a part of it was left, which mpv drew
- * as a broken character (#470; glm's review of the fix, 2026-10-13).
+ * as a broken character (#470).
  * @param {string} text
  * @param {number} max
  * @return {string}
@@ -192,7 +192,7 @@ export function qualityFragmentFor(qualities) {
  * requests: tabs and newlines dropped, spaces and the like percent-encoded), plus its
  * fs-content=, fs-id=, fs-private=, fs-page= and fs-quality= fragment tags, in that order
  * (fs-quality last, the longest). fs-private=1 marks a private window's stream: mpv keeps no
- * resume position for it (stream-resume.lua; the owner's pick, 2026-10-14). It keeps its
+ * resume position for it (stream-resume.lua). It keeps its
  * fs-id: mpv's episode buttons know a FastStream stream by it.
  * @param {{url: string, contentType?: *, pageUrl?: *, qualities?: *, private?: *}} stream -
  *   url passed isStreamUrl.

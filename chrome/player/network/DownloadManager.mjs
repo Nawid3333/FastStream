@@ -25,7 +25,7 @@ export class DownloadManager {
 
   // The speed test. A video started with one downloader and added one each time three
   // speed samples showed a gain: on a Vimeo video at 15 MB/s it took 3.3 s, a third of
-  // the video, to reach six (2026-10-06). It starts with three now and decides after each
+  // the video, to reach six. It starts with three now and decides after each
   // sample (two until 2026-10-22: on a server giving each connection 500 kB/s, ±30% each
   // second, six came at 14 s instead of 25 s, in 3 of 3 runs, the test's verdict the same);
   // a server that asks to slow down (SlowDownStatuses) halves them at once.
@@ -397,7 +397,7 @@ export class DownloadManager {
       entry.dataSize = record.dataSize || 0;
       entry.blobId = identifier;
       // One file under two issues of the link (a FreshLink renewal downloaded it again): taken
-      // once, the twin left out, or both were handed on at every reload after (glm's review).
+      // once, the twin left out, or both were handed on at every reload after.
       const loose = this.looseIdentifier(entry);
       if (seen.has(loose)) continue;
       seen.add(loose);
@@ -448,7 +448,7 @@ export class DownloadManager {
         moved = false;
       }
       // Let go of meanwhile (removeFile destroys it: a fragment freed behind the playhead), its
-      // file would stay in this session with nothing to read or delete it (glm's review).
+      // file would stay in this session with nothing to read or delete it.
       const kept = !item.entry.aborted && item.entry.status === DownloadStatus.DOWNLOAD_COMPLETE;
       if (moved && kept && this.blobStore === store && this.storageGeneration === item.generation) {
         return true;
@@ -1211,7 +1211,7 @@ export class DownloadManager {
           // in the list: one dropped meanwhile moved the next onto a place already heard, never
           // counted then; and a sample without a speed (a cache hit: SpeedTracker gives 0) marked
           // its place heard without counting it. Either way the round never closed, and the test
-          // ran on for the rest of the video (glm's review, 2026-10-13).
+          // ran on for the rest of the video.
           if (downloader.getSpeed()) {
             this.speedTestSeen.add(downloader);
           }
@@ -1232,8 +1232,7 @@ export class DownloadManager {
                 // gain from elsewhere (other players stepping aside) comes once, not at each step.
                 // Only a round with exactly one more than the last sample's tells: after one was
                 // dropped for a failure, a gain was read as one more's share, and with one left
-                // the share was 0.5 / 0, so "they share the line" stuck for the rest of the video
-                // (glm's review of #540, 2026-10-23).
+                // the share was 0.5 / 0, so "they share the line" stuck for the rest of the video.
                 if (this.lastSpeed > 0 && this.downloaders.length === this.lastSpeedCount + 1) {
                   const share = speed >= this.lastSpeed * (1 + 0.5 / this.lastSpeedCount);
                   this.perConnection = this.perConnection !== false && share;
@@ -1339,8 +1338,7 @@ export class DownloadManager {
     this.failed = 0;
     this.holdUntil = 0;
     this.lastSlowDown = 0;
-    // A failure's cooldown is the last video's: its next downloads waited a second
-    // (glm's review, 2026-10-13).
+    // A failure's cooldown is the last video's: its next downloads waited a second.
     this.lastFailed = 0;
     // After a server throttled, the next video starts with one downloader, and its speed
     // test is a probe: one that climbs without another 429 or 503 ends the caution. One
@@ -1365,7 +1363,7 @@ export class DownloadManager {
     // up meanwhile - a seek preview's build still running - queued its manifest then, and
     // nothing started it. The queue holding it, the client asked for nothing more
     // (canGetFile), and the next player's request for the same manifest joined it: a live
-    // DASH stream reloaded without a failed codec never loaded (2026-10-06).
+    // DASH stream reloaded without a failed codec never loaded.
     if (this.downloaders) this.queueNext();
   }
 

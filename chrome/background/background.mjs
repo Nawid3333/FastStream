@@ -336,8 +336,7 @@ function forgetOffsForNewEntries(before) {
  * player's own switch: from MPV - the allowlist's or the MPV key's - it goes straight
  * to the player, and otherwise turns the player off or on, on the allowlist too. So
  * each key turns on its own mode whatever mode the tab is in, and the last key pressed
- * decides. The key used to be the button (_execute_action), and after the MPV key it
- * turned FastStream off: getting the player took a second press.
+ * decides.
  *
  * @param {chrome.tabs.Tab} tabobj - The tab the button was clicked or the key pressed in.
  * @param {{playerKey?: boolean}} [how] - playerKey: the shortcut, not the button.
@@ -367,7 +366,7 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
         // (a player on the page when MPV started was reloaded away), and the page's
         // video goes to the player from the sources already tracked, as Off -> On does.
         // The user's own On, as the toolbar's: marked as the list's start (regexMatched), the
-        // first page of the site outside the list turned it off (glm's review, 2026-11-16).
+        // first page of the site outside the list turned it off.
         tab.isMpv = false;
         tab.mpvOnPlay = false;
         tab.regexMatched = false;
@@ -385,7 +384,7 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
         // in-page player on; a third hands the stream to mpv again.
         // An On that stands in for MPV, on a page whose file only the page loads
         // (MpvMode.playHereInstead), counts as MPV: On -> MPV reloaded the page, was refused
-        // again, came back On, and Off was never reached (glm's review).
+        // again, came back On, and Off was never reached.
         const standIn = tab.isOn && !tab.isMpv && tab.mpvStandInPage === tab.mpvPage;
         tab.mpvStandInPage = -1;
         if (tab.isMpv || standIn) {
@@ -572,25 +571,12 @@ chrome.tabs.onRemoved.addListener((tabid, removed) => {
   VpnMirror.forgetTab(tabid);
 });
 
-// Closes a tab opened right after the user's click landed on a player
-// iframe (see the POPUP_GUARD_ARM handler and content.js's 'blur' listener).
-// Both actual popups (the new tab steals focus) and popunders (it doesn't)
-// go through here - gating on the arm window rather than "is a player
-// running in the opener tab" is what keeps this from touching a tab the user
-// opens deliberately (e.g. middle-clicking a link elsewhere on the page),
-// since that never blurs the top window the way a click into our iframe
-// does. Two caveats this can't fully close: the arm message is an async
-// chrome.runtime.sendMessage to the background - on a cold event page a
-// popup/popunder that calls window.open() synchronously from the same blur
-// handler can create its tab before the arm message is even processed, so
-// the guard is more reliable once the page is already running from an earlier
-// interaction. And because the signal is only "a click landed on the player
-// recently", not "this exact tab-creation was caused by that click", a
-// short window still means a deliberate action within it (e.g. a very fast
-// middle-click elsewhere right after clicking the video) could get caught -
-// PopupGuardArmMs is kept short specifically to make that collision rare
-// without also making the common case (an ad script reacting to the same
-// blur within tens of ms) unreliable.
+// Closes a tab (popup or popunder) opened right after a click landed on a player iframe:
+// ad scripts open one from the top window's 'blur' that click causes (POPUP_GUARD_ARM,
+// content.js). Gated on that short window, not on "a player runs in the opener", so a tab
+// the user opens on purpose is left alone. Limits: on a cold event page a window.open() in
+// the same blur can come before the arm message, and a deliberate new tab within
+// PopupGuardArmMs of a click on the video is caught too; the window is kept short for that.
 chrome.tabs.onCreated.addListener(async (newTab) => {
   await ensureOptions();
 
@@ -1461,7 +1447,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           tab.continuationPage = null;
           // Nor kept for good: on a site that changes its video without loading a page, a page
           // whose player never took them kept them, and the user's own next video there, minutes
-          // later, took the autoplay and the fullscreen (the owner's pick, 2026-11-15).
+          // later, took the autoplay and the fullscreen.
           clearTimeout(tab.continuationTimer);
           tab.continuationTimer = setTimeout(() => {
             if (tab.continuationOptions === continuation) endContinuation(tab);
@@ -1591,7 +1577,7 @@ function handleFullscreenRequest(frame, msg, sendResponse) {
 }
 
 /**
- * A fullscreen carried over to the next episode (his report, 2026-10-11): the page went on
+ * A fullscreen carried over to the next episode: the page went on
  * to it by itself, and Firefox lets no page go fullscreen without a click, so the next
  * episode played windowed. The browser window goes fullscreen instead - an extension may
  * do that - and the player fills the page (windowed fullscreen); off goes back to the
@@ -1608,7 +1594,7 @@ async function setCarriedFullscreen(frame, on) {
     if (win.state !== 'fullscreen' && tab.windowStateBefore) {
       // Carried here, and the window is no longer fullscreen: the user left it outside
       // FastStream (F11, the browser's own Exit Full Screen), and the next episode went
-      // fullscreen again (final review, 2026-10-11). It plays windowed, as the user left it.
+      // fullscreen again. It plays windowed, as the user left it.
       tab.windowStateBefore = null;
       tab.carryAwaited = false;
       tab.carriedFullscreenFrameId = null;
@@ -1924,7 +1910,7 @@ function keepPlayerPageFrame(tab, frame) {
  * A player this background did not see load (Firefox unloaded the idle event page while it
  * played): its frame is a player's again, with its page frame as the tab's state kept it
  * (keepPlayerPageFrame). Without that the end's next episode, and its poll, found no page
- * frame and were answered 'error': the countdown stopped at "1 s" (his report, 2026-10-23).
+ * frame and were answered 'error': the countdown stopped at "1 s".
  * Only for FastStream's player page, which alone names the frame it plays in to this map.
  * @param {TabHolder} tab
  * @param {FrameHolder & FrameExtras} frame - The sender's.
@@ -2431,7 +2417,7 @@ async function hasVideoSource(frame) {
  * copy-protected (tab.protectedVideo, hasVideoSource): "DRM", and why. Not while one of the
  * tab's FastStream players is there, which plays the video the user watches: a stream the page
  * asked for after it opened, or one of another frame, said "DRM" over it; a player that opens
- * says so no more (glm's review of #606).
+ * says so no more.
  * @param {TabHolder} tab - The tab.
  * @param {boolean} copyProtected - Whether its video stays in the page's player for it.
  */
@@ -2644,7 +2630,7 @@ const startPagePlayerUntil = new WeakMap();
 /**
  * Notes where autoplay got stuck (ProblemLog), unless the tab is in a private window: the list
  * is kept on disk (storage.local) and shown on the options page, and a private window's pages
- * leave nothing behind - its sites were listed there for good (this review, 2026-10-13).
+ * leave nothing behind - its sites were listed there for good.
  * @param {number} tabId - The tab it happened in.
  * @param {{url: string, kind: string, mode: 'player'|'mpv'}} problem
  * @return {Promise<void>}
@@ -3166,7 +3152,7 @@ async function openPlayerIfVideo(frame) {
     return;
   }
   // Again after the wait for the lengths (up to SourceLengthWaitMs): a tab that went on
-  // to another site meanwhile dropped the frame (glm's second look, 2026-10-13).
+  // to another site meanwhile dropped the frame.
   if (frame.isTracked() && frame.tab.isOn && !frame.tab.isMpv) {
     openPlayer(frame);
   }
@@ -3873,8 +3859,8 @@ export async function hlsQualityChoice(tab, url) {
   if (!hls) {
     // The list comes from the master playlist's read, which started when it was detected. An
     // allowlisted site's first stream goes at once, and the toolbar's MPV sends without waiting
-    // for the lengths: a variant whose own read ended first went while the master's still ran
-    // (glm's review of #480). So every HLS playlist of the tab still being read is waited for.
+    // for the lengths: a variant whose own read ended first went while the master's still ran.
+    // So every HLS playlist of the tab still being read is waited for.
     const sources = tab ? [...tab.getFrames()].flatMap((frame) => frame.getSources()) : [];
     const hlsSources = sources.filter((s) => s.mode === PlayerModes.ACCELERATED_HLS);
     const pending = hlsSources.filter((s) => Lengths.lengthOf(s.url) === undefined);

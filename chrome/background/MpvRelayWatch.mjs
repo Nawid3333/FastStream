@@ -8,7 +8,7 @@ import {cutToLength} from './MpvTarget.mjs';
  * Until host 14 the helper followed mpv itself (watchMpv in native-host/faststream-mpv-host.mjs)
  * and told the extension only the outcome: a file's end, a key for the next episode. Every
  * refinement of what counts as an end (host 14's pause at the end, measured on 2026-10-13)
- * was a new helper, installed by hand. The owner chose (2026-10-13) a thin helper that only
+ * was a new helper, installed by hand. The owner chose a thin helper that only
  * passes mpv's lines on and writes the allowlisted commands sent to it; the policy is here
  * now and updates with the extension. This is watchMpv's logic, line for line, over that port:
  * MpvBackend.watch() hands its events on unchanged, so background.mjs did not change.

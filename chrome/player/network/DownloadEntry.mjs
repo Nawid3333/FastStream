@@ -319,7 +319,7 @@ export class DownloadEntry {
    */
   notifyWatchers(name, ...args) {
     // A copy: a callback that removes a watcher (abortWatcher) made forEach skip the next one,
-    // which never heard how the download ended (final review, 2026-10-10).
+    // which never heard how the download ended.
     [...this.watchers].forEach((watcher) => {
       try {
         watcher.callbacks[name]?.(...args);

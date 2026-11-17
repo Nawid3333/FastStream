@@ -39,7 +39,7 @@ const PageQualities = (() => {
       if (height >= 100 && height <= 4320) return height;
     }
     // Not a number that ends a word or a version: a codec's, "H264", "H.264", "x265", went
-    // for the height (glm's second look, 2026-10-13).
+    // for the height.
     const digits = /(?<![\w.])(\d{3,4})\s*[pP]?(?!\d)/.exec(text);
     if (digits) {
       const height = parseInt(digits[1], 10);
@@ -103,7 +103,7 @@ const PageQualities = (() => {
       const label = plainLabel(entry.label);
       list.push({url, label, height: heightOf(label)});
       // No quality menu, whatever comes after: a page of 50,000 <source> elements had each
-      // compared with all before it, minutes on the page's main thread (glm's review, 2026-11-16).
+      // compared with all before it, minutes on the page's main thread.
       if (list.length > MAX_ENTRIES) return null;
     }
     return list.length >= 2 ? list : null;

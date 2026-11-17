@@ -138,7 +138,7 @@ export class BackgroundUtils {
       // MPV uses the plain purple icon, so clear any leftover state badge - or, when the
       // last hand-off failed, say so: the page plays on in the browser, and nothing else
       // would tell why. The title still names the mode ("MPV"): the tab is in it. An
-      // outdated host says so in the tooltip only: since the thin helper (2026-10-13) an
+      // outdated host says so in the tooltip only: since the thin helper an
       // older one still plays everything it is sent (through the messages it knows) and
       // lacks only newer features, which is no error to flag. A failure's reason comes first.
       setAction('setBadgeText', {

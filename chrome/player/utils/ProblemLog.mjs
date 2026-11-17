@@ -1,5 +1,5 @@
 // @ts-check
-// Sites where autoplay could not go on (his wish, 2026-10-11): kept per site and kind, newest
+// Sites where autoplay could not go on: kept per site and kind, newest
 // first, for the options page to list and report as a GitHub issue the user reviews. Only the
 // page's host and path are kept - a query often carries a session token.
 
@@ -40,7 +40,7 @@ export async function readProblems() {
 }
 
 // The changes to the list, one after the other: two notes at once (two tabs, the player's and
-// mpv's) read the same list, and the second write lost the first (final review, 2026-10-11).
+// mpv's) read the same list, and the second write lost the first.
 let changes = Promise.resolve();
 
 /**

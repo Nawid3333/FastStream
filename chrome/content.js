@@ -379,14 +379,14 @@
     });
     // A player that has linked up, which the page took out too (a re-render after the player
     // came): the page's element stayed hidden and its media paused themselves on every play,
-    // until FastStream was turned off or the page navigated (final review, 2026-10-10). Its
+    // until FastStream was turned off or the page navigated. Its
     // element is given back now; the entry stays, so removePlayers still tells the background
     // that the frame is gone, as before.
     iframeMap.forEach((iframeObj) => {
       if (iframeObj.iframe.isConnected) return;
       // Its miniplayer and its windowed fullscreen go too, as removePlayers does: the rest
       // of the page stayed hidden, and a next player's windowed fullscreen left its own box
-      // hidden, the elements being changed already (glm's review, 2026-10-13).
+      // hidden, the elements being changed already.
       unmakeMiniPlayer(iframeObj);
       if (iframeObj.windowedFullscreenState.active) {
         windowedFullscreenToggle(iframeObj);
@@ -524,7 +524,7 @@
    * with once the tab is closed (background.mjs rememberEpisodeLinks): null for one this page
    * has no link to (a button, or none). Only links within the page's own origin: the
    * background opens one later in a tab nobody looks at, and a link to another site (an ad's)
-   * went there with the tab's cookies (glm's review, 2026-10-27).
+   * went there with the tab's cookies.
    * @param {*} request
    * @param {*} sender
    * @param {Function} sendResponse
@@ -1241,8 +1241,8 @@
       windowedFullscreenState.active = false;
       iframeObj.iframe.setAttribute('style', windowedFullscreenState.oldStyle);
       undoFillScreenIframe(windowedFullscreenState.fillScreenWhitelist);
-      // Fitted at once: it waited a second, with the player at the size it had before
-      // (glm's audit, 2026-10-13). Again a second later, for a page whose own scripts lay
+      // Fitted at once: it waited a second, with the player at the size it had before.
+      // Again a second later, for a page whose own scripts lay
       // it out once it has its styles back.
       updateReplacedPlayers();
       setTimeout(() => {
@@ -1430,7 +1430,7 @@
    * a page that changed the attribute could leave its element hidden for good. A value equal
    * to the hidden one (overflow: hidden, margin: 0) was never saved and showSoft cleared it,
    * the saves were never deleted (a later replace restored a stale one), and !important was
-   * lost (review of 2026-10-14).
+   * lost.
    * @type {WeakMap<HTMLElement, Object<string, string[]>>}
    */
   const softSaves = new WeakMap();
@@ -2266,7 +2266,7 @@
     }
     // The video is found by its visibility, which a background tab tells only every second or
     // so (IntersectionObserver), and the background asks every 2 s: a second ask meanwhile
-    // clicked the play button again, and the player paused (final review, 2026-10-11).
+    // clicked the play button again, and the player paused.
     if (pagePlayerLooking) return null;
     pagePlayerLooking = true;
     let found;
@@ -2580,7 +2580,7 @@
 
   /**
    * Whether the page links a later episode of this page's season: a gap before it (a removed
-   * episode) is no season's end (glm's review, 2026-10-11).
+   * episode) is no season's end.
    * @param {Array<HTMLAnchorElement>} siteLinks - episodeLinksOf's site links, into a new tab too.
    * @return {boolean}
    */
@@ -2600,7 +2600,7 @@
     const series = EpisodeLinks.seriesOf(window.location.href);
 
     // 1. This page's episode number +1 (or -1), when the page links to it: the series part
-    // of the address stays, so it cannot be another show (2026-10-11). Also a link into a
+    // of the address stays, so it cannot be another show. Also a link into a
     // new tab: that address is the episode's, and it opens in this tab (the chain's).
     for (const candidate of EpisodeLinks.neighbourEpisodeUrls(window.location.href, isNext)) {
       const hit = links.series.find((a) => withoutHash(url_to_absolute(a.href)) === candidate);

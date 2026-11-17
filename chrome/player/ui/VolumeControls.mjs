@@ -24,7 +24,7 @@ export class VolumeControls extends EventEmitter {
     this.previousVolume = 1;
     this.muted = false;
     // The volume is saved this long after its last change: a wheel or a drag saved it at
-    // every step (review of 2026-10-14). What is heard and shown changes at once.
+    // every step. What is heard and shown changes at once.
     this.saveTimer = null;
     globalThis.addEventListener?.('pagehide', () => this.saveVolumeNow());
   }
@@ -180,7 +180,7 @@ export class VolumeControls extends EventEmitter {
       volume: 1,
     });
     // Changed while it was read (the player's first moments): the stored volume put the old
-    // one back over the user's, and saved that (glm's review, 2026-11-16).
+    // one back over the user's, and saved that.
     if (this.changedByUser) return;
     this.setVolume(/** @type {{volume: number}} */ (state).volume, true);
   }

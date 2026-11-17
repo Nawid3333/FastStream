@@ -228,6 +228,29 @@ state-changing listener already awaits. A new field that has to survive a wake
 goes into `PersistedTabFields`, and every place that sets it saves. Within one
 background lifetime the old in-memory logic was already right, so a test that
 never suspends the background cannot see this.
+
+What each persisted field keeps from going wrong after a wake (moved here from
+`TabTracker.mjs`'s comment, 2026-11-17):
+
+- `mpvAutoOpened`: the page's next stream request opened a second mpv window for a page
+  already handed off. `mpvOnPlay`: a woken background forwarded the page's first stream
+  after all.
+- `mpvError`, `mpvHostOutdated`, `protectedVideo`, `mpvDecoder`: the toolbar lost its "!"
+  for a failed hand-off, its outdated-host tooltip, its "DRM", and which decoder mpv uses.
+- `mpvPlayPendingUntil`, `mpvPlayedVideo`: a play still waiting for its stream.
+  `mpvLastPlaySend`: the last one sent, which keeps a player's second `play()` from opening a
+  second window.
+- `mpvTurnedOff`: the MPV Allowlist started MPV again on a site the user had turned it off on.
+- `playerPageFrames`: a player's end found no page to go on to the next episode in (his
+  report, 2026-10-23: the countdown stopped at "1 s"; measured, the event page unloads after
+  30 s).
+- `playerNotice`: a player that loaded after a wake said nothing of why it opened in place of
+  mpv (glm's review; `sendSources` saves its clearing).
+- `mpvStandInPage` and the `mpvPage` it names: a woken background took the toolbar's click on
+  an On that stands in for MPV as On -> MPV, one click late (glm's review, 2026-11-16).
+
+The rest of a TabHolder (frames, detected sources) describes the current page and is rebuilt
+as that page makes requests.
 `tests/e2e/classic-specs/` (`toolbar-state`, `mpv-suspend`, `toolbar-cycle-mpv`,
 `mpv-shortcut`) click the toolbar, press keys, and suspend the background from Firefox's chrome context,
 which needs WebDriver classic, hence its own `wdio.classic.conf.mjs` (run by

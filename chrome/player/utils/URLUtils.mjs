@@ -89,7 +89,7 @@ export class URLUtils {
    * without it every video there went on at the last one's time). Any other fragment is dropped,
    * as before: a media fragment (#t=30), a type hint (#.mp4, #hls), a page's flag (#autoplay), a
    * route (#/x). The request for the file has no fragment, and the page's address of the same
-   * file must give the same identifier (glm's review).
+   * file must give the same identifier.
    * @param {string} url
    * @return {string}
    */

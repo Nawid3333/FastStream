@@ -33,8 +33,8 @@ export function modeFromContentType(headers) {
 }
 
 // Files a media element plays that the player's MP4 mode cannot read (it reads MP4 only):
-// played as they are, as a .webm URL already is (URLUtils) - and an .mkv one (2026-10-05).
-// application/ogg is how many servers name an Ogg video (final review, 2026-10-10).
+// played as they are, as a .webm URL already is (URLUtils) - and an .mkv one.
+// application/ogg is how many servers name an Ogg video.
 const DIRECT_TYPES = ['video/webm', 'video/ogg', 'application/ogg', 'video/x-matroska', 'video/matroska'];
 
 /**

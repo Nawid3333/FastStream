@@ -273,8 +273,7 @@ export class OPFSManager {
         /** @type {Worker} */ (this.worker).postMessage({id, op, ...payload}, transfer || []);
       } catch (e) {
         // Never sent (a buffer given away already, data that cannot be copied): left waiting,
-        // it kept the watchdog going, and 30 s later the working worker counted as crashed
-        // (glm's review, 2026-10-13).
+        // it kept the watchdog going, and 30 s later the working worker counted as crashed.
         this.pending.delete(id);
         if (this.pending.size === 0) clearTimeout(/** @type {number} */ (this.watchdog));
         reject(e);

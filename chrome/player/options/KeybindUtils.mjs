@@ -52,7 +52,7 @@ export const SPEED_PRESETS = [1, 2, 2.5, 3, 3.5, 4, 5, 8, 16];
 
 // The fastest a speed preset plays: Firefox's own limit for a media element. Above the
 // player's maxPlaybackRate (8) Firefox plays no sound, measured; the 16x key plays 16x
-// anyway, silent, as mpv's does (his decision, 2026-10-10).
+// anyway, silent, as mpv's does.
 export const SILENT_MAX_PLAYBACK_RATE = 16;
 
 /**
@@ -108,7 +108,7 @@ export const FIXED_SEEKS = {
 export const ADDED_IN_VERSION_3 = Object.keys(FIXED_SEEKS);
 
 /**
- * The defaults version 4 moved (2026-10-10), by action, with the key they had: the speed
+ * The defaults version 4 moved, by action, with the key they had: the speed
  * steps to S and D, as in mpv, and Save video off D to Shift+D. Save video first, so D is
  * free when the speed-up comes to it.
  */
@@ -119,7 +119,7 @@ export const MOVED_IN_VERSION_4 = {
 };
 
 /**
- * The keys version 5 renamed (2026-10-28): numpad keys that type nothing, NumLock off, went by
+ * The keys version 5 renamed: numpad keys that type nothing, NumLock off, went by
  * position, so a binding recorded on one was saved under that name. They go by what they do
  * now, as the main keys do (upstream #482). With NumLock on, a numpad digit was a digit already.
  */

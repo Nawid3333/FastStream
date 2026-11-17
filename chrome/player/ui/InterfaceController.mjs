@@ -358,7 +358,7 @@ export class InterfaceController {
 
     if (total === 0 || loaded < total) {
       this.shownDownloadComplete = false;
-      // "3C": the connections downloading now, as upstream showed (the owner's wish, 2026-10-22).
+      // "3C": the connections downloading now, as upstream showed.
       this.setStatusMessage('download', downloadStatusText(this.client.downloadManager.runningCount(), this.lastSpeed, percentDone), 'success');
     } else if (!this.shownDownloadComplete) {
       this.shownDownloadComplete = true;
@@ -657,7 +657,7 @@ export class InterfaceController {
       this.toggleAutoplayNext();
     });
 
-    // The autoplay switch, a tool of its own (his wish, 2026-10-11): what the right click on
+    // The autoplay switch, a tool of its own: what the right click on
     // the next button did, for this tab, which nobody found. The options page's setting is
     // where a new tab starts.
     DOMElements.autoplaySwitch.tabIndex = 0;

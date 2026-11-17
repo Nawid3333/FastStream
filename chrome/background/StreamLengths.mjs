@@ -165,7 +165,7 @@ export class StreamLengths {
   /**
    * Notes what a finished read told of a stream's copy protection, either way. Not for a URL
    * forgotten while it was read (MAX_KNOWN): nothing would forget its mark, and the stream,
-   * detected again and read as clear, still counted as protected (glm's review of #606).
+   * detected again and read as clear, still counted as protected.
    * @param {string} url - The stream's URL, as detected.
    * @param {boolean} copyProtected - What its manifest says.
    */

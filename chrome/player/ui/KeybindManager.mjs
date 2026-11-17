@@ -165,7 +165,7 @@ export class KeybindManager extends EventEmitter {
             this.presetRevertMemory[action]);
         this.presetRevertMemory[action] = remembered;
         if (rate !== this.client.playbackRate) {
-          // Past the sound only for a preset: 16x plays 16x, silent (2026-10-10).
+          // Past the sound only for a preset: 16x plays 16x, silent.
           this.client.setPlaybackRate(rate, true);
         }
         this.client.interfaceController.showControlBarTemporarily();

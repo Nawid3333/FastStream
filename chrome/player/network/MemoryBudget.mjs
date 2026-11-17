@@ -26,7 +26,7 @@ export const KEEP_IN_RAM_ONLY_WINDOW = {behind: 5, ahead: 30};
 export const KEEP_AT_LEAST = {behind: 0, ahead: 10};
 // A budget of 0 keeps nothing in RAM: in a normal window all but the next seconds goes to
 // disk (KEEP_AT_LEAST). What is downloaded passes through RAM on its way there, so downloads
-// ahead go on while a player holds less than this; the user's decision (2026-10-09): 0 RAM
+// ahead go on while a player holds less than this; the user's decision: 0 RAM
 // is straight to disk, not nothing downloaded ahead. A private window keeps nothing on disk:
 // there, 0 downloads nothing ahead.
 export const DISK_ONLY_ROOM_BYTES = 64e6;

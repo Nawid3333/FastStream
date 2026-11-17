@@ -35,8 +35,7 @@ function trimTracked(list, urlOf, isFile) {
   }
   while (list.length > TrackedLimit) {
     // Never the one just added: in a list of manifests only (a live playlist whose address
-    // changes with each reload) a new file was the only file, and went at once, every time
-    // (glm's review, 2026-10-13).
+    // changes with each reload) a new file was the only file, and went at once, every time.
     const file = list.findIndex((entry) => entry !== added && isFile(entry));
     list.splice(file === -1 ? 0 : file, 1);
   }
@@ -606,7 +605,7 @@ export class TabHolder {
     const mark = (f) => {
       // The pages inside first, so a page is newer than its frames' pages: the oldest go
       // when there are too many, and a page marked before its frames went first when all
-      // of them had detected something (glm's second look, 2026-10-13).
+      // of them had detected something.
       f.children.forEach(mark);
       if (f.documentKey) {
         // Deleted first: a Map keeps a key it already has at its old place, and the
@@ -622,8 +621,7 @@ export class TabHolder {
     while (this.goneDocuments.size > GoneDocumentLimit) {
       // A page that detected nothing goes first, then the oldest: content.js names the page
       // in every frame, and a page with more than the limit of them (an ad's each) pushed
-      // its own page, marked first, out with its streams, which Back then did not give back
-      // (glm's review, 2026-10-13).
+      // its own page, marked first, out with its streams, which Back then did not give back.
       let drop = this.goneDocuments.keys().next().value;
       for (const [key, kept] of this.goneDocuments) {
         if (kept.sources.length === 0 && kept.subtitles.length === 0) {
@@ -736,26 +734,10 @@ export class TabHolder {
 // Prefix of the storage.session key each tab's toggle state is kept under.
 const TabStateKeyPrefix = 'tabState:';
 
-// Firefox runs the background as an event page and unloads it after ~30 idle
-// seconds, which takes every TabHolder with it. What the user chose with the
-// toolbar button is kept in storage.session (cleared when the browser closes,
-// the same lifetime tab ids have) so a woken background still knows it.
-// mpvAutoOpened goes with it: without it the page's next stream request after a
-// wake opens a second mpv window for a page already handed off. mpvOnPlay too,
-// or a woken background forwards the page's first stream after all. mpvError and
-// mpvHostOutdated, or the toolbar's "!" for a failed hand-off and its tooltip for an outdated
-// host went at the wake; protectedVideo, or its "DRM"; mpvDecoder, or its tooltip forgot which decoder mpv uses. And a play still waiting for its
-// stream (mpvPlayPendingUntil, mpvPlayedVideo) and the last one sent (mpvLastPlaySend,
-// which keeps a player's second play() from opening a second window). mpvTurnedOff, or the
-// MPV Allowlist started MPV again on the site the user had turned it off on. playerPageFrames,
-// or a player's end found no page to go on to the next episode in (his report, 2026-10-23:
-// the countdown stopped at "1 s"; measured, the event page unloads after 30 s). playerNotice,
-// or a player that loaded after a wake said nothing of why it opened in place of mpv (glm's
-// review; sendSources saves its clearing). mpvStandInPage, and the mpvPage it names, or a
-// woken background took the toolbar's click on an On that stands in for MPV for On -> MPV, one
-// click late (glm's review, 2026-11-16). The rest of
-// a TabHolder - frames, detected sources - describes the current page and is rebuilt as
-// that page makes requests.
+// Firefox unloads the idle event page (~30 s), and every TabHolder with it. These fields are
+// kept in storage.session (cleared with the browser, as tab ids are) so a woken background
+// still knows them; why each one: docs/notes/mpv.md, "What each persisted field keeps".
+// The rest of a TabHolder describes the current page and is rebuilt from its requests.
 const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened',
   'mpvError', 'mpvHostOutdated', 'protectedVideo', 'mpvDecoder', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend',
   'mpvTurnedOff', 'windowStateBefore', 'carriedFullscreenFrameId', 'carryAwaited', 'playerPageFrames', 'playerNotice',

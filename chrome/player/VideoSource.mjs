@@ -63,7 +63,7 @@ const PublicSecondLevel = /^(ac|co|com|edu|gov|go|ne|net|or|org)$/;
  */
 export function siteOfHost(host) {
   // A host's trailing dot (the root) names the same host: kept, every "x.com." was the
-  // site "com." (Claude's review of #714).
+  // site "com.".
   host = host.replace(/\.$/, '');
   const labels = host.toLowerCase().split('.');
   if (labels.length <= 2 || /^\d+$/.test(labels[labels.length - 1]) || host.includes(':')) return host.toLowerCase();
@@ -151,7 +151,7 @@ export class VideoSource {
    * to another site. The source's are what the page's request sent to the source's host, its
    * Cookie included, and a header rule sets them on each request: a playlist that named another
    * host for a segment or a key had the source site's session cookie sent there, which the
-   * browser itself never does (glm's review, 2026-11-16). Referer and Origin go everywhere: a
+   * browser itself never does. Referer and Origin go everywhere: a
    * CDN checks them, and the browser sends them across sites too.
    * @param {string} url - The request's address.
    * @return {Object<string, string>}

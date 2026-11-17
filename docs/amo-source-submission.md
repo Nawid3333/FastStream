@@ -78,7 +78,7 @@ file times.
    This is the key point for review: every bundled library is a **pinned
    npm release plus a readable diff**, not an opaque vendored blob. The
    one exception is Coloris, which is not on npm: it is pinned to its git
-   tag in `package.json` (`github:mdbassit/Coloris#v<version>`, v0.25.1 on 2026-11-17), and the
+   tag in `package.json` (`github:mdbassit/Coloris#v<version>`), and the
    lockfile records the commit and the tarball's hash. The version in the
    lockfile is the version that ships.
 

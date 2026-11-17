@@ -140,7 +140,7 @@ export class SaveManager {
       }
       if (response && response.ok) {
         // Sent, through an outdated helper too (response.hostOutdated): since the thin helper
-        // (2026-10-13) an older one still plays the stream and lacks only newer features, and
+        // an older one still plays the stream and lacks only newer features, and
         // the owner chose silence here. The toolbar's tooltip and "Test mpv connection" say so.
         this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent'), 'info', 2000);
         // mpv has the stream now, so stop playing it here too: otherwise both
@@ -553,7 +553,7 @@ export class SaveManager {
 
       if (ext === 'json') {
         // An exported audio profile, the only .json the player took: skipped since the
-        // audio settings went (2026-10-10), rather than tried as a video.
+        // audio settings went, rather than tried as a video.
         continue;
       } else if (subtitleFormats.includes(ext)) {
         captions.push({

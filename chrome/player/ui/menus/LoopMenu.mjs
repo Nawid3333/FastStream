@@ -33,7 +33,7 @@ export class LoopMenu extends EventEmitter {
     this.timeupdateHandler = () => {
       // A GIF records from the animation frames, which a background tab does not get: nothing
       // ended the recording there, and the video played on at 4x, the whole file over and
-      // over, until the tab was shown again (glm's review, 2026-11-16). It is dropped instead.
+      // over, until the tab was shown again. It is dropped instead.
       if (document.hidden && this.gifLoopRunning) {
         this.stopGifRecording(true);
         this.endGifLoop();

@@ -282,7 +282,7 @@ export default class MP4Player extends EventEmitter {
       // makeSourceBuffers made a SourceBuffer for each track it found.
       // The tracks played now, not when this was set: switchAudioTrack's reset flushes mp4box,
       // which gives the samples of the audio before the switch that it still had - after the
-      // removal, so they would have stayed in the SourceBuffer (glm's review). Dropped.
+      // removal, so they would have stayed in the SourceBuffer. Dropped.
       const playedAudio = this.currentAudioTrack === null ? undefined : this.metaData?.audioTracks[this.currentAudioTrack];
       // A seek preview reading on to a place past the duration it knew (previewSeek): what it
       // reads on the way is not that place, and the seek's reset would take it away again. Only
@@ -1006,7 +1006,7 @@ export default class MP4Player extends EventEmitter {
       state = {bytes: 0, off: false, hadMetaData: !!this.metaData, moovInFirstPiece: false};
       this.fedRanges.set(frag, state);
       // Only an answer that is this range from its start: one whose Content-Range starts
-      // elsewhere would put its bytes at the wrong place in the file (glm's review).
+      // elsewhere would put its bytes at the wrong place in the file.
       if (parseInt(/^bytes (\d+)-/.exec(answer.contentRange)?.[1] ?? '', 10) !== frag.rangeStart) {
         state.off = true;
         return;
@@ -1241,7 +1241,7 @@ export default class MP4Player extends EventEmitter {
     // The media segments still queued would be appended only for the removal below to take
     // them away again: dropped instead, so the new place's segments follow the removal at
     // once. Before the flush: a segment the flush gives is appended under the new count
-    // (reloaded()), and dropped, its AbortError counted as a refusal (glm's review). It goes
+    // (reloaded()), and dropped, its AbortError counted as a refusal. It goes
     // in after the removal, as it always did.
     this.videoSourceBuffer?.dropQueuedMedia();
     this.audioSourceBuffer?.dropQueuedMedia();
@@ -1289,7 +1289,7 @@ export default class MP4Player extends EventEmitter {
     // The element would land a seek past its duration on that duration: one waiting to be set
     // (DurationSync) is set first. So does any seek while the element has none yet (NaN, or
     // +Infinity from an initialization segment without one): it is then held to what is
-    // buffered (glm's review). The latest seek wins.
+    // buffered. The latest seek wins.
     if (this.durationSync.pending && (!Number.isFinite(this.video.duration) || value > this.video.duration)) {
       this.pendingSeek = value;
       this.durationSync.whenApplied(() => {

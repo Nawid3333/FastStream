@@ -340,7 +340,7 @@ export class IndexedDBManager {
 
 window.addEventListener('beforeunload', async ()=>{
   // Over a copy: a persistent manager's close() takes it out of the list at once, and the
-  // manager after it was skipped - a temporary database left on disk (glm's review, 2026-11-16).
+  // manager after it was skipped - a temporary database left on disk.
   await Promise.all([...closeQueue].map((manager)=>{
     return manager.close();
   }));
