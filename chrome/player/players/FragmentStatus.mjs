@@ -1,6 +1,7 @@
 // @ts-check
 import {DefaultPlayerEvents} from '../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
+import {describeLoadError} from '../utils/PlayerErrorUtils.mjs';
 
 /** @typedef {import('../network/DownloadEntry.mjs').DownloadEntry} DownloadEntry */
 /** @typedef {import('./Fragment.mjs').Fragment} Fragment */
@@ -56,6 +57,7 @@ export function fragmentDownloadCallbacks(player, fragment, callbacks, succeed) 
         fragment.dataSize = entry.dataSize;
       } catch (e) {
         console.error(e);
+        fragment.failure = /** @type {Error} */ (e)?.message || 'stored data unreadable';
         setStatus(player, fragment, DownloadStatus.DOWNLOAD_FAILED);
         callbacks.onFail(entry);
         return;
@@ -66,6 +68,7 @@ export function fragmentDownloadCallbacks(player, fragment, callbacks, succeed) 
       succeed(entry, data);
     },
     onFail: (entry) => {
+      fragment.failure = describeLoadError(entry.stats?.error);
       setStatus(player, fragment, DownloadStatus.DOWNLOAD_FAILED);
       callbacks.onFail(entry);
     },

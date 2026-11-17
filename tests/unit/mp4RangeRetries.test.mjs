@@ -31,6 +31,18 @@ describe('MP4Player, a range whose retries were used up', () => {
     MP4Player.prototype.resetHLS.call(player, true);
     expect(player.rangeRetries.size).toBe(0);
   });
+
+  it('says why its last download failed, once playback reaches it', () => {
+    const frag = {sn: 2, failure: 'HTTP 403; through the page: The page did not answer'};
+    const player = {
+      rangeRetries: new Map([[frag, {count: 3, at: 0}]]),
+      video: {buffered: {length: 0}, currentTime: 0},
+      emit: vi.fn(),
+      running: true,
+    };
+    expect(() => MP4Player.prototype.retryFailedRange.call(player, frag)).toThrow();
+    expect(player.emit).toHaveBeenCalledWith('error', 'Range 2 failed to load (HTTP 403; through the page: The page did not answer)');
+  });
 });
 
 // A destroyed player gave its holds on the fragments back only through resetHLS: a seek preview

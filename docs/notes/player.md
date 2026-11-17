@@ -1046,7 +1046,11 @@ Only where its bytes come from changes, and only after FastStream's own request 
   the link's renewal as before. With no page (a player on its own tab, the web build), nothing
   changes. A server error, 429, 416 or a playlist answered as `text/html` is no refusal.
   (glm's review found the route-on-playlist, the routes kept across sources, and the head
-  timeout that did not tell the page to stop.)
+  timeout that did not tell the page to stop.) A download that fails both ways keeps both
+  causes (`stats.error.page`), and a range's error names them:
+  `Range 2 failed to load (HTTP 403; through the page: The page did not answer)` (#732).
+- **abyss.to's addresses** are `abysscdn.com/#mp4/r2/1/<size>/<size>/<quality>/h264?maxChunkSize=5242880`
+  since about 2026-11-17. Measured then: 403 direct, 206 for each 1 MB range through the page.
 - **Detection** needed nothing new. Firefox tells add-ons nothing of an answer a service worker
   gives (webRequest fires `onBeforeRequest` only, Mozilla bugs 1626831 and 1817450), but
   content.js reports the file a page's `<video>` got (`loadedmetadata`, `LOADED_MEDIA` live) by

@@ -67,6 +67,13 @@ describe('fragmentDownloadCallbacks', () => {
     expect(p.emit).not.toHaveBeenCalled();
   });
 
+  it('keeps why a download failed', () => {
+    const fragment = new Fragment(0, 1);
+    fragmentDownloadCallbacks(player(), fragment, {onFail: vi.fn()}, vi.fn())
+        .onFail({stats: {error: {code: 403, text: 'Forbidden', page: 'HTTP 403'}}});
+    expect(fragment.failure).toBe('HTTP 403; through the page: HTTP 403');
+  });
+
   it('counts stored data that cannot be read as a failed download', async () => {
     const p = player();
     const fragment = new Fragment(0, 1);
@@ -78,6 +85,7 @@ describe('fragmentDownloadCallbacks', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     await fragmentDownloadCallbacks(p, fragment, {onFail}, succeed).onSuccess(e);
     expect(fragment.status).toBe(DownloadStatus.DOWNLOAD_FAILED);
+    expect(fragment.failure).toBe('gone');
     expect(onFail).toHaveBeenCalledWith(e);
     expect(succeed).not.toHaveBeenCalled();
     expect(statuses(p)).toEqual([DownloadStatus.DOWNLOAD_FAILED]);
