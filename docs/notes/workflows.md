@@ -597,11 +597,10 @@
   through `tests/e2e/listen-or-stop.mjs`, which ends the run with "Port N is already in
   use" instead.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
-  actionlint image by digest, in `.github/actionlint/Dockerfile`, since Dependabot does
-  not update a `docker://` line); Dependabot bumps them, the workflows' and the composite
+  actionlint and zizmor images by digest, in their Dockerfiles: see below); Dependabot bumps them, the workflows' and the composite
   actions' (`/.github/actions/*`), minor/patch grouped, looked for daily, and wait for the owner's
   merge like every update.
-  `tests/unit/checkToolchain.test.mjs` fails for a pin in a form Dependabot does not update. Checked
+  `tests/unit/checkToolchain.test.mjs` fails for a pin in a form no updater reads. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
 - **Dependabot's docker job fails at every run since 2026-10-20** (found 2026-11-17; the
   runs are "docker in /.github/actionlint, /.github/zizmor", event `dynamic`, and nothing
@@ -610,9 +609,30 @@
   (`dependency_file_not_supported`). So zizmor stayed at 1.30.1 while 1.32.0 was out
   (2026-11-02); it was moved by hand on 2026-11-17, the digest read from ghcr.io as
   `tools/linux/setup.sh` reads it (the method gave 1.30.1's pinned digest exactly), and CI's
-  workflows job ran the new image over every workflow. actionlint is current (1.7.12). Until
-  the job works again, compare the two Dockerfiles with their projects' latest releases by
-  hand now and then.
+  workflows job ran the new image over every workflow (#728).
+- **The images are `toolchain-updates.yml`'s since then** (2026-11-17): the docker entry left
+  `.github/dependabot.yml` (two updaters would race for one line, and it did not work), and
+  `tools/check-toolchain.mjs` (`IMAGES`) reads each FROM line's tag, asks the image's registry
+  for its tags and the digest of the newest x.y.z as `docker pull` does, with an anonymous
+  pull token, and raises "Toolchain update: zizmor 1.33.0" on `toolchain/zizmor-1.33.0`, changing only that
+  FROM line. Checked live: both registries gave exactly the pinned digests (actionlint 1.7.12,
+  zizmor 1.32.0), and the recipe turned main's 1.30.1 file into #728's byte for byte. A
+  registry that cannot be read fails the run, which opens "Toolchain updates workflow
+  failed". Not followed: the same tag pushed again with a new digest (Dependabot would have):
+  the pinned digest keeps working while the registry keeps it, and a lost one fails CI.
+  Every host it asks is fixed in `IMAGES` (registry, token endpoint), never taken from the
+  Dockerfile or an answer: CodeQL flagged the first version on #729 (js/request-forgery,
+  js/file-access-to-http: the FROM line chose the host), and the registry's `WWW-Authenticate`
+  realm and `Link` next-page URL were the same class of hole. A Dockerfile naming another image
+  fails the track; the next page is asked for by its last tag (`?n=1000&last=<tag>`, encoded),
+  which both registries page by exactly as their Link URLs do (checked: 62 and 41 tags, n=10).
+- **A failing Dependabot job opens an issue** (2026-11-17): `security-alerts.yml`'s daily
+  watch reads the runs of the "Dependabot Updates" workflow (`dynamic/dependabot/dependabot-updates`,
+  found by path: its id is the repository's own) and lists each job whose last two runs
+  failed in "Dependabot update jobs failing", edited daily, closed once none fails. A job
+  whose newest run is over 26 hours old counts no more, so one taken out of
+  `dependabot.yml` (or a single security update's) drops out by itself. On the real runs
+  that day it named exactly the docker job.
 - **No CVE watch for the vendored components outside the lockfile** (vtt.js; StreamSaver
   until its body became FastStream's own, knob until 2026-10-10): measured 2026-09-25, OSV has
   never recorded a vulnerability for any of them, so a workflow could never fire. They are

@@ -108,7 +108,7 @@ EOF
 if [ "\${1-}" = tools/check-toolchain.mjs ]; then
   printf 'node %s\n' "\$*" >> "\$STATE/gh.log"
   # The recipes' own calls read and write files only: the work tree's copy runs for real.
-  case "\${2-}" in --apply-addon|--addon-version|--apply-players) exec "$REAL_NODE" "\$@" ;; esac
+  case "\${2-}" in --apply-addon|--addon-version|--apply-players|--apply-image|--image-version) exec "$REAL_NODE" "\$@" ;; esac
   if [ "\${2-}" = --plan ]; then cp "\$3" "\$STATE/open.seen"; cp "\$4" "\$STATE/titles.seen"; cat "\$STATE/plan.json"; else echo 'UPDATE  (canned)'; fi
   exit 0
 fi
@@ -158,6 +158,9 @@ setup() {
     sed -i "s/^    version: '[^']*',\$/    version: '1.75.0',/" tools/setup-dev-profile.mjs
     # The player libraries, as main has them: two, at old releases.
     printf '{\n  "plyr": "3.8.5",\n  "dplayer": "1.27.1"\n}\n' > tests/e2e/live-specs/player-libraries.json
+    # The zizmor image, pinned as main pins it.
+    mkdir -p .github/zizmor
+    printf '# The zizmor image.\nFROM ghcr.io/zizmorcore/zizmor:1.30.1@sha256:%s\n' "$(printf 'a%.0s' {1..64})" > .github/zizmor/Dockerfile
     git add -A && git commit -q -m init && git remote add origin "$T/origin.git" && git push -q origin main
   )
   echo '[]' > "$STATE/prs.json"
@@ -181,6 +184,11 @@ ublock_update() { # <latest> <sha256>
   jq -cn --arg l "$1" --arg s "$2" '{name: "uBlock Origin", current: "1.75.0", latest: $l, behind: true, routine: true, note: "n",
     title: "Toolchain update: uBlock Origin \($l)", file: {url: "https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-\($l).xpi", sha256: $s}}'
 }
+image_update() { # <latest> [digest]
+  jq -cn --arg l "$1" --arg d "${2-$IMAGE_DIGEST}" '{name: "zizmor", current: "1.30.1", latest: $l, behind: true, routine: true, note: "n",
+    title: "Toolchain update: zizmor \($l)", image: {digest: $d}}'
+}
+IMAGE_DIGEST=sha256:$(printf 'b%.0s' {1..64})
 
 # --- Scenarios.
 
@@ -592,6 +600,96 @@ ublock_repair_rebuilds() {
   check 'CI started' has_call 'workflow run ci.yml --ref toolchain/ublock-origin-1.76.0'
 }
 
+image_raise() {
+  setup
+  plan "[$(image_update 1.32.0)]" '[]'
+  run_step
+  b=toolchain/zizmor-1.32.0
+  check 'exit 0' test "$rc" -eq 0
+  check 'only its Dockerfile' test "$(branch_diff "$b")" = .github/zizmor/Dockerfile
+  check 'its FROM line at the tag and digest' test "$(origin show "$b:.github/zizmor/Dockerfile" | sed -n 's/^FROM //p')" = "ghcr.io/zizmorcore/zizmor:1.32.0@$IMAGE_DIGEST"
+  check 'nothing else in it' test "$(origin diff main "$b" | grep -c '^[-+][^-+]')" = 2
+  check 'commit message' test "$(origin log -1 --format=%s "$b")" = 'build: zizmor 1.30.1 -> 1.32.0'
+  check 'pull request' has_call "pr create --base main --head $b --title Toolchain update: zizmor 1.32.0 --label dependencies"
+  check 'CI started' has_call "workflow run ci.yml --ref $b"
+  check 'names the change' grep -qF 'changes only the FROM line of `.github/zizmor/Dockerfile`' "$STATE/created.body"
+  check 'says where the digest is from' grep -qF 'the registry gives for the tag 1.32.0 today' "$STATE/created.body"
+  check 'main untouched' test "$(origin rev-list --count main)" = 1
+}
+
+image_no_digest() {
+  setup
+  plan "[$(image_update 1.32.0 | jq -c 'del(.image)')]" '[]'
+  run_step
+  check 'fails, not stopped by the timeout' test "$rc" -eq 1
+  check 'says why' grep -qF 'The plan gives no digest for zizmor 1.32.0.' "$T/out"
+  check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
+  check 'no pull request' bash -c '! grep -q "^pr create" "$0"' "$STATE/gh.log"
+}
+
+image_not_newer() {
+  # The checker's bug: a version that is not newer than main's is refused, not written.
+  setup
+  plan "[$(image_update 1.30.1)]" '[]'
+  run_step
+  check 'fails' test "$rc" -eq 1
+  check 'says why' grep -qF 'ghcr.io/zizmorcore/zizmor 1.30.1 is not newer than 1.30.1' "$T/out"
+  check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
+}
+
+image_repair_main_has_it() {
+  setup
+  (
+    cd "$T/work" || exit 1
+    git checkout -q -b toolchain/zizmor-1.32.0
+    sed -i 's/:1.30.1@/:1.32.0@/' .github/zizmor/Dockerfile
+    git commit -q -am old && git push -q origin toolchain/zizmor-1.32.0
+    git checkout -q main
+    sed -i "s/:1.30.1@sha256:a*/:1.32.0@sha256:$(printf 'c%.0s' {1..64})/" .github/zizmor/Dockerfile
+    git commit -q -am 'zizmor 1.32.0 by hand' && git push -q origin main
+  )
+  old=$(origin rev-parse toolchain/zizmor-1.32.0)
+  open_pr 9 'Toolchain update: zizmor 1.32.0' toolchain/zizmor-1.32.0 "$old"
+  echo CONFLICTING > "$STATE/pr-9-mergeable"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not rebuilt' test "$(origin rev-parse toolchain/zizmor-1.32.0)" = "$old"
+  check 'says why' grep -qF 'main has zizmor 1.32.0 by now' "$T/out"
+}
+
+image_repair() { # <plan's zizmor version>: an open 1.32.0 that conflicts with main
+  setup
+  scenario=${FUNCNAME[1]}
+  (
+    cd "$T/work" || exit 1
+    git checkout -q -b toolchain/zizmor-1.32.0
+    sed -i 's/:1.30.1@/:1.32.0@/' .github/zizmor/Dockerfile
+    git commit -q -am old && git push -q origin toolchain/zizmor-1.32.0
+    git checkout -q main
+    echo x > later.txt && git add later.txt && git commit -q -m later && git push -q origin main
+  )
+  old=$(origin rev-parse toolchain/zizmor-1.32.0)
+  open_pr 9 'Toolchain update: zizmor 1.32.0' toolchain/zizmor-1.32.0 "$old"
+  echo CONFLICTING > "$STATE/pr-9-mergeable"
+  jq --argjson u "$(image_update "$1")" '. + {updates: [$u]}' "$STATE/plan.json" > "$STATE/p" && mv "$STATE/p" "$STATE/plan.json"
+  run_step
+}
+
+image_repair_rebuilds() {
+  image_repair 1.32.0
+  check 'exit 0' test "$rc" -eq 0
+  check 'rebuilt on main' test "$(origin rev-parse toolchain/zizmor-1.32.0~1)" = "$(origin rev-parse main)"
+  check 'with its digest' bash -c 'git -C "$0" show toolchain/zizmor-1.32.0:.github/zizmor/Dockerfile | grep -qF "$1"' "$T/origin.git" "$IMAGE_DIGEST"
+  check 'CI started' has_call 'workflow run ci.yml --ref toolchain/zizmor-1.32.0'
+}
+
+image_repair_not_newest() {
+  image_repair 1.33.0
+  check 'exit 0' test "$rc" -eq 0
+  check 'not rebuilt' test "$(origin rev-parse toolchain/zizmor-1.32.0)" = "$old"
+  check 'says why' grep -qF 'zizmor 1.32.0 is not the newest any more' "$T/out"
+}
+
 unexpected_file() {
   setup
   echo x > "$T/work/stray.txt"
@@ -971,6 +1069,12 @@ ublock_repair_main_has_it
 unread_source_fails_after
 ublock_repair_not_newest
 ublock_repair_rebuilds
+image_raise
+image_no_digest
+image_not_newer
+image_repair_main_has_it
+image_repair_rebuilds
+image_repair_not_newest
 unexpected_file
 push_closes_only
 close_states

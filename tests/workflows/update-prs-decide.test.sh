@@ -1446,32 +1446,36 @@ security_behind_starts_review() {
   check 'and the dependency review' has_call 'workflow run dependency-review.yml --ref security/overrides'
 }
 
-docker_ready() {
+image_ready() {
+  # An image's FROM line, CI green and the build unchanged: ready to merge (no Dependabot review).
   setup
-  export BRANCH='dependabot/docker/actionlint-1234'
-  prview '[".github/actionlint/Dockerfile"]' "[$(commit 'dependabot[bot]' 'build(deps): bump rhysd/actionlint')]"
+  export BRANCH='toolchain/zizmor-1.32.0'
+  pr app/github-actions
+  prview '[".github/zizmor/Dockerfile"]' "[$(commit 'github-actions[bot]' 'build: zizmor 1.30.1 -> 1.32.0')]"
+  echo '{"check_runs":[]}' > "$STATE/checkruns.json"
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'ready to merge' ready
 }
 
-docker_review_failed_waits() {
+image_other_file_waits() {
+  # Only its own Dockerfile: the other image's is a change it does not make.
   setup
-  export BRANCH='dependabot/docker/actionlint-1234'
-  prview '[".github/actionlint/Dockerfile"]' "[$(commit 'dependabot[bot]' 'build(deps): bump rhysd/actionlint')]"
-  echo '{"check_runs":[{"conclusion":"failure"}]}' > "$STATE/checkruns.json"
+  export BRANCH='toolchain/actionlint-1.7.13'
+  pr app/github-actions
+  prview '[".github/actionlint/Dockerfile",".github/zizmor/Dockerfile"]' "[$(commit 'github-actions[bot]' 'build: actionlint 1.7.12 -> 1.7.13')]"
   run_step
   check 'not called ready' not_ready
-  check 'says the review' grep -qF "Dependabot's dependency review is failure" <(last_comment)
+  check 'names the file' grep -qF 'it changes .github/zizmor/Dockerfile, not only .github/actionlint/Dockerfile' <(last_comment)
 }
 
-docker_other_file_waits() {
+image_from_dependabot_waits() {
+  # Dependabot's docker branches are no kind this workflow checks any more.
   setup
-  export BRANCH='dependabot/docker/actionlint-1234'
-  prview '[".github/actionlint/Dockerfile",".github/workflows/ci.yml"]' "[$(commit 'dependabot[bot]' 'build(deps): bump rhysd/actionlint')]"
+  export BRANCH='dependabot/docker/dot-github/actionlint/rhysd/actionlint-1.7.13'
+  prview '[".github/actionlint/Dockerfile"]' "[$(commit 'dependabot[bot]' 'build(deps): bump rhysd/actionlint')]"
   run_step
   check 'not called ready' not_ready
-  check 'names the file' grep -qF 'it changes .github/workflows/ci.yml, not only the actionlint and zizmor Dockerfiles' <(last_comment)
 }
 
 other_base() {
@@ -2309,9 +2313,9 @@ actions_other_file_waits
 too_many_files_waits
 too_many_commits_waits
 counts_unreadable_waits
-docker_ready
-docker_review_failed_waits
-docker_other_file_waits
+image_ready
+image_other_file_waits
+image_from_dependabot_waits
 other_base
 patched_waits
 patched_patch_ready

@@ -4,9 +4,10 @@ import fs from 'node:fs';
 import * as yaml from 'js-yaml';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {
-  aboveHold as aboveHoldOf, addonVersion, applyAddon, applyPlayers, getJson, holdProblem, latestLtsMajor, MAJOR_HOLDS, MIN_AGE_DAYS,
-  newestAddon as newestAddonOf, newestOfMajor as newestOfMajorOf, pinCandidates as pinCandidatesOf, plan, PLAYER_LIBRARIES,
-  playerState, playerTargets as playerTargetsOf, projectNodeMajor, relation, TITLE_PREFIX, UBLOCK,
+  aboveHold as aboveHoldOf, addonVersion, applyAddon, applyImage, applyPlayers, getJson, holdProblem, imageFile, imagePin, IMAGES,
+  latestLtsMajor, MAJOR_HOLDS, MIN_AGE_DAYS, newestAddon as newestAddonOf, newestImage, newestOfMajor as newestOfMajorOf, newestTag,
+  pinCandidates as pinCandidatesOf, plan, PLAYER_LIBRARIES, playerState, playerTargets as playerTargetsOf, projectNodeMajor,
+  relation, TITLE_PREFIX, UBLOCK,
 } from '../../tools/check-toolchain.mjs';
 import {ADDONS} from '../../tools/setup-dev-profile.mjs';
 
@@ -87,11 +88,9 @@ describe('every workflow takes Node from .nvmrc', () => {
   });
 });
 
-// A tool pinned in a form Dependabot does not update stays on its version, and nobody
-// hears of it: the actionlint image (a docker:// line in ci.yml) did until it moved to
-// .github/actionlint/Dockerfile, and the composite actions' pins would have without
-// their own directory in .github/dependabot.yml.
-describe('every pinned tool is one Dependabot updates', () => {
+// A tool pinned in a form no updater reads stays on its version, and nobody hears of it: the
+// composite actions' pins would have without their own directory in .github/dependabot.yml.
+describe('every pinned tool is one an updater updates', () => {
   const root = new URL('../../', import.meta.url);
   const read = (path) => fs.readFileSync(new URL(path, root), 'utf8');
   const workflows = fs.readdirSync(new URL('.github/workflows/', root))
@@ -116,7 +115,7 @@ describe('every pinned tool is one Dependabot updates', () => {
   });
 
   it('runs no docker:// image, and no job container or service image', () => {
-    // Dependabot updates none of these in a workflow.
+    // No updater reads these in a workflow: an image is pinned in a Dockerfile of IMAGES.
     for (const file of [...workflows, ...actions]) {
       expect(read(file), file).not.toMatch(/^ *(?:- )?uses: *['"]?docker:/m);
       expect(read(file), file).not.toMatch(/^ +(?:container|services):/m);
@@ -138,12 +137,19 @@ describe('every pinned tool is one Dependabot updates', () => {
     for (const [, name] of patterns.matchAll(/'([^']+)'/g)) expect(deps, name).toHaveProperty([name]);
   });
 
-  it('calls an actionlint or zizmor image update ready only when it changes nothing but their Dockerfiles', () => {
+  it('calls an actionlint or zizmor image update ready only when it changes nothing but its Dockerfile', () => {
     // CI runs every workflow file through the new image, and update-prs.yml calls the pull
     // request ready to merge once that is green and is all it changes.
     const gate = read('.github/workflows/update-prs.yml');
-    expect(gate).toMatch(/^ +dependabot\/docker\/\*\) kind=docker ;;$/m);
-    expect(gate).toContain('select(. != ".github/actionlint/Dockerfile" and . != ".github/zizmor/Dockerfile")');
+    expect(gate).toMatch(/^ +toolchain\/actionlint-\*\|toolchain\/zizmor-\*\) kind=image ;;$/m);
+    expect(gate).not.toContain('dependabot/docker/');
+  });
+
+  it('leaves the images to toolchain-updates.yml, not to Dependabot', () => {
+    // Dependabot's docker job failed at every run from 2026-10-20 on, and told no one; two
+    // updaters would also race for the same line.
+    expect(entry('docker')).toBe('');
+    expect(read('.github/workflows/toolchain-updates.yml')).toMatch(/^ +actionlint\|zizmor\)$/m);
   });
 
   it('has Dependabot watch the workflows and every composite action', () => {
@@ -154,19 +160,17 @@ describe('every pinned tool is one Dependabot updates', () => {
     for (const file of actions) expect(fs.existsSync(new URL(file, root)), file).toBe(true);
   });
 
-  it('pins the actionlint image by tag and digest where Dependabot updates it', () => {
+  it('pins the actionlint image by tag and digest where toolchain-updates.yml updates it', () => {
     const from = read('.github/actionlint/Dockerfile').split('\n').filter((line) => /^FROM\b/i.test(line));
     expect(from).toEqual([expect.stringMatching(/^FROM rhysd\/actionlint:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}$/)]);
-    expect(entry('docker')).toMatch(/^ +- '\/\.github\/actionlint'$/m);
     // Both readers of the pin read it from there.
     expect(read('.github/workflows/ci.yml')).toContain('sed -n \'s/^FROM //p\' .github/actionlint/Dockerfile');
     expect(read('tools/linux/setup.sh')).toContain('"$repo/.github/actionlint/Dockerfile"');
   });
 
-  it('pins the zizmor image by tag and digest where Dependabot updates it', () => {
+  it('pins the zizmor image by tag and digest where toolchain-updates.yml updates it', () => {
     const from = read('.github/zizmor/Dockerfile').split('\n').filter((line) => /^FROM\b/i.test(line));
     expect(from).toEqual([expect.stringMatching(/^FROM ghcr\.io\/zizmorcore\/zizmor:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}$/)]);
-    expect(entry('docker')).toMatch(/^ +- '\/\.github\/zizmor'$/m);
     expect(read('.github/workflows/ci.yml')).toContain('sed -n \'s/^FROM //p\' .github/zizmor/Dockerfile');
   });
 });
@@ -183,7 +187,7 @@ describe('no release wait anywhere', () => {
 
   it('in .github/dependabot.yml, which looks every day', () => {
     const {updates} = yaml.load(read('.github/dependabot.yml'));
-    expect(updates.length).toBeGreaterThanOrEqual(4);
+    expect(updates.length).toBeGreaterThanOrEqual(3);
     for (const update of updates) {
       const name = `${update['package-ecosystem']} ${update.directory ?? update.directories}`;
       expect(update.cooldown, name).toBeUndefined();
@@ -477,6 +481,125 @@ describe('getJson', () => {
     vi.stubGlobal('fetch', fetch);
     await getJson('https://example.com/d', {wait});
     expect(fetch.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+// actionlint and zizmor: the images CI's "Lint workflows" job runs, pinned on their Dockerfiles'
+// FROM lines and updated by toolchain-updates.yml.
+describe('the images', () => {
+  const D1 = `sha256:${'a'.repeat(64)}`;
+  const D2 = `sha256:${'b'.repeat(64)}`;
+  const dockerfile = (tag, digest = D1, image = 'ghcr.io/zizmorcore/zizmor') => `# a comment\nFROM ${image}:${tag}@${digest}\n`;
+
+  it('each Dockerfile of IMAGES names the image IMAGES has for it', () => {
+    expect(Object.keys(IMAGES)).toEqual(['actionlint', 'zizmor']);
+    for (const [name, {image}] of Object.entries(IMAGES)) {
+      expect(imagePin(fs.readFileSync(new URL(`../../${imageFile(name)}`, import.meta.url), 'utf8')).image, name).toBe(image);
+    }
+  });
+
+  it('asks only hosts fixed in IMAGES: the registry, and its token endpoint for that one image', () => {
+    for (const [name, {image, registry, repository, token}] of Object.entries(IMAGES)) {
+      expect(registry, name).toMatch(/^https:\/\/[a-z0-9.-]+$/);
+      // The image's own name: ghcr.io/<repository>, or Docker Hub's <repository>.
+      expect(image, name).toBe(registry === 'https://registry-1.docker.io' ? repository : `${new URL(registry).host}/${repository}`);
+      const url = new URL(token);
+      expect(url.protocol, name).toBe('https:');
+      expect(url.searchParams.get('scope'), name).toBe(`repository:${repository}:pull`);
+    }
+  });
+
+  it('reads one FROM line by tag and digest, and refuses any other', () => {
+    expect(imagePin(dockerfile('1.30.1'))).toEqual({image: 'ghcr.io/zizmorcore/zizmor', tag: '1.30.1', digest: D1});
+    expect(imagePin(dockerfile('1.7.12', D1, 'rhysd/actionlint')).image).toBe('rhysd/actionlint');
+    expect(() => imagePin('# nothing\n')).toThrow(/not one/);
+    expect(() => imagePin(`${dockerfile('1.30.1')}${dockerfile('1.30.2')}`)).toThrow(/not one/);
+    expect(() => imagePin('FROM ghcr.io/zizmorcore/zizmor:1.30.1\n')).toThrow(/not one/);
+    expect(() => imagePin('FROM ghcr.io/zizmorcore/zizmor:latest@' + D1 + '\n')).toThrow(/not one/);
+  });
+
+  it('rewrites the FROM line only, forward only', () => {
+    const {text, was} = applyImage(dockerfile('1.30.1').replaceAll('\n', '\r\n'), '1.32.0', D2);
+    expect(was).toBe('1.30.1');
+    expect(text).toBe(dockerfile('1.32.0', D2).replaceAll('\n', '\r\n'));
+    expect(() => applyImage(dockerfile('1.30.1'), '1.30.1', D2)).toThrow(/not newer/);
+    expect(() => applyImage(dockerfile('1.30.1'), '1.29.0', D2)).toThrow(/not newer/);
+    expect(() => applyImage(dockerfile('1.30.1'), '1.32.0', 'sha256:x')).toThrow(/not an image/);
+    expect(() => applyImage(dockerfile('1.30.1'), '1.32.0-rc1', D2)).toThrow(/not an image/);
+    // No `$` in a value is read as a replacement pattern.
+    expect(() => applyImage(dockerfile('1.30.1'), '$&', D2)).toThrow(/not an image/);
+  });
+
+  it('takes the newest x.y.z tag, not a moving or pre-release one', () => {
+    expect(newestTag(['latest', '1.7', '1.7.9', '1.7.12', '1.8.0-rc1', '1.7.10', 'sha256-abc.sig'])).toBe('1.7.12');
+    expect(newestTag(['latest', '1'])).toBeNull();
+  });
+
+  describe('newestImage', () => {
+    const wait = vi.fn(async () => {});
+    afterEach(() => vi.unstubAllGlobals());
+    const source = IMAGES.zizmor;
+    /**
+     * A registry as ghcr.io answers: a token, tags in pages (each but the last with a Link
+     * header, which names a host of its own choosing), a digest.
+     * @param {{pages?: string[][], digest?: string|null, token?: object}} [options]
+     */
+    const registry = ({pages = [['1.30.1', '1.32.0', 'latest']], digest = D2, token = {token: 'T'}} = {}) => {
+      const fetch = vi.fn(async (url, init = {}) => {
+        const u = new URL(url);
+        if (url === source.token) return Response.json(token);
+        expect(u.origin).toBe(source.registry);
+        expect(init.headers.authorization).toBe('Bearer T');
+        if (u.pathname === '/v2/zizmorcore/zizmor/tags/list') {
+          const last = u.searchParams.get('last');
+          const i = last === null ? 0 : pages.findIndex((page) => page.at(-1) === last) + 1;
+          const headers = i + 1 < pages.length ? {link: '<https://elsewhere.example/v2/x/tags/list?n=1000>; rel="next"'} : {};
+          return Response.json({tags: pages[i]}, {headers});
+        }
+        expect(u.pathname).toMatch(/^\/v2\/zizmorcore\/zizmor\/manifests\/\d+\.\d+\.\d+$/);
+        expect(init.method).toBe('HEAD');
+        expect(init.headers.accept).toContain('application/vnd.oci.image.index.v1+json');
+        return new Response(null, {status: 200, headers: digest ? {'docker-content-digest': digest} : {}});
+      });
+      vi.stubGlobal('fetch', fetch);
+      return fetch;
+    };
+
+    it('reads the newest tag across pages, and its digest, with an anonymous pull token', async () => {
+      const fetch = registry({pages: [['1.30.1', 'latest'], ['1.32.0', '1.31.0'], ['1.29.0']]});
+      await expect(newestImage(source, {wait})).resolves.toEqual({tag: '1.32.0', digest: D2});
+      expect(fetch.mock.calls.map(([url]) => url)).toEqual([source.token,
+        'https://ghcr.io/v2/zizmorcore/zizmor/tags/list?n=1000',
+        'https://ghcr.io/v2/zizmorcore/zizmor/tags/list?n=1000&last=latest',
+        'https://ghcr.io/v2/zizmorcore/zizmor/tags/list?n=1000&last=1.31.0',
+        'https://ghcr.io/v2/zizmorcore/zizmor/manifests/1.32.0']);
+    });
+
+    it('asks for the next page by its last tag, encoded, never at the URL the answer names', async () => {
+      const fetch = registry({pages: [['1.30.1', 'a&b=c'], ['1.32.0']]});
+      await newestImage(source, {wait});
+      expect(fetch.mock.calls[2][0]).toBe('https://ghcr.io/v2/zizmorcore/zizmor/tags/list?n=1000&last=a%26b%3Dc');
+      expect(fetch.mock.calls.some(([url]) => url.includes('elsewhere'))).toBe(false);
+    });
+
+    it('fails, rather than pin nothing, without a token, a tag or a digest', async () => {
+      registry({token: {}});
+      await expect(newestImage(source, {wait})).rejects.toThrow(/no token/);
+      registry({digest: null});
+      await expect(newestImage(source, {wait})).rejects.toThrow(/gives no digest/);
+      registry({digest: 'sha256:short'});
+      await expect(newestImage(source, {wait})).rejects.toThrow(/gives no digest/);
+      registry({pages: [['latest']]});
+      await expect(newestImage(source, {wait})).rejects.toThrow(/no x\.y\.z tag/);
+      registry({pages: [['1.30.1', 2]]});
+      await expect(newestImage(source, {wait})).rejects.toThrow(/no tags/);
+    });
+  });
+
+  it('closes an open image pull request once the Dockerfile has its version', () => {
+    const updates = [{name: 'zizmor', current: '1.32.0', latest: '1.32.0', behind: false}];
+    expect(plan(updates, [{number: 7, title: `${TITLE_PREFIX}zizmor 1.32.0`}], new Set()).close)
+        .toEqual([{number: 7, comment: 'The project now uses zizmor 1.32.0. Closing.'}]);
   });
 });
 

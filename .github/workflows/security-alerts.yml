@@ -852,7 +852,9 @@ jobs:
     permissions:
       contents: read        # main's .github/dependabot.yml, for each entry's limit
       pull-requests: read   # the open pull requests
-      issues: write         # the "Update pull requests piling up" and "Migration: ..." issues
+      actions: read         # the runs of Dependabot's update jobs
+      issues: write         # the "Update pull requests piling up", "Dependabot update jobs
+                            # failing" and "Migration: ..." issues
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
@@ -1000,6 +1002,59 @@ jobs:
             gh issue create --title "$TITLE" --body-file "$T/body.md"
           fi
 
+      # Dependabot's update jobs run on GitHub's side, and a failed one emails no one: its docker
+      # job failed at every run from 2026-10-20 to 2026-11-17 unseen. A job whose last two runs
+      # failed gets a row in one issue; a job whose newest run is over 26 hours old (one taken
+      # out of .github/dependabot.yml, a single security update) counts no more.
+      - name: Open, update or close the Dependabot failure issue
+        env:
+          TITLE: 'Dependabot update jobs failing'
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          now=$(date -u +%s)
+          id=$(gh api "repos/$GH_REPO/actions/workflows?per_page=100" \
+            --jq '[.workflows[] | select(.path == "dynamic/dependabot/dependabot-updates") | .id][0] // empty')
+          if [ -z "$id" ]; then
+            echo 'GitHub lists no workflow dynamic/dependabot/dependabot-updates: nothing to watch here, which is no good sign.' >&2
+            exit 1
+          fi
+          gh api "repos/$GH_REPO/actions/workflows/$id/runs?status=completed&per_page=100" > "$T/runs.json"
+          # A run's display title is "<job> - Update #<id>"; the job is "npm_and_yarn in /.", say.
+          # shellcheck disable=SC2016 # $now is jq's
+          jq -r --argjson now "$now" '
+            [.workflow_runs[] | {job: (.display_title | sub(" - Update #[0-9]+$"; "")), conclusion,
+              at: (.created_at | fromdateiso8601), url: .html_url}]
+            | group_by(.job)[] | sort_by(-.at)
+            | select(length >= 2 and .[0].at > $now - 26 * 3600
+                and all(.[0:2][]; .conclusion | IN("failure", "timed_out", "startup_failure")))
+            | "| \(.[0].job) | \(.[0].at | todate) | \(.[0].url) |"' "$T/runs.json" > "$T/failing.md"
+
+          open=$(gh issue list --state open --limit 200 --json number,title,author \
+            --jq '[.[] | select(.title == env.TITLE and .author.login == "app/github-actions")][0].number // empty')
+          if [ ! -s "$T/failing.md" ]; then
+            echo 'No Dependabot update job failed at its last two runs.'
+            if [ -n "$open" ]; then
+              gh issue close "$open" --reason completed --comment 'No Dependabot update job fails any more. Closing.'
+            fi
+            exit 0
+          fi
+          cat "$T/failing.md"
+          # shellcheck disable=SC2016 # backticks are Markdown
+          {
+            printf 'These Dependabot update jobs failed at their last two runs, and GitHub tells no one:\n\n'
+            printf '| Job | Last run | Its log |\n| --- | --- | --- |\n'
+            cat "$T/failing.md"
+            printf '\nWhile one fails, nothing in its directories is updated. The log says why (Actions, "Dependabot Updates"); a job of `.github/dependabot.yml` that cannot be made to work there is better taken out, and its files given to `toolchain-updates.yml`, as the actionlint and zizmor images were (`docs/notes/workflows.md`).\n\n'
+            printf 'This issue is updated once a day, and closes itself once none of them fails.\n'
+          } > "$T/body.md"
+          if [ -n "$open" ]; then
+            gh issue edit "$open" --body-file "$T/body.md" > /dev/null
+            echo "Updated #$open."
+          else
+            gh issue create --title "$TITLE" --body-file "$T/body.md"
+          fi
+
       # As the check's report above, for this job: one issue while it is open, a comment on it
       # for each later failure.
       - name: Report the watch's own failure
@@ -1016,6 +1071,6 @@ jobs:
             gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
-          printf 'The daily watch of the update pull requests (security-alerts.yml, job "Watch the update pull requests") failed: %s\n\nThe run log names the failed command. Until it is fixed, migration issues of closed pull requests stay open, pull requests held for new releases are not decided again, and piling-up pull requests raise no issue. Close this issue once it is fixed; a later failure opens a new one.\n' \
+          printf 'The daily watch of the update pull requests (security-alerts.yml, job "Watch the update pull requests") failed: %s\n\nThe run log names the failed command. Until it is fixed, migration issues of closed pull requests stay open, pull requests held for new releases are not decided again, and neither piling-up pull requests nor failing Dependabot jobs raise an issue. Close this issue once it is fixed; a later failure opens a new one.\n' \
             "$RUN_URL" > "$RUNNER_TEMP/body.md"
           gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"
