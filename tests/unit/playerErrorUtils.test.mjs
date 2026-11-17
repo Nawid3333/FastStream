@@ -94,6 +94,7 @@ describe('describeLoadError', () => {
     expect(describeLoadError({code: 0, text: 'NetworkError when attempting to fetch resource.'}))
         .toBe('NetworkError when attempting to fetch resource.');
     expect(describeLoadError({code: 500, text: ''})).toBe('HTTP 500');
+    expect(describeLoadError({code: 403, text: 'Forbidden', viaPage: true})).toBe('through the page: HTTP 403');
   });
 
   it('says nothing without an error', () => {

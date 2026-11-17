@@ -522,6 +522,7 @@ describe('FetchLoader', () => {
 
     expect(recorder.calls.map((c) => c.type)).toEqual(['onTimeout']);
     expect(loader.stats.aborted).toBe(true);
+    expect(loader.stats.error).toEqual({code: 0, text: 'No data for 0.2 s'});
   });
 
   it('abort() during an in-flight request suppresses every later callback', async () => {
@@ -1006,6 +1007,16 @@ describe('FetchLoader through the page', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('Forbidden', {status: 403})));
     const recorder = await load();
     expect(recorder.calls[0].args[0].error).toMatchObject({code: 403, page: 'The page did not answer'});
+  });
+
+  it('names the page once for a host that goes through it', async () => {
+    const page = pageAnswering([[206, {'content-range': 'bytes 0-2/10', 'content-type': 'video/mp4'}, [7, 8, 9]], [403, {}, []]]);
+    PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Forbidden', {status: 403})));
+    await load(makeRequest({rangeStart: 0, rangeEnd: 3}));
+    const refused = await load(makeRequest({url: 'https://example.com/next.ts'}));
+    expect(refused.calls[0].args[0].error).toMatchObject({code: 403, viaPage: true});
+    expect(refused.calls[0].args[0].error.page).toBeUndefined();
   });
 
   it('names no page in an error that never went through one', async () => {

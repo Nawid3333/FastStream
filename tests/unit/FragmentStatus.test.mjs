@@ -85,6 +85,7 @@ describe('fragmentDownloadCallbacks', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     await fragmentDownloadCallbacks(p, fragment, {onFail}, succeed).onSuccess(e);
     expect(fragment.status).toBe(DownloadStatus.DOWNLOAD_FAILED);
+    expect(fragment.failure).toBe('gone');
     expect(onFail).toHaveBeenCalledWith(e);
     expect(succeed).not.toHaveBeenCalled();
     expect(statuses(p)).toEqual([DownloadStatus.DOWNLOAD_FAILED]);

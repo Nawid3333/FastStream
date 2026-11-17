@@ -53,12 +53,13 @@ export function isNetworkFailure(reason) {
 }
 
 /**
- * @param {{code?: number, text?: string, page?: string}|undefined|null} error - FetchLoader's stats.error.
+ * @param {{code?: number, text?: string, page?: string, viaPage?: boolean}|undefined|null} error - FetchLoader's stats.error.
  * @return {string}
  */
 export function describeLoadError(error) {
   if (!error || typeof error !== 'object') return '';
   const answer = error.code ? 'HTTP ' + error.code : (error.text || '').trim();
+  if (error.viaPage) return clip(answer ? 'through the page: ' + answer : '');
   const page = error.page ? 'through the page: ' + error.page : '';
   return clip([answer, page].filter(Boolean).join('; '));
 }

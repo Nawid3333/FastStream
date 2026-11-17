@@ -57,6 +57,7 @@ export function fragmentDownloadCallbacks(player, fragment, callbacks, succeed) 
         fragment.dataSize = entry.dataSize;
       } catch (e) {
         console.error(e);
+        fragment.failure = /** @type {Error} */ (e)?.message || 'stored data unreadable';
         setStatus(player, fragment, DownloadStatus.DOWNLOAD_FAILED);
         callbacks.onFail(entry);
         return;
