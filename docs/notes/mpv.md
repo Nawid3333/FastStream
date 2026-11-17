@@ -684,7 +684,7 @@ or a pinned release gone upstream (shinchiro keeps about 30), opens or updates
 one issue, "mpv update failed: ...", which a later pass closes. A
 failed build keeps its branch, so it is not tried again; delete the branch to
 retry it.
-The host's own functions are unit tested (`tests/unit/MpvNativeHost`, `mpvHostPath`,
+The host's own functions are unit tested (`MpvNativeHost.test.mjs`, `mpvHostPath`,
 `mpvHostSecurity`, `mpvHostInstall`); the last two run the real PowerShell and the
 installed `.bat` on Windows only. What no suite covers is survival inside a real
 kill-on-close job object: check that by hand after a change to the launch.

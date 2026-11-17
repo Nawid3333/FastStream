@@ -1976,3 +1976,11 @@ What the review of 2026-11-16 left open. Each fix has a test that fails without 
   screen is the one reported, which `customSiteScripts.test.mjs` pins. Reporting more would put
   preloaded videos into the sources. No page with two `video`-path manifests in one scan is
   known; if one turns up, the test gets that page's shape first.
+- **The maintenance scan of the same day** found little else to remove. All 445 locale strings
+  are used (the ones built at run time, `prefix + '_' + value`, checked against the enums they are
+  built from; `options_general_vischangeaction_miniplayer` is live: only the web build drops that
+  value). Every skipped unit test is a platform one that CI runs on the other OS. No test helper
+  is unused. Every path the docs name exists or is written as history. One dead CSS rule went:
+  fluidplayer's `.pseudo_fullscreen`, which nothing ever set (`vtt.test.mjs`'s #292 test tries
+  every class the player has instead). Left as they are: 58 exports used only in their own file
+  (removing `export` gains nothing).
