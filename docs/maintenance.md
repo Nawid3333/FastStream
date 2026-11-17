@@ -212,6 +212,24 @@ those 7 days had to run a spec file again: a test that failed once and passed on
 retry leaves a green run, so this is the only place it shows up besides that run's
 summary. The next week's issue closes it, and so does a week with no retry.
 
+Three more watchers send issues (their details: `docs/notes/workflows.md`):
+
+- **Release failsafe** (`amo-signing-failsafe.yml`, after every release run and every 3
+  hours) makes sure each release reaches Firefox. "Release <tag> failed": a version tag got
+  no release, and two automatic retries did not help; fix what it reports, then run
+  `gh workflow run release.yml --ref <tag>`. "AMO signing incomplete: <tag>": Mozilla rejected
+  the version, or had not signed it 24 hours after it was published. "Update path broken:
+  <tag>": the way Firefox finds the update, from the `update_url` to the signed xpi, fails
+  somewhere; the issue quotes the check's output. Each closes itself at the first run that finds it
+  resolved. "Release failsafe failed" is the workflow's own failure.
+- **Real streams** (`live-streams.yml`, Mondays) plays real streams and sites' players.
+  "Real streams stop playing (<date>)" means a scheduled run failed; it closes itself once a
+  scheduled run passes. A stream or site it uses may just be down: run it again by hand
+  (Actions, Real streams, Run workflow) before looking further; the issue says the rest.
+- **Keepalive** (`keepalive.yml`, Wednesdays) re-enables the scheduled workflows before
+  GitHub disables them after 60 quiet days. "Keepalive failed" does not close itself: close
+  it once the workflow runs green again.
+
 A push to `main` is released even when a late run cancelled its CI run (GitHub once
 delivered an older push a second time), or when a push landed while
 it ran and nothing started CI after it: `auto-release.yml` restarts the run, or starts CI
