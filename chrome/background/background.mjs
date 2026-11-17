@@ -739,8 +739,9 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
       tab.isMpv = true;
       // The allowlist's own rule, even if the shortcut armed this tab.
       tab.mpvOnPlay = false;
-      startWithTrackedLater(tab, changeInfo.url, () => tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened,
-          () => openMpvWithSources(tab));
+      // MPV autoplay's next episode on another site is pickNextEpisodeForMpv's.
+      startWithTrackedLater(tab, changeInfo.url, () => tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened &&
+          !(tab.mpvNextEpisodeUntil > Date.now()), () => openMpvWithSources(tab));
     } else if (shouldAutoEnable && !tab.regexMatched && !tab.isOn) {
       // Not for a tab the user turned on (an On or MPV the lists did not start: the MPV key's
       // arm, the toolbar's On or On -> MPV): the user's own choice for the tab outranks the
@@ -2375,9 +2376,11 @@ async function attachPageQualities(tab, sources) {
 
 /**
  * What a hand-off to mpv answers: MpvBackend.openStream's answer, or openInMpv's refusal
- * of a stream Firefox VPN carries, a copy-protected one, or one only its page loads.
+ * of a stream Firefox VPN carries, a copy-protected one, or one only its page loads, or its
+ * drop of an MPV-mode hand-off whose page or MPV went while it was prepared.
  * @typedef {Awaited<ReturnType<MpvBackend['openStream']>>|{ok: false, vpn: true, error: string}|
- *   {ok: false, drm: true, error: string}|{ok: false, pageOnly: true, error: string}} MpvHandOff
+ *   {ok: false, drm: true, error: string}|{ok: false, pageOnly: true, error: string}|
+ *   {ok: false, dropped: true}} MpvHandOff
  */
 
 /**

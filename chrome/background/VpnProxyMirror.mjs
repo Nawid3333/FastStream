@@ -205,9 +205,19 @@ export class VpnProxyMirror {
     }
     const entry = this.hosts.get(hostKey);
     if (entry) {
+      const copyable = this.copyable(entry.key);
       entry.key = key;
       if (details.tabId >= 0) entry.tabId = details.tabId;
+      if (this.copyable(key) !== copyable) this.updateListener();
     }
+  }
+
+  /**
+   * @param {string} key - A remembered proxy's.
+   * @return {boolean} Whether FastStream can send its own requests through that proxy.
+   */
+  copyable(key) {
+    return CopyableTypes.includes(this.proxies.get(key)?.type || '');
   }
 
   /**
@@ -241,16 +251,19 @@ export class VpnProxyMirror {
    * @param {number} tabId - The tab it was seen in.
    */
   addHost(hostKey, key, tabId) {
-    const known = this.hosts.has(hostKey);
+    const known = this.hosts.get(hostKey);
     // Re-inserted, so the most recently used host is the last to go.
     this.hosts.delete(hostKey);
     this.hosts.set(hostKey, {key, tabId});
-    if (known) return;
+    if (known) {
+      if (this.copyable(known.key) !== this.copyable(key)) this.updateListener();
+      return;
+    }
     while (this.hosts.size > MaxHosts) {
       // The oldest host behind a proxy FastStream cannot copy goes first (kept only for
       // throughBrowserVpn): a run of them must not push out the hosts the mirror serves.
       const uncopyable = Array.from(this.hosts).find(([, entry]) =>
-        !CopyableTypes.includes(this.proxies.get(entry.key)?.type || ''));
+        !this.copyable(entry.key));
       this.hosts.delete(uncopyable ? uncopyable[0] : /** @type {string} */ (this.hosts.keys().next().value));
     }
     this.updateListener();
@@ -372,7 +385,7 @@ export class VpnProxyMirror {
     const api = this.permitted ? this.getProxyApi() : null;
     // A proxy FastStream cannot copy (MASQUE) would only hold its host's requests up.
     const urls = Array.from(new Set(Array.from(this.hosts)
-        .filter(([, entry]) => CopyableTypes.includes(this.proxies.get(entry.key)?.type || ''))
+        .filter(([, entry]) => this.copyable(entry.key))
         .map(([hostKey]) => `*://${hostKey.slice(2)}/*`)));
     const same = urls.length === this.listenerUrls.length && urls.every((u, i) => u === this.listenerUrls[i]);
     if (same && api) return;

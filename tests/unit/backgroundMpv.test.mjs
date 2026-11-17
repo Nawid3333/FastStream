@@ -882,6 +882,81 @@ describe('a hand-off the host answers after the tab went on to the next page', (
   });
 });
 
+describe('a hand-off still being prepared when the page went, or MPV was turned off', () => {
+  // The allowlist sends a page's first stream at once, and openInMpv waits for its master's
+  // read (hlsQualityChoice): a slow CDN's second.
+  async function detectWhileSlow() {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}, 1000)});
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(200);
+    expect(bg.toMpv()).toEqual([]);
+  }
+
+  it('sends the stream once its master is read', async () => {
+    await detectWhileSlow();
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
+  it('sends nothing for a page the tab left meanwhile', async () => {
+    await detectWhileSlow();
+    await bg.navigated(1, 'https://site.test/watch/2');
+    await bg.frameAdded(1, 0, 'https://site.test/watch/2', 'page-2');
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('sends nothing once MPV is off', async () => {
+    await detectWhileSlow();
+    await bg.command('toggle_mpv', 1);
+    expect(bg.session['tabState:1']).toMatchObject({isMpv: false});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.session['tabState:1'].mpvError).toBe(null);
+  });
+
+  it('sends nothing for a tab closed meanwhile', async () => {
+    await detectWhileSlow();
+    await bg.closed(1);
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+});
+
+describe('the same video played again while its send is answered', () => {
+  const PLAY = {type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: '', duration: 1400}};
+
+  async function playTwiceBeforeTheAnswer(openAnswer) {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}, 50),
+      onNative: (m) => (m.type === 'open' ? new Promise((resolve) => setTimeout(() => resolve(openAnswer), 2000)) :
+        {ok: true, hostVersion: RequiredHostVersion})});
+    await bg.navigated(1, PAGE);
+    await bg.command('toggle_mpv', 1);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(500);
+    await bg.message(PLAY, {tabId: 1, frameId: 0});
+    await bg.wait(100);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    await bg.message(PLAY, {tabId: 1, frameId: 0});
+    await bg.wait(3000);
+  }
+
+  it('leaves the page playing when mpv failed', async () => {
+    await playTwiceBeforeTheAnswer({ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion});
+    expect(bg.sent('PAUSE_MEDIA')).toEqual([]);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
+  it('pauses the page once mpv has it', async () => {
+    await playTwiceBeforeTheAnswer({ok: true, hostVersion: RequiredHostVersion});
+    expect(bg.sent('PAUSE_MEDIA').length).toBeGreaterThan(0);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+});
+
 describe('MPV mode switched off in the options', () => {
   // The option is the switch for the whole mpv integration, but a tab kept the mode it was
   // in: on a site on both the MPV Allowlist and the auto-enable list, every page's stream
@@ -1910,6 +1985,21 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     await bg.frameAdded(1, 6, 'https://hoster.test/e/2', 'hoster2');
     await bg.request({tabId: 1, url: AD, frameId: 6});
     await bg.wait(200);
+    await bg.request({tabId: 1, url: S2, frameId: 6});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([S1, S2]);
+  });
+
+  it('sends the longest stream of a next page on another allowlisted site too, not its ad', async () => {
+    const OTHER = 'https://other.test/watch/2';
+    const port = await onEpisode1({mpvAllowlist: ['https://site.test/', 'https://other.test/']});
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    await bg.navigated(1, OTHER);
+    await bg.frameAdded(1, 0, OTHER, 'ep2');
+    await bg.frameAdded(1, 6, 'https://hoster.test/e/2', 'hoster2');
+    await bg.request({tabId: 1, url: AD, frameId: 6});
+    await bg.wait(700);
     await bg.request({tabId: 1, url: S2, frameId: 6});
     await bg.wait(3000);
     expect(bg.toMpv()).toEqual([S1, S2]);

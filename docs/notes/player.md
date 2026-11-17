@@ -2059,3 +2059,27 @@ that fails without it.
   document has request .../clip.mp4", CI run 44121075279), so now and then the page is not cached
   through no fault of the extension's. A repeated round goes into `logs/retried.jsonl` as suite
   `classic-<build>-bfcache`, so the weekly flaky-specs issue counts it.
+
+## The background audit (2026-11-17)
+
+- **Length reads send login headers only to the master's own site** (`sourceHeadersFor`, as the
+  player does): a variant on another host got the master's Cookie and Authorization.
+- **A refused header rule no longer fails a length read.** Firefox refuses a `set` with no value
+  (`header-rules.e2e.mjs`); the read then went unread, and the stream was never marked
+  copy-protected or page-only. It reads without the headers now, as `MpvSubtitles` does.
+- **A header rule's `#fragment` is harmless.** Firefox 160 matches `urlFilter` against the URL
+  with its fragment (`header-rules.e2e.mjs`, "a URL with a #fragment"), though the request
+  never sends it.
+- **Firefox VPN: a host whose proxy changes kind is listened for again.** The listener only
+  covers hosts behind a proxy FastStream can copy (http, https); a host that went from MASQUE to
+  https stayed out of it. Test: `VpnProxyMirror.test.mjs`.
+- **TabTracker: a frame already forgotten is not forgotten again.** Firefox keeps a frame's id
+  across navigations, so a late FRAME_REMOVED removed the frame's next document
+  (`isTracked`). The saved states read at a wake no longer drop a player page frame noted
+  meanwhile. Tests: `TabTracker.test.mjs`.
+- Rejected: `DETECTED_SOURCE` without an address check (pages cannot send it; site scripts
+  send only `data:` URLs); length reads shared across containers (the same URL, and the data
+  stays in FastStream); an unbounded read queue (each URL is read once, pieces are skipped,
+  every fetch ends within 8 s); `tabs.onUpdated` re-creating a closed tab (only the first
+  `ensureOptions` after a wake, and the next wake prunes it); the container download's 30 s
+  timer (the player answers right after its anchor click).

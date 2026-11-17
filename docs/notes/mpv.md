@@ -985,3 +985,26 @@ own).
   the read (a second at most, before mpv's window is even up); a hand-off that throws keeps
   `mpvAutoOpened` (no reachable throw: `tabTitle` catches, and the hand-off answers `{ok: false}`);
   `watchNextEpisodeArrives`' timer dies with the event page (only its "no stream" note is lost).
+
+## The background audit (2026-11-17)
+
+- **A hand-off still being prepared sends nothing once its page, its tab or MPV went.**
+  `openInMpv` waits up to 1.5 s for a master playlist's read (`hlsQualityChoice`), and the
+  allowlist sends a page's first stream at once. mpv then started for a page the user had left,
+  a tab they had closed, or after they turned MPV off. The check runs just before
+  `Mpv.openStream`, only for a tab in MPV mode (the player's own button is unaffected), and its
+  answer `{ok: false, dropped: true}` is dropped by the callers: shown, Off put a "!" on the
+  button. Tests: `backgroundMpv.test.mjs`, "a hand-off still being prepared ...".
+- **A repeat play during an unanswered send no longer pauses the page.** The MPV key's repeat
+  rule paused at once; when mpv then failed (no helper, copy-protected, Firefox VPN), the page
+  stayed paused. A success pauses the page anyway (`pauseAfterHandOff`). The mark is kept in
+  memory only: after a wake, a repeat pauses as before. Test: "the same video played again
+  while its send is answered".
+- **MPV autoplay's next episode on another allowlisted site goes through its pick.** The
+  allowlist's start by address (500 ms after the address change) sent the newest stream, an
+  ad's, before `pickNextEpisodeForMpv` had the lengths; the episode was then dropped. Test:
+  "sends the longest stream of a next page on another allowlisted site too, not its ad".
+- Rejected: the player button's 3 s repeat guard ignoring the tab and start time (a repeat
+  click on the same stream within 3 s is what it guards against); a stale `time-remaining`
+  reply ending the next file (the helper relays commands and events over one mpv connection,
+  and mpv answers `get_property` synchronously, before any later event).

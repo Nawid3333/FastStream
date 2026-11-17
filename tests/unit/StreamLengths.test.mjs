@@ -330,6 +330,17 @@ describe('StreamLengths', () => {
     expect(other.calls).toHaveLength(2);
   });
 
+  it('reads the length without the rule\'s headers when the browser refused the rule', async () => {
+    const {fetch, calls} = server({'https://cdn.example/p.m3u8': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'}});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const lengths = new StreamLengths({fetch, setHeaders: async () => {
+      throw new Error('Invalid rule');
+    }});
+    expect(await lengths.probe({url: 'https://cdn.example/p.m3u8', mode: HLS,
+      headers: [{name: 'Referer', value: 'https://site.example/watch/1'}]})).toBe(60);
+    expect(calls).toHaveLength(1);
+  });
+
   it('sends the page\'s headers: Referer, Origin and Cookie by the rule, the rest with the request', async () => {
     const {fetch, calls} = server({'https://cdn.example/p.m3u8': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'}});
     const setHeaders = vi.fn(async () => {});
@@ -381,6 +392,27 @@ describe('StreamLengths', () => {
     const lengths = new StreamLengths({fetch, setHeaders});
     await lengths.probe({url: 'https://cdn.example/m.m3u8', mode: HLS, headers: {Referer: 'https://site.example/'}});
     expect(setHeaders.mock.calls.map((call) => call[0])).toEqual(['https://cdn.example/m.m3u8', 'https://cdn.example/v/index.m3u8']);
+  });
+
+  it('sends the login headers only to the master\'s own site, as the player does', async () => {
+    const {fetch, calls} = server({
+      'https://cdn.example/m.m3u8': {body: '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nhttps://other.test/v.m3u8\n'},
+      'https://other.test/v.m3u8': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'},
+    });
+    const setHeaders = vi.fn(async () => {});
+    const lengths = new StreamLengths({fetch, setHeaders});
+    expect(await lengths.probe({url: 'https://cdn.example/m.m3u8', mode: HLS, headers: {
+      'Referer': 'https://site.example/', 'Cookie': 'session=abc', 'Authorization': 'Bearer t', 'X-Token': 'x',
+    }})).toBe(60);
+    expect(calls.map((call) => call.init.headers)).toEqual([
+      {'authorization': 'Bearer t', 'x-token': 'x'},
+      {'x-token': 'x'},
+    ]);
+    expect(setHeaders.mock.calls).toEqual([
+      ['https://cdn.example/m.m3u8', [{operation: 'set', header: 'referer', value: 'https://site.example/'},
+        {operation: 'set', header: 'cookie', value: 'session=abc'}]],
+      ['https://other.test/v.m3u8', [{operation: 'set', header: 'referer', value: 'https://site.example/'}]],
+    ]);
   });
 
   it('reads each URL once', async () => {

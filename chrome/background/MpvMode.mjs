@@ -359,7 +359,7 @@ export function autoOpenInMpv(tab, url, headers) {
   tabTitle(tab.tabId).then((title) =>
     openInMpv(tab.tabId, url, tab, headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] forward result:', url, JSON.stringify(result));
-    if (!isHandOffPage(tab, page) || playHereInstead(tab, result)) {
+    if (!isHandOffPage(tab, page) || 'dropped' in result || playHereInstead(tab, result)) {
       return;
     }
     setMpvError(tab, result);
@@ -1157,12 +1157,15 @@ export function setMpvDecoder(tab, decoder) {
   Tabs.saveTabState(tab);
 }
 
+/** @type {WeakSet<Object>} tab.mpvLastPlaySend values whose send is not answered yet. */
+const PlaySendsUnanswered = new WeakSet();
+
 /**
  * Hands a video the user started to mpv, then pauses the page.
  *
  * The same video again within MpvPlayRepeatMs is the player repeating itself
  * (play() called twice, or resuming after pauseTabMedia), so it only pauses
- * the page again. openStream gets no tab: its per-page dedupe would swallow a
+ * the page again once mpv has it. openStream gets no tab: its per-page dedupe would swallow a
  * later, deliberate play of a video already sent (after closing mpv).
  *
  * @param {TabHolder} tab - The tab the video is in.
@@ -1179,11 +1182,16 @@ export function sendPlayedToMpv(tab, source, video = null) {
   const now = Date.now();
   const last = tab.mpvLastPlaySend;
   if (last && last.url === source.url && now - last.time < MpvPlayRepeatMs) {
-    pauseTabMedia(tab.tabId);
+    // Unanswered yet: its answer pauses the page if mpv has it, and a failure leaves it playing.
+    if (!PlaySendsUnanswered.has(last)) {
+      pauseTabMedia(tab.tabId);
+    }
     return;
   }
 
-  tab.mpvLastPlaySend = {url: source.url, time: now};
+  const sent = {url: source.url, time: now};
+  tab.mpvLastPlaySend = sent;
+  PlaySendsUnanswered.add(sent);
   Tabs.saveTabState(tab);
   const page = tab.mpvPage;
   // Only a video of a known length (not a live one), and past its first seconds: a play
@@ -1193,8 +1201,9 @@ export function sendPlayedToMpv(tab, source, video = null) {
   tabTitle(tab.tabId).then((title) =>
     openInMpv(tab.tabId, source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title,
         {startTime})).then((result) => {
+    PlaySendsUnanswered.delete(sent);
     if (Logging) console.log('[MPV] user play result:', source.url, JSON.stringify(result));
-    if (!isHandOffPage(tab, page) || playHereInstead(tab, result)) {
+    if (!isHandOffPage(tab, page) || 'dropped' in result || playHereInstead(tab, result)) {
       return;
     }
     setMpvError(tab, result);
@@ -1209,6 +1218,7 @@ export function sendPlayedToMpv(tab, source, video = null) {
       Tabs.saveTabState(tab);
     }
   }).catch((e) => {
+    PlaySendsUnanswered.delete(sent);
     console.error('Handing the played video to mpv failed', e);
     if (isHandOffPage(tab, page)) {
       setMpvError(tab, {ok: false, error: String(e)});
@@ -1267,6 +1277,8 @@ export function openMpvWithSources(tab) {
  *   {ok: false, drm: true, error}, or {ok: false, pageOnly: true, error}.
  */
 export async function openInMpv(tabId, url, ...rest) {
+  const holder = tabId !== undefined && tabId >= 0 ? Tabs.getTab(tabId) : null;
+  const mpvPage = holder?.isOn && holder.isMpv ? holder.mpvPage : null;
   let incognito;
   if (tabId !== undefined && tabId >= 0) {
     try {
@@ -1376,6 +1388,11 @@ export async function openInMpv(tabId, url, ...rest) {
     // A private window's stream: mpv keeps no resume position for it (the owner's pick,
     // 2026-10-14; fs-private, MpvTarget.mjs).
     rest[5] = {...(rest[5] || {}), private: true};
+  }
+  // The waits above take seconds on a slow CDN.
+  if (mpvPage !== null && (!isHandOffPage(holder, mpvPage) || !holder.isOn || !holder.isMpv || !Options.mpvMode)) {
+    if (Logging) console.log('[MPV] not handed off, its page or MPV went meanwhile:', url);
+    return {ok: false, dropped: true};
   }
   const result = await Mpv.openStream(url, ...rest);
   // MPV autoplay: the mpv it went to is followed (watchMpvFor). By the tab's id: the
