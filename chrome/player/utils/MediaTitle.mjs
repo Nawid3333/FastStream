@@ -188,7 +188,7 @@ export function guessMediaInfo(title, hostname = '', now = new Date().getFullYea
   // A season and an episode on either side of the name ("S2 - The Bear - Episode 5"): what
   // came after the last one named nothing, and the name is between them. Only then: after
   // them is the show's name, and between them the episode's ("Episode 5 - Pilot - Season 2 -
-  // The Bear"; review of the fixes, 2026-10-13).
+  // The Bear").
   if (!found.name && between !== null) {
     // A year after them is still the year ("S2 - The Bear - Episode 5 (2019)").
     const fromBetween = nameAndYear(between, site, now);

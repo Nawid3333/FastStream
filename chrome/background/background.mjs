@@ -746,7 +746,7 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
       // arm, the toolbar's On or On -> MPV): the user's own choice for the tab outranks the
       // standing list, so the first video they start here still goes where they chose.
       // Checking the MPV key's arm alone, the toolbar's On -> MPV went to the in-page
-      // player on the next page the list named (review of the fixes, 2026-10-13).
+      // player on the next page the list named.
       tab.regexMatched = true;
       tab.isOn = true;
       // Allowlisted sites default to MPV mode; everything else uses the
@@ -1148,7 +1148,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // The frames forgotten with it - a player inside a page that went too. A player's own
     // FRAME_REMOVED can come after its page's: kept in playerPageFrames, it was taken for a
     // player lost while Firefox had unloaded the background (restorePlayerFrame), made again
-    // with its page frame, and counted gone a second time (a review, 2026-11-13).
+    // with its page frame, and counted gone a second time.
     // The next episode's page went before a player took its instructions, and the address
     // after it is there already (the two come in either order): they end here, whatever
     // the page there is - one with no content script (a PDF, an error page) never names
@@ -1409,7 +1409,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     } else {
       // A player whose frame went (taken out of the page, its hoster's page gone) answers
       // nothing, and a new one in its frame (a reload) false: neither ends it, and the window
-      // stayed fullscreen with Escape doing nothing (a review, 2026-11-13). Ended here then.
+      // stayed fullscreen with Escape doing nothing. Ended here then.
       chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.EXIT_CARRIED_FULLSCREEN}, {frameId: playerFrameId}, (ended) => {
         if (chrome.runtime.lastError || ended !== true) endHere();
       });
@@ -1945,7 +1945,7 @@ function frameAndInside(frame) {
  * is told to let go - unless another player still lives under that iframe. Only the leaving of
  * the page that held the player did that before: an embed whose own page went elsewhere, or
  * took its player out, kept the page around it hiding its own menu over the embed, and
- * checking it every second (a review, 2026-11-13).
+ * checking it every second.
  * @param {TabHolder} tab
  * @param {FrameHolder} removed
  */
@@ -1981,8 +1981,8 @@ async function checkIsFull(frame) {
  * @param {FrameHolder} frame - The frame.
  * @return {Promise<void>} Resolves once both have answered, or after FrameAnswerWaitMs: a
  *   parent page that never let go of its event loop held the player's load answer
- *   (acceptPlayer, through getPageFrame) for good, while the player's own page was fine (glm's
- *   review, 2026-11-16). The introduction still goes on when the parent answers later.
+ *   (acceptPlayer, through getPageFrame) for good, while the player's own page was fine.
+ * The introduction still goes on when the parent answers later.
  */
 async function linkToParentFrame(frame) {
   if (!frame.parent) return;
@@ -2495,7 +2495,7 @@ function recoverFrameSources(frame, msg) {
 
   // The report is the page's to write. A page on the internet that named a local-network
   // address in it had the length read and mpv ask that address (blind requests outside
-  // Firefox's own checks; a review, 2026-11-15). A page on the local network plays from it.
+  // Firefox's own checks). A page on the local network plays from it.
   const pageUrl = typeof msg.url === 'string' ? msg.url : frame.url;
   const pageIsLocal = typeof pageUrl === 'string' && isLocalAddress(pageUrl);
   for (const resource of msg.resources) {
@@ -2782,7 +2782,7 @@ export async function scrapeCaptionsTags(frame) {
 
 // The text of a page's <track> files a frame keeps, in characters. content.js reads at most
 // 64 MB at a time, but asks again for each new stream: a page that named new track files each
-// time had them all kept, and copied to its players, without end (a review, 2026-11-15).
+// time had them all kept, and copied to its players, without end.
 export const ScrapedCaptionsKeptMax = 64 * 1024 * 1024;
 
 /**
@@ -3355,8 +3355,7 @@ export async function openPlayersWithSources(tab, foundBefore = Infinity) {
     for (let i = 0; i < framesWithSources.length; i++) {
       // A frame the tab dropped meanwhile (it went on to another site, or the page took
       // the frame out), or one that loaded another page: OPEN_PLAYER goes by frame id, to
-      // whatever page has it now, as onSourceRecieved's wait checks too (glm's review and
-      // the review of its fixes, 2026-10-13).
+      // whatever page has it now, as onSourceRecieved's wait checks too.
       const {frame, documentKey} = framesWithSources[i];
       if (!frame.isTracked() || frame.documentKey !== documentKey) continue;
       openPlayer(frame);

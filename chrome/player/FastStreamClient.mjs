@@ -477,7 +477,7 @@ export class FastStreamClient extends EventEmitter {
   /**
    * Deletes the saved positions past their year, at most once a day and a while after the
    * player started. Every player's setup waited for it before the player showed: a pass over
-   * every position saved in the year (Codex's review, 2026-11-07). Until it runs, an old
+   * every position saved in the year. Until it runs, an old
    * position reads as none (SecureMemory's maxAgeMs), so nothing older is resumed meanwhile.
    */
   scheduleProgressPrune() {

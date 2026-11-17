@@ -373,7 +373,7 @@ export class KeybindManager extends EventEmitter {
     // the video, nor a letter typed into a search box change the speed. Combinations
     // with Ctrl, Alt or Meta still count, since Right Alt hides the player - but not AltGr,
     // which types a character (@, €, { on a German keyboard): Windows reports it as
-    // Ctrl+Alt, and typing @ into the subtitle search hid the player (review, 2026-10-09).
+    // Ctrl+Alt, and typing @ into the subtitle search hid the player.
     if (isTextEntryTarget(e.target)) {
       const altGraph = e.key === 'AltGraph' ||
         (typeof e.getModifierState === 'function' && e.getModifierState('AltGraph'));
