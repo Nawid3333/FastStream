@@ -150,7 +150,7 @@ the player's Next button would, and its stream replaces the old one in the same 
   This needs the page's next episode to be a link (not a button run by a script), and the
   tab's window to still be open. Close Firefox, and mpv plays on; the episode buttons go
   away, and the series continues once you open the page again and send an episode.
-- It needs helper version 9 and **Reuse one mpv window**.
+- It needs **Reuse one mpv window** (on by default; every helper FastStream accepts can do it).
 
 ## Options
 

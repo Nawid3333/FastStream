@@ -145,7 +145,7 @@ human-sized diff:
 
 - before this project existed: a 1.3 MB file with no stated version and no
   provenance
-- now: `hls.js@1.7.3` from npm, hash-verifiable, plus a 40-line patch a
+- now: `hls.js` from npm (the version `package.json` pins), hash-verifiable, plus a short patch a
   reviewer reads in a couple of minutes
 
 Next step if this is revisited again: offer the export change upstream.
@@ -441,7 +441,7 @@ what can actually change behaviour.
 | mediabunny | 1.60.0 | none - the unmodified npm bundle; only `normaliseText` (line endings, final newline) | **migrated 2026-09-30, replaces mp4-muxer 4.3.3** |
 | gif.js (worker) | 0.2.0 | none - AST identical; the vendored copy was only beautified | **migrated** |
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
-| coloris | 0.25.0, git tag (not on npm) | 14 KB patch (`patches/Coloris@0.25.0.patch`); one deliberate bug fix on top | **migrated** |
+| coloris | 0.25.0, git tag (not on npm) | 14 KB patch (`patches/Coloris@0.25.0.patch` then, `Coloris@0.25.1.patch` now); one deliberate bug fix on top | **migrated** |
 | coloris (CSS) | 0.25.0 | none - `dist/coloris.css` as published; only `normaliseText` | **generated since 2026-10-03** (was upstream's re-minified 0.21.x copy) |
 | jswebm | 0.1.2 | - | **removed 2026-09-30** with the re-encoder: Mediabunny reads WebM |
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus its listed changes (`tools/verify-vtt.mjs`) | **verified** |
@@ -734,7 +734,7 @@ Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538eda
 That is the same guarantee a registry version gives a reviewer: a fixed
 artifact they can fetch and hash themselves.
 
-FastStream's changes are in `patches/Coloris@0.25.0.patch`, 14 KB (was 11 KB
+FastStream's changes are in `patches/Coloris@*.patch` (0.25.0 when this was written, 0.25.1 since), 14 KB (was 11 KB
 against the 0.21.1 base - see the 0.25.0 re-port note below for why the size
 moved), and they are not the cosmetic rebinding the earlier note described.
 They are three features:

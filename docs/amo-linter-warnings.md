@@ -47,7 +47,7 @@ proven to change nothing (below).
 | `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` line 977 | the ~40-element picker skeleton rewritten to `createElement`/`append` (see below) |
 | `DANGEROUS_EVAL` | `player/modules/sweetalert.mjs` line 3685 | the `new Function(...)` call replaced with an explanatory `throw` (see below); gone with sweetalert2 since 2026-10-09 |
 | `UNSAFE_VAR_ASSIGNMENT` | `player/modules/vtt.mjs` line 1181 | the cue-text entity decoder: a textarea `innerHTML` write became `DOMParser` on a textarea with every `<` escaped (2026-10-27, see below) |
-| `DANGEROUS_EVAL` | `player/modules/dash.mjs` line 81180 | webpack's unreachable `new Function('return this')` became `globalThis` in `patches/dashjs@5.2.1.patch` (2026-10-27, see below) |
+| `DANGEROUS_EVAL` | `player/modules/dash.mjs` line 81180 | webpack's unreachable `new Function('return this')` became `globalThis` in `patches/dashjs@*.patch` (5.2.1 then, 2026-10-27, see below) |
 
 **gif.js's `UNSUPPORTED_API` was a scope-blind false positive, not a
 workaround.** The flagged line was `browser.platform[browser.platform.name] =
@@ -71,7 +71,7 @@ Coloris's own built-in defaults — confirmed by checking
 `focusInput`, never `clearLabel`, `closeLabel`, or `a11y`. `textContent` is an
 exact behavioural match for plain-text labels and strictly safer if a future
 caller ever does pass something dynamic through them. Patched in
-`patches/Coloris@0.25.0.patch`.
+`patches/Coloris@*.patch` (the file carries the version).
 
 Making this patch caught a real mistake: recreating it via a second `pnpm
 patch`/`pnpm patch-commit` cycle from a **pristine** copy silently dropped the
@@ -115,7 +115,7 @@ function the same way between 0.21.1 and 0.25.0 - `createElement` +
 `setAttribute` + `.textContent` + `.appendChild`, no `innerHTML` anywhere.
 Confirmed by diffing upstream 0.21.1 against 0.25.0 directly and by the
 unchanged 0-warning, 3-warning lint:amo result after the re-port.
-`patches/Coloris@0.25.0.patch` no longer touches this function at all.
+The Coloris patch (`patches/Coloris@*.patch`) no longer touches this function at all.
 
 `tests/e2e/specs/modules.e2e.mjs`'s colour-picker test was extended to check
 this directly — it now asserts all 6 of FastStream's configured swatches
@@ -131,7 +131,7 @@ plus one `picker.append(...)` call laying out the same tree: the colour-value
 input, the colour area and its marker, the hue and alpha sliders and their
 markers, the format fieldset with its three radio/label pairs, the swatches
 container, the clear and close buttons, and the two hidden a11y label spans.
-Patched in `patches/Coloris@0.25.0.patch` (carried forward unchanged through
+Patched in `patches/Coloris@*.patch` (carried forward unchanged through
 the 0.25.0 re-port - upstream never touched this part of `init()`).
 
 A rewrite this size got more than a rebuild-and-eyeball check.
