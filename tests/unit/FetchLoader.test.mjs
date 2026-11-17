@@ -996,7 +996,22 @@ describe('FetchLoader through the page', () => {
     const recorder = await load();
     expect(recorder.calls.map((c) => c.type)).toEqual(['onError']);
     expect(recorder.calls[0].args[0].error.code).toBe(403);
+    expect(recorder.calls[0].args[0].error.page).toBe('HTTP 403');
     expect(PageFetch.routes('https://example.com/fragment.ts')).toBe(false);
+  });
+
+  it('says why the page failed in the final error', async () => {
+    const page = pageAnswering([['error', 'The page did not answer']]);
+    PageFetch.configure({tabId: 1, frameId: 0}, page.connect);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Forbidden', {status: 403})));
+    const recorder = await load();
+    expect(recorder.calls[0].args[0].error).toMatchObject({code: 403, page: 'The page did not answer'});
+  });
+
+  it('names no page in an error that never went through one', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Forbidden', {status: 403})));
+    const recorder = await load();
+    expect(recorder.calls[0].args[0].error.page).toBeUndefined();
   });
 
   it('asks no page for a playlist answered as a web page, nor for a server error', async () => {

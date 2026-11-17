@@ -1,6 +1,7 @@
 // @ts-check
 import {DefaultPlayerEvents} from '../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
+import {describeLoadError} from '../utils/PlayerErrorUtils.mjs';
 
 /** @typedef {import('../network/DownloadEntry.mjs').DownloadEntry} DownloadEntry */
 /** @typedef {import('./Fragment.mjs').Fragment} Fragment */
@@ -66,6 +67,7 @@ export function fragmentDownloadCallbacks(player, fragment, callbacks, succeed) 
       succeed(entry, data);
     },
     onFail: (entry) => {
+      fragment.failure = describeLoadError(entry.stats?.error);
       setStatus(player, fragment, DownloadStatus.DOWNLOAD_FAILED);
       callbacks.onFail(entry);
     },

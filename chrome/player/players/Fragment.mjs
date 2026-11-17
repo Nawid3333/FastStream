@@ -23,6 +23,8 @@ export class Fragment {
     /** @type {Array<number>} */
     this.references = [];
     this.dataSize = null;
+    /** @type {?string} */
+    this.failure = null;
   }
 
   /**

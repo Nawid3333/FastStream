@@ -8,7 +8,7 @@ import {PageFetch} from './PageFetch.mjs';
 // timeouts, retries with backoff, byte ranges and the stats hls.js and dash.js read.
 // (dash.js has an XHRLoader of its own, which DashPlayer replaces by that name.)
 
-/** @typedef {{aborted: boolean, timedout: boolean, loaded: number, total: number, retry: number, chunkCount: number, bwEstimate: number, loading: {start: number, first: number, end: number}, parsing: {start: number, end: number}, buffering: {start: number, first: number, end: number}, error?: {code: number, text: string, retryAfter?: number}}} LoaderStats */
+/** @typedef {{aborted: boolean, timedout: boolean, loaded: number, total: number, retry: number, chunkCount: number, bwEstimate: number, loading: {start: number, first: number, end: number}, parsing: {start: number, end: number}, buffering: {start: number, first: number, end: number}, error?: {code: number, text: string, retryAfter?: number, page?: string}}} LoaderStats */
 /** @typedef {{url: string, method?: string, headers?: Object<string, string>, body?: *, responseType?: string, rangeStart: number, rangeEnd: number}} LoaderRequest */
 /** @typedef {{retryDelay: number, timeout: number, maxRetry: number, maxRetryDelay: number, fetchPriority?: 'high'|'low'|'auto'|(() => 'high'|'low'|'auto')}} LoaderConfig */
 /** @typedef {{url: string, status: number, headers: Object<string, string>, data: string|ArrayBuffer}} LoaderResponse */
@@ -70,6 +70,8 @@ export class FetchLoader {
     this.retryTimeout = undefined;
     // The retry waiting there follows a failure with no answer (status 0).
     this.retryOnNetwork = false;
+    /** @type {?string} */
+    this.pageFailure = null;
     /** @type {any[]|null} */
     this.callbacks = [];
     /** @type {LoaderStats} */
@@ -178,6 +180,7 @@ export class FetchLoader {
     const stats = this.stats;
     stats.loading.first = 0;
     stats.loaded = 0;
+    this.pageFailure = null;
 
     /** @type {Object<string, string>} */
     const fetchHeaders = {};
@@ -274,7 +277,10 @@ export class FetchLoader {
       }
       // The page could not load it (gone, navigated, a network error): the next try goes
       // direct again, and through the page only when that is refused.
-      if (viaPage) PageFetch.unroute(request.url);
+      if (viaPage) {
+        PageFetch.unroute(request.url);
+        this.pageFailure = /** @type {Error} */ (e).message;
+      }
       this.handleLoadFailure(0, /** @type {Error} */ (e).message);
       return;
     }
@@ -287,6 +293,7 @@ export class FetchLoader {
       // Refused through the page too (a link run out, a site's page where media was asked for):
       // direct again from the next try, which hands a refusal to the link's renewal as before.
       PageFetch.unroute(request.url);
+      this.pageFailure = response.ok ? 'a web page' : 'HTTP ' + response.status;
       if (response.ok) {
         response.body?.cancel().catch(() => {});
         this.handleLoadFailure(0, 'The page was given a web page');
@@ -311,11 +318,13 @@ export class FetchLoader {
           response.body?.cancel().catch(() => {});
           response = fromPage;
         } else {
+          this.pageFailure = fromPage.ok ? 'a web page' : 'HTTP ' + fromPage.status;
           fromPage.body?.cancel().catch(() => {});
         }
       } catch (e) {
         if (isStale()) return;
-        console.warn('The page could not load it either', /** @type {Error} */ (e)?.message);
+        this.pageFailure = /** @type {Error} */ (e)?.message || 'no answer';
+        console.warn('The page could not load it either', this.pageFailure);
       }
     }
 
@@ -545,8 +554,11 @@ export class FetchLoader {
     ) {
       console.error(`${status} while loading ${request.url}`);
 
-      this.stats.error = {code: status, text: statusText};
-      if (retryAfter !== null) /** @type {{code: number, text: string, retryAfter?: number}} */ (this.stats.error).retryAfter = retryAfter;
+      /** @type {NonNullable<LoaderStats['error']>} */
+      const error = {code: status, text: statusText};
+      if (retryAfter !== null) error.retryAfter = retryAfter;
+      if (this.pageFailure) error.page = this.pageFailure;
+      this.stats.error = error;
       this.callbacks?.forEach((callbacks) => {
         callbacks?.onError(this.stats, request, null);
       });

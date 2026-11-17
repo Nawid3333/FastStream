@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {describePlayerError, isNetworkFailure} from '../../chrome/player/utils/PlayerErrorUtils.mjs';
+import {describeLoadError, describePlayerError, isNetworkFailure} from '../../chrome/player/utils/PlayerErrorUtils.mjs';
 
 // The load error says what failed (FastStreamClient's ERROR handler). Each player emits its
 // own kind of reason; every one of them showed as the bare "Failed to load video!".
@@ -8,7 +8,8 @@ import {describePlayerError, isNetworkFailure} from '../../chrome/player/utils/P
 describe('isNetworkFailure', () => {
   // A player built again asks the same server for the same fragment: no rebuild for those.
   it('knows the players\' network failures', () => {
-    for (const reason of ['Range 5 failed to load', 'Segment 0:12 failed to load', 'Failed first fragment',
+    for (const reason of ['Range 5 failed to load', 'Range 2 failed to load (HTTP 403; through the page: The page did not answer)',
+      'Segment 0:12 failed to load', 'Failed first fragment',
       'No content range', {type: 'networkError', details: 'fragLoadError', fatal: true}]) {
       expect(isNetworkFailure(reason)).toBe(true);
     }
@@ -83,5 +84,20 @@ describe('describePlayerError', () => {
     expect(long.length).toBe(160);
     expect(long.endsWith('…')).toBe(true);
     expect(describePlayerError('two\nlines')).toBe('two lines');
+  });
+});
+
+describe('describeLoadError', () => {
+  it('names the answer and, when the page was tried, why it failed', () => {
+    expect(describeLoadError({code: 403, text: 'Forbidden', page: 'The page did not answer'}))
+        .toBe('HTTP 403; through the page: The page did not answer');
+    expect(describeLoadError({code: 0, text: 'NetworkError when attempting to fetch resource.'}))
+        .toBe('NetworkError when attempting to fetch resource.');
+    expect(describeLoadError({code: 500, text: ''})).toBe('HTTP 500');
+  });
+
+  it('says nothing without an error', () => {
+    expect(describeLoadError(undefined)).toBe('');
+    expect(describeLoadError({code: 0, text: ''})).toBe('');
   });
 });

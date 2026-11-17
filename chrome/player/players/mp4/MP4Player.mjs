@@ -1117,8 +1117,9 @@ export default class MP4Player extends EventEmitter {
     // Spent. The video still plays what it has; at the gap it would only spin.
     if (bufferedAhead(this.video.buffered, this.video.currentTime) < 1) {
       this.running = false;
-      this.emit(DefaultPlayerEvents.ERROR, 'Range ' + frag.sn + ' failed to load');
-      throw new Error('Range ' + frag.sn + ' failed to load');
+      const message = 'Range ' + frag.sn + ' failed to load' + (frag.failure ? ' (' + frag.failure + ')' : '');
+      this.emit(DefaultPlayerEvents.ERROR, message);
+      throw new Error(message);
     }
     return false;
   }

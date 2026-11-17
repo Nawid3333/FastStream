@@ -39,7 +39,7 @@ const DASH_NETWORK_ERRORS = new Set([11, 25, 26, 27, 28, 29]);
 export function isNetworkFailure(reason) {
   try {
     if (typeof reason === 'string') {
-      return /^(Range|Segment) .+ failed to load$/.test(reason) ||
+      return /^(Range|Segment) .+ failed to load(?: \(.*\))?$/.test(reason) ||
         reason === 'Failed first fragment' || reason === 'No content range';
     }
     if (!reason || typeof reason !== 'object') return false;
@@ -50,6 +50,17 @@ export function isNetworkFailure(reason) {
   } catch (e) {
     return false;
   }
+}
+
+/**
+ * @param {{code?: number, text?: string, page?: string}|undefined|null} error - FetchLoader's stats.error.
+ * @return {string}
+ */
+export function describeLoadError(error) {
+  if (!error || typeof error !== 'object') return '';
+  const answer = error.code ? 'HTTP ' + error.code : (error.text || '').trim();
+  const page = error.page ? 'through the page: ' + error.page : '';
+  return clip([answer, page].filter(Boolean).join('; '));
 }
 
 /**
