@@ -336,8 +336,7 @@ function forgetOffsForNewEntries(before) {
  * player's own switch: from MPV - the allowlist's or the MPV key's - it goes straight
  * to the player, and otherwise turns the player off or on, on the allowlist too. So
  * each key turns on its own mode whatever mode the tab is in, and the last key pressed
- * decides. The key used to be the button (_execute_action), and after the MPV key it
- * turned FastStream off: getting the player took a second press.
+ * decides.
  *
  * @param {chrome.tabs.Tab} tabobj - The tab the button was clicked or the key pressed in.
  * @param {{playerKey?: boolean}} [how] - playerKey: the shortcut, not the button.
@@ -572,25 +571,12 @@ chrome.tabs.onRemoved.addListener((tabid, removed) => {
   VpnMirror.forgetTab(tabid);
 });
 
-// Closes a tab opened right after the user's click landed on a player
-// iframe (see the POPUP_GUARD_ARM handler and content.js's 'blur' listener).
-// Both actual popups (the new tab steals focus) and popunders (it doesn't)
-// go through here - gating on the arm window rather than "is a player
-// running in the opener tab" is what keeps this from touching a tab the user
-// opens deliberately (e.g. middle-clicking a link elsewhere on the page),
-// since that never blurs the top window the way a click into our iframe
-// does. Two caveats this can't fully close: the arm message is an async
-// chrome.runtime.sendMessage to the background - on a cold event page a
-// popup/popunder that calls window.open() synchronously from the same blur
-// handler can create its tab before the arm message is even processed, so
-// the guard is more reliable once the page is already running from an earlier
-// interaction. And because the signal is only "a click landed on the player
-// recently", not "this exact tab-creation was caused by that click", a
-// short window still means a deliberate action within it (e.g. a very fast
-// middle-click elsewhere right after clicking the video) could get caught -
-// PopupGuardArmMs is kept short specifically to make that collision rare
-// without also making the common case (an ad script reacting to the same
-// blur within tens of ms) unreliable.
+// Closes a tab (popup or popunder) opened right after a click landed on a player iframe:
+// ad scripts open one from the top window's 'blur' that click causes (POPUP_GUARD_ARM,
+// content.js). Gated on that short window, not on "a player runs in the opener", so a tab
+// the user opens on purpose is left alone. Limits: on a cold event page a window.open() in
+// the same blur can come before the arm message, and a deliberate new tab within
+// PopupGuardArmMs of a click on the video is caught too; the window is kept short for that.
 chrome.tabs.onCreated.addListener(async (newTab) => {
   await ensureOptions();
 
