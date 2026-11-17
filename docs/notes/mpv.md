@@ -49,7 +49,11 @@ The helper now lets the extension read `keep-open` and set `file-local-options/k
 keep-open and sets the file's to "yes" when the user's is "no". Turning autoplay off puts "no"
 back, and mpv gives the next file the user's own value. So a stock mpv now stays on the last
 frame, paused, for the countdown, as an mpv with keep-open does. A helper before 24 refuses
-both commands with `mpv-refused`; the watch goes on without them, as before.
+both commands with `mpv-refused`; the watch goes on without them, as before. Left as is (the Claude
+API review): a watch that ends mid-file (an extension reload) leaves that one file's "yes", and a
+new watch reads it as the user's value; the next file has the user's own again. And the user's
+"no" now counts only with autoplay off: a film, or a series' last episode, waits on its last
+frame instead of closing.
 
 **Host 23 (2026-11-16, dead code; RequiredHostVersion stays 19).** `allowedIpcCommand`, a
 wrapper of `ipcCommandRefusal` that only a test called, is gone; nothing else changed, so an

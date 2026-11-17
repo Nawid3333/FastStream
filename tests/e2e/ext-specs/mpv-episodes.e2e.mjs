@@ -22,6 +22,7 @@ describe('MPV autoplay, end to end', function() {
   const requests = [];
   const servers = [];
   let ipc = null;
+  let pid = null;
 
   const mpvAsked = (file) => requests.some((r) => isMpvRequest(r) && r.url.startsWith(file));
   const waitForMpv = (file, timeout = 30000) => browser.waitUntil(async () => mpvAsked(file), {
@@ -77,7 +78,6 @@ describe('MPV autoplay, end to end', function() {
     await browser.url(`${SITE}/series/episode-1`);
     await waitForMpv('/ep1.mp4');
 
-    let pid = null;
     await browser.waitUntil(async () => {
       const [window] = await specWindows();
       pid = window?.pid ?? null;
@@ -106,5 +106,9 @@ describe('MPV autoplay, end to end', function() {
     await waitForMpv('/ep3.mp4');
     await browser.waitUntil(async () => (await browser.getUrl()).endsWith('/series/episode-3'),
         {timeout: 15000, timeoutMsg: 'the tab did not go on to episode 3'});
+    // In the window episode 2 ended in: an mpv at keep-open "no" quit there before host 24.
+    await browser.waitUntil(async () => String(await mpvProperty('path')).includes('/ep3.mp4'),
+        {timeout: 15000, timeoutMsg: 'episode 3 never loaded in the same mpv'});
+    expect((await specWindows()).map((p) => p.pid)).toEqual([pid]);
   });
 });
