@@ -1,7 +1,10 @@
 # The addons-linter warnings, one by one
 
 `pnpm run lint:amo` reports **0 errors, 0 notices, 0 warnings** against
-`build_firefox_amo`, verified 2026-10-27 (`lint:github` the same). It was 2 from
+`build_firefox_amo`, verified 2026-10-27 (`lint:github` the same), and CI holds it since
+2026-11-17: both scripts pass `--warnings-as-errors`, so a new warning (a dependency update's
+too) fails CI instead of passing unseen, as web-ext lint does by default (exit 0 with warnings,
+tried on a one-file extension with an `innerHTML` write). It was 2 from
 2026-10-10 to 2026-10-27, both in vendored libraries and left explained until the
 owner asked for none (both fixed, below); 3 from 2026-09-11 (re-verified after the
 Coloris 0.21.1→0.25.0 re-port) until the speech detector went on 2026-10-10, and with

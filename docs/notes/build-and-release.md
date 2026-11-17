@@ -199,6 +199,11 @@ the failing runs, not assumed. An earlier claim in this project's history
 that AMO lint was "0 errors" had actually been made from truncated command
 output that never showed the error section at all.
 
+**Both lint scripts pass `--warnings-as-errors` (2026-11-17).** web-ext lint exits 0 with
+warnings (tried on a one-file extension with an `innerHTML` write: exit 0, and 1 with the
+flag), so CI let a new warning in unseen while the count the owner asked for is 0
+(`docs/amo-linter-warnings.md`). A dependency update that brings one now turns its PR red.
+
 ## Baseline verification
 
 Any change claiming to be output-neutral must reproduce the upstream build
