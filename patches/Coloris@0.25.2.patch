@@ -1,5 +1,5 @@
 diff --git a/dist/coloris.js b/dist/coloris.js
-index fe212f3861b31e768739f1d58a29afbba5531ffb..3818e1ba5a7b0b2feece5d13410200269af4f9b9 100644
+index 0f1b5f0ffdba26b8da80ae3c2a94c7946858f232..e99fc76635d0509d3fea38f3b3897f870daf666d 100644
 --- a/dist/coloris.js
 +++ b/dist/coloris.js
 @@ -64,17 +64,18 @@
