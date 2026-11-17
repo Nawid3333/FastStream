@@ -645,7 +645,7 @@ export class DownloadManager {
     if (!entry.watchers.length && entry.status !== DownloadStatus.ENQUEUED) {
       // The last one aborted it: out of the queue, as removeFile takes one. Left there failed,
       // it kept canGetFile saying no to every download ahead until a finished download moved
-      // it to the head (glm's review, 2026-11-16: a seek's giving up of a queued segment).
+      // it to the head (a seek's giving up of a queued segment).
       const queued = this.queue.indexOf(entry);
       if (queued !== -1) this.queue.splice(queued, 1);
     }

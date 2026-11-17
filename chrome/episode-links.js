@@ -1,6 +1,6 @@
 // @ts-check
 // The next (or the previous) episode of a series page, for content.js: the autoplay and the
-// player's next and previous buttons (his wish, 2026-10-11: on as many sites as possible).
+// player's next and previous buttons (on as many sites as possible).
 // Pure - what a link says, and which addresses this page's episode number +1 (or -1) would
 // have; content.js looks for them among the page's links.
 //

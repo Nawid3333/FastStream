@@ -2,7 +2,7 @@
 
 /**
  * Watches for a video this computer cannot decode in time, and says when to play a lower
- * quality (his wish, 2026-10-24: step down when Firefox drops frames, and always say so).
+ * quality (step down when Firefox drops frames, and always say so).
  * Firefox counts the frames it decoded too late to show (getVideoPlaybackQuality's
  * droppedVideoFrames); a version too heavy for the machine drops a share of them for as long
  * as it plays. Only steady playback counts: playing, not seeking or starving, in a visible

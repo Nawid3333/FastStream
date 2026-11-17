@@ -15,7 +15,7 @@ export const ClickWindowMs = 300;
  * The clicks on the video: one, two or three in a row, each with its action (the options'
  * singleClickAction, doubleClickAction, tripleClickAction).
  *
- * A single click's play or pause comes at once (his wish, 2026-10-11: a click paused 300 ms
+ * A single click's play or pause comes at once (a click paused 300 ms
  * after the Space key did, as it waited to see whether a double click came). A second click
  * then plays or pauses back, as YouTube does, and the double click's action follows. Other
  * single-click actions (fullscreen, picture-in-picture, hiding the player) still wait: done at
