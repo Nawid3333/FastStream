@@ -18,8 +18,13 @@ export const GithubSmokeSpecs = [
   'tests/e2e/ext-specs/save-flow.e2e.mjs',
 ];
 
-const result = spawnSync('pnpm', ['exec', 'wdio', 'run', 'tests/e2e/wdio.extension.conf.mjs',
-  ...GithubSmokeSpecs.flatMap((spec) => ['--spec', spec])], {
+// One command line: pnpm is pnpm.cmd on Windows, which needs the shell, and Node deprecated
+// (DEP0190) handing arguments to a shell apart from the command, which it only joins (spawn and
+// execFile warn already; spawnSync joins them the same way).
+const command = ['pnpm', 'exec', 'wdio', 'run', 'tests/e2e/wdio.extension.conf.mjs',
+  ...GithubSmokeSpecs.flatMap((spec) => ['--spec', spec])];
+if (command.some((part) => !/^[\w./:-]+$/.test(part))) throw new Error(`not a plain argument: ${command.join(' ')}`);
+const result = spawnSync(command.join(' '), {
   stdio: 'inherit',
   shell: true,
   env: {...process.env, FS_EXT_BUILD: 'github'},

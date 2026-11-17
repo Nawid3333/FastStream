@@ -230,7 +230,8 @@ describe('Parser: regions', () => {
     expect(cues[1].region).toBeNull();
   });
 
-  it('finds the regions of a file of many regions and cues in linear time', () => {
+  // Six parses of 20000 cues: 2.2 s on GitHub's Linux runner, too close to the default 5 s.
+  it('finds the regions of a file of many regions and cues in linear time', {timeout: 30000}, () => {
     // Against the same file whose cues name no region, on the same machine: a fixed time
     // limit failed on a slow CI runner (1.6 s against 1.5 s). The scan of every region for
     // each cue made the file that names them about 8 times slower (measured); a lookup, about

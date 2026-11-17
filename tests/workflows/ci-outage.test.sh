@@ -47,6 +47,23 @@ jobs 'Lint, test and build=failure'
 log 'Lint, test and build' 'ERR_PNPM_FETCH_503 GET https://registry.npmjs.org/eslint: Service Unavailable - 503'
 expect "pnpm's registry fetch got a 5xx" outage
 
+jobs 'e2e (Windows, playback 1/3)=failure'
+log 'e2e (Windows, playback 1/3)' 'npm warn cleanup Failed to remove some directories ['
+log 'e2e (Windows, playback 1/3)' 'npm error code ECONNRESET'
+log 'e2e (Windows, playback 1/3)' 'npm error network aborted'
+log 'e2e (Windows, playback 1/3)' '##[error]Something went wrong, self-installer exits with code 1'
+expect "pnpm/action-setup's self-installer lost its connection to the registry" outage
+
+jobs 'Lint, test and build=failure'
+log 'Lint, test and build' 'npm error code E404'
+log 'Lint, test and build' '##[error]Something went wrong, self-installer exits with code 1'
+expect 'an npm error that is no network failure: red' red
+
+jobs 'Lint, test and build=failure'
+log 'Lint, test and build' 'npm error code ENOTFOUND'
+log 'Lint, test and build' 'npm error network request to https://registry.example/pnpm failed, reason: getaddrinfo ENOTFOUND registry.example'
+expect 'a registry name that does not resolve: red' red
+
 jobs 'e2e (Windows, playback 3/3)=failure' 'e2e (Linux, playback 1/2)=failure'
 log 'e2e (Windows, playback 3/3)' "$GECKO"
 log 'e2e (Linux, playback 1/2)' '[0-13] FAILED in firefox - progress-loop.e2e.mjs (1 retries)'

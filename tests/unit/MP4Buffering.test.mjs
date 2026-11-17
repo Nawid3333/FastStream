@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {keyframeOffset, sampledDuration} from '../../chrome/player/players/mp4/SampleIndex.mjs';
+import {apartBy, keyframeOffset, sampledDuration} from '../../chrome/player/players/mp4/SampleIndex.mjs';
 import {SegmentAppender} from '../../chrome/player/players/mp4/SegmentAppender.mjs';
 
 // MP4Player's sample arithmetic and its handling of a segment the SourceBuffer refuses.
@@ -31,6 +31,39 @@ describe('sampledDuration, a fragmented file without a mehd box', () => {
     // undefined, the metadata never finished, and the player sat there with nothing said.
     expect(sampledDuration([trak(1000, []), trak(48000, [[0, 200]], 48000 * 8)])).toBe(8);
     expect(sampledDuration([trak(1000, [])])).toBe(0);
+  });
+
+  it('ends where the last sample ends, for a file whose first moof starts later than 0', () => {
+    // tfdt 10 s, two 1 s samples: the summed lengths said 2.
+    const late = {mdia: {mdhd: {timescale: 1000}}, samples_duration: 2000,
+      samples: [{dts: 10000, duration: 1000}, {dts: 11000, duration: 1000}]};
+    expect(sampledDuration([late])).toBe(12);
+    // The same with an edit list that starts at 10 s: Firefox plays it from 0 to 2.
+    expect(sampledDuration([{...late, edts: {elst: {entries: [{media_time: 10000}]}}}])).toBe(2);
+    // An empty edit (-1, a delay) is skipped for the first one with media.
+    expect(sampledDuration([{...late, edts: {elst: {entries: [{media_time: -1}, {media_time: 0}]}}}])).toBe(12);
+  });
+});
+
+describe('apartBy, how far apart a file keeps two tracks', () => {
+  // One sample a second for 100 s; video 50 KB a second from byte 1000.
+  const video = Array.from({length: 100}, (_, i) => ({cts: i * 90000, timescale: 90000, offset: 1000 + i * 50000}));
+
+  it('is about nothing for a file that interleaves them', () => {
+    // Each second's audio after that second's video.
+    const audio = video.map((v, i) => ({cts: i * 48000, timescale: 48000, offset: v.offset + 40000}));
+    expect(apartBy(video, audio)).toBe(0);
+    expect(apartBy(audio, video)).toBe(0);
+  });
+
+  it('is the whole length for a file that keeps all its audio after all its video', () => {
+    const audio = video.map((v, i) => ({cts: i * 48000, timescale: 48000, offset: 5001000 + i * 1000}));
+    expect(apartBy(video, audio)).toBe(99);
+    expect(apartBy(audio, video)).toBe(99);
+  });
+
+  it('is 0 for a track without samples', () => {
+    expect(apartBy(video, [])).toBe(0);
   });
 });
 

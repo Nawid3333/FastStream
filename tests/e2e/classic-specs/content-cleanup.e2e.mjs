@@ -16,7 +16,7 @@ import * as url from 'node:url';
 import {browser, expect} from '@wdio/globals';
 
 import {inChrome, clickToolbar as clickToolbarIn} from '../classic-helpers.mjs';
-import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {BUILD, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 import {hasExtensionApi} from '../extension-api.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -518,6 +518,48 @@ async function expectFromCache(backAt) {
     throw new Error('Back loaded the page again instead of taking it from the back-forward cache: ' +
       `its pagehide ${state.left || 'never came'}, Back at ${backAt}. Firefox's PageCache and ` +
       'SHIPBFCache log, in the driver log, says what kept it out or took it out.');
+  }
+}
+
+/**
+ * Runs a test's way there and back (round: from opening the page to Back reaching it, giving
+ * when Back was asked for) until Back gave the page back from the back-forward cache, three
+ * rounds at most. Firefox keeps a page out of the cache now and then for a request that is not
+ * the page's: CI run 44121075279 logged "Save of .../cleanup?t=...545 blocked because document
+ * has request .../clip.mp4?main=...532", the video request of a load of the same address that
+ * Firefox had begun and replaced 13 ms before, still in the tab's load group, with the page's
+ * own video fully loaded. What these tests check starts after a Back from the cache.
+ *
+ * A round repeated is written to logs/retried.jsonl as a spec's retry is (retriedSpecs.mjs),
+ * under a suite of its own, so the run's summary and the weekly "Flaky e2e specs" issue show it:
+ * a change that keeps the page out of the cache now and then (a request of the player's, #346)
+ * must not pass unseen.
+ * @param {() => Promise<string>} round
+ */
+async function untilCached(round) {
+  for (let attempt = 1; ; attempt++) {
+    const backAt = await round();
+    const kept = await inPage(() => window.__kept === true);
+    if (attempt > 1) noteRepeatedRound(attempt, kept);
+    if (kept || attempt === 3) return expectFromCache(backAt);
+    console.log(`      Back at ${backAt} loaded the page again instead of taking it from the cache: round ${attempt + 1}`);
+  }
+}
+
+/**
+ * @param {number} rounds - How many rounds it took.
+ * @param {boolean} passed - Whether the last one came from the cache.
+ */
+function noteRepeatedRound(rounds, passed) {
+  try {
+    const logs = path.join(root, 'logs');
+    fs.mkdirSync(logs, {recursive: true});
+    fs.appendFileSync(path.join(logs, 'retried.jsonl'), JSON.stringify({
+      suite: `classic-${BUILD}-bfcache`, spec: 'tests/e2e/classic-specs/content-cleanup.e2e.mjs',
+      attempts: rounds, passed, os: process.platform,
+    }) + '\n');
+  } catch (e) {
+    console.warn(`could not record the repeated round: ${e.message}`);
   }
 }
 
@@ -1104,15 +1146,17 @@ describe('content.js around an in-page player', function() {
   // content script and all, and fetches nothing again. Its leaving had made the background
   // forget its frame and the video detected on it, so the toolbar's On opened no player.
   it('opens the player on a page Back brought out of the back-forward cache', async function() {
-    await openPage('/cleanup');
-    await keepForBack();
-    await pageMediaIdle();
-    await openPage('/wrapper');
-    const backAt = new Date().toISOString();
-    await browser.back();
-    await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
-        {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
-    await expectFromCache(backAt);
+    await untilCached(async () => {
+      await openPage('/cleanup');
+      await keepForBack();
+      await pageMediaIdle();
+      await openPage('/wrapper');
+      const backAt = new Date().toISOString();
+      await browser.back();
+      await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
+          {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
+      return backAt;
+    });
     await openPlayer();
     await browser.switchFrame(await browser.$('iframe[src*="player/index.html"]'));
     let source;
@@ -1133,18 +1177,20 @@ describe('content.js around an in-page player', function() {
   // The same from another site: the background resets the tab on a new hostname
   // (tabs.onUpdated), and that can come after the page named itself again.
   it('opens the player on a page Back brought back from another site', async function() {
-    await openPage('/cleanup');
-    await keepForBack();
-    await pageMediaIdle();
-    // localhost is another hostname for the same server.
-    await browser.url(`http://localhost:${SITE_PORT}/wrapper?t=${Date.now()}`);
-    await browser.waitUntil(async () => inPage(() => location.hostname === 'localhost' &&
-        document.querySelector('video')?.readyState >= 2), {timeout: 20000, timeoutMsg: 'the other site never loaded'});
-    const backAt = new Date().toISOString();
-    await browser.back();
-    await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
-        {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
-    await expectFromCache(backAt);
+    await untilCached(async () => {
+      await openPage('/cleanup');
+      await keepForBack();
+      await pageMediaIdle();
+      // localhost is another hostname for the same server.
+      await browser.url(`http://localhost:${SITE_PORT}/wrapper?t=${Date.now()}`);
+      await browser.waitUntil(async () => inPage(() => location.hostname === 'localhost' &&
+          document.querySelector('video')?.readyState >= 2), {timeout: 20000, timeoutMsg: 'the other site never loaded'});
+      const backAt = new Date().toISOString();
+      await browser.back();
+      await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
+          {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
+      return backAt;
+    });
     await openPlayer();
     expect(await takeContentErrors()).toEqual([]);
   });
@@ -1155,32 +1201,34 @@ describe('content.js around an in-page player', function() {
     // The background had reset that page's frames on its FRAME_ADDED, the player's with
     // them. The URL change's REMOVE_PLAYERS then takes the player down, and the page has
     // its own video back: no player is left that the background does not know.
-    await openPage('/cleanup');
-    await openPlayer();
-    // The page leaves for the cache only once nothing in it is loading: openPage waits for
-    // the first frame only, and the clip went on loading; the player's source fetch was on
-    // top of that. With a request still open (in the page or its player frame), Firefox
-    // kept the page out of the cache and Back loaded it again ({kept: false}, 4 attempts
-    // in a week, pageMediaIdle's comment, #346). keepForBack keeps pagehide's persisted,
-    // so a red run says whether the page was never cached or cached and dropped.
-    await keepForBack();
-    await pageMediaIdle();
-    await inPage(() => {
-      window.__cachedWithPlayer = null;
-      window.addEventListener('pageshow', (e) => {
-        window.__cachedWithPlayer = e.persisted && !!window.playerIframe();
+    await untilCached(async () => {
+      await openPage('/cleanup');
+      await openPlayer();
+      // The page leaves for the cache only once nothing in it is loading: openPage waits for
+      // the first frame only, and the clip went on loading; the player's source fetch was on
+      // top of that. With a request still open (in the page or its player frame), Firefox
+      // kept the page out of the cache and Back loaded it again ({kept: false}, 4 attempts
+      // in a week, pageMediaIdle's comment, #346). keepForBack keeps pagehide's persisted,
+      // so a red run says whether the page was never cached or cached and dropped.
+      await keepForBack();
+      await pageMediaIdle();
+      await inPage(() => {
+        window.__cachedWithPlayer = null;
+        window.addEventListener('pageshow', (e) => {
+          window.__cachedWithPlayer = e.persisted && !!window.playerIframe();
+        });
+        // A script's navigation: WebDriver's click leaves a listener that keeps a page out of
+        // the cache.
+        location.href = '/other?x=' + Date.now();
       });
-      // A script's navigation: WebDriver's click leaves a listener that keeps a page out of
-      // the cache.
-      location.href = '/other?x=' + Date.now();
+      await browser.waitUntil(async () => inPage(() => location.pathname === '/other'),
+          {timeout: 10000, timeoutMsg: 'the other page never loaded'});
+      const backAt = new Date().toISOString();
+      await browser.back();
+      await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
+          {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
+      return backAt;
     });
-    await browser.waitUntil(async () => inPage(() => location.pathname === '/other'),
-        {timeout: 10000, timeoutMsg: 'the other page never loaded'});
-    const backAt = new Date().toISOString();
-    await browser.back();
-    await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
-        {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
-    await expectFromCache(backAt);
     expect(await inPage(() => ({kept: window.__kept === true, withPlayer: window.__cachedWithPlayer})))
         .toEqual({kept: true, withPlayer: true});
     await browser.waitUntil(async () => !(await hasPlayer()),

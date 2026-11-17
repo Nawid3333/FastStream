@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {MAX_FILE_LENGTH, lengthFromAnswer} from '../../chrome/player/players/mp4/RangeAnswers.mjs';
+import {MAX_FILE_LENGTH, lengthFromAnswer, startsElsewhere} from '../../chrome/player/players/mp4/RangeAnswers.mjs';
 
 // What MP4Player learns from the answer to its first 1 MB range. A server that ignores Range
 // answers 200 with the whole file, and each later range downloaded the file from byte 0 again
@@ -52,5 +52,20 @@ describe('lengthFromAnswer', () => {
         .toEqual({length: 0, playDirectly: false});
     expect(lengthFromAnswer({status: 206, headers: null, received: 1000000}, FIRST))
         .toEqual({length: 0, playDirectly: false});
+  });
+});
+
+describe('startsElsewhere', () => {
+  const answer = (status, contentRange) => ({status, headers: contentRange ? {'content-range': contentRange} : {}});
+
+  it('is a 206 whose Content-Range starts elsewhere than the range', () => {
+    expect(startsElsewhere(answer(206, 'bytes 0-999999/3000000'), 1000000)).toBe(true);
+    expect(startsElsewhere(answer(206, 'bytes 1000000-1999999/3000000'), 1000000)).toBe(false);
+  });
+
+  it('is not an answer that says no start: a 200, or a 206 without Content-Range', () => {
+    expect(startsElsewhere(answer(200, 'bytes 0-999999/3000000'), 1000000)).toBe(false);
+    expect(startsElsewhere(answer(206, ''), 1000000)).toBe(false);
+    expect(startsElsewhere({status: 206, headers: null}, 0)).toBe(false);
   });
 });
