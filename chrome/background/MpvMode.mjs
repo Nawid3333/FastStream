@@ -355,9 +355,11 @@ export function autoOpenInMpv(tab, url, headers) {
   tab.mpvAutoOpened = true;
   Tabs.saveTabState(tab);
   const page = tab.mpvPage;
+  const wanted = handOffStillWanted(tab);
   if (Logging) console.log('[MPV] forwarding detected stream to mpv:', url);
   tabTitle(tab.tabId).then((title) =>
-    openInMpv(tab.tabId, url, tab, headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
+    openInMpv(tab.tabId, url, tab, headers, resolveMpvContentType(null, tab.url), tab.url, title,
+        {wanted})).then((result) => {
     if (Logging) console.log('[MPV] forward result:', url, JSON.stringify(result));
     if (!isHandOffPage(tab, page) || 'dropped' in result || playHereInstead(tab, result)) {
       return;
@@ -1078,6 +1080,20 @@ export function isHandOffPage(tab, page) {
 }
 
 /**
+ * Whether an MPV-mode hand-off begun now still applies when openInMpv is ready to send: the tab
+ * open, in MPV mode, and on the same document. An address the page sets itself (pushState)
+ * counts a new mpvPage, not a new document.
+ * @param {TabHolder} tab
+ * @return {() => boolean}
+ */
+function handOffStillWanted(tab) {
+  const page = tab.mpvPage;
+  const document = tab.getFrame(0)?.documentKey;
+  return () => isTabOpen(tab) && tab.isOn && tab.isMpv && !!Options.mpvMode &&
+    (tab.mpvPage === page || (!!document && tab.getFrame(0)?.documentKey === document));
+}
+
+/**
  * Shows a failed MPV-mode hand-off on the tab's toolbar button ("!", and the reason in
  * its tooltip), or clears it after one that worked. Without it the page simply played
  * on in the browser, and nothing said why. An outdated host is kept too, for the tooltip
@@ -1194,15 +1210,20 @@ export function sendPlayedToMpv(tab, source, video = null) {
   PlaySendsUnanswered.add(sent);
   Tabs.saveTabState(tab);
   const page = tab.mpvPage;
+  const wanted = handOffStillWanted(tab);
   // Only a video of a known length (not a live one), and past its first seconds: a play
   // from the start starts at the start.
   const time = video?.time;
   const startTime = Number.isFinite(video?.duration) && typeof time === 'number' && time > 5 ? time : undefined;
   tabTitle(tab.tabId).then((title) =>
     openInMpv(tab.tabId, source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title,
-        {startTime})).then((result) => {
+        {startTime, wanted})).then((result) => {
     PlaySendsUnanswered.delete(sent);
     if (Logging) console.log('[MPV] user play result:', source.url, JSON.stringify(result));
+    if ('dropped' in result && tab.mpvLastPlaySend === sent && isTabOpen(tab)) {
+      tab.mpvLastPlaySend = null;
+      Tabs.saveTabState(tab);
+    }
     if (!isHandOffPage(tab, page) || 'dropped' in result || playHereInstead(tab, result)) {
       return;
     }
@@ -1272,13 +1293,13 @@ export function openMpvWithSources(tab) {
  * @param {number|undefined} tabId - The tab the stream is from: whether it is a private
  *   window decides which of the VPN's hosts count (VpnProxyMirror.throughBrowserVpn).
  * @param {string} url - The stream.
- * @param {...*} rest - openStream's other arguments.
+ * @param {...*} rest - openStream's other arguments. Its extras' `wanted` (handOffStillWanted)
+ *   is asked right before the send, and not passed on.
  * @return {Promise<MpvHandOff>} openStream's answer, or {ok: false, vpn: true, error}, or
- *   {ok: false, drm: true, error}, or {ok: false, pageOnly: true, error}.
+ *   {ok: false, drm: true, error}, or {ok: false, pageOnly: true, error}, or
+ *   {ok: false, dropped: true} when `wanted` said no.
  */
 export async function openInMpv(tabId, url, ...rest) {
-  const holder = tabId !== undefined && tabId >= 0 ? Tabs.getTab(tabId) : null;
-  const mpvPage = holder?.isOn && holder.isMpv ? holder.mpvPage : null;
   let incognito;
   if (tabId !== undefined && tabId >= 0) {
     try {
@@ -1389,10 +1410,15 @@ export async function openInMpv(tabId, url, ...rest) {
     // 2026-10-14; fs-private, MpvTarget.mjs).
     rest[5] = {...(rest[5] || {}), private: true};
   }
-  // The waits above take seconds on a slow CDN.
-  if (mpvPage !== null && (!isHandOffPage(holder, mpvPage) || !holder.isOn || !holder.isMpv || !Options.mpvMode)) {
-    if (Logging) console.log('[MPV] not handed off, its page or MPV went meanwhile:', url);
-    return {ok: false, dropped: true};
+  const wanted = rest[5]?.wanted;
+  if (wanted) {
+    rest[5] = {...rest[5]};
+    delete rest[5].wanted;
+    // The waits above take seconds on a slow CDN.
+    if (!wanted()) {
+      if (Logging) console.log('[MPV] not handed off, its page or MPV went meanwhile:', url);
+      return {ok: false, dropped: true};
+    }
   }
   const result = await Mpv.openStream(url, ...rest);
   // MPV autoplay: the mpv it went to is followed (watchMpvFor). By the tab's id: the

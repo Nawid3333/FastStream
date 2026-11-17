@@ -889,6 +889,7 @@ describe('a hand-off still being prepared when the page went, or MPV was turned 
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
       fetch: playlists({[EPISODE]: 1400}, 1000)});
     await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
     await bg.request({tabId: 1, url: EPISODE});
     await bg.wait(200);
     expect(bg.toMpv()).toEqual([]);
@@ -896,6 +897,13 @@ describe('a hand-off still being prepared when the page went, or MPV was turned 
 
   it('sends the stream once its master is read', async () => {
     await detectWhileSlow();
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
+  it('sends it when the page only changed its own address meanwhile (pushState)', async () => {
+    await detectWhileSlow();
+    await bg.navigated(1, PAGE + '?t=5');
     await bg.wait(3000);
     expect(bg.toMpv()).toEqual([EPISODE]);
   });
@@ -941,6 +949,8 @@ describe('the same video played again while its send is answered', () => {
     await bg.wait(100);
     expect(bg.toMpv()).toEqual([EPISODE]);
     await bg.message(PLAY, {tabId: 1, frameId: 0});
+    await bg.wait(100);
+    expect(bg.sent('PAUSE_MEDIA')).toEqual([]);
     await bg.wait(3000);
   }
 
