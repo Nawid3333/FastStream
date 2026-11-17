@@ -304,7 +304,7 @@ export function pauseAfterHandOff(tab, result) {
  * the tab goes over from MPV to FastStream's own player, as the toolbar's MPV -> On does,
  * and that player, which loads the file through the page (PageFetch), says why
  * (tab.playerNotice). mpv's window opened and closed at once before, and nothing said why
- * (the owner's pick, 2026-11-12: no byte relay to mpv, which would need a new helper). Not
+ * (no byte relay to mpv, which would need a new helper). Not
  * the user's Off (userTurnedOff): the toolbar shows On. On this page the tab stands in for MPV
  * (tab.mpvStandInPage): the toolbar cycle's next click is MPV -> Off. As On -> MPV it reloaded
  * the page, was refused again and came back On, and Off was never reached.
@@ -691,7 +691,7 @@ export function onMpvWatchEvent(state, event) {
   } else if (event.type === 'request' && event.action === 'autoplay') {
     toggleMpvAutoplay(state);
   } else if (event.type === 'request' && event.action === 'pause') {
-    // Space at an end (his wish, 2026-10-17: the easiest key): this episode's countdown stops,
+    // Space at an end (the easiest key): this episode's countdown stops,
     // and autoplay stays on for the next end, which the switch would have turned off. mpv
     // stays paused on the last frame. Space during playback finds no countdown to stop.
     const counting = !!state.countdown;

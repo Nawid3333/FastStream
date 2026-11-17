@@ -2037,7 +2037,7 @@
   /**
    * How much of an element is on screen, 0 to 1. In a hidden document (a background tab)
    * the element's box stands in for the browser's measure, which there is no answer
-   * (his report, 2026-10-27: MPV autoplay went on to the next episode in a background tab,
+   * (MPV autoplay went on to the next episode in a background tab,
    * and its hoster's player was never started). Measured in Firefox 158: a cross-site frame
    * made in a hidden tab has a 0x0 viewport, and IntersectionObserver gives everything in it
    * 0 until the tab is shown; and a hidden tab measures on a timer that slows each time

@@ -7,7 +7,7 @@
  *
  * It replaced a cooldown that ignored every move for a while after the controls were hidden by
  * a key or a click: 2 s after the fullscreen key, so in fullscreen the controls came only
- * after a lot of moving (his report, 2026-10-13; measured: six moves over hundreds of pixels,
+ * after a lot of moving (measured: six moves over hundreds of pixels,
  * half a second after F, showed nothing).
  */
 export class PointerMoves {

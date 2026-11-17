@@ -2,7 +2,7 @@
 
 /**
  * Where the player's sound goes: the system's default output, or a device the user chose
- * (his wish, 2026-10-24: headphones while the speakers stay the default, say).
+ * (headphones while the speakers stay the default, say).
  *
  * All of the player's sound runs through Web Audio (FastStreamClient.initiateWebAudio), and
  * Firefox has no AudioContext.setSinkId. It does have the element's setSinkId and
