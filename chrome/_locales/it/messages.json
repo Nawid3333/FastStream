@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "Traccia $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "Sottotitoli disattivati"
+    },
+    "player_subtitles_osd_on": {
+        "message": "Sottotitoli: $1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "Nessun sottotitolo"
+    },
     "player_subtitles_new_cue": {
         "message": "Nuovo sottotitolo"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "Abilita automaticamente la migliore traccia dei sottotitoli trovata\n(Cambia la lingua predefinita nelle impostazioni dei sottotitoli)"
+    },
+    "options_general_cyclesubs": {
+        "message": "Il tasto dei sottotitoli scorre le tracce una alla volta, poi li disattiva\n(Non selezionato: attiva e disattiva i sottotitoli)"
     },
     "options_general_stream": {
         "message": "Usa il lettore video per riprodurre flussi HLS/DASH quando apri l'URL di una playlist (.m3u8/.mpd)"

@@ -41,6 +41,7 @@ const mpvAutoplayNextToggle = /** @type {HTMLInputElement} */ (document.getEleme
 const mpvTestButton = /** @type {HTMLButtonElement} */ (document.getElementById('mpvtest'));
 const mpvTestResult = /** @type {HTMLElement} */ (document.getElementById('mpvtestresult'));
 const autoSub = /** @type {HTMLInputElement} */ (document.getElementById('autosub'));
+const cycleSubs = /** @type {HTMLInputElement} */ (document.getElementById('cyclesubs'));
 const maxSpeed = /** @type {HTMLInputElement} */ (document.getElementById('maxspeed'));
 const maxSize = /** @type {HTMLInputElement} */ (document.getElementById('maxsize'));
 const maxSizeUnit = /** @type {HTMLSelectElement} */ (document.getElementById('maxsizeunit'));
@@ -177,6 +178,7 @@ async function loadOptions(newOptions) {
   decodingAwareQuality.checked = Options.decodingAwareQuality !== false;
   lowerOnDroppedFrames.checked = Options.lowerOnDroppedFrames !== false;
   autoSub.checked = !!Options.autoEnableBestSubtitles;
+  cycleSubs.checked = !!Options.cycleSubtitles;
   autoplayNext.checked = !!Options.autoplayNext;
   // A number: the field's value takes it as text.
   autoplayCountdown.value = /** @type {string} */ (/** @type {unknown} */ (Options.autoplayCountdown));
@@ -541,6 +543,11 @@ playMP4URLs.addEventListener('change', () => {
 
 autoSub.addEventListener('change', () => {
   Options.autoEnableBestSubtitles = autoSub.checked;
+  optionChanged();
+});
+
+cycleSubs.addEventListener('change', () => {
+  Options.cycleSubtitles = cycleSubs.checked;
   optionChanged();
 });
 

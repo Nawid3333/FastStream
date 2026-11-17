@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "트랙 $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "자막 끔"
+    },
+    "player_subtitles_osd_on": {
+        "message": "자막: $1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "자막 없음"
+    },
     "player_subtitles_new_cue": {
         "message": "새 자막"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "자동으로 가장 적합한 자막 트랙을 활성화합니다\n(기본 언어는 자막 설정에서 변경하세요)"
+    },
+    "options_general_cyclesubs": {
+        "message": "자막 키로 트랙을 하나씩 전환하고 마지막 다음에는 끕니다\n(선택 해제: 자막을 켜고 끕니다)"
     },
     "options_general_stream": {
         "message": "플레이리스트 URL(.m3u8/.mpd) 열 때 플레이어로 HLS/DASH 스트림 재생"

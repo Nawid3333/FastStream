@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "Ścieżka $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "Napisy wyłączone"
+    },
+    "player_subtitles_osd_on": {
+        "message": "Napisy: $1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "Brak napisów"
+    },
     "player_subtitles_new_cue": {
         "message": "Nowy napis"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "Automatycznie włączaj najlepszą znalezioną ścieżkę napisów\n(Zmień domyślny język w ustawieniach napisów)"
+    },
+    "options_general_cyclesubs": {
+        "message": "Klawisz napisów przełącza ścieżki po kolei, a po ostatniej je wyłącza\n(Odznaczone: włącza i wyłącza napisy)"
     },
     "options_general_stream": {
         "message": "Użyj odtwarzacza do odtwarzania strumieni HLS/DASH przy otwieraniu URL playlist (.m3u8/.mpd)"

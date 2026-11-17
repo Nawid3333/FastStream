@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "Trek $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "Sari kata dimatikan"
+    },
+    "player_subtitles_osd_on": {
+        "message": "Sari kata: $1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "Tiada sari kata"
+    },
     "player_subtitles_new_cue": {
         "message": "Sarikata baharu"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "Aktifkan trek sari kata terbaik yang ditemui secara automatik\n(Tukar bahasa lalai dalam tetapan sari kata)"
+    },
+    "options_general_cyclesubs": {
+        "message": "Kekunci sari kata bertukar ke setiap trek satu demi satu, kemudian dimatikan\n(Tidak ditanda: menghidupkan dan mematikan sari kata)"
     },
     "options_general_stream": {
         "message": "Gunakan pemain untuk memainkan strim HLS/DASH apabila membuka URL senarai main (.m3u8/.mpd)"

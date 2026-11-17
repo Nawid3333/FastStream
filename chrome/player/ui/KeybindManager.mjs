@@ -212,7 +212,13 @@ export class KeybindManager extends EventEmitter {
     });
 
     this.on('ToggleSubtitles', /** @param {KeyboardEvent} e */ (e) => {
-      this.client.interfaceController.subtitlesManager.toggleSubtitles();
+      const subtitles = this.client.interfaceController.subtitlesManager;
+      if (this.client.options.cycleSubtitles) {
+        subtitles.cycleSubtitles();
+      } else {
+        subtitles.toggleSubtitles();
+      }
+      this.osd.show(subtitles.describeActive());
     });
 
 

@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "トラック $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "字幕オフ"
+    },
+    "player_subtitles_osd_on": {
+        "message": "字幕: $1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "字幕なし"
+    },
     "player_subtitles_new_cue": {
         "message": "新しい字幕"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "自動的に最適な字幕トラックを有効化する\n(字幕設定でデフォルトの言語を変更できます)"
+    },
+    "options_general_cyclesubs": {
+        "message": "字幕キーでトラックを順番に切り替え、最後の後はオフにする\n(オフの場合: 字幕のオン/オフを切り替える)"
     },
     "options_general_stream": {
         "message": "プレイリスト URL (.m3u8/.mpd) を開くときに HLS/DASH ストリームを再生するプレーヤーを使用する"

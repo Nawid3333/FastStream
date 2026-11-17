@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "Track $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "Ondertiteling uit"
+    },
+    "player_subtitles_osd_on": {
+        "message": "Ondertiteling: $1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "Geen ondertiteling"
+    },
     "player_subtitles_new_cue": {
         "message": "Nieuwe ondertitel"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "Schakel automatisch het beste gevonden ondertitelingsspoor in\n(Verander de standaardtaal in de ondertitelingsinstellingen)"
+    },
+    "options_general_cyclesubs": {
+        "message": "De ondertitelingstoets gaat de sporen een voor een langs, daarna uit\n(Uitgevinkt: zet ondertiteling aan en uit)"
     },
     "options_general_stream": {
         "message": "Gebruik de speler om HLS/DASH-streams af te spelen bij het openen van afspeellijst-URL's (.m3u8/.mpd)"
