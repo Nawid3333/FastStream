@@ -102,7 +102,7 @@ export class SourceBufferWrapper extends EventEmitter {
    * Drops the media segments still queued; the operation running, initialization segments and
    * removals stay. A seek that loads afresh removes what they would add, and Firefox parsed
    * every one of them before that removal ran: hundreds of one-frame segments behind a fast
-   * download (Codex's review, 2026-11-07). Their promises reject with an AbortError.
+   * download. Their promises reject with an AbortError.
    */
   dropQueuedMedia() {
     const isMedia = (/** @type {SourceBufferOp} */ op) => op.type === 'append' && !!op.media;

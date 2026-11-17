@@ -6,8 +6,7 @@ import {KEYBINDS_VERSION} from './KeybindUtils.mjs';
 
 // This computer's, never another's: the import keeps the path set here (a file from someone
 // else could name a program they had put on this computer), so the export leaves it out too.
-// It named the Windows account (C:\Users\<name>\...) in a file meant to be shared (glm's
-// review, 2026-11-16).
+// It named the Windows account (C:\Users\<name>\...) in a file meant to be shared.
 const LOCAL_ONLY = ['mpvPath'];
 
 // Limits with "none" (-1) or an amount from 0 up, in bytes, bytes a second or seconds, as the

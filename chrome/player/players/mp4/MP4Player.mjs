@@ -481,7 +481,7 @@ export default class MP4Player extends EventEmitter {
     // A seek preview of a file without a picture (audio only) has nothing to show, and stops
     // here. It made no SourceBuffer (a preview plays no audio), so its element never left
     // HAVE_NOTHING, and its loop, waiting for a first frame (needsInit), woke the page every
-    // 4 ms for as long as the tab stayed open (a review, 2026-11-13).
+    // 4 ms for as long as the tab stayed open.
     if (this.isPreview && this.videoTracks.length === 0) {
       this.nothingToPreview = true;
       this.running = false;

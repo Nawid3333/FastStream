@@ -79,7 +79,7 @@
   // detected in it. 'sent', then 'leaving' from the redirect's beforeunload on; a second
   // beforeunload is a leave of the page's own (the redirect's was cancelled: a "Leave page?"
   // the user said no to), and ends it. Not a timer: an unload slower than one sent
-  // FRAME_REMOVED for the redirect, and the player got no sources (review, 2026-11-15).
+  // FRAME_REMOVED for the redirect, and the player got no sources.
   /** @type {false|'sent'|'leaving'} */
   let RedirectingToPlayer = false;
   // This page's name, for the background to tell a player it opens from one a page this
@@ -228,7 +228,7 @@
       return true;
     } else if (request.type === MessageTypes.PAGE_TYPING) {
       // Whether the user types in this page, or looks elsewhere: the next episode's player
-      // takes the keyboard only when not (main.mjs; the reviews of 2026-10-11). The field
+      // takes the keyboard only when not (main.mjs). The field
       // with the focus inside a shadow root too (document.activeElement gives a web
       // component's field as its host). An iframe with the focus counts too, a chat's or a
       // comment box's, whose field this frame cannot see; not a player's, nor one it plays in.
@@ -918,7 +918,7 @@
   // What one reading of a page's tracks takes at most. A subtitle file is kilobytes, a
   // typeset one a few megabytes, and a page has a few dozen at most; all of it goes to the
   // background, which keeps it with the frame. Without a bound a page could send any number
-  // of files of any size at each new stream (a review, 2026-11-15). Past the bytes, a track
+  // of files of any size at each new stream. Past the bytes, a track
   // is given up as a failed request is.
   const ScrapedTracksMax = 64;
   const ScrapedBytesMax = 64 * 1024 * 1024;
@@ -1260,8 +1260,8 @@
           element.setAttribute('style', old.style);
         } else if (old.style !== undefined) {
           // The page wrote to it meanwhile (its framework drew it again): put back, its whole
-          // old attribute undid what the page wrote while the player filled the screen (glm's
-          // review, 2026-11-16). Now what the fill set goes back to what was there before,
+          // old attribute undid what the page wrote while the player filled the screen.
+          // Now what the fill set goes back to what was there before,
           // property by property, and what the page wrote stays.
           const before = document.createElement('div').style;
           before.cssText = old.style;
@@ -1419,7 +1419,7 @@
   // What hideSoft sets on the page's element: no size, nothing drawn outside it, and no share
   // of a flex box. A flex item's size is its share, not its width or height: on bilibili
   // (`flex: 1 1 0%` in a column) the hidden element kept half the box, and the player, which
-  // takes the element's classes, got the other half (live check, 2026-11-15).
+  // takes the element's classes, got the other half.
   /** @type {Object<string, string>} */
   const SoftHidden = {'width': '0px', 'height': '0px', 'overflow': 'hidden', 'margin': '0px', 'contain': 'paint',
     'flex-grow': '0', 'flex-basis': '0px'};
@@ -1676,8 +1676,8 @@
 
   // The media each player up holds paused (pauseAllWithin), one WeakSet a player: weakly,
   // as a page that adds and drops media while the player is up (ads, previews on hover)
-  // had every one kept alive here, with its buffers, until the player went (Codex's
-  // review, 2026-11-07). A WeakSet, not WeakRefs: Firefox keeps an entry whose key is the
+  // had every one kept alive here, with its buffers, until the player went.
+  // A WeakSet, not WeakRefs: Firefox keeps an entry whose key is the
   // content script's wrapper of a page element for as long as the element lives.
   /** @type {Set<WeakSet<HTMLMediaElement>>} */
   const PausedHolds = new Set();
@@ -2608,7 +2608,7 @@
     }
 
     // A page that names its series and lists its season tells by its links alone: a button
-    // that says "next episode" there may lead anywhere (kimi's review, 2026-10-11).
+    // that says "next episode" there may lead anywhere.
     const structured = !!series && listsThisSeason(links.series);
 
     // 1b. The last episode of a season, in a page that lists its episodes: the next season's

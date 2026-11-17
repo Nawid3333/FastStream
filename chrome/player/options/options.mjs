@@ -1111,8 +1111,8 @@ importButton.addEventListener('click', () => {
     const newOptions = Utils.migrateClickActions(Utils.migrateSizes(Utils.migrateKeybinds(
         Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj), newOptionsObj), newOptionsObj);
     // The mpv path is this computer's, and the one program the helper starts: a file from
-    // someone else could name a program they had put here, and a file without it emptied it
-    // (a review, 2026-11-15). The user sets it on this page.
+    // someone else could name a program they had put here, and a file without it emptied it.
+    // The user sets it on this page.
     /** @type {Object<string, *>} */ (newOptions).mpvPath = typeof Options.mpvPath === 'string' ? Options.mpvPath : '';
     holdToFields(newOptions);
     holdImportedNumbers(newOptions);

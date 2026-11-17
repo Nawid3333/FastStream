@@ -709,8 +709,7 @@ export const MpvPagePollMs = 1000;
 /**
  * How long goToEpisode waits for a frame to answer its next/previous request (the content
  * script answers at once, after its click): a frame that never answered kept state.going
- * set, and every later key, button and autoplay of the session returned at it (glm's
- * review, 2026-10-12).
+ * set, and every later key, button and autoplay of the session returned at it.
  */
 export const MpvPageNavigateMs = 5000;
 
@@ -993,8 +992,8 @@ function siteOf(url) {
 /**
  * Whether the tab of mpv's stream still shows the site the stream went from. A tab the user
  * took to another site while mpv played had that site's "next" link clicked at the episode's
- * end: the user's page went away under them, and its video replaced the series in mpv (glm's
- * review, 2026-11-16). The site, not the page: the series' own next page, a reload, an address
+ * end: the user's page went away under them, and its video replaced the series in mpv.
+ * The site, not the page: the series' own next page, a reload, an address
  * a site's script changes, all stay on it.
  * @param {MpvWatch} state
  * @param {TabHolder} tab - The tab of state.tabId.

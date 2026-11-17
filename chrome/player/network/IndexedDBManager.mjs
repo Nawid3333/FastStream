@@ -89,7 +89,7 @@ export class IndexedDBManager {
           try {
             const updatedTime = await IndexedDBManager.getValue(db, 'metadata', 'updated_time');
             // A live tab writes it every 5 s, but Firefox delays a hidden tab's timers by up
-            // to 15 s (PlayerPeers): 10 s took live databases for dead ones (review, 2026-10-09).
+            // to 15 s (PlayerPeers): 10 s took live databases for dead ones.
             // (A Date.now(): setup and keepAlive write it.)
             stale = !updatedTime || Date.now() - /** @type {number} */ (updatedTime) > 60000;
           } catch (e) {

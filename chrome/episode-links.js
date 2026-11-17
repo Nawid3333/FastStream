@@ -39,7 +39,7 @@ const EpisodeLinks = (() => {
   // Arrows and marks around a link's words ("Next episode »", "‹ Zurück"), and the space left
   // of whitespace once it is collapsed. Each is one UTF-16 unit. Taken off both ends by a loop:
   // a regex anchored at the end (`[…]+$`) was quadratic in a run of them inside a text, a
-  // second for 60,000 dashes, at every poll for the next episode (a review, 2026-11-15).
+  // second for 60,000 dashes, at every poll for the next episode.
   const MARKS = new Set(' «»‹›<>←→⟨⟩❮❯|·•…:-–—');
 
   /**
@@ -204,7 +204,7 @@ const EpisodeLinks = (() => {
     if (!series) return true;
     if (seriesOf(href) === series) return true;
     // A series that is a folder (.../girls/) has its other parts in it too (.../girls/ova/...);
-    // a sequel's folder (.../girls-2/) is not in it (kimi's review, 2026-10-11).
+    // a sequel's folder (.../girls-2/) is not in it.
     if (!series.endsWith('/')) return false;
     try {
       const url = new URL(href);

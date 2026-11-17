@@ -49,7 +49,7 @@
    * reel opened signed out has no playlist; its manifest is in
    * videoDeliveryLegacyFields.dash_manifest_xml_string, and without it FastStream played only
    * one of the separate files the page fetches - the sound of a reel preloaded after it, no
-   * picture (live check, 2026-11-15).
+   * picture.
    * @param {*} video - The playback_video object.
    * @return {?string}
    */
