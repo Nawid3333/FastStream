@@ -38,14 +38,20 @@ O FastStream é construído para o Firefox no desktop. Chrome e outros navegador
 
 ## Instalação
 
-Baixe o `.xpi` na [página de Releases](https://github.com/Nawid3333/FastStream/releases) e abra-o no Firefox (arraste-o para uma janela, ou `about:addons` → a engrenagem → Instalar complemento a partir de arquivo). Ele requer o Firefox 153 ou mais recente. A versão é assinada pela Mozilla para autodistribuição, então ela instala em um Firefox comum, e o Firefox verifica atualizações sozinho: cada release publica um `updates.json` para o qual a extensão aponta.
+O FastStream é instalado no seu Firefox normal (versão 153 ou mais nova). Você não precisa do Firefox Developer Edition, do Nightly nem de nenhuma mudança em `about:config`: cada versão é assinada pela Mozilla.
 
-O `firefox-github-*.zip` na mesma página é um build não assinado para desenvolvimento; carregá-lo requer o Firefox Developer Edition ou um complemento temporário (`about:debugging`).
+1. Abra a [versão mais recente](https://github.com/Nawid3333/FastStream/releases/latest) e baixe o arquivo cujo nome termina em **`.xpi`** (por exemplo `99f1b8e844554f46b28a-1.3.82.192.xpi`).
+2. Instale-o: arraste o arquivo para uma janela do Firefox, ou abra `about:addons`, clique no ícone de engrenagem e escolha a opção de instalar a partir de um arquivo (*Install Add-on From File...* no Firefox em inglês), e selecione o arquivo.
+3. Clique em **Adicionar** quando o Firefox perguntar.
+
+**As atualizações** chegam como as de qualquer outra extensão: o Firefox as procura sozinho e instala uma nova versão quando houver. Para procurar agora, abra `about:addons`, clique no ícone de engrenagem e escolha a opção de procurar atualizações (*Check for Updates* no Firefox em inglês). (A extensão diz ao Firefox onde procurar: cada versão publica um `updates.json`.)
+
+Você não precisa dos outros arquivos da página. O `firefox-github-*.zip` é um build não assinado para desenvolvedores: um Firefox normal só o carrega como extensão temporária, que some ao reiniciar e nunca é atualizada.
 
 ## Instruções de Build (criar pacotes)
 Para criar os pacotes do Firefox, você precisa compilar o FastStream seguindo estes passos:
 
-1. Instale o Node.js (22 ou mais novo) e o pnpm 11
+1. Instale o Node.js (22 ou mais novo) e o pnpm 12
 2. Execute `pnpm install` para instalar as dependências
 3. Execute `pnpm run build`
 4. Os pacotes do Firefox e o build web estarão disponíveis no diretório `built`

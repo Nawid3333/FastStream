@@ -35,8 +35,10 @@ can erase all of it by removing the add-on.
 
 While Firefox runs, the add-on also keeps each tab's address and on/off
 state in `browser.storage.session`, so that its background page, which Firefox
-unloads when idle, finds them again. Firefox holds that in memory only and
-clears it when it closes.
+unloads when idle, finds them again; in MPV mode also the address of the last
+stream the tab sent to mpv, so that a second click does not open it twice.
+Firefox holds that in memory only and clears it when it closes; a tab's entry
+goes when the tab closes.
 
 If autoplay cannot go on to the next episode on a site, the add-on notes
 that site in `browser.storage.local`, for the "Problems" list on its options

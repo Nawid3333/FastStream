@@ -60,9 +60,15 @@ FastStream is built for Firefox on the desktop. Chrome and other Chromium browse
 
 ## Installation
 
-Download the `.xpi` from the [Releases page](https://github.com/Nawid3333/FastStream/releases) and open it in Firefox (drag it into a window, or `about:addons` → the gear → Install Add-on From File). It needs Firefox 153 or newer. The release is signed by Mozilla for self-distribution, so it installs in an ordinary Firefox, and Firefox checks for updates by itself: every release publishes an `updates.json` that the extension points at.
+FastStream installs in your normal Firefox (version 153 or newer). You do not need Firefox Developer Edition, Nightly, or any change in `about:config`: every release is signed by Mozilla.
 
-The `firefox-github-*.zip` on the same page is an unsigned build for development; loading it needs Firefox Developer Edition or a temporary add-on (`about:debugging`).
+1. Open the [latest release](https://github.com/Nawid3333/FastStream/releases/latest) and download the file whose name ends in **`.xpi`** (for example `99f1b8e844554f46b28a-1.3.82.192.xpi`).
+2. Install it: drag the file into a Firefox window, or open `about:addons`, click the gear icon and choose **Install Add-on From File...**, then pick the file.
+3. Click **Add** when Firefox asks.
+
+**Updates** come like those of any other add-on: Firefox checks for them by itself, and installs a new version when there is one. To check right away, open `about:addons`, click the gear icon and choose **Check for Updates**. (The add-on tells Firefox where to look: each release publishes an `updates.json`.)
+
+You do not need the other files on the release page. The `firefox-github-*.zip` is an unsigned build for developers: a normal Firefox loads it only as a temporary add-on, which is gone after a restart and never updates.
 
 ## Build Instructions
 

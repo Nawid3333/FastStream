@@ -123,6 +123,12 @@
   by mistake stops there. The check is in the tag's own copy of the file, so it guards
   against mistakes only; the failsafe below runs `main`'s copy, and a tag ruleset (only the
   owner and the workflows create `v*` tags) would close the rest (an owner question).
+  Since 2026-11-17 a new release's text starts with how to install it
+  (`.github/release-notes.md`, then GitHub's generated list of changes): the page offers four
+  files, and the unsigned zip read as the add-on (the owner: people thought a special Firefox
+  was needed). A release run again keeps its text (`gh release upload`).
+  `releaseInstallNotes.test.mjs` pins the flag and the file's points, the Firefox floor read
+  from `build.mjs`.
 - **`amo-signing-failsafe.yml`** ("Release failsafe"; after every release run, and every
   3 h): completes a release whose AMO signing did not finish, re-runs one that did not
   publish, checks the update path; see "AMO signing no longer depends on a timer" and
