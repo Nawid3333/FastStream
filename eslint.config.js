@@ -70,6 +70,10 @@ module.exports = [
 
       // Style
       '@stylistic/array-bracket-newline': 0,
+      // array-bracket-spacing and object-curly-spacing are deprecated since @stylistic 6 (a
+      // warning on each run) for list-style. That rule also checks where a list spanning lines
+      // breaks, and cannot be told not to: 2030 places in this repository (2026-11-17). Kept
+      // until a version removes them; lint then fails on that update's PR.
       '@stylistic/array-bracket-spacing': [2, 'never'],
       '@stylistic/array-element-newline': 0,
       '@stylistic/block-spacing': [2, 'never'],
