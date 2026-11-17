@@ -336,7 +336,21 @@ jobs:
           # One atomic push: when main has moved on, the refused branch update takes the
           # tag with it. Two pushes could leave main's "chore: release" commit without
           # its tag when only the second failed, and release.yml never started for it.
-          authgit push --atomic origin HEAD:main "refs/tags/v$NEW"
+          # A server error is tried again (2026-11-17: "Internal Server Error", and the
+          # commit went unreleased until the next merge); a refusal is not. A push that
+          # went through despite the error finds main and the tag there already.
+          for attempt in 1 2 3; do
+            if out=$(authgit push --atomic origin HEAD:main "refs/tags/v$NEW" 2>&1); then
+              printf '%s\n' "$out"
+              break
+            fi
+            printf '%s\n' "$out" >&2
+            if [ "$attempt" = 3 ] || ! grep -qiE 'internal server error|bad gateway|service unavailable|gateway time-?out|returned error: 5[0-9][0-9]' <<< "$out"; then
+              exit 1
+            fi
+            echo "The push met a server error (attempt $attempt of 3); trying again in 30 s."
+            sleep 30
+          done
 
           echo "tag=v$NEW" >> "$GITHUB_OUTPUT"
 

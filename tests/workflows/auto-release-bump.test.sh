@@ -4,7 +4,8 @@
 # tag behind), and the commit and its tag in one atomic push, so a refused push leaves
 # neither. The step runs in a folder of its own with the two version files; git is a
 # stub that records its calls and answers `tag -l` and `ls-remote --tags` from $TAGS and
-# $REMOTE_TAGS (or fails, with LS_REMOTE_FAILS).
+# $REMOTE_TAGS (or fails, with LS_REMOTE_FAILS), and each push in turn as $PUSHES says:
+# ok, 500 (GitHub's server error) or refused (main moved on). sleep is a stub too.
 source "$(dirname "$0")/lib.sh"
 
 here=$(mktemp -d)
@@ -28,11 +29,21 @@ case $1 in
     for t in ${REMOTE_TAGS:-}; do
       case refs/tags/$t in $4) printf '0123abcd\trefs/tags/%s\n0123abce\trefs/tags/%s^{}\n' "$t" "$t" ;; esac
     done ;;
-  add|commit|push) ;;
+  push)
+    n=$(( $(grep -c '^push' "$FIX/calls") ))
+    set -- ${PUSHES:-ok}
+    answer=${!n:-ok}
+    case $answer in
+      500) printf 'remote: Internal Server Error\n ! [remote rejected]   HEAD -> main (Internal Server Error)\n' >&2; exit 1 ;;
+      refused) printf ' ! [rejected]          HEAD -> main (fetch first)\n' >&2; exit 1 ;;
+    esac ;;
+  add|commit) ;;
   *) echo "unexpected git $*" >&2; exit 99 ;;
 esac
 EOF
 chmod +x "$here/bin/git"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> "$FIX/sleeps"\n' > "$here/bin/sleep"
+chmod +x "$here/bin/sleep"
 
 # scenario <name>: runs the step on package.json and chrome/manifest.json at 1.3.82.44.
 scenario() {
@@ -79,6 +90,28 @@ export TAGS='v1.3.82.44 v1.3.82.450' REMOTE_TAGS='v1.3.820.45'
 scenario 'tags that only start or end like the next one'
 check 'tags v1.3.82.45' contains "$FIX/calls" 'tag -a v1.3.82.45 -m FastStream 1.3.82.45'
 
+export TAGS='v1.3.82.44' REMOTE_TAGS='' LS_REMOTE_FAILS='' PUSHES='500 ok'
+scenario 'a server error on the push, then the push goes through'
+check 'succeeds' test "$status" -eq 0
+check 'pushes twice, the same commit and tag' test "$(grep -cxF 'push --atomic origin HEAD:main refs/tags/v1.3.82.45' "$FIX/calls")" -eq 2
+check 'waits between them' test "$(cat "$FIX/sleeps" 2>/dev/null)" = '30'
+check 'says why' contains "$FIX/out" 'The push met a server error (attempt 1 of 3)'
+check 'hands the tag on' contains "$FIX/env" 'tag=v1.3.82.45'
+
+export PUSHES='500 500 500 ok'
+scenario 'a server error every time'
+check 'fails' test "$status" -ne 0
+check 'pushes three times, no more' test "$(grep -c '^push' "$FIX/calls")" -eq 3
+check 'hands no tag on' lacks "$FIX/env" 'tag='
+
+export PUSHES='refused ok'
+scenario 'main moved on: the push is refused'
+check 'fails' test "$status" -ne 0
+check 'pushes once' test "$(grep -c '^push' "$FIX/calls")" -eq 1
+check 'waits for nothing' test ! -s "$FIX/sleeps"
+check 'hands no tag on' lacks "$FIX/env" 'tag='
+
+export PUSHES=''
 export TAGS='v1.3.82.44' REMOTE_TAGS='' LS_REMOTE_FAILS=1
 scenario 'the remote cannot be asked'
 check 'fails' test "$status" -ne 0
