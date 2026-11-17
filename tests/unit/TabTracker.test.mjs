@@ -49,6 +49,30 @@ describe('forgetFrame', () => {
     tab.forgetFrame(player);
     expect(tab.playerCount).toBe(0);
   });
+
+  it('leaves the frame that took its id since: the frame\'s next document', () => {
+    // Firefox keeps a frame's id across its navigations: a player's late check (PLAYER_LOADED,
+    // its page asked) forgot the next player loaded in the same iframe.
+    const {tab, page, player} = tabWithFrames();
+    tab.forgetFrame(player);
+    const next = tab.getFrameOrCreate(2);
+    next.setParentFrame(page);
+    next.isPlayer = true;
+    tab.playerCount = 1;
+    tab.forgetFrame(player);
+    expect(tab.getFrame(2)).toBe(next);
+    expect(page.children.has(next)).toBe(true);
+    expect(tab.playerCount).toBe(1);
+  });
+
+  it('leaves a frame inside that took a gone child\'s id', () => {
+    const {tab, player, inner} = tabWithFrames();
+    tab.removeFrame(3);
+    const next = tab.getFrameOrCreate(3);
+    tab.forgetFrame(player);
+    expect(tab.getFrame(3)).toBe(next);
+    expect(inner.parent).toBeNull();
+  });
 });
 
 // A reset (a reload, a new site) drops every frame, and with them the frames that played:
@@ -789,6 +813,28 @@ describe('restoreTabStates', () => {
       const blind = new TabTracker();
       await blind.restoreTabStates();
       expect(blind.getTab(9)?.isMpv).toBe(true);
+    } finally {
+      delete globalThis.chrome.storage;
+      delete globalThis.chrome.tabs;
+    }
+  });
+
+  it('keeps a player page frame noted while the saved states were read', async () => {
+    // A player's message can wake the event page and note its frame before the restore lands.
+    /** @type {(value: Object) => void} */
+    let answer = () => {};
+    globalThis.chrome.storage = {session: {get: () => new Promise((resolve) => {
+      answer = resolve;
+    })}};
+    globalThis.chrome.tabs = {query: async () => [{id: 7}]};
+    try {
+      const tracker = new TabTracker();
+      const restoring = tracker.restoreTabStates();
+      tracker.getTabOrCreate(7).playerPageFrames = {12: 5};
+      answer({'tabState:7': {isOn: true, playerPageFrames: {8: 3}}});
+      await restoring;
+      expect(tracker.getTab(7)?.isOn).toBe(true);
+      expect(tracker.getTab(7)?.playerPageFrames).toEqual({8: 3, 12: 5});
     } finally {
       delete globalThis.chrome.storage;
       delete globalThis.chrome.tabs;

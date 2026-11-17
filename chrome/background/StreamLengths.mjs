@@ -2,7 +2,7 @@
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 import {RequestUtils} from '../player/utils/RequestUtils.mjs';
 import {PIECE_LENGTH, StreamLength} from '../player/utils/StreamLength.mjs';
-import {VideoSource} from '../player/VideoSource.mjs';
+import {VideoSource, sourceHeadersFor} from '../player/VideoSource.mjs';
 
 // A manifest longer than this is not read whole: a three-hour film in two-second segments
 // lists some 5,400 of them, well under a megabyte.
@@ -397,7 +397,7 @@ export class StreamLengths {
     if (source.mode === PlayerModes.ACCELERATED_HLS) {
       let url = source.url;
       for (let read = 0; read < MAX_PLAYLIST_READS; read++) {
-        const response = await this.get(url, request, null);
+        const response = await this.get(url, RequestUtils.splitSpecialHeaders(sourceHeadersFor({url: source.url, headers}, url)), null);
         if (!response) {
           return null;
         }
@@ -473,7 +473,11 @@ export class StreamLengths {
    */
   async get(url, request, range) {
     if (request.customHeaderCommands.length > 0) {
-      await this.setHeaders(url, request.customHeaderCommands);
+      try {
+        await this.setHeaders(url, request.customHeaderCommands);
+      } catch (e) {
+        console.warn('Header rule refused', e);
+      }
     }
 
     const controller = new AbortController();

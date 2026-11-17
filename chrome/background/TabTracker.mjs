@@ -218,7 +218,7 @@ export class FrameHolder {
     this.children.forEach((child) => {
       count += child.resetSelfAndChildren();
       child.parent = null;
-      this.tab.removeFrame(child.frameId);
+      if (child.isTracked()) this.tab.removeFrame(child.frameId);
     });
     this.children.clear();
     return count;
@@ -707,7 +707,8 @@ export class TabHolder {
    * @param {FrameHolder|undefined} frame - The removed frame.
    */
   forgetFrame(frame) {
-    if (!frame) {
+    // One already forgotten: its frame id may hold the frame's next document now.
+    if (!frame || !frame.isTracked()) {
       return;
     }
     this.playerCount = Math.max(0, (this.playerCount || 0) - frame.resetSelfAndChildren());
@@ -805,12 +806,15 @@ export class TabTracker {
         continue;
       }
       const tab = this.getTabOrCreate(tabId);
+      // A player's message that woke the page may have noted its frame while this read.
+      const noted = tab.playerPageFrames;
       for (const field of PersistedTabFields) {
         if (field in state) {
           // @ts-ignore - TabHolder fields are assigned dynamically.
           tab[field] = state[field];
         }
       }
+      tab.playerPageFrames = {...tab.playerPageFrames, ...noted};
     }
   }
 

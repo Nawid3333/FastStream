@@ -226,6 +226,18 @@ describe('VpnProxyMirror', () => {
     expect(current()).toBeNull();
   });
 
+  it('listens for a host once its proxy becomes one it can copy, and not after it stops being one', () => {
+    const {mirror, current} = setup();
+    mirror.noteSource(pageRequest(CDN, {...vpn(), type: 'masque'}));
+    expect(current()).toBeNull();
+    mirror.noteRequest(pageRequest(CDN, vpn()));
+    expect(current().urls).toEqual(['*://cdn.example/*']);
+    mirror.noteRequest(pageRequest(CDN, {...vpn(), type: 'masque'}));
+    expect(current()).toBeNull();
+    mirror.noteSource(pageRequest(CDN, vpn()));
+    expect(current().urls).toEqual(['*://cdn.example/*']);
+  });
+
   it('keeps private windows apart', () => {
     const {mirror} = setup();
     mirror.noteSource(pageRequest(CDN, vpn(), {incognito: true}));

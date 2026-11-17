@@ -71,6 +71,8 @@ describe('Header rules for a stream URL', function() {
     // As a source typed or pasted in: fetch() sends these percent-encoded.
     ['a URL written with a space', 'space', '/stream/video 1.mp4?id=space'],
     ['a URL written with an é and a space', 'accent', '/stream/vidéo 1.mp4?id=accent'],
+    // The rule keeps the #t=30 the request never sends: Firefox matches it with the fragment.
+    ['a URL with a #fragment', 'fragment', '/stream/clip.mp4?id=fragment#t=30'],
   ];
 
   for (const [name, id, path] of cases) {
