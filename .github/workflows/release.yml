@@ -190,8 +190,10 @@ jobs:
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release upload "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
+            # How to install, above GitHub's list of changes: the page offers four files
+            # (.github/release-notes.md; gh puts given notes before generated ones).
             gh release create "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" \
-              --title "FastStream $TAG" --generate-notes
+              --title "FastStream $TAG" --notes-file .github/release-notes.md --generate-notes
           fi
 
       # After every run, published or not: the failsafe completes a release whose
