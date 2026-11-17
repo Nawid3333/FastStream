@@ -3,4 +3,4 @@
 # verify. Nothing builds this file; both read the FROM line. It is here and not
 # in ci.yml because Dependabot updates the tag and digest of a Dockerfile's FROM line (the
 # docker entry in .github/dependabot.yml) but not a docker:// line in a workflow.
-FROM ghcr.io/zizmorcore/zizmor:1.30.1@sha256:a2eb396d886c053073405c7a980f2139ba2248ec172243cfa3841e57196e8101
+FROM ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d
