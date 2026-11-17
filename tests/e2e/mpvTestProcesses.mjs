@@ -97,27 +97,28 @@ export function ipcServerOf(commandLine) {
 }
 
 /**
- * The files in an mpv's playlist, asked over its IPC server. Only get_property is sent.
+ * Sends one command to an mpv over its IPC server.
  * @param {string} server - Its --input-ipc-server.
- * @param {number=} timeoutMs - How long to wait for its answer.
- * @return {Promise<Array<string>>} The playlist's filenames; none when mpv did not answer.
+ * @param {Array<*>} command
+ * @param {number=} timeoutMs
+ * @return {Promise<{error: string, data?: *}|null>} mpv's reply; null when it did not answer.
  */
-export function mpvPlaylist(server, timeoutMs = 2000) {
+export function mpvRequest(server, command, timeoutMs = 2000) {
   const RequestId = 4711;
   return new Promise((resolve) => {
     const socket = net.connect(server);
     let buffered = '';
     let timer = null;
-    const done = (files) => {
+    const done = (reply) => {
       clearTimeout(timer);
       socket.destroy();
-      resolve(files);
+      resolve(reply);
     };
-    timer = setTimeout(() => done([]), timeoutMs);
+    timer = setTimeout(() => done(null), timeoutMs);
     socket.setEncoding('utf8');
-    socket.on('error', () => done([]));
+    socket.on('error', () => done(null));
     socket.on('connect', () => {
-      socket.write(JSON.stringify({command: ['get_property', 'playlist'], request_id: RequestId}) + '\n');
+      socket.write(JSON.stringify({command, request_id: RequestId}) + '\n');
     });
     // mpv's events come on the same pipe, before and after the answer.
     socket.on('data', (chunk) => {
@@ -132,12 +133,23 @@ export function mpvPlaylist(server, timeoutMs = 2000) {
           continue;
         }
         if (reply.request_id === RequestId) {
-          done(Array.isArray(reply.data) ? reply.data.map((entry) => String(entry.filename)) : []);
+          done(reply);
           return;
         }
       }
     });
   });
+}
+
+/**
+ * The files in an mpv's playlist, asked over its IPC server.
+ * @param {string} server - Its --input-ipc-server.
+ * @param {number=} timeoutMs
+ * @return {Promise<Array<string>>} The playlist's filenames; none when mpv did not answer.
+ */
+export async function mpvPlaylist(server, timeoutMs = 2000) {
+  const reply = await mpvRequest(server, ['get_property', 'playlist'], timeoutMs);
+  return Array.isArray(reply?.data) ? reply.data.map((entry) => String(entry.filename)) : [];
 }
 
 /**

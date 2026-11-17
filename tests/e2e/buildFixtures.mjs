@@ -159,6 +159,18 @@ export function h264Encoder(what) {
   return encoder;
 }
 
+// 200 s of one still picture at 1 fps, a few KB: an episode for MPV autoplay
+// (mpv-episodes.e2e.mjs), which holds a next stream under StreamPick's SHORT_S as an ad.
+const EPISODE_FIXTURE = path.join(fixturesDir, 'episode.mp4');
+
+async function ensureEpisodeFixture() {
+  const recipe = recipeOf(ensureEpisodeFixture, h264Encoder('episode'));
+  await ensureFileFixture(EPISODE_FIXTURE, recipe, (partial) => runFfmpeg([
+    '-f', 'lavfi', '-i', 'color=c=darkslateblue:size=320x180:rate=1:duration=200',
+    '-c:v', h264Encoder('episode'), '-pix_fmt', 'yuv420p', '-g', '1', '-movflags', '+faststart', partial,
+  ], 'episode'));
+}
+
 // 96 frames at exactly 24 fps, every picture different, for the frame step
 // (keybinds.e2e.mjs): at 24 fps one frame is 1/24 s, which the old fixed 1/30 s step
 // could not reach.
@@ -427,6 +439,7 @@ export async function ensureFixtures() {
   await ensureWebmFixture();
   await ensureLongAvFixture();
   await ensureFrames24Fixture();
+  await ensureEpisodeFixture();
   await ensureSampleAvFixture();
   ensureDashFixtures();
   ensureHlsFixtures();
