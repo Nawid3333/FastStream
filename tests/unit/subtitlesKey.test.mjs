@@ -97,6 +97,8 @@ describe('the subtitles key', () => {
       'player_subtitles_osd_on:(en) English',
     ]);
     expect(subtitles.activeTracks).toEqual([english]);
+    // Each press redraws the subtitles and the menu, not only the OSD.
+    expect(subtitles.updateTrackList).toHaveBeenCalledTimes(5);
   });
 
   it('says there are none when the video has no subtitles', () => {
