@@ -200,8 +200,9 @@ jobs:
         run: pnpm run build:keep
 
       # Mozilla's addons-linter - the same engine AMO runs on upload.
-      # Errors are already at zero upstream, so this gate is meaningful:
-      # it stops a regression from reaching a store submission.
+      # Errors, notices and warnings are at zero, and the scripts pass
+      # --warnings-as-errors (2026-11-17): a new warning fails here too, so it
+      # cannot reach a store submission unseen.
       # The AMO build is the one that has to pass, and until now CI only
       # linted the GitHub build - which is a different splice with different
       # code in it. Both run.

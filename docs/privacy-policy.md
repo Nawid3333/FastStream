@@ -1,7 +1,7 @@
 # Privacy Policy
 
 **FastStream Video Player (Firefox)**
-Last updated: 2026-10-03
+Last updated: 2026-11-17
 
 ## Summary
 
@@ -38,6 +38,14 @@ state in `browser.storage.session`, so that its background page, which Firefox
 unloads when idle, finds them again. Firefox holds that in memory only and
 clears it when it closes.
 
+If autoplay cannot go on to the next episode on a site, the add-on notes
+that site in `browser.storage.local`, for the "Problems" list on its options
+page: the page's host and path (not its query, which often carries a
+session token), what went wrong, whether it was in the player or MPV mode,
+how often, and the first and last date. At most 50 sites are kept, and the
+list's "Clear" button empties it. It never leaves your computer by itself
+(see "Reporting a problem or an error" below).
+
 No browsing history, no page contents, no video URLs, and no personal
 information are kept beyond that or transmitted anywhere.
 
@@ -52,6 +60,25 @@ It never sends that information anywhere else. There is no intermediary
 server, no proxy operated by this project, and no third-party service
 receiving any part of it.
 
+- **The headers a page's request carried.** Some sites serve a video only
+  to the request their own page makes, so the player repeats that request's
+  headers, the page's cookies among them, on its own requests for the video.
+  The cookies and any `Authorization` header go only to the site that
+  request went to (its domain and subdomains, such as `www.example.com` and
+  `cdn.example.com`); a request to any other site gets the headers without
+  them.
+- **The clock of a live DASH stream.** A live DASH stream's manifest may
+  name time servers, and the DASH library asks them for the time. Its
+  built-in fallback (`time.akamai.com`), which it asked when a manifest named
+  none or none of them answered, is switched off (since 2026-11-17): then the
+  clock comes from the `Date` of the manifest's own response, or from your
+  computer.
+- **Firefox VPN.** Firefox's built-in VPN routes a page's requests through
+  Mozilla's proxy, but not an add-on's. When a page's requests went that way
+  and you allow the optional `proxy` permission, the add-on sends its own
+  requests to that page's video host through the same proxy, so the site sees
+  the same address it saw from the page. No other request is affected.
+
 The signed release (the `.xpi`) has the add-on's own update checker removed
 at build time, so it does not contact anything on startup either. Firefox
 itself checks for updates through the release's `update_url`, as for any
@@ -65,6 +92,18 @@ The player can search OpenSubtitles for subtitles. Only when you search, it
 sends what you typed into the search (title, language, year, season,
 episode) to `api.opensubtitles.com`, and when you pick a result, downloads
 that file from it. Nothing is sent to OpenSubtitles unless you search.
+
+## Reporting a problem or an error
+
+Two buttons open a new GitHub issue for this project in a tab, filled in
+for you: "Report" beside a site on the options page's "Problems" list (the
+site's host and path, what went wrong, whether in the player or MPV mode,
+how often, the first and last date, the add-on's version and your browser's
+user-agent string), and the report button of an error
+message in the player (the add-on's version, the error message and its
+stack trace, with the add-on's per-profile address removed). Nothing is
+sent when you click: GitHub shows you the text, and only you submit it,
+after reading and editing it. GitHub issues are public.
 
 ## The mpv helper (optional)
 
@@ -85,12 +124,13 @@ log on (`README-MPV.md`).
 |---|---|
 | `storage` | Saves your settings locally (see above). |
 | `tabs` | Lets the player know which tab a video belongs to, so it can attach to the right one. |
-| `webRequest`, `declarativeNetRequest` | Reads and adjusts request headers for the video streams you play. Some hosts serve media only with particular `Referer`/`Origin` headers; without this the video will not load. |
+| `webRequest`, `declarativeNetRequest` | Reads and adjusts request headers for the video streams you play. Some hosts serve media only with particular `Referer`/`Origin` headers, or with the headers of the page's own request; without this the video will not load. Cookies go only to the site they were sent to (see "Network requests"). |
 | `downloads` | Saves a video or subtitle file when *you* click download. Nothing is downloaded without your action. |
 | `nativeMessaging` | Only for the optional mpv mode: talks to the mpv helper on your own computer (see "The mpv helper" above). Unused unless you install the helper and turn MPV mode on. |
-| `cookies` | Only to read the container ID (`cookieStoreId`) of the tab you started from, so that a download opened from a Firefox Container tab stays in that same container. The add-on never reads, writes, or transmits cookie values. |
+| `cookies` | Only to read the container ID (`cookieStoreId`) of the tab you started from, so that a download opened from a Firefox Container tab stays in that same container. The add-on never reads or writes a cookie through this permission. |
 | `menus` | FastStream's items in the right-click menu of web pages: play the page's video in FastStream or MPV, or open a link in a new tab with FastStream or MPV on. The menu reads nothing of the page but the link you clicked on. |
 | `contextualIdentities` | Only in the unsigned development zip, not in the signed release. Nothing uses it today: upstream added it for container downloads, waiting for a Firefox API that does not exist yet (Mozilla bug 1917842). |
+| `proxy` (optional) | Asked for only when you play a video from a page whose requests go through Firefox's VPN, and only granted if you allow it. Used only for the add-on's own requests to that page's video host (see "Network requests"). |
 | `<all_urls>` | FastStream is a general-purpose video player - it cannot know in advance which site you will play a video on. It activates on a page only when you invoke it or when a supported video is detected. |
 
 ## What this build does not include

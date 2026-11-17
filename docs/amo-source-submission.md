@@ -64,11 +64,10 @@ file times.
    packages; where this project needed changes, they are applied by pnpm as
    patch files rather than by hand-editing the vendored copy. The patches
    are declared in `pnpm-workspace.yaml` under `patchedDependencies` and
-   live in `patches/`:
+   live in `patches/`, each named with the version it applies to (`ls patches/`):
 
    ```
-   Coloris@0.25.0     dashjs@5.2.1      gif.js@0.2.0     hls.js@1.7.3
-   mp4box@2.4.1
+   Coloris     dashjs     gif.js     hls.js     mp4box
    ```
 
    Besides the patches, `sync-vendor.mjs` itself makes a few small
@@ -79,7 +78,7 @@ file times.
    This is the key point for review: every bundled library is a **pinned
    npm release plus a readable diff**, not an opaque vendored blob. The
    one exception is Coloris, which is not on npm: it is pinned to its git
-   tag in `package.json` (`github:mdbassit/Coloris#v0.25.0`), and the
+   tag in `package.json` (`github:mdbassit/Coloris#v<version>`, v0.25.1 on 2026-11-17), and the
    lockfile records the commit and the tarball's hash. The version in the
    lockfile is the version that ships.
 

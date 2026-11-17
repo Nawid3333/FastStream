@@ -24,8 +24,8 @@
 // suite exists.
 //
 // It does not cover the background script, stream interception or the
-// manifest. Those need the extension harness and are checked by
-// `pnpm run lint:amo:dist` and by loading the build in Firefox.
+// manifest. Those need the extension harness: `pnpm run lint:amo` and the
+// installed-extension suites (`test:ext`, `test:ext:github`, `test:pbm`) check them.
 
 import http from 'node:http';
 import fs from 'node:fs';

@@ -1984,3 +1984,18 @@ What the review of 2026-11-16 left open. Each fix has a test that fails without 
   fluidplayer's `.pseudo_fullscreen`, which nothing ever set (`vtt.test.mjs`'s #292 test tries
   every class the player has instead). Left as they are: 58 exports used only in their own file
   (removing `export` gains nothing).
+- **The privacy policy against the code (same day).** Checking `docs/privacy-policy.md` line by
+  line found one request it said never happens: dash.js's `initialize` adds its own time server,
+  `https://time.akamai.com/?iso&ms`, after the `UTCTiming` sources of a live manifest, and asks it
+  with its own `XMLHttpRequest` (not through DashLoader) when the manifest names none or none of
+  them answers; the
+  extension's CSP has no `connect-src`, so the request went out. `DashPlayer.setSource` now calls
+  `clearDefaultUTCTimingSources()` after `initialize` (nothing in dash.js adds it again: only the
+  first `initialize` does, and `reset` empties the list). Such a stream's clock then comes from the
+  `Date` header dash.js recorded from the manifest's own response
+  (`useManifestDateHeaderTimeSource`, no extra request), or the computer's. A manifest's own
+  sources are still asked first. `dashTimeSource.test.mjs` runs the installed dash.js's
+  MediaPlayer and fails without the call. The policy also lacked the optional `proxy` permission
+  (VpnProxyMirror), the options page's problem list (host and path in `storage.local`), the two
+  report buttons (a prefilled GitHub issue the user submits), and the same-site rule for a page
+  request's cookies (`sourceHeadersFor`); all are in it now.
