@@ -991,10 +991,13 @@ own).
 - **A hand-off still being prepared sends nothing once its page, its tab or MPV went.**
   `openInMpv` waits up to 1.5 s for a master playlist's read (`hlsQualityChoice`), and the
   allowlist sends a page's first stream at once. mpv then started for a page the user had left,
-  a tab they had closed, or after they turned MPV off. The check runs just before
-  `Mpv.openStream`, only for a tab in MPV mode (the player's own button is unaffected), and its
-  answer `{ok: false, dropped: true}` is dropped by the callers: shown, Off put a "!" on the
-  button. Tests: `backgroundMpv.test.mjs`, "a hand-off still being prepared ...".
+  a tab they had closed, or after they turned MPV off. The caller notes the tab as the hand-off
+  begins (`handOffStillWanted`, before its first await), and `openInMpv` asks right before
+  `Mpv.openStream`; the player's own button has no such check. The page counts as left only
+  with a new document in frame 0: an address the page sets itself (pushState, `?t=`) counts a
+  new `mpvPage` too, and its stream was dropped (the Claude API review of #738). The answer
+  `{ok: false, dropped: true}` is dropped by the callers: shown, Off put a "!" on the button.
+  Tests: `backgroundMpv.test.mjs`, "a hand-off still being prepared ...".
 - **A repeat play during an unanswered send no longer pauses the page.** The MPV key's repeat
   rule paused at once; when mpv then failed (no helper, copy-protected, Firefox VPN), the page
   stayed paused. A success pauses the page anyway (`pauseAfterHandOff`). The mark is kept in
