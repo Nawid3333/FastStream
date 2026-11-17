@@ -10,7 +10,7 @@ import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {relabelEsdsAacLayout} from './AacLayout.mjs';
 import {audioTrackLabel, audioTrackMime, pickAudioTrack} from './AudioTracks.mjs';
 import {MP4Fragment} from './MP4Fragment.mjs';
-import {MAX_FILE_LENGTH, lengthFromAnswer} from './RangeAnswers.mjs';
+import {MAX_FILE_LENGTH, lengthFromAnswer, startsElsewhere} from './RangeAnswers.mjs';
 import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
 
 /** @typedef {import('../../modules/mp4box/mp4box.all.mjs').ISOFile} ISOFile */
@@ -31,7 +31,7 @@ import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
  * @typedef {{trak: TrakBox|undefined, track: Track, samples: Array<Sample>,
  *   sortedSamples: Array<Sample>, sortedCount: number}} PlayedTrack
  */
-import {RangeTimes, addKeyframes, keyframeOffset, sampledDuration, sortKeyframes} from './SampleIndex.mjs';
+import {RangeTimes, addKeyframes, apartBy, keyframeOffset, sampledDuration, sortKeyframes} from './SampleIndex.mjs';
 import {DurationSync} from './DurationSync.mjs';
 import {loopDelay} from './LoopPace.mjs';
 import {SegmentAppender} from './SegmentAppender.mjs';
@@ -41,6 +41,8 @@ import {StallWatchdog, bufferedAhead} from './StallWatchdog.mjs';
 const FRAGMENT_SIZE = 1000000;
 // How far past the back buffer a SourceBuffer may run before it is trimmed, in seconds.
 const BACK_BUFFER_SLACK = 1;
+// The least maxBufferLength comes down to (a SourceBuffer that is full), in seconds.
+const MIN_BUFFER_LENGTH = 5;
 // A range that failed (after FetchLoader's own retries, or at once for a 4xx) is asked for
 // again after each of these waits, in ms. Still failing, it is the player's error once
 // playback has reached it.
@@ -174,7 +176,7 @@ export default class MP4Player extends EventEmitter {
       // A SourceBuffer that is full holds less than this player reads ahead.
       readLess: () => {
         this.options.maxFragmentsBuffered = Math.max(2, Math.floor(this.options.maxFragmentsBuffered / 2));
-        this.options.maxBufferLength = Math.max(5, Math.floor(this.options.maxBufferLength / 2));
+        this.options.maxBufferLength = Math.max(MIN_BUFFER_LENGTH, Math.floor(this.options.maxBufferLength / 2));
       },
       fail: (message) => {
         this.running = false;
@@ -476,6 +478,14 @@ export default class MP4Player extends EventEmitter {
 
     this.setFragmentTimes();
     this.currentAudioTrack = this.firstAudioTrack();
+    // A file that keeps its audio far from its video (all of one after all of the other)
+    // cannot be read in ranges timed by the video (apartBy). The seek preview reads no audio.
+    const audio = this.currentAudioTrack === null ? null : this.audioTracks[this.currentAudioTrack];
+    if (!this.isPreview && !info.isFragmented && this.videoTracks.length && audio &&
+        apartBy(this.videoTracks[0].samples, audio.samples) > MIN_BUFFER_LENGTH) {
+      this.playDirectly('The file keeps its audio apart from its video');
+      return;
+    }
     this.emit(DefaultPlayerEvents.MANIFEST_PARSED);
     this.updateDuration();
     // A seek preview of a file without a picture (audio only) has nothing to show, and stops
@@ -764,6 +774,15 @@ export default class MP4Player extends EventEmitter {
       return;
     }
 
+    // The whole file parsed and no moov in it (a recording cut off before it was written): the
+    // place to read from was the last range, already in, and nothing more was asked for, a
+    // spinner for good. Firefox's own player cannot play it either.
+    if (!this.metaData && this.fileLength > 0 && this.mp4box.nextParsePosition >= this.fileLength) {
+      this.running = false;
+      this.emit(DefaultPlayerEvents.ERROR, 'The file has no moov box: it ends before its index was written');
+      return;
+    }
+
     const currentFragment = this.currentFragment;
 
     // Both exits below stopped the player without an error, unlike the others: a spinner
@@ -835,6 +854,14 @@ export default class MP4Player extends EventEmitter {
             if (this.loader === loader) {
               this.loader = null;
             } else return;
+
+            // Another range than this one: its bytes would go to mp4box at this range's place
+            // (feedPiece checks each piece the same way). A server that does so cannot be read
+            // in ranges.
+            if (startsElsewhere({status: entry.responseStatus, headers: entry.responseHeaders}, frag.rangeStart)) {
+              this.playDirectly('The server answers a range other than the one asked for');
+              return;
+            }
 
             // The file's length has to be known before mp4box parses the data: parsing the
             // moov runs onMetadataParsed, which otherwise works the length out from the

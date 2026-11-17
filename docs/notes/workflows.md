@@ -298,7 +298,7 @@
   is an error at once); the runner image's geckodriver is the last fallback. When the tries
   are spent they print `::error::FS-OUTAGE <what>: ...`. (2) `tools/ci-outage.sh <jobs.json>
   <failed.log>` says outage (every failed or timed-out job's log has a signature: our
-  `##[error]FS-OUTAGE `, geckodriver's own `statusCode 5xx`, `ERR_PNPM_FETCH_5xx`), red, or
+  `##[error]FS-OUTAGE `, geckodriver's own `statusCode 5xx`, `ERR_PNPM_FETCH_5xx`, npm's own `npm error code ECONNRESET|ETIMEDOUT|ECONNREFUSED` as pnpm/action-setup installs pnpm: run 44134461755, 2026-11-17; ENOTFOUND, E404 and EINTEGRITY stay red), red, or
   unknown (no failed job, or one without a log); never a bare "504", which specs test.
   update-prs.yml reads it at its own commit through the API (no checkout), classifies the run
   and the newest six earlier failed runs on the commit: an outage run is no first try, and an

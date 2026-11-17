@@ -390,6 +390,13 @@ check 'succeeds' test "$status" -eq 0
 check 'closes #80' contains "$LOG" 'CLOSE [80] [--reason] [completed] [--comment] [No Dependabot update job fails any more. Closing.]'
 check 'nothing else' count "$LOG" '[' 1
 
+odd=()
+for i in 1 2 3 4 5 6 7 8 9 10; do odd+=("$(run "Dependabot job $i" failure "2026-10-20T00:3$((i % 10)):00Z")"); done
+scenario 'd3b ten runs, no job run twice (titles of another form) -> fails, rather than watch nothing' "$failing_step" TITLE="$FT"   FX_RUNS="$(runs "${odd[@]}")"
+check 'fails' test "$status" -ne 0
+check 'says why' contains "$FIX/out" 'their titles are no longer'
+check 'touches no issue' test ! -s "$LOG"
+
 scenario 'd4 no runs, nothing open -> nothing' "$failing_step" TITLE="$FT"
 check 'succeeds' test "$status" -eq 0
 check 'touches no issue' test ! -s "$LOG"

@@ -104,6 +104,9 @@ export class DownloadManager {
     // null before it could tell. A player short of video runs that many at once (urgentParallel).
     /** @type {boolean|null} */
     this.perConnection = null;
+    // Whether perConnection is the speed test's verdict (or the user's choice): a test cut short
+    // (failures, a downloader removed) leaves the guess of its last round.
+    this.perConnectionFound = false;
     this.lastFailed = 0;
     // True while stopDownloaders() stops downloaders on purpose.
     this.stopping = false;
@@ -697,6 +700,7 @@ export class DownloadManager {
     this.downloaders.push(new StandardDownloader(this));
     // The user's choice (the add-downloader key): all of them run, short of video too.
     this.perConnection = true;
+    this.perConnectionFound = true;
     this.client.predownloadFragments();
     this.queueNext();
   }
@@ -744,6 +748,7 @@ export class DownloadManager {
     this.probing = false;
     // Short of video, two at most again until a probe finds that more add speed.
     this.perConnection = null;
+    this.perConnectionFound = false;
     this.droppedDownloaders = 0;
     this.lastFailed = now;
     this.slowDowns++;
@@ -1020,6 +1025,18 @@ export class DownloadManager {
   }
 
   /**
+   * Whether the speed test is done and found a server that limits each connection: each one
+   * added brought its share. The other players hear it (PlayerTurns: such a player leaves room
+   * for players on other hosts). Not while the test runs, nor after one cut short: one gain early
+   * on sets perConnection, and a flat round after it takes it back; a background player told in
+   * between started downloads ahead on a slow line (tab-turns.e2e.mjs).
+   * @return {boolean}
+   */
+  limitedPerConnection() {
+    return !this.testing && this.perConnectionFound && this.perConnection === true;
+  }
+
+  /**
    * Holds the speed test while the video seeks during it and downloads playback's request
    * alone (FastStreamClient.predownloadFragments), and starts its round again afterwards. A
    * round needs every downloader heard: the ones left idle then read slower for 10 s
@@ -1189,6 +1206,7 @@ export class DownloadManager {
         Date.now() >= Math.max(this.calmUntil, this.holdUntil)) {
       this.probing = true;
       this.testing = true;
+      this.perConnectionFound = false;
       this.failed = 0;
       this.speedTestBuffer = [];
       this.speedTestSeen = new Set();
@@ -1244,6 +1262,7 @@ export class DownloadManager {
                   this.lastSpeed = speed;
                 } else {
                   this.testing = false;
+                  this.perConnectionFound = true;
                   this.endProbe(true);
                   console.log('Speed test finished (maxed out), speed: ' + this.getSpeed());
                 }
@@ -1251,6 +1270,7 @@ export class DownloadManager {
                 console.log('Speed test finished, speed: ' + speed);
                 this.testing = false;
                 this.perConnection = false;
+                this.perConnectionFound = true;
                 this.endProbe(true);
               }
             }
@@ -1323,6 +1343,9 @@ export class DownloadManager {
     // Destroyed: nothing to reset. It threw on the downloaders that went, an unhandled
     // rejection (a player reset as it went, once a save it waited for had stopped).
     if (!this.downloaders) return;
+    // A reset begun while this one waits for its storage: that one's downloaders are the ones.
+    // Both adding theirs ran twice the limit.
+    const resetting = this.resetting = {};
     this.abortAll();
     this.failedOffline = false;
 
@@ -1334,6 +1357,7 @@ export class DownloadManager {
     this.speedTestSeen = new Set();
     this.lastSpeed = 0;
     this.perConnection = null;
+    this.perConnectionFound = false;
 
     this.failed = 0;
     this.holdUntil = 0;
@@ -1354,6 +1378,7 @@ export class DownloadManager {
     if (!keep) {
       await this.clearStorage();
     }
+    if (this.resetting !== resetting) return;
 
     const start = this.throttled ? 1 : Math.min(DownloadManager.StartDownloaders, this.downloaderLimit());
     for (let i = 0; i < start; i++) {

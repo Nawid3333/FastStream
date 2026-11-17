@@ -1535,7 +1535,11 @@ for that reason (`BENCH_TABS_HOSTS=same` puts them on one).
   else the level's bitrate) and tells the others.
 - A player whose server limits each connection (the speed test's verdict, `perConnection`)
   leaves room for players on other hosts: its speed is the server's, not the line's. On the same
-  host they share Firefox's six connections and still take turns.
+  host they share Firefox's six connections and still take turns. Only the finished test's verdict counts
+  (`DownloadManager.limitedPerConnection`): one gain early in the test set `perConnection`, a flat
+  round after it took it back, and a background tab told in between started segments ahead on a
+  slow line (tab-turns.e2e.mjs on CI, 2026-11-16: 6, 7 and 8 again and a new 9 in 3 ms; Codex
+  found it, 2026-11-17).
 - "Still downloads" (`wants`) ends when the player has its video, its RAM share is full, the
   user paused its downloads or set the speed limit to 0, it is offline or waits for a click, and
   when nothing arrived for 15 s though something should have (`STUCK_MS`: a dead server). A live
@@ -2000,3 +2004,37 @@ What the review of 2026-11-16 left open. Each fix has a test that fails without 
   (VpnProxyMirror), the options page's problem list (host and path in `storage.local`), the two
   report buttons (a prefilled GitHub issue the user submits), and the same-site rule for a page
   request's cookies (`sourceHeadersFor`); all are in it now.
+
+## The final review of the whole repository (2026-11-17)
+
+Codex read the MP4 player and the tab turns, Claude's API reviewer the diff. Each fix has a test
+that fails without it.
+
+- **A range's whole answer gets the same start check as its pieces.** `feedPiece` refused a 206
+  whose `Content-Range` starts elsewhere than the range asked for, but the finished range's
+  handler then appended the whole answer at the asked place (its fed bytes were 0). It now plays
+  the file directly (`RangeAnswers.startsElsewhere`; `mp4FileLength.test.mjs`).
+- **A file that ends without a moov is an error**, not a wait for good: mp4box reached the end
+  without metadata, the last range was counted as read, and `runLoad` found nothing more to do
+  (an interrupted recording: `ftyp` and `mdat` only).
+- **A fragmented file without `mehd` ends where its last sample ends** (`sampledDuration`): the
+  summed sample lengths left out the first moof's `tfdt`, so a file cut from a longer recording
+  (10 s to 12 s) said 2 s. The edit list's start is taken off, as Firefox's demuxer does
+  (`Edts::mMediaStart` in `MoofParser.cpp`); its empty-edit delay is not added.
+- **A regular MP4 that keeps its audio apart from its video plays directly** (`apartBy`, more than
+  5 s apart at the start). The ranges take their times from the video and are read no further
+  than `maxBufferLength` past the playhead, so the audio stored after all the video was never
+  read, and nothing played. Reading each track's ranges by its own times would let FastStream
+  load such a file in ranges too; no such file has been reported, so it plays directly. Only the
+  audio track chosen at the start is checked: a file whose other language track alone is stored
+  apart still stalls after a switch to it.
+- **Only a finished speed test tells the other players a server limits each connection**
+  (`DownloadManager.perConnectionFound`): a test cut short by failures or a removed downloader
+  kept the guess of its last round (follow-up of the tab-turns fix above).
+- **Two `DownloadManager.reset()` calls that overlap add the downloaders of the newest only**:
+  both waited for the storage to clear, then both added theirs.
+- **content-cleanup's bfcache tests try a round up to three times** (`untilCached`). Firefox keeps
+  a replaced load's request in the docshell's load group ("Save of .../cleanup blocked because
+  document has request .../clip.mp4", CI run 44121075279), so now and then the page is not cached
+  through no fault of the extension's. A repeated round goes into `logs/retried.jsonl` as suite
+  `classic-<build>-bfcache`, so the weekly flaky-specs issue counts it.

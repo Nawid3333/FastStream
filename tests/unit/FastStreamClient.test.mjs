@@ -2719,3 +2719,24 @@ describe('FastStreamClient, a fragmented MP4\'s ranges not parsed yet, in a down
     expect(started(client)).toEqual([6, 7, 8, 9]);
   });
 });
+
+describe('FastStreamClient, what the other players hear (peerState)', () => {
+  // perConnection is set by one gain while the speed test runs, and a flat round after it takes
+  // it back: told "limited" in between, a player in a background tab on another host stopped
+  // waiting its turn on a slow line (tab-turns.e2e.mjs, CI 2026-11-16).
+  const shared = (manager) => {
+    const client = makeClient();
+    client.downloadManager = manager;
+    client.getVideoAhead = () => 0;
+    client.isLive = () => false;
+    client.wantsNetwork = () => true;
+    client.videoRate = () => 0;
+    return client.peerState().shared;
+  };
+
+  it('says a server limits each connection only once the speed test says so', () => {
+    expect(shared({perConnection: true, testing: true, limitedPerConnection: () => false})).toBe(true);
+    expect(shared({perConnection: true, testing: false, limitedPerConnection: () => true})).toBe(false);
+    expect(shared(null)).toBe(true);
+  });
+});

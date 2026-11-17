@@ -83,6 +83,31 @@ describe('MP4Player, a file longer than it loads in ranges', () => {
     expect(player.mp4box.appendBuffer).not.toHaveBeenCalled();
   });
 
+  it('hands over a server that answers another range than asked, appending nothing', () => {
+    // Its bytes went to mp4box at the asked range's place: feedPiece checked each piece's
+    // Content-Range, the finished range's handler did not.
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const {player, made} = firstRangePlayer();
+    player.runLoad();
+    made.request.callbacks.onSuccess({
+      responseStatus: 206,
+      responseHeaders: {'content-range': 'bytes 5000-1004999/9000000'},
+    }, firstRange());
+    expect(player.emit).toHaveBeenCalledWith(DefaultPlayerEvents.PLAY_DIRECTLY, expect.stringMatching(/other than the one asked/));
+    expect(player.mp4box.appendBuffer).not.toHaveBeenCalled();
+  });
+
+  it('reports a file read to its end without a moov, rather than wait for good', () => {
+    // An ftyp and an mdat, cut off before the moov: mp4box read it all and found no index, and
+    // the place to read from was the range already in.
+    const {player, store} = firstRangePlayer();
+    Object.assign(player, {fileLength: 32, currentFragments: [store[0]], previewSeek: null});
+    player.mp4box.nextParsePosition = 32;
+    player.runLoad();
+    expect(player.emit).toHaveBeenCalledWith(DefaultPlayerEvents.ERROR, expect.stringMatching(/no moov/));
+    expect(player.running).toBe(false);
+  });
+
   it('takes no length from the same answer while its first range downloads', () => {
     const {player} = firstRangePlayer();
     vi.spyOn(player, 'initializeFragments');
@@ -126,5 +151,41 @@ describe('MP4Player, a file longer than it loads in ranges', () => {
     player.estimateTotalSizeFromMetadats();
     expect(player.fileLength).toBe(5000100);
     expect(player.initializeFragments).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('MP4Player, a file that keeps its audio apart from its video', () => {
+  /**
+   * A player at its metadata, with 100 s of video from byte 1000 and audio at `audioAt`.
+   * @param {function(number): number} audioAt - The audio sample's offset for each second.
+   * @return {Object}
+   */
+  function parsed(audioAt) {
+    const {player} = firstRangePlayer();
+    const sample = (i, timescale, offset) => ({cts: i * timescale, timescale, offset, is_sync: true});
+    const traks = [
+      {tkhd: {track_id: 1}, samples: Array.from({length: 100}, (_, i) => sample(i, 90000, 1000 + i * 50000))},
+      {tkhd: {track_id: 2}, samples: Array.from({length: 100}, (_, i) => sample(i, 48000, audioAt(i)))},
+    ];
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    Object.assign(player, {
+      fileLength: 5200000, mp4box: {moov: {traks}},
+      setFragmentTimes: vi.fn(), firstAudioTrack: () => 0, updateDuration: vi.fn(), setupHLS: vi.fn(), load: vi.fn(),
+    });
+    player.onMetadataParsed({isFragmented: false, videoTracks: [{id: 1}], audioTracks: [{id: 2}]});
+    return player;
+  }
+
+  it('plays it directly: ranges timed by the video never reached the audio', () => {
+    const player = parsed((i) => 5001000 + i * 1000);
+    expect(player.emit).toHaveBeenCalledWith(DefaultPlayerEvents.PLAY_DIRECTLY, expect.stringMatching(/audio apart/));
+    expect(player.load).not.toHaveBeenCalled();
+  });
+
+  it('reads one that interleaves them in ranges', () => {
+    const player = parsed((i) => 41000 + i * 50000);
+    expect(player.emit).toHaveBeenCalledWith(DefaultPlayerEvents.MANIFEST_PARSED);
+    expect(player.emit).not.toHaveBeenCalledWith(DefaultPlayerEvents.PLAY_DIRECTLY, expect.anything());
+    expect(player.load).toHaveBeenCalled();
   });
 });

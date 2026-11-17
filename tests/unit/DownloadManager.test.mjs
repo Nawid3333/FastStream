@@ -485,6 +485,24 @@ describe('DownloadManager', () => {
       }
     });
 
+    it('adds the downloaders of only the newest of two resets that overlap', async () => {
+      // The first, waiting for its storage, came back and added its downloaders to the second's:
+      // with a limit of one, two downloaders ran.
+      globalThis.self = globalThis;
+      vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+      let manager;
+      try {
+        manager = new DownloadManager({options: {maximumDownloaders: 1}, resetFailed() {}, predownloadFragments() {}});
+        const first = manager.reset();
+        const second = manager.reset();
+        await Promise.all([first, second]);
+        expect(manager.downloaders).toHaveLength(1);
+      } finally {
+        manager?.destroy();
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('starts when another request joins it', () => {
       const manager = new DownloadManager(null);
       manager.downloaders = [];
@@ -659,6 +677,50 @@ describe('DownloadManager', () => {
         expect(manager.downloaders).toHaveLength(6);
         expect(manager.testing).toBe(false);
         expect(manager.urgentParallel()).toBe(2);
+      });
+
+      it('tells the other players of a server that limits each connection only once the test is done', () => {
+        // One gain early on set perConnection while the test ran, and a flat round after it took
+        // it back: the players in background tabs on other hosts heard "limited" in between and
+        // started downloads ahead on a slow line (tab-turns.e2e.mjs, CI 2026-11-16).
+        // A line that gains once from the fourth, then stays: perConnection while the test runs,
+        // a shared line at its end.
+        const early = fresh();
+        let rounds = 0;
+        for (; rounds < 40 && early.testing && early.perConnection !== true; rounds++) {
+          const count = early.downloaders.length;
+          early.downloaders.slice().forEach((d) => {
+            d.getSpeed = () => (count === 3 ? 1.5e6 : 2.1e6) / count;
+            early.onDownloaderFinished(d, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+          });
+        }
+        // Mid-test, after the gain: perConnection is true, and nobody is told so yet.
+        expect(early.testing).toBe(true);
+        expect(early.perConnection).toBe(true);
+        expect(early.limitedPerConnection()).toBe(false);
+        runTest(early, (count) => (count === 3 ? 1.5e6 : 2.1e6));
+        expect(early.testing).toBe(false);
+        expect(early.limitedPerConnection()).toBe(false);
+
+        const limited = fresh();
+        runTest(limited, (count) => count * 2e5);
+        expect(limited.testing).toBe(false);
+        expect(limited.limitedPerConnection()).toBe(true);
+
+        // A test cut short after that gain (the user's Minus key): no verdict to tell.
+        const cut = fresh();
+        for (let i = 0; i < 40 && cut.testing && cut.perConnection !== true; i++) {
+          const count = cut.downloaders.length;
+          cut.downloaders.slice().forEach((d) => {
+            d.getSpeed = () => (count === 3 ? 1.5e6 : 2.1e6) / count;
+            cut.onDownloaderFinished(d, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+          });
+        }
+        expect(cut.perConnection).toBe(true);
+        cut.removeDownloader();
+        expect(cut.testing).toBe(false);
+        expect(cut.perConnection).toBe(true);
+        expect(cut.limitedPerConnection()).toBe(false);
       });
 
       it('runs two after a gain that came from elsewhere, once (other players stepping aside)', () => {

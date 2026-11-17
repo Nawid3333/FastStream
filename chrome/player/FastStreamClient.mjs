@@ -1765,7 +1765,7 @@ export class FastStreamClient extends EventEmitter {
       wants: this.wantsNetwork(),
       received: manager?.received?.() || 0,
       rate: this.videoRate(),
-      shared: manager?.perConnection !== true,
+      shared: !manager?.limitedPerConnection?.(),
       host: manager?.lastHost || '',
       saving: !!this.interfaceController?.saveManager?.makingDownload,
     };
