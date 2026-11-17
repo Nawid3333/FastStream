@@ -63,12 +63,16 @@ receiving any part of it.
 - **The headers a page's request carried.** Some sites serve a video only
   to the request their own page makes, so the player repeats that request's
   headers, the page's cookies among them, on its own requests for the video.
-  The cookies and any `Authorization` header go only to the same site that
-  request went to; a request to any other host gets the headers without them.
-- **The clock of a live DASH stream.** The DASH library asks a time server
-  for the time when a live stream names none. Its built-in default
-  (`time.akamai.com`) is switched off (since 2026-11-17): the stream's clock
-  comes from its own server's answer, or from your computer.
+  The cookies and any `Authorization` header go only to the site that
+  request went to (its domain and subdomains, such as `www.example.com` and
+  `cdn.example.com`); a request to any other site gets the headers without
+  them.
+- **The clock of a live DASH stream.** A live DASH stream's manifest may
+  name time servers, and the DASH library asks them for the time. Its
+  built-in fallback (`time.akamai.com`), which it asked when a manifest named
+  none or none of them answered, is switched off (since 2026-11-17): then the
+  clock comes from the `Date` of the manifest's own response, or from your
+  computer.
 - **Firefox VPN.** Firefox's built-in VPN routes a page's requests through
   Mozilla's proxy, but not an add-on's. When a page's requests went that way
   and you allow the optional `proxy` permission, the add-on sends its own
@@ -93,8 +97,9 @@ that file from it. Nothing is sent to OpenSubtitles unless you search.
 
 Two buttons open a new GitHub issue for this project in a tab, filled in
 for you: "Report" beside a site on the options page's "Problems" list (the
-site's host and path, what went wrong, how often, the add-on's version and
-your browser's user-agent string), and the report button of an error
+site's host and path, what went wrong, whether in the player or MPV mode,
+how often, the first and last date, the add-on's version and your browser's
+user-agent string), and the report button of an error
 message in the player (the add-on's version, the error message and its
 stack trace, with the add-on's per-profile address removed). Nothing is
 sent when you click: GitHub shows you the text, and only you submit it,

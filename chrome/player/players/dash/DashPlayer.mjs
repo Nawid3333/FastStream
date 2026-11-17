@@ -309,8 +309,9 @@ export default class DashPlayer extends EventEmitter {
     this.source = source;
     this.dash.initialize(this.video, this.source.url, false);
     // dash.js's initialize adds its own time server, time.akamai.com, after the ones a live
-    // manifest names: without a UTCTiming element, the player asked Akamai for the time. Its
-    // clock comes from the Date header of the manifest's own response then, or the computer's
+    // manifest names: without a UTCTiming element, or when none answered, the player asked
+    // Akamai for the time. Its clock comes from the Date header of the manifest's own response
+    // then, or the computer's
     // (2026-11-17, docs/privacy-policy.md; dashTimeSource.test.mjs).
     this.dash.clearDefaultUTCTimingSources();
   }

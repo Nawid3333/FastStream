@@ -1987,7 +1987,8 @@ What the review of 2026-11-16 left open. Each fix has a test that fails without 
 - **The privacy policy against the code (same day).** Checking `docs/privacy-policy.md` line by
   line found one request it said never happens: dash.js's `initialize` adds its own time server,
   `https://time.akamai.com/?iso&ms`, after the `UTCTiming` sources of a live manifest, and asks it
-  with its own `XMLHttpRequest` (not through DashLoader) when the manifest names none; the
+  with its own `XMLHttpRequest` (not through DashLoader) when the manifest names none or none of
+  them answers; the
   extension's CSP has no `connect-src`, so the request went out. `DashPlayer.setSource` now calls
   `clearDefaultUTCTimingSources()` after `initialize` (nothing in dash.js adds it again: only the
   first `initialize` does, and `reset` empties the list). Such a stream's clock then comes from the
