@@ -38,6 +38,23 @@ extension changes with it, so such a push releases, Firefox updates the extensio
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run.
 
+**Host 24 (2026-11-17, MPV autoplay without keep-open; RequiredHostVersion stays 19).** MPV
+autoplay never went on at an episode's natural end for an mpv at keep-open "no", mpv's default:
+the helper starts mpv with `--idle=once`, so mpv let the file go at its end and quit. Its
+`end-file` eof reached the watch 5 ms before the helper's "mpv closed", and that close cancelled
+the countdown the end had started (`onMpvWatchEvent`). Found by `mpv-episodes.e2e.mjs` on CI,
+whose mpv has no config; the owner's config has `keep-open=yes`, so it never showed there.
+The helper now lets the extension read `keep-open` and set `file-local-options/keep-open`
+(the playing file only). While MPV autoplay is on, the relay watch asks for each new file's
+keep-open and sets the file's to "yes" when the user's is "no". Turning autoplay off puts "no"
+back, and mpv gives the next file the user's own value. So a stock mpv now stays on the last
+frame, paused, for the countdown, as an mpv with keep-open does. A helper before 24 refuses
+both commands with `mpv-refused`; the watch goes on without them, as before. Left as is (the Claude
+API review): a watch that ends mid-file (an extension reload) leaves that one file's "yes", and a
+new watch reads it as the user's value; the next file has the user's own again. And the user's
+"no" now counts only with autoplay off: a film, or a series' last episode, waits on its last
+frame instead of closing.
+
 **Host 23 (2026-11-16, dead code; RequiredHostVersion stays 19).** `allowedIpcCommand`, a
 wrapper of `ipcCommandRefusal` that only a test called, is gone; nothing else changed, so an
 installed host 22 behaves the same.
@@ -902,7 +919,8 @@ type-checked:
 - Reads (`get_property`, `observe_property`): an explicit list (`ReadableProperties`) and
   `user-data/faststream/<lower-case words>`; never `options/*`, `working-directory`,
   `input-bindings`, `property-list`, `mpv-configuration` (risk 4).
-- `set_property`: `fullscreen`, `pause`, `volume`, `mute`, `speed` and FastStream's user-data;
+- `set_property`: `fullscreen`, `pause`, `volume`, `mute`, `speed`, `file-local-options/keep-open`
+  (host 24; mpv drops it with the file) and FastStream's user-data;
   a yes or no, a finite number, or a text of at most 4096 characters without a control
   character or `${` (risk 7).
 - `show-text`: no `${` (mpv expands properties there: `${working-directory}` on the screen),

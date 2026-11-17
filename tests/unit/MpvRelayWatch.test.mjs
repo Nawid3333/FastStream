@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest';
 
 import {EpisodeMessages as HostEpisodeMessages, HeartbeatMs as HostHeartbeatMs, MaxNoticeSeconds as HostMaxNoticeSeconds,
-  ReadableProperties, noticeSeconds as hostNoticeSeconds} from '../../native-host/faststream-mpv-host.mjs';
+  ReadableProperties, ipcCommandRefusal, noticeSeconds as hostNoticeSeconds} from '../../native-host/faststream-mpv-host.mjs';
 import {DecoderProperties, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {EpisodeMessages, HeartbeatMs, MaxNoticeSeconds, noticeSeconds, relayWatch} from '../../chrome/background/MpvRelayWatch.mjs';
 
@@ -187,6 +187,83 @@ describe('the relay watch', () => {
     mpv(eofEvent(false));
     mpv({event: 'end-file', reason: 'eof'});
     expect(ended(events)).toEqual([{type: 'ended', path: 'https://cdn.test/ep3.mp4'}]);
+  });
+
+  // mpv's default keep-open "no" lets the file go at its end, and the helper's mpv
+  // (--idle=once) quits: its end-file eof came 5 ms before mpv closed, which stopped autoplay's
+  // countdown (CI's mpv has no config; mpv-episodes.e2e.mjs, 2026-11-17). While autoplay is
+  // on, the file playing stays open (host 24), and mpv gives the next file the user's value.
+  describe('keep-open while autoplay is on', () => {
+    const keepOpenSent = (port) => commands(port).filter((m) => String(m.command[1]).includes('keep-open'));
+    const asked = (port) => keepOpenSent(port).filter((m) => m.command[0] === 'get_property').map((m) => m.id);
+
+    it('keeps the file open at its end over keep-open "no", and puts "no" back when autoplay goes off', () => {
+      const {port, watch, mpv, reply} = relaying();
+      watch.state({autoplay: true});
+      mpv(pathEvent('https://cdn.test/ep1.mp4'));
+      reply(asked(port)[0], 'success', 'no');
+      watch.state({autoplay: false});
+      expect(keepOpenSent(port).map((m) => m.command)).toEqual([
+        ['get_property', 'keep-open'],
+        ['set_property', 'file-local-options/keep-open', 'yes'],
+        ['set_property', 'file-local-options/keep-open', 'no'],
+      ]);
+    });
+
+    it('asks again for each file, and takes no late answer for a file that went', () => {
+      const {port, watch, mpv, reply} = relaying();
+      watch.state({autoplay: true});
+      mpv(pathEvent('https://cdn.test/ep1.mp4'));
+      mpv(pathEvent(undefined));
+      mpv(pathEvent('https://cdn.test/ep2.mp4'));
+      const [first, second] = asked(port);
+      reply(first, 'success', 'no');
+      expect(keepOpenSent(port).filter((m) => m.command[0] === 'set_property')).toEqual([]);
+      reply(second, 'success', 'no');
+      expect(keepOpenSent(port).map((m) => m.command)).toEqual([
+        ['get_property', 'keep-open'],
+        ['get_property', 'keep-open'],
+        ['set_property', 'file-local-options/keep-open', 'yes'],
+      ]);
+    });
+
+    it('leaves the user\'s "yes" or "always" alone, and asks nothing while autoplay is off', () => {
+      const {port, watch, mpv, reply} = relaying();
+      watch.state({autoplay: false});
+      mpv(pathEvent('https://cdn.test/ep1.mp4'));
+      expect(keepOpenSent(port)).toEqual([]);
+      watch.state({autoplay: true});
+      reply(asked(port)[0], 'success', 'always');
+      watch.state({autoplay: false});
+      watch.state({autoplay: true});
+      expect(keepOpenSent(port).map((m) => m.command)).toEqual([['get_property', 'keep-open']]);
+    });
+
+    it('goes on as before with a helper that refuses it (before host 24)', () => {
+      const {port, events, watch, mpv} = relaying();
+      watch.state({autoplay: true});
+      mpv(pathEvent('https://cdn.test/ep1.mp4'));
+      port.emit({type: 'mpv-refused', id: asked(port)[0], reason: 'get_property: property not allowed'});
+      watch.state({autoplay: false});
+      watch.state({autoplay: true});
+      mpv(eofEvent(false));
+      mpv({event: 'end-file', reason: 'eof'});
+      expect(keepOpenSent(port).map((m) => m.command)).toEqual([['get_property', 'keep-open']]);
+      expect(ended(events)).toEqual([{type: 'ended', path: 'https://cdn.test/ep1.mp4'}]);
+      expect(events.some((e) => e.type === 'closed')).toBe(false);
+    });
+
+    it('sends only what the helper lets through', () => {
+      const {port, watch, mpv, reply} = relaying();
+      watch.state({autoplay: true});
+      mpv(pathEvent('https://cdn.test/ep1.mp4'));
+      reply(asked(port)[0], 'success', 'no');
+      watch.state({autoplay: false});
+      expect(keepOpenSent(port)).toHaveLength(3);
+      for (const {command} of keepOpenSent(port)) {
+        expect(ipcCommandRefusal(command), JSON.stringify(command)).toBeNull();
+      }
+    });
   });
 
   // Host 14: a skip past the end of an HLS stream with discontinuities stopped mpv at the
@@ -458,7 +535,9 @@ describe('the backend\'s watch', () => {
     expect(events).toEqual([{type: 'watching'}, {type: 'path', path: 'https://cdn.test/a.m3u8'},
       {type: 'ended', path: 'https://cdn.test/a.m3u8'}, {type: 'request', action: 'next'}]);
     watch.state({autoplay: true});
-    expect(ports[0].sent.at(-1)).toEqual({type: 'mpv', command: ['set_property', 'user-data/faststream/autoplay', true]});
+    // Then the file's keep-open, for autoplay to keep it open at its end (host 24).
+    expect(ports[0].sent.slice(-2)).toEqual([{type: 'mpv', command: ['set_property', 'user-data/faststream/autoplay', true]},
+      {type: 'mpv', command: ['get_property', 'keep-open'], id: expect.any(Number)}]);
     expect(backend.watcher).toBe(watch);
     ports[0].emit({type: 'closed', reason: 'mpv closed'});
     expect(events.at(-1)).toEqual({type: 'closed', reason: 'mpv closed'});

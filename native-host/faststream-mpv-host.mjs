@@ -87,7 +87,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 23;
+export const HostVersion = 24;
 
 // The messages of the thin helper (host 15) this host understands, sent with every answer
 // so that the extension knows what it may ask for without a version table of its own. A
@@ -2019,18 +2019,21 @@ export function launchDirect(mpvPath, args) {
 // ipc, relay and a relay's onStop.
 
 // The properties a command may read (get_property, observe_property): what playback, end
-// detection and the decoder status use. Never options/*, working-directory, input-bindings,
+// detection and the decoder status use, and keep-open (MPV autoplay keeps the window open at an
+// end, host 24). Never options/*, working-directory, input-bindings,
 // property-list, mpv-configuration and the like, which tell local paths and configuration
 // (security review r10, risk 4).
 export const ReadableProperties = new Set([
   'path', 'eof-reached', 'pause', 'time-remaining', 'time-pos', 'playback-time', 'percent-pos',
   'duration', 'media-title', 'fullscreen', 'idle-active', 'core-idle', 'paused-for-cache',
   'demuxer-cache-duration', 'hwdec-current', 'hwdec', 'video-format', 'width', 'height', 'pid',
-  'volume', 'mute', 'speed',
+  'volume', 'mute', 'speed', 'keep-open',
 ]);
 
-// The properties set_property may change, besides FastStream's own user-data.
-export const SettableProperties = new Set(['fullscreen', 'pause', 'volume', 'mute', 'speed']);
+// The properties set_property may change, besides FastStream's own user-data. keep-open only for
+// the file playing (host 24): mpv puts the user's own value back when that file goes.
+export const SettableProperties = new Set(['fullscreen', 'pause', 'volume', 'mute', 'speed',
+  'file-local-options/keep-open']);
 
 // FastStream's own part of mpv's user-data, which the mpv setup's scripts read (connected,
 // autoplay, heartbeat): readable and settable. Names of lower-case words only, so a script

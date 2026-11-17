@@ -36,6 +36,12 @@ export const HeartbeatMs = 30000;
 // eof-reached never set).
 export const EndSlackSeconds = 0.5;
 
+// At mpv's default keep-open "no" mpv lets a file go at its end and, started by the helper with
+// --idle=once, quits: autoplay's countdown went with it. While autoplay is on, the file playing
+// gets keep-open "yes" (host 24); mpv puts the user's own value back when that file goes.
+const KeepOpenProperty = 'keep-open';
+const FileKeepOpenProperty = 'file-local-options/keep-open';
+
 // The longest a notice stays in mpv, and how long mpv's own text stays when this mpv has no
 // notify.lua and the notice names no time.
 export const MaxNoticeSeconds = 60;
@@ -153,6 +159,12 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
   // shown with mpv's own text instead.
   /** @type {Map<number, {text: string, seconds: (number|undefined)}>} */
   const notices = new Map();
+  let autoplay = false;
+  // The file's keep-open: the user's (undefined until mpv said it), and whether it is ours now.
+  /** @type {?{user: *, asked: boolean, kept: boolean}} */
+  let keepOpen = null;
+  /** @type {Map<number, {user: *, asked: boolean, kept: boolean}>} */
+  const keepOpenChecks = new Map();
 
   /**
    * Sends a message to the helper over the port; a failure (the helper went meanwhile) is
@@ -206,6 +218,24 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
     endChecks.add(id);
     send(['get_property', 'time-remaining'], id);
   };
+  // The file playing stays open at its end while autoplay is on and the user's keep-open is
+  // "no"; the user's value again once autoplay is off. A helper before 24 refuses both.
+  const followKeepOpen = () => {
+    if (!keepOpen) return;
+    if (keepOpen.user === undefined) {
+      if (!autoplay || keepOpen.asked) return;
+      keepOpen.asked = true;
+      const id = 1000 + ++requests;
+      keepOpenChecks.set(id, keepOpen);
+      send(['get_property', KeepOpenProperty], id);
+      return;
+    }
+    const keep = autoplay && (keepOpen.user === 'no' || keepOpen.user === false);
+    if (keep !== keepOpen.kept) {
+      keepOpen.kept = keep;
+      send(['set_property', FileKeepOpenProperty, keep ? 'yes' : 'no']);
+    }
+  };
   /**
    * mpv's own text in place of a notice notify.lua did not show.
    * @param {{text: string, seconds: (number|undefined)}} notice
@@ -224,6 +254,13 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
     if (endChecks.has(id)) {
       endChecks.delete(id);
       if (error === 'success' && typeof data === 'number' && data <= EndSlackSeconds) fileEnded();
+    } else if (keepOpenChecks.has(id)) {
+      const file = keepOpenChecks.get(id);
+      keepOpenChecks.delete(id);
+      if (error === 'success' && file === keepOpen && data !== undefined) {
+        file.user = data;
+        followKeepOpen();
+      }
     } else if (notices.has(id)) {
       const notice = notices.get(id);
       notices.delete(id);
@@ -238,6 +275,8 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
     if (!event || typeof event !== 'object') return;
     if (event.event === 'property-change' && event.name === 'path') {
       path = typeof event.data === 'string' ? event.data : null;
+      keepOpen = path !== null ? {user: undefined, asked: false, kept: false} : null;
+      followKeepOpen();
       if (path !== null) {
         onEvent({type: 'path', path});
       } else {
@@ -355,6 +394,8 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
     state(state) {
       if (state && typeof state.autoplay === 'boolean') {
         send(['set_property', AutoplayProperty, state.autoplay]);
+        autoplay = state.autoplay;
+        followKeepOpen();
       }
     },
     stop() {

@@ -85,7 +85,7 @@ describe('the IPC allowlist (ipcCommandRefusal)', () => {
     it('reads each of the readable properties, and FastStream\'s user-data', () => {
       expect([...ReadableProperties].sort()).toEqual([
         'core-idle', 'demuxer-cache-duration', 'duration', 'eof-reached', 'fullscreen', 'height',
-        'hwdec', 'hwdec-current', 'idle-active', 'media-title', 'mute', 'path', 'pause',
+        'hwdec', 'hwdec-current', 'idle-active', 'keep-open', 'media-title', 'mute', 'path', 'pause',
         'paused-for-cache', 'percent-pos', 'pid', 'playback-time', 'speed', 'time-pos',
         'time-remaining', 'video-format', 'volume', 'width',
       ]);
@@ -132,8 +132,9 @@ describe('the IPC allowlist (ipcCommandRefusal)', () => {
   });
 
   describe('setting properties', () => {
-    it('sets fullscreen, pause, volume, mute, speed and FastStream\'s user-data to a yes or no, a number or a text', () => {
-      expect([...SettableProperties].sort()).toEqual(['fullscreen', 'mute', 'pause', 'speed', 'volume']);
+    it('sets fullscreen, pause, volume, mute, speed, the file\'s keep-open and FastStream\'s user-data to a yes or no, a number or a text', () => {
+      expect([...SettableProperties].sort()).toEqual(['file-local-options/keep-open', 'fullscreen', 'mute', 'pause',
+        'speed', 'volume']);
       for (const name of [...SettableProperties, 'user-data/faststream/connected', 'user-data/faststream/autoplay',
         'user-data/faststream/heartbeat']) {
         for (const value of [true, false, 0, -1, 1.25, 1760000000000, '', 'yes', 'x'.repeat(4096)]) {
@@ -147,7 +148,10 @@ describe('the IPC allowlist (ipcCommandRefusal)', () => {
         'options/include', 'input-conf', 'options/input-conf', 'sub-files', 'options/sub-files',
         'working-directory', 'stream-record', 'screenshot-directory', 'log-file', 'ytdl-raw-options',
         'http-header-fields', 'force-media-title', 'input-ipc-server', 'user-data', 'user-data/faststream',
-        'user-data/other/x', 'user-data/faststream/../x', 'time-pos', 'path']) {
+        'user-data/other/x', 'user-data/faststream/../x', 'time-pos', 'path',
+        // keep-open for good, or another option for the file: only keep-open for the file playing.
+        'keep-open', 'options/keep-open', 'file-local-options/script-opts', 'file-local-options/include',
+        'file-local-options/', 'file-local-options/keep-open/x', 'file-local-options/keep-open ']) {
         refused(['set_property', name, 'x'], /property not allowed/);
         refused(['set_property', name, true], /property not allowed/);
       }
