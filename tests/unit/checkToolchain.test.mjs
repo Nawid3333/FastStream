@@ -7,7 +7,7 @@ import {
   aboveHold as aboveHoldOf, addonVersion, applyAddon, applyImage, applyPlayers, getJson, holdProblem, imageFile, imagePin, IMAGES,
   latestLtsMajor, MAJOR_HOLDS, MIN_AGE_DAYS, newestAddon as newestAddonOf, newestImage, newestOfMajor as newestOfMajorOf, newestTag,
   pinCandidates as pinCandidatesOf, plan, PLAYER_LIBRARIES, playerState, playerTargets as playerTargetsOf, projectNodeMajor,
-  registryOf, relation, TITLE_PREFIX, UBLOCK,
+  relation, TITLE_PREFIX, UBLOCK,
 } from '../../tools/check-toolchain.mjs';
 import {ADDONS} from '../../tools/setup-dev-profile.mjs';
 
@@ -491,11 +491,21 @@ describe('the images', () => {
   const D2 = `sha256:${'b'.repeat(64)}`;
   const dockerfile = (tag, digest = D1, image = 'ghcr.io/zizmorcore/zizmor') => `# a comment\nFROM ${image}:${tag}@${digest}\n`;
 
-  it('reads the pin of each Dockerfile of IMAGES', () => {
-    expect(IMAGES).toEqual(['actionlint', 'zizmor']);
-    for (const name of IMAGES) {
-      const pin = imagePin(fs.readFileSync(new URL(`../../${imageFile(name)}`, import.meta.url), 'utf8'));
-      expect(pin.image.split('/').at(-1), name).toBe(name);
+  it('each Dockerfile of IMAGES names the image IMAGES has for it', () => {
+    expect(Object.keys(IMAGES)).toEqual(['actionlint', 'zizmor']);
+    for (const [name, {image}] of Object.entries(IMAGES)) {
+      expect(imagePin(fs.readFileSync(new URL(`../../${imageFile(name)}`, import.meta.url), 'utf8')).image, name).toBe(image);
+    }
+  });
+
+  it('asks only hosts fixed in IMAGES: the registry, and its token endpoint for that one image', () => {
+    for (const [name, {image, registry, repository, token}] of Object.entries(IMAGES)) {
+      expect(registry, name).toMatch(/^https:\/\/[a-z0-9.-]+$/);
+      // The image's own name: ghcr.io/<repository>, or Docker Hub's <repository>.
+      expect(image, name).toBe(registry === 'https://registry-1.docker.io' ? repository : `${new URL(registry).host}/${repository}`);
+      const url = new URL(token);
+      expect(url.protocol, name).toBe('https:');
+      expect(url.searchParams.get('scope'), name).toBe(`repository:${repository}:pull`);
     }
   });
 
@@ -520,13 +530,6 @@ describe('the images', () => {
     expect(() => applyImage(dockerfile('1.30.1'), '$&', D2)).toThrow(/not an image/);
   });
 
-  it('finds the registry of an image', () => {
-    expect(registryOf('ghcr.io/zizmorcore/zizmor')).toEqual({host: 'ghcr.io', repository: 'zizmorcore/zizmor'});
-    expect(registryOf('rhysd/actionlint')).toEqual({host: 'registry-1.docker.io', repository: 'rhysd/actionlint'});
-    expect(registryOf('alpine')).toEqual({host: 'registry-1.docker.io', repository: 'library/alpine'});
-    expect(registryOf('localhost:5000/a/b')).toEqual({host: 'localhost:5000', repository: 'a/b'});
-  });
-
   it('takes the newest x.y.z tag, not a moving or pre-release one', () => {
     expect(newestTag(['latest', '1.7', '1.7.9', '1.7.12', '1.8.0-rc1', '1.7.10', 'sha256-abc.sig'])).toBe('1.7.12');
     expect(newestTag(['latest', '1'])).toBeNull();
@@ -535,23 +538,25 @@ describe('the images', () => {
   describe('newestImage', () => {
     const wait = vi.fn(async () => {});
     afterEach(() => vi.unstubAllGlobals());
+    const source = IMAGES.zizmor;
     /**
-     * A registry as ghcr.io answers: 401 with its challenge, a token, tags in pages, a digest.
-     * @param {{pages?: string[][], next?: (i: number) => string, digest?: string|null, challenge?: string}} [options]
+     * A registry as ghcr.io answers: a token, tags in pages (each but the last with a Link
+     * header, which names a host of its own choosing), a digest.
+     * @param {{pages?: string[][], digest?: string|null, token?: object}} [options]
      */
-    const registry = ({pages = [['1.30.1', '1.32.0', 'latest']], next = (i) => `/v2/zizmorcore/zizmor/tags/list?n=1000&last=${i}`,
-      digest = D2, challenge = 'Bearer realm="https://ghcr.io/token",service="ghcr.io",scope="repository:zizmorcore/zizmor:pull"'} = {}) => {
+    const registry = ({pages = [['1.30.1', '1.32.0', 'latest']], digest = D2, token = {token: 'T'}} = {}) => {
       const fetch = vi.fn(async (url, init = {}) => {
         const u = new URL(url);
-        if (u.pathname === '/token') return Response.json({token: 'T'});
-        expect(u.origin).toBe('https://ghcr.io');
-        if (!init.headers?.authorization) return new Response('', {status: 401, headers: {'www-authenticate': challenge}});
+        if (url === source.token) return Response.json(token);
+        expect(u.origin).toBe(source.registry);
         expect(init.headers.authorization).toBe('Bearer T');
-        if (u.pathname.endsWith('/tags/list')) {
-          const i = Number(u.searchParams.get('last') ?? 0);
-          const headers = i + 1 < pages.length ? {link: `<${next(i + 1)}>; rel="next"`} : {};
+        if (u.pathname === '/v2/zizmorcore/zizmor/tags/list') {
+          const last = u.searchParams.get('last');
+          const i = last === null ? 0 : pages.findIndex((page) => page.at(-1) === last) + 1;
+          const headers = i + 1 < pages.length ? {link: '<https://elsewhere.example/v2/x/tags/list?n=1000>; rel="next"'} : {};
           return Response.json({tags: pages[i]}, {headers});
         }
+        expect(u.pathname).toMatch(/^\/v2\/zizmorcore\/zizmor\/manifests\/\d+\.\d+\.\d+$/);
         expect(init.method).toBe('HEAD');
         expect(init.headers.accept).toContain('application/vnd.oci.image.index.v1+json');
         return new Response(null, {status: 200, headers: digest ? {'docker-content-digest': digest} : {}});
@@ -561,28 +566,33 @@ describe('the images', () => {
     };
 
     it('reads the newest tag across pages, and its digest, with an anonymous pull token', async () => {
-      const fetch = registry({pages: [['1.30.1', 'latest'], ['1.32.0', '1.31.0']]});
-      await expect(newestImage('ghcr.io/zizmorcore/zizmor', {wait})).resolves.toEqual({tag: '1.32.0', digest: D2});
-      const token = new URL(fetch.mock.calls.find(([url]) => url.includes('/token'))[0]);
-      expect(token.searchParams.get('scope')).toBe('repository:zizmorcore/zizmor:pull');
-      expect(token.searchParams.get('service')).toBe('ghcr.io');
-      expect(fetch.mock.calls.at(-1)[0]).toBe('https://ghcr.io/v2/zizmorcore/zizmor/manifests/1.32.0');
+      const fetch = registry({pages: [['1.30.1', 'latest'], ['1.32.0', '1.31.0'], ['1.29.0']]});
+      await expect(newestImage(source, {wait})).resolves.toEqual({tag: '1.32.0', digest: D2});
+      expect(fetch.mock.calls.map(([url]) => url)).toEqual([source.token,
+        'https://ghcr.io/v2/zizmorcore/zizmor/tags/list?n=1000',
+        'https://ghcr.io/v2/zizmorcore/zizmor/tags/list?n=1000&last=latest',
+        'https://ghcr.io/v2/zizmorcore/zizmor/tags/list?n=1000&last=1.31.0',
+        'https://ghcr.io/v2/zizmorcore/zizmor/manifests/1.32.0']);
     });
 
-    it('sends the token to no other host', async () => {
-      registry({pages: [['1.30.1'], ['1.32.0']], next: () => 'https://elsewhere.example/v2/x/tags/list'});
-      await expect(newestImage('ghcr.io/zizmorcore/zizmor', {wait})).rejects.toThrow(/next page on https:\/\/elsewhere\.example/);
+    it('asks for the next page by its last tag, encoded, never at the URL the answer names', async () => {
+      const fetch = registry({pages: [['1.30.1', 'a&b=c'], ['1.32.0']]});
+      await newestImage(source, {wait});
+      expect(fetch.mock.calls[2][0]).toBe('https://ghcr.io/v2/zizmorcore/zizmor/tags/list?n=1000&last=a%26b%3Dc');
+      expect(fetch.mock.calls.some(([url]) => url.includes('elsewhere'))).toBe(false);
     });
 
-    it('fails, rather than pin nothing, without a digest, a tag or a challenge', async () => {
+    it('fails, rather than pin nothing, without a token, a tag or a digest', async () => {
+      registry({token: {}});
+      await expect(newestImage(source, {wait})).rejects.toThrow(/no token/);
       registry({digest: null});
-      await expect(newestImage('ghcr.io/zizmorcore/zizmor', {wait})).rejects.toThrow(/gives no digest/);
+      await expect(newestImage(source, {wait})).rejects.toThrow(/gives no digest/);
       registry({digest: 'sha256:short'});
-      await expect(newestImage('ghcr.io/zizmorcore/zizmor', {wait})).rejects.toThrow(/gives no digest/);
+      await expect(newestImage(source, {wait})).rejects.toThrow(/gives no digest/);
       registry({pages: [['latest']]});
-      await expect(newestImage('ghcr.io/zizmorcore/zizmor', {wait})).rejects.toThrow(/no x\.y\.z tag/);
-      registry({challenge: 'Basic realm="x"'});
-      await expect(newestImage('ghcr.io/zizmorcore/zizmor', {wait})).rejects.toThrow(/no Bearer challenge/);
+      await expect(newestImage(source, {wait})).rejects.toThrow(/no x\.y\.z tag/);
+      registry({pages: [['1.30.1', 2]]});
+      await expect(newestImage(source, {wait})).rejects.toThrow(/no tags/);
     });
   });
 

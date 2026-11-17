@@ -302,8 +302,8 @@ image pinned in a form Dependabot does not update:
   Dependabot's github-actions entry watches `/` (which means `.github/workflows` only) and
   `/.github/actions/*`.
 - A container image: not a `docker://` line in a workflow, but a
-  `FROM <image>:<x.y.z>@sha256:<digest>` line in `.github/<name>/Dockerfile`, with its name in
-  `IMAGES` in `tools/check-toolchain.mjs` (and a branch pattern in `update-prs.yml`); the
+  `FROM <image>:<x.y.z>@sha256:<digest>` line in `.github/<name>/Dockerfile`, with an entry in
+  `IMAGES` in `tools/check-toolchain.mjs` (image, registry, token endpoint) (and a branch pattern in `update-prs.yml`); the
   workflow reads the line from there, as `ci.yml` does with `.github/actionlint/Dockerfile`.
 - Node only in `.nvmrc`, pnpm only in `package.json`'s `packageManager`, npm packages in
   `package.json` and `pnpm-lock.yaml`, mpv in `.github/mpv-build.json`: each has its

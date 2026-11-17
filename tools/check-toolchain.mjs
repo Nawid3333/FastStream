@@ -634,8 +634,17 @@ export function applyPlayers(text, target) {
  * The images CI's "Lint workflows" job and tools/linux/setup.sh run, each pinned by tag and
  * digest on the one FROM line of `.github/<name>/Dockerfile`. Dependabot's docker job was
  * meant to update them and failed at every run (docs/notes/workflows.md).
+ *
+ * Each image's registry and its anonymous token endpoint are fixed here: no file and no answer
+ * chooses a host this asks (server-side request forgery). The Dockerfile gives only the tag it
+ * pins, and naming another image there fails the track.
  */
-export const IMAGES = ['actionlint', 'zizmor'];
+export const IMAGES = {
+  actionlint: {image: 'rhysd/actionlint', registry: 'https://registry-1.docker.io', repository: 'rhysd/actionlint',
+    token: 'https://auth.docker.io/token?service=registry.docker.io&scope=repository:rhysd/actionlint:pull'},
+  zizmor: {image: 'ghcr.io/zizmorcore/zizmor', registry: 'https://ghcr.io', repository: 'zizmorcore/zizmor',
+    token: 'https://ghcr.io/token?service=ghcr.io&scope=repository:zizmorcore/zizmor:pull'},
+};
 
 /** The Dockerfile that pins an image of IMAGES. @param {string} name */
 export const imageFile = (name) => `.github/${name}/Dockerfile`;
@@ -671,18 +680,6 @@ export function applyImage(text, tag, digest) {
   return {text: lines.join('\n'), was: pin.tag};
 }
 
-/**
- * Where an image's registry is, and the image's name there: a first part with a dot or a
- * port is a host; any other name is on Docker Hub, whose own images are library/<name>.
- * @param {string} image
- * @return {{host: string, repository: string}}
- */
-export function registryOf(image) {
-  const parts = image.split('/');
-  if (parts.length > 1 && /[.:]/.test(parts[0])) return {host: parts[0], repository: parts.slice(1).join('/')};
-  return {host: 'registry-1.docker.io', repository: parts.length === 1 ? `library/${image}` : image};
-}
-
 /** The newest x.y.z of the tags (a pre-release or a moving tag such as 1.7 is none), or null. @param {string[]} tags */
 export function newestTag(tags) {
   /** @type {string|null} */
@@ -698,50 +695,38 @@ const MANIFEST_TYPES = ['application/vnd.oci.image.index.v1+json', 'application/
 
 /**
  * An image's newest x.y.z tag and the digest its registry gives for it, read as `docker pull`
- * reads them: the registry's answer without a token names where an anonymous pull token comes
- * from (ghcr.io and Docker Hub both answer so).
- * @param {string} image
+ * reads them, with an anonymous pull token. The tags come in pages; the next page is asked for
+ * by the last tag of this one (the registry API's `last`), not at a URL the answer names.
+ * @param {{registry: string, repository: string, token: string}} source - An entry of IMAGES.
  * @param {{wait?: (ms: number) => Promise<void>}} [options]
  * @return {Promise<{tag: string, digest: string}>}
  */
-export async function newestImage(image, options = {}) {
-  const {host, repository} = registryOf(image);
-  const base = `https://${host}/v2/${repository}`;
-  const challenge = await request(`${base}/tags/list`, {},
-      async (response) => response.headers.get('www-authenticate') || '', {...options, answers: [401]});
-  const fields = Object.fromEntries([...challenge.matchAll(/(\w+)="([^"]*)"/g)].map(([, key, value]) => [key, value]));
-  if (!/^Bearer /i.test(challenge) || !fields.realm?.startsWith('https://')) {
-    throw new Error(`${base}/tags/list: no Bearer challenge (${challenge || 'none'})`);
-  }
-  const realm = new URL(fields.realm);
-  if (fields.service) realm.searchParams.set('service', fields.service);
-  realm.searchParams.set('scope', fields.scope || `repository:${repository}:pull`);
-  const {token, access_token: accessToken} = await getJson(realm.href, options);
-  if (!token && !accessToken) throw new Error(`${realm.origin}: no token`);
+export async function newestImage({registry, repository, token: tokenUrl}, options = {}) {
+  const base = `${registry}/v2/${repository}`;
+  const {token, access_token: accessToken} = await getJson(tokenUrl, options);
+  if (typeof (token || accessToken) !== 'string') throw new Error(`${new URL(tokenUrl).origin}: no token`);
   const headers = {authorization: `Bearer ${token || accessToken}`};
 
   /** @type {string[]} */
   const tags = [];
-  /** @type {string|null} */
-  let url = `${base}/tags/list?n=1000`;
-  for (let pages = 0; url; pages++) {
+  for (let pages = 0, last = ''; ; pages++) {
     if (pages === 20) throw new Error(`${base}/tags/list: more than 20 pages`);
-    /** @type {{list: unknown, next: string|null}} */
+    const url = `${base}/tags/list?n=1000${last ? `&last=${encodeURIComponent(last)}` : ''}`;
+    /** @type {{list: unknown, more: boolean}} */
     const page = await request(url, {headers}, async (response) => ({
       list: (await response.json()).tags,
-      next: /<([^>]+)>;\s*rel="next"/.exec(response.headers.get('link') || '')?.[1] ?? null,
+      more: /rel="next"/.test(response.headers.get('link') || ''),
     }), options);
-    if (!Array.isArray(page.list)) throw new Error(`${url}: no tags`);
+    if (!Array.isArray(page.list) || !page.list.every((tag) => typeof tag === 'string')) throw new Error(`${url}: no tags`);
     tags.push(...page.list);
-    // The token goes only to the registry it is for.
-    url = page.next === null ? null : new URL(page.next, base).href;
-    if (url !== null && new URL(url).origin !== `https://${host}`) throw new Error(`${base}/tags/list: next page on ${url}`);
+    if (!page.more || !page.list.length) break;
+    last = page.list[page.list.length - 1];
   }
   const tag = newestTag(tags);
-  if (!tag) throw new Error(`${image}: no x.y.z tag among ${tags.length}`);
+  if (!tag) throw new Error(`${repository}: no x.y.z tag among ${tags.length}`);
   const digest = await request(`${base}/manifests/${tag}`, {method: 'HEAD', headers: {...headers, accept: MANIFEST_TYPES}},
       async (response) => response.headers.get('docker-content-digest') || '', options);
-  if (!DIGEST.test(digest)) throw new Error(`${image}:${tag}: the registry gives no digest (${digest || 'none'})`);
+  if (!DIGEST.test(digest)) throw new Error(`${repository}:${tag}: the registry gives no digest (${digest || 'none'})`);
   return {tag, digest};
 }
 
@@ -813,12 +798,11 @@ export async function getJson(url, options = {}) {
  * @param {string} url
  * @param {{method?: string, headers?: Record<string, string>}} init
  * @param {(response: Response) => Promise<T>} read
- * @param {{wait?: (ms: number) => Promise<void>, answers?: number[]}} [options] - wait: the pause
- *     between tries; answers: statuses read() takes besides a 2xx.
+ * @param {{wait?: (ms: number) => Promise<void>}} [options] - wait: the pause between tries.
  * @return {Promise<T>}
  */
 async function request(url, init, read,
-    {wait = (/** @type {number} */ ms) => new Promise((resolve) => setTimeout(resolve, ms)), answers = []} = {}) {
+    {wait = (/** @type {number} */ ms) => new Promise((resolve) => setTimeout(resolve, ms))} = {}) {
   const headers = {'user-agent': 'faststream-check-toolchain', ...init.headers};
   for (let attempt = 1; ; attempt++) {
     /** @type {Response|null} */
@@ -827,13 +811,12 @@ async function request(url, init, read,
     let error;
     try {
       response = await fetch(url, {...init, headers, signal: AbortSignal.timeout(60 * 1000)});
-      if (response.ok || answers.includes(response.status)) return await read(response);
+      if (response.ok) return await read(response);
       error = new Error(`${url}: HTTP ${response.status}`);
     } catch (caught) {
       error = /** @type {Error} */ (caught);
     }
-    const final = response !== null && !response.ok && !answers.includes(response.status) &&
-        response.status < 500 && response.status !== 429;
+    const final = response !== null && !response.ok && response.status < 500 && response.status !== 429;
     if (final || attempt === 3) throw error;
     console.error(`${url}: ${error.message}; asking again`);
     await wait(attempt * 5000);
@@ -915,10 +898,11 @@ async function updates() {
       file: {url: addon.url, sha256: addon.sha256}}];
   });
 
-  for (const name of IMAGES) {
+  for (const [name, source] of Object.entries(IMAGES)) {
     await track(name, async () => {
       const pin = imagePin(fs.readFileSync(path.join(root, imageFile(name)), 'utf8'));
-      const {tag, digest} = await newestImage(pin.image);
+      if (pin.image !== source.image) throw new Error(`${imageFile(name)} names ${pin.image}, not ${source.image} (IMAGES)`);
+      const {tag, digest} = await newestImage(source);
       return [{name, current: pin.tag, latest: tag, behind: compareVersions(tag, pin.tag) > 0, routine: true,
         note: `newest ${pin.image} is ${tag}; ${imageFile(name)} pins ${pin.tag}`, image: {digest}}];
     });
@@ -965,7 +949,7 @@ async function main() {
   const image = process.argv.indexOf('--apply-image');
   if (image >= 0) {
     const [name, tag, digest] = process.argv.slice(image + 1, image + 4);
-    if (!IMAGES.includes(name)) throw new Error(`${name} is none of ${IMAGES.join(', ')}`);
+    if (!Object.hasOwn(IMAGES, name)) throw new Error(`${name} is none of ${Object.keys(IMAGES).join(', ')}`);
     const file = path.join(root, imageFile(name));
     const {text, was} = applyImage(fs.readFileSync(file, 'utf8'), tag, digest);
     fs.writeFileSync(file, text);
