@@ -231,12 +231,21 @@ describe('Parser: regions', () => {
   });
 
   it('finds the regions of a file of many regions and cues in linear time', () => {
-    const count = 40000;
+    // Against the same file whose cues name no region, on the same machine: a fixed time
+    // limit failed on a slow CI runner (1.6 s against 1.5 s). The scan of every region for
+    // each cue made the file that names them about 8 times slower (measured); a lookup, about
+    // as fast.
+    const count = 20000;
     const regions = Array.from({length: count}, (_, i) => `Region: id=r${i}`).join('\n');
-    const cues = Array.from({length: count}, (_, i) => `00:00.000 --> 00:01.000 region:none${i}\nx`).join('\n\n');
-    const started = performance.now();
-    const parsed = parseCues(`WEBVTT\n${regions}\n\n${cues}\n`);
-    expect(parsed).toHaveLength(count);
-    expect(performance.now() - started).toBeLessThan(1500);
+    const file = (named) => `WEBVTT\n${regions}\n\n` + Array.from({length: count},
+        (_, i) => `00:00.000 --> 00:01.000${named ? ` region:none${i}` : ''}\nx`).join('\n\n') + '\n';
+    const fastest = (text) => Math.min(...[0, 1, 2].map(() => {
+      const started = performance.now();
+      expect(parseCues(text)).toHaveLength(count);
+      return performance.now() - started;
+    }));
+    const plain = fastest(file(false));
+    const named = fastest(file(true));
+    expect(named).toBeLessThan(plain * 3 + 50);
   });
 });
