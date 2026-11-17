@@ -12,9 +12,11 @@ repo=$(cd "$(dirname "$0")/../.." && pwd)
 close_step=$here/close.sh
 pile_step=$here/pile.sh
 report_step=$here/report.sh
+failing_step=$here/failing.sh
 step_script security-alerts.yml 'Close the migration issues of closed pull requests' > "$close_step" || exit 1
 step_script security-alerts.yml 'Open, update or close the piling-up issue' > "$pile_step" || exit 1
 step_script security-alerts.yml "Report the watch's own failure" > "$report_step" || exit 1
+step_script security-alerts.yml 'Open, update or close the Dependabot failure issue' > "$failing_step" || exit 1
 
 # gh: FX_ISSUES (the open ones), FX_PRS, FX_COMMENTS_<n>, FX_EVENTS_<n> and the file
 # FX_DEPENDABOT, through the real jq; a pull request's state is STATE_PR_<n> (OPEN if unset).
@@ -55,6 +57,13 @@ case "$1 $2" in
     if [ "${!state:-}" = FAIL ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
     answer "{\"state\": \"${!state:-OPEN}\"}" ;;
   'workflow run') logged DISPATCH "${@:3}" >> "$LOG" ;;
+  "api repos/$GH_REPO/actions/workflows?per_page=100")
+    if [ -n "${FX_WORKFLOWS_FAIL:-}" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
+    def='{"workflows": [{"id": 5, "path": ".github/workflows/ci.yml"}, {"id": 7, "path": "dynamic/dependabot/dependabot-updates"}]}'
+    answer "${FX_WORKFLOWS:-$def}" ;;
+  "api repos/$GH_REPO/actions/workflows/7/runs?status=completed&per_page=100")
+    def='{"workflow_runs": []}'
+    answer "${FX_RUNS:-$def}" ;;
   'api -H')
     [ "$4" = "repos/$GH_REPO/contents/.github/dependabot.yml?ref=main" ] || { echo "stub gh: unexpected api path $4" >&2; exit 2; }
     if [ -n "${FX_DEPENDABOT_FAIL:-}" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
@@ -339,6 +348,58 @@ check 'fails' test "$status" -ne 0
 check 'says why' contains "$FIX/out" "main's .github/dependabot.yml could not be read as this step expects"
 
 scenario 'p16 dependabot.yml unreadable -> fails' "$pile_step" FX_DEPENDABOT_FAIL=1
+check 'fails' test "$status" -ne 0
+check 'touches no issue' test ! -s "$LOG"
+
+# --- The issue "Dependabot update jobs failing".
+
+# run <job> <conclusion> <created_at>: a completed run of Dependabot's update workflow.
+run() {
+  jq -nc --arg j "$1" --arg c "$2" --arg t "$3" '{display_title: "\($j) - Update #\($t | gsub("[^0-9]"; ""))", conclusion: $c, created_at: $t,
+    html_url: "https://github.com/Nawid3333/FastStream/actions/runs/\($t | gsub("[^0-9]"; ""))"}'
+}
+runs() { echo "{\"workflow_runs\": $(arr "$@")}"; }
+FT='Dependabot update jobs failing'
+# NOW is 2026-10-20T12:40Z: Dependabot ran 12 hours before, and a day before that.
+failing_runs=$(runs "$(run 'docker in /.github/zizmor' failure 2026-10-20T00:34:00Z)" "$(run 'docker in /.github/zizmor' failure 2026-10-19T00:34:00Z)" \
+  "$(run 'npm_and_yarn in /.' success 2026-10-20T00:34:00Z)" "$(run 'npm_and_yarn in /.' failure 2026-10-19T00:34:00Z)" \
+  "$(run 'github_actions in /.' failure 2026-10-20T00:35:00Z)" "$(run 'github_actions in /.' success 2026-10-19T00:35:00Z)" \
+  "$(run 'npm_and_yarn in /. for deepmerge' failure 2026-10-18T21:54:00Z)" "$(run 'npm_and_yarn in /. for deepmerge' failure 2026-10-18T20:00:00Z)" \
+  "$(run 'npm_and_yarn in /fsaunpack' failure 2026-10-20T00:33:00Z)")
+
+scenario 'd1 a job that failed at its last two runs -> one issue with it, and only it' "$failing_step" TITLE="$FT" FX_RUNS="$failing_runs"
+check 'succeeds' test "$status" -eq 0
+check 'opens the issue' contains "$LOG" "CREATE [--title] [$FT] [--body-file]"
+check 'once' count "$LOG" 'CREATE [' 1
+check 'its row, with the newest run' contains "$LOG" '| docker in /.github/zizmor | 2026-10-20T00:34:00Z | https://github.com/Nawid3333/FastStream/actions/runs/20261020003400 |'
+check 'one row' count "$LOG" '| https://github.com/' 1
+check 'not a job that failed, then passed' lacks "$LOG" '| npm_and_yarn in /. |'
+check 'not one that passed, then failed once' lacks "$LOG" 'github_actions'
+check 'not one whose newest run is over 26 hours old' lacks "$LOG" 'deepmerge'
+check 'not one with a single run' lacks "$LOG" 'fsaunpack'
+
+scenario 'd2 open, and still failing -> edited, none opened' "$failing_step" TITLE="$FT" FX_RUNS="$failing_runs" \
+  FX_ISSUES="$(arr "$(iss 80 "$FT" 'old')" "$(iss 81 "$FT" 'by hand' Nawid3333)")"
+check 'edits #80' contains "$LOG" 'EDIT [80] [--body-file]'
+check 'opens none' lacks "$LOG" 'CREATE'
+check 'leaves #81 alone' lacks "$LOG" '[81]'
+
+scenario 'd3 none fails any more -> the open issue closes' "$failing_step" TITLE="$FT" FX_ISSUES="$(arr "$(iss 80 "$FT" 'old')")" \
+  FX_RUNS="$(runs "$(run 'docker in /.github/zizmor' success 2026-10-20T00:34:00Z)" "$(run 'docker in /.github/zizmor' failure 2026-10-19T00:34:00Z)")"
+check 'succeeds' test "$status" -eq 0
+check 'closes #80' contains "$LOG" 'CLOSE [80] [--reason] [completed] [--comment] [No Dependabot update job fails any more. Closing.]'
+check 'nothing else' count "$LOG" '[' 1
+
+scenario 'd4 no runs, nothing open -> nothing' "$failing_step" TITLE="$FT"
+check 'succeeds' test "$status" -eq 0
+check 'touches no issue' test ! -s "$LOG"
+
+scenario "d5 GitHub lists no Dependabot workflow -> fails, rather than watch nothing" "$failing_step" TITLE="$FT" \
+  FX_WORKFLOWS='{"workflows": [{"id": 5, "path": ".github/workflows/ci.yml"}]}'
+check 'fails' test "$status" -ne 0
+check 'says why' contains "$FIX/out" 'GitHub lists no workflow dynamic/dependabot/dependabot-updates'
+
+scenario 'd6 the workflows cannot be read -> fails' "$failing_step" TITLE="$FT" FX_WORKFLOWS_FAIL=1
 check 'fails' test "$status" -ne 0
 check 'touches no issue' test ! -s "$LOG"
 

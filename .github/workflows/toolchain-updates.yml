@@ -15,6 +15,9 @@ name: Toolchain updates
 #     profile: the newest public release on AMO. Its entry there (version,
 #     file, SHA-256) and nothing else; nothing in CI downloads the file, so this run downloads
 #     it and checks it against AMO's SHA-256 before pushing. Routine.
+#   - actionlint and zizmor, the images CI's "Lint workflows" job runs: the newest x.y.z tag
+#     and the digest its registry gives for it, on the FROM line of .github/<name>/Dockerfile,
+#     and nothing else. Routine: CI runs every workflow file through the new image.
 #   - The player libraries the live suite plays (tests/e2e/live-specs/player-libraries.json):
 #     ONE rolling pull request, "Toolchain update: player libraries" on
 #     toolchain/player-libraries, rebuilt in place on main whenever the set changes. Each
@@ -46,6 +49,8 @@ on:
     paths:
       - .nvmrc
       - package.json
+      - .github/actionlint/Dockerfile
+      - .github/zizmor/Dockerfile
   workflow_dispatch:
 
 permissions:
@@ -114,14 +119,16 @@ jobs:
           start=$(git rev-parse HEAD)
 
           # The one change an update makes, committed on its branch off main and pushed: .nvmrc
-          # for Node, packageManager for pnpm, uBlock Origin's entry in setup-dev-profile.mjs.
+          # for Node, packageManager for pnpm, uBlock Origin's entry in setup-dev-profile.mjs, an
+          # image's FROM line.
           # Nothing from npm runs here, beside this job's write token: CI installs the lockfile as
           # it is with the new pnpm (frozen), so a pnpm that wants it rewritten fails CI, and that
           # reaches the owner. Sets $was (the version before) and $what (the change, for the pull
-          # request). <update> is the checker's entry for it (uBlock Origin's file comes in it).
+          # request). <update> is the checker's entry for it (uBlock Origin's file and an image's
+          # digest come in it).
           # shellcheck disable=SC2016 # the backticks in $what are Markdown
           build() { # <name> <version> <branch> [<update>]
-            local allowed changed file url sha
+            local allowed changed file url sha digest
             git checkout -q -f -B "$3" "$start"
             case $1 in
               Node.js)
@@ -162,6 +169,16 @@ jobs:
                 allowed='tools/setup-dev-profile.mjs'
                 what='uBlock Origin'"'"'s entry in `tools/setup-dev-profile.mjs`'
                 ;;
+              actionlint|zizmor)
+                digest=$(jq -r '.image.digest // empty' <<< "${4:-null}")
+                if [ -z "$digest" ]; then
+                  echo "The plan gives no digest for $1 $2." >&2
+                  exit 1
+                fi
+                was=$(node tools/check-toolchain.mjs --apply-image "$1" "$2" "$digest")
+                allowed=".github/$1/Dockerfile"
+                what='the FROM line of `.github/'"$1"'/Dockerfile`'
+                ;;
               *)
                 echo "No recipe for $1." >&2
                 exit 1
@@ -193,6 +210,10 @@ jobs:
               'uBlock Origin')
                 git show "$start:tools/setup-dev-profile.mjs" > "$RUNNER_TEMP/profile.main.mjs"
                 node tools/check-toolchain.mjs --addon-version uBlock0@raymondhill.net "$RUNNER_TEMP/profile.main.mjs"
+                ;;
+              actionlint|zizmor)
+                git show "$start:.github/$1/Dockerfile" > "$RUNNER_TEMP/Dockerfile.main"
+                node tools/check-toolchain.mjs --image-version "$RUNNER_TEMP/Dockerfile.main"
                 ;;
             esac
           }
@@ -372,6 +393,9 @@ jobs:
                 if [ "$name" = 'uBlock Origin' ]; then
                   printf '\nNothing in CI downloads the add-on: this run downloaded %s and checked it against the SHA-256 AMO gives for it, the check `pnpm run profile:setup` makes too.\n' "$(jq -r .file.url <<< "$update")"
                 fi
+                if [ "$name" = actionlint ] || [ "$name" = zizmor ]; then
+                  printf '\nThe digest is the one the registry gives for the tag %s today. CI'"'"'s "Lint workflows" job runs every workflow file through this image, and `tools/linux/setup.sh` takes its binary from it for the WSL verify.\n' "$latest"
+                fi
                 if [ "$name" = pnpm ]; then
                   printf '\nThe lockfile is left as it is. Should this pnpm want it rewritten, CI fails at the install: run `pnpm install` with it and push `pnpm-lock.yaml` here (the pull request then waits for you).\n'
                 fi
@@ -424,7 +448,7 @@ jobs:
               rest=$(jq -r --arg p "$PREFIX" '.title | ltrimstr($p)' <<< "$pr")
               name=${rest% *}
               version=${rest##* }
-              case $name in Node.js|pnpm|'uBlock Origin') ;; *) continue ;; esac
+              case $name in Node.js|pnpm|'uBlock Origin'|actionlint|zizmor) ;; *) continue ;; esac
               if [ "$branch" != "$(branch_of "$name" "$version")" ]; then continue; fi
               case " ${raised[*]} " in *" $branch "*) continue ;; esac
               state=UNKNOWN
@@ -444,11 +468,12 @@ jobs:
                   echo "#$number: main has $name $version by now; the next run closes it."
                   continue
                 fi
-                # The checker's entry for this version (uBlock Origin's file comes in it); one it
-                # no longer names is replaced by a newer pull request, which the plan raises.
+                # The checker's entry for this version (uBlock Origin's file and an image's digest
+                # come in it); one it no longer names is replaced by a newer pull request, which the
+                # plan raises.
                 update=$(jq -c --arg n "$name" --arg v "$version" '[.updates[]? | select(.name == $n and .latest == $v)][0] // empty' "$RUNNER_TEMP/plan.json")
-                if [ "$name" = 'uBlock Origin' ] && [ -z "$update" ]; then
-                  # Its file is known only for the newest release. A newer pull request replaces it;
+                if [ "$name" != Node.js ] && [ "$name" != pnpm ] && [ -z "$update" ]; then
+                  # Its file or digest is known only for the newest release. A newer pull request replaces it;
                   # one whose replacement was closed by hand stays, and only a person can move it.
                   echo "#$number conflicts with main, and $name $version is not the newest any more: it cannot be rebuilt here. A newer pull request replaces it; if that one was closed by hand, close #$number too, or bring it up to date by hand."
                   continue

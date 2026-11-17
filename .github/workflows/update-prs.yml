@@ -32,8 +32,8 @@ name: Update PRs
 #   CI passed   a comment. "Ready to merge" when
 #               every one of these holds: opened by that bot and only its commits on it; it
 #               changes only what that kind of update changes (package.json and
-#               pnpm-lock.yaml; fsaunpack's two files; .nvmrc; workflow files; the two
-#               Dockerfiles; a re-cut's files; tools/setup-dev-profile.mjs for uBlock
+#               pnpm-lock.yaml; fsaunpack's two files; .nvmrc; workflow files; an image's
+#               Dockerfile; a re-cut's files; tools/setup-dev-profile.mjs for uBlock
 #               Origin; tests/e2e/live-specs/player-libraries.json for the player
 #               libraries, whose live suite must have passed on the commit too: CI does not
 #               play them); its dependency review passed; and the branch holds the newest main, so what he
@@ -236,8 +236,8 @@ jobs:
           case $BRANCH in
             dependabot/npm_and_yarn/*) kind=dependabot ;;
             dependabot/github_actions/*) kind=actions ;;
-            dependabot/docker/*) kind=docker ;;
             toolchain/pnpm-*) kind=pnpm ;;
+            toolchain/actionlint-*|toolchain/zizmor-*) kind=image ;;
             toolchain/node-*) kind=node ;;
             toolchain/ublock-origin-*) kind=ublock ;;
             toolchain/player-libraries) kind=players ;;
@@ -265,8 +265,7 @@ jobs:
             case $kind in
               dependabot) printf 'Several packages can move together in one Dependabot pull request; `@dependabot ignore <package> minor version` drops one of them. `@dependabot rebase` builds it anew on main.\n' ;;
               actions) printf 'Dependabot moves the pinned commit and its version comment together; the release notes are linked above.\n' ;;
-              docker) printf 'Dependabot moves the tag and the digest in the Dockerfile together. `@dependabot ignore this minor version` (or `this major version`) skips it.\n' ;;
-              pnpm|node|ublock) printf 'Closing this pull request skips this version for good; toolchain-updates.yml raises the next one.\n' ;;
+              pnpm|node|ublock|image) printf 'Closing this pull request skips this version for good; toolchain-updates.yml raises the next one.\n' ;;
               players) printf 'toolchain-updates.yml rebuilds this pull request in place when a newer release comes. Closing it skips this set of versions; the next set comes as a pull request of its own.\n' ;;
               security) printf 'security-alerts.yml rebuilds this pull request in place every day from the open alerts. Closing it without merging hands its alerts back to you as "Security alert" issues.\n' ;;
               patched) printf 'How to take it by hand: `docs/updating-patched-libraries.md`. Closing this pull request skips this version for good.\n' ;;
@@ -421,7 +420,7 @@ jobs:
             migrate() {
               local what slug updates count group list park take rerun found
               case $kind in
-                pnpm|node|ublock|players|security|patched)
+                pnpm|node|ublock|image|players|security|patched)
                   # The title less its prefix: "pnpm 12.15.0", "Node.js 26", "hls.js 1.7.4".
                   what=$(jq -r '.title | sub("^(Toolchain update|Patched library update): "; "")' <<< "$pr")
                   slug=$what
@@ -577,8 +576,8 @@ jobs:
             reasons+=('it is labelled hold')
           fi
           case $kind in
-            dependabot|actions|docker) bot='dependabot[bot]' ;;
-            pnpm|node|ublock|players|security|patched) bot='github-actions[bot]' ;;
+            dependabot|actions) bot='dependabot[bot]' ;;
+            pnpm|node|ublock|image|players|security|patched) bot='github-actions[bot]' ;;
             *) reasons+=("branch $BRANCH is not one this workflow checks") ;;
           esac
           if [ "$kind" = actions ] && [ -z "${MERGE_TOKEN:-}" ]; then
@@ -681,9 +680,12 @@ jobs:
               actions)
                 files=$(jq -r '.files[].path | select((startswith(".github/workflows/") or startswith(".github/actions/")) | not)' "$RUNNER_TEMP/pr.json")
                 only='workflow and action files' ;;
-              docker)
-                files=$(jq -r '.files[].path | select(. != ".github/actionlint/Dockerfile" and . != ".github/zizmor/Dockerfile")' "$RUNNER_TEMP/pr.json")
-                only='the actionlint and zizmor Dockerfiles' ;;
+              image)
+                # toolchain/<image>-<version>: that image's Dockerfile.
+                image=${BRANCH#toolchain/}
+                image=.github/${image%-*}/Dockerfile
+                files=$(jq -r --arg f "$image" '.files[].path | select(. != $f)' "$RUNNER_TEMP/pr.json")
+                only=$image ;;
               *)
                 if [ "$fsa" = 1 ]; then
                   files=$(jq -r '.files[].path | select(. != "fsaunpack/package.json" and . != "fsaunpack/package-lock.json")' "$RUNNER_TEMP/pr.json")
@@ -694,7 +696,7 @@ jobs:
                 fi ;;
             esac
             if [ -n "$files" ]; then reasons+=("it changes $(tr '\n' ' ' <<< "$files" | sed 's/ $//'), not only $only"); fi
-            if [ "$kind" = dependabot ] || [ "$kind" = actions ] || [ "$kind" = docker ]; then
+            if [ "$kind" = dependabot ] || [ "$kind" = actions ]; then
               # Dependency review runs on Dependabot's own push (a pull_request event), not on
               # a run this workflow starts: the newest Dependabot commit's review counts.
               reviewed=$(jq -r '[.commits[] | select([.authors[].login] | all(. == "dependabot[bot]")) | .oid] | last // ""' "$RUNNER_TEMP/pr.json")

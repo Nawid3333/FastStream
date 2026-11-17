@@ -20,6 +20,8 @@
 //     profile: the newest public release on AMO. Dependabot cannot
 //     see an add-on pin, and nothing in CI downloads it, so the workflow downloads the file
 //     and checks it against AMO's SHA-256 before it pushes anything. Routine.
+//   - actionlint and zizmor, the images CI's "Lint workflows" job runs: the newest x.y.z tag
+//     and its digest, on the FROM line of .github/<name>/Dockerfile (IMAGES). Routine.
 //   - The player libraries the live suite plays (tests/e2e/live-specs/player-libraries.json),
 //     as one set ("players" in the plan): each at its newest release that fits the ranges they declare on each other and on hls.js (the repository's
 //     own pin), a new major included: the live suite plays each page before the pull request
@@ -41,6 +43,10 @@
 //            it had (the workflow's recipe; no network).
 //   --addon-version <id> <file>
 //            prints the version a copy of tools/setup-dev-profile.mjs pins for that add-on.
+//   --apply-image <name> <tag> <digest>
+//            writes that image's FROM line and prints the tag it had (no network).
+//   --image-version <file>
+//            prints the tag a copy of an IMAGES Dockerfile pins.
 //   --apply-players <players.json>
 //            writes tests/e2e/live-specs/player-libraries.json at the plan's "players".target
 //            (the workflow's recipe; no network), refusing any library that would go back.
@@ -625,6 +631,121 @@ export function applyPlayers(text, target) {
 }
 
 /**
+ * The images CI's "Lint workflows" job and tools/linux/setup.sh run, each pinned by tag and
+ * digest on the one FROM line of `.github/<name>/Dockerfile`. Dependabot's docker job was
+ * meant to update them and failed at every run (docs/notes/workflows.md).
+ */
+export const IMAGES = ['actionlint', 'zizmor'];
+
+/** The Dockerfile that pins an image of IMAGES. @param {string} name */
+export const imageFile = (name) => `.github/${name}/Dockerfile`;
+
+const FROM_LINE = /^FROM ([a-z0-9._:-]+(?:\/[a-z0-9._-]+)*):(\d+\.\d+\.\d+)@(sha256:[0-9a-f]{64})(\r?)$/;
+const DIGEST = /^sha256:[0-9a-f]{64}$/;
+
+/**
+ * The pin on a Dockerfile's FROM line, of which it must have exactly one.
+ * @param {string} text
+ * @return {{image: string, tag: string, digest: string}}
+ */
+export function imagePin(text) {
+  const lines = text.split('\n').filter((line) => /^FROM\b/i.test(line));
+  const match = lines.length === 1 ? FROM_LINE.exec(lines[0]) : null;
+  if (!match) throw new Error(`not one "FROM <image>:<x.y.z>@sha256:<digest>" line: ${JSON.stringify(lines)}`);
+  return {image: match[1], tag: match[2], digest: match[3]};
+}
+
+/**
+ * The Dockerfile with its FROM line at a newer tag and its digest, nothing else changed.
+ * @param {string} text
+ * @param {string} tag
+ * @param {string} digest
+ * @return {{text: string, was: string}}
+ */
+export function applyImage(text, tag, digest) {
+  if (!PLAIN_VERSION.test(tag) || !DIGEST.test(digest)) throw new Error(`not an image to write: ${tag}@${digest}`);
+  const pin = imagePin(text);
+  if (compareVersions(tag, pin.tag) <= 0) throw new Error(`${pin.image} ${tag} is not newer than ${pin.tag}`);
+  const lines = text.split('\n').map((line) => !/^FROM\b/i.test(line) ? line :
+    line.replace(FROM_LINE, (_, image, _tag, _digest, end) => `FROM ${image}:${tag}@${digest}${end}`));
+  return {text: lines.join('\n'), was: pin.tag};
+}
+
+/**
+ * Where an image's registry is, and the image's name there: a first part with a dot or a
+ * port is a host; any other name is on Docker Hub, whose own images are library/<name>.
+ * @param {string} image
+ * @return {{host: string, repository: string}}
+ */
+export function registryOf(image) {
+  const parts = image.split('/');
+  if (parts.length > 1 && /[.:]/.test(parts[0])) return {host: parts[0], repository: parts.slice(1).join('/')};
+  return {host: 'registry-1.docker.io', repository: parts.length === 1 ? `library/${image}` : image};
+}
+
+/** The newest x.y.z of the tags (a pre-release or a moving tag such as 1.7 is none), or null. @param {string[]} tags */
+export function newestTag(tags) {
+  /** @type {string|null} */
+  let newest = null;
+  for (const tag of tags) {
+    if (PLAIN_VERSION.test(tag) && (newest === null || compareVersions(tag, newest) > 0)) newest = tag;
+  }
+  return newest;
+}
+
+const MANIFEST_TYPES = ['application/vnd.oci.image.index.v1+json', 'application/vnd.docker.distribution.manifest.list.v2+json',
+  'application/vnd.oci.image.manifest.v1+json', 'application/vnd.docker.distribution.manifest.v2+json'].join(', ');
+
+/**
+ * An image's newest x.y.z tag and the digest its registry gives for it, read as `docker pull`
+ * reads them: the registry's answer without a token names where an anonymous pull token comes
+ * from (ghcr.io and Docker Hub both answer so).
+ * @param {string} image
+ * @param {{wait?: (ms: number) => Promise<void>}} [options]
+ * @return {Promise<{tag: string, digest: string}>}
+ */
+export async function newestImage(image, options = {}) {
+  const {host, repository} = registryOf(image);
+  const base = `https://${host}/v2/${repository}`;
+  const challenge = await request(`${base}/tags/list`, {},
+      async (response) => response.headers.get('www-authenticate') || '', {...options, answers: [401]});
+  const fields = Object.fromEntries([...challenge.matchAll(/(\w+)="([^"]*)"/g)].map(([, key, value]) => [key, value]));
+  if (!/^Bearer /i.test(challenge) || !fields.realm?.startsWith('https://')) {
+    throw new Error(`${base}/tags/list: no Bearer challenge (${challenge || 'none'})`);
+  }
+  const realm = new URL(fields.realm);
+  if (fields.service) realm.searchParams.set('service', fields.service);
+  realm.searchParams.set('scope', fields.scope || `repository:${repository}:pull`);
+  const {token, access_token: accessToken} = await getJson(realm.href, options);
+  if (!token && !accessToken) throw new Error(`${realm.origin}: no token`);
+  const headers = {authorization: `Bearer ${token || accessToken}`};
+
+  /** @type {string[]} */
+  const tags = [];
+  /** @type {string|null} */
+  let url = `${base}/tags/list?n=1000`;
+  for (let pages = 0; url; pages++) {
+    if (pages === 20) throw new Error(`${base}/tags/list: more than 20 pages`);
+    /** @type {{list: unknown, next: string|null}} */
+    const page = await request(url, {headers}, async (response) => ({
+      list: (await response.json()).tags,
+      next: /<([^>]+)>;\s*rel="next"/.exec(response.headers.get('link') || '')?.[1] ?? null,
+    }), options);
+    if (!Array.isArray(page.list)) throw new Error(`${url}: no tags`);
+    tags.push(...page.list);
+    // The token goes only to the registry it is for.
+    url = page.next === null ? null : new URL(page.next, base).href;
+    if (url !== null && new URL(url).origin !== `https://${host}`) throw new Error(`${base}/tags/list: next page on ${url}`);
+  }
+  const tag = newestTag(tags);
+  if (!tag) throw new Error(`${image}: no x.y.z tag among ${tags.length}`);
+  const digest = await request(`${base}/manifests/${tag}`, {method: 'HEAD', headers: {...headers, accept: MANIFEST_TYPES}},
+      async (response) => response.headers.get('docker-content-digest') || '', options);
+  if (!DIGEST.test(digest)) throw new Error(`${image}:${tag}: the registry gives no digest (${digest || 'none'})`);
+  return {tag, digest};
+}
+
+/**
  * What to do about the updates: raise each one that is behind and whose title was never
  * used (closing one by hand is how an update is skipped, for good), and close the open
  * ones the project has caught up with or that a newer one on the same track replaces.
@@ -670,32 +791,49 @@ export function plan(updates, open, used, {raising = true} = {}) {
 }
 
 /**
- * A JSON answer, asked up to three times: no answer, none within a minute, a 5xx or 429, or an
- * answer that is not JSON is asked again. A 4xx other than 429 is the request's own fault, and
- * asking again would change nothing.
+ * A JSON answer, asked up to three times (see request()).
  * @param {string} url
  * @param {{wait?: (ms: number) => Promise<void>}} [options] - wait: the pause between tries.
  * @return {Promise<any>}
  */
-export async function getJson(url, {wait = (/** @type {number} */ ms) => new Promise((resolve) => setTimeout(resolve, ms))} = {}) {
+export async function getJson(url, options = {}) {
   /** @type {Record<string, string>} */
-  const headers = {'accept': 'application/json', 'user-agent': 'faststream-check-toolchain'};
+  const headers = {'accept': 'application/json'};
   if (url.startsWith('https://api.github.com/') && process.env.GH_TOKEN) {
     headers.authorization = `Bearer ${process.env.GH_TOKEN}`;
   }
+  return request(url, {headers}, (response) => response.json(), options);
+}
+
+/**
+ * What read() takes from the answer, asked up to three times: no answer, none within a minute,
+ * a 5xx or 429, or an answer read() fails on (JSON that is not) is asked again. A 4xx other than
+ * 429 is the request's own fault, and asking again would change nothing.
+ * @template T
+ * @param {string} url
+ * @param {{method?: string, headers?: Record<string, string>}} init
+ * @param {(response: Response) => Promise<T>} read
+ * @param {{wait?: (ms: number) => Promise<void>, answers?: number[]}} [options] - wait: the pause
+ *     between tries; answers: statuses read() takes besides a 2xx.
+ * @return {Promise<T>}
+ */
+async function request(url, init, read,
+    {wait = (/** @type {number} */ ms) => new Promise((resolve) => setTimeout(resolve, ms)), answers = []} = {}) {
+  const headers = {'user-agent': 'faststream-check-toolchain', ...init.headers};
   for (let attempt = 1; ; attempt++) {
     /** @type {Response|null} */
     let response = null;
     /** @type {Error} */
     let error;
     try {
-      response = await fetch(url, {headers, signal: AbortSignal.timeout(60 * 1000)});
-      if (response.ok) return await response.json();
+      response = await fetch(url, {...init, headers, signal: AbortSignal.timeout(60 * 1000)});
+      if (response.ok || answers.includes(response.status)) return await read(response);
       error = new Error(`${url}: HTTP ${response.status}`);
     } catch (caught) {
       error = /** @type {Error} */ (caught);
     }
-    const final = response !== null && !response.ok && response.status < 500 && response.status !== 429;
+    const final = response !== null && !response.ok && !answers.includes(response.status) &&
+        response.status < 500 && response.status !== 429;
     if (final || attempt === 3) throw error;
     console.error(`${url}: ${error.message}; asking again`);
     await wait(attempt * 5000);
@@ -706,7 +844,7 @@ export async function getJson(url, {wait = (/** @type {number} */ ms) => new Pro
 
 /**
  * @typedef {{name: string, current: string, latest: string, behind: boolean, routine: boolean, note: string,
- *     file?: {url: string, sha256: string}}} Update
+ *     file?: {url: string, sha256: string}, image?: {digest: string}}} Update
  */
 
 /**
@@ -777,6 +915,15 @@ async function updates() {
       file: {url: addon.url, sha256: addon.sha256}}];
   });
 
+  for (const name of IMAGES) {
+    await track(name, async () => {
+      const pin = imagePin(fs.readFileSync(path.join(root, imageFile(name)), 'utf8'));
+      const {tag, digest} = await newestImage(pin.image);
+      return [{name, current: pin.tag, latest: tag, behind: compareVersions(tag, pin.tag) > 0, routine: true,
+        note: `newest ${pin.image} is ${tag}; ${imageFile(name)} pins ${pin.tag}`, image: {digest}}];
+    });
+  }
+
   /** @type {PlayerSet|null} */
   let players = null;
   try {
@@ -813,6 +960,21 @@ async function main() {
   const pinned = process.argv.indexOf('--addon-version');
   if (pinned >= 0) {
     console.log(addonVersion(fs.readFileSync(process.argv[pinned + 2], 'utf8'), process.argv[pinned + 1]));
+    return;
+  }
+  const image = process.argv.indexOf('--apply-image');
+  if (image >= 0) {
+    const [name, tag, digest] = process.argv.slice(image + 1, image + 4);
+    if (!IMAGES.includes(name)) throw new Error(`${name} is none of ${IMAGES.join(', ')}`);
+    const file = path.join(root, imageFile(name));
+    const {text, was} = applyImage(fs.readFileSync(file, 'utf8'), tag, digest);
+    fs.writeFileSync(file, text);
+    console.log(was);
+    return;
+  }
+  const imageTag = process.argv.indexOf('--image-version');
+  if (imageTag >= 0) {
+    console.log(imagePin(fs.readFileSync(process.argv[imageTag + 1], 'utf8')).tag);
     return;
   }
   const players = process.argv.indexOf('--apply-players');

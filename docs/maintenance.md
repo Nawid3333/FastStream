@@ -35,7 +35,7 @@ merged themselves.
 | upstream (Andrews54757/FastStream) | nothing to merge any more: this fork no longer follows upstream (your decision, 2026-10-09). `upstream-watch.yml` (daily) lists upstream's commits you have not reviewed yet, the files each touches and which of them this fork still has, and marks the likely fixes | nothing merges; port a fix by hand if it helps this fork | one issue, "Upstream: N commit(s) to review", updated in place; close it once reviewed |
 | mpv build | one PR from `mpv-updates.yml` on branch `mpv-update`, which moves to each newer build of shinchiro's that passes CI | "ready to merge"; your merge releases nothing (only CI installs this mpv) | the PR (one, not one a day); an issue on failure |
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
-| actionlint and zizmor images | a Dependabot PR (docker, daily; that job has failed since 2026-10-20, so for now by hand: `docs/notes/workflows.md`) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | "ready to merge" when it changes only those files: CI ran every workflow file through the new checks | the PR |
+| actionlint and zizmor images | a PR from `toolchain-updates.yml` (daily, 07:00 UTC) on `toolchain/<image>-<version>`, changing the tag and digest on the FROM line of `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile`, which `ci.yml`'s workflows job and the WSL verify read | "ready to merge" when it changes only that file: CI ran every workflow file through the new image | the PR |
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
 | what a new Firefox changed (APIs, removals, media and WebExtensions fixes) | `firefox-api-watch.yml` (daily) reads each new Stable release's MDN notes for developers, browser-compat-data, its fixed Bugzilla bugs and the add-ons blog, and keeps what touches the APIs FastStream's code uses | nothing to merge; a release with nothing relevant posts nothing | one issue, "Firefox API Watch: starting with Firefox N": a section per release, a box per finding (priority, confidence, the files that use it, the links); tick what you dealt with, close it when reviewed, and the next release with findings opens a new one |
 | security alerts | a Dependabot alert on the Security tab, and a Dependabot PR that fixes it (the rows above); `security-alerts.yml` (daily) watches for an alert with no such PR | as the PR's row says | GitHub's alert email; for an alert over 6 hours old with no Dependabot PR, an issue per package, "Security alert: <package>", closed once its alerts are fixed on `main` or dismissed |
@@ -202,10 +202,15 @@ Once a day, `security-alerts.yml` also watches the open update PRs. Dependabot o
 PRs for an entry of `.github/dependabot.yml` once it has that entry's
 `open-pull-requests-limit` open - not even for a new release - and says nothing. So
 "Update pull requests piling up" opens when an entry has its limit minus 2 open, at least 2
-(npm 8 of 10, fsaunpack 3 of 5, GitHub Actions 3 of 5, docker 2 of 2), or when an update PR
+(npm 8 of 10, fsaunpack 3 of 5, GitHub Actions 3 of 5), or when an update PR
 has been red for more than 14 days. It lists them, is updated in place each day, and closes
 itself once neither holds. Merge what is ready and close what you will not take; for a red
 one, its comment and its "Migration" issue say what to do.
+
+The same daily watch opens "Dependabot update jobs failing" when one of Dependabot's jobs
+failed at its last two runs: GitHub emails no one about those, and while one fails nothing in
+its directories is updated. Its rows link the failed runs, whose log says why. The issue is
+updated each day and closes itself once none fails.
 
 Once a week, `flaky-specs.yml` opens "Flaky e2e specs: week to <date>" when a CI run in
 those 7 days had to run a spec file again: a test that failed once and passed on its
@@ -296,9 +301,9 @@ image pinned in a form Dependabot does not update:
   pinned to its commit, with the version as a comment (`uses: owner/repo@<sha> # v1.2.3`).
   Dependabot's github-actions entry watches `/` (which means `.github/workflows` only) and
   `/.github/actions/*`.
-- A container image: not a `docker://` line in a workflow, which Dependabot leaves alone,
-  but a `FROM <image>:<tag>@sha256:<digest>` line in a Dockerfile of its own under
-  `.github/`, with a docker entry for that directory in `.github/dependabot.yml`; the
+- A container image: not a `docker://` line in a workflow, but a
+  `FROM <image>:<x.y.z>@sha256:<digest>` line in `.github/<name>/Dockerfile`, with its name in
+  `IMAGES` in `tools/check-toolchain.mjs` (and a branch pattern in `update-prs.yml`); the
   workflow reads the line from there, as `ci.yml` does with `.github/actionlint/Dockerfile`.
 - Node only in `.nvmrc`, pnpm only in `package.json`'s `packageManager`, npm packages in
   `package.json` and `pnpm-lock.yaml`, mpv in `.github/mpv-build.json`: each has its
