@@ -338,14 +338,24 @@ jobs:
           # its tag when only the second failed, and release.yml never started for it.
           # A server error is tried again (2026-11-17: "Internal Server Error", and the
           # commit went unreleased until the next merge); a refusal is not. A push that
-          # went through despite the error finds main and the tag there already.
+          # went through despite the error finds main and the tag there already, or, when
+          # main moved on meanwhile, is refused: then the tag on GitHub tells.
+          landed() {
+            local theirs
+            theirs=$(authgit ls-remote --tags origin "refs/tags/v$NEW" | awk -v ref="refs/tags/v$NEW" '$2 == ref {print $1}')
+            [ -n "$theirs" ] && [ "$theirs" = "$(git rev-parse "refs/tags/v$NEW")" ]
+          }
           for attempt in 1 2 3; do
             if out=$(authgit push --atomic origin HEAD:main "refs/tags/v$NEW" 2>&1); then
               printf '%s\n' "$out"
               break
             fi
             printf '%s\n' "$out" >&2
-            if [ "$attempt" = 3 ] || ! grep -qiE 'internal server error|bad gateway|service unavailable|gateway time-?out|returned error: 5[0-9][0-9]' <<< "$out"; then
+            if [ "$attempt" -gt 1 ] && landed; then
+              echo "The push of attempt $((attempt - 1)) went through after all."
+              break
+            fi
+            if [ "$attempt" = 3 ] || ! grep -qiE 'internal server error|bad gateway|service unavailable|gateway time-?out|returned error: 5[0-9][0-9]|rpc failed|fatal error in commit_refs' <<< "$out"; then
               exit 1
             fi
             echo "The push met a server error (attempt $attempt of 3); trying again in 30 s."

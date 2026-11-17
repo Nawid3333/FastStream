@@ -26,15 +26,21 @@ case $1 in
     fi ;;
   ls-remote)
     if [ -n "${LS_REMOTE_FAILS-}" ]; then echo 'fatal: unable to access' >&2; exit 128; fi
-    for t in ${REMOTE_TAGS:-}; do
+    for t in ${REMOTE_TAGS:-} $(cat "$FIX/landed" 2>/dev/null); do
       case refs/tags/$t in $4) printf '0123abcd\trefs/tags/%s\n0123abce\trefs/tags/%s^{}\n' "$t" "$t" ;; esac
     done ;;
+  rev-parse) echo 0123abcd ;;
   push)
+    # landed: GitHub took the push and still answered 500. rpc: an HTTP/2 stream GitHub broke off.
+    tag=${5#refs/tags/}
     n=$(( $(grep -c '^push' "$FIX/calls") ))
     set -- ${PUSHES:-ok}
     answer=${!n:-ok}
     case $answer in
       500) printf 'remote: Internal Server Error\n ! [remote rejected]   HEAD -> main (Internal Server Error)\n' >&2; exit 1 ;;
+      landed) echo "$tag" >> "$FIX/landed"
+        printf 'remote: Internal Server Error\n ! [remote rejected]   HEAD -> main (Internal Server Error)\n' >&2; exit 1 ;;
+      rpc) printf 'error: RPC failed; curl 92 HTTP/2 stream 5 was not closed cleanly: INTERNAL_ERROR (err 2)\nfatal: the remote end hung up unexpectedly\n' >&2; exit 1 ;;
       refused) printf ' ! [rejected]          HEAD -> main (fetch first)\n' >&2; exit 1 ;;
     esac ;;
   add|commit) ;;
@@ -97,6 +103,25 @@ check 'pushes twice, the same commit and tag' test "$(grep -cxF 'push --atomic o
 check 'waits between them' test "$(cat "$FIX/sleeps" 2>/dev/null)" = '30'
 check 'says why' contains "$FIX/out" 'The push met a server error (attempt 1 of 3)'
 check 'hands the tag on' contains "$FIX/env" 'tag=v1.3.82.45'
+
+export PUSHES='rpc ok'
+scenario 'an HTTP/2 stream broken off, then the push goes through'
+check 'succeeds' test "$status" -eq 0
+check 'pushes twice' test "$(grep -c '^push' "$FIX/calls")" -eq 2
+check 'hands the tag on' contains "$FIX/env" 'tag=v1.3.82.45'
+
+export PUSHES='landed refused'
+scenario 'GitHub took the push despite its server error, and main moved on meanwhile'
+check 'succeeds' test "$status" -eq 0
+check 'pushes twice' test "$(grep -c '^push' "$FIX/calls")" -eq 2
+check 'says the first one went through' contains "$FIX/out" 'The push of attempt 1 went through after all.'
+check 'hands the tag on' contains "$FIX/env" 'tag=v1.3.82.45'
+
+export PUSHES='500 refused'
+scenario 'a server error, then main moved on, and GitHub has no such tag'
+check 'fails' test "$status" -ne 0
+check 'pushes twice' test "$(grep -c '^push' "$FIX/calls")" -eq 2
+check 'hands no tag on' lacks "$FIX/env" 'tag='
 
 export PUSHES='500 500 500 ok'
 scenario 'a server error every time'
