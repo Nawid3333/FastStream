@@ -7,7 +7,7 @@ import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 /** @typedef {{emit: (event: string, ...args: any[]) => any}} FragmentPlayer */
 
 // A fragment's download status, kept and told to its player at each change: what the DASH,
-// HLS and MP4 fragment requesters share (three copies until 2026-11-15).
+// HLS and MP4 fragment requesters share.
 
 /**
  * Sets a fragment's status and tells its player.

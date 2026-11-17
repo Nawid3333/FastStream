@@ -1876,7 +1876,7 @@
    *   whose body goes past it is given up, as a failed one. A failed one gives its bytes back.
    */
   function httpRequest(url, callback, budget) {
-    // fetch() since 2026-10-06 (XMLHttpRequest before). The whole request has
+    // The whole request has
     // HttpRequestTimeoutMs; it stops when nothing has come for HttpRequestStallMs, before
     // the headers or between pieces of the body. A failed or stopped request calls back
     // as a status other than 200 did, with no response.

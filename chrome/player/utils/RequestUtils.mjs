@@ -20,7 +20,7 @@ export const SpecialHeaders = [
 
 /**
  * What RequestUtils.request() resolves with: the parts of an XMLHttpRequest its callers
- * read, filled from a fetch() (it was an XMLHttpRequest until 2026-10-06). status is 0 when
+ * read, filled from a fetch(). status is 0 when
  * the request failed outright - a network error, a refused request, a body cut off - as an
  * XMLHttpRequest's was.
  */
