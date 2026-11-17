@@ -8,7 +8,9 @@ import {afterEach, describe, expect, it} from 'vitest';
 // tools/same-code.mjs answers whether a typing pass changed only comments. A false "same" lets
 // a code change through under that name; a false "differs" makes the check useless.
 
-describe('same-code in a clone', () => {
+// Each case runs git and node a few times: about 0.4 s here, and up to 6.2 s on a Windows
+// runner, past vitest's 5 s (CI on main, 2026-11-17).
+describe('same-code in a clone', {timeout: 30000}, () => {
   const script = path.resolve('tools/same-code.mjs');
   /** @type {string[]} */
   const dirs = [];

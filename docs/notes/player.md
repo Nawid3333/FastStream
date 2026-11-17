@@ -1968,7 +1968,8 @@ What the review of 2026-11-16 left open. Each fix has a test that fails without 
   a cue of many short texts (`&a<i></i>` x 5000) parse a document for every one. Checked in
   Firefox against the old way, text by text, by `modules.e2e.mjs`. And a cue's region is found
   in a Map, not by a scan of every region: 40,000 regions and cues took 4.9 s, now 0.4 s
-  (`vtt.test.mjs`). The unused `TEXTAREA_ELEMENT` is gone. All in `tools/verify-vtt.mjs`'s list
+  (`vtt.test.mjs`, which compares the same file without region names on the same machine:
+  a fixed 1.5 s limit failed on a slow CI runner, 2026-11-17). The unused `TEXTAREA_ELEMENT` is gone. All in `tools/verify-vtt.mjs`'s list
   and `docs/vendored-libraries.md`'s table, which had missed the DOMParser change.
 - **Facebook: one manifest per scan stays.** glm read it as losing a second new video found in
   the same scan. On the page as recorded (live, 2026-11-15) the reels Facebook preloads sit under

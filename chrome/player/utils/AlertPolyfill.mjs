@@ -2,9 +2,8 @@
 import {Localize} from '../modules/Localize.mjs';
 import {EnvUtils} from './EnvUtils.mjs';
 
-// The player's dialogs and toasts, with Firefox's own <dialog> (showModal) and popover, in
-// place of sweetalert2 11.26.25 (until 2026-10-09: its 150 KB module, its stylesheet, and the
-// changes the build made to both). Styles: assets/dialogs/dialogs.css.
+// The player's dialogs and toasts, with Firefox's own <dialog> (showModal) and popover.
+// Styles: assets/dialogs/dialogs.css.
 //
 // - Both open in the top layer, so they show over a player in fullscreen wherever they are in
 //   the page; sweetalert2 had to be retargeted at the player for that.

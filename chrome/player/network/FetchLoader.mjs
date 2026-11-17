@@ -5,9 +5,8 @@ import {RequestUtils} from '../utils/RequestUtils.mjs';
 import {PageFetch} from './PageFetch.mjs';
 
 // Every fragment, playlist, manifest and MP4 range the player loads: fetch() with stall
-// timeouts, retries with backoff, byte ranges and the stats hls.js and dash.js read. It was
-// XHRLoader until 2026-10-06, named for the XMLHttpRequest it wrapped before it moved to
-// fetch(). (dash.js has an XHRLoader of its own, which DashPlayer replaces by that name.)
+// timeouts, retries with backoff, byte ranges and the stats hls.js and dash.js read.
+// (dash.js has an XHRLoader of its own, which DashPlayer replaces by that name.)
 
 /** @typedef {{aborted: boolean, timedout: boolean, loaded: number, total: number, retry: number, chunkCount: number, bwEstimate: number, loading: {start: number, first: number, end: number}, parsing: {start: number, end: number}, buffering: {start: number, first: number, end: number}, error?: {code: number, text: string, retryAfter?: number}}} LoaderStats */
 /** @typedef {{url: string, method?: string, headers?: Object<string, string>, body?: *, responseType?: string, rangeStart: number, rangeEnd: number}} LoaderRequest */

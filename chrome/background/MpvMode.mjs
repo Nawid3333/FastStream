@@ -33,7 +33,7 @@ export const MpvPlayRepeatMs = 10000;
 
 // The allowlist's MPV, on a page Back gave back: how long a play whose stream is not
 // known waits for it to be detected before the page's known stream goes
-// (autoOpenKnownLater). 1 s (3 s until 2026-10-14): a play-triggered fetch lands within a
+// (autoOpenKnownLater). 1 s: a play-triggered fetch lands within a
 // few hundred ms, and every Back + play waited the whole time before mpv started.
 export const MpvPlayKnownAfterMs = 1000;
 
