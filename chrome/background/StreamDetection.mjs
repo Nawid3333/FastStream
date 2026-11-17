@@ -2,7 +2,7 @@
 // How the background tells a stream or a subtitle file from the rest of a page's responses
 // (webRequest's onHeadersReceived, in background.mjs): pure functions, the custom source
 // patterns and a redirect's first address given to them. Moved out of background.mjs
-// (2026-11-07) so they can be tested by themselves (StreamDetection.test.mjs).
+// so they can be tested by themselves (StreamDetection.test.mjs).
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {modeFromContentType, modeFromMediaType} from './ManifestTypes.mjs';
 

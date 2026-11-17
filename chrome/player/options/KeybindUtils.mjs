@@ -108,7 +108,7 @@ export const FIXED_SEEKS = {
 export const ADDED_IN_VERSION_3 = Object.keys(FIXED_SEEKS);
 
 /**
- * The defaults version 4 moved (2026-10-10), by action, with the key they had: the speed
+ * The defaults version 4 moved, by action, with the key they had: the speed
  * steps to S and D, as in mpv, and Save video off D to Shift+D. Save video first, so D is
  * free when the speed-up comes to it.
  */
@@ -119,7 +119,7 @@ export const MOVED_IN_VERSION_4 = {
 };
 
 /**
- * The keys version 5 renamed (2026-10-28): numpad keys that type nothing, NumLock off, went by
+ * The keys version 5 renamed: numpad keys that type nothing, NumLock off, went by
  * position, so a binding recorded on one was saved under that name. They go by what they do
  * now, as the main keys do (upstream #482). With NumLock on, a numpad digit was a digit already.
  */

@@ -6,7 +6,7 @@
 // toolkit/components/ipprotection). A site that ties its stream to the address that asked
 // for the page then refuses FastStream: VOE's stream URL carries the VPN exit's network
 // (…&i=63.245&asn=54113, Fastly), and FastStream's player, asking from the user's own
-// address, got "Failed to load video!" while the site's own player played (2026-10-06).
+// address, got "Failed to load video!" while the site's own player played.
 //
 // So FastStream's requests to a host go the way the page's latest request to it went.
 // webRequest reports the proxy a page's request took (details.proxyInfo: type, host, port,

@@ -25,7 +25,7 @@ export class DownloadManager {
 
   // The speed test. A video started with one downloader and added one each time three
   // speed samples showed a gain: on a Vimeo video at 15 MB/s it took 3.3 s, a third of
-  // the video, to reach six (2026-10-06). It starts with three now and decides after each
+  // the video, to reach six. It starts with three now and decides after each
   // sample (two until 2026-10-22: on a server giving each connection 500 kB/s, ±30% each
   // second, six came at 14 s instead of 25 s, in 3 of 3 runs, the test's verdict the same);
   // a server that asks to slow down (SlowDownStatuses) halves them at once.
@@ -1363,7 +1363,7 @@ export class DownloadManager {
     // up meanwhile - a seek preview's build still running - queued its manifest then, and
     // nothing started it. The queue holding it, the client asked for nothing more
     // (canGetFile), and the next player's request for the same manifest joined it: a live
-    // DASH stream reloaded without a failed codec never loaded (2026-10-06).
+    // DASH stream reloaded without a failed codec never loaded.
     if (this.downloaders) this.queueNext();
   }
 

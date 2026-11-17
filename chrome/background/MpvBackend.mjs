@@ -618,7 +618,7 @@ export class MpvBackend {
    * @return {?OpenMessage} The message; null when even without subtitles it is over the host's
    *   limit (a stream address near Firefox's own URL limit, 1 MB, made the host quit unread,
    *   which said "is the helper installed?", and every later detection of the stream tried
-   *   again; glm's review, 2026-10-13).
+   *   again).
    */
   openMessage({url, headers, contentType, pageUrl, pageTitle, extras}) {
     /** @type {OpenMessage} */
@@ -749,7 +749,7 @@ export class MpvBackend {
   /**
    * Follows the mpv the host started (host 7's watch; over the thin helper's relay since host
    * 15): the end of its file and its keys for the next or the previous episode come as they
-   * happen, for MPV autoplay (2026-10-11). One at a time: a second watch ends the first. While
+   * happen, for MPV autoplay. One at a time: a second watch ends the first. While
    * the port is open, Firefox keeps this background page running, with nothing sent over it
    * (measured on Firefox 158: 12 minutes at the 30 s idle timeout, tools/native-port-idle and
    * docs/notes/mpv.md), so the end is heard however long the episode runs.

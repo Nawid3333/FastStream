@@ -1,7 +1,7 @@
 // @ts-check
 // MPV mode: handing a page's video to mpv (the native host, MpvBackend), and what follows it -
 // the autoplay watch over the page's next episode, its countdown, the hand-off's results
-// (decoder, errors) and the toolbar's MPV toggle. Moved out of background.mjs (2026-11-07),
+// (decoder, errors) and the toolbar's MPV toggle. Moved out of background.mjs,
 // whose shared state and helpers it imports from there; background.mjs registers the
 // listeners (they have to be at its top level for the event page to wake for them).
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
@@ -84,7 +84,7 @@ export async function startMpv(tab, onPlay = false) {
   tab.isMpv = true;
   tab.mpvOnPlay = onPlay;
   // The user's own MPV (the MPV key, the toolbar's On -> MPV), not a list's start: it stays
-  // for the tab (his call, 2026-10-10). Still marked as the list's, it went off on the first
+  // for the tab. Still marked as the list's, it went off on the first
   // page outside the lists of a site an auto-enable list had turned on (glm's review,
   // 2026-10-13).
   tab.regexMatched = false;
@@ -1130,7 +1130,7 @@ export function followMpvDecoder(tab, result) {
   }
   // The thin helper's relay, which the watch holds open, tells the decoder as mpv loads it
   // (onMpvWatchEvent). Asked here, each second until mpv had one meant a new helper process
-  // (cmd and node) every second, up to MpvDecoderWaitMs (review of 2026-10-14).
+  // (cmd and node) every second, up to MpvDecoderWaitMs.
   if (Mpv.mayUse(Capabilities.RELAY)) {
     return;
   }
@@ -1279,7 +1279,7 @@ export async function openInMpv(tabId, url, ...rest) {
   // The stream the page asked for: Firefox VPN is known to carry it by its host
   // (VpnProxyMirror.noteSource). A quality file taken in its place may be on a host that check
   // never saw - a hoster's get_file link, which redirects to its CDN - and it went to mpv on
-  // that file's host alone (this review, 2026-10-13).
+  // that file's host alone.
   const detected = url;
   // A file only its page gives (StreamLengths.servesWebPage): its length's read, started when it
   // was detected, tells by its first answer; one detected while the tab was off is read now.

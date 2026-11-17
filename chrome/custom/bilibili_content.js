@@ -99,7 +99,7 @@
       const ids = new Set();
       const videoAdaptationSets = this.loadDashTracks(dashData.video || [], ids);
       // A video without sound has no audio list (null): only the video then. It threw, and the
-      // video was not detected at all (final review, 2026-10-10).
+      // video was not detected at all.
       const audioAdaptationSets = this.loadDashTracks(dashData.audio || [], ids);
 
       const MPD = this.document.createElement('MPD');

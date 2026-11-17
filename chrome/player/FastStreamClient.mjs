@@ -84,7 +84,7 @@ const DROPPED_SAMPLE_MS = 1000;
 const EndStallMs = 3000;
 // How long a request for the next video waits for the background's answer (nextVideo), and how
 // long after one that did not go on the end asks again, at most how many times
-// (autoplayNextVideo): the countdown stopped at "1 s" when the only one failed (2026-10-23).
+// (autoplayNextVideo): the countdown stopped at "1 s" when the only one failed.
 const NextAnswerMs = 5000;
 const AutoNextRetryMs = 2000;
 const AutoNextTries = 5;
@@ -862,12 +862,12 @@ export class FastStreamClient extends EventEmitter {
     if (fragments) {
       bitrate = Utils.measuredBitrate(fragments) ?? bitrate;
     }
-    // Nothing of the buffer goes to disk - a private window, or "Keep video on disk" off
-    // (2026-10-10): what is kept has to fit in this player's share of the RAM budget, below
+    // Nothing of the buffer goes to disk - a private window, or "Keep video on disk" off:
+    // what is kept has to fit in this player's share of the RAM budget, below
     // where it lets go (MemoryBudget.LOW), in bits. Kept beyond it, the budget let go of the
     // far end and the downloads ahead fetched it again, round and round. No limit: Infinity.
     // Or no disk backend works (FSBlob.diskGone): it planned a disk-sized buffer that all
-    // stayed in RAM, past the budget, and said nothing (review of 2026-10-14).
+    // stayed in RAM, past the budget, and said nothing.
     const diskGone = this.downloadManager?.blobStore?.diskGone === true;
     if (diskGone && !this.diskGoneSaid) {
       this.diskGoneSaid = true;

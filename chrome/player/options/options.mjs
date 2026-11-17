@@ -765,7 +765,7 @@ blockPopupsWhilePlaying.addEventListener('change', () => {
 // before: bytes per second, bytes, -1 for no limit. An empty field is no limit, and 0 is
 // none: 0 Mbit/s downloads nothing ahead, 0 MB predownloads nothing, 0 MB of RAM keeps
 // nothing ahead in RAM. 0 read as "no limit" surprised the user who typed it to turn a
-// thing off (2026-10-09).
+// thing off.
 const BYTES_PER_MBIT_PER_S = 1000000 / 8;
 const GB = 1000 ** 3;
 
@@ -946,7 +946,7 @@ miniSize.addEventListener('change', () => {
 // 1 to 6, the browser's limit per server; 0 or less is the default, as the downloader reads
 // it. 0 meant "never add one" to the downloader and "no limit" to the add-downloader key.
 // Empty is no limit, the most a browser opens to one server (6, the default); 0 is the least
-// that still downloads, 1. 0 was read as the default 6, the most (2026-10-09).
+// that still downloads, 1. 0 was read as the default 6, the most.
 maxdownloaders.addEventListener('change', () => {
   Options.maximumDownloaders = readNumberField(maxdownloaders, DefaultOptions.maximumDownloaders, NUMBER_LIMITS.maximumDownloaders);
   optionChanged();

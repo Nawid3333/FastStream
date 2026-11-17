@@ -2,7 +2,7 @@
 
 // What a video is, guessed from the title of the tab that plays it: on a streaming site that is
 // the only clue (an HLS stream has no file name). The subtitle search starts from it
-// (OpenSubtitlesSearch). The guess before this one (2026-10-09) kept only the letters a-z, so
+// (OpenSubtitlesSearch). The guess before this one kept only the letters a-z, so
 // "Amélie" lost a letter and "Spider-Man" its dash; dropped the year it found; kept "1080p"; and
 // dropped words such as "part" or "show" wherever they were ("Dune Part Two" became "Dune Two",
 // "The Truman Show" "The Truman"). tests/unit/MediaTitle.test.mjs has the titles it is made for.

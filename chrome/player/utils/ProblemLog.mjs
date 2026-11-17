@@ -40,7 +40,7 @@ export async function readProblems() {
 }
 
 // The changes to the list, one after the other: two notes at once (two tabs, the player's and
-// mpv's) read the same list, and the second write lost the first (final review, 2026-10-11).
+// mpv's) read the same list, and the second write lost the first.
 let changes = Promise.resolve();
 
 /**

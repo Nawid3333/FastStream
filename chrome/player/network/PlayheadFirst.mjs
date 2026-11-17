@@ -64,7 +64,7 @@ export function downloadingOutside(fragments, time, behind, ahead) {
  * the downloads share: every running one of the given tracks that does not hold the playhead.
  * Inside the new place's window they were spared (downloadingOutside with the window), and on a
  * 3 Mbit/s line the next fragment, started before the seek, kept half the line from the seek's
- * own: an MP4 seek 3.6 -> 4.6 s (2026-11-16). One a save or the analyzer holds (canFree false)
+ * own: an MP4 seek 3.6 -> 4.6 s. One a save or the analyzer holds (canFree false)
  * is theirs to finish. The caller cancels through DownloadManager.cancelIfCheap, which leaves
  * playback's own requests.
  * @template {{start: number, end: number, status: number, canFree: () => boolean}} F

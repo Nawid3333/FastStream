@@ -1594,7 +1594,7 @@ async function setCarriedFullscreen(frame, on) {
     if (win.state !== 'fullscreen' && tab.windowStateBefore) {
       // Carried here, and the window is no longer fullscreen: the user left it outside
       // FastStream (F11, the browser's own Exit Full Screen), and the next episode went
-      // fullscreen again (final review, 2026-10-11). It plays windowed, as the user left it.
+      // fullscreen again. It plays windowed, as the user left it.
       tab.windowStateBefore = null;
       tab.carryAwaited = false;
       tab.carriedFullscreenFrameId = null;
@@ -2630,7 +2630,7 @@ const startPagePlayerUntil = new WeakMap();
 /**
  * Notes where autoplay got stuck (ProblemLog), unless the tab is in a private window: the list
  * is kept on disk (storage.local) and shown on the options page, and a private window's pages
- * leave nothing behind - its sites were listed there for good (this review, 2026-10-13).
+ * leave nothing behind - its sites were listed there for good.
  * @param {number} tabId - The tab it happened in.
  * @param {{url: string, kind: string, mode: 'player'|'mpv'}} problem
  * @return {Promise<void>}

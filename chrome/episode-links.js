@@ -4,7 +4,7 @@
 // Pure - what a link says, and which addresses this page's episode number +1 (or -1) would
 // have; content.js looks for them among the page's links.
 //
-// Measured first (2026-10-11): content.js knew an English "next" or "next episode" link, the
+// Measured first: content.js knew an English "next" or "next episode" link, the
 // neighbour of this page's link in a list, and "Episode N" lists. A German "Nächste Folge",
 // an icon link with only an aria-label, and the plain .../episode-12 -> .../episode-13 of
 // most hosters went unseen.

@@ -98,7 +98,7 @@
 
     // The first one with its manifest not reported yet: one without a manifest was sent as a
     // source whose manifest was the word "undefined", and a batch whose first manifest was
-    // one already reported dropped a new video after it (final review, 2026-10-10).
+    // one already reported dropped a new video after it.
     const found = datas.find((data) => {
       const mpd = manifestOf(data.value);
       return mpd && !reported.has(mpd);

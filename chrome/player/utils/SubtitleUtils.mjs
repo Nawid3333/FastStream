@@ -191,7 +191,7 @@ export class SubtitleUtils {
       if (!Number.isFinite(start)) continue;
       const dur = parseFloat(/** @type {string} */ (cues[i].getAttribute('dur')));
       // Looked for only when needed, and without copying the rest of the list: copied for
-      // every cue, a file of 100,000 cues took seconds (2026-11-16).
+      // every cue, a file of 100,000 cues took seconds.
       let next;
       if (!Number.isFinite(dur)) {
         for (let j = i + 1; j < starts.length; j++) {

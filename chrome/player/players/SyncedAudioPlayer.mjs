@@ -128,7 +128,7 @@ export class SyncedAudioPlayer extends EventEmitter {
       }
 
       // A setup or a source that failed left this player, not yet in audioPlayers, out of the
-      // caller's cleanup: its element and its audio source stayed (2026-10-05).
+      // caller's cleanup: its element and its audio source stayed.
       try {
         await player.setup();
         if (gone()) {
@@ -368,7 +368,7 @@ export class SyncedAudioPlayer extends EventEmitter {
     if (!res) {
       console.error('Failed to sync audio');
       // Played muted for the swap: left playing, it decoded for nothing until the next
-      // resync (final review, 2026-10-10).
+      // resync.
       await next.pause();
       return false;
     }
@@ -425,7 +425,7 @@ export class SyncedAudioPlayer extends EventEmitter {
     this.playbackRate = value;
 
     // Also while a delay of 0 keeps them paused: a delay set again reuses them, and they
-    // played at the speed from before, drifting off for good (final review, 2026-10-10).
+    // played at the speed from before, drifting off for good.
     this.audioPlayers.forEach((player) => {
       player.playbackRate = value;
     });

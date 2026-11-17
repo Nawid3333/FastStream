@@ -49,7 +49,7 @@ export class AudioQualityChanger extends EventEmitter {
 
   setupUI() {
     // Its click opened the audio settings window, its right click this list; since the
-    // window went (2026-10-10), both open the list. Its keys: setupTabIndex, below.
+    // window went, both open the list. Its keys: setupTabIndex, below.
     DOMElements.audioTracksBtn.addEventListener('click', (e) => {
       if (this.isOpen() || !this.enabled) {
         this.closeUI();
@@ -184,7 +184,7 @@ export class AudioQualityChanger extends EventEmitter {
         return;
       }
       this.enabled = false;
-      // An open list kept the previous video's tracks (final review, 2026-10-10).
+      // An open list kept the previous video's tracks.
       DOMElements.audioSourceList.replaceChildren();
       this.closeUI();
       return;
