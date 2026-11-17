@@ -180,7 +180,7 @@ export class VolumeControls extends EventEmitter {
       volume: 1,
     });
     // Changed while it was read (the player's first moments): the stored volume put the old
-    // one back over the user's, and saved that (glm's review, 2026-11-16).
+    // one back over the user's, and saved that.
     if (this.changedByUser) return;
     this.setVolume(/** @type {{volume: number}} */ (state).volume, true);
   }

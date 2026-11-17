@@ -3,7 +3,7 @@
 /**
  * The page's right-click menu: FastStream and MPV for the page and its video, as the toolbar
  * button and the MPV key switch them, and a link opened in a new tab with FastStream or MPV
- * already on (his wish, 2026-10-24). Firefox's menus API: the items are made once a start of
+ * already on. Firefox's menus API: the items are made once a start of
  * the background, and named for the tab they are shown in just before they show (onShown,
  * refresh), so "Play in FastStream" reads "Turn FastStream off" where it plays.
  */

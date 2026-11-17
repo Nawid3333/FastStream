@@ -189,7 +189,7 @@ export class SyncedAudioPlayer extends EventEmitter {
 
   /**
    * Destroys a player and takes its sound out of the output: its source stayed wired in, two
-   * more with every drop and rebuild, until the video changed (glm's second look, 2026-10-13).
+   * more with every drop and rebuild, until the video changed.
    * @param {AudioPlayer} player
    */
   discardPlayer(player) {
@@ -375,7 +375,7 @@ export class SyncedAudioPlayer extends EventEmitter {
 
     // Destroyed meanwhile: the video changed, and the swap below muted the new one. Or the
     // players were dropped (one failed: the video has its own sound back), and the swap muted
-    // the video with no separate sound left (glm's review, 2026-10-13).
+    // the video with no separate sound left.
     if (this.destroyed || !this.shouldUseSeparateAudioPlayers() || this.audioPlayers[nextIndex] !== next) {
       return false;
     }

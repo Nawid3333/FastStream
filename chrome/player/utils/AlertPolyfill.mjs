@@ -242,7 +242,7 @@ export function errorReportURL(error, version) {
   // Clipped by its length in the address, not in characters: a character is up to 9 bytes
   // there (%XX%XX%XX), and 3000 of them went past GitHub's limit. Well-formed, as
   // encodeURIComponent needs: a lone surrogate (a cut through an emoji, or one in what was
-  // thrown) threw URIError, and the report link failed (Claude's review of #714).
+  // thrown) threw URIError, and the report link failed.
   const stack = clipForAddress(fullStack, 4000, '\n...');
   const message = clipForAddress(errorText(error), 2000, '...');
   const body = `## Version:\n${version}\n\n## Error message:\n${message}\n\n## Stack trace:\n\`\`\`\n${stack}\n\`\`\``;

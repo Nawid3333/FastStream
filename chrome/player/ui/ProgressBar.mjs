@@ -445,7 +445,7 @@ export class ProgressBar extends EventEmitter {
         } else if (timeBarX >= totalWidth - 1) {
           // The bar's last pixel is its end: a click there landed a pixel short (a second of a
           // 24-minute episode), and a paused video then never ended, so autoplay never went on
-          // to the next episode (his report, 2026-10-22).
+          // to the next episode.
           newTime = this.client.duration;
         } else {
           newTime = this.client.duration * timeBarX / totalWidth;

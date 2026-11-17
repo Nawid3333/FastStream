@@ -28,7 +28,7 @@ export function settingsForExport(options) {
 /**
  * The imported file as the migrations may read it: a layout version above this build's taken
  * as this build's. Kept, a file that said 1e9 was saved so, and no later layout change was ever
- * applied to that user's keys (glm's review, 2026-11-16). A file of a newer build loses
+ * applied to that user's keys. A file of a newer build loses
  * nothing: this build knows no later change to apply.
  * @param {Object<string, *>} file - The file's settings object.
  * @return {Object<string, *>} A new object.

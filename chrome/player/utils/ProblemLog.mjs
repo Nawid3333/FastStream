@@ -1,5 +1,5 @@
 // @ts-check
-// Sites where autoplay could not go on (his wish, 2026-10-11): kept per site and kind, newest
+// Sites where autoplay could not go on: kept per site and kind, newest
 // first, for the options page to list and report as a GitHub issue the user reviews. Only the
 // page's host and path are kept - a query often carries a session token.
 

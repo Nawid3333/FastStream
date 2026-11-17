@@ -11,7 +11,7 @@ const MAX_READS = 16;
 export const FETCH_TIMEOUT_MS = 4000;
 // The largest file read: twice what the whole message to the host may be (HostMaxMessageBytes,
 // 1 MB). A larger one could not go anyway, and parsing it here would hold up the background,
-// every tab's detection with it (glm's review).
+// every tab's detection with it.
 export const MAX_FILE_BYTES = 2 * 1024 * 1024;
 
 /**

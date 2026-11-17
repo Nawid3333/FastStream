@@ -1044,7 +1044,7 @@ export class FastStreamClient extends EventEmitter {
       await previewPlayer.setSource(source);
     } catch (e) {
       // Nothing else holds it: its video and its loader, which may go on fetching, lived on
-      // for the page's life, one for each failed build (glm's review, 2026-10-13).
+      // for the page's life, one for each failed build.
       context?.destroy();
       try {
         previewPlayer.destroy();
@@ -1683,7 +1683,7 @@ export class FastStreamClient extends EventEmitter {
         if (!fragment || fragment.sn < 0 || fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE) continue;
         // One kept for good when the room ran out (GRANDFATHERED) may still go to disk: it is
         // kept there. Left out, those held in RAM then never left it, and "full" stayed on,
-        // no download ahead for the rest of the video (glm's review, 2026-11-16).
+        // no download ahead for the rest of the video.
         if (!fragment.canFree() && !(toDisk && fragment.references.every((type) => type === ReferenceTypes.GRANDFATHERED))) continue;
         const bytes = manager.ramBytesOf(fragment.getContext());
         if (!(bytes > 0)) continue;
@@ -2282,7 +2282,7 @@ export class FastStreamClient extends EventEmitter {
    * source at once, and the last source's player stays this.player until resetPlayer tears it
    * down: what it reported in between was taken for the new source's - its hand-over to
    * Firefox's own player played the old URL over the one the user had just picked, and its
-   * error showed the load error over the source on its way in (glm's review, 2026-10-28).
+   * error showed the load error over the source on its way in.
    * tryNextSource and recoverPlayer asked this already; every failure route now does.
    * @param {Player} player - The player whose event it is.
    * @return {boolean}
@@ -2383,7 +2383,7 @@ export class FastStreamClient extends EventEmitter {
   /**
    * The load error's text: what went wrong, and in a page, how to watch the video in the
    * site's own player instead, as the DRM error says. FastStream never steps aside by itself:
-   * the toolbar's Off is the user's to click (the owner, 2026-10-28).
+   * the toolbar's Off is the user's to click.
    * @param {string} [detail] - What went wrong, when known.
    * @return {string}
    */
@@ -2874,7 +2874,7 @@ export class FastStreamClient extends EventEmitter {
     this.context.on(DefaultPlayerEvents.WAITING, (/** @type {undefined} */ event) => {
       // In the last second, the next video instead of a wait - when there is one: with none,
       // this returned before the indicator, and the last video froze there with nothing
-      // shown (glm's second look, 2026-10-13).
+      // shown.
       if (this.duration > 5 && this.duration - this.currentTime < 1 && this.autoplayNextVideo()) {
         return;
       }

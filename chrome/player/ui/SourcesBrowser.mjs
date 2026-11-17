@@ -180,8 +180,7 @@ export class SourcesBrowser {
       }
 
       // On the source, not the button: the list drawn again meanwhile (a character typed in
-      // another row) took the button's mark away, and a second click set the source up twice
-      // (glm's review, 2026-11-16).
+      // another row) took the button's mark away, and a second click set the source up twice.
       if (source.loading) return;
       source.loading = true;
       sourceSetBtn.classList.add('loading');

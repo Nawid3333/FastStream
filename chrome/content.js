@@ -386,7 +386,7 @@
       if (iframeObj.iframe.isConnected) return;
       // Its miniplayer and its windowed fullscreen go too, as removePlayers does: the rest
       // of the page stayed hidden, and a next player's windowed fullscreen left its own box
-      // hidden, the elements being changed already (glm's review, 2026-10-13).
+      // hidden, the elements being changed already.
       unmakeMiniPlayer(iframeObj);
       if (iframeObj.windowedFullscreenState.active) {
         windowedFullscreenToggle(iframeObj);
@@ -524,7 +524,7 @@
    * with once the tab is closed (background.mjs rememberEpisodeLinks): null for one this page
    * has no link to (a button, or none). Only links within the page's own origin: the
    * background opens one later in a tab nobody looks at, and a link to another site (an ad's)
-   * went there with the tab's cookies (glm's review, 2026-10-27).
+   * went there with the tab's cookies.
    * @param {*} request
    * @param {*} sender
    * @param {Function} sendResponse
@@ -1241,8 +1241,8 @@
       windowedFullscreenState.active = false;
       iframeObj.iframe.setAttribute('style', windowedFullscreenState.oldStyle);
       undoFillScreenIframe(windowedFullscreenState.fillScreenWhitelist);
-      // Fitted at once: it waited a second, with the player at the size it had before
-      // (glm's audit, 2026-10-13). Again a second later, for a page whose own scripts lay
+      // Fitted at once: it waited a second, with the player at the size it had before.
+      // Again a second later, for a page whose own scripts lay
       // it out once it has its styles back.
       updateReplacedPlayers();
       setTimeout(() => {
@@ -2580,7 +2580,7 @@
 
   /**
    * Whether the page links a later episode of this page's season: a gap before it (a removed
-   * episode) is no season's end (glm's review, 2026-10-11).
+   * episode) is no season's end.
    * @param {Array<HTMLAnchorElement>} siteLinks - episodeLinksOf's site links, into a new tab too.
    * @return {boolean}
    */

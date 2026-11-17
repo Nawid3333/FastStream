@@ -307,7 +307,7 @@ export function pauseAfterHandOff(tab, result) {
  * (the owner's pick, 2026-11-12: no byte relay to mpv, which would need a new helper). Not
  * the user's Off (userTurnedOff): the toolbar shows On. On this page the tab stands in for MPV
  * (tab.mpvStandInPage): the toolbar cycle's next click is MPV -> Off. As On -> MPV it reloaded
- * the page, was refused again and came back On, and Off was never reached (glm's review).
+ * the page, was refused again and came back On, and Off was never reached.
  * A tab the user turned off or over to FastStream meanwhile keeps that.
  * @param {TabHolder} tab - The tab the stream was sent from.
  * @param {MpvHandOff} result - openInMpv's answer.
@@ -448,7 +448,7 @@ export function tabSources(tab) {
   return sources;
 }
 
-// MPV autoplay (his wish, 2026-10-11): an episode handed to mpv that plays to its end (with
+// MPV autoplay: an episode handed to mpv that plays to its end (with
 // "Autoplay next episode in mpv" on), or mpv's key or button for the next or the previous
 // episode, goes on to that episode in the tab's page, and its stream goes into the same mpv
 // window, so a series plays episode after episode without the browser. The host (7) follows
@@ -457,7 +457,7 @@ export function tabSources(tab) {
 // (the mpv setup's faststream-episodes.lua), which this setting drives and the switch flips;
 // an end waits Options.autoplayCountdown seconds, which the switch or a key can cut short,
 // and Space stop.
-// The tab may be closed while mpv plays (his wish, 2026-10-27): the next and the previous
+// The tab may be closed while mpv plays: the next and the previous
 // episode's links are read from its page at each hand-off (rememberEpisodeLinks), and an end
 // or a key then opens the episode in a tab not shown (goToEpisodeInNewTab), which closes again
 // once its stream went to mpv.
@@ -561,7 +561,7 @@ export function watchMpvFor(tab, url, qualities = null) {
     mpvWatch.url = url;
     mpvWatch.qualities = qualities;
     // A tab that is open now is what an end goes on from. The links of the tab's page before
-    // are not this one's: closed before these are read, it has none (glm's review).
+    // are not this one's: closed before these are read, it has none.
     mpvWatch.closedTab = null;
     mpvWatch.links = null;
     mpvWatch.site = siteOf(tab.url);
@@ -611,7 +611,7 @@ export async function rememberEpisodeLinks(state, tab) {
 /**
  * The page's episode links (EPISODE_LINKS), from its top frame only: the background opens one
  * later as a tab of its own, and a frame's (a hoster's, an ad's) went there in the tab's
- * container (glm's review, 2026-10-27), where goToEpisode, with the tab open, has such a frame
+ * container, where goToEpisode, with the tab open, has such a frame
  * go on only within itself. A page that does not answer within MpvPagePollMs cannot tell.
  * @param {TabHolder} tab
  * @return {Promise<EpisodeLinksOfTab>}
@@ -726,7 +726,7 @@ export const MpvPageNavigateMs = 5000;
 export async function nextEpisodeInPage(tab) {
   const frameIds = tab.frames ? Array.from(tab.frames.keys()).sort((a, b) => a - b) : [];
   for (const frameId of frameIds) {
-    // A frame that never answers costs a second, not the countdown (glm's review): no
+    // A frame that never answers costs a second, not the countdown: no
     // answer is "cannot tell".
     const answer = await new Promise((resolve) => {
       const timer = setTimeout(() => resolve(undefined), MpvPagePollMs);
@@ -872,7 +872,7 @@ export async function goToEpisode(state, direction) {
   // Another tab's stream took mpv while the page was asked (watchMpvFor moves the watch to
   // it): what this page did is no longer what mpv waits for. The old tab got the next
   // episode's wait all the same, and a minute later mpv said "no stream" over the other
-  // tab's video (glm's second look, 2026-10-13).
+  // tab's video.
   if (state.tabId !== tab.tabId || !state.alive) {
     return;
   }
@@ -902,7 +902,7 @@ export function notifyEpisodeUnavailable(state, title) {
 }
 
 /**
- * goToEpisode with the tab of mpv's stream closed (his wish, 2026-10-27): the episode its page
+ * goToEpisode with the tab of mpv's stream closed: the episode its page
  * linked to (rememberEpisodeLinks) opens in a new tab that is not shown, in the window and the
  * container the closed one was in, and goes on as the tab did (awaitEpisodeStream). Measured
  * in Firefox 158: such a tab loads the hoster, its player is started, and its stream is
@@ -927,7 +927,7 @@ export async function goToEpisodeInNewTab(state, direction, title) {
     return;
   }
   // Its window went with it; or MPV mode was switched off since (leaveMpvWhenOff), which a
-  // tab still open shows by its isMpv (glm's review).
+  // tab still open shows by its isMpv.
   if (closed.windowClosing || !Options.mpvMode) {
     notifyEpisodeUnavailable(state, title);
     return;
@@ -963,7 +963,7 @@ export async function goToEpisodeInNewTab(state, direction, title) {
   // MPV, as the closed tab was: the lists by address decide nothing for it (tabs.onUpdated
   // keeps a tab that is on already). Matched by the MPV allowlist already, where it names the
   // address: its own start would send the page's first stream, an ad's maybe, beside the
-  // episode's pick (glm's review).
+  // episode's pick.
   const tab = Tabs.getTabOrCreate(created.id);
   tab.isOn = true;
   tab.isMpv = true;
@@ -1337,7 +1337,7 @@ export async function openInMpv(tabId, url, ...rest) {
   // page's service worker gives the video). mpv got "Video not found", and its window opened
   // and closed at once. FastStream's own player loads it through the page (PageFetch), and the
   // callers hand the tab over to it (playHereInstead). The page's quality taken in its place
-  // (pageQualityChoice) too, as far as its own read already tells (glm's review).
+  // (pageQualityChoice) too, as far as its own read already tells.
   if (await webPage || (url !== detected && await Lengths.servesWebPage(url, 0))) {
     if (Logging) console.log('[MPV] not handed off, only its page loads it:', url);
     return {

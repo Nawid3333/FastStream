@@ -153,8 +153,8 @@ export function isHtmlResponse(headers) {
  * the page's Referer, which was set for the link (refused by a CDN that checks it); a CDN slower
  * than the player's opening delay was never seen, the frame having a player by its answer; and a
  * link run out, redirected to the hoster's "expired" page, opened a player on it (upstream #585).
- * Only the statuses Firefox follows, to a Location: without one, the response is the file
- * (glm's review, 2026-10-28). 304 Not Modified is the file itself, from the cache.
+ * Only the statuses Firefox follows, to a Location: without one, the response is the file.
+ * 304 Not Modified is the file itself, from the cache.
  * @param {{statusCode: number, responseHeaders?: Array<{name: string, value?: string}>}} details -
  *   webRequest's.
  * @return {boolean}

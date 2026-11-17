@@ -164,6 +164,10 @@ mpv host's installed copy, WSL): `docs/notes/local-pc.md`.
   nothing imports, also needs its place in `tsconfig.json`'s `include` or `files`, or tsc
   never reads it; the same test checks that. `types/messages.d.ts` gets a message only
   after its real payload was read.
+- **Comments say what the code does and why, briefly** (the owner, 2026-11-17). Who asked,
+  which review found it, the date, and the story of the bug go into `docs/notes/<area>.md`
+  and the commit message, not into the code. A reason longer than a few lines goes to the
+  note, with a pointer left in the code.
 - **No new top-level code in `background/background.mjs`, `content.js` or
   `player/FastStreamClient.mjs`** (the owner, 2026-11-07): a new feature gets a module of its
   own beside them, imported by them (a content script: a classic script of its own, listed

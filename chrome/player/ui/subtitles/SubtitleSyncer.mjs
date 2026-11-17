@@ -53,7 +53,7 @@ export class SubtitleSyncer extends EventEmitter {
   /**
    * Shows a change to the cues on the timeline at once. It redrew only on a time update, so
    * on a paused video a removed cue's bar stayed, a new one did not show, and a shift or a
-   * switch to another track showed the old places (glm's second look, 2026-10-13).
+   * switch to another track showed the old places.
    */
   redrawTrack() {
     /** @type {number} */

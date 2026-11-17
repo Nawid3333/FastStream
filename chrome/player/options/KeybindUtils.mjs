@@ -52,7 +52,7 @@ export const SPEED_PRESETS = [1, 2, 2.5, 3, 3.5, 4, 5, 8, 16];
 
 // The fastest a speed preset plays: Firefox's own limit for a media element. Above the
 // player's maxPlaybackRate (8) Firefox plays no sound, measured; the 16x key plays 16x
-// anyway, silent, as mpv's does (his decision, 2026-10-10).
+// anyway, silent, as mpv's does.
 export const SILENT_MAX_PLAYBACK_RATE = 16;
 
 /**

@@ -189,7 +189,7 @@ export class FineTimeControls extends EventEmitter {
         this.client.player.pause();
       }
       // One grab is one undo step, as a drag on the progress bar is: each move was saved,
-      // and one grab filled the undo history (glm's second look, 2026-10-13).
+      // and one grab filled the undo history.
       this.client.savePosition();
       this.client.setSeekSave(false);
       // A grab ended only on a mouseup inside the player: released outside it, the next
