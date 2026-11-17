@@ -13,6 +13,7 @@ import {WebUtils} from '../../utils/WebUtils.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 import {PressTracker} from '../PressTracker.mjs';
 import {OpenSubtitlesSearch, OpenSubtitlesSearchEvents} from './OpenSubtitlesSearch.mjs';
+import {nextTrack} from './SubtitleCycle.mjs';
 import {SubtitlesSettingsManager, SubtitlesSettingsManagerEvents} from './SubtitlesSettingsManager.mjs';
 import {SubtitleSyncer} from './SubtitleSyncer.mjs';
 
@@ -142,6 +143,35 @@ export class SubtitlesManager extends EventEmitter {
       this.activeTracks.length = 0;
       this.updateTrackList();
     }
+  }
+
+  cycleSubtitles() {
+    const next = nextTrack(this.tracks, this.activeTracks);
+    this.activeTracks.length = 0;
+    if (next) {
+      this.activeTracks.push(next);
+    }
+    this.updateTrackList();
+  }
+
+  /** @return {string} What the subtitles key shows (OnScreenDisplay): the tracks on, or off. */
+  describeActive() {
+    if (this.tracks.length === 0) {
+      return Localize.getMessage('player_subtitles_osd_none');
+    }
+    if (this.activeTracks.length === 0) {
+      return Localize.getMessage('player_subtitles_osd_off');
+    }
+    return Localize.getMessage('player_subtitles_osd_on', [this.activeTracks.map((track) => this.trackName(track)).join(', ')]);
+  }
+
+  /**
+   * @param {SubtitleTrack} track - One of the tracks listed.
+   * @return {string} Its language and label, as the menu lists it.
+   */
+  trackName(track) {
+    return (track.language ? ('(' + track.language + ') ') : '') +
+      (track.label || Localize.getMessage('player_subtitles_track_numbered', [String(this.tracks.indexOf(track) + 1)]));
   }
 
   clearTracks() {
@@ -531,8 +561,8 @@ export class SubtitlesManager extends EventEmitter {
       update: () => {
         const track = this.tracks[i];
         const activeIndex = this.activeTracks.indexOf(track);
-        const nameCandidate = (track.language ? ('(' + track.language + ') ') : '') + (track.label || Localize.getMessage('player_subtitles_track_numbered', [String(i + 1)]));
-        let name = nameCandidate;
+        const fullName = this.trackName(track);
+        let name = fullName;
         // limit to 30 chars
         if (name.length > 30) {
           name = name.substring(0, 30) + '...';
@@ -551,7 +581,7 @@ export class SubtitlesManager extends EventEmitter {
           trackName.textContent = name;
         }
 
-        trackName.title = nameCandidate;
+        trackName.title = fullName;
       },
     };
   }

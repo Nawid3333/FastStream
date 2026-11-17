@@ -178,6 +178,7 @@ const CHECKED = [
   'chrome/player/ui/menus/PlaybackRateChanger.mjs',
   'chrome/player/ui/menus/VideoQualityChanger.mjs',
   'chrome/player/ui/subtitles/OpenSubtitlesSearch.mjs',
+  'chrome/player/ui/subtitles/SubtitleCycle.mjs',
   'chrome/player/ui/subtitles/SubtitleSearchTitles.mjs',
   'chrome/player/ui/subtitles/SubtitleSyncer.mjs',
   'chrome/player/ui/subtitles/SubtitlesManager.mjs',

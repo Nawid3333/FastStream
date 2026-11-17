@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "Дорожка $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "Субтитры выключены"
+    },
+    "player_subtitles_osd_on": {
+        "message": "Субтитры: $1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "Нет субтитров"
+    },
     "player_subtitles_new_cue": {
         "message": "Новый субтитр"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "Автовключение наиболее подходящих субтитров\n(Измените язык по умолчанию в настройках субтитров)"
+    },
+    "options_general_cyclesubs": {
+        "message": "Клавиша субтитров переключает дорожки по очереди, после последней выключает\n(Если выключено: включает и выключает субтитры)"
     },
     "options_general_stream": {
         "message": "Использовать плеер для воспроизведения HLS/DASH-потоков при открытии ссылки с плейлистом (.m3u8/.mpd)"

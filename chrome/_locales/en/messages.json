@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "Track $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "Subtitles off"
+    },
+    "player_subtitles_osd_on": {
+        "message": "Subtitles: $1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "No subtitles"
+    },
     "player_subtitles_new_cue": {
         "message": "New subtitle"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "Automatically enable best found subtitle track\n(Change default language in subtitle settings)"
+    },
+    "options_general_cyclesubs": {
+        "message": "The subtitles key goes through the tracks one by one, then off\n(Unchecked: it turns subtitles on and off)"
     },
     "options_general_stream": {
         "message": "Use player to play HLS/DASH streams when opening playlist URLs (.m3u8/.mpd)"

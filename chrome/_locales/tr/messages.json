@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "Parça $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "Altyazı kapalı"
+    },
+    "player_subtitles_osd_on": {
+        "message": "Altyazı: $1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "Altyazı yok"
+    },
     "player_subtitles_new_cue": {
         "message": "Yeni altyazı"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "Bulunan en iyi altyazı parçasını otomatik olarak etkinleştir\n(Öntanımlı dili altyazı ayarlarından değiştirin)"
+    },
+    "options_general_cyclesubs": {
+        "message": "Altyazı tuşu parçalar arasında sırayla geçer, sonuncudan sonra kapatır\n(İşaretsiz: altyazıyı açar ve kapatır)"
     },
     "options_general_stream": {
         "message": "Oynatma listesi URL'leri (.m3u8/.mpd) açıldığında HLS/DASH akışlarını oynatmak için oynatıcıyı kullan"

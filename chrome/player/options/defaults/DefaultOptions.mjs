@@ -31,6 +31,7 @@ export const DefaultOptions = {
   // says so each time.
   lowerOnDroppedFrames: true,
   autoEnableBestSubtitles: false,
+  cycleSubtitles: false,
   storeProgress: true,
   autoplayNext: false,
   // Seconds between an episode's end and the next one, in the player and in mpv; 0: none.

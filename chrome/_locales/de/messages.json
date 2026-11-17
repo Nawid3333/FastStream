@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "Spur $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "Untertitel aus"
+    },
+    "player_subtitles_osd_on": {
+        "message": "Untertitel: $1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "Keine Untertitel"
+    },
     "player_subtitles_new_cue": {
         "message": "Neuer Untertitel"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "Aktiviere automatisch die beste gefundene Untertitelspur\n(Ändere die Standardsprache in den Untertitel-Einstellungen)"
+    },
+    "options_general_cyclesubs": {
+        "message": "Die Untertitel-Taste geht die Spuren der Reihe nach durch, danach aus\n(Nicht angehakt: schaltet Untertitel ein und aus)"
     },
     "options_general_stream": {
         "message": "Den Player verwenden, um HLS/DASH-Streams beim Öffnen von Playlist-URLs (.m3u8/.mpd) abzuspielen"

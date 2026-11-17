@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "Faixa $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "Legendas desativadas"
+    },
+    "player_subtitles_osd_on": {
+        "message": "Legendas: $1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "Sem legendas"
+    },
     "player_subtitles_new_cue": {
         "message": "Nova legenda"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "Ativar automaticamente a melhor faixa de legenda encontrada\n(Alterar o idioma padrão nas configurações de legenda)"
+    },
+    "options_general_cyclesubs": {
+        "message": "A tecla de legendas percorre as faixas uma a uma e depois as desativa\n(Desmarcado: liga e desliga as legendas)"
     },
     "options_general_stream": {
         "message": "Use o player para reproduzir transmissões no formato HLS/DASH ao abrir URLs de listas de reprodução (.m3u8/.mpd)"

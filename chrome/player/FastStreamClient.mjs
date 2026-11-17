@@ -141,6 +141,7 @@ const AutoNextTries = 5;
  * @property {number} maximumDownloaders
  * @property {number} maxPlaybackRate
  * @property {boolean} [autoEnableBestSubtitles]
+ * @property {boolean} [cycleSubtitles]
  * @property {boolean} [mpvMode]
  * @property {boolean} [mpvPausePage]
  */
@@ -534,6 +535,7 @@ export class FastStreamClient extends EventEmitter {
     this.options.storeProgress = options.storeProgress;
     this.options.downloadAll = options.downloadAll;
     this.options.autoEnableBestSubtitles = options.autoEnableBestSubtitles;
+    this.options.cycleSubtitles = !!options.cycleSubtitles;
     this.options.mpvMode = !!options.mpvMode;
     this.options.mpvPausePage = !!options.mpvPausePage;
     this.options.maxSpeed = options.maxSpeed;

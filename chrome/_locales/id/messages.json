@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "Trek $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "Subtitel mati"
+    },
+    "player_subtitles_osd_on": {
+        "message": "Subtitel: $1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "Tidak ada subtitel"
+    },
     "player_subtitles_new_cue": {
         "message": "Subtitle baru"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "Secara otomatis aktifkan trek subtitle terbaik yang ditemukan\n(Ubah bahasa default di pengaturan subtitle)"
+    },
+    "options_general_cyclesubs": {
+        "message": "Tombol subtitel berpindah ke tiap trek satu per satu, lalu mati\n(Tidak dicentang: menyalakan dan mematikan subtitel)"
     },
     "options_general_stream": {
         "message": "Gunakan pemutar untuk memutar stream HLS/DASH saat membuka URL daftar putar (.m3u8/.mpd)"

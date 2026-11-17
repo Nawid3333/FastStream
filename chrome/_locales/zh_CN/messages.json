@@ -383,6 +383,15 @@
     "player_subtitles_track_numbered": {
         "message": "轨道 $1"
     },
+    "player_subtitles_osd_off": {
+        "message": "字幕已关闭"
+    },
+    "player_subtitles_osd_on": {
+        "message": "字幕：$1"
+    },
+    "player_subtitles_osd_none": {
+        "message": "无字幕"
+    },
     "player_subtitles_new_cue": {
         "message": "新建字幕"
     },
@@ -838,6 +847,9 @@
     },
     "options_general_autosub": {
         "message": "自动启用匹配到的最佳字幕轨道\n（在字幕设置中更改默认语言）"
+    },
+    "options_general_cyclesubs": {
+        "message": "字幕键依次切换各条字幕轨道，最后一条之后关闭\n（未勾选：开启和关闭字幕）"
     },
     "options_general_stream": {
         "message": "在打开播放列表 URL（.m3u8/.mpd）时使用播放器播放 HLS/DASH 流"
