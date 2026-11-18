@@ -62,6 +62,8 @@
   let RedirectingToPlayer = false;
   // Not crypto.randomUUID: that needs a secure context, and plain http pages are not one.
   const DocumentKey = Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => n.toString(36)).join('');
+  // A frame the page's script writes: document.open() gives it the writer's address later.
+  const StartedAsAboutFrame = window.location.protocol === 'about:';
 
   // The resize observers' last update of the players, and the one due after a burst.
   let resizeDebounce = performance.now();
@@ -544,7 +546,7 @@
       const newURL = new URL(request.url);
       newURL.searchParams.set('opener', DocumentKey);
       if (!video || playerFillsScreen) {
-        if (!document.fullscreenEnabled && !request.noRedirect && window.location.protocol !== 'about:') {
+        if (!document.fullscreenEnabled && !request.noRedirect && !StartedAsAboutFrame && window.location.protocol !== 'about:') {
           if (request.parentFrameId > -1) {
             newURL.searchParams.set('parent_frame_id', request.parentFrameId);
           }

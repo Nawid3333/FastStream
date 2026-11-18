@@ -392,9 +392,11 @@ export class FakeDocument {
  * @param {boolean} [options.observer] - Whether it has PerformanceObserver, which is told
  *   of every entry, where the timeline (getEntriesByType) keeps the first 250.
  * @param {boolean} [options.inFrame] - Whether it is a frame in another page (window.top is not its window).
+ * @param {Object} [options.location] - Its location when the scripts start (about:blank for a frame a page writes).
  * @return {Object} The page: its document, what content.js sent, and how to talk to it.
  */
-export function loadContentScript({hostname = 'site.example', entries = [], responses = {}, observer = false, inFrame = false} = {}) {
+export function loadContentScript({hostname = 'site.example', entries = [], responses = {}, observer = false, inFrame = false,
+  location = null} = {}) {
   const document = new FakeDocument();
   const sent = [];
   let onMessage = null;
@@ -440,7 +442,8 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
 
   const context = {
     document,
-    location: {hostname, href: `https://${hostname}/page`, origin: `https://${hostname}`, pathname: '/page', search: ''},
+    location: location || {hostname, href: `https://${hostname}/page`, protocol: 'https:', origin: `https://${hostname}`,
+      pathname: '/page', search: ''},
     navigator: {userActivation: {isActive: false}},
     performance: {
       timeOrigin: 1000,

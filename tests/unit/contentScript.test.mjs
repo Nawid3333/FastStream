@@ -400,6 +400,16 @@ describe('the redirect to the player', () => {
       attempt: 1, force: true})).toBe('replaceall');
   });
 
+  it('lays it over an about:blank frame the page wrote too, which document.open() gave the page\'s address', async () => {
+    const page = loadContentScript({inFrame: true,
+      location: {hostname: '', href: 'about:blank', protocol: 'about:', origin: 'null', pathname: 'blank', search: ''}});
+    page.document.fullscreenEnabled = false;
+    page.window.location = {hostname: 'site.example', href: 'https://site.example/page', protocol: 'https:',
+      origin: 'https://site.example', pathname: '/page', search: ''};
+    expect(await page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, frameId: 3, parentFrameId: 0,
+      attempt: 1, force: true})).toBe('replaceall');
+  });
+
   it('reports the page\'s next leave once it stayed after all', async () => {
     const page = loadContentScript();
     page.document.fullscreenEnabled = false;
