@@ -1124,6 +1124,20 @@ describe('MPV_REPORT_PLAYING', () => {
     expect(await page.send({type: 'MPV_REPORT_PLAYING'})).toBe(true);
     expect(page.sent.map((m) => m.type)).toEqual(['MPV_USER_PLAY']);
   });
+  // MPV switched on over a YouTube video page (background startMpv): its video, though it autoplayed or is paused.
+  it('reports any video with a file, with the address of its page, only when asked for any and only in the top page', async () => {
+    for (const [inFrame, any, reported] of [[false, true, true], [false, undefined, false], [true, true, false]]) {
+      const page = loadContentScript({inFrame});
+      const video = page.document.createElement('video');
+      video.currentSrc = 'blob:https://site.example/1';
+      video.currentTime = 95;
+      page.document.body.appendChild(video);
+      page.sent.length = 0;
+      expect(await page.send({type: 'MPV_REPORT_PLAYING', any}), JSON.stringify({inFrame, any})).toBe(reported);
+      expect(page.sent.filter((m) => m.type === 'MPV_USER_PLAY')).toEqual(reported ?
+        [expect.objectContaining({page: 'https://site.example/page', video: expect.objectContaining({time: 95})})] : []);
+    }
+  });
 });
 
 // A frame links each frame below it to its iframe (FRAME_LINK_RECEIVER, then that frame

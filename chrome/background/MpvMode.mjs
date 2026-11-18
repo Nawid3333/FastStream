@@ -8,6 +8,7 @@ import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {Capabilities, MpvBackend} from './MpvBackend.mjs';
 import {isMpvContentType} from './MpvTarget.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
+import {youTubeVideo} from './YouTubeVideo.mjs';
 import {AutoEnableList, CaptionScrapeWaitMs, HlsQualitiesWaitMs, Lengths, Logging, Options, PageSubtitles, SourceLengthWaitMs, Tabs, VpnMirror, askFrame, closeReopenedTab, ensureOptions, hlsQualityChoice, isSentStream, isTabOpen, newestOfLongest, noteProblem, notifySeriesEnd, openPlayersWithSources, pageQualityChoice, pauseTabMedia, saveOption, scrapeCaptionsTags, startPagePlayers, tabHasPlayer, tabTitle, takeScrapedCaptions, userTurnedOff} from './background.mjs';
 
 /** @typedef {import('./TabTracker.mjs').TabHolder} TabHolder */
@@ -63,7 +64,7 @@ export async function startMpv(tab, onPlay = false) {
   if (await tabHasPlayer(tab)) {
     tab.resetForReload();
     chrome.tabs.reload(tab.tabId, () => BackgroundUtils.checkMessageError('reload', true)); // closed meanwhile: no unhandled error
-  } else if (onPlay) {
+  } else if (onPlay || youTubeVideo(tab.url)) {
     // A fresh start: the same video may go to mpv again.
     tab.mpvSentUrls.clear();
     tab.mpvLastPlaySend = null;
@@ -72,6 +73,8 @@ export async function startMpv(tab, onPlay = false) {
     tab.mpvPlayChecking = null;
     chrome.tabs.sendMessage(tab.tabId, {
       type: MessageTypes.MPV_REPORT_PLAYING,
+      // A YouTube video page has one video, which the user asked for: also an autoplayed or paused one.
+      any: !!youTubeVideo(tab.url),
     }, () => {
       // A blank tab, or a page without the content script, is normal here.
       BackgroundUtils.checkMessageError('mpv_report_playing');
@@ -945,8 +948,9 @@ const PlaySendsUnanswered = new WeakSet();
  * @param {TabHolder} tab
  * @param {{url: string, headers: *}} source
  * @param {?{time?: number, duration?: ?number}} [video]
+ * @param {string} [pageUrl] - The page mpv names and resumes it by; a YouTube video's own address.
  */
-export function sendPlayedToMpv(tab, source, video = null) {
+export function sendPlayedToMpv(tab, source, video = null, pageUrl = tab.url) {
   // As autoOpenInMpv: a tab closed while its stream was looked for sends nothing.
   if (!isTabOpen(tab)) {
     return;
@@ -971,7 +975,7 @@ export function sendPlayedToMpv(tab, source, video = null) {
   const time = video?.time;
   const startTime = Number.isFinite(video?.duration) && typeof time === 'number' && time > 5 ? time : undefined;
   tabTitle(tab.tabId).then((title) =>
-    openInMpv(tab.tabId, source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title,
+    openInMpv(tab.tabId, source.url, null, source.headers, resolveMpvContentType(null, pageUrl), pageUrl, title,
         {startTime, wanted})).then((result) => {
     PlaySendsUnanswered.delete(sent);
     if (Logging) console.log('[MPV] user play result:', source.url, JSON.stringify(result));

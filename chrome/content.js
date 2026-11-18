@@ -132,7 +132,8 @@
       holdPageMedia(request.hold === true);
       return;
     } else if (request.type === MessageTypes.MPV_REPORT_PLAYING) {
-      sendResponse(reportPlayingUserVideo());
+      // any is for the YouTube page itself, not a frame in it.
+      sendResponse(reportPlayingUserVideo(request.any === true && window === window.top));
     } else if (request.type === MessageTypes.GET_VIDEO_SIZE) {
       getVideo().then((video) => {
         sendResponse(video ? video.size : 0);
@@ -2731,6 +2732,8 @@
         type: MessageTypes.MPV_USER_PLAY,
         src: video.currentSrc || '',
         video: playedVideo(video),
+        // Now: a site like YouTube moves to the next video without a load.
+        page: location.href,
       }, () => {
         void chrome.runtime.lastError;
       });
@@ -2861,16 +2864,20 @@
     }
   }, true);
 
-  // Pressing the shortcut while already watching a video the user started
-  // counts as starting it now.
-  function reportPlayingUserVideo() {
-    for (const video of /** @type {HTMLVideoElement[]} */ (querySelectorAllInAllShadows('video'))) {
-      if (userStartedVideos.has(video) && !video.paused && !video.ended) {
-        reportUserPlay(video);
-        return true;
-      }
+  /**
+   * Pressing the shortcut while already watching a video the user started counts as starting it now.
+   * @param {boolean} any - Any video with a file, playing ones first: a YouTube video page's own, autoplayed or paused.
+   * @return {boolean} Whether one was reported.
+   */
+  function reportPlayingUserVideo(any) {
+    const videos = /** @type {HTMLVideoElement[]} */ (querySelectorAllInAllShadows('video'));
+    const video = videos.find((v) => (any || userStartedVideos.has(v)) && !v.paused && !v.ended) ||
+      (any ? videos.find((v) => v.currentSrc && !v.ended) : undefined);
+    if (!video) {
+      return false;
     }
-    return false;
+    reportUserPlay(video);
+    return true;
   }
 
   // A page can cancel an extension's shortcut (preventDefault): a cancelled press that could be

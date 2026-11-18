@@ -32,6 +32,7 @@ const CHECKED = [
   'chrome/background/TabTracker.mjs',
   'chrome/background/UrlMatchList.mjs',
   'chrome/background/VpnProxyMirror.mjs',
+  'chrome/background/YouTubeVideo.mjs',
   'chrome/background/background.mjs',
   'chrome/content.js',
   'chrome/custom/bilibili_content.js',
