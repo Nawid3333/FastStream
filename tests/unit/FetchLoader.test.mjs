@@ -810,6 +810,283 @@ describe('FetchLoader', () => {
   });
 });
 
+// A download cut on the way (the line drops, or stalls) asks for the rest, not the whole range
+// again: on a slow, unstable line a cut megabyte cost the megabyte. The rest is taken only when
+// it is the same file from the next byte; anything else loads the range whole, as before.
+describe('FetchLoader, a download cut on the way', () => {
+  beforeEach(() => {
+    globalThis.self = globalThis;
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  const FILE = Uint8Array.from({length: 100}, (_, i) => i);
+
+  /** A body that gives these bytes, then fails as a dropped connection does. */
+  const cutAfter = (bytes) => {
+    let sent = false;
+    return new ReadableStream({
+      pull(controller) {
+        // Read first, then the error (an error at once drops what is queued).
+        if (!sent) {
+          sent = true;
+          controller.enqueue(new Uint8Array(bytes));
+        } else {
+          controller.error(new TypeError('NetworkError when attempting to fetch resource.'));
+        }
+      },
+    });
+  };
+
+  /**
+   * A server for FILE: answers each Range from the file, a request without one with all of it;
+   * `first` decides the first answer.
+   * @param {(init: Object) => Response} first
+   * @param {Object} [headers] - On every answer after the first.
+   * @return {{fetch: Function, ranges: Array<?string>}}
+   */
+  function server(first, headers = {}) {
+    const ranges = [];
+    const fetch = vi.fn(async (url, init) => {
+      const range = init.headers?.Range ?? null;
+      ranges.push(range);
+      if (ranges.length === 1) return first(init);
+      const asked = /^bytes=(\d+)-(\d*)$/.exec(range || '');
+      if (!asked) return new Response(FILE.slice().buffer, {status: 200, headers: {'content-length': '100', ...headers}});
+      const start = Number(asked[1]);
+      const end = asked[2] ? Number(asked[2]) + 1 : 100;
+      return new Response(FILE.slice(start, end).buffer, {status: 206,
+        headers: {'content-range': `bytes ${start}-${end - 1}/100`, 'content-length': String(end - start), ...headers}});
+    });
+    return {fetch, ranges};
+  }
+
+  /**
+   * @param {Object} request
+   * @param {Object} [config]
+   * @return {Promise<{loader: FetchLoader, recorder: Object, data: ?Uint8Array}>}
+   */
+  async function load(request, config = {}) {
+    const loader = new FetchLoader();
+    const recorder = makeCallbackRecorder();
+    recorder.onChunk = (chunk, offset, answer) => recorder.calls.push({type: 'onChunk', args: [Array.from(chunk), offset, answer]});
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest(request), makeConfig(config));
+    await vi.runAllTimersAsync();
+    const success = recorder.calls.find((c) => c.type === 'onSuccess');
+    return {loader, recorder, data: success ? new Uint8Array(success.args[0].data) : null};
+  }
+
+  it('asks for the rest of a range, and gives the range whole', async () => {
+    const {fetch, ranges} = server(() => new Response(cutAfter(FILE.slice(10, 25)),
+        {status: 206, headers: {'content-range': 'bytes 10-49/100', 'etag': '"v1"'}}), {'etag': '"v1"'});
+    vi.stubGlobal('fetch', fetch);
+    const {loader, data} = await load({rangeStart: 10, rangeEnd: 50});
+    expect(ranges).toEqual(['bytes=10-49', 'bytes=25-49']);
+    expect(data).toEqual(FILE.slice(10, 50));
+    expect(loader.stats.retry).toBe(1);
+    expect(loader.received).toBeNull();
+  });
+
+  it('goes on with the pieces where the cut left them, as parts of the first answer', async () => {
+    const {fetch} = server(() => new Response(cutAfter(FILE.slice(0, 15)),
+        {status: 206, headers: {'content-range': 'bytes 0-39/100'}}));
+    vi.stubGlobal('fetch', fetch);
+    const {recorder} = await load({rangeStart: 0, rangeEnd: 40});
+    const pieces = recorder.calls.filter((c) => c.type === 'onChunk');
+    expect(pieces.map((c) => [c.args[0].length, c.args[1]])).toEqual([[15, 0], [25, 15]]);
+    expect(pieces.every((c) => c.args[2].contentRange === 'bytes 0-39/100')).toBe(true);
+  });
+
+  it('resumes a whole file whose server offers ranges', async () => {
+    const {fetch, ranges} = server(() => new Response(cutAfter(FILE.slice(0, 30)),
+        {status: 200, headers: {'content-length': '100', 'accept-ranges': 'bytes', 'last-modified': 'Tue, 17 Nov 2026 10:00:00 GMT'}}),
+    {'last-modified': 'Tue, 17 Nov 2026 10:00:00 GMT'});
+    vi.stubGlobal('fetch', fetch);
+    const {data} = await load({});
+    expect(ranges).toEqual([null, 'bytes=30-99']);
+    expect(data).toEqual(FILE);
+  });
+
+  it('resumes after a stall, from what the stalled answer gave', async () => {
+    const fetch = server((init) => new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(FILE.slice(0, 20));
+        init.signal.addEventListener('abort', () => controller.error(new DOMException('The operation was aborted.', 'AbortError')));
+      },
+    }), {status: 206, headers: {'content-range': 'bytes 0-59/100'}}));
+    vi.stubGlobal('fetch', fetch.fetch);
+    const {data, loader} = await load({rangeStart: 0, rangeEnd: 60}, {timeout: 500, maxRetry: 6, retryDelay: 50});
+    expect(fetch.ranges).toEqual(['bytes=0-59', 'bytes=20-59']);
+    expect(data).toEqual(FILE.slice(0, 60));
+    expect(loader.stats.loaded).toBe(60);
+  });
+
+  it('loads the range whole again when the rest is of another file', async () => {
+    for (const [first, later] of [
+      [{'etag': '"v1"'}, {'etag': '"v2"'}],
+      [{'last-modified': 'Mon, 16 Nov 2026 10:00:00 GMT'}, {'last-modified': 'Tue, 17 Nov 2026 10:00:00 GMT'}],
+    ]) {
+      const {fetch, ranges} = server(() => new Response(cutAfter(FILE.slice(0, 10)),
+          {status: 206, headers: {'content-range': 'bytes 0-39/100', ...first}}), later);
+      vi.stubGlobal('fetch', fetch);
+      const {data} = await load({rangeStart: 0, rangeEnd: 40});
+      expect(ranges).toEqual(['bytes=0-39', 'bytes=10-39', 'bytes=0-39']);
+      expect(data).toEqual(FILE.slice(0, 40));
+    }
+  });
+
+  it('loads the range whole again when the server answers the rest otherwise', async () => {
+    const answers = [
+      // Ignores the Range now: the whole file.
+      () => new Response(FILE.slice().buffer, {status: 200}),
+      // From another byte, or of another size.
+      () => new Response(FILE.slice(12, 40).buffer, {status: 206, headers: {'content-range': 'bytes 12-39/100'}}),
+      () => new Response(FILE.slice(10, 40).buffer, {status: 206, headers: {'content-range': 'bytes 10-39/120'}}),
+      // Compressed: its bytes are not the file's.
+      () => new Response(FILE.slice(10, 40).buffer, {status: 206, headers: {'content-range': 'bytes 10-39/100', 'content-encoding': 'gzip'}}),
+      () => new Response('', {status: 416}),
+    ];
+    for (const rest of answers) {
+      const ranges = [];
+      vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+        ranges.push(init.headers.Range);
+        if (ranges.length === 1) return new Response(cutAfter(FILE.slice(0, 10)), {status: 206, headers: {'content-range': 'bytes 0-39/100'}});
+        if (ranges.length === 2) return rest();
+        return new Response(FILE.slice(0, 40).buffer, {status: 206, headers: {'content-range': 'bytes 0-39/100'}});
+      }));
+      const {data} = await load({rangeStart: 0, rangeEnd: 40});
+      expect(ranges).toEqual(['bytes=0-39', 'bytes=10-39', 'bytes=0-39']);
+      expect(data).toEqual(FILE.slice(0, 40));
+    }
+  });
+
+  it('starts over, as before, when the answer cannot be resumed', async () => {
+    const firsts = [
+      // A whole file without Accept-Ranges, or of no known length.
+      [() => new Response(cutAfter(FILE.slice(0, 10)), {status: 200, headers: {'content-length': '100'}}), {}, null],
+      [() => new Response(cutAfter(FILE.slice(0, 10)), {status: 200, headers: {'accept-ranges': 'bytes'}}), {}, null],
+      // A range whose answer starts elsewhere, or says no size.
+      [() => new Response(cutAfter(FILE.slice(0, 10)), {status: 206, headers: {'content-range': 'bytes 0-39/*'}}), {rangeStart: 0, rangeEnd: 40}, 'bytes=0-39'],
+      // Compressed.
+      [() => new Response(cutAfter(FILE.slice(0, 10)), {status: 206, headers: {'content-range': 'bytes 0-39/100', 'content-encoding': 'br'}}), {rangeStart: 0, rangeEnd: 40}, 'bytes=0-39'],
+    ];
+    for (const [first, request, again] of firsts) {
+      const {fetch, ranges} = server(first);
+      vi.stubGlobal('fetch', fetch);
+      const {data} = await load(request);
+      expect(ranges).toEqual([again, again]);
+      expect(data).toEqual(request.rangeEnd ? FILE.slice(0, 40) : FILE);
+    }
+  });
+
+  it('resumes as often as it is cut, each time from where the last one stopped', async () => {
+    const ranges = [];
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+      ranges.push(init.headers.Range);
+      const start = Number(/^bytes=(\d+)-/.exec(init.headers.Range)[1]);
+      const headers = {'content-range': `bytes ${start}-79/100`};
+      if (start < 60) return new Response(cutAfter(FILE.slice(start, start + 20)), {status: 206, headers});
+      return new Response(FILE.slice(start, 80).buffer, {status: 206, headers});
+    }));
+    const {data} = await load({rangeStart: 0, rangeEnd: 80}, {maxRetry: 6});
+    expect(ranges).toEqual(['bytes=0-79', 'bytes=20-79', 'bytes=40-79', 'bytes=60-79']);
+    expect(data).toEqual(FILE.slice(0, 80));
+  });
+
+  it('keeps nothing once the load is aborted', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(cutAfter(FILE.slice(0, 10)),
+        {status: 206, headers: {'content-range': 'bytes 0-39/100'}})));
+    const loader = new FetchLoader();
+    loader.addCallbacks(makeCallbackRecorder());
+    loader.load(makeRequest({rangeStart: 0, rangeEnd: 40}), makeConfig());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(loader.received?.length).toBe(10);
+    loader.abort();
+    expect(loader.received).toBeNull();
+  });
+
+  it('gives a resumed whole file with the first answer\'s status, headers and address', async () => {
+    const {fetch} = server(() => {
+      const response = new Response(cutAfter(FILE.slice(0, 30)),
+          {status: 200, headers: {'content-length': '100', 'accept-ranges': 'bytes', 'content-type': 'video/mp4'}});
+      Object.defineProperty(response, 'url', {value: 'https://cdn.test/first.mp4'});
+      return response;
+    });
+    vi.stubGlobal('fetch', fetch);
+    const {recorder} = await load({});
+    const answer = recorder.calls.find((c) => c.type === 'onSuccess').args[0];
+    expect(answer.status).toBe(200);
+    expect(answer.url).toBe('https://cdn.test/first.mp4');
+    expect(answer.headers['content-type']).toBe('video/mp4');
+    expect(answer.headers['content-range']).toBeUndefined();
+  });
+
+  it('counts a resumed load against the range\'s size while the rest comes', async () => {
+    let calls = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      if (++calls === 1) return new Response(cutAfter(FILE.slice(10, 25)), {status: 206, headers: {'content-range': 'bytes 10-49/100'}});
+      // The rest: 5 of its 25 bytes, then nothing yet.
+      return new Response(new ReadableStream({start: (controller) => controller.enqueue(FILE.slice(25, 30))}),
+          {status: 206, headers: {'content-range': 'bytes 25-49/100', 'content-length': '25'}});
+    }));
+    const loader = new FetchLoader();
+    loader.addCallbacks(makeCallbackRecorder());
+    loader.load(makeRequest({rangeStart: 10, rangeEnd: 50}), makeConfig({timeout: 60000}));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(calls).toBe(2);
+    expect([loader.stats.loaded, loader.stats.total]).toEqual([20, 40]);
+    loader.abort();
+  });
+
+  it('starts the whole load again with no stall timer of the refused rest left', async () => {
+    let calls = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      calls++;
+      if (calls === 1) return new Response(cutAfter(FILE.slice(0, 10)), {status: 206, headers: {'content-range': 'bytes 0-39/100'}});
+      if (calls === 2) return new Response('', {status: 416});
+      return new Response(FILE.slice(0, 40).buffer, {status: 206, headers: {'content-range': 'bytes 0-39/100'}});
+    }));
+    const recorder = makeCallbackRecorder();
+    const loader = new FetchLoader();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest({rangeStart: 0, rangeEnd: 40}), makeConfig({timeout: 500}));
+    await vi.runAllTimersAsync();
+    expect(calls).toBe(3);
+    expect(recorder.calls.filter((c) => c.type === 'onSuccess')).toHaveLength(1);
+    expect(recorder.calls.some((c) => c.type === 'onTimeout')).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('keeps nothing once the load fails for good', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+      if (!init.headers.Range || init.headers.Range === 'bytes=0-39') {
+        return new Response(cutAfter(FILE.slice(0, 10)), {status: 206, headers: {'content-range': 'bytes 0-39/100'}});
+      }
+      return new Response('', {status: 503});
+    }));
+    const recorder = makeCallbackRecorder();
+    const loader = new FetchLoader();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest({rangeStart: 0, rangeEnd: 40}), makeConfig({maxRetry: 0}));
+    await vi.runAllTimersAsync();
+    expect(recorder.calls.some((c) => c.type === 'onError')).toBe(true);
+    expect(loader.received).toBeNull();
+    expect(loader.receiving).toBeNull();
+  });
+
+  it('reads a text whole, every attempt', async () => {
+    const {fetch, ranges} = server(() => new Response(cutAfter([35, 69, 88]), {status: 206, headers: {'content-range': 'bytes 0-39/100'}}));
+    vi.stubGlobal('fetch', fetch);
+    await load({rangeStart: 0, rangeEnd: 40, responseType: 'text'});
+    expect(ranges).toEqual(['bytes=0-39', 'bytes=0-39']);
+  });
+});
+
 // A server that is overloaded or limits its clients answers 503 or 429 with a Retry-After:
 // how long to wait. The retry of a 503 waits at least that (up to maxRetryDelay), and a
 // final error hands it to the DownloadManager, which holds every download back for it.

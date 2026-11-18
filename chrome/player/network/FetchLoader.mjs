@@ -12,6 +12,12 @@ import {PageFetch} from './PageFetch.mjs';
 /** @typedef {{url: string, status: number, headers: Object<string, string>, data: string|ArrayBuffer}} LoaderResponse */
 /** @typedef {{onError: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onProgress?: (stats: LoaderStats, request: LoaderRequest, data: string|ArrayBuffer, networkDetails: null) => void, onSuccess: (response: LoaderResponse, stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onTimeout: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onSlowDown?: (retryAfter: number|null) => void, onRefused?: (status: number, url: string) => void, onChunk?: (chunk: Uint8Array, offset: number, answer: PartialAnswer) => void}} LoaderCallbacks */
 /** @typedef {{status: number, contentRange: string, headers: Object<string, string>}} PartialAnswer */
+/**
+ * What an attempt that can be resumed has received, in the file's bytes start to end (exclusive).
+ * @typedef {{chunks: Uint8Array[], length: number, start: number, end: number, total: number,
+ *   answer: ?PartialAnswer, etag: ?string, lastModified: ?string,
+ *   first?: {url: string, status: number, headers: Object<string, string>}}} Received
+ */
 
 // Answers that refuse FastStream what the page may get: tried once more through the page.
 const REFUSALS = new Set([401, 403, 404, 410]);
@@ -52,6 +58,78 @@ export function fetchPriorityOf(config) {
   return priority === 'high' || priority === 'low' ? priority : 'auto';
 }
 
+/**
+ * @param {?string} value - An ETag header.
+ * @return {?string} The tag when it is a strong one: a weak one may stand for other bytes.
+ */
+function strongEtag(value) {
+  return value && !value.startsWith('W/') ? value : null;
+}
+
+/**
+ * @param {Response} response
+ * @return {boolean} Whether the bytes read are not the bytes sent (fetch() undoes a Content-Encoding).
+ */
+function encoded(response) {
+  const coding = (response.headers.get('content-encoding') || '').trim().toLowerCase();
+  return coding !== '' && coding !== 'identity';
+}
+
+/**
+ * Whether an answer can be resumed where it is cut, and from which bytes: a 206 for the range from
+ * its start, or a 200 to a request for the whole file that offers ranges, of a known length.
+ * @param {Response} response
+ * @param {LoaderRequest} request
+ * @return {?Received}
+ */
+export function resumableAnswer(response, request) {
+  if (encoded(response)) return null;
+  const start = request.rangeStart || 0;
+  const validators = {etag: strongEtag(response.headers.get('etag')), lastModified: response.headers.get('last-modified')};
+  if (response.status === 206) {
+    const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.headers.get('content-range') || '');
+    if (!range || Number(range[1]) !== start) return null;
+    return {chunks: [], length: 0, start, end: Number(range[2]) + 1, total: Number(range[3]), answer: null, ...validators};
+  }
+  if (response.status === 200 && !request.rangeEnd && !start && /\bbytes\b/i.test(response.headers.get('accept-ranges') || '')) {
+    const length = Number(response.headers.get('content-length'));
+    if (!Number.isSafeInteger(length) || length <= 0) return null;
+    return {chunks: [], length: 0, start: 0, end: length, total: length, answer: null, ...validators};
+  }
+  return null;
+}
+
+/**
+ * Whether an answer is the rest of the same file a cut attempt began: from the next byte to the
+ * same end, of the same size and validators.
+ * @param {Response} response
+ * @param {Received} received
+ * @return {boolean}
+ */
+export function continuesAt(response, received) {
+  if (response.status !== 206 || encoded(response)) return false;
+  const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.headers.get('content-range') || '');
+  if (!range || Number(range[1]) !== received.start + received.length || Number(range[2]) + 1 !== received.end ||
+      Number(range[3]) !== received.total) {
+    return false;
+  }
+  if (received.etag && strongEtag(response.headers.get('etag')) !== received.etag) return false;
+  return !received.lastModified || response.headers.get('last-modified') === received.lastModified;
+}
+
+/**
+ * @param {Response} response
+ * @return {Object<string, string>} Its headers, by lower-case name.
+ */
+function headersOf(response) {
+  /** @type {Object<string, string>} */
+  const headers = {};
+  response.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+  return headers;
+}
+
 export class FetchLoader {
   constructor() {
     /** @type {number|undefined} */
@@ -89,6 +167,11 @@ export class FetchLoader {
     };
     this.retryDelay = 0;
     this.controller = null;
+    // An attempt that can be resumed, and what a cut one received: the next asks for the rest.
+    /** @type {?Received} */
+    this.receiving = null;
+    /** @type {?Received} */
+    this.received = null;
   }
 
   /** @param {LoaderCallbacks} callbacks */
@@ -141,6 +224,8 @@ export class FetchLoader {
 
   abortInternal() {
     this.stats.aborted = true;
+    this.received = null;
+    this.receiving = null;
     this.teardownAttempt();
   }
 
@@ -153,7 +238,8 @@ export class FetchLoader {
   }
 
   async loadInternal() {
-    this.stats.loading.start = self.performance.now();
+    const resume = this.received;
+    if (!resume) this.stats.loading.start = self.performance.now();
 
     const {config, request} = this;
     if (!config) {
@@ -205,6 +291,9 @@ export class FetchLoader {
     } else if (request.rangeStart > 0) {
       // To the file's end (a DASH mediaRange of the form "first-").
       fetchHeaders['Range'] = 'bytes=' + request.rangeStart + '-';
+    }
+    if (resume) {
+      fetchHeaders['Range'] = 'bytes=' + (resume.start + resume.length) + '-' + (resume.end - 1);
     }
 
     const controller = (this.controller = new AbortController());
@@ -284,6 +373,14 @@ export class FetchLoader {
     this.rearmTimeout();
 
     const status = response.status;
+    if (resume && (status === 416 || (status >= 200 && status < 300 && !continuesAt(response, resume)))) {
+      response.body?.cancel().catch(() => {});
+      console.warn('The rest of a cut download is not the same file; loading it whole again:', request.url);
+      this.received = null;
+      this.receiving = null;
+      this.loadInternal();
+      return;
+    }
     if (status < 200 || status >= 300) {
       // Its body is not read: let its connection go now.
       response.body?.cancel().catch(() => {});
@@ -299,16 +396,24 @@ export class FetchLoader {
     const unsized = status === 206 && !!request.rangeEnd && !response.headers.has('content-range');
     const cut = wholeFile ? {rangeStart: request.rangeStart, rangeEnd: request.rangeEnd || Infinity} : unsized ? {rangeStart: 0, rangeEnd: request.rangeEnd - (request.rangeStart || 0)} : null;
 
+    this.receiving = resume || (isArrayBuffer && !cut ? resumableAnswer(response, request) : null);
+    if (this.receiving && !resume) {
+      this.receiving.first = {url: response.url, status: response.status, headers: headersOf(response)};
+    }
+
     let data;
     try {
-      data = await this.readBody(response, isArrayBuffer, isStale, cut);
+      data = await this.readBody(response, isArrayBuffer, isStale, cut, this.receiving);
     } catch (e) {
       if (isStale()) {
         return;
       }
+      this.keepReceived();
       this.handleLoadFailure(0, /** @type {Error} */ (e).message);
       return;
     }
+    this.received = null;
+    this.receiving = null;
 
     if (isStale()) {
       return;
@@ -338,17 +443,13 @@ export class FetchLoader {
       return;
     }
 
-    /** @type {Object<string, string>} */
-    const responseHeaders = {};
-    response.headers.forEach((value, key) => {
-      responseHeaders[key] = value;
-    });
-
+    // A resumed load's data is the first answer's whole: its status and headers describe it.
+    const first = resume?.first;
     const responseObj = {
-      url: response.url,
+      url: first ? first.url : response.url,
       // 200 to a range request: the whole file, cut to the range; MP4Player reads it.
-      status: response.status,
-      headers: responseHeaders,
+      status: first ? first.status : response.status,
+      headers: first ? first.headers : headersOf(response),
       data: data,
     };
 
@@ -364,9 +465,10 @@ export class FetchLoader {
    * @param {boolean} isArrayBuffer
    * @param {() => boolean} [isStale] - True once this attempt is torn down.
    * @param {?{rangeStart: number, rangeEnd: number}} [range] - Only the range of a longer body is returned.
+   * @param {?Received} [sink] - Takes the bytes as they come, after those a cut attempt received.
    * @return {Promise<ArrayBuffer|string>}
    */
-  async readBody(response, isArrayBuffer, isStale = () => false, range = null) {
+  async readBody(response, isArrayBuffer, isStale = () => false, range = null, sink = null) {
     const stats = this.stats;
     const contentLength = response.headers.get('content-length');
     if (contentLength) {
@@ -378,21 +480,26 @@ export class FetchLoader {
     }
 
     const reader = response.body.getReader();
-    const chunks = [];
+    const store = sink || /** @type {{chunks: Uint8Array[], length: number}} */ ({chunks: [], length: 0});
+    const before = store.length;
     // Each piece of a range's own answer (a 206 with its Content-Range) goes out as it comes.
     const contentRange = response.headers.get('content-range');
     /** @type {?PartialAnswer} */
     let partial = null;
     if (isArrayBuffer && !range && response.status === 206 && contentRange && this.callbacks?.some((callbacks) => callbacks.onChunk)) {
-      /** @type {Object<string, string>} */
-      const headers = {};
-      response.headers.forEach((value, key) => {
-        headers[key] = value;
-      });
-      partial = {status: 206, contentRange, headers};
+      partial = {status: 206, contentRange, headers: headersOf(response)};
+    }
+    // A resumed attempt's pieces go on with the first answer's, at their place in it; its size
+    // is the range's, as loaded counts the bytes kept too.
+    if (sink) {
+      if (before) {
+        partial = sink.answer;
+        stats.total = sink.end - sink.start;
+      } else {
+        sink.answer = partial;
+      }
     }
     let receivedLength = 0;
-    let keptLength = 0;
     const limit = range ? range.rangeEnd : Infinity;
     const from = range ? range.rangeStart || 0 : 0;
 
@@ -407,21 +514,22 @@ export class FetchLoader {
       receivedLength += value.byteLength;
       if (receivedLength > from) {
         const kept = value.subarray(Math.max(0, from - chunkStart), Math.max(0, limit - chunkStart));
-        chunks.push(kept);
-        keptLength += kept.byteLength;
+        store.chunks.push(kept);
+        store.length += kept.byteLength;
         if (partial && kept.byteLength) {
           const answer = partial;
+          const offset = store.length - kept.byteLength;
           this.callbacks?.forEach((callbacks) => {
             // A reader's mistake is not the download's: it goes on, and is delivered whole.
             try {
-              callbacks.onChunk?.(kept, keptLength - kept.byteLength, answer);
+              callbacks.onChunk?.(kept, offset, answer);
             } catch (e) {
               console.error('A reader of a download\'s pieces threw:', e);
             }
           });
         }
       }
-      stats.loaded = receivedLength;
+      stats.loaded = before + receivedLength;
 
       this.rearmTimeout();
     }
@@ -430,9 +538,9 @@ export class FetchLoader {
       reader.cancel().catch(() => {});
     }
 
-    const merged = new Uint8Array(keptLength);
+    const merged = new Uint8Array(store.length);
     let offset = 0;
-    for (const chunk of chunks) {
+    for (const chunk of store.chunks) {
       merged.set(chunk, offset);
       offset += chunk.byteLength;
     }
@@ -469,6 +577,8 @@ export class FetchLoader {
             ((status >= 400 && status < 500) && status !== 429)
     ) {
       console.error(`${status} while loading ${request.url}`);
+      this.received = null;
+      this.receiving = null;
 
       /** @type {NonNullable<LoaderStats['error']>} */
       const error = {code: status, text: statusText};
@@ -522,10 +632,16 @@ export class FetchLoader {
     return true;
   }
 
+  /** A cut attempt's bytes are kept for the next when its answer can be resumed. */
+  keepReceived() {
+    this.received = this.receiving?.length ? this.receiving : null;
+  }
+
   loadtimeout() {
     console.warn(`timeout while loading ${this.request.url}`);
 
     if (this.stats.retry < this.config.maxRetry / 2) {
+      this.keepReceived();
       this.retry();
       return;
     }

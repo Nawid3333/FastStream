@@ -39,6 +39,22 @@ and DashLoader's loaders outside the store, are left to their own backoff. Unit 
 e2e cannot take Firefox offline without privileged calls, and a refused connection does not
 fire `online`. `FetchLoader.test.mjs`, `DownloadManager.test.mjs`.
 
+**A download cut on the way (2026-11-18).** A body that broke off (the connection dropped, or
+stalled past the timeout) was asked for whole again: on a slow, unstable line a range cut at
+90 % cost it all. Now `FetchLoader` keeps what an attempt received and asks for the rest only
+(`Range: bytes=<next>-<end>`), when the answer allows it: a 206 that starts at the range asked
+for and gives the file's size, or a 200 for the whole file that says `Accept-Ranges: bytes` and its
+`Content-Length`; never a compressed one (`fetch()` hands back other bytes than the server's). The
+rest is taken only when it continues the same file: a 206 from the next byte to the same end, of
+the same size, with the same strong ETag and Last-Modified when the first had them. Anything else
+(a 200, another range or size, a 416, a changed file) drops what was kept and loads the range
+whole, as before. The pieces go to MP4Player's `onChunk` at their place in the first answer, and
+the finished load carries the first answer's status, headers and address. Text (manifests,
+subtitles), and a range a server sent inside a longer body (it ignored the Range), are read whole
+every attempt. A resume counts as one
+retry. `FetchLoader.test.mjs` ("a download cut on the way"), `cut-answer.e2e.mjs` (a server
+offering ranges is asked for the second half only).
+
 `chrome/player/modules/FSBlob.mjs` gained an OPFS backend
 (`chrome/player/network/OPFSManager.mjs` + a dedicated module worker,
 `opfs-worker.mjs`, since `FileSystemSyncAccessHandle` only exists inside a
