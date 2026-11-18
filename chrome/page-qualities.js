@@ -137,8 +137,11 @@ const PageQualities = (() => {
   function fromSourceElements(doc, base) {
     const lists = [];
     for (const media of doc.querySelectorAll('video')) {
+      const sources = media.querySelectorAll('source');
+      // More than a menu holds: none is read (each read goes through Xray, on the page's thread).
+      if (sources.length > MAX_ENTRIES * 4) continue;
       const entries = [];
-      for (const source of media.querySelectorAll('source')) {
+      for (const source of sources) {
         const attribute = LABEL_ATTRIBUTES.find((name) => source.hasAttribute(name) && /** @type {string} */ (source.getAttribute(name)).trim());
         if (!attribute) continue;
         let label = /** @type {string} */ (source.getAttribute(attribute)).trim();

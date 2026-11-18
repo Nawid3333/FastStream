@@ -55,6 +55,34 @@ describe('the next episode\'s link', () => {
     expect(assigned).toEqual([]);
   });
 
+  it('is no SVG link, whose href is no address', async () => {
+    const {p, next, assigned} = episodePage();
+    const a = p.document.createElement('a');
+    a.href = {baseVal: '/watch/2', animVal: '/watch/2'};
+    a.textContent = 'Next';
+    p.document.body.appendChild(a);
+    expect(await next()).toBe('no_button');
+    expect(assigned).toEqual([]);
+  });
+
+  it('is none in an "Episode N" list that does not link this page', async () => {
+    // The current episode shown as plain text: taken for the list's first, its neighbour
+    // (episode 2) was followed from episode 12.
+    const {p, next, assigned} = episodePage();
+    const list = p.document.createElement('ul');
+    p.document.body.appendChild(list);
+    for (const n of [1, 2, 3]) {
+      const item = p.document.createElement('li');
+      const a = p.document.createElement('a');
+      a.href = `https://site.example/watch/${n}`;
+      a.textContent = `Episode ${n}`;
+      item.appendChild(a);
+      list.appendChild(item);
+    }
+    expect(await next()).toBe('no_button');
+    expect(assigned).toEqual([]);
+  });
+
   it('is found by rel="Next" as by rel="next"', async () => {
     const {link, next, assigned} = episodePage();
     link('https://site.example/list?p=2', 'Seite 2 von 9', {rel: 'Next'});

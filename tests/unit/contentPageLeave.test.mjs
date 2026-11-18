@@ -60,3 +60,15 @@ describe('a page whose leaving never happened', () => {
     expect(await playerLoaded(name, 6)).not.toBeNull();
   });
 });
+
+describe('the page\'s own made-up leave and return events', () => {
+  it('tell the background nothing', () => {
+    const page = loadContentScript();
+    page.sent.splice(0);
+    page.dispatchWindow('beforeunload', {isTrusted: false});
+    page.dispatchWindow('pagehide', {isTrusted: false});
+    page.dispatchWindow('pageshow', {isTrusted: false, persisted: true});
+    page.advance(2000);
+    expect(page.sent.filter((m) => m.type === 'FRAME_REMOVED' || m.type === 'FRAME_ADDED')).toEqual([]);
+  });
+});
