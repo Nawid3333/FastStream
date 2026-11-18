@@ -1772,6 +1772,16 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
   Session, next and previous did nothing and the overlay showed only "FastStream".
 - **A GIF from a video that taints the canvas** (another site's, played by the element) cannot
   be read back; recording stops and says so, or the loop played on at 4x.
+- **TTML and DFXP subtitles** (`utils/TtmlSubtitles.mjs`, called by `SubtitleTrack.loadText`): a
+  document whose root is `tt` (any namespace or prefix: TTML1/2, IMSC, EBU-TT, the DFXP
+  namespaces) is read into WebVTT. Times nest as TTML's default `par` container does (a p counts
+  from its div's and body's begin and ends no later than they do; a `seq` container is read as
+  `par`), in every time expression (clock, frames, ticks with `ttp:tickRate`, offsets); a p with
+  no end lasts until the next later start (2 s for the last). Italic, bold and underline, direct
+  or through referenced styles, become tags; colours, regions and positions are not read, nor
+  image subtitles. On pages, `.ttml`, `.dfxp` and `application/ttml+xml` count as subtitle files;
+  a `.xml` address does not (any XML API would). Subtitle tracks inside a stream (HLS, DASH
+  `stpp`) are not read at all: hls.js's subtitles are off and dash.js's text is not used.
 
 ## Utils, options, enums, dash2mp4: reasons behind the code
 

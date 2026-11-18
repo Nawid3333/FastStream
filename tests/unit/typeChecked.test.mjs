@@ -203,6 +203,7 @@ const CHECKED = [
   'chrome/player/utils/SubtitleFetch.mjs',
   'chrome/player/utils/SubtitleSyncUtils.mjs',
   'chrome/player/utils/SubtitleUtils.mjs',
+  'chrome/player/utils/TtmlSubtitles.mjs',
   'chrome/player/utils/URLUtils.mjs',
   'chrome/player/utils/UpdateChecker.mjs',
   'chrome/player/utils/Utils.mjs',

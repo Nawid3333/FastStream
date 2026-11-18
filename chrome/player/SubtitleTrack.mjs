@@ -2,6 +2,7 @@
 import {Localize} from './modules/Localize.mjs';
 import {WebVTT} from './modules/vtt.mjs';
 import {SubtitleUtils} from './utils/SubtitleUtils.mjs';
+import {isTtml, ttml2vtt} from './utils/TtmlSubtitles.mjs';
 
 /**
  * A track's cue with the DOM trees the subtitle code caches on it: `dom` for the video, `dom2` for the resync timeline.
@@ -79,7 +80,7 @@ export class SubtitleTrack {
   }
 
   /**
-   * Reads a subtitle file's text into the track's cues: WebVTT, SubRip, or timed-text XML (not TTML).
+   * Reads a subtitle file's text into the track's cues: WebVTT, SubRip, TTML/DFXP, or timed-text XML.
    * @param {string} text
    */
   loadText(text) {
@@ -88,7 +89,9 @@ export class SubtitleTrack {
       text = text.substring(1);
     }
 
-    if (text.substring(0, 5) === '<?xml') {
+    if (isTtml(text)) {
+      text = ttml2vtt(text, (seconds) => SubtitleUtils.vttTimeFormat(seconds));
+    } else if (text.substring(0, 5) === '<?xml') {
       text = SubtitleUtils.xml2vtt(text);
     } else if (text.trim().split('\n')[0].trim().substr(0, 6) !== 'WEBVTT') {
       text = SubtitleUtils.srt2webvtt(text);
