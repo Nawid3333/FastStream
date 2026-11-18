@@ -28,7 +28,8 @@ import {relayPageFetch} from './PageFetchRelay.mjs';
 import {TabTracker} from './TabTracker.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {VpnProxyMirror} from './VpnProxyMirror.mjs';
-import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPendingMs, autoOpenInMpv, inheritMpv, leaveMpvWhenOff, mpvWatch, noteMpvTabClosed, onToggleMpv, openInMpv, openMpvWithSources, pickNextEpisodeForMpv, resolveMpvContentType, sendPlayedToMpv, startMpv, stopMpv, syncMpvAutoplay, watchNextEpisodeArrives} from './MpvMode.mjs';
+import {youTubeVideo} from './YouTubeVideo.mjs';
+import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPendingMs, autoOpenInMpv, inheritMpv, leaveMpvWhenOff, mpvWatch, noteMpvTabClosed, onToggleMpv, openInMpv, openMpvWithSources, pickNextEpisodeForMpv, resolveMpvContentType, sendPlayedToMpv, setMpvError, startMpv, stopMpv, syncMpvAutoplay, watchNextEpisodeArrives} from './MpvMode.mjs';
 
 /** @typedef {typeof import('../player/options/defaults/DefaultOptions.mjs').DefaultOptions} PlayerOptions */
 
@@ -365,7 +366,9 @@ if (menus) {
     } else if (info.menuItemId === MenuIds.MPV) {
       onToggleMpv(tabobj);
     } else if (info.menuItemId === MenuIds.LINK_PLAYER || info.menuItemId === MenuIds.LINK_MPV) {
-      openLinkIn(tabobj, info.linkUrl, info.menuItemId === MenuIds.LINK_MPV)
+      // linkText: Firefox's menus only.
+      openLinkIn(tabobj, info.linkUrl, info.menuItemId === MenuIds.LINK_MPV,
+          /** @type {{linkText?: string}} */ (info).linkText)
           .catch((e) => console.error('Opening the link failed', e));
     }
   });
@@ -374,14 +377,28 @@ if (menus) {
 /**
  * FastStream on before its page loads; opened without an opener, so inheritMpv does not overwrite the choice.
  * @param {chrome.tabs.Tab} tabobj
+ * A YouTube video's link goes to mpv itself, with no tab: FastStream finds no YouTube stream.
  * @param {string|undefined} linkUrl
  * @param {boolean} mpv
+ * @param {string} [linkText]
  * @return {Promise<void>}
  */
-async function openLinkIn(tabobj, linkUrl, mpv) {
+async function openLinkIn(tabobj, linkUrl, mpv, linkText) {
   await ensureOptions();
   const url = linkTarget(linkUrl);
   if (!url || (mpv && !Options.mpvMode)) {
+    return;
+  }
+  const youTube = mpv ? youTubeVideo(url) : null;
+  if (youTube) {
+    if (Logging) console.log('[MPV] YouTube link to mpv:', youTube.url);
+    // No tab: the video is not this page's, so neither its subtitles nor its next episode go with it.
+    const result = await openInMpv(-1, youTube.url, null, undefined, resolveMpvContentType(null, youTube.url),
+        youTube.url, linkText, {startTime: youTube.start, private: tabobj.incognito === true});
+    const tab = typeof tabobj.id === 'number' ? Tabs.getTab(tabobj.id) : null;
+    if (tab) {
+      setMpvError(tab, result);
+    }
     return;
   }
   if (!await BackgroundUtils.checkPermissions()) {
@@ -793,7 +810,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     return;
   } else if (msg.type === MessageTypes.MPV_USER_PLAY) {
-    onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '', msg.video || null);
+    onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '', msg.video || null,
+        typeof msg.page === 'string' ? msg.page : '');
     reopenOnUserPlay(sender);
     return;
   } else if (msg.type === MessageTypes.SHORTCUT_CANCELLED) {
@@ -2931,11 +2949,13 @@ function autoOpenKnownLater(tab, frameId, src, video) {
 
 /**
  * With no stream yet, the next one within MpvPlayPendingMs is taken. In the allowlist's MPV a play counts only on a page Back gave back.
+ * A YouTube video goes as its page (youTubeVideo), in either MPV: mpv's yt-dlp finds its streams.
  * @param {chrome.runtime.MessageSender} sender
  * @param {string} src
  * @param {?PlayedVideo} video
+ * @param {string} [pageAddress] - The frame's address when the video started.
  */
-async function onUserPlay(sender, src, video) {
+async function onUserPlay(sender, src, video, pageAddress = '') {
   await ensureOptions();
 
   if (!Options.mpvMode || !sender.tab || typeof sender.frameId !== 'number') {
@@ -2943,6 +2963,13 @@ async function onUserPlay(sender, src, video) {
   }
 
   const tab = Tabs.getTab(sender.tab.id);
+  // The page's own address: YouTube moves to the next video by pushState, and the tab's can still be the last one's.
+  const youTube = youTubeVideo(pageAddress);
+  if (youTube && tab && tab.isOn && tab.isMpv) {
+    if (Logging) console.log('[MPV] user started a YouTube video:', youTube.url);
+    sendPlayedToMpv(tab, {url: youTube.url, headers: undefined}, video, youTube.url);
+    return;
+  }
   const waiting = /** @param {boolean} onPlay */ (onPlay) => !!tab && tab.isOn && tab.isMpv && tab.mpvOnPlay === onPlay &&
     (onPlay || !tab.mpvAutoOpened);
   if (!tab || !waiting(tab.mpvOnPlay)) {

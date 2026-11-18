@@ -425,11 +425,16 @@ automatic first stream. Measured in Firefox 157: a `window.open()` tab names its
 but a pop-up *window* (`popup,width=...`) has `openerTabId` null. Reaching that would need
 the `webNavigation` permission (`onCreatedNavigationTarget`), which Firefox would ask the
 user to accept on update, so it is left out.
-**No YouTube in MPV (2026-10-04).** #338 sent a play on a YouTube watch page to mpv as
-`https://www.youtube.com/watch?v=<id>`; it was removed the same day, on Nawid's word: it
-caused more problems than it solved, and he pastes YouTube links into mpv himself.
-FastStream finds no YouTube stream, so a YouTube page in MPV sends nothing. Don't bring
-it back unless he asks.
+**YouTube in mpv (2026-11-18, Nawid asked for it again).** #338 (2026-10-04) sent a play on
+a YouTube watch page to mpv and was removed the same day ("more problems than it solved"; no
+record of which). Now, picked by him: (1) a tab in MPV (key, toolbar, menu, or a `youtube.com`
+line in the list, which can carry `@native`) sends the video a play starts on a YouTube video
+page; MPV switched on over a YouTube video page sends that page's video at once, autoplayed or
+paused (`MPV_REPORT_PLAYING` with `any`, top frame only); (2) "Open link in MPV" on a YouTube
+link sends it to mpv with no tab. `YouTubeVideo.mjs` turns watch, shorts, live, youtu.be and
+music links into `https://www.youtube.com/watch?v=<id>` (plus t=/start=): mpv's ytdl_hook opens
+it with yt-dlp, and the same address is the resume key and the list lookup. FastStream itself
+still finds no YouTube stream and never plays YouTube in its own player.
 **Off means off, and the stability sweep (2026-10-04 night, after mpv's vulkan decoding
 lost the GPU device - the mpv repo's AGENTS.md "NO VULKAN VIDEO DECODING").**
 - *The user's Off stays.* `tab.mpvTurnedOff` (TabTracker, persisted) is set by every Off

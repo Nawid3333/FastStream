@@ -390,9 +390,10 @@ export class FakeDocument {
  * @param {Object<string, string>} [options.responses] - What its requests get, by URL.
  * @param {boolean} [options.observer] - Whether it has PerformanceObserver, which is told
  *   of every entry, where the timeline (getEntriesByType) keeps the first 250.
+ * @param {boolean} [options.inFrame] - Whether it is a frame in another page (window.top is not its window).
  * @return {Object} The page: its document, what content.js sent, and how to talk to it.
  */
-export function loadContentScript({hostname = 'site.example', entries = [], responses = {}, observer = false} = {}) {
+export function loadContentScript({hostname = 'site.example', entries = [], responses = {}, observer = false, inFrame = false} = {}) {
   const document = new FakeDocument();
   const sent = [];
   let onMessage = null;
@@ -524,6 +525,7 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
     };
   }
   context.window = context;
+  context.top = inFrame ? {} : context;
   vm.createContext(context);
   for (const [file, source] of [['chrome/overlay-guard.js', overlayGuardSource], ['chrome/episode-links.js', episodeLinksSource],
     ['chrome/page-qualities.js', pageQualitiesSource], ['chrome/content.js', contentSource]]) {
