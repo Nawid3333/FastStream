@@ -146,6 +146,9 @@ describe('writing the playlists', () => {
     const watch = privatePackageWatch(base);
     watch.see(path_(first));
     watch.see({type: 'mpv', data: {event: 'property-change', id: 2, name: 'time-pos', data: 3}});
+    // Loaded again: mpv has no path between the two.
+    watch.see(path_(undefined));
+    watch.see(path_(first));
     expect(there(first)).toBe(true);
     watch.see(path_(second));
     expect([there(first), there(second)]).toEqual([false, true]);

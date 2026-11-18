@@ -1175,7 +1175,7 @@ export function removeOldHlsPackages(base = os.tmpdir(), now = Date.now()) {
 
 /**
  * A private window's playlist folder goes once mpv no longer plays it: when its path, as the relay passes it on,
- * moves to another file, or mpv closes. Not when the extension lets go: a new hand-off's package may not be open yet.
+ * moves to another file (none between two files counts for nothing), or mpv closes. Not when the extension lets go: a new hand-off's package may not be open yet.
  * @param {string} [base] - The folder the packages are in; the temp folder by default.
  * @return {{see: (event: *) => void, end: (reason: string) => void}} see: each event the relay sends; end: its
  *   reason for closing.
@@ -1197,9 +1197,10 @@ export function privatePackageWatch(base = os.tmpdir()) {
     see(event) {
       const data = event && event.type === 'mpv' ? event.data : null;
       if (!data || data.event !== 'property-change' || data.name !== 'path') return;
-      const next = typeof data.data === 'string' ? data.data : null;
-      if (playing && playing !== next) remove(playing);
-      playing = next;
+      // None between two files (mpv clears it), the same file loaded again included.
+      if (typeof data.data !== 'string') return;
+      if (playing && playing !== data.data) remove(playing);
+      playing = data.data;
     },
     end(reason) {
       if (reason === 'mpv closed' && playing) remove(playing);
