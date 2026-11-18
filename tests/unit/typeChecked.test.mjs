@@ -42,6 +42,7 @@ const CHECKED = [
   'chrome/custom/instagram_content.js',
   'chrome/custom/instagram_inject.js',
   'chrome/episode-links.js',
+  'chrome/page-listeners.js',
   'chrome/overlay-guard.js',
   'chrome/page-qualities.js',
   'chrome/page-fetch.js',

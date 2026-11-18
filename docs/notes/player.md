@@ -1300,9 +1300,15 @@ hoster hides it three ways, all common among streaming hosters:
   `text/plain; charset=utf-8`, body `#EXTM3U ... #EXT-X-STREAM-INF`. Detection went by the
   address, the custom source patterns and the Content-Type only, so it was ignored.
   Fix: a blocking `onHeadersReceived` listener (types `xmlhttprequest` and `other` only) reads
-  the first bytes of a 200 GET answered `text/plain`, `application/octet-stream`,
-  `binary/octet-stream`, `application/binary` or without a type, at an address that is no
-  script, style, image, font, page or segment (`worthSniffing`). It uses Firefox's
+  the first bytes of a 200 GET of any type but those no manifest comes as (`video/*`,
+  `audio/*`, JSON, `application/mp4`, wasm, PDF, zip, event streams, multipart), at an address
+  that names no segment or module (`.ts`, `.m4s`, `.mp4`, `.webm`, `.json` ...)
+  (`worthSniffing`). First (#765) only `text/plain`, octet-stream and no type were read; widened
+  the same day, as hosters also call a playlist `text/html` or an image, name it `.js` or
+  `.png`, and serve an MPD as `application/xml` or `text/xml` from `/api/manifest?id=7`. A
+  page's, script's or image's own load (type `main_frame`, `script`, `image`) is never read:
+  only a player's fetch is. A non-manifest is let go at its first bytes (`<html`, `{`, `GIF8`).
+  It uses Firefox's
   `webRequest.filterResponseData`: every byte is passed on unchanged, and the filter lets go as
   soon as the bytes tell (`ManifestSniffer.mjs`; at most 1 KB, 10 s for a trickle). HLS needs
   `#EXTM3U` and an `#EXT-X-` tag: an IPTV channel list or a Winamp `.m3u` starts with `#EXTM3U`
@@ -1331,6 +1337,35 @@ hoster hides it three ways, all common among streaming hosters:
   downloaded twice (230 extra 0.9 MB fetches in under two minutes). `refuses()` now reads the
   first bytes through a clone: a page starts with `<` after blanks and a byte order mark, and a
   refusal in words or JSON has only text bytes in its first 16; media has control bytes there.
+
+**Frames with no address of their own.** A player script often builds its frame itself: an
+`<iframe>` without `src` that it writes into (`about:blank`), or one with `srcdoc`. Firefox
+injects content scripts there only with `match_about_blank` (its schema: "about:blank and
+about:srcdoc frames if your extension has access to its parent document"); without it the
+background found the video's stream but had no content script in that frame to open the player
+in ("Receiving end does not exist"). Set on the `<all_urls>` entry since 2026-11-18.
+`match_origin_as_fallback` (also data: and blob: frames, sandboxed ones) is not set: Firefox
+ignores `match_about_blank` when it is present, and no measured page needed it yet.
+A frame a player script fills with `document.open()`/`document.write()` keeps its window, but
+`document.open()` erases every listener on that window and its document, the content scripts'
+too, and Firefox does not run them again (they ran in the first, empty document): the frame then
+answered nothing and its player was never linked (the e2e's `/blank` case, measured). Content
+scripts add window and document listeners through `PageListeners` (`page-listeners.js`, the first
+of them), which adds them again when the document's element is replaced; a MutationObserver on
+the document itself survives `document.open()`. Such a frame's page address (media it reports,
+same-site checks) is that of the document it is in, which its requests name as their page; not
+its base URL, which a `<base>` of the page's choosing sets (`http://127.0.0.1/` would pass the
+local-page check). A sandboxed one keeps `about:srcdoc`, which gives no headers rather than
+wrong ones. It is never left by redirect: `document.open()` gives an about:blank frame the
+writer's address, so the check keeps how the frame started.
+A frame given no address and then a page of the same site (Firefox may keep its window) runs
+one content script and gets one player (e2e `/blank-then-page`). Ad scripts write such frames too
+(IMA): a video there is now reachable like any other, and which video FastStream takes is decided
+as before. Sniffing any type also reads the first chunk of a disguised hoster's segments
+(`page-N.html` as text/html) while the page's own player plays them, one StreamFilter each until
+its first bytes; FastStream's own player's requests are never sniffed (`frame.hasPlayer()`).
+`tests/e2e/ext-specs/hidden-streams.e2e.mjs` drives all of the above on the installed extension;
+against 1.3.82.215 the DASH, about:blank and srcdoc cases fail, the HLS one passes (#765).
 
 mpv (0.42, ffmpeg's HLS demuxer) refuses the same playlist on its own: "Not detecting
 m3u8/hls with non standard extension and non standard mime type". `--demuxer-lavf-format=hls`

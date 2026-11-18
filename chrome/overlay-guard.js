@@ -219,7 +219,7 @@ const OverlayGuard = (() => {
     for (const el of [...guard.hidden.keys()]) show(guard, el);
   }
 
-  document.addEventListener('visibilitychange', () => {
+  PageListeners.add(document, 'visibilitychange', () => {
     if (document.hidden) return;
     for (const iframe of [...guards.keys()]) check(iframe);
   });

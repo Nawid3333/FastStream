@@ -392,6 +392,24 @@ function addElements(page, count) {
 // A page with no video, where the frame cannot go fullscreen, goes to the player itself: its
 // beforeunload then tells the background nothing (the player asks for the frame's sources).
 describe('the redirect to the player', () => {
+  it('lays the player over a frame the page wrote (about:srcdoc) instead: the page\'s script drives it', async () => {
+    const page = loadContentScript();
+    page.document.fullscreenEnabled = false;
+    page.window.location = {...page.window.location, href: 'about:srcdoc', protocol: 'about:', origin: 'null', pathname: 'srcdoc'};
+    expect(await page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, frameId: 0, parentFrameId: -1,
+      attempt: 1, force: true})).toBe('replaceall');
+  });
+
+  it('lays it over an about:blank frame the page wrote too, which document.open() gave the page\'s address', async () => {
+    const page = loadContentScript({inFrame: true,
+      location: {hostname: '', href: 'about:blank', protocol: 'about:', origin: 'null', pathname: 'blank', search: ''}});
+    page.document.fullscreenEnabled = false;
+    page.window.location = {hostname: 'site.example', href: 'https://site.example/page', protocol: 'https:',
+      origin: 'https://site.example', pathname: '/page', search: ''};
+    expect(await page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, frameId: 3, parentFrameId: 0,
+      attempt: 1, force: true})).toBe('replaceall');
+  });
+
   it('reports the page\'s next leave once it stayed after all', async () => {
     const page = loadContentScript();
     page.document.fullscreenEnabled = false;
@@ -932,6 +950,28 @@ describe('REPORT_LOADED_MEDIA', () => {
   it('reports it once when the timeline has it too', async () => {
     const page = loadContentScript({entries: requests(10), observer: true});
     expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
+  });
+
+  it('names a srcdoc frame\'s media by the page it is in, which its requests name as theirs, never by a <base>', async () => {
+    const page = loadContentScript({entries: requests(1), observer: true, inFrame: true});
+    const srcdoc = {...page.window.location, href: 'about:srcdoc', protocol: 'about:', origin: 'null', pathname: 'srcdoc'};
+    page.window.location = srcdoc;
+    page.document.baseURI = 'http://127.0.0.1/';
+    const top = {location: {href: 'https://site.example/watch/1', protocol: 'https:'}};
+    top.parent = top;
+    page.window.parent = {location: srcdoc, parent: top};
+    expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
+    expect(page.sent.find((message) => message.type === 'LOADED_MEDIA').url).toBe('https://site.example/watch/1');
+  });
+
+  it('keeps a sandboxed srcdoc frame\'s own address, its page out of reach', async () => {
+    const page = loadContentScript({entries: requests(1), observer: true, inFrame: true});
+    page.window.location = {...page.window.location, href: 'about:srcdoc', protocol: 'about:', origin: 'null', pathname: 'srcdoc'};
+    page.window.parent = {get location() {
+      throw new Error('SecurityError');
+    }};
+    await reported(page);
+    expect(page.sent.find((message) => message.type === 'LOADED_MEDIA').url).toBe('about:srcdoc');
   });
 
   /**

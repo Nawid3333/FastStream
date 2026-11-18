@@ -39,11 +39,17 @@ describe('which responses are read for a manifest', () => {
     ['an image', response('https://cdn.test/px', {type: 'image'}), false],
     ['a media element\'s load', response('https://cdn.test/v', {type: 'media'}), false],
     ['JSON', response('https://cdn.test/api', {contentType: 'application/json'}), false],
-    ['a page', response('https://cdn.test/p', {contentType: 'text/html'}), false],
+    ['text/html a player fetched (some hosters call playlists so)', response('https://cdn.test/p', {contentType: 'text/html'}), true],
+    ['an MPD called application/xml', response('https://cdn.test/api/manifest?id=7', {contentType: 'application/xml'}), true],
+    ['an image a player fetched', response('https://cdn.test/p.png', {contentType: 'image/png'}), true],
+    ['JSON by its structured suffix', response('https://cdn.test/api', {contentType: 'application/ld+json'}), false],
+    ['an event stream', response('https://cdn.test/live', {contentType: 'text/event-stream'}), false],
+    ['MP4 by its type', response('https://cdn.test/v', {contentType: 'application/mp4'}), false],
     ['a segment by its type', response('https://cdn.test/s', {contentType: 'video/mp2t'}), false],
-    ['a .js called text/plain', response('https://cdn.test/app.js'), false],
+    ['a .js called text/plain (hosters name playlists so)', response('https://cdn.test/app.js'), true],
     ['a .json called text/plain', response('https://cdn.test/data.json?x=1'), false],
     ['a segment named .ts', response('https://cdn.test/seg1.ts', {contentType: 'application/octet-stream'}), false],
+    ['a segment named .webm', response('https://cdn.test/seg1.webm', {contentType: 'text/plain'}), false],
   ])('%s', (_, details, expected) => {
     expect(worthSniffing(details)).toBe(expected);
   });
