@@ -37,7 +37,7 @@ body {
   --control-pad-x: 8px;
 }
 
-/* The OLED black theme chosen: the settings page is true black too (2026-10-10). */
+/* The OLED black theme chosen: the settings page is true black too. */
 body[data-theme="oled"]:not(.frame) {
   --color-bg: #000000;
   --color-bg-muted: #000000;

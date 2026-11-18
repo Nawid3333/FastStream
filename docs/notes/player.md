@@ -11,6 +11,7 @@ Sections, by area:
 - Downloads and network: "Downloads between players, after seeks and errors", "Players in several tabs take turns", "Loading through the page", "Firefox VPN", "A copy-protected video stays in the page's player".
 - Background: "Background: reasons behind the code", "The background's questions to a frame have a time limit", "The background analyses and hostile subtitle files", "A page loaded again keeps FastStream's player".
 - Content scripts: "Content scripts: reasons behind the code".
+- Interface: "Interface: reasons behind the code".
 - Utils and options: "Utils, options, enums, dash2mp4: reasons behind the code".
 - Measuring: "Measuring two builds: tools/bench-ab.mjs".
 
@@ -1749,6 +1750,28 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
 - **`content.js` `listenedRoots`** - Media events are not composed, so a play inside a shadow root
   never reached the document and the MPV shortcut ignored such players. The roots on the way to
   what was clicked get the listener at once, every root on the page at most every 2 s.
+
+## Interface: reasons behind the code
+
+- **Nothing fades or moves** (the owner: "I do not want delays or animations", 2026-10-13).
+  `fluidplayer.css` sets every transition and animation in the player to 0 s, for everyone,
+  not only for a system set to less motion: the controls had faded in over half a second,
+  nearly invisible at first on a dark video. The rule stays for transitions added later and
+  for the libraries' styles. The tools that closed a second after their last use (precise
+  seek, the silence skipper, the subtitle syncer) close at once.
+- **The autoplay switch is always in the bar; the next button only with a next video**
+  (the owner, 2026-10-11): with the switch tied to the next button, it was missing wherever no
+  next link was found.
+- **A press ends without its mouseup** (`PressTracker`): with the window switched during a hold,
+  the mouseup went to the other window and the video played on at twice the speed until the
+  next click (measured 2026-10-28); a tool's long press began reordering after the release.
+- **The settings page loads after the first frame** (`OptionsWindow`, `loadFrameWhenIdle`):
+  loaded with the player it held the first frame back by about 140 ms (`tools/bench-ab.mjs`,
+  2026-11-13: 945 -> 808 ms, 7 of 7 rounds).
+- **The media keys and Windows' media overlay** (`MediaKeys`): without the player's Media
+  Session, next and previous did nothing and the overlay showed only "FastStream".
+- **A GIF from a video that taints the canvas** (another site's, played by the element) cannot
+  be read back; recording stops and says so, or the loop played on at 4x.
 
 ## Utils, options, enums, dash2mp4: reasons behind the code
 

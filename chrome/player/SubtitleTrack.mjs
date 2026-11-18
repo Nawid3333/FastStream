@@ -4,26 +4,22 @@ import {WebVTT} from './modules/vtt.mjs';
 import {SubtitleUtils} from './utils/SubtitleUtils.mjs';
 
 /**
- * A track's cue, with the DOM trees the subtitle code caches on it: `dom` for the video
- * (SubtitlesManager.renderSubtitles), `dom2` for the resync timeline (SubtitleSyncer).
+ * A track's cue with the DOM trees the subtitle code caches on it: `dom` for the video, `dom2` for the resync timeline.
  * @typedef {VTTCue & {dom?: HTMLElement|null, dom2?: HTMLElement|null}} TrackCue
  */
 
 export class SubtitleTrack {
   /**
-   * @param {string} label - The track's name in the subtitles menu.
-   * @param {string|null} [language] - Its language, where one is known.
+   * @param {string} label
+   * @param {string|null} [language]
    */
   constructor(label, language) {
     this.label = label;
     this.language = language;
-    // The parser makes the window's own cues and regions (vtt.js's shims only where the
-    // browser has none); the resync tool adds cues of its own (SubtitleSyncer).
     /** @type {Array<TrackCue>} */
     this.cues = [];
     /** @type {Array<VTTRegion>} */
     this.regions = [];
-    // the sum of every whole-track shift, shown by the resync tool
     this.shiftTotal = 0;
   }
 
@@ -34,8 +30,7 @@ export class SubtitleTrack {
    */
   loadURL(url) {
     return fetch(url).then((response) => {
-      // An error page (404) was read as a subtitle file without cues: the reason was lost.
-      // A link typed in the subtitles menu says it already (requestSimple).
+      // An error page is no subtitle file: its status is the reason.
       if (!response.ok) {
         throw new Error('Bad status code: ' + response.status);
       }
@@ -47,10 +42,7 @@ export class SubtitleTrack {
     });
   }
 
-  /**
-   * Throws when loadText found no cue: what was loaded was no subtitles (a web page, an
-   * error message, another kind of file), which the parser skips without complaint.
-   */
+  /** Throws when loadText found no cue: the parser skips what is not subtitles without complaint. */
   checkHasCues() {
     if (this.cues.length === 0) {
       throw new Error(Localize.getMessage('player_subtitles_nocues'));
@@ -74,7 +66,6 @@ export class SubtitleTrack {
    * @param {number} time - Seconds, later when positive.
    */
   shiftAfter(cue, time) {
-    // only shift cues that are the given cue or come after it. This allows users to shift a single cue without affecting cues that come before it.
     let shift = false;
     this.cues.forEach((c) => {
       if (c === cue) {
@@ -88,13 +79,11 @@ export class SubtitleTrack {
   }
 
   /**
-   * Reads a subtitle file's text into the track's cues: WebVTT, SubRip, or timed-text XML
-   * (`<text start dur>` cues; not TTML).
+   * Reads a subtitle file's text into the track's cues: WebVTT, SubRip, or timed-text XML (not TTML).
    * @param {string} text
    */
   loadText(text) {
-    // A byte order mark hid the WEBVTT signature (and '<?xml') from the checks below and
-    // from the parser: no cue. The page's own subtitles come in as the page wrote them.
+    // A byte order mark would hide the WEBVTT signature (and '<?xml') from the checks and the parser.
     if (text.charCodeAt(0) === 0xFEFF) {
       text = text.substring(1);
     }
@@ -105,8 +94,6 @@ export class SubtitleTrack {
       text = SubtitleUtils.srt2webvtt(text);
     }
 
-    // sometimes formatting in subtitles are not properly
-    // converted into webvtt, so we need to convert them manually
     text = SubtitleUtils.convertSubtitleFormatting(text);
 
     // eslint-disable-next-line new-cap
@@ -130,17 +117,13 @@ export class SubtitleTrack {
       console.error(error);
     };
 
-    // toWellFormed: the parser's decoder, decodeURIComponent(encodeURIComponent(text)),
-    // throws "URI malformed" on a lone surrogate, which a page's string can hold.
+    // toWellFormed: the parser's decoder throws "URI malformed" on a lone surrogate.
     parser.parse(text.toWellFormed());
     parser.flush();
   }
 
   /**
-   * Whether two tracks are the same subtitles (SubtitlesManager.addTrack keeps one): the
-   * same cues, unless the name and the language both differ. The same file under another
-   * name (the page's subtitle file and the user's copy of it) is one track. A 2026-09-11
-   * review took upstream's && here for a typo, and such a file was listed twice.
+   * Whether two tracks are the same subtitles: the same cues, unless the name and the language both differ.
    * @param {SubtitleTrack} otherTrack
    * @return {boolean}
    */

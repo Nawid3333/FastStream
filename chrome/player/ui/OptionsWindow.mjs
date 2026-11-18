@@ -14,7 +14,7 @@ export class OptionsWindow {
     // The settings page, an iframe, loads after the player's first frame (loadFrameWhenIdle,
     // from the client) or when this window opens. Loaded with the player, its scripts ran
     // beside the player's own as it started, and held the first frame of a video back by about
-    // 140 ms (tools/bench-ab.mjs, 2026-11-13: 945 -> 808 ms, 7 of 7 rounds).
+    // 140 ms (tools/bench-ab.mjs).
     this.frameAsked = false;
     this.frameLoaded = false;
     this.frameTimer = setTimeout(() => this.loadFrameWhenIdle(), LoadAnywayMs);

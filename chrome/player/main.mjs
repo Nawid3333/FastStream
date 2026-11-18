@@ -15,33 +15,27 @@ import {URLUtils} from './utils/URLUtils.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {VideoSource} from './VideoSource.mjs';
 
-// The notices the background may send with the sources, by their messages' keys, and how
-// long one shows.
+// The notices the background may send with the sources, by message key.
 const PlayerNotices = ['player_mpv_page_only'];
 const PlayerNoticeMs = 12000;
 
 /**
- * The player's window while it has its client (window.fastStream, types/player-window.d.ts),
- * for the two functions that read the client without a check of their own: recieveSources()
- * is called only once there is one, and loadOptions() catches what a missing one throws.
+ * The player's window while it has its client, for the two functions that read it unchecked.
  * @typedef {Window & typeof globalThis & {fastStream: NonNullable<Window['fastStream']>}} FastStreamWindow
  */
 
 /**
- * A stream as the SOURCES message carries it (the background's tracked sources), with its
- * depth, length and the page's qualities for it when known.
+ * A stream as the SOURCES message carries it, with its depth, length and page qualities when known.
  * @typedef {{url: string, mode: string, headers?: *, time?: number, depth?: number,
  *   duration?: number|null, qualities?: ?Array<{url: string, label: string, height: number}>,
  *   frameId?: number}} SentSource
  */
 
 /**
- * A subtitle track once loadSubtitles() fetched its text, with its label and language; score
- * is what sortSubtitles() gives its language.
+ * A subtitle track once loadSubtitles() fetched its text; score is sortSubtitles()'s for its language.
  * @typedef {{label: string, language: string, data: string, score?: number}} SubtitleData
  */
 
-// The saved options over the defaults, once loaded.
 /** @type {typeof import('./options/defaults/DefaultOptions.mjs').DefaultOptions|null} */
 let OPTIONS = null;
 /** @type {number|null} */ let optionSendTime = null;
@@ -53,9 +47,8 @@ if (EnvUtils.isExtension()) {
           sendResponse('ok');
           return;
         } else if (request.type === MessageTypes.HAS_PLAYER) {
-          // The background asks the tab when it restarted and forgot the players. The
-          // page's content script sees player iframes; a page frame that navigated to the
-          // player has no content script left, so the player answers.
+          // The background asks after it restarted; a frame that navigated to the player has no content script,
+          // so the player answers.
           sendResponse(true);
           return;
         } else if (request.type === MessageTypes.SOURCES && window.fastStream) {
@@ -68,8 +61,7 @@ if (EnvUtils.isExtension()) {
         } else if (request.type === MessageTypes.VPN_ALLOWED && window.fastStream) {
           window.fastStream.vpnPrompt.onAllowed();
         } else if (request.type === MessageTypes.EXIT_CARRIED_FULLSCREEN && window.fastStream) {
-          // Escape in the page around a carried fullscreen (content.js). false: this player had
-          // none (a new one in the frame), and the background ends it.
+          // false: this player has no carried fullscreen, and the background ends it.
           sendResponse(window.fastStream.interfaceController.exitCarriedFullscreen());
           return;
         } else if (request.type === MessageTypes.UPDATE_OPTIONS) {
@@ -118,9 +110,8 @@ if (EnvUtils.isExtension()) {
  *   subtitles?: Array<import('./utils/SubtitleFetch.mjs').SentSubtitle>, autoSetSource?: boolean, forceAutoplay?: boolean,
  *   notice?: string,
  *   continuationOptions: {autoPlay?: boolean,
- *   disableLoadProgress?: boolean, fullscreenState?: string}}} request - The SOURCES
- * message, from the background's runtime listener or the page's iframe messager.
- * @param {(response: *) => void} sendResponse - Answers the sender when it's done.
+ *   disableLoadProgress?: boolean, fullscreenState?: string}}} request
+ * @param {(response: *) => void} sendResponse
  */
 async function recieveSources(request, sendResponse) {
   // URLs only: the sources' headers hold the page's Cookie and Authorization (see addSource)
@@ -141,25 +132,20 @@ async function recieveSources(request, sendResponse) {
     return;
   }
 
-  // The background's word on why this player opened (MpvMode.playHereInstead): a message's key,
-  // only one of these, as the page's iframe messager brings SOURCES too.
+  // Only known notice keys: the page's iframe messager brings SOURCES too.
   if (typeof request.notice === 'string' && PlayerNotices.includes(request.notice)) {
     /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.setStatusMessage(
         'mpv', Localize.getMessage(request.notice), 'warning', PlayerNoticeMs);
   }
 
-  // The streams the page's video played, when it tells them; else the longest: an ad or an
-  // intro runs for seconds, the video for minutes or hours. The rest stay in the list, to
-  // choose by hand.
+  // The streams the page's video played, else the longest: an ad or an intro runs seconds, the video minutes.
   const candidates = StreamPick.played(sources, request.video) || StreamLength.longest(sources);
 
-  // Sources are ordered by time, so the first is the oldest; the lowest depth wins, then a
-  // streaming one, and among MP4 files the newest (StreamPick.pick).
+  // Lowest depth first, then a streaming one, then the newest MP4 (StreamPick.pick).
   /** @type {?SentSource} */
   let autoSetSource = StreamPick.pick(candidates);
 
-  // Playlists of stills are all there is (the seek bar's thumbnails): listed, to choose by
-  // hand, but nothing to play by itself.
+  // Playlists of stills (seek-bar thumbnails) are listed, but never played by themselves.
   if (/** @type {FastStreamWindow} */ (window).fastStream.source || !request.autoSetSource || autoSetSource.duration === STILLS_LENGTH) {
     autoSetSource = null;
   }
@@ -178,11 +164,10 @@ async function recieveSources(request, sendResponse) {
   }
 
   /**
-   * A detected stream as a source, with the qualities its page's player offers it in
-   * (page-qualities.js). The one played is the quality the user's setting asks for: the page
-   * asked for its own default, the lowest on a film site's hoster.
-   * @param {SentSource} s - The stream, as the background sent it.
-   * @param {boolean} played - Whether it is the one the player plays.
+   * A detected stream as a source, with its page's qualities (page-qualities.js); the played one is at
+   * the user's quality setting, not the page's default.
+   * @param {SentSource} s
+   * @param {boolean} played
    * @return {VideoSource}
    */
   const toVideoSource = (s, played) => {
@@ -210,8 +195,7 @@ async function recieveSources(request, sendResponse) {
 
   const fullscreenState = continuationOptions.fullscreenState;
   if (fullscreenState === 'fullscreen') {
-    // Firefox refuses a fullscreen nobody clicked for (the page went on by itself), and the
-    // episode played windowed: the browser window goes fullscreen instead.
+    // Firefox refuses a fullscreen nobody clicked for: the browser window goes fullscreen instead.
     /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.carryFullscreen();
   } else if (fullscreenState === 'pip') {
     /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.pipToggle(true);
@@ -219,10 +203,8 @@ async function recieveSources(request, sendResponse) {
     /** @type {FastStreamWindow} */ (window).fastStream.interfaceController.toggleWindowedFullscreen(true);
   }
 
-  // The keyboard into this player after FastStream went on to it by itself (his report,
-  // F, Space and the arrows did nothing on the next episode until a click in the
-  // player; the page had the keyboard). Only then, and not while the user types in the page
-  // or looks at another tab (the background asks the page: PAGE_TYPING; the reviews).
+  // After an automatic continuation the keyboard comes to this player,
+  // not while the user types in the page or looks at another tab (PAGE_TYPING).
   if (continuationOptions.autoPlay && EnvUtils.isExtension()) {
     chrome.runtime.sendMessage({type: MessageTypes.REQUEST_KEYBOARD}, (mayTake) => {
       void chrome.runtime.lastError;
@@ -230,8 +212,7 @@ async function recieveSources(request, sendResponse) {
     });
   }
 
-  // Last: fetching and sorting subtitles may take a while, and the steps above are the ones the
-  // user waits for.
+  // Subtitles last: the steps above are the ones the user waits for.
   if (subs) {
     subs = await loadSubtitles(subs);
     subs = await sortSubtitles(/** @type {SubtitleData[]} */ (subs));
@@ -258,7 +239,7 @@ async function recieveSources(request, sendResponse) {
 
 /**
  * Sorts the subtitles by their language's match score, best first.
- * @param {SubtitleData[]} subs - The subtitles; each gets a score for its language here.
+ * @param {SubtitleData[]} subs
  */
 async function sortSubtitles(subs) {
   if (!EnvUtils.isExtension() || !chrome?.i18n?.detectLanguage) {
@@ -274,8 +255,7 @@ async function sortSubtitles(subs) {
   await Promise.all(subs.map((sub) => {
     return /** @type {Promise<void>} */ (new Promise((resolve, reject)=>{
       chrome.i18n.detectLanguage(sub.data, (result) => {
-        // An error (runtime.lastError) answers with no result: thrown here, the promise never
-        // settled, and the sources were never answered.
+        // An error (runtime.lastError) answers with no result: reject, or the sources are never answered.
         if (!Array.isArray(result?.languages)) {
           void chrome.runtime.lastError;
           sub.score = 0;
@@ -314,8 +294,7 @@ async function loadOptions() {
   try {
     OPTIONS = await Utils.getOptionsFromStorage();
     /** @type {FastStreamWindow} */ (window).fastStream.setOptions(OPTIONS);
-    // Marked for tests: the client exists before its options do, and the first
-    // ones can be clobbered by this call seconds after a test forced them.
+    // Marked for tests: these options can overwrite ones a test forced.
     /** @type {FastStreamWindow} */ (window).fastStream.optionsApplied = true;
   } catch (e) {
     console.error(e);
@@ -338,8 +317,7 @@ async function setup() {
       isExt: true,
       parentFrameId: urlParams.has('parent_frame_id') ? parseInt(/** @type {string} */ (urlParams.get('parent_frame_id'))) : undefined,
     }).then((data) => {
-      // Nor once the client went (beforeunload) before the background answered: its answer
-      // then threw on the missing client.
+      // Nor once the client went (beforeunload) before the background answered.
       if (!data || !window.fastStream) {
         return;
       }
@@ -355,7 +333,6 @@ async function setup() {
       });
     });
   } else {
-    // if in iframe, require interaction
     if (window.self !== window.top) {
       window.fastStream.setNeedsUserInteraction(true);
     }
@@ -364,9 +341,7 @@ async function setup() {
   const version = window.fastStream.version;
   Utils.printWelcome(version);
 
-  // Tells the background this player's frame is gone, once. Only the extension has a
-  // background page that tracks its frames; the web build has no chrome object to reach
-  // for, and reaching for one here threw on every unload.
+  // Tells the background once that this frame is gone; only the extension has a background.
   let frameRemovedSent = false;
   const sendFrameRemoved = () => {
     if (frameRemovedSent || !EnvUtils.isExtension()) {
@@ -378,21 +353,14 @@ async function setup() {
     });
   };
 
-  // Firefox fires beforeunload for navigations that never happen too: a link answered with
-  // a download or a 204, a "Leave page?" answered Stay (content.js has the same). The client
-  // goes at beforeunload all the same, before Firefox decides on the back-forward cache: a
-  // live player keeps the page out of it. The player left dead in a page that stayed loads
-  // again a moment later, at the second it was at (the page's faststream-timestamp), once
-  // content.js has named its page again (LeaveSettledMs); a page that really goes clears it.
-  // Only a player in a page's frame: a player tab's own leave is the user's (an address typed
-  // there), and loading again there would cancel a navigation that took over StayedMs.
+  // Firefox fires beforeunload for navigations that never happen (a download, a 204, "Leave page?" Stay).
+  // A page-frame player left dead loads again at its second; a player tab's own leave is the user's.
   const StayedMs = 3000;
   /** @type {any} */
   let stayTimer = null;
   const tearDown = () => {
     if (window.fastStream) {
-      // Its buffer to the next player of this video on this page, a reload's (BufferStash).
-      // For a navigation that never happens too: the player loads again below, and takes it back.
+      // Its buffer to this video's next player on this page (BufferStash); taken back if it loads again.
       window.fastStream.handOffBuffer();
       window.fastStream.destroy();
       delete window.fastStream;
@@ -416,10 +384,7 @@ async function setup() {
       window.location.replace(url.toString());
     }, StayedMs);
   });
-  // A page that takes the player's iframe out itself (a re-render) runs no beforeunload
-  // in it, and the background kept the frame as a player's: it dropped that frame's
-  // streams and opened no player on the page, until a navigation. The document's
-  // pagehide still runs. Not a persisted one: that page is only hidden, and may come back.
+  // A page that removes the player's iframe runs no beforeunload in it; pagehide still runs.
   window.addEventListener('pagehide', (e) => {
     clearTimeout(stayTimer);
     stayTimer = null;
@@ -428,24 +393,17 @@ async function setup() {
       sendFrameRemoved();
     }
   });
-  // The client went at beforeunload, which also comes for a page Firefox then keeps in the
-  // back-forward cache (gone first, the page can be cached: a live player kept it out).
-  // Back then gave back a player without its client: dead. One in a page that embeds it
-  // starts again; one that content.js put in a page is taken down with the page's own
-  // REMOVE_PLAYERS (its URL has the opener), and a player tab is never cached.
+  // Back from the back-forward cache, the client is gone (it went at beforeunload):
+  // a player the page embeds starts again; content.js's go with the page's REMOVE_PLAYERS.
   window.addEventListener('pageshow', (e) => {
     if (e.persisted && !window.fastStream && !new URLSearchParams(window.location.search).has('opener')) {
       window.location.reload();
     }
   });
 
-  // A source in the address (#url, with faststream-headers) is taken only in a tab of
-  // its own: the extension puts one there when you open a stream URL (the redirect rule
-  // is main_frame only), and never in the player iframes it adds to pages. A player
-  // inside a page with a hash was framed by that page, which could hand it made-up
-  // headers (for mpv, or for the header rules on its own requests). A page can open the
-  // player in a tab too (window.open): the address's headers and mode count only with the
-  // redirect rule's key (AddressKey.mjs); without it the player plays the bare URL.
+  // A source in the address (#url) is taken only in the player's own tab: a page that frames it
+  // could hand it made-up headers.
+  // In a tab a page opened, its headers and mode count only with the redirect rule's key (AddressKey.mjs).
   if (window.location.hash && (!EnvUtils.isExtension() || window.top === window)) {
     const url = window.location.hash.substring(1);
     const ext = URLUtils.get_url_extension(url);
@@ -466,7 +424,6 @@ async function setup() {
   }
 
   if (!EnvUtils.isExtension()) {
-    // if not extension context then use iframe messager
     window.addEventListener('message', (e) => {
       if (e.origin !== window.location.origin) return;
 
@@ -484,9 +441,7 @@ setup().catch((e)=>{
 });
 
 // SPLICER:EXTENSION:REMOVE_START
-// Detect wave extension and fix positioning so it works
-// Watch for an iframe element added to body with an id wave_sidebar_container
-// When it is added, move the player to the right
+// The wave accessibility extension's sidebar: the player moves aside for it.
 const observer = new MutationObserver((mutations) => {
   mutations.forEach((mutation) => {
     mutation.addedNodes.forEach((/** @type {Node} */ node) => {

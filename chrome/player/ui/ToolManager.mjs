@@ -146,14 +146,12 @@ export class ToolManager {
       DOMElements.previousVideo.classList.add('hidden');
     }
 
-    // The next button only with a next video; the autoplay switch always (his wish, 2026-10-11:
-    // it went with the next button, and was never there where FastStream found no next link).
+    // The next button only with a next video; the autoplay switch always.
     DOMElements.nextVideo.classList.toggle('hidden', !this.client.hasNextVideo());
     // The keyboard's next- and previous-track keys go where those buttons go.
     this.mediaKeys.update();
 
-    // The audio-track list's button: only where there is a track to choose (2026-10-10; it
-    // opened the audio settings until they went).
+    // The audio-track list's button: only where there is a track to choose.
     DOMElements.audioTracksBtn.classList.toggle('hidden', !this.interfaceController.audioQualityChanger?.hasChoice);
 
     const toolSettings = this.client.options.toolSettings;

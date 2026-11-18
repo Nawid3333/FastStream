@@ -1,8 +1,8 @@
 // @ts-check
 
 // Which title a subtitle search means, and how to ask for that title's subtitles
-// (OpenSubtitlesSearch). Measured against the OpenSubtitles REST API (2026-10-09, the answers
-// are in tests/unit/fixtures/opensubtitles):
+// (OpenSubtitlesSearch). Measured against the OpenSubtitles REST API (the answers are in
+// tests/unit/fixtures/opensubtitles):
 // - A text search for subtitles mixes titles: for "oppenheimer" in German a 2025 documentary came
 //   first and the film's most downloaded subtitle was not in the first 8; for "titanic" the 1997
 //   film was not in the first 50 (Titane, The Titan, Titanic 1953 were). For "the bear" S02E03

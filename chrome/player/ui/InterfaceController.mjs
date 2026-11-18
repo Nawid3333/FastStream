@@ -459,10 +459,9 @@ export class InterfaceController {
     });
 
     // Holding the video plays it at twice the speed until the press ends (PressTracker: let go
-    // anywhere, or ended without a release) or the pointer leaves the video. It ended only at
-    // the next click or a mouseleave: with the window switched while the video was held, the
-    // mouseup went to the other window, and the video played on at twice the speed (measured,
-    // 2026-10-28). A hold is no click: its release neither plays nor pauses.
+    // anywhere, or ended without a release) or the pointer leaves the video: with the window
+    // switched during the hold, the mouseup goes to the other window. A hold is no click: its
+    // release neither plays nor pauses.
     /** @type {any} */
     let holdTimeout = null;
     /** @type {any} */
