@@ -1661,7 +1661,10 @@ export function launchDirect(mpvPath, args) {
       });
       child.unref();
 
-      // A moment for mpv to fail on a bad path or a refused option, which plays nothing.
+      // Give mpv a moment to fail on a bad path/exec so the extension can
+      // surface the error, but do not wait for full playback start. An mpv that
+      // quits within it (an option it refuses, a broken install) played nothing,
+      // as the WMI path's FOCUS=gone.
       const timer = setTimeout(() => resolve({ok: true, pid: child.pid}), 500);
       child.once('error', (err) => {
         clearTimeout(timer);
