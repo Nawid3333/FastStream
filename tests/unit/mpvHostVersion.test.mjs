@@ -28,8 +28,8 @@ const installerFile = path.join(root, 'native-host/install.ps1');
 // chrome/background/MpvBackend.mjs with it when the extension needs the new host; then put
 // the new values here (a failure prints the hashes).
 const RECORDED = {
-  version: 24,
-  host: '21b9e4cf07031f2f2066e6baf743c46bce4b7db39d4a34e506759c3b19aeda7e',
+  version: 25,
+  host: 'e863a28d0cb56300a81c37287b47a608497514a40cc0d4c2a16830494b5d5504',
   installer: 'db3b8027b508556b8af66eb4b8188460c2a5a6e1feb32d32b490f2e234b29b3a',
 };
 
