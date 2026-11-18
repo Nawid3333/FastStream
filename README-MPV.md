@@ -120,7 +120,7 @@ FastStream settings → **MPV Mode**:
 Open a video on an allowlisted site — mpv takes over automatically. On any
 other site, the player's toolbar has an **Open this stream in mpv** button
 next to the download button. Right-click that button to cycle a per-video
-override — Auto → Anime → Movie → Auto — shown as a small A/M badge; it wins
+override — Auto → Anime → Movie → Native → Auto — shown as a small A/M/N badge; it wins
 over the allowlist tag for that one video.
 
 On any site, the MPV shortcut (**Alt+F**; you can change it in Firefox's
