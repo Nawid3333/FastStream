@@ -1300,9 +1300,15 @@ hoster hides it three ways, all common among streaming hosters:
   `text/plain; charset=utf-8`, body `#EXTM3U ... #EXT-X-STREAM-INF`. Detection went by the
   address, the custom source patterns and the Content-Type only, so it was ignored.
   Fix: a blocking `onHeadersReceived` listener (types `xmlhttprequest` and `other` only) reads
-  the first bytes of a 200 GET answered `text/plain`, `application/octet-stream`,
-  `binary/octet-stream`, `application/binary` or without a type, at an address that is no
-  script, style, image, font, page or segment (`worthSniffing`). It uses Firefox's
+  the first bytes of a 200 GET of any type but those no manifest comes as (`video/*`,
+  `audio/*`, JSON, `application/mp4`, wasm, PDF, zip, event streams, multipart), at an address
+  that names no segment or module (`.ts`, `.m4s`, `.mp4`, `.webm`, `.json` ...)
+  (`worthSniffing`). First (#765) only `text/plain`, octet-stream and no type were read; widened
+  the same day, as hosters also call a playlist `text/html` or an image, name it `.js` or
+  `.png`, and serve an MPD as `application/xml` or `text/xml` from `/api/manifest?id=7`. A
+  page's, script's or image's own load (type `main_frame`, `script`, `image`) is never read:
+  only a player's fetch is. A non-manifest is let go at its first bytes (`<html`, `{`, `GIF8`).
+  It uses Firefox's
   `webRequest.filterResponseData`: every byte is passed on unchanged, and the filter lets go as
   soon as the bytes tell (`ManifestSniffer.mjs`; at most 1 KB, 10 s for a trickle). HLS needs
   `#EXTM3U` and an `#EXT-X-` tag: an IPTV channel list or a Winamp `.m3u` starts with `#EXTM3U`
@@ -1331,6 +1337,17 @@ hoster hides it three ways, all common among streaming hosters:
   downloaded twice (230 extra 0.9 MB fetches in under two minutes). `refuses()` now reads the
   first bytes through a clone: a page starts with `<` after blanks and a byte order mark, and a
   refusal in words or JSON has only text bytes in its first 16; media has control bytes there.
+
+**Frames with no address of their own.** A player script often builds its frame itself: an
+`<iframe>` without `src` that it writes into (`about:blank`), or one with `srcdoc`. Firefox
+injects content scripts there only with `match_about_blank` (its schema: "about:blank and
+about:srcdoc frames if your extension has access to its parent document"); without it the
+background found the video's stream but had no content script in that frame to open the player
+in ("Receiving end does not exist"). Set on the `<all_urls>` entry since 2026-11-18.
+`match_origin_as_fallback` (also data: and blob: frames, sandboxed ones) is not set: Firefox
+ignores `match_about_blank` when it is present, and no measured page needed it yet.
+`tests/e2e/ext-specs/hidden-streams.e2e.mjs` drives all of the above on the installed extension;
+against 1.3.82.215 the DASH, about:blank and srcdoc cases fail, the HLS one passes (#765).
 
 mpv (0.42, ffmpeg's HLS demuxer) refuses the same playlist on its own: "Not detecting
 m3u8/hls with non standard extension and non standard mime type". `--demuxer-lavf-format=hls`

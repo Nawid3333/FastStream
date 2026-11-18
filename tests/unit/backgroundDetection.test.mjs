@@ -710,13 +710,13 @@ describe('a manifest only its first bytes tell', () => {
     expect(sources[0].headers).toEqual([{name: 'Referer', value: 'https://site.test/'}]);
   });
 
-  it('is nothing when its first bytes are not, and nothing is read of a script or a named stream', async () => {
+  it('is nothing when its first bytes are not, and nothing is read of a segment or a named stream', async () => {
     const {open, opened} = filters();
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}], filterResponseData: open});
     await bg.frameAdded(1, 0, PAGE, 'page-1');
     const api = await bg.request({tabId: 1, url: 'https://cdn.test/api/7'}, TEXT);
     opened.get(api.requestId).ondata({data: new TextEncoder().encode('{"ok":true}').buffer});
-    await bg.request({tabId: 1, url: 'https://cdn.test/app.js'}, TEXT);
+    await bg.request({tabId: 1, url: 'https://cdn.test/v/seg-1.ts'}, TEXT);
     await bg.request({tabId: 1, url: 'https://cdn.test/v/master.m3u8'}, TEXT);
     expect([...opened.keys()]).toEqual([api.requestId]);
     await bg.wait(10);

@@ -77,16 +77,17 @@ export function classifyResponse(details, first, matcher) {
   return {kind: 'source', mode};
 }
 
-// Types a server gives a manifest it does not name, and none at all.
-const UNNAMED_TYPES = ['', 'text/plain', 'application/octet-stream', 'binary/octet-stream', 'application/binary'];
-// Never a manifest, whatever their Content-Type says.
-const NOT_MANIFEST_EXTENSIONS = ['js', 'mjs', 'json', 'css', 'html', 'htm', 'svg', 'png', 'jpg', 'jpeg', 'gif', 'webp',
-  'avif', 'ico', 'woff', 'woff2', 'ttf', 'wasm', 'ts', 'm4s', 'mp4', 'aac', 'mp3'];
+// Types no manifest comes as: a disguised one comes as any other (text/plain, text/html, application/xml for
+// an MPD, image/png, a font).
+const NOT_MANIFEST_TYPES = /^(video|audio)\/|^application\/(json|[\w.+-]*\+json|mp4|wasm|pdf|zip)$|^text\/event-stream$|^multipart\//;
+// A segment or a module by its name: thousands of them a film, never a manifest.
+const NOT_MANIFEST_EXTENSIONS = ['ts', 'm4s', 'mp4', 'm4v', 'm4a', 'aac', 'mp3', 'webm', 'wasm', 'json'];
 export const SNIFF_BYTES = 1024;
 
 /**
  * Whether a response classifyResponse ignored can still be a manifest only its first bytes tell:
- * a player's 200 fetch of a type a server gives an unnamed playlist (text/plain, octet-stream).
+ * a player's 200 fetch (XHR or fetch(), never a page, image or script load) of any type a manifest
+ * can be disguised as.
  * @param {{url: string, statusCode: number, method?: string, type?: string,
  *   responseHeaders?: Array<{name: string, value?: string}>}} details
  * @return {boolean}
@@ -94,7 +95,7 @@ export const SNIFF_BYTES = 1024;
 export function worthSniffing(details) {
   if (details.statusCode !== 200 || (details.method && details.method !== 'GET')) return false;
   if (details.type !== 'xmlhttprequest' && details.type !== 'other') return false;
-  if (!UNNAMED_TYPES.includes(contentTypeOf(details.responseHeaders))) return false;
+  if (NOT_MANIFEST_TYPES.test(contentTypeOf(details.responseHeaders))) return false;
   return !NOT_MANIFEST_EXTENSIONS.includes(URLUtils.get_url_extension(details.url));
 }
 
