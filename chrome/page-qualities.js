@@ -1,23 +1,8 @@
 // @ts-check
-// The qualities a page's own player offers as files of their own (one MP4 per resolution), for
-// content.js. The page asks for one of them - its player's default, often the lowest - and that
-// one request is all FastStream used to see: its player showed one quality and played that, and
-// MPV mode sent it (a film site's hoster: Playerjs with `default_quality: "360p"` and
-// `file: "[360p]url,[720p]url,[1080p]url"`, his report 2026-10-12). HLS and DASH need none of
-// this: their master playlist lists the qualities.
-//
-// Read from what the page itself holds, never guessed: the <source> lists players build their
-// menus from (Plyr's size, Video.js's label/res, Fluid Player's title, OpenPlayerJS's and
-// MediaElement's data-quality), Artplayer's instances (option.quality), JW Player's playlist
-// item (sources with labels), a DPlayer kept in a page variable (options.video.quality), and
-// Playerjs's file string in the page's scripts. A list counts only when it holds two or more
-// files; which list is the stream's is decided by the background, by the URLs.
+// The qualities a page's own player offers as separate files, for content.js.
 // eslint-disable-next-line no-unused-vars
 const PageQualities = (() => {
-  /**
-   * One quality of a list: its file, its label as the page shows it, its height in pixels.
-   * @typedef {{url: string, label: string, height: number}} Quality
-   */
+  /** @typedef {{url: string, label: string, height: number}} Quality */
   // Where players keep a <source>'s quality.
   const LABEL_ATTRIBUTES = ['label', 'size', 'res', 'data-quality', 'data-res', 'data-label', 'data-size',
     'data-height', 'title', 'quality'];
@@ -31,15 +16,13 @@ const PageQualities = (() => {
    */
   function heightOf(label) {
     const text = String(label ?? '').trim();
-    // A size, "1920x1080": its second number. The first was taken, the width (glm's review,
-    // 2026-10-13).
+    // A size, "1920x1080": its second number.
     const size = /(?<!\d)\d{3,4}\s*[x×]\s*(\d{3,4})(?!\d)/i.exec(text);
     if (size) {
       const height = parseInt(size[1], 10);
       if (height >= 100 && height <= 4320) return height;
     }
-    // Not a number that ends a word or a version: a codec's, "H264", "H.264", "x265", went
-    // for the height.
+    // Not a number that ends a word or a version: a codec's ("H264", "x265").
     const digits = /(?<![\w.])(\d{3,4})\s*[pP]?(?!\d)/.exec(text);
     if (digits) {
       const height = parseInt(digits[1], 10);
@@ -72,9 +55,7 @@ const PageQualities = (() => {
   }
 
   /**
-   * A label as plain text. Artplayer's are HTML ("<b>1080P</b>"). Tags are taken out until none
-   * is left - one pass made "<scr<b>ipt>" into "<script>" (CodeQL
-   * js/incomplete-multi-character-sanitization) - and then any '<' or '>' still there.
+   * A label as plain text (Artplayer's are HTML). Tags go in a loop: one pass left "<scr<b>ipt>" a tag.
    * @param {*} label
    * @return {string}
    */
@@ -102,8 +83,7 @@ const PageQualities = (() => {
       if (!url || list.some((e) => e.url === url)) continue;
       const label = plainLabel(entry.label);
       list.push({url, label, height: heightOf(label)});
-      // No quality menu, whatever comes after: a page of 50,000 <source> elements had each
-      // compared with all before it, minutes on the page's main thread.
+      // Early: each entry is compared with all before it.
       if (list.length > MAX_ENTRIES) return null;
     }
     return list.length >= 2 ? list : null;
@@ -138,7 +118,6 @@ const PageQualities = (() => {
     const lists = [];
     for (const media of doc.querySelectorAll('video')) {
       const sources = media.querySelectorAll('source');
-      // More than a menu holds: none is read (each read goes through Xray, on the page's thread).
       if (sources.length > MAX_ENTRIES * 4) continue;
       const entries = [];
       for (const source of sources) {
@@ -215,8 +194,7 @@ const PageQualities = (() => {
   }
 
   /**
-   * The lists the page's player objects hold. `page` is the page's own window (the content
-   * script's window.wrappedJSObject in Firefox).
+   * The lists the page's player objects hold. `page` is window.wrappedJSObject.
    * @param {*} page
    * @param {string} base
    * @return {Array<Array<Quality>>}

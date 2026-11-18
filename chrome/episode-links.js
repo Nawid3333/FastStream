@@ -1,17 +1,8 @@
 // @ts-check
-// The next (or the previous) episode of a series page, for content.js: the autoplay and the
-// player's next and previous buttons (on as many sites as possible).
-// Pure - what a link says, and which addresses this page's episode number +1 (or -1) would
-// have; content.js looks for them among the page's links.
-//
-// Measured first: content.js knew an English "next" or "next episode" link, the
-// neighbour of this page's link in a list, and "Episode N" lists. A German "Nächste Folge",
-// an icon link with only an aria-label, and the plain .../episode-12 -> .../episode-13 of
-// most hosters went unseen.
+// The next or previous episode of a series page, for content.js. Pure: no DOM.
 // eslint-disable-next-line no-unused-vars
 const EpisodeLinks = (() => {
-  // An episode phrase: "next episode" in the languages FastStream speaks and the ones its
-  // sites are in. Lower case, single spaces.
+  // "Next episode" phrases: lower case, single spaces.
   const EPISODE = {
     next: ['next episode', 'next ep', 'nächste folge', 'nächste episode', 'épisode suivant',
       'épisode suivante', 'episode suivant', 'siguiente episodio', 'episodio siguiente', 'próximo episódio',
@@ -36,10 +27,7 @@ const EpisodeLinks = (() => {
   };
   // A page of a list, not an episode: "next page", "nächste Seite", 下一页...
   const PAGE = /\b(page|seite|página|pagina|pagine|strona|stron|sayfa|halaman)\b|страниц|ページ|页|頁|페이지/i;
-  // Arrows and marks around a link's words ("Next episode »", "‹ Zurück"), and the space left
-  // of whitespace once it is collapsed. Each is one UTF-16 unit. Taken off both ends by a loop:
-  // a regex anchored at the end (`[…]+$`) was quadratic in a run of them inside a text, a
-  // second for 60,000 dashes, at every poll for the next episode.
+  // Stripped by a loop, not a `[…]+$` regex: that is quadratic in a long run of marks.
   const MARKS = new Set(' «»‹›<>←→⟨⟩❮❯|·•…:-–—');
 
   /**
@@ -55,10 +43,7 @@ const EpisodeLinks = (() => {
   }
 
   /**
-   * Lower case, single spaces, no arrows at either end. The same in every locale, with the
-   * Turkish i's as a plain i: in a Turkish Firefox "NEXT EPISODE" became "next epısode", and
-   * in any, "SONRAKİ BÖLÜM" became "sonraki̇ bölüm", with a dot added (glm's review,
-   * 2026-10-13). No phrase above has a dotless ı of its own.
+   * Lower case, single spaces, no arrows at either end; Turkish i's as a plain i in every locale.
    * @param {*} text
    * @return {string}
    */
@@ -68,9 +53,7 @@ const EpisodeLinks = (() => {
   }
 
   /**
-   * How surely a link's words mean the next (or the previous) episode: 2 an episode phrase
-   * ("Nächste Folge", also with a number or a title after it), 1 a bare word ("weiter"), 0
-   * neither, or a page of a list.
+   * 2 an episode phrase ("Nächste Folge"), 1 a bare word ("weiter"), 0 neither or a list's page.
    * @param {*} text - Its text, aria-label or title.
    * @param {boolean} isNext
    * @return {number}
@@ -88,8 +71,7 @@ const EpisodeLinks = (() => {
   }
 
   /**
-   * A path as its words read: an address gives "épisode" or "bölüm" percent-encoded. Reserved
-   * characters (%2F) stay encoded.
+   * The path decoded ("épisode" comes percent-encoded); reserved characters (%2F) stay encoded.
    * @param {URL} url
    * @return {string}
    */
@@ -102,10 +84,7 @@ const EpisodeLinks = (() => {
   }
 
   /**
-   * Where the run of digits at `at` in the readable path is in the address's own path, so a
-   * changed number keeps the page's own encoding (%c3%a9 stays lower case, %27 stays encoded)
-   * and still equals the page's links: the same run counted from the start, the hex digits of
-   * escapes not counted.
+   * Where the digit run at `at` in the readable path is in the raw path.
    * @param {string} raw - url.pathname.
    * @param {string} path - readablePath of it.
    * @param {number} at
@@ -121,10 +100,7 @@ const EpisodeLinks = (() => {
   }
 
   /**
-   * The addresses this page's episode would have one episode on (or back), surest first: the
-   * number after an episode word (episode-12, folge12, ep_12), S01E12, 1x12, an ep= in the
-   * query, then the path's last number (/watch/12). Only the number changes, so the series
-   * stays the same; zero padding is kept (ep-09 -> ep-10, 007 -> 008).
+   * The addresses one episode on (or back), surest first. Only the number changes; padding stays.
    * @param {string} href - This page.
    * @param {boolean} isNext
    * @return {Array<string>} Absolute, without the #.
@@ -140,8 +116,7 @@ const EpisodeLinks = (() => {
     const step = isNext ? 1 : -1;
     /**
      * @param {string} digits
-     * @return {string[]} The number one on, padded as it was; one back from 10 also as 09, as a
-     *   site that pads writes it.
+     * @return {string[]} The number one on, padded as it was; one back from 10 also as 09.
      */
     const bump = (digits) => {
       const n = parseInt(digits, 10) + step;
@@ -192,28 +167,20 @@ const EpisodeLinks = (() => {
     return out;
   }
 
-  // A season in an address ("staffel-3", "season_2").
   const SEASON = '(?:staffel|season|saison|temporada|stagione|seizoen|sezon|sezona)';
-  // An episode in an address.
   const EPISODE_WORD = '(?:episodes?|episodio|episódio|épisode|folge|odcinek|bölüm|bolum|seriya|ep|e)';
-  // A season, an episode, or both, as a path segment names them (staffel-3, staffel-3-episode-12,
-  // episode-12, s03, S03E12, 3x12).
+  // staffel-3, staffel-3-episode-12, episode-12, s03, S03E12, 3x12.
   const SEASON_EPISODE = `(?:${SEASON}[-_.]?\\d+(?:[-_.]?${EPISODE_WORD}[-_.]?\\d+)?|s\\d{1,3}(?:[-_.]?e\\d+)?|` +
     `${EPISODE_WORD}[-_.]?\\d+|\\d{1,3}x\\d{1,4})`;
-  // A path segment that is one: what comes before the first one is the series
-  // (/anime/stream/<series>/staffel-3/episode-12).
+  // A segment that is only a season or episode: what comes before the first one is the series.
   const PART = new RegExp(`^${SEASON_EPISODE}(?:\\.[a-z0-9]+)?$`, 'iu');
-  // A segment that names the show and then its season or episode: one-piece-episode-1000,
-  // my-show-season-2-episode-5.
+  // A segment naming the show, then its season or episode: one-piece-episode-1000.
   const NAMED_PART = new RegExp(`^(.+?[-_])${SEASON_EPISODE}(?:\\.[a-z0-9]+)?$`, 'iu');
 
   /**
-   * The part of a page's address that names its series (2026-10-11, an anime site: after a
-   * season's last episode, autoplay went to another series): the path up to its first season
-   * or episode segment, or up to the episode in a segment that names the show too.
+   * The origin and the path up to the first season or episode: the series.
    * @param {string} href - The page.
-   * @return {?string} The origin and that path, or null for an address with no season or
-   *   episode in it (/watch/12345), where the series cannot be told.
+   * @return {?string} Null where the address names no season or episode (/watch/12345).
    */
   function seriesOf(href) {
     let url;
@@ -233,9 +200,7 @@ const EpisodeLinks = (() => {
   }
 
   /**
-   * Whether an address is an episode or a season of a series (seriesOf): its own series is
-   * that one, so a sequel that only starts the same (one-piece-2/... beside
-   * one-piece-episode-1000) is not. Any address is where no series was told.
+   * Whether an address is in the series (seriesOf); any address is where none was told.
    * @param {?string} series
    * @param {string} href
    * @return {boolean}
@@ -243,8 +208,7 @@ const EpisodeLinks = (() => {
   function inSeries(series, href) {
     if (!series) return true;
     if (seriesOf(href) === series) return true;
-    // A series that is a folder (.../girls/) has its other parts in it too (.../girls/ova/...);
-    // a sequel's folder (.../girls-2/) is not in it.
+    // .../girls/ holds its other parts (.../girls/ova/); .../girls-2/ is a sequel.
     if (!series.endsWith('/')) return false;
     try {
       const url = new URL(href);
@@ -254,9 +218,7 @@ const EpisodeLinks = (() => {
     }
   }
 
-  // An address that ends in a season's episode, each the same groups (before the season's
-  // number, the season, between, the episode, after): .../staffel-3/episode-12,
-  // .../staffel-3-episode-12, .../S03E12, .../3x12.
+  // Groups: before the season's number, the season, between, the episode, after.
   const SEASON_EPISODE_ENDS = [
     new RegExp(`^(.*[/_-]${SEASON}[-_.]?)(\\d+)([/_.-]?${EPISODE_WORD}[-_.]?)(\\d+)((?:\\.[a-z0-9]+)?/?)$`, 'iu'),
     /^(.*[/_.-]s)(\d{1,3})([-_.]?e)(\d{1,4})((?:\.[a-z0-9]+)?\/?)$/i,
@@ -267,8 +229,7 @@ const EpisodeLinks = (() => {
    * The season and the episode an address names at its end.
    * @param {string} href
    * @return {?{show: string, season: number, episode: number, match: Array<string>, origin: string,
-   *   raw: string, short: boolean}} show: the address before the season's number, in lower case (the same for
-   *   each season of a series); short: an S03E12 or a 3x12, whose episodes have two digits.
+   *   raw: string, short: boolean}} show: lower case, the same in each season; short: S03E12, 3x12.
    */
   function seasonEpisode(href) {
     let url;
@@ -289,9 +250,7 @@ const EpisodeLinks = (() => {
   }
 
   /**
-   * After the last episode of a season, the next season's first: .../staffel-3/episode-12 ->
-   * the season .../staffel-4 (which the page must link, or one of its episodes) and its first
-   * episode .../staffel-4/episode-1, padded as this one is; also .../staffel-3-episode-12.
+   * After a season's last episode: .../staffel-3/episode-12 -> .../staffel-4, .../staffel-4/episode-1.
    * @param {string} href - This page.
    * @return {?{season: string, first: string}} Absolute, without the query or the #.
    */
