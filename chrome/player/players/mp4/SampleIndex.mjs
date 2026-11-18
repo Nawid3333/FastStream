@@ -203,7 +203,7 @@ export class RangeTimes {
     /**
      * Per sample list: how many samples were seen, whether they are sorted by offset, and each
      * range's time with the bounds it was worked out for.
-     * @type {WeakMap<Sample[], {count: number, sorted: boolean, ranges: Map<object, {start: number, end: number, time: ?number}>}>}
+     * @type {WeakMap<Sample[], {count: number, sorted: boolean, byOffset?: Sample[], ranges: Map<object, {start: number, end: number, time: ?number}>}>}
      */
     this.lists = new WeakMap();
   }
@@ -247,7 +247,12 @@ export class RangeTimes {
       }
     }
     if (!list.sorted) {
-      return ranges.map((range) => minTimeIn(samples, range.rangeStart, range.rangeEnd));
+      // minTimeIn searches by offset: a copy sorted by it, made again when samples come.
+      if (list.byOffset?.length !== samples.length) {
+        list.byOffset = samples.slice().sort((a, b) => a.offset - b.offset);
+      }
+      const byOffset = list.byOffset;
+      return ranges.map((range) => minTimeIn(byOffset, range.rangeStart, range.rangeEnd));
     }
     // Only the ranges asked for are kept: one the player dropped (the file's end found) is not
     // held on to, and one asked for again later is worked out again.

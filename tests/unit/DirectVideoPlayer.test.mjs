@@ -104,4 +104,31 @@ describe('DirectVideoPlayer\'s header rule', () => {
     expect(sent).toEqual([]);
     expect(player.headerRenewal).toBe(null);
   });
+
+  it('sets no source on a player destroyed while the rule was set', async () => {
+    const setting = player.setSource(source({Referer: 'https://site.test/watch'}));
+    player.destroy();
+    await expect(setting).resolves.toBeUndefined();
+    expect(player.headerRenewal).toBe(null);
+  });
+
+  it('renews one rule for a source set again while its rule was set', async () => {
+    const film = source({Referer: 'https://site.test/watch'});
+    await Promise.all([player.setSource(film), player.setSource(film)]);
+    player.destroy();
+    const before = sent.length;
+    await vi.advanceTimersByTimeAsync(HEADER_RULE_RENEW_MS * 3);
+    expect(sent).toHaveLength(before);
+  });
+
+  it('plays the later source when the earlier one\'s rule is set last', async () => {
+    const video = player.getVideo();
+    const firstRule = Promise.withResolvers();
+    globalThis.chrome.runtime.sendMessage = (message) => message.url.endsWith('/first') ? firstRule.promise : Promise.resolve();
+    const first = player.setSource(/** @type {any} */ ({url: 'https://cdn.test/v/first', headers: {Referer: 'https://site.test/watch'}}));
+    await player.setSource(/** @type {any} */ ({url: 'https://cdn.test/v/second', headers: {Referer: 'https://site.test/watch'}}));
+    firstRule.resolve();
+    await first;
+    expect(video.src).toBe('https://cdn.test/v/second');
+  });
 });

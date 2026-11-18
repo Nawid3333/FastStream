@@ -2467,3 +2467,82 @@ Rejected, with the reason:
     loop.
   - Credentials on a shared host's other tenants (`*.github.io`): Firefox's public suffix list is
     not open to extensions, and the site rule stays as it is.
+
+## The player-engine audit (2026-11-18)
+
+Two Claude API reviews (MP4Player; the other engines), Codex, and glm in eleven parts, of
+`chrome/player/players/`. Each claim was checked against the code. Fixed, each with a test that
+fails without it:
+
+- **MP4: a start time set before the metadata** (a resume, a seek preview) began segmenting at
+  the sample there, and Firefox dropped the frames up to the next keyframe. `startSegmentation`
+  seeks to the keyframe before it, as `resetHLS` does. Test: `mp4TrackEnd.test.mjs`.
+- **MP4 save of a file read range by range** said nothing of streaming, and SaveManager opened
+  no stream for `saveVideo` to write to (`canSave` gives `canStream`). A file found shorter while
+  it saves (`endsAt` drops the ranges past it) threw on the missing range; it ends there now and
+  stops the downloads it had started ahead. Tests: `mp4FileLength.test.mjs`,
+  `saveDownloadsAhead.test.mjs`.
+- **MP4 audio track chosen before the SourceBuffers exist** (at `MANIFEST_PARSED`) was ignored,
+  and the first track was set up. Test: `mp4AudioOnly.test.mjs`.
+- **A stopped or destroyed MP4 player** went on loading (`runLoad`), and `mainLoop` read the
+  video after a listener of its own event had destroyed the player. Tests:
+  `mp4FileLength.test.mjs`, `StallWatchdog.test.mjs`.
+- **DirectVideoPlayer** set `src` on a player destroyed, or given another source, while its
+  header rule was being set. Test: `DirectVideoPlayer.test.mjs`.
+- **A separate audio player handed to Firefox's own player** (PLAY_DIRECTLY) kept running; it
+  is dropped as on an error, and a refused `play()` of it is no unhandled rejection. Test:
+  `SyncedAudioPlayer.test.mjs`.
+- **DASH manifest and xlink URLs** were decoded before they were fetched: a signed link's `%25`
+  became `%`, another URL. They are fetched as dash.js has them. Test: `DashLoader.test.mjs`.
+- **DASH failures** were counted per representation and index, which start again in each period:
+  the next period's segment failing once was taken for its third failure. They are counted per
+  segment's bytes. Test: `DashLoader.test.mjs`.
+- **An open byte range** ("first-", which a DASH `mediaRange` may be) had a NaN end: no Range
+  header was sent and the file from its first byte came back as the range. It goes as
+  `bytes=first-`, and a server that ignores Range has the rest of the file cut out. Tests:
+  `DashLoader.test.mjs`, `FetchLoader.test.mjs`.
+- **HLS AES key failure** while nothing awaited it (a segment aborted, or answered from the
+  store) was an unhandled rejection. Test: `HLSDecrypt.test.mjs`.
+- **HLS live segment tokens:** a stored segment not downloaded yet kept the URL of the playlist
+  that first listed it; a live playlist renews its tokens, and the old one may have expired. It
+  takes the latest URL while it is waiting. Test: `HLSFragmentStore.test.mjs`.
+- **MP4 sample times for ranges** of a file whose samples are not in offset order searched the
+  unsorted list. A copy sorted by offset is searched. Test: `SampleIndex.test.mjs`.
+- **The remembered audio codec** was the exact string of the last hand pick: picking HE-AAC
+  (`mp4a.40.5`) held every later pick, on every site, to that profile. It is matched by family.
+  Test: `decodingAwareQuality.test.mjs`.
+- **A separate audio MP4 player destroyed inside its own append** (its PLAY_DIRECTLY, answered
+  by SyncedAudioPlayer at once) went on with the range: held it for good, or threw on the gone
+  mp4box. Test: `mp4FileLength.test.mjs`.
+- **A whole save of a file whose length is not known yet** (a 206 without Content-Range) wrote
+  the ranges made so far and said it was complete. Such a player says `onlyLoaded`, and
+  SaveManager saves what is loaded, after the partial save's question. Test:
+  `SaveManager.test.mjs`.
+- **DirectVideoPlayer** given the same source twice while its header rule was set started two
+  renewals, one never stopped. Test: `DirectVideoPlayer.test.mjs`.
+
+Rejected:
+
+- A DASH segment failing for good raising ERROR twice: dash.js's own error after the start is
+  not the player's (`isCurrentAttempt`, DashErrors).
+- Codecs of an unknown family resetting dash.js for ever: Firefox's MSE refuses those codecs
+  before they reach the decoder, and dash.js filters them.
+- HLS `forgetPassed` walking from 0 each refresh: negligible next to the playlist parse.
+- The decrypter failing pending decrypts at destroy: the entry fails and is downloaded anew.
+- Short 206 bodies taken as whole: Firefox fails a transfer cut short.
+- A failed decrypt storing a detached buffer: a post-processor that throws fails the entry,
+  and nothing is stored.
+- Low-latency HLS parts answered with whole segments: `lowLatencyMode` is off.
+- An HLS loader reused without an abort: hls.js makes a new loader for each load.
+- An HLS save declaring audio it has no init segment for: the merger is given none, and the
+  remuxer reads the audio side only with its init segment.
+- DASH representation ids repeated across AdaptationSets: the standard makes them unique
+  within a Period.
+- Save cancels overwriting each other: SaveManager chains every registered cancel.
+- Dropped-frame samples spanning a hidden tab: a hidden tab is not steady, and that clears them.
+- A save's fetcher retrying aborts for ever after a source change: resetPlayer cancels the save
+  first.
+- Live DASH storing fragments at indexes near now / segment duration: extraction gets no
+  segments of a `$Number$` template (dash.js lists from index 0, which a live stream no longer
+  has, and the patched `getAllSegments` gives none past 100000), and a SegmentTimeline's indexes
+  count within the listed window. Requests for the rest go through the loader's fallback.

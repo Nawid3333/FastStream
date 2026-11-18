@@ -366,3 +366,19 @@ describe('StallWatchdog', () => {
     expect(bufferedAhead(video.buffered, 5)).toBe(0);
   });
 });
+
+describe('MP4Player\'s main loop and its watchdog', () => {
+  it('stops at once when a listener of the watchdog\'s error destroyed the player', async () => {
+    const {default: MP4Player} = await import('../../chrome/player/players/mp4/MP4Player.mjs');
+    const player = Object.create(MP4Player.prototype);
+    Object.assign(player, {
+      running: true, needsInit: false, loopTimeout: null, currentFragments: [], mediaSource: null, loader: null,
+      video: {readyState: 4, ended: false, paused: false, seeking: false, pause() {}, removeAttribute() {}, load() {}},
+      durationSync: {apply() {}, clear() {}}, runLoad: vi.fn(), checkEndOfStream: vi.fn(), emit: vi.fn(),
+      // Stuck: the client, told so, destroys the player.
+      stallWatchdog: {check: () => player.destroy()},
+    });
+    expect(() => player.mainLoop()).not.toThrow();
+    expect(player.loopTimeout).toBe(null);
+  });
+});

@@ -363,6 +363,19 @@ describe('picking audio', () => {
     expect(manager().pickAudioLevel(levels).id).toBe('b');
   });
 
+  it('takes the codec picked by hand by its family, the higher bitrate within it', () => {
+    const m = manager();
+    m.prioritizedAudioCodec = 'mp4a.40.5';
+    const levels = [
+      audio('he-aac', {audioCodec: 'mp4a.40.5', bitrate: 64000}),
+      audio('aac', {audioCodec: 'mp4a.40.2', bitrate: 192000}),
+      audio('opus', {audioCodec: 'opus', bitrate: 256000}),
+    ];
+    expect(m.pickAudioLevel(levels).id).toBe('aac');
+    m.prioritizedAudioCodec = 'x-unknown';
+    expect(m.pickAudioLevel([...levels, audio('other', {audioCodec: 'x-unknown', bitrate: 32000})]).id).toBe('other');
+  });
+
   it('goes back to the bitrate when the option is off', () => {
     const levels = [
       audio('eac3', {audioCodec: 'ec-3', bitrate: 640000, decoding: {supported: false, smooth: false, powerEfficient: false}}),

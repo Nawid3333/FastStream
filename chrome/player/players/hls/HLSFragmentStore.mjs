@@ -74,7 +74,10 @@ export function storeLevel(client, levelDetails, identifierOf) {
     if (index < 0) {
       return;
     }
-    if (!client.getFragment(identifier, index)) {
+    const stored = /** @type {HLSFragment|undefined} */ (client.getFragment(identifier, index));
+    // One not downloaded yet takes the playlist's latest address: a live playlist renews its
+    // segments' tokens, and the first one listed may have expired by the time it is fetched.
+    if (!stored || (stored.status === DownloadStatus.WAITING && stored.canFree() && stored.hlsFrag.url !== fragment.url)) {
       client.makeFragment(identifier, index, new HLSFragment(fragment, start, end, index));
     }
     // There: the fragment at index was found or made just above.

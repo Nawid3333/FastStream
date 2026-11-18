@@ -28,7 +28,8 @@ export class DashFragment extends Fragment {
         console.error('Failed to parse range', this.request.range);
       } else {
         rangeStart = start;
-        rangeEnd = end + 1;
+        // An open end ("first-") is to the file's end: none here (FetchLoader).
+        rangeEnd = Number.isNaN(end) ? undefined : end + 1;
       }
     }
     return {

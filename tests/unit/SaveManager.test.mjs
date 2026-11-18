@@ -235,6 +235,21 @@ describe('SaveManager: a streamed save that fails', () => {
   });
 });
 
+describe('SaveManager: a file whose length is not known yet', () => {
+  it('saves what is loaded, after asking, rather than a whole file it does not have', async () => {
+    streamSaver.createWriteStream.mockReturnValue({abort: vi.fn(async () => {})});
+    const confirm = vi.spyOn(AlertPolyfill, 'confirm');
+    const saveVideo = vi.fn(async () => ({extension: 'mp4', blob: null}));
+    const player = {
+      canSave: () => ({canSave: true, isComplete: false, canStream: true, onlyLoaded: true}),
+      saveVideo,
+    };
+    await new SaveManager(makeClient(player)).saveVideo({});
+    expect(confirm).toHaveBeenCalledWith('player_savevideo_partial_confirm', 'warning');
+    expect(saveVideo.mock.calls[0][0].partialSave).toBe(true);
+  });
+});
+
 // The player's mpv button. Since the thin helper (2026-10-13) an older helper still plays the
 // stream and lacks only newer features: the owner chose no warning here for it.
 describe('SaveManager.openInMpv', () => {

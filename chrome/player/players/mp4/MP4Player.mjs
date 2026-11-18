@@ -353,8 +353,10 @@ export default class MP4Player extends EventEmitter {
       /** @type {SourceBufferWrapper} */ (this.audioSourceBuffer).appendBuffer(initSegs[ind++].buffer).catch(warnRefused);
     }
 
-    // From the keyframe before the playhead when the audio changed mid-way, as resetHLS seeks.
-    this.seekMp4box(this.currentTime, audioOnly);
+    // From the keyframe before the playhead, as resetHLS seeks: a start time set before the
+    // metadata (a resume, a seek preview) began at the sample there, and Firefox dropped the
+    // frames before the next keyframe, which the start then moved to.
+    this.seekMp4box(this.currentTime, true);
     this.mp4box.start();
   }
 
@@ -568,6 +570,8 @@ export default class MP4Player extends EventEmitter {
       }
       return;
     }
+    // Stopped, or destroyed, by a listener of an event this round emitted (the stall watchdog's).
+    if (!this.running || !this.video) return;
     // At once (1 ms, which Firefox makes 4) while something here is urgent: starting (the
     // first frame waits for the seek to the buffered start above), seeking, or out of media
     // to play. Playing with media ahead, nothing is: a range that ends starts the next itself
@@ -753,7 +757,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   runLoad() {
-    if (this.nothingToPreview || (this.metaData && !this.loaded)) return;
+    if (!this.running || this.nothingToPreview || (this.metaData && !this.loaded)) return;
 
     // A seek preview's place past the duration it knew (the setter): sought to once the
     // duration has reached it, or once the file's last range is in (a place past the end lands
@@ -925,6 +929,8 @@ export default class MP4Player extends EventEmitter {
               rest.fileStart = data.fileStart + fedBytes;
               this.mp4box.appendBuffer(rest);
             }
+            // Destroyed by a listener of what the append emitted (SyncedAudioPlayer's PLAY_DIRECTLY).
+            if (!this.mp4box) return;
             this.refreshSampleIndex();
             this.currentFragments.push(frag);
             this.rangeRetries.delete(frag);
@@ -1490,7 +1496,12 @@ export default class MP4Player extends EventEmitter {
   switchAudioTrack(index) {
     const wrapper = this.audioSourceBuffer;
     const next = /** @type {Movie} */ (this.metaData).audioTracks[index];
-    if (!wrapper || !next) return;
+    if (!next) return;
+    // Chosen at MANIFEST_PARSED, before setupHLS: the SourceBuffer is made for it.
+    if (!wrapper) {
+      this.currentAudioTrack = index;
+      return;
+    }
     const previous = /** @type {Movie} */ (this.metaData).audioTracks[/** @type {number} */ (this.currentAudioTrack)];
     this.currentAudioTrack = index;
     this.resetHLS(true);
@@ -1574,7 +1585,10 @@ export default class MP4Player extends EventEmitter {
     if (frags && !this.fileLength) {
       return {
         canSave: true,
+        canStream: true,
         isComplete: false,
+        // A whole save wrote the ranges made so far and said it was complete.
+        onlyLoaded: true,
       };
     }
     if (!frags) {
@@ -1648,6 +1662,12 @@ export default class MP4Player extends EventEmitter {
           throw new Error('Cancelled');
         }
         const frag = frags[i];
+        // Past the file's end found meanwhile (endsAt): nothing more to write.
+        if (!frag) {
+          // The ranges past it are still being fetched ahead.
+          fetcher.cancel();
+          break;
+        }
         if (!options.partialSave) {
           await fetcher.get(i);
         }
@@ -1676,8 +1696,7 @@ export default class MP4Player extends EventEmitter {
     } catch (e) {
       fetcher.cancel();
       for (let i = 0; i < lastFrag; i++) {
-        const frag = frags[i];
-        frag.removeReference(ReferenceTypes.SAVER);
+        frags[i]?.removeReference(ReferenceTypes.SAVER);
       }
       await writer.abort();
       throw e;

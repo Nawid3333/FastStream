@@ -17,12 +17,13 @@ const FIRST = 5000000;
  * A live media playlist (no EXT-X-ENDLIST) of 2 s segments.
  * @param {number} sequence - EXT-X-MEDIA-SEQUENCE.
  * @param {number} count - How many segments it lists.
+ * @param {string} [query] - What each segment's URL ends with, such as a token.
  * @return {Object} hls.js's LevelDetails, as HLSPlayer gets them.
  */
-function livePlaylist(sequence, count) {
+function livePlaylist(sequence, count, query = '') {
   const lines = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-TARGETDURATION:2', `#EXT-X-MEDIA-SEQUENCE:${sequence}`];
   for (let sn = sequence; sn < sequence + count; sn++) {
-    lines.push('#EXTINF:2,', `seg${sn}.ts`);
+    lines.push('#EXTINF:2,', `seg${sn}.ts${query}`);
   }
   const details = M3U8Parser.parseLevelPlaylist(lines.join('\n') + '\n', 'http://127.0.0.1/live/index.m3u8', 0, 'main', 0, null);
   details.trackID = 0;
@@ -107,6 +108,19 @@ describe('HLSFragmentStore, a live stream numbered from five million', () => {
     storeLevel(client, livePlaylist(FIRST + 4, 3), identifierOf);
     store = client.getFragments('0:0');
     expect([0, 1, 2, 3].some((index) => index in store)).toBe(false);
+  });
+
+  it('takes a segment\'s renewed URL while it is not downloaded, and keeps a downloaded one', () => {
+    const client = makeClient();
+    storeLevel(client, livePlaylist(FIRST, 3, '?token=old'), identifierOf);
+    const downloaded = client.getFragment('0:0', 0);
+    downloaded.status = DownloadStatus.DOWNLOAD_COMPLETE;
+    storeLevel(client, livePlaylist(FIRST, 3, '?token=new'), identifierOf);
+
+    expect(client.getFragment('0:0', 0)).toBe(downloaded);
+    expect(downloaded.getContext().url).toBe(`http://127.0.0.1/live/seg${FIRST}.ts?token=old`);
+    expect(client.getFragment('0:0', 1).getContext().url).toBe(`http://127.0.0.1/live/seg${FIRST + 1}.ts?token=new`);
+    expect(client.getFragment('0:0', 2).getContext().url).toBe(`http://127.0.0.1/live/seg${FIRST + 2}.ts?token=new`);
   });
 
   it('does not store a segment numbered before the level\'s first', () => {

@@ -96,3 +96,13 @@ describe('MP4Player for sound only', () => {
       sourceBuffers: ['audio/mp4; codecs="mp4a.40.2"'], segmented: [2]});
   });
 });
+
+describe('MP4Player, an audio track chosen before its SourceBuffer is made', () => {
+  it('makes the SourceBuffer for that track and plays it', () => {
+    // As at MANIFEST_PARSED, before setupHLS.
+    const OPUS = {id: 3, codec: 'opus'};
+    const player = playerOf({}, {videoTracks: [VIDEO], audioTracks: [AUDIO, OPUS]});
+    player.switchAudioTrack(1);
+    expect(setUp(player)).toEqual({sourceBuffers: ['video/mp4; codecs="avc1.42E01E"', 'audio/mp4; codecs="opus"'], segmented: [1, 3]});
+  });
+});
