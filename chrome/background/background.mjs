@@ -20,6 +20,7 @@ import {KeyShortcut} from './KeyShortcut.mjs';
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
 import {MpvBackend} from './MpvBackend.mjs';
 import {MpvSubtitles} from './MpvSubtitles.mjs';
+import {pageFetchIo} from './MpvHlsPackage.mjs';
 import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
 import {RuleManager} from './NetRequestRuleManager.mjs';
 import {StreamLengths} from './StreamLengths.mjs';
@@ -124,6 +125,13 @@ export const Lengths = new StreamLengths({
 export const PageSubtitles = new MpvSubtitles({
   setHeaders: (url, commands) => ruleManager.addHeaderRule(url, chrome.tabs.TAB_ID_NONE, commands),
 });
+/**
+ * @param {?Array<{name: string, value: string}>} [headers] - The stream's request headers.
+ * @return {import('./MpvHlsPackage.mjs').PackageIo}
+ */
+export function hlsPackageIo(headers) {
+  return pageFetchIo({headers, setHeaders: (url, commands) => ruleManager.addHeaderRule(url, chrome.tabs.TAB_ID_NONE, commands)});
+}
 // Content scripts share the page's event loop: a busy page would hold mpv back.
 export const CaptionScrapeWaitMs = 1000;
 // The longest a player waits for the lengths still being read.

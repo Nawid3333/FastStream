@@ -22,6 +22,25 @@ function parse(url) {
   }
 }
 
+/**
+ * url with the names of key's query it lacks; null when it lacks none or is another server's.
+ * @param {?URL} key - An address whose query its server asks of every file.
+ * @param {string} url
+ * @return {?string}
+ */
+export function withKeyOf(key, url) {
+  const target = key && parse(url);
+  if (!key || !target || target.origin !== key.origin) return null;
+  let added = false;
+  for (const [name, value] of key.searchParams) {
+    if (!target.searchParams.has(name)) {
+      target.searchParams.append(name, value);
+      added = true;
+    }
+  }
+  return added ? target.href : null;
+}
+
 export const StreamQuery = {
   /**
    * The address of the stream now played; null for none.
@@ -39,16 +58,7 @@ export const StreamQuery = {
    * @return {?string}
    */
   withQuery(url) {
-    const target = stream && parse(url);
-    if (!stream || !target || target.origin !== stream.origin) return null;
-    let added = false;
-    for (const [name, value] of stream.searchParams) {
-      if (!target.searchParams.has(name)) {
-        target.searchParams.append(name, value);
-        added = true;
-      }
-    }
-    return added ? target.href : null;
+    return withKeyOf(stream, url);
   },
 
   /**

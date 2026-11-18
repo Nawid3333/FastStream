@@ -1232,6 +1232,9 @@
     "player_mpv_page_only": {
         "message": "Cette vidéo ne se charge que par sa page, et mpv ne peut pas l'ouvrir : FastStream la lit ici."
     },
+    "player_mpv_needs_hls_helper": {
+        "message": "mpv ne peut lire ce flux qu'avec la nouvelle version de l'assistant mpv : lancez update-local.cmd dans le dossier mpv de FastStream, puis renvoyez-le."
+    },
     "mpv_episode_loading": {
         "message": "chargement dans mpv"
     },

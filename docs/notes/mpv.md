@@ -37,6 +37,38 @@ extension changes with it, so such a push releases, Firefox updates the extensio
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run.
 
+**Host 27 (2026-11-18): streams mpv cannot open alone; RequiredHostVersion stays 19.** The owner's
+report: MPV opened on 123moviesfree.net (vidsrc chain) and showed "something HTML". Measured with
+`mpv.com --no-config --vo=null` on the live playlist: ffmpeg refuses it ("Not detecting m3u8/hls with
+non standard extension and non standard mime type": `/pl/<id>?token=<jwt>`, `text/plain`), mpv then reads
+it as its own plain playlist and opens its lines `/pl/<id>/<hash>` as local paths `C:\pl\...`. With
+`--demuxer-lavf-format=hls` the variants are refused 403: every file wants the master's `?token=`, which
+ffmpeg never adds. FastStream's own player handles both (sniffing; `StreamQuery.mjs`). So the hand-off
+now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` beside its other waits):
+- *When:* a detected HLS stream whose address is not named `.m3u8`/`.m3u` and not typed HLS, or whose
+  files need the address's key (StreamQuery's rule: a 401/403 without it, a 2xx with it; probed on the
+  first media playlist and the first segment). A `.m3u8` address without a query costs no request.
+  Not for a live stream (no `#EXT-X-ENDLIST`): a file of its playlist goes stale.
+- *What:* the playlist mpv would get (the variant the quality setting picked, or the master with its
+  variants and renditions; I-frame playlists and session data left out), every address absolute and,
+  on the key's server only, keyed. Fetched with the page's Origin/Referer, never truncated (12 MB).
+- *Helper:* checks it (`checkHlsPackage`: a port of ffmpeg's attribute parser, `ff_parse_key_value`, so
+  an unquoted `URI=file:...`, one after a space or right after a quote is seen as ffmpeg sees it; no
+  backslash, no line with leading spaces; media playlists complete, addresses http(s) without
+  credentials; a master names only the package's own playlists), writes it into a fresh
+  `faststream-mpv-hls-*` temp folder with `target.txt` (the target with its fs-* tags, for mpv-config),
+  and loads the entry with `demuxer=lavf`, `demuxer-lavf-format=hls` and
+  `protocol_whitelist=[file,http,https,tcp,tls,crypto]` (never mpv's own playlist parser). Folders go
+  after two days, a private window's (fs-private) ten minutes on, at the next send. The playlists are
+  kept out of the debug log (their key). Messages to the helper may be 16 MB (1 MB before).
+- *Answer:* `local`, the entry's path: MPV autoplay knows mpv's `path` by it (`watchMpvFor`).
+- *Older helper:* `knows('hls')` asks it once; without the capability nothing goes and the user reads
+  `player_mpv_needs_hls_helper` (an older helper would ignore the field and play the address).
+- *Quality list:* not sent for such a stream (its addresses lack the key).
+Measured on the live stream: the variant's package 357 KB, the master's 1.07 MB in 234 ms; mpv played
+1920x816 from both. Codex's design review (2026-11-18) shaped the parser port and the whitelist.
+Still open: a keyed *live* stream (its playlist must be re-keyed at every reload).
+
 **Host 25 (2026-11-18, comments only; RequiredHostVersion stays 19).** The host's comments were
 cut to its constraints (1268 comment lines to 837, the reasons kept here and in
 `native-host/README.md`); `tools/same-code.mjs` shows no code token changed, so an installed
