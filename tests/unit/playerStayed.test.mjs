@@ -103,9 +103,20 @@ describe('the player page at beforeunload', () => {
     // cancelled the navigation the user asked for.
     const {fire, client, replace} = await loadPlayerPage(50, false);
     fire('beforeunload', {});
-    expect(client.destroy).toHaveBeenCalledTimes(1);
     vi.advanceTimersByTime(10000);
     expect(replace).not.toHaveBeenCalled();
+    fire('pagehide', {persisted: false});
+    expect(client.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a player tab playing when its navigation never happens (a download)', async () => {
+    // Torn down at beforeunload, a player tab whose link answered with a download stayed dead:
+    // it does not load again by itself (above).
+    const {fire, client} = await loadPlayerPage(50, false);
+    fire('beforeunload', {});
+    vi.advanceTimersByTime(10000);
+    expect(client.destroy).not.toHaveBeenCalled();
+    expect(client.handOffBuffer).not.toHaveBeenCalled();
   });
 
   it('does not load again when the page went into the back-forward cache', async () => {
@@ -136,5 +147,70 @@ describe('the player page, the background answering late', () => {
     } finally {
       process.off('unhandledRejection', onRejection);
     }
+  });
+});
+
+describe('the player page\'s messages', () => {
+  /**
+   * The page with its message listener, and a client that can take sources.
+   * @return {Promise<{listener: Function, client: Object}>}
+   */
+  async function withListener() {
+    const {client} = await loadPlayerPage(0);
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0];
+    client.source = null;
+    client.options = {};
+    client.interfaceController = {
+      exitCarriedFullscreen: vi.fn(() => true),
+      setStatusMessage: vi.fn(),
+      carryFullscreen: vi.fn(),
+      pipToggle: vi.fn(),
+      toggleWindowedFullscreen: vi.fn(),
+    };
+    client.addSource = vi.fn(async (s) => s);
+    client.clearSubtitles = vi.fn();
+    client.setAutoPlay = vi.fn();
+    client.loadSubtitleTrack = vi.fn();
+    return {listener, client};
+  }
+
+  it('answers a carried fullscreen\'s Escape once, with what the player did', async () => {
+    const {listener} = await withListener();
+    const sendResponse = vi.fn();
+    listener({type: 'EXIT_CARRIED_FULLSCREEN'}, {}, sendResponse);
+    expect(sendResponse.mock.calls).toEqual([[true]]);
+  });
+
+  it('carries the fullscreen and answers when the language of the subtitles cannot be told', async () => {
+    const {listener, client} = await withListener();
+    chrome.i18n = {detectLanguage: (text, callback) => callback(undefined)};
+    const sendResponse = vi.fn();
+    listener({
+      type: 'SOURCES',
+      sources: [{url: 'https://cdn.test/ep2.m3u8', mode: 'hls', headers: {}, duration: 1400}],
+      autoSetSource: true,
+      subtitles: [{label: 'English', language: null, data: 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello'}],
+      continuationOptions: {autoPlay: true, fullscreenState: 'fullscreen'},
+    }, {}, sendResponse);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith('sources_recieved'));
+    expect(client.interfaceController.carryFullscreen).toHaveBeenCalledTimes(1);
+    expect(client.loadSubtitleTrack).toHaveBeenCalledTimes(1);
+  });
+
+  it('carries the fullscreen before the subtitles are fetched', async () => {
+    const {listener, client} = await withListener();
+    let detected = null;
+    chrome.i18n = {detectLanguage: (text, callback) => {
+      detected = callback;
+    }};
+    listener({
+      type: 'SOURCES',
+      sources: [{url: 'https://cdn.test/ep2.m3u8', mode: 'hls', headers: {}, duration: 1400}],
+      autoSetSource: true,
+      subtitles: [{label: 'English', language: null, data: 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello'}],
+      continuationOptions: {autoPlay: true, fullscreenState: 'fullscreen'},
+    }, {}, vi.fn());
+    await vi.waitFor(() => expect(detected).not.toBe(null));
+    expect(client.interfaceController.carryFullscreen).toHaveBeenCalledTimes(1);
   });
 });

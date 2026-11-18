@@ -197,7 +197,7 @@ export class SourcesBrowser {
       }
       source.loading = false;
       this.updateSources();
-      this.client.play();
+      this.client.play().catch((e) => console.warn('Could not play', e));
     });
     WebUtils.setupTabIndex(sourceSetBtn);
     sourceContainer.appendChild(sourceSetBtn);

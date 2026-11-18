@@ -210,6 +210,7 @@ const CHECKED = [
   'chrome/player/utils/Utils.mjs',
   'chrome/player/utils/VideoTransformUtils.mjs',
   'chrome/player/utils/VideoUtils.mjs',
+  'chrome/player/utils/WebStorage.mjs',
   'chrome/player/utils/WebUtils.mjs',
   'native-host/faststream-mpv-host.mjs',
   'tools/ast-compare.mjs',

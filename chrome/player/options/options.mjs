@@ -21,6 +21,7 @@ import {AspectRatios} from './defaults/AspectRatios.mjs';
 import {ColorThemes} from './defaults/ColorThemes.mjs';
 import {MpvSuggestion} from './MpvSuggestion.mjs';
 import {holdImportedNumbers, importedForMigration, settingsForExport} from './SettingsFile.mjs';
+import {WebStorage} from '../utils/WebStorage.mjs';
 
 // Empty until the saved options are read (loadOptions): the select menus below are built
 // before, and read none.
@@ -693,7 +694,7 @@ storeProgress.addEventListener('change', () => {
 
 autoplayNext.addEventListener('change', () => {
   Options.autoplayNext = autoplayNext.checked;
-  sessionStorage.removeItem('autoplayNext');
+  WebStorage.remove('session', 'autoplayNext');
   optionChanged();
 });
 

@@ -1,6 +1,7 @@
 // @ts-check
 import {Localize} from '../modules/Localize.mjs';
 import {getCodecEfficiency, getCodecFamily, screenSupportsHdr} from './DecodingCapabilities.mjs';
+import {WebStorage} from '../utils/WebStorage.mjs';
 
 // Sites whose manual codec choice is remembered; the oldest is forgotten past this.
 const MAX_CODEC_SITES = 200;
@@ -94,11 +95,11 @@ export class LevelManager {
       prioritizedAudioCodec: this.prioritizedAudioCodec,
       shouldPreferDRCAudio: this.shouldPreferDRCAudio,
     };
-    localStorage.setItem('level_manager_prefs', JSON.stringify(savedPrefs));
+    WebStorage.set('local', 'level_manager_prefs', JSON.stringify(savedPrefs));
   }
 
   loadPreferences() {
-    const prefsStr = localStorage.getItem('level_manager_prefs');
+    const prefsStr = WebStorage.get('local', 'level_manager_prefs');
     if (!prefsStr) {
       return;
     }

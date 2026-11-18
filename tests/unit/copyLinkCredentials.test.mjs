@@ -105,6 +105,17 @@ describe('VideoSource.parseHeadersParam', () => {
     expect(source.url).toBe(STREAM);
     expect(source.mode).toBe(PlayerModes.AUTO);
   });
+
+  it('takes only names with text values: a list or a number is no header', () => {
+    for (const value of [[['referer', 'https://a.example/']], {'referer': ['x'], 'origin': 5, 'x-ok': 'yes'}, 7]) {
+      const link = `${STREAM}&faststream-headers=${encodeURIComponent(JSON.stringify(value))}`;
+      const source = new VideoSource(link, {}, PlayerModes.AUTO);
+      source.parseHeadersParam();
+      expect(Object.values(source.headers).every((v) => typeof v === 'string'), JSON.stringify(value)).toBe(true);
+      expect(Object.keys(source.headers)).not.toContain('0');
+      expect(source.url).toBe(STREAM);
+    }
+  });
 });
 
 // JSDoc casts (`/** @type {T} */ (x)`, for the type checker) are no code: the checks below

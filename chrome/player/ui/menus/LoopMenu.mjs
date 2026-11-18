@@ -334,7 +334,7 @@ export class LoopMenu extends EventEmitter {
     const loopStart = /** @type {number} */ (this.loopStart);
 
     this.client.currentTime = Math.max(loopStart - 1, 0);
-    this.client.play();
+    this.client.play().catch((e) => console.warn('Could not play', e));
 
     this.previousPlaybackRate = this.client.playbackRate;
     this.client.playbackRate = 4;

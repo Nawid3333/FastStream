@@ -46,6 +46,7 @@ import {SILENT_MAX_PLAYBACK_RATE} from './options/KeybindUtils.mjs';
 import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
 import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
 import {VideoLevel} from './players/Levels.mjs';
+import {WebStorage} from './utils/WebStorage.mjs';
 
 
 const SET_VOLUME_USING_NODE = EnvUtils.isWebAudioSupported();
@@ -82,6 +83,21 @@ const DROPPED_SAMPLE_MS = 1000;
 // How long a stream may stay stuck in its last seconds before autoplay takes it as ended
 // (watchEndStall).
 const EndStallMs = 3000;
+// How long autoplay waits for the remembered time (an IndexedDB whose open is blocked never
+// answers).
+const RememberedWaitMs = 3000;
+/**
+ * How a source set with setSource starts.
+ * @typedef {{play?: boolean, keepStorage?: boolean, keepChoice?: boolean, rebuild?: boolean,
+ *   relink?: {from: string, to: string}, skipRemembered?: boolean}} SourceStart
+ * play: it plays once it has started, autoplay or not. keepStorage, keepChoice, relink: its
+ * reset keeps what was downloaded and the version picked by hand, found under a new link.
+ * rebuild: the same video built again (it counts as played). skipRemembered: not its
+ * remembered time (an episode the player went on to, and its fallbacks).
+ */
+
+// Preview players that reported an error while their build still ran (buildPreviewPlayer).
+const PreviewsFailedInBuild = new WeakSet();
 // How long a request for the next video waits for the background's answer (nextVideo), and how
 // long after one that did not go on the end asks again, at most how many times
 // (autoplayNextVideo): the countdown stopped at "1 s" when the only one failed.
@@ -283,7 +299,7 @@ export class FastStreamClient extends EventEmitter {
     // Counts the sources asked for, and holds the streams to try should the latest one
     // fail before it shows anything (setSource()).
     this.sourceRequests = 0;
-    /** @type {{request: number, sources: VideoSource[], next?: VideoSource}} */
+    /** @type {{request: number, sources: VideoSource[], next?: VideoSource, skipRemembered?: boolean}} */
     this.fallbacks = {request: 0, sources: []};
     // A source's decode failures, kept over its own reload (reloadWithoutFailedCodec).
     this.carriedDecodeFailures = null;
@@ -482,21 +498,12 @@ export class FastStreamClient extends EventEmitter {
    * position reads as none (SecureMemory's maxAgeMs), so nothing older is resumed meanwhile.
    */
   scheduleProgressPrune() {
-    let last = 0;
-    try {
-      last = Number(localStorage.getItem(PROGRESS_PRUNED_KEY)) || 0;
-    } catch (e) {
-      // No localStorage (a private window may refuse it): prune, as before.
-    }
+    const last = Number(WebStorage.get('local', PROGRESS_PRUNED_KEY)) || 0;
     if (Date.now() - last < PROGRESS_PRUNE_EVERY_MS) return;
     this.progressPruneTimer = setTimeout(() => {
       const memory = this.progressMemory;
       if (!memory || this.destroyed) return;
-      try {
-        localStorage.setItem(PROGRESS_PRUNED_KEY, String(Date.now()));
-      } catch (e) {
-        // Pruned again by the next player, then.
-      }
+      WebStorage.set('local', PROGRESS_PRUNED_KEY, String(Date.now()));
       memory.pruneOld(Date.now() - PROGRESS_MAX_AGE_MS);
     }, PROGRESS_PRUNE_DELAY_MS);
   }
@@ -559,11 +566,8 @@ export class FastStreamClient extends EventEmitter {
     this.options.miniPos = options.miniPos;
     this.options.maximumDownloaders = options.maximumDownloaders;
 
-    if (sessionStorage && sessionStorage.getItem('autoplayNext') !== null) {
-      this.options.autoplayNext = sessionStorage.getItem('autoplayNext') === 'true';
-    } else {
-      this.options.autoplayNext = options.autoplayNext;
-    }
+    const autoplayNext = WebStorage.get('session', 'autoplayNext');
+    this.options.autoplayNext = autoplayNext !== null ? autoplayNext === 'true' : options.autoplayNext;
     // The next-episode banner's countdown (ProgressBar): it never came here, so it counted 5 s
     // whatever was set, and 0 never turned the banner off.
     this.options.autoplayCountdown = /** @type {{autoplayCountdown: number}} */ (options).autoplayCountdown;
@@ -573,8 +577,7 @@ export class FastStreamClient extends EventEmitter {
     this.options.previewEnabled = options.previewEnabled;
     this.options.videoDelay = options.videoDelay;
     document.body.dataset.theme = options.colorTheme;
-    // save color theme to local storage
-    localStorage.setItem('faststream-color-theme', options.colorTheme);
+    WebStorage.set('local', 'faststream-color-theme', options.colorTheme);
 
     this.loadProgressData();
 
@@ -895,7 +898,7 @@ export class FastStreamClient extends EventEmitter {
         this.hasDownloadSpace = false;
       }
     } else {
-      if (!Number.isFinite(this.duration)) {
+      if (this.isLive()) {
         // A live stream has no size to fit, and is freed behind playback as it plays. Its
         // infinite duration made it "too big" on its first tick: a storage warning on every
         // live stream, and everything downloaded so far pinned for the session.
@@ -1044,6 +1047,7 @@ export class FastStreamClient extends EventEmitter {
       context = this.bindPreviewPlayer(previewPlayer);
 
       await previewPlayer.setSource(source);
+      if (PreviewsFailedInBuild.has(previewPlayer)) throw new Error('The preview player failed while it was built');
     } catch (e) {
       // Nothing else holds it: its video and its loader, which may go on fetching, lived on
       // for the page's life, one for each failed build.
@@ -1139,8 +1143,8 @@ export class FastStreamClient extends EventEmitter {
    * @param {VideoSource[]} [fallbacks=[]] - The streams to try in turn should it fail before it
    *   shows anything: the others the player picked it from. None for a source chosen by
    *   hand, and a later request drops those of every earlier one.
-   * @param {{play?: boolean}} [start={}] - play: it plays once it has started, autoplay or
-   *   not (the same video built again, which the user was watching).
+   * @param {SourceStart} [start={}] - How it starts. Kept with this request: one that a later
+   *   request replaces before its turn arms nothing.
    * @return {Promise<void>}
    */
   setSource(source, fallbacks = [], start = {}) {
@@ -1150,7 +1154,9 @@ export class FastStreamClient extends EventEmitter {
     if (/** @type {VideoSource} */ (source)?.mode !== PlayerModes.DIRECT) {
       this.playedDirectly = null;
     }
-    const run = () => this.setSourceInternal(/** @type {VideoSource} */ (source), {request, sources: fallbacks.slice()}, start);
+    // A request made while this one waited its turn replaces it before it builds anything.
+    const run = () => request !== this.sourceRequests ? Promise.resolve() :
+      this.setSourceInternal(/** @type {VideoSource} */ (source), {request, sources: fallbacks.slice()}, start);
     const change = this.sourceChange ? this.sourceChange.then(run, run) : run();
 
     this.sourceChange = change;
@@ -1166,9 +1172,9 @@ export class FastStreamClient extends EventEmitter {
   /**
    * Sets the current source and initializes the player, one at a time.
    * @param {VideoSource} source - Source object.
-   * @param {{request: number, sources: VideoSource[]}} fallbacks - Which request this is, and the
+   * @param {{request: number, sources: VideoSource[], skipRemembered?: boolean}} fallbacks - Which request this is, and the
    *   streams to try should it fail before it shows anything.
-   * @param {{play?: boolean}} [start={}] - See setSource().
+   * @param {SourceStart} [start={}] - See setSource().
    * @return {Promise<void>}
    */
   async setSourceInternal(source, fallbacks, start = {}) {
@@ -1206,9 +1212,18 @@ export class FastStreamClient extends EventEmitter {
 
 
       const autoPlay = this.options.autoPlay;
+      // For this source only (an episode the player went on to): a source picked by hand
+      // later in the same player starts at its remembered time again.
+      const skipRemembered = !!this.options.disableLoadProgress || !!start.skipRemembered;
+      this.options.disableLoadProgress = false;
+      fallbacks.skipRemembered = skipRemembered;
+      if (start.keepStorage) this.downloadManager.keepStorageOnce();
+      if (start.relink) this.downloadManager.relink(start.relink.from, start.relink.to);
+      if (start.keepChoice) this.droppedFrameWatch.keepChoiceOnce();
 
       console.log('setSource', source.url, source.mode); // no headers: see addSource
       await this.resetPlayer();
+      if (!start.rebuild) this.playedSource = null;
       this.restoreCarriedDecodeFailures(source);
       this.source = source;
       // Where it can be loaded through when FastStream itself is refused: the frame that asked for
@@ -1225,7 +1240,10 @@ export class FastStreamClient extends EventEmitter {
       // and a canplay during them autoplayed from 0 all the same.
       const startTime = timeFromURL || 0;
       const playOnStart = autoPlay || !!start.play;
-      this.startPending = startTime ? source : null;
+      // The remembered time is a start time too, once looked up: autoplay played the opening
+      // first, then jumped.
+      const remembered = !startTime && !skipRemembered && !!this.options.storeProgress && !!this.progressMemory;
+      this.startPending = startTime || remembered ? source : null;
       this.state.autoPlayTriggered = false;
       // Only once the last player is torn down: its failure is not this source's.
       this.fallbacks = fallbacks;
@@ -1303,7 +1321,7 @@ export class FastStreamClient extends EventEmitter {
 
       this.interfaceController.updateToolVisibility();
 
-      if (playOnStart && !startTime) {
+      if (playOnStart && !this.startPending && !this.state.autoPlayTriggered) {
         this.play().then(() => {
           this.state.autoPlayTriggered = true;
         }).catch((e) => console.warn('Autoplay failed', e));
@@ -1311,7 +1329,8 @@ export class FastStreamClient extends EventEmitter {
 
       // A time of its own does not wait for the remembered one it overrides: that lookup
       // (two PBKDF2 hashes) is made once the time is applied.
-      (startTime ? Promise.resolve() : this.loadProgressData()).then(async () => {
+      const lookup = startTime ? Promise.resolve() : this.loadProgressData();
+      (remembered ? Promise.race([lookup, new Promise((resolve) => setTimeout(resolve, RememberedWaitMs))]) : lookup).then(async () => {
         // Another source came in meanwhile: this one's time and progress are not for it,
         // and switching progress saving off here would switch it off for that one.
         if (this.source !== source) return;
@@ -1329,17 +1348,28 @@ export class FastStreamClient extends EventEmitter {
           this.setSeekSave(false);
           this.currentTime = startTime;
           this.setSeekSave(true);
-          this.startPending = null;
-        } else if (this.options.storeProgress && this.progressData && !this.options.disableLoadProgress) {
-          const lastTime = this.progressData.lastTime;
-          // Not a live stream: a DASH one's duration is Infinity, before which every time is,
-          // and it was sought to where it was left, far outside its live window by the next day.
-          if (lastTime && !this.isLive() && lastTime < this.duration - 5) {
-            this.setSeekSave(false);
-            this.currentTime = lastTime;
-            this.setSeekSave(true);
+        } else if (this.options.storeProgress && !skipRemembered) {
+          const applyRemembered = () => {
+            const lastTime = this.progressData?.lastTime;
+            // Not a live stream: a DASH one's duration is Infinity, before which every time
+            // is, and it was sought far outside its live window by the next day.
+            if (lastTime && !this.isLive() && lastTime < this.duration - 5) {
+              this.setSeekSave(false);
+              this.currentTime = lastTime;
+              this.setSeekSave(true);
+            }
+          };
+          if (this.progressData) {
+            applyRemembered();
+          } else if (remembered) {
+            // Past the wait: applied when it comes, unless the user has sought meanwhile. Saved
+            // before that, the time played since 0 replaced it.
+            lookup.then(() => {
+              if (this.source === source && this.pastSeeks.length === 0) applyRemembered();
+            }).catch(() => {});
           }
         }
+        this.startPending = null;
 
         this.disableProgressSave = false;
         if (startTime) {
@@ -2127,7 +2157,7 @@ export class FastStreamClient extends EventEmitter {
     // Authorization.
     console.warn('The stream failed to load, trying the next one', next.url, next.mode);
     fallbacks.next = next;
-    this.setSource(next, fallbacks.sources).then(() => {
+    this.setSource(next, fallbacks.sources, {skipRemembered: fallbacks.skipRemembered}).then(() => {
       this.sourcesBrowser.updateSources();
     }).catch((e) => console.error('Switching to the next stream failed', e));
     return true;
@@ -2148,7 +2178,17 @@ export class FastStreamClient extends EventEmitter {
     }
     console.warn('Loading the source again without the video codec that failed to decode');
     this.carriedDecodeFailures = {url: source.url, failures: this.getLevelManager().getVideoDecodeFailures()};
-    this.setSource(source, this.fallbacks.sources).catch((e) => console.error(e));
+    // Where it was, with what it downloaded, playing if it played, as recoverPlayer builds it
+    // again: a codec that failed at a quality switch an hour in started the video over.
+    const again = source.copy();
+    const time = Math.floor(this.currentTime);
+    if (time >= 1 && !this.isLive() && /^https?:/i.test(again.url)) {
+      again.url = URLUtils.withTimestamp(again.url, time);
+    }
+    again.defaultLevelInfo = {audioLevel: this.getCurrentAudioLevelID() ?? undefined};
+    const wasPlaying = !!this.state.playing || !this.paused;
+    this.setSource(again, this.fallbacks.sources, {play: wasPlaying, keepStorage: true, rebuild: true,
+      skipRemembered: this.fallbacks.skipRemembered}).catch((e) => console.error(e));
     return true;
   }
 
@@ -2184,7 +2224,7 @@ export class FastStreamClient extends EventEmitter {
     if (isNetworkFailure(reason)) {
       return false;
     }
-    if (!source || player !== this.player || this.playedSource !== source ||
+    if (!source || player !== this.player || !this.hasPlayed(source) ||
         this.fallbacks.request !== this.sourceRequests) {
       return false;
     }
@@ -2233,14 +2273,25 @@ export class FastStreamClient extends EventEmitter {
       audioLevel: this.getCurrentAudioLevelID() ?? undefined,
     };
 
-    // The next reset keeps what was downloaded: the new player asks for the same
-    // fragments, and the stored ones answer at once.
-    this.downloadManager.keepStorageOnce();
-    this.droppedFrameWatch.keepChoiceOnce();
-    // It plays on once at its time: played as soon as it was set, it played from 0 first.
-    this.setSource(again, this.fallbacks.sources, {play: wasPlaying})
+    // Its reset keeps what was downloaded: the new player asks for the same fragments, and the
+    // stored ones answer at once. It plays once at its time.
+    this.setSource(again, this.fallbacks.sources, {play: wasPlaying, keepStorage: true, keepChoice: true, rebuild: true,
+      skipRemembered: this.fallbacks.skipRemembered})
         .catch((e) => console.warn('Could not resume after building the player again', e));
     return true;
+  }
+
+  /**
+   * Whether a source has shown a picture: it, or the source it was built again from
+   * (recoverPlayer, playDirectly), whose new player fails before its own first frame when the
+   * same broken segment is where it starts.
+   * @param {VideoSource} source
+   * @return {boolean}
+   */
+  hasPlayed(source) {
+    const played = this.playedSource;
+    return !!played && (played === source ||
+      (!!played.url && this.recoverySourceURL(played.url) === this.recoverySourceURL(source.url)));
   }
 
   /**
@@ -2274,7 +2325,7 @@ export class FastStreamClient extends EventEmitter {
     if (time >= 1 && /^https?:/i.test(direct.url)) {
       direct.url = URLUtils.withTimestamp(direct.url, Math.floor(time));
     }
-    this.setSource(direct, this.fallbacks.sources, {play: wasPlaying})
+    this.setSource(direct, this.fallbacks.sources, {play: wasPlaying, rebuild: true, skipRemembered: this.fallbacks.skipRemembered})
         .catch((e) => console.warn('Could not play the source directly', e));
     return true;
   }
@@ -2375,10 +2426,8 @@ export class FastStreamClient extends EventEmitter {
     // What the old link downloaded is kept, and found under the new link: the same files, the
     // signature the two links differ in left out (DownloadManager.relink). Kept by their URL
     // alone, the new player asked for every one again (fresh-link.e2e.mjs, 2026-10-27).
-    this.downloadManager.keepStorageOnce();
-    this.downloadManager.relink(source.url, fresh);
-    this.droppedFrameWatch.keepChoiceOnce();
-    await this.setSource(again, this.fallbacks.sources, {play: wasPlaying});
+    await this.setSource(again, this.fallbacks.sources, {play: wasPlaying, keepStorage: true, keepChoice: true,
+      relink: {from: source.url, to: fresh}, rebuild: true, skipRemembered: this.fallbacks.skipRemembered});
     return true;
   }
 
@@ -2516,6 +2565,8 @@ export class FastStreamClient extends EventEmitter {
     this.progressLoad = null;
     this.autoNextRequested = false;
     this.resetAutoNext();
+    // A play() or pause() still waiting on the old player is not the new one's.
+    this.playPauseTurn++;
     // A stall watched at the old video's end is none of the new one's.
     this.cancelEndStall();
     this.state.bufferBehind = this.options.bufferBehind;
@@ -2923,9 +2974,13 @@ export class FastStreamClient extends EventEmitter {
       // Another preview's: one built for a video since replaced, beside the one shown, which
       // it destroyed. Its own build lets go of it.
       if (this.previewPlayer && this.previewPlayer !== player) return;
-      // Still null while the preview player is being built: it is only stored once its
-      // source has loaded, and a source that fails to load is exactly what gets here.
-      this.previewPlayer?.destroy();
+      // Still being built (stored only once its source has loaded): its build lets go of it.
+      // A reload from here joined that build, which then stored the broken player.
+      if (!this.previewPlayer) {
+        PreviewsFailedInBuild.add(player);
+        return;
+      }
+      this.previewPlayer.destroy();
       this.previewPlayer = null;
       if (this.previewContext === context) {
         context.destroy();
@@ -3032,7 +3087,7 @@ export class FastStreamClient extends EventEmitter {
     const turn = ++this.playPauseTurn;
     await this.player.pause();
 
-    if (this.syncedAudioPlayer) {
+    if (this.syncedAudioPlayer && turn === this.playPauseTurn) {
       await this.syncedAudioPlayer.pause();
     }
 
@@ -3315,8 +3370,7 @@ export class FastStreamClient extends EventEmitter {
     }
     console.log('Playing the page\'s ' + (entry.label || entry.height + 'p') + ' instead');
     // The same video in another file: a version picked by hand stays picked.
-    this.droppedFrameWatch.keepChoiceOnce();
-    this.setSource(next, [], {play: wasPlaying}).catch((e) => console.warn('Could not switch the quality', e));
+    this.setSource(next, [], {play: wasPlaying, keepChoice: true}).catch((e) => console.warn('Could not switch the quality', e));
   }
 
   /**
@@ -3449,7 +3503,7 @@ export class FastStreamClient extends EventEmitter {
    */
   watchEndStall() {
     this.cancelEndStall();
-    if (!this.options.autoplayNext || this.autoNextRequested || !this.hasNextVideo() || !(this.duration > 5)) return;
+    if (!this.options.autoplayNext || this.autoNextRequested || !this.hasNextVideo() || !(this.duration > 5) || this.isLive()) return;
     const left = this.duration - this.currentTime;
     // The last 5 %, at least 3 s and at most 10 s: about one fragment of a real stream.
     if (left > Math.min(10, Math.max(3, this.duration * 0.05))) return;
@@ -3477,7 +3531,8 @@ export class FastStreamClient extends EventEmitter {
    * @return {boolean} Whether the next video is on its way (asked now or before).
    */
   autoplayNextVideo() {
-    if (!this.options.autoplayNext || !this.hasNextVideo()) return false;
+    // A live stream's end is its live edge, where it waits for the next segment.
+    if (!this.options.autoplayNext || !this.hasNextVideo() || this.isLive()) return false;
     if (this.autoNextRequested) return true;
     this.autoNextRequested = true;
     this.autoNextTries = (this.autoNextTries || 0) + 1;
