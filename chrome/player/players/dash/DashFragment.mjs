@@ -3,10 +3,7 @@ import {StringUtils} from '../../utils/StringUtils.mjs';
 import {Fragment} from '../Fragment.mjs';
 
 export class DashFragment extends Fragment {
-  /**
-   * @param {import('../../modules/dash.mjs').FragmentRequest} request - dash.js's request for it, with
-   *   the level and index DashPlayer gave it.
-   */
+  /** @param {import('../../modules/dash.mjs').FragmentRequest} request */
   constructor(request) {
     // DashPlayer gives the request its level before it makes the fragment.
     super(/** @type {string} */ (request.level), request.index);
@@ -33,7 +30,6 @@ export class DashFragment extends Fragment {
       }
     }
     return {
-      // A segment's request has its URL.
       url: /** @type {string} */ (this.request.url),
       rangeStart: rangeStart,
       rangeEnd: rangeEnd,

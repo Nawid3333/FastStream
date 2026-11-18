@@ -1,7 +1,7 @@
 // @ts-check
 export class VideoLevel {
   /**
-   * @param {Object} level - What the player knows of this version of the video.
+   * @param {Object} level
    * @param {string} level.id
    * @param {number} [level.width]
    * @param {number} [level.height]
@@ -10,8 +10,7 @@ export class VideoLevel {
    * @param {?string} [level.language]
    * @param {?string} [level.videoCodec]
    * @param {?string} [level.audioCodec]
-   * @param {*} [level.track] - The player's own object for it, whichever library made it: a
-   *     dash.js MediaInfo, an hls.js Level, mp4box's track info.
+   * @param {*} [level.track] - The player's own object for it: a dash.js MediaInfo, an hls.js Level, mp4box's track info.
    * @param {string} [level.label]
    * @param {number} [level.frameRate]
    * @param {import('./DecodingCapabilities.mjs').VideoRange} [level.videoRange]
@@ -33,8 +32,7 @@ export class VideoLevel {
     decoding,
   }) {
     this.id = id;
-    // Distinguishes levels that are different sources rather than different qualities,
-    // such as a lecture's screen capture and camera. Grouped on in the quality menu.
+    // Different sources rather than qualities (a lecture's screen and camera): grouped in the menu.
     this.label = label || '';
     this.width = width || 0;
     this.height = height || 0;
@@ -44,27 +42,24 @@ export class VideoLevel {
     this.videoCodec = videoCodec ?? null;
     this.audioCodec = audioCodec ?? null;
     this.track = track;
-    // 0 when the manifest does not say.
     this.frameRate = frameRate || 0;
     // 'SDR', 'PQ' or 'HLG' (DecodingCapabilities.normalizeVideoRange).
     this.videoRange = videoRange || 'SDR';
-    // Firefox's {supported, smooth, powerEfficient} for this version, or null without an
-    // answer (DecodingCapabilities). LevelManager ranks versions of one height by it.
+    // Firefox's decoding answer, or null. LevelManager ranks versions of one height by it.
     this.decoding = decoding ?? null;
   }
 }
 
 export class AudioLevel {
   /**
-   * @param {Object} level - What the player knows of this version of the audio.
+   * @param {Object} level
    * @param {string} level.id
    * @param {number} [level.bitrate]
    * @param {?string} [level.mimeType]
    * @param {?string} [level.language]
    * @param {?string} [level.audioCodec]
-   * @param {*} [level.track] - The player's own object for it, as VideoLevel's.
-   * @param {string} [level.label] - The track's own name ("Commentary", "English 5.1"), if
-   *   it has one: two tracks in one language are told apart by it.
+   * @param {*} [level.track]
+   * @param {string} [level.label] - The track's own name: two tracks in one language are told apart by it.
    * @param {?import('./DecodingCapabilities.mjs').DecodingInfo} [level.decoding]
    */
   constructor({

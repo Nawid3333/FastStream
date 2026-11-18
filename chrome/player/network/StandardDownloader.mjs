@@ -3,7 +3,6 @@ import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {SpeedTracker} from './SpeedTracker.mjs';
 import {FetchLoader, STALL_TIMEOUT_MS} from './FetchLoader.mjs';
 
-// The priority the playback libraries' requests have (HLSLoader, DashLoader, MP4Player).
 export const PLAYBACK_PRIORITY = 1000;
 
 /** @typedef {import('./DownloadEntry.mjs').DownloadEntry} DownloadEntry */
@@ -11,13 +10,8 @@ export const PLAYBACK_PRIORITY = 1000;
 /** @typedef {import('./FetchLoader.mjs').LoaderRequest} LoaderRequest */
 
 /**
- * Runs one download at a time for the download manager. It is its FetchLoader's callbacks
- * (LoaderCallbacks): onSuccess, onError and onTimeout get FetchLoader's request where they
- * name an entry, and do not read it.
- */
-/**
  * @param {string} url
- * @return {string} Its host, '' for an address without one (blob:, data:) or none at all.
+ * @return {string}
  */
 function hostOf(url) {
   try {
@@ -32,40 +26,30 @@ export class StandardDownloader {
   constructor(manager) {
     this.speedTracker = new SpeedTracker();
     this.manager = manager;
-    // A FetchLoader, or the stand-in for one while its request is being made (download).
     /** @type {*} */
     this.loader = null;
     /** @type {DownloadEntry|null} */
     this.entry = null;
-    // The last stats FetchLoader gave (updateSpeed); null until this download's first.
     /** @type {(LoaderStats & {lastUpdate?: number})|null} */
     this.stats = null;
-    // True while entry.onSuccess is awaited: a slow-down must not take this downloader
-    // away mid-delivery, or the finished data would be discarded.
+    // While entry.onSuccess is awaited a slow-down must not take this downloader away.
     this.delivering = false;
   }
 
   /**
-   * Whether this downloader is free for a download.
-   * @param {import('./DownloadEntry.mjs').DownloadRequest} [details] - The download; not read.
-   *   DownloadManager.queueNext passes an entry's `details`, which no entry has (undefined).
+   * @param {import('./DownloadEntry.mjs').DownloadRequest} [details]
    * @return {boolean}
    */
   canHandle(details) {
     return this.loader === null;
   }
 
-  /**
-   * A server answered 429 or 503: tell the manager to slow down. It may cut this very
-   * downloader; retire() then hands the entry back without notifying the watchers.
-   * @param {number|null} retryAfter - The wait the server asked for, in ms.
-   */
+  /** @param {number|null} retryAfter */
   onSlowDown(retryAfter) {
     this.manager.slowDown?.(retryAfter);
   }
 
   /**
-   * A server refused the link (401, 403, 410): the manager tells the player.
    * @param {number} status
    * @param {string} url
    */
@@ -77,16 +61,12 @@ export class StandardDownloader {
     return this.speedTracker.getSpeed();
   }
 
-  /**
-   * Forgets the speed measured so far, so that what comes next is measured afresh: a
-   * downloader left idle reads slower for the next 10 s (SpeedTracker counts the time since its
-   * first sample), and the speed test would take that for the line (DownloadManager.holdTest).
-   */
+  /** Idle time reads as slow for 10 s (SpeedTracker), which the speed test would take for the line. */
   resetSpeed() {
     this.speedTracker = new SpeedTracker();
   }
 
-  /** @param {DownloadEntry} entry - The download to run; this downloader must be free. */
+  /** @param {DownloadEntry} entry */
   run(entry) {
     if (this.loader != null) {
       throw new Error('Downloader is busy.');
@@ -101,8 +81,7 @@ export class StandardDownloader {
       },
     };
     this.entry = entry;
-    // The last download's stats, its error among them, are not this one's: the manager
-    // reads a 429 or 503 from them (DownloadManager.slowDown).
+    // The manager reads a 429 or 503 from the stats: the last download's are not this one's.
     this.stats = null;
 
     entry.downloader = this;
@@ -115,11 +94,7 @@ export class StandardDownloader {
       retryDelay: 1000,
       maxRetryDelay: 64000,
       ...entry.config,
-      // What playback waits for (a library's request, priority 1000: HLSLoader, DashLoader,
-      // MP4Player) goes first in Firefox's queue for the host; asked at each attempt, so a
-      // retry has the priority of a request that joined the download meanwhile.
-      // While the player leaves the network to a watched one (DownloadManager.setYield) or
-      // waits for its turn (setWaiting), the rest goes 'low'.
+      // Playback's requests go first in Firefox's queue for the host; asked again at each retry.
       fetchPriority: () => (entry.priority >= PLAYBACK_PRIORITY ? 'high' :
         (this.manager?.yielding || this.manager?.waiting ? 'low' : 'auto')),
     };
@@ -132,18 +107,14 @@ export class StandardDownloader {
       this.loader.addCallbacks(this);
       this.loader.load(request, defaultConfig);
     }).catch((err) => {
-      // Aborted while its request was being made: that entry is over (cleanup ran), and
-      // this downloader may be running the next one, which failing `this.entry` failed.
+      // Aborted while its request was being made: this downloader may run the next entry now.
       if (!shouldContinue) return;
       console.error('Failed to get request for entry:', err);
-      // Still this download's: whatever took it away stopped the stand-in first
-      // (shouldContinue).
       /** @type {DownloadEntry} */ (this.entry).onFail(this.loader.stats, /** @type {DownloadEntry} */ (this.entry), null);
       this.cleanup();
     });
   }
 
-  /** Stops the download on purpose: a failed one comes through onError or onTimeout. */
   abort() {
     this.loader?.abort();
     if (this.entry) {
@@ -154,16 +125,9 @@ export class StandardDownloader {
     this.cleanup();
   }
 
-  /**
-   * Takes this downloader away from a running download after a slow-down, without telling
-   * the entry's watchers (they hear nothing). If it is already delivering a finished
-   * download, it finishes that instead: it is already out of manager.downloaders.
-   */
   retire() {
     if (this.delivering) return;
     if (!this.entry) return;
-    // Stop the loader without notifying the entry: FetchLoader.abort clears its callbacks
-    // and timers, the pre-FetchLoader stub's abort/destroy stops the pending request.
     this.loader?.abort();
     this.loader = null;
     const entry = this.entry;
@@ -173,8 +137,6 @@ export class StandardDownloader {
   }
 
   cleanup() {
-    // Free means not delivering either: after an abort mid-delivery, the next entry's
-    // download is no delivery for retire() and the manager to spare.
     this.delivering = false;
     if (this.entry) {
       this.loader.destroy();
@@ -191,7 +153,7 @@ export class StandardDownloader {
     this.abort();
   }
 
-  /** @param {LoaderStats & {lastUpdate?: number}} stats - FetchLoader's, given lastUpdate here. */
+  /** @param {LoaderStats & {lastUpdate?: number}} stats */
   updateSpeed(stats) {
     this.stats = stats;
     stats.lastUpdate = performance.now();
@@ -201,24 +163,17 @@ export class StandardDownloader {
   /**
    * @param {import('./FetchLoader.mjs').LoaderResponse} response
    * @param {LoaderStats} stats
-   * @param {LoaderRequest} entry - FetchLoader's request, unused.
-   * @param {null} xhr - FetchLoader has none.
+   * @param {LoaderRequest} entry
+   * @param {null} xhr
    */
   async onSuccess(response, stats, entry, xhr) {
     this.updateSpeed(stats);
-    // Running: whatever takes the download away (abort, retire, cleanup) stops the
-    // FetchLoader first, and a stopped one calls nothing.
     const current = /** @type {DownloadEntry} */ (this.entry);
     this.delivering = true;
     try {
       await current.onSuccess(response, stats, current, xhr);
     } finally {
-      // An abort while the entry delivered (a watcher gave up on it: an hls.js seek or
-      // quality switch during an AES-128 segment's decryption; the downloads paused) has
-      // cleaned up already, and the manager may have given this downloader its next entry
-      // meanwhile. Cleaning up again ended that one too, and it stayed "downloading" for
-      // good (upstream #568). Otherwise: whatever went wrong in there, a downloader left
-      // busy would never download again.
+      // An abort during delivery has cleaned up already, and the next entry may be running here.
       if (this.entry === current) {
         this.cleanup();
       }
@@ -226,9 +181,9 @@ export class StandardDownloader {
   }
 
   /**
-   * @param {LoaderStats} stats - Their error among them.
-   * @param {LoaderRequest} entry - FetchLoader's request, unused.
-   * @param {null} xhr - FetchLoader has none.
+   * @param {LoaderStats} stats
+   * @param {LoaderRequest} entry
+   * @param {null} xhr
    */
   onError(stats, entry, xhr) {
     this.updateSpeed(stats);
@@ -238,9 +193,9 @@ export class StandardDownloader {
 
   /**
    * @param {LoaderStats} stats
-   * @param {LoaderRequest} context - FetchLoader's request.
-   * @param {ArrayBuffer|string} data - The answer's body.
-   * @param {null} xhr - FetchLoader has none.
+   * @param {LoaderRequest} context
+   * @param {ArrayBuffer|string} data
+   * @param {null} xhr
    */
   onProgress(stats, context, data, xhr) {
     this.updateSpeed(stats);
@@ -248,7 +203,6 @@ export class StandardDownloader {
   }
 
   /**
-   * A piece of the answer as it comes (FetchLoader.readBody), for the entry's watchers.
    * @param {Uint8Array} chunk
    * @param {number} offset
    * @param {import('./FetchLoader.mjs').PartialAnswer} answer
@@ -259,8 +213,8 @@ export class StandardDownloader {
 
   /**
    * @param {LoaderStats} stats
-   * @param {LoaderRequest} entry - FetchLoader's request, unused.
-   * @param {null} xhr - FetchLoader has none.
+   * @param {LoaderRequest} entry
+   * @param {null} xhr
    */
   onTimeout(stats, entry, xhr) {
     this.updateSpeed(stats);

@@ -3,23 +3,11 @@ import {PlayerModes} from '../enums/PlayerModes.mjs';
 
 export class PlayerLoader {
   /**
-   * Loads the player module for a source mode and constructs it.
-   *
-   * Every specifier here is a literal, deliberately. The previous version kept
-   * a registry of paths and did `import(this.players[mode])`, which loads the
-   * same modules but leaves the set of reachable files invisible to any static
-   * reader - a bundler, a reviewer, or addons-linter, which reported it as an
-   * unsafe assignment.
-   *
-   * Writing the branches out fixes that without giving up lazy loading, which
-   * matters: dash.js is 3.5 MB and hls.js 1.2 MB, so importing every player
-   * eagerly would pull both into the first page load whatever the video turns
-   * out to be.
-   *
-   * @param {string} mode a PlayerModes value
-   * @param {import('../FastStreamClient.mjs').FastStreamClient} client the FastStreamClient
-   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} options passed through to the player
-   * @return {Promise<import('../FastStreamClient.mjs').Player>} the constructed player
+   * Literal specifiers, so static readers (addons-linter) see every file; lazy, as dash.js and hls.js are big.
+   * @param {string} mode
+   * @param {import('../FastStreamClient.mjs').FastStreamClient} client
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} options
+   * @return {Promise<import('../FastStreamClient.mjs').Player>}
    */
   async createPlayer(mode, client, options) {
     let module;

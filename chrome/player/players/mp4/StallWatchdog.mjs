@@ -1,33 +1,18 @@
 // @ts-check
-// A video that says it is playing, with this much buffered ahead of it, is stuck once its
-// time has not moved for STALL_TIMEOUT_MS; it is then nudged forward STALL_NUDGE seconds,
-// one step further each time, at most STALL_MAX_NUDGES times until it moves again. The
-// numbers are hls.js's for the same nudge (highBufferWatchdogPeriod, nudgeOffset,
-// nudgeMaxRetry).
+// hls.js's numbers for the same nudge (highBufferWatchdogPeriod, nudgeOffset, nudgeMaxRetry).
 const STALL_MIN_AHEAD = 1;
 const STALL_TIMEOUT_MS = 2000;
 const STALL_NUDGE = 0.1;
 const STALL_MAX_NUDGES = 3;
 
 /**
- * Firefox sometimes stops a video that says it is playing: after a seek back into what is
- * buffered, the element is not paused and not seeking, at readyState 2 with minutes
- * buffered ahead, and its time and frame count stay where they are. play() gets it going,
- * but at the time its clock has run on to, a minute later; a seek starts it where it was
- * sought to. So a stuck video is sought a little forward, as hls.js does for its streams.
- * MP4Player's main loop runs check(): every few ms while the player starts or seeks or has run
- * out of media, every 50 ms while it plays with media ahead (STEADY_LOOP_MS), every 250 ms
- * while it is paused or has ended (PAUSED_LOOP_MS) - where check() has nothing to do.
+ * Firefox sometimes stops a playing video after a seek back into the buffer: a small seek forward frees it.
  */
 export class StallWatchdog {
   /**
-   * @param {((time: number) => void)|null} [onStuck] - Called once, with the time, when the video is
-   *   still stuck after the last nudge; again only after it has played on. The video stayed
-   *   frozen after the nudges ran out, with no error to show.
+   * @param {((time: number) => void)|null} [onStuck] - Called once when still stuck after the last nudge; again only after it played on.
    */
   constructor(onStuck = null) {
-    // The time last seen and since when, how many nudges there have been, and where the
-    // last one went (NaN: none).
   /** @type {number|null} */
     this.time = null;
     this.since = 0;
@@ -37,16 +22,12 @@ export class StallWatchdog {
     this.reported = false;
   }
 
-  /**
-   * Nudges the video on if it is stuck.
-   * @param {HTMLMediaElement} video
-   */
+  /** @param {HTMLMediaElement} video */
   check(video) {
     const time = video.currentTime;
     const now = performance.now();
     if (time !== this.time) {
-      // It moved. A nudge moves it too, and counts as moving only once it plays on from there.
-      // Firefox keeps whole microseconds, so where a nudge lands can differ in the last digits.
+      // A nudge counts as moving only once it plays on. Firefox keeps whole microseconds.
       if (!(Math.abs(time - this.nudgedTo) < 0.001)) {
         this.nudges = 0;
         this.reported = false;
@@ -83,10 +64,9 @@ export class StallWatchdog {
 }
 
 /**
- * How far the buffered range that holds a time runs past it.
  * @param {TimeRanges} buffered
  * @param {number} time - Seconds.
- * @return {number} Seconds; 0 when the time is not buffered.
+ * @return {number} Seconds; 0 when not buffered.
  */
 export function bufferedAhead(buffered, time) {
   for (let i = 0; i < buffered.length; i++) {

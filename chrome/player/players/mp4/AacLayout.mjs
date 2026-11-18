@@ -1,22 +1,6 @@
 // @ts-check
 
-// AAC whose channel layout is its own: channelConfiguration 0, with a program config element
-// (PCE) in the AudioSpecificConfig that lists the channel elements by where they play. ffmpeg's
-// AAC encoder writes one for a layout no channel configuration names, such as 6.0.
-// Firefox on Windows decodes AAC with Windows' own decoder (WMF), and that one takes such a
-// stream's packets and gives nothing back, with no error, when the PCE
-//   - lists the front centre after the front pair, as ffmpeg writes its 6.0, or
-//   - has a lone side channel, which Windows has no speaker for (an older ffmpeg's 6.0).
-// Firefox waits for the first audio before it shows the first frame: a film with such sound sat
-// at 0:00 with minutes buffered, in Firefox's own player too (a film site's hoster, a 6.0 track
-// written by Lavc62.4.100, 2026-10-12). Relabelled - the front centre first, a lone side channel
-// at the back centre - it decodes, each of its six channels sample for sample as ffmpeg decodes
-// the original (measured in Firefox 157 through WebCodecs, which uses the same decoder; layouts
-// with the centre first and no lone side channel decoded as they were).
-//
-// Only the labels change. A decoder finds each element of a packet by its type and tag, so the
-// packets stay as they are; and moving elements between groups leaves the PCE as long as it was,
-// so the rewrite is made in place, in the esds box's bytes MP4Player's init segment is made of.
+// Relabels an AAC program config element (channelConfiguration 0) that Windows' decoder (WMF) plays as silence.
 
 /** Reads bits, most significant first. */
 class BitReader {
@@ -45,7 +29,6 @@ class BitReader {
 }
 
 /**
- * Writes `count` bits of `value` at a bit position.
  * @param {Uint8Array} bytes
  * @param {number} pos
  * @param {number} count
@@ -61,22 +44,19 @@ function writeBits(bytes, pos, count, value) {
 }
 
 /**
- * The AudioSpecificConfig with its PCE relabelled so that Windows' decoder takes it, or null
- * when it needs nothing (or is not a layout this was measured for: left as it is).
- * @param {Uint8Array} asc - The AudioSpecificConfig.
+ * The AudioSpecificConfig relabelled so that Windows' decoder takes it, or null when it needs nothing.
+ * @param {Uint8Array} asc
  * @return {?Uint8Array} A new array as long as the old one, or null.
  */
 export function windowsAacLayout(asc) {
   try {
     const bits = new BitReader(asc);
     const objectType = bits.read(5);
-    // AAC Main, LC, SSR and LTP: the GASpecificConfig below. Not HE-AAC's hierarchical
-    // signalling (5, 29), nor anything else.
+    // AAC Main, LC, SSR and LTP; not HE-AAC's hierarchical signalling (5, 29).
     if (objectType < 1 || objectType > 4) return null;
     if (bits.read(4) === 15) bits.read(24);
     if (bits.read(4) !== 0) return null;
-    // GASpecificConfig: frameLengthFlag, dependsOnCoreCoder (and its delay), extensionFlag;
-    // the PCE follows.
+    // GASpecificConfig: frameLengthFlag, dependsOnCoreCoder (and its delay), extensionFlag; the PCE follows.
     bits.read(1);
     if (bits.read(1)) bits.read(14);
     bits.read(1);
@@ -138,7 +118,7 @@ export function windowsAacLayout(asc) {
 }
 
 /**
- * Reads an MPEG-4 descriptor's tag and length (ISO/IEC 14496-1: up to four bytes of seven bits).
+ * An MPEG-4 descriptor's tag and length (ISO/IEC 14496-1: up to four bytes of seven bits).
  * @param {Uint8Array} bytes
  * @param {number} at
  * @return {?{tag: number, length: number, body: number}} body: where its content starts.
@@ -158,9 +138,8 @@ function descriptorAt(bytes, at) {
 }
 
 /**
- * Relabels the AAC layout in an esds box's content (what follows its version and flags: the
- * ES_Descriptor), in place, when Windows' decoder needs it (windowsAacLayout).
- * @param {Uint8Array} esd - The esds box's ES_Descriptor bytes (mp4box's esds.data).
+ * Relabels the AAC layout in an esds box's ES_Descriptor, in place (windowsAacLayout).
+ * @param {Uint8Array} esd
  * @return {boolean} Whether it changed anything.
  */
 export function relabelEsdsAacLayout(esd) {
@@ -173,8 +152,8 @@ export function relabelEsdsAacLayout(esd) {
   if (flags & 0x20) pos += 2; // OCRstreamFlag: OCR_ES_Id
   const config = descriptorAt(esd, pos);
   if (!config || config.tag !== 0x04) return false;
-  // objectTypeIndication 0x40 is MPEG-4 audio, whose DecoderSpecificInfo is the
-  // AudioSpecificConfig. The 13 bytes before it: that, streamType, bufferSizeDB, the bitrates.
+  // 0x40: MPEG-4 audio, whose DecoderSpecificInfo is the AudioSpecificConfig.
+  // The 13 bytes before it: objectTypeIndication, streamType, bufferSizeDB, the bitrates.
   if (esd[config.body] !== 0x40) return false;
   const info = descriptorAt(esd, config.body + 13);
   if (!info || info.tag !== 0x05 || info.body + info.length > esd.length) return false;

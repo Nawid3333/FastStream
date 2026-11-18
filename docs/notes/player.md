@@ -2714,3 +2714,94 @@ Rejected:
 - A sources row's Play going on after the row was deleted: the player is loading that source.
 - Headers applied while typed: lines without a colon are left out, as intended.
 - The media-session seek keys with no player: the client's `currentTime` does nothing then.
+
+## Player engines: reasons moved out of the code comments (2026-11-18)
+
+- **`hls2mp4/transmuxer.mjs`** - hls.js reads `chunkMeta.iframe` unconditionally at the top of
+  `demux`, `resetInitSegment` and `remux`. Outside hls.js's own pipeline nothing builds a
+  `ChunkMetadata`, so one inert instance (with the level's duration) is passed to all three. In
+  `demux` the flag after it is `isSampleAes`, then `flush`: without the flush, the PES data at the
+  end of the last segment is never parsed, and a save loses the video's last frames and the
+  audio's last packet.
+- **`Transmuxer` typeSupported** - The output is an MP4 file, not something MSE has to take: MP3
+  goes in as MP3 in MP4 (bare MPEG audio has no mdat for HLS2MP4 to place and no sample entry in
+  MP4Generator), and AC-3 is declared supported, else hls.js drops the track; MP4Generator writes
+  it as `ac-3` with its `dac3`. TSDemuxer logs through the logger it is given, and without one its
+  first report (HEVC found, AC-3 skipped, a damaged packet) throws and fails the save.
+- **`HLS2MP4.pushChunk`** - Each transmuxer (the level's, the audio rendition's) counts from its
+  own stream's first timestamp (the initPTS hls.js picks after each reset). The chunks keep the
+  stream's clock instead, which both renditions share, so the tracks start as far apart as they
+  played.
+- **`HLS2MP4.setup` edit lists** - An edit's media time is measured on the samples as they are
+  written, one after the other: across an EXT-X-DISCONTINUITY the stream's timestamps start over
+  (or jump past a fragment a partial save lacks), and an edit worked out from them shows only the
+  first piece of a stream with ad breaks in players that follow edit lists (mpv, VLC, ffmpeg).
+  The edit lasts as long as the track's media, its last presented end included: a stream cut in
+  decode order (a recording stopped inside a group of pictures) shows a frame past the decode
+  timeline's end.
+- **`HLS2MP4.setup` video sample entry** - The `avc1`/`hvc1` entry with its parameter sets comes
+  from hls.js's own MP4 writer, so hls.js's changes to it come with hls.js. It is made here and
+  handed to MP4Generator as `codecBuffer`, not made inside MP4Generator: a DASH save would then
+  load hls.js.
+- **`HLSFragmentStore`** - A level's segments are stored from its first one, at `sn - snBase`. A
+  live stream may start its media sequence numbers anywhere (millions, a timestamp), and the
+  client walks each level's array every second (freeing, the next download, the buffer bar):
+  indexed by sn, every hole below it was walked each time (52 ms a walk at 2 million in Node).
+- **`SegmentAppender`** - A SourceBuffer refuses an append by throwing (QuotaExceededError when
+  full, InvalidStateError when its MediaSource is gone). MP4Player releases a segment's samples
+  from mp4box as soon as it is queued, so a refused segment is gone: the player loads again from
+  the playhead (reading less ahead when the SourceBuffer was full), and the third refusal in a row
+  is its error. Refusals of segments appended before the last reload, or of SourceBuffers no
+  longer in use, are that reload's business.
+- **`HLSDecrypter`** - `decrypter-worker.js` answers a failure (a wrong key, an IV that is not 16
+  bytes, a download cut short) with 0 bytes and an error. No data is a failure, never a result:
+  stored, it would be the segment, complete and empty. A worker that fails to load or throws
+  answers nothing: what waits fails, and the next decrypt starts a new worker.
+- **`SourceBufferWrapper`** - An operation that throws starts no update, so no `updateend` follows
+  it: the wrapper must not stay marked updating, nor keep the operation at the head of the queue.
+  `remove()` resolves once the removal has started, not once the range is gone: `buffered` holds
+  it until the removal's `updateend`. `removalPending` exists for that: a seek decides from
+  `buffered` whether to load anew, and a seek to 0 just after a jump to the end found the start
+  still buffered (the removal of everything waited behind the end's appends), did not reload, and
+  the removal then took the start away with nothing loading it again.
+- **`SampleIndex.RangeTimes`** - Each range's earliest time is kept and worked out again only for
+  the ranges new samples fall in (working out every range from every sample at each moof took
+  10 ms a call on a 2-hour file, once per megabyte read). It is kept only while the sample list
+  stays sorted by offset, which `minTimeIn`'s binary search needs; a list that gets an earlier
+  part after a later one (a seek back) is worked out whole each time.
+- **`StallWatchdog`** - Firefox sometimes stops a video that says it is playing after a seek back
+  into what is buffered: not paused, not seeking, readyState 2 with minutes buffered, its time and
+  frame count still. `play()` restarts it at the time its clock has run on to, a minute later; a
+  seek starts it where it was sought to, so a stuck video is sought a little forward, as hls.js
+  does.
+- **`LevelManager.rememberVideoChoice`** - A version picked by hand stores its codec family only
+  when the click chose between codecs (`isCodecChoice`). A quality with one version, or versions
+  that differ only in bitrate, says nothing about codecs: the family stored from such a click
+  outranked hardware decoding at every height on that site.
+- **`HLSPlayer`'s hls.js config** - `_abandonRulesCheck` (hls.js dropping quality mid-fragment)
+  fights pre-buffering far ahead; it is an instance property set in the base constructor, so it
+  is reassigned after `super()`. hls.js's text tracks and metadata cues are off: FastStream shows
+  none of them, and hls.js otherwise decodes CEA-608 captions and makes ID3, emsg and DATERANGE
+  cues for every fragment. Interstitials are off: hls.js plays each in a player of its own made
+  from this config, which FastStream does not drive (measured: a replacing break skipped the
+  stream's start and ended inside the break). `preserveManualLevelOnError`: hls.js's error
+  controller otherwise resets a pinned level to auto on a load failure, and its bandwidth ABR
+  settles lower while LevelManager believes the user's quality is in effect.
+- **`HLSPlayer.saveVideo`** - A level is fMP4 exactly when its playlist names an init segment, and
+  those go to the merger (through DASH2MP4, for its remux fallback); HLS2MP4 demuxes transport
+  streams only. A level that carries its own audio goes there too: the audio side is handed over
+  only when it is a rendition of its own.
+- **`HLSPlayer.saveVideo`, `DashPlayer.saveVideo` (keepPinned)** - A fragment is let go of once
+  read, except for the remuxer: it reads the store's own Blobs as it writes, after reading them
+  all, and a fragment freed before that reads nothing. Those stay pinned until the save ends.
+- **`HLSLoader`** - hls.js's `timeout` is the longest a whole load may take (120 s for a segment),
+  FetchLoader's how long nothing may come; it is capped at `STALL_TIMEOUT_MS`, else a dead
+  connection held playback for two minutes. A stored segment answers a request only for its own
+  place (`isSamePlace`): a live stream that starts its numbering again gives a new segment a
+  stored one's number, and only when both its address without the query (a rotating token) and
+  its place (start, duration) differ is it another. hls.js's playlist loader passes no `onAbort`,
+  so a failed playlist is reported as an error, which hls.js retries.
+- **`DashLoader`** - The loader dash.js extends has `resetInitialSettings`: HTTPLoader calls it
+  when a decode error resets the MediaSource, and without it the reset threw and the stream never
+  recovered. A segment it downloads itself gets the download manager's retries (dash.js retries
+  nothing); a manifest fails at the first error, so a source that is down shows so at once.

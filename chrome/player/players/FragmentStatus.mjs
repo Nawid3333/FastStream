@@ -7,14 +7,10 @@ import {describeLoadError} from '../utils/PlayerErrorUtils.mjs';
 /** @typedef {import('./Fragment.mjs').Fragment} Fragment */
 /** @typedef {{emit: (event: string, ...args: any[]) => any}} FragmentPlayer */
 
-// A fragment's download status, kept and told to its player at each change: what the DASH,
-// HLS and MP4 fragment requesters share.
-
 /**
- * Sets a fragment's status and tells its player.
  * @param {FragmentPlayer} player
  * @param {Fragment} fragment
- * @param {number} status - A DownloadStatus.
+ * @param {number} status
  */
 function setStatus(player, fragment, status) {
   fragment.status = status;
@@ -22,7 +18,6 @@ function setStatus(player, fragment, status) {
 }
 
 /**
- * A waiting fragment is downloading now; one in any other state is left as it is.
  * @param {FragmentPlayer} player
  * @param {Fragment} fragment
  */
@@ -33,16 +28,12 @@ export function markRequested(player, fragment) {
 }
 
 /**
- * The download's onSuccess, onFail and onAbort for a fragment: the stored data read back
- * (unless skipProcess asks for none) and the fragment complete, then `succeed`; a read that
- * fails counts as a failed download. A failed download leaves the fragment failed, an aborted
- * one waiting (it is asked for again).
+ * A read that fails counts as a failed download; an aborted one leaves the fragment waiting.
  * @param {FragmentPlayer} player
  * @param {Fragment} fragment
  * @param {{skipProcess?: boolean, onFail: (entry: DownloadEntry) => void,
- *   onAbort?: (entry: DownloadEntry) => void}} callbacks - The requester's caller's.
- * @param {(entry: DownloadEntry, data: Awaited<ReturnType<DownloadEntry['getDataFromBlob']>>|undefined) => void} succeed -
- *   Told once the data is read: the requester hands it on in its player's form.
+ *   onAbort?: (entry: DownloadEntry) => void}} callbacks
+ * @param {(entry: DownloadEntry, data: Awaited<ReturnType<DownloadEntry['getDataFromBlob']>>|undefined) => void} succeed
  * @return {{onSuccess: (entry: DownloadEntry) => Promise<void>, onFail: (entry: DownloadEntry) => void,
  *   onAbort: (entry: DownloadEntry) => void}}
  */

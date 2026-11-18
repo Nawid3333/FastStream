@@ -1,22 +1,11 @@
 // @ts-check
 import {OpQueue} from './OpQueue.mjs';
 
-// Owns one OPFS subdirectory (chrome/player/network/OPFSManager.mjs's
-// counterpart on the main thread never touches the filesystem directly -
-// FileSystemSyncAccessHandle only exists inside a dedicated worker). Every
-// filesystem operation, including the heartbeat write, goes through a single
-// OpQueue: opening two FileSystemSyncAccessHandles on the same file throws,
-// and every identifier here is always a one-shot whole-blob get/set, so
-// serializing is simpler and cheaper than per-identifier locking. The
-// identifiers it gets are file names OPFSManager.fileName() chose.
+// Owns one OPFS session directory. One OpQueue runs its file operations: two sync access handles on one file throw.
 
-// Matches IndexedDBManager's staleness window. 10 s took live sessions for dead ones: a page
-// in the back-forward cache, or a whole browser after the computer slept, writes no
-// heartbeat for a while, and the next player to start deleted their stored video.
+// A page in the back-forward cache, or a computer asleep, writes no heartbeat for a while.
 const STALE_MS = 60000;
-// Every 5 s, not every second: each beat opens, writes and closes a file, for the whole life
-// of every player page. Firefox holds a hidden tab's timers back by up to 15 s, so a beat is
-// at most about 20 s old, well inside STALE_MS.
+// A hidden tab's timers run up to 15 s late: a beat is at most about 20 s old.
 const HEARTBEAT_MS = 5000;
 const META_FILE = '_meta.json';
 
@@ -31,27 +20,16 @@ let sessionName = null;
 let heartbeatInterval = null;
 let heartbeatInFlight = false;
 
-// Open save-streams: identifier -> {handle, offset}. A save writes one
-// whole output file progressively (see StreamSaver.mjs / mp4merger.mjs);
-// keeping the FileSystemSyncAccessHandle open across messages avoids
-// open/close churn per chunk. All ops still go through the shared OpQueue,
-// so an open save handle can never collide with a heartbeat write.
+// identifier -> {handle, offset}: a save keeps its sync access handle open across messages.
 const saveStreams = new Map();
 
-/** Gets (creating if needed) the shared parent directory every session's subdirectory lives under. */
 async function getFsBlobRoot() {
   const root = await navigator.storage.getDirectory();
   return root.getDirectoryHandle('fsblob', {create: true});
 }
 
 /**
- * Reads another session's heartbeat.
- * @return {Promise<{time: ?number, unreadable?: boolean}>} time: the last beat, or null
- *     when the session has no heartbeat (or is no directory), or one that reads but is not
- *     JSON - cut short by a crash (heartbeats are not flushed), its session gone for good;
- *     unreadable: it has one that could not be read, while its owner writes it (a sync
- *     access handle locks the file, and a File read after the owner wrote again fails) -
- *     a live session.
+ * @return {Promise<{time: ?number, unreadable?: boolean}>} Null: none or a broken one (dead). Unreadable: its owner writes it (alive).
  * @param {string} name
  */
 async function readHeartbeat(name) {
@@ -71,14 +49,12 @@ async function readHeartbeat(name) {
   try {
     return {time: JSON.parse(text).updated_time ?? null};
   } catch (e) {
-    // Its owner never leaves it half written (it holds the lock while writing): a crash
-    // did. Taken for unreadable, it kept that session's fragments on the disk for good.
+    // Its owner never leaves it half written (it holds the lock while writing): a crash did.
     return {time: null};
   }
 }
 
 /**
- * When a session directory was made, from its name (see init), or null for another name.
  * @param {string} name
  * @return {?number}
  */
@@ -88,13 +64,7 @@ function sessionCreatedTime(name) {
 }
 
 /**
- * Deletes sibling session directories left by a crashed or closed tab: a heartbeat
- * older than STALE_MS, or none at all. Judged off the heartbeat, not the directory's age,
- * so a long-running session isn't mistaken for stale. But a directory younger than
- * STALE_MS is never judged: it is made before its first heartbeat is written, and two
- * players starting together deleted each other's brand-new session that way (its blobs
- * then stayed in RAM, and its saves failed). And a heartbeat that is there but cannot be
- * read is its owner writing it.
+ * Deletes sessions whose heartbeat is stale or missing; one younger than STALE_MS has none yet.
  * @param {string} ownName
  */
 async function prune(ownName) {
@@ -113,17 +83,13 @@ async function prune(ownName) {
     try {
       await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).removeEntry(name, {recursive: true});
     } catch (e) {
-      // Another tab may be pruning or still finishing its own close() at
-      // the same time - not fatal, just leave it for the next prune pass.
+      // Another tab may be pruning or closing it: the next prune takes it.
     }
   }));
 }
 
 /**
- * Writes all of `data` at `at`. A sync access handle's write() answers with the bytes it
- * wrote, and Firefox reports a write that failed part-way (the disk or the quota full) only
- * through that count, never with an error: a fragment was stored cut short, or a save went
- * on with a hole in it, and nothing said so.
+ * Firefox reports a write that fails part-way (disk or quota full) only in write()'s count, never as an error.
  * @param {FileSystemSyncAccessHandle} accessHandle
  * @param {ArrayBuffer|ArrayBufferView} data
  * @param {number} at
@@ -135,21 +101,10 @@ function writeAll(accessHandle, data, at) {
   }
 }
 
-// No flush() (a forced sync to the disk) for the heartbeat or a stored fragment: both only
-// have to be read back in this browser session, which close() makes them, and a session that
-// crashed is pruned, its video downloaded again. Writing 500 MB as 1.6 MB files, each flushed,
-// made Windows write 800 MB to the disk; left to its lazy writer, 423 MB (measured
-// 2026-10-09). The heartbeat flushed once a second for every open player. Nor a save's file
-// (saveEnd): read back as the Blob the user downloads, in this session too. Its flush at the
-// end took about 0.5 s of a 458 MB HLS save (1770 ms against 1259 ms, medians of 6, 2026-11-07).
+// No flush(): files are read back only in this browser session, and a crashed session is pruned.
 
 /**
- * A file of this session, made when it is not there. The session's directory is made again
- * when it is gone: another player's prune took it for a dead session's - no heartbeat for
- * STALE_MS, as after the computer slept, when that player starts before this one's next
- * beat. Its handle then failed every write for the rest of the page's life: nothing was
- * stored on disk any more, each fragment the RAM budget let go of was downloaded again, and
- * no save could be written.
+ * The session's directory is made again when another player's prune took it.
  * @param {string} name
  * @return {Promise<FileSystemFileHandle>}
  */
@@ -162,7 +117,6 @@ async function sessionFile(name) {
   }
 }
 
-/** Overwrites this session's heartbeat marker with the current time. */
 async function writeHeartbeat() {
   const handle = await sessionFile(META_FILE);
   const accessHandle = await handle.createSyncAccessHandle();
@@ -179,22 +133,13 @@ async function init() {
   fsBlobRoot = await getFsBlobRoot();
   sessionName = 'fsblob-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
 
-  // Prune before this session's own directory exists, so it can never be
-  // mistaken for one of the (stale) siblings being cleaned up.
+  // Before this session's own directory exists, so prune never takes it.
   await prune(sessionName);
 
   sessionDir = await /** @type {FileSystemDirectoryHandle} */ (fsBlobRoot).getDirectoryHandle(sessionName, {create: true});
   await writeHeartbeat();
   heartbeatInterval = setInterval(() => {
-    // Deliberately NOT queue.push()'d: the heartbeat only ever touches
-    // META_FILE, a different path from every other op here, so it can't
-    // collide with an in-progress sync access handle the way two ops on the
-    // same identifier would. Going through the shared queue let one big
-    // get/set or a long saveAppend burst starve the heartbeat past
-    // STALE_MS and get this session's directory deleted by a sibling tab's
-    // prune() while it was still alive, just busy. heartbeatInFlight only
-    // guards against a heartbeat write itself running long enough to
-    // overlap the next tick.
+    // Not queued, so long writes cannot starve it past STALE_MS: it touches no file another op does.
     if (heartbeatInFlight) return;
     heartbeatInFlight = true;
     writeHeartbeat().catch(() => {}).finally(() => {
@@ -222,9 +167,7 @@ async function setFile(identifier, data) {
   accessHandle.close();
 }
 
-/**
- * @param {string} identifier
- */
+/** @param {string} identifier */
 async function getFile(identifier) {
   const fileHandle = await /** @type {FileSystemDirectoryHandle} */ (sessionDir).getFileHandle(identifier);
   const accessHandle = await fileHandle.createSyncAccessHandle();
@@ -238,15 +181,12 @@ async function getFile(identifier) {
   }
 }
 
-/**
- * @param {string} identifier
- */
+/** @param {string} identifier */
 async function deleteFile(identifier) {
   try {
     await /** @type {FileSystemDirectoryHandle} */ (sessionDir).removeEntry(identifier);
   } catch (e) {
-    // Already gone - fine, deleteFile is idempotent everywhere else in
-    // this codebase's storage backends too.
+    // Already gone.
   }
 }
 
@@ -269,25 +209,10 @@ async function destroy() {
     }
   }
   saveStreams.clear();
-  // Deliberately NOT removing the session directory here: a finished save
-  // file may still be mid-download from the main thread (the File was handed
-  // to chrome.downloads). Once the heartbeat stops, prune() reaps this
-  // directory on the next FSBlob init - same staleness semantics as before,
-  // just deferred so in-flight downloads can finish. A save whose download
-  // Firefox said is over deletes it from the main thread once this worker
-  // ended (OPFSManager.close(true)).
+  // The directory stays: a finished save may still be read. Prune or OPFSManager.close(true) removes it.
 }
 
-/**
- * Progressive whole-file saves. 'saveBegin' creates/truncates the output
- * file and keeps an open sync access handle for it; 'saveAppend' writes
- * chunks in order (FIFO through the OpQueue preserves stream order);
- * 'saveEnd' truncates and closes, leaving the file readable from the main
- * thread via getFile. 'saveAbort' discards everything.
- */
-/**
- * @param {string} identifier
- */
+/** @param {string} identifier */
 async function saveBegin(identifier) {
   const fileHandle = await sessionFile(identifier);
   const accessHandle = await fileHandle.createSyncAccessHandle();
@@ -307,9 +232,7 @@ async function saveAppend(identifier, data) {
   stream.offset += data.byteLength;
 }
 
-/**
- * @param {string} identifier
- */
+/** @param {string} identifier */
 async function saveEnd(identifier) {
   const stream = saveStreams.get(identifier);
   if (!stream) {
@@ -323,9 +246,7 @@ async function saveEnd(identifier) {
   }
 }
 
-/**
- * @param {string} identifier
- */
+/** @param {string} identifier */
 async function saveAbort(identifier) {
   const stream = saveStreams.get(identifier);
   if (stream) {
@@ -351,9 +272,7 @@ self.addEventListener('message', async (event) => {
     switch (op) {
       case 'init':
         await queue.push(() => init());
-        // The main thread needs the session name to open finished save
-        // files itself (FileSystemSyncAccessHandle is worker-only, but
-        // plain getFile() is not).
+        // The main thread opens finished save files itself: getFile works there.
         result = {sessionName};
         break;
       case 'set':

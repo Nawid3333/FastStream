@@ -4,26 +4,19 @@ import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 /** @typedef {{getData: () => Promise<*>, getDataFromBlob: (type?: string) => Promise<*>}} Entry */
 
 /**
- * A player's fragment requester (Dash-, HLS- or MP4FragmentRequester), each taking its own
- * kind of fragment.
  * @typedef {{requestFragment(fragment: import('./Fragment.mjs').Fragment, callbacks: {skipProcess?: boolean,
  *   onSuccess: () => void, onFail: () => void, onAbort: () => void}, config: null, priority: number): ReturnType<import('../network/DownloadManager.mjs').DownloadManager['getFile']>}} FragmentRequester
  */
 
 /**
- * A download started for the save, with what stops it (cancel).
  * @typedef {{promise: Promise<void> | null, loader: ReturnType<import('../network/DownloadManager.mjs').DownloadManager['getFile']> | null, reject: ((e: Error) => void) | null}} SaveDownload
  */
 
 /**
- * A downloaded fragment's stored entry for a save, its data downloaded again once when it
- * is gone. A stored download can lose its data after it completed (DownloadEntry: its
- * onDataLost drops the entry) while the fragment still says downloaded, and a save read it
- * bare: it failed there every time, where the loaders download such a fragment again.
- * @param {() => Entry | null} entryOf - The download manager's entry of the fragment now.
- * @param {() => Promise<void>} downloadAgain - Downloads the fragment once more.
+ * Its data downloaded again once when the store lost it after the download completed.
+ * @param {() => Entry | null} entryOf
+ * @param {() => Promise<void>} downloadAgain
  * @return {Promise<{getData: () => Promise<*>, getDataFromBlob: (type?: string) => Promise<*>}>}
- *   Reads that download it again when the entry is gone, or went while it was read.
  */
 export async function savedEntry(entryOf, downloadAgain) {
   const fresh = async () => {
@@ -38,8 +31,7 @@ export async function savedEntry(entryOf, downloadAgain) {
     try {
       return await how(entry);
     } catch (e) {
-      // Only data the store lost: getDataFromBlob reported it and the entry was dropped.
-      // Anything else would fail the same way after a new download.
+      // Only data the store lost: anything else would fail the same way after a new download.
       if (entryOf() === entry) throw e;
       entry = await fresh();
       return how(entry);
@@ -51,41 +43,25 @@ export async function savedEntry(entryOf, downloadAgain) {
   };
 }
 
-/**
- * Downloads a save's fragments a few ahead of the one being converted.
- *
- * A save reads its fragments one after the other, and a fragment it did not have yet was
- * downloaded only when its turn came: saving a stream that was not buffered ran at the
- * speed of one connection, although the download manager runs several. This asks for the
- * next ones while the converter works on the current one, through the same download
- * manager and at the save's priority (-1, behind playback). `ahead` is the user's
- * downloader limit, so a save never has more downloads going than that. The converter
- * still takes the fragments in their order and reads the same bytes.
- *
- * The player pins the fragments (ReferenceTypes.SAVER) and unpins them as before; on a
- * cancel or a failure it calls cancel(), which stops what is still downloading.
- */
+/** Downloads a save's fragments a few ahead of the one being converted, at the save's priority (-1). */
 export class SaveFragmentFetcher {
   /**
-   * @param {FragmentRequester} requester the player's fragment requester
-   * @param {Array<import('./Fragment.mjs').Fragment>} fragments the save's fragments, in the order it reads them
-   * @param {number} ahead how many may download at once, the one being read included
+   * @param {FragmentRequester} requester
+   * @param {Array<import('./Fragment.mjs').Fragment>} fragments
+   * @param {number} ahead - How many may download at once, the one being read included.
    */
   constructor(requester, fragments, ahead) {
     this.requester = requester;
     this.fragments = fragments;
     this.ahead = Math.max(1, Math.floor(ahead) || 1);
-    // Downloads started and not yet read, by index.
     /** @type {Map<number, SaveDownload>} */
     this.downloads = new Map();
     this.cancelled = false;
   }
 
   /**
-   * Waits until a fragment is downloaded, and starts the ones after it.
-   * @param {number} index the fragment's place in the save
-   * @return {Promise<void>} rejects with 'Cancelled' after cancel(), or with the download's
-   *     failure
+   * @param {number} index
+   * @return {Promise<void>} Rejects with 'Cancelled' after cancel(), or with the download's failure.
    */
   async get(index) {
     if (this.cancelled) {
@@ -106,10 +82,8 @@ export class SaveFragmentFetcher {
   }
 
   /**
-   * A fragment's entry once it is downloaded (get), its data downloaded again once when the
-   * store lost it (savedEntry).
    * @param {number} index
-   * @param {() => Entry | null} entryOf - The download manager's entry of the fragment now.
+   * @param {() => Entry | null} entryOf
    * @return {ReturnType<typeof savedEntry>}
    */
   async entry(index, entryOf) {
@@ -130,10 +104,7 @@ export class SaveFragmentFetcher {
     });
   }
 
-  /**
-   * Starts a fragment's download, unless it is there or on its way.
-   * @param {number} index
-   */
+  /** @param {number} index */
   start(index) {
     const fragment = this.fragments[index];
     if (!fragment || this.downloads.has(index) || fragment.status === DownloadStatus.DOWNLOAD_COMPLETE) {
@@ -142,16 +113,14 @@ export class SaveFragmentFetcher {
     /** @type {SaveDownload} */
     const download = {promise: null, loader: null, reject: null};
     download.promise = this.download(fragment, download);
-    // One downloaded ahead is waited for when its turn comes, and fails the save then, as
-    // it did when it was downloaded then; until that its failure is held here.
+    // Its failure is held here until its turn comes.
     /** @type {Promise<void>} */ (download.promise).catch(() => {});
     this.downloads.set(index, download);
   }
 
   /**
-   * Downloads one fragment, as the players' downloadFragment(fragment, -1) does.
    * @param {import('./Fragment.mjs').Fragment} fragment
-   * @param {SaveDownload} download where the request goes, for cancel()
+   * @param {SaveDownload} download
    */
   async download(fragment, download) {
     for (;;) {
@@ -171,8 +140,7 @@ export class SaveFragmentFetcher {
         await promise;
         return;
       } catch (e) {
-        // A download the manager gave up (a downloader taken away) is asked for again, as
-        // the save always did.
+        // A download the manager gave up (a downloader taken away) is asked for again.
         if (/** @type {Error} */ (e).message !== 'Aborted download') {
           throw e;
         }
@@ -183,10 +151,7 @@ export class SaveFragmentFetcher {
     }
   }
 
-  /**
-   * Stops: what is still downloading for the save is aborted (a download playback wants
-   * too goes on for playback), and nothing more is started.
-   */
+  /** A download playback wants too goes on for playback. */
   cancel() {
     if (this.cancelled) {
       return;
@@ -195,8 +160,7 @@ export class SaveFragmentFetcher {
     for (const download of this.downloads.values()) {
       const reject = download.reject;
       download.loader?.abort();
-      // The download manager says nothing to a request it only stopped watching (one
-      // playback watches too), and the save must not wait for it.
+      // The manager says nothing to a request it only stopped watching.
       reject?.(new Error('Cancelled'));
     }
   }

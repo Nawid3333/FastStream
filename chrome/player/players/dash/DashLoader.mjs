@@ -5,10 +5,7 @@ import {StringUtils} from '../../utils/StringUtils.mjs';
 import {sourceHeadersFor} from '../../VideoSource.mjs';
 import {DashTrackUtils} from './DashTrackUtils.mjs';
 
-// How many times in a row one segment may fail before the player gives up on it. Until
-// then a failure is an abort, and dash.js asks for the segment again. For good, a dead
-// segment (a 403 from an expired token) was asked for forever behind a spinner: dash.js's
-// errors once the stream is up leave it playing (DashPlayer), so no error ever showed.
+// Failures in a row of one segment before the player gives up on it; until then dash.js asks again.
 const SEGMENT_FAILURES_BEFORE_ERROR = 3;
 
 /** @typedef {import('../../modules/dash.mjs').FragmentRequest} FragmentRequest */
@@ -16,11 +13,6 @@ const SEGMENT_FAILURES_BEFORE_ERROR = 3;
 /** @typedef {import('../../network/FetchLoader.mjs').FetchLoader['stats']} LoadStats */
 
 /**
- * What dash.js's HTTPLoader hands its XHRLoader (load): dash.js's own CommonMediaRequest
- * (src/streaming/vo/CommonMediaRequest.js; its types give the loader a metrics HTTPRequest),
- * its customData holding dash.js's request and HTTPLoader's own ends of it: onloadend (the
- * answer is in the response) and onabort. HTTPLoader takes onloadend away from a request it
- * aborts itself (its abort). abort and _loader are this file's.
  * @typedef {{url: string, method: string, headers: Object<string, string>,
  *   customData: {request: FragmentRequest, onloadend?: () => void, onabort?: () => void,
  *     abort?: () => void},
@@ -28,19 +20,11 @@ const SEGMENT_FAILURES_BEFORE_ERROR = 3;
  */
 
 /**
- * dash.js's CommonMediaResponse for the request (src/streaming/vo/CommonMediaResponse.js),
- * made with status 0: the loader writes the answer into it before onloadend, as dash.js's own
- * XHRLoader does.
  * @typedef {{url?: string, status: number, statusText?: string, data?: ArrayBuffer|string}} DashLoaderResponse
  */
 
 /**
- * How a request ends, told to dash.js as its own XHRLoader tells it, through what dash.js's
- * stock HTTPLoader gives every loader: the answer in its CommonMediaResponse, then
- * customData.onloadend. HTTPLoader takes a 2xx with a body as the answer, and anything else
- * as an error - its own retries are 0 (DashPlayer: FastStream's download manager retries, and
- * this file counts a segment's failures). FastStream's patch to dash.js used to add three
- * callbacks of its own for this to HTTPLoader, and cut its ending out (patches/dashjs@*.patch).
+ * Ends a request as dash.js's own XHRLoader does: the answer in its CommonMediaResponse, then customData.onloadend.
  * @param {DashLoaderRequest} httpRequest
  * @param {DashLoaderResponse} httpResponse
  * @return {{success: (data: ArrayBuffer|string|undefined, responseURL: string) => void,
@@ -58,8 +42,7 @@ function endsOf(httpRequest, httpResponse) {
       customData.onloadend?.();
     },
     fail() {
-      // Status 0, a network error's in XHRLoader. Not a 404, whose first failure has dash.js
-      // check its clock against a time server (HTTPLoader's enableBackgroundSyncAfterSegmentDownloadError).
+      // Status 0, a network error's: a 404's first failure has dash.js check its clock against a time server.
       httpResponse.status = 0;
       customData.onloadend?.();
     },
@@ -70,9 +53,8 @@ function endsOf(httpRequest, httpResponse) {
 }
 
 /**
- * Whether two of dash.js's requests name the same bytes.
- * @param {FragmentRequest} a - A FragmentRequest.
- * @param {FragmentRequest} b - Another.
+ * @param {FragmentRequest} a
+ * @param {FragmentRequest} b
  * @return {boolean}
  */
 function isSameRequest(a, b) {
@@ -80,15 +62,13 @@ function isSameRequest(a, b) {
 }
 
 
-/**
- * @param {import('./DashPlayer.mjs').default} player
- */
+/** @param {import('./DashPlayer.mjs').default} player */
 export function DASHLoaderFactory(player) {
   // Failures in a row, per segment, for this player; a success forgets them.
   /** @type {Map<string, number>} */
   const segmentFailures = new Map();
 
-  /** @param {Object} [cfg] - What dash.js makes the loader with ({} or nothing): unread. */
+  /** @param {Object} [cfg] */
   return (cfg) => {
     cfg = cfg || {};
 
@@ -109,7 +89,7 @@ export function DASHLoaderFactory(player) {
     }
 
     /**
-     * @param {DashLoaderRequest} httpRequest - A segment's.
+     * @param {DashLoaderRequest} httpRequest
      * @param {ReturnType<typeof endsOf>} end
      */
     function loadFragmentInternal(httpRequest, end) {
@@ -128,18 +108,13 @@ export function DASHLoaderFactory(player) {
         }
 
         const level = DashTrackUtils.getLevelFromRepresentation(representation);
-        // A DASH player's store holds DashFragments.
         let frag = /** @type {import('./DashFragment.mjs').DashFragment|null|undefined} */ (player.client.getFragment(level, segmentIndex));
-        // The store is keyed by representation id and segment index, and in a manifest of
-        // several periods neither is unique: ids need only differ within a period, and the
-        // indexes start again in each. The next period's segment 0 got the stored one of
-        // this period, and played its media. A stored fragment answers only for its own bytes.
+        // Representation ids and segment indexes repeat across periods: a stored fragment answers only for its own bytes.
         if (frag && !isSameRequest(frag.request, requestObj)) {
           frag = null;
         }
         if (!frag) {
           console.warn('Fragment not found', requestObj, level, player.client.getFragments(level));
-          // throw new Error("Fragment not found");
           request(httpRequest, end, true);
           return;
         }
@@ -151,7 +126,7 @@ export function DASHLoaderFactory(player) {
         const loader = player.fragmentRequester.requestFragment(frag, /** @type {import('./DashFragmentRequester.mjs').FragmentCallbacks} */ ({
           onSuccess: (entry, data) => {
             segmentFailures.delete(failureKey);
-            end.success(data, /** @type {string} */ (entry.responseURL)); // set on success
+            end.success(data, /** @type {string} */ (entry.responseURL));
           },
           onProgress: (stats, context, data, xhr) => {
 
@@ -184,14 +159,12 @@ export function DASHLoaderFactory(player) {
     }
 
     /**
-     * Downloads what dash.js asks for that the store does not hold: a manifest, or a segment
-     * it has no place for (loadFragmentInternal).
+     * Downloads what the store does not hold: a manifest, or a segment it has no place for.
      * @param {DashLoaderRequest} httpRequest
      * @param {ReturnType<typeof endsOf>} end
      * @param {boolean} [isSegment]
      */
     function request(httpRequest, end, isSegment = false) {
-      // Variables will be used in the callback functions
       const request = httpRequest.customData.request;
 
       /** @type {number|undefined} */
@@ -200,7 +173,6 @@ export function DASHLoaderFactory(player) {
       let rangeEnd = undefined;
 
       if (request.range) {
-        // StringUtils documents its answer as an Object.
         const [start, end] = StringUtils.parseHTTPRange(request.range);
         if (start === undefined) {
           console.warn('Failed to parse range', request.range);
@@ -211,19 +183,13 @@ export function DASHLoaderFactory(player) {
         delete httpRequest.headers.Range;
       }
       const context = {
-        // As dash.js has it, as the store names a segment (DashFragment.getContext). Decoded,
-        // a signed link's %25 became %, and a segment was stored under another name.
+        // As dash.js has it, as the store names a segment: decoded, a signed link's %25 became %.
         url: httpRequest.url,
         method: httpRequest.method || 'GET',
         responseType: request.responseType,
         rangeStart: rangeStart,
         rangeEnd: rangeEnd,
-        // A segment gets the download manager's retries (StandardDownloader: 6, from 1 s,
-        // doubling), as one in the store has: dash.js retries nothing itself (DashPlayer). With
-        // none, an answer cut part-way failed the segment at once, and dash.js did not ask for
-        // it again after a seek: a seek into the 30th Period of a manifest sat there for good
-        // (the A/B benchmark, --drop, 2026-11-15; cut-answer.e2e.mjs). A manifest fails at the
-        // first error as before, so a source that is down shows so at once.
+        // A segment gets the download manager's retries (dash.js retries nothing); a manifest fails at once.
         config: {
           maxRetry: isSegment ? 6 : 0,
           timeout: 10000,
@@ -232,35 +198,25 @@ export function DASHLoaderFactory(player) {
         },
         headers: {
           ...httpRequest.headers,
-          // Set: fragments are asked for only once the player has its source. Its login
-          // headers only to its own site (VideoSource.headersFor).
+          // Login headers only to the source's own site (VideoSource.headersFor).
           ...sourceHeadersFor(/** @type {import('../../VideoSource.mjs').VideoSource} */ (player.source), httpRequest.url),
         },
       };
 
       const downloadManager = player.getClient().downloadManager;
-      // A string: dash.js's types know a FragmentRequest's segment types only, and the
-      // manifest's (a TextRequest) is 'MPD'.
+      // dash.js's types know only segment types; the manifest's (a TextRequest) is 'MPD'.
       if (/** @type {?string} */ (request.type) === 'MPD') {
-        // A player's first load of the manifest may be answered from the store, and the copy
-        // has to stay there for "dump buffer" archives, a player opened from one, and the
-        // seek preview. dash.js loads a live manifest again to learn of new segments: then
-        // the stored copy is the old one, and the stream would stop where it ends.
+        // A first load may come from the store (archives, the seek preview); a live refresh must not.
         const key = downloadManager.getIdentifier(context);
         if (player.loadedManifests.has(key)) downloadManager.forgetCompletedFile(context);
         player.loadedManifests.add(key);
       }
-      // No watcher of a DASH download reads its pieces (onChunk): a postProcessor, even one that
-      // changes nothing, keeps the entry from holding a second copy of them while it loads.
-      // At playback's priority, as a segment from the store is asked for: dash.js asks for each
-      // of these to play on (a later Period's segment, the manifest it loads again). At the
-      // default 0 they were what a seek (cancelIfCheap) or a tab giving the line to another
-      // (setYield) cancels, and while the video waited they were not playback's request, so
-      // downloads ahead went on beside them (playbackAsked).
+      // No watcher reads its pieces: a postProcessor keeps the entry from holding a second copy.
+      // At playback's priority: dash.js asks for each of these to play on.
       const loader = downloadManager.getFile({...context, postProcessor: async (entry, response) => response}, {
         /**
          * @param {DownloadEntry} entry
-         * @param {null} [xhr] - FetchLoader has none; none at all for a stored copy.
+         * @param {null} [xhr]
          */
         onSuccess: async (entry, xhr) => {
           if (isSegment) {
@@ -270,20 +226,18 @@ export function DASHLoaderFactory(player) {
           try {
             data = await entry.getDataFromBlob();
           } catch (e) {
-            // Stored, and no longer there to read (DownloadEntry.onDataLost drops it, so the
-            // next request downloads it again): a failure dash.js retries. The rejection went
-            // nowhere, and dash.js waited for the answer for ever.
+            // Stored and no longer readable (onDataLost drops it): a failure dash.js retries.
             console.warn('Could not read a stored download', e);
             end.fail();
             return;
           }
-          end.success(data, /** @type {string} */ (entry.responseURL)); // set on success
+          end.success(data, /** @type {string} */ (entry.responseURL));
         },
         /**
          * @param {LoadStats} stats
-         * @param {Awaited<ReturnType<DownloadEntry['getRequest']>>} context - The request.
+         * @param {Awaited<ReturnType<DownloadEntry['getRequest']>>} context
          * @param {ArrayBuffer|string} data
-         * @param {null} xhr - FetchLoader has none.
+         * @param {null} xhr
          */
         onProgress: (stats, context, data, xhr)=> {
 
@@ -294,10 +248,7 @@ export function DASHLoaderFactory(player) {
             end.fail();
             return;
           }
-          // A segment the fragment store did not have (loadFragmentInternal's fallback):
-          // counted as loadFragmentInternal counts, so that one which keeps failing ends in the
-          // player's error. dash.js's own errors once the stream is up leave it playing
-          // (DashPlayer), and it was asked for forever behind a spinner.
+          // Counted as loadFragmentInternal counts, so one that keeps failing ends in the player's error.
           const key = 'url:' + context.url + ':' + (rangeStart ?? '') + '-' + (rangeEnd ?? '');
           const failures = (segmentFailures.get(key) || 0) + 1;
           segmentFailures.set(key, failures);
@@ -329,12 +280,7 @@ export function DASHLoaderFactory(player) {
       }
     }
 
-    // dash.js's own XHRLoader has all five; its HTTPLoader calls resetInitialSettings when
-    // a decode error resets the MediaSource. Without it the reset threw ("xhrLoader.
-    // resetInitialSettings is not a function", real-streams check, 2026-10-05) and the
-    // stream never recovered. Nothing is left to abort by then: HTTPLoader's abort() has
-    // ended every request in flight through its customData.abort, set above. There is no
-    // single XHR here for getXhr.
+    // dash.js's HTTPLoader calls resetInitialSettings when a decode error resets the MediaSource.
     return {
       load: load,
       abort: abort,

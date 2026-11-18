@@ -2,7 +2,6 @@
 import {Utils} from '../../utils/Utils.mjs';
 
 /**
- * mp4box's moov.trak, as far as this file reads it.
  * @typedef {Object} Trak
  * @property {Sample[]|undefined} samples - Filled only as a moof holding the track is parsed.
  * @property {number} samples_duration
@@ -11,7 +10,6 @@ import {Utils} from '../../utils/Utils.mjs';
  */
 
 /**
- * mp4box's sample, as far as this file reads it.
  * @typedef {Object} Sample
  * @property {number} timescale
  * @property {number} cts
@@ -21,24 +19,11 @@ import {Utils} from '../../utils/Utils.mjs';
  * @property {boolean} is_sync
  */
 
-// MP4Player's arithmetic on mp4box's sample lists, kept apart from MP4Player so that unit
-// tests can run it (MP4Player imports the vendored mp4box, which unit tests do not have).
-//
-// mp4box fills a fragmented file's track with samples only as a moof holding that track is
-// parsed. A track can therefore have none at all for a while: a subtitle or text track, a
-// file whose moofs hold one track each and whose first video moof lies beyond the first
-// range read, a moof cut in two by the end of a range. Both calculations below read
-// samples[0] of every track, and a track with none threw: the duration on parsing the
-// metadata (the player never started, and said nothing), the keyframe on each turn of the
-// main loop (which then stopped for good, again with nothing said).
+// A fragmented file's track has samples only once a moof holding it is parsed: it may have none.
 
 /**
- * How long a fragmented file without a mehd box is, as far as its samples are known: its
- * longest track. A track without samples yet counts for nothing. The samples' summed lengths
- * leave out where the first moof starts (its tfdt): a file cut from a longer recording starts
- * at 10 s and plays to 12 s, and the sum said 2. The last sample's end counts too, less the
- * edit list's start, which Firefox's demuxer takes off the times as well.
- * @param {Trak[]} traks - mp4box's moov.traks.
+ * A fragmented file's length without a mehd: its longest track, from its first tfdt, less the edit list's start.
+ * @param {Trak[]} traks
  * @return {number} Seconds; 0 while no track has samples.
  */
 export function sampledDuration(traks) {
@@ -53,13 +38,8 @@ export function sampledDuration(traks) {
 }
 
 /**
- * How far one track is, in seconds, where the other's first sample lies in the file: 0 for a
- * file that interleaves its tracks (a second or less between them in most). A file that stores
- * all its audio after all its video says its whole length. The player's ranges take their
- * times from the video, and it reads no further than maxBufferLength (5 s at the least) past
- * the playhead: the audio of the first seconds was never read, and nothing played (Codex
- * review, 2026-11-17).
- * @param {Array<Pick<Sample, 'cts'|'offset'|'timescale'>>} a - A track's samples, in decode order.
+ * How far apart the tracks lie in the file, in seconds: 0 when interleaved, the whole length when all audio follows.
+ * @param {Array<Pick<Sample, 'cts'|'offset'|'timescale'>>} a
  * @param {Array<Pick<Sample, 'cts'|'offset'|'timescale'>>} b
  * @return {number} Seconds; 0 if either has no samples.
  */
@@ -72,8 +52,7 @@ export function apartBy(a, b) {
 }
 
 /**
- * A track's keyframes, by composition time (stable: of two at the same time, the one first in
- * the list comes first).
+ * A track's keyframes by composition time (a stable sort).
  * @template {Pick<Sample, 'cts'|'is_sync'>} T
  * @param {T[]} samples
  * @return {T[]} A new array.
@@ -83,18 +62,12 @@ export function sortKeyframes(samples) {
 }
 
 /**
- * A track's keyframes brought up to date with the samples mp4box added to its list since
- * `count` (a fragmented file's, one moof at a time): what sortKeyframes(samples) gives, with
- * only the new ones sorted. Sorting the whole list again for every range took 7.7 ms a range
- * on a 2-hour file (338,000 audio samples, each a keyframe). New keyframes that all come at or
- * after the last one, as they do while a file plays on, go onto the end of `sorted` itself;
- * those of an earlier part (read after a seek back) are merged in, into a new array. mp4box
- * only appends to a track's list (it builds it once, at the moov).
+ * sortKeyframes(samples), sorting only what mp4box added since count; later ones go onto sorted itself.
  * @template {Pick<Sample, 'cts'|'is_sync'>} T
  * @param {T[]} sorted - sortKeyframes(samples.slice(0, count)).
- * @param {T[]} samples - The track's samples, `count` of them known before.
+ * @param {T[]} samples
  * @param {number} count
- * @return {T[]} `sorted` itself or a new array.
+ * @return {T[]} sorted itself or a new array.
  */
 export function addKeyframes(sorted, samples, count) {
   const added = sortKeyframes(samples.slice(count));
@@ -117,7 +90,6 @@ export function addKeyframes(sorted, samples, count) {
 }
 
 /**
- * The byte offset of the last keyframe at or before a time, in one track's keyframes.
  * @param {Sample[]} samples - The keyframes, sorted by time; not empty.
  * @param {number} time - Seconds.
  * @return {number}
@@ -135,8 +107,7 @@ export function keyframeOffsetIn(samples, time) {
 }
 
 /**
- * Where to read from to play a time: the lowest of the tracks' keyframe offsets for it.
- * Tracks without a keyframe yet are left out.
+ * The lowest of the tracks' keyframe offsets for a time; tracks without a keyframe yet are left out.
  * @param {Sample[][]} sampleLists - Each track's keyframes, sorted by time.
  * @param {number} time - Seconds.
  * @return {?number} Null while no track has a keyframe.
@@ -155,12 +126,10 @@ export function keyframeOffset(sampleLists, time) {
 }
 
 /**
- * The earliest composition time of the samples whose byte offsets lie in a range, its end
- * included: where a range of the file starts in time (MP4Player.setFragmentTimes). Finds the
- * range's first sample by a binary search, so it reads `samples` as sorted by offset.
- * @param {Sample[]} samples - One track's samples; not empty.
- * @param {number} offset - The range's first byte.
- * @param {number} end - The range's end.
+ * Where a range starts in time. A binary search: samples must be sorted by offset.
+ * @param {Sample[]} samples - Not empty.
+ * @param {number} offset
+ * @param {number} end
  * @return {?number} Seconds; null when no sample lies in the range.
  */
 export function minTimeIn(samples, offset, end) {
@@ -187,31 +156,19 @@ export function minTimeIn(samples, offset, end) {
   }
 }
 
-/**
- * What minTimeIn gives for each range of a file, kept per range and worked out again only for
- * the ranges new samples fall in. A fragmented file's samples come one moof at a time, and
- * setFragmentTimes worked out every range's time from every sample again at each one: 10 ms a
- * call on a 2-hour file, once for each megabyte read.
- *
- * Kept only while the list stays sorted by offset, which minTimeIn's search takes it to be:
- * then a range's time changes only when a sample in it comes. A list that gets an earlier
- * part after a later one (a seek back, parsed after the part played) is worked out whole each
- * time from then on, as before, so the times are always what minTimeIn gives.
- */
+/** minTimeIn per range, worked out again only for ranges new samples fall in, while sorted by offset. */
 export class RangeTimes {
   constructor() {
     /**
-     * Per sample list: how many samples were seen, whether they are sorted by offset, and each
-     * range's time with the bounds it was worked out for.
      * @type {WeakMap<Sample[], {count: number, sorted: boolean, byOffset?: Sample[], ranges: Map<object, {start: number, end: number, time: ?number}>}>}
      */
     this.lists = new WeakMap();
   }
 
   /**
-   * @param {Sample[]} samples - One track's samples (mp4box only appends to it); not empty.
+   * @param {Sample[]} samples - mp4box only appends to it; not empty.
    * @param {Array<{rangeStart: number, rangeEnd: number}>} ranges
-   * @return {Array<?number>} minTimeIn(samples, range.rangeStart, range.rangeEnd) for each.
+   * @return {Array<?number>}
    */
   times(samples, ranges) {
     let list = this.lists.get(samples);
@@ -254,8 +211,7 @@ export class RangeTimes {
       const byOffset = list.byOffset;
       return ranges.map((range) => minTimeIn(byOffset, range.rangeStart, range.rangeEnd));
     }
-    // Only the ranges asked for are kept: one the player dropped (the file's end found) is not
-    // held on to, and one asked for again later is worked out again.
+    // Only the ranges asked for are kept.
     const kept = list.ranges;
     list.ranges = new Map();
     return ranges.map((range) => {

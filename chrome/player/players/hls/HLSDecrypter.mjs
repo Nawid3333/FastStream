@@ -10,8 +10,7 @@ export class HLSDecrypter {
    * @param {ArrayBuffer} key
    */
   async decryptAES(data, iv, key) {
-    // No data is a failure, never a result: the download stored what it got as the
-    // decrypted segment, complete, and nothing was ever there to play or save.
+    // No data is a failure, never a result: it would be stored as the segment, complete.
     if (this.destroyed) {
       throw new Error('Decrypter already destroyed');
     }
@@ -21,9 +20,7 @@ export class HLSDecrypter {
     const id = this.lastId++;
     return new Promise((resolve, reject) => {
       /** @type {Map<number, (decrypted: any, error: any) => void>} */ (this.encryptionWorkerCallbacks).set(id, (decrypted, error) => {
-        // decrypter-worker.js answers a failure (a wrong key, an IV that is not 16 bytes,
-        // a download cut short) with 0 bytes and an error, and those 0 bytes were stored
-        // as the segment, complete.
+        // decrypter-worker.js answers a failure with 0 bytes and an error.
         if (decrypted?.byteLength > 0) {
           resolve(decrypted);
         } else {
@@ -44,17 +41,12 @@ export class HLSDecrypter {
       this.encryptionWorker.terminate();
       this.encryptionWorker = null;
     }
-    // A terminated worker will never post back the results these are
-    // waiting on - settle them now instead of leaving decryptAES() callers
-    // hung forever on a fragment that will never finish.
+    // A terminated worker never answers: settle what waits now.
     this.failPending(null);
     this.destroyed = true;
   }
 
-  /**
-   * Fails every decrypt still waiting for the worker.
-   * @param {?string} error - Why, or null for a destroyed decrypter.
-   */
+  /** @param {?string} error - Null for a destroyed decrypter. */
   failPending(error) {
     if (this.encryptionWorkerCallbacks) {
       this.encryptionWorkerCallbacks.forEach((callback) => callback(null, error));
@@ -71,10 +63,7 @@ export class HLSDecrypter {
       /** @type {Map<number, (decrypted: any, error: any) => void>} */ (this.encryptionWorkerCallbacks).delete(data.id);
       callback(data.decrypted, data.error);
     });
-    // A worker that failed to load, or threw, answers nothing, and an answer that could not
-    // be read reaches no one: what was waiting waited forever (the segment stayed
-    // "downloading", and a save holding it hung). It is failed, and the next decrypt starts
-    // a new worker.
+    // A worker that failed to load or threw answers nothing: what waits fails, the next decrypt starts a new one.
     /** @param {Event & {message?: string}} event */
     const crashed = (event) => {
       console.error('The decrypter worker failed', event);

@@ -1,13 +1,8 @@
 // @ts-check
 
 /**
- * What Firefox says about decoding a stream's versions, through the Media Capabilities API.
- *
- * The players ask before their first pick (HLS when the manifest is parsed, DASH in a
- * capability filter dash.js waits for), and LevelManager ranks versions of the same
- * height by the answers: decoded in hardware (`powerEfficient`) first. Answers only reorder;
- * a version is never removed because of one, so a wrong or missing answer (fingerprinting
- * protection, a driver blocklist, a probe that timed out) changes the order at most.
+ * What Firefox says about decoding a stream's versions (Media Capabilities).
+ * Answers only reorder versions of one height; none is removed for one.
  */
 
 /**
@@ -17,9 +12,7 @@
  * @property {boolean} powerEfficient - In Firefox: decoded in hardware.
  */
 
-/**
- * @typedef {'SDR'|'PQ'|'HLG'} VideoRange
- */
+/** @typedef {'SDR'|'PQ'|'HLG'} VideoRange */
 
 /**
  * @typedef {Object} VideoProbe
@@ -53,7 +46,6 @@ export const CodecFamilies = Object.freeze({
   VORBIS: 'vorbis',
 });
 
-// The codec's four-character code (the part before the first dot) to its family.
 /** @type {Map<string, string>} */
 const FAMILY_BY_FOURCC = new Map([
   ['av01', CodecFamilies.AV1],
@@ -84,9 +76,7 @@ const VIDEO_FAMILIES = new Set([
   CodecFamilies.AVC, CodecFamilies.VP8,
 ]);
 
-// Picture per bit, best first. Only consulted between versions that are all decoded in
-// hardware: there the more efficient codec looks better for the same data. AV1 needs about
-// 30-50% fewer bits than H.264 for the same picture; VP9 and HEVC sit between.
+// Picture per bit, best first; consulted only between versions all decoded in hardware.
 /** @type {Map<string, number>} */
 const EFFICIENCY = new Map([
   [CodecFamilies.AV1, 3],
@@ -95,8 +85,7 @@ const EFFICIENCY = new Map([
   [CodecFamilies.AVC, 1],
 ]);
 
-// A probe that never answers must not hold the stream back: dash.js waits for its
-// capability filters before it picks a track, and the HLS player waits before it loads.
+// A probe that never answers must not hold the stream back: dash.js and hls.js wait for it.
 export const PROBE_TIMEOUT_MS = 1500;
 
 /** @type {Map<string, Promise<DecodingInfo|null>>} */
@@ -105,9 +94,7 @@ const probes = new Map();
 const answers = new Map();
 
 /**
- * The codec string of a level as the players store it: a bare codec ("avc1.640028"), a
- * list of them ("avc1.640028,mp4a.40.2"), or a whole MIME type ('audio/mp4; codecs="mp4a.40.2"',
- * as the HLS player stores audio tracks). Returns the first codec, bare.
+ * A bare codec, a list of them, or a whole MIME type: returns the first codec, bare.
  * @param {?string|undefined} codec
  * @return {?string}
  */
@@ -158,7 +145,6 @@ const DISPLAY_NAMES = new Map([
 ]);
 
 /**
- * The name the quality menu shows for a video codec ("AV1", "H.264").
  * @param {?string|undefined} codec
  * @return {?string}
  */
@@ -167,8 +153,7 @@ export function getCodecDisplayName(codec) {
 }
 
 /**
- * How the quality menu labels a version: decoded in hardware, in software, or nothing
- * without an answer.
+ * Hardware, software, or nothing without an answer.
  * @param {?DecodingInfo|undefined} decoding
  * @return {?('hardware'|'software')}
  */
@@ -180,7 +165,6 @@ export function getDecodingLabel(decoding) {
 }
 
 /**
- * HLS's VIDEO-RANGE, or what a DASH representation's colour descriptors say.
  * @param {?string|undefined} value
  * @return {VideoRange}
  */
@@ -193,7 +177,7 @@ export function normalizeVideoRange(value) {
 }
 
 /**
- * Frame rate as a number: DASH writes "30000/1001", HLS a decimal.
+ * DASH writes "30000/1001", HLS a decimal.
  * @param {?string|number|undefined} value
  * @return {number} 0 when unknown.
  */
@@ -214,7 +198,7 @@ const TRANSFER_SCHEME = 'urn:mpeg:mpegB:cicp:TransferCharacteristics';
 const TRANSFER_RANGES = new Map([['16', 'PQ'], ['18', 'HLG']]);
 
 /**
- * @param {any} descriptors - A parsed EssentialProperty/SupplementalProperty: one or a list.
+ * @param {any} descriptors
  * @return {Array<{schemeIdUri?: string, value?: any}>}
  */
 function asList(descriptors) {
@@ -223,8 +207,7 @@ function asList(descriptors) {
 }
 
 /**
- * Reads what a DASH representation (as dash.js parsed it, with its AdaptationSet's common
- * properties pushed down) says about itself.
+ * What a DASH representation says about itself (dash.js's, its AdaptationSet's common properties pushed down).
  * @param {any} rep
  * @return {{type: ?string, codec: ?string, mimeType: string, width: number, height: number,
  *   bitrate: number, frameRate: number, videoRange: VideoRange}}
@@ -261,11 +244,10 @@ export function describeDashRepresentation(rep) {
 }
 
 /**
- * What to ask about a video version. MSE gets fragmented MP4 from the HLS player whatever
- * the playlist's container (hls.js transmuxes TS), so anything but WebM is asked as MP4.
+ * MSE gets fragmented MP4 from the HLS player whatever the container, so anything but WebM is asked as MP4.
  * @param {{codec: ?string|undefined, mimeType?: ?string, width?: number, height?: number,
  *   bitrate?: number, frameRate?: number, videoRange?: ?string}} level
- * @return {?VideoProbe} null when the codec is not known, so there is nothing to ask.
+ * @return {?VideoProbe} Null when the codec is not known.
  */
 export function videoProbeFor(level) {
   const codec = bareCodec(level.codec);
@@ -275,8 +257,7 @@ export function videoProbeFor(level) {
   const container = (level.mimeType || '').toLowerCase().includes('webm') ? 'video/webm' : 'video/mp4';
   return {
     contentType: `${container}; codecs="${codec}"`,
-    // The API needs every field. A version that leaves one out is asked about as a
-    // common 1080p30 stream: the answer is about the codec, which is what matters here.
+    // The API needs every field: a version without one is asked about as 1080p30 (the codec is what matters).
     width: level.width || 1920,
     height: level.height || 1080,
     bitrate: level.bitrate || 5000000,
@@ -303,7 +284,6 @@ export function audioProbeFor(level) {
 }
 
 /**
- * The MediaDecodingConfiguration for a probe.
  * @param {VideoProbe|AudioProbe} probe
  * @return {Object}
  */
@@ -340,7 +320,7 @@ function keyOf(probe) {
 /**
  * Asks once per distinct version; later calls share the answer.
  * @param {?VideoProbe|AudioProbe} probe
- * @return {Promise<DecodingInfo|null>} null without an answer (no API, an error, a timeout).
+ * @return {Promise<DecodingInfo|null>} Null without an answer (no API, an error, a timeout).
  */
 export function probeDecoding(probe) {
   if (!probe) {
@@ -377,10 +357,7 @@ export function probeDecoding(probe) {
         return null;
       })
       .then((info) => {
-        // Kept whenever it comes, also after the probe gave up on it: the pick that waited
-        // has gone on without it, but the quality menu, the next pick and a live manifest's
-        // refresh read it. It used to be dropped, and a stream whose probes took longer than
-        // PROBE_TIMEOUT_MS never had an answer.
+        // Kept whenever it comes, also after the probe gave up: the menu, the next pick and a refresh read it.
         if (info) {
           answers.set(key, info);
         }
@@ -389,8 +366,7 @@ export function probeDecoding(probe) {
   const answer = Promise.race([asked, timeout]).then((result) => {
     clearTimeout(timer);
     const info = /** @type {DecodingInfo|null} */ (result);
-    // No answer (an error, or none in time) is not remembered as unknown: asked again next
-    // time, unless the late answer has come by then.
+    // No answer is not remembered as unknown: asked again next time.
     if (!info) {
       probes.delete(key);
     }
@@ -401,8 +377,7 @@ export function probeDecoding(probe) {
 }
 
 /**
- * The answer for a version if one has arrived. The pick itself is synchronous (dash.js
- * calls it from its track selection), so the players ask first and the pick reads this.
+ * The pick itself is synchronous (dash.js's track selection): the players ask first and the pick reads this.
  * @param {?VideoProbe|AudioProbe} probe
  * @return {DecodingInfo|null}
  */
@@ -414,8 +389,7 @@ export function cachedAnswer(probe) {
 }
 
 /**
- * Whether the screen can show HDR. An HDR version on a screen or browser that cannot is
- * washed out or dark, so HDR is only preferred when this and the decoder agree.
+ * HDR is preferred only when the screen and the decoder agree: else it is washed out or dark.
  * @return {boolean}
  */
 export function screenSupportsHdr() {

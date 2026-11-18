@@ -1,22 +1,16 @@
 // @ts-check
 
-// How far ahead of the playhead a player has its video, without a hole: what decides whether
-// it is short of it (PlayerPeers) and how much of its stored video it may let go of.
-
 /**
  * @typedef {Object} TimedFragment
- * @property {number} start - Seconds.
- * @property {number} end - Seconds.
- * @property {number} status - DownloadStatus.
+ * @property {number} start
+ * @property {number} end
+ * @property {number} status
  */
 
-// DownloadStatus.DOWNLOAD_COMPLETE, without importing the enum into a pure module's tests.
+// DownloadStatus.DOWNLOAD_COMPLETE, not imported: a pure module.
 const COMPLETE = 3;
 
 /**
- * Seconds downloaded without a hole from a time on, in one track's fragments (in order,
- * holes allowed). A fragment that is not downloaded, or a gap between two, ends the count:
- * playback cannot get past it.
  * @param {Array<TimedFragment|undefined|null>|undefined|null} fragments
  * @param {number} time
  * @return {number}
@@ -36,7 +30,6 @@ export function downloadedAhead(fragments, time) {
 }
 
 /**
- * Seconds buffered without a hole from a time on, in a media element's buffered ranges.
  * @param {{length: number, start(i: number): number, end(i: number): number}|undefined|null} ranges
  * @param {number} time
  * @return {number}
@@ -52,14 +45,12 @@ export function bufferedAhead(ranges, time) {
 }
 
 /**
- * How far ahead a player has its video: the downloaded fragments of the video track and,
- * when there is one, the audio track (the shorter), or what the element has buffered,
- * whichever reaches further (a fragmented MP4's fragments have no times until parsed).
+ * The further of the fragments (an MP4's have no times until parsed) and the element's buffer.
  * @param {Object} parts
- * @param {Array<TimedFragment|undefined|null>|undefined|null} parts.video - The video track's fragments.
- * @param {Array<TimedFragment|undefined|null>|undefined|null} [parts.audio] - The audio track's, if separate.
- * @param {*} [parts.buffered] - The element's buffered ranges.
- * @param {number} parts.time - The playhead.
+ * @param {Array<TimedFragment|undefined|null>|undefined|null} parts.video
+ * @param {Array<TimedFragment|undefined|null>|undefined|null} [parts.audio]
+ * @param {*} [parts.buffered]
+ * @param {number} parts.time
  * @return {number}
  */
 export function aheadOfPlayhead({video, audio, buffered, time}) {
@@ -69,9 +60,7 @@ export function aheadOfPlayhead({video, audio, buffered, time}) {
   if (hasVideo && hasAudio) {
     fromFragments = Math.min(downloadedAhead(video, time), downloadedAhead(audio, time));
   } else if (hasVideo || hasAudio) {
-    // Audio only has no video fragments: its audio's are what it has.
     fromFragments = downloadedAhead(hasVideo ? video : audio, time);
   }
-  // The element's buffered ranges are already what all its tracks have together.
   return Math.max(fromFragments, bufferedAhead(buffered, time));
 }

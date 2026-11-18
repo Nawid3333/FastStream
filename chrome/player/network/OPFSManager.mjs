@@ -1,16 +1,8 @@
 // @ts-check
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 
-// Main-thread counterpart to opfs-worker.mjs. Mirrors IndexedDBManager.mjs's
-// method shape (setup/getFile/setFile/deleteFile/clearStorage/close) so
-// FSBlob.mjs only needs one new branch, parallel to its existing
-// UseIndexedDB one. All actual filesystem work happens in the worker -
-// FileSystemSyncAccessHandle only exists inside a dedicated worker, not here.
+// Main-thread side of opfs-worker.mjs: FileSystemSyncAccessHandle exists only in a dedicated worker.
 export class OPFSManager {
-  /**
-   * Every manager whose worker is running, for diagnostics: pendingCalls() on each says
-   * which worker calls have not answered and for how long.
-   */
   static live = new Set();
 
   /** How long the worker may go without answering while calls wait, before it counts as crashed. */
@@ -22,7 +14,6 @@ export class OPFSManager {
     this.pending = new Map();
     this.nextId = 0;
     this.sessionName = null;
-    // identifier -> its name in the session directory (fileName).
     this.fileNames = new Map();
     this.fileCount = 0;
     /** @type {number | ReturnType<typeof setTimeout> | null} */
@@ -30,14 +21,10 @@ export class OPFSManager {
   }
 
   /**
-   * The name a stored identifier has in the session directory; the worker only ever sees
-   * these. A download's identifier is its URL with its range
-   * ('https://host/seg.ts::0-100::arraybuffer'), and an OPFS name must not hold a '/' (or a
-   * '\' on Windows): Firefox refused every such name with a TypeError, so no fragment was
-   * ever stored here, and every one stayed in RAM.
+   * OPFS names cannot hold a slash, so an identifier (a URL) gets a name of its own.
    * @param {string | null} identifier
-   * @param {boolean} [create] - name an identifier that has no name yet
-   * @return {?string} null for an identifier with no name
+   * @param {boolean} [create]
+   * @return {?string}
    */
   fileName(identifier, create = false) {
     let name = this.fileNames.get(identifier);
@@ -48,32 +35,18 @@ export class OPFSManager {
     return name ?? null;
   }
 
-  /** @return {Array<{id: number, op: string, ms: number}>} Calls still waiting on the worker. */
+  /** @return {Array<{id: number, op: string, ms: number}>} */
   pendingCalls() {
     const now = Date.now();
     return [...this.pending].map(([id, {op, started}]) => ({id, op, ms: now - started}));
   }
 
   static isSupported() {
-    // Firefox supports navigator.storage.getDirectory() and
-    // createSyncAccessHandle() but, unlike Chrome, does not expose
-    // FileSystemFileHandle as a global constructor to duck-type against -
-    // so this is deliberately just the primary gate. If a browser claims
-    // getDirectory() but genuinely lacks sync access handles, that surfaces
-    // as a rejected setup() the first time it's used, which FSBlob's backend
-    // chain falls through from - the same way it already handles
-    // IndexedDBManager.isSupported() being similarly optimistic.
+    // Optimistic: a browser without sync access handles fails setup(), and FSBlob moves on.
     if (typeof navigator === 'undefined' || !navigator.storage?.getDirectory) {
       return false;
     }
-    // Firefox private windows are the one case worth refusing up front
-    // rather than discovering: getDirectory() is present and throws
-    // SecurityError on every call, so claiming support here buys nothing but
-    // a spawned worker and a SecurityError in the console each time a player
-    // opens. The extension build is where inIncognitoContext is readable at
-    // all, which is why the runtime fall-through in FSBlob stays the real
-    // safety net (the web build in a private window still gets here, fails
-    // setup, and moves on to the Cache API).
+    // A private window's getDirectory() throws SecurityError on every call: refused up front.
     if (EnvUtils.isIncognito()) {
       return false;
     }
@@ -93,9 +66,7 @@ export class OPFSManager {
     try {
       started = await this.call('init');
     } catch (e) {
-      // FSBlob moves on to its next store and drops this manager: its worker ended here, or
-      // every player that opened so (the web build in a private window) left one running.
-      // A crash before the answer let it go already (handleWorkerCrash).
+      // FSBlob drops this manager and moves on: its worker ends here.
       this.worker?.terminate();
       this.worker = null;
       OPFSManager.live.delete(this);
@@ -104,9 +75,7 @@ export class OPFSManager {
     this.sessionName = started.sessionName;
   }
 
-  /**
-   * @param {{id: number, ok: boolean, result: *, error: string}} msg
-   */
+  /** @param {{id: number, ok: boolean, result: *, error: string}} msg */
   handleMessage(msg) {
     const pending = this.pending.get(msg.id);
     if (!pending) return;
@@ -125,10 +94,7 @@ export class OPFSManager {
   }
 
   /**
-   * Progressive whole-file saves (see opfs-worker.mjs). The main thread
-   * writes chunks through the worker - FileSystemSyncAccessHandle only
-   * exists in a dedicated worker - and finishes by opening the completed
-   * file directly with getFileHandle/getFile, which DO exist here.
+   * Progressive whole-file saves: written through the worker, read back with getFile here.
    * @param {string | null} identifier
    * @return {Promise<void>}
    */
@@ -165,13 +131,11 @@ export class OPFSManager {
   }
 
   /**
-   * Takes over a file another player stored (its hand-off: DownloadManager.adopt): moved from
-   * that player's session directory into this one, under the name it has here. The old player's
-   * session outlives it (prune waits 60 s past its last heartbeat), so the file is still there.
-   * @param {string} identifier - Its identifier here.
-   * @param {string} fromSession - The other player's session directory.
-   * @param {string} fromName - Its name there.
-   * @return {Promise<File>} It, from this session.
+   * Takes over a file another player stored (its hand-off), moved into this session's directory.
+   * @param {string} identifier
+   * @param {string} fromSession
+   * @param {string} fromName
+   * @return {Promise<File>}
    */
   async adoptFile(identifier, fromSession, fromName) {
     if (!this.sessionName) {
@@ -184,8 +148,7 @@ export class OPFSManager {
     const handle = await from.getFileHandle(fromName);
     const name = /** @type {string} */ (this.fileName(identifier, true));
     try {
-      // FileSystemHandle.move, which Firefox has for OPFS (4 ms for 1 MB, measured) and lib.dom
-      // does not declare yet.
+      // FileSystemHandle.move: Firefox has it for OPFS, lib.dom does not declare it yet.
       await /** @type {FileSystemFileHandle & {move: (dir: FileSystemDirectoryHandle, name: string) => Promise<void>}} */ (handle).move(to, name);
     } catch (e) {
       this.fileNames.delete(identifier);
@@ -195,8 +158,7 @@ export class OPFSManager {
   }
 
   /**
-   * Deletes another player's session directory: what is left of it once its hand-off was taken.
-   * @param {string} session - Its name.
+   * @param {string} session
    * @return {Promise<void>}
    */
   async dropSession(session) {
@@ -207,11 +169,8 @@ export class OPFSManager {
   }
 
   /**
-   * Opens a file the worker wrote in this session, as a plain File. Used to
-   * hand a finished save to the download pipeline without ever holding the
-   * whole file in RAM.
-   * @param {string} identifier the name passed to saveBegin
-   * @return {Promise<File>} disk-backed file handle
+   * @param {string} identifier
+   * @return {Promise<File>}
    */
   async getSavedFile(identifier) {
     if (!this.sessionName) {
@@ -229,11 +188,7 @@ export class OPFSManager {
   }
 
   /**
-   * Fails every still-pending call rather than leaving callers hanging if
-   * the worker itself crashes, and terminates + drops the worker reference
-   * so every *later* call fails fast too instead of posting into a worker
-   * that fired 'error' but may still be technically alive (a crash doesn't
-   * always mean the worker stopped running) and never replies.
+   * Fails every pending call and drops the worker: a crashed worker may live on and never answer.
    * @param {ErrorEvent | {message: string}} event
    */
   handleWorkerCrash(event) {
@@ -272,8 +227,7 @@ export class OPFSManager {
       try {
         /** @type {Worker} */ (this.worker).postMessage({id, op, ...payload}, transfer || []);
       } catch (e) {
-        // Never sent (a buffer given away already, data that cannot be copied): left waiting,
-        // it kept the watchdog going, and 30 s later the working worker counted as crashed.
+        // Never sent: left waiting, it would keep the watchdog going.
         this.pending.delete(id);
         if (this.pending.size === 0) clearTimeout(/** @type {number} */ (this.watchdog));
         reject(e);
@@ -281,14 +235,7 @@ export class OPFSManager {
     });
   }
 
-  /**
-   * A worker that never answers (wedged, or killed without an error event) held up setup
-   * and every save for good. Past the limit it counts as crashed: every call fails, and
-   * FSBlob moves on to its next backend. The worker answers its calls one at a time, in
-   * order, so the limit is on how long it goes without answering any, not on how long one
-   * call has waited: that is the queue ahead of it, and a 30 s backlog of writes (a whole
-   * video downloading to a slow disk) counted as a crash, which dropped OPFS for the session.
-   */
+  /** The limit is on time without any answer, not on one call's wait: calls queue in order. */
   armWatchdog() {
     clearTimeout(/** @type {number} */ (this.watchdog));
     this.watchdog = setTimeout(() => {
@@ -305,15 +252,12 @@ export class OPFSManager {
    * @return {Promise<void>}
    */
   async setFile(identifier, blob) {
-    // The Blob itself, which the worker reads in its turn (its queue): read here first, every
-    // fragment a memory budget spilled at once was in RAM twice before the first was written,
-    // 100 MB for a 100 MB spill (Codex's review). A Blob goes to the worker without a copy.
+    // The Blob itself goes to the worker, without a copy: read here, a spill sat in RAM twice.
     await this.call('set', {identifier: this.fileName(identifier, true), data: blob});
   }
 
   /**
-   * The stored fragment as a disk-backed File. Reading it through the worker into an
-   * ArrayBuffer and wrapping that in a Blob kept every "offloaded" fragment in RAM too.
+   * A disk-backed File: read through the worker, it would sit in RAM too.
    * @param {string} identifier
    * @return {Promise<File>}
    */
@@ -333,27 +277,19 @@ export class OPFSManager {
   }
 
   async clearStorage() {
-    // The worker deletes every file in the session. Names are not used again.
     this.fileNames.clear();
     await this.call('clear');
   }
 
   /**
-   * Ends the worker. Its session directory stays (a finished save file may still be read by
-   * its download) until the next prune, 60 s past its last heartbeat, unless removeSession.
-   * @param {boolean} [removeSession] - Deletes the session directory too, once the worker
-   *   ended: only when nothing will read its files again (a save whose download Firefox said
-   *   is over, or that failed). A saved video's copy stayed on disk until another FastStream
-   *   player started.
+   * Ends the worker; its session directory stays until the next prune unless removeSession.
+   * @param {boolean} [removeSession]
    * @return {Promise<void>}
    */
   async close(removeSession = false) {
     if (this.worker) {
       try {
-        // Bounded: 'destroy' only clears in-memory state and closes a couple
-        // of sync access handles, so it should be fast. A worker wedged on
-        // something else (e.g. blocked file I/O) must not be able to stop
-        // close() from ever reaching terminate() below.
+        // Bounded: a wedged worker must not keep close() from reaching terminate().
         await Promise.race([
           this.call('destroy'),
           new Promise((_, reject) => setTimeout(() => reject(new Error('OPFS destroy timed out')), 3000)),

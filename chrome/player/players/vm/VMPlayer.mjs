@@ -6,22 +6,17 @@ import HLSPlayer from '../hls/HLSPlayer.mjs';
 
 export default class VMPlayer extends HLSPlayer {
   /**
-   * @param {import('../../FastStreamClient.mjs').FastStreamClient} client - The player client the player talks through.
-   * @param {*} options - The player's options, passed unchanged to the base player.
+   * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
+   * @param {*} options
    */
   constructor(client, options) {
     super(client, options);
   }
 
   /**
-   * The address to ask for a Vimeo source's player page or config: only a video's player
-   * page (/video/<number>) or config (/video/<number>/config) on player.vimeo.com, where
-   * the background finds them. A source's mode can also come from the player's address
-   * (faststream-mode) or the Sources browser, and this request carries the source's
-   * headers, so anything else is refused rather than fetched: another host, or another
-   * path on Vimeo's. Rebuilt from the video's number and the query, not passed through.
-   * @param {string} url - The source's URL.
-   * @return {string|null} The address, or null for anything else.
+   * Only a video's player page or config on player.vimeo.com, rebuilt from its number; anything else is refused.
+   * @param {string} url
+   * @return {string|null} Null for anything else.
    */
   static vimeoRequestUrl(url) {
     let parsed;
@@ -42,7 +37,7 @@ export default class VMPlayer extends HLSPlayer {
   }
 
   /**
-   * @param {import('../../VideoSource.mjs').VideoSource} source - The Vimeo source to play.
+   * @param {import('../../VideoSource.mjs').VideoSource} source
    * @override
    */
   async setSource(source) {
@@ -51,8 +46,7 @@ export default class VMPlayer extends HLSPlayer {
       if (!requestUrl) {
         throw new Error('Not a Vimeo player address: ' + source.url);
       }
-      // By the path vimeoRequestUrl checked: a config address without a query (".../config")
-      // was read as the player page, and the video failed with "playerConfig not found".
+      // By the path vimeoRequestUrl checked: a config address may have no query.
       const isEmbed = !new URL(requestUrl).pathname.endsWith('/config');
       const hc = [];
       if (Array.isArray(source.headers)) {
@@ -124,9 +118,7 @@ export default class VMPlayer extends HLSPlayer {
     return this.source;
   }
 
-  /**
-   * @param {string} html - The HTML of the Vimeo player page.
-   */
+  /** @param {string} html */
   extractVimeoHlsUrlFromIframePlayer(html) {
     const config = this.extractJsonConfig(html, 'window.playerConfig =');
 
@@ -138,17 +130,15 @@ export default class VMPlayer extends HLSPlayer {
   }
 
   /**
-   * @param {string} html - The HTML to search for the JSON config.
-   * @param {string} prefix - The text that marks where the JSON starts.
+   * @param {string} html
+   * @param {string} prefix
    */
   extractJsonConfig(html, prefix) {
     const startIndex = html.indexOf(prefix);
     if (startIndex === -1) return null;
 
-    // Move past the prefix
     let i = startIndex + prefix.length;
 
-    // Find the first '{'
     while (i < html.length && html[i] !== '{') {
       i++;
     }
@@ -158,11 +148,9 @@ export default class VMPlayer extends HLSPlayer {
     const jsonStart = i;
     let braceCount = 0;
     let foundStart = false;
-    // Braces inside a string ("title": "a {b}") are text: counted, they ended the object
-    // early and the config was "not found".
+    // Braces inside a string ("title": "a {b}") are text.
     let inString = false;
 
-    // Iterate to find the matching closing brace
     for (; i < html.length; i++) {
       const char = html[i];
       if (inString) {
@@ -183,7 +171,6 @@ export default class VMPlayer extends HLSPlayer {
       }
 
       if (foundStart && braceCount === 0) {
-        // We found the end of the object
         const jsonString = html.substring(jsonStart, i + 1);
         try {
           return JSON.parse(jsonString);

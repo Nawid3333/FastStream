@@ -4,8 +4,6 @@ import {EventEmitter} from '../modules/eventemitter.mjs';
 import {Utils} from '../utils/Utils.mjs';
 
 /**
- * A player that plays the sound ahead of the video (a video delay), with the element's audio
- * source this connects to the output.
  * @typedef {import('../FastStreamClient.mjs').Player & {audioSource?: MediaElementAudioSourceNode|null}} AudioPlayer
  */
 
@@ -24,9 +22,7 @@ export class SyncedAudioPlayer extends EventEmitter {
     this.audioDelayNode = null;
     this.resyncDecreaseCount = 0;
     this.madePlayers = false;
-    // Set by destroy(): a build or a resync still on its way stops at its next step. They
-    // went on after the video changed, adding players that kept downloading, showing their
-    // errors on the new video, and muting it.
+    // Set by destroy(): a build or a resync still on its way stops at its next step.
     this.destroyed = false;
     // Counts dropPlayers(): a build still on its way when its players were dropped stops.
     this.playersDropped = 0;
@@ -35,8 +31,8 @@ export class SyncedAudioPlayer extends EventEmitter {
   /**
    * Without Web Audio the client has none of these, and the sound players play as they are.
    * @param {AudioContext|null|undefined} audioContext
-   * @param {MediaElementAudioSourceNode|null|undefined} audioSource - The main video's sound.
-   * @param {import('../ui/audio/VirtualAudioNode.mjs').VirtualAudioNode|null|undefined} audioOutputNode - Where the sound goes.
+   * @param {MediaElementAudioSourceNode|null|undefined} audioSource
+   * @param {import('../ui/audio/VirtualAudioNode.mjs').VirtualAudioNode|null|undefined} audioOutputNode
    */
   async setup(audioContext, audioSource, audioOutputNode) {
     /** @type {AudioContext|null|undefined} */
@@ -62,8 +58,6 @@ export class SyncedAudioPlayer extends EventEmitter {
         try {
           await this.makePlayers(this.client.player.getSource());
         } catch (e) {
-          // One failed build left the flag set and half the players: every later call
-          // skipped the build, the delay stayed off for the session, and a resync threw.
           // What was built goes, and the next change of the delay builds again.
           console.error('Could not build the audio players for the video delay', e);
           this.audioPlayers.forEach((player) => this.discardPlayer(player));
@@ -82,10 +76,8 @@ export class SyncedAudioPlayer extends EventEmitter {
     }
 
     const delaySeconds = -this.videoDelay / 1000;
-    // A delay node holds up to the most it was made for: one made for 1 s held a delay of
-    // -1500 ms at -1000 (the options field takes any number; its slider stops at 1000).
+    // A delay node holds up to the most it was made for, and the options field takes any number.
     if (this.audioDelayNode && !(this.audioContext && delaySeconds > 0 && delaySeconds <= /** @type {number} */ (this.audioDelayMax))) {
-      // A delay node is made only with Web Audio, so its parts are there.
       /** @type {import('../ui/audio/VirtualAudioNode.mjs').VirtualAudioNode} */ (this.outputNode).disconnectFrom(this.audioDelayNode);
       /** @type {MediaElementAudioSourceNode} */ (this.audioSource).disconnect(this.audioDelayNode);
       /** @type {import('../ui/audio/VirtualAudioNode.mjs').VirtualAudioNode} */ (this.outputNode).connectFrom(/** @type {MediaElementAudioSourceNode} */ (this.audioSource));
@@ -96,7 +88,6 @@ export class SyncedAudioPlayer extends EventEmitter {
         // Up to the 180 s Web Audio allows.
         this.audioDelayMax = Math.min(Math.max(1, delaySeconds), 179);
         this.audioDelayNode = this.audioContext.createDelay(this.audioDelayMax);
-        // With an AudioContext, Web Audio's parts are there.
         /** @type {import('../ui/audio/VirtualAudioNode.mjs').VirtualAudioNode} */ (this.outputNode).disconnectFrom(/** @type {MediaElementAudioSourceNode} */ (this.audioSource));
         /** @type {MediaElementAudioSourceNode} */ (this.audioSource).connect(this.audioDelayNode);
         /** @type {import('../ui/audio/VirtualAudioNode.mjs').VirtualAudioNode} */ (this.outputNode).connectFrom(this.audioDelayNode);
@@ -127,8 +118,7 @@ export class SyncedAudioPlayer extends EventEmitter {
         return;
       }
 
-      // A setup or a source that failed left this player, not yet in audioPlayers, out of the
-      // caller's cleanup: its element and its audio source stayed.
+      // Not yet in audioPlayers: a failure here leaves it out of the caller's cleanup.
       try {
         await player.setup();
         if (gone()) {
@@ -151,9 +141,7 @@ export class SyncedAudioPlayer extends EventEmitter {
           player.setCurrentAudioLevelID(this.client.getCurrentAudioLevelID());
         });
 
-        // Its error is not the video's: a segment its own loader gave up on failed the whole
-        // player, with the error banner over a video that went on playing. The video keeps its
-        // own sound instead, without the delay.
+        // Its error is not the video's: the video keeps its own sound, without the delay.
         player.on(DefaultPlayerEvents.ERROR, (/** @type {unknown} */ msg) => {
           console.warn('A separate audio player failed; the video plays with its own sound', msg);
           this.dropPlayers();
@@ -178,10 +166,7 @@ export class SyncedAudioPlayer extends EventEmitter {
     }
   }
 
-  /**
-   * Gives the separate audio players up: the video plays with its own sound. The next change
-   * of the delay builds them again.
-   */
+  /** The video plays with its own sound; the next change of the delay builds them again. */
   dropPlayers() {
     this.playersDropped++;
     this.audioPlayers.forEach((player) => this.discardPlayer(player));
@@ -193,12 +178,10 @@ export class SyncedAudioPlayer extends EventEmitter {
   }
 
   /**
-   * Destroys a player and takes its sound out of the output: its source stayed wired in, two
-   * more with every drop and rebuild, until the video changed.
+   * Destroys a player and takes its sound out of the output.
    * @param {AudioPlayer} player
    */
   discardPlayer(player) {
-    // A player has a source only with Web Audio, and then the output is there.
     if (player.audioSource) {
       /** @type {import('../ui/audio/VirtualAudioNode.mjs').VirtualAudioNode} */ (this.outputNode).disconnectFrom(player.audioSource);
       player.audioSource = null;
@@ -278,7 +261,6 @@ export class SyncedAudioPlayer extends EventEmitter {
     return true;
   }
 
-  // There are audio players only beside the client's own (setVideoDelay): its video is there.
   async watcherLoop() {
     if (this.audioPlayers.length < 2 || !this.shouldUseSeparateAudioPlayers()) {
       return;
@@ -287,7 +269,7 @@ export class SyncedAudioPlayer extends EventEmitter {
     if (this.resyncDecreaseCount > 0) {
       this.resyncDecreaseCount--;
     } else {
-      this.resyncDecreaseCount = 60; // 1 minute
+      this.resyncDecreaseCount = 60;
       if (this.consecutiveResyncs > 0) {
         this.consecutiveResyncs--;
       }
@@ -295,13 +277,11 @@ export class SyncedAudioPlayer extends EventEmitter {
 
     const currentPlayer = this.audioPlayers[this.currentAudioPlayer];
 
-    // Check error
     const offset = this.videoDelay / 1000;
     const error = Math.abs(/** @type {HTMLVideoElement} */ (this.client.currentVideo).currentTime + offset - currentPlayer.getVideo().currentTime);
     if (error > 0.01 && /** @type {HTMLVideoElement} */ (this.client.currentVideo).readyState >= 2) {
       if (!this.resyncing) {
-        // The largest error first: tested from the smallest, anything over 0.05 s took
-        // the first branch, and a drift never got more than 3 tries.
+        // The largest error first.
         let resyncMax = 1;
         if (error > 0.2) {
           resyncMax = 10;
@@ -335,14 +315,12 @@ export class SyncedAudioPlayer extends EventEmitter {
     } catch (e) {
       console.error('Audio resync failed', e);
     } finally {
-      // One throw left this set, and the drift was never corrected again that session.
       this.resyncing = false;
     }
   }
 
   async silentResyncInternal() {
-    // Both players: it swaps between them. With one (a build that failed half way), the
-    // other was undefined, and this threw.
+    // Both players: it swaps between them.
     if (this.audioPlayers.length < 2 || this.destroyed) {
       return false;
     }
@@ -351,7 +329,6 @@ export class SyncedAudioPlayer extends EventEmitter {
     const current = this.audioPlayers[this.currentAudioPlayer];
     const next = this.audioPlayers[nextIndex];
 
-    // Get current error
     const offset = this.videoDelay / 1000;
     const error = (/** @type {HTMLVideoElement} */ (this.client.currentVideo).currentTime + offset) - current.getVideo().currentTime;
     console.log('Resyncing audio, current error is', error);
@@ -372,22 +349,17 @@ export class SyncedAudioPlayer extends EventEmitter {
     const res = await this.syncTime(next, this.client.player, this.videoDelay / 1000);
     if (!res) {
       console.error('Failed to sync audio');
-      // Played muted for the swap: left playing, it decoded for nothing until the next
-      // resync.
+      // Played muted for the swap: left playing, it would decode for nothing.
       await next.pause();
       return false;
     }
 
-    // Destroyed meanwhile: the video changed, and the swap below muted the new one. Or the
-    // players were dropped (one failed: the video has its own sound back), and the swap muted
-    // the video with no separate sound left.
+    // Destroyed or dropped meanwhile: the swap below would mute the wrong sound.
     if (this.destroyed || !this.shouldUseSeparateAudioPlayers() || this.audioPlayers[nextIndex] !== next) {
       return false;
     }
 
-    // Paused meanwhile (by the user, during the waits above): the next player, played muted
-    // for the swap, took over still playing, and the sound went on over the paused picture
-    // until the next resync.
+    // Paused meanwhile: the next player, played muted for the swap, must not take over playing.
     if (!this.client.state.playing) {
       await next.pause();
     }
@@ -412,7 +384,7 @@ export class SyncedAudioPlayer extends EventEmitter {
 
   /**
    * @param {number} value - 0 to 1.
-   * @return {boolean|undefined} true when the sound player took it; nothing when there is none.
+   * @return {boolean|undefined} True when the sound player took it; nothing when there is none.
    */
   setVolume(value) {
     this.volume = value;
@@ -429,16 +401,15 @@ export class SyncedAudioPlayer extends EventEmitter {
   setPlaybackRate(value) {
     this.playbackRate = value;
 
-    // Also while a delay of 0 keeps them paused: a delay set again reuses them, and they
-    // played at the speed from before, drifting off for good.
+    // Also while a delay of 0 keeps them paused: a delay set again reuses them.
     this.audioPlayers.forEach((player) => {
       player.playbackRate = value;
     });
   }
 
   /**
-   * @param {string|number|null} videoLevel - The client's level now.
-   * @param {string|number|null} audioLevel - Its audio track now; null for none.
+   * @param {string|number|null} videoLevel
+   * @param {string|number|null} audioLevel - Null for none.
    */
   setLevel(videoLevel, audioLevel) {
     let changed = false;
