@@ -2,8 +2,9 @@
 
 // A stream's address can carry a key its server asks of every file (/pl/7?token=...) while its
 // playlists list the files without it: the site's own player adds it to each request. Once a file
-// from the stream's own server is refused for the lack of it, that file is asked again with it, and
-// every later file from that server gets it before it is asked for. Never to another server.
+// from the stream's own server is refused for the lack of it, that file is asked again with it; once
+// such a retry is given the file, every later file from that server gets it before it is asked for.
+// Never to another server.
 
 /** @type {?URL} */
 let stream = null;
@@ -51,14 +52,17 @@ export const StreamQuery = {
   },
 
   /**
-   * For a refused url: the address to ask again with; from then on apply() adds the query.
+   * For a refused url: the address to ask again with.
    * @param {string} url
    * @return {?string}
    */
   retryFor(url) {
-    const next = this.withQuery(url);
-    if (next) active = true;
-    return next;
+    return this.withQuery(url);
+  },
+
+  /** A file asked again with the key was given: apply() adds it from now on. */
+  confirm() {
+    if (stream) active = true;
   },
 
   /**

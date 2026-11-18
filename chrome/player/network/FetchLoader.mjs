@@ -37,32 +37,46 @@ export function isRefusal(response, isArrayBuffer) {
 }
 
 const PAGE_PEEK_BYTES = 1024;
+const HEAD_BYTES = 16;
 
 /**
- * Whether a body's first byte after blanks and a byte order mark is '<': a page, where a segment
- * a server calls text/html (page-0.html) starts with its media.
+ * @param {number} byte
+ * @return {boolean}
+ */
+function isTextByte(byte) {
+  return byte === 0x09 || byte === 0x0a || byte === 0x0d || (byte >= 0x20 && byte < 0x7f);
+}
+
+/**
+ * Whether a body is a page or a text answer ("Access denied", JSON): '<' first after blanks and a
+ * byte order mark, or text only in its first bytes. A segment a server calls text/html
+ * (page-0.html) starts with media, which has control bytes there (MPEG-TS, MP4, ID3, WebM).
  * @param {Response} response - Read through a clone; the response itself stays unread.
  * @return {Promise<boolean>}
  */
 export async function startsAsPage(response) {
   const reader = response.clone().body?.getReader();
   if (!reader) return true;
+  /** @type {number[]} */
+  const head = [];
   try {
-    for (let seen = 0; seen < PAGE_PEEK_BYTES;) {
+    for (let seen = 0; seen < PAGE_PEEK_BYTES && head.length < HEAD_BYTES;) {
       const {value, done} = await reader.read();
-      if (done) return true;
+      if (done) break;
       for (const byte of value) {
-        if (byte === 0x20 || byte === 0x09 || byte === 0x0a || byte === 0x0d || byte === 0xef || byte === 0xbb || byte === 0xbf) continue;
-        return byte === 0x3c;
+        if (head.length === 0 && (byte === 0x20 || byte === 0x09 || byte === 0x0a || byte === 0x0d ||
+            byte === 0xef || byte === 0xbb || byte === 0xbf)) continue;
+        head.push(byte);
+        if (head.length === HEAD_BYTES) break;
       }
       seen += value.length;
     }
-    return true;
   } catch (e) {
     return true;
   } finally {
     reader.cancel().catch(() => {});
   }
+  return head.length === 0 || head[0] === 0x3c || head.every(isTextByte);
 }
 
 /**
@@ -180,6 +194,8 @@ export class FetchLoader {
     /** @type {?string} */
     this.pageFailure = null;
     this.viaPage = false;
+    // This attempt asks again with the stream address's key (StreamQuery).
+    this.keyedRetry = false;
     /** @type {any[]|null} */
     this.callbacks = [];
     /** @type {LoaderStats} */
@@ -384,9 +400,14 @@ export class FetchLoader {
         response.body?.cancel().catch(() => {});
         if (viaPage) PageFetch.unroute(request.url);
         request.url = withKey;
+        this.keyedRetry = true;
         this.loadInternal();
         return;
       }
+    }
+    if (this.keyedRetry) {
+      this.keyedRetry = false;
+      if (response.ok) StreamQuery.confirm();
     }
 
     if (viaPage && await refuses(response, isArrayBuffer)) {

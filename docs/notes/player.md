@@ -1311,20 +1311,26 @@ hoster hides it three ways, all common among streaming hosters:
   shows no permission prompt for `webRequestBlocking` or `webRequestFilterResponse` (checked
   with `ExtensionData.formatPermissionStrings`; `nativeMessaging` as the control shows its
   line), so the update installs without asking.
+  Cost, measured 2026-11-18 (300 fetches in a row from a local page, three alternating runs of
+  1.3.82.214 and this build): 2.31 -> 2.98 ms per fetch the listener skips, 2.85 -> 2.79 ms per
+  fetch it reads; at most ~0.7 ms of the background's round trip per XHR/fetch, which Firefox
+  needs a blocking listener for (a filter attached later misses the first bytes).
 - **The files need the playlist address's key.** The playlists list `/pl/<id>/<hash>` and
   `/content/.../page-0.html` without `?token=`; the server answers 403 without it, 200 with it
   (curl, same Referer). The site's player adds it to every request. HLS has a way to say so
   (`EXT-X-DEFINE:QUERYPARAM`), which this hoster does not use. `StreamQuery.mjs`: once a file of
   the stream's own server is refused with 401/403 and lacks names of the stream address's query,
   it is asked again with them, and every later file of that server gets them before it is asked
-  for. Only after a refusal: always adding them would break a server that signs each file's
+  for. Only after a refusal, and only once a keyed retry was given the file: always adding them
+  would break a server that signs each file's
   address itself (an S3 or Cloud Storage signed URL refuses parameters signed for another
   path). Never to another server: the key stays where the page sent it.
 - **The segments are named `page-N.html` and called `text/html`**; their bytes start with
   `0x47`, MPEG-TS. FetchLoader took any `text/html` answer to a media request for a web page
   and asked the page for the file again, which also answered `text/html`: every segment was
   downloaded twice (230 extra 0.9 MB fetches in under two minutes). `refuses()` now reads the
-  first bytes through a clone: a page starts with `<` after blanks and a byte order mark.
+  first bytes through a clone: a page starts with `<` after blanks and a byte order mark, and a
+  refusal in words or JSON has only text bytes in its first 16; media has control bytes there.
 
 mpv (0.42, ffmpeg's HLS demuxer) refuses the same playlist on its own: "Not detecting
 m3u8/hls with non standard extension and non standard mime type". `--demuxer-lavf-format=hls`

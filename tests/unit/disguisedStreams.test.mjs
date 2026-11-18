@@ -196,6 +196,9 @@ describe('the stream address\'s key, for files listed without it', () => {
     StreamQuery.configure('https://cdn.test/pl/7?token=abc');
     expect(StreamQuery.apply('https://cdn.test/c/page-0.html')).toBe('https://cdn.test/c/page-0.html');
     expect(StreamQuery.retryFor('https://cdn.test/c/page-0.html')).toBe('https://cdn.test/c/page-0.html?token=abc');
+    // Not before the retry was given the file: a 403 the key does not cure changes nothing else.
+    expect(StreamQuery.apply('https://cdn.test/c/page-1.html')).toBe('https://cdn.test/c/page-1.html');
+    StreamQuery.confirm();
     expect(StreamQuery.apply('https://cdn.test/c/page-1.html')).toBe('https://cdn.test/c/page-1.html?token=abc');
     StreamQuery.configure('https://cdn.test/pl/8?token=def');
     expect(StreamQuery.apply('https://cdn.test/c/page-1.html')).toBe('https://cdn.test/c/page-1.html');
@@ -258,6 +261,33 @@ describe('FetchLoader with a disguised stream', () => {
     expect(server.mock.calls.map(([url]) => url)).toEqual(['https://cdn.test/c/page-1.html?token=abc']);
   });
 
+  it('asks the next file without the key when the key did not cure a refusal (a signed-URL server)', async () => {
+    StreamQuery.configure('https://cdn.test/v/master.m3u8?X-Amz-Signature=abc');
+    const server = vi.fn(async (url) => new Response('Forbidden', {status: url.includes('seg7.ts') ? 403 : 200}));
+    vi.stubGlobal('fetch', server);
+    const calls = await load('https://cdn.test/v/seg7.ts');
+    expect(calls.map((c) => c.type)).toEqual(['onError']);
+    expect(server.mock.calls.map(([url]) => url)).toEqual(['https://cdn.test/v/seg7.ts', 'https://cdn.test/v/seg7.ts?X-Amz-Signature=abc']);
+    server.mockClear();
+    expect((await load('https://cdn.test/v/seg8.ts')).map((c) => c.type)).toEqual(['onSuccess']);
+    expect(server.mock.calls.map(([url]) => url)).toEqual(['https://cdn.test/v/seg8.ts']);
+  });
+
+  it('asks the page again for a refusal a server words as text, which only its type calls a page', async () => {
+    for (const body of ['Access denied', '{"error":"expired"}']) {
+      const page = vi.fn(() => ({postMessage: () => {}, disconnect: () => {}, onMessage: {addListener: () => {}}, onDisconnect: {addListener: () => {}}}));
+      PageFetch.configure({tabId: 1, frameId: 0}, page);
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {status: 200, headers: {'content-type': 'text/html'}})));
+      const loader = new FetchLoader();
+      loader.addCallbacks({onSuccess: () => {}, onError: () => {}, onProgress: () => {}, onTimeout: () => {}});
+      loader.load({url: 'https://cdn.test/c/page-0.html', responseType: 'arraybuffer', headers: {}}, {timeout: 1000, maxRetry: 0, retryDelay: 100, maxRetryDelay: 800});
+      await vi.advanceTimersByTimeAsync(50);
+      expect(page, body).toHaveBeenCalled();
+      loader.abort();
+      PageFetch.configure(null);
+    }
+  });
+
   it('keeps the refusal of another server\'s file, without the key', async () => {
     StreamQuery.configure('https://cdn.test/pl/7?token=abc');
     const server = keyedServer();
@@ -286,6 +316,9 @@ describe('a body that starts as a page', () => {
     ['an empty body', '', true],
     ['an MPEG-TS segment', 'G@\u0000', false],
     ['an MP4 fragment', '\u0000\u0000\u0000\u0018styp', false],
+    ['a refusal in words', 'Access denied', true],
+    ['a refusal as JSON', '{"error":"expired"}', true],
+    ['an ID3-tagged audio segment', 'ID3\u0004\u0000\u0000\u0000\u0000\u0000', false],
   ])('%s', async (_, body, expected) => {
     const answer = new Response(new TextEncoder().encode(body), {status: 200, headers: {'content-type': 'text/html'}});
     expect(await startsAsPage(answer)).toBe(expected);

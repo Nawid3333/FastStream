@@ -699,8 +699,11 @@ describe('a manifest only its first bytes tell', () => {
     await bg.frameAdded(1, 0, PAGE, 'page-1');
     const sent = await bg.request({tabId: 1, url: 'https://cdn.test/pl/7?token=a'}, TEXT);
     const filter = opened.get(sent.requestId);
-    filter.ondata({data: new TextEncoder().encode('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n/pl/7/a\n').buffer});
+    const body = new TextEncoder().encode('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n/pl/7/a\n').buffer;
+    filter.ondata({data: body});
     await bg.wait(10);
+    // The page gets its bytes as they came, and the rest without the filter.
+    expect(filter.written).toEqual([body]);
     expect(filter.disconnected).toBe(true);
     const sources = await sourcesForPlayer();
     expect(sources.map((s) => [s.url, s.mode])).toEqual([['https://cdn.test/pl/7?token=a', 'accelerated_hls']]);
