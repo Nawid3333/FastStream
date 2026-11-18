@@ -2660,8 +2660,7 @@ Rejected:
 Two Claude API reviews and glm in five parts, of `chrome/player/ui/`. Each claim was checked
 against the code; picture-in-picture was run in Firefox 160 (`picture-in-picture.e2e.mjs`).
 Fixed, each with a test that fails without it (most in `interfaceControllerAudit.test.mjs`,
-which runs InterfaceController's and ProgressBar's methods from their source,
-`helpers/classMethods.mjs`):
+which imports the UI modules with their page as stand-ins and calls their real methods):
 
 - **"Download paused" for good:** paused once everything was in, then resumed, the line stayed;
   the pause now clears what "all buffered" was shown for.
