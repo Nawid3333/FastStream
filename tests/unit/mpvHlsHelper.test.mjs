@@ -122,13 +122,13 @@ describe('writing the playlists', () => {
     expect(fs.existsSync(old)).toBe(false);
   });
 
-  it('marks a private window\'s folder, which goes ten minutes on', () => {
+  it('marks a private window\'s folder, which goes a minute on', () => {
     const base = scratch();
     const entry = writeHlsPackage([{name: '0.m3u8', text: media()}], 'https://cdn.test/v#fs-id=ab&fs-private=1', base);
     expect(path.basename(path.dirname(entry)).startsWith(HlsDirPrefix + 'p-')).toBe(true);
-    const stale = new Date(Date.now() - 11 * 60 * 1000);
-    fs.utimesSync(path.dirname(entry), stale, stale);
-    writeHlsPackage([{name: '0.m3u8', text: media()}], 'https://cdn.test/v', base);
+    removeOldHlsPackages(base, Date.now() + 50 * 1000);
+    expect(fs.existsSync(path.dirname(entry))).toBe(true);
+    removeOldHlsPackages(base, Date.now() + 70 * 1000);
     expect(fs.existsSync(path.dirname(entry))).toBe(false);
   });
 
@@ -178,6 +178,28 @@ describe('playing them', () => {
     expect(load.options).toMatchObject({'demuxer': 'lavf',
       'demuxer-lavf-o': 'protocol_whitelist=[http,https,tcp,tls,crypto],format_whitelist=[hls,mpegts,mov,aac,mp3,ac3,eac3,webvtt,srt]'});
     expect(load.options['demuxer-lavf-format']).toBeUndefined();
+  });
+
+  it('removes the playlists of a stream that did not go', async () => {
+    const base = scratch();
+    const io = {
+      hlsBase: base,
+      ipcRequest: async (commands) => ({ok: true, replies: [
+        {request_id: commands.length - 1, error: 'invalid parameter'}, {request_id: commands.length, data: 1}]}),
+      focus: async () => 'True',
+      platform: 'linux',
+      start: async () => {
+        started++;
+        return {ok: false, error: 'not here'};
+      },
+    };
+    let started = 0;
+    const checked = checkPlayMessage({type: 'play', target: 'https://cdn.test/pl/7?token=k#fs-id=ab', title: 'T',
+      hls: {files: [{name: '0.m3u8', text: media()}]}});
+    const answer = await playMpv('mpv', /** @type {*} */ (checked).play, {ipcToken: 'x'}, io);
+    expect(answer).toEqual({ok: false, error: 'the open mpv refused the stream (invalid parameter): close it and send again'});
+    expect(fs.readdirSync(base)).toEqual([]);
+    expect(started).toBe(0);
   });
 
   it('lets ffmpeg open files for a master only, whose playlists lie beside it', () => {

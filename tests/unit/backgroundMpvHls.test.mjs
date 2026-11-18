@@ -38,15 +38,17 @@ function hoster(url) {
 /**
  * MPV on the site, the stream found by its type, and the helper's capabilities.
  * @param {Array<string>} capabilities
+ * @param {{fetch?: (url: string, init?: Object) => Promise<Object>, meanwhile?: () => Promise<void>}} [how] -
+ *   fetch: the hoster's answers; meanwhile: what happens while the hand-off runs.
  * @return {Promise<Object>} The watch's port.
  */
-async function handOff(capabilities) {
+async function handOff(capabilities, how = {}) {
   const helper = {hostVersion: RequiredHostVersion, capabilities};
   bg = await loadBackground({
     options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvSingleInstance: true, mpvAutoplayNext: true,
       autoplayCountdown: 5},
     tabs: [{id: 1, url: EP1, title: 'Show - Episode 1'}],
-    fetch: async (url) => hoster(url),
+    fetch: how.fetch || (async (url) => hoster(url)),
     thinHost: true,
     onNative: (message) => (message.type === 'play' && message.hls ? {ok: true, ...helper, local: LOCAL} : {ok: true, ...helper}),
     onTabMessage: ({frameId, message}) => (message.type === 'GET_VIDEO_SIZE' ? (frameId === 0 ? 640 * 360 : 0) :
@@ -56,6 +58,7 @@ async function handOff(capabilities) {
   await bg.frameAdded(1, 0, EP1, 'ep1');
   await bg.request({tabId: 1, url: STREAM, type: 'xmlhttprequest'},
       {responseHeaders: [{name: 'Content-Type', value: 'application/vnd.apple.mpegurl'}]});
+  await how.meanwhile?.();
   await bg.wait(1500);
   return bg.ports.at(-1);
 }
@@ -75,6 +78,29 @@ describe('MPV mode on a stream mpv cannot open from its address', () => {
 
   it('sends an older helper nothing, which would play the address and fail', async () => {
     await handOff(['play', 'ipc', 'relay']);
+    expect(plays()).toEqual([]);
+  });
+
+  it('stops reading the playlists when the tab closes meanwhile', async () => {
+    let stopped = false;
+    const slowSegments = async (url, init) => {
+      if (new URL(url).pathname.startsWith('/content/')) {
+        await new Promise((resolve) => {
+          const timer = setTimeout(resolve, 5000);
+          init?.signal?.addEventListener('abort', () => {
+            stopped = true;
+            clearTimeout(timer);
+            resolve();
+          });
+        });
+      }
+      return hoster(url);
+    };
+    await handOff(['play', 'ipc', 'relay', 'hls'], {fetch: slowSegments, meanwhile: async () => {
+      await bg.wait(200);
+      await bg.closed(1);
+    }});
+    expect(stopped).toBe(true);
     expect(plays()).toEqual([]);
   });
 

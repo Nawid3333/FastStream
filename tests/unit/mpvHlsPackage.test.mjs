@@ -18,12 +18,10 @@ const MASTER = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=700000,RESOLUTION=640x272\n
  * @param {Object<string, {text?: string, type?: string, keyed?: boolean, refuse?: number, signed?: boolean,
  *   moved?: string}>} files
  * @param {{onAsk?: (url: string) => void}} [hooks]
- * @return {{io: import('../../chrome/background/MpvHlsPackage.mjs').PackageIo, asked: Array<string>,
- *   limits: Array<number>}}
+ * @return {{io: import('../../chrome/background/MpvHlsPackage.mjs').PackageIo, asked: Array<string>}}
  */
 function server(files, hooks = {}) {
   const asked = [];
-  const limits = [];
   const answer = (url) => {
     asked.push(url);
     hooks.onAsk?.(url);
@@ -41,12 +39,11 @@ function server(files, hooks = {}) {
   };
   return {
     asked,
-    limits,
     io: {
-      fetchText: async (url, limit) => {
-        limits.push(limit);
+      fetchText: async (url, budget) => {
         const fetched = answer(url);
-        return new TextEncoder().encode(fetched.text).length > limit ? null : fetched;
+        budget.left -= new TextEncoder().encode(fetched.text).length;
+        return budget.left < 0 ? null : fetched;
       },
       status: async (url) => answer(url).status,
     },
@@ -154,13 +151,19 @@ describe('the playlists that go to mpv with a stream', () => {
     expect(checkHlsPackage(pack).ok).toBe(true);
   });
 
-  it('stops at 12 MB in all, each playlist read with what is left', async () => {
-    const big = MEDIA.replace('#EXT-X-ENDLIST', '#' + 'x'.repeat(5 * 1024 * 1024) + '\n#EXT-X-ENDLIST');
+  it('reads at most 12 MB in all, reads at once sharing it, though the playlists come out smaller', async () => {
+    const padded = MEDIA.replace('#EXT-X-ENDLIST', ' '.repeat(5 * 1024 * 1024) + '\n#EXT-X-ENDLIST');
     const master = MASTER + '#EXT-X-STREAM-INF:BANDWIDTH=2000000\n/pl/7/mid\n';
-    const {io, limits} = server({'/pl/7': {text: master}, '/pl/7/lo': {text: big}, '/pl/7/hi': {text: big},
-      '/pl/7/mid': {text: big}, '/content/a/page-0.html': {text: 'TS'}});
+    const {io} = server({'/pl/7': {text: master}, '/pl/7/lo': {text: padded}, '/pl/7/hi': {text: padded},
+      '/pl/7/mid': {text: padded}, '/content/a/page-0.html': {text: 'TS'}});
     expect(await hlsPackage({url: `${ORIGIN}/pl/7?token=k`, keyFrom: `${ORIGIN}/pl/7?token=k`, io})).toBeNull();
-    expect(Math.min(...limits)).toBeLessThan(8 * 1024 * 1024);
+  });
+
+  it('gives up on what it still waits for when the hand-off stops', async () => {
+    const stop = new AbortController();
+    const io = {fetchText: () => new Promise(() => {}), status: () => new Promise(() => {})};
+    setTimeout(() => stop.abort(), 20);
+    expect(await hlsPackage({url: `${ORIGIN}/pl/7?token=k`, keyFrom: `${ORIGIN}/pl/7?token=k`, io, signal: stop.signal})).toBeNull();
   });
 
   it('reads no more once the hand-off stopped', async () => {

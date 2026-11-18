@@ -30,6 +30,8 @@ export const MpvPlayRepeatMs = 10000;
 // A play-triggered fetch lands within a few hundred ms.
 export const MpvPlayKnownAfterMs = 1000;
 
+const PackingWantedCheckMs = 250;
+
 /**
  * Movie is the fallback: an untagged site still gets `movie`, not mpv's folder-name guess.
  * @param {?string} [explicit]
@@ -1079,10 +1081,17 @@ export async function openInMpv(tabId, url, ...rest) {
   const tracked = tabId !== undefined && tabId >= 0 && Tabs.getTab(tabId) ?
     tabSources(Tabs.getTab(tabId)).find((source) => source.url === detected) : null;
   // An HLS stream mpv cannot open from its address alone: its playlists go with every address whole
-  // (MpvHlsPackage.mjs), read meanwhile and stopped when the stream does not go.
+  // (MpvHlsPackage.mjs), read meanwhile and stopped when the stream does not go or its page or MPV went.
   const stopPacking = new AbortController();
+  const stillWanted = rest[5]?.wanted;
   const packing = tracked && tracked.mode === PlayerModes.ACCELERATED_HLS ?
-    Promise.resolve().then(() => hlsPackage({url, keyFrom: detected, io: hlsPackageIo(rest[1]), signal: stopPacking.signal})).catch((e) => {
+    Promise.resolve().then(() => {
+      const watching = stillWanted ? setInterval(() => {
+        if (!stillWanted()) stopPacking.abort();
+      }, PackingWantedCheckMs) : undefined;
+      return hlsPackage({url, keyFrom: detected, io: hlsPackageIo(rest[1]), signal: stopPacking.signal})
+          .finally(() => clearInterval(watching));
+    }).catch((e) => {
       console.error('Reading the playlists of an HLS stream for mpv failed', e);
       return null;
     }) : Promise.resolve(null);

@@ -19,12 +19,13 @@ const URI_ATTRIBUTE = /(URI=")([^"]*)(")/g;
 const LINE_BREAK = /\r\n|\r|\n/;
 
 /** @typedef {{status: number, type: string, text: string, url: string}} Fetched - url: the answer's, after redirects. */
+/** @typedef {{left: number}} Budget - The bytes the package may still read, shared by the reads at once. */
 /**
  * @typedef {{
- *   fetchText: (url: string, limit: number, signal: AbortSignal) => Promise<?Fetched>,
+ *   fetchText: (url: string, budget: Budget, signal: AbortSignal) => Promise<?Fetched>,
  *   status: (url: string, signal: AbortSignal) => Promise<number>,
- * }} PackageIo - fetchText: a playlist with the page's headers, null when it could not be read or is over limit
- *   bytes; status: a file's answer status, its body not read.
+ * }} PackageIo - fetchText: a playlist with the page's headers, its bytes taken from the budget as they come;
+ *   null when it could not be read or the budget ran out; status: a file's answer status, its body not read.
  */
 
 /**
@@ -77,21 +78,36 @@ export async function hlsPackage({url, keyFrom, io, signal}) {
   // Named a playlist, with no query a key could come from: mpv opens it itself, and nothing is asked for.
   if (!key && namesHls(url, '')) return null;
   const stop = AbortSignal.any([AbortSignal.timeout(PACKAGE_TIMEOUT_MS), ...(signal ? [signal] : [])]);
+  if (stop.aborted) return null;
+  // Whatever it still waits for (a fetch, a header rule).
+  const stopped = new Promise((resolve) => stop.addEventListener('abort', () => resolve(null), {once: true}));
+  return Promise.race([collect(url, key, io, stop), /** @type {Promise<null>} */ (stopped)]);
+}
+
+/**
+ * hlsPackage's reading.
+ * @param {string} url
+ * @param {?URL} key
+ * @param {PackageIo} io
+ * @param {AbortSignal} stop
+ * @return {Promise<?{files: Array<{name: string, text: string}>}>}
+ */
+async function collect(url, key, io, stop) {
   // StreamQuery's rule: the key once a file refused without it was given with it, then for every file of its
   // server. Known only once every playlist was read, so they are rewritten after.
   let keyed = false;
   /** @param {string} address */
   const whole = (address) => (keyed && withKeyOf(key, address)) || address;
-  let budget = MAX_PACKAGE_BYTES;
+  /** @type {Budget} */
+  const budget = {left: MAX_PACKAGE_BYTES};
 
   /**
    * @param {string} address
    * @return {Promise<?Fetched>}
    */
   const fetchText = async (address) => {
-    if (stop.aborted || budget < 0) return null;
+    if (stop.aborted || budget.left < 0) return null;
     const fetched = await io.fetchText(address, budget, stop).catch(() => null);
-    if (fetched && isOk(fetched)) budget -= new TextEncoder().encode(fetched.text).length;
     return fetched && {...fetched, url: fetched.url || address};
   };
   /**
@@ -133,7 +149,7 @@ export async function hlsPackage({url, keyFrom, io, signal}) {
   if (!keyed && namesHls(url, root.type)) return null;
 
   const playlists = isMaster ? await inParallel(uris, (uri) => readOnce(addressOf(uri))) : [root];
-  if (stop.aborted || playlists.some((playlist) => !playlist)) return null;
+  if (stop.aborted || budget.left < 0 || playlists.some((playlist) => !playlist)) return null;
   const texts = playlists.map((playlist) => vodText(/** @type {Fetched} */ (playlist).text,
       /** @type {Fetched} */ (playlist).url, whole));
   if (texts.some((text) => text === null)) return null;
@@ -263,6 +279,7 @@ export function pageFetchIo({headers, fetch = (url, init) => globalThis.fetch(ur
     if (commands.length > 0) {
       await setHeaders(url, commands).catch((e) => console.warn('Header rule refused', e));
     }
+    signal.throwIfAborted();
     const done = new AbortController();
     try {
       return await use(await fetch(url, {credentials: 'omit', cache: 'no-store', signal: AbortSignal.any([done.signal, signal])}));
@@ -271,10 +288,10 @@ export function pageFetchIo({headers, fetch = (url, init) => globalThis.fetch(ur
     }
   };
   return {
-    fetchText: (url, limit, signal) => get(url, signal, async (response) => {
+    fetchText: (url, budget, signal) => get(url, signal, async (response) => {
       const answered = response.url || url;
       if (!response.ok) return {status: response.status, type: '', text: '', url: answered};
-      const text = await readWhole(response, limit);
+      const text = await readWhole(response, budget);
       return text === null ? null : {status: response.status, type: response.headers.get('content-type') || '', text, url: answered};
     }).catch(() => null),
     status: (url, signal) => get(url, signal, async (response) => response.status),
@@ -282,15 +299,17 @@ export function pageFetchIo({headers, fetch = (url, init) => globalThis.fetch(ur
 }
 
 /**
- * The body as text; null when it is over limit bytes: a playlist cut short would go to mpv as a whole one.
+ * The body as text, its bytes taken from the budget as they come; null once it ran out: a playlist cut short would
+ * go to mpv as a whole one.
  * @param {Response} response
- * @param {number} limit
+ * @param {Budget} budget
  * @return {Promise<?string>}
  */
-async function readWhole(response, limit) {
+async function readWhole(response, budget) {
   if (!response.body) {
     const buffer = await response.arrayBuffer();
-    return buffer.byteLength > limit ? null : new TextDecoder().decode(buffer);
+    budget.left -= buffer.byteLength;
+    return budget.left < 0 ? null : new TextDecoder().decode(buffer);
   }
   const reader = response.body.getReader();
   const chunks = [];
@@ -299,7 +318,8 @@ async function readWhole(response, limit) {
     const {done, value} = await reader.read();
     if (done) break;
     size += value.byteLength;
-    if (size > limit) {
+    budget.left -= value.byteLength;
+    if (budget.left < 0) {
       reader.cancel().catch(() => {});
       return null;
     }

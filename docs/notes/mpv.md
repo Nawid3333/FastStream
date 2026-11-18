@@ -50,9 +50,13 @@ now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` b
   first media playlist and the first segment). A `.m3u8` address without a query costs no request.
   Not for a live stream (no `#EXT-X-ENDLIST`): a file of its playlist goes stale. All playlists are read
   (4 at a time, relative addresses against the address after redirects) before any is rewritten: a key
-  first needed by a later variant reaches every file. At most 10 s and 12 MB in all, counted while
-  reading; a hand-off that stops (copy protection, VPN, page-only) stops the reading. Past either, the
-  address goes as before.
+  first needed by a later variant reaches every file. At most 10 s (header rules included) and 12 MB in
+  all, one budget the reads at once share, counted as bytes arrive; a hand-off that stops (copy
+  protection, VPN, page-only) or whose page or MPV goes meanwhile (`wanted()`, checked every 250 ms)
+  stops the reading. Past either, the address goes as before. Not done: a `.m3u8` master with a query
+  is judged by its first variant and first segment, as before; one whose later variants alone want
+  the key would need every variant read before every such hand-off (Codex, 2026-11-18; such servers
+  ask the same of all their files).
 - *What:* the playlist mpv would get (the variant the quality setting picked, or the master with its
   variants and renditions; every other tag with an address left out: I-frame playlists, session keys
   and data, which the helper would refuse), every address absolute and, on the key's server only, keyed. Fetched with the page's Origin/Referer, never truncated (12 MB).
@@ -70,8 +74,9 @@ now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` b
   score 100 with its subtitle track, an ffconcat file named `.m3u8` is refused "Format not on
   whitelist", and a media package naming a local segment "Protocol 'file' not on whitelist". The HLS
   probe needs `#EXTM3U` first (the helper's check) and a variant or target-duration tag. Folders go
-  after two days, a private window's (fs-private) ten minutes on, whenever a helper ends (each message;
-  a watch when mpv closes); a folder that cannot be removed is skipped. The playlists are kept out of
+  after two days, a private window's (fs-private) a minute on (ffmpeg read them at the open; going
+  back to such an episode in mpv's playlist then fails), whenever a helper ends (each message; a
+  watch when mpv closes), and at once when the play failed; a folder that cannot be removed is skipped. The playlists are kept out of
   the debug log (their key). Messages to the helper may be 16 MB (1 MB before).
 - *Answer:* `local`, the entry's path: MPV autoplay knows mpv's `path` by it (`watchMpvFor`).
 - *Older helper:* `knows('hls')` asks it again until it has the capability (an update is noticed at
