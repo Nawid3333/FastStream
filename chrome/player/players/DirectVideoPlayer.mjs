@@ -106,7 +106,12 @@ export default class DirectVideoPlayer extends EventEmitter {
     // sets them (the rule the MP4 player's requests get through FetchLoader): the Referer or
     // cookie a site asks for, so a source handed over from the MP4 player (playDirectly) plays.
     // Renewed while this is the source: the element's later requests need it as much.
-    if (await this.setHeaderRule(source, url) && this.source === source && this.video) {
+    const hasHeaders = await this.setHeaderRule(source, url);
+    // Destroyed, or given another source, while the rule was set.
+    if (this.source !== source || !this.video) return;
+    if (hasHeaders) {
+      // The same source set twice meanwhile: one renewal, not two.
+      this.stopHeaderRenewal();
       this.headerRenewal = setInterval(() => this.setHeaderRule(source, url), HEADER_RULE_RENEW_MS);
     }
     this.video.src = url;

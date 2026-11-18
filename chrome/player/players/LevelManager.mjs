@@ -603,9 +603,13 @@ export class LevelManager {
       availableLevels = containerLevels;
     }
 
-    // Prioritize codec
+    // The codec of the audio last picked by hand, by its family: the exact string (HE-AAC's
+    // mp4a.40.5) held every later pick, on every site, to that one profile.
+    const prioritized = this.prioritizedAudioCodec;
+    const family = getCodecFamily(prioritized);
     const codecLevels = availableLevels.filter((level) => {
-      return level.audioCodec && this.prioritizedAudioCodec && level.audioCodec === this.prioritizedAudioCodec;
+      if (!level.audioCodec || !prioritized) return false;
+      return family ? getCodecFamily(level.audioCodec) === family : level.audioCodec === prioritized;
     });
     if (codecLevels.length > 0) {
       availableLevels = codecLevels;

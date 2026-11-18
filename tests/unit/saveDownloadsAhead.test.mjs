@@ -269,6 +269,32 @@ describe('MP4Player.saveVideo, a partial save', () => {
   });
 });
 
+describe('MP4Player.saveVideo, a file found shorter while it saves', () => {
+  it('writes the ranges up to the file\'s end and finishes', async () => {
+    const {saving, network, frags, written} = startSave(MP4Player);
+    await settle();
+    // The file's end found at range 4 (endsAt): the ranges past it are dropped.
+    frags.length = 4;
+    while (network.running().length) {
+      network.requests.find((r) => !r.settled).succeed();
+      await settle();
+    }
+    expect(await output(await saving, written)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('stops fetching the ranges past it', async () => {
+    const {saving, network, frags} = startSave(MP4Player);
+    await settle();
+    frags.length = 4;
+    for (let next; (next = network.requests.find((r) => !r.settled && r.fragment.sn < 4));) {
+      next.succeed();
+      await settle();
+    }
+    await saving;
+    expect(network.running()).toEqual([]);
+  });
+});
+
 // A stored download can lose its data after it completed (DownloadEntry: onDataLost drops
 // the entry) while its fragment still says downloaded. The loaders download such a fragment
 // again; a save read the store bare and failed there every time.

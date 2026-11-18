@@ -315,11 +315,11 @@ export class SaveManager {
       return;
     }
 
-    const doPartial = e.altKey || allowPartial;
     const doDump = e.shiftKey;
     const player = this.client.player;
 
-    const {canSave, isComplete, canStream, extension} = player.canSave();
+    const {canSave, isComplete, canStream, extension, onlyLoaded} = /** @type {{canSave: boolean, isComplete: boolean, canStream?: boolean, extension?: string, onlyLoaded?: boolean}} */ (player.canSave());
+    const doPartial = e.altKey || allowPartial || !!onlyLoaded;
     const saveExtension = extension || 'mp4';
 
     if (!canSave && !doDump) {

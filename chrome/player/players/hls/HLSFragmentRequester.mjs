@@ -112,6 +112,8 @@ export class HLSFragmentRequester {
         },
       });
     });
+    // Handled where it is awaited: a segment aborted or answered from the store never awaits it.
+    keyPromise.catch(() => {});
     return async (entry, response) => {
       const key = await keyPromise;
       if (!decryptdata.iv || !key) {

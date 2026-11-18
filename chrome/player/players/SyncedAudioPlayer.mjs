@@ -158,6 +158,11 @@ export class SyncedAudioPlayer extends EventEmitter {
           console.warn('A separate audio player failed; the video plays with its own sound', msg);
           this.dropPlayers();
         });
+        // Handed to Firefox's own player (a server that ignores Range): it stops, as on an error.
+        player.on(DefaultPlayerEvents.PLAY_DIRECTLY, (/** @type {unknown} */ reason) => {
+          console.warn('A separate audio player stopped; the video plays with its own sound', reason);
+          this.dropPlayers();
+        });
 
         await player.setSource(source);
       } catch (e) {
@@ -209,7 +214,7 @@ export class SyncedAudioPlayer extends EventEmitter {
     if (!this.shouldUseSeparateAudioPlayers() || this.audioPlayers.length < 2) {
       return;
     }
-    this.audioPlayers[this.currentAudioPlayer].play();
+    this.audioPlayers[this.currentAudioPlayer].play().catch((/** @type {unknown} */ e) => console.warn('The separate audio did not play', e));
     this.resync();
     this.consecutiveResyncs = 0;
   }

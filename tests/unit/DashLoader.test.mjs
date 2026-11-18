@@ -6,11 +6,10 @@ import {DownloadEntry} from '../../chrome/player/network/DownloadEntry.mjs';
 import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
 import {PLAYBACK_PRIORITY} from '../../chrome/player/network/StandardDownloader.mjs';
 
-// DashLoader hands dash.js's requests to FastStream's download manager, passing each URL
-// through decodeURI (since the dash.js 5 upgrade). decodeURI throws on a `%` that is not
-// followed by two hex digits, and a manifest or a page may well contain one
-// (`seg_50%.m4s`, `?title=100%`): the request was then never made, and nothing told
-// dash.js. (What a reload of a manifest gets: manifestReload.test.mjs.)
+// DashLoader hands dash.js's requests to FastStream's download manager, each URL as dash.js
+// has it: a `%` not followed by two hex digits (`seg_50%.m4s`, `?title=100%`) and a signed
+// link's escaped `%25` are requested as they are. (What a reload of a manifest gets:
+// manifestReload.test.mjs.)
 
 /**
  * HTTPLoader's own ends of a request, as dash.js puts them in its customData for the loader:
@@ -72,8 +71,9 @@ describe('DashLoader URLs', () => {
     expect(loadManifest('http://127.0.0.1/a.mpd?p=5%zz').url).toBe('http://127.0.0.1/a.mpd?p=5%zz');
   });
 
-  it('still decodes a URL decodeURI can decode, as before', () => {
-    expect(loadManifest('http://127.0.0.1/my%20show.mpd').url).toBe('http://127.0.0.1/my show.mpd');
+  it('requests an escaped URL as it is, its signature too', () => {
+    expect(loadManifest('http://127.0.0.1/a.mpd?sig=a%252Fb').url).toBe('http://127.0.0.1/a.mpd?sig=a%252Fb');
+    expect(loadManifest('http://127.0.0.1/my%20show.mpd').url).toBe('http://127.0.0.1/my%20show.mpd');
   });
 });
 
@@ -137,6 +137,24 @@ describe('DashLoader and DashFragment, one segment through both paths', () => {
     dashLoaderFactory(player)().load(dashRequest(SEGMENT_URL));
     const stored = new DashFragment({...dashRequest(SEGMENT_URL).customData.request, level: 'video-v1', duration: 4});
     expect(getFile.mock.calls[0][0].url).toBe(stored.getContext().url);
+  });
+
+  it('takes a range with no end ("first-") to the file\'s end, on both paths', () => {
+    // Its end was NaN: FetchLoader sent no Range, and the file from its first byte came back.
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const getFile = vi.fn(() => ({abort() {}}));
+    const player = {
+      source: {headers: {}},
+      client: {getFragment: () => null, getFragments: () => []},
+      getClient: () => ({downloadManager: {getFile}}),
+    };
+    const request = dashRequest('http://127.0.0.1/v1.mp4');
+    request.customData.request.range = '52000-';
+    dashLoaderFactory(player)().load(request);
+    const stored = new DashFragment({...request.customData.request, level: 'video-v1', duration: 4});
+    for (const context of [getFile.mock.calls[0][0], stored.getContext()]) {
+      expect([context.rangeStart, context.rangeEnd]).toEqual([52000, undefined]);
+    }
   });
 });
 
@@ -210,6 +228,27 @@ describe('DashLoader, a segment that keeps failing', () => {
       return heardOf(request, response);
     });
     expect(heard).toEqual(['abort', 'abort', 'success', 'abort', 'abort']);
+    expect(player.emit).not.toHaveBeenCalled();
+  });
+
+  it('counts the next period\'s segment at the same place on its own', () => {
+    // Indexes start again in each period: period 2's segment 7 failing once was its third
+    // failure, period 1's two counted with it, and the player's error came at once.
+    const {player, requestFragment} = makeSegmentPlayer();
+    let url = 'http://127.0.0.1/seg7.m4s';
+    player.client.getFragment = () => ({request: {url}});
+    const load = dashLoaderFactory(player)();
+    const heard = [];
+    for (const next of ['http://127.0.0.1/seg7.m4s', 'http://127.0.0.1/seg7.m4s', 'http://127.0.0.1/p2/seg7.m4s']) {
+      url = next;
+      const request = segmentRequest();
+      request.url = request.customData.request.url = next;
+      const response = {status: 0};
+      load.load(request, response);
+      requestFragment.mock.calls.at(-1)[1].onFail({});
+      heard.push(heardOf(request, response));
+    }
+    expect(heard).toEqual(['abort', 'abort', 'abort']);
     expect(player.emit).not.toHaveBeenCalled();
   });
 

@@ -170,4 +170,21 @@ describe('HLSFragmentRequester, an encrypted segment', () => {
     requester.destroy();
     await expect(postProcessor({}, {data: new ArrayBuffer(16)})).rejects.toThrow(/destroyed/);
   });
+
+  it('leaves no unhandled rejection when the key fails and the segment never waits for it', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const getFile = vi.fn(() => ({abort() {}}));
+    const requester = new HLSFragmentRequester({emit: vi.fn(), source: {headers: {}}, getClient: () => ({downloadManager: {getFile}})});
+    const rejections = [];
+    const onRejection = (reason) => rejections.push(reason);
+    process.on('unhandledRejection', onRejection);
+    try {
+      expect(requester.decryptionFor({fs_oldcryptdata: {uri: 'http://127.0.0.1/key', iv: new Uint8Array(16)}}, {})).toBeTypeOf('function');
+      getFile.mock.calls[0][1].onFail({});
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onRejection);
+    }
+  });
 });

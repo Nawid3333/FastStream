@@ -83,6 +83,31 @@ describe('MP4Player, a file longer than it loads in ranges', () => {
     expect(player.mp4box.appendBuffer).not.toHaveBeenCalled();
   });
 
+  it('requests no more ranges once it handed the file to Firefox\'s own player', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const {player, made} = firstRangePlayer();
+    player.runLoad();
+    made.request.callbacks.onSuccess({
+      responseStatus: 206,
+      responseHeaders: {'content-range': 'bytes 0-999999/9007199254740991'},
+    }, firstRange());
+    made.request = null;
+    player.runLoad();
+    expect(made.request).toBe(null);
+  });
+
+  it('keeps no hold on a range whose append destroyed it', () => {
+    // A separate audio player handed over while mp4box parsed the range is destroyed at once
+    // (SyncedAudioPlayer): the range was then held by a player gone, for good.
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const {player, made, store} = firstRangePlayer();
+    player.video = {currentTime: 0, pause() {}, removeAttribute() {}, load() {}, remove() {}};
+    player.mp4box.appendBuffer = () => player.destroy();
+    player.runLoad();
+    expect(() => made.request.callbacks.onSuccess({responseStatus: 206, responseHeaders: {}}, firstRange())).not.toThrow();
+    expect(store[0].canFree()).toBe(true);
+  });
+
   it('hands over a server that answers another range than asked, appending nothing', () => {
     // Its bytes went to mp4box at the asked range's place: feedPiece checked each piece's
     // Content-Range, the finished range's handler did not.
@@ -151,6 +176,13 @@ describe('MP4Player, a file longer than it loads in ranges', () => {
     player.estimateTotalSizeFromMetadats();
     expect(player.fileLength).toBe(5000100);
     expect(player.initializeFragments).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('MP4Player, a save before the file\'s length is known', () => {
+  it('is streamed, as SaveManager must open the stream saveVideo writes to', () => {
+    const {player} = firstRangePlayer();
+    expect(player.canSave()).toEqual({canSave: true, canStream: true, isComplete: false, onlyLoaded: true});
   });
 });
 

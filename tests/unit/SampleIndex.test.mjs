@@ -58,7 +58,7 @@ describe('addKeyframes', () => {
 
 // Where each range of a fragmented MP4 starts in time (MP4Player.setFragmentTimes) was worked
 // out from every sample again for each range read: 10 ms a call on a 2-hour file. RangeTimes
-// keeps each range's time and must give exactly what minTimeIn gives on the whole list, at
+// keeps each range's time and must give the earliest time of the samples in each range, at
 // every step, whatever comes in what order.
 describe('RangeTimes', () => {
   const SIZE = 100;
@@ -66,8 +66,13 @@ describe('RangeTimes', () => {
   const grid = (count) => Array.from({length: count}, (_, i) => ({rangeStart: i * SIZE, rangeEnd: (i + 1) * SIZE}));
   /** @param {number} offset @param {number} cts */
   const at = (offset, cts) => ({cts, is_sync: true, offset, timescale: 1000});
+  /** @param {Array<{offset: number, cts: number}>} samples @param {{rangeStart: number, rangeEnd: number}} range */
+  const earliest = (samples, range) => {
+    const inRange = samples.filter((s) => s.offset >= range.rangeStart && s.offset <= range.rangeEnd);
+    return inRange.length ? Math.min(...inRange.map((s) => s.cts)) / 1000 : null;
+  };
 
-  it('gives minTimeIn\'s time for every range, at every step, for any samples in any order', () => {
+  it('gives the earliest time in every range, at every step, for any samples in any order', () => {
     fc.assert(fc.property(
         // Offsets, mostly rising (a file read on), sometimes going back (a seek back).
         fc.array(fc.tuple(fc.integer({min: -60, max: 80}), fc.integer({min: 0, max: 5000})), {minLength: 1, maxLength: 150}),
@@ -75,7 +80,14 @@ describe('RangeTimes', () => {
         fc.nat({max: 12}),
         (steps, cuts, extra) => {
           let offset = 0;
-          const full = steps.map(([step, cts]) => at(offset = Math.max(0, offset + step), cts));
+          /** @type {Map<number, number>} */
+          const ctsAt = new Map();
+          // A sample at an offset seen before is that sample parsed again: the same time.
+          const full = steps.map(([step, cts]) => {
+            offset = Math.max(0, offset + step);
+            if (!ctsAt.has(offset)) ctsAt.set(offset, cts);
+            return at(offset, /** @type {number} */ (ctsAt.get(offset)));
+          });
           const ranges = grid(Math.ceil(full.at(-1).offset / SIZE) + 1);
           const times = new RangeTimes();
           const samples = [];
@@ -84,9 +96,18 @@ describe('RangeTimes', () => {
             samples.push(...full.slice(samples.length, end));
             // Some calls ask for only some of the ranges, some for ranges added later.
             const asked = ranges.slice(0, Math.max(1, ranges.length - (end % 3) * extra));
-            expect(times.times(samples, asked)).toEqual(asked.map((r) => minTimeIn(samples, r.rangeStart, r.rangeEnd)));
+            expect(times.times(samples, asked)).toEqual(asked.map((r) => earliest(samples, r)));
           }
         }), {numRuns: 1000});
+  });
+
+  it('gives the earliest time in each range once an earlier part comes after a later one', () => {
+    const samples = [at(300, 3000), at(350, 3500), at(400, 4000)];
+    const ranges = grid(5);
+    const times = new RangeTimes();
+    times.times(samples, ranges);
+    samples.push(at(0, 0), at(50, 500), at(100, 1000), at(150, 1500), at(200, 2000));
+    expect(times.times(samples, ranges)).toEqual(ranges.map((r) => earliest(samples, r)));
   });
 
   it('starts from a track with no samples yet, as a fragmented file\'s metadata has', () => {

@@ -621,6 +621,17 @@ describe('FetchLoader', () => {
     expect(init.headers['Range']).toBe('bytes=100-199');
   });
 
+  it('asks for the rest of the file from rangeStart when the range has no end', async () => {
+    // It sent no Range header, and the file from its first byte came back as the range.
+    const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 206});
+    vi.stubGlobal('fetch', fetchMock);
+    const loader = new FetchLoader();
+    loader.addCallbacks(makeCallbackRecorder());
+    loader.load(makeRequest({rangeStart: 100}), makeConfig());
+    await vi.runAllTimersAsync();
+    expect(fetchMock.mock.calls[0][1].headers['Range']).toBe('bytes=100-');
+  });
+
   it('fails at once, without retrying, for a header fetch() cannot send', async () => {
     // A name with a space (a custom header) made a real fetch() reject with a TypeError,
     // which was retried like a network error, six times over a minute (#150).
@@ -743,6 +754,12 @@ describe('FetchLoader', () => {
         const [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
         expect(new Uint8Array(response.data)).toEqual(range);
       }
+    });
+
+    it('gives the rest of the file for a range with no end', async () => {
+      const {recorder} = await loadRange(90, undefined);
+      const [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
+      expect([...new Uint8Array(response.data)]).toEqual([90, 91, 92, 93, 94, 95, 96, 97, 98, 99]);
     });
 
     it('leaves a whole-file request alone', async () => {

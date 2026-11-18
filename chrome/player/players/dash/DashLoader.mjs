@@ -70,20 +70,6 @@ function endsOf(httpRequest, httpResponse) {
 }
 
 /**
- * decodeURI, but a URL it cannot decode (a `%` not followed by two hex digits, which a
- * manifest or a page may well contain) is used as it is instead of throwing.
- * @param {string} url
- * @return {string}
- */
-function decodeUrl(url) {
-  try {
-    return decodeURI(url);
-  } catch (e) {
-    return url;
-  }
-}
-
-/**
  * Whether two of dash.js's requests name the same bytes.
  * @param {FragmentRequest} a - A FragmentRequest.
  * @param {FragmentRequest} b - Another.
@@ -159,18 +145,20 @@ export function DASHLoaderFactory(player) {
         }
 
         const segmentKey = level + ':' + segmentIndex;
+        // Counted per bytes: the next period's segment at the same place is another one.
+        const failureKey = segmentKey + ':' + requestObj.url + ':' + (requestObj.range ?? '');
 
         const loader = player.fragmentRequester.requestFragment(frag, /** @type {import('./DashFragmentRequester.mjs').FragmentCallbacks} */ ({
           onSuccess: (entry, data) => {
-            segmentFailures.delete(segmentKey);
+            segmentFailures.delete(failureKey);
             end.success(data, /** @type {string} */ (entry.responseURL)); // set on success
           },
           onProgress: (stats, context, data, xhr) => {
 
           },
           onFail: (entry) => {
-            const failures = (segmentFailures.get(segmentKey) || 0) + 1;
-            segmentFailures.set(segmentKey, failures);
+            const failures = (segmentFailures.get(failureKey) || 0) + 1;
+            segmentFailures.set(failureKey, failures);
             if (failures < SEGMENT_FAILURES_BEFORE_ERROR) {
               end.abort();
             } else {
@@ -218,15 +206,14 @@ export function DASHLoaderFactory(player) {
           console.warn('Failed to parse range', request.range);
         } else {
           rangeStart = start;
-          rangeEnd = end + 1;
+          rangeEnd = Number.isNaN(end) ? undefined : end + 1;
         }
         delete httpRequest.headers.Range;
       }
       const context = {
-        // A segment as the store names it (DashFragment.getContext: the URL as dash.js has
-        // it): decoded here, the one the store did not have yet was stored under another
-        // name, and fetched and stored again once the store had it (seg%20one.m4s).
-        url: isSegment ? httpRequest.url : decodeUrl(httpRequest.url),
+        // As dash.js has it, as the store names a segment (DashFragment.getContext). Decoded,
+        // a signed link's %25 became %, and a segment was stored under another name.
+        url: httpRequest.url,
         method: httpRequest.method || 'GET',
         responseType: request.responseType,
         rangeStart: rangeStart,

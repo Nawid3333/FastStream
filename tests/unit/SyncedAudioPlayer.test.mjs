@@ -314,6 +314,45 @@ describe('SyncedAudioPlayer', () => {
     expect(players[0].play).not.toHaveBeenCalled();
   });
 
+  it('lets the video play on with its own sound when a separate audio player is handed to Firefox', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = makeClient();
+    const synced = new SyncedAudioPlayer(client);
+    await synced.setVideoDelay(300);
+    const players = synced.audioPlayers.slice();
+    client.player.volume = 0;
+
+    emitTo(players[0], 'playdirectly', 'The server ignores Range');
+
+    expect(players.every((player) => player.destroyed)).toBe(true);
+    expect(synced.audioPlayers).toEqual([]);
+    expect(client.player.volume).toBe(1);
+  });
+
+  it('leaves no unhandled rejection when the separate audio refuses to play', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const synced = new SyncedAudioPlayer(makeClient());
+    await synced.setVideoDelay(300);
+    vi.spyOn(synced, 'resync').mockResolvedValue(undefined);
+    // Not a vi.fn: a mock's own record of the result handles the rejection.
+    let refusals = 0;
+    synced.audioPlayers[synced.currentAudioPlayer].play = () => {
+      refusals++;
+      return Promise.reject(new DOMException('play() can only be initiated by a user gesture', 'NotAllowedError'));
+    };
+    const rejections = [];
+    const onRejection = (reason) => rejections.push(reason);
+    process.on('unhandledRejection', onRejection);
+    try {
+      await synced.play();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(refusals).toBe(1);
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onRejection);
+    }
+  });
+
   it('does not keep the other player when one fails while it is being built', async () => {
     let finishSetup;
     const first = audioPlayer();

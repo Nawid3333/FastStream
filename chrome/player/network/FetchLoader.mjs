@@ -224,6 +224,9 @@ export class FetchLoader {
 
     if (request.rangeEnd) {
       fetchHeaders['Range'] = 'bytes=' + request.rangeStart + '-' + (request.rangeEnd - 1);
+    } else if (request.rangeStart > 0) {
+      // To the file's end (a DASH mediaRange of the form "first-").
+      fetchHeaders['Range'] = 'bytes=' + request.rangeStart + '-';
     }
 
     const controller = (this.controller = new AbortController());
@@ -348,14 +351,14 @@ export class FetchLoader {
     // the range is cut out of it now (readBody). A 200 that says it is the range (a
     // Content-Range, or exactly the range's length) is taken as one, as before.
     const length = parseInt(/** @type {string} */ (response.headers.get('content-length')), 10);
-    const wholeFile = status === 200 && !!request.rangeEnd && !response.headers.has('content-range') &&
+    const wholeFile = status === 200 && (!!request.rangeEnd || request.rangeStart > 0) && !response.headers.has('content-range') &&
         !(request.rangeStart > 0 && length === request.rangeEnd - request.rangeStart);
     // A 206 without Content-Range (a broken server or proxy) does not say what it sends: one that
     // answered each range with the rest of the file was read to its end, gigabytes for a 1 MB
     // range, all of it held in RAM and stored before MP4Player cut the range out. It is taken as
     // starting where the range does, as a 206 does, and reading stops once the range is in.
     const unsized = status === 206 && !!request.rangeEnd && !response.headers.has('content-range');
-    const cut = wholeFile ? request : unsized ? {rangeStart: 0, rangeEnd: request.rangeEnd - (request.rangeStart || 0)} : null;
+    const cut = wholeFile ? {rangeStart: request.rangeStart, rangeEnd: request.rangeEnd || Infinity} : unsized ? {rangeStart: 0, rangeEnd: request.rangeEnd - (request.rangeStart || 0)} : null;
 
     let data;
     try {
