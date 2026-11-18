@@ -76,6 +76,11 @@ describe('EpisodeLinks.neighbourEpisodeUrls', () => {
         .toBe('https://series-site.example/serie/x-2/staffel-2/episode-9');
   });
 
+  it('goes back from 10 to 9 and to 09, as a site that pads writes it', () => {
+    expect(EpisodeLinks.neighbourEpisodeUrls('https://a.test/show/ep-10', false))
+        .toEqual(['https://a.test/show/ep-9', 'https://a.test/show/ep-09']);
+  });
+
   it('changes the episode, not the season, where a page names both', () => {
     const next = EpisodeLinks.neighbourEpisodeUrls('https://series-site.example/serie/x/staffel-1/episode-9', true);
     expect(next).toEqual(['https://series-site.example/serie/x/staffel-1/episode-10']);
@@ -84,6 +89,43 @@ describe('EpisodeLinks.neighbourEpisodeUrls', () => {
   it('has nothing for a page without a number, or no address', () => {
     expect(EpisodeLinks.neighbourEpisodeUrls('https://a.test/watch/movie', true)).toEqual([]);
     expect(EpisodeLinks.neighbourEpisodeUrls('not a url', true)).toEqual([]);
+  });
+});
+
+describe('EpisodeLinks with an episode word that is not ASCII (épisode, bölüm)', () => {
+  // An address gives them percent-encoded: /%C3%A9pisode-3.
+  const PAGE = 'https://a.test/serie/x/saison-2/%C3%A9pisode-3';
+
+  it('tells the series and the season\'s episode', () => {
+    expect(EpisodeLinks.seriesOf('https://a.test/serie/x/%C3%A9pisode-3')).toBe('https://a.test/serie/x/');
+    expect(EpisodeLinks.seriesOf('https://a.test/dizi/b%C3%B6l%C3%BCm-7')).toBe('https://a.test/dizi/');
+    expect(EpisodeLinks.seasonEpisode(PAGE)).toMatchObject({season: 2, episode: 3});
+  });
+
+  it('keeps another series out, and gives the next season\'s first episode as a link would', () => {
+    const series = EpisodeLinks.seriesOf('https://a.test/serie/x/%C3%A9pisode-3');
+    expect(EpisodeLinks.inSeries(series, 'https://a.test/serie/x/%C3%A9pisode-4')).toBe(true);
+    expect(EpisodeLinks.inSeries(series, 'https://a.test/serie/y/%C3%A9pisode-4')).toBe(false);
+    expect(EpisodeLinks.nextSeason(PAGE)).toEqual({
+      season: 'https://a.test/serie/x/saison-3',
+      first: 'https://a.test/serie/x/saison-3/%C3%A9pisode-1',
+    });
+    expect(EpisodeLinks.neighbourEpisodeUrls(PAGE, true)[0]).toBe('https://a.test/serie/x/saison-2/%C3%A9pisode-4');
+  });
+
+  it('keeps the page\'s own encoding, so the addresses still equal its links', () => {
+    expect(EpisodeLinks.neighbourEpisodeUrls('https://a.test/serie/x/%c3%a9pisode-3', true))
+        .toEqual(['https://a.test/serie/x/%c3%a9pisode-4']);
+    expect(EpisodeLinks.neighbourEpisodeUrls('https://a.test/show/don%27t-stop/episode-3', true))
+        .toEqual(['https://a.test/show/don%27t-stop/episode-4']);
+    expect(EpisodeLinks.neighbourEpisodeUrls('https://a.test/100%25-pure/episode-3', true))
+        .toEqual(['https://a.test/100%25-pure/episode-4']);
+    expect(EpisodeLinks.nextSeason('https://a.test/serie/x/saison-2/%c3%a9pisode-3')).toEqual({
+      season: 'https://a.test/serie/x/saison-3',
+      first: 'https://a.test/serie/x/saison-3/%c3%a9pisode-1',
+    });
+    expect(EpisodeLinks.nextSeason('https://a.test/d%27x/staffel-2/episode-9')?.first)
+        .toBe('https://a.test/d%27x/staffel-3/episode-1');
   });
 });
 

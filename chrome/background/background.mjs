@@ -541,7 +541,8 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
       }, {
         frameId: 0,
       }, () => {
-        BackgroundUtils.checkMessageError('remove_players');
+        // Often before the next page's content script runs: no players there to remove.
+        BackgroundUtils.checkMessageError('remove_players', true);
       });
     }
 

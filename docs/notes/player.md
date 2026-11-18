@@ -2169,3 +2169,57 @@ that fails without it.
 - **`background.mjs` `noteProblem`** - Not for a private window's tab: the problem list is kept
   on disk and shown on the options page, so a private window's sites stayed listed there for
   good.
+
+## The content-script audit (2026-11-18)
+
+Three reviews (Claude API, Codex, glm in six parts) of `content.js`, the site scripts and the
+small content scripts; each claim checked against the code, each real one fixed with a test
+that fails without it.
+
+- **Next episode by an "Episode N" list** needs this page's own link in the list. When none
+  matched, every "Episode N" link was taken for the current one, and the first one's neighbour
+  (episode 2) was followed from any episode.
+- **The page's own `beforeunload`, `pagehide` and `pageshow`** (`dispatchEvent`, `isTrusted`
+  false) are ignored: a page could make the background forget its frame and its streams.
+- **The replaced element itself is paused** when it is the page's `<video>` (`pauseAllWithin`):
+  `querySelectorAll` lists only what is below it, and the hidden original played on.
+- **Leaving windowed fullscreen** gives an element its old `display` only while it still has
+  the fill's `none !important`: a menu the page closed meanwhile came back.
+- **The player's iframe is `box-sizing: border-box`**: it gets the element's outer size and its
+  border, which made it larger by the border.
+- **Page qualities resolve against `document.baseURI`** (`<base href>`), as the page's own player
+  does, not against the page's address. A `<video>` with more `<source>` elements than a menu
+  holds is not read at all (each read goes through Xray on the page's thread).
+- **Episode words that are not ASCII** (`épisode`, `episódio`, `bölüm`) are matched in the
+  decoded path (`decodeURI`, reserved characters stay encoded): the address gives them
+  percent-encoded, and the series guard and the season's rollover were off on such sites.
+  One back from episode 10 is tried as 9 and as 09. The changed number is written into the
+  address's own path (`rawIndex` finds the same run of digits there), never the decoded one:
+  the URL setter encodes again its own way (`%c3%a9` came back as `%C3%A9`, `%27` as `'`), and
+  the candidates are compared with the page's links as they are.
+- **The overlay guard** protects a layer only for a dialog in it that is shown: a closed one kept
+  in the page (`display: none`) protected an ad layer for good. Shown is a box of its own or of a
+  child, as an open `display: contents` dialog has only the latter. A dialog closed with
+  `visibility: hidden` still counts: the guard hides layers that way itself, so a dialog opened
+  in a layer it hid reads as hidden too, and must still give that layer back.
+- **Instagram's fetch hook** copies no stream (`text/event-stream`, NDJSON, `json-seq`,
+  `stream+json`): the copy of one that never ends was read and held for the page's life.
+- Left as it is: a page that closes a menu with `display: none !important` during windowed
+  fullscreen gets it back on leaving (the value is the fill's own; telling them apart needs a
+  watcher on every element for a rare case).
+- **REMOVE_PLAYERS' "no receiver"** is not logged: it goes to frame 0 at every address change,
+  often before the next page's content script runs. This was the `Object { message }` seen in
+  the console next to `remove_players`.
+- Rejected, with the reason: the player iframe's entry kept after the page removed it
+  (deliberate, `removePlayers` reports it; small); a click on a same-site link taking the player
+  down before the page leaves (it lets the page into the back-forward cache; a link that only
+  downloads gives the page its own video back); the closed-shadow-root video not taken over
+  (the player goes only where open roots are, by design); Facebook and Instagram reporting the
+  first new manifest of a batch (which one the player opens on a feed needs live tests);
+  a descendant with `visibility: visible` in a hidden layer, media re-created inside a known
+  shadow root, the opener key visible in the iframe's `src`, no flow control on page fetches
+  (requests are segments or ranges), the hold released per frame (reverted design of
+  2026-10-04), a hard-replaced bare `<video>` measured in place (hard replace only on twitch and
+  vimeo, whose videos are wrapped), the miniplayer's whole-style restore (`updateMiniPlayer`
+  rewrites it), and the input-time root scan (throttled to 2 s, and it must come before the
+  play it is for).

@@ -88,6 +88,39 @@ const EpisodeLinks = (() => {
   }
 
   /**
+   * A path as its words read: an address gives "épisode" or "bölüm" percent-encoded. Reserved
+   * characters (%2F) stay encoded.
+   * @param {URL} url
+   * @return {string}
+   */
+  function readablePath(url) {
+    try {
+      return decodeURI(url.pathname);
+    } catch (e) {
+      return url.pathname;
+    }
+  }
+
+  /**
+   * Where the run of digits at `at` in the readable path is in the address's own path, so a
+   * changed number keeps the page's own encoding (%c3%a9 stays lower case, %27 stays encoded)
+   * and still equals the page's links: the same run counted from the start, the hex digits of
+   * escapes not counted.
+   * @param {string} raw - url.pathname.
+   * @param {string} path - readablePath of it.
+   * @param {number} at
+   * @return {number} -1 where it cannot be told.
+   */
+  function rawIndex(raw, path, at) {
+    if (raw === path) return at;
+    /** @param {string} text */
+    const runs = (text) => [...text.replace(/%[0-9a-f]{2}/gi, '%__').matchAll(/\d+/g)];
+    const ordinal = runs(path).findIndex((m) => m.index === at);
+    const there = ordinal < 0 ? undefined : runs(raw)[ordinal];
+    return there && there[0] === /^\d+/.exec(path.slice(at))?.[0] ? /** @type {number} */ (there.index) : -1;
+  }
+
+  /**
    * The addresses this page's episode would have one episode on (or back), surest first: the
    * number after an episode word (episode-12, folge12, ep_12), S01E12, 1x12, an ep= in the
    * query, then the path's last number (/watch/12). Only the number changes, so the series
@@ -105,11 +138,17 @@ const EpisodeLinks = (() => {
     }
     url.hash = '';
     const step = isNext ? 1 : -1;
-    /** @param {string} digits */
+    /**
+     * @param {string} digits
+     * @return {string[]} The number one on, padded as it was; one back from 10 also as 09, as a
+     *   site that pads writes it.
+     */
     const bump = (digits) => {
       const n = parseInt(digits, 10) + step;
-      if (!Number.isFinite(n) || n < 0) return null;
-      return String(n).padStart(digits.startsWith('0') ? digits.length : 0, '0');
+      if (!Number.isFinite(n) || n < 0) return [];
+      const plain = String(n).padStart(digits.startsWith('0') ? digits.length : 0, '0');
+      const padded = String(n).padStart(digits.length, '0');
+      return padded === plain ? [plain] : [plain, padded];
     };
     /** @type {string[]} */
     const out = [];
@@ -117,38 +156,39 @@ const EpisodeLinks = (() => {
     const add = (candidate) => {
       if (candidate && candidate !== url.href && !out.includes(candidate)) out.push(candidate);
     };
-    /** @param {RegExp} regex */
-    const inPath = (regex) => {
-      for (const match of url.pathname.matchAll(regex)) {
-        const number = bump(match[2]);
-        if (number === null) continue;
-        const at = match.index + match[1].length;
+    const raw = url.pathname;
+    const path = readablePath(url);
+    /**
+     * @param {number} at - In the readable path.
+     * @param {string} digits
+     */
+    const bumpAt = (at, digits) => {
+      const rawAt = rawIndex(raw, path, at);
+      if (rawAt < 0) return;
+      for (const number of bump(digits)) {
         const copy = new URL(url.href);
-        copy.pathname = url.pathname.slice(0, at) + number + url.pathname.slice(at + match[2].length);
+        copy.pathname = raw.slice(0, rawAt) + number + raw.slice(rawAt + digits.length);
         add(copy.href);
       }
+    };
+    /** @param {RegExp} regex */
+    const inPath = (regex) => {
+      for (const match of path.matchAll(regex)) bumpAt(/** @type {number} */ (match.index) + match[1].length, match[2]);
     };
     inPath(/((?:^|[^\p{L}])(?:episodes?|episodio|episódio|épisode|folge|odcinek|bölüm|bolum|seriya|ep|e)[-_.]?)(\d+)/giu);
     inPath(/(s\d{1,3}[-_.]?e)(\d+)/gi);
     inPath(/((?:^|[^\d])\d{1,3}x)(\d{1,4})(?!\d)/gi);
     for (const [key, value] of url.searchParams) {
       if (/^(ep|eps|episode|episodio|e|folge|epi)$/i.test(key) && /^\d+$/.test(value)) {
-        const number = bump(value);
-        if (number === null) continue;
-        const copy = new URL(url.href);
-        copy.searchParams.set(key, number);
-        add(copy.href);
+        for (const number of bump(value)) {
+          const copy = new URL(url.href);
+          copy.searchParams.set(key, number);
+          add(copy.href);
+        }
       }
     }
-    const last = /(\d+)(\D*)$/.exec(url.pathname);
-    if (last) {
-      const number = bump(last[1]);
-      if (number !== null) {
-        const copy = new URL(url.href);
-        copy.pathname = url.pathname.slice(0, last.index) + number + last[2];
-        add(copy.href);
-      }
-    }
+    const last = /(\d+)(\D*)$/.exec(path);
+    if (last) bumpAt(last.index, last[1]);
     return out;
   }
 
@@ -182,7 +222,7 @@ const EpisodeLinks = (() => {
     } catch (e) {
       return null;
     }
-    const segments = url.pathname.split('/');
+    const segments = readablePath(url).split('/');
     for (let i = 1; i < segments.length; i++) {
       const before = url.origin + segments.slice(0, i).join('/') + '/';
       if (PART.test(segments[i])) return before;
@@ -208,7 +248,7 @@ const EpisodeLinks = (() => {
     if (!series.endsWith('/')) return false;
     try {
       const url = new URL(href);
-      return (url.origin + url.pathname).startsWith(series);
+      return (url.origin + readablePath(url)).startsWith(series);
     } catch (e) {
       return false;
     }
@@ -227,7 +267,7 @@ const EpisodeLinks = (() => {
    * The season and the episode an address names at its end.
    * @param {string} href
    * @return {?{show: string, season: number, episode: number, match: Array<string>, origin: string,
-   *   short: boolean}} show: the address before the season's number, in lower case (the same for
+   *   raw: string, short: boolean}} show: the address before the season's number, in lower case (the same for
    *   each season of a series); short: an S03E12 or a 3x12, whose episodes have two digits.
    */
   function seasonEpisode(href) {
@@ -237,11 +277,12 @@ const EpisodeLinks = (() => {
     } catch (e) {
       return null;
     }
+    const path = readablePath(url);
     for (const [i, form] of SEASON_EPISODE_ENDS.entries()) {
-      const match = form.exec(url.pathname);
+      const match = form.exec(path);
       if (match) {
         return {show: (url.origin + match[1]).toLowerCase(), season: parseInt(match[2], 10), episode: parseInt(match[4], 10),
-          match, origin: url.origin, short: i > 0};
+          match, origin: url.origin, raw: url.pathname, short: i > 0};
       }
     }
     return null;
@@ -262,9 +303,14 @@ const EpisodeLinks = (() => {
     // S04E01, 4x01: those write the episode with two digits.
     const padded = match[4].startsWith('0') || (here.short && match[4].length >= 2);
     const first = padded ? '1'.padStart(match[4].length, '0') : '1';
+    const path = match[0];
+    const seasonAt = rawIndex(here.raw, path, match[1].length);
+    const episodeAt = rawIndex(here.raw, path, match[1].length + match[2].length + match[3].length);
+    if (seasonAt < 0 || episodeAt < 0) return null;
+    const before = here.origin + here.raw.slice(0, seasonAt) + season;
     return {
-      season: here.origin + match[1] + season,
-      first: here.origin + match[1] + season + match[3] + first + match[5],
+      season: before,
+      first: before + here.raw.slice(seasonAt + match[2].length, episodeAt) + first + here.raw.slice(episodeAt + match[4].length),
     };
   }
 

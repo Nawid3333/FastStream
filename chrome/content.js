@@ -180,7 +180,7 @@
       /** @type {*[]} */
       let lists = [];
       try {
-        lists = PageQualities.find(document, /** @type {Window & {wrappedJSObject?: *}} */ (window).wrappedJSObject || window, window.location.href);
+        lists = PageQualities.find(document, /** @type {Window & {wrappedJSObject?: *}} */ (window).wrappedJSObject || window, document.baseURI || window.location.href);
       } catch (e) {
         console.warn('Reading the page player\'s qualities failed', e);
       }
@@ -1282,6 +1282,9 @@
               element.style.setProperty(name, before.getPropertyValue(name), before.getPropertyPriority(name));
             }
           }
+        } else if (element.style.getPropertyValue('display') !== 'none' ||
+            element.style.getPropertyPriority('display') !== 'important') {
+          // The page set it since (a menu it closed): its value stays.
         } else if (old.display) {
           element.style.setProperty('display', old.display, old.priority);
         } else {
@@ -1712,6 +1715,8 @@
     // Its sounds too, as for the ones added later: an <audio> already there played on
     // under the player. In closed shadow roots too, as pauseAllMedia looks: one there played on.
     /** @type {HTMLMediaElement[]} */ (querySelectorAllInAllShadows('video, audio', element)).forEach(hook);
+    // The element itself when it is the page's video: querySelectorAll lists only what is below.
+    if (element.tagName === 'VIDEO' || element.tagName === 'AUDIO') hook(/** @type {HTMLMediaElement} */ (element));
 
     // Add mutation observer to pause videos added later: added themselves, or inside an
     // added subtree, as a re-render of the page's player puts them.
@@ -1772,6 +1777,8 @@
     iframe.style.setProperty('width', width, 'important');
     iframe.style.setProperty('height', height, 'important');
     iframe.style.setProperty('padding', '0px', 'important');
+    // The measured size includes the border copied below.
+    iframe.style.setProperty('box-sizing', 'border-box', 'important');
     iframe.style.setProperty('opacity', '1', 'important');
     iframe.style.setProperty('pointer-events', 'auto', 'important');
     iframe.style.setProperty('visibility', 'visible', 'important');
@@ -2680,7 +2687,7 @@
     }
 
     const currentURL = window.location.href;
-    let matchedElements = aElements.filter((a) => {
+    const matchedElements = aElements.filter((a) => {
       if (!/** @type {HTMLAnchorElement} */ (a).href) {
         return false;
       }
@@ -2692,17 +2699,7 @@
       }
     });
 
-    if (matchedElements.length === 0) {
-      matchedElements = aElements.filter((a) => {
-        const textContent = a.textContent.trim();
-        // Check if it containes Episode # or similar
-        if (textContent.match(/episode\s*\d+/i)) {
-          return true;
-        }
-        return false;
-      });
-    }
-
+    // Only this page's own link tells where it is in a list.
     if (matchedElements.length === 0) {
       return null;
     }
@@ -3302,7 +3299,9 @@
     });
   }
 
-  window.addEventListener('beforeunload', () => {
+  window.addEventListener('beforeunload', (e) => {
+    // The page's own made-up event: nothing leaves.
+    if (!e.isTrusted) return;
     // FRAME_REMOVED makes the background forget this frame and its sources. For the
     // redirect to the player that is exactly wrong: the player loads in this same frame
     // and asks for them straight away, and got none. A page still here at its next leave did
@@ -3326,7 +3325,8 @@
     leaveTimer = timer;
   });
 
-  window.addEventListener('pagehide', () => {
+  window.addEventListener('pagehide', (e) => {
+    if (!e.isTrusted) return;
     // Gone, or into the back-forward cache, which names the page again itself (pageshow).
     clearTimeout(/** @type {Timer} */ (leaveTimer));
     leaveTimer = null;
@@ -3341,7 +3341,7 @@
   // (TabHolder.restoreGoneDocument). A page that went to the player and came back
   // reports its next leave again.
   window.addEventListener('pageshow', (e) => {
-    if (!e.persisted) {
+    if (!e.isTrusted || !e.persisted) {
       return;
     }
     RedirectingToPlayer = false;

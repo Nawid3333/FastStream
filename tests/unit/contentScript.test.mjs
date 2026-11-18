@@ -1,3 +1,4 @@
+import vm from 'node:vm';
 import {describe, expect, it} from 'vitest';
 import {loadContentScript} from './contentDom.mjs';
 
@@ -258,6 +259,33 @@ describe('OPEN_PLAYER', () => {
     // The soft replace: the page's player is kept, at no size, and the iframe has its id.
     expect(wrap.style.width).toBe('0px');
     expect(iframe.id).toBe('wrap');
+  });
+
+  it('keeps the player at the measured size when it takes over the element\'s border', async () => {
+    const {page} = pageWithVideo();
+    const {iframe} = await openPlayer(page);
+    expect(iframe.style.getPropertyValue('width')).toBe('640px');
+    expect(iframe.style.getPropertyValue('box-sizing')).toBe('border-box');
+  });
+
+  it('answers when the page\'s video cannot be measured', async () => {
+    const {page, video} = pageWithVideo();
+    video.getBoundingClientRect = () => {
+      throw new Error('can\'t access dead object');
+    };
+    const answer = page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, noRedirect: true, frameId: 0, parentFrameId: -1, attempt: 1});
+    const late = new Promise((resolve) => setTimeout(() => resolve('no answer'), 200));
+    expect(await Promise.race([answer, late])).toBe('error');
+  });
+
+  it('pauses the page\'s video when it is the element replaced itself', async () => {
+    const {page, wrap, video} = pageWithVideo();
+    wrap.rect = {x: 0, y: 0, width: 1280, height: 720};
+    video.paused = false;
+    const {answer, iframe} = await openPlayer(page);
+    expect(answer).toBe('replace');
+    expect(iframe.id).toBe('');
+    expect(video.paused).toBe(true);
   });
 });
 
@@ -736,6 +764,21 @@ describe('REMOVE_PLAYERS', () => {
     expect(embed.getAttribute('style')).toBe('width: 640px;');
     // And it knows it left: the next toggle enters again.
     expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 7})).toBe('enter');
+  });
+
+  it('leaves an element the page closed during windowed fullscreen closed', async () => {
+    const page = loadContentScript();
+    const embed = page.document.createElement('iframe');
+    page.document.body.appendChild(embed);
+    const menu = page.document.createElement('div');
+    menu.setAttribute('style', 'display: block;');
+    page.document.body.appendChild(menu);
+    await linkPlayer(page, embed, 7);
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 7})).toBe('enter');
+    expect(menu.style.getPropertyPriority('display')).toBe('important');
+    menu.style.setProperty('display', 'none');
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(menu.style.getPropertyValue('display')).toBe('none');
   });
 });
 
@@ -1565,5 +1608,19 @@ describe('a page that leaves', () => {
     page.dispatchWindow('pagehide', {persisted: true});
     page.dispatchWindow('pageshow', {persisted: true});
     expect(told(page).map((m) => m.type)).toEqual(['FRAME_REMOVED', 'FRAME_ADDED']);
+  });
+});
+
+describe('GET_PAGE_QUALITIES', () => {
+  it('resolves the page player\'s relative addresses against the page\'s <base href>', async () => {
+    const page = loadContentScript();
+    page.document.baseURI = 'https://cdn.example/media/';
+    const bases = [];
+    vm.runInContext('PageQualities', page.window).find = (doc, win, base) => {
+      bases.push(base);
+      return [];
+    };
+    await page.send({type: 'GET_PAGE_QUALITIES'});
+    expect(bases).toEqual(['https://cdn.example/media/']);
   });
 });

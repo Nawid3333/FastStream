@@ -113,6 +113,23 @@ describe('OverlayGuard', () => {
       expect(visibility(dialog)).toBe('');
     });
 
+    it('hides a layer whose dialog in it is closed (kept in the page, no box)', () => {
+      const {page, iframe} = pageWithPlayerAt(PLAYER);
+      const layer = addLayer(page, page.document.body, VIEWPORT);
+      addLayer(page, layer, {x: 0, y: 0, width: 0, height: 0}, {'role': 'dialog'});
+      page.overlayGuard.guard(iframe);
+      expect(visibility(layer)).toBe('hidden');
+    });
+
+    it('leaves alone a layer whose open dialog has no box of its own (display: contents)', () => {
+      const {page, iframe} = pageWithPlayerAt(PLAYER);
+      const layer = addLayer(page, page.document.body, VIEWPORT);
+      const dialog = addLayer(page, layer, {x: 0, y: 0, width: 0, height: 0}, {'role': 'dialog'});
+      addLayer(page, dialog, {x: 100, y: 100, width: 400, height: 300});
+      page.overlayGuard.guard(iframe);
+      expect(visibility(layer)).toBe('');
+    });
+
     it('leaves alone a layer the user is typing in', () => {
       const {page, iframe} = pageWithPlayerAt(PLAYER);
       const form = addLayer(page, page.document.body, VIEWPORT);

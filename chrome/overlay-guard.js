@@ -147,7 +147,14 @@ const OverlayGuard = (() => {
   /** @param {Element} el */
   function isSiteDialog(el) {
     const active = focused();
-    return el.matches(DIALOGS) || !!el.querySelector(DIALOGS) ||
+    // A closed one kept in the page (display: none) has no box, nor has anything in it; an
+    // open one may have none of its own (display: contents, a 0x0 wrapper of fixed children).
+    const hasBox = (/** @type {Element} */ e) => {
+      const r = e.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    };
+    const shown = (/** @type {Element} */ d) => hasBox(d) || Array.from(d.children).some(hasBox);
+    return el.matches(DIALOGS) || Array.from(el.querySelectorAll(DIALOGS)).some(shown) ||
         (!!active && active !== document.body && isEditable(active) && holds(el, active));
   }
 

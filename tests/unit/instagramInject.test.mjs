@@ -212,7 +212,9 @@ describe('instagram_inject.js, responses loaded with fetch', () => {
       };
       return response;
     });
-    for (const type of ['video/mp4', 'image/jpeg', 'application/octet-stream', '']) {
+    // A stream may never end: its copy was read, and held, for as long as the page lived.
+    for (const type of ['video/mp4', 'image/jpeg', 'application/octet-stream', '', 'text/event-stream',
+      'application/x-ndjson', 'application/json-seq', 'application/stream+json']) {
       await page.window.fetch(type);
     }
     await settle();

@@ -133,7 +133,8 @@
       const result = rawFetch.apply(this, args);
       result.then((response) => {
         const type = response.headers.get('Content-Type') || '';
-        if (!/json|javascript|^text\//i.test(type)) {
+        // A stream (events, NDJSON) may never end: a copy would be read and held for the page's life.
+        if (!/json|javascript|^text\//i.test(type) || /event-stream|ndjson|json-seq|stream\+json/i.test(type)) {
           return;
         }
         return response.clone().text().then(readResponse);

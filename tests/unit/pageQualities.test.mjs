@@ -155,6 +155,21 @@ describe('a page of very many <source> elements', () => {
     expect(made).toBeLessThan(50);
   });
 
+  it('reads no more of them than a quality menu could hold', () => {
+    let reads = 0;
+    const sources = Array.from({length: 5000}, (_, i) => {
+      const source = element('source', {src: `/v/${i}.mp4`, label: `${i}p`});
+      const has = source.hasAttribute;
+      source.hasAttribute = (name) => {
+        reads++;
+        return has(name);
+      };
+      return source;
+    });
+    expect(PageQualities.find(documentOf([element('video', {}, sources)]), null, BASE)).toEqual([]);
+    expect(reads).toBeLessThan(200);
+  });
+
   it('control: still takes a list of up to 12', () => {
     const sources = Array.from({length: 12}, (_, i) => element('source', {src: `/v/${i}.mp4`, label: `${(i + 1) * 100}p`}));
     expect(PageQualities.find(documentOf([element('video', {}, sources)]), null, BASE)[0]).toHaveLength(12);
