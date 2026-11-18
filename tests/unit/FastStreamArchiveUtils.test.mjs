@@ -85,7 +85,18 @@ describe('parseFSA', () => {
     await expect(FastStreamArchiveUtils.parseFSA(archive)).rejects.toThrow(/out of range/);
   });
 
-  // An archive is a file the user may pass on: the session's login went with it (review).
+  it('reads no login headers from an archive someone else made', async () => {
+    // A crafted file could have the player send credentials of its choosing, as a crafted
+    // link can not.
+    const header = new TextEncoder().encode(JSON.stringify({number_of_entries: 0,
+      source: {url: 'https://site.example/a.m3u8', headers: {'Cookie': 'session=1', 'Referer': 'https://site.example/'}}}));
+    const size = header.length;
+    const archive = await bufferOf([size >>> 24, (size >>> 16) & 255, (size >>> 8) & 255, size & 255, ...header]);
+    const {source} = await FastStreamArchiveUtils.parseFSA(archive);
+    expect(source.headers).toEqual({'Referer': 'https://site.example/'});
+  });
+
+  // An archive is a file the user may pass on: the session's login went with it.
   it('keeps the source\'s headers without the login ones', async () => {
     const chunks = [];
     const stream = new WritableStream({write: (chunk) => {

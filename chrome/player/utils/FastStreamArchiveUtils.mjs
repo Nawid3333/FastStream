@@ -191,8 +191,15 @@ export class FastStreamArchiveUtils {
       }
     }
 
+    // Maybe someone else's file: no login headers, as from a link.
+    const source = header.source;
+    if (source && typeof source === 'object') {
+      const headers = source.headers;
+      source.headers = headers && typeof headers === 'object' && !Array.isArray(headers) ? withoutCredentials(headers) : {};
+    }
+
     return {
-      source: header.source,
+      source,
       currentLevel: header.currentLevel,
       currentAudioLevel: header.currentAudioLevel,
       entries,

@@ -2595,3 +2595,62 @@ Rejected:
 - **`options.mjs` `ownSave`** - The store tells its listeners about the page's own saves too; a
   redraw then would rebuild the keybind rows (the box a key was just pressed in loses focus), move
   a number field's caret and undo a search, so the page skips the options it saved last.
+
+## The utils and options audit (2026-11-18)
+
+A Claude API review and glm in three parts, of `chrome/player/utils/` and
+`chrome/player/options/`. Each claim was checked against the code. Fixed, each with a test that
+fails without it:
+
+- **`OptionsStore.replace` wrote the page's whole copy.** A settings page holds the options it
+  read; a save made elsewhere since (a player's settings, the background's mpv switches) reaches
+  it only through UPDATE_OPTIONS, which the background sends to the tabs it knows, and through
+  the visibility observer, which a tab switch does not fire. Its next save put the other save
+  back. A save now writes only the keys that differ from what the page last read or saved, over
+  the options as stored now, one save after the other; when the stored ones differed, the page
+  takes and shows them. A reload waits for the saves on their way: read before one was written,
+  the page showed the value it had just replaced. The store keeps a copy (`#saved`): the page
+  changes the object it was given in place.
+- **The error report** scrubbed the extension's address (it names the install) from the stack
+  only; Firefox's message for a module that failed to load holds it too.
+- **An archive's source headers** were taken as the file had them. A crafted `.fsa` could have
+  the player send a Cookie or Authorization of its choosing, which a crafted link cannot
+  (`withoutCredentials`); the reader strips them as the writer does.
+- **The options page's fields** got `role="button"` (`setupTabIndex`): a screen reader said
+  "button" for every check box, without whether it is ticked, and for every text field. They
+  get Enter only (`setupKeyPress`).
+- **`StreamLength.fromMp4`** pointed past the end of a file that had ended with no movie
+  header: one more request for nothing.
+
+Rejected:
+
+- Two saves in the same millisecond taken for one echo: harmless now that a save writes only
+  its own keys; the page shows the other save at its next reload.
+- `MediaTitle` dropping a title word like the site's name ("Max Payne | Max" on max.com
+  became "Payne"): keeping it where the site names itself apart kept "FMovies" in "FMovies Dune
+  | FMovies". The two cannot be told apart, and the search's title can be edited.
+- Typed text lost to a reload during the 400 ms save wait: needs a save elsewhere inside those
+  400 ms.
+- `dashProtected` and a self-closing AdaptationSet: the entry it makes holds the next set's own
+  tag and content, and the verdict is the same as without the empty set.
+- `xml2vtt` and TTML: it reads timed-text XML (`<text start dur>`); TTML comes only as a
+  dropped `.xml` or a subtitle URL, and parses to no cue, which the player reports as no
+  subtitles. Reading TTML would be a feature (the doc comment no longer claims it).
+- Its O(n²) look for the next start: it stops at the first later start, which in a file in
+  order is the next cue.
+- `downloadURL` and `lastError`: the background is gone only while the extension reloads, when
+  the player page goes too.
+- `RequestUtils.request` and an empty body: no caller sends one.
+- Two `#EXT-X-STREAM-INF` tags before one URI sharing it: a playlist RFC 8216 does not allow,
+  read as the comment says.
+- The archive's sizes: `LargeBuffer.read` checks a length against the file before allocating.
+- `closeWindows` clicking the close buttons of closed windows: each only hides its window.
+- `formatDuration(Infinity)`: both callers pass only finite times.
+- Decimal aspect ratios: the list holds none.
+- `copyText`'s fallback result: it runs in the web build only.
+- Imported subtitle and tool settings written after the broadcast: open players read them only
+  when they start.
+- A failed first options read, an unparsable `updateData`, prototype pollution and imported
+  key bindings: the read fails only on a broken profile; `updateData` is only ever written by
+  `JSON.stringify`; `mergeOptions` walks only the defaults' own keys and checks every binding
+  with `isKeyString`.

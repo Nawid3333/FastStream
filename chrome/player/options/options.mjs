@@ -345,8 +345,10 @@ document.querySelectorAll('.option').forEach((option) => {
   });
 
   const input = option.querySelector('input');
+  // Enter ticks a box. No button role: a screen reader would not say a box is ticked, nor
+  // that a field takes text.
   if (input) {
-    WebUtils.setupTabIndex(input);
+    WebUtils.setupKeyPress(input);
   }
 });
 

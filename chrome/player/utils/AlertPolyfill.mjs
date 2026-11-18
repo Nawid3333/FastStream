@@ -203,10 +203,12 @@ function clipForAddress(text, limit, more) {
  * @return {string}
  */
 export function errorReportURL(error, version) {
-  // GitHub refuses an address past about 8 kB; the extension's id names the install.
-  const fullStack = String(error?.stack || 'No stack trace').replace(/moz-extension:\/\/[^/\s]+\//g, 'moz-extension://.../');
-  const stack = clipForAddress(fullStack, 4000, '\n...');
-  const message = clipForAddress(errorText(error), 2000, '...');
+  // GitHub refuses an address past about 8 kB; the extension's id names the install, in the
+  // stack and in a message (a module that failed to load is named by its address).
+  /** @param {string} text */
+  const noInstall = (text) => text.replace(/moz-extension:\/\/[^/\s]+\//g, 'moz-extension://.../');
+  const stack = clipForAddress(noInstall(String(error?.stack || 'No stack trace')), 4000, '\n...');
+  const message = clipForAddress(noInstall(errorText(error)), 2000, '...');
   const body = `## Version:\n${version}\n\n## Error message:\n${message}\n\n## Stack trace:\n\`\`\`\n${stack}\n\`\`\``;
   const urlBase = `https://github.com/Nawid3333/FastStream/issues/new?`;
   return `${urlBase}title=${encodeURIComponent('Error report')}&body=${encodeURIComponent(body)}`;
