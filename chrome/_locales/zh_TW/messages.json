@@ -1047,7 +1047,7 @@
         "message": "MPV 允許清單"
     },
     "options_mpv_allowlist_hint": {
-        "message": "此清單中的網站會在 mpv 開啟偵測到的串流。每行一個 URL，以該 URL 開頭的頁面同樣符合（可省略 https:// 和 www.，例如：crunchyroll.com @anime）。使用 ~ 代表正規表示式，! 代表排除。未標記的網站在 mpv 的著色器選擇中預設為電影；若非如此，請在該行結尾加上 @anime。若想明確寫出，也可以使用 @movie。播放器的 mpv 按鈕可針對單一影片覆蓋此設定。"
+        "message": "此清單中的網站會在 mpv 開啟偵測到的串流。每行一個 URL，以該 URL 開頭的頁面同樣符合（可省略 https:// 和 www.，例如：crunchyroll.com @anime）。使用 ~ 代表正規表示式，! 代表排除。未標記的網站在 mpv 的著色器選擇中預設為電影；若非如此，請在該行結尾加上 @anime。若想明確寫出，也可以使用 @movie。播放器的 mpv 按鈕可針對單一影片覆蓋此設定。使用 @native 時，mpv 會不使用任何放大器播放該網站的影片。"
     },
     "options_mpv_path": {
         "message": "mpv 路徑（選用：只有在 mpv 主機自己找不到 mpv 時才需要）"
@@ -1140,13 +1140,16 @@
         "message": "已開啟的 mpv 視窗正在用處理器解碼（$1）：在 mpv.conf 中加入 hwdec=auto-safe 即可由顯示卡解碼。"
     },
     "player_mpv_content_unset": {
-        "message": "在 mpv 中開啟此串流（內容類型：自動——除非網站標記 @anime，否則為電影；右鍵點擊可為此影片覆蓋）"
+        "message": "在 mpv 中開啟此串流（內容類型：自動——除非網站標記 @anime/@native，否則為電影；右鍵點擊可為此影片覆蓋）"
     },
     "player_mpv_content_anime": {
         "message": "在 mpv 中開啟此串流（內容類型：動畫——右鍵點擊可更改）"
     },
     "player_mpv_content_movie": {
         "message": "在 mpv 中開啟此串流（內容類型：電影——右鍵點擊可更改）"
+    },
+    "player_mpv_content_native": {
+        "message": "在 mpv 中開啟此串流（內容類型：原生，不使用放大器——右鍵點擊可更改）"
     },
     "options_help_header": {
         "message": "說明"

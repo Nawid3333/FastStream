@@ -1047,7 +1047,7 @@
         "message": "Senarai Dibenarkan MPV"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Tapak dalam senarai ini membuka strim yang dikesan dalam mpv. Satu URL setiap baris; halaman yang bermula dengan URL itu juga sepadan (https:// dan www. boleh dibiarkan: crunchyroll.com @anime). Gunakan ~ untuk regex dan ! untuk mengecualikan. Tapak tanpa tag menggunakan Filem secara lalai untuk pemilihan shader mpv – tambah @anime pada hujung baris untuk tapak anime. @movie juga diterima, jika anda mahu menuliskannya secara penuh. Butang mpv pemain boleh mengatasi ini bagi setiap video."
+        "message": "Tapak dalam senarai ini membuka strim yang dikesan dalam mpv. Satu URL setiap baris; halaman yang bermula dengan URL itu juga sepadan (https:// dan www. boleh dibiarkan: crunchyroll.com @anime). Gunakan ~ untuk regex dan ! untuk mengecualikan. Tapak tanpa tag menggunakan Filem secara lalai untuk pemilihan shader mpv – tambah @anime pada hujung baris untuk tapak anime. @movie juga diterima, jika anda mahu menuliskannya secara penuh. Butang mpv pemain boleh mengatasi ini bagi setiap video. Dengan @native, mpv memainkan video tapak tanpa sebarang penskala naik."
     },
     "options_mpv_path": {
         "message": "Laluan mpv (pilihan: hanya jika pembantu mpv tidak menemui mpv dengan sendirinya)"
@@ -1140,13 +1140,16 @@
         "message": "Tetingkap mpv yang terbuka menyahkod pada pemproses ($1): tambah hwdec=auto-safe ke mpv.conf untuk menyahkod pada kad grafik."
     },
     "player_mpv_content_unset": {
-        "message": "Buka strim ini dalam mpv (jenis kandungan: auto – Filem melainkan tapak ditanda @anime; klik kanan untuk mengatasinya bagi video ini)"
+        "message": "Buka strim ini dalam mpv (jenis kandungan: auto – Filem melainkan tapak ditanda @anime/@native; klik kanan untuk mengatasinya bagi video ini)"
     },
     "player_mpv_content_anime": {
         "message": "Buka strim ini dalam mpv (jenis kandungan: Anime – klik kanan untuk mengubah)"
     },
     "player_mpv_content_movie": {
         "message": "Buka strim ini dalam mpv (jenis kandungan: Filem – klik kanan untuk mengubah)"
+    },
+    "player_mpv_content_native": {
+        "message": "Buka strim ini dalam mpv (jenis kandungan: Asli, tanpa penskala naik – klik kanan untuk mengubah)"
     },
     "options_help_header": {
         "message": "Bantuan"

@@ -55,7 +55,7 @@ const PAGES = [
   'https://site.test/' + 'p'.repeat(3000),
 ];
 
-const CONTENT_TYPES = [undefined, 'anime', 'movie', 'Anime', 'documentary', null];
+const CONTENT_TYPES = [undefined, 'anime', 'movie', 'native', 'Anime', 'documentary', null];
 
 const quality = (height, extra = {}) => ({url: `https://h.test/${height}.mp4`, label: `${height}p`, height, ...extra});
 const QUALITY_LISTS = [

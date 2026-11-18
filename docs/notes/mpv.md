@@ -571,13 +571,14 @@ pipe names are machine-wide, so another account must not be able to guess it
 (`ipcPipeFor`; a Unix socket in `$XDG_RUNTIME_DIR` off Windows). A running mpv
 that answers `loadfile` with an error is not replaced by a second one.
 
+**`@native` (2026-11-18, Nawid's ask):** no upscaler for a site or video; mpv's gpu-toggles.lua (mpv-config) treats `fs-content=native` like a local file for Auto (no shaders; Anime/Movie still by hand). A helper older than 26 drops the tag, which mpv also plays without shaders.
 **Anime/movie content-type hint (2026-09-12).** `open` messages always
-carry `contentType: 'anime'|'movie'` — never omitted — resolved by
+carry `contentType: 'anime'|'movie'|'native'` — never omitted — resolved by
 `background.mjs`'s `resolveMpvContentType(explicit, url)`: the player's
 manual override if set (`SaveManager.mjs`'s `mpvContentType`, right-click
-the mpv button to cycle Auto → Anime → Movie; resets to Auto on every new
+the mpv button to cycle Auto → Anime → Movie → Native; resets to Auto on every new
 source via `FastStreamClient.resetPlayer`), else the MPV Allowlist's
-trailing `@anime`/`@movie` tag (`UrlMatchList.mjs`'s `getContentType`), else
+trailing `@anime`/`@movie`/`@native` tag (`UrlMatchList.mjs`'s `getContentType`), else
 **`'movie'`**. Movie is the deliberate default — this user's allowlist is
 mostly movie sites, so only the anime ones need tagging; `@movie` is still
 accepted but never required. Only the manual override is available on the
@@ -585,7 +586,7 @@ button-click path — the two webRequest/DNR auto-forward paths
 (`onSourceRecieved`, `openMpvWithSources`) never load the player, so they
 only ever see the allowlist tag (or the movie default).
 `faststream-mpv-host.mjs`'s `withContentTypeFragment` appends it to the
-stream URL as `#fs-content=anime`/`#fs-content=movie` before either launch
+stream URL as `#fs-content=anime`/`movie`/`native` before either launch
 path (`launchMpv`'s spawn args, `loadIntoExisting`'s `loadfile` command) —
 a URL fragment, so it never reaches the CDN and cannot break a signed URL.
 An mpv-side script reads that marker back off the `path` property as its

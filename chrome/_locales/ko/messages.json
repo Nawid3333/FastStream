@@ -1047,7 +1047,7 @@
         "message": "MPV 허용 목록"
     },
     "options_mpv_allowlist_hint": {
-        "message": "이 목록에 있는 사이트는 감지된 스트림을 mpv에서 엽니다. 한 줄에 URL을 하나씩 입력하세요. 해당 URL로 시작하는 페이지도 일치합니다(https://와 www.는 생략할 수 있습니다: crunchyroll.com @anime). 정규식에는 ~를, 제외에는 !를 사용하세요. 태그가 없는 사이트는 mpv의 셰이더 선택에 기본적으로 영화가 사용됩니다. 애니메이션 사이트는 줄 끝에 @anime를 추가하세요. @movie도 허용되니 명시적으로 쓰고 싶다면 사용하세요. 플레이어의 mpv 버튼에서 비디오별로 이를 바꿀 수 있습니다."
+        "message": "이 목록에 있는 사이트는 감지된 스트림을 mpv에서 엽니다. 한 줄에 URL을 하나씩 입력하세요. 해당 URL로 시작하는 페이지도 일치합니다(https://와 www.는 생략할 수 있습니다: crunchyroll.com @anime). 정규식에는 ~를, 제외에는 !를 사용하세요. 태그가 없는 사이트는 mpv의 셰이더 선택에 기본적으로 영화가 사용됩니다. 애니메이션 사이트는 줄 끝에 @anime를 추가하세요. @movie도 허용되니 명시적으로 쓰고 싶다면 사용하세요. 플레이어의 mpv 버튼에서 비디오별로 이를 바꿀 수 있습니다. @native를 붙이면 mpv가 해당 사이트의 동영상을 업스케일러 없이 재생합니다."
     },
     "options_mpv_path": {
         "message": "mpv 경로(선택 사항: mpv 도우미가 스스로 mpv를 찾지 못할 때만 사용)"
@@ -1140,13 +1140,16 @@
         "message": "열려 있는 mpv 창은 프로세서로 디코딩합니다 ($1): 그래픽 카드로 디코딩하려면 mpv.conf에 hwdec=auto-safe를 추가하세요."
     },
     "player_mpv_content_unset": {
-        "message": "이 스트림을 mpv에서 열기(콘텐츠 유형: 자동 — 사이트에 @anime 태그가 없으면 영화, 우클릭하여 이 동영상만 변경)"
+        "message": "이 스트림을 mpv에서 열기(콘텐츠 유형: 자동 — 사이트에 @anime/@native 태그가 없으면 영화, 우클릭하여 이 동영상만 변경)"
     },
     "player_mpv_content_anime": {
         "message": "이 스트림을 mpv에서 열기(콘텐츠 유형: 애니메이션 — 우클릭하여 변경)"
     },
     "player_mpv_content_movie": {
         "message": "이 스트림을 mpv에서 열기(콘텐츠 유형: 영화 — 우클릭하여 변경)"
+    },
+    "player_mpv_content_native": {
+        "message": "이 스트림을 mpv에서 열기(콘텐츠 유형: 네이티브, 업스케일러 없음 — 우클릭하여 변경)"
     },
     "options_help_header": {
         "message": "도움말"

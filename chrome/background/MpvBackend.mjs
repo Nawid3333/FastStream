@@ -1,7 +1,7 @@
 // @ts-check
 
 import {relayWatch} from './MpvRelayWatch.mjs';
-import {cutText, cutToLength, isStreamUrl, mpvTargetUrl, relayHeaderFields, startOf, streamTitle} from './MpvTarget.mjs';
+import {cutText, cutToLength, isMpvContentType, isStreamUrl, mpvTargetUrl, relayHeaderFields, startOf, streamTitle} from './MpvTarget.mjs';
 
 /** Native messaging client for the mpv helper; its messages: the top of native-host/faststream-mpv-host.mjs. */
 
@@ -512,7 +512,7 @@ export class MpvBackend {
       url: url,
     };
 
-    if (contentType === 'anime' || contentType === 'movie') {
+    if (isMpvContentType(contentType)) {
       message.contentType = contentType;
     }
 

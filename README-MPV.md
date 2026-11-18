@@ -108,18 +108,19 @@ FastStream settings → **MPV Mode**:
    the end of a line for the sites that are not, e.g.
    `https://crunchyroll.com @anime` — most people have more movie sites
    than anime ones, so only the exceptions need marking. (`@movie` is also
-   accepted, if you'd rather write it out.) This is passed to mpv as a
-   `#fs-content=anime`/`#fs-content=movie` marker on the stream URL (never
-   sent to the site — URL fragments stay client-side), for an mpv config
-   that reads it back to pick an anime- or movie-tuned shader chain
-   automatically.
+   accepted, if you'd rather write it out.) Add `@native` for a site whose
+   videos should play as they are, with no upscaler, e.g. `youtube.com @native`.
+   This is passed to mpv as a `#fs-content=anime`/`movie`/`native` marker on
+   the stream URL (never sent to the site — URL fragments stay client-side),
+   for an mpv config that reads it back to pick an anime- or movie-tuned
+   shader chain automatically, or none for `native`.
 
 ## 4. Use it
 
 Open a video on an allowlisted site — mpv takes over automatically. On any
 other site, the player's toolbar has an **Open this stream in mpv** button
 next to the download button. Right-click that button to cycle a per-video
-override — Auto → Anime → Movie → Auto — shown as a small A/M badge; it wins
+override — Auto → Anime → Movie → Native → Auto — shown as a small A/M/N badge; it wins
 over the allowlist tag for that one video.
 
 On any site, the MPV shortcut (**Alt+F**; you can change it in Firefox's

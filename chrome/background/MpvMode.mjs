@@ -6,6 +6,7 @@ import {ProblemKinds} from '../player/utils/ProblemLog.mjs';
 import {SHORT_S} from '../player/utils/StreamPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {Capabilities, MpvBackend} from './MpvBackend.mjs';
+import {isMpvContentType} from './MpvTarget.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {AutoEnableList, CaptionScrapeWaitMs, HlsQualitiesWaitMs, Lengths, Logging, Options, PageSubtitles, SourceLengthWaitMs, Tabs, VpnMirror, askFrame, closeReopenedTab, ensureOptions, hlsQualityChoice, isSentStream, isTabOpen, newestOfLongest, noteProblem, notifySeriesEnd, openPlayersWithSources, pageQualityChoice, pauseTabMedia, saveOption, scrapeCaptionsTags, startPagePlayers, tabHasPlayer, tabTitle, takeScrapedCaptions, userTurnedOff} from './background.mjs';
 
@@ -34,7 +35,7 @@ export const MpvPlayKnownAfterMs = 1000;
  * @return {string}
  */
 export function resolveMpvContentType(explicit, url) {
-  if (explicit === 'anime' || explicit === 'movie') {
+  if (isMpvContentType(explicit)) {
     return explicit;
   }
   return MpvAllowlist.getContentType(url) || 'movie';

@@ -5,7 +5,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 // the page around it are stand-ins; Utils.revokeWhenDownloaded is the real one.
 
 vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({
-  DOMElements: {saveNotifBanner: {style: {}}},
+  DOMElements: {saveNotifBanner: {style: {}}, mpv: {}, mpvContentBanner: {style: {}}},
 }));
 vi.mock('../../chrome/player/utils/AlertPolyfill.mjs', () => ({
   AlertPolyfill: {
@@ -371,5 +371,24 @@ describe('SaveManager.hasPicture', () => {
     expect(SaveManager.hasPicture({videoWidth: 640, videoHeight: 360, readyState: 1})).toBe(false);
     expect(SaveManager.hasPicture({videoWidth: 0, videoHeight: 0, readyState: 4})).toBe(false);
     expect(SaveManager.hasPicture(null)).toBe(false);
+  });
+});
+
+describe('SaveManager.cycleMpvContentType', () => {
+  it('cycles Auto -> Anime -> Movie -> Native -> Auto, with the badge and tooltip of each', async () => {
+    const {DOMElements} = await import('../../chrome/player/ui/DOMElements.mjs');
+    const manager = new SaveManager(makeClient({}));
+    const seen = [];
+    for (let i = 0; i < 4; i++) {
+      manager.cycleMpvContentType();
+      seen.push([manager.mpvContentType, DOMElements.mpvContentBanner.textContent,
+        DOMElements.mpvContentBanner.style.display, DOMElements.mpv.title]);
+    }
+    expect(seen).toEqual([
+      ['anime', 'A', '', 'player_mpv_content_anime'],
+      ['movie', 'M', '', 'player_mpv_content_movie'],
+      ['native', 'N', '', 'player_mpv_content_native'],
+      [null, '', 'none', 'player_mpv_content_unset'],
+    ]);
   });
 });

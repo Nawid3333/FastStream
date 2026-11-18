@@ -42,7 +42,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
 // The extension compares it with RequiredHostVersion (chrome/background/MpvBackend.mjs). Raise it
 // with every change to this file or install.ps1, with tests/unit/mpvHostVersion.test.mjs.
-export const HostVersion = 25;
+export const HostVersion = 26;
 
 // The messages the extension may send; a host without this list gets the older ones.
 export const Capabilities = Object.freeze(['play', 'ipc', 'relay']);
@@ -822,12 +822,12 @@ export function isStreamUrl(url) {
 
 /**
  * @param {string} streamUrl - The stream URL headed to mpv.
- * @param {string} [contentType] - 'anime' or 'movie'; anything else is a
+ * @param {string} [contentType] - 'anime', 'movie' or 'native' (no upscaler); anything else is a
  *   no-op and streamUrl is returned unchanged.
  * @return {string} The URL, with the marker appended when contentType is set.
  */
 export function withContentTypeFragment(streamUrl, contentType) {
-  if (contentType !== 'anime' && contentType !== 'movie') {
+  if (contentType !== 'anime' && contentType !== 'movie' && contentType !== 'native') {
     return streamUrl;
   }
   return withFragmentTag(streamUrl, `fs-content=${contentType}`);

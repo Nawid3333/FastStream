@@ -53,7 +53,7 @@ export class UrlMatchList {
       match: /** @type {RegExp|string|null} */ (null),
     };
 
-    const tagMatch = /(?:^|\s+)@(anime|movie)\s*$/i.exec(urlStr);
+    const tagMatch = /(?:^|\s+)@(anime|movie|native)\s*$/i.exec(urlStr);
     if (tagMatch) {
       entry.contentType = tagMatch[1].toLowerCase();
       urlStr = urlStr.slice(0, tagMatch.index).trim();

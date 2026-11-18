@@ -67,6 +67,10 @@ describe('parseEntry', () => {
     const movie = UrlMatchList.parseEntry('https://example.com/movie/ @MOVIE');
     expect(movie.contentType).toBe('movie');
     expect(movie.match).toBe('https://example.com/movie/');
+
+    const native = UrlMatchList.parseEntry('youtube.com @Native');
+    expect(native.contentType).toBe('native');
+    expect(native.match).toBe('youtube.com');
   });
 
   it('leaves contentType null when no tag is present', () => {
@@ -209,9 +213,10 @@ describe('getContentType', () => {
 
   it('returns the tag of the matching entry', () => {
     const list = new UrlMatchList();
-    list.setEntries(['https://crunchyroll.com @anime', 'https://netflix.com @movie']);
+    list.setEntries(['https://crunchyroll.com @anime', 'https://netflix.com @movie', 'example.org @native']);
     expect(list.getContentType('https://crunchyroll.com/watch/1')).toBe('anime');
     expect(list.getContentType('https://netflix.com/watch/1')).toBe('movie');
+    expect(list.getContentType('https://www.example.org/v/1')).toBe('native');
   });
 
   it('returns null when the matching entry carries no tag', () => {
