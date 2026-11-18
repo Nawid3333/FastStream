@@ -214,6 +214,38 @@ describe('SaveManager: the URL of a finished save', () => {
     await first;
     expect(player.saveVideo).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps the file a finished save names while a second click comes', async () => {
+    // The name is asked once the file is made: a second save then revoked the first's file.
+    let answer;
+    vi.spyOn(AlertPolyfill, 'prompt').mockImplementation(() => new Promise((resolve) => {
+      answer = resolve;
+    }));
+    const player = {
+      canSave: () => ({canSave: true, isComplete: false, canStream: false}),
+      saveVideo: vi.fn(async () => ({blob: new Blob(['x'])})),
+    };
+    const manager = new SaveManager(makeClient(player));
+    const first = manager.saveVideo({});
+    await vi.advanceTimersByTimeAsync(0);
+    await manager.saveVideo({});
+    answer('clip');
+    await first;
+    expect(player.saveVideo).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('saves nothing for an answer that comes after the next video did', async () => {
+    const first = {canSave: () => ({canSave: true, isComplete: false, canStream: false}), saveVideo: vi.fn()};
+    const client = makeClient(first);
+    vi.spyOn(AlertPolyfill, 'confirm').mockImplementation(async () => {
+      client.player = {canSave: first.canSave, saveVideo: vi.fn()};
+      return true;
+    });
+    await new SaveManager(client).saveVideo({altKey: true});
+    expect(first.saveVideo).not.toHaveBeenCalled();
+    expect(client.player.saveVideo).not.toHaveBeenCalled();
+  });
 });
 
 describe('SaveManager: a streamed save that fails', () => {
@@ -275,6 +307,59 @@ describe('SaveManager.openInMpv', () => {
       await new SaveManager(client).openInMpv();
       expect(statuses.at(-1)).toEqual({message: 'player_mpv_sent', type: 'info'});
       expect(client.pause).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('sends the stream once for a second click while the first is on its way', async () => {
+    const callbacks = [];
+    globalThis.chrome = {runtime: {lastError: undefined, sendMessage: (message, callback) => callbacks.push(callback)}};
+    const client = {
+      ...makeClient({}),
+      source: {url: 'https://cdn.test/a.m3u8', headers: {}},
+      currentTime: 0,
+      options: {},
+      interfaceController: {setStatusMessage() {}, subtitlesManager: {activeTracks: []}},
+    };
+    const manager = new SaveManager(client);
+    await manager.openInMpv();
+    await manager.openInMpv();
+    expect(callbacks).toHaveLength(1);
+    callbacks[0]({ok: true});
+    await manager.openInMpv();
+    expect(callbacks).toHaveLength(2);
+  });
+
+  it('sends again after a send that threw, or got no answer for a while', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      let sent = 0;
+      let throws = true;
+      globalThis.chrome = {runtime: {lastError: undefined, sendMessage: () => {
+        sent++;
+        if (throws) throw new Error('Extension context invalidated.');
+      }}};
+      const statuses = [];
+      const client = {
+        ...makeClient({}),
+        source: {url: 'https://cdn.test/a.m3u8', headers: {}},
+        currentTime: 0,
+        options: {},
+        interfaceController: {setStatusMessage: (key, message) => statuses.push(message), subtitlesManager: {activeTracks: []}},
+      };
+      const manager = new SaveManager(client);
+      await manager.openInMpv();
+      expect(statuses.at(-1)).toBe('player_mpv_fail');
+      throws = false;
+      await manager.openInMpv();
+      expect(sent).toBe(2);
+      await manager.openInMpv();
+      expect(sent).toBe(2);
+      vi.advanceTimersByTime(15000);
+      await manager.openInMpv();
+      expect(sent).toBe(3);
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

@@ -170,7 +170,7 @@ export class PlaybackRateChanger extends EventEmitter {
       return;
     }
     const playbackRate = this.client.playbackRate;
-    setTimeout(this.silenceSkipperLoopHandle, 100 / playbackRate);
+    this.silenceSkipperTimer = setTimeout(this.silenceSkipperLoopHandle, 100 / playbackRate);
 
     if (!this.client.player) return;
 
@@ -311,6 +311,8 @@ export class PlaybackRateChanger extends EventEmitter {
     if (this.silenceSkipperActive) {
       this.disableSilenceSkipper();
     }
+    // Its next round too, or enabling it again before that round starts a second loop.
+    clearTimeout(/** @type {ReturnType<typeof setTimeout>|undefined} */ (this.silenceSkipperTimer));
     this.silenceSkipperLoopRunning = false;
   }
 

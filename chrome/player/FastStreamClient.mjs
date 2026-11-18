@@ -3185,6 +3185,8 @@ export class FastStreamClient extends EventEmitter {
     if (duration > 0 && Number.isFinite(duration)) {
       value = Math.min(value, duration);
     }
+    // The end of a live stream (Infinity): a media element throws on it.
+    if (!Number.isFinite(value)) return;
 
     if (this.saveSeek) {
       this.savePosition();

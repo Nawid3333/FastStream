@@ -257,6 +257,38 @@ export class SubtitlesManager extends EventEmitter {
     return DOMElements.subtitlesMenu.style.display !== 'none';
   }
 
+  /**
+   * Downloads a subtitle file and turns it on, for this video: one that came meanwhile does
+   * not get it.
+   * @param {string} url
+   */
+  addTrackFromUrl(url) {
+    const generation = this.openSubtitlesSearch.downloadGeneration;
+    AlertPolyfill.toast('info', Localize.getMessage('player_subtitles_addtrack_downloading'));
+    // requestSimple's callback: what failed, if anything; the answer, none when the
+    // request threw; the body, an ArrayBuffer here, false on a failure.
+    RequestUtils.requestSimple({url, responseType: 'arraybuffer'}, (/** @type {Error|undefined} */ err, /** @type {import('../../utils/RequestUtils.mjs').RequestResult|undefined} */ req, /** @type {ArrayBuffer|false} */ body) => {
+      if (generation !== this.openSubtitlesSearch.downloadGeneration) return;
+      if (!err && body) {
+        try {
+          const track = new SubtitleTrack(Localize.getMessage('player_subtitles_url_track'), null);
+          // No error: the request answered.
+          track.loadText(SubtitleUtils.decodeSubtitleBytes(body, /** @type {import('../../utils/RequestUtils.mjs').RequestResult} */ (req).getResponseHeader('Content-Type')));
+          // A web page (a login, an error page) added an empty track, and said "added".
+          track.checkHasCues();
+
+          this.activateTrack(this.addTrack(track));
+
+          AlertPolyfill.toast('success', Localize.getMessage('player_subtitles_addtrack_success'));
+        } catch (e) {
+          AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), /** @type {Error|undefined} */ (e)?.message);
+        }
+      } else {
+        AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), err?.message);
+      }
+    });
+  }
+
   setupUI() {
     DOMElements.subtitles.addEventListener('click', this.onCaptionsButtonInteract.bind(this));
     DOMElements.subtitles.tabIndex = 0;
@@ -329,30 +361,7 @@ export class SubtitlesManager extends EventEmitter {
     urlbutton.addEventListener('click', async (e) => {
       const url = await AlertPolyfill.prompt(Localize.getMessage('player_subtitlesmenu_urlprompt'), '', undefined, 'url');
 
-      if (url) {
-        AlertPolyfill.toast('info', Localize.getMessage('player_subtitles_addtrack_downloading'));
-        // requestSimple's callback: what failed, if anything; the answer, none when the
-        // request threw; the body, an ArrayBuffer here, false on a failure.
-        RequestUtils.requestSimple({url, responseType: 'arraybuffer'}, (/** @type {Error|undefined} */ err, /** @type {import('../../utils/RequestUtils.mjs').RequestResult|undefined} */ req, /** @type {ArrayBuffer|false} */ body) => {
-          if (!err && body) {
-            try {
-              const track = new SubtitleTrack(Localize.getMessage('player_subtitles_url_track'), null);
-              // No error: the request answered.
-              track.loadText(SubtitleUtils.decodeSubtitleBytes(body, /** @type {import('../../utils/RequestUtils.mjs').RequestResult} */ (req).getResponseHeader('Content-Type')));
-              // A web page (a login, an error page) added an empty track, and said "added".
-              track.checkHasCues();
-
-              this.activateTrack(this.addTrack(track));
-
-              AlertPolyfill.toast('success', Localize.getMessage('player_subtitles_addtrack_success'));
-            } catch (e) {
-              AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), /** @type {Error|undefined} */ (e)?.message);
-            }
-          } else {
-            AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), err?.message);
-          }
-        });
-      }
+      if (url) this.addTrackFromUrl(url);
     });
 
     DOMElements.subtitlesView.appendChild(urlbutton);

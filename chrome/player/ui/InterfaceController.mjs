@@ -337,6 +337,7 @@ export class InterfaceController {
 
   updateDownloadStatus() {
     if (this.client.downloadManager.paused) {
+      this.shownDownloadComplete = false;
       this.setStatusMessage('download', Localize.getMessage('player_download_paused'), 'warning');
       return;
     }
@@ -763,6 +764,9 @@ export class InterfaceController {
       return;
     }
 
+    /** @type {boolean|undefined} The visibility last acted on; none before the first change. */
+    this.lastPageVisibility = isVisible;
+
     switch (action) {
       case VisChangeActions.NOTHING:
         break;
@@ -784,15 +788,11 @@ export class InterfaceController {
         }
         break;
     }
-
-    /** @type {boolean|undefined} The visibility last acted on; none before the first change. */
-    this.lastPageVisibility = isVisible;
   }
 
   /**
    * The tab's or the player's visibility changed: its action, a failure of it said on the
-   * console. A play the browser blocks, or picture-in-picture with no click behind it
-   * (Firefox has no such API for a page), was an unhandled rejection at every tab change.
+   * console.
    * @param {boolean} isVisible
    */
   visibilityChanged(isVisible) {
@@ -862,14 +862,14 @@ export class InterfaceController {
     if (this.hidden) {
       DOMElements.playerContainer.classList.remove('player-hidden');
       this.hidden = false;
-      if (this.shouldPlay) {
-        this.client.player?.play();
+      if (this.playWhenShown) {
+        this.client.player?.play().catch((/** @type {unknown} */ e) => console.warn('The video did not play on', e));
       }
     } else {
       DOMElements.playerContainer.classList.add('player-hidden');
 
       this.hidden = true;
-      this.shouldPlay = this.client.state.playing;
+      this.playWhenShown = this.client.state.playing;
       this.client.player?.pause();
     }
   }
@@ -877,13 +877,10 @@ export class InterfaceController {
   /** @param {boolean} [force] - In or out; toggles without. */
   pipToggle(force) {
     if (force !== undefined && !!force === this.isInPip()) {
-      return;
+      return Promise.resolve();
     }
-    if (this.isInPip()) {
-      return this.exitPip();
-    } else {
-      return this.enterPip();
-    }
+    return (async () => (this.isInPip() ? this.exitPip() : this.enterPip()))()
+        .catch((e) => console.warn('Picture-in-picture failed', e));
   }
 
   isInPip() {
@@ -1005,7 +1002,8 @@ export class InterfaceController {
    */
   scheduleProgressFrame() {
     const video = /** @type {HTMLVideoElement|undefined} */ (this.client.player?.getVideo?.());
-    if (this.state.playing && !this.fineTimeControls.started && typeof video?.requestVideoFrameCallback === 'function') {
+    if (this.state.playing && !this.fineTimeControls.started && typeof video?.requestVideoFrameCallback === 'function' &&
+        video.videoWidth > 0) {
       this.progressFrameVideo = video;
       this.progressFrameHandle = video.requestVideoFrameCallback(this.boundProgressLoop);
     } else {
@@ -1308,6 +1306,15 @@ export class InterfaceController {
    * @return {Promise<void>}
    */
   async fullscreenToggle(force) {
+    try {
+      await this.toggleFullscreenNow(force);
+    } catch (e) {
+      console.warn('Fullscreen failed', e);
+    }
+  }
+
+  /** @param {boolean} [force] */
+  async toggleFullscreenNow(force) {
     // A carried fullscreen is left like a real one (a click here could not enter one).
     if (this.state.carriedFullscreen) {
       if (force !== true) this.exitCarriedFullscreen();
@@ -1324,7 +1331,7 @@ export class InterfaceController {
       this.updateFullScreenButton();
     } else {
       if (EnvUtils.isExtension()) {
-        return new Promise(/** @type {(resolve: (value: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void} */ ((resolve, reject) => {
+        await new Promise(/** @type {(resolve: (value: void | PromiseLike<void>) => void, reject: (reason?: any) => void) => void} */ ((resolve, reject) => {
           chrome.runtime.sendMessage({
             type: MessageTypes.REQUEST_FULLSCREEN,
             force,

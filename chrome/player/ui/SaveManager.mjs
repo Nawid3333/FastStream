@@ -16,6 +16,9 @@ import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {StatusTypes} from './StatusManager.mjs';
 
+// How long an mpv request may go unanswered before the button sends again.
+const MPV_ANSWER_WAIT_MS = 15000;
+
 /**
  * streamSaver as it is called here: StreamSaver.mjs's JSDoc lists options and size as
  * required, but createWriteStream fills in options and ignores size (deprecated).
@@ -45,6 +48,8 @@ export class SaveManager {
   constructor(client) {
     this.client = client;
     this.downloadURL = null;
+    // One request at a time: a second click would send the stream twice.
+    this.mpvSending = false;
     // What Utils.downloadURL answered for the last download of downloadURL.
     this.downloadURLDownload = undefined;
     // ... and for each of its downloads: the URL goes once all of them are over.
@@ -106,6 +111,12 @@ export class SaveManager {
       return {name, value};
     });
 
+    if (this.mpvSending) return;
+    this.mpvSending = true;
+    // A background that went away never answers: the button is freed after a while.
+    const sendingTimer = setTimeout(() => {
+      this.mpvSending = false;
+    }, MPV_ANSWER_WAIT_MS);
     this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sending'), 'info');
 
     // mpv carries on where this player is, with the subtitles it shows (as SubRip,
@@ -116,6 +127,27 @@ export class SaveManager {
       srt: SubtitleUtils.cuesToSrt(track.cues),
     }));
 
+    const answered = () => {
+      clearTimeout(sendingTimer);
+      this.mpvSending = false;
+    };
+    try {
+      this.sendMpvOpen(source, headers, startTime, subtitles, answered);
+    } catch (e) {
+      answered();
+      console.warn('Sending to mpv failed', e);
+      this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_fail'), 'error', 3000);
+    }
+  }
+
+  /**
+   * @param {VideoSource} source
+   * @param {Array<{name: string, value: string}>} headers
+   * @param {number} startTime
+   * @param {Array<{label: string, srt: string}>} subtitles
+   * @param {() => void} answered - Called first when the background answers.
+   */
+  sendMpvOpen(source, headers, startTime, subtitles, answered) {
     chrome.runtime.sendMessage({
       type: MessageTypes.MPV_OPEN,
       url: source.url,
@@ -126,6 +158,7 @@ export class SaveManager {
       startTime: startTime >= 1 ? startTime : undefined,
       subtitles: subtitles.length > 0 ? subtitles : undefined,
     }, (response) => {
+      answered();
       if (chrome.runtime.lastError) {
         this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_fail'), 'error', 3000);
         return;
@@ -329,14 +362,14 @@ export class SaveManager {
 
     if (doPartial && !isComplete) {
       const res = await AlertPolyfill.confirm(Localize.getMessage('player_savevideo_partial_confirm'), 'warning');
-      if (!res) {
+      if (!res || this.client.player !== player) {
         return;
       }
     }
 
     if (!doPartial && !isComplete && EnvUtils.isIncognito()) {
       const res = await AlertPolyfill.confirm(Localize.getMessage('player_savevideo_incognito_confirm'), 'warning');
-      if (!res) {
+      if (!res || this.client.player !== player) {
         return;
       }
     }
@@ -348,7 +381,7 @@ export class SaveManager {
 
     if (doDump) {
       const name = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
-      if (!name) {
+      if (!name || this.client.player !== player) {
         return;
       }
       this.dumpBuffer(name);
@@ -362,7 +395,7 @@ export class SaveManager {
     // anything else is named once it is complete.
     if (canStream) {
       name = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
-      if (!name) {
+      if (!name || this.client.player !== player) {
         return;
       }
       filestream = /** @type {StreamSaverApi} */ (streamSaver).createWriteStream(name + '.' + saveExtension);
@@ -435,6 +468,7 @@ export class SaveManager {
       DOMElements.saveNotifBanner.style.display = 'none';
       this.downloadCancel = null;
       this.makingDownload = false;
+      this.askingToSave = true;
 
 
       this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_complete'), 'info', 2000);

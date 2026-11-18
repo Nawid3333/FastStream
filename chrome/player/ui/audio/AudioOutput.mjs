@@ -82,11 +82,13 @@ export class AudioOutput extends AbstractAudioModule {
       } catch (e) {
         // Fallback to 2 channels if init fails for ppl who have older browsers. Kept, or
         // the next caller waited on this settled promise and got null.
-        if (this.channelCounterNode === node) {
-          this.cachedChannelCount = 2;
-          this.channelCounterPromise = null;
-          this.channelCounterNode = null;
+        if (this.channelCounterNode !== node) {
+          reject(new Error(RECOUNTED));
+          return;
         }
+        this.cachedChannelCount = 2;
+        this.channelCounterPromise = null;
+        this.channelCounterNode = null;
         resolve(2);
         return;
       }

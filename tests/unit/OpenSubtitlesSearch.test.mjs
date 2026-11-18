@@ -51,3 +51,17 @@ describe('OpenSubtitlesSearch.readInputs', () => {
     expect(read('-2', 'S-1', '-1999')).toMatchObject({season: null, episode: null, year: null});
   });
 });
+
+describe('OpenSubtitlesSearch.search, one of its two requests refused', () => {
+  it('says why when nothing was found, not "no results"', async () => {
+    // A throttle on the subtitles request, and a title search that found nothing.
+    const throttle = new Error('Throttle limit reached');
+    const self = {
+      searchCount: 0, subui: {title: {replaceChildren() {}}, pages: {replaceChildren() {}}},
+      showMessage: vi.fn(), showFailure: vi.fn(), showTitle: vi.fn(),
+      request: (path) => (path === 'subtitles' ? Promise.reject(throttle) : Promise.resolve({data: []})),
+    };
+    await OpenSubtitlesSearch.prototype.search.call(self, {query: 'dune', language: 'en', year: null, season: null, episode: null});
+    expect(self.showFailure).toHaveBeenCalledWith(throttle);
+  });
+});

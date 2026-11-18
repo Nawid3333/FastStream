@@ -144,6 +144,18 @@ describe('AudioOutput: counting the channels', () => {
     expect(await answer).toBe(2);
     expect(await output.getInputChannelCount()).toBe(2);
   });
+
+  it('keeps a newer count when an older counter fails to start after it', async () => {
+    // The older one's fallback of 2 came last, and the 5.1 video went out as stereo.
+    const {output, ctx} = setup();
+    output.updateChannelCount();
+    const [first, second] = counters;
+    await count(second, 6);
+    expect(ctx.destination.channelCount).toBe(6);
+    first.failInit(new Error('no AudioWorklet'));
+    await settle();
+    expect(ctx.destination.channelCount).toBe(6);
+  });
 });
 
 describe('AudioOutput: the volume', () => {

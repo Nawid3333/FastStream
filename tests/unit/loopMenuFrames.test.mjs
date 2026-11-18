@@ -125,3 +125,50 @@ describe('a GIF of a video whose frames cannot be read back', () => {
     expect(frames).toEqual([]);
   });
 });
+
+describe('the end of a GIF', () => {
+  /**
+   * A menu whose GIF recording is ending, its last frame drawn at `lastTimeRecorded`.
+   * @param {?number} lastTimeRecorded
+   * @return {{menu: Object, gif: Object, status: Function}}
+   */
+  function ending(lastTimeRecorded) {
+    const {menu, client} = setup();
+    const gif = {frames: [], addFrame: vi.fn((canvas, options) => gif.frames.push(options)), on: vi.fn(), abort: vi.fn(),
+      render: vi.fn(() => {
+        if (!gif.frames.length) throw new Error('Width and height must be set prior to rendering');
+      })};
+    const status = vi.fn();
+    client.interfaceController = {setStatusMessage: status};
+    Object.assign(menu, {gif, lastTimeRecorded, gifCanvas: {width: 1, height: 1}, gifCtx: {}});
+    return {menu, gif, status};
+  }
+
+  it('has the last frame drawn, shown until the loop\'s end', () => {
+    // Each frame was added when the next one was drawn: the last one never was.
+    const {menu, gif} = ending(3.9);
+    menu.finishGif();
+    expect(gif.frames).toEqual([{delay: 100, copy: true}]);
+    expect(gif.render).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the last frame until the loop\'s end when the loop was off before the GIF', () => {
+    // Ending the recording turns such a loop off again, and with it its end.
+    const {menu, gif} = ending(3.9);
+    const video = {loop: true, addEventListener() {}, removeEventListener() {}};
+    Object.assign(menu.client, {pause() {}, setPlaybackRate() {}, player: {getVideo: () => video}});
+    Object.assign(menu, {gifLoopRunning: true, loopWasEnabled: false, previousPlaybackRate: 1, timeInputs: {},
+      toggleLoopButton: {classList: {add() {}, remove() {}}}});
+    menu.endGifLoop();
+    expect(menu.loopEnd).toBe(null);
+    expect(gif.frames).toEqual([{delay: 100, copy: true}]);
+  });
+
+  it('is dropped with no frame, rather than thrown on', () => {
+    const {menu, gif, status} = ending(null);
+    expect(() => menu.finishGif()).not.toThrow();
+    expect(gif.render).not.toHaveBeenCalled();
+    expect(menu.gif).toBe(null);
+    expect(status).toHaveBeenCalledWith('save-gif', 'loop_menu_gif_abort', 'info', 5000);
+  });
+});
