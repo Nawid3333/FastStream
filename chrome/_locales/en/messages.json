@@ -422,6 +422,12 @@
     "player_subtitles_nocues": {
         "message": "No subtitles found in this file."
     },
+    "player_subtitles_ttml_unreadable": {
+        "message": "This TTML or DFXP subtitle file could not be read."
+    },
+    "player_subtitles_ttml_images": {
+        "message": "This TTML file holds its subtitles as images, which FastStream cannot show."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Search OpenSubtitles"
     },

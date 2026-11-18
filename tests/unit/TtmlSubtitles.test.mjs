@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {DEFAULT_TTML_RATES, closeOpenEnds, isTtml, parseTtmlTime, ttmlRates} from '../../chrome/player/utils/TtmlSubtitles.mjs';
+import {DEFAULT_TTML_RATES, closeOpenEnds, cueColorClass, isTtml, parseTtmlTime, ttmlRates} from '../../chrome/player/utils/TtmlSubtitles.mjs';
 
 // The document walk (ttmlCues, ttml2vtt) needs a DOMParser: subtitle-ttml.e2e.mjs runs it in Firefox.
 
@@ -58,6 +58,8 @@ describe('isTtml', () => {
     expect(isTtml('<?xml version="1.0" encoding="utf-8"?>\n<!-- made by x -->\n<tt xml:lang="en">')).toBe(true);
     expect(isTtml('﻿  <tt:tt xmlns:tt="http://www.w3.org/ns/ttml">')).toBe(true);
     expect(isTtml('<!DOCTYPE tt>\n<tt>')).toBe(true);
+    // An internal subset: found, so ttml2vtt can refuse its entities with a reason.
+    expect(isTtml('<?xml version="1.0"?>\n<!DOCTYPE tt [\n  <!ENTITY a "aaaa">\n]>\n<tt>')).toBe(true);
   });
 
   it('leaves timed-text XML, WebVTT, SubRip and other XML to their readers', () => {
@@ -77,6 +79,8 @@ describe('isTtml', () => {
     // Comments that could each be read as running into the next one: 2^39 ways before.
     expect(isTtml('<!--a-->'.repeat(40) + '<x/>')).toBe(false);
     expect(isTtml('<!--a-->'.repeat(900) + '<tt>')).toBe(true);
+    expect(isTtml('<!DOCTYPE tt [' + ' x'.repeat(4000))).toBe(false);
+    expect(isTtml('<!DOCTYPE' + ' ['.repeat(4000))).toBe(false);
     expect(performance.now() - start).toBeLessThan(200);
   });
 });
@@ -101,5 +105,30 @@ describe('closeOpenEnds', () => {
     expect(performance.now() - start).toBeLessThan(1000);
     expect(cues[149998].end).toBe(149999);
     expect(cues[149999].end).toBe(150001);
+  });
+});
+
+describe('cueColorClass', () => {
+  it('gives the WebVTT colour class of a colour the player draws, in any TTML notation', () => {
+    expect(cueColorClass('yellow')).toBe('yellow');
+    expect(cueColorClass(' Cyan ')).toBe('cyan');
+    expect(cueColorClass('aqua')).toBe('cyan');
+    expect(cueColorClass('fuchsia')).toBe('magenta');
+    expect(cueColorClass('#00FF00')).toBe('lime');
+    expect(cueColorClass('#ff0000ff')).toBe('red');
+    expect(cueColorClass('rgb(0, 0, 255)')).toBe('blue');
+    expect(cueColorClass('rgba(255,255,0,128)')).toBe('yellow');
+  });
+
+  it('gives null for white (the viewer\'s colour), black, a see-through one and one the player has no class for', () => {
+    for (const color of ['white', '#ffffff', 'black', '#000000', 'transparent', '#ffff0000', 'green', 'silver', '#123456', 'rgb(0,128,0)']) {
+      expect(cueColorClass(color), color).toBeNull();
+    }
+  });
+
+  it('gives undefined for what is no TTML colour, so the inherited one stays', () => {
+    for (const color of ['', 'banana', '#fff', '#ffff00f', 'rgb(256,0,0)', 'rgb(1,2,3,4)', 'rgba(1,2,3)', 'hsl(0,100%,50%)', 'constructor']) {
+      expect(cueColorClass(color), color).toBeUndefined();
+    }
   });
 });

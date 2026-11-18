@@ -1772,16 +1772,42 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
   Session, next and previous did nothing and the overlay showed only "FastStream".
 - **A GIF from a video that taints the canvas** (another site's, played by the element) cannot
   be read back; recording stops and says so, or the loop played on at 4x.
-- **TTML and DFXP subtitles** (`utils/TtmlSubtitles.mjs`, called by `SubtitleTrack.loadText`): a
-  document whose root is `tt` (any namespace or prefix: TTML1/2, IMSC, EBU-TT, the DFXP
-  namespaces) is read into WebVTT. Times nest as TTML's default `par` container does (a p counts
-  from its div's and body's begin and ends no later than they do; a `seq` container is read as
-  `par`), in every time expression (clock, frames, ticks with `ttp:tickRate`, offsets); a p with
-  no end lasts until the next later start (2 s for the last). Italic, bold and underline, direct
-  or through referenced styles, become tags; colours, regions and positions are not read, nor
-  image subtitles. On pages, `.ttml`, `.dfxp` and `application/ttml+xml` count as subtitle files;
-  a `.xml` address does not (any XML API would). Subtitle tracks inside a stream (HLS, DASH
-  `stpp`) are not read at all: hls.js's subtitles are off and dash.js's text is not used.
+- **TTML and DFXP subtitles** (`utils/TtmlSubtitles.mjs`, called by `SubtitleTrack.loadText`):
+  one reader for both. A document whose root is `tt` (found by content, whatever the file is
+  called: any namespace or prefix, so TTML1/2, IMSC text, EBU-TT, the 2006 DFXP namespaces and
+  none) is parsed by the browser's own `DOMParser` and written out as WebVTT, so tracks, the
+  sync tool, the T key, the appearance settings and the twin check (`SubtitleTrack.equals`) work
+  as for every other format.
+  - Timing: clock times (with fractions, or frames and sub-frames), offsets in h, m, s, ms, f and
+    t, with `ttp:frameRate`, `frameRateMultiplier`, `subFrameRate` and `tickRate`; `begin`,
+    `end` and `dur` (the earlier end counts), relative to the parent, `par` and `seq`
+    containers, an element ending no later than its parent. Spans with times split their p into
+    the cues each stretch shows. A p with no end lasts until the next later start (2 s for the
+    last); one with no or unreadable times starts with its parent, and the console counts the
+    unreadable expressions. One that ends before it begins is not shown (counted too).
+  - Styling: italic, bold, underline and colour, set directly, through referenced styles (chains
+    followed, loops cut), a region's styles, and inherited down body, div, p and span. Colours
+    become WebVTT's colour classes, the only colours the player's cue renderer draws: yellow,
+    cyan, lime, red, magenta and blue in any TTML notation; white stays the viewer's colour
+    setting, black (unreadable on the subtitle background) and every other colour the inherited
+    one. TTML2 ruby becomes WebVTT ruby. `xml:space="preserve"` keeps line feeds as breaks.
+  - Not drawn: positions, regions' placement, `textAlign`, background colours, font families
+    and sizes, `display`/`visibility`, animation (`set`), and IMSC image subtitles. The renderer
+    places every format's cues the same way (it reads no cue settings, so ASS `\an` positions are
+    not drawn either); doing that is a renderer change for all formats, not TTML's.
+  - Refused, with the reason in the error: a document that is not well-formed XML (Firefox's
+    parser message is shown), one declaring entities (TTML needs none; a billion-laughs document
+    never reaches the parser), and one holding only images. The parser loads nothing a document
+    names (an external DTD, a style sheet, XHTML elements); text is escaped into the cue, and
+    elements other than span and br (metadata, foreign ones) are left out.
+  - A non-UTF-8 file is read in the encoding its XML declaration names (`decodeSubtitleBytes`,
+    after a BOM and a server's charset).
+  - On pages, `.ttml`, `.dfxp`, `application/ttml+xml` and DFXP's `application/ttaf+xml` count
+    as subtitle files; a `.xml` address or an XML type does not (any XML API would), though a
+    TTML `.xml` file added by hand is read. Subtitle tracks inside a stream (HLS, DASH `stpp`)
+    are not read at all: hls.js's subtitles are off and dash.js's text is not used.
+  - `subtitle-ttml.e2e.mjs` runs the reader in Firefox (the unit tests have no DOM):
+    `TtmlSubtitles.test.mjs` covers times, rates, detection and colours.
 
 ## Utils, options, enums, dash2mp4: reasons behind the code
 

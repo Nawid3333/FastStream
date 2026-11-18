@@ -1659,7 +1659,22 @@
     try {
       return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
     } catch (e) {
-      // No UTF-8: the older encoding of the browser's language, as Firefox falls back to.
+      // No UTF-8, in an XML file whose declaration names its encoding (a TTML file in ISO-8859-1,
+      // say): that one. One that reads as ASCII is no UTF-16, whatever it says.
+      const head = String.fromCharCode(...bytes.subarray(0, 200));
+      const declaration = head.startsWith('<?xml') ? head.slice(0, head.indexOf('?>') + 1) : '';
+      const declared = /\sencoding\s*=\s*["']([A-Za-z][\w.:-]*)["']/.exec(declaration);
+      if (declared) {
+        try {
+          const decoder = new TextDecoder(declared[1]);
+          if (!/^utf-(8|16)/.test(decoder.encoding)) {
+            return decoder.decode(bytes);
+          }
+        } catch (e) {
+          // An encoding no browser knows: as if none was named.
+        }
+      }
+      // Otherwise the older encoding of the browser's language, as Firefox falls back to.
       // Read as Windows-1252, a Russian, Polish or Greek file showed wrong letters.
       const language = String(globalThis.navigator?.language || '').toLowerCase();
       const legacy = /** @type {Array<[RegExp, string]>} */ ([

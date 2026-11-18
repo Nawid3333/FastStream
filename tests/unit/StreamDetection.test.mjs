@@ -36,6 +36,7 @@ describe('classifyResponse', () => {
     ['a TTML subtitle file', response('https://cdn.test/subs/en.ttml'), null, {kind: 'subtitles'}],
     ['a DFXP subtitle file', response('https://cdn.test/subs/en.dfxp'), null, {kind: 'subtitles'}],
     ['TTML only its Content-Type names', response('https://cdn.test/subs/7?lang=en', {headers: {'Content-Type': 'application/ttml+xml; charset=utf-8'}}), null, {kind: 'subtitles'}],
+    ['DFXP by its older media type', response('https://cdn.test/subs/8', {headers: {'Content-Type': 'application/ttaf+xml'}}), null, {kind: 'subtitles'}],
     ['other XML at an address that names no type', response('https://cdn.test/api/7', {headers: {'Content-Type': 'application/xml'}}), null, IGNORE],
     ['a client or server error', response('https://cdn.test/v/master.m3u8', {statusCode: 404}), null, IGNORE],
     ['a 204', response('https://cdn.test/v/master.m3u8', {statusCode: 204}), null, IGNORE],

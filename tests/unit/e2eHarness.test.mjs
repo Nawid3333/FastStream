@@ -199,7 +199,7 @@ describe('the e2e suites CI runs', () => {
   // namespace names, which are names only (subtitle-ttml.e2e.mjs).
   const named = (host) => host === '127.0.0.1' || host === 'localhost' || host === 'example.com' ||
     /\.(test|example)$/.test(host) || !host.includes('.') || host === 'www.opensubtitles.com' ||
-    host === 'api.opensubtitles.com' || host === 'www.w3.org';
+    host === 'api.opensubtitles.com' || host === 'www.w3.org' || host === 'www.smpte-ra.org';
 
   it('stream nothing from a public host', () => {
     const root = path.resolve(import.meta.dirname, '../e2e');

@@ -2,7 +2,7 @@
 import {Localize} from './modules/Localize.mjs';
 import {WebVTT} from './modules/vtt.mjs';
 import {SubtitleUtils} from './utils/SubtitleUtils.mjs';
-import {isTtml, ttml2vtt} from './utils/TtmlSubtitles.mjs';
+import {TtmlError, isTtml, ttml2vtt} from './utils/TtmlSubtitles.mjs';
 
 /**
  * A track's cue with the DOM trees the subtitle code caches on it: `dom` for the video, `dom2` for the resync timeline.
@@ -90,7 +90,13 @@ export class SubtitleTrack {
     }
 
     if (isTtml(text)) {
-      text = ttml2vtt(text, (seconds) => SubtitleUtils.vttTimeFormat(seconds));
+      try {
+        text = ttml2vtt(text, (seconds) => SubtitleUtils.vttTimeFormat(seconds));
+      } catch (e) {
+        if (!(e instanceof TtmlError)) throw e;
+        const message = Localize.getMessage(e.reason === 'images' ? 'player_subtitles_ttml_images' : 'player_subtitles_ttml_unreadable');
+        throw new Error(e.detail ? `${message} (${e.detail})` : message, {cause: e});
+      }
     } else if (text.substring(0, 5) === '<?xml') {
       text = SubtitleUtils.xml2vtt(text);
     } else if (text.trim().split('\n')[0].trim().substr(0, 6) !== 'WEBVTT') {

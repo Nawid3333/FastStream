@@ -6,6 +6,7 @@ import {contentTypeOf, modeFromContentType, modeFromMediaType} from './ManifestT
 /** @typedef {{kind: 'ignore'}|{kind: 'subtitles'}|{kind: 'source', mode: string}} ResponseKind */
 
 export const SUBTITLE_EXTENSIONS = ['vtt', 'srt', 'ttml', 'dfxp'];
+const TTML_TYPES = ['application/ttml+xml', 'application/ttaf+xml'];
 
 /**
  * @param {string} ext
@@ -45,8 +46,9 @@ export function classifyResponse(details, first, matcher) {
   }
   const ext = redirectedType(first, details, urlType(url, matcher), matcher);
 
-  // TTML is often served from an address that names no type; its media type is its own.
-  if (isSubtitles(ext) || contentTypeOf(details.responseHeaders) === 'application/ttml+xml') {
+  // TTML is often served from an address that names no type; its media type is its own (DFXP's
+  // older one, application/ttaf+xml). Other XML is no subtitles by its type alone.
+  if (isSubtitles(ext) || TTML_TYPES.includes(contentTypeOf(details.responseHeaders))) {
     return {kind: 'subtitles'};
   }
 

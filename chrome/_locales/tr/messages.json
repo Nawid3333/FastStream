@@ -422,6 +422,12 @@
     "player_subtitles_nocues": {
         "message": "Bu dosyada altyazı bulunamadı."
     },
+    "player_subtitles_ttml_unreadable": {
+        "message": "Bu TTML veya DFXP altyazı dosyası okunamadı."
+    },
+    "player_subtitles_ttml_images": {
+        "message": "Bu TTML dosyası altyazılarını görüntü olarak içeriyor; FastStream bunları gösteremez."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "OpenSubtitles'ta ara"
     },
