@@ -6,7 +6,7 @@
 // the spec loaded, which also took one the developer opened meanwhile, or one FastStream
 // opened from their own Firefox. A spec's mpv is known by its stream: older hosts put the
 // stream URL and the page's Referer on mpv's command line, both on the spec's test servers.
-// The thin helper (host 15) starts mpv with no stream and loads it over mpv's IPC pipe, so
+// The thin helper starts mpv with no stream and loads it over mpv's IPC pipe, so
 // its command line names nothing; such an mpv is asked over that pipe what its playlist
 // holds (a read only). (A window that ran before the spec keeps the developer's: a test
 // stream loaded into their own FastStream mpv window is left open, as it was before.)

@@ -2,7 +2,7 @@
 //
 // Where Firefox has no audio device its AudioContext never starts, and the cases that
 // listen (firefox.e2e.mjs's 8x pin) can only skip. They skipped on
-// every CI job, so the 8x pin ran only on the owner's PC (#265). Linux CI's e2e setup now
+// every CI job, so the 8x pin ran only on the owner's PC. Linux CI's e2e setup now
 // gives Firefox a device, a PulseAudio null sink (.github/actions/e2e-setup), and there a
 // missing sound is a failure, not a skip. Windows' runner has no audio endpoint (its
 // AudioContext stays "suspended") and nothing to start one, so there they still skip, as

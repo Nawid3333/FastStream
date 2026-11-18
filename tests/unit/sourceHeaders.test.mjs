@@ -7,7 +7,7 @@ import {siteOfHost, sourceHeadersFor, VideoSource} from '../../chrome/player/Vid
 // A source's headers are what the page's request sent to the source's host, its Cookie
 // included, and a header rule sets them on each request of the source. A playlist or manifest
 // that named another host for a segment or a key had the source site's session cookie sent
-// there, which the browser itself never does (glm's review, 2026-11-16). The login headers now
+// there, which the browser itself never does. The login headers now
 // go only to the source's own site; Referer and Origin, which CDNs check, go everywhere.
 
 const MASTER = 'https://video.site.test/hls/master.m3u8';
@@ -52,7 +52,7 @@ describe('sourceHeadersFor', () => {
     expect(sourceHeadersFor({url: 'data:application/dash+xml;base64,AA', headers: HEADERS}, MASTER)).toEqual(PUBLIC);
   });
 
-  // Claude's review of #714: with its trailing dot, every .com host was the site "com.".
+  // With its trailing dot, every .com host was the site "com.".
   it('takes a host with a trailing dot for the same host, not for its top-level domain', () => {
     expect(siteOfHost('cdn.example.com.')).toBe('example.com');
     const dotted = new VideoSource('https://video.site.test./v.m3u8', HEADERS, 'hls');

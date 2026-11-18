@@ -87,7 +87,7 @@ describe('EnvUtils.openExternalURL', () => {
   });
 
   it('asks the background in a player framed in a page, which has no chrome.tabs', () => {
-    // It did nothing there (the review of 2026-11-13).
+    // It did nothing there.
     const chrome = extension(false);
     EnvUtils.openExternalURL('https://www.opensubtitles.com/en/subtitles/x');
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({type: 'OPEN_EXTERNAL_URL', url: 'https://www.opensubtitles.com/en/subtitles/x'});

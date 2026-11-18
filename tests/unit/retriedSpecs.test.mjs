@@ -50,7 +50,7 @@ describe('recordRetriedSpecs', () => {
   });
 
   it('starts a suite\'s run with none of its earlier runs\' lines, and keeps the other suites\'', () => {
-    // A local run appended to every run before it, until logs/ was deleted (#266).
+    // A local run appended to every run before it, until logs/ was deleted.
     const old = (suite) => JSON.stringify({suite, spec: 'tests/e2e/specs/old.e2e.mjs', attempts: 2, passed: true, os: 'x'});
     fs.writeFileSync(path.join(dir, 'retried.jsonl'), [old('web'), old('ext-amo'), 'not json', old('web'), ''].join('\n'));
     const hook = recordRetriedSpecs(dir, 'web');

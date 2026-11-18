@@ -345,7 +345,7 @@ describe('A reload of the page', function() {
 
   it('keeps what was on the disk too, and deletes the old player\'s files', async function() {
     // No RAM for the buffer: all but the next seconds goes to the disk (OPFS). With 2 MB it all
-    // stayed in RAM until the reload, and this tested RAM again (glm's review, 2026-10-28).
+    // stayed in RAM until the reload, and this tested RAM again.
     await setOptions({autoEnableURLs: [SITE + '/'], ramBudget: 0, bufferToDisk: true});
     segments = [];
     const first = await loadAndBuffer('/watch-disk', 12);

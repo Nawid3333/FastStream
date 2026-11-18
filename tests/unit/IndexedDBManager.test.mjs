@@ -3,9 +3,9 @@ import {afterEach, beforeAll, describe, expect, it, vi} from 'vitest';
 // FSBlob's last storage backend (after OPFS and the Cache API): a temporary IndexedDB
 // database per player, which the other players' prune() deletes once its heartbeat stops.
 // - prune() kept the connection to a live player's database open, and that player's own
-//   deleteDatabase on closing was blocked until the pruning tab closed too (#137).
+//   deleteDatabase on closing was blocked until the pruning tab closed too.
 // - transact() never answered for a commit that failed (an abort with no error event), and
-//   answered null, as if it had worked, when the callback could not make its request (#149).
+//   answered null, as if it had worked, when the callback could not make its request.
 
 let IndexedDBManager;
 
@@ -168,7 +168,7 @@ describe('IndexedDBManager.prune', () => {
 describe('IndexedDBManager.requestDB', () => {
   it('closes a connection that opens after its timeout', async () => {
     // The open gave up after 5 s, and the connection that came later stayed open: the other
-    // tab's own deleteDatabase then waited on it (glm's review, 2026-10-22).
+    // tab's own deleteDatabase then waited on it.
     vi.useFakeTimers();
     try {
       const request = {};

@@ -5,7 +5,7 @@ import * as acorn from 'acorn';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {FakeDocument} from './helpers/fakeDom.mjs';
 
-// Login headers and stream links (#185). A source's headers are the ones its page's
+// Login headers and stream links. A source's headers are the ones its page's
 // request carried, Cookie and Authorization included. The copied link (a click on the time
 // readout, the Sources browser's copy button) put them in the query, so whoever the link
 // was pasted to got the session in clear; and a link handed to the player (pasted, or a

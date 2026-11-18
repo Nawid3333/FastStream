@@ -203,7 +203,7 @@ describe('Keybinding menu', function() {
 
   it('keeps the box a key was set in, and its focus, after the save', async function() {
     // The page redrew itself after its own save: every row was rebuilt, and a keyboard
-    // user was sent back to the top of the page after each key (#188).
+    // user was sent back to the top of the page after each key.
     await browser.execute((selector) => {
       window.__box = document.querySelector(`${selector} .keybind-input`);
     }, row('Mute'));
@@ -257,7 +257,7 @@ describe('Keybinding menu with options saved before the layout changed', functio
     expect((await rowState('WindowedFullscreen')).key).toBe('Shift+KeyW');
     expect((await rowState('PreviousVideo')).key).toBe('Shift+KeyB');
     expect((await rowState('RotateVideo')).key).toBe('Shift+KeyR');
-    // the video filters' key went with them (2026-10-10): its row and the saved binding are gone
+    // the video filters' key went with them: its row and the saved binding are gone
     expect(await rowState('ToggleVisualFilters')).toBeNull();
     // Not on its old default, so not moved.
     expect((await rowState('FlipVideo')).key).toBe('KeyV');

@@ -42,7 +42,7 @@ describe('guardSetup and rootHooks', () => {
   });
 
   it('leave every test at the top of its window, also where that fails or no browser is up', async () => {
-    // A test that ended in a frame left the next one's first navigation waiting in it (2026-10-11).
+    // A test that ended in a frame left the next one's first navigation waiting in it.
     const frames = [];
     globalThis.browser = {switchFrame: async (to) => frames.push(to)};
     await rootHooks.afterEach();
@@ -90,7 +90,7 @@ describe('writeFixture', () => {
 
 describe('mp4FixtureMismatch', () => {
   // The MP4 fixture is fetched from a host that may re-encode it; the specs count its
-  // frames. Another file is refused by name instead of tested against (#256).
+  // frames. Another file is refused by name instead of tested against.
   const data = Buffer.from('not really an mp4, but pinned');
   const pin = {size: data.length, sha256: crypto.createHash('sha256').update(data).digest('hex')};
 
@@ -190,7 +190,7 @@ describe('sendFile', () => {
 });
 
 // The suites CI runs, and the release waits for, stream nothing from a public host: a
-// demo host being slow or down failed both CI jobs (#255). Real streams are the live
+// demo host being slow or down failed both CI jobs. Real streams are the live
 // suite's (live-specs/), which is never part of CI.
 describe('the e2e suites CI runs', () => {
   // Hosts the specs name without fetching: reserved test names, a subtitle search result's

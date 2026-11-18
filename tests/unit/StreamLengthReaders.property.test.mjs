@@ -7,7 +7,7 @@ import {PIECE_LENGTH, StreamLength} from '../../chrome/player/utils/StreamLength
 // 64 KB of a file, read up to three times, and a manifest's text up to 4 MB. They run in the
 // event page that serves every tab, with no catch of their own around the parse. None may
 // throw, each answers in the shape its caller reads, and none takes long on the most a server
-// can send (the review round of 2026-11-15).
+// can send.
 
 /**
  * An MP4 box: its size (any, also 0, 1 for a 64-bit size, or more than there is), its type,

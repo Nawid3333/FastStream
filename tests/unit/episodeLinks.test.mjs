@@ -18,15 +18,15 @@ describe('EpisodeLinks.phraseScore', () => {
     ['下一集', true], ['다음 화', true], ['Episode berikutnya', true], ['Nächste Folge: Der Anfang', true],
     ['Previous episode', false], ['‹ Vorherige Folge', false], ['Épisode précédent', false], ['上一集', false],
     ['이전 화', false], ['Предыдущая серия', false],
-    // Upper case with a Turkish İ: lower case gave "i̇", a dot added (glm's review, 2026-10-13).
+    // Upper case with a Turkish İ: lower case gave "i̇", a dot added.
     ['SONRAKİ BÖLÜM', true], ['ÖNCEKİ BÖLÜM', false], ['NEXT EPISODE', true],
   ])('takes "%s" for an episode (next: %s)', (text, isNext) => {
     expect(EpisodeLinks.phraseScore(text, isNext)).toBe(2);
   });
 
   it('takes upper-case words in a Turkish Firefox too, whose lower case of I is a dotless ı', () => {
-    // The locale's lower case made "NEXT EPISODE" "next epısode", which no phrase matched
-    // (glm's review, 2026-10-13). The rows above take it only on a runner in Turkish: the
+    // The locale's lower case made "NEXT EPISODE" "next epısode", which no phrase matched.
+    // The rows above take it only on a runner in Turkish: the
     // script's own String lower-cases as Firefox in Turkish does here.
     const proto = vm.runInContext('String.prototype', context);
     const original = proto.toLocaleLowerCase;
@@ -167,7 +167,7 @@ describe('EpisodeLinks.seriesOf / inSeries', () => {
     // A sequel that only starts the same (deepseek's review).
     expect(EpisodeLinks.inSeries(onePiece, 'https://a.test/watch/one-piece-2/staffel-1/episode-1')).toBe(false);
     expect(EpisodeLinks.inSeries(onePiece, 'https://a.test/watch/one-piece-2-episode-1')).toBe(false);
-    // A series that is a folder has its other parts in it (kimi's review); a sequel's folder not.
+    // A series that is a folder has its other parts in it; a sequel's folder not.
     expect(EpisodeLinks.inSeries(series, `${SERIES_URL}/ova/staffel-1/episode-1`)).toBe(true);
     expect(EpisodeLinks.inSeries(series, `${SERIES_URL}-2/staffel-1/episode-1`)).toBe(false);
     // No series told: any link may be the next.

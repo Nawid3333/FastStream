@@ -238,7 +238,7 @@ describe.each(PLAYERS)('%s.saveVideo', (name, Player) => {
 
 // A partial save ("what is downloaded") took no references: a range playback had passed
 // could be let go of while the save was still writing the ones before it, and was written
-// as zeros (review, 2026-10-09).
+// as zeros.
 describe('MP4Player.saveVideo, a partial save', () => {
   it('holds what it has not written yet, and lets it all go once written', async () => {
     const network = makeNetwork();

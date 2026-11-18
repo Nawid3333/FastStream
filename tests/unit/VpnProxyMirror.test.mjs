@@ -64,7 +64,7 @@ describe('VpnProxyMirror', () => {
   });
 
   it('keeps mirroring the other hosts when Firefox refuses one host\'s pattern', () => {
-    // The review of 2026-10-14: one listener for every host, and a refused pattern made
+    // One listener for every host, and a refused pattern made
     // addListener throw for all of them.
     const {api, mirror} = setup();
     api.onRequest.addListener.mockImplementation((listener, {urls}) => {

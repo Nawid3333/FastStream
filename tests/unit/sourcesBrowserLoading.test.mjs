@@ -3,7 +3,7 @@ import {expect, it, vi} from 'vitest';
 // The Sources browser marks a source's Play button "Loading..." while the player is set up
 // with it, and a click on a button so marked does nothing. The list is drawn again at every
 // edit of any row (a character typed in another source's address), which took the mark away:
-// a second click then set the source up a second time (glm's review, 2026-11-16).
+// a second click then set the source up a second time.
 
 vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({DOMElements: {}}));
 vi.mock('../../chrome/player/modules/Localize.mjs', () => ({Localize: {getMessage: (key) => key}}));

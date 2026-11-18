@@ -12,7 +12,7 @@ import {describe, expect, it} from 'vitest';
 // promise left on its own, so this checks the source.
 //
 // Parsed, not scanned: a hand-rolled scanner took an apostrophe in a comment for the start
-// of a string, and a harmless comment in content.js hung this file for a minute (#252).
+// of a string, and a harmless comment in content.js hung this file for a minute.
 
 const source = fs.readFileSync(new URL('../../chrome/content.js', import.meta.url), 'utf8');
 const ast = acorn.parse(source, {ecmaVersion: 'latest', sourceType: 'script', locations: true});
@@ -93,7 +93,7 @@ describe('content.js messages to the background', () => {
 describe('the site scripts\' messages to the background (chrome/custom)', () => {
   // The same for the scripts a few sites get (bilibili, Facebook, Instagram): their sends had
   // no callback, and an extension reloaded under such a page put an unhandled rejection in
-  // its console at the next scan (glm's review, 2026-10-22).
+  // its console at the next scan.
   const dir = new URL('../../chrome/custom/', import.meta.url);
   const files = fs.readdirSync(dir).filter((name) => name.endsWith('_content.js'));
 

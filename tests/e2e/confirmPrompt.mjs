@@ -9,8 +9,8 @@ import {browser} from '@wdio/globals';
 // on a submit button with no box (requestSubmit still submits), and a user cannot click a
 // button before it is on the screen. page-fetch.e2e saved as soon as the video had data and, on
 // CI (2026-11-15/16, both OSes, most runs), OK left the prompt open: the document 0 wide while
-// the page showed its frame at 640x360 (#697). A check one round trip before the click is not
-// enough: autoplay-next-episode's frame lost its size between the two (2026-11-16). An ext or
+// the page showed its frame at 640x360. A check one round trip before the click is not
+// enough: autoplay-next-episode's frame lost its size between the two. An ext or
 // classic spec answers the prompt through this (tests/unit/e2eConfirmPrompt.test.mjs).
 
 /**
@@ -27,7 +27,7 @@ export async function confirmPrompt(value, context = async () => null) {
   let ok = {clicked: false, width: 0, boxes: 0};
   await browser.waitUntil(async () => {
     ok = await browser.execute((value) => {
-      // A script error is told as itself, not as a document without a size (glm's review).
+      // A script error is told as itself, not as a document without a size.
       try {
         const dialog = /** @type {?HTMLDialogElement} */ (document.querySelector('dialog.fs-dialog[open]'));
         if (!dialog) return {clicked: false, open: false, width: 0, boxes: 0};

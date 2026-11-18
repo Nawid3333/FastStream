@@ -42,7 +42,7 @@ describe('PlayheadFirst', () => {
 
   it('at a seek, finds every running download of each track but the ones the playhead is in', () => {
     // The next fragment, inside the window, shared a 3 Mbit/s line with the seek's own:
-    // an MP4 seek 3.6 -> 4.6 s (2026-11-16).
+    // an MP4 seek 3.6 -> 4.6 s.
     const at = (start, saved = false, status = DownloadStatus.DOWNLOAD_INITIATED) =>
       ({start, end: start + 4, status, canFree: () => !saved});
     const video = [at(60), at(68), at(72), at(76), at(80, true), at(84, false, DownloadStatus.DOWNLOAD_COMPLETE), at(-1)];

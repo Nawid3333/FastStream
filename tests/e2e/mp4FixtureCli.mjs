@@ -1,5 +1,5 @@
 // sample.mp4 for CI's e2e setup (.github/actions/e2e-setup), which keeps it in the Actions
-// cache: test-videos.co.uk, where it comes from, may be down (#256).
+// cache: test-videos.co.uk, where it comes from, may be down.
 //
 //   node tests/e2e/mp4FixtureCli.mjs pin      the SHA-256 it is pinned to: the cache key
 //   node tests/e2e/mp4FixtureCli.mjs ensure   makes sure the pinned file is there, fetching

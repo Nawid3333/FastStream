@@ -82,7 +82,7 @@ describe('verify.sh\'s copy of the working tree', () => {
       const r = spawnSync('rsync', rsyncArgs(src, dst), {encoding: 'utf8', timeout: 60000});
       expect(r.status, r.stderr).toBe(0);
       expect(fs.readFileSync(path.join(dst, 'keep.txt'), 'utf8')).toBe('the new text\n');
-      // One that stopped being ignored (#101), and one ignored in both trees: both gone.
+      // One that stopped being ignored, and one ignored in both trees: both gone.
       expect(fs.existsSync(path.join(dst, 'legacy.mjs'))).toBe(false);
       expect(fs.existsSync(path.join(dst, 'gen', 'styp-OLD.mjs'))).toBe(false);
       // What stays between runs, node_modules although .gitignore names it.

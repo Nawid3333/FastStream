@@ -3,7 +3,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 // A streamed save writes its file into its own blob store (an OPFS session), and the
 // download reads it from there. The store used to be closed two minutes after the save
 // ended, whatever the download was doing; a closed session is deleted by the next player
-// or save that starts, so a download longer than that lost its file midway (#134).
+// or save that starts, so a download longer than that lost its file midway.
 
 const state = vi.hoisted(() => ({opfs: true, stores: []}));
 
@@ -111,7 +111,7 @@ describe.each([['OPFS', true], ['memory', false]])('a streamed save to the %s si
   });
 });
 
-// glm's review, 2026-11-16: a chunk the Cache API no longer had was put into the file as the
+// A chunk the Cache API no longer had was put into the file as the
 // word "undefined", behind a "Save complete" - the guard SaveFile has had since that broke
 // there (docs/notes/storage.md).
 it('fails a save to the memory sink whose chunk the store lost, and downloads nothing', async () => {

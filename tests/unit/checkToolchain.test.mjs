@@ -386,7 +386,7 @@ describe('uBlock Origin on AMO', () => {
 
 describe('uBlock Origin in tools/setup-dev-profile.mjs', () => {
   const text = fs.readFileSync('tools/setup-dev-profile.mjs', 'utf8');
-  // A version no real pin reaches: the toolchain's own pull request moves the pin (#654).
+  // A version no real pin reaches: the toolchain's own pull request moves the pin.
   const next = {version: '99.0.0', url: 'https://addons.mozilla.org/firefox/downloads/file/5100000/ublock_origin-99.0.0.xpi',
     sha256: 'b'.repeat(64)};
 

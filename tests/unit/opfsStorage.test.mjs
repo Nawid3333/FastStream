@@ -257,7 +257,7 @@ describe('OPFSManager', () => {
   it('keeps a working worker after a call that could not be sent', async () => {
     // postMessage threw (a buffer given away already, data that cannot be copied) after the
     // call was counted: it waited for an answer that could never come, and the watchdog
-    // took the healthy worker for crashed 30 s later (glm's review, 2026-10-13).
+    // took the healthy worker for crashed 30 s later.
     vi.useFakeTimers();
     const manager = new OPFSManager();
     const worker = {
@@ -510,7 +510,7 @@ describe('FSBlob', () => {
   }
 
   it('says when no disk backend is left, and a memory-only store does not', async () => {
-    // The review of 2026-10-14: OPFS, the Cache API and IndexedDB all failing left the store
+    // OPFS, the Cache API and IndexedDB all failing left the store
     // in RAM with nobody told (its warning sat in a catch nothing reached).
     vi.stubGlobal('window', {});
     vi.stubGlobal('navigator', {});
@@ -664,7 +664,7 @@ describe('FSBlob', () => {
   });
 
   it('does not let a delete take away a fragment saved again while it waited', async () => {
-    // glm's review, 2026-11-16: deleteBlob waits for the blob's write to end, then cleared the
+    // DeleteBlob waits for the blob's write to end, then cleared the
     // identifier again - by then the fragment downloaded anew under it, which was lost and
     // downloaded a third time.
     let release;
@@ -691,7 +691,7 @@ describe('FSBlob', () => {
   });
 
   it('still deletes a fragment whose write it waited for, when nothing saved it again', async () => {
-    // The control of the one above (Claude's review of #714): a delete that never deletes
+    // The control of the one above: a delete that never deletes
     // would pass that one.
     let release;
     const gate = new Promise((resolve) => {
@@ -734,7 +734,7 @@ describe('FSBlob', () => {
   });
 
   it('writes nothing more to disk once "Keep video on disk" is off, and reads what is there', async () => {
-    // The option (2026-10-10): off, what does not fit in the RAM budget is let go of
+    // The option: off, what does not fit in the RAM budget is let go of
     // instead (FastStreamClient.keepWithinMemoryBudget, through canSpill).
     const root = new FakeDir();
     const manager = await startManager(root);
@@ -853,7 +853,7 @@ describe('OPFSManager.setup', () => {
 
   it('says why when its worker crashes before init answers', async () => {
     // The crash handler had let the worker go already, and the cleanup's terminate() on
-    // null threw a TypeError in place of the reason (glm's review, 2026-10-22).
+    // null threw a TypeError in place of the reason.
     class CrashingWorker {
       constructor() {
         this.listeners = {};

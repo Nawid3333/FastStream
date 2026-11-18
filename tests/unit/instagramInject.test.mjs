@@ -69,7 +69,7 @@ function load(fetch, json, page = {}) {
 
 describe('instagram_inject.js', () => {
   it('posts the manifest a reel opened by its address has in the page\'s data', () => {
-    // Live check (2026-11-15): signed out, a reel's page brings its video_dash_manifest in a
+    // Live check: signed out, a reel's page brings its video_dash_manifest in a
     // JSON script tag, no response holds it, and FastStream got only the byte-range pieces.
     const page = load(undefined, undefined, {loading: true, scripts: [
       JSON.stringify({require: [['ScheduledServerJS', {user: {name: 'x'}}]]}),
@@ -183,7 +183,7 @@ describe('instagram_inject.js, responses loaded with fetch', () => {
   }
 
   it('posts the manifest of a JSON response, and the page still reads its own response', async () => {
-    // XHR only: what Instagram loaded with fetch was never seen (#232).
+    // XHR only: what Instagram loaded with fetch was never seen.
     const response = new Response(MANIFEST, {headers: {'Content-Type': 'application/json; charset=utf-8'}});
     const page = load(async () => response);
     const got = await page.window.fetch('/graphql/query');

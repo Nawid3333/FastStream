@@ -114,7 +114,7 @@ describe('pickRelayHeaders', () => {
 // and retries the very same video, and a stale entry would make the retry
 // report success while nothing plays.
 
-// What the thin helper (host 15) adds to every answer.
+// What the thin helper adds to every answer.
 const Thin = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']};
 // What a helper before it answers the thin helper's messages.
 const Unknown = {ok: false, error: 'unknown message', hostVersion: 14};
@@ -125,7 +125,7 @@ const ThinMessages = ['play', 'ipc', 'relay'];
  * response, and reports how many times it was called.
  * @param {Object|null} response - Reply handed to the callback.
  * @param {Object} [lastError] - chrome.runtime.lastError to simulate.
- * @param {{thin?: boolean}} [kind] - thin: the thin helper (host 15), whose answers name its
+ * @param {{thin?: boolean}} [kind] - thin: the thin helper, whose answers name its
  *   capabilities; else a helper before it, which answers "unknown message" to the thin
  *   helper's messages (not counted: it does nothing with them).
  * @return {{calls: () => number, sent: () => Array<Object>}} Call counter, and every message.
@@ -252,7 +252,7 @@ describe.each([['an older helper', false], ['the thin helper', true]])('openStre
   });
 
   // The host says how raising mpv's window went (host version 3): the result passes it
-  // on, so the background can log an mpv that opened behind the browser (2026-10-04).
+  // on, so the background can log an mpv that opened behind the browser.
   it('passes on how raising mpv\'s window went, as the host sent it', async () => {
     stubNativeHostOfKind({ok: true, hostVersion: RequiredHostVersion, focus: 'True', foreground: 'False', reused: true});
     expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
@@ -403,7 +403,7 @@ describe('openStream contentType', () => {
   });
 
   // The host reads no message over MaxMessageBytes: it quit without a word, and the
-  // hand-off failed with "is the host installed?" (#151). Firefox sends the JSON as UTF-8.
+  // hand-off failed with "is the host installed?". Firefox sends the JSON as UTF-8.
   it('keeps the message under the host\'s limit, leaving out subtitles that do not fit', async () => {
     expect(HostMaxMessageBytes).toBe(MaxMessageBytes);
     const host = captureNativeHost();
@@ -452,7 +452,7 @@ describe('openStream contentType', () => {
   });
 });
 
-// The thin helper (host 15, 2026-10-13): the extension builds what mpv gets (MpvTarget.mjs)
+// The thin helper: the extension builds what mpv gets (MpvTarget.mjs)
 // and sends it as a play message; a helper before it answers "unknown message", and gets the
 // open message from then on. What the helper can do is remembered from every answer.
 describe('the thin helper', () => {
@@ -731,7 +731,7 @@ describe('streams sent at once', () => {
 
   it('go one after the other, the next once the last has its answer', async () => {
     // Each is a helper process of its own: two at once with no mpv running started an mpv
-    // each, the second on the same pipe name with no IPC for good (glm's review, 2026-10-22).
+    // each, the second on the same pipe name with no IPC for good.
     const sent = [];
     const answers = [];
     globalThis.chrome = {runtime: {lastError: undefined, sendNativeMessage(name, message, callback) {

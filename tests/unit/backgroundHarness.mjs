@@ -2,7 +2,7 @@ import nodeCrypto from 'node:crypto';
 import {vi} from 'vitest';
 import {RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 
-// The thin helper's primitives (host 15): a helper before it answers each of them so.
+// The thin helper's primitives: a helper before it answers each of them so.
 const ThinMessages = new Set(['play', 'ipc', 'relay']);
 const UnknownMessage = Object.freeze({ok: false, error: 'unknown message', hostVersion: 14});
 
@@ -85,8 +85,8 @@ let requestCounter = 0;
  *   A page's answer to a message the background sends it (tabs.sendMessage).
  * @param {function(Object): *} [setup.onNative] - The mpv host's answer; a current host's
  *   {ok: true} by default.
- * @param {boolean} [setup.thinHost] - The mpv host is the thin helper (host 15): onNative
- *   answers its play and ipc messages too. Without it the host is one from before (host 14),
+ * @param {boolean} [setup.thinHost] - The mpv host is the thin helper: onNative
+ *   answers its play and ipc messages too. Without it the host is one from before,
  *   which answers them "unknown message" (onNative is not asked), and the background goes
  *   on with the messages it knows: the tests written for those keep testing them.
  * @param {string} [setup.os] - What runtime.getPlatformInfo says ('win', 'linux', 'mac'):

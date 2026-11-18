@@ -100,7 +100,7 @@ describe('Player menus', function() {
   // button is tried on the first, the audio button on the second. Every assertion of the
   // three is here.
   it('shows the audio button where there is a track or an output to choose, and opens its list; the quality and audio buttons let the arrow keys through once their lists are closed', async function() {
-    // It opened the audio settings window until that went (2026-10-10); it is the
+    // It opened the audio settings window until that went; it is the
     // audio-track list's button now, and a list of one track offers nothing - but for the
     // audio output, which a Firefox with selectAudioOutput lets the list choose too
     // (AudioOutputDevice), under its tracks.
@@ -164,7 +164,7 @@ describe('Player menus', function() {
     expect(audio.volume).toBeCloseTo(0.9, 5);
   });
 
-  // They changed the speed while the list was closed (review, 2026-10-09).
+  // They changed the speed while the list was closed.
   it('lets the arrow keys through the speed button once its list is closed', async function() {
     await openEmptyPlayer();
     await addSource(mp4Url());
@@ -242,7 +242,7 @@ describe('Player menus', function() {
   });
 
   it('opens the quality and language lists with Enter after a click closed them, and chooses an audio track with Enter', async function() {
-    // The review of 2026-11-13: their Enter worked only in an open list, and the audio
+    // Their Enter worked only in an open list, and the audio
     // button's own Enter could close the list before the list's Enter chose.
     await openEmptyPlayer();
     await addSource(twoTracksUrl());
@@ -371,7 +371,7 @@ describe('Player menus', function() {
     expect(state.running).toBe(false);
   });
 
-  // The GIF button turns the loop on to record it, and puts it back after (review): with no
+  // The GIF button turns the loop on to record it, and puts it back after: with no
   // loop to record, it stayed on; switched off during the recording, it came back on.
   it('leaves the loop as the user has it around a GIF', async function() {
     await openEmptyPlayer();
@@ -417,7 +417,7 @@ describe('Player menus', function() {
   });
 
   // Typing an end time passes times before the start ("3" on the way to "3:00"): that
-  // turned the loop off, and it stayed off once the time was typed (review, 2026-10-09).
+  // turned the loop off, and it stayed off once the time was typed.
   it('keeps the loop on while a time is typed, and loops once the times make a loop', async function() {
     await openEmptyPlayer();
     await addSource(mp4Url());
@@ -451,7 +451,7 @@ describe('Player menus', function() {
     expect(typed.end).toBe(4.5);
   });
 
-  // Back at 0 after a reload, the silence skipper skipped nothing (review, 2026-10-09).
+  // Back at 0 after a reload, the silence skipper skipped nothing.
   it('keeps the silence threshold the user dragged', async function() {
     await openEmptyPlayer();
     const loaded = await browser.execute(() => new Promise((done) => {
@@ -494,7 +494,7 @@ describe('Player menus', function() {
 
   it('rests the loop\'s check while the video is paused, and loops at the end point once it plays', async function() {
     // It asked for every animation frame while the loop was on, a paused video too: 60 to 144
-    // calls a second for nothing (the review of 2026-11-13).
+    // calls a second for nothing.
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();

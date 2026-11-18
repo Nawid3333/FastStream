@@ -5,7 +5,7 @@ import {KEYBINDS_VERSION, migrateKeybinds} from '../../chrome/player/options/Key
 import {holdImportedNumbers, importedForMigration, settingsForExport} from '../../chrome/player/options/SettingsFile.mjs';
 import {Utils} from '../../chrome/player/utils/Utils.mjs';
 
-// The options page's settings file (glm's review, 2026-11-16):
+// The options page's settings file:
 // - the export wrote the mpv path, which names the Windows account, into a file meant to be
 //   shared, though the import never takes it;
 // - an imported keybindsVersion above this build's was kept, and no later layout change was
@@ -35,7 +35,7 @@ describe('importedForMigration', () => {
     expect(merged.keybindsVersion).toBe(KEYBINDS_VERSION);
     expect(file.keybindsVersion).toBe(1e9);
     expect(importedForMigration({keybindsVersion: 2}).keybindsVersion).toBe(2);
-    // JSON's 1e999 (Claude's review of #714), and NaN, which no file gives but a number is.
+    // JSON's 1e999, and NaN, which no file gives but a number is.
     expect(importedForMigration(JSON.parse('{"keybindsVersion": 1e999}')).keybindsVersion).toBe(KEYBINDS_VERSION);
     expect(importedForMigration({keybindsVersion: NaN}).keybindsVersion).toBe(KEYBINDS_VERSION);
   });

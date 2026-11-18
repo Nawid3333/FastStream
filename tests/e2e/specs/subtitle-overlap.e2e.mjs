@@ -1,4 +1,4 @@
-// Subtitle cues that overlap (#181).
+// Subtitle cues that overlap.
 //
 // A track's cues are sorted by start time only. renderSubtitles looked back from the last
 // cue that had started only as far as the first one already over, so a long cue (a sign,

@@ -104,7 +104,7 @@ describe('readMessage', () => {
 
   it('reads an over-size message to its end and resolves TooLarge, so the host can answer it', async () => {
     // The host used to quit without a word, and the extension said "is the host
-    // installed?" (#151). Read to the end first: the browser is still writing it.
+    // installed?". Read to the end first: the browser is still writing it.
     await fc.assert(fc.asyncProperty(
         fc.integer({min: MaxMessageBytes + 1, max: MaxMessageBytes + 64 * 1024}),
         fc.array(fc.nat({max: MaxMessageBytes + 64 * 1024}), {maxLength: 8}),

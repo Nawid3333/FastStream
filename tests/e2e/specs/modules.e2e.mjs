@@ -134,7 +134,7 @@ describe('vendored encoding libraries', function() {
 
   it('Mediabunny finishes a file with an empty video track, and one whose video never came', async function() {
     // mp4-muxer 5.2.2 crashed finishing a file whose video track had no packets, which is
-    // why it was reverted (#25); its successor Mediabunny replaced it. The remuxer's
+    // why it was reverted; its successor Mediabunny replaced it. The remuxer's
     // writer (mp4-writer.mjs) meets both shapes here. A video track that sends nothing
     // leaves the audio held in TimestampRebaser until finalize() flushes it, so the second
     // file checks the audio arrives, from 0: dash-list's segment 2, 2 s in.
@@ -631,7 +631,7 @@ describe('the colour picker', function() {
 
   it('vtt.js decodes every text of a cue in one parse, each as the textarea did', async function() {
     // The texts of a cue were decoded one parse each, and a cue of many short texts parsed a
-    // document for every one (glm's review, 2026-11-16); they are decoded together now. Each
+    // document for every one; they are decoded together now. Each
     // text between the tags is the reference here, decoded alone by the old way.
     const result = await runInPage(async () => {
       const {WebVTT} = await import('/player/modules/vtt.mjs');

@@ -237,7 +237,7 @@ export const playerState = () => browser.execute(() => {
     url: client.source?.url,
     time: client.currentTime,
     // The element's own position and window: a live stream left at 0, outside its window,
-    // while its buffer filled at the live edge (#348).
+    // while its buffer filled at the live edge.
     videoTime: +video.currentTime.toFixed(2),
     seekable: toRanges(video.seekable),
     duration: client.duration,

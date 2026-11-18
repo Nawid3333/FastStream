@@ -6,7 +6,7 @@ import {PassThrough} from 'node:stream';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {MaxMessageBytes, readMessage, readMessages, watchMpv} from '../../native-host/faststream-mpv-host.mjs';
 
-// MPV autoplay (host 7, 2026-10-11): the host follows the mpv it started, over a port the
+// MPV autoplay: the host follows the mpv it started, over a port the
 // extension keeps open, and tells it when a file ended or a key asked for the next or the
 // previous episode. mpv's JSON IPC as measured with the pinned mpv (headless, keep-open):
 // observe_property sends the current value at once; at a file's end eof-reached goes false
@@ -87,11 +87,11 @@ describe('watchMpv', () => {
     expect(mpv.commands).toEqual([
       {command: ['observe_property', 1, 'path']},
       {command: ['observe_property', 2, 'eof-reached']},
-      // Host 14: a pause at the end is an end too.
+      // A pause at the end is an end too.
       {command: ['observe_property', 3, 'pause']},
-      // Host 9: the mpv setup's episode buttons show while this holds.
+      // The mpv setup's episode buttons show while this holds.
       {command: ['set_property', 'user-data/faststream/connected', true]},
-      // Host 10: and while this keeps changing.
+      // And while this keeps changing.
       {command: ['set_property', 'user-data/faststream/heartbeat', expect.any(Number)]},
     ]);
     expect(sent).toEqual([{type: 'watching'}]);
@@ -164,10 +164,10 @@ describe('watchMpv', () => {
     watch.stop();
   });
 
-  // Host 14: a skip past the end of an HLS stream with discontinuities stopped mpv at the
+  // A skip past the end of an HLS stream with discontinuities stopped mpv at the
   // end, paused (keep-open), with eof-reached never set (measured with the pinned mpv,
   // 2026-10-13): MPV autoplay never started, until the user went back and played the last
-  // seconds again (his report, 2026-10-13). An end is also mpv at the last half second of
+  // seconds again. An end is also mpv at the last half second of
   // its file when it pauses there or a seek lands there.
   describe('an end mpv does not mark (eof-reached unset)', () => {
     const pauseEvent = (data) => ({event: 'property-change', id: 3, name: 'pause', data});
@@ -247,7 +247,7 @@ describe('watchMpv', () => {
     expect(sent.filter((m) => m.type === 'request')).toEqual([
       {type: 'request', action: 'next'}, {type: 'request', action: 'previous'},
     ]);
-    // Host 9: the autoplay button.
+    // The autoplay button.
     mpv.event({event: 'client-message', args: ['faststream-autoplay']});
     await settle();
     expect(sent.filter((m) => m.type === 'request').at(-1)).toEqual({type: 'request', action: 'autoplay'});
@@ -268,7 +268,7 @@ describe('watchMpv', () => {
 
   it('shows no notice that is not plain text (mpv\'s own text expands ${...})', async () => {
     // A notice went to show-text with ${working-directory} in it, which mpv expands: a local
-    // path on the screen, which the ipc and relay paths refuse (glm's review, 2026-10-22).
+    // path on the screen, which the ipc and relay paths refuse.
     const {mpv, watch, settle} = await watching('plain');
     watch.notify('Next ' + '${working-directory}', 'loading');
     watch.notify('Next episode', 'a line\nbreak');
@@ -290,7 +290,7 @@ describe('watchMpv', () => {
     for (const bad of [0, -1, NaN, Infinity, '5', null, 0.01]) watch.notify('x', '', bad);
     watch.hide();
     // Until the fake mpv has it all, not a fixed 60 ms: under verify's whole suite the round
-    // trip below took longer (2026-10-14).
+    // trip below took longer.
     await vi.waitFor(() => expect(mpv.commands.at(-1)?.command.slice(2)).toEqual(['hide', 'faststream']),
         {timeout: 5000, interval: 20});
     const sent = mpv.commands.filter((c) => c.command[0] === 'script-message-to');

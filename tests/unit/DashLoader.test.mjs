@@ -359,7 +359,7 @@ describe('dash.js\'s HTTPLoader, what DashLoader relies on', () => {
     expect(httpLoader).toMatch(/getRetryAttemptsForType\(config\.request\.type\)/);
     expect(httpLoader).toContain('if (remainingAttempts > 0) {');
     // DashPlayer zeroes every key of streaming.retryAttempts: a release that read retries from
-    // elsewhere would bring dash.js's own 3 back without a word (glm's review).
+    // elsewhere would bring dash.js's own 3 back without a word.
     expect(codeOf('./src/streaming/models/MediaPlayerModel.js')).toContain('settings.get().streaming.retryAttempts[type]');
   });
 

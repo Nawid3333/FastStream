@@ -63,7 +63,7 @@ describe('StandardDownloader', () => {
 
   // An entry whose request is still being made (a DASH segment's preprocessor) can be
   // aborted, by a seek; the request failing after that failed whatever entry the
-  // downloader had by then, or threw on none (#148).
+  // downloader had by then, or threw on none.
   describe('a request that fails after its download was aborted', () => {
     /** An entry whose request fails when the test says. */
     function pendingEntry() {
@@ -110,7 +110,7 @@ describe('StandardDownloader', () => {
   // is awaited), a watcher can give up on it (an hls.js seek or quality switch) or the
   // downloads can be paused. The abort cleans up at once and the manager gives the
   // downloader its next entry; the delivery's own cleanup, when it ended, ended that one
-  // too, which then stayed "downloading" for good (upstream #568).
+  // too, which then stayed "downloading" for good.
   describe('an abort while the entry delivers', () => {
     it('leaves the download the downloader has moved on to alone', async () => {
       const manager = {onDownloaderFinished: vi.fn()};

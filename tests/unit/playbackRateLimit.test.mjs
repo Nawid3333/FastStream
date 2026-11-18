@@ -68,7 +68,7 @@ describe('FastStreamClient.playbackRate', () => {
   });
 
   it('lets a speed preset past the sound, up to 16x, and no further', () => {
-    // The 16x key plays 16x, silent (2026-10-10); Firefox allows no more.
+    // The 16x key plays 16x, silent; Firefox allows no more.
     const fake = client();
     fake.setPlaybackRate(16, true);
     expect(fake.player.playbackRate).toBe(16);
@@ -112,7 +112,7 @@ describe('PlaybackRateChanger.loadState', () => {
 });
 
 describe('the silence skipper and a speed set by key', () => {
-  // The review of 2026-11-13: with the skipper on, D, S and the preset keys changed the
+  // With the skipper on, D, S and the preset keys changed the
   // speed for a moment only. Only a pick in the speed menu became the skipper's regular
   // speed; within 100 ms its loop put the old one back, while the OSD showed the new one,
   // and the old one was what got saved. The real KeybindManager and PlaybackRateChanger,

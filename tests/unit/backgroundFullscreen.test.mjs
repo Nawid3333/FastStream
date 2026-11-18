@@ -2,7 +2,7 @@ import {afterEach, describe, expect, it} from 'vitest';
 
 import {loadBackground} from './backgroundHarness.mjs';
 
-// A fullscreen carried over to the next episode (his report, 2026-10-11): the page went on
+// A fullscreen carried over to the next episode: the page went on
 // by itself, Firefox refused the next player's fullscreen (no click), and the episode played
 // windowed. The background makes the browser window fullscreen instead and gives it back.
 
@@ -67,7 +67,7 @@ describe('a fullscreen carried over to the next episode', () => {
   });
 
   it('ends it in the background when the player that carried it is gone or never took it over', async () => {
-    // A review (2026-11-13): its frame taken out of the page, or a new player loaded in it,
+    // Its frame taken out of the page, or a new player loaded in it,
     // and Escape in the page left the window fullscreen for good.
     for (const answer of [undefined, false]) {
       await playerInPage({onTabMessage: ({message}) => (message.type === 'EXIT_CARRIED_FULLSCREEN' ? answer : undefined)});
@@ -97,7 +97,7 @@ describe('a fullscreen carried over to the next episode', () => {
   });
 
   it('ends it from the next page when no player there takes it over, Escape there included', async () => {
-    // glm's review (2026-10-11): the next page had no player (an error page), and the window
+    // The next page had no player (an error page), and the window
     // stayed fullscreen with Escape doing nothing.
     await playerInPage();
     await carry(true);
@@ -116,7 +116,7 @@ describe('a fullscreen carried over to the next episode', () => {
   });
 
   it('hands the next episode\'s instructions to its player, and to no player on a later page', async () => {
-    // A review (2026-11-13): the next page got no player (a failed hoster), the user went on in
+    // The next page got no player (a failed hoster), the user went on in
     // the same tab, and the next video opened there, minutes later, was made fullscreen, played
     // by itself and skipped its remembered place: the instructions stayed on the tab until some
     // player took them.
@@ -300,7 +300,7 @@ describe('a fullscreen carried over to the next episode', () => {
   });
 
   it('lets the next episode\'s player take the keyboard only when the page says nobody types', async () => {
-    // The reviews (2026-10-11): the player took the keyboard even from a field the user typed in.
+    // The player took the keyboard even from a field the user typed in.
     for (const [typing, may] of [[false, true], [true, false], [undefined, false]]) {
       await playerInPage({
         onTabMessage: ({message, frameId}) => (message.type === 'PAGE_TYPING' && frameId === 0 ? typing : undefined),
@@ -312,7 +312,7 @@ describe('a fullscreen carried over to the next episode', () => {
   });
 
   it('does not make the window fullscreen again in the next episode after the user left it (F11)', async () => {
-    // deepseek's review (2026-10-11): F11, or the browser's own "Exit Full Screen", ended
+    // deepseek's review: F11, or the browser's own "Exit Full Screen", ended
     // the carried fullscreen, and the next episode went fullscreen again.
     await playerInPage();
     await carry(true);

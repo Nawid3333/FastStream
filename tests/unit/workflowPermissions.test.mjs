@@ -8,7 +8,7 @@ import {describe, expect, it} from 'vitest';
 // what the called jobs' token may do. GitHub checks every called job against that cap when
 // the run starts, before any if:, and refuses the whole run if one asks for more: no job
 // runs, and no one is told. So runner-images.yml's daily run failed at startup from the
-// day ci.yml's release hand-off asked for issues: write (#77, 2026-09-30), and actionlint
+// day ci.yml's release hand-off asked for issues: write, and actionlint
 // passed it. #64 had met the same with actions: write, before it merged.
 
 const dir = path.resolve(import.meta.dirname, '../../.github/workflows');

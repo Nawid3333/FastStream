@@ -4,7 +4,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
-// MPV mode with the thin helper (host 15, 2026-10-13), through the background's real
+// MPV mode with the thin helper, through the background's real
 // listeners: the stream goes as a play message the extension built, mpv's decoder is asked
 // over ipc, and MPV autoplay follows mpv over the relay, with background.mjs as it was for the
 // helper that did all of it itself (backgroundMpv.test.mjs runs the same against a helper
@@ -68,7 +68,7 @@ describe('MPV mode with the thin helper', () => {
     return bg.ports.at(-1);
   }
 
-  // The owner's pick (2026-10-14): mpv keeps no resume position for a private window's
+  // The owner's pick: mpv keeps no resume position for a private window's
   // stream (stream-resume.lua reads fs-private). The resume key stays: mpv's episode buttons
   // know a FastStream stream by it.
   it('marks a private window\'s stream fs-private, and only that', async () => {
@@ -95,7 +95,7 @@ describe('MPV mode with the thin helper', () => {
     expect(plays[0]).toMatchObject({type: 'play', headers: ['Referer: https://site.test/']});
     expect(bg.native.filter((m) => m.type === 'open' || m.type === 'status')).toEqual([]);
     // The relay the watch holds open observes the decoder: no ipc question, each of which
-    // was a new helper process (review of 2026-10-14).
+    // was a new helper process.
     port.emit({type: 'relaying', ...Thin});
     await bg.wait(50);
     const observed = commands(port).filter((m) => m.command[0] === 'observe_property').map((m) => m.command[2]);

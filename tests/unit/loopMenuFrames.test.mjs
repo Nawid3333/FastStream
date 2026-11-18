@@ -5,7 +5,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 // the loop was on, a paused video too: 60 to 144 calls a second for nothing, as the progress
 // loop did until 2026-10-06 (docs/notes/player.md). It rests while the video is paused now:
 // playing starts it again (InterfaceController.play), and a seek while paused is kept within
-// the loop by the video's timeupdate (the review of 2026-11-13).
+// the loop by the video's timeupdate.
 //
 // LoopMenu imports gif.mjs, which the build generates (tools/sync-vendor.mjs): a stand-in here,
 // as are the player's elements and its strings.
@@ -80,7 +80,7 @@ describe('the A-B loop\'s check', () => {
 
 describe('a GIF recorded in a tab that goes to the background', () => {
   it('is dropped, and the video stops at its own speed: no frames come there to end it', () => {
-    // glm's review, 2026-11-16: the recording ended only in an animation frame, which a
+    // The recording ended only in an animation frame, which a
     // background tab does not get, and the video played on at 4x, over and over.
     const {menu, client, frames} = setup();
     const status = vi.fn();
@@ -105,7 +105,7 @@ describe('a GIF recorded in a tab that goes to the background', () => {
 describe('a GIF of a video whose frames cannot be read back', () => {
   it('is dropped, and the video stops at its own speed', () => {
     // A video that taints the canvas: reading a frame back throws, which stopped the frames
-    // with the video playing on at 4x (glm's review, 2026-11-16).
+    // with the video playing on at 4x.
     const {menu, client, frames, runFrames} = setup();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const gif = {abort: vi.fn(), addFrame: vi.fn(() => {

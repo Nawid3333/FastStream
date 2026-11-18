@@ -2,7 +2,7 @@
 // player plays the one the quality setting asks for, lists them all, and switches between
 // them where the video is.
 //
-// a film site's hoster (2026-10-12): a Playerjs set up with
+// a film site's hoster: a Playerjs set up with
 // `file: "[360p]<its get_file link>,[720p]<link>,[1080p]<link>"` and
 // `default_quality: "360p"`, in an iframe of another site. The page's video asks for the 360p
 // file; the hoster answers each get_file link with a redirect to its CDN. FastStream saw that
@@ -235,7 +235,7 @@ describe('A page that offers its video in several qualities', function() {
   });
 
   it('lowers the quality when this computer drops the frames, says so, and keeps one picked again', async function() {
-    // His wish (2026-10-24): a version the computer cannot show in time is stepped down, and
+    // His wish: a version the computer cannot show in time is stepped down, and
     // never without a word. Firefox's own count stands in for a slow computer: from each
     // video element's first count, a third of its frames dropped. The watch judges 3 s
     // stretches after 1 s here, not 10 s after 4 s, to keep within the 40 s file.

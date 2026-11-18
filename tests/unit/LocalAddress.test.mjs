@@ -12,7 +12,7 @@ describe('isLocalAddress', () => {
       'http://localhost:3000/', 'http://LOCALHOST/', 'http://app.localhost/', 'http://nas.local/', 'http://nas/',
       'http://[::1]/', 'http://[::]/', 'http://[fd12:3456::1]/', 'http://[fc00::1]/', 'http://[fe80::1]/',
       'http://[::ffff:192.168.1.1]/', 'http://[::ffff:127.0.0.1]/',
-      // A name ending in a dot, which the parser keeps (a review of #689).
+      // A name ending in a dot, which the parser keeps.
       'http://localhost./', 'http://nas.local./', 'http://nas./', 'http://192.168.1.1./',
       // Shared address space: carrier-grade NAT, Tailscale.
       'http://100.64.0.1/', 'http://100.101.102.103:8096/', 'http://100.127.255.254/',

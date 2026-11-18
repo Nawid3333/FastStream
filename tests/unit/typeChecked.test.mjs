@@ -305,8 +305,8 @@ describe('type-checked files', () => {
 
   it('are all in the program tsc checks, asked of tsc itself', () => {
     // The pattern test above reads tsconfig.json's globs the way this file thinks tsc does,
-    // and only for classic scripts. Three modules passed it and were in no project
-    // (2026-11-14): chrome/perms.mjs and chrome/player/preload.mjs, which their pages load
+    // and only for classic scripts. Three modules passed it and were in no project:
+    // chrome/perms.mjs and chrome/player/preload.mjs, which their pages load
     // and nothing imports, and the channel counter's worklet, which addModule() loads.
     // `pnpm run typecheck` was green without reading them (perms.mjs had 10 errors, the
     // worklet 8), and an editor opened them in a project of its own, without `strict` or

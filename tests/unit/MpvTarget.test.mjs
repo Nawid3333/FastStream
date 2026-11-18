@@ -6,7 +6,7 @@ import * as Host from '../../native-host/faststream-mpv-host.mjs';
 import * as Target from '../../chrome/background/MpvTarget.mjs';
 import {MaxPlayTargetChars, MaxPlayTitleChars, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 
-// The thin helper (host 15, 2026-10-13): what mpv is given for a stream is built in the
+// The thin helper: what mpv is given for a stream is built in the
 // extension now (MpvTarget.mjs), no longer in the helper, so a change to it needs no helper
 // reinstall. mpv's scripts read what the helper built until host 14 (stream-resume.lua keeps
 // positions under the fs-id), so the extension's builders must give the same, byte for byte:
@@ -237,7 +237,7 @@ describe('a play message and an open message for the same stream', () => {
 
   /**
    * Sends one stream through a fresh backend to a fake helper, and returns what it got.
-   * @param {boolean} thin - The thin helper (host 15), or one before it.
+   * @param {boolean} thin - The thin helper, or one before it.
    * @param {Array<*>} args - openStream's arguments.
    * @param {Object} [settings] - fullscreen, singleInstance, mpvPath.
    * @return {Promise<Object>} The message.

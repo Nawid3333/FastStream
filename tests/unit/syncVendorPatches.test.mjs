@@ -6,7 +6,7 @@ import {unappliedPatches} from '../../tools/check-patched-updates.mjs';
 // tools/sync-vendor.mjs copies the libraries the extension ships out of node_modules; for the
 // ones marked `patched`, pnpm must have applied the patch in patches/. Nothing checked that it
 // had: with the patchedDependencies line gone (a bad merge) or another version installed, the
-// stock library was copied, the build stayed green and playback broke (#176).
+// stock library was copied, the build stayed green and playback broke.
 
 const yaml = (...entries) => `allowBuilds:\n  esbuild: true\npatchedDependencies:\n${entries.map((e) => `  ${e}: patches/${e}.patch`).join('\n')}\n`;
 const vendor = [

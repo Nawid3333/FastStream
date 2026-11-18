@@ -695,7 +695,7 @@ describe('StreamLengths.queue', () => {
 });
 
 describe('StreamLengths.servesWebPage', () => {
-  // abyss.to's player address (#665): a web page to anyone but its page's service worker.
+  // abyss.to's player address: a web page to anyone but its page's service worker.
   const FILE = 'https://player.test/#mp4/abc/1080';
   const answer = (contentType, status = 200, delayMs = 0) => () => new Promise((resolve) => {
     setTimeout(() => resolve(new Response('<html>Video not found</html>', {status, headers: {'Content-Type': contentType}})), delayMs);

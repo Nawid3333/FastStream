@@ -52,7 +52,7 @@ describe('the player\'s autoplay next', () => {
   });
 
   it('waits for the kept state when the end\'s request is what wakes the event page', async () => {
-    // Measured in Firefox (2026-10-23): the request came while the new event page still read
+    // Measured in Firefox: the request came while the new event page still read
     // storage.session, and was answered 'error' within 20 ms.
     const session = {};
     await playerInPage(session);

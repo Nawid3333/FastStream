@@ -24,7 +24,7 @@ export const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
 // 30 fps, 250 of them B-frames, no audio (ffprobe, 2026-10-03). The specs count its
 // frames, and every fixture made from it inherits them; a host that re-encodes it would
 // move them all at once. A file that is not this one is refused, by name, rather than
-// tested against (#256).
+// tested against.
 export const MP4_FIXTURE_PIN = {
   size: 991017,
   sha256: '77145c94c11f3754207499158df22406e1fe7635553c1c86dc5e881dfeb32016',

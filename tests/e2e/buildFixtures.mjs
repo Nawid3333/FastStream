@@ -6,7 +6,7 @@
 // else decides its bytes, and the MP4 fixture's pin. A fixture whose recipe changed is
 // built again. CI starts from nothing every time, but a developer's fixtures directory,
 // or verify:linux's tree, kept the old one when only its marker's presence was checked,
-// and a run there checked something else than CI did (#263). A fixture that is one file
+// and a run there checked something else than CI did. A fixture that is one file
 // is written through writeFixture, so a run killed half way leaves none half written; a
 // directory gets its recipe last, for the same reason.
 

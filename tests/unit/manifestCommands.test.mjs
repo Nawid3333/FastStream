@@ -8,7 +8,7 @@ import {describe, expect, it} from 'vitest';
 //
 // The in-page player's key must not be the toolbar button (_execute_action) again. A click
 // on MPV goes to Off, so after the MPV key the key turned FastStream off, and getting the
-// in-page player took a second press (2026-09-28).
+// in-page player took a second press.
 //
 // The MPV key is Alt+F since 2026-10-04 (Ctrl+Shift+U before), the owner's choice. The
 // player's command has no default key since 2026-10-15, the owner's choice too: Firefox 159

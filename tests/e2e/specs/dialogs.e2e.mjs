@@ -6,7 +6,7 @@
 //   ended stayed over the page, invisible, and took every click (save-dialog-regression);
 // - open in the top layer (over a fullscreen player), sized as before: wider than 32em for a
 //   long line, a toast narrower;
-// - show an error's message as text: it can quote the markup the code failed on (#186);
+// - show an error's message as text: it can quote the markup the code failed on;
 // - close on Escape and on a click beside the dialog, confirm on Enter, and keep the keys
 //   typed into them from the player's keybinds;
 // - refuse a URL that is none where a URL is asked for;

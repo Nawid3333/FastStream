@@ -31,13 +31,13 @@ describe('elementHeaderCommands', () => {
 });
 
 // A URL without an extension was saved as .webm, one ending in .php as .php: most direct
-// videos are MP4 (review, 2026-10-09).
+// videos are MP4.
 describe('saveExtension', () => {
   it('keeps the extension of a media file', () => {
     expect(saveExtension({url: 'https://cdn.example/a/clip.webm?sig=1'})).toBe('webm');
     expect(saveExtension({url: 'https://cdn.example/a/clip.MP4'})).toBe('mp4');
     expect(saveExtension({identifier: 'song.m4a', url: 'blob:x'})).toBe('m4a');
-    // Web audio's own (review): saved as .mp4 before.
+    // Web audio's own: saved as .mp4 before.
     expect(saveExtension({url: 'https://cdn.example/a/voice.weba'})).toBe('weba');
     expect(saveExtension({url: 'https://cdn.example/a/voice.OGA'})).toBe('oga');
   });

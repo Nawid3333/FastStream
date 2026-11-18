@@ -110,7 +110,7 @@ describe('the player\'s controls, for the keyboard and a screen reader', functio
     expect((await rateMenu()).paused).toBe(true);
 
     // The subtitles button (before the rate button in the tab order) had Enter alone: Space
-    // played the video (the review of 2026-11-13).
+    // played the video.
     const subtitlesMenu = () => browser.execute(() => ({
       expanded: document.querySelector('.mainplayer .fluid_control_subtitles').getAttribute('aria-expanded'),
       paused: window.fastStream.currentVideo.paused,
@@ -189,7 +189,7 @@ describe('the player\'s controls, for the keyboard and a screen reader', functio
   });
 
   it('closes what is open with Escape, wherever the keyboard is', async function() {
-    // The review of 2026-11-13: the player heard Escape only inside itself, and the loop menu,
+    // The player heard Escape only inside itself, and the loop menu,
     // the subtitle search and the sources browser kept it in their fields.
     await openFilm();
     const state = () => browser.execute(() => {

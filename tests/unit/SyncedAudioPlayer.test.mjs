@@ -185,7 +185,7 @@ describe('SyncedAudioPlayer', () => {
 
   it('leaves the sound paused when the user paused while it resynced', async () => {
     // The next player, played muted for the swap, took over still playing: the sound went on
-    // over the paused picture until the next resync (glm's review, 2026-10-13).
+    // over the paused picture until the next resync.
     let answer;
     Utils.timeoutableEvent.mockImplementationOnce(() => new Promise((resolve) => {
       answer = resolve;
@@ -208,7 +208,7 @@ describe('SyncedAudioPlayer', () => {
 
   it('does not mute the video with a resync whose players were dropped meanwhile', async () => {
     // A separate player failed during the resync (dropPlayers: the video's own sound back);
-    // the swap went on and muted the video, with no separate sound left (glm's review).
+    // the swap went on and muted the video, with no separate sound left.
     let answer;
     Utils.timeoutableEvent.mockImplementationOnce(() => new Promise((resolve) => {
       answer = resolve;
@@ -405,7 +405,7 @@ describe('SyncedAudioPlayer', () => {
 
   it('takes a dropped player\'s sound out of the output', async () => {
     // Its source stayed wired into the output, two more with every drop and rebuild, until
-    // the video changed (glm's second look, 2026-10-13).
+    // the video changed.
     const client = makeClient();
     const context = {createMediaElementSource: vi.fn(() => ({}))};
     const output = {connectFrom: vi.fn(), disconnectFrom: vi.fn()};

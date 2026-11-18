@@ -20,7 +20,7 @@ describe('The right-click menu', function() {
       const probe = () => Promise.all(ids.map((id) => menus.update(id, {}).then(() => 'made', (e) => `missing: ${e.message}`)));
       // The background makes the items anew at each of its starts, once the options are read
       // (background.mjs), and this can ask right after the browser started, before that: all
-      // four "missing" in a run of the flaky week (#583). Asked again until all are there, or
+      // four "missing" in a run of the flaky week. Asked again until all are there, or
       // for 10 s, so items Firefox refused are still missing at the end.
       const until = Date.now() + 10000;
       const ask = () => probe().then((states) => (states.every((state) => state === 'made') || Date.now() > until ?

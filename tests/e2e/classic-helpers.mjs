@@ -1,7 +1,7 @@
 // What the classic specs (tests/e2e/classic-specs, wdio.classic.conf.mjs) all do in Firefox's
 // own chrome: run a function there, click FastStream's toolbar button, and stop the
-// background as Firefox does when it idles. Each spec had its own copy, eight of the first
-// (#266); a fix to one now reaches all of them.
+// background as Firefox does when it idles. Each spec had its own copy, eight of the first;
+// a fix to one now reaches all of them.
 
 import {browser} from '@wdio/globals';
 

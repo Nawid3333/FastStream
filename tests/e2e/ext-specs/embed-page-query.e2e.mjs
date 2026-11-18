@@ -20,7 +20,7 @@
 // mirror of the background's per-frame store, which pushes its copy to the player again,
 // so the button also sends CLEAR_SOURCES and the background empties its store. Only the
 // extension has a background: the web suite's spec of the button could not check this,
-// and nothing failed with the message or its handler gone (#258).
+// and nothing failed with the message or its handler gone.
 
 import http from 'node:http';
 

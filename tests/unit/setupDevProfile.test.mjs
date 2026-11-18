@@ -7,7 +7,7 @@ import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest';
 import {ADDONS, download} from '../../tools/setup-dev-profile.mjs';
 
 // tools/setup-dev-profile.mjs (pnpm run profile:setup) puts uBlock Origin into the dev
-// Firefox profile. It took AMO's `latest` file, whatever that was, with no check (#177). Imported,
+// Firefox profile. It took AMO's `latest` file, whatever that was, with no check. Imported,
 // the script does nothing; these tests never touch a profile and never reach AMO.
 
 const payload = Buffer.from('a signed xpi would be here');

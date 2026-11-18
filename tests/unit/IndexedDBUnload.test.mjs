@@ -3,7 +3,7 @@ import {afterEach, expect, it, vi} from 'vitest';
 // When the player page goes, every open IndexedDBManager closes, and a temporary one deletes
 // its database. A persistent manager (SecureMemory's) takes itself out of the list as it
 // closes, at once, and the manager after it in the list was skipped: its temporary database
-// stayed on disk (glm's review, 2026-11-16).
+// stayed on disk.
 
 afterEach(() => {
   vi.unstubAllGlobals();

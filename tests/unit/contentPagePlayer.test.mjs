@@ -61,7 +61,7 @@ describe('the page\'s own player, started for an autoplay next', () => {
 
   it('is played by a later ask when the browser refused the first play', async () => {
     // A tab the autoplay next went on in has had no click: Firefox may refuse the play, and
-    // the latch kept every later ask from trying again (glm's review, 2026-10-22).
+    // the latch kept every later ask from trying again.
     const {p, video, plays, see} = backgroundTabPage();
     const play = video.play;
     let refuse = true;
@@ -117,7 +117,7 @@ describe('the page\'s own play button, for a video with nothing loaded', () => {
   });
 
   it('takes a class or label that says play however it is joined', async () => {
-    // Lower-case compounds too: a word boundary lost "playbtn" and "bigplay" (review, 2026-11-15).
+    // Lower-case compounds too: a word boundary lost "playbtn" and "bigplay".
     for (const attributes of [{'class': 'vjs-big-play-button'}, {'class': 'bigPlayButton'}, {'class': 'playbutton'},
       {'aria-label': 'Play'}, {'title': 'Pause/Play (k)'}, {'class': 'ctrl play_btn'}, {'class': 'playbtn'},
       {'class': 'bigplay'}, {'class': 'playpause'}, {'class': 'player-play-button'}, {'aria-label': 'Prepare play'}]) {
@@ -131,7 +131,7 @@ describe('the page\'s own play button, for a video with nothing loaded', () => {
 });
 
 describe('a hoster\'s frame made in a background tab', () => {
-  // His report (2026-10-27): MPV autoplay went on to the next episode in a background tab,
+  // MPV autoplay went on to the next episode in a background tab,
   // and the hoster's player in it was never started. Measured in Firefox 158: such a frame
   // is hidden, its viewport 0x0, and IntersectionObserver gives everything in it 0.
   /**
@@ -183,7 +183,7 @@ describe('a hoster\'s frame made in a background tab', () => {
   });
 
   it('counts a video in a box that clips it to nothing as not shown, as an ad waits', async () => {
-    // glm's review (2026-10-27): the box alone made a parked ad's video, larger than the
+    // The box alone made a parked ad's video, larger than the
     // episode's, the one the background started.
     const {p} = hiddenFrame();
     const parked = p.document.createElement('div');
@@ -210,7 +210,7 @@ describe('a hoster\'s frame made in a background tab', () => {
   });
 
   it('counts an absolutely placed video out of a clipping box that does not place it', async () => {
-    // glm's review (2026-10-27): the player's box places it, the collapsed one between clips
+    // The player's box places it, the collapsed one between clips
     // nothing of it, as the browser draws it.
     const {p, video} = hiddenFrame();
     const player = p.document.createElement('div');

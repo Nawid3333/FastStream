@@ -222,7 +222,7 @@ describe('Utils.getOptionsFromStorage', () => {
 
     expect(keybindsVersion).toBe(KEYBINDS_VERSION);
     expect(keybinds.WindowedFullscreen).toBe('Shift+KeyW');
-    // the video filters' key went with them (2026-10-10): a saved binding of it is dropped
+    // the video filters' key went with them: a saved binding of it is dropped
     expect(keybinds.ToggleVisualFilters).toBeUndefined();
     expect(keybinds.PlayPause).toBe('KeyK');
     expect(keybinds.SpeedPreset3).toBe('KeyQ');
@@ -276,7 +276,7 @@ describe('Utils.getOptionsFromStorage', () => {
   });
 
   it('migrates a few bindings saved at version 3: the speed steps to S and D, Save video to Shift+D', async () => {
-    // As in mpv (2026-10-10). An S the user took keeps theirs: the slow-down waits for a key.
+    // As in mpv. An S the user took keeps theirs: the slow-down waits for a key.
     store({keybindsVersion: 3, keybinds: {
       SaveVideo: 'KeyD', IncreasePlaybackRate: 'Shift+ArrowUp', DecreasePlaybackRate: 'Shift+ArrowDown', Mute: 'KeyS',
     }});

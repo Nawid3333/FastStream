@@ -86,7 +86,7 @@ describe('OverlayGuard', () => {
 
   // A site's sign-in, cookie or settings dialog opened while the player was up: a backdrop
   // over the whole page with the dialog in it, the same geometry as an ad layer. Hidden,
-  // the user saw no dialog, and clicks went through its backdrop (#226).
+  // the user saw no dialog, and clicks went through its backdrop.
   describe('a site\'s dialog over the player', () => {
     it('leaves a layer holding a dialog alone, and all that is in it', () => {
       const {page, iframe} = pageWithPlayerAt(PLAYER);
@@ -187,7 +187,7 @@ describe('OverlayGuard', () => {
 
   // A sticky header over a player scrolled mostly out of view: the header covered more than
   // half of the player's part on screen, so it went, came back when the player left the
-  // screen, and went again on the way back (#226).
+  // screen, and went again on the way back.
   it('leaves a page header alone over a player scrolled mostly out of view', () => {
     const {page, iframe} = pageWithPlayerAt({x: 0, y: -260, width: 640, height: 360});
     const header = addLayer(page, page.document.body, {x: 0, y: 0, width: 1280, height: 60});

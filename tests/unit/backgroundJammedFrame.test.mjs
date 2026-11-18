@@ -5,7 +5,7 @@ import {loadBackground} from './backgroundHarness.mjs';
 // A content script shares its page's event loop: a page that never lets go of it never
 // answers the background. Three questions waited for that answer with no limit, and held a
 // player for good - its start (PLAYER_LOADED is answered before it plays), or its
-// fullscreen, windowed fullscreen or miniplayer request (glm's review, 2026-11-16). They
+// fullscreen, windowed fullscreen or miniplayer request. They
 // now give up, as the background's other questions to a frame do (askFrame).
 
 const PAGE = 'https://site.test/watch/1';

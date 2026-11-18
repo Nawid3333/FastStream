@@ -158,7 +158,7 @@ describe('the options page once the saved options are read', () => {
   });
 
   it('saves a dragged slider once a frame, and at once when it is let go', async () => {
-    // The review of 2026-10-14: every value the slider passed was a storage write and a
+    // Every value the slider passed was a storage write and a
     // reload of the options in every player.
     const zoom = doc.querySelectorAll('.video-option').find((option) => option.dataset.option === 'videoZoom');
     const range = zoom.querySelector('input.range');
@@ -207,9 +207,9 @@ describe('the options page once the saved options are read', () => {
 describe('the options page\'s controls', () => {
   it('names each menu on the <select> itself', () => {
     const selects = doc.querySelectorAll('select');
-    // Eight until the colour-blindness filter's was removed (2026-10-09); two more since the
-    // MB/GB pickers beside the maximum size and the RAM budget (#378), and one for the aspect
-    // ratio (upstream #552, 2026-10-11).
+    // Eight until the colour-blindness filter's was removed; two more since the
+    // MB/GB pickers beside the maximum size and the RAM budget, and one for the aspect
+    // ratio.
     expect(selects.length).toBe(10);
     for (const select of selects) {
       // A menu options.mjs builds takes its name from its wrapper; a unit picker written in

@@ -92,7 +92,7 @@ describe('Message keys', () => {
   });
 
   it('still finds English text written into the UI', () => {
-    // The two exceptions that proved it went with the audio settings (2026-10-10).
+    // The two exceptions that proved it went with the audio settings.
     const planted = [
       'button.textContent = \'Play\';',
       'AlertPolyfill.alert(\'Could not load the file\');',
@@ -155,7 +155,7 @@ describe('Every locale', () => {
           placeholders(messages[key].message) !== placeholders(english[key].message));
       expect(differing).toEqual([]);
       // U+FFFD is what a text read in the wrong encoding keeps of the letters it could not
-      // read: 7 locales' translations came back as "vid�ro" and worse (2026-10-28).
+      // read: 7 locales' translations came back as "vid�ro" and worse.
       const garbled = Object.keys(messages).filter((key) => messages[key].message?.includes('�'));
       expect(garbled).toEqual([]);
     });
@@ -177,7 +177,7 @@ describe('combined-locales.json', () => {
         (expected[key] ||= {})[locale] = value.message;
       }
     }
-    // Read at all: 395 keys since the audio settings went (2026-10-10).
+    // Read at all: 395 keys since the audio settings went.
     expect(Object.keys(expected).length).toBeGreaterThanOrEqual(350);
     expect(combined).toEqual(expected);
   });

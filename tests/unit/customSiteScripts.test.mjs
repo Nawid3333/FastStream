@@ -97,7 +97,7 @@ function runSiteScript(file, scripts = []) {
 }
 
 /**
- * The single-page case both Facebook and Bilibili have (#232): the address changes to
+ * The single-page case both Facebook and Bilibili have: the address changes to
  * another video without a page load, and a script tag for it arrives a moment later.
  * @param {string} file - The site script.
  * @param {function(string): {type?: string, textContent: string}} scriptFor - A script tag
@@ -225,7 +225,7 @@ describe('facebook_content.js', () => {
 
   it('reports a new video that comes in the same batch after one already reported', () => {
     // The batch's first manifest was the first video's again (Facebook repeats it), and the
-    // new one after it was skipped, its script then marked as read (final review, 2026-10-10).
+    // new one after it was skipped, its script then marked as read.
     const run = runSiteScript('facebook_content.js', [jsonScript({playlist: '<MPD id="first"/>'})]);
     run.location.href = 'https://www.example.com/watch/2';
     run.tick();
@@ -276,7 +276,7 @@ describe('bilibili_content.js', () => {
   });
 
   // The play info was read up to the line's last "}": with more code after it, or over
-  // more than one line, the video was not detected (review).
+  // more than one line, the video was not detected.
   it('reads the play info with more code after it, or over several lines', () => {
     const script = playInfoScript('next');
     const trailing = {textContent: script.textContent + ';window.__INITIAL_STATE__={"title":"a } \\" b"}'};
@@ -286,8 +286,8 @@ describe('bilibili_content.js', () => {
   });
 
   it('reports a video without sound, whose play info has no audio list', () => {
-    // data.dash.audio is null there: forEach threw, and the video was not detected at all
-    // (final review, 2026-10-10).
+    // data.dash.audio is null there: forEach threw, and the video was not detected at all.
+
     const playInfo = JSON.parse(playInfoScript('silent').textContent.replace('window.__playinfo__=', ''));
     playInfo.data.dash.audio = null;
     const {sent} = runSiteScript('bilibili_content.js', [{textContent: `window.__playinfo__=${JSON.stringify(playInfo)}`}]);
@@ -374,7 +374,7 @@ describe('instagram_content.js', () => {
   });
 
   // Only this script puts instagram_inject.js in a page, in Instagram's pages only. Listed for
-  // <all_urls> with the player's page, any site could load it into itself (a review, 2026-11-13).
+  // <all_urls> with the player's page, any site could load it into itself.
   it('has instagram_inject.js reachable from the pages it runs in only', () => {
     const manifest = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../../chrome/manifest.json'), 'utf8'));
     const listed = (file) => manifest.web_accessible_resources.filter((entry) => entry.resources.includes(file));

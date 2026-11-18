@@ -9,7 +9,7 @@ import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 const PAGE = 'https://site.test/watch/1';
 const PLAYER = 'moz-extension://bg-test/player/index.html';
 // A player in the page's frame names the page that opened it (content.js adds ?opener=),
-// or the background takes no parent frame from it (#225).
+// or the background takes no parent frame from it.
 const PLAYER_IN_PAGE = PLAYER + '?opener=page-1';
 
 let bg;
@@ -108,7 +108,7 @@ describe('the streams a player tab lists from other tabs', () => {
   });
 
   it('include a stream found after the clear that the page asked for before it', async () => {
-    // The review of the fix (2026-11-15): a page's report keeps its request's time, and a
+    // The review of the fix: a page's report keeps its request's time, and a
     // filter by time left out a stream the background first learned of after the clear.
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}, {id: 2, url: PLAYER}]});
     await openPlayerTab(2);
@@ -143,8 +143,8 @@ describe('the streams a player tab lists from other tabs', () => {
     expect(listed(3)).toEqual(['https://cdn.test/private/master.m3u8']);
   });
 
-  // One container's streams, with its cookies, went to another container's player tab
-  // (review, 2026-10-09).
+  // One container's streams, with its cookies, went to another container's player tab.
+
   it('stay in their container', async () => {
     bg = await loadBackground({tabs: [
       {id: 1, url: PAGE, cookieStoreId: 'firefox-container-1'},
@@ -159,7 +159,7 @@ describe('the streams a player tab lists from other tabs', () => {
   });
 });
 
-// A player that loads again in its frame ("Reload Frame") gets what it was handed (#288),
+// A player that loads again in its frame ("Reload Frame") gets what it was handed,
 // but not after the sources browser's Clear: embed-page-query.e2e.mjs saw the cleared
 // stream sent again on every REQUEST_SOURCES.
 describe('what a player was handed', () => {
@@ -652,7 +652,7 @@ describe('a copy-protected video', () => {
 
 // The text of a page's <track> files is kept with its frame and copied to its players.
 // content.js reads at most 64 MB at a time but asks again for each new stream: a page that
-// named new track files each time had them all kept, without end (a review, 2026-11-15).
+// named new track files each time had them all kept, without end.
 describe('a frame\'s read <track> files', () => {
   /** @param {number} n @param {number} length @return {Object} A read track. */
   const track = (n, length) => ({data: 'x'.repeat(length), source: `https://site.test/${n}.vtt`, label: String(n), language: 'en'});

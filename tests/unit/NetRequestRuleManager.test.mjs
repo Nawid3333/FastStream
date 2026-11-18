@@ -198,7 +198,7 @@ describe('RuleManager when the browser refuses', () => {
     expect(manager.isLoopRunning).toBe(false);
     expect(manager.getNextID()).toBe(rule.id);
     // The browser may still hold it: the next rule, given its id, replaces it. Refused as a
-    // duplicate, it and every rule after it failed (final review, 2026-10-10).
+    // duplicate, it and every rule after it failed.
     expect(held.has(rule.id)).toBe(true);
     const next = await manager.addHeaderRule('https://cdn.test/b.m3u8', 7, [{operation: 'set', header: 'referer', value: 'https://site.test/'}]);
     expect(next.id).toBe(rule.id);
@@ -212,7 +212,7 @@ describe('RuleManager, a rule added while the last event page\'s are cleared', (
 
   it('is added after the clearing, which cannot take it away then', async () => {
     // The clearing listed the old rules, then removed them: a new rule added between the two,
-    // given the id of one of them, went with them (glm's review, 2026-10-22).
+    // given the id of one of them, went with them.
     const calls = [];
     let listed;
     globalThis.chrome = {

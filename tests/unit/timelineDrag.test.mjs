@@ -158,7 +158,7 @@ describe('FineTimeControls: grabbing the timeline', () => {
 
   it('makes one grab one undo step, however many moves it had', () => {
     // Each move was a seek saved for undo: one grab filled the 50-step history, and undo
-    // (Z) went back through its moves one by one (glm's second look, 2026-10-13).
+    // (Z) went back through its moves one by one.
     const {timeline, client} = withUndo();
     fire(timeline.ui.timelineTicks, 'mousedown', {clientX: 50});
     for (const x of [52, 55, 58, 61, 64]) fire(playerContainer, 'mousemove', {clientX: x});
@@ -170,7 +170,7 @@ describe('FineTimeControls: grabbing the timeline', () => {
 
   it('stays one undo step when an arrow key seeks in the middle of it', () => {
     // A key's seek turns saving off and on again around itself, and the moves after it were
-    // saved again one by one (glm's review, 2026-10-13).
+    // saved again one by one.
     const {timeline, client} = withUndo();
     fire(timeline.ui.timelineTicks, 'mousedown', {clientX: 50});
     fire(playerContainer, 'mousemove', {clientX: 52});
@@ -297,7 +297,7 @@ describe('SubtitleSyncer: dragging a cue', () => {
   });
 
   // The timeline redrew only on a time update: on a paused video what was changed by hand
-  // stayed as it was (glm's second look, 2026-10-13).
+  // stayed as it was.
   it('takes an emptied cue\'s bar off a paused timeline at once', async () => {
     const {syncer, cue} = grabbed(2);
     fire(playerContainer, 'mouseup');
@@ -315,7 +315,7 @@ describe('SubtitleSyncer: dragging a cue', () => {
   });
 
   it('draws no bar before the video has a length, and a right one once it has', () => {
-    // glm's review, 2026-11-16: each bar went to NaN%, and kept its broken width once the
+    // Each bar went to NaN%, and kept its broken width once the
     // length came (only its left edge was redrawn).
     const {syncer, cue} = grabbed(2);
     fire(playerContainer, 'mouseup');

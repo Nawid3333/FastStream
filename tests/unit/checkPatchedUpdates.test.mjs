@@ -13,7 +13,7 @@ describe('patchedDependencies', () => {
     const libraries = patchedDependencies(yaml);
     expect(libraries.length).toBeGreaterThanOrEqual(5);
     // By name only: the versions are what every update moves, and a version here turned the
-    // Coloris 0.25.1 update red though nothing was wrong with it (#591). The loop below and
+    // Coloris 0.25.1 update red though nothing was wrong with it. The loop below and
     // the package.json test hold each version to its patch.
     expect(libraries.map(({name}) => name)).toEqual(expect.arrayContaining(['hls.js', 'Coloris']));
     for (const {name, version} of libraries) {
@@ -34,7 +34,7 @@ describe('patchedDependencies', () => {
 
   it('pins each patched library in package.json to exactly the version its patch is cut against', () => {
     // A range ("^1.7.3") lets any non-frozen install take 1.7.4, which the patch is not keyed
-    // to: pnpm then fails, or ships the library unpatched (#247).
+    // to: pnpm then fails, or ships the library unpatched.
     const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
     const declared = {...pkg.dependencies, ...pkg.devDependencies};
     for (const {name, version} of patchedDependencies(yaml)) {

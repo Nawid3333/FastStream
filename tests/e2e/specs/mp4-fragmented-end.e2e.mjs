@@ -118,7 +118,7 @@ describe('A fragmented MP4 whose first range ends between two fragments', functi
         return res.end();
       }
       // The harness's range reading (serveFile.mjs): a range like bytes=5-2 gave a negative
-      // Content-Length, which writeHead throws on in the request listener (#266).
+      // Content-Length, which writeHead throws on in the request listener.
       const range = byteRange(req.headers.range, bytes.length);
       if (range === 'unsatisfiable') {
         res.writeHead(416, {...cors, 'Content-Range': `bytes */${bytes.length}`});

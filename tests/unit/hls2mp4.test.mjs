@@ -258,7 +258,7 @@ describe('HLS2MP4: discontinuities', () => {
   it('keeps the time of a segment that is missing from a partial save, as the DASH save does', async () => {
     // Segment 1 was never downloaded. The samples after the hole were written straight after
     // the ones before it: a 4 s file whose third second was the stream's fifth. The last
-    // sample before the hole now lasts over it (#224).
+    // sample before the hole now lasts over it.
     const {tracks} = await save([
       fragment(0, {sn: 0, cc: 0, start: 0}, muxed(1.4)),
       fragment(0, {sn: 2, cc: 0, start: 4}, muxed(5.4)),
@@ -362,7 +362,7 @@ describe('HLS2MP4: damaged input', () => {
   });
 
   it('names data no demuxer takes, rather than failing on a missing demuxer', async () => {
-    // glm's review, 2026-11-16: the transmuxer's own error was dropped, and the save failed
+    // The transmuxer's own error was dropped, and the save failed
     // with "Cannot read properties of undefined (reading 'demux')".
     const junk = new Uint8Array(4096).fill(0x42);
     vi.spyOn(console, 'error').mockImplementation(() => {});

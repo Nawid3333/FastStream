@@ -37,7 +37,7 @@ describe('loadIntoExisting', () => {
   });
 
   it('is refused, not "no mpv", when the pipe answers but loadfile is refused', async () => {
-    // Ours answered, so it runs: a fresh start would be a second mpv on its pipe (#152).
+    // Ours answered, so it runs: a fresh start would be a second mpv on its pipe.
     const ipcRequest = async (commands) => ({
       ok: true,
       replies: [
@@ -256,7 +256,7 @@ describe('mpvIpcRequest', () => {
   });
 
   // An mpv that answered a first command (the fullscreen one) before it quit counted as live:
-  // loadIntoExisting found no loadfile reply and said "busy" (review).
+  // loadIntoExisting found no loadfile reply and said "busy".
   it('is not ok when the instance closes the pipe after answering part of it', async () => {
     const pipe = pipeName('closing-late');
     const nextRequest = await listen(pipe);
@@ -627,7 +627,7 @@ describe('launchMpv', () => {
   });
 
   // The reply said {ok: true} and nothing else, so an mpv that opened behind the browser
-  // looked like one in front: the extension could neither show nor log it (2026-10-04).
+  // looked like one in front: the extension could neither show nor log it.
   it('says how raising the reused window went', async () => {
     const io = {...stand(answered('success')), focus: async () => 'FOCUS=True FGOK=False'};
     expect(await launchMpv('mpv.exe', open, {}, {...io, platform: 'win32'}))
@@ -654,7 +654,7 @@ describe('launchMpv', () => {
 
   // A new mpv gets its stream on the command line, which Windows caps at 32767 characters.
   // The page's quality list (fs-quality=, percent-encoded once more) took twelve long URLs
-  // past it, and the start failed although the stream itself fitted (#470): mpv starts
+  // past it, and the start failed although the stream itself fitted: mpv starts
   // without the list now, so only its quality menu goes without it.
   const qualities = Array.from({length: 12}, (unused, i) => ({
     url: `https://cdn.test/${i}/` + 'a%2Fb%3Dc&'.repeat(202),
@@ -718,7 +718,7 @@ describe('ipcPipeFor', () => {
 });
 
 // Off Windows a new mpv is an ordinary child, and it was reported started 500 ms later
-// whatever it did; one that quits at once now reports why (#161). Node stands in for mpv.
+// whatever it did; one that quits at once now reports why. Node stands in for mpv.
 describe('launchDirect', () => {
   it('reports an mpv that quits at once', async () => {
     const result = await launchDirect(process.execPath, ['-e', 'process.exit(3)']);
@@ -735,7 +735,7 @@ describe('launchDirect', () => {
 });
 
 // "debug": true is easily left on: the log took every subtitle text and never stopped
-// growing (#159).
+// growing.
 describe('the debug log', () => {
   const dirs = [];
   afterEach(() => {
@@ -764,7 +764,7 @@ describe('the debug log', () => {
   });
 
   it('logs for FASTSTREAM_MPV_DEBUG=1, not for 0', () => {
-    // Any value turned it on, "0" too (final review, 2026-10-10).
+    // Any value turned it on, "0" too.
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-host-log-'));
     dirs.push(dir);
     const file = path.join(dir, 'faststream-mpv-host.log');

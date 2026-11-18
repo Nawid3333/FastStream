@@ -5,8 +5,8 @@ import {describe, expect, it} from 'vitest';
 import {chooseTitles, describeSubtitle, nameMatch, normalizeTitle, poolTitles, rankTitles, titleQuery, titlesFromFeatures,
   titlesFromSubtitles} from '../../chrome/player/ui/subtitles/SubtitleSearchTitles.mjs';
 
-// Which title a subtitle search means. The fixtures are the OpenSubtitles API's own answers
-// (2026-10-09), trimmed to the fields read: a text search for subtitles (GET /subtitles?query=)
+// Which title a subtitle search means. The fixtures are the OpenSubtitles API's own answers,
+// trimmed to the fields read: a text search for subtitles (GET /subtitles?query=)
 // and a title search (GET /features?query=). Either alone picked the wrong title in some of these.
 
 const fixture = (name) => JSON.parse(fs.readFileSync(new URL(`fixtures/opensubtitles/${name}.json`, import.meta.url), 'utf8')).data;
