@@ -20,8 +20,7 @@ async function updatePerms() {
       el.classList.remove('has-perms');
       el.classList.add('no-perms');
       el.textContent = /** @type {any} */ (window).getI18nMessage('perms_page_notgranted');
-      // onclick, not a listener: updatePerms runs again at every permission change, and each
-      // run added one more - a click then asked for the permission that many times.
+      // onclick, not a listener: this runs again at every permission change.
       el.onclick = () => {
         if (el.dataset.perm === 'all-urls') {
           chrome.permissions.request({
@@ -39,8 +38,6 @@ async function updatePerms() {
 
 updatePerms();
 
-// Opened from the player's Firefox VPN button (VpnPrompt.mjs): the proxy row is the one,
-// and once it is granted the tab goes, back to the video, whose player loads again.
 if (location.hash === '#proxy') {
   const status = document.querySelector('.permstatus[data-perm="proxy"]');
   const row = status?.closest('h4');

@@ -2223,3 +2223,155 @@ that fails without it.
   vimeo, whose videos are wrapped), the miniplayer's whole-style restore (`updateMiniPlayer`
   rewrites it), and the input-time root scan (throttled to 2 s, and it must come before the
   play it is for).
+
+## Content scripts: reasons moved out of the code comments (2026-11-18)
+
+- **`custom/bilibili_content.js` `loadDashTracks`** - Bilibili lists one quality in up to three
+  codecs (H.264, HEVC, AV1) under one id (32 for 480p). Put in one AdaptationSet, the player saw
+  one level per id, all of the set's first codec; where Firefox could not start that codec's
+  decoder it reset the video about 125 times a second and never tried the others. So there is
+  one set per codec, and each Representation id is unique in the manifest.
+- **`custom/bilibili_content.js` `jsonObjectAt`** - The play info is cut at its own closing
+  brace: a regex to the line's last `}` took the next statement along
+  (`...};window.__INITIAL_STATE__={...}`) and stopped at a line break.
+- **`custom/facebook_content.js` `manifestOf`** - A reel opened signed out has no playlist; its
+  manifest is only in `videoDeliveryLegacyFields.dash_manifest_xml_string`. Without it only one
+  of the separate files the page fetches played (the sound of the next preloaded reel).
+- **Site scripts, address changes** - Bilibili and Facebook move to the next video without a
+  page load, and a content script runs once per load. For ten seconds after the address changes,
+  the script tags that were not there before are read each second; the ones read before are
+  not read again, or the first video would come back under the new address. Each script keeps
+  the manifests it reported: the background keeps every report as another source of the tab.
+- **`episode-links.js`** - Before it, content.js knew only an English "next"/"next episode"
+  link, the neighbour of this page's link in a list, and "Episode N" lists; a German "Nächste
+  Folge", an icon link with only an `aria-label`, and the plain `.../episode-12` ->
+  `.../episode-13` of most hosters went unseen.
+- **`episode-links.js` `stripMarks`** - The marks are taken off both ends by a loop: a regex
+  anchored at the end (`[…]+$`) took a second for 60,000 dashes inside a text, at every poll
+  for the next episode.
+- **`episode-links.js` `normalize`** - Lower-casing is the same in every locale, and Turkish
+  i's become a plain i: in a Turkish Firefox "NEXT EPISODE" became "next epısode", and in any,
+  "SONRAKİ BÖLÜM" got a combining dot. No phrase in the list has a dotless ı of its own.
+- **`episode-links.js` `neighbourEpisodeUrls`** - The order tried: the number after an episode
+  word (`episode-12`, `folge12`, `ep_12`), `S01E12`, `1x12`, an `ep=` in the query, then the
+  path's last number (`/watch/12`). Only the number changes, so the series stays the same.
+- **`episode-links.js` `seriesOf` / `inSeries`** - After a season's last episode, autoplay went
+  to another series on an anime site. The series is the path up to its first season or episode
+  segment (or up to the episode in a segment that names the show too); a sequel that only
+  starts the same (`one-piece-2/...` beside `one-piece-episode-1000`) is another series.
+- **`overlay-guard.js`** - The player is an iframe in the frame whose video it replaced, and
+  each frame above sees it through the iframe of the frame below; whatever a site lays over its
+  video (control bar, play button, "server" menu, ad layer) lay over the player, and on sites
+  that embed their player in a full-page iframe the embedding page's bar stayed on top. While a
+  player is up, each frame of its chain hides what it paints over the iframe it holds, and gives
+  it back when the player goes (`releaseAll`) or the iframe does. An element counts as the
+  player's when it is painted above the iframe and at least 80% of it lies inside the iframe's
+  box, or it covers half of that box: a bar or a layer, not a page header overlapping the top
+  edge. The box is the whole iframe's, on screen or not (by its visible part, a header over a
+  player scrolled mostly away covered "half"). Hiding uses `visibility`, so the element keeps
+  its box and is given back as soon as it no longer covers the player.
+- **`overlay-guard.js` `isSiteDialog`** - A site's own dialog (sign-in, cookie consent,
+  settings) covers the player as an ad layer does, but hidden, the user saw no dialog and
+  clicks went through its backdrop. It is told by its role or by a focused field in it, never
+  by a focused link or button: those keep the focus after a click, so an ad layer clicked once
+  (or a click-to-play cover) stayed over the player for good.
+- **`overlay-guard.js` `overlaysOf`** - Every element is looked at, not only the body's: ad
+  layers are often put straight into `<html>`. A pick's ancestors go with it while they are
+  painted above the iframe too; a layout wrapper under the player (that also holds the page's
+  nav) stays. An element missing from `elementsFromPoint` (`pointer-events: none`, as a
+  see-through veil holding a clickable ad) goes by its size.
+- **`page-qualities.js` `toList`** - The list is dropped as soon as it passes `MAX_ENTRIES`: a
+  page of 50,000 `<source>` elements had each compared with all before it, minutes on the
+  page's main thread.
+- **`content.js` `elementsChangedByFillscreen`** - A Map, as each element is looked up in it:
+  an array took seconds on a page of 30,000 elements (a lookup per element, a splice per undo).
+  What holds the player gets its whole style attribute back (property by property when the page
+  wrote to it meanwhile); a hidden element only its `display`: its whole old attribute also put
+  back the overlay guard's `visibility: hidden`, which the guard had given back meanwhile, and the
+  element stayed hidden for good.
+- **`content.js` `pendingPlayers` / `watchRemovalOf`** - A page that takes a player iframe out
+  before its player links up (a re-render) runs nothing in it to say so, and the background kept
+  that frame's player opening: no player opened there again until the page navigated. The
+  shadow roots the iframe is in are observed too, as a web component that re-renders its own
+  tree took the player out unseen. A player the page took out before or after it linked up gives
+  its element back, its miniplayer and windowed fullscreen go, and its media are free again;
+  otherwise the page's video paused itself on every play until FastStream was turned off.
+- **`content.js` `episodeLinkAddress`** - The link's address is followed rather than clicked:
+  hosters hang ad scripts on their links (a popup, the episode in a new tab), and the chain
+  broke. A link meant for another frame (`_top`, `_parent`, a name, also by `<base target>`) and
+  a button keep their click; one into a new tab (`<base target="_blank">`) opens here.
+- **`content.js` `readEpisodeLinks`** - Only links within the page's own origin: the background
+  opens one later in a tab nobody looks at, and a link to another site (an ad's) went there with
+  the tab's cookies.
+- **`content.js` `handlePlayerOpen`** - The video is found by its visibility, which can take a
+  second (a background tab's IntersectionObserver); `PlayersEpoch` stops a player going in when
+  `removePlayers` ran meanwhile (the page went to another address and was given back).
+- **`content.js` `RedirectingToPlayer`** - The frame sent to the player is not going away: the
+  player loads in it and asks for the sources detected there, so the redirect's
+  `beforeunload` sends no `FRAME_REMOVED`. It is a state, not a timer: an unload slower than
+  the timer sent `FRAME_REMOVED` and the player got no sources. A second `beforeunload` is a
+  leave of the page's own (the redirect was cancelled by a "Leave page?").
+- **`content.js` beforeunload and `LeaveSettledMs`** - Firefox fires `beforeunload` for a
+  navigation that then never happens (a download, a 204, a "Leave page?" answered no); the
+  background forgot the page's frames and refused its later players as a gone page's, until a
+  reload. A page still there `LeaveSettledMs` later names itself again and from then on reports
+  its leave on `pagehide` too. The first report stays at `beforeunload`: the next page's own
+  load can be its stream, detected before the old page's `pagehide`, and a frame still holding a
+  player dropped it. A page the back-forward cache gives back names itself again (`pageshow`),
+  which gets back what the background had detected on it, and drops a page-media hold that may
+  have ended while it was cached.
+- **`content.js` `handleCaptionsScrape` / `httpRequest`** - The background opens the player only
+  once the page's tracks are read, so a track request is given up after `HttpRequestStallMs`
+  without a byte (before the headers or between pieces), not after a fixed total: a large
+  track on a slow line still loads, up to `HttpRequestTimeoutMs` and the shared byte budget
+  (a subtitle file is kilobytes, a typeset one a few megabytes). Past the budget a track is
+  given up as a failed request, and a failed one gives its bytes back. All tracks are counted
+  before any is asked for: a request that fails at once answered inside the loop, and the
+  tracks after it were never asked for.
+- **`content.js` `hideSoft` / `showSoft`** - The element's own inline values are kept in a
+  WeakMap, not in its DOM (`data-old-width`): a page that changed the attribute could leave its
+  element hidden for good. Every value is saved with its priority, including one equal to the
+  hidden one (`overflow: hidden`, `margin: 0 !important`); a value the page set while its
+  element was hidden is its newest wish and is kept. The hidden element also gets no flex share:
+  on bilibili (`flex: 1 1 0%` in a column) it kept half the box. The page's own `transition`
+  comes back with the element (it stayed `none !important` for good).
+- **`content.js` `updateReplacedPlayer` stand-in** - Putting the page's element back into the
+  page for every measurement (every resize) ran its observers and custom-element callbacks, and
+  a `<video autoplay>` in it loaded again. An empty stand-in with the same tag and attributes is
+  measured instead, once it measured as the element did; media, frames, images and custom
+  elements never get one. The element is measured with its id, as `transferStyles` gave it to the
+  iframe: without it, the page's `#id` rules no longer sized it, and from the second update on the
+  player took the element's unstyled box. Updates run at most every 100 ms and once after the
+  last call: changes skipped inside a burst (a sidebar sliding shut) were never made up.
+- **`content.js` `PausedHolds`** - One WeakSet a player: a page that adds and drops media while
+  the player is up (ads, previews on hover) had each kept alive with its buffers. A WeakSet, not
+  WeakRefs: Firefox keeps an entry keyed by the content script's wrapper of a page element for
+  as long as the element lives.
+- **`content.js` `updateMiniPlayer`** - The miniplayer fits its share of the screen both ways: by
+  the wider side alone, a portrait player came out 853 px high on a 1920x1080 screen.
+- **`content.js` `startPagePlayer`** - Once per page: the background asks every 2 s, and a page
+  whose player does not load at once was clicked again each time. One ask looks for the video at
+  a time (a background tab answers visibility only every second or so; a second click paused
+  the player). The video is not muted: when FastStream did not take its stream after all, the
+  site's player stayed silent. A refused `play()` is tried again at the next ask.
+- **`content.js` `boxVisibleRatio`** - A box placed absolutely or fixed escapes the clips between
+  it and its containing block (for a fixed one a transform, a filter or containment, else the
+  viewport), as CSS draws it. A frame made in a hidden tab has a 0x0 viewport at first: until its
+  real one comes, what lies below and right of its top left corner counts. The clip is each
+  box's border box.
+- **`content.js` next episode** - `listsThisSeason` needs the previous episode, or two other
+  episodes of the season, linked: a season's first episode has no previous, and one other link
+  alone ("latest episode: 5") is no list. At a season's last episode, step 1b takes the next
+  season's episode 1 where the page links it, its episode this one +1 where the site numbers on
+  across seasons, else (where the page links the season or one of its episodes) this address with
+  the season one on; a linked "continue watching" episode 5 is no first. A later episode of this
+  season linked (a gap) is not a season's end. Step 3 leaves out links into a new tab: the next
+  episode there broke the chain.
+- **`content.js` `reportedVideoFiles`** - Firefox can play a file without a request the
+  background sees (a file an earlier page of the site played, served from its cache), and on a
+  site FastStream was already on for nothing asked the page, so the player never opened. Each
+  video's file is reported once at `loadedmetadata`; a blob: URL is no file. A video in a shadow
+  root not found yet is not heard (media events stay in their root); `loadedMedia` still finds it.
+- **`content.js` `listenedRoots`** - Media events are not composed, so a play inside a shadow root
+  never reached the document and the MPV shortcut ignored such players. The roots on the way to
+  what was clicked get the listener at once, every root on the page at most every 2 s.

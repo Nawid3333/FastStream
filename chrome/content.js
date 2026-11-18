@@ -1,5 +1,5 @@
 // @ts-check
-(() => { // Encapsulate the code to avoid polluting the global scope
+(() => {
   const MessageTypes = {
     OPEN_PLAYER: 'OPEN_PLAYER',
     GET_VIDEO_SIZE: 'GET_VIDEO_SIZE',
@@ -37,54 +37,30 @@
     HOLD_PAGE_MEDIA: 'HOLD_PAGE_MEDIA',
   };
 
-  /**
-   * What a video plays (playedVideo).
-   * @typedef {{src: string, duration: ?number, playing: string, time: number}} PlayedVideo
-   */
-  /**
-   * An element whose shadow root Firefox opens to a content script, closed or open.
-   * @typedef {Element & {openOrClosedShadowRoot?: ?ShadowRoot}} ShadowHost
-   */
-  /**
-   * The media pauseAllWithin holds paused, and the observer that finds new ones.
-   * @typedef {{observer: MutationObserver, held: WeakSet<HTMLMediaElement>}} PauseWatcher
-   */
+  /** @typedef {{src: string, duration: ?number, playing: string, time: number}} PlayedVideo */
+  /** @typedef {Element & {openOrClosedShadowRoot?: ?ShadowRoot}} ShadowHost */
+  /** @typedef {{observer: MutationObserver, held: WeakSet<HTMLMediaElement>}} PauseWatcher */
   /** @typedef {ReturnType<typeof setTimeout>} Timer */
 
   const iframeMap = new Map();
-  // The next episode carried a fullscreen over (background.mjs setCarriedFullscreen): the
-  // browser window is fullscreen and the player fills the page. Escape here, where the
-  // keyboard is after the page loaded, ends it as it ends a real fullscreen.
+  // A fullscreen carried over to the next episode: Escape here ends it.
   let carriedFullscreen = false;
   /** @type {ReplacedPlayer[]} */
   const replacedPlayerQueue = [];
   // Players laid over the whole page (a video that fills it), with their pause watchers.
   /** @type {Array<{iframe: HTMLIFrameElement, watcher: PauseWatcher, hidden: *}>} */
   const overlayPlayers = [];
-  // What fillScreenIframe changed: each element, with what it gets back. A Map, as each
-  // element is looked up in it: an array made a page of 30,000 elements take seconds on its
-  // main thread (an array lookup per element, and a splice per one undone). What holds the
-  // player gets its whole style attribute back ({style, filled}: property by property when
-  // the page wrote to it meanwhile, undoFillScreenIframe); a hidden element only its display
-  // ({display, priority}), as display is all that hid it: putting its whole old attribute
-  // back also put back the overlay guard's visibility: hidden, which the guard had given
-  // back meanwhile, and the element stayed hidden for good.
+  // A Map: looked up per element. A hidden element gets back only its display.
   const elementsChangedByFillscreen = new Map();
   const linkRequests = new Map();
   // Counts removePlayers(): an OPEN_PLAYER that a removal overtook puts no player in.
   let PlayersEpoch = 0;
   let MiniplayerCooldown = 0;
-  // Set when this frame is sent to the player (handlePlayerOpen's redirect). The frame is
-  // not going away: the player takes it over, and asks the background for the sources
-  // detected in it. 'sent', then 'leaving' from the redirect's beforeunload on; a second
-  // beforeunload is a leave of the page's own (the redirect's was cancelled: a "Leave page?"
-  // the user said no to), and ends it. Not a timer: an unload slower than one sent
-  // FRAME_REMOVED for the redirect, and the player got no sources.
+  // 'sent', then 'leaving' at the redirect's beforeunload; a second one is a leave of the page's
+  // own (the redirect was cancelled). Not a timer: a slow unload lost the player its sources.
   /** @type {false|'sent'|'leaving'} */
   let RedirectingToPlayer = false;
-  // This page's name, for the background to tell a player it opens from one a page this
-  // frame showed before opened (FRAME_ADDED, and the player URL's opener). Not
-  // crypto.randomUUID: it needs a secure context, and plain http pages are not one.
+  // Not crypto.randomUUID: that needs a secure context, and plain http pages are not one.
   const DocumentKey = Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => n.toString(36)).join('');
 
   // The resize observers' last update of the players, and the one due after a burst.
@@ -96,7 +72,6 @@
   };
 
   const {hostname} = window.location;
-  // If twitch.tv, or vimeo, disable soft replace by default
   if (hostname === 'twitch.tv' || hostname.endsWith('.twitch.tv') ||
       hostname === 'vimeo.com' || hostname.endsWith('.vimeo.com')) {
     Config.softReplaceByDefault = false;
@@ -112,8 +87,6 @@
         return;
       }
 
-      // Asked of each frame above a player as it opens: what this page lays over that
-      // iframe lies over the player too (overlay-guard.js).
       OverlayGuard.guard(iframeObj.iframe);
 
       const parents = getParentElementsWithSameBounds(iframeObj.iframe);
@@ -124,10 +97,7 @@
       }
       return;
     } else if (request.type === MessageTypes.RELEASE_OVERLAY_GUARD) {
-      // The player under that iframe went and the iframe stayed (its page went elsewhere, or
-      // took the player out): what this page lays over it is the page's own again
-      // (background.mjs, FRAME_REMOVED). Only the player's leaving page did it before
-      // (removePlayers), and the page's own menu over an embed stayed hidden.
+      // The player under that iframe went, and the iframe stayed.
       const iframeObj = iframeMap.get(request.frameId);
       if (iframeObj) OverlayGuard.release(iframeObj.iframe);
       return;
@@ -142,15 +112,13 @@
       sendResponse('ok');
       return;
     } else if (request.type === MessageTypes.HAS_PLAYER) {
-      // Sent to every frame of the tab; only a frame holding a player answers, so the
-      // background's first answer is a yes, and a tab without one answers nothing.
+      // Only a frame holding a player answers: a tab without one answers nothing.
       if (hasPlayerIframe()) {
         sendResponse(true);
       }
       return;
     } else if (request.type === MessageTypes.IS_PLAYER_OPENER) {
-      // Whether a player naming this frame as its parent was opened by this page: only
-      // this content script knows the page's name (background.mjs, PLAYER_LOADED).
+      // Only this content script knows the page's name.
       sendResponse(request.document === DocumentKey);
       return;
     } else if (request.type === MessageTypes.OPEN_PLAYER) {
@@ -175,8 +143,6 @@
       });
       return true;
     } else if (request.type === MessageTypes.GET_PAGE_QUALITIES) {
-      // The qualities the page's own player offers as files of their own (page-qualities.js),
-      // for the background to give the stream's player, and mpv, the one the user wants.
       /** @type {*[]} */
       let lists = [];
       try {
@@ -186,13 +152,11 @@
       }
       sendResponse(lists);
     } else if (request.type === MessageTypes.GET_PLAYED_VIDEO) {
-      // The asking player's, once it linked up with its iframe; before that, the latest
-      // replaced (one player opens per frame at a time, background.mjs openPlayer).
+      // Before the player linked up, the latest replaced (one player opens per frame at a time).
       const linked = iframeMap.get(request.frameId);
       sendResponse(replacedVideo(linked ? linked.replacedData : replacedPlayerQueue[replacedPlayerQueue.length - 1]));
     } else if (request.type === MessageTypes.REPORT_LOADED_MEDIA) {
-      // Sent to every frame when the background knows no stream of the tab: each answers
-      // with what it loaded, in a message of its own, which tells the background its frame.
+      // Each answers in a message of its own, which tells the background its frame.
       try {
         chrome.runtime.sendMessage({
           type: MessageTypes.LOADED_MEDIA,
@@ -227,11 +191,8 @@
       startPagePlayer().then(sendResponse, () => sendResponse(null));
       return true;
     } else if (request.type === MessageTypes.PAGE_TYPING) {
-      // Whether the user types in this page, or looks elsewhere: the next episode's player
-      // takes the keyboard only when not (main.mjs). The field
-      // with the focus inside a shadow root too (document.activeElement gives a web
-      // component's field as its host). An iframe with the focus counts too, a chat's or a
-      // comment box's, whose field this frame cannot see; not a player's, nor one it plays in.
+      // Whether the user types here: the next episode's player then leaves the keyboard alone. An
+      // iframe with the focus counts (a chat's, whose field this frame cannot see), not a player's.
       const active = /** @type {HTMLElement | null} */ (OverlayGuard.focused());
       sendResponse(document.visibilityState !== 'visible' ||
         !!active && (active.isContentEditable === true || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) ||
@@ -254,7 +215,6 @@
         return;
       }
 
-      // Find matched in replaced players
       const replacedIndex = replacedPlayerQueue.findIndex((player) => player.iframe === iframeElement);
       let replacedData = null;
       if (replacedIndex !== -1) {
@@ -284,9 +244,7 @@
         if (oldFrameObj.iframe !== iframeElement) {
           iframeElement.addEventListener('load', frameLoadListener);
         } else if (!newFrameObj.replacedData) {
-          // The same iframe again: its player loaded anew ("Reload Frame" on it). It still
-          // stands in for the page's element, which only the old entry knew how to give
-          // back: removePlayers left that element hidden, and its media paused, for good.
+          // The same iframe reloaded: only the old entry knows how to give its element back.
           newFrameObj.replacedData = oldFrameObj.replacedData;
         }
       } else {
@@ -294,8 +252,6 @@
       }
 
       iframeMap.set(request.frameId, newFrameObj);
-      // Watched while it is in the page too: taken out, it gives back what it took
-      // (checkPendingPlayers).
       watchRemovalOf(iframeElement);
       checkPendingPlayers();
 
@@ -303,10 +259,7 @@
     }
   });
 
-  // Player iframes put in the page whose players have not linked up yet (above), with the
-  // attempt OPEN_PLAYER named. A page that takes one out before that (a re-render) runs
-  // nothing in it to say so, and the background kept that frame's player opening
-  // (frame.playerOpening): no player opened there again until the page navigated.
+  // Player iframes not linked up yet: a page that takes one out runs nothing in it to say so.
   const pendingPlayers = new Map();
   /** @type {MutationObserver | null} */
   let pendingPlayersWatch = null;
@@ -318,8 +271,7 @@
   /**
    * Watches a player iframe until its player links up, or the page takes it out.
    * @param {HTMLIFrameElement} iframe - The player's iframe, in the page.
-   * @param {*} attempt - OPEN_PLAYER's attempt; nothing to report without one, but the
-   *   page still gets back what the player took (releaseRemovedPlayer).
+   * @param {*} attempt - OPEN_PLAYER's attempt.
    */
   function watchPendingPlayer(iframe, attempt) {
     pendingPlayers.set(iframe, attempt);
@@ -330,10 +282,7 @@
   let watchedRoots = new WeakSet();
 
   /**
-   * Has pendingPlayersWatch see a player iframe go: the page, and each shadow root it is in
-   * (a player put where the page's video was, in a web component): an observer of the page
-   * sees nothing of what changes inside one, and a component that re-rendered its own tree
-   * took the player out unseen.
+   * Observes each shadow root the iframe is in too: an observer of the page sees nothing in one.
    * @param {Element} iframe
    */
   function watchRemovalOf(iframe) {
@@ -377,16 +326,10 @@
         }
       }
     });
-    // A player that has linked up, which the page took out too (a re-render after the player
-    // came): the page's element stayed hidden and its media paused themselves on every play,
-    // until FastStream was turned off or the page navigated. Its
-    // element is given back now; the entry stays, so removePlayers still tells the background
-    // that the frame is gone, as before.
+    // A linked-up player the page took out (a re-render): its element is given back; the entry
+    // stays, for removePlayers.
     iframeMap.forEach((iframeObj) => {
       if (iframeObj.iframe.isConnected) return;
-      // Its miniplayer and its windowed fullscreen go too, as removePlayers does: the rest
-      // of the page stayed hidden, and a next player's windowed fullscreen left its own box
-      // hidden, the elements being changed already.
       unmakeMiniPlayer(iframeObj);
       if (iframeObj.windowedFullscreenState.active) {
         windowedFullscreenToggle(iframeObj);
@@ -404,10 +347,7 @@
   }
 
   /**
-   * Gives the page back what a player took, when the page took that player's iframe out
-   * before it linked up: its element shown again (a soft replace only hid it), the rest of
-   * the page an overlay hid, and its media free to play. All of it stayed until FastStream
-   * was turned off, with the page's video pausing itself on every play meanwhile.
+   * Gives the page back what a player took, when the page took its iframe out before it linked up.
    * @param {HTMLIFrameElement} iframe - The player's iframe, out of the page.
    */
   function releaseRemovedPlayer(iframe) {
@@ -425,7 +365,6 @@
 
   /** @param {Event} e */
   function frameLoadListener(e) {
-    // Find match in iframeMap
     const iframeElement = e.target;
     /** @type {*} */
     let frameObj = null;
@@ -449,13 +388,8 @@
   }
 
   /**
-   * Tells the background something, with no answer to wait for. Such a message rejects
-   * when the page goes away before the background has answered - the FRAME_REMOVED of a
-   * page being left ("Actor 'Conduits' destroyed") - or when nothing listens yet. Nothing
-   * waits for the answer, so that is not an error: unhandled, the rejection reached the
-   * page's console as one, and failed an e2e that watches for them (content-cleanup's Back
-   * case on Windows, 2026-10-01). tests/unit/contentMessages.test.mjs keeps every other
-   * sendMessage here with a callback.
+   * Tells the background something, with no answer to wait for. The rejection of a page that
+   * goes away meanwhile is caught: it reached the page's console as an error.
    * @param {*} message - The message.
    */
   function notifyBackground(message) {
@@ -501,12 +435,8 @@
   }
 
   /**
-   * The address a next or previous episode's link takes this frame to, as
-   * handlePlaylistNavigation follows it: the link's own address rather than a click, as
-   * hosters hang ad scripts on their links (a popup, or the episode in a new tab), and the
-   * chain broke. A link meant for another frame (_top, _parent, a name, also by the page's
-   * <base target>) and a button keep their click: none. One into a new tab
-   * (<base target="_blank">) opens here, in the chain's tab.
+   * The address of an episode link, followed instead of a click (hosters hang ad scripts on
+   * their links); none for a button or a link meant for another frame.
    * @param {*} button - getNextOrPreviousButton's.
    * @return {?string}
    */
@@ -520,11 +450,7 @@
   }
 
   /**
-   * The next and the previous episode's addresses (EPISODE_LINKS), for MPV autoplay to go on
-   * with once the tab is closed (background.mjs rememberEpisodeLinks): null for one this page
-   * has no link to (a button, or none). Only links within the page's own origin: the
-   * background opens one later in a tab nobody looks at, and a link to another site (an ad's)
-   * went there with the tab's cookies.
+   * The next and previous episode's addresses for MPV autoplay (EPISODE_LINKS), own origin only.
    * @param {*} request
    * @param {*} sender
    * @param {Function} sendResponse
@@ -566,8 +492,7 @@
       sendResponse({
         next: nextButton !== null,
         previous: previousButton !== null,
-        // No next: the series' last episode (autoplay stops and says so), or a page
-        // FastStream cannot read (a problem to note).
+        // No next: the series' last episode, or a page FastStream cannot read.
         seriesEnd: nextButton === null && isSeriesEnd(),
       });
     } catch (e) {
@@ -594,10 +519,7 @@
    * @param {Function} sendResponse
    */
   function handlePlayerOpen(request, sender, sendResponse) {
-    // The video is found by its visibility, which can take a second (a background tab's
-    // IntersectionObserver): players removed meanwhile (the page went on to another address)
-    // gave the page back, and this then put its player in anyway (glm's second look,
-    // 2026-10-13).
+    // Players removed while the video was looked for: this puts no player in.
     const epoch = PlayersEpoch;
     getVideo().then((video) => {
       if (epoch !== PlayersEpoch) {
@@ -611,8 +533,6 @@
 
       const playerFillsScreen = video?.highest?.tagName === 'BODY';
       const newURL = new URL(request.url);
-      // Which page opened it: a reload can take this page away while the player still
-      // starts (background.mjs, PLAYER_LOADED).
       newURL.searchParams.set('opener', DocumentKey);
       if (!video || playerFillsScreen) {
         if (!document.fullscreenEnabled && !request.noRedirect) {
@@ -627,11 +547,8 @@
           newURL.searchParams.set('parent_frame_id', request.frameId);
           iframe.src = newURL.href;
           iframe.allowFullscreen = true;
-          // speaker-selection: the player's choice of audio output (AudioOutputDevice.mjs); without
-          // it Firefox refuses selectAudioOutput and setSinkId in the frame.
           iframe.allow = 'autoplay; fullscreen; picture-in-picture; speaker-selection';
           const watcher = pauseAllWithin(document.body);
-          // Remove everything from the document
           document.body.appendChild(iframe);
           const hidden = fillScreenIframe(iframe);
           overlayPlayers.push({iframe, watcher, hidden});
@@ -640,11 +557,8 @@
         }
       } else {
         const softReplace = request.softReplace || Config.softReplaceByDefault;
-        // copy styles
         const iframe = document.createElement('iframe');
         iframe.allowFullscreen = true;
-        // speaker-selection: the player's choice of audio output (AudioOutputDevice.mjs); without
-        // it Firefox refuses selectAudioOutput and setSinkId in the frame.
         iframe.allow = 'autoplay; fullscreen; picture-in-picture; speaker-selection';
         iframe.style.display = 'none';
         newURL.searchParams.set('parent_frame_id', request.frameId);
@@ -665,9 +579,7 @@
           old: video.highest,
           softReplace,
         };
-        // The video itself, for the stream it played (GET_PLAYED_VIDEO). A site's own query
-        // may have found its player's box: the one video in it, and none when there are
-        // more, an ad's or a preview's among them as likely as not.
+        // The video itself, for GET_PLAYED_VIDEO; in a box with more than one, none.
         const inBox = /** @type {HTMLVideoElement[]} */ (video.highest.tagName === 'VIDEO' ? [video.highest] :
           querySelectorAllIncludingShadows('video', video.highest));
         pobj.video = video.video || (inBox.length === 1 ? inBox[0] : null);
@@ -683,9 +595,7 @@
           for (let i = 1; i <= 8; i++) {
             ((i) => {
               setTimeout(() => {
-                // The check for a page element that collapsed (makeSoftIntoHard) sees only
-                // players that linked up. One that has not yet (a slow start) gets it when it
-                // does, in the link handler; it used to get none.
+                // A player not linked up yet gets this check when it links up.
                 if (i === 4 && replacedPlayerQueue.includes(pobj)) {
                   pobj.convertDue = true;
                 }
@@ -695,17 +605,12 @@
           }
         }
 
-        // Add resize listener
         pobj.resizeObserver = new ResizeObserver(updateReplacedPlayersSoon);
-        // An element: a video straight in a shadow root put the player there, with the root
-        // as its parent, which a ResizeObserver refuses. The throw left the player without
-        // one: it followed the window's size, but not its box on the page.
+        // An element: a ResizeObserver refuses a shadow root, the parent of a video straight in one.
         pobj.resizeObserver.observe(iframe.parentElement || /** @type {ShadowRoot} */ (iframe.parentNode).host);
       }
     }).catch((e) => {
-      // Whatever went wrong, the background hears back: without an answer it kept the
-      // frame's player opening, and opened no player there again until a navigation. A
-      // second answer, after one already given, is ignored.
+      // The background must hear back, or it keeps the frame's player opening.
       console.error(e);
       sendResponse('error');
     });
@@ -735,7 +640,6 @@
   function handleWindowedFullscreen(request, sender, sendResponse) {
     const iframeObj = iframeMap.get(request.frameId);
     if (!iframeObj) {
-      // Answered; throwing on top only put an uncaught error in the page's console.
       sendResponse('no_element');
       console.error('No element found for frame id ' + request.frameId);
       return;
@@ -792,14 +696,13 @@
         toggleMiniPlayer(iframeObj);
       }
     } catch (e) {
-      // Whatever went wrong, the player hears back; a throw here left it unanswered.
+      // The player must hear back.
       console.error(e);
       sendResponse('error');
       return;
     }
 
     if (miniplayerState.active && request.autoExit) {
-      // if placeholder is visible again
       const observer = new IntersectionObserver(async ([entry]) => {
         if (entry.intersectionRatio > 0.3 && miniplayerState.active) {
           observer.disconnect();
@@ -816,8 +719,7 @@
           }
         }
       }, {
-        // 0.3: an entry comes only where the ratio crosses one of these, and the test above
-        // is > 0.3 - with 0.25 and 0.5 alone it fired only half way back
+        // 0.3 too: an entry comes only where the ratio crosses one, and the test above is > 0.3.
         threshold: [0, 0.25, 0.3, 0.5],
       });
       observer.observe(miniplayerState.placeholder);
@@ -853,11 +755,8 @@
   }
 
   /**
-   * Whether an element is the one in fullscreen, asked of the tree it is in. For an iframe
-   * in a shadow root (an embed's, which the frame links find in closed roots too), the
-   * document's fullscreenElement is the root's host; the root's own is the iframe. Compared
-   * with the document's, the toggle entered fullscreen again instead of leaving it, and
-   * fullscreenchange told the player it had left as it entered.
+   * Whether an element is in fullscreen, asked of its own tree: for an iframe in a shadow root,
+   * the document's fullscreenElement is the host.
    * @param {Element} element
    * @return {boolean}
    */
@@ -900,9 +799,7 @@
       /** @type {Promise<void>} */ (element.requestFullscreen()).then(() => {
         sendResponse('enter');
       }).catch((e) => {
-        // Refused (no user gesture, an iframe the page took out): the player hears 'error'.
-        // Rethrown, it was an unhandled rejection besides. Not fullscreen, as the page is:
-        // left "on", the next toggle went the wrong way.
+        // Refused (no user gesture): the player hears 'error', and the state follows the page.
         fullscreenState.active = isFullscreenElement(element);
         console.error(e);
         sendResponse('error');
@@ -911,15 +808,9 @@
     return true;
   }
 
-  // The text tracks a <track> element can carry that are meant to be read on screen.
-  // 'subtitles' is also what a <track> with no kind attribute reports, which is how most
-  // pages write them.
+  // 'subtitles' is also what a <track> with no kind attribute reports.
   const ScrapedTrackKinds = ['subtitles', 'captions'];
-  // What one reading of a page's tracks takes at most. A subtitle file is kilobytes, a
-  // typeset one a few megabytes, and a page has a few dozen at most; all of it goes to the
-  // background, which keeps it with the frame. Without a bound a page could send any number
-  // of files of any size at each new stream. Past the bytes, a track
-  // is given up as a failed request is.
+  // Bounds on one reading of the page's tracks, all of which go to the background.
   const ScrapedTracksMax = 64;
   const ScrapedBytesMax = 64 * 1024 * 1024;
 
@@ -929,9 +820,7 @@
    * @param {Function} sendResponse
    */
   function handleCaptionsScrape(request, sender, sendResponse) {
-    // Every track is counted before any is asked for: a request that fails at once (a src
-    // XMLHttpRequest refuses) answers inside the loop, and the answer went out then, with
-    // the tracks after it never asked for.
+    // All counted before any is asked for: a request can fail at once, inside the loop.
     const trackElements = /** @type {HTMLTrackElement[]} */ (querySelectorAllIncludingShadows('track'))
         .filter((track) => track.src && ScrapedTrackKinds.includes(track.kind))
         .slice(0, ScrapedTracksMax);
@@ -963,15 +852,12 @@
   }
 
   /**
-   * Pauses every playing media element in this frame. Used when a stream is
-   * handed off to mpv: the page keeps buffering (and making noise) otherwise,
-   * and the user would have to come back to the tab just to stop it.
+   * Pauses every playing media element in this frame, for a stream handed to mpv.
    * @return {number} How many elements were paused.
    */
   function pauseAllMedia() {
     let paused = 0;
-    // Shadow roots too, closed ones as well: a player built as a web component keeps its
-    // <video> in one.
+    // Closed shadow roots too: a web-component player keeps its <video> in one.
     /** @type {HTMLMediaElement[]} */ (querySelectorAllInAllShadows('video, audio', document.documentElement)).forEach((media) => {
       try {
         if (!media.paused && !playsLiveStream(media)) {
@@ -986,9 +872,7 @@
   }
 
   /**
-   * Whether a media element plays a MediaStream (srcObject): a call's or a camera's, live.
-   * Neither mpv's pause nor the hold below is for it: a watch party's voice chat in the
-   * same tab fell silent, and again on every play, while FastStream's player played.
+   * Whether a media element plays a MediaStream (srcObject): a call's, which is never paused.
    * @param {HTMLMediaElement} media - The element.
    * @return {boolean}
    */
@@ -996,10 +880,7 @@
     return typeof MediaStream !== 'undefined' && media.srcObject instanceof MediaStream;
   }
 
-  // While a FastStream player in this tab plays, the page's own media stays paused
-  // (HOLD_PAGE_MEDIA, sent to every frame by the background). Opening the player pauses
-  // only what is inside the box it takes over (pauseAllWithin): a site's player outside
-  // it, or in another frame, played on under FastStream's, and both were heard.
+  // HOLD_PAGE_MEDIA: the page's media stays paused while a player in this tab plays.
   let pageMediaHeld = false;
 
   /**
@@ -1026,16 +907,11 @@
   function removePlayers() {
     PlayersEpoch++;
     MiniplayerCooldown = Date.now() + 1000;
-    // The players go, and with them the reason to hold the page's media. (Keeping the hold
-    // and the guards over a site's embed whose player stays up through a URL change was
-    // tried on 2026-10-04 and reverted the same night: the page is given back on a URL
-    // change, content-overlays.e2e.mjs "hides the embedding page's bar...".)
     pageMediaHeld = false;
     OverlayGuard.releaseAll();
     iframeMap.forEach((iframeObj) => {
       unmakeMiniPlayer(iframeObj);
-      // The iframe's own style too, which only leaving windowed fullscreen gives back: an
-      // embed iframe holding the player stayed fixed over the whole page.
+      // Only leaving windowed fullscreen gives the iframe its own style back.
       if (iframeObj.windowedFullscreenState.active) {
         windowedFullscreenToggle(iframeObj);
       }
@@ -1056,10 +932,7 @@
     });
     overlayPlayers.length = 0;
 
-    // Every player iframe now out of the page, overlays too: taking an iframe out runs
-    // no beforeunload in it, so the background kept its frame as a player's, dropped the
-    // streams of that frame and opened no player on the page, until a navigation. Each
-    // is reported once.
+    // Taking an iframe out runs no beforeunload in it: each one gone is reported here, once.
     iframeMap.forEach((iframeObj, frameId) => {
       if (!iframeObj.iframe.isConnected) {
         iframeMap.delete(frameId);
@@ -1072,10 +945,8 @@
   }
 
   /**
-   * Puts the page's own element back where a player replaced it, and lets its media play
-   * again. The page may have taken the player's iframe out itself (a re-render): remove()
-   * and replaceWith() do nothing for a detached iframe, where removeChild on its missing
-   * parent threw and left the rest of the cleanup undone.
+   * Puts the page's own element back where a player replaced it, and lets its media play again.
+   * The iframe may be out of the page already: remove() and replaceWith() do nothing then.
    * @param {ReplacedPlayer} replacedData - The replacement, from handlePlayerOpen.
    */
   function restoreReplaced(replacedData) {
@@ -1087,9 +958,6 @@
     } else {
       iframe.replaceWith(old);
     }
-    // transferStyles gave the iframe the element's id, so the page's CSS for it applied to
-    // the player. The element gets it back; it used to keep none, and the page's own rules
-    // and scripts for it stopped working until a reload.
     transferId(iframe, old);
     restoreTransition(old);
     stopPausing(replacedData.watcher);
@@ -1102,15 +970,12 @@
     if (miniplayerState.active) {
       const placeholder = miniplayerState.placeholder;
       const element = miniplayerState.element;
-      // A placeholder without a size (inside a hidden part of the page) has no shape to
-      // keep: the sizes were NaN, or a miniplayer 0 px high.
+      // A placeholder without a size (in a hidden part of the page) has no shape to keep.
       let aspectRatio = placeholder.clientWidth / placeholder.clientHeight;
       if (!(aspectRatio > 0 && aspectRatio < Infinity)) {
         aspectRatio = 16 / 9;
       }
-      // Within its share of the screen both ways: by the wider of the two, a portrait
-      // player's (a quarter of a 1920x1080 screen) came out 853 px high (glm's second look,
-      // 2026-10-13).
+      // Within its share of the screen both ways, for a portrait player too.
       const newWidth = Math.min(Math.min(window.screen.width, window.screen.height * aspectRatio) * miniplayerState.size, document.body.clientWidth);
       const newHeight = newWidth / aspectRatio;
       element.style.setProperty('width', newWidth + 'px', 'important');
@@ -1137,24 +1002,18 @@
       return;
     }
 
-    // The page took the player's iframe out (a re-render): there is nothing to shrink, and
-    // the placeholder had no parent to go into.
+    // The page took the iframe out (a re-render): nothing to shrink.
     if (!iframeObj.iframe.isConnected) {
       return;
     }
 
     miniplayerState.active = true;
 
-    // Up to the body, not the body itself: a wrapper that came to fill it made the body the
-    // miniplayer, with a second <body> put in before it as its placeholder.
+    // Not the body itself: a wrapper filling it made the body the miniplayer.
     const parentElementsWithSameBounds = getParentElementsWithSameBounds(iframeObj.iframe)
         .filter((parent) => parent.tagName !== 'BODY');
     const element = parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : iframeObj.iframe;
-    // Of the element's own tag, so the page's rules for it (margins) hold the page's layout
-    // as the element did. Not for the player's iframe, nor a site's custom element: a new
-    // iframe was a browsing context of its own (about:blank) for each miniplayer, and a
-    // custom element ran the site's own code again (its constructor, its connectedCallback
-    // once put in), a second copy of its player. transferStyles sizes the <div> as it did.
+    // Never a new iframe or a custom element: either started a second player.
     const placeholder = document.createElement(element.tagName === 'IFRAME' || element.tagName.includes('-') ? 'div' : element.tagName);
 
     miniplayerState.element = element;
@@ -1241,9 +1100,7 @@
       windowedFullscreenState.active = false;
       iframeObj.iframe.setAttribute('style', windowedFullscreenState.oldStyle);
       undoFillScreenIframe(windowedFullscreenState.fillScreenWhitelist);
-      // Fitted at once: it waited a second, with the player at the size it had before.
-      // Again a second later, for a page whose own scripts lay
-      // it out once it has its styles back.
+      // Again a second later, for a page whose scripts lay it out once it has its styles back.
       updateReplacedPlayers();
       setTimeout(() => {
         updateReplacedPlayers();
@@ -1259,10 +1116,7 @@
         if (old.style !== undefined && element.getAttribute('style') === old.filled) {
           element.setAttribute('style', old.style);
         } else if (old.style !== undefined) {
-          // The page wrote to it meanwhile (its framework drew it again): put back, its whole
-          // old attribute undid what the page wrote while the player filled the screen.
-          // Now what the fill set goes back to what was there before,
-          // property by property, and what the page wrote stays.
+          // The page wrote to it meanwhile: what the fill set goes back, what the page wrote stays.
           const before = document.createElement('div').style;
           before.cssText = old.style;
           const filled = document.createElement('div').style;
@@ -1319,13 +1173,10 @@
     if (!skipHide) {
       const elementsToHide = [];
       const elementsToExpand = [];
-      // What the player is drawn inside, shadow roots and the slots that show it included:
-      // a web-component player's host was expanded, but the bar next to the player in its
-      // shadow root was never hidden (#233).
+      // Shadow roots and slots included: a web-component player's bar sits next to it.
       const trace = new Set(flatTreeParents(iframe));
 
-      // Gather all elements not parents of the iframe. Every element of the page, those in
-      // shadow roots (open or closed) too, each root's after its host.
+      // Every element but the iframe's parents, in shadow roots too, each root's after its host.
       const elements = OverlayGuard.allElements();
       for (let i = 0; i < elements.length; i++) {
         const element = /** @type {HTMLElement} */ (elements[i]);
@@ -1392,9 +1243,7 @@
     return /** @type {Element[]} */ (addedElements);
   }
 
-  // hideSoft and showSoft switch the element's transitions off, so the size changes they
-  // make don't animate. The page's own transition is kept until the element is given
-  // back (restoreTransition); it used to stay "none !important" for good.
+  // hideSoft and showSoft switch transitions off; the page's own comes back with the element.
   /** @param {HTMLElement} player */
   function rememberTransition(player) {
     if (!('fsTransition' in player.dataset)) {
@@ -1419,21 +1268,14 @@
     }
   }
 
-  // What hideSoft sets on the page's element: no size, nothing drawn outside it, and no share
-  // of a flex box. A flex item's size is its share, not its width or height: on bilibili
-  // (`flex: 1 1 0%` in a column) the hidden element kept half the box, and the player, which
-  // takes the element's classes, got the other half.
+  // No size, no overflow, no flex share: a flex item's size is its share (`flex: 1 1 0%`).
   /** @type {Object<string, string>} */
   const SoftHidden = {'width': '0px', 'height': '0px', 'overflow': 'hidden', 'margin': '0px', 'contain': 'paint',
     'flex-grow': '0', 'flex-basis': '0px'};
 
   /**
-   * The page's own inline values of those, with their priority, per element until it is
-   * given back (forgetSoft). Kept here, not in the page's DOM (data-old-width and the like):
-   * a page that changed the attribute could leave its element hidden for good. A value equal
-   * to the hidden one (overflow: hidden, margin: 0) was never saved and showSoft cleared it,
-   * the saves were never deleted (a later replace restored a stale one), and !important was
-   * lost.
+   * The page's own inline values of those, with their priority, until the element is given back.
+   * Kept here, not in the page's DOM, which the page can change.
    * @type {WeakMap<HTMLElement, Object<string, string[]>>}
    */
   const softSaves = new WeakMap();
@@ -1450,8 +1292,7 @@
   /** @param {HTMLElement} player */
   function hideSoft(player) {
     rememberTransition(player);
-    // Saved at the first hide, and again at each later one where the value is no longer the
-    // hidden one: what the page set while its element was hidden is its newest wish.
+    // Saved again where the value is no longer the hidden one: the page's newest wish.
     const saved = softSaves.get(player) || {};
     softSaves.set(player, saved);
     for (const name of Object.keys(SoftHidden)) {
@@ -1465,15 +1306,13 @@
     player.style.setProperty('transition', 'none', 'important');
   }
 
-  // The saved values back - each only while it is still the hidden one: a value the page set
-  // meanwhile is the page's newer one. The save stays for the next hideSoft (a measurement).
+  // Each saved value back only while it is still the hidden one; the save stays.
   /** @param {HTMLElement} player */
   function showSoft(player) {
     rememberTransition(player);
     player.style.setProperty('transition', 'none', 'important');
     const saved = softSaves.get(player);
-    // Not hidden yet (the first measurement shows it before hiding it): a value equal to the
-    // hidden one is the page's own, e.g. margin: 0 !important.
+    // Not hidden yet: a value equal to the hidden one is the page's own (margin: 0 !important).
     if (!saved) {
       return;
     }
@@ -1495,13 +1334,7 @@
     softSaves.delete(player);
   }
 
-  /**
-   * Updates the replaced players for a resize: at most every 100 ms, and once more 100 ms
-   * after the last call. The changes skipped inside a burst (a sidebar sliding shut) were
-   * never made up, and the player kept a size from the middle of it; a window being resized
-   * updated them on every event, putting a hard-replaced page video back into the page to
-   * measure it each time.
-   */
+  /** Updates the replaced players for a resize: at most every 100 ms, and once after the last call. */
   function updateReplacedPlayersSoon() {
     clearTimeout(/** @type {Timer} */ (resizeTrailing));
     const now = performance.now();
@@ -1525,8 +1358,7 @@
           fillScreenIframe(iframe, true);
         } else if (iframeObj.miniplayerState.active) {
           const placeholder = iframeObj.miniplayerState.placeholder;
-          // The placeholder holds the element's id only when it stands in for the player's
-          // iframe. One for a wrapper around it holds the wrapper's.
+          // The placeholder holds the id only when it stands in for the player's iframe itself.
           updateReplacedPlayer(old, placeholder, softReplace, iframeObj.miniplayerState.element === iframe);
           placeholder.style.setProperty('background-color', 'black', 'important');
         } else {
@@ -1554,16 +1386,11 @@
    */
   function updateReplacedPlayer(old, iframe, softReplace, holdsId = true) {
     const parent = iframe.parentNode;
-    // A hard-replaced player the page took out has nowhere to measure the page's element:
-    // insertBefore on the missing parent threw, on every resize, and the players after it
-    // in iframeMap were never updated.
+    // Nowhere to measure: insertBefore on the missing parent throws.
     if (!softReplace && !parent) {
       return 0;
     }
-    // Put back if measuring throws (the page's DOM refusing a node, a page script it starts):
-    // only transferStyles shows the player again, and a throw before it left the player hidden
-    // for good, with a soft replace the page's own element shown, and a hard one's stand-in in
-    // the page.
+    // Put back if measuring throws: only transferStyles shows the player again.
     const style = iframe.getAttribute('style');
     const id = iframe.id;
     let shownSoft = false;
@@ -1575,10 +1402,7 @@
       if (softReplace) {
         showSoft(old);
         shownSoft = true;
-        // Measured with its id, as a hard replace is: transferStyles handed it to the iframe,
-        // and without it the page's #id rules no longer sized or placed the element. From the
-        // second update on (the resize observer's first call), the player took the element's
-        // unstyled box: the page's whole width, below the page's content.
+        // With its id: the page's #id rules size and place the element.
         if (holdsId) {
           transferId(iframe, old);
         }
@@ -1586,10 +1410,7 @@
         hideSoft(old);
         shownSoft = false;
       } else {
-        // The page's own element went back into the page for every measurement (every
-        // resize): its observers and custom-element callbacks ran each time, and a <video
-        // autoplay> in it started loading again (#228). A stand-in sized by the same rules is
-        // measured instead, once it measured as the element did.
+        // A stand-in, not the page's element: putting that back runs the page's code for it.
         let fits = standInFits.get(old);
         if (fits === undefined) {
           fits = standInMeasuresAs(old, /** @type {ParentNode} */ (parent), iframe);
@@ -1628,9 +1449,7 @@
   const standInFits = new WeakMap();
 
   /**
-   * An empty element the page's CSS sizes as it sizes `old`: the same tag and attributes
-   * (classes, inline style, data-*), but nothing inside, no id (the measurement lends it
-   * the id) and no inline handlers.
+   * An empty element the page's CSS sizes as `old`: same tag and attributes, no children, id or handlers.
    * @param {Element} old - The page's element.
    * @return {?Element} null when no stand-in can be sized like it.
    */
@@ -1649,9 +1468,7 @@
   }
 
   /**
-   * Measures the page's element where the player is, once, and a stand-in in the same
-   * place: a box that comes from what is inside (an aspect ratio its video gives it, text)
-   * makes the stand-in's differ, and then the element itself goes on being measured.
+   * Measures the element and a stand-in once in the player's place: content can size the element.
    * @param {Element} old - The page's element, out of the page.
    * @param {Node} parent - Where the player is.
    * @param {Element} iframe - The player.
@@ -1677,18 +1494,13 @@
       Math.abs(real.width - stood.width) < 0.5 && Math.abs(real.height - stood.height) < 0.5;
   }
 
-  // The media each player up holds paused (pauseAllWithin), one WeakSet a player: weakly,
-  // as a page that adds and drops media while the player is up (ads, previews on hover)
-  // had every one kept alive here, with its buffers, until the player went.
-  // A WeakSet, not WeakRefs: Firefox keeps an entry whose key is the
-  // content script's wrapper of a page element for as long as the element lives.
+  // Weak: pages add and drop media while a player is up (ads, previews on hover).
   /** @type {Set<WeakSet<HTMLMediaElement>>} */
   const PausedHolds = new Set();
 
   /** @this {HTMLMediaElement} */
   function pauseOnPlay() {
-    // Only while a player holds it: a medium the page took out keeps this listener after
-    // the player goes (stopPausing takes it off those still in the page).
+    // A medium the page took out keeps this listener after the player goes.
     if (![...PausedHolds].some((held) => held.has(this))) return;
     // A call's live stream plays on (playsLiveStream), also one given its stream later.
     if (!playsLiveStream(this)) this.pause();
@@ -1702,8 +1514,6 @@
     /** @param {HTMLMediaElement} media */
     const hook = (media) => {
       try {
-        // Not a call's live stream: a watch party's voice chat fell silent under a player
-        // over the whole page, as every other pause here already knew (playsLiveStream).
         if (!playsLiveStream(media)) media.pause();
       } catch (e) {
         console.error(e);
@@ -1712,14 +1522,12 @@
       held.add(media);
     };
 
-    // Its sounds too, as for the ones added later: an <audio> already there played on
-    // under the player. In closed shadow roots too, as pauseAllMedia looks: one there played on.
+    // Its sounds too, in closed shadow roots as well.
     /** @type {HTMLMediaElement[]} */ (querySelectorAllInAllShadows('video, audio', element)).forEach(hook);
     // The element itself when it is the page's video: querySelectorAll lists only what is below.
     if (element.tagName === 'VIDEO' || element.tagName === 'AUDIO') hook(/** @type {HTMLMediaElement} */ (element));
 
-    // Add mutation observer to pause videos added later: added themselves, or inside an
-    // added subtree, as a re-render of the page's player puts them.
+    // Media added later: themselves, or inside an added subtree (a re-render).
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.type === 'childList') {
@@ -1743,9 +1551,7 @@
   }
 
   /**
-   * Lets go of what a player held paused, wherever the page has moved it by then. The
-   * cleanup used to unhook the videos still inside the player's element only, which left
-   * an <audio> added meanwhile pausing itself on every play, for good.
+   * Lets go of what a player held paused, wherever the page has moved it by then.
    * @param {PauseWatcher} watcher
    */
   function stopPausing(watcher) {
@@ -1814,18 +1620,12 @@
     }
   }
 
-  // The background opens the player only once the page's tracks have been read (see
-  // handleCaptionsScrape), so a track whose server never answers must not be waited on:
-  // without a timeout that request hung, and the player with it. What gives a request up
-  // is a stall - this long with no byte arriving - so a large track on a slow connection
-  // still loads, up to the total, which also bounds one that only trickles.
+  // A track whose server never answers must not hold up the player: a stall gives it up.
   const HttpRequestStallMs = 2000;
   const HttpRequestTimeoutMs = 10000;
 
   /**
-   * A copy of SubtitleUtils.decodeSubtitleBytes (a classic script cannot import it; a unit
-   * test keeps the two the same): a subtitle file's bytes as text, in the older encoding of
-   * the browser's language when they are no UTF-8.
+   * A copy of SubtitleUtils.decodeSubtitleBytes: a classic script cannot import it.
    * @param {ArrayBuffer|ArrayBufferView} data - The file's bytes.
    * @param {?string} [contentType] - The Content-Type it came with over HTTP, if any.
    * @return {string} The file's text.
@@ -1873,8 +1673,7 @@
     }
   }
 
-  // Answers with the response's text, read as a subtitle file (decodeSubtitleBytes): its one
-  // use is the page's subtitle files, which can be Windows-1252.
+  // Answers with the response's text, read as a subtitle file (decodeSubtitleBytes).
   /**
    * @param {string} url - What to ask for, with a GET.
    * @param {Function} callback - Called with the error (true, or none), the response, and
@@ -1883,10 +1682,7 @@
    *   whose body goes past it is given up, as a failed one. A failed one gives its bytes back.
    */
   function httpRequest(url, callback, budget) {
-    // The whole request has
-    // HttpRequestTimeoutMs; it stops when nothing has come for HttpRequestStallMs, before
-    // the headers or between pieces of the body. A failed or stopped request calls back
-    // as a status other than 200 did, with no response.
+    // Stops when nothing has come for HttpRequestStallMs; the whole request has HttpRequestTimeoutMs.
     const stall = new AbortController();
     /** @type {Timer|undefined} */
     let stallTimer;
@@ -1930,8 +1726,7 @@
       const bytes = await new Blob(chunks).arrayBuffer();
       return [undefined, response, decodeSubtitleBytes(bytes, response.headers.get('Content-Type'))];
     };
-    // The callback runs outside the catch: one that throws is not a failed request. A failed
-    // one gives what it read back to the others, which read at the same time.
+    // The callback runs outside the catch: one that throws is not a failed request.
     load().catch(() => {
       budget.left += read;
       return [true, undefined, false];
@@ -1942,9 +1737,7 @@
   }
 
   /**
-   * Whether this frame's document holds a FastStream player iframe, loaded or still
-   * loading. Read from the page, not from iframeMap: a player is linked there only once
-   * it has loaded.
+   * Whether this frame holds a player iframe, loaded or loading (iframeMap has only loaded ones).
    * @return {boolean}
    */
   function hasPlayerIframe() {
@@ -1988,11 +1781,7 @@
       }
     });
 
-    // The element's own shadow root too: querySelectorAll('*') lists only what is below
-    // it. A page that re-renders its player as a custom element with its <video> in its
-    // shadow root added it while FastStream's player was up, and pauseAllWithin's observer,
-    // which looks inside each added element, never paused it. Last, so what the walk above
-    // found keeps its place.
+    // The element's own shadow root too (a re-rendered custom element's <video>); last, so order holds.
     const own = shadowOf(/** @type {Element} */ (currentElement));
     if (own) {
       querySelectorAllIncludingShadows(query, own, results, shadowOf);
@@ -2002,13 +1791,8 @@
   }
 
   /**
-   * querySelectorAllIncludingShadows into closed shadow roots as well, which Firefox opens
-   * to a content script (openOrClosedShadowRoot; shadowRoot is null for a closed one). For
-   * what is paused or looked up there - the page's media, a frame's iframe - not for where
-   * a player goes. The listeners for a play already went into closed roots
-   * (listenInShadowRoots), so a play there was heard, and sent to mpv, but nothing paused
-   * it: it played on beside mpv (PAUSE_MEDIA) and under FastStream's player
-   * (HOLD_PAGE_MEDIA), and an embed's iframe in one never linked up.
+   * querySelectorAllIncludingShadows into closed shadow roots too: for what is paused or looked
+   * up there, not for where a player goes.
    * @param {string} query - The selector.
    * @param {?Element|DocumentFragment} [root] - Where to look; the body by default.
    * @return {Element[]}
@@ -2042,14 +1826,7 @@
   }
 
   /**
-   * How much of an element is on screen, 0 to 1. In a hidden document (a background tab)
-   * the element's box stands in for the browser's measure, which there is no answer
-   * (MPV autoplay went on to the next episode in a background tab,
-   * and its hoster's player was never started). Measured in Firefox 158: a cross-site frame
-   * made in a hidden tab has a 0x0 viewport, and IntersectionObserver gives everything in it
-   * 0 until the tab is shown; and a hidden tab measures on a timer that slows each time
-   * (1 s, 7 s, 15 s, 32 s), so even the page's own answer came after the background's
-   * 3 s (FrameAnswerWaitMs).
+   * How much of an element is on screen, 0 to 1; in a hidden document by its box (boxVisibleRatio).
    * @param {Element} domElement
    * @return {Promise<number>}
    */
@@ -2067,15 +1844,8 @@
   }
 
   /**
-   * isVisible's measure in a hidden document: the part of the element's box inside the
-   * frame's viewport and inside each box above it that clips (overflow other than visible,
-   * or paint containment), as IntersectionObserver has it: a video parked off-screen, or in a
-   * box of no height, as an ad's may be, is 0. A box placed absolutely or fixed escapes the
-   * clips between it and the box that places it (its containing block; for a fixed one a
-   * transform, a filter or containment, else the viewport), as CSS draws it (glm's review,
-   * 2026-10-27). A frame made in a hidden tab has a 0x0 viewport at first (its real one came
-   * within 3 s, measured): until then, what lies below and right of its top left corner counts.
-   * The clip is each box's border box, a border's width wider than the browser's.
+   * isVisible's measure in a hidden document: the box's part inside the viewport and inside each
+   * box above it that clips, as IntersectionObserver has it.
    * @param {Element} element
    * @return {number} 0 to 1.
    */
@@ -2134,7 +1904,6 @@
     const parentRect = parentElement.getBoundingClientRect();
     const childRect = childElement.getBoundingClientRect();
 
-    // Check if child element has fixed position
     if (parentStyle.position === 'fixed') {
       return false;
     }
@@ -2154,7 +1923,6 @@
       return true;
     }
 
-    // Check if parent element is overflow hidden and child element can cover the parent element
     if (parentStyle.overflow === 'hidden') {
       if (childRect.x <= parentRect.x &&
         childRect.y <= parentRect.y &&
@@ -2223,22 +1991,13 @@
   }
 
   /**
-   * Starts the page's own player, when it waits for a click before it loads its video. The
-   * background asks for it after FastStream went on to the next episode by itself (the
-   * player's autoplay next): a hoster's player sat idle on the next episode's page
-   * (a series site's VOE, a JW Player, 2026-10-11), FastStream had nothing to play, and
-   * the user had to click. Started here, it loads its stream, FastStream takes that, and
-   * its own player plays it: an extension page may play sound without a click.
-   * Once per page: the background asks again every 2 s, and a page whose player does not
-   * load at once (an overlay it opens, a request it waits for) was clicked again each time.
+   * Starts the page's own player when it waits for a click, after an autoplay next. Once per page.
    * @return {Promise<?string>} What was done, or null.
    */
   async function startPagePlayer() {
     // Started already, or FastStream's player is in this frame.
     if (pagePlayerStarted || iframeMap.size > 0 || pendingPlayers.size > 0) return null;
-    // The players' own APIs first: their play() loads the stream the way their button does,
-    // and a click on them can land on an ad's layer. The page's objects, through the content
-    // script's view of the page (Firefox's Xray waiver).
+    // The players' own APIs first: a click can land on an ad's layer.
     const page = /** @type {Window & {wrappedJSObject?: *}} */ (window).wrappedJSObject;
     try {
       // JW Player, as most hosters have it: idle until played.
@@ -2271,9 +2030,7 @@
     } catch (e) {
       // As above.
     }
-    // The video is found by its visibility, which a background tab tells only every second or
-    // so (IntersectionObserver), and the background asks every 2 s: a second ask meanwhile
-    // clicked the play button again, and the player paused.
+    // One ask at a time: finding the video can take a second, and a second click paused it.
     if (pagePlayerLooking) return null;
     pagePlayerLooking = true;
     let found;
@@ -2288,17 +2045,13 @@
     if (video && (!video.paused || video.ended)) return null;
     if (video && (video.currentSrc || video.src || video.srcObject)) {
       pagePlayerStarted = true;
-      // Not muted when the page may not play sound yet: left muted when FastStream did not
-      // take its stream after all, the site's player stayed silent. A play the browser
-      // refuses (a tab with no click yet) is tried again at the next ask: a play, unlike a
-      // click, does not undo itself.
+      // Not muted: if FastStream does not take the stream, the site's player would stay silent.
       video.play().catch(() => {
         pagePlayerStarted = false;
       });
       return 'play';
     }
-    // Nothing loaded (or no video yet: some players make it on the click): the player's own
-    // big play button, else a click on the video, for players that load on a click on it.
+    // Nothing loaded: the player's big play button, else a click on the video.
     const button = playButtonFor(video);
     if (button) {
       pagePlayerStarted = true;
@@ -2325,15 +2078,11 @@
     'button[class*="play" i]', '[class*="big-play" i]', '[class*="play-button" i]', '[class*="playbutton" i]',
   ].join(', ');
 
-  // The words the selectors above find "play" in that are no play button: a control bar's
-  // "Display settings", "Autoplay", "Replay", "Playlist", "Playback speed", and any "player-..."
-  // class. Written in any case, joined or apart (autoPlayToggle, play_list, play-rate).
+  // "play" words that are no play button: "Display", "Autoplay", "Replay", "Playlist", "player-...".
   const NotPlayWords = /display|auto[\s_-]?play|(?<![a-z])re[_-]?play|play[\s_-]?list|play[\s_-]?back|play[\s_-]?speed|play[\s_-]?rate|player/g;
 
   /**
-   * Whether a generic play button's label, title or class still says "play" once the words
-   * that only hold it are taken out: those were clicked instead of playing. "playbtn",
-   * "bigPlay", "playPause" say it.
+   * Whether a generic play button still says "play" once the words in NotPlayWords are out.
    * @param {Element} element
    * @return {boolean}
    */
@@ -2489,8 +2238,7 @@
   }
 
   /**
-   * A link's own target, in lower case: HTML matches the keywords so ("_BLANK" opens a new
-   * tab too). An SVG link has it as an attribute as well.
+   * A link's own target, in lower case ("_BLANK" opens a new tab too).
    * @param {Element} a
    * @return {string} '' when it has none.
    */
@@ -2518,9 +2266,7 @@
   }
 
   /**
-   * The one element whose words mean the next (or the previous) episode this surely
-   * (EpisodeLinks.phraseScore): one link target, or one button. Two different ones are
-   * none: a guess between them could be a wrong episode.
+   * The one element whose words score this (EpisodeLinks.phraseScore); two different ones are none.
    * @param {Array<Element>} elements
    * @param {boolean} isNext
    * @param {number} score
@@ -2535,13 +2281,8 @@
   }
 
   /**
-   * The page's links, by how far they may be trusted as an episode's (2026-10-11, an anime site:
-   * after a season's last episode, autoplay went on to another series):
-   * - site: to this site;
-   * - series: of them, those of this page's series where its address names one
-   *   (EpisodeLinks.seriesOf) - another series is never the next episode;
-   * - own: of them, those that open in the page - a link into a new tab, unless it is the
-   *   very next episode's address, is an ad's way.
+   * The page's links by trust: site (to this site); series (of those, this page's series);
+   * own (of those, the ones opening in the page: a new-tab link is an ad's way).
    * @param {Array<HTMLAnchorElement>} aElements
    * @return {{site: Array<HTMLAnchorElement>, series: Array<HTMLAnchorElement>, own: Array<HTMLAnchorElement>}}
    */
@@ -2553,9 +2294,7 @@
   }
 
   /**
-   * Whether the page lists this page's season: it links the previous episode, or two other
-   * episodes of the season (a season's first episode has no previous; deepseek's review) -
-   * one other alone ("latest episode: 5") is no list (its third round).
+   * Whether the page lists this season: it links the previous episode, or two other episodes.
    * @param {Array<HTMLAnchorElement>} links - episodeLinksOf's series links.
    * @return {boolean}
    */
@@ -2573,10 +2312,7 @@
   }
 
   /**
-   * Whether this page is its series' last episode, as far as its links tell: an address that
-   * names the series, a page that lists this season's episodes, and no next episode or season
-   * in it (asked once getNextOrPreviousButton found none). Autoplay then stops and says so,
-   * where a page FastStream cannot read is noted as a problem.
+   * Whether this page is its series' last episode, as far as its links tell.
    * @return {boolean}
    */
   function isSeriesEnd() {
@@ -2606,24 +2342,16 @@
     const ownLinks = links.own;
     const series = EpisodeLinks.seriesOf(window.location.href);
 
-    // 1. This page's episode number +1 (or -1), when the page links to it: the series part
-    // of the address stays, so it cannot be another show. Also a link into a
-    // new tab: that address is the episode's, and it opens in this tab (the chain's).
+    // 1. This page's episode number +1 (or -1) where the page links it, new-tab links too.
     for (const candidate of EpisodeLinks.neighbourEpisodeUrls(window.location.href, isNext)) {
       const hit = links.series.find((a) => withoutHash(url_to_absolute(a.href)) === candidate);
       if (hit) return hit;
     }
 
-    // A page that names its series and lists its season tells by its links alone: a button
-    // that says "next episode" there may lead anywhere.
+    // A page that names its series and lists its season tells by its links alone.
     const structured = !!series && listsThisSeason(links.series);
 
-    // 1b. The last episode of a season, in a page that lists its episodes: the next season's
-    // first. Not where the page links a later episode of this season (a gap: step 3 finds it
-    // in the list). The next season's episode 1 where the page links it; its episode this
-    // one +1 where the site numbers on across seasons (12, then 13); else, where the page
-    // links the season or one of its episodes (a "continue watching" episode 5 is no first:
-    // glm's review), its episode 1: this address with the season one on (.../staffel-4/episode-1).
+    // 1b. A season's last episode: the next season's first, unless a later one of this season is linked.
     if (isNext && structured && !linksLaterInSeason(links.site)) {
       const here = EpisodeLinks.seasonEpisode(window.location.href);
       const next = EpisodeLinks.nextSeason(window.location.href);
@@ -2644,35 +2372,31 @@
       }
     }
 
-    // 2. An episode phrase in any language FastStream knows ("Nächste Folge", 下一集), in a
-    // link's text, aria-label or title, or on a button that is no link.
+    // 2. An episode phrase in a link's text, aria-label or title, or on a button.
     const buttons = structured ? [] : /** @type {Array<HTMLElement & {disabled?: boolean}>} */ (querySelectorAllIncludingShadows('button, [role="button"]'))
         .filter((b) => !b.disabled && b.getAttribute('aria-disabled') !== 'true');
     const phrase = onlyOneSaying(ownLinks, isNext, 2) || onlyOneSaying(buttons, isNext, 2);
     if (phrase) return phrase;
 
-    // 3. As until 2026-10-11, without links into a new tab: the next episode there broke the
-    // chain (the next page's stream came in another tab). A link of another series is none.
+    // 3. The list ways, without new-tab links; a link of another series is none.
     const found = getNextOrPreviousByList(aElements.filter((a) => ownTarget(a) !== '_blank'), isNext);
     if (found && (found.tagName !== 'A' || (typeof found.href === 'string' && EpisodeLinks.inSeries(series, found.href)))) {
       return found;
     }
 
-    // 4. rel=next (or prev), then a bare word ("weiter"): pagination uses them too, so last.
-    // Link types are matched in any case, as HTML does (rel="Next").
+    // 4. rel=next (or prev), then a bare word: pagination uses them too, so last.
     const rel = ownLinks.find((a) => (a.getAttribute('rel') || '').toLowerCase().split(/\s+/).includes(isNext ? 'next' : 'prev'));
     return rel || onlyOneSaying(ownLinks, isNext, 1);
   }
 
   /**
-   * 3. The way it was found until 2026-10-11: an English "next" or "next episode" link, the
-   * neighbour of this page's link in a list, an "Episode N" list.
+   * 3. An English "next" or "next episode" link, the neighbour of this page's link in a list,
+   * an "Episode N" list.
    * @param {Array<HTMLAnchorElement>} aElements
    * @param {boolean} isNext
    * @return {?HTMLAnchorElement}
    */
   function getNextOrPreviousByList(aElements, isNext) {
-    // Check if next or previous button is in a elements
     const matches = aElements.filter((a) => {
       const textContent = a.textContent.trim().toLowerCase();
       if (isNext) {
@@ -2708,7 +2432,6 @@
       const element = matchedElements[i];
       const similar = getSimilar(element);
       if (similar.length > 0) {
-        // Find index of element with match
         const index = similar.findIndex((el) => {
           if (el === element) {
             return true;
@@ -2725,15 +2448,13 @@
           continue;
         }
 
-        // Find next element
         const nextIndex = isNext ? index + 1 : index - 1;
 
         if (nextIndex < 0 || nextIndex >= similar.length) {
           continue;
         }
 
-        // Check if a element. Only one to this site, as for a "Next" link above: a list's
-        // neighbour may be an ad, and the player followed it.
+        // Only one to this site: a list's neighbour may be an ad.
         if (similar[nextIndex].tagName === 'A') {
           if (isLinkOnThisSite(/** @type {HTMLAnchorElement} */ (similar[nextIndex]))) {
             return /** @type {HTMLAnchorElement} */ (similar[nextIndex]);
@@ -2741,8 +2462,7 @@
           continue;
         }
 
-        // A neighbour without a link ends this match only: another one may lead to the
-        // episode (a side list that links here too, before the real episode list).
+        // A neighbour without a link ends this match only: another may lead to the episode.
         const link = similar[nextIndex].querySelector('a');
         if (link && isLinkOnThisSite(link)) {
           return link;
@@ -2770,8 +2490,7 @@
   }
 
   document.addEventListener('click', (e) => {
-    // The link by the click's path first: here the target of a click inside a web
-    // component's (open) shadow root is its host, and a walk up from there never met the link.
+    // By the click's path first: in a web component the click's target is its host.
     const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
     let current = /** @type {?Element} */ (path.find((node) => /** @type {?Element} */ (node)?.tagName === 'A') || null);
     if (!current) current = /** @type {?Element} */ (e.target);
@@ -2786,9 +2505,7 @@
       return;
     }
 
-    // A click that opens the link somewhere else - a new tab or window (Ctrl, Command,
-    // Shift, target="_blank", also by the page's <base target>), a download (Alt, or the
-    // download attribute) - leaves this page and its player where they are.
+    // A click that opens the link elsewhere (a new tab or window, a download) leaves the player.
     const target = linkTarget(/** @type {HTMLAnchorElement} */ (current));
     if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey ||
         current.hasAttribute('download') ||
@@ -2796,15 +2513,9 @@
       return;
     }
 
-    // check if href leads to different page and origin
     const url = /** @type {HTMLAnchorElement} */ (current).href;
     if (isLinkToDifferentPageOnWebsite(url)) {
-      // Decided once the page's own listeners had the click (this one runs first, in the
-      // capture phase), as the shortcut listener below does. A link the page handles
-      // itself - a "Sign in" that opens a dialog, comments paged in place - it cancels: the
-      // page stays, and its player with it. One it cancels and then goes to by itself (a
-      // single-page site's router) still takes the player down, by the address changed
-      // meanwhile, and in the top frame by the background's REMOVE_PLAYERS on a later change.
+      // Decided after the page's own listeners: a link the page handles itself keeps the player.
       const address = window.location.pathname + window.location.search;
       setTimeout(() => {
         if (!e.defaultPrevented || window.location.pathname + window.location.search !== address) {
@@ -2840,17 +2551,9 @@
     resizeMiniPlayers();
   });
 
-  // Sites that pad their video with popup/popunder ads commonly hook the
-  // page's own 'blur' event to fire window.open() the moment focus leaves
-  // the top document - which is exactly what happens the instant a click on
-  // our player iframe lands, since focus moves into it. Arming the
-  // background's tabs.onCreated guard right here lets it tell "the site
-  // hijacked this click" apart from a normal middle-click-to-open-in-
-  // background-tab elsewhere on the page, which never blurs the top window
-  // like this.
+  // Arms the background's popup guard: ad scripts open a popup from this blur.
   window.addEventListener('blur', () => {
-    // Inside shadow roots too, as PAGE_TYPING looks: a player put in a web component's root
-    // (as the page's video was there) has its host as the document's active element.
+    // Shadow roots too: a player in a web component's root has its host as activeElement.
     const active = OverlayGuard.focused();
     if (!active) return;
     let isOurIframe = false;
@@ -2865,10 +2568,7 @@
   /**
    * What a video plays, for the player to play the same stream (StreamPick.played).
    * @param {HTMLVideoElement|null|undefined} video - The video.
-   * @return {?PlayedVideo} Its file's URL
-   *   (not a blob: URL, which a detected source never has), its length in seconds (Infinity
-   *   when live), its currentSrc as it is, blob: or not, and where it plays, in seconds; or
-   *   null for no video.
+   * @return {?PlayedVideo} Null for no video; src is never a blob: URL.
    */
   function playedVideo(video) {
     if (!video) {
@@ -2885,9 +2585,7 @@
   }
 
   /**
-   * What the video a player replaced plays: as it is now, while it plays what it played
-   * then (a page's player sets its length a moment after it asked for the manifest), or
-   * else as it was then.
+   * What the replaced video plays: as now while it plays what it did, else as it was then.
    * @param {ReplacedPlayer|undefined} player - The replaced player (replacedPlayerQueue).
    * @return {?{src: string, duration: ?number}} See playedVideo.
    */
@@ -2903,19 +2601,9 @@
   // The requests a page's player makes for its stream, as Resource Timing names them.
   const LoadedMediaInitiators = ['xmlhttprequest', 'fetch', 'video', 'audio', 'other'];
 
-  // The page's Resource Timing buffer keeps its first 250 requests, and a streaming page has
-  // made that many (ads, trackers) before its video asks for its manifest: the manifest was
-  // never in it. An observer is told of every request, buffer full or not (Firefox's
-  // Performance::InsertResourceEntry queues each entry to observers first), from this
-  // script's start at document_start. The ones loadedMedia reports are kept here (a URL
-  // once), past the buffer: the newest ObservedMediaLimit of them. Keeping the first ones
-  // only, a page that lives long (a single-page site going on to its next episode) never
-  // reported its newest manifest, but an older one. When full, the oldest one that names
-  // no manifest goes: a manifest is asked for once, and its segments by the thousand after
-  // it. Nothing the page can see changes, as it would with setResourceTimingBufferSize.
+  // Past the 250 entries Resource Timing keeps: the newest of them, manifests last.
   const ObservedMediaLimit = 1000;
   const observedMedia = new Map();
-  // An HLS or DASH manifest's address.
   const ManifestAddress = /\.(?:m3u8|m3u|mpd)$/i;
 
   /**
@@ -2961,12 +2649,7 @@
   }
 
   /**
-   * What this page loaded that may be a stream, for a background that did not see it load:
-   * Firefox unloads the background after ~30 idle seconds, and the streams it detected with
-   * it, while a page asks for its manifest once, when its video starts. The page's own
-   * Resource Timing entries keep those requests for as long as it lives (the first 250 of
-   * them, and what the observer above kept past those), and its videos tell the files
-   * they play.
+   * What this page loaded that may be a stream, for a background unloaded meanwhile.
    * @return {Array<{url: string, media: boolean, time: number}>} Each URL, whether a media
    *   element loaded it, and when the request started (ms since the epoch).
    */
@@ -3001,12 +2684,7 @@
     return found;
   }
 
-  // MPV started by its shortcut hands over only a video the user starts, not
-  // whatever the page loads or autoplays on its own (previews, background
-  // clips, a preloaded player). A 'play' while the page is still handling a
-  // click or key press carries transient user activation; an autoplay does
-  // not. Media events do not bubble, hence the capture listener. The
-  // background ignores the report unless the tab is in that mode.
+  // The videos the user started: MPV by its shortcut takes only those, not an autoplay.
   const userStartedVideos = new WeakSet();
 
   // How long Firefox counts a press as the user's (dom.user_activation.transient.timeout).
@@ -3017,26 +2695,14 @@
   let lastShortcutKeyAt = -Infinity;
 
   /**
-   * Whether a play now follows the user's own press. navigator.userActivation.isActive
-   * alone missed a common case: a site whose play button first opens a pop-up. window.open()
-   * consumes the activation, so the video the same click started played with isActive
-   * already false, was taken for an autoplay, and never went to mpv. A trusted press in
-   * this frame within the time Firefox gives an activation counts too; an autoplay with no
-   * press behind it still does not.
-   *
-   * Firefox activates the page for a shortcut's key too: after Alt+F, isActive is true for
-   * 5 s (measured on Firefox 158, Linux and Windows, CI run 39473761807). A video the page
-   * started on its own in those 5 s - a muted preview that began a moment after the MPV key -
-   * counted as the user's and went to mpv (mpv-shortcut.e2e.mjs, CI runs 38454197759 and
-   * 39192185180). So the activation counts only when the press behind it was not such a key.
+   * Whether a play now follows the user's own press, not a shortcut's key (docs/notes/mpv.md).
    * @return {boolean}
    */
   function playFollowsUserPress() {
     const now = performance.now();
     if (now - lastUserGestureAt <= UserActivationMs) return true;
     if (!navigator.userActivation || !navigator.userActivation.isActive) return false;
-    // Active with no press of its own here: a shortcut's key, or a press in another frame
-    // (Firefox activates the frames above, and the same-origin ones below, too).
+    // Active with no press here: a shortcut's key, or a press in another frame.
     return now - lastShortcutKeyAt > UserActivationMs;
   }
 
@@ -3063,8 +2729,7 @@
    * @param {Event} e - The play event.
    */
   function onPlay(e) {
-    // Only a play Firefox reports: a 'play' event the page makes up during a click starts
-    // nothing, and made its video the one the shortcut sends.
+    // Only a play Firefox reports: a page could make one up during a click.
     if (!e.isTrusted) return;
     const video = /** @type {HTMLVideoElement|null} */ (e.target);
     if (!video || video.tagName !== 'VIDEO') return;
@@ -3076,16 +2741,7 @@
   document.addEventListener('play', onPlay, true);
   document.addEventListener('play', pauseHeldMedia, true);
 
-  // A video's own file, told to the background once the video has it. The background learns
-  // of a stream from the request for it (onHeadersReceived), and Firefox can play a file
-  // without one: a page that plays a file an earlier page of the site played got it with no
-  // request at all, served no-store and the earlier page not in the back-forward cache
-  // (measured, same-video-file.e2e.mjs). On a site FastStream was already on for, nothing
-  // asked the page either (recoverSources runs when it is turned on), so the player never
-  // opened. A URL the background knows already changes nothing there (recoverFrameSources);
-  // a blob: one is no file. Not heard: a video in a shadow root not found yet (media events
-  // stay in their root, and roots are found as the user acts); turning FastStream on still
-  // finds it (loadedMedia).
+  // A video's own file, told once: Firefox can play a file with no request the background sees.
   const reportedVideoFiles = new Set();
 
   /**
@@ -3118,11 +2774,7 @@
 
   document.addEventListener('loadedmetadata', onLoadedMetadata, true);
 
-  // A play inside a shadow root (a player built as a web component) never reaches the
-  // document: media events are not composed. So the shortcut ignored such players. Each
-  // open shadow root gets the listener too, found as the user acts, since a play the user
-  // starts follows a click or a key: the roots on the way to what was clicked at once, and
-  // every root on the page at most every 2 s, for a button outside the player's root.
+  // Media events are not composed: each shadow root gets the listener, found as the user acts.
   const listenedRoots = new WeakSet();
   let lastRootScan = 0;
 
@@ -3157,17 +2809,13 @@
   /** @param {KeyboardEvent} e */
   function onUserGesture(e) {
     if (!e.isTrusted) return;
-    // A key that starts a video is a plain one (Space, Enter, K). One that could be an
-    // extension's shortcut is not: the MPV shortcut itself is one, whatever the user bound
-    // it to in about:addons (Ctrl+Shift+U by default, Alt+F on the owner's PC). Nor is a
-    // modifier alone, or Escape, which is no activation in Firefox.
+    // None: a press that could be an extension's shortcut, a lone modifier, or Escape.
     const noPress = e.type === 'keydown' &&
       (ModifierKeys.includes(e.key) || e.key === 'Escape' || couldBeExtensionShortcut(e));
     if (!noPress) {
       lastUserGestureAt = performance.now();
     } else if (!ModifierKeys.includes(e.key) && e.key !== 'Escape' && !/^Media/.test(e.key)) {
-      // Firefox's activation for it is not the user's (playFollowsUserPress). A media key is
-      // a play control, not a shortcut: the play it starts stays the user's.
+      // A media key is a play control, not a shortcut: its play stays the user's.
       lastShortcutKeyAt = performance.now();
     }
     for (const node of e.composedPath()) {
@@ -3210,23 +2858,12 @@
     return false;
   }
 
-  // Firefox lets a page cancel an extension's keyboard shortcut: a keydown
-  // the page calls preventDefault() on never reaches the command. Sites do it
-  // by accident - VOE's "no view-source" guard cancels every Ctrl+U, Shift or
-  // not, which swallowed Ctrl+Shift+U (the MPV key until 2026-10-04, and still a
-  // user's if they bound it). So once the page is done with a key
-  // press, a cancelled one that could be a shortcut goes to the background,
-  // which runs the command bound to it, if any. A press the page left alone
-  // is Firefox's to run: reporting only cancelled ones means a shortcut never
-  // runs twice. This listener is registered before any page script, so the
-  // page cannot keep the press from it; isTrusted keeps the page from faking
-  // one.
+  // A page can cancel an extension's shortcut (preventDefault): a cancelled press that could be
+  // one goes to the background, which runs its command. One left alone is Firefox's to run.
   const ModifierKeys = ['Control', 'Shift', 'Alt', 'AltGraph', 'Meta', 'OS'];
 
   /**
-   * Whether a key press could be an extension's keyboard shortcut, whatever the user bound
-   * in about:addons: Firefox's shortcuts need Ctrl, Alt or Command, except F-keys and media
-   * keys.
+   * Whether a key press could be an extension's shortcut: Ctrl, Alt or Command, an F-key or a media key.
    * @param {KeyboardEvent} e - The press.
    * @return {boolean}
    */
@@ -3257,21 +2894,8 @@
     }, 0);
   }, true);
 
-  // Firefox fires beforeunload for a navigation that then never happens: a link answered
-  // with a download or a 204, a "Leave page?" the user said no to (this listener runs
-  // before the page's). The page stays, but the background was told it left: it forgot the
-  // page's frames and their streams, and refused every player the page opened after that,
-  // as one of a gone page (TabHolder.isPlayerOfGoneDocument), until a reload. So a page
-  // still here a moment later names itself again, as one the back-forward cache gives back
-  // does (pageshow, below), and from then on reports its leaving on pagehide too.
-  //
-  // The report itself stays at beforeunload, not pagehide. The next page's own load can be
-  // its stream (a proxy link opened in the tab, embed-page-query.e2e.mjs), detected as its
-  // answer comes in, which is before the old page's pagehide. Told at beforeunload, the
-  // background has let go of the old page's frame by then: kept, a frame holding a player
-  // dropped that stream (onHeadersReceived's hasPlayer), and the old page's late leave took
-  // it away with that page (FRAME_ADDED keeps only what the frame already has). A load that
-  // takes longer than LeaveSettledMs gets the pagehide report, and loses that ordering.
+  // beforeunload fires for a navigation that may never happen (a download, a cancelled "Leave
+  // page?"): a page still here after LeaveSettledMs names itself again and reports on pagehide.
   const LeaveSettledMs = 2000;
   // 'here'; 'left', told at beforeunload; or 'back', named again after a leave that never
   // happened.
@@ -3291,8 +2915,7 @@
   /** Tells the background this page left its frame (FRAME_REMOVED). */
   function reportLeaving() {
     leaveState = 'left';
-    // The page's name: this message can reach the background after the next page's
-    // FRAME_ADDED, and must not make it forget that page's frame.
+    // The page's name: this can arrive after the next page's FRAME_ADDED.
     notifyBackground({
       type: MessageTypes.FRAME_REMOVED,
       document: DocumentKey,
@@ -3302,11 +2925,7 @@
   window.addEventListener('beforeunload', (e) => {
     // The page's own made-up event: nothing leaves.
     if (!e.isTrusted) return;
-    // FRAME_REMOVED makes the background forget this frame and its sources. For the
-    // redirect to the player that is exactly wrong: the player loads in this same frame
-    // and asks for them straight away, and got none. A page still here at its next leave did
-    // not go (RedirectingToPlayer): that one is reported. Set for good, every later one was
-    // skipped.
+    // The player loads in this frame and asks for its sources: no FRAME_REMOVED for the redirect.
     if (RedirectingToPlayer === 'sent') {
       RedirectingToPlayer = 'leaving';
       return;
@@ -3335,21 +2954,14 @@
     }
   });
 
-  // Firefox's back-forward cache gives this page back, content script and all, after
-  // its leaving told the background to forget it (above); the page fetches nothing
-  // again. Naming it again gets back what the background had detected on it
-  // (TabHolder.restoreGoneDocument). A page that went to the player and came back
-  // reports its next leave again.
+  // The back-forward cache gives the page back after its leave: naming it again restores its sources.
   window.addEventListener('pageshow', (e) => {
     if (!e.isTrusted || !e.persisted) {
       return;
     }
     RedirectingToPlayer = false;
     leaveState = 'here';
-    // A hold from before it left can be stale: its end, sent to the tab's frames while this
-    // page was in the cache, never reached it, and its frames would go on pausing every
-    // play, the site's own player in its embed included. The background holds it again if
-    // a player still plays: naming the page (below) makes it tell every frame (FRAME_ADDED).
+    // A hold from before it left can be stale: its end never reached the cached page.
     pageMediaHeld = false;
     nameThisPage();
   });

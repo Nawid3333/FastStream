@@ -33,10 +33,9 @@
   }
 
 
-  // Posts the first video_dash_manifest with a value in a response, if the response is JSON.
-  /** @param {*} text - A response, JSON or not. */
+  // Posts the first non-empty video_dash_manifest of a JSON response.
+  /** @param {*} text */
   function readResponse(text) {
-    // Without the key there is nothing to find: most responses, which were all parsed.
     if (typeof text !== 'string' || !text.includes('video_dash_manifest')) {
       return;
     }
@@ -49,19 +48,16 @@
     readData(data);
   }
 
-  // Posts the first video_dash_manifest with a value in parsed JSON.
-  /** @param {*} data - Parsed JSON. */
+  /** @param {*} data */
   function readData(data) {
-    // video_dash_manifest
-    // Nothing for a response that is not an object (a JSON number or string). Most
-    // responses have none, so that is no error: it filled the page's console.
+    // Most responses have none: no error, it would fill the page's console.
     const objs = findPropertyRecursive(data, 'video_dash_manifest');
 
     if (!objs || objs.length === 0) {
       return;
     }
 
-    // Find non empty value. Every one can be empty (media still being processed).
+    // A value is empty while the media is still being processed.
     const value = objs.find((o)=>!!o.value)?.value;
 
     if (!value) {
@@ -76,9 +72,7 @@
     }, '*');
   }
 
-  // A reel or post opened by its address brings its manifest in the page's own data (a JSON
-  // script tag), not in a response: signed out, such a reel was never found, and FastStream
-  // got only the pieces Instagram's player fetches by byte range.
+  // A reel opened by its address has its manifest in the page's JSON script tag.
   function readPageData() {
     for (const script of document.querySelectorAll('script[type="application/json"]')) {
       readResponse(script.textContent);
@@ -104,14 +98,11 @@
   /** @param {XMLHttpRequest} xhr */
   function setupHook(xhr) {
     xhr.addEventListener('readystatechange', (/** @type {Event} */ e) =>{
-      // Check response code
       if (xhr.readyState !== 4) {
         return;
       }
 
-      // responseText exists only for a text response: for 'json', 'blob' or 'document' it
-      // throws InvalidStateError, inside the page's own XHR handling. A 'json' one is
-      // already parsed; the others hold no JSON to read.
+      // responseText throws for a 'json', 'blob' or 'document' response.
       if (xhr.responseType === 'json') {
         readData(xhr.response);
         return;
@@ -124,16 +115,13 @@
     });
   }
 
-  // Instagram loads some of its data with fetch, which the XHR hook never saw (#232). The
-  // page gets its own response untouched; a copy of a text one (JSON, script, HTML) is read.
-  // A video, an image or other bytes is not copied: it would be held twice and read as text.
+  // Instagram loads some data with fetch too; only a text response is copied.
   const rawFetch = window.fetch;
   if (typeof rawFetch === 'function') {
     window.fetch = function(...args) {
       const result = rawFetch.apply(this, args);
       result.then((response) => {
         const type = response.headers.get('Content-Type') || '';
-        // A stream (events, NDJSON) may never end: a copy would be read and held for the page's life.
         if (!/json|javascript|^text\//i.test(type) || /event-stream|ndjson|json-seq|stream\+json/i.test(type)) {
           return;
         }

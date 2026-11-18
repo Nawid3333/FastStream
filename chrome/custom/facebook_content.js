@@ -1,6 +1,4 @@
 // @ts-check
-// Its own scope: the site scripts declare the same names, and a type check sees all
-// classic scripts as one.
 (() => {
   /**
    * @param {*} obj - Parsed JSON.
@@ -34,8 +32,7 @@
     return list;
   }
 
-  // btoa takes Latin-1 only: a manifest with any other character (a title, an address)
-  // threw. This is the manifest's UTF-8, in base64.
+  // Not btoa(text): btoa throws on anything outside Latin-1.
   /**
    * @param {string} text
    * @return {string}
@@ -45,11 +42,7 @@
   }
 
   /**
-   * A playback_video's DASH manifest: its playlist, or else its delivery fields' manifest. A
-   * reel opened signed out has no playlist; its manifest is in
-   * videoDeliveryLegacyFields.dash_manifest_xml_string, and without it FastStream played only
-   * one of the separate files the page fetches - the sound of a reel preloaded after it, no
-   * picture.
+   * A playback_video's DASH manifest: its playlist, else its delivery fields' manifest.
    * @param {*} video - The playback_video object.
    * @return {?string}
    */
@@ -91,14 +84,11 @@
       }
     }
 
-    // Look for video in path
     datas = datas.filter((data)=>{
       return data.stack.includes('video');
     });
 
-    // The first one with its manifest not reported yet: one without a manifest was sent as a
-    // source whose manifest was the word "undefined", and a batch whose first manifest was
-    // one already reported dropped a new video after it.
+    // The first video with a manifest not reported yet.
     const found = datas.find((data) => {
       const mpd = manifestOf(data.value);
       return mpd && !reported.has(mpd);
@@ -118,19 +108,14 @@
         'Origin': location.origin,
       },
     }, () => {
-      // An extension reloaded under the page answers nothing: heard here, it is no
-      // unhandled rejection in the page's console (as content.js's sends).
+      // Read, so a reloaded extension leaves no unhandled error in the page.
       void chrome.runtime.lastError;
     });
   }
 
   scanScripts();
 
-  // Facebook moves to another video without loading a page, and this script runs once per
-  // page load, so only the first video was found (#232). For ten seconds after the address
-  // changes, the script tags that were not there before are read each second. The ones read
-  // before (the first video's, still in the page) are not read again: that video would come
-  // back under the new page's address.
+  // Videos change without a page load: new script tags are read for 10 s after each change.
   let lastHref = location.href;
   let rescans = 0;
   setInterval(() => {

@@ -1,6 +1,4 @@
 // @ts-check
-// Its own scope: the site scripts declare the same names, and a type check sees all
-// classic scripts as one.
 (() => {
   class Bilibili2Dash {
     constructor() {
@@ -19,11 +17,7 @@
     }
 
     /**
-     * One AdaptationSet per codec, each Representation's id unique in the manifest. Bilibili
-     * lists a quality in up to three codecs (H.264, HEVC, AV1) under one id (32 for 480p). In
-     * one set with the id three times, the player saw one level per id, all of the set's first
-     * codec: where Firefox could not start that codec's decoder (HEVC on a test Firefox,
-     * 2026-11-15), it reset the video some 125 times a second, and never tried the others.
+     * One AdaptationSet per codec: bilibili lists a quality in several codecs under one id.
      * @param {Array<*>} tracks
      * @param {Set<string>} ids - The ids given so far, in the whole manifest.
      * @return {Array<*>} The AdaptationSets.
@@ -67,8 +61,6 @@
       Representation.setAttribute('id', id);
       Representation.setAttribute('codecs', codecs);
       Representation.setAttribute('bandwidth', bandwidth);
-      // Only what the track has: an audio track has no width or height, and the manifest read
-      // width="undefined" (review).
       if (width) Representation.setAttribute('width', width);
       if (height) Representation.setAttribute('height', height);
       if (frameRate) Representation.setAttribute('frameRate', frameRate);
@@ -98,8 +90,7 @@
       /** @type {Set<string>} */
       const ids = new Set();
       const videoAdaptationSets = this.loadDashTracks(dashData.video || [], ids);
-      // A video without sound has no audio list (null): only the video then. It threw, and the
-      // video was not detected at all.
+      // A video without sound has no audio list (null).
       const audioAdaptationSets = this.loadDashTracks(dashData.audio || [], ids);
 
       const MPD = this.document.createElement('MPD');
@@ -119,8 +110,7 @@
     }
   }
 
-  // btoa takes Latin-1 only: a manifest with any other character (a title, an address)
-  // threw. This is the manifest's UTF-8, in base64.
+  // Not btoa(text): btoa throws on anything outside Latin-1.
   /**
    * @param {string} text
    * @return {string}
@@ -130,10 +120,7 @@
   }
 
   /**
-   * The JSON object that starts at `start` (a "{"), up to its own closing brace: the play
-   * info, whatever follows it. A regex to the line's last "}" took the next statement along
-   * ("...};window.__INITIAL_STATE__={...}") and stopped at a line break, and the video was
-   * not detected (review).
+   * The JSON object that starts at `start` (a "{"), up to its own closing brace.
    * @param {string} text
    * @param {number} start
    * @return {?string}
@@ -174,8 +161,7 @@
         const assignment = /window\.__playinfo__\s*=\s*\{/.exec(script.textContent);
         const playInfo = assignment && jsonObjectAt(script.textContent, assignment.index + assignment[0].length - 1);
         if (playInfo) {
-          // Play info of another shape (FLV, data.durl, instead of data.dash) threw here,
-          // uncaught, and nothing was detected.
+          // Play info of another shape (FLV: data.durl, no data.dash) throws here.
           let mpd;
           try {
             const playInfoObj = JSON.parse(playInfo);
@@ -200,8 +186,7 @@
               'Origin': location.origin,
             },
           }, () => {
-            // An extension reloaded under the page answers nothing: heard here, it is no
-            // unhandled rejection in the page's console (as content.js's sends).
+            // Read, so a reloaded extension leaves no unhandled error in the page.
             void chrome.runtime.lastError;
           });
 
@@ -213,11 +198,7 @@
 
   scanScripts();
 
-  // Bilibili moves to another episode without loading a page, and this script runs once per
-  // page load, so only the first video was found (#232). For ten seconds after the address
-  // changes, the script tags that were not there before are read each second. The ones read
-  // before (the first video's, still in the page) are not read again: that video would come
-  // back under the new page's address.
+  // Episodes change without a page load: new script tags are read for 10 s after each change.
   let lastHref = location.href;
   let rescans = 0;
   setInterval(() => {

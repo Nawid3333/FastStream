@@ -1,9 +1,6 @@
 // @ts-check
-// Its own scope: the site scripts declare the same names, and a type check sees all
-// classic scripts as one.
 (() => {
-  // btoa takes Latin-1 only: a manifest with any other character (a title, an address)
-  // threw. This is the manifest's UTF-8, in base64.
+  // Not btoa(text): btoa throws on anything outside Latin-1.
   /**
    * @param {string} text
    * @return {string}
@@ -12,13 +9,9 @@
     return new TextEncoder().encode(text).toBase64();
   }
 
-  // The manifests already reported: Instagram fetches the same video's data more than once
-  // (prefetch, then play), and each answer reported it again - the background keeps every
-  // report as another source of the tab (review). As bilibili_content.js and
-  // facebook_content.js do.
+  // Instagram fetches a video's data more than once; each manifest is reported once.
   const reported = new Set();
 
-  // Listen for messages
   window.addEventListener('message', (event) => {
     if (event.origin !== window.location.origin) {
       return;
@@ -32,8 +25,7 @@
     if (event.data?.type === 'fs_source_detected') {
       const value = (event.data?.value || '').toString();
       const ext = (event.data?.ext || '').toString();
-      // What instagram_inject.js posts. Any script in the page can post this too, and a
-      // type other than a DASH manifest was passed on as a source of no type.
+      // Any script in the page can post this message.
       if (!value || ext !== 'mpd') {
         return;
       }
@@ -52,8 +44,7 @@
           'Origin': location.origin,
         },
       }, () => {
-        // An extension reloaded under the page answers nothing: heard here, it is no
-        // unhandled rejection in the page's console (as content.js's sends).
+        // Read, so a reloaded extension leaves no unhandled error in the page.
         void chrome.runtime.lastError;
       });
 

@@ -1,45 +1,16 @@
 // @ts-check
-// Keeps a site's own overlays off FastStream's player, for content.js.
-//
-// FastStream's player is an iframe in the frame whose video it replaced, and each frame
-// above sees it through the iframe of the frame below. Whatever a site lays over its video
-// - its control bar, a big play button, a "server" menu, an ad layer - it lays over that
-// iframe too, so it lay over FastStream's player: on sites that embed their player in a
-// full-page iframe, the embedding page's bar stayed on top of FastStream.
-//
-// While a player is up, each frame of its chain hides what it paints over the iframe it
-// holds, and gives it back when the player goes (releaseAll, from removePlayers) or the
-// iframe does. An element counts as the player's when it is painted above the iframe and
-// at least 80% of it lies inside the iframe's box, or it covers half of that box: a bar or
-// a button on the player, or a layer over it, but not a page header that overlaps its top
-// edge. The box is the whole iframe's, on screen or not: measured by its part on screen,
-// a header over a player scrolled mostly out of view covered "half" of it. A site's own
-// dialog (sign-in, cookie consent, settings) is left alone, though it covers the player as
-// an ad layer does: hidden, the user saw no dialog, and clicks went through its backdrop.
-// It is hidden with visibility, so it keeps its box and is given back as soon as it no
-// longer covers the player (the page scrolled, the player became the miniplayer).
+// Hides a site's overlays painted over FastStream's player iframe, for content.js.
 // eslint-disable-next-line no-unused-vars
 const OverlayGuard = (() => {
-  // How often a guarded frame looks again: sites add their overlays late (ads keep coming).
-  // A check goes through the whole page: about 1 ms for 1,500 elements, 10 ms for 20,000.
+  // Sites add their overlays late (ads keep coming).
   const CHECK_MS = 1000;
   /**
    * A box on screen, in CSS pixels.
    * @typedef {{left: number, top: number, right: number, bottom: number, area: number}} Box
    */
-  /**
-   * A guarded iframe's: the player URL it was guarded for, its check's interval, and the
-   * elements it hid, with the visibility each had.
-   * @typedef {{src: string, timer: ReturnType<typeof setInterval>, hidden: Map<Styled, {value: string, priority: string}>}} Guard
-   */
-  /**
-   * What the guard hides: an element painted with a style of its own, HTML or SVG.
-   * @typedef {Element & ElementCSSInlineStyle} Styled
-   */
-  /**
-   * An element whose shadow root Firefox opens to a content script, closed or open.
-   * @typedef {Element & {openOrClosedShadowRoot?: ?ShadowRoot}} ShadowHost
-   */
+  /** @typedef {{src: string, timer: ReturnType<typeof setInterval>, hidden: Map<Styled, {value: string, priority: string}>}} Guard */
+  /** @typedef {Element & ElementCSSInlineStyle} Styled */
+  /** @typedef {Element & {openOrClosedShadowRoot?: ?ShadowRoot}} ShadowHost */
   /** @type {Map<HTMLIFrameElement, Guard>} */
   const guards = new Map();
   const PLAYER_URL = chrome.runtime.getURL('player/');
@@ -49,11 +20,7 @@ const OverlayGuard = (() => {
     return el.tagName === 'IFRAME' && (el.src || '').startsWith(PLAYER_URL);
   }
 
-  // A web-component player keeps its control bar in its shadow root, next to the player
-  // FastStream put there: document.querySelectorAll('*') never saw the bar, and contains()
-  // stops at the shadow boundary (#233).
-
-  // Every element of the page, those in shadow roots (open or closed) too.
+  // Every element, in open and closed shadow roots too: a web-component player's bar is in one.
   /**
    * @param {Document|ShadowRoot} root
    * @param {Element[]} found
@@ -68,7 +35,6 @@ const OverlayGuard = (() => {
     return found;
   }
 
-  // The element above, across a shadow root's boundary to its host.
   /** @param {Element} el */
   function parentOf(el) {
     return /** @type {Element} */ (el.parentElement || /** @type {ShadowRoot|null} */ (el.parentNode)?.host || null);
@@ -123,8 +89,7 @@ const OverlayGuard = (() => {
 
   const DIALOGS = 'dialog[open], [role="dialog"], [role="alertdialog"], [aria-modal="true"]';
 
-  // The element with the focus, inside shadow roots too: document.activeElement gives a
-  // field in a shadow root as its host.
+  // document.activeElement gives a field in a shadow root as its host.
   function focused() {
     let active = document.activeElement;
     for (;;) {
@@ -139,16 +104,10 @@ const OverlayGuard = (() => {
     return el.matches('input, textarea, select') || !!el.isContentEditable;
   }
 
-  // A site's own dialog, or a layer holding one, or one the user is typing in: by what it
-  // says it is, or by a field in it having the focus. Geometry cannot tell it from an ad
-  // layer. Only a field: a link or a button keeps the focus after a click, and an ad layer
-  // the user clicked once (or a click-to-play cover) then stayed over the player for good,
-  // taking every click meant for it.
+  // By role, or by a focused field: a link or a button keeps the focus after a click.
   /** @param {Element} el */
   function isSiteDialog(el) {
     const active = focused();
-    // A closed one kept in the page (display: none) has no box, nor has anything in it; an
-    // open one may have none of its own (display: contents, a 0x0 wrapper of fixed children).
     const hasBox = (/** @type {Element} */ e) => {
       const r = e.getBoundingClientRect();
       return r.width > 0 && r.height > 0;
@@ -158,44 +117,34 @@ const OverlayGuard = (() => {
         (!!active && active !== document.body && isEditable(active) && holds(el, active));
   }
 
-  // The elements painted over the iframe that belong to the player's area, each the
-  // outermost one below the ancestor they share with the iframe.
+  // The outermost elements painted over the iframe that belong to the player's area.
   /**
    * @param {HTMLIFrameElement} iframe
    * @param {{full: Box, visible: Box}} param0
    */
   function overlaysOf(iframe, {full, visible: box}) {
-    // The elements picked so far: a few, in the order picked. An array, not a Set: each
-    // element of the page was checked against a copy of the Set, every second.
     const picks = /** @type {Element[]} */ ([]);
     const everything = allElements();
     const players = everything.filter(isPlayerFrame);
-    // The document's elementsFromPoint gives a shadow root's elements as their host: the
-    // iframe's own root gives the iframe, and the elements of its shadow root.
+    // The iframe's own root: the document's elementsFromPoint gives a shadow root's elements as their host.
     const root = /** @type {Document|ShadowRoot} */ (iframe.getRootNode());
     const stackRoot = typeof root.elementsFromPoint === 'function' ? root : document;
     // Every element, not only the body's: ad layers are often put straight into <html>.
     for (const el of everything) {
       if (el === iframe || holds(el, iframe) || isPlayerFrame(el)) continue;
-      // Inside one already picked, which goes as a whole.
       if (picks.some((pick) => holds(pick, el))) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 1 || r.height < 1 || overlap(r, box) < 16) continue;
-      // Painted above the iframe where the two overlap?
       const x = (Math.max(r.left, box.left) + Math.min(r.right, box.right)) / 2;
       const y = (Math.max(r.top, box.top) + Math.min(r.bottom, box.bottom)) / 2;
       const stack = stackRoot.elementsFromPoint(x, y);
       const iframeAt = stack.indexOf(iframe);
       const elAt = stack.indexOf(el);
       if (iframeAt === -1 || elAt === -1 || elAt > iframeAt) continue;
-      // Its ancestors go with it while they are painted above the iframe too. A layout
-      // wrapper under the player that holds an ad over it (and the page's nav) stays. One
-      // missing from the stack says nothing of where it is painted: pointer-events: none,
-      // as a see-through veil holding a clickable ad has. It goes by its size, as before.
+      // Ancestors go too while painted above the iframe; one missing from the stack goes by its size.
       let pick = /** @type {Element|null} */ (null);
       for (let a = el; a && !holds(a, iframe); a = parentOf(a)) {
         if (stack.indexOf(a) > iframeAt) break;
-        // Nothing of a site's dialog goes: not the dialog, nor what holds it.
         if (isSiteDialog(a)) {
           pick = null;
           break;
@@ -214,8 +163,7 @@ const OverlayGuard = (() => {
    * @param {Styled} el
    */
   function hide(guard, el) {
-    // One guard holds an element: a second one (another player's, in the same page) would
-    // take the first one's "hidden" for the page's own value and put it back for good.
+    // One guard per element: a second would take the first's "hidden" for the page's own value.
     for (const other of guards.values()) {
       if (other !== guard && other.hidden.has(el)) return;
     }
@@ -251,8 +199,6 @@ const OverlayGuard = (() => {
       release(iframe);
       return;
     }
-    // Nothing is painted in a hidden tab: the whole-page look waits until it shows again
-    // (visibilitychange, below).
     if (document.hidden) return;
     const boxes = boxesOf(iframe);
     for (const el of [...guard.hidden.keys()]) {
@@ -273,8 +219,6 @@ const OverlayGuard = (() => {
     for (const el of [...guard.hidden.keys()]) show(guard, el);
   }
 
-  // A tab shown again is looked at at once, not at the next check: what a site laid over
-  // the player while the tab was hidden goes before it is seen.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
     for (const iframe of [...guards.keys()]) check(iframe);

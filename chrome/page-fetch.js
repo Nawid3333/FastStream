@@ -1,25 +1,12 @@
 // @ts-check
-// Loads a stream for FastStream's player as the page itself would (PageFetch.mjs, the player's
-// side). A page's own requests carry what FastStream's player, loading from its extension page,
-// cannot: they go through the page's service worker, which can be the only place a video's
-// address answers (abyss.to's player: "Video not found" from anywhere else, #665), and they carry
-// the page's cookies, its Referer and its Origin as they are now. In Manifest V3 a content
-// script's own fetch() is made in the page's context (measured, Firefox 160: through the page's
-// service worker, with its cookies, Referer and Origin, ranges answered 206), so nothing here
-// touches the page's own functions, and the page sees no change to them.
-//
-// Only FastStream can ask: a port the background opens with tabs.connect (PageFetchRelay.mjs, for
-// its player, which has no tabs API in a page's iframe), which no web page can open. Each request
-// is answered on the port with its head ({id, status, statusText, url, headers}), then its body in
-// pieces ({id, chunk}), then {id, done} - or {id, error} at any point. {abort: id} stops one; a port that closes stops all of its own.
+// Fetches for the player as the page itself would (page transport, docs/notes/player.md).
 (() => {
   const PORT_NAME = 'faststream-page-fetch';
   // The headers a request may name; the rest are the page's own (cookies, Referer, Origin).
   const ALLOWED_HEADERS = new Set(['range', 'accept', 'if-range']);
 
   /**
-   * Where a request was answered: its own address when it was not redirected, with its fragment,
-   * which a Response's URL never has and a service worker may need (abyss.to's: #mp4/...).
+   * Keeps the request's fragment, which a Response's URL drops, unless it was redirected.
    * @param {Response} response
    * @param {string} url - The request's.
    * @return {string}
@@ -30,8 +17,7 @@
 
   chrome.runtime.onConnect.addListener((port) => {
     if (port.name !== PORT_NAME) return;
-    // From this extension only (its background, for the player in this tab), never a page:
-    // tabs.connect is no web page's to call, and its sender is one of the extension's URLs.
+    // Only this extension can open this port: no web page can call tabs.connect.
     if (port.sender?.id !== chrome.runtime.id || !String(port.sender?.url || '').startsWith(chrome.runtime.getURL(''))) {
       port.disconnect();
       return;
@@ -98,7 +84,6 @@
       try {
         const response = await fetch(url, {
           headers,
-          // As a page's <video> asks for its file: with the cookies of the site it goes to.
           credentials: 'include',
           // FastStream keeps what it loads itself (FetchLoader's reason for no-store).
           cache: 'no-store',
