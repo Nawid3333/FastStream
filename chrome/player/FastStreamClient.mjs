@@ -2368,7 +2368,7 @@ export class FastStreamClient extends EventEmitter {
    * FreshLink.mjs), and with a new one plays on at the same time, quality and audio track. A
    * hoster signs its link for some hours, and Back gives a page its old one from Firefox's
    * cache: such a link was refused once it ran out, and the player sat at a spinner, at the
-   * start or mid-video, until the user reloaded the page and cleared the cache (#592). Once
+   * start or mid-video, until the user reloaded the page and cleared the cache. Once
    * for a burst of refusals, at most LINK_RENEWAL_LIMIT times in LINK_RENEWAL_WINDOW_MS for one
    * video; a page that gives the same link, or none, changes nothing.
    * @param {number} status - The refusal's.

@@ -446,7 +446,7 @@ export class InterfaceController {
       this.focusingControls = isKeyboardFocus(/** @type {?Element} */ (e.target));
       this.showControlBar();
       // Kept while focus is there (queueControlsHide looks again until it may go): focus
-      // can leave without a focusout (isFocusInControls), and then nothing else asked (#383).
+      // can leave without a focusout (isFocusInControls), and then nothing else asked.
       this.queueControlsHide();
     });
     DOMElements.controlsContainer.addEventListener('focusout', ()=>{
@@ -1051,7 +1051,7 @@ export class InterfaceController {
     this.showControlBar();
     this.mouseOverControls = true;
     // Kept while the pointer is over the bar (queueControlsHide looks again until it may
-    // go), so the bar does not hang on a mouseleave alone (#383).
+    // go), so the bar does not hang on a mouseleave alone.
     this.queueControlsHide();
   }
   onControlsMouseLeave() {
@@ -1111,7 +1111,7 @@ export class InterfaceController {
       } else if (this.controlsVisible && !this.destroyed) {
         // Asked once, the bar stayed for as long as nothing asked again: a hide refused
         // while the video was paused or a menu open, then played or closed by a way that
-        // queues no hide (#383). It looks again until it may go.
+        // queues no hide. It looks again until it may go.
         this.queueControlsHide();
       }
     }, time || 2000);
@@ -1156,7 +1156,7 @@ export class InterfaceController {
     DOMElements.playerContainer.classList.add('controls_visible');
     DOMElements.controlsContainer.classList.remove('fade_out');
     DOMElements.controlsContainer.classList.add('fade_in');
-    // Every bar shown has a hide check (#383): a pause, the show-controls key, a new video,
+    // Every bar shown has a hide check: a pause, the show-controls key, a new video,
     // a closed menu or a tab come back to showed it without one, and it stayed up until
     // something else asked. One already waiting keeps its own time.
     if (!this.hideControlBarTimeout) this.queueControlsHide();

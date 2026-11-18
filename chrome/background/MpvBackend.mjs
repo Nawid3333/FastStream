@@ -158,12 +158,12 @@ function legacyWatch(port, onEvent) {
   });
   port.postMessage({type: 'watch'});
   return {
-    // Host 11: seconds, how long mpv shows it (notify.lua's own 2 s without).
+    // Seconds, how long mpv shows it (notify.lua's own 2 s without).
     notify: (title, detail = '', seconds) => post(typeof seconds === 'number' ?
       {type: 'notify', title, detail, seconds} : {type: 'notify', title, detail}),
-    // Host 11: takes the notice down before its time.
+    // Takes the notice down before its time.
     hide: () => post({type: 'hide'}),
-    // Host 9: what mpv's autoplay button shows ({autoplay: boolean}).
+    // What mpv's autoplay button shows ({autoplay: boolean}).
     state: (state) => post({type: 'state', ...state}),
     stop: () => {
       if (!end(null)) return;
@@ -387,7 +387,7 @@ export class MpvBackend {
   }
 
   /**
-   * A play message for the thin helper (host 15), an open message for an older one.
+   * A play message for the thin helper, an open message for an older one.
    * @param {string} url
    * @param {import('./TabTracker.mjs').TabHolder|null} [tab]
    * @param {Array<{name: string, value: string}>} [headers]

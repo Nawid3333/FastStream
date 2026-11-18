@@ -462,7 +462,7 @@
                                 if (self.cue.text) {
                                     self.cue.text += "\n";
                                 }
-                                // FastStream: U+2029, not the five letters "u2029" (#295)
+                                // FastStream: U+2029, not the five letters "u2029"
                                 self.cue.text += line.replace(/\u2028/g, '\n').replace(/\u2029/g, '\n');
                                 continue;
                             case "BADCUE": // BADCUE
@@ -1200,7 +1200,7 @@
                 // Create an element for this tag.
                 function createElement(type, annotation) {
                     // FastStream: own names only - <constructor> found Object, which createElement
-                    // threw on, out of the player's per-frame subtitle render (#291)
+                    // threw on, out of the player's per-frame subtitle render
                     var tagName = Object.prototype.hasOwnProperty.call(TAG_NAME, type) ? TAG_NAME[type] : null;
                     if (!tagName) {
                         return null;
@@ -1241,7 +1241,7 @@
                         }
                         // FastStream: the lookahead accepts exactly the tags the rest of the regex does, in
                         // linear time. Without it the class and annotation groups overlap, and a tag that
-                        // fails at its end was retried for every split of the two: quadratic (#294).
+                        // fails at its end was retried for every split of the two: quadratic.
                         var m = t.match(/^(?=<[^.\s/0-9>]+(?:[.\s/0-9][^>\\]*)?\\?>?$)<([^.\s/0-9>]+)(\.[^\s\\>]+)?([^>\\]+)?(\\?)>?$/);
                         // If we can't parse the tag, skip to the next tag.
                         if (!m) {
@@ -1276,7 +1276,7 @@
 
                             // FastStream: the classes are not set on the element. The player's own
                             // stylesheet matched them, and <c.pseudo_fullscreen> laid the cue over every
-                            // control (#292). The colour classes are inline styles, set above.
+                            // control. The colour classes are inline styles, set above.
                         }
                         // Append the node to the current node, and enter the scope of the new
                         // node.

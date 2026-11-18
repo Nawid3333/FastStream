@@ -27,7 +27,7 @@ const headerBlacklist = [
   'access-control-request-headers',
 ];
 
-// Login headers a link must not carry (#185). A copied stream link (the time readout,
+// Login headers a link must not carry. A copied stream link (the time readout,
 // the Sources browser) put the session's Cookie or Authorization in the clipboard, for
 // whoever the link was pasted to; and a crafted link (a page can open the player on one)
 // could have the player send credentials of its choosing. The player still sends the ones

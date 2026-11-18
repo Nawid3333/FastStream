@@ -16,7 +16,7 @@ const POSITION_EVERY_MS = 5000;
  * The keyboard's media keys and Windows' media overlay (and other systems' like it): the
  * video's name and a frame of it, its time line, and keys that go back, forward, to a time,
  * and to the next and the previous episode, as the player's own buttons do (his report,
- * 2026-10-22: play and pause worked, next and previous did nothing; 2026-10-24: the overlay
+ * Play and pause worked, next and previous did nothing; 2026-10-24: the overlay
  * showed only "FastStream"). Firefox gives a tab's media keys and overlay to the Media Session
  * of the frame whose media plays (dom/media/mediacontrol/MediaStatusManager.cpp: the active
  * audible controllable context), which is the player's frame while it plays: FastStream holds
