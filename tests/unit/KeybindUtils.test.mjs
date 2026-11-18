@@ -2,7 +2,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {DefaultKeybinds} from '../../chrome/player/options/defaults/DefaultKeybinds.mjs';
 import {DefaultOptions} from '../../chrome/player/options/defaults/DefaultOptions.mjs';
 import {
-  ADDED_IN_VERSION_2, ADDED_IN_VERSION_3, DEFAULT_SEEK_STEP_SIZE, FIXED_SEEKS, KEYBINDS_VERSION,
+  ADDED_IN_VERSION_2, ADDED_IN_VERSION_3, ADDED_IN_VERSION_6, DEFAULT_SEEK_STEP_SIZE, FIXED_SEEKS, KEYBINDS_VERSION,
   MOVED_IN_VERSION_2, MOVED_IN_VERSION_3, MOVED_IN_VERSION_4, OLD_SEEK_STEP_SIZE, SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset, conflictPartners, findKeybindConflicts, isTextEntryTarget,
   SILENT_MAX_PLAYBACK_RATE, describePlaybackRate, formatPlaybackRate, keyDisplayName, keybindLabel, migrateKeybinds, seekPercentAction, seekPercentTarget, speedPresetAction,
 } from '../../chrome/player/options/KeybindUtils.mjs';
@@ -694,6 +694,37 @@ describe('migrateKeybinds', () => {
     it('renames nothing for options saved by this version', () => {
       const stored = {keybindsVersion: 5, keybinds: {...DefaultKeybinds, Mute: 'Numpad5'}};
       expect(migrateKeybinds(mergedOver(stored), stored).keybinds.Mute).toBe('Numpad5');
+    });
+  });
+
+  describe('version 6: the subtitle sync tool on T, as in mpv', () => {
+    const v5 = (keybinds = {}) => {
+      const saved = {...DefaultKeybinds, ...keybinds};
+      delete saved.SubtitleSyncTool;
+      return {keybindsVersion: 5, keybinds: saved};
+    };
+    const load = (stored) => migrateKeybinds(mergedOver(stored), stored);
+
+    it('gives T to a user who has it free', () => {
+      const options = load(v5());
+      expect(ADDED_IN_VERSION_6).toEqual(['SubtitleSyncTool']);
+      expect(options.keybinds.SubtitleSyncTool).toBe('KeyT');
+      expect(options.keybinds).toEqual(DefaultKeybinds);
+      expect(options.keybindsVersion).toBe(KEYBINDS_VERSION);
+      expect(info).not.toHaveBeenCalled();
+    });
+
+    it('leaves it unbound when the user has T for something else', () => {
+      const {keybinds} = load(v5({Mute: 'KeyT'}));
+      expect(keybinds.Mute).toBe('KeyT');
+      expect(keybinds.SubtitleSyncTool).toBe('None');
+      expect(findKeybindConflicts(keybinds)).toEqual([]);
+      expect(info).toHaveBeenCalledWith('Keybind SubtitleSyncTool left unbound: KeyT is already taken');
+    });
+
+    it('keeps a choice saved by this version, unbound included', () => {
+      const stored = {keybindsVersion: 6, keybinds: {...DefaultKeybinds, SubtitleSyncTool: 'None'}};
+      expect(load(stored).keybinds.SubtitleSyncTool).toBe('None');
     });
   });
 

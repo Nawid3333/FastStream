@@ -119,7 +119,7 @@ function saveLocalesToCombinedFile(locales, whiteList) {
       }
     }
   }
-  fs.writeFileSync(combinedLocalesFile, JSON.stringify(messages, null, 4));
+  fs.writeFileSync(combinedLocalesFile, JSON.stringify(messages, null, 2) + '\n');
 }
 
 function checkLocaleKeys(locales) {

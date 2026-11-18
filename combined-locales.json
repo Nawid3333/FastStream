@@ -593,6 +593,24 @@
     "zh_CN": "- 开启/关闭字幕",
     "zh_TW": "- 開啟/關閉字幕"
   },
+  "welcome_page_keybinds_content27": {
+    "en": "- Open/close the subtitle resync tool",
+    "de": "- Untertitel-Neusynchronisierung öffnen/schließen",
+    "es": "- Abrir/cerrar la herramienta de resincronización de subtítulos",
+    "fr": "- Ouvrir/fermer l'outil de resynchronisation des sous-titres",
+    "id": "- Buka/tutup alat sinkronisasi subtitle",
+    "it": "- Apri/chiudi lo strumento di risincronizzazione dei sottotitoli",
+    "ja": "- 字幕の再同期ツールを開く/閉じる",
+    "ko": "- 자막 재동기화 도구 열기/닫기",
+    "ms": "- Buka/tutup alat segerakkan semula sarikata",
+    "nl": "- Synchronisatietool voor ondertitels openen/sluiten",
+    "pl": "- Otwórz/zamknij narzędzie synchronizacji napisów",
+    "pt_BR": "- Abrir/fechar a ferramenta de sincronização das legendas",
+    "ru": "- открыть/закрыть синхронизацию субтитров",
+    "tr": "- Altyazı senkronizasyon aracını aç/kapat",
+    "zh_CN": "- 打开/关闭字幕重新同步工具",
+    "zh_TW": "- 開啟/關閉字幕重新同步工具"
+  },
   "welcome_page_keybinds_content19": {
     "en": "- Picture-in-picture",
     "de": "- Bild-in-Bild",

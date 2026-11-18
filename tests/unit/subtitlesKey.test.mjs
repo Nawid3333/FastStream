@@ -109,3 +109,61 @@ describe('the subtitles key', () => {
     expect(subtitles.activeTracks).toEqual([]);
   });
 });
+
+describe('the subtitle sync key', () => {
+  /** @type {Object} */
+  let subtitles;
+  /** @type {InstanceType<typeof KeybindManager>} */
+  let keys;
+  /** @type {Object} */
+  let syncer;
+  const press = () => {
+    keys.handleKeyString('KeyT', {});
+    return osd.textContent;
+  };
+
+  beforeEach(() => {
+    osd.textContent = '';
+    subtitles = manager([english, german]);
+    // As SubtitleSyncer.toggleTrack: the open track again closes the tool, another opens it.
+    syncer = {
+      started: false, trackToSync: null,
+      toggleTrack: vi.fn((track) => {
+        const close = syncer.started && syncer.trackToSync === track;
+        syncer.started = !close;
+        syncer.trackToSync = close ? null : track;
+      }),
+    };
+    subtitles.subtitleSyncer = syncer;
+    keys = new KeybindManager(/** @type {any} */ ({options: {}, interfaceController: {subtitlesManager: subtitles}}));
+  });
+
+  it('is T, as in mpv', () => {
+    expect(keys.keyStringToKeybinds('KeyT')).toEqual(['SubtitleSyncTool']);
+  });
+
+  it('opens the tool on the track shown, and closes it again', () => {
+    subtitles.activateTrack(german);
+    press();
+    expect(syncer.toggleTrack).toHaveBeenLastCalledWith(german);
+    expect(syncer.started).toBe(true);
+    press();
+    expect(syncer.started).toBe(false);
+  });
+
+  it('closes the track the tool has open, whichever is shown now', () => {
+    subtitles.activateTrack(english);
+    syncer.started = true;
+    syncer.trackToSync = german;
+    press();
+    expect(syncer.toggleTrack).toHaveBeenCalledWith(german);
+    expect(syncer.started).toBe(false);
+  });
+
+  it('says why nothing opens: no subtitles, or none shown', () => {
+    expect(press()).toBe('player_subtitles_osd_off');
+    subtitles.tracks.length = 0;
+    expect(press()).toBe('player_subtitles_osd_none');
+    expect(syncer.toggleTrack).not.toHaveBeenCalled();
+  });
+});

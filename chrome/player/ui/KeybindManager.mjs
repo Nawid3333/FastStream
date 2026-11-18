@@ -211,6 +211,19 @@ export class KeybindManager extends EventEmitter {
       this.client.interfaceController.subtitlesManager.subtitleSyncer.shiftSubtitles(-0.2);
     });
 
+    // As the tool's button in the subtitles menu, for the track shown: again, the tool comes to the
+    // front if another covers it, else it closes.
+    this.on('SubtitleSyncTool', /** @param {KeyboardEvent} e */ (e) => {
+      const subtitles = this.client.interfaceController.subtitlesManager;
+      const syncer = subtitles.subtitleSyncer;
+      const track = syncer.started ? syncer.trackToSync : subtitles.activeTracks[0];
+      if (!track) {
+        this.osd.show(subtitles.describeActive());
+        return;
+      }
+      syncer.toggleTrack(track);
+    });
+
     this.on('ToggleSubtitles', /** @param {KeyboardEvent} e */ (e) => {
       const subtitles = this.client.interfaceController.subtitlesManager;
       if (this.client.options.cycleSubtitles) {

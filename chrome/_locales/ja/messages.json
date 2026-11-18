@@ -98,6 +98,9 @@
     "welcome_page_keybinds_content18": {
         "message": "- 字幕のオン/オフ"
     },
+    "welcome_page_keybinds_content27": {
+        "message": "- 字幕の再同期ツールを開く/閉じる"
+    },
     "welcome_page_keybinds_content19": {
         "message": "- ピクチャー イン ピクチャー"
     },

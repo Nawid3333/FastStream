@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import {describe, expect, it} from 'vitest';
 import {DefaultOptions} from '../../chrome/player/options/defaults/DefaultOptions.mjs';
-import {KEYBINDS_VERSION, migrateKeybinds} from '../../chrome/player/options/KeybindUtils.mjs';
+import {DefaultKeybinds} from '../../chrome/player/options/defaults/DefaultKeybinds.mjs';
+import {KEYBINDS_VERSION, findKeybindConflicts, migrateKeybinds} from '../../chrome/player/options/KeybindUtils.mjs';
 import {holdImportedNumbers, importedForMigration, settingsForExport} from '../../chrome/player/options/SettingsFile.mjs';
 import {Utils} from '../../chrome/player/utils/Utils.mjs';
 
@@ -54,5 +55,57 @@ describe('holdImportedNumbers', () => {
     const options = {...DefaultOptions, ramBudget: 0, bufferAhead: -1, videoZoom: 0.5, videoDelay: -250};
     holdImportedNumbers(options);
     expect(options).toMatchObject({ramBudget: 0, bufferAhead: -1, videoZoom: 0.5, videoDelay: -250});
+  });
+});
+
+describe('a settings file through export and import', () => {
+  // The options page's import, step by step (options.mjs, the import button's change handler).
+  const importFile = (text) => {
+    const file = importedForMigration(JSON.parse(text));
+    return Utils.migrateClickActions(Utils.migrateSizes(Utils.migrateKeybinds(
+        Utils.mergeOptions(DefaultOptions, file), file), file), file);
+  };
+  const exportOptions = (options) => JSON.stringify(settingsForExport(options), null, 2);
+  // Saved options of this build: the defaults, at this layout version.
+  const current = (keybinds = {}) => ({...DefaultOptions, keybindsVersion: KEYBINDS_VERSION,
+    keybinds: {...DefaultKeybinds, ...keybinds}});
+  // A file exported before SubtitleSyncTool existed: version 5, no such key.
+  const beforeT = (keybinds = {}) => {
+    const saved = {...DefaultKeybinds, ...keybinds};
+    delete saved.SubtitleSyncTool;
+    return JSON.stringify({...DefaultOptions, keybindsVersion: 5, keybinds: saved});
+  };
+
+  it('brings back every key as exported, the sync tool\'s own choice too', () => {
+    for (const keybinds of [{}, {SubtitleSyncTool: 'Shift+KeyT', Mute: 'KeyT'}, {SubtitleSyncTool: 'None'}]) {
+      const saved = current(keybinds);
+      const exported = exportOptions(saved);
+      expect(JSON.parse(exported).keybinds.SubtitleSyncTool).toBe(saved.keybinds.SubtitleSyncTool);
+      const imported = importFile(exported);
+      expect(imported.keybinds).toEqual(saved.keybinds);
+      expect(imported.keybindsVersion).toBe(KEYBINDS_VERSION);
+      expect(findKeybindConflicts(imported.keybinds)).toEqual([]);
+    }
+  });
+
+  it('gives a file from before the sync key T, as an update gives saved options', () => {
+    const {keybinds, keybindsVersion} = importFile(beforeT());
+    expect(keybinds.SubtitleSyncTool).toBe('KeyT');
+    expect(keybinds).toEqual(DefaultKeybinds);
+    expect(keybindsVersion).toBe(KEYBINDS_VERSION);
+  });
+
+  it('keeps T where such a file put it, and leaves the sync key unbound', () => {
+    const {keybinds} = importFile(beforeT({Mute: 'KeyT'}));
+    expect(keybinds.Mute).toBe('KeyT');
+    expect(keybinds.SubtitleSyncTool).toBe('None');
+    expect(findKeybindConflicts(keybinds)).toEqual([]);
+  });
+
+  it('brings a file without a layout version to this one, with no clash', () => {
+    const {keybinds, keybindsVersion} = importFile(JSON.stringify({keybinds: {PlayPause: 'Space', Mute: 'KeyM'}}));
+    expect(keybinds.SubtitleSyncTool).toBe('KeyT');
+    expect(keybindsVersion).toBe(KEYBINDS_VERSION);
+    expect(findKeybindConflicts(keybinds)).toEqual([]);
   });
 });

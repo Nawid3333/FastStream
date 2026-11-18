@@ -45,6 +45,8 @@ export const DefaultKeybinds = {
   'ToggleSubtitles': 'KeyC',
   'ShiftSubtitlesEarlier': 'None',
   'ShiftSubtitlesLater': 'None',
+  // As in mpv's input.conf (subtitle_sync/toggle).
+  'SubtitleSyncTool': 'KeyT',
   'FlipVideo': 'Shift+KeyE',
   'RotateVideo': 'Shift+KeyR',
   'ZoomInVideo': 'None',
