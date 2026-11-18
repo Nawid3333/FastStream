@@ -392,6 +392,14 @@ function addElements(page, count) {
 // A page with no video, where the frame cannot go fullscreen, goes to the player itself: its
 // beforeunload then tells the background nothing (the player asks for the frame's sources).
 describe('the redirect to the player', () => {
+  it('lays the player over a frame the page wrote (about:srcdoc) instead: the page\'s script drives it', async () => {
+    const page = loadContentScript();
+    page.document.fullscreenEnabled = false;
+    page.window.location = {...page.window.location, href: 'about:srcdoc', protocol: 'about:', origin: 'null', pathname: 'srcdoc'};
+    expect(await page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, frameId: 0, parentFrameId: -1,
+      attempt: 1, force: true})).toBe('replaceall');
+  });
+
   it('reports the page\'s next leave once it stayed after all', async () => {
     const page = loadContentScript();
     page.document.fullscreenEnabled = false;
@@ -932,6 +940,14 @@ describe('REPORT_LOADED_MEDIA', () => {
   it('reports it once when the timeline has it too', async () => {
     const page = loadContentScript({entries: requests(10), observer: true});
     expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
+  });
+
+  it('names a srcdoc frame\'s media by its creator\'s page, which its requests name as theirs', async () => {
+    const page = loadContentScript({entries: requests(1), observer: true});
+    page.window.location = {...page.window.location, href: 'about:srcdoc', protocol: 'about:', origin: 'null', pathname: 'srcdoc'};
+    page.document.baseURI = 'https://site.example/watch/1';
+    expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
+    expect(page.sent.find((message) => message.type === 'LOADED_MEDIA').url).toBe('https://site.example/watch/1');
   });
 
   /**

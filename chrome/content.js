@@ -161,7 +161,7 @@
       try {
         chrome.runtime.sendMessage({
           type: MessageTypes.LOADED_MEDIA,
-          url: window.location.href,
+          url: pageAddress(),
           document: DocumentKey,
           resources: loadedMedia(),
         }, () => {
@@ -202,7 +202,7 @@
     }
   });
 
-  window.addEventListener('message', (e) => {
+  PageListeners.add(window, 'message', (e) => {
     if (typeof e.data !== 'string') {
       return;
     }
@@ -289,7 +289,7 @@
   function watchRemovalOf(iframe) {
     if (!pendingPlayersWatch) {
       pendingPlayersWatch = new MutationObserver(checkPendingPlayers);
-      pendingPlayersWatch.observe(document.documentElement, {childList: true, subtree: true});
+      pendingPlayersWatch.observe(document, {childList: true, subtree: true});
       watchedRoots = new WeakSet();
     }
     let root = iframe.getRootNode();
@@ -451,6 +451,14 @@
   }
 
   /**
+   * The page's address; a srcdoc frame's (about:srcdoc) is its creator's, which its requests name as their page.
+   * @return {string}
+   */
+  function pageAddress() {
+    return window.location.protocol === 'about:' ? document.baseURI : window.location.href;
+  }
+
+  /**
    * The next and previous episode's addresses for MPV autoplay (EPISODE_LINKS), own origin only.
    * @param {*} request
    * @param {*} sender
@@ -459,7 +467,7 @@
   function readEpisodeLinks(request, sender, sendResponse) {
     const ownSite = (/** @type {?string} */ address) => {
       try {
-        return address && new URL(address).origin === window.location.origin ? address : null;
+        return address && new URL(address).origin === new URL(pageAddress()).origin ? address : null;
       } catch (e) {
         return null;
       }
@@ -536,7 +544,7 @@
       const newURL = new URL(request.url);
       newURL.searchParams.set('opener', DocumentKey);
       if (!video || playerFillsScreen) {
-        if (!document.fullscreenEnabled && !request.noRedirect) {
+        if (!document.fullscreenEnabled && !request.noRedirect && window.location.protocol !== 'about:') {
           if (request.parentFrameId > -1) {
             newURL.searchParams.set('parent_frame_id', request.parentFrameId);
           }
@@ -2147,21 +2155,23 @@
    * @param {string|URL} url
    */
   function isLinkToDifferentPageOnWebsite(url) {
+    let page;
     try {
-      url = new URL(url, window.location.href);
+      page = new URL(pageAddress());
+      url = new URL(url, page);
     } catch (e) {
       return false;
     }
 
-    if (url.origin !== window.location.origin) {
+    if (url.origin !== page.origin) {
       return false;
     }
 
-    if (url.pathname !== window.location.pathname) {
+    if (url.pathname !== page.pathname) {
       return true;
     }
 
-    if (url.search !== window.location.search) {
+    if (url.search !== page.search) {
       return true;
     }
 
@@ -2499,13 +2509,13 @@
     }
     try {
       const url = url_to_absolute(a.href);
-      return (new URL(url)).origin === window.location.origin;
+      return (new URL(url)).origin === new URL(pageAddress()).origin;
     } catch (e) {
       return false;
     }
   }
 
-  document.addEventListener('click', (e) => {
+  PageListeners.add(document, 'click', (e) => {
     // By the click's path first: in a web component the click's target is its host.
     const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
     let current = /** @type {?Element} */ (path.find((node) => /** @type {?Element} */ (node)?.tagName === 'A') || null);
@@ -2542,7 +2552,7 @@
   }, true);
 
 
-  document.addEventListener('fullscreenchange', () => {
+  PageListeners.add(document, 'fullscreenchange', () => {
     const changedFor = /** @type {any[]} */ ([]);
     iframeMap.forEach((iframeObj) => {
       const fullscreenState = iframeObj.fullscreenState;
@@ -2562,13 +2572,13 @@
     });
   });
 
-  window.addEventListener('resize', () => {
+  PageListeners.add(window, 'resize', () => {
     updateReplacedPlayersSoon();
     resizeMiniPlayers();
   });
 
   // Arms the background's popup guard: ad scripts open a popup from this blur.
-  window.addEventListener('blur', () => {
+  PageListeners.add(window, 'blur', () => {
     // Shadow roots too: a player in a web component's root has its host as activeElement.
     const active = OverlayGuard.focused();
     if (!active) return;
@@ -2756,8 +2766,8 @@
     reportUserPlay(video);
   }
 
-  document.addEventListener('play', onPlay, true);
-  document.addEventListener('play', pauseHeldMedia, true);
+  PageListeners.add(document, 'play', onPlay, true);
+  PageListeners.add(document, 'play', pauseHeldMedia, true);
 
   // A video's own file, told once: Firefox can play a file with no request the background sees.
   const reportedVideoFiles = new Set();
@@ -2778,7 +2788,7 @@
         type: MessageTypes.LOADED_MEDIA,
         // Told as it loaded: the background lets the request's own detection come first.
         live: true,
-        url: window.location.href,
+        url: pageAddress(),
         document: DocumentKey,
         // cors: a crossorigin video's request carries an Origin (pageHeaders).
         resources: [{url: src, media: true, cors: video.crossOrigin !== null, time: Date.now()}],
@@ -2790,7 +2800,7 @@
     }
   }
 
-  document.addEventListener('loadedmetadata', onLoadedMetadata, true);
+  PageListeners.add(document, 'loadedmetadata', onLoadedMetadata, true);
 
   // Media events are not composed: each shadow root gets the listener, found as the user acts.
   const listenedRoots = new WeakSet();
@@ -2848,9 +2858,9 @@
     }
   }
 
-  window.addEventListener('pointerdown', /** @type {EventListener} */ (onUserGesture), true);
-  window.addEventListener('keydown', onUserGesture, true);
-  window.addEventListener('keydown', (e) => {
+  PageListeners.add(window, 'pointerdown', /** @type {EventListener} */ (onUserGesture), true);
+  PageListeners.add(window, 'keydown', onUserGesture, true);
+  PageListeners.add(window, 'keydown', (e) => {
     // The user's Escape only: one the page made (dispatchEvent) left the window too.
     if (!e.isTrusted || !carriedFullscreen || e.key !== 'Escape') return;
     carriedFullscreen = false;
@@ -2893,7 +2903,7 @@
     return e.ctrlKey || e.altKey || e.metaKey || /^(F\d+|Media\w+)$/.test(e.key);
   }
 
-  window.addEventListener('keydown', (e) => {
+  PageListeners.add(window, 'keydown', (e) => {
     if (!e.isTrusted || e.repeat || e.isComposing || ModifierKeys.includes(e.key)) return;
     if (!couldBeExtensionShortcut(e)) return;
     setTimeout(() => {
@@ -2944,7 +2954,7 @@
     });
   }
 
-  window.addEventListener('beforeunload', (e) => {
+  PageListeners.add(window, 'beforeunload', (e) => {
     // The page's own made-up event: nothing leaves.
     if (!e.isTrusted) return;
     // The player loads in this frame and asks for its sources: no FRAME_REMOVED for the redirect.
@@ -2966,7 +2976,7 @@
     leaveTimer = timer;
   });
 
-  window.addEventListener('pagehide', (e) => {
+  PageListeners.add(window, 'pagehide', (e) => {
     if (!e.isTrusted) return;
     // Gone, or into the back-forward cache, which names the page again itself (pageshow).
     clearTimeout(/** @type {Timer} */ (leaveTimer));
@@ -2977,7 +2987,7 @@
   });
 
   // The back-forward cache gives the page back after its leave: naming it again restores its sources.
-  window.addEventListener('pageshow', (e) => {
+  PageListeners.add(window, 'pageshow', (e) => {
     if (!e.isTrusted || !e.persisted) {
       return;
     }

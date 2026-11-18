@@ -64,6 +64,7 @@
       "match_about_blank": true,
       "run_at": "document_start",
       "js": [
+        "page-listeners.js",
         "overlay-guard.js",
         "page-fetch.js",
         "episode-links.js",

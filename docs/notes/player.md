@@ -1346,6 +1346,13 @@ background found the video's stream but had no content script in that frame to o
 in ("Receiving end does not exist"). Set on the `<all_urls>` entry since 2026-11-18.
 `match_origin_as_fallback` (also data: and blob: frames, sandboxed ones) is not set: Firefox
 ignores `match_about_blank` when it is present, and no measured page needed it yet.
+A frame a player script fills with `document.open()`/`document.write()` keeps its window, but
+`document.open()` erases every listener on that window and its document, the content scripts'
+too, and Firefox does not run them again (they ran in the first, empty document): the frame then
+answered nothing and its player was never linked (the e2e's `/blank` case, measured). Content
+scripts add window and document listeners through `PageListeners` (`page-listeners.js`, the first
+of them), which adds them again when the document's element is replaced; a MutationObserver on
+the document itself survives `document.open()`.
 `tests/e2e/ext-specs/hidden-streams.e2e.mjs` drives all of the above on the installed extension;
 against 1.3.82.215 the DASH, about:blank and srcdoc cases fail, the HLS one passes (#765).
 

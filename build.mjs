@@ -143,6 +143,7 @@ async function buildWeb() {
   spliceAndCopy(chromeSourceDir, webBuildDir, ['WEB', 'NO_UPDATE_CHECKER'], [
     'manifest.json',
     'content.js',
+    'page-listeners.js',
     'overlay-guard.js',
     'episode-links.js',
     'page-qualities.js',

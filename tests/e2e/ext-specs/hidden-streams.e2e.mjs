@@ -51,15 +51,31 @@ function pageFetching(manifest) {
  */
 const video = (name) => `<video muted autoplay controls width="640" height="360" src="/media/sample.mp4?${name}"></video>`;
 
+/**
+ * A page that writes a video into an iframe it gave no address, at once or after a while (document.open() then
+ * replaces the empty document content scripts may already run in).
+ * @param {string} name
+ * @param {number} delay - ms; 0 writes it at once.
+ * @return {string}
+ */
+function pageWritingFrame(name, delay) {
+  return `<!doctype html><body style="margin:0"><iframe width="660" height="380"></iframe><script>
+    const write = () => {
+      const doc = document.querySelector('iframe').contentDocument;
+      doc.open();
+      doc.write(${JSON.stringify(`<!doctype html><body style="margin:0">${video(name)}</body>`)});
+      doc.close();
+    };
+    if (${delay}) setTimeout(write, ${delay}); else write();
+  </script></body>`;
+}
+
 const PAGES = {
   '/hoster': pageFetching(`/pl/7?token=${KEY}`),
+  '/hoster-html': pageFetching(`/pl/8?token=${KEY}`),
   '/dash': pageFetching('/api/manifest?id=7'),
-  '/blank': `<!doctype html><body style="margin:0"><iframe width="660" height="380"></iframe><script>
-    const doc = document.querySelector('iframe').contentDocument;
-    doc.open();
-    doc.write(${JSON.stringify(`<!doctype html><body style="margin:0">${video('blank')}</body>`)});
-    doc.close();
-  </script></body>`,
+  '/blank': pageWritingFrame('blank', 0),
+  '/blank-late': pageWritingFrame('blank-late', 1500),
   '/srcdoc': `<!doctype html><body style="margin:0"><iframe width="660" height="380"
     srcdoc="${`<!doctype html><body style='margin:0'>${video('srcdoc').replaceAll('"', '\'')}</body>`}"></iframe></body>`,
 };
@@ -91,18 +107,22 @@ describe('Streams a page hides', function() {
           send(res, 403, 'text/html', '<html><body>Forbidden</body></html>');
           return;
         }
-        record(200);
-        if (url.pathname === '/pl/7') {
-          send(res, 200, 'text/plain; charset=utf-8', '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=500000,RESOLUTION=320x180\n/pl/7/a\n');
+        if (url.pathname === '/pl/7' || url.pathname === '/pl/8') {
+          record(200);
+          send(res, 200, url.pathname === '/pl/7' ? 'text/plain; charset=utf-8' : 'text/html; charset=UTF-8',
+              '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=500000,RESOLUTION=320x180\n/pl/7/a\n');
         } else if (url.pathname === '/pl/7/a') {
+          record(200);
           send(res, 200, 'text/plain; charset=utf-8', mediaPlaylist());
         } else {
           const n = Number(/page-(\d+)\.html$/.exec(url.pathname)?.[1]);
           const file = path.join(FIXTURES, 'hls-ts', `seg-${String(n).padStart(3, '0')}.ts`);
           if (!fs.existsSync(file)) {
+            record(404);
             send(res, 404, 'text/html', 'not found');
             return;
           }
+          record(200);
           send(res, 200, 'text/html; charset=UTF-8', fs.readFileSync(file));
         }
         return;
@@ -144,10 +164,11 @@ describe('Streams a page hides', function() {
   });
 
   /**
-   * Waits for FastStream's player in the page or in its first frame, switches into it, and waits
-   * until it shows the video.
+   * Waits for FastStream's player in the page or in its first frame, switches into it, waits until it shows the
+   * video, and asks for windowed fullscreen: the page's content script answers it only for a player frame it linked
+   * (the player's postMessage to its window's 'message' listener).
    * @param {string} what - For the messages.
-   * @return {Promise<Object>} The player's state.
+   * @return {Promise<Object>} The player's state, and linked: whether windowed fullscreen was entered.
    */
   async function playerShowing(what) {
     const selector = 'iframe[src*="player/index.html"]';
@@ -170,21 +191,32 @@ describe('Streams a page hides', function() {
       });
       return state.readyState >= 2 && state.width > 0;
     }, {timeout: 30000, interval: 500, timeoutMsg: `FastStream's player never showed ${what}: ${JSON.stringify(state)}`});
+    await browser.execute(() => {
+      window.fastStream.interfaceController.toggleWindowedFullscreen(true);
+      return true;
+    });
+    state.linked = await browser.waitUntil(() => browser.execute(() => window.fastStream.state.windowedFullscreen),
+        {timeout: 5000, interval: 250}).catch(() => false);
     await browser.switchFrame(null);
     return state;
   }
 
-  it('plays an HLS stream that names no type, needs its key on every file and calls its segments pages', async function() {
-    seen.length = 0;
-    await browser.url(`${SITE}/hoster`);
-    const state = await playerShowing('the HLS stream');
-    expect(state.mode).toBe('accelerated_hls');
-    expect(state.url).toBe(`${SITE}/pl/7?token=${KEY}`);
-    // Each file was refused once at most without the key; the segments came with it.
-    const refused = seen.filter((s) => s.status === 403).map((s) => s.path);
-    expect(refused.length).toBeLessThanOrEqual(2);
-    expect(seen.filter((s) => s.path.startsWith('/content/') && s.status === 200).length).toBeGreaterThan(0);
-  });
+  for (const [type, page, master] of [['text/plain', '/hoster', '/pl/7'], ['text/html', '/hoster-html', '/pl/8']]) {
+    it(`plays an HLS stream called ${type} at an address that names no type, its files needing its key`, async function() {
+      seen.length = 0;
+      await browser.url(`${SITE}${page}`);
+      const state = await playerShowing('the HLS stream');
+      expect(state.mode).toBe('accelerated_hls');
+      expect(state.url).toBe(`${SITE}${master}?token=${KEY}`);
+      // Refused without the key only for the media playlist (more than once when the probe and the player
+      // both ask); from then on every file is asked for with it.
+      const refused = seen.filter((s) => s.status === 403).map((s) => s.path);
+      expect(refused.length).toBeGreaterThan(0);
+      expect([...new Set(refused)]).toEqual(['/pl/7/a']);
+      expect(seen.filter((s) => s.path.startsWith('/content/') && s.status === 200).length).toBeGreaterThan(0);
+      expect(state.linked).toBe(true);
+    });
+  }
 
   it('plays a DASH manifest its server calls application/xml, at an address that names no type', async function() {
     await browser.url(`${SITE}/dash`);
@@ -193,11 +225,16 @@ describe('Streams a page hides', function() {
     expect(state.url).toBe(`${SITE}/api/manifest?id=7`);
   });
 
-  for (const [where, page] of [['an about:blank frame the page wrote', '/blank'], ['a srcdoc frame', '/srcdoc']]) {
-    it(`takes over a video in ${where}`, async function() {
+  for (const [where, page] of [
+    ['an about:blank frame the page wrote at once', '/blank'],
+    ['an about:blank frame the page wrote 1.5 s later', '/blank-late'],
+    ['a srcdoc frame', '/srcdoc'],
+  ]) {
+    it(`takes over a video in ${where}, and links up with the frame`, async function() {
       await browser.url(`${SITE}${page}`);
       const state = await playerShowing(`the video in ${where}`);
       expect(state.url).toBe(`${SITE}/media/sample.mp4?${page.slice(1)}`);
+      expect(state.linked).toBe(true);
     });
   }
 });

@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import {webcrypto} from 'node:crypto';
 // The scripts' text, which vitest includes when it loads this module (?raw): read at run
 // time, the code run below was "user-provided" to CodeQL (js/code-injection).
+import pageListenersSource from '../../chrome/page-listeners.js?raw';
 import overlayGuardSource from '../../chrome/overlay-guard.js?raw';
 import episodeLinksSource from '../../chrome/episode-links.js?raw';
 import pageQualitiesSource from '../../chrome/page-qualities.js?raw';
@@ -527,7 +528,7 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
   context.window = context;
   context.top = inFrame ? {} : context;
   vm.createContext(context);
-  for (const [file, source] of [['chrome/overlay-guard.js', overlayGuardSource], ['chrome/episode-links.js', episodeLinksSource],
+  for (const [file, source] of [['chrome/page-listeners.js', pageListenersSource], ['chrome/overlay-guard.js', overlayGuardSource], ['chrome/episode-links.js', episodeLinksSource],
     ['chrome/page-qualities.js', pageQualitiesSource], ['chrome/content.js', contentSource]]) {
     vm.runInContext(source, context, {filename: file});
   }
