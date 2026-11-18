@@ -11,9 +11,6 @@ ModesMap.set('mpd', PlayerModes.ACCELERATED_DASH);
 
 ModesMap.set('vmpatch', PlayerModes.ACCELERATED_VM);
 
-/**
- * Utility functions for working with URLs and extracting identifiers.
- */
 export class URLUtils {
   /**
   * @param {string} urlStr
@@ -56,10 +53,8 @@ export class URLUtils {
     }
   }
   /**
-   * The URL with FastStream's time (its faststream-timestamp parameter) set, or taken off,
-   * and everything else as it was, byte for byte. URLSearchParams writes the whole query
-   * anew, a '=' in a value as %3D, and a signed link is then refused: vidmoly's
-   * t=…= became t=…%3D, and every segment after a rebuild at a time got a 403 (#592).
+   * Sets or takes off faststream-timestamp, the rest byte for byte: URLSearchParams would
+   * re-encode the query ('=' as %3D), and a signed link is then refused.
    * @param {string} url
    * @param {?number} seconds - The time, or null to take it off.
    * @return {string}
@@ -82,14 +77,9 @@ export class URLUtils {
   }
 
   /**
-   * What tells one video from another by its address (VideoSource.identifier: its remembered
-   * time, its buffer handed over, its link renewals): the URL without its query, which a signed
-   * link renews, and with a fragment that is a path, which a page's service worker may read as the
-   * video's id (abyss.to's player: one address, #mp4/<video>/<quality> for each video, #665;
-   * without it every video there went on at the last one's time). Any other fragment is dropped,
-   * as before: a media fragment (#t=30), a type hint (#.mp4, #hls), a page's flag (#autoplay), a
-   * route (#/x). The request for the file has no fragment, and the page's address of the same
-   * file must give the same identifier.
+   * VideoSource.identifier: the URL without its query, which a signed link renews. A fragment
+   * that is a path stays (a page's service worker may read it as the video's id, #mp4/<id>/720);
+   * any other (#t=30, #.mp4, #/x) goes, as the request for the file has none.
    * @param {string} url
    * @return {string}
    */
@@ -108,9 +98,6 @@ export class URLUtils {
     return url.split(/[#?]/)[0];
   }
 
-  // A plain url.includes(domain) also matches an attacker host that merely
-  // contains the domain as a substring, e.g. evil.com/vimeo.com or
-  // vimeo.com.evil.com. This checks the actual hostname instead.
   /**
   * @param {string} url
   * @param {string} domain
@@ -124,13 +111,9 @@ export class URLUtils {
     }
   }
 
-  // The protocols a <video> or <audio> may load a source from: the web, a file the user
-  // picked or dropped (blob:), an inline one (data:) and a local file opened in the tab.
   static PlayableProtocols = ['http:', 'https:', 'blob:', 'data:', 'file:'];
 
-  // The source as an absolute URL when it has one of those protocols, else null. A source
-  // can come from the player's address or the sources browser's text field, so a
-  // `javascript:` one must not reach `video.src`.
+  // A source can come from the player's address or a text field: no javascript: to video.src.
   /**
   * @param {string} url
   * @param {string} base
@@ -149,9 +132,7 @@ export class URLUtils {
   * @param {string} url
   */
   static get_url_extension(url) {
-    // The last path segment's extension only: a dot in the host or in a folder is none.
-    // https://e.com/stream has no extension (it gave 'com/stream'), and a bare host
-    // https://example.mp4 is no MP4. Also given file names, which have no scheme.
+    // The last path segment's only: https://example.mp4 is no MP4. Also given bare file names.
     let path = this.strip_queryhash(url).trim();
     const authority = /^[a-z][a-z0-9+.-]*:\/\/[^/]*/i.exec(path);
     if (authority) {
@@ -209,7 +190,6 @@ export class URLUtils {
     for (const name in obj) {
       if (Object.hasOwn(obj, name)) {
         let cased = name;
-        // Pascal case
         cased = cased.replace(/\w+/g,
             (w) =>{
               return w[0].toUpperCase() + w.slice(1).toLowerCase();

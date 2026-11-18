@@ -2,26 +2,10 @@
 import {Localize} from '../modules/Localize.mjs';
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 
-/**
- * The options page's offer to turn MPV mode on, once the mpv host answers.
- *
- * mpv-config's one-click setup for Windows installs mpv and this extension's mpv host
- * (the "helper") and opens the add-on in Firefox, but MPV mode stays off until the user
- * ticks it here. When it is off and the host answers "mpv found" (the MPV_TEST message
- * the "Test mpv connection" button sends), a banner says so, with a button that turns
- * MPV mode on and a link that dismisses the offer for good (storage.local, like the
- * update banner's ignored version).
- *
- * Unlike the update banner it is not between SPLICER:NO_UPDATE_CHECKER markers, so the
- * AMO build (the signed .xpi) has it too.
- *
- * The host is asked at most once per page, and only when the page is first seen
- * (`check()`): the options page is also an iframe in every player, and a player whose
- * settings are never opened should not start the host. It is never asked once the offer
- * was dismissed or taken, or while MPV mode is on.
- */
+// The offer to turn MPV mode on once the mpv host answers "mpv found". It is not between the
+// update banner's SPLICER:NO_UPDATE_CHECKER markers: the AMO build has it too. The host is asked
+// at most once, when the page is first seen: the options page is an iframe in every player.
 
-/** The storage.local key that records a dismissed (or taken) offer. */
 export const MpvSuggestionDismissedKey = 'mpvSuggestionDismissed';
 
 export class MpvSuggestion {
@@ -52,7 +36,6 @@ export class MpvSuggestion {
   }
 
   /**
-   * Asks the host, once, and offers MPV mode when it found mpv and the mode is off.
    * @return {Promise<void>}
    */
   async check() {
@@ -75,10 +58,7 @@ export class MpvSuggestion {
   }
 
   /**
-   * The options changed (on this page or elsewhere): MPV mode turned on another way
-   * makes the offer moot, and turned off again after the offer was taken makes its "MPV
-   * mode is on" untrue. Both close it; a taken offer does not come back (take() remembered
-   * it as a dismissal).
+   * MPV mode turned on another way, or off again after the offer was taken, closes it.
    */
   optionsChanged() {
     if ((this.state === 'offered' && this.isMpvModeOn()) ||
@@ -87,7 +67,6 @@ export class MpvSuggestion {
     }
   }
 
-  /** The button: MPV mode on, and where to go from here. */
   take() {
     if (this.state !== 'offered') {
       return;
@@ -100,7 +79,6 @@ export class MpvSuggestion {
     this.dismissLink.textContent = Localize.getMessage('options_mpv_suggest_close');
   }
 
-  /** The link: no offer again, on this page or any other. */
   dismiss() {
     if (this.state === 'offered') {
       MpvSuggestion.remember();
@@ -129,7 +107,6 @@ export class MpvSuggestion {
   }
 
   /**
-   * The background's MPV_TEST answer, or null when there is none.
    * @return {Promise<?{ok: boolean, mpv?: boolean}>}
    */
   static askHost() {

@@ -1,19 +1,13 @@
 // @ts-check
 
-// What a video is, guessed from the title of the tab that plays it: on a streaming site that is
-// the only clue (an HLS stream has no file name). The subtitle search starts from it
-// (OpenSubtitlesSearch). The guess before this one kept only the letters a-z, so
-// "Amélie" lost a letter and "Spider-Man" its dash; dropped the year it found; kept "1080p"; and
-// dropped words such as "part" or "show" wherever they were ("Dune Part Two" became "Dune Two",
-// "The Truman Show" "The Truman"). tests/unit/MediaTitle.test.mjs has the titles it is made for.
+// What a video is, guessed from its tab's title, for the subtitle search: an HLS stream has no
+// file name. tests/unit/MediaTitle.test.mjs has the titles it is made for.
 
 import {StringUtils} from './StringUtils.mjs';
 
-// Between a title and what a site adds to it: spaced dashes, bars, double colons, bullets.
 const SEPARATORS = /\s+(?:[|–—•·]|-{1,2}|::|>>?)\s+/;
 
-// Words a site puts before or after a title, never inside one: taken off at either end only.
-// English and German, as the sites the player is used on.
+// Taken off either end only: words inside a title stay ("Dune Part Two").
 const EDGE_WORDS = new Set([
   'watch', 'watching', 'stream', 'streaming', 'streams', 'online', 'free', 'for', 'full', 'movie',
   'movies', 'film', 'films', 'hd', 'fullhd', 'uhd', 'sd', 'in', 'now', 'here', 'sub', 'subbed', 'dub',
@@ -23,31 +17,25 @@ const EDGE_WORDS = new Set([
   'tv', 'anime', 'kinofilm', 'trailer', 'official', 'video', 'videos', 'the', 'a', 'an', 'of',
   'and', 'or', 'on', 'at', 'to', 'with', 'by', 'from', 'der', 'die', 'das', 'doku', 'documentary',
 ]);
-// Edge words that can begin a real title ("The Bear", "Die Hard", "Free Guy", "In the Heat of
-// the Night"), and ones that can end one ("Apocalypse Now", "Scary Movie"): kept there when only
-// such words stand between them and a word of the title ("Watch the free movie Oppenheimer"
-// loses "the free movie", "... Full Movie" its "Movie").
+// Edge words that can begin ("Die Hard") or end ("Scary Movie") a title: kept when only such
+// words stand between them and the title.
 const MAY_START = new Set(['the', 'a', 'an', 'of', 'and', 'or', 'on', 'at', 'to', 'with', 'by', 'from',
   'der', 'die', 'das', 'in', 'for', 'und', 'mit', 'auf', 'now', 'here', 'full', 'free', 'tv']);
 const MAY_END = new Set(['now', 'here', 'in', 'on', 'movie', 'movies', 'film', 'films', 'tv', 'anime', 'video']);
 
-// Streaming services, named in a title part of their own ("| Netflix", "- Disney+").
 const SERVICES = new Set(['netflix', 'disney', 'disneyplus', 'prime', 'primevideo', 'amazon', 'hulu',
   'hbo', 'hbomax', 'max', 'paramount', 'paramountplus', 'peacock', 'crunchyroll', 'sky', 'wow', 'joyn',
   'appletv', 'apple', 'youtube', 'mubi', 'plex', 'tubi', 'pluto', 'plutotv', 'rtl', 'rtlplus', 'ard',
   'zdf', 'arte', 'mediathek', 'iplayer', 'video', 'tv', 'plus']);
 
-// Picture and encoding words: never part of a title, wherever they are.
 const QUALITY = /^(?:\d{3,4}p|[48]k|uhd|hdr\d*|sdr|x26[45]|h26[45]|hevc|avc|av1|aac\d*|ac3|eac3|dts|webdl|webrip|bluray|brrip|bdrip|dvdrip|hdrip|hdtv|cam|hdcam|hdts|telesync|remux|mp4|mkv)$/;
 
-// A season and an episode, each pattern with its season and its episode group.
 const EPISODE_PATTERNS = [
   /\bs(\d{1,2})[ .]?e[p]?(\d{1,4})\b/i,
   /\b(\d{1,2})[x×](\d{1,4})\b/i,
   /\b(?:season|staffel)\s*(\d{1,2})\s*[,.-]?\s*(?:episode|folge|ep\.?)\s*(\d{1,4})\b/i,
 ];
-// One of them alone. The short forms touch their number ("S2", "E12"): "Ocean's 11" has no
-// season 11.
+// The short forms touch their number ("S2"): "Ocean's 11" has no season 11.
 const SEASON_ONLY = /\b(?:(?:season|staffel)\s*(\d{1,2})|s(\d{1,2}))\b/i;
 const EPISODE_ONLY = /\b(?:(?:episode|folge|ep\.?)\s*(\d{1,4})|e(\d{1,4}))\b/i;
 
@@ -55,7 +43,6 @@ const EPISODE_ONLY = /\b(?:(?:episode|folge|ep\.?)\s*(\d{1,4})|e(\d{1,4}))\b/i;
 const GENERIC_LABELS = new Set(['co', 'com', 'org', 'net', 'gov', 'ac', 'edu']);
 
 /**
- * A word as compared: lower case, letters and digits only.
  * @param {string} word
  * @return {string}
  */
@@ -64,7 +51,7 @@ function bare(word) {
 }
 
 /**
- * Whether a word is the site's name, or close to it ("FMovies" on fmovies.to, "kino.to").
+ * Whether a word is the site's name, or close to it ("FMovies" on fmovies.to).
  * @param {string} word
  * @param {string} site - The site's name, lower case.
  * @return {boolean}
@@ -77,8 +64,7 @@ function isSiteName(word, site) {
 }
 
 /**
- * The words of a part of the title: letters of every language, digits, and the punctuation of
- * titles ("Mission:", "Ocean's", "Spider-Man", "Mr.", "Disney+"); nothing else.
+ * Letters of every language, digits, and title punctuation ("Ocean's", "Spider-Man", "Disney+").
  * @param {string} text
  * @return {string[]}
  */
@@ -89,7 +75,6 @@ function words(text) {
 }
 
 /**
- * Takes the words a site puts around a title off either end.
  * @param {string[]} list
  * @return {string[]}
  */
@@ -100,8 +85,6 @@ function trimEdges(list) {
    */
   const strip = (atStart) => {
     const keep = atStart ? MAY_START : MAY_END;
-    // Whether, from the word at index inwards, only words that may stand there come before a
-    // word of the title.
     /**
      * @param {number} index
      */
@@ -143,14 +126,11 @@ export function guessMediaInfo(title, hostname = '', now = new Date().getFullYea
   let season = null;
   /** @type {?number} */
   let episode = null;
-  // What lies between a season and an episode marker that start the title, for when nothing
-  // after them names it ("S2 - The Bear - Episode 5").
+  // "S2 - The Bear - Episode 5": the name may lie between the markers.
   /** @type {?string} */
   let between = null;
 
-  // A season and episode marker ends the title: what follows is the episode's own title or the
-  // site's ("The Bear S02E03 Sundae"). One at the very start is cut off instead ("S02E03 - The
-  // Bear").
+  // A marker ends the title ("The Bear S02E03 Sundae"), unless it starts it ("S02E03 - The Bear").
   /**
    * @param {number} start
    * @param {number} end
@@ -185,12 +165,8 @@ export function guessMediaInfo(title, hostname = '', now = new Date().getFullYea
   }
 
   let found = nameAndYear(text, site, now);
-  // A season and an episode on either side of the name ("S2 - The Bear - Episode 5"): what
-  // came after the last one named nothing, and the name is between them. Only then: after
-  // them is the show's name, and between them the episode's ("Episode 5 - Pilot - Season 2 -
-  // The Bear").
+  // Only when nothing follows the markers: else between them is the episode's title.
   if (!found.name && between !== null) {
-    // A year after them is still the year ("S2 - The Bear - Episode 5 (2019)").
     const fromBetween = nameAndYear(between, site, now);
     found = {name: fromBetween.name, year: fromBetween.year ?? found.year};
   }
@@ -198,7 +174,6 @@ export function guessMediaInfo(title, hostname = '', now = new Date().getFullYea
 }
 
 /**
- * The name and year in what is left of a title once its season and episode are cut off.
  * @param {string} text
  * @param {string} site - The site's name, as bare() gives it.
  * @param {number} now - The current year.
@@ -208,26 +183,20 @@ function nameAndYear(text, site, now) {
   /** @type {?number} */
   let year = null;
 
-  // A year in brackets is the year ("1917 (2019)").
   const bracketed = /[([]\s*((?:19|20)\d{2})\s*[)\]]/.exec(text);
   if (bracketed && Number(bracketed[1]) <= now + 1) {
     year = Number(bracketed[1]);
     text = text.slice(0, bracketed.index) + ' ' + text.slice(bracketed.index + bracketed[0].length);
   }
 
-  // The parts between separators. A part that is only the site's or a service's name, or only
-  // words a site adds, goes.
   const parts = text.split(SEPARATORS)
       .map((part) => words(part).filter((word) => !QUALITY.test(bare(word))))
       .map((part) => part.filter((word, index) => !((index === 0 || index === part.length - 1) && isSiteName(word, site))))
       .map(trimEdges)
       .filter((part) => part.length && !part.every((word) => SERVICES.has(bare(word)) || isSiteName(word, site)));
 
-  // A bare year after the title ("Oppenheimer 2023"), not the title itself ("1917", "2012")
+  // A bare year after the title ("Oppenheimer 2023 Movie"), not the title ("1917", "2012 Movie")
   // nor a number in it ("Blade Runner 2049": later than next year).
-  // The year can also stand before a word kept at the end ("Oppenheimer 2023 Movie"), also
-  // in a part of its own after the title ("Oppenheimer | 2023 Movie"), but not as the title
-  // ("2012 Movie").
   const last = parts[parts.length - 1];
   if (year === null && last && (last.length > 1 || parts.length > 1)) {
     /**

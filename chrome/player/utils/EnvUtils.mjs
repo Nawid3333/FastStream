@@ -1,32 +1,20 @@
 // @ts-check
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 
-/**
- * Utility functions for environment and platform detection.
- */
 export class EnvUtils {
   /** @type {?string} Firefox's answer to os(). */
   static knownOs = null;
 
   /**
-   * Checks if running as a browser extension.
-   * @return {boolean} True if extension, false otherwise.
+   * @return {boolean}
    */
   static isExtension() {
     return typeof chrome !== 'undefined' && !!chrome?.extension;
   }
 
   /**
-   * Opens a URL outside the player. Prefers chrome.tabs.create when running
-   * as the extension: a raw window.open() from inside the player's iframe is
-   * an opener-attributed tab creation the background's popup/popunder guard
-   * (chrome.tabs.onCreated) would otherwise have to special-case, and
-   * chrome.tabs.create from extension-context code doesn't set openerTabId
-   * unless told to, so it's naturally exempt. A player framed in a page has no
-   * chrome.tabs (measured: PageFetchRelay.mjs), and the call did nothing there:
-   * the background opens it then (OPEN_EXTERNAL_URL, an http(s) page only),
-   * with no opener either. Nor has the page opened by the web player one: a page that is
-   * not FastStream's gets no handle on the player (window.opener).
+   * Opens a tab with no opener, which the background's popup guard leaves alone. A framed
+   * player has no chrome.tabs and asks the background.
    * @param {string} url
    */
   static openExternalURL(url) {
@@ -43,16 +31,14 @@ export class EnvUtils {
   }
 
   /**
-   * Checks if the device is mobile.
-   * @return {boolean} True if mobile, false otherwise.
+   * @return {boolean}
    */
   static isMobile() {
     return /Mobi|Android/i.test(navigator.userAgent);
   }
 
   /**
-   * Gets the version of the extension or web app.
-   * @return {string} The version string.
+   * @return {string}
    */
   static getVersion() {
     // eslint-disable-next-line prefer-const
@@ -64,18 +50,15 @@ export class EnvUtils {
   }
 
   /**
-   * Checks if the browser is in incognito/private mode.
-   * @return {boolean} True if incognito, false otherwise.
+   * @return {boolean}
    */
   static isIncognito() {
     return this.isExtension() ? chrome.extension.inIncognitoContext : false;
   }
 
   /**
-   * The operating system as Firefox says it ('win', 'mac', 'linux', ...), kept for
-   * isWindows() once it has come. navigator.platform says "Win32" on every system with
-   * privacy.resistFingerprinting on, where the mpv helper's Linux steps were shown as the
-   * Windows ones (review); it is the answer only without a runtime (the web build, tests).
+   * The operating system as Firefox says it ('win', 'mac', 'linux', ...). navigator.platform
+   * says "Win32" everywhere under resistFingerprinting: only without a runtime.
    * @return {Promise<string>}
    */
   static async os() {
@@ -93,9 +76,7 @@ export class EnvUtils {
   }
 
   /**
-   * Whether this is Windows, where the mpv helper's setup and update steps differ (a Start
-   * menu entry; Linux and macOS have a manifest): Firefox's answer once os() has it, what
-   * the page is told until then.
+   * Firefox's answer once os() has it, what the page is told until then.
    * @return {boolean}
    */
   static isWindows() {
@@ -104,28 +85,24 @@ export class EnvUtils {
   }
 
   /**
-   * Checks if the operating system is macOS.
-   * @return {boolean} True if macOS, false otherwise.
+   * @return {boolean}
    */
   static isMacOS() {
     return navigator.userAgent.indexOf('Mac OS') !== -1;
   }
 
   /**
-   * Checks if Web Audio API is supported in the browser.
-   * @return {boolean} True if supported, false otherwise.
+   * @return {boolean}
    */
   static isWebAudioSupported() {
     return !!window.AudioContext;
   }
 
   /**
-   * Gets the available storage space in bytes.
    * @return {Promise<number>} Available storage in bytes.
    */
   static async getAvailableStorage() {
     if (!window.navigator || !window.navigator.storage || !window.navigator.storage.estimate) {
-      // 2GB
       return 2 * 1024 * 1024 * 1024;
     }
     const estimate = await window.navigator.storage.estimate().catch(() => ({quota: 2 * 1024 * 1024 * 1024, usage: 0}));

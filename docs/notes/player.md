@@ -2546,3 +2546,52 @@ Rejected:
   segments of a `$Number$` template (dash.js lists from index 0, which a live stream no longer
   has, and the patched `getAllSegments` gives none past 100000), and a SegmentTimeline's indexes
   count within the listed window. Requests for the rest go through the loader's fallback.
+
+## Utils, options, enums, dash2mp4: reasons moved out of the code comments (2026-11-18)
+
+- **`EnvUtils.os`** - The system comes from `chrome.runtime.getPlatformInfo`: with
+  `privacy.resistFingerprinting` on, `navigator.platform` says "Win32" on every system, and the
+  mpv helper's Windows steps would show on Linux. `navigator.platform` serves only without a
+  runtime (the web build, tests).
+- **`WebUtils.getKeyString`** - A key that types nothing goes by `KeyboardEvent.key` ('ArrowLeft',
+  'Home', 'Enter'), so the numpad's arrows, Home, PageUp, Delete and Enter fire their keys'
+  bindings. Modifiers and 'Unidentified' keys go by position ('ShiftLeft'): 'Shift' alone would
+  read as a modifier with no key. Control+Alt counts as AltGr only on Windows: on Linux and macOS
+  it is a shortcut of its own, and their AltGr reports `AltGraph`.
+- **`AlertPolyfill.mjs`** - `<dialog>` (`showModal`) and popover open in the top layer, so they
+  show over a fullscreen player. They are children of `<body>`, not of the player, and stop their
+  keys: the player's Escape handler cancels the key (which would keep a dialog open), and its
+  keybinds would act on keys meant for the dialog. A dialog leaves the page the moment it closes,
+  with no hide animation, so no invisible dialog stays over the page taking clicks. Texts go in as
+  `textContent`: an error's message can quote markup.
+- **`AlertPolyfill.errorReportURL`** - GitHub refuses a new-issue address past about 8 kB (414), so
+  the stack and message are clipped by their encoded length (a character can take 9 bytes), after
+  `toWellFormed`: `encodeURIComponent` throws on a lone surrogate. The `moz-extension://` id is
+  taken out: it names the install, and the issue is public.
+- **`Utils.migrateSizes`** - Options saved before the MB/GB picker hold the maximum size as a bare
+  number meant as megabytes: a saved size below 1 MB is multiplied up, once (`sizesVersion`), and
+  only from the value as saved, since a size below 1 MB chosen in the picker is meant. A size or
+  speed limit of 0 saved then becomes -1 (no limit); 0 means "none" for a value chosen since.
+- **`Utils.mergeOptions`** - A list option takes only a list of strings (an imported `null` broke
+  the options page for good), and otherwise gets a copy of the default's list, so a caller that
+  changes its list in place cannot change the defaults.
+- **`Utils.measuredBitrate`** - Null until five fragments are downloaded: an MP4's ranges start on
+  whole seconds, so on a high-bitrate file the first few share a second and last 0 s, which gives
+  Infinity and a false "not enough storage" warning.
+- **`Utils.downloadURL`** - Saves go through the background's `downloads.download`: Firefox does not
+  download a blob: URL from a link click in a sandboxed iframe (blob URL partitioning, gecko's
+  `BlobURLProtocolHandler.cpp`).
+- **`options.mjs` limit fields** (`readLimit`, `showSize`, `saveWhileTyping`) - Speed and sizes are
+  saved as bytes a second and bytes, -1 for no limit: an empty field is no limit and 0 is none,
+  since users type 0 to turn a thing off. A comma is a decimal point, and a value is read to the
+  three decimals the field shows, so what is saved is what it says. A field's change event comes
+  only when it is left, so a field is also saved 400 ms after typing (else a value typed before
+  the settings close is lost); it is written back only on a trusted change, never while typing,
+  where it would fight the keys. An emptied or half-typed field ("1.", "-") is saved only when the
+  field or the page is left. A size shows in GB only when three decimals hold it exactly, else in
+  MB; after a change, in the unit the user picked.
+- **`options.mjs` `saveOnLeavingPage`** - List fields are not saved while typing: half a line would
+  be an entry of its own ("https://" in the auto-enable list would match every site).
+- **`options.mjs` `ownSave`** - The store tells its listeners about the page's own saves too; a
+  redraw then would rebuild the keybind rows (the box a key was just pressed in loses focus), move
+  a number field's caret and undo a search, so the page skips the options it saved last.

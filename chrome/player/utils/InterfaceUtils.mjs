@@ -1,13 +1,9 @@
 // @ts-check
 import {DOMElements} from '../ui/DOMElements.mjs';
 
-/**
- * Utility functions for managing UI interface windows.
- */
 export class InterfaceUtils {
   /**
-   * Closes all open UI windows and returns whether any were open.
-   * @return {boolean} True if any windows were open, false otherwise.
+   * @return {boolean} Whether any window was open.
    */
   static closeWindows() {
     const windows = /** @type {HTMLElement[]} */ ([
@@ -28,8 +24,7 @@ export class InterfaceUtils {
   }
 
   /**
-   * Checks whether any popwindow (sources browser, subtitles, options) is open.
-   * @return {boolean} True if at least one popwindow is open.
+   * @return {boolean}
    */
   static isAnyWindowOpen() {
     const windows = /** @type {HTMLElement[]} */ ([

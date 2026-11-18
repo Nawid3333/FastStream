@@ -1,11 +1,6 @@
 // @ts-check
-// A secret only FastStream's redirect rule puts into a player's address
-// (player/index.html?address=<key>#<stream URL>), kept in the extension's storage, which no
-// page can read. The player page is web-accessible, so any page could open it in a tab with
-// an address of its own (window.open), and the player took that address's
-// faststream-headers and faststream-mode: FastStream then sent the page's made-up Referer or
-// Origin, with the user's cookies for that site, to the URL it named. The player takes them
-// only from an address that carries the key.
+// Any page can open the player with an address of its own: only one carrying this
+// per-install key, which no page can read, may set faststream-headers and faststream-mode.
 
 const StorageKey = 'playerAddressKey';
 /** @type {Promise<string> | null} */
@@ -23,7 +18,6 @@ export function getAddressKey() {
       const key = crypto.randomUUID();
       return new Promise((resolve) => chrome.storage.local.set({[StorageKey]: key}, () => resolve(key)));
     });
-    // A storage that failed is asked again next time.
     made.catch(() => {
       made = null;
     });

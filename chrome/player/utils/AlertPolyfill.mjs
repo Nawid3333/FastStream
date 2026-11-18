@@ -2,26 +2,14 @@
 import {Localize} from '../modules/Localize.mjs';
 import {EnvUtils} from './EnvUtils.mjs';
 
-// The player's dialogs and toasts, with Firefox's own <dialog> (showModal) and popover.
-// Styles: assets/dialogs/dialogs.css.
-//
-// - Both open in the top layer, so they show over a player in fullscreen wherever they are in
-//   the page; sweetalert2 had to be retargeted at the player for that.
-// - A dialog leaves the page the moment it closes: no hide animation to wait for. One that
-//   never ended once left an invisible sweetalert2 popup over the page, taking every click
-//   (sweetalert2/sweetalert2#1841).
-// - They are children of <body>, not of the player (.mainplayer), and their keys stop at
-//   them: the player's Escape handler cancels the key (preventDefault), which would keep a
-//   dialog open, and its keybinds would act on keys meant for the dialog.
-// - Every text goes in as text (textContent): an error's message can quote the markup it
-//   failed on.
+// <dialog> and popover open in the top layer, over a fullscreen player. They are children of
+// <body> and stop their keys: the player's Escape handler and keybinds must not see them.
+// Texts go in as textContent: an error's message can quote markup. Styles: assets/dialogs/dialogs.css.
 
 const TOAST_MS = 3000;
 
-// Ids of the dialogs' titles and texts (aria-labelledby, aria-describedby).
 let lastId = 0;
 
-// The mark inside each icon's circle.
 /** @type {Object<string, string>} */
 const ICON_MARKS = {
   success: '✓',
@@ -36,7 +24,6 @@ const ICON_MARKS = {
  */
 
 /**
- * An element with a class and, when given, its text.
  * @param {string} tag
  * @param {string} className
  * @param {string} [text]
@@ -50,7 +37,6 @@ function make(tag, className, text) {
 }
 
 /**
- * The circle with an icon's mark.
  * @param {string} icon - success, error, warning, info or question.
  * @return {HTMLElement}
  */
@@ -61,8 +47,7 @@ function makeIcon(icon) {
 }
 
 /**
- * Opens a modal dialog and waits for it to close: by a button, Escape, or a click beside it
- * (on its backdrop), as sweetalert2's closed.
+ * Closes by a button, Escape, or a click on its backdrop.
  * @param {Object} options
  * @param {string} [options.icon]
  * @param {string} [options.title]
@@ -78,7 +63,6 @@ function openDialog({icon, title, text, content, input, confirmText, cancelText}
   const form = /** @type {HTMLFormElement} */ (make('form', 'fs-dialog-form'));
   form.method = 'dialog';
   if (icon) form.append(makeIcon(icon));
-  // What a screen reader names the dialog by, and reads after its name.
   /**
    * @param {HTMLElement} element
    * @param {string} attribute
@@ -99,15 +83,13 @@ function openDialog({icon, title, text, content, input, confirmText, cancelText}
     field = /** @type {HTMLInputElement} */ (make('input', 'fs-dialog-input'));
     field.type = input.type;
     field.value = input.value ?? '';
-    // A URL is asked for to load something: an empty one is no answer (sweetalert2 refused
-    // it too). The browser says why before the dialog closes.
     field.required = input.type === 'url';
     field.setAttribute('aria-label', text || title || '');
     form.append(field);
   }
 
   const buttons = make('div', 'fs-dialog-buttons');
-  // First: Enter in the field submits with the first submit button (implicit submission).
+  // First: Enter in the field submits with the first submit button.
   const confirm = /** @type {HTMLButtonElement} */ (make('button', 'fs-dialog-confirm', confirmText));
   confirm.type = 'submit';
   confirm.value = 'confirm';
@@ -122,17 +104,14 @@ function openDialog({icon, title, text, content, input, confirmText, cancelText}
   form.append(buttons);
   dialog.append(form);
 
-  // Keys typed into the dialog are the dialog's: not the player's keybinds (on document).
   dialog.addEventListener('keydown', (e) => e.stopPropagation());
-  // A click on the backdrop lands on the dialog itself. Pressed there too: a selection
-  // dragged out of the field ends in a click on the dialog as well.
+  // A backdrop click lands on the dialog; so does a selection dragged out of the field.
   let pressedOutside = false;
   dialog.addEventListener('pointerdown', (e) => {
     pressedOutside = e.target === dialog;
   });
   dialog.addEventListener('click', (e) => {
     if (!pressedOutside || e.target !== dialog) return;
-    // Its own scrollbar and border are the dialog too: only beside its box is the backdrop.
     const box = dialog.getBoundingClientRect();
     if (e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom) {
       dialog.close('');
@@ -152,15 +131,12 @@ function openDialog({icon, title, text, content, input, confirmText, cancelText}
       });
     }, {once: true});
     dialog.showModal();
-    // The field when there is one (showModal focuses the first control), else the button
-    // that answers: Enter or Space confirms, as in sweetalert2.
     if (!field) confirm.focus();
   });
 }
 
 /**
- * The corner the toasts stack in, a popover so it shows over a dialog or a fullscreen
- * player. Shown again on top of whatever opened in the top layer since.
+ * Shown again so it stays on top of whatever opened in the top layer since.
  * @return {HTMLElement}
  */
 function toastCorner() {
@@ -176,8 +152,7 @@ function toastCorner() {
 }
 
 /**
- * An error's message for a report. A player's error can be a plain object (hls.js and
- * dash.js report {type, details, ...}): as text that was "[object Object]".
+ * A player's error can be a plain object (hls.js, dash.js).
  * @param {*} error
  * @return {string}
  */
@@ -187,21 +162,17 @@ function errorText(error) {
     text = String(error.message);
   } else if (error && typeof error === 'object') {
     try {
-      // An Error or DOMException without a message is "{}" as JSON (its own fields are not
-      // listed): its name ("Error", "AbortError") says more.
+      // An Error without a message is "{}" as JSON: its name says more.
       const json = JSON.stringify(error);
       if (json && json !== '{}') text = json;
     } catch (e) {
       // A cycle: the plain text.
     }
   }
-  // An issue's address has a length limit.
   return text.length > 1000 ? text.slice(0, 1000) + '...' : text;
 }
 
 /**
- * What the error dialog's title says went wrong: error.message alone was "undefined" for
- * a thrown text or a player's error object.
  * @param {*} error
  * @return {string}
  */
@@ -211,7 +182,7 @@ export function errorTitleText(error) {
 }
 
 /**
- * A text made well-formed and cut until it takes at most `limit` characters in an address.
+ * Well-formed (encodeURIComponent throws on a lone surrogate) and cut to fit `limit`.
  * @param {string} text
  * @param {number} limit - Encoded (encodeURIComponent) characters.
  * @param {string} more - Put after a text that was cut.
@@ -227,21 +198,13 @@ function clipForAddress(text, limit, more) {
 }
 
 /**
- * The address of a new GitHub issue that reports an error.
  * @param {*} error
  * @param {string} version - FastStream's.
  * @return {string}
  */
 export function errorReportURL(error, version) {
-  // Clipped, as the message is: a deep stack (hls.js through the player's recovery) made an
-  // address GitHub refuses (414, about 8 kB), and nothing was reported (glm's review,
-  // 2026-11-16). And without the extension's address, which names this install (a random id
-  // per profile): the issue is public.
+  // GitHub refuses an address past about 8 kB; the extension's id names the install.
   const fullStack = String(error?.stack || 'No stack trace').replace(/moz-extension:\/\/[^/\s]+\//g, 'moz-extension://.../');
-  // Clipped by its length in the address, not in characters: a character is up to 9 bytes
-  // there (%XX%XX%XX), and 3000 of them went past GitHub's limit. Well-formed, as
-  // encodeURIComponent needs: a lone surrogate (a cut through an emoji, or one in what was
-  // thrown) threw URIError, and the report link failed.
   const stack = clipForAddress(fullStack, 4000, '\n...');
   const message = clipForAddress(errorText(error), 2000, '...');
   const body = `## Version:\n${version}\n\n## Error message:\n${message}\n\n## Stack trace:\n\`\`\`\n${stack}\n\`\`\``;
@@ -249,15 +212,11 @@ export function errorReportURL(error, version) {
   return `${urlBase}title=${encodeURIComponent('Error report')}&body=${encodeURIComponent(body)}`;
 }
 
-/**
- * The player's alert, confirm and prompt dialogs, and its toasts.
- */
 export class AlertPolyfill {
   /**
-   * Shows an alert dialog.
-   * @param {string} message - The message to display.
-   * @param {string} [icon] - Optional icon type.
-   * @return {Promise<DialogResult>} Resolves when the dialog is closed.
+   * @param {string} message
+   * @param {string} [icon]
+   * @return {Promise<DialogResult>}
    */
   static async alert(message, icon = undefined) {
     return openDialog({
@@ -268,10 +227,9 @@ export class AlertPolyfill {
   }
 
   /**
-   * Shows a confirmation dialog.
-   * @param {string} message - The message to display.
-   * @param {string} [icon] - Optional icon type.
-   * @return {Promise<boolean>} Resolves with true if confirmed, false otherwise.
+   * @param {string} message
+   * @param {string} [icon]
+   * @return {Promise<boolean>}
    */
   static async confirm(message, icon = undefined) {
     return (await openDialog({
@@ -283,12 +241,11 @@ export class AlertPolyfill {
   }
 
   /**
-   * Shows a prompt dialog for user input.
-   * @param {string} message - The message to display.
-   * @param {string} [defaultValue] - Default input value.
-   * @param {string} [icon] - Optional icon type.
-   * @param {string} [inputType='text'] - Input type.
-   * @return {Promise<string|undefined>} Resolves with the entered value, undefined if dismissed.
+   * @param {string} message
+   * @param {string} [defaultValue]
+   * @param {string} [icon]
+   * @param {string} [inputType='text']
+   * @return {Promise<string|undefined>} Undefined if dismissed.
    */
   static async prompt(message, defaultValue = '', icon = undefined, inputType = 'text') {
     const {value} = await openDialog({
@@ -302,11 +259,9 @@ export class AlertPolyfill {
   }
 
   /**
-   * Shows a toast notification in the top right corner for 3 s: longer while the pointer is
-   * on it, shorter when clicked.
-   * @param {string} icon - Icon type.
-   * @param {string} message - Main message.
-   * @param {string} [submessage] - Optional submessage.
+   * @param {string} icon
+   * @param {string} message
+   * @param {string} [submessage]
    * @return {Promise<DialogResult>} Resolves when the toast is closed.
    */
   static async toast(icon, message, submessage = undefined) {
@@ -321,12 +276,10 @@ export class AlertPolyfill {
     corner.append(toast);
 
     return new Promise((resolve) => {
-      // The bar running out is the toast's time, its only timer: paused while the pointer is
-      // on it.
+      // The bar's animation is the toast's only timer: hover pauses it.
       const time = bar.animate([{transform: 'scaleX(1)'}, {transform: 'scaleX(0)'}],
           {duration: TOAST_MS, fill: 'forwards'});
       let closed = false;
-      /** Takes the toast away. */
       function close() {
         if (closed) return;
         closed = true;
@@ -344,9 +297,8 @@ export class AlertPolyfill {
   }
 
   /**
-   * Shows an error dialog and optionally sends the error report to the developer via GitHub.
-   * @param {Error} error - The error object to report.
-   * @return {Promise<void>} Resolves when the dialog is closed and report is sent or cancelled.
+   * @param {Error} error
+   * @return {Promise<void>}
    */
   static async errorSendToDeveloper(error) {
     const content = make('div', 'fs-dialog-error');

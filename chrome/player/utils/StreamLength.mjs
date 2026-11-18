@@ -1,44 +1,28 @@
 // @ts-check
 
-/**
- * How long a stream plays, read from its manifest or from the start of its file, and the
- * rule that picks among a page's streams by it: an ad or an intro runs for seconds, the
- * video the page is about for minutes or hours.
- *
- * Pure: the background reads the bytes (background/StreamLengths.mjs), the player and the
- * background's MPV picks rank by what they tell.
- */
+// How long a stream plays, from its manifest or its file's start, and the pick among a page's
+// streams by it: an ad runs for seconds, the video for minutes. Pure: background/StreamLengths.mjs
+// reads the bytes.
 
 import {isDecryptable} from './Decryptable.mjs';
 
-// A stream whose length could not be read ranks as this long: above a known-short one (an
-// ad, an intro), below a known film or episode. A length is unknown when the server turned
-// the read away, or the file keeps it where a few reads do not reach.
+// An unread length ranks above a known-short stream (an ad), below a known film or episode.
 export const UNKNOWN_LENGTH_S = 10 * 60;
 
-// The length of a piece of a stream: an HLS or DASH init or media segment, which plays
-// nothing by itself. It ranks below every stream, so a page's manifest is kept over its own
-// pieces; read as unknown, they outranked the manifest of any title under 9 minutes.
+// An init or media segment: ranks below every stream, so a manifest wins over its own pieces.
 export const PIECE_LENGTH = -1;
 
-// The length of an HLS playlist that shows no video: the seek bar's thumbnails
-// (EXT-X-IMAGES-ONLY, JPEG tiles) or a fast-forward track of keyframes
-// (EXT-X-I-FRAMES-ONLY). It runs as long as the video, so by length it ties with it, and
-// the page often asks for it first: vixeo.io's player did, and the thumbnails played. It
-// ranks below every stream, as a piece does, and never opens or plays in the player.
+// A thumbnail or keyframe playlist (IMAGES-ONLY, I-FRAMES-ONLY): it ties with the video by
+// length and pages often load it first, so it ranks below every stream and never plays.
 export const STILLS_LENGTH = -2;
 
-// Streams at least this share of the longest one's length tie with it, and the caller's
-// own rule chooses among them: the same video in two formats differs by a second or two,
-// two episodes by a few minutes, an ad and the video by far more.
+// Two formats of one video differ by seconds, two episodes by minutes, an ad and the video by far more.
 const TIE_SHARE = 0.9;
 
-// The boxes an MP4 file can start with, a media segment's among them (sidx, emsg, prft,
-// moof).
 const MP4_FIRST_BOXES = ['ftyp', 'styp', 'moov', 'mdat', 'free', 'skip', 'wide', 'pdin', 'uuid',
   'sidx', 'emsg', 'prft', 'moof'];
 
-// The most an mvhd box takes, version 1: enough of a moov to read its length from.
+// The most an mvhd box takes (version 1).
 const MVHD_MAX_BYTES = 120;
 
 const EBML_MAGIC = 0x1A45DFA3;
@@ -51,13 +35,9 @@ const EBML_CLUSTER = 0x1F43B675;
 
 export class StreamLength {
   /**
-   * Reads an HLS playlist.
    * @param {string} text - The playlist.
-   * @return {{duration: number}|{variant: string}|null} A media playlist's length in
-   *   seconds (Infinity while it is live: no end tag, and not marked VOD; STILLS_LENGTH for
-   *   one of images or keyframes only); a master playlist's first variant, as written in it
-   *   (relative to the playlist's URL); or null for text that is no playlist, or one that
-   *   lists nothing.
+   * @return {{duration: number}|{variant: string}|null} A media playlist's length in seconds
+   *   (Infinity while live); a master playlist's first variant, as written in it; or null.
    */
   static fromHls(text) {
     const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).map((line) => line.trim());
@@ -76,7 +56,6 @@ export class StreamLength {
         return {duration: STILLS_LENGTH};
       }
       if (line.startsWith('#EXT-X-STREAM-INF')) {
-        // Every variant runs as long as the others: the first one tells.
         const uri = lines.slice(i + 1).find((next) => next !== '' && !next.startsWith('#'));
         return uri ? {variant: uri} : null;
       }
@@ -100,17 +79,10 @@ export class StreamLength {
   }
 
   /**
-   * The variants an HLS master playlist lists: the qualities of its stream. MPV mode sends mpv
-   * the one the user's quality setting asks for, and the list, for mpv's quality menu: it sent
-   * the variant the page's player picked for itself ("Auto", 2026-10-14), the only one mpv
-   * then had.
    * @param {string} text - The playlist.
    * @return {?{variants: Array<{uri: string, bandwidth: number, height: number}>,
-   *   renditions: boolean, media: Array<string>}} Each variant as written in it (uri relative
-   *   to the playlist's URL), its BANDWIDTH and the height of its RESOLUTION (0 when it names
-   *   none); renditions: it lists audio or subtitles of their own (EXT-X-MEDIA with a URI),
-   *   which a variant played alone goes without; media: their playlists, as written in it.
-   *   Null for text that is no master playlist.
+   *   renditions: boolean, media: Array<string>}} height 0 when it names none; renditions:
+   *   EXT-X-MEDIA with a URI, which a variant played alone goes without. Null for no master playlist.
    */
   static hlsVariants(text) {
     const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).map((line) => line.trim());
@@ -123,10 +95,7 @@ export class StreamLength {
     /** @type {Array<string>} */
     const media = [];
     let renditions = false;
-    // The line of the URI the last STREAM-INF tag is for: the first after it that is no tag.
-    // Tags before the same URI share it, and it is looked for once: each looked through all
-    // the lines after it, and a page's playlist of thousands of tags and one URI at the end
-    // held the background for seconds.
+    // Tags before the same URI share one search for it: a crafted playlist must not be quadratic.
     let uriLine = -1;
     for (let i = first + 1; i < lines.length; i++) {
       const line = lines[i];
@@ -154,15 +123,8 @@ export class StreamLength {
   }
 
   /**
-   * Whether an HLS media playlist has segments encrypted in a way FastStream cannot decrypt:
-   * copy protection (Widevine, PlayReady, FairPlay) or SAMPLE-AES. Its player loads them and
-   * shows nothing, where the page's own player plays them (Vimeo, 2026-10-28: SAMPLE-AES-CTR
-   * under a Widevine and a PlayReady key). The keys in force are kept as hls.js keeps them,
-   * one per KEYFORMAT until a METHOD=NONE, and a segment is decrypted with the identity one
-   * when there is one, as the player takes them (HLSFragmentRequester.takeOverDecryption);
-   * an AES-128 key beside a DRM one plays. A master playlist tells nothing here: it names
-   * its variants' keys in their own playlists, and an EXT-X-SESSION-KEY may name one that
-   * none of them uses.
+   * Whether an HLS media playlist has segments FastStream cannot decrypt (DRM, SAMPLE-AES).
+   * Keys in force are kept as hls.js keeps them, one per KEYFORMAT until METHOD=NONE.
    * @param {string} text - The playlist.
    * @return {boolean}
    */
@@ -180,7 +142,6 @@ export class StreamLength {
         }
       } else if (keys.size > 0 && line !== '' && (!line.startsWith('#') || line.startsWith('#EXT-X-MAP:')) &&
           !isDecryptable(keys.get('identity'), 'identity')) {
-        // A segment, or an init segment, under keys none of which FastStream decrypts.
         return true;
       }
     }
@@ -188,20 +149,14 @@ export class StreamLength {
   }
 
   /**
-   * Whether a DASH manifest's video is copy-protected (ContentProtection: CENC under
-   * Widevine, PlayReady, ClearKey): FastStream has no key system, and its player stops at
-   * the first encrypted sample (DashPlayer's needkey). Every video adaptation set has to
-   * be, as a clear one beside them plays; with none of them told apart as video (no
-   * contentType, mimeType or size), every adaptation set.
+   * Whether every video adaptation set (else every set) has ContentProtection: FastStream has
+   * no key system, and a clear set beside them plays.
    * @param {string} text - The MPD.
    * @return {boolean}
    */
   static dashProtected(text) {
-    // Each set's tags are found one after the other, from where the last one ended. One
-    // pattern for a whole set looked from each opening tag to the end of the text for its
-    // closing one, and a page's MPD of opening tags alone (up to StreamLengths' 4 MB) held
-    // the background for minutes. With no closing tag after one, there is none after any
-    // later one either.
+    // Tags are found one after the other, from where the last ended: no pattern may scan to
+    // the end of the text from every tag.
     const open = /<(?:[\w-]+:)?AdaptationSet\b/g;
     const close = /<\/(?:[\w-]+:)?AdaptationSet\s*>/g;
     /** @type {Array<{video: boolean, protected: boolean}>} */
@@ -230,17 +185,14 @@ export class StreamLength {
   }
 
   /**
-   * An HLS tag's attribute list (RFC 8216, 4.2): NAME=value, the value quoted or not. A
-   * quoted one may hold commas (a key's data: URI).
+   * RFC 8216 4.2; a quoted value may hold commas (a key's data: URI).
    * @param {string} text - What follows the tag's colon.
    * @return {Object<string, string>} The values by name, quotes taken off.
    */
   static hlsAttributes(text) {
     /** @type {Object<string, string>} */
     const attributes = {};
-    // A name is read from its first character only (the lookbehind): tried from each
-    // character of a long run of them with no `=` after it, a page's playlist line of
-    // megabytes held the background for minutes. The matches are the same.
+    // The lookbehind reads a name from its first character only: no backtracking on long runs.
     for (const match of text.matchAll(/(?<![A-Za-z0-9-])([A-Za-z0-9-]+)\s*=\s*("[^"]*"|[^,]*)/g)) {
       attributes[match[1].toUpperCase()] = match[2].trim().replace(/^"(.*)"$/, '$1');
     }
@@ -248,15 +200,11 @@ export class StreamLength {
   }
 
   /**
-   * Reads a DASH manifest.
    * @param {string} text - The MPD.
    * @return {number|null} Its length in seconds (Infinity for a live one), or null.
    */
   static fromDash(text) {
-    // Each tag's end is looked for once, from where its name ends: a pattern for the whole
-    // tag looked from each `<MPD` (and each `<Period`) to the end of the text when none
-    // had a `>`, and a page's MPD of those alone held the background for seconds. With no
-    // `>` after one, there is none after any later one either.
+    // Each tag's end is looked for once (indexOf), as in dashProtected.
     const mpd = /<(?:[\w-]+:)?MPD\b/.exec(text);
     const mpdEnd = mpd ? text.indexOf('>', mpd.index + mpd[0].length) : -1;
     if (!mpd || mpdEnd === -1) {
@@ -273,7 +221,6 @@ export class StreamLength {
       return total;
     }
 
-    // No total: the periods', when each one has its own.
     let sum = 0;
     let count = 0;
     const periodTag = /<(?:[\w-]+:)?Period\b/g;
@@ -294,15 +241,12 @@ export class StreamLength {
   }
 
   /**
-   * Reads an MP4 or WebM file's length from the bytes at its start.
    * @param {Uint8Array} bytes - Bytes of the file, from offset on.
-   * @param {number} [offset=0] - Where in the file the bytes start. A top-level MP4 box
+   * @param {number} [offset=0] - Where in the file the bytes start; a top-level MP4 box
    *   starts there.
    * @param {boolean} [ended=false] - Whether the file ends where the bytes do.
-   * @return {{duration: number}|{next: number}|null} The length in seconds (PIECE_LENGTH
-   *   for a piece of a stream); or, for an MP4 whose movie header lies further on (after
-   *   its media data, most often), the file offset to read from next; or null for bytes
-   *   that are neither, or tell no length.
+   * @return {{duration: number}|{next: number}|null} The length in seconds; or, for an MP4
+   *   whose movie header lies further on, the file offset to read next; or null.
    */
   static fromFile(bytes, offset = 0, ended = false) {
     const first = offset === 0 && bytes.length >= 4 ?
@@ -311,7 +255,7 @@ export class StreamLength {
       const duration = StreamLength.fromWebm(bytes, ended);
       return duration ? {duration} : null;
     }
-    // A WebM media segment: a Cluster, with no EBML header before it. WebM's moof.
+    // A WebM media segment: a Cluster with no EBML header.
     if (first === EBML_CLUSTER) {
       return {duration: PIECE_LENGTH};
     }
@@ -319,19 +263,16 @@ export class StreamLength {
   }
 
   /**
-   * Reads an MP4 file's length from its movie header: moov > mvhd, or for a fragmented
-   * file moov > mvex > mehd.
-   * @param {Uint8Array} bytes - Bytes of the file, from offset on.
-   * @param {number} [offset=0] - Where in the file the bytes start; a top-level box starts
-   *   there.
-   * @param {boolean} [ended=false] - Whether the file ends where the bytes do.
+   * moov > mvhd, or for a fragmented file moov > mvex > mehd.
+   * @param {Uint8Array} bytes
+   * @param {number} [offset=0]
+   * @param {boolean} [ended=false]
    * @return {{duration: number}|{next: number}|null} See fromFile.
    */
   static fromMp4(bytes, offset = 0, ended = false) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     let pos = 0;
-    // Whether the file holds media data before this point: then it plays some itself. A
-    // later read comes after boxes it skipped, media data most often.
+    // Media data before this point; a later read comes after skipped boxes, mdat most often.
     let media = offset > 0;
     while (pos + 8 <= bytes.length) {
       let size = view.getUint32(pos);
@@ -344,7 +285,6 @@ export class StreamLength {
         size = Number(view.getBigUint64(pos + 8));
         header = 16;
       } else if (size === 0) {
-        // The box runs to the end of the file.
         size = Infinity;
       }
 
@@ -353,8 +293,7 @@ export class StreamLength {
         return null;
       }
 
-      // A media segment: fragments, and no movie header before them. That is the stream's
-      // init segment, a file of its own.
+      // Fragments with no movie header before them: a media segment.
       if (type === 'moof') {
         return {duration: PIECE_LENGTH};
       }
@@ -362,8 +301,7 @@ export class StreamLength {
       if (type === 'moov') {
         const end = Math.min(bytes.length, pos + size);
         const moov = bytes.subarray(pos + header, end);
-        // An init segment: the movie header of fragments that come as files of their own,
-        // and all the file holds. A whole fragmented file has its fragments after it.
+        // An init segment is all its file holds; a whole fragmented file has fragments after it.
         if (ended && !media && pos + size === bytes.length && StreamLength.isFragmented(moov)) {
           return {duration: PIECE_LENGTH};
         }
@@ -371,8 +309,7 @@ export class StreamLength {
         if (duration) {
           return {duration};
         }
-        // Only the start of the moov came, too little of it to hold the header: read it
-        // again from where it starts.
+        // Too little of the moov came to hold the header: read again from its start.
         if (pos > 0 && end - pos < header + MVHD_MAX_BYTES && end < pos + size) {
           return {next: offset + pos};
         }
@@ -391,9 +328,8 @@ export class StreamLength {
   }
 
   /**
-   * Whether a moov box's movie comes in fragments: it has an mvex box.
    * @param {Uint8Array} moov - The box's contents, after its header.
-   * @return {boolean} Whether it does.
+   * @return {boolean}
    */
   static isFragmented(moov) {
     let fragmented = false;
@@ -406,7 +342,6 @@ export class StreamLength {
   }
 
   /**
-   * The length a moov box's children tell.
    * @param {Uint8Array} moov - The box's contents, after its header.
    * @return {number|null} Seconds, or null.
    */
@@ -417,7 +352,6 @@ export class StreamLength {
     StreamLength.forEachBox(moov, (type, box) => {
       const view = new DataView(box.buffer, box.byteOffset, box.byteLength);
       if (type === 'mvhd') {
-        // After the header: version, flags, then the times, 8 bytes each in version 1.
         if (box[8] === 1 && box.length >= 40) {
           timescale = view.getUint32(28);
           duration = StreamLength.readLength(view, 32, 8);
@@ -446,7 +380,7 @@ export class StreamLength {
   }
 
   /**
-   * Reads a WebM (Matroska) file's length from its Segment > Info.
+   * From Segment > Info.
    * @param {Uint8Array} bytes - The start of the file.
    * @param {boolean} [ended=false] - Whether the file ends where the bytes do.
    * @return {number|null} Seconds (PIECE_LENGTH for an init segment), or null.
@@ -456,7 +390,7 @@ export class StreamLength {
     let pos = 0;
 
     /**
-     * @param {boolean} keepMarker - Whether the VInt keeps its marker bit in the value.
+     * @param {boolean} keepMarker
      */
     const readVint = (keepMarker) => {
       if (pos >= bytes.length) {
@@ -491,8 +425,6 @@ export class StreamLength {
       return null;
     }
 
-    // The Segment's children, as far as the bytes go: the Info tells the length, the
-    // Tracks what the stream holds, a Cluster its media.
     /** @type {number|null} */
     let seconds = null;
     let tracks = false;
@@ -533,9 +465,7 @@ export class StreamLength {
       pos = next;
     }
 
-    // An init segment: the Tracks, and the file ends before any Cluster. It plays nothing
-    // by itself, whatever its Info says (ffmpeg's DASH muxer gives it no length there, so
-    // it read as unknown).
+    // An init segment: Tracks and no Cluster, whatever its Info says.
     if (ended && tracks && !media) {
       return PIECE_LENGTH;
     }
@@ -543,8 +473,8 @@ export class StreamLength {
   }
 
   /**
-   * Parses an ISO 8601 duration, as MPDs write theirs (PT1H23M45.6S).
-   * @param {string|undefined} value - The duration.
+   * ISO 8601, as MPDs write it (PT1H23M45.6S).
+   * @param {string|undefined} value
    * @return {number|null} Seconds, or null for none or a malformed one.
    */
   static parseIsoDuration(value) {
@@ -558,12 +488,10 @@ export class StreamLength {
   }
 
   /**
-   * The streams to choose from: the longest, and those that tie with it. A stream of
-   * unknown length ranks as UNKNOWN_LENGTH_S long, a piece of one (PIECE_LENGTH) as 0. A
-   * playlist of stills (STILLS_LENGTH) is none of them, unless it is all there is.
+   * The longest, and those that tie with it; stills only when they are all there is.
    * @template {{duration?: number|null}} T
-   * @param {T[]} sources - Detected sources, each with its length in seconds, when known.
-   * @return {T[]} Those of them, in the order they came.
+   * @param {T[]} sources - Each with its length in seconds, when known.
+   * @return {T[]} In the order they came.
    */
   static longest(sources) {
     const videos = StreamLength.withoutStills(sources);
@@ -574,18 +502,16 @@ export class StreamLength {
   }
 
   /**
-   * The sources that may show a video: all but the playlists of stills.
    * @template {{duration?: number|null}} T
-   * @param {T[]} sources - Detected sources, each with its length in seconds, when known.
-   * @return {T[]} Those of them, in the order they came.
+   * @param {T[]} sources
+   * @return {T[]}
    */
   static withoutStills(sources) {
     return sources.filter((source) => source.duration !== STILLS_LENGTH);
   }
 
   /**
-   * The length a stream ranks by.
-   * @param {number|null|undefined} duration - Its length in seconds, when known.
+   * @param {number|null|undefined} duration - Seconds, when known.
    * @return {number} Seconds.
    */
   static rankLength(duration) {
@@ -596,15 +522,13 @@ export class StreamLength {
   }
 
   /**
-   * An XML tag's attributes.
-   * @param {string} text - What follows the tag's name.
-   * @return {Object<string, string>} By name.
+   * @param {string} text - What follows an XML tag's name.
+   * @return {Object<string, string>}
    */
   static attributes(text) {
     /** @type {Object<string, string>} */
     const attributes = {};
-    // A name is read from its first character only (the lookbehind), as in hlsAttributes:
-    // a page's MPD tag of megabytes of name characters held the background for minutes.
+    // The lookbehind avoids backtracking, as in hlsAttributes.
     for (const match of text.matchAll(/(?<![\w:.-])([\w:.-]+)\s*=\s*(["'])(.*?)\2/g)) {
       attributes[match[1]] = match[3];
     }
@@ -612,10 +536,9 @@ export class StreamLength {
   }
 
   /**
-   * Calls back for each box in bytes, cut short where the bytes end.
-   * @param {Uint8Array} bytes - Boxes, one after another.
-   * @param {(type: string, box: Uint8Array) => void} callback - Its type, and its bytes,
-   *   header included.
+   * The last box is cut short where the bytes end.
+   * @param {Uint8Array} bytes
+   * @param {(type: string, box: Uint8Array) => void} callback - The box's bytes include its header.
    */
   static forEachBox(bytes, callback) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -631,11 +554,11 @@ export class StreamLength {
   }
 
   /**
-   * A length field of 4 or 8 bytes, 0 for the all-ones "unknown".
-   * @param {DataView} view - Where it is.
-   * @param {number} pos - Where it starts.
+   * 0 for the all-ones "unknown".
+   * @param {DataView} view
+   * @param {number} pos
    * @param {number} size - 4 or 8.
-   * @return {number} Its value.
+   * @return {number}
    */
   static readLength(view, pos, size) {
     if (size === 4) {
@@ -647,9 +570,9 @@ export class StreamLength {
   }
 
   /**
-   * @param {Uint8Array} bytes - Bytes.
-   * @param {number} pos - Where the four-character code starts.
-   * @return {string} It.
+   * @param {Uint8Array} bytes
+   * @param {number} pos
+   * @return {string}
    */
   static fourCC(bytes, pos) {
     return String.fromCharCode(bytes[pos], bytes[pos + 1], bytes[pos + 2], bytes[pos + 3]);

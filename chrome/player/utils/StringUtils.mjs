@@ -1,12 +1,8 @@
 // @ts-check
-/**
- * Utility functions for string manipulation and comparison.
- */
 export class StringUtils {
   /**
-   * Calculates the Levenshtein distance between two strings.
-   * @param {string} s - First string.
-   * @param {string} t - Second string.
+   * @param {string} s
+   * @param {string} t
    * @return {number} The Levenshtein distance.
    */
   static levenshteinDistance(s, t) {
@@ -101,10 +97,9 @@ export class StringUtils {
   }
 
   /**
-   * Formats a time value in seconds to HH:MM:SS or MM:SS; --:-- for none (a live stream's
-   * endless length showed as "Infinity:aN:aN").
-   * @param {number} time - Time in seconds.
-   * @return {string} Formatted time string.
+   * HH:MM:SS or MM:SS; --:-- for a non-finite time (a live stream's length).
+   * @param {number} time - Seconds.
+   * @return {string}
    */
   static formatTime(time) {
     if (!Number.isFinite(time)) {
@@ -116,9 +111,9 @@ export class StringUtils {
     const seconds = Math.floor(time - minutes * 60);
 
     /**
-     * @param {number} string - The number of minutes or seconds to pad.
-     * @param {string} pad - The padding character.
-     * @param {number} length - The width to pad to.
+     * @param {number} string
+     * @param {string} pad
+     * @param {number} length
      */
     function strPadLeft(string, pad, length) {
       return (new Array(length + 1).join(pad) + string).slice(-length);
@@ -128,9 +123,8 @@ export class StringUtils {
   }
 
   /**
-   * Formats a duration value in seconds to a human-readable string.
-   * @param {number} duration - Duration in seconds.
-   * @return {string} Formatted duration string.
+   * @param {number} duration - Seconds.
+   * @return {string}
    */
   static formatDuration(duration) {
     const hours = Math.floor(duration / 3600);
@@ -141,8 +135,7 @@ export class StringUtils {
   }
 
   /**
-   * Parses an HTTP Range header string.
-   * @param {string} range - HTTP Range string.
+   * @param {string} range - An HTTP Range header.
    * @return {[number, number] | [undefined, undefined]} Its first and last byte (NaN for an
    *   open end); both undefined when it does not parse.
    */

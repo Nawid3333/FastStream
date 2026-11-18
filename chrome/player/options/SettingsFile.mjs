@@ -2,19 +2,14 @@
 import {DefaultOptions} from './defaults/DefaultOptions.mjs';
 import {KEYBINDS_VERSION} from './KeybindUtils.mjs';
 
-// The options page's settings file: what an export writes, and what an import may take.
-
-// This computer's, never another's: the import keeps the path set here (a file from someone
-// else could name a program they had put on this computer), so the export leaves it out too.
-// It named the Windows account (C:\Users\<name>\...) in a file meant to be shared.
+// Never imported (a shared file could name a program planted on this computer), never exported
+// (it names the Windows account).
 const LOCAL_ONLY = ['mpvPath'];
 
-// Limits with "none" (-1) or an amount from 0 up, in bytes, bytes a second or seconds, as the
-// page's fields save them (readLimit, the buffer fields).
+// -1 for none, or a whole amount from 0 up.
 const LIMITS = ['maxSpeed', 'maxVideoSize', 'ramBudget', 'bufferAhead', 'bufferBehind'];
 
 /**
- * The settings an export writes: all of them but this computer's own.
  * @param {Object<string, *>} options - The saved options.
  * @return {Object<string, *>} A new object.
  */
@@ -25,17 +20,14 @@ export function settingsForExport(options) {
 }
 
 /**
- * The imported file as the migrations may read it: a layout version above this build's taken
- * as this build's. Kept, a file that said 1e9 was saved so, and no later layout change was ever
- * applied to that user's keys. A file of a newer build loses
- * nothing: this build knows no later change to apply.
+ * A layout version above this build's is taken as this build's: kept, no later migration
+ * would ever run for that user's keys.
  * @param {Object<string, *>} file - The file's settings object.
  * @return {Object<string, *>} A new object.
  */
 export function importedForMigration(file) {
   const out = {...file};
-  // JSON's 1e999 is Infinity, which is no integer: a number test, so it is held too (Claude's
-  // review of #714).
+  // A number test, not an integer one: JSON's 1e999 is Infinity.
   if (typeof out.keybindsVersion === 'number' && !(out.keybindsVersion <= KEYBINDS_VERSION)) {
     out.keybindsVersion = KEYBINDS_VERSION;
   }
@@ -44,9 +36,7 @@ export function importedForMigration(file) {
 
 /**
  * Holds an imported file's numbers that no field limits (holdToFields does those) to what the
- * fields can save: a limit is -1 or a whole amount from 0 up, the zoom 10% to 200% (its slider),
- * the delay a finite number. Merged over the defaults, a number only had to be a number: -5 GB of
- * RAM, an Infinity of buffer (JSON's 1e999), a zoom of 1e9 went in as they were.
+ * fields can save.
  * @param {Object<string, *>} options - Merged over DefaultOptions; changed in place.
  */
 export function holdImportedNumbers(options) {

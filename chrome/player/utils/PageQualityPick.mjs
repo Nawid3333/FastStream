@@ -1,13 +1,10 @@
 // @ts-check
 
-// Which of the qualities a page's own player offers as files of their own (page-qualities.js)
-// is played: by FastStream's player, and by mpv. The page plays its default, often the lowest
-// (a film site's hoster: Playerjs with default_quality "360p" and 720p and 1080p files beside
-// it); the user's quality setting decides here, as it does among an HLS or DASH stream's levels.
+// The user's quality setting picks among the files a page's own player lists (page-qualities.js);
+// the page itself plays its default, often the lowest.
 
 /**
- * The height the user's quality setting asks for.
- * @param {*} defaultQuality - The option: 'Auto' (the highest), or e.g. '720p'.
+ * @param {*} defaultQuality - 'Auto' (the highest), or e.g. '720p'.
  * @return {number} Infinity for Auto, or anything unreadable.
  */
 export function desiredHeight(defaultQuality) {
@@ -16,7 +13,6 @@ export function desiredHeight(defaultQuality) {
 }
 
 /**
- * A URL's host, or null.
  * @param {string} url
  * @return {?string}
  */
@@ -29,10 +25,8 @@ function hostOf(url) {
 }
 
 /**
- * The page's list that holds a source's file: by its URL, or by the address its request was
- * first made to before a redirect (a hoster's get_file/... link, played from a CDN's). Only its
- * files on the host of the one the page plays: they are fetched with that request's headers,
- * and a script in the page could list a file anywhere.
+ * The page's list holding a source's file, by its URL or its address before a redirect. Only
+ * files on the played one's host: they get its request's headers, and a page script could list any URL.
  * @param {{url: string, requestedUrl?: ?string}} source
  * @param {Array<Array<{url: string}>>} lists - What the page holds (page-qualities.js).
  * @return {?Array<{url: string, label: string, height: number}>} At least two files, or null.
@@ -46,8 +40,7 @@ export function listForSource(source, lists) {
     if (!played) continue;
     const host = hostOf(played.url);
     const sameHost = list.filter((entry) => entry && hostOf(entry.url) === host);
-    // None beside it on its host: a later list may hold it too (the <video>'s own <source>
-    // elements come first, the page's player's list after them).
+    // A later list may hold it too (the <video>'s <source> elements come first).
     if (sameHost.length >= 2) {
       return /** @type {Array<{url: string, label: string, height: number}>} */ (sameHost);
     }
@@ -56,8 +49,7 @@ export function listForSource(source, lists) {
 }
 
 /**
- * The entry to play for a height: the smallest at or above it, else the highest below
- * (LevelManager.matchQuality's rule, so Auto - Infinity - is the highest).
+ * The smallest entry at or above the height, else the highest below (LevelManager.matchQuality's rule).
  * @param {Array<{url: string, label: string, height: number}>} list
  * @param {number} height
  * @return {?{url: string, label: string, height: number}} Null when no entry says its height:
