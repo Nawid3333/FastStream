@@ -12,6 +12,8 @@ export const RequiredHostVersion = 19;
 
 // The host's MaxMessageBytes, of the UTF-8 JSON: a bigger message made it quit without a word.
 export const HostMaxMessageBytes = 1024 * 1024;
+// A helper with Capabilities.HLS (27) reads larger messages: a stream's playlists go with it.
+export const HlsHostMaxMessageBytes = 16 * 1024 * 1024;
 
 // Past these (UTF-16 units) the thin helper refuses the whole play message.
 export const MaxPlayTargetChars = 512 * 1024;
@@ -19,7 +21,7 @@ export const MaxPlayTitleChars = 1000;
 // The start a play message may name: seconds, to the millisecond.
 const PlayStart = /^\d{1,7}(\.\d{1,3})?$/;
 
-export const Capabilities = Object.freeze({PLAY: 'play', IPC: 'ipc', RELAY: 'relay'});
+export const Capabilities = Object.freeze({PLAY: 'play', IPC: 'ipc', RELAY: 'relay', HLS: 'hls'});
 
 // The host's MaxStatusWaitMs, and how often a decoder question asks meanwhile.
 export const MaxStatusWaitMs = 30000;
@@ -78,7 +80,7 @@ function messageBytes(message) {
 /**
  * @typedef {{type: 'play', target: string, title: string, start?: string, headers?: Array<string>,
  *   mpvPath?: string, fullscreen?: boolean, newWindow?: boolean,
- *   subtitles?: Array<{label: string, srt: string}>}} PlayMessage
+ *   subtitles?: Array<{label: string, srt: string}>, hls?: {files: Array<{name: string, text: string}>}}} PlayMessage
  */
 
 /**
@@ -99,7 +101,7 @@ function addSubtitles(message, subtitles) {
   message.subtitles = fitting;
   for (const subtitle of candidates) {
     fitting.push(subtitle);
-    if (messageBytes(message) > HostMaxMessageBytes) {
+    if (messageBytes(message) > ('hls' in message && message.hls ? HlsHostMaxMessageBytes : HostMaxMessageBytes)) {
       fitting.pop();
       console.warn(`A subtitle track (${subtitle.label || 'no label'}) is too large to send to mpv, left out`);
     }
@@ -180,7 +182,8 @@ function legacyWatch(port, onEvent) {
  * @typedef {{url: string, headers?: Array<{name: string, value: string}>, contentType?: string,
  *   pageUrl?: string, pageTitle?: string, extras: {startTime?: number, private?: boolean,
  *   subtitles?: Array<{label: string, srt: string}>,
- *   qualities?: Array<{url: string, label: string, height: number}>}}} MpvStream
+ *   qualities?: Array<{url: string, label: string, height: number}>,
+ *   hls?: {files: Array<{name: string, text: string}>}}}} MpvStream
  */
 
 /** @typedef {{response?: *, error?: string, noHost?: boolean}} HostAnswer */
@@ -226,6 +229,18 @@ export class MpvBackend {
    */
   mayUse(capability) {
     return this.capabilities === null || this.capabilities.includes(capability);
+  }
+
+  /**
+   * Whether the helper has the capability, for one an older helper would ignore without a word; asked again
+   * while it has not said so (updated meanwhile). null when no helper answered.
+   * @param {string} capability
+   * @return {Promise<?boolean>}
+   */
+  async knows(capability) {
+    if (this.capabilities?.includes(capability)) return true;
+    const answer = await this.ask({type: 'ping'});
+    return answer.error ? null : !!this.capabilities?.includes(capability);
   }
 
   /**
@@ -395,9 +410,9 @@ export class MpvBackend {
    * @param {string} [pageUrl]
    * @param {string} [pageTitle]
    * @param {{startTime?: number, private?: boolean, subtitles?: Array<{label: string, srt: string}>,
-   *   qualities?: Array<{url: string, label: string, height: number}>}} [extras]
+   *   qualities?: Array<{url: string, label: string, height: number}>, hls?: {files: Array<{name: string, text: string}>}}} [extras]
    * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean,
-   *   focus?: string, foreground?: string, reused?: boolean}>}
+   *   focus?: string, foreground?: string, reused?: boolean, local?: string}>}
    */
   openStream(url, tab, headers, contentType, pageUrl, pageTitle, extras = {}) {
     if (!MpvBackend.isStreamUrl(url)) {
@@ -440,7 +455,7 @@ export class MpvBackend {
    * One at a time: two at once with no mpv running each started an mpv on the same pipe name.
    * @param {MpvStream} stream
    * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean,
-   *   focus?: string, foreground?: string, reused?: boolean}>}
+   *   focus?: string, foreground?: string, reused?: boolean, local?: string}>}
    */
   sendStream(stream) {
     const mine = this.lastSend.then(() => this.sendStreamNow(stream));
@@ -451,7 +466,7 @@ export class MpvBackend {
   /**
    * @param {MpvStream} stream
    * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean,
-   *   focus?: string, foreground?: string, reused?: boolean}>}
+   *   focus?: string, foreground?: string, reused?: boolean, local?: string}>}
    */
   async sendStreamNow(stream) {
     if (this.mayUse(Capabilities.PLAY)) {
@@ -497,7 +512,9 @@ export class MpvBackend {
     if (response && response.ok === false) {
       return this.withHostState({ok: false, error: response.error || 'mpv host error'});
     }
-    return this.withHostState({ok: true, ...MpvBackend.focusOf(response)});
+    // The playlist file a stream's playlists were written to (helper 27): mpv's path for it.
+    const local = response && typeof response.local === 'string' ? {local: response.local} : {};
+    return this.withHostState({ok: true, ...MpvBackend.focusOf(response), ...local});
   }
 
   /**
@@ -609,9 +626,15 @@ export class MpvBackend {
       message.newWindow = true;
     }
 
+    // Only for a helper that said it reads them (openInMpv): an older one would play the address without a word.
+    if (extras.hls) {
+      message.hls = extras.hls;
+    }
+
     addSubtitles(message, extras.subtitles);
 
-    return messageBytes(message) > HostMaxMessageBytes ? {error: TooLongError} : {message};
+    return messageBytes(message) > (message.hls ? HlsHostMaxMessageBytes : HostMaxMessageBytes) ?
+      {error: TooLongError} : {message};
   }
 
   /**

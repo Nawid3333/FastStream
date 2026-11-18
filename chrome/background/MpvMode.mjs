@@ -6,10 +6,11 @@ import {ProblemKinds} from '../player/utils/ProblemLog.mjs';
 import {SHORT_S} from '../player/utils/StreamPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {Capabilities, MpvBackend} from './MpvBackend.mjs';
+import {hlsPackage} from './MpvHlsPackage.mjs';
 import {isMpvContentType} from './MpvTarget.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {youTubeVideo} from './YouTubeVideo.mjs';
-import {AutoEnableList, CaptionScrapeWaitMs, HlsQualitiesWaitMs, Lengths, Logging, Options, PageSubtitles, SourceLengthWaitMs, Tabs, VpnMirror, askFrame, closeReopenedTab, ensureOptions, hlsQualityChoice, isSentStream, isTabOpen, newestOfLongest, noteProblem, notifySeriesEnd, openPlayersWithSources, pageQualityChoice, pauseTabMedia, saveOption, scrapeCaptionsTags, startPagePlayers, tabHasPlayer, tabTitle, takeScrapedCaptions, userTurnedOff} from './background.mjs';
+import {AutoEnableList, CaptionScrapeWaitMs, HlsQualitiesWaitMs, Lengths, Logging, Options, PageSubtitles, SourceLengthWaitMs, Tabs, VpnMirror, askFrame, closeReopenedTab, ensureOptions, hlsPackageIo, hlsQualityChoice, isSentStream, isTabOpen, newestOfLongest, noteProblem, notifySeriesEnd, openPlayersWithSources, pageQualityChoice, pauseTabMedia, saveOption, scrapeCaptionsTags, startPagePlayers, tabHasPlayer, tabTitle, takeScrapedCaptions, userTurnedOff} from './background.mjs';
 
 /** @typedef {import('./TabTracker.mjs').TabHolder} TabHolder */
 /** @typedef {import('./TabTracker.mjs').TrackedSource} TrackedSource */
@@ -28,6 +29,8 @@ export const MpvPlayRepeatMs = 10000;
 
 // A play-triggered fetch lands within a few hundred ms.
 export const MpvPlayKnownAfterMs = 1000;
+
+const PackingWantedCheckMs = 250;
 
 /**
  * Movie is the fallback: an untagged site still gets `movie`, not mpv's folder-name guess.
@@ -353,7 +356,7 @@ export function tabSources(tab) {
  *   cookieStoreId: ?string}} EpisodeLinksOfTab
  */
 /**
- * @typedef {{tabId: number, url: string, qualities: ?Array<{url: string}>, alive: boolean, going: boolean,
+ * @typedef {{tabId: number, url: string, qualities: ?Array<{url: string}>, local: ?string, alive: boolean, going: boolean,
  *   countdown: ?ReturnType<typeof setTimeout>, countdownAsks: number,
  *   stalled: ?ReturnType<typeof setTimeout>,
  *   links: ?EpisodeLinksOfTab, closedTab: ?{links: EpisodeLinksOfTab, windowId: number, windowClosing: boolean},
@@ -399,8 +402,9 @@ export function syncMpvAutoplay(state) {
  * @param {TabHolder} tab
  * @param {string} url
  * @param {?Array<{url: string}>} [qualities]
+ * @param {?string} [local] - The playlist file mpv plays the stream from (helper 27's hls), its path in mpv.
  */
-export function watchMpvFor(tab, url, qualities = null) {
+export function watchMpvFor(tab, url, qualities = null, local = null) {
   if (!tab || typeof tab.tabId !== 'number' || !isTabOpen(tab) || !Mpv.singleInstance) {
     return;
   }
@@ -424,6 +428,7 @@ export function watchMpvFor(tab, url, qualities = null) {
     mpvWatch.tabId = tab.tabId;
     mpvWatch.url = url;
     mpvWatch.qualities = qualities;
+    mpvWatch.local = local;
     // The links of the tab's page before are not this one's.
     mpvWatch.closedTab = null;
     mpvWatch.links = null;
@@ -432,7 +437,7 @@ export function watchMpvFor(tab, url, qualities = null) {
     return;
   }
   /** @type {MpvWatch} */
-  const state = {tabId: tab.tabId, url, qualities, alive: true, going: false, countdown: null, countdownAsks: 0,
+  const state = {tabId: tab.tabId, url, qualities, local, alive: true, going: false, countdown: null, countdownAsks: 0,
     stalled: null, links: null, closedTab: null, site: siteOf(tab.url), watcher: null};
   mpvWatch = state;
   state.watcher = Mpv.watch((event) => onMpvWatchEvent(state, event));
@@ -526,7 +531,8 @@ export function onMpvWatchEvent(state, event) {
     const tab = Tabs.getTab(state.tabId);
     if (tab) setMpvDecoder(tab, event.decoder);
   } else if (event.type === 'ended') {
-    if (Options.mpvAutoplayNext && isSentStream(event.path, state.url, state.qualities)) {
+    if (Options.mpvAutoplayNext && (isSentStream(event.path, state.url, state.qualities) ||
+        (state.local !== null && event.path === state.local))) {
       startMpvCountdown(state);
     }
   } else if (event.type === 'request' && (event.action === 'next' || event.action === 'previous')) {
@@ -1074,11 +1080,27 @@ export async function openInMpv(tabId, url, ...rest) {
   // Copy-protected: mpv has no key system, and its window stayed black.
   const tracked = tabId !== undefined && tabId >= 0 && Tabs.getTab(tabId) ?
     tabSources(Tabs.getTab(tabId)).find((source) => source.url === detected) : null;
+  // An HLS stream mpv cannot open from its address alone: its playlists go with every address whole
+  // (MpvHlsPackage.mjs), read meanwhile and stopped when the stream does not go or its page or MPV went.
+  const stopPacking = new AbortController();
+  const stillWanted = rest[5]?.wanted;
+  const packing = tracked && tracked.mode === PlayerModes.ACCELERATED_HLS ?
+    Promise.resolve().then(() => {
+      const watching = stillWanted ? setInterval(() => {
+        if (!stillWanted()) stopPacking.abort();
+      }, PackingWantedCheckMs) : undefined;
+      return hlsPackage({url, keyFrom: detected, io: hlsPackageIo(rest[1]), signal: stopPacking.signal})
+          .finally(() => clearInterval(watching));
+    }).catch((e) => {
+      console.error('Reading the playlists of an HLS stream for mpv failed', e);
+      return null;
+    }) : Promise.resolve(null);
   if (tracked && (tracked.mode === PlayerModes.ACCELERATED_HLS || tracked.mode === PlayerModes.ACCELERATED_DASH)) {
     await Lengths.settle(() => [tracked], HlsQualitiesWaitMs);
   }
   if (Lengths.isProtected(detected) || Lengths.isProtected(url)) {
     if (Logging) console.log('[MPV] not handed off, copy-protected:', url);
+    stopPacking.abort();
     return {
       ok: false,
       drm: true,
@@ -1089,6 +1111,7 @@ export async function openInMpv(tabId, url, ...rest) {
   // Answered with a web page from anywhere but its page: FastStream's player loads it through the page (playHereInstead).
   if (await webPage || (url !== detected && await Lengths.servesWebPage(url, 0))) {
     if (Logging) console.log('[MPV] not handed off, only its page loads it:', url);
+    stopPacking.abort();
     return {
       ok: false,
       pageOnly: true,
@@ -1098,12 +1121,29 @@ export async function openInMpv(tabId, url, ...rest) {
   }
   if (VpnMirror.throughBrowserVpn(detected, incognito) || VpnMirror.throughBrowserVpn(url, incognito)) {
     if (Logging) console.log('[MPV] not handed off, Firefox VPN carries it:', url);
+    stopPacking.abort();
     return Promise.resolve({
       ok: false,
       vpn: true,
       error: chrome.i18n.getMessage('player_mpv_vpn') ||
         'Firefox VPN carries this video, and mpv cannot use it. Turn Firefox VPN off for this site and reload the page.',
     });
+  }
+  const pack = await packing;
+  if (pack) {
+    // Unknown (no helper answered): it goes, and the answer says why it did not play.
+    if (await Mpv.knows(Capabilities.HLS) === false) {
+      if (Logging) console.log('[MPV] not handed off, the helper is older than 27:', url);
+      return {
+        ok: false,
+        hostOutdated: true,
+        error: chrome.i18n.getMessage('player_mpv_needs_hls_helper') ||
+          'mpv can play this stream only with the newer mpv helper: run update-local.cmd in the mpv folder of FastStream, then send it again.',
+      };
+    }
+    if (Logging) console.log('[MPV] its playlists go along:', pack.files.map((file) => file.name));
+    // Its quality list's addresses lack the key the files are given here.
+    rest[5] = {...(rest[5] || {}), hls: pack, qualities: undefined};
   }
   // The page's subtitles go with its stream; the player's button sends its own.
   const tabHolder = rest[0];
@@ -1137,7 +1177,7 @@ export async function openInMpv(tabId, url, ...rest) {
   const result = await Mpv.openStream(url, ...rest);
   // By the tab's id: the player's button and the MPV key's play pass no tab.
   if (result && result.ok && tabId !== undefined && tabId >= 0) {
-    watchMpvFor(Tabs.getTab(tabId), url, rest[5]?.qualities || null);
+    watchMpvFor(Tabs.getTab(tabId), url, rest[5]?.qualities || null, typeof result.local === 'string' ? result.local : null);
   }
   return result;
 }

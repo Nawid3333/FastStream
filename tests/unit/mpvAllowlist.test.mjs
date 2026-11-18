@@ -394,7 +394,7 @@ describe('checkPlayMessage', () => {
     const checked = checkPlayMessage({target, url: 'file:///x', extra: 1});
     expect(checked.ok).toBe(true);
     expect(Object.keys(checked.play).sort())
-        .toEqual(['fullscreen', 'headerFields', 'mpvPath', 'newWindow', 'start', 'subtitles', 'target', 'title']);
+        .toEqual(['fullscreen', 'headerFields', 'hls', 'mpvPath', 'newWindow', 'start', 'subtitles', 'target', 'title']);
     expect(JSON.stringify(checked)).not.toContain('file:');
   });
 

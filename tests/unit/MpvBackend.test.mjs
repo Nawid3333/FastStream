@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {HostMaxMessageBytes, MaxPlayTargetChars, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
+import {HlsHostMaxMessageBytes, HostMaxMessageBytes, MaxPlayTargetChars, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {MaxMessageBytes} from '../../native-host/faststream-mpv-host.mjs';
 
 // The header filter decides which request headers are relayed to mpv.
@@ -407,7 +407,9 @@ describe('openStream contentType', () => {
   // The host reads no message over MaxMessageBytes: it quit without a word, and the
   // hand-off failed with "is the host installed?". Firefox sends the JSON as UTF-8.
   it('keeps the message under the host\'s limit, leaving out subtitles that do not fit', async () => {
-    expect(HostMaxMessageBytes).toBe(MaxMessageBytes);
+    // 1 MB for every helper; a helper 27 (Capabilities.HLS) reads its own limit, for a stream's playlists.
+    expect(HostMaxMessageBytes).toBe(1024 * 1024);
+    expect(HlsHostMaxMessageBytes).toBe(MaxMessageBytes);
     const host = captureNativeHost();
     const backend = new MpvBackend();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -620,6 +622,18 @@ describe('the thin helper', () => {
     expect(sent.map((m) => m.type)).toEqual(['play']);
     // Nothing learned: still unknown.
     expect(backend.capabilities).toBe(null);
+    expect(await backend.knows('hls')).toBe(null);
+  });
+
+  it('asks again whether the helper has a capability until it has: an update meanwhile is noticed', async () => {
+    let capabilities = ['play', 'ipc', 'relay'];
+    const sent = helper(() => ({ok: true, hostVersion: RequiredHostVersion, capabilities}));
+    const backend = new MpvBackend();
+    expect(await backend.knows('hls')).toBe(false);
+    capabilities = [...capabilities, 'hls'];
+    expect(await backend.knows('hls')).toBe(true);
+    expect(await backend.knows('hls')).toBe(true);
+    expect(sent.map((m) => m.type)).toEqual(['ping', 'ping']);
   });
 
   it('answers a send whose message could not be built, and lets it be sent again', async () => {

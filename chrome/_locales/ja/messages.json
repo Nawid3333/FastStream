@@ -1232,6 +1232,9 @@
     "player_mpv_page_only": {
         "message": "この動画はそのページ経由でしか読み込めないため、mpv では開けません。FastStream がここで再生します。"
     },
+    "player_mpv_needs_hls_helper": {
+        "message": "このストリームは新しい mpv ヘルパーでのみ mpv で再生できます。FastStream の mpv フォルダーで update-local.cmd を実行してから、もう一度送ってください。"
+    },
     "mpv_episode_loading": {
         "message": "mpvで読み込み中"
     },

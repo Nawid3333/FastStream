@@ -21,6 +21,7 @@ const CHECKED = [
   'chrome/background/ManifestSniffer.mjs',
   'chrome/background/ManifestTypes.mjs',
   'chrome/background/MpvBackend.mjs',
+  'chrome/background/MpvHlsPackage.mjs',
   'chrome/background/MpvMode.mjs',
   'chrome/background/MpvRelayWatch.mjs',
   'chrome/background/MpvSubtitles.mjs',

@@ -42,10 +42,10 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
 // The extension compares it with RequiredHostVersion (chrome/background/MpvBackend.mjs). Raise it
 // with every change to this file or install.ps1, with tests/unit/mpvHostVersion.test.mjs.
-export const HostVersion = 26;
+export const HostVersion = 27;
 
 // The messages the extension may send; a host without this list gets the older ones.
-export const Capabilities = Object.freeze(['play', 'ipc', 'relay']);
+export const Capabilities = Object.freeze(['play', 'ipc', 'relay', 'hls']);
 
 // No mpv path from the environment: an unchecked path would reach statSync (path injection).
 const DefaultMpvPaths = [
@@ -102,6 +102,11 @@ export function debugLog(config, label, detail, file = path.join(__dirname, 'fas
  * @return {*} The message to log.
  */
 export function loggedMessage(message) {
+  if (message && typeof message === 'object' && message.hls && typeof message.hls === 'object') {
+    // Its playlists hold the stream's key in every address.
+    const files = Array.isArray(message.hls.files) ? message.hls.files : [];
+    message = {...message, hls: {files: files.length}};
+  }
   if (!message || typeof message !== 'object' || !Array.isArray(message.subtitles)) {
     return message;
   }
@@ -269,7 +274,7 @@ function sendMessage(message) {
 }
 
 // The length prefix decides the allocation, so a bigger frame is refused, not allocated.
-export const MaxMessageBytes = 1024 * 1024;
+export const MaxMessageBytes = 16 * 1024 * 1024;
 
 // readMessage's result for a frame over MaxMessageBytes, which is answered with an error.
 export const TooLarge = Symbol('message too large');
@@ -920,7 +925,7 @@ export function mpvTargetUrl(message) {
 
 // What a send may carry with a stream, checked again here.
 const MaxSubtitles = 8;
-const MaxSubtitleChars = MaxMessageBytes;
+const MaxSubtitleChars = 1024 * 1024;
 // The folders the subtitles are written into, one per send, in the user's temp folder.
 export const SubtitleDirPrefix = 'faststream-mpv-subs-';
 // mpv reads a subtitle file when it loads the stream; older folders are removed.
@@ -981,6 +986,250 @@ export function writeSubtitleFiles(subtitles, base = os.tmpdir()) {
     fs.writeFileSync(file, s.srt, 'utf8');
     return file;
   });
+}
+
+// An HLS stream mpv cannot open from its address (docs/notes/mpv.md, "Streams mpv cannot open alone"): the
+// extension sends its playlists with every address made whole, and mpv plays them from files.
+export const HlsDirPrefix = 'faststream-mpv-hls-';
+// ffmpeg reads a stream's playlists once, when it opens it; older folders are removed whenever the helper ends.
+// A private window's (fs-private: its addresses are browsing history) once mpv moved on from it or closed
+// (privatePackageWatch), else two minutes on: longer than a play waits before mpv opens it (LaunchLockMs).
+const HlsDirMaxAgeMs = 2 * 24 * 60 * 60 * 1000;
+const PrivateHlsDirPrefix = HlsDirPrefix + 'p-';
+const PrivateHlsDirMaxAgeMs = 2 * 60 * 1000;
+// Formats ffmpeg may read while the stream plays: none but HLS (checkHlsPackage) opens a file it names, and srt
+// for the page's subtitles (a forced hls format took them as playlists too).
+const HlsFormats = '[hls,mpegts,mov,aac,mp3,ac3,eac3,webvtt,srt]';
+const MaxHlsFiles = 32;
+export const MaxHlsBytes = 12 * 1024 * 1024;
+// The entry first: a master names the others by these names, which resolve to its own folder.
+const HlsFileName = /^(?:master|\d{1,2})\.m3u8$/;
+/**
+ * A tag's attributes as ffmpeg reads them (ff_parse_key_value): a key after spaces or commas, up to its '=';
+ * its value quoted, a backslash keeping the character after it, or up to a space or comma.
+ * @param {string} text - What follows the tag's ':'.
+ * @return {Array<{key: string, value: string}>}
+ */
+export function ffmpegAttributes(text) {
+  const isSpace = (/** @type {string} */ c) => ' \t\n\v\f\r'.includes(c);
+  const attributes = [];
+  let at = 0;
+  for (;;) {
+    while (at < text.length && (isSpace(text[at]) || text[at] === ',')) at++;
+    if (at >= text.length) break;
+    const equals = text.indexOf('=', at);
+    if (equals < 0) break;
+    const key = text.slice(at, equals);
+    at = equals + 1;
+    let value = '';
+    if (text[at] === '"') {
+      at++;
+      while (at < text.length && text[at] !== '"') {
+        if (text[at] === '\\') {
+          if (at + 1 >= text.length) break;
+          value += text[at + 1];
+          at += 2;
+        } else {
+          value += text[at++];
+        }
+      }
+      if (text[at] === '"') at++;
+    } else {
+      while (at < text.length && !isSpace(text[at]) && text[at] !== ',') value += text[at++];
+    }
+    attributes.push({key, value});
+  }
+  return attributes;
+}
+
+/**
+ * Every address of a playlist, as ffmpeg would open it: its lines that are no tag, and its tags' URI attributes.
+ * @param {string} text
+ * @return {?Array<{address: string, tag: ?string}>} tag: the tag of a URI attribute, null for a line that is no
+ *   tag; null for a playlist with a backslash or a line ffmpeg and this would read differently (leading spaces).
+ */
+export function hlsAddresses(text) {
+  const addresses = [];
+  for (const line of text.split(/\r\n|\r|\n/)) {
+    if (!line) continue;
+    if (line !== line.trimStart() || line.includes('\\')) return null;
+    if (!line.startsWith('#')) {
+      addresses.push({address: line.trimEnd(), tag: null});
+      continue;
+    }
+    const colon = line.indexOf(':');
+    if (colon < 0) continue;
+    for (const {key, value} of ffmpegAttributes(line.slice(colon + 1))) {
+      if (key.trim().toUpperCase() === 'URI') addresses.push({address: value, tag: line.slice(0, colon)});
+    }
+  }
+  return addresses;
+}
+
+/**
+ * @param {string} address
+ * @return {boolean}
+ */
+function isPlainStreamUrl(address) {
+  if (!/^https?:\/\//i.test(address) || !isStreamUrl(address) || !isPlainText(address, 8192)) return false;
+  const url = new URL(address);
+  return !url.username && !url.password;
+}
+
+/**
+ * Checks the playlists of a play message's hls. ffmpeg is given http(s) addresses only, from complete media
+ * playlists; a master, the first file, names only the others (its variants and renditions) and nothing else.
+ * @param {*} hls - {files: [{name, text}]}, the entry first.
+ * @return {{ok: true, files: Array<{name: string, text: string}>}|{ok: false, error: string}}
+ */
+export function checkHlsPackage(hls) {
+  const refuse = (/** @type {string} */ error) => ({ok: /** @type {false} */ (false), error});
+  const files = hls?.files;
+  if (!Array.isArray(files) || files.length === 0 || files.length > MaxHlsFiles) {
+    return refuse('the HLS playlists are not a list of 1 to 32 files');
+  }
+  const names = new Set();
+  let bytes = 0;
+  for (const file of files) {
+    if (!file || typeof file !== 'object' || typeof file.name !== 'string' || !HlsFileName.test(file.name) ||
+        names.has(file.name) || typeof file.text !== 'string') {
+      return refuse('an HLS playlist has no name of its own');
+    }
+    names.add(file.name);
+    bytes += Buffer.byteLength(file.text, 'utf8');
+    if (bytes > MaxHlsBytes) {
+      return refuse('the HLS playlists are too large');
+    }
+    if (!file.text.startsWith('#EXTM3U') || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(file.text)) {
+      return refuse('an HLS playlist is no playlist text');
+    }
+  }
+  const master = files[0].name === 'master.m3u8';
+  if (!master && files.length > 1) {
+    return refuse('HLS playlists beside the first need a master to name them');
+  }
+  const named = new Set();
+  for (const [index, file] of files.entries()) {
+    const addresses = hlsAddresses(file.text);
+    if (!addresses) {
+      return refuse('an HLS playlist has a line ffmpeg could read otherwise');
+    }
+    if (index === 0 && master) {
+      for (const {address, tag} of addresses) {
+        if ((tag !== null && tag !== '#EXT-X-MEDIA') || address === file.name || !names.has(address)) {
+          return refuse('an HLS master names something that is not one of its playlists');
+        }
+        named.add(address);
+      }
+      continue;
+    }
+    const lines = file.text.split(/\r\n|\r|\n/);
+    if (!lines.includes('#EXT-X-ENDLIST') ||
+        lines.some((/** @type {string} */ line) => /^#EXT-X-(STREAM-INF|MEDIA|I-FRAME-STREAM-INF):/.test(line))) {
+      return refuse('an HLS playlist is no complete media playlist');
+    }
+    if (!addresses.every(({address}) => isPlainStreamUrl(address))) {
+      return refuse('an HLS playlist names something that is not an http(s) address');
+    }
+  }
+  if (master && files.slice(1).some((file) => !named.has(file.name))) {
+    return refuse('an HLS playlist is not named by its master');
+  }
+  return {ok: true, files: files.map((file) => ({name: file.name, text: file.text}))};
+}
+
+/**
+ * Per file for the playlists' entry: read by ffmpeg, never as mpv's own playlist, which opens each line as a file.
+ * Files only for a master's playlists, beside it.
+ * @param {string} entry
+ * @return {Object<string, string>}
+ */
+export function hlsPlayOptions(entry) {
+  const protocols = path.basename(entry) === 'master.m3u8' ? '[file,http,https,tcp,tls,crypto]' : '[http,https,tcp,tls,crypto]';
+  return {'demuxer': 'lavf', 'demuxer-lavf-o': `protocol_whitelist=${protocols},format_whitelist=${HlsFormats}`};
+}
+
+/**
+ * Removes the playlist folders past their age; one that cannot be removed (another user's) stays.
+ * @param {string} [base] - The folder they are in; the temp folder by default.
+ * @param {number} [now]
+ */
+export function removeOldHlsPackages(base = os.tmpdir(), now = Date.now()) {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(base, {withFileTypes: true});
+  } catch (e) {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith(HlsDirPrefix)) continue;
+    const dir = path.join(base, entry.name);
+    const maxAge = entry.name.startsWith(PrivateHlsDirPrefix) ? PrivateHlsDirMaxAgeMs : HlsDirMaxAgeMs;
+    try {
+      if (now - fs.statSync(dir).mtimeMs > maxAge) fs.rmSync(dir, {recursive: true, force: true});
+    } catch (e) {
+      // The next one still goes.
+    }
+  }
+}
+
+/**
+ * A private window's playlist folder goes once mpv no longer plays it: when its path, as the relay passes it on,
+ * moves to another file (none between two files counts for nothing), or mpv closes. Not when the extension lets go: a new hand-off's package may not be open yet.
+ * @param {string} [base] - The folder the packages are in; the temp folder by default.
+ * @return {{see: (event: *) => void, end: (reason: string) => void}} see: each event the relay sends; end: its
+ *   reason for closing.
+ */
+export function privatePackageWatch(base = os.tmpdir()) {
+  /** @type {?string} */
+  let playing = null;
+  /** @param {string} entry */
+  const remove = (entry) => {
+    const dir = path.dirname(entry);
+    if (path.dirname(dir) !== path.resolve(base) || !path.basename(dir).startsWith(PrivateHlsDirPrefix)) return;
+    try {
+      fs.rmSync(dir, {recursive: true, force: true});
+    } catch (e) {
+      // Removed by age later.
+    }
+  };
+  return {
+    see(event) {
+      const data = event && event.type === 'mpv' ? event.data : null;
+      if (!data || data.event !== 'property-change' || data.name !== 'path') return;
+      // None between two files (mpv clears it), the same file loaded again included.
+      if (typeof data.data !== 'string') return;
+      if (playing && playing !== data.data) remove(playing);
+      playing = data.data;
+    },
+    end(reason) {
+      if (reason === 'mpv closed' && playing) remove(playing);
+    },
+  };
+}
+
+/**
+ * Writes the playlists into a fresh mkdtemp folder, after removing old ones, with target.txt: the stream as sent,
+ * for mpv's scripts (its fs-* tags).
+ * @param {Array<{name: string, text: string}>} files - From checkHlsPackage, the entry first.
+ * @param {string} target - The play message's target.
+ * @param {string} [base] - The folder to write under; the temp folder by default.
+ * @return {string} The entry's file.
+ */
+export function writeHlsPackage(files, target, base = os.tmpdir()) {
+  removeOldHlsPackages(base);
+  let isPrivate = false;
+  try {
+    isPrivate = new URL(target).hash.slice(1).split('&').includes('fs-private=1');
+  } catch (e) {
+    // checkPlayMessage took it for a URL.
+  }
+  const dir = fs.mkdtempSync(path.join(base, isPrivate ? PrivateHlsDirPrefix : HlsDirPrefix));
+  for (const file of files) {
+    fs.writeFileSync(path.join(dir, file.name), file.text, 'utf8');
+  }
+  fs.writeFileSync(path.join(dir, 'target.txt'), target, 'utf8');
+  return path.join(dir, files[0].name);
 }
 
 /**
@@ -1897,6 +2146,8 @@ const PlayHeader = /^(referer|origin|user-agent): [ -~]{1,4096}$/i;
  * @property {boolean} newWindow - A window of its own, not the one on the helper's pipe.
  * @property {string|undefined} mpvPath - The options page's mpv path: resolveMpvPath accepts
  *   only an mpv executable or its folder, so it names no program but mpv.
+ * @property {Array<{name: string, text: string}>|undefined} hls - The stream's playlists, played from files
+ *   (checkHlsPackage).
  */
 
 /**
@@ -1963,10 +2214,19 @@ export function checkPlayMessage(message) {
 
   const mpvPath = isPlainText(message.mpvPath, 4096) ? message.mpvPath : undefined;
 
+  let hls;
+  if (message.hls !== undefined && message.hls !== null) {
+    const checked = checkHlsPackage(message.hls);
+    if (!checked.ok) {
+      return refuse(checked.error);
+    }
+    hls = checked.files;
+  }
+
   return {
     ok: true,
     play: {target, title, start, headerFields: [...headers], subtitles: subtitlesOf({subtitles}), fullscreen, newWindow,
-      mpvPath},
+      mpvPath, hls},
   };
 }
 
@@ -2174,13 +2434,44 @@ export async function stopMpv(pid, io = {}) {
  *   start?: (mpvPath: string, args: Array<string>) => Promise<{ok: boolean, error?: string,
  *     pid?: number, focus?: string, foreground?: string}>,
  *   platform?: string, sleep?: (ms: number) => Promise<void>, now?: () => number,
- *   randomHex?: () => string, subtitleBase?: string, stop?: (pid: number) => void,
+ *   randomHex?: () => string, subtitleBase?: string, hlsBase?: string, stop?: (pid: number) => void,
  *   lockFile?: string, lock?: {now?: () => number, alive?: (pid: number) => boolean}}} [io] -
  *   Stand-ins for tests; the real ones by default.
  * @return {Promise<{ok: boolean, error?: string, reused?: boolean, focus?: string,
- *   foreground?: string}>} The answer for the extension, as the legacy open's.
+ *   foreground?: string, local?: string}>} The answer for the extension, as the legacy open's; local: the
+ *   playlist file mpv plays for hls, its path in mpv's watch.
  */
 export async function playMpv(mpvPath, play, config, io = {}) {
+  let entry = play.target;
+  if (play.hls) {
+    try {
+      entry = writeHlsPackage(play.hls, play.target, io.hlsBase);
+    } catch (e) {
+      debugLog(config, 'hls-failed', {error: String(e)});
+      return {ok: false, error: 'Could not write the playlists of the stream for mpv: ' + String(e)};
+    }
+  }
+  const answer = await playEntry(mpvPath, play, config, io, entry);
+  if (!play.hls) return answer;
+  if (answer.ok) return {...answer, local: entry};
+  try {
+    fs.rmSync(path.dirname(entry), {recursive: true, force: true});
+  } catch (e) {
+    // The next helper to end removes it.
+  }
+  return answer;
+}
+
+/**
+ * playMpv's work, for the file or URL mpv loads.
+ * @param {?string} mpvPath
+ * @param {PlaySpec} play
+ * @param {Object} config
+ * @param {NonNullable<Parameters<typeof playMpv>[3]>} io
+ * @param {string} entry - play.target, or the entry of its playlists' folder.
+ * @return {ReturnType<typeof playMpv>}
+ */
+async function playEntry(mpvPath, play, config, io, entry) {
   const platform = io.platform || process.platform;
   const ipcRequest = io.ipcRequest || mpvIpcRequest;
   const focus = io.focus || focusPid;
@@ -2194,12 +2485,15 @@ export async function playMpv(mpvPath, play, config, io = {}) {
     debugLog(config, 'subtitles-failed', {error: String(e)});
   }
   const options = perFileOptions(play.headerFields, play.title, {start: play.start, subFiles});
+  if (entry !== play.target) {
+    Object.assign(options, hlsPlayOptions(entry));
+  }
   /**
    * @param {string} pipe
    * @param {boolean} fullscreen
    * @return {ReturnType<typeof loadInto>}
    */
-  const load = (pipe, fullscreen) => loadInto(play.target, options, fullscreen,
+  const load = (pipe, fullscreen) => loadInto(entry, options, fullscreen,
       (commands) => ipcRequest(commands, undefined, undefined, pipe));
 
   if (!play.newWindow) {
@@ -2669,7 +2963,9 @@ async function handleMessage() {
     }
     /** @type {Promise<void>} */
     let last = Promise.resolve();
+    const played = privatePackageWatch();
     const relay = relayMpv((event) => {
+      played.see(event);
       // mpv's own lines (time-pos many times a second) stay out of the log.
       if ((/** @type {{type: string}} */ (event)).type !== 'mpv' && (/** @type {{type: string}} */ (event)).type !== 'mpv-reply') debugLog(config, 'relay', event);
       last = sendMessage(event);
@@ -2677,9 +2973,10 @@ async function handleMessage() {
     // The browser went while mpv plays on: as when the extension lets go (the watch's reason).
     process.stdout.on('error', () => relay.stop());
     readMessages(process.stdin, (next) => relay.receive(next), () => relay.stop());
-    await relay.done;
+    const reason = await relay.done;
     // The last message ('closed') out before the host goes.
     await last;
+    played.end(reason);
     return;
   }
 
@@ -2711,6 +3008,7 @@ async function main() {
   // A browser gone before the answer makes the write fail: no crash for it.
   process.stdout.on('error', () => {});
   await handleMessage();
+  removeOldHlsPackages();
   process.exit(0);
 }
 
