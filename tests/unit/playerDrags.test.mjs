@@ -151,9 +151,7 @@ describe('the volume bar', () => {
 
 describe('a subtitle track while none of its cues shows', () => {
   it('keeps an empty cue empty, for the next time it comes', () => {
-    // The container kept its first child as a filler and wrote '|' into it: an empty cue's
-    // own element (a tag-only cue), which showed '|' when the cue came again (glm's
-    // review, 2026-10-22).
+    // no filler child with '|' in the container: an empty cue's element shows nothing
     const container = el();
     const emptyCue = doc.createElement('span');
     const cue = {startTime: 0, endTime: 1, dom: emptyCue};

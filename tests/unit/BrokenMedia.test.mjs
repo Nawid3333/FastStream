@@ -3,11 +3,8 @@ import {describe, expect, it} from 'vitest';
 import {AGAIN_WITHIN_MS, BLIND_SKIP_S, isDecodeError, isSamePlace, pastBrokenMedia} from '../../chrome/player/utils/BrokenMedia.mjs';
 import {stuckAfterStart} from '../../chrome/player/players/dash/DashErrors.mjs';
 
-// A segment that does not decode, and the player built again for it (FastStreamClient.
-// recoverPlayer): the first decode error at a place builds it again at the same time, the
-// same place failing again right after is the media's fault and the player starts past it.
-// Measured on a DASH stream with one broken segment: three rebuilds at 3.64 s, then the video
-// ended in "Failed to load video!".
+// A segment that does not decode: the first error at a place rebuilds the player there, the same
+// place failing again is the media's and is skipped.
 
 const fragment = (start, end) => ({start, end});
 

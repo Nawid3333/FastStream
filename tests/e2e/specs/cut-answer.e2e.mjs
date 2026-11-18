@@ -1,10 +1,7 @@
 // A segment whose answer is cut part-way costs a retry, not the video.
 //
-// The dash-template and hls-fmp4 fixtures (2 s segments) from a local server that cuts the first
-// answer for the 4-6 s video segment: its headers and half its body, then the connection is
-// reset, as a real line drops one now and then. The player has to ask for it again and play on.
-// The A/B benchmark found it (2026-11-15, `--drop 20`, stall-dash): a DASH video sat at its seek
-// for good, nothing buffered, no download running, its progress at 90-100 %.
+// The first answer for the 4-6 s segment is cut after half its body and the connection reset: the
+// player asks again and plays on.
 
 import fs from 'node:fs';
 import http from 'node:http';

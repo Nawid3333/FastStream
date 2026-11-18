@@ -1,10 +1,5 @@
-// A stream link the server refuses is got anew from its page (#592, FreshLink.mjs).
-//
-// A hoster signs its stream link with the time it was issued (vidmoly: …&s=<issued>&e=43200,
-// twelve hours), and every load of its page issues a new one. Back gives a page its old
-// document from Firefox's cache, and with it the old link: once that ran out, the segments
-// were refused (403), and FastStream's player sat at 0:00 without an error, or stopped where
-// it had downloaded to (both measured on vidmoly's own server, 2026-10-27).
+// A stream link the server refuses is got anew from its page (FreshLink.mjs): Back's cached page
+// carries an old signed link that runs out.
 //
 // This site does what vidmoly does: its page names the playlist with a signature of its own
 // (sig=s<n>, n counting the page's loads), the playlist takes any signature and hands it on to

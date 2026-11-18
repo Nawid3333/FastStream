@@ -2,22 +2,14 @@
 //
 // Players tell each other how they are doing over a BroadcastChannel, every second
 // (PlayerPeers), and the OPFS worker of each player's storage runs for the page's lifetime.
-// Firefox keeps a page out of the back-forward cache for some of what a page holds: a Web
-// Lock held by a worker does (BFCacheStatus::ACTIVE_LOCK - a lock per OPFS session was tried
-// and reverted on 2026-10-09 for it, content-cleanup.e2e.mjs caught it). So does a message
-// that reaches a BroadcastChannel the cached page has open (BroadcastChannel::MessageReceived
-// calls RemoveDocFromBFCache for a window in the cache), and PlayerPeers leaves its channel on
-// pagehide: this test passed locally without that, and failed on the Windows runner in 4 of 4
-// attempts (PR #366).
+// A worker's Web Lock or a message to an open BroadcastChannel keeps a page out of the bfcache:
+// PlayerPeers leaves its channel on pagehide.
 //
-// Both players are in one tab - a page, then the next page with its own player - because a
-// tab WebDriver opens meanwhile drops the first tab's cached page by itself (measured).
+// Both players in one tab: a tab WebDriver opens meanwhile drops the first tab's cached page by
+// itself.
 //
-// The page is left only once nothing is loading: a request in flight keeps a page out of the
-// cache too (Firefox's REQUEST flag). The GitHub build's options page, in every player, asks
-// GitHub for the latest version once in 12 hours - on the first player of the test's fresh
-// profile - and the test left the page 70 ms into that request (the SHIPBFCache log of
-// PR #366's second CI run). Someone leaving a page that fast would lose the cache the same way.
+// The page is left only once nothing is loading (an in-flight request keeps it out too, as the
+// GitHub build's version check).
 
 import {browser} from '@wdio/globals';
 
@@ -57,11 +49,8 @@ describe('A page with a player in the back-forward cache', function() {
     await openEmbed('first=' + Date.now());
     await browser.execute(() => {
       window.__kept = true;
-      // Whether Firefox took the page into the cache as it left (pagehide's persisted), kept
-      // where the page loaded again can read it: one cached and dropped later, and one never
-      // cached, have different causes. Once on the Linux runner (CI run 38478435862) Back
-      // loaded the page again, and the driver log only showed its documents gone while the
-      // next page's player ran ("can't access dead object"); Linux has no SHIPBFCache log.
+      // Whether Firefox took the page into the cache (pagehide's persisted), kept where the
+      // reloaded page can read it.
       window.addEventListener('pagehide', (event) => {
         sessionStorage.setItem('fs-e2e-left', JSON.stringify({persisted: event.persisted, at: Date.now()}));
       });

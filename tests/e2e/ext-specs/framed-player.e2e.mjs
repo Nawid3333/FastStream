@@ -1,28 +1,18 @@
 // What a web page can do with FastStream's pages by framing them itself.
 //
-// The player page is web-accessible (the extension puts it into pages), so any page that
-// learns the extension's address (from a player iframe's src) can frame it too, with
-// whatever it likes in the address. Three things that allowed:
+// The player page is web-accessible, so a page can frame it with any address. What that must not
+// allow:
 //
-// - A made-up source with made-up headers: `player/index.html#<url>?faststream-headers=`.
-//   Its Referer went on to mpv, and the native host's PowerShell ran a value that closed
-//   its quoted string (tests/unit/mpvHostSecurity.test.mjs). The extension only ever puts
-//   a source in the address of a player in a tab of its own (the redirect rule is
-//   main_frame only), so a framed player now ignores the address.
-// - Headers on the page's own requests: the player's header rule was for the whole tab,
-//   and the tab is the page's. For 5 s the page's requests to that URL went out with the
-//   player's Origin or Cookie. The rule now covers only the extension's own requests.
-// - The options page, framed for a click on a changed mpv path. Only the player frames
-//   it, and an extension page needs no web-accessible entry for that.
-// - A player tab a page opened (window.open) with such an address: it is top-level, and
-//   the page's made-up Referer went out with the request, the user's cookies for that site
-//   too. The player takes an address's headers and mode only from the redirect rule's
-//   address now, which carries a key no page can read (AddressKey.mjs).
+// - A made-up source and headers in the address: a framed player ignores its address
+// (mpvHostSecurity.test.mjs).
+// - Headers on the page's own requests: the player's header rule covers only the extension's
+// requests.
+// - The options page framed: only the player frames it (no web-accessible entry).
+// - A player tab the page opened: headers and mode come only from the redirect rule's address
+// (AddressKey.mjs).
 //
-// The controls show each mechanism still works where it should: a copied link opened in a
-// tab goes through the redirect rule to the player, which sends the link's Referer through
-// the header rule; the player's own request gets its rule's headers; the player's settings
-// still load.
+// The controls: a copied link in a tab goes through the redirect rule with its Referer; the
+// player's settings still load.
 
 import fs from 'node:fs';
 import http from 'node:http';

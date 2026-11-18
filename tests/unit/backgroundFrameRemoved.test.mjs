@@ -83,9 +83,8 @@ describe('a player the background lost while Firefox had unloaded it', () => {
   });
 
   it('is counted at the ping that wakes the background, before its kept state is back', async () => {
-    // The ping is what starts an unloaded event page, and it came before storage.session gave
-    // the kept tab state back (ensureOptions): the player's page frame was not known yet, and
-    // nothing looked again once it was (Claude API review).
+    // The ping that starts an unloaded event page comes before storage.session is back: the frame
+    // is looked for again once it is.
     const {promise: sessionReady, resolve: release} = Promise.withResolvers();
     await playerThenRestart(sessionReady);
     expect(await bg.message({type: 'PING'}, {tabId: 1, frameId: 7, url: player('page-1')})).toBe('PONG');

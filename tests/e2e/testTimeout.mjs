@@ -1,9 +1,5 @@
-// Mocha's cap on one e2e test (mochaOpts.timeout). A test's own this.timeout() did not
-// lift it under WebdriverIO: a local timing sweep of mpv-shortcut ended at 120 s on
-// 2026-09-30. A long local run - a sweep, a loop that waits for a rare race - sets
-// E2E_TEST_TIMEOUT_MS instead. CI keeps each suite's own cap: a test that hangs there
-// fails at it, and the spec's retry and the job's other suites stay inside the job's
-// time limit.
+// Mocha's cap on one e2e test: a test's own this.timeout() does not lift it under WebdriverIO. Long
+// local runs set E2E_TEST_TIMEOUT_MS; CI keeps each suite's cap.
 
 /**
  * @param {number} fallback - The suite's own cap, in ms.

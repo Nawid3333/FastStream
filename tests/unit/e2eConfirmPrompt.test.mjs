@@ -2,12 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 
-// The player in a page is an out-of-process frame that takes its size asynchronously, and a
-// script's click on the prompt's OK while its document had no size did nothing: page-fetch.e2e
-// failed on most CI runs of 2026-11-15/16. tests/e2e/confirmPrompt.mjs clicks it only once
-// the document has its size, in the same task. The specs that drive a player in a page (ext,
-// classic, private windows) answer the prompt through it, or with a WebDriver click, which
-// needs the button on the screen itself.
+// tests/e2e/confirmPrompt.mjs clicks OK only once the out-of-process frame's document has its size,
+// in the same task; specs driving a player in a page use it.
 
 const e2e = path.resolve(import.meta.dirname, '../e2e');
 const dirs = ['ext-specs', 'classic-specs', 'pbm-specs'];

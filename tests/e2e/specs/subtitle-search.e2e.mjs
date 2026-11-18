@@ -1,11 +1,8 @@
 // The player's OpenSubtitles search: the order its answers come in, a failed search, Enter
 // in its fields, its pages, and its downloads.
 //
-// Each case opens the web player with no source and the search on it. Its requests to
-// opensubtitles.com are stubbed in the page, and nothing goes out: each one waits in
-// window.__requests until the case answers it. A search asks twice at once - a text search
-// for subtitles and a title search - then for the subtitles of the title it took
-// (subtitle-search-titles.e2e.mjs tests which title, with the API's real answers).
+// Requests to opensubtitles.com are stubbed in the page (window.__requests) and answered by the
+// case.
 import fs from 'node:fs';
 import {browser, expect} from '@wdio/globals';
 
@@ -141,9 +138,7 @@ describe('Subtitle search', function() {
   });
 
   it('says the search is off in the web player when it fails, without the last search\'s pages', async function() {
-    // `chrome` is not declared in the web build, so chrome?.extension threw and
-    // "Searching..." stayed; and the pages of the search before stayed on, searching
-    // again for its query when clicked.
+    // the web build has no `chrome`: the search ends, and an old search's pages go
     await openSearch();
     await search('first');
     await answerSearch(0, answer('First', 3));
@@ -223,7 +218,7 @@ describe('Subtitle search', function() {
   });
 
   it('loads the page clicked while another page is loading', async function() {
-    // The bar shown while a page loads loaded that page again, whichever page was clicked.
+    // the bar shown while a page loads does not load it again
     await openSearch();
     await search('film');
     await answerSearch(0, answer('Film', 5));
@@ -303,8 +298,7 @@ describe('Subtitle search', function() {
   });
 
   it('does not fetch a download link that is not on OpenSubtitles', async function() {
-    // The link in the API's answer was fetched with the extension's host permissions,
-    // whatever its scheme or host.
+    // the API's download link is fetched only from its own host and scheme
     await openSearch();
     await search('film');
     await answerSearch(0, answer('Film'));

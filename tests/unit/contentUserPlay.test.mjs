@@ -119,9 +119,8 @@ describe('a play nobody started', () => {
     expect(plays()).toEqual([]);
   });
 
-  // The MPV shortcut itself is one of these, whatever it is bound to in about:addons:
-  // Ctrl+Shift+U by default, Alt+F on the owner's PC. Switching MPV on must not make a
-  // preview that starts a moment later count as the user's.
+  // The MPV shortcut itself is one of these keys: switching MPV on must not make a preview a moment
+  // later count as the user's.
   it('does not count a key that could be a shortcut, whatever it is bound to, nor Escape', () => {
     for (const key of [{key: 'f', altKey: true}, {key: 'U', ctrlKey: true, shiftKey: true},
       {key: 'k', metaKey: true}, {key: 'F9'}, {key: 'MediaPlayPause'}, {key: 'Escape'},
@@ -133,10 +132,8 @@ describe('a play nobody started', () => {
     }
   });
 
-  // Firefox activates the page for such a key as for any other: navigator.userActivation.isActive
-  // is true for 5 s after Alt+F (measured on Firefox 158, CI run 39473761807). A muted preview
-  // whose play came a moment after the key went to mpv as the user's (mpv-shortcut.e2e.mjs on
-  // CI, runs 38454197759 and 39192185180).
+  // Firefox activates the page for such a key too (userActivation.isActive for 5 s after Alt+F): a
+  // muted preview's play then is no user's.
   it('is not reported for the activation a shortcut\'s key gave the page', () => {
     for (const key of [{key: 'f', altKey: true}, {key: 'U', ctrlKey: true, shiftKey: true}, {key: 'F9'}]) {
       const {p, video, plays, activation} = page();

@@ -4,10 +4,8 @@ import zlib from 'node:zlib';
 import {describe, expect, it} from 'vitest';
 import {checkUpdatesJson, checkXpi, download, geckoIdFromBuild, readZip, Unreachable} from '../../tools/check-update-path.mjs';
 
-// Firefox's update check finds nothing, silently, when any link of the self-update path
-// breaks: updates.json, its entry, the xpi's hash, Mozilla's signature, the add-on id.
-// amo-signing-failsafe.yml runs tools/check-update-path.mjs after every release; these
-// pin what it calls broken. The real v1.3.82.37 passed it (checked 2026-09-28).
+// Firefox's update check finds nothing, silently, when a link of the self-update path breaks;
+// tools/check-update-path.mjs checks each.
 
 const ID = 'thanatus@Nawid';
 const REPO = 'Nawid3333/FastStream';
@@ -175,10 +173,8 @@ describe('geckoIdFromBuild', () => {
   });
 });
 
-// A link GitHub fails to serve is not a broken one: a 5xx from the download redirect's CDN, or
-// a rate limit, is asked again and then ends the check as unreachable (exit 2), which the
-// failsafe does not report. Until 2026-10-04 it came back as an answer, and the failsafe
-// opened "Update path broken" for a path that held.
+// A 5xx or rate limit is asked again and then ends as unreachable (exit 2), which the failsafe does
+// not report.
 describe('download', () => {
   // A fetch that gives these answers in turn (an Error is thrown), and counts the calls.
   const answers = (...list) => {

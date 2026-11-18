@@ -1,19 +1,10 @@
-// A page FastStream is on for is loaded again, and FastStream takes its video over again
-// (the owner's report, 2026-11-14: after a reload the page's own player stayed, and playing
-// it changed nothing).
+// A page FastStream is on for is loaded again, and FastStream takes its video over again.
 //
-// The background opens the player about half a second after the page's first stream request.
-// A page's own player that is still starting then has no video on the screen yet, and
-// content.js answers 'no_video'. Nothing tried again: every later request was for a stream
-// the background knew already. Now a missed open is tried again - by itself for the first
-// seconds, and when the user starts the page's video (background.mjs noteOpenMissed,
-// reopenMissed, reopenOnUserPlay; the cases one by one in
-// tests/unit/backgroundReloadTakeover.test.mjs).
+// An open that missed a still-starting page player ('no_video') is tried again, by itself and on
+// the user's play (backgroundReloadTakeover.test.mjs).
 //
-// Driven on the installed extension, the site on the auto-enable list. Two pages:
-// /watch asks for its stream at once, and has its video on the page at once on its first
-// load and 2.5 s late on every later one; /below has its video under three screens of page,
-// where the open misses it until the user scrolls there and plays it.
+// /watch has its video late on reloads; /below has it three screens down until the user scrolls and
+// plays.
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -118,8 +109,7 @@ describe('A page FastStream is on for, loaded again', function() {
       if (url.pathname === '/watch') {
         watchLoads++;
         const late = watchLoads > 1 ? LATE_MS : 0;
-        // Never from the cache: every load is counted. The stream is asked for at once, as
-        // a page's player does while it starts; its video is on the page `late` ms later.
+        // never from the cache: every load counts; the stream at once, the video `late` ms later
         res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store'});
         return res.end(`<!doctype html><title>watch</title>
           <div id="stage" style="width: 640px; height: 360px"></div>

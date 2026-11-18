@@ -1,10 +1,8 @@
 // A press in the player ends however it ends (PressTracker): with the window switched while
 // the button is held, the mouseup goes to the other window.
 //
-// Measured on 2026-10-28 before the fix: the video held (twice the speed) and the window
-// switched, the player heard blur and visibilitychange but stayed at twice the speed until
-// the next click. A tool held for its long press started the reordering after it was let go
-// elsewhere, and a drag on the progress bar went on until a move with no button held.
+// A video held at twice the speed, a tool's long press and a progress-bar drag all end when the
+// window switches.
 //
 // The window switch is WebDriver's own: a new tab, the button let go in it, the tab closed.
 // WebdriverIO lets every held button go at the end of an action (perform()); perform(true)

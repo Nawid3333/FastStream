@@ -1,11 +1,8 @@
 // Runs a function in a page of the installed extension, where chrome.* is available: the
 // specs set options there (the auto-enable list) the way the options page does.
 //
-// Waiting for the new tab's URL was not enough. window.open() gives the tab its URL before
-// the extension page has loaded into it, and a script run in that moment finds no
-// `chrome`: "ReferenceError: chrome is not defined" in page-subtitles, embed-page-query and
-// the live suite on 2026-09-27, twice in a row on WSL's Ubuntu 24.04. The wait now also
-// needs the page's chrome.storage. The four specs that use this each had their own copy.
+// window.open() gives the tab its URL before the extension page loads into it: the wait also needs
+// chrome.storage.
 
 import {browser} from '@wdio/globals';
 
@@ -15,14 +12,9 @@ import {EXTENSION_UUID, OPENER_URL} from './wdio.extension.conf.mjs';
 const PLAYER_PAGE = `moz-extension://${EXTENSION_UUID}/player/index.html`;
 
 /**
- * Opens a page of the extension in a tab of its own and focuses it, closing every tab
- * but the first. geckodriver refuses to navigate to moz-extension:// directly, so an
- * http page opens the player page (web-accessible), and that extension page goes on to
- * the target. The target itself need not be web-accessible: the options page is not.
- *
- * Finds the tab by URL rather than taking the newest handle: a freshly installed
- * temporary add-on opens its own welcome.html tab at no fixed moment.
- *
+ * Opens an extension page in its own focused tab via the web-accessible player page (geckodriver
+ * refuses moz-extension://).
+ * Found by URL: a fresh temporary add-on opens its own welcome tab at no fixed moment.
  * @param {string} pagePath - Path under the extension origin, e.g. '/player/options/index.html'.
  * @return {Promise<void>} Resolves once the page has loaded.
  */
@@ -38,10 +30,7 @@ export async function openExtensionPage(pagePath) {
   await browser.url(OPENER_URL);
   await browser.execute((u) => window.open(u, '_blank'), PLAYER_PAGE + '?t=' + Date.now());
 
-  // When each window was sent to the target. A replace takes more than a round to show in its
-  // URL, and one sent again meanwhile could replace the page once more after the readyState
-  // check below: the spec then ran in a page without a body yet (#583, twice in a week). Sent
-  // again only after 2 s, for a replace that got lost.
+  // A replace takes more than a round to show in the URL: the target is sent again only after 2 s.
   /** @type {Map<string, number>} */
   const replaced = new Map();
   await browser.waitUntil(async () => {

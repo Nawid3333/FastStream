@@ -81,8 +81,7 @@ describe('DownloadManager.cancelIfCheap', () => {
     return result;
   }
 
-  // One nearly done goes too: sparing it (stats null in the real downloader, so it never was;
-  // made to hold on 2026-11-13) made a seek on a 12 Mbit/s line a second slower.
+  // one nearly done goes too: sparing it makes a seek on a slow line slower
   it('cancels a download ahead, queued, just started or nearly done, and nothing playback needs', () => {
     const ahead = entry('https://example.com/ahead.ts', {loaded: 10, total: 1000});
     const queued = entry('https://example.com/queued.ts', {status: DownloadStatus.ENQUEUED});

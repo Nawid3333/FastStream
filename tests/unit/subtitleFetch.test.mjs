@@ -1,8 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-// The page's subtitle tracks that came as a URL. requestSimple answers a network error with
-// no request at all (undefined); reading its status threw, and one dead track lost every
-// track, the page's fullscreen state and the background's answer (main.mjs, 2026-10-05).
+// A network error from requestSimple (undefined) loses that track only, not every track and the
+// page's state.
 const requestSimple = vi.fn();
 vi.mock('../../chrome/player/utils/RequestUtils.mjs', () => ({RequestUtils: {requestSimple}}));
 vi.mock('../../chrome/player/utils/SubtitleUtils.mjs', () => ({

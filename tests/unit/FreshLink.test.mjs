@@ -2,9 +2,8 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {fetchFreshLink, findFreshLink} from '../../chrome/background/FreshLink.mjs';
 
-// A link a server refused, and its page loaded again: the same video, a new signature (the
-// shape of vidmoly's, read on 2026-10-27: the signature ends in '=', and the server refuses
-// it written as %3D).
+// A refused link and its page loaded again: a new signature ending in '=', which the server refuses
+// written as %3D.
 const PATH = '/hls2/02/02996/scqskddn1v5v_,n,l,.urlset/master.m3u8';
 const OLD = `https://prx-1316-ant.vmget.online${PATH}?t=RIgphGm8m3mkbDLrG8Yci3P2_uhNi-XdUpxUJ2naOMY=&s=1793113399&e=43200&v=&asn=3209`;
 const NEW = `https://prx-1316-ant.vmget.online${PATH}?t=gK8mWJT-Mjb_giPPDmvGDFC614ZUiG-o1DZAblDjGpw=&s=1793113401&e=43200&v=&asn=3209`;

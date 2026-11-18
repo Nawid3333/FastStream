@@ -1,17 +1,12 @@
-// Covers two things Nawid asked about directly, neither of which had test
-// coverage: whether the options search box reaches the MPV settings, and
-// whether they survive an export/import round trip. Both are driven against
-// the real installed extension's options page, not reasoned about from the
-// markup.
+// The options search reaches the MPV settings, and they survive an export/import round trip, on the
+// real options page.
 
 import {browser, expect} from '@wdio/globals';
 
 import {openExtensionPage} from '../extension-page.mjs';
 
 /**
- * Opens an extension page (extension-page.mjs) and waits for its saved options: they
- * arrive after the page has loaded, and applying them resets every control, so a click
- * made before that is undone.
+ * Opens an extension page and waits for its saved options: applying them resets every control.
  * @param {string} pagePath - Path under the extension origin.
  * @return {Promise<void>}
  */
@@ -26,19 +21,11 @@ describe('options page: search and export/import cover MPV settings', function()
   it('search reveals MPV rows on a matching query and hides them on an unrelated one', async function() {
     await openOptionsPage('/player/options/index.html');
 
-    // SearchUtils keeps two flat, page-wide arrays -- .search-target-remove
-    // elements (what gets hidden/shown) and .search-target-text elements
-    // (what Fuse indexes) -- and matches them up purely by position:
-    // baseSearchEls[i] is assumed to be baseSearchText[i]'s container. That
-    // only holds if every .search-target-remove wraps exactly one
-    // .search-target-text. Checked directly against the live page rather
-    // than inferred from the markup, since a mismatch would misroute
-    // show/hide decisions rather than raise any error.
+    // SearchUtils matches .search-target-remove to .search-target-text by position: each wrapper
+    // must hold exactly one text.
     //
-    // Driven entirely through browser.execute, matching every other spec in
-    // this suite: WebdriverIO's own $() locator does not reliably resolve
-    // elements in this window/geckodriver combination (confirmed -- it
-    // fails to find #searchbar itself, which browser.execute finds fine).
+    // Driven through browser.execute, as in every spec here: WebdriverIO's $() does not resolve
+    // elements in this window.
     // The box searches on input: its text changing, typed or pasted.
     const runSearch = (query) => browser.execute((q) => {
       const bar = document.getElementById('searchbar');
@@ -68,18 +55,12 @@ describe('options page: search and export/import cover MPV settings', function()
     // the same query.
     expect(await isVisibleByDataOption('videoDelay')).toBe(false);
 
-    // The MPV pause-page and single-instance rows share one
-    // .search-target-remove wrapper with the fullscreen row (three labels,
-    // one container) -- record whether an unrelated "fullscreen" query
-    // incidentally reveals them too, which is what the index misalignment
-    // above would cause.
+    // Three rows share one wrapper with the fullscreen row: does "fullscreen" reveal them too?
     const pauseVisibleOnFullscreenQuery = await isVisible('mpvpausepage');
     console.log(`      pausepage visible on an unrelated "fullscreen" query: ` +
       `${pauseVisibleOnFullscreenQuery}`);
 
-    // Actual label text: "Reuse one mpv window instead of opening a new one
-    // each time" (options_mpv_singleinstance) -- "reuse" is the word to
-    // search for, not the option's id/description.
+    // "reuse" is a word of the label (options_mpv_singleinstance), not of the option's id
     await runSearch('reuse');
     await browser.waitUntil(async () => (await isVisible('mpvsingleinstance')) === true,
         {timeout: 5000, timeoutMsg: 'the mpv single-instance row never appeared for its own query'});
@@ -99,9 +80,7 @@ describe('options page: search and export/import cover MPV settings', function()
       mpvSingleInstance: false,
     };
 
-    // Set them through the real UI controls, not by writing storage
-    // directly -- this is what actually exercises the code the export
-    // button reads from.
+    // set through the real UI controls, the code the export reads from
     await browser.execute((s) => {
       document.getElementById('mpvModeSectionToggle').click();
       document.getElementById('mpvAllowlist').value = s.mpvAllowlist.join('\n');
@@ -115,11 +94,8 @@ describe('options page: search and export/import cover MPV settings', function()
       document.getElementById('mpvsingleinstance').click(); // default true -> false
     }, mpvSettings);
 
-    // Read back the exact object the export button would serialize, without
-    // touching the filesystem: Blob/downloadURL is not observable from
-    // WebDriver, but Utils.getOptionsFromStorage() is the entire content of
-    // that blob (see SaveManager -- options.mjs's export handler spreads
-    // exactly this).
+    // The object the export would write: Utils.getOptionsFromStorage() is the whole file (no
+    // filesystem in WebDriver).
     // Each change is saved asynchronously (OptionsStore.replace), so wait until storage
     // holds the last of them rather than reading it once straight after the clicks.
     const readStored = () => browser.execute(() => new Promise((done) => {
@@ -142,12 +118,8 @@ describe('options page: search and export/import cover MPV settings', function()
     expect(exported.mpvPausePage).toBe(false);
     expect(exported.mpvSingleInstance).toBe(false);
 
-    // Now the other direction: an import merges a plain object (what
-    // JSON.parse of a downloaded file produces) against DefaultOptions the
-    // same way the importButton handler does, and the values must survive
-    // unmangled -- including into a second, freshly reloaded options page,
-    // proving they were actually persisted to storage rather than just
-    // living in the first page's in-memory Options object.
+    // An import merges a plain object against DefaultOptions as the import button does; a reloaded
+    // page reads it back.
     await browser.execute((s) => {
       window.chrome.storage.local.set({options: JSON.stringify(s)});
     }, exported);
@@ -179,10 +151,8 @@ describe('options page: search and export/import cover MPV settings', function()
   it('importing a pre-MPV export (no mpv keys at all) fills in defaults instead of breaking', async function() {
     await openOptionsPage('/player/options/index.html');
 
-    // Simulates a settings file exported before this feature existed: the
-    // mpv* keys are simply absent, the way an old faststream-options.json
-    // would be. mergeOptions has to fall back to DefaultOptions for every
-    // one of them rather than leaving mpvAllowlist etc. undefined.
+    // A file from before these options: mergeOptions falls back to DefaultOptions for every mpv*
+    // key.
     const preMpvExport = {
       videoZoom: 150,
       autoEnableURLs: ['https://old-site.example/'],

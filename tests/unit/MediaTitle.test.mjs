@@ -83,8 +83,7 @@ describe('guessMediaInfo', () => {
     ['E.T. the Extra-Terrestrial (1982)', 'example.com', movie('E.T. the Extra-Terrestrial', 1982)],
     // Picture words anywhere.
     ['Top Gun: Maverick 2022 4K HDR x265', 'example.com', movie('Top Gun: Maverick', 2022)],
-    // Small words at the start, when only small words stand before the title's own (review,
-    // These lost "In" and "For").
+    // small words at the start, when only small words stand before the title's own ("In", "For")
     ['In the Heat of the Night (1967) - Watch Online', 'example.com', movie('In the Heat of the Night', 1967)],
     ['For a Few Dollars More (1965) | Stream', 'example.com', movie('For a Few Dollars More', 1965)],
     ['Watch the free movie Oppenheimer', 'example.com', movie('Oppenheimer')],

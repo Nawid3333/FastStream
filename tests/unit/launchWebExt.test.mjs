@@ -27,7 +27,7 @@ describe('webExtSpawn', () => {
   it('gives Windows the same quoted command line as before', () => {
     const args = ['run', '--source-dir', winDir, '--target', 'firefox-desktop', '--firefox-profile', winProfile,
       '--profile-create-if-missing', '--keep-profile-changes', '--arg=-no-remote', '--arg=-new-instance'];
-    // What tools/launch-ff.mjs built until #165, which works on Windows.
+    // what tools/launch-ff.mjs built before, which works on Windows
     const quote = (s) => s.includes(' ') ? `"${s}"` : s;
     const before = ['pnpm', 'exec', 'web-ext', 'run', '--source-dir', quote(winDir), '--target', 'firefox-desktop',
       '--firefox-profile', quote(winProfile), '--profile-create-if-missing', '--keep-profile-changes',

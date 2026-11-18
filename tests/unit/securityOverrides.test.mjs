@@ -595,7 +595,7 @@ describe('verifyLock', () => {
       'alert #96: x@1.2.3-beta.1 is not a plain release, and cannot be checked against \'< 1.2.3\'']);
   });
 
-  // From a review of this module: each fails without its fix.
+  // each fails without its fix
   it('lists a grouped alert once even with two vulnerable copies in the major', () => {
     const al = mkAlert(92, 'minimist', '< 1.2.9', '1.2.9');
     const plan = planFloors([al], versions({minimist: ['1.2.5', '1.2.8']}), WORKSPACE, TODAY);

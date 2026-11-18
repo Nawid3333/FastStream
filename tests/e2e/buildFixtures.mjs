@@ -1,14 +1,7 @@
-// The fixtures the e2e suites make from the MP4 one (mp4Fixture.mjs), with ffmpeg, before
-// any spec runs (wdio.conf.mjs's onPrepare). Nothing large is committed: they are built
-// in the gitignored fixtures directory and kept between runs.
-//
-// Each is kept with the recipe it was built by (recipeOf): its builder's code, whatever
-// else decides its bytes, and the MP4 fixture's pin. A fixture whose recipe changed is
-// built again. CI starts from nothing every time, but a developer's fixtures directory,
-// or verify:linux's tree, kept the old one when only its marker's presence was checked,
-// and a run there checked something else than CI did. A fixture that is one file
-// is written through writeFixture, so a run killed half way leaves none half written; a
-// directory gets its recipe last, for the same reason.
+// The fixtures the e2e suites make from the MP4 one with ffmpeg (onPrepare), kept in the gitignored
+// fixtures dir.
+// Each is kept with its recipe (recipeOf) and rebuilt when it changes; files and directories are
+// never left half written.
 
 import {spawnSync} from 'node:child_process';
 import crypto from 'node:crypto';
@@ -18,9 +11,7 @@ import path from 'node:path';
 import {fixturesDir, MP4_FIXTURE, MP4_FIXTURE_PIN, writeFixture} from './mp4Fixture.mjs';
 
 /**
- * Reads a file, or returns null when it is not there: the existsSync-then-read pattern
- * has a gap between the two calls (CodeQL js/file-system-race), a direct read has none
- * and answers the same question.
+ * Reads a file, or null when absent: no gap between check and read (CodeQL js/file-system-race).
  * @param {string} file - The file.
  * @return {?string} Its contents, or null when absent.
  */
@@ -171,9 +162,7 @@ async function ensureEpisodeFixture() {
   ], 'episode'));
 }
 
-// 96 frames at exactly 24 fps, every picture different, for the frame step
-// (keybinds.e2e.mjs): at 24 fps one frame is 1/24 s, which the old fixed 1/30 s step
-// could not reach.
+// 96 frames at exactly 24 fps, every picture different, for the frame step (keybinds.e2e.mjs).
 const FRAMES_24_FIXTURE = path.join(fixturesDir, 'frames-24fps.mp4');
 
 async function ensureFrames24Fixture() {
@@ -184,17 +173,11 @@ async function ensureFrames24Fixture() {
   ], '24 fps'));
 }
 
-// One local DASH stream per way a manifest can list its segments. dash.js reads each with
-// its own segment getter, and FastStream's dash.js patch adds getAllSegments() to every one
-// of them: DashPlayer.mjs builds its fragment list from it.
-//
-// A SegmentTemplate or SegmentList with a fixed @duration defines the segments' times by
-// arithmetic, so the segments have to really be 2 s long: the video is re-encoded with a
-// keyframe every 2 s, and all of it is 9 s long, which makes 5 segments of each track in
-// every packaging - ceil(9 / 2), as dash.js counts them.
-//
-// Each directory also gets expected.json - what the segments are, read from the files
-// ffmpeg wrote, not from dash.js - for playback.e2e.mjs to check the fragment list against.
+// One local DASH stream per way a manifest lists its segments (dash.js's getters, patched with
+// getAllSegments()).
+// A fixed @duration defines segment times by arithmetic: a keyframe every 2 s, 9 s long, 5 segments
+// per track.
+// Each directory gets expected.json, read from ffmpeg's files, for playback.e2e.mjs.
 const DASH_FIXTURES = {
   'dash-template': ['-use_template', '1', '-use_timeline', '0'],
   'dash-list': ['-use_template', '0', '-use_timeline', '0'],
@@ -235,10 +218,10 @@ function sidxRanges(file) {
   }
   let p = sidx.start + 8;
   const version = buf[p];
-  p += 4 + 4 + 4; // version/flags, reference_ID, timescale
+  p += 4 + 4 + 4;
   let firstOffset;
   if (version === 0) {
-    p += 4; // earliest_presentation_time
+    p += 4;
     firstOffset = buf.readUInt32BE(p);
     p += 4;
   } else {
@@ -246,7 +229,7 @@ function sidxRanges(file) {
     firstOffset = Number(buf.readBigUInt64BE(p));
     p += 8;
   }
-  p += 2; // reserved
+  p += 2;
   const count = buf.readUInt16BE(p);
   p += 2;
   const ranges = [];
@@ -259,17 +242,10 @@ function sidxRanges(file) {
   return {init: `0-${sidx.start - 1}`, index: `${sidx.start}-${sidx.start + sidx.size - 1}`, ranges};
 }
 
-// Local HLS streams, one per way sites package them: MPEG-TS segments, fMP4 segments with
-// an init segment, and a master playlist whose audio is a separate rendition (which
-// HLSPlayer loads as its own track). Without them every HLS test streamed from
-// test-streams.mux.dev, so HLS went untested whenever that host was out of reach. Encoded
-// like the DASH fixtures above - no B-frames, a keyframe every 2 s - so the segments are
-// 2 s long on every machine.
-//
-// Each directory gets expected.json: the playlist to open, and the segments each media
-// playlist lists, read from the playlists ffmpeg wrote. HLSPlayer names its levels
-// "<track>:<index>" - track 0 is the video (with its audio, if muxed), track 1 an audio
-// rendition.
+// Local HLS streams, one per packaging (TS, fMP4 with init, separate audio rendition); 2 s segments
+// everywhere.
+// Each directory gets expected.json; HLSPlayer names levels "<track>:<index>" (1: the audio
+// rendition).
 const HLS_FIXTURES = {
   'hls-ts': {segmentType: 'mpegts', ext: 'ts'},
   'hls-fmp4': {segmentType: 'fmp4', ext: 'm4s'},
@@ -315,10 +291,8 @@ function ensureHlsFixtures() {
 }
 
 /**
- * hls-audio/tracks.m3u8: hls-audio's master playlist with its audio rendition listed
- * twice, as a second track ("audio_2", not the default). The player shows its audio-track
- * button only where there is a track to choose (player-menus.e2e.mjs). Written from
- * master.m3u8 on every run: nothing is encoded.
+ * hls-audio/tracks.m3u8: the audio rendition listed twice, so the player shows its audio-track
+ * button.
  */
 function ensureHlsTwoAudioTracks() {
   const dir = path.join(fixturesDir, 'hls-audio');
@@ -332,11 +306,8 @@ function ensureHlsTwoAudioTracks() {
   fs.writeFileSync(path.join(dir, 'tracks.m3u8'), lines.join('\n'));
 }
 
-// sample.mp4's own H.264 - High profile, 300 frames, 250 of them B-frames - cut into
-// fragments without re-encoding, so it is the same bytes on every platform. The DASH
-// fixtures above are re-encoded without B-frames, because libopenh264 (a local Windows
-// ffmpeg) cannot make them and libx264 (CI) would: a test that needs B-frames uses this
-// one. For modules.e2e.mjs's MP4Demuxer test.
+// sample.mp4's own H.264 with B-frames, cut without re-encoding (libopenh264 makes no B-frames).
+// For modules.e2e.mjs.
 const FMP4_BFRAMES_DIR = path.join(fixturesDir, 'fmp4-bframes');
 
 function ensureBframesFixture() {
@@ -349,10 +320,8 @@ function ensureBframesFixture() {
   finishDirectoryFixture(FMP4_BFRAMES_DIR, recipe);
 }
 
-// VP9 and Opus in WebM segments, as YouTube-style DASH serves them: MP4Merger cannot join
-// WebM, so a save of it goes through the remuxer (remuxer.mjs), which copies both into an
-// MP4. The tone is 440 Hz, a keyframe every 2 s starts each segment. For save-fmp4.e2e.mjs
-// and modules.e2e.mjs.
+// VP9 and Opus in WebM segments, as YouTube-style DASH: saved through the remuxer. For save-fmp4
+// and modules.
 const DASH_WEBM_DIR = path.join(fixturesDir, 'dash-webm');
 
 function ensureDashWebmFixture() {
@@ -382,9 +351,8 @@ function ensureDashFixtures() {
     runFfmpeg([
       '-i', MP4_FIXTURE, '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10',
       '-map', '0:v', '-map', '1:a', '-t', '9',
-      // No B-frames and no scene-cut keyframes, which libx264 would add and libopenh264
-      // cannot: every machine then builds the same frame structure, so a run here
-      // checks what CI checks.
+      // No B-frames and no scene-cut keyframes: every machine builds the same frame structure as
+      // CI.
       '-c:v', h264Encoder(name), '-pix_fmt', 'yuv420p', '-bf', '0', '-sc_threshold', '0',
       '-force_key_frames', 'expr:gte(t,n_forced*2)',
       '-c:a', 'aac', '-b:a', '64k',
@@ -415,11 +383,7 @@ function ensureDashFixtures() {
   }
 }
 
-// The MP4 fixture's picture over a 10 s tone: a source with sound, for the audio analyzer
-// (analyzer.e2e.mjs) and the video delay (video-delay.e2e.mjs). The two specs each made it
-// in their own before hook, straight to its final name: with +faststart ffmpeg rewrites
-// the file at its end, so a run killed meanwhile left one with no moov, which both specs
-// then trusted.
+// The MP4 fixture's picture over a 10 s tone, for analyzer.e2e.mjs and video-delay.e2e.mjs.
 const SAMPLE_AV_FIXTURE = path.join(fixturesDir, 'sample-av.mp4');
 
 async function ensureSampleAvFixture() {

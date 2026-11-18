@@ -1,12 +1,6 @@
 // The options page's number fields, its settings import and its search box.
 //
-// - An emptied or unreadable "Seek step size" or "Replace delay" was saved as NaN, and a
-//   negative one as it was; the fields next to them already clamped.
-// - "Max downloaders" 0 meant "never add one" to the downloader, and "no limit" to the
-//   add-downloader key.
-// - An imported file holding valid JSON that is no settings object (null) threw, and the
-//   import failed without a word; invalid JSON alerted in English.
-// - The search box searched on keydown and keyup, and not at all for pasted text.
+// Empty or unreadable numbers, 0 and no limit, imports of non-settings JSON, and search on input.
 
 import {browser, expect} from '@wdio/globals';
 
@@ -45,8 +39,7 @@ describe('Options page number fields', function() {
   beforeEach(openOptions);
 
   it('keeps the seek step and the replace delay numbers within their limits', async function() {
-    // JSON saves NaN as null, so only the page's own Options held it: the players it sent
-    // them to seeked by NaN until the next load.
+    // JSON saves NaN as null: the page's own Options must not hold it either
     expect(await setField('seekstepsize', '')).toBe('5');
     expect(await browser.execute(() => document.getElementById('seekstepsize').value)).toBe('5');
     expect(await savedOption('seekStepSize')).toBe(5);
@@ -54,7 +47,7 @@ describe('Options page number fields', function() {
     expect(await setField('seekstepsize', '-3')).toBe('0.1');
     expect(await savedOption('seekStepSize')).toBe(0.1);
 
-    // A decimal comma, as French and German write it: "2,5" was 2.
+    // a decimal comma, as French and German write it
     expect(await setField('seekstepsize', '2,5')).toBe('2.5');
     expect(await savedOption('seekStepSize')).toBe(2.5);
 
@@ -63,8 +56,7 @@ describe('Options page number fields', function() {
     expect(await savedOption('replaceDelay')).toBe(0);
   });
 
-  // 0 is the least that still downloads (1), and empty no limit, the most (6). 0 was read as
-  // the default 6, the most.
+  // 0 is the least that still downloads (1), empty no limit (6)
   it('reads a downloader limit of 0 as the least, empty as the most, and caps it at 6', async function() {
     expect(await setField('maxdownloaders', '0')).toBe('1');
     expect(await setField('maxdownloaders', '')).toBe('6');
@@ -73,7 +65,7 @@ describe('Options page number fields', function() {
     expect(await savedOption('maximumDownloaders')).toBe(3);
   });
 
-  // 0.25 left users typing 25, which was capped to the whole player.
+  // a percent typed as 25, not 0.25
   it('takes the mini player size in percent', async function() {
     expect(await browser.execute(() => document.getElementById('minisize').value)).toBe('25');
     expect(await setField('minisize', '40')).toBe('40');
@@ -81,8 +73,7 @@ describe('Options page number fields', function() {
     expect(await setField('minisize', '0')).toBe('1');
   });
 
-  // Clearing a video filter's field to type a new number saved 0 at once: an invisible
-  // (zoom) or black (brightness) video until the next key.
+  // clearing a video filter's field to type a number saves no 0 at once
   it('saves nothing for an emptied zoom field, and shows the value again when left', async function() {
     const zoom = await browser.execute(() => {
       const input = document.querySelector('[data-option="videoZoom"] input.number');
@@ -111,9 +102,7 @@ describe('Options page settings import', function() {
    * Imports a settings file with this text through the page's own picker.
    * @param {string} text - The file's text.
    * @param {boolean} [alerts] - Whether the import is expected to say something: then
-   *   this waits for it. (The page reads the file before it answers: a fixed 300 ms pause
-   *   came up short on a loaded runner.) An import that says nothing is waited for by its
-   *   saved option instead.
+   *   this waits for it.
    * @return {Promise<string[]>} What the page alerted.
    */
   const importText = async (text, alerts = true) => {
@@ -163,9 +152,8 @@ describe('Options page settings import', function() {
   });
 
   it('keeps this computer\'s mpv path, whatever the file says', async function() {
-    // The path is the one program FastStream's helper starts: a settings file from someone
-    // else could name a program they had put on this computer. And a
-    // path is this computer's: a file without one emptied it.
+    // The mpv path is never imported: it names the program FastStream's helper starts, and it is
+    // this computer's.
     const MINE = 'C:\\Tools\\mpv\\mpv.exe';
     await browser.execute((path) => localStorage.setItem('options', JSON.stringify({mpvPath: path})), MINE);
     await browser.url(optionsPagePath());
@@ -206,8 +194,7 @@ describe('Options page search box', function() {
   });
 
   it('hides every section the search does not match, and finds a section by its heading', async function() {
-    // Five sections were never hidden: "zoom" showed the zoom row, then the MPV, URL
-    // list, pattern, import/export and help sections in full.
+    // every section hides when the search does not match it
     const shownSections = (query) => browser.execute((query) => {
       const bar = document.getElementById('searchbar');
       bar.value = query;
@@ -231,11 +218,8 @@ describe('Options page search box', function() {
   });
 });
 
-// Issue #378: "the maximum size of the preloaded video stays at 5 GB". A text field saved only on
-// its change event, which comes when the field is left: a size typed and the settings closed
-// with the cursor in the field was lost, and the old value came back. A bare "10" was 10 bytes.
-// And with predownload off the size does not apply at all ("Buffer ahead" does), yet the field
-// looked as if it did.
+// A size field saves while typing and on leaving; a bare number is megabytes; with predownload off
+// it is shown as not in use.
 describe('Options page size fields, typed by hand', function() {
   beforeEach(async function() {
     await openOptions();
@@ -331,8 +315,7 @@ describe('Options page size fields, typed by hand', function() {
     await pickUnit('maxsize', 'MB');
     await savedAs('maxVideoSize', 2e6);
     expect(await shown('maxsize')).toEqual(['2', 'MB']);
-    // 1500 MB stays in MB, also once the field is left (the unit is the user's), and reads
-    // as 1.5 GB when the page loads again.
+    // 1500 MB stays in MB, and reads as 1.5 GB on the next load
     await typeInto('maxsize', '1500');
     await savedAs('maxVideoSize', 1.5e9);
     expect(await shown('maxsize')).toEqual(['1500', 'MB']);
@@ -356,7 +339,7 @@ describe('Options page size fields, typed by hand', function() {
     await savedAs('maxVideoSize', -1);
   });
 
-  // Before #378 a bare "10" was saved as 10 bytes: such a size is megabytes now.
+  // a bare "10" is megabytes
   it('shows a size saved as a bare number before as megabytes', async function() {
     await browser.execute(() => localStorage.setItem('options', JSON.stringify({maxVideoSize: 10})));
     await browser.url(optionsPagePath());
@@ -365,9 +348,7 @@ describe('Options page size fields, typed by hand', function() {
     expect(await shown('maxsize')).toEqual(['10', 'MB']);
   });
 
-  // It held back reading ahead then, as 0 does now.
-  // Saved before 1.3.82.75, a speed of 0 still read ahead, in bursts: no limit now, as that
-  // release made it. One chosen since is none, and says so.
+  // An old saved speed of 0 is no limit; 0 chosen now is none, and says so.
   it('shows a speed limit of 0 saved before as no limit, and one saved since as none', async function() {
     await browser.execute(() => localStorage.setItem('options', JSON.stringify({maxSpeed: 0})));
     await browser.url(optionsPagePath());
@@ -409,7 +390,7 @@ describe('Options page size fields, typed by hand', function() {
   it('saves a field emptied when the page is left', async function() {
     await typeInto('maxspeed', '8');
     await savedAs('maxSpeed', 1e6);
-    // Emptied, and the page left at once: no limit, not the old 8 Mbit/s.
+    // emptied and left at once: no limit
     await typeInto('maxspeed', '');
     await browser.keys(['Backspace']);
     await browser.url(optionsPagePath());
@@ -458,8 +439,7 @@ describe('Options page size fields, typed by hand', function() {
     expect(await hint('rambudget')).toBe(await message('options_general_rambudget_none'));
   });
 
-  // "Keep video on disk when this RAM is full": off, a budget of 0 is no longer
-  // "straight to disk", and the hint under the field says what it is then.
+  // with "Keep video on disk" off a budget of 0 is not straight to disk; the hint says so
   it('saves "Keep video on disk", and says what a RAM budget of 0 means without it', async function() {
     const toggle = () => browser.execute(() => document.getElementById('buffertodisk').click());
     expect(await browser.execute(() => document.getElementById('buffertodisk').checked)).toBe(true);
@@ -476,8 +456,7 @@ describe('Options page size fields, typed by hand', function() {
     expect(await hint('rambudget')).toBe(await message('options_general_rambudget_zero'));
   });
 
-  // Buffer ahead and behind, in seconds, by the same rule: an emptied field was read as 0,
-  // which kept nothing buffered.
+  // buffer ahead and behind: an emptied field is no limit, not 0
   it('takes an empty buffer field as no limit and 0 as none, and says so under it', async function() {
     for (const [id, option] of [['bufferahead', 'bufferAhead'], ['bufferbehind', 'bufferBehind']]) {
       await typeInto(id, '45');
@@ -500,8 +479,7 @@ describe('Options page size fields, typed by hand', function() {
     }
   });
 
-  // Letters, a negative number or one too big to save (1e308 GB was saved as Infinity, which
-  // JSON keeps as null) were read as no limit: the limit set stays, and shows again.
+  // letters, negatives or a size too big to save keep the limit set
   it('keeps the limit set when the field holds no number', async function() {
     await typeInto('maxsize', '7');
     await savedAs('maxVideoSize', 7e9);
@@ -510,8 +488,7 @@ describe('Options page size fields, typed by hand', function() {
       await browser.keys(['Tab']);
       expect(await shown('maxsize')).toEqual(['7', 'GB']);
     }
-    // Typed, its first digits are a size on the way (saved while typing); set at once, as a
-    // paste does, it is no number.
+    // typed, the first digits are a size on the way; pasted at once it is no number
     await setField('maxsize', '1e308');
     await browser.pause(500);
     expect(await browser.execute(() => JSON.parse(localStorage.getItem('options')).maxVideoSize)).toBe(7e9);
@@ -520,7 +497,7 @@ describe('Options page size fields, typed by hand', function() {
   it('takes the speed in Mbit/s, and any RAM budget', async function() {
     await typeInto('maxspeed', '8');
     await savedAs('maxSpeed', 1e6);
-    // There was a least, 256 MB: 100 MB came back as 256.
+    // no least size: 100 MB stays 100
     await typeInto('rambudget', '100');
     await pickUnit('rambudget', 'MB');
     await browser.keys(['Tab']);

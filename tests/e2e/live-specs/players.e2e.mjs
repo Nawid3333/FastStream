@@ -1,22 +1,13 @@
 // FastStream against the web video players websites are built with.
 //
-// streams.e2e.mjs checks real streams in pages that play them with hls.js or dash.js. Most
-// sites use a player library on top, or instead: video.js, Shaka, Plyr, JW-like skins over
-// hls.js, players of their own with their own HLS code (xgplayer), web components whose
-// <video> sits in a shadow root (Media Chrome's hls-video, Mux's players). Each wraps,
-// moves or hides the video element in its own way, and FastStream has to find the stream,
-// replace that player and play. Here each library's official release (exact versions
-// below, from the npm registry, checked against its integrity and cached) plays the public
-// test streams in a page of its own, the way its docs show, started muted the way a
-// visitor's click starts it.
+// Most sites play through a player library that wraps, moves or hides the <video>: each library's
+// npm release plays the public test streams in a page of its own, started muted.
 //
-// Two passes, so a failure says whose it is: first each page plays on its own with
-// FastStream not enabled there (the page and the library are right), then with the site
-// on the auto-enable list FastStream must replace each player, play, seek and play on.
+// Two passes: each page on its own (the page and library are right), then FastStream replaces each
+// player, plays and seeks.
 //
-// Not part of verify or CI, like streams.e2e.mjs: run it after a change to how FastStream
-// finds videos or streams:
-//   pnpm run build:keep && pnpm run test:live
+// Not part of verify or CI: `pnpm run build:keep && pnpm run test:live` after a change to how
+// FastStream finds videos.
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -92,10 +83,8 @@ const PLAYERS = {
           player.src({src: ${JSON.stringify(src)}, type: ${JSON.stringify(MIME[type])}});
         </script>`),
   },
-  // Video.js 10, a rebuild that is not video.js on npm (that package holds only errors from
-  // 10 on): HLS through <hls-video>, its own lightweight engine, DASH through <dash-video>
-  // (dash.js inside), an MP4 through a plain <video>. Its media elements keep their <video>
-  // in a shadow root.
+  // Video.js 10 (@videojs/cdn, not the video.js package): <hls-video>, <dash-video> and a plain
+  // <video>, in shadow roots.
   videojs10: {
     formats: ['hls', 'dash', 'mp4'],
     page: (src, type) => videojs10(type === 'mp4' ? 'video' : `${type}-video`, src),
@@ -325,9 +314,8 @@ describe('Websites\' own players', function() {
         res.writeHead(200, {'Content-Type': type});
         res.end(body);
       } catch (e) {
-        // The page gets the status only, never the error's text (CodeQL
-        // js/stack-trace-exposure, js/xss-through-exception); the run's log gets the error,
-        // as one JSON string so nothing in it can start a log line of its own.
+        // The page gets the status only (CodeQL js/stack-trace-exposure); the log gets the error as
+        // one JSON string.
         console.error('site server:', JSON.stringify(String(e && e.stack || e)));
         res.writeHead(500);
         res.end();

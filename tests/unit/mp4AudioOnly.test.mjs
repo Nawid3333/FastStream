@@ -1,11 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-// An MP4Player made for sound only (isAudioOnly: the two a video delay adds, SyncedAudioPlayer,
-// and the audio analyzer's) played the file's picture as well: a video SourceBuffer in its
-// <audio>, every frame cut into a segment by mp4box and appended, about 30 s ahead and 10 s
-// behind of video in each - the MediaSource memory and the per-frame work three times over
-// with a video delay. The seek preview leaves out the sound the same way (currentAudioTrack
-// null). These run the player's SourceBuffer, segmentation and keyframe choices on stand-ins.
+// An MP4Player for sound only (isAudioOnly) makes no video SourceBuffer and cuts no picture; the
+// seek preview leaves out the sound the same way.
 
 const {default: MP4Player} = await import('../../chrome/player/players/mp4/MP4Player.mjs');
 

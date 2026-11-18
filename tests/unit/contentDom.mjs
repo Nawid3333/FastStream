@@ -1,8 +1,5 @@
-// A small stand-in DOM for the content scripts (content.js, overlay-guard.js), which are
-// classic scripts written for a page: enough of a document, its elements and their inline
-// styles to run their message handlers in Node (vm), with layout given by each test. It
-// is no browser: what it proves is the scripts' own bookkeeping, not how Firefox lays a
-// page out. The e2e suites (tests/e2e/classic-specs) cover that.
+// A small stand-in DOM for content.js and overlay-guard.js, run in Node (vm): their bookkeeping,
+// not Firefox's layout.
 
 import vm from 'node:vm';
 import {webcrypto} from 'node:crypto';
@@ -461,10 +458,8 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
     MutationObserver: FakeMutationObserver,
     ResizeObserver: FakeResizeObserver,
     IntersectionObserver: FakeIntersectionObserver,
-    // Answers with `responses` (URL -> text; 404 for any other). A URL with a bad host
-    // rejects, as Firefox's fetch() does (content.js's httpRequest(), an XMLHttpRequest
-    // until 2026-10-06, whose open() threw).
-    // An entry that is a function makes the Response itself, from fetch()'s init.
+    // Answers with `responses` (URL -> text or a function making the Response; 404 otherwise); a
+    // bad host rejects, as fetch() does.
     fetch: async (url, init) => {
       if (url.startsWith('http://[')) throw new TypeError(`${url} is not a valid URL.`);
       if (typeof responses[url] === 'function') return responses[url](init);

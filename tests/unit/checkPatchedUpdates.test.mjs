@@ -52,8 +52,8 @@ describe('patchedDependencies', () => {
   });
 
   it('leaves the other libraries the build copies to Dependabot\'s shipped group', () => {
-    // In the tooling group, a shipped library's update would make the whole tooling pull
-    // request change the extension, and wait for the owner (update-prs.yml).
+    // A shipped library's update in the tooling group would make the whole tooling PR change the
+    // extension (update-prs.yml).
     const dependabot = fs.readFileSync(new URL('../../.github/dependabot.yml', import.meta.url), 'utf8');
     const ignored = new Set([...dependabot.matchAll(/dependency-name: '([^']+)'/g)].map((match) => match[1]));
     const vendor = fs.readFileSync(new URL('../../tools/sync-vendor.mjs', import.meta.url), 'utf8');

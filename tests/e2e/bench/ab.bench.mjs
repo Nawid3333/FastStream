@@ -1,33 +1,20 @@
 // The A/B benchmark itself (run by tools/bench-ab.mjs, config wdio.bench.conf.mjs).
-//
-// Each scenario opens a build's web player on a local video, the same way the playback suite
-// does (player/index.html#<url>), with autoplay on as when FastStream takes over a page's video,
-// and reads what a probe put into the page before the player's first script:
-//
+// Each scenario opens a build's web player on a local video (autoplay on) and reads what a probe
+// put into the page:
 // - client: the player's modules loaded and run (window.fastStream created), ms after navigation
 // - firstFrame / playing: the video's loadeddata / first playing, ms after navigation
 // - seeked / resumed (MP4): from setting the time to 80 s to seeked, and to playing past it
-// - previewReady (MP4, paused): from hovering the seek bar at 120 s (seekPreview) to the
-//   preview's frame there; then wake-ups while paused once the hover has left
+// - previewReady (MP4, paused): hover at 120 s to the preview's frame; then wake-ups while paused
 // - wake-ups once the MP4 has played to its end
-// - wake-ups a second while playing, while paused, and in an idle player with no video: timer,
-//   interval, animation-frame and idle callbacks the page's own code had run (a probe wraps
-//   them; workers and event listeners are not counted)
+// - wake-ups a second (timer, interval, animation-frame, idle callbacks) while playing, paused, and
+// idle
 // - DOM changes a second while playing (a MutationObserver's records)
 // - jank: animation frames more than 50 ms apart while playing, and dropped video frames
-// - tabs: three players that were played, paused and left in background tabs, each loading its
-//   own video, and a fourth opened in front: when the one in front shows its first frame, how
-//   many seconds it has ahead ten seconds in, when it has its whole video, and when all four
-//   have theirs (what the turns between tabs cost the line as a whole). Each video is 90 s
-//   at about 2.1 Mbit/s. Meant for a line slow beside that (--rate 8: under four times the
-//   video's rate, where a player in front holds the line; --rate 40: fast, all at once).
-// - stall-mp4, stall-hls, stall-dash: buffering. A long video (the long MP4, a looped HLS
-//   playlist, a looped DASH manifest) played for BENCH_STALL_MS: how often and how long it
-//   waited for media (not for a seek), how far it got, the megabytes fetched; then three seeks
-//   far into it, the median time to playing past the place.
-//
-// Builds alternate in each round (ABBA). One round per build is run first and thrown away:
-// the first load of a build compiles its modules.
+// - tabs: three paused players in background tabs and one in front: its first frame, its buffer,
+// all four done
+// - stall-mp4/hls/dash: stalls while playing a long video for BENCH_STALL_MS, then three far seeks
+// Builds alternate in each round (ABBA); one round per build runs first and is thrown away (module
+// compile).
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -61,9 +48,8 @@ const SCENARIOS = {
   'dash': {source: (origin, run) => `${origin}/fixtures/dash-template/manifest.mpd?run=${run}`, playMs: 3000},
   'idle': {source: null},
   'tabs': {source: (origin, run) => `${origin}/fixtures/looped.m3u8?seconds=${TABS_VIDEO_S}&run=${run}`, tabs: true},
-  // Buffering, per kind of player: a long video played for bench.stallMs, then seeks far into
-  // it (runStall). Meant for a line near the video's rate, an uneven one (--jitter), one with
-  // a cap per connection (--conn) or cut answers (--drop).
+  // Buffering, per kind of player: a long video played for bench.stallMs, then seeks far into it
+  // (runStall).
   'stall-mp4': {source: (origin, run) => `${origin}/fixtures/long-av.mp4?run=${run}`, stall: true},
   'stall-hls': {source: (origin, run) => `${origin}/fixtures/looped.m3u8?seconds=${STALL_VIDEO_S}&run=${run}`, stall: true},
   'stall-dash': {source: (origin, run) => `${origin}/fixtures/looped.mpd?seconds=${STALL_VIDEO_S}&run=${run}`, stall: true},
@@ -72,11 +58,9 @@ const SCENARIOS = {
 const STALL_SEEKS = [0.45, 0.75, 0.25];
 
 /**
- * Put into every page before its first script (addInitScript). Records the moments above in
- * window.__bench, counts the page's callbacks while asked to, and turns autoplay on the moment
- * main.mjs creates the player (window.fastStream), before it loads the source.
- * @param {boolean} where - Also count, per place in the player's code that asked for them,
- *   the callbacks run while counting (BENCH_WHERE=1: to find what wakes a player up).
+ * Put into every page before its first script (addInitScript): records the moments above, counts
+ * callbacks, and turns autoplay on.
+ * @param {boolean} where - Also count per place in the player's code (BENCH_WHERE=1).
  */
 function probe(where) {
   const now = () => performance.now();
@@ -294,10 +278,7 @@ async function waitFor(read, timeout, what, ...args) {
 async function runTabs(build, run) {
   const scenario = SCENARIOS.tabs;
   const origin = bench.origins[build];
-  // Each tab's video from a host of its own: on one host Firefox itself serves the tab in
-  // front first (its six connections to a host go to the active tab's requests before the
-  // others'; measured 2026-11-14: the player in front had its video in 29.5 s on main as
-  // well, the others waiting in Firefox's queue), which tabs on different sites do not get.
+  // Each tab's video from its own host: on one host Firefox serves the front tab's requests first.
   let tabs = 0;
   const address = (name) => {
     const media = bench.tabsOwnHosts ? origin.replace('127.0.0.1', BENCH_MEDIA_HOSTS[tabs++ % BENCH_MEDIA_HOSTS.length]) : origin;
@@ -323,19 +304,14 @@ async function runTabs(build, run) {
       await waitFor(() => /** @type {any} */ (window).__bench?.marks.playing, 30000, `background player ${index} playing`);
       await browser.execute(() => /** @type {any} */ (window).fastStream.pause());
     }
-    // The one the user looks at: showing its tab hides the others (createWindow and
-    // switchToWindow do, in this session; measured 2026-11-14).
+    // showing its tab hides the others (createWindow and switchToWindow do, in this session)
     await openTab();
     await browser.url(address('front'));
     await waitFor(() => /** @type {any} */ (window).__bench?.marks.playing, 60000, 'the player in front playing');
     /** @type {Record<string, number>} */
     const result = {};
-    // The first frame is counted from the page's first request for the video, and the page's
-    // own start (its modules loaded and run) is told beside it. A new tab's start came in two
-    // speeds in this Firefox, about 0.23 s and 0.55 s, whatever the build: two copies of one
-    // build showed both, and two builds gave the same picture with their places swapped
-    // (measured 2026-11-14). Counted from the navigation, that was told as a first frame
-    // 0.27 s later, 7 rounds of 7, for the build that had the line free sooner.
+    // The first frame counts from the page's first request for the video: a new tab's own start
+    // varies by build-independent steps.
     const start = await browser.execute(() => {
       const media = performance.getEntriesByType('resource').filter((entry) => entry.name.includes('/fixtures/'));
       return {marks: /** @type {any} */ (window).__bench.marks, asked: Math.min(...media.map((entry) => entry.startTime))};
@@ -369,9 +345,7 @@ async function runTabs(build, run) {
  * @return {Promise<void>}
  */
 async function runStall(result) {
-  // The media bytes of the requests finished so far, at the start and at the end (the fixtures
-  // come from the player page's own origin, so their entries carry their sizes). A request
-  // still running at the end is not counted yet.
+  // Media bytes of the requests finished so far (same-origin fixtures carry their sizes).
   const start = await browser.execute(() => {
     const B = /** @type {any} */ (window).__bench;
     B.stall = {count: 0, ms: 0, since: null};
@@ -412,8 +386,7 @@ async function runStall(result) {
  * One run of a scenario on one build.
  * @param {string} name - The scenario.
  * @param {'A'|'B'} build
- * @param {string} run - Makes the video's address new each run: the player remembers where a
- *   video was left, and would start the next run there.
+ * @param {string} run - Makes the video's address new each run: the player remembers where a video was left.
  * @return {Promise<Record<string, number>>} The measures.
  */
 async function runOnce(name, build, run) {
@@ -483,11 +456,8 @@ async function runOnce(name, build, run) {
       if (!preview) return NaN;
       const B = /** @type {any} */ (window).__bench;
       B.preview = {start: performance.now()};
-      // Shown: no longer seeking, a frame there. The events give the moment; the wait below
-      // also checks the state itself, as the frame can come after 'seeked' (a removal still
-      // running), with no event of these then. Checking on the events alone timed out about
-      // once in 20 runs, on main's player as on the branch's, while the preview did show
-      // (tests/e2e/specs/mp4-seek-preview.e2e.mjs: 340 places of 340, both builds).
+      // Shown: not seeking and a frame there; the state is checked too, as the frame can come after
+      // 'seeked'.
       B.preview.check = () => {
         if (B.preview.ready === undefined && !preview.seeking && preview.readyState >= 2 &&
             Math.abs(preview.currentTime - 120) < 0.5) {

@@ -70,8 +70,7 @@ describe('FastStreamClient setup', function() {
   });
 
   it('finishes setting up a video whose seek preview fails to build', async function() {
-    // The rest of the setup came after the preview's, so a preview that failed took the
-    // time in the URL, the video analyzer and autoplay with it, and showed an error.
+    // a preview that fails does not take the URL's time, the analyzer and autoplay with it
     await openEmptyPlayer();
     await browser.execute(() => {
       const loader = window.fastStream.playerLoader;
@@ -99,8 +98,8 @@ describe('FastStreamClient setup', function() {
   });
 
   it('does not seek a video to the time of the source before it', async function() {
-    // The first source never gets a picture. Its wait for one used to outlive it and to
-    // end when the next source had one, which was then sought to the first one's time.
+    // The first source never gets a picture: its wait ends with it, not when the next source has
+    // one.
     await openEmptyPlayer();
     await addSource(`${missingUrl()}?faststream-timestamp=8`);
     await browser.pause(1500);
@@ -259,10 +258,7 @@ describe('FastStreamClient setup', function() {
   });
 
   it('gives the next video a seek preview when the one before changed while its preview built', async function() {
-    // A preview build that turning previews on started (not the setup of a source, which
-    // the next source waits for) was still running when the next video came. That video
-    // joined it; the build then threw its preview away (its source was gone), and the next
-    // video had none.
+    // A preview build still running when the next video comes is not joined by it.
     await openEmptyPlayer();
     await browser.execute(() => {
       const client = window.fastStream;
@@ -322,8 +318,7 @@ describe('FastStreamClient setup', function() {
   });
 
   it('does not reuse the wait for a picture of a source that never had one', async function() {
-    // The next source joined that wait, which listened on the player before it: its own
-    // picture was only noticed by the wait's once-a-second check.
+    // the next source's own picture ends its wait at once
     await openEmptyPlayer();
     await browser.execute(() => {
       const client = window.fastStream;

@@ -2,9 +2,8 @@ import fs from 'node:fs';
 import {describe, expect, it} from 'vitest';
 import {EXIT, isNetworkError, parseArgs, signingState, waitForSigned} from '../../tools/fetch-amo-signed.mjs';
 
-// The AMO signing failsafe acts on what signingState answers: collect the xpi, wait,
-// upload again, or tell the owner. A wrong answer either never collects a signed build
-// or uploads a version AMO already has, which it refuses.
+// The AMO signing failsafe acts on what signingState answers: a wrong answer never collects a
+// build, or uploads one AMO already has.
 
 describe('authentication', () => {
   const source = fs.readFileSync(new URL('../../tools/fetch-amo-signed.mjs', import.meta.url), 'utf8');

@@ -1,9 +1,5 @@
-// The player's menus and the small controls in them: the quality, audio and language
-// menus' keys, the audio-track button, the silence skipper's speed, the loop menu's GIF,
-// and the dropdown component.
-//
-// Each case opens the web player with no source and hands it one the way main.mjs does,
-// with autoplay and remembered positions off.
+// The player's menus: quality, audio and language keys, the audio-track button, silence skip speed,
+// loop GIF, dropdowns.
 import fs from 'node:fs';
 import {browser, expect} from '@wdio/globals';
 
@@ -94,16 +90,11 @@ async function settle(read, check, timeout = 10000) {
 }
 
 describe('Player menus', function() {
-  // One case since 2026-10-13 with "lets the arrow keys through the quality button once its
-  // list is closed" and "lets the arrow keys through the audio button once its list is
-  // closed", which loaded the same two streams this case loads, one each: the quality
-  // button is tried on the first, the audio button on the second. Every assertion of the
-  // three is here.
+  // Two streams loaded once each: the quality button tried on the first, the audio button on the
+  // second.
   it('shows the audio button where there is a track or an output to choose, and opens its list; the quality and audio buttons let the arrow keys through once their lists are closed', async function() {
-    // It opened the audio settings window until that went; it is the
-    // audio-track list's button now, and a list of one track offers nothing - but for the
-    // audio output, which a Firefox with selectAudioOutput lets the list choose too
-    // (AudioOutputDevice), under its tracks.
+    // The audio-track list's button; with one track it still offers the audio output
+    // (AudioOutputDevice) where Firefox has it.
     await openEmptyPlayer();
     const state = () => browser.execute(() => {
       const button = document.querySelector('.mainplayer .fluid_button_soundwave');
@@ -140,8 +131,7 @@ describe('Player menus', function() {
 
     await addSource(twoTracksUrl());
     await waitForPicture();
-    // The label, too: the tracks arrive a tick before the button's label and menu state
-    // follow, and a read between the two saw the old label (once on a busy runner).
+    // the label too: it follows the tracks a tick later
     const two = await settle(state, (s) => s.tracks === 2 && s.shown && s.label === 'Audio tracks');
     console.log('      two tracks:', JSON.stringify(two));
     expect(two.shown).toBe(true);
@@ -164,7 +154,7 @@ describe('Player menus', function() {
     expect(audio.volume).toBeCloseTo(0.9, 5);
   });
 
-  // They changed the speed while the list was closed.
+  // the keys do not change the speed while the list is closed
   it('lets the arrow keys through the speed button once its list is closed', async function() {
     await openEmptyPlayer();
     await addSource(mp4Url());
@@ -196,8 +186,7 @@ describe('Player menus', function() {
   });
 
   it('keeps the language menu\'s keys to its own tracks, and lets them through once closed', async function() {
-    // The highlight could rest on the empty cell of a language with no track of that
-    // type, and the keys moved it while the menu was closed.
+    // the highlight never rests on an empty cell, and keys do not move it while closed
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
@@ -335,7 +324,7 @@ describe('Player menus', function() {
   });
 
   it('records a GIF of the whole video when both loop times are emptied', async function() {
-    // An emptied field was NaN, and the recording never started nor ended.
+    // an emptied field is not NaN
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
@@ -406,9 +395,7 @@ describe('Player menus', function() {
     await setTime('end', '00:00:04');
     await click('.mainplayer .loop_menu_toggle_button');
     await click('.mainplayer .loop_menu_gif_button');
-    // The click answers before the recording's loop has flipped its flag; a read between
-    // the two saw running: false (once, on a busy runner), and the toggle after it then
-    // stopped nothing. waitUntil gives the flag the tick it needs.
+    // waitUntil gives the recording's flag the tick it needs after the click
     await browser.waitUntil(async () => (await loop()).running,
         {timeout: 10000, interval: 100, timeoutMsg: 'the recording never started'});
     await click('.mainplayer .loop_menu_toggle_button');
@@ -416,8 +403,7 @@ describe('Player menus', function() {
     expect((await loop()).enabled).toBe(false);
   });
 
-  // Typing an end time passes times before the start ("3" on the way to "3:00"): that
-  // turned the loop off, and it stayed off once the time was typed.
+  // typing an end time passes times before the start: the loop stays on
   it('keeps the loop on while a time is typed, and loops once the times make a loop', async function() {
     await openEmptyPlayer();
     await addSource(mp4Url());
@@ -442,7 +428,7 @@ describe('Player menus', function() {
     expect(halfTyped.invalidMark).toBe(true);
     expect(halfTyped.videoLoop).toBe(false);
 
-    // A decimal comma, as French and German write it: "4,5" was 4.
+    // a decimal comma, as French and German write it
     const typed = await typeTime('end', '00:00:04,5');
     expect(typed.enabled).toBe(true);
     expect(typed.valid).toBe(true);
@@ -493,8 +479,7 @@ describe('Player menus', function() {
   });
 
   it('rests the loop\'s check while the video is paused, and loops at the end point once it plays', async function() {
-    // It asked for every animation frame while the loop was on, a paused video too: 60 to 144
-    // calls a second for nothing.
+    // no animation frame asked for while the loop is on and the video paused
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
@@ -558,8 +543,7 @@ describe('Player menus', function() {
   });
 
   it('labels the subtitle search\'s fields in the player\'s language', async function() {
-    // The type filter's label was the English "Type" in every language (the filter is gone
-    // since 2026-10-09: a season or episode filled in makes an episode's search).
+    // the search's labels are in the player's language
     await openEmptyPlayer();
     const shown = await browser.execute(() => new Promise((done) => {
       // The web player takes its language from the browser; the search is built again

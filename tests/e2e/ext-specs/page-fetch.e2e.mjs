@@ -1,25 +1,11 @@
 // A video FastStream cannot load itself, and its page can: loaded through the page (page-fetch.js,
-// PageFetch.mjs, PageFetchRelay.mjs).
-//
-// FastStream's player loads from its extension page, which is no part of the page that showed
-// the video. Two kinds of site answer that request with something other than the video:
-//
-// - A video only the page's service worker answers (abyss.to's player, #665). Its <video> names
-//   an address with the video's id in the fragment; the worker reads the fragment and answers
-//   with the file it fetches itself, and the server answers that address "Video not found" to
-//   anyone else. Firefox tells add-ons nothing of an answer a service worker gives: content.js
-//   reports the file the page's <video> has (loadedmetadata), fragment and all, and the player,
-//   refused, loads it through the page.
-// - A link only the page's cookie as it is now opens: the server renews the page's session
-//   cookie with the video's first answer, and refuses the old one. The headers FastStream took
-//   from the page's request carry the old one; the page's own requests carry the new one. The
-//   player is refused, tries once more through the page, and loads through it from then on.
-//
-// Both are played here from a local server, and the requests it saw are logged per test.
-//
-// Saving takes the same loader, so the same way through the page: each kind is saved through
-// the Save button and the name prompt, and the file Firefox writes must be the film byte for
-// byte. A save cancelled half-way must leave the player able to save again.
+// PageFetch.mjs).
+// - A video only the page's service worker answers (its id in the fragment); refused, the player
+// loads it through the page.
+// - A link only the page's current cookie opens (renewed with the video's first answer): refused
+// once, then through the page.
+// Saving takes the same way: each kind is saved and must be the film byte for byte; a cancelled
+// save leaves Save working.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -125,8 +111,7 @@ function note(req, url, status) {
  * @param {Object<string, string>} [extra] - More headers (Set-Cookie).
  */
 function sendFilm(req, res, url, extra = {}) {
-  // Never from Firefox's cache: a range an earlier test loaded came back from it, and the
-  // server never saw which way a save asked.
+  // never from Firefox's cache: the server must see every range a save asks for
   extra = {'Cache-Control': 'no-store', ...extra};
   const size = fs.statSync(FILM).size;
   const range = byteRange(req.headers.range, size);
@@ -253,9 +238,8 @@ function sha256(file) {
 }
 
 /**
- * The save's status line and whether its banner shows, in the player's frame; and, for a
- * timeout's message, the dialog open and where the save manager stands. A save that never
- * began on the Linux runner (2026-11-14, passed on its retry) left nothing else to go by.
+ * The save's status line and banner in the player's frame; for a timeout's message, the dialog and
+ * the save manager.
  * @return {Promise<{banner: boolean, status: string, dialog: ?string, asking: boolean,
  *   making: boolean}>}
  */
@@ -289,10 +273,8 @@ async function pageFrames() {
 }
 
 /**
- * Starts a save as the user does: the Save button, then the name prompt, given a name.
- *
- * OK goes only once the player's document has its size (confirmPrompt): on CI it was clicked
- * before, and left the prompt open.
+ * Starts a save as the user does: the Save button, then the name prompt (OK only once the document
+ * has its size).
  * @param {string} name - The file's name, without '.mp4'.
  */
 async function startSave(name) {
@@ -379,8 +361,7 @@ describe('A video only its page can load', function() {
         return;
       }
       if (url.pathname === '/c/page') {
-        // The page's own video names the same test as the page (?for=save), a fixed text: the
-        // request's own query went into the page as it came (CodeQL js/reflected-xss).
+        // a fixed text, not the request's own query (CodeQL js/reflected-xss)
         const query = url.searchParams.get('for') === 'save' ? '?for=save' : '';
         session.loads++;
         session.initial = `a${session.loads}`;
@@ -501,9 +482,8 @@ describe('A video only its page can load', function() {
   });
 
   it('plays a worker\'s video in an iframe of another site, as abyss.to\'s player is embedded', async function() {
-    // The player opens in the iframe, and loads through that frame (not the top page's). Another
-    // video at the first test's address, its id another fragment: it starts from its beginning,
-    // not where the first test's video was left (VideoSource.identifier keeps the fragment).
+    // The player opens in the iframe and loads through that frame; another fragment is another
+    // video.
     seen = [];
     playerPage = `iframe[src="${SITE}/sw/page?clip=mp4/clip-2"]`;
     await browser.url(`${SITE.replace('127.0.0.1', 'localhost')}/outer`);
@@ -519,9 +499,7 @@ describe('A video only its page can load', function() {
     expect(fromWorker.length).toBeGreaterThan(1);
   });
 
-  // Each save is of a video no test played before (another fragment, another query): a player
-  // takes over what the previous player of the same video loaded, and the save then asked for
-  // nothing.
+  // Each save is of a video no test played before: a player takes over what an earlier one loaded.
 
   /**
    * Whether the server answered a range starting in the film's last tenth to a request that

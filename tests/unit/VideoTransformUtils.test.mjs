@@ -19,7 +19,7 @@ describe('VideoTransformUtils.getTransformString', () => {
   });
 });
 
-// The picture's aspect ratio (Options > Video, upstream #552; back on his word, 2026-10-11).
+// the picture's aspect ratio (Options > Video)
 describe('VideoTransformUtils.getAspectRatioStyles', () => {
   const styles = (videoAspectRatio) => VideoTransformUtils.getAspectRatioStyles({videoAspectRatio});
 

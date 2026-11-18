@@ -1,11 +1,7 @@
 // Starts a suite's own test server on its fixed port, or stops the whole run.
 //
-// wdio only logs an error thrown in onPrepare, and then runs every spec anyway. When the
-// port was taken - by another test run on this machine, or verify:linux in WSL, which
-// shares these ports - the specs were answered by that run's server and tested its build:
-// on 2026-09-27 a keybind spec saw a seek to -3 s land at -3, from a build without the
-// fix it was checking, and later runs lost the server halfway. With the port held by
-// another process a spec even passed, and wdio exited 0. So the run stops here instead.
+// wdio only logs an onPrepare error and runs every spec anyway: with the port taken (another run,
+// WSL's verify:linux) the specs would test that run's build.
 
 /**
  * Listens on 127.0.0.1:port, or ends the process with the reason.

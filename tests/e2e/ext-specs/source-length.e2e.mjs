@@ -1,41 +1,14 @@
-// Of a page's streams, the player plays the longest.
-//
-// A page that runs an ad or an intro first has its stream among the sources FastStream
-// detects, and the player used to pick by kind and age alone: the first HLS or DASH stream,
-// or else the newest MP4 - the ad, as often as not. The background now reads how long each
-// stream runs (StreamLengths: the manifest, or the start of the file) with the page's own
-// headers, and the player picks the longest; an ad runs for seconds, the video for minutes.
-//
-// A manifest served with no extension in its URL, known only by its Content-Type, was not
-// detected at all (cineby's Simplify server, anikage's og.bakayaro.live/m3u8/<token>).
-//
-// The pieces of a stream - an init segment, media segments - named .mp4, as Shaka Packager
-// names them, are detected as MP4 sources of their own. Read as unknown, they ranked as ten
-// minutes, and the player opened one fragment of any shorter title (Shaka's demo HLS).
-// The newest piece, its read still out when the player picks, ranked so too, now and then
-// (the live test's HLS in a cross-origin iframe): it counts as a piece when an earlier one
-// of the same name, but for its numbers, was read as one.
-//
-// The longest is a guess. What the page's own video played says more: the player plays its
-// file, or the stream as long as it is (StreamPick), when a page loads the next episode or
-// another longer stream beside it - unless a stream five times as long plays, or any longer
-// one while the video runs under three minutes: then the video is an ad, a trailer or a
-// preview as likely as not, and the longest plays, as before. Where that line falls is
-// tests/unit/StreamPick.test.mjs's ("StreamPick.played"); here, a page's file and a page's
-// MSE video each pick their stream through the real page, and the longest plays where the
-// page's video says nothing. (A case that played the longest beside a 10-second ad in the
-// page's video went on 2026-10-13: its page reported its video's file as the film's page
-// does, the longest then played as on the manifests' page, and that an ad's file loses to a
-// far longer stream is the unit's "does not take a short video over a far longer stream".)
-//
-// A playlist of the seek bar's thumbnails (EXT-X-IMAGES-ONLY: JPEG tiles) runs as long as
-// the video, and a page often asks for it first: vixeo.io's did, and the player opened on
-// it alone, or picked it over the video as the older of two as long. It is never picked,
-// nor opened on. One that does not say what it is fails to load in the player, and the
-// next stream of those it was picked from plays in its place.
-//
-// Driven on the installed extension, the site on the auto-enable list: pages that load an
-// ad and a longer stream, and the stream the player ends up playing.
+// Of a page's streams, the player plays the longest (StreamLengths reads each with the page's
+// headers).
+// An ad or intro runs for seconds, the video for minutes.
+// A manifest known only by its Content-Type, with no extension in its URL, is detected.
+// Pieces of a stream named .mp4 (Shaka Packager's segments) are not taken for sources, a piece
+// still being read neither.
+// What the page's own video played picks its stream (StreamPick; the line is
+// StreamPick.test.mjs's), else the longest.
+// A thumbnail playlist (EXT-X-IMAGES-ONLY) is never picked; one that does not say so fails and the
+// next stream plays.
+// Driven on the installed extension, the site on the auto-enable list.
 
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -244,9 +217,8 @@ describe('Of a page\'s streams, the player', function() {
       } else if (pathname === '/fmp4/index.m3u8' || pathname === '/fmp4-slow/index.m3u8') {
         text(HLS_TYPE, fmp4Playlist);
       } else if (pathname.startsWith('/fmp4-slow/') && pieces.has(pathname.replace('/fmp4-slow/', '/fmp4/'))) {
-        // The same pieces, but the length of the third is read slowly: a read asks for a
-        // range, and that answer comes after the player picked. The page's own fetch has
-        // none, and its answer comes at once.
+        // The same pieces, the third one's length read slowly: its answer comes after the player
+        // picked.
         const file = pieces.get(pathname.replace('/fmp4-slow/', '/fmp4/'));
         const delay = pathname === '/fmp4-slow/seg-002.mp4' && req.headers.range ? 5000 : 0;
         setTimeout(() => serveFile(req, res, file, 'video/mp4'), delay);
@@ -273,10 +245,7 @@ describe('Of a page\'s streams, the player', function() {
         } else if (pathname === '/hls/private.m3u8') {
           text(HLS_TYPE, '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=800000\nprivate-720p.m3u8\n');
         } else if (pathname === '/hls/private-720p.m3u8') {
-          // Slowly. Only the length's read and the player's own playback ask for this; the
-          // page asked for the master alone, which is when the stream was detected. The
-          // player asks for the page's streams before the length is known, and its pick
-          // waits for it.
+          // Slowly: only the length's read and the player ask for this, and the pick waits for it.
           setTimeout(() => text(HLS_TYPE, playlist(1800)), 2000);
         } else {
           text('text/plain', 'not found', 404);
@@ -287,7 +256,7 @@ describe('Of a page\'s streams, the player', function() {
       } else if (pathname === '/manifest') {
         text('application/dash+xml', fs.readFileSync(path.join(FIXTURES, 'dash-template/manifest.mpd'), 'utf8'));
       } else if (pathname === '/page/mp4') {
-        // The film at once, the ad after it: the newest MP4, which the player used to pick.
+        // the film at once, the ad after it: the newest MP4
         text('text/html; charset=utf-8', page('film and ad',
             '<video muted preload="auto" id="ad" style="width: 160px; height: 90px"></video>', `
               document.querySelector('video').src = '/media/film.mp4' + location.search;
@@ -316,8 +285,7 @@ describe('Of a page\'s streams, the player', function() {
               document.querySelector('video').src = '/media/film-long.mp4' + location.search;
               setTimeout(() => fetch('/hls/extra.m3u8' + location.search), 200);`));
       } else if (pathname === '/page/mse') {
-        // An MSE player, as hls.js is: the video's length is the manifest's, set on the
-        // MediaSource. The 4.5-minute clip it plays, then a 12-minute stream the page loads
+        // An MSE player: the video's length is the manifest's (4.5 min), then a 12-minute stream
         // beside it.
         text('text/html; charset=utf-8', page('mse', '', `
               const video = document.querySelector('video');
@@ -394,9 +362,7 @@ describe('Of a page\'s streams, the player', function() {
     expect(state.source).toBe(`${SITE}/watch?v=${c}`);
   });
 
-  // One case since 2026-10-13 (it was two, on the same pieces of the same stream): the pieces
-  // read at once (the init segment, the first media segments) are pieces, and the last one,
-  // its read still out when the player picks, counts as one too - which needs the first.
+  // Pieces read at once, and the last one still being read when the player picks, are not played.
   it('plays a short stream, not the pieces of it the page fetched, nor one whose length is still being read', async function() {
     const c = Date.now();
     await browser.url(`${SITE}/page/slow-piece?c=${c}`);
@@ -427,9 +393,7 @@ describe('Of a page\'s streams, the player', function() {
     expect(state.source).toBe(`${SITE}/hls/clip.m3u8?c=${c}`);
   });
 
-  // One case since 2026-10-13 (it was two: the same thumbnails and clip, the clip at once
-  // or 4 s later). The player picks once both are known either way, the thumbnails the
-  // older of two as long; here it must not open on them alone first, either.
+  // The player must not open on the thumbnails alone first, nor pick them over the clip.
   it('plays the video, not the seek bar\'s thumbnails the page asked for first, nor opens on them alone', async function() {
     const c = Date.now();
     await browser.url(`${SITE}/page/thumbnails-alone?c=${c}`);

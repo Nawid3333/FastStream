@@ -5,17 +5,11 @@ import path from 'node:path';
 import {afterAll, afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {MaxLogBytes, SubtitleDirPrefix, debugFromEnvironment, debugLog, ipcPipeFor, launchDirect, launchMpv, takeLaunchLock, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, qualityFragmentFor, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
 
-// loadIntoExisting decides whether the "reuse the window we already own"
-// path actually worked, from the IPC replies mpvIpcRequest collects. That
-// function is injected here instead of hitting a real named pipe: it is
-// Windows-only, and this suite runs on Linux CI too (see ci.yml).
+// loadIntoExisting decides from mpvIpcRequest's replies whether reusing our window worked; injected
+// (no pipes on Linux CI).
 //
-// mpvIpcRequest can resolve {ok: true} on its own timeout as soon as *any*
-// reply has arrived -- a live-but-slow pipe still counts as "ours" -- which
-// means the loadfile reply specifically can be missing even though result.ok
-// is true. Before the fix, a missing loadReply skipped the error check
-// entirely and fell through to {ok: true, pid: undefined}: success was
-// reported without ever confirming the video loaded.
+// mpvIpcRequest resolves ok on its timeout once any reply came: a missing loadfile reply is not
+// success.
 
 const message = {url: 'https://example.com/video.m3u8'};
 const headerFields = ['Referer: https://example.com/'];
@@ -50,9 +44,7 @@ describe('loadIntoExisting', () => {
   });
 
   it('is busy, not phantom-successful, when only the fullscreen reply came back', async () => {
-    // mpvIpcRequest's own timeout fired after the first reply: ok:true, but no
-    // reply for loadfile or get_property pid. Not success; and not "no mpv" either,
-    // since ours answered: a second mpv on the same pipe would get no IPC.
+    // Ours answered but not to loadfile: not success, and not "no mpv" either.
     const ipcRequest = async () => ({ok: true, replies: [{request_id: 1}]});
     const result = await loadIntoExisting({...message, fullscreen: true}, headerFields, title, ipcRequest);
     expect(result).toEqual({ok: false, busy: true});
@@ -72,9 +64,7 @@ describe('loadIntoExisting', () => {
 
   it('keeps request ids aligned when the fullscreen command is inserted', async () => {
     const ipcRequest = async (commands) => {
-      // fullscreen adds a command first, shifting loadfile/get_property to
-      // request_id 2 and 3 -- catches an off-by-one if the indices were
-      // ever hardcoded instead of derived from commands.length.
+      // fullscreen shifts loadfile/get_property to request_id 2 and 3
       expect(commands).toHaveLength(3);
       expect(commands[0].command).toEqual(['set_property', 'fullscreen', true]);
       return {
@@ -126,8 +116,7 @@ describe('loadIntoExisting', () => {
 });
 
 describe('perFileOptions', () => {
-  // mpv's string list removes a backslash only right before a ',' (measured on mpv 0.41:
-  // an escaped backslash reached the server doubled, #157).
+  // mpv's string list removes a backslash only right before a ','
   it('joins the headers as mpv\'s string list, escaping commas only', () => {
     expect(perFileOptions(['Referer: https://a.test/?q=1,2', 'X-Path: C:\\dir', 'X-Both: a\\,b'], 't')).toEqual({
       'http-header-fields': 'Referer: https://a.test/?q=1\\,2,X-Path: C:\\dir,X-Both: a\\\\,b',
@@ -161,8 +150,7 @@ describe('streamTitle', () => {
     const clapper = '\u{1F3AC}';
     expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'x'.repeat(199) + clapper + 'tail'}))
         .toBe('x'.repeat(199) + clapper);
-    // A flag is two code points: cut between them, one letter of it was left (glm's review of
-    // the fix, 2026-10-13).
+    // a flag is two code points: never cut between them
     const flag = '\u{1F1E9}\u{1F1EA}';
     expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'x'.repeat(199) + flag + 'tail'}))
         .toBe('x'.repeat(199) + flag);
@@ -176,11 +164,8 @@ describe('streamTitle', () => {
   });
 });
 
-// mpvIpcRequest against a pipe of the test's own (never mpv's real one, which a running
-// mpv may hold): no server is "no mpv"; one that accepts but never answers is busy.
-// The pipe is real; its two budgets run on fake timers, moved on by the test once the
-// request has reached the server. With real 200-400 ms budgets a loaded machine could
-// take longer than the connect budget to connect.
+// Against a pipe of the test's own, never mpv's; its two budgets run on fake timers moved by the
+// test.
 describe('mpvIpcRequest', () => {
   const servers = [];
   const dirs = [];
@@ -281,9 +266,8 @@ describe('mpvIpcRequest', () => {
   });
 });
 
-// The mpv URL fragment is how gpu-toggles.lua learns a stream's anime/movie
-// tag on the mpv side: fragments are never sent to the HTTP server, so this
-// cannot break a signed/tokenized CDN URL, unlike a query parameter would.
+// gpu-toggles.lua reads the anime/movie tag from the URL fragment, which is never sent to the
+// server.
 
 // 'mpv executable not found' left a user who had typed a path in the options wondering what
 // was wrong with it, and one who had none what to do.
@@ -330,9 +314,8 @@ describe('withContentTypeFragment', () => {
   });
 });
 
-// fs-id= is the key stream-resume.lua saves the playback position under: a
-// hash of the tab's page URL, because the stream URL usually changes on every
-// visit (expiring CDN token) while the episode page does not.
+// fs-id= is a hash of the page URL: the stream URL changes with each visit's token, the episode
+// page does not.
 
 describe('resumeIdFor', () => {
   it('is 16 hex digits and stable for the same page', () => {
@@ -489,8 +472,7 @@ describe('start and subtitles from the player', () => {
   });
 
   it('gives mpv the start and the files as per-file options', () => {
-    // sub-files is a path list: ';' between the paths on Windows, backslashes as they are
-    // (escaped like a string list, mpv looked for "C:\\Temp\\..." - measured).
+    // sub-files: ';' between paths on Windows, backslashes as they are
     expect(perFileOptions([], 't', {start: 754.5, subFiles: ['C:\\Temp\\a,b\\1 English.srt', 'C:\\Temp\\2.srt']}, ';')).toEqual({
       'http-header-fields': '',
       'force-media-title': 't',
@@ -527,8 +509,7 @@ describe('launchMpv', () => {
    * @param {Object} reply - What the pipe answers (mpvIpcRequest's result) for the loadfile.
    * @return {Object} io for launchMpv, and the record.
    */
-  // A launch lock of each stand's own, out of the user's temp folder's real ones: a start
-  // hands it to the pid the launch answered, which can be anyone's here.
+  // a launch lock of each stand's own, not the user's temp folder's
   const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
   let locks = 0;
   afterAll(() => fs.rmSync(lockDir, {recursive: true, force: true}));
@@ -652,10 +633,8 @@ describe('launchMpv', () => {
     expect(result.error).toBe('Could not start mpv: mpv quit right after it started: check the mpv path');
   });
 
-  // A new mpv gets its stream on the command line, which Windows caps at 32767 characters.
-  // The page's quality list (fs-quality=, percent-encoded once more) took twelve long URLs
-  // past it, and the start failed although the stream itself fitted: mpv starts
-  // without the list now, so only its quality menu goes without it.
+  // Windows caps a command line at 32767 characters: mpv starts without the quality list when it
+  // does not fit.
   const qualities = Array.from({length: 12}, (unused, i) => ({
     url: `https://cdn.test/${i}/` + 'a%2Fb%3Dc&'.repeat(202),
     label: `${(i + 1) * 100}p`,
@@ -717,8 +696,7 @@ describe('ipcPipeFor', () => {
   });
 });
 
-// Off Windows a new mpv is an ordinary child, and it was reported started 500 ms later
-// whatever it did; one that quits at once now reports why. Node stands in for mpv.
+// Off Windows mpv is a child: one that quits at once reports why. Node stands in for mpv.
 describe('launchDirect', () => {
   it('reports an mpv that quits at once', async () => {
     const result = await launchDirect(process.execPath, ['-e', 'process.exit(3)']);

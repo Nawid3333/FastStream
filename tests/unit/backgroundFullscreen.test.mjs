@@ -157,9 +157,8 @@ describe('a fullscreen carried over to the next episode', () => {
   });
 
   it('ends the next episode\'s instructions no player took within 2 minutes, and gives the fullscreen back', async () => {
-    // A site that changes its video without loading a page keeps one document: the
-    // instructions waited there with no end, and the next video the user opened in it, minutes
-    // later, played by itself in the window still fullscreen (the owner's pick, 2026-11-15).
+    // A site that changes its video without a page load keeps one document: the instructions end,
+    // not wait for a later video.
     const fullscreenNext = {type: 'REQUEST_PLAYLIST_NAVIGATION', direction: 'next',
       continuationOptions: {fullscreenState: 'fullscreen', autoPlay: true}};
     await playerInPage();
@@ -182,9 +181,8 @@ describe('a fullscreen carried over to the next episode', () => {
   });
 
   it('keeps the next episode\'s instructions and its fullscreen when that page changes its own address', async () => {
-    // A next page that sets its own address (history.replaceState: ?server=, a canonical slug)
-    // before its player asked names no new document: counted as a page after it, the episode
-    // played with no autoplay, and the fullscreen went back (a review of f0bef9d4, 2026-11-13).
+    // A next page that sets its own address with history.replaceState before its player asked names
+    // no new document.
     const fullscreenNext = {type: 'REQUEST_PLAYLIST_NAVIGATION', direction: 'next',
       continuationOptions: {fullscreenState: 'fullscreen', autoPlay: true}};
     for (const namedFirst of [false, true]) {
@@ -312,8 +310,7 @@ describe('a fullscreen carried over to the next episode', () => {
   });
 
   it('does not make the window fullscreen again in the next episode after the user left it (F11)', async () => {
-    // deepseek's review: F11, or the browser's own "Exit Full Screen", ended
-    // the carried fullscreen, and the next episode went fullscreen again.
+    // F11 or "Exit Full Screen" ends the carried fullscreen for the next episode too.
     await playerInPage();
     await carry(true);
     await bg.message({type: 'REQUEST_PLAYLIST_NAVIGATION', direction: 'next',

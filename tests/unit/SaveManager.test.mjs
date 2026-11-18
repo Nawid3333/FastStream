@@ -282,8 +282,7 @@ describe('SaveManager: a file whose length is not known yet', () => {
   });
 });
 
-// The player's mpv button. Since the thin helper an older helper still plays the
-// stream and lacks only newer features: the owner chose no warning here for it.
+// An older helper still plays the stream and lacks only newer features: no warning for it.
 describe('SaveManager.openInMpv', () => {
   afterEach(() => {
     delete globalThis.chrome;

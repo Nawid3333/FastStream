@@ -59,9 +59,8 @@ describe('DashPlayer, a decode error', () => {
   });
 
   it('leaves out at once a codec whose decoder could not be made, and asks for one reload', () => {
-    // Firefox's message names InitIPDL, the step that creates the decoder: a retry does not
-    // make it. One failure is enough; the second did not always come (2026-10-06: a live
-    // DASH stream sat at "Failed to load video!" with HEVC on a GPU-less Windows Firefox).
+    // Firefox's message names InitIPDL, the decoder's creation, which a retry does not make: one
+    // failure is enough.
     for (const message of [
       'RemoteVideoDecoderChild::InitIPDL: RemoteMediaManager is not available.', // 2026-10-05, AV1
       'NS_ERROR_DOM_MEDIA_FATAL_ERR (0x806e0005) - MediaResult __cdecl mozilla::RemoteVideoDecoderChild::InitIPDL(const VideoInfo &)', // 2026-10-06, HEVC
@@ -85,9 +84,8 @@ describe('DashPlayer, a decode error', () => {
   });
 
   it('ends dash.js\'s resets when the load again had no other codec and its decoder still cannot start', () => {
-    // A bilibili video whose levels all named HEVC: the load again without it had
-    // nothing else to pick, and dash.js reset the video ~130 times a second for ever. The new
-    // player has the failure carried over (restoreVideoDecodeFailures).
+    // A video whose levels all name the failed codec gets the failure carried to the new player
+    // (restoreVideoDecodeFailures), not endless resets.
     const {player, levelManager} = playing(decodeError(INIT_IPDL));
     levelManager.noteVideoDecodeFailure(AV1, true);
     DashPlayer.prototype.onVideoError.call(player);

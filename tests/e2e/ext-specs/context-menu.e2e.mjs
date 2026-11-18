@@ -1,9 +1,5 @@
-// The page's right-click menu (ContextMenu.mjs, his wish of 2026-10-24) in the real Firefox.
-// The unit tests drive the background with a stand-in menus API; this asks Firefox whether
-// the background's items are there. Firefox lists no menu items, but menus.update() on an id
-// fails for an item that does not exist ("Could not find any MenuItem with id"), so an
-// update that succeeds is an item the background made. A make that Firefox refused (a URL
-// pattern, a context or a property it does not take) leaves none.
+// The right-click menu (ContextMenu.mjs) in the real Firefox: menus.update() on an id fails for an
+// item that does not exist, so a successful update is an item the background made.
 
 import {browser, expect} from '@wdio/globals';
 

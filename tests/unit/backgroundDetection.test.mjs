@@ -79,10 +79,8 @@ describe('the streams a player tab lists from other tabs', () => {
   });
 
   it('leave out a local-network address a public page reports, but not one a local page does', async () => {
-    // After the event page started again, the streams come back from the page's own report
-    // (recoverFrameSources), which the page can write: a page on the internet named a router's
-    // address there, and the background's length read and mpv asked it (a review, 2026-11-15;
-    // the owner's pick). A page on the local network itself plays from it.
+    // Streams from a page's own report (recoverFrameSources) are not read when they name a local
+    // address (a public page).
     const local = ['http://192.168.1.1/a.m3u8', 'http://10.0.0.2/b.m3u8', 'http://172.20.0.3/c.m3u8',
       'http://127.0.0.1:8080/d.m3u8', 'http://localhost/e.m3u8', 'http://[::1]/f.m3u8', 'http://nas/g.m3u8',
       'http://media.local/h.m3u8', 'http://169.254.0.9/i.m3u8', 'http://[fd00::5]/j.m3u8'];
@@ -108,8 +106,8 @@ describe('the streams a player tab lists from other tabs', () => {
   });
 
   it('include a stream found after the clear that the page asked for before it', async () => {
-    // The review of the fix: a page's report keeps its request's time, and a
-    // filter by time left out a stream the background first learned of after the clear.
+    // A page's report keeps its request's time; a stream learned of after the clear is not filtered
+    // out.
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}, {id: 2, url: PLAYER}]});
     await openPlayerTab(2);
     const before = Date.now() - 60000;
@@ -122,8 +120,7 @@ describe('the streams a player tab lists from other tabs', () => {
   });
 
   it('leave out what was fetched outside any tab', async () => {
-    // A service worker's requests have no tab (-1). Nothing ever reset what was kept for
-    // them, and every player tab got the growing list, from a private window too.
+    // Service worker requests (tab -1) are kept bounded and not sent to every player tab.
     bg = await loadBackground({tabs: [{id: 2, url: PLAYER}]});
     await openPlayerTab(2);
     await bg.request({tabId: -1, url: 'https://cdn.test/sw/master.m3u8'});
@@ -159,9 +156,7 @@ describe('the streams a player tab lists from other tabs', () => {
   });
 });
 
-// A player that loads again in its frame ("Reload Frame") gets what it was handed,
-// but not after the sources browser's Clear: embed-page-query.e2e.mjs saw the cleared
-// stream sent again on every REQUEST_SOURCES.
+// "Reload Frame" gets what it was handed, but not after the sources browser's Clear.
 describe('what a player was handed', () => {
   /**
    * A page that detected one stream, with a player in frame 5 that was handed it.
@@ -232,11 +227,8 @@ describe('a page that is never left', () => {
   });
 });
 
-// A page whose own player fetches a stream's pieces named .mp4 (seg-14.mp4): each is a source
-// of its own, thousands in an evening. Each was read in the background in a tab that is on
-// (a 64 KB range request, and a header rule added and taken away for it), and each asked the
-// page for its <track> captions, which content.js answers by walking the page and fetching
-// every <track> file again - also in a tab that is off.
+// Stream pieces named .mp4 are not each read for a length nor asked for captions (thousands an
+// evening).
 describe('a page whose own player fetches a stream\'s pieces', () => {
   const MANIFEST = 'https://cdn.test/v/manifest.mpd';
   const piece = (n) => `https://cdn.test/v/seg-${n}.mp4`;
@@ -368,9 +360,7 @@ describe('a page whose own player fetches a stream\'s pieces', () => {
 
 describe('request headers', () => {
   it('keeps those of a request the page sent before it named itself', async () => {
-    // A preload (Link: rel=preload, 103 Early Hints) goes out before the content script
-    // runs, and its response can come after the page's FRAME_ADDED. The headers the CDN
-    // checks (Referer) went with the page's reset, and the player's requests got a 403.
+    // A preload's response after the page's FRAME_ADDED keeps its headers (Referer) for the player.
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
     const manifest = bg.requestSent({tabId: 1, url: 'https://cdn.test/v/master.m3u8'});
     await bg.frameAdded(1, 0, PAGE, 'page-1');
@@ -396,9 +386,8 @@ describe('request headers', () => {
 
 describe('a stream named in a request\'s query', () => {
   it('is no stream from a tracking pixel or a script, and one through a proxy', async () => {
-    // Every kind of request reached the query fallback: an analytics pixel reporting the
-    // media URL it watched (v=https://cdn/.../master.m3u8) was taken for the stream -
-    // opened in the player, and sent to mpv ahead of the real manifest.
+    // Only stream-like requests reach the query fallback: an analytics pixel naming the media URL
+    // is no stream.
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
     await bg.frameAdded(1, 0, PAGE, 'page-1');
     await bg.request({tabId: 1, type: 'image', url: 'https://analytics.test/pixel?c=1&v=https://cdn.test/x/master.m3u8'},
@@ -412,16 +401,14 @@ describe('a stream named in a request\'s query', () => {
   });
 });
 
-// The stream a page asks for through a redirect (upstream #585, asked on #592): the request's
-// response at the end of it, not the redirect's own, which Firefox shows as well. The real
-// page's run is ext-specs/redirected-source.e2e.mjs.
+// Through a redirect the stream is the response at its end, not the redirect's
+// (ext-specs/redirected-source).
 describe('a stream reached through a redirect', () => {
   const LINK = 'https://hoster.test/go/7/clip.mp4';
   const CDN = 'https://cdn.test/v/7?tok=1';
 
   it('is the CDN\'s address, which the link led to, once', async () => {
-    // Taken by the .mp4 in the link, the redirect's response was a stream of its own: the
-    // player played the link, and its requests got to the CDN without the page's Referer.
+    // the redirect's own response is no stream
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
     await bg.frameAdded(1, 0, PAGE, 'page-1');
     const sent = bg.requestSent({tabId: 1, type: 'media', url: LINK});
@@ -432,9 +419,7 @@ describe('a stream reached through a redirect', () => {
   });
 
   it('waits for a CDN slower than the player\'s opening', async () => {
-    // No player on the redirect alone: it opens at the CDN's answer. Before, the player opened
-    // on the link, and the CDN's answer came to a frame with a player, whose streams are not
-    // taken any more.
+    // the player opens at the CDN's answer, not on the redirect
     bg = await loadBackground({options: {autoEnableURLs: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}]});
     await bg.navigated(1, PAGE);
     await bg.frameAdded(1, 0, PAGE, 'page-1');
@@ -512,9 +497,7 @@ describe('a stream reached through a redirect', () => {
 
 describe('a stream fetched with a header of the page\'s own', () => {
   it('has the fetch\'s headers, not its preflight\'s or a HEAD\'s', async () => {
-    // Firefox shows add-ons the CORS preflight (OPTIONS) before the fetch: answered 200, its
-    // headers, without the page's token, were taken for the stream's, and the server refused
-    // the player.
+    // the CORS preflight (OPTIONS) does not give the stream its headers
     const url = 'https://api.test/live/master.m3u8';
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
     await bg.frameAdded(1, 0, PAGE, 'page-1');
@@ -529,9 +512,8 @@ describe('a stream fetched with a header of the page\'s own', () => {
   });
 });
 
-// A copy-protected video (DRM) stays in the page's own player: FastStream's loaded it and
-// showed nothing (Vimeo, 2026-10-28). The background reads the master and its first variant
-// for the length anyway (StreamLengths), and the variant's keys tell.
+// A copy-protected (DRM) video stays in the page's player: the variant's keys tell, from the length
+// read.
 describe('a copy-protected video', () => {
   const FILM = 'https://cdn.test/film/master.m3u8';
   const TRAILER = 'https://cdn.test/trailer/master.m3u8';
@@ -650,9 +632,7 @@ describe('a copy-protected video', () => {
   });
 });
 
-// The text of a page's <track> files is kept with its frame and copied to its players.
-// content.js reads at most 64 MB at a time but asks again for each new stream: a page that
-// named new track files each time had them all kept, without end.
+// a page's <track> texts are kept bounded
 describe('a frame\'s read <track> files', () => {
   /** @param {number} n @param {number} length @return {Object} A read track. */
   const track = (n, length) => ({data: 'x'.repeat(length), source: `https://site.test/${n}.vtt`, label: String(n), language: 'en'});

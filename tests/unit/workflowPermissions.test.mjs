@@ -4,12 +4,8 @@ import path from 'node:path';
 import * as yaml from 'js-yaml';
 import {describe, expect, it} from 'vitest';
 
-// A job that calls a workflow of this repository (uses: ./.github/workflows/x.yml) caps
-// what the called jobs' token may do. GitHub checks every called job against that cap when
-// the run starts, before any if:, and refuses the whole run if one asks for more: no job
-// runs, and no one is told. So runner-images.yml's daily run failed at startup from the
-// day ci.yml's release hand-off asked for issues: write, and actionlint
-// passed it. #64 had met the same with actions: write, before it merged.
+// A job calling a workflow of this repository caps its token; GitHub refuses the whole run at
+// startup if a called job asks for more, before any if:.
 
 const dir = path.resolve(import.meta.dirname, '../../.github/workflows');
 const load = (file) => yaml.load(fs.readFileSync(path.join(dir, file), 'utf8'));

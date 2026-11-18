@@ -2,9 +2,8 @@ import {describe, expect, it} from 'vitest';
 
 import {DroppedFrameWatch, lowerLevel, qualityLabel} from '../../chrome/player/players/DroppedFrameWatch.mjs';
 
-// A version this computer cannot decode in time drops a share of its frames for as long as it
-// plays; the player steps down then, and says so (his wish, 2026-10-24). The watch decides
-// when: a fifth of the frames over 10 s of steady playback, after a version's warm-up.
+// A version that drops a fifth of its frames over 10 s of steady playback (after a warm-up) makes
+// the player step down and say so.
 
 /**
  * Feeds a watch one sample a second from `from` to `to` (ms), at fps frames a second of which

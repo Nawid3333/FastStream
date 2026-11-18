@@ -1,15 +1,8 @@
-// Pointing at the timeline loads that part: the seek preview downloads the segment under the
-// pointer into the store the player plays from, and a click there plays at once (measured on
-// a 12 Mbit/s line: 0.56 s instead of 3.45 s).
+// Pointing at the timeline loads that part into the store the player plays from: a click there
+// plays at once.
 //
-// The preview dropped what it was loading for the old place by aborting its loaders behind
-// hls.js's back, and hls.js resets after an abort only once its first segment has loaded
-// (handleFragLoadAborted needs its transmuxer). Pointing at the timeline before that - the
-// preview loads its first segment as the video starts, on a slow line for seconds - left the
-// preview waiting for that first segment to finish before it followed the pointer: 4.8 s here,
-// more than 10 s on a 12 Mbit/s line shared with the player, and pointing loaded nothing
-// meanwhile. It hits a video that opens where it was left (the saved position): the player
-// starts there, and the preview loads the first segment alone.
+// The preview follows the pointer while its first segment is still on its way (hls.js resets after
+// an abort only once one loaded), as when a video opens where it was left.
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -25,9 +18,8 @@ const SEGMENTS = path.resolve(import.meta.dirname, '../fixtures/hls-ts');
 // Each segment arrives over this long, a slice every 100 ms, as on a slow line: the preview's
 // first one is still on its way when the pointer moves, for seconds.
 const SEGMENT_MS = 8000;
-// The segment under the pointer is asked for within this after the pointer got there (4 ms
-// measured), not once the preview's first segment has arrived (4.8 s before, with 4 s
-// segments; seconds more with these).
+// the segment under the pointer is asked for within this, not once the preview's first segment
+// arrived
 const ASKED_WITHIN_MS = 3000;
 // In the middle of a segment: 200 s is where one ends and the next begins.
 const HOVER_AT = 201;
@@ -133,8 +125,7 @@ describe('The seek preview', function() {
     } finally {
       console.log(`      then: ${JSON.stringify(state)}; asked for: ${JSON.stringify(requests.slice(0, 12).map((request) => request.place))}`);
     }
-    // Downloaded once in all. The client told the preview the level it was on, which made
-    // hls.js drop the segment and the buffer and load the segment again 9 s later.
+    // downloaded once in all: the preview is not told the player's level
     expect(asked().length).toBe(1);
   });
 });

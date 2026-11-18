@@ -2,9 +2,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {BufferKeepMs, BufferStash, bufferKey} from '../../chrome/background/BufferStash.mjs';
 
-// A player that goes away (its page reloads) hands its buffer to the background, for the next
-// player of the same video on the same page; what nobody takes is flushed after 20 s, its
-// files deleted (his wish, 2026-10-28).
+// A player that goes away hands its buffer to the background for the next player of the same video;
+// unclaimed after 20 s it is flushed.
 
 const handOff = (session = 'fsblob-1-1') => ({url: 'https://cdn.test/v/master.m3u8?t=A', session, entries: [{url: 'x'}]});
 const where = {pageUrl: 'https://site.test/watch/1', identifier: 'https://cdn.test/v/master.m3u8', incognito: false, cookieStoreId: null};

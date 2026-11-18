@@ -4,11 +4,8 @@ import path from 'node:path';
 import * as yaml from 'js-yaml';
 import {describe, expect, it} from 'vitest';
 
-// The AMO keys and the owner's UPDATE_PRS_TOKEN are secrets of GitHub Environments whose
-// deployment branch rules allow only main (and v* tags, for releases): a workflow file on any
-// other branch, run with this repository's token (a pull request's), cannot
-// read them. A job reads an environment's secrets only when it names that environment,
-// so each job that reads one must name its environment; this fails for one that does not.
+// The AMO keys and UPDATE_PRS_TOKEN are secrets of Environments allowed only on main and v* tags:
+// each job reading one must name its environment.
 
 const dir = path.resolve(import.meta.dirname, '../../.github/workflows');
 const files = fs.readdirSync(dir).filter((f) => /\.ya?ml$/.test(f));

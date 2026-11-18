@@ -1,12 +1,7 @@
-// content.js keeps the page usable around an in-page player: it hides the page's own
-// video next to the player (or overlays the whole page when the video fills it), keeps
-// the page's media paused while the player is up, and puts everything back when the
-// player goes - REMOVE_PLAYERS, sent on a same-site navigation, or a click on a link to
-// another page of the site. Each case here is a way that used to fail.
-//
-// Every case also checks that content.js threw nothing. An exception in one of its
-// listeners goes to Firefox's console service, where a chrome-context listener reads it;
-// without that check, most of these failures show only as a quiet console error.
+// content.js keeps the page usable around an in-page player (hides its video, keeps its media
+// paused) and puts everything back when the player goes.
+// Every case also checks that content.js threw nothing: its listeners' exceptions show only in
+// Firefox's console service.
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -34,26 +29,24 @@ let siteHandle;
 // an <audio> given only a video track never plays at all.
 const SILENCE = (() => {
   const rate = 8000;
-  const bytes = rate * 2; // 16-bit mono, all zero
+  const bytes = rate * 2;
   const wav = Buffer.alloc(44 + bytes);
   wav.write('RIFFxxxxWAVEfmt ', 0, 'ascii');
   wav.writeUInt32LE(36 + bytes, 4);
   wav.writeUInt32LE(16, 16);
-  wav.writeUInt16LE(1, 20); // PCM
-  wav.writeUInt16LE(1, 22); // mono
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
   wav.writeUInt32LE(rate, 24);
-  wav.writeUInt32LE(rate * 2, 28); // bytes per second
-  wav.writeUInt16LE(2, 32); // bytes per sample
-  wav.writeUInt16LE(16, 34); // bits per sample
+  wav.writeUInt32LE(rate * 2, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
   wav.write('data', 36, 'ascii');
   wav.writeUInt32LE(bytes, 40);
   return wav;
 })();
 
-// The page's own video, hidden next to the player (the soft replace): #wrap is the
-// outermost element with the video's bounds, so it is what content.js hides and watches.
-// While the player is up, the iframe has the id "wrap" (content.js hands it over, so the
-// page's CSS for the element sizes the player), so the page keeps its own reference.
+// #wrap is the outermost element with the video's bounds; while the player is up the iframe has
+// that id.
 const cleanupPage = (t) => `<!doctype html><title>cleanup</title>
 <style>
   body { margin: 0; }
@@ -104,9 +97,9 @@ ${removePlayersScript()}
 ${addVideoScript(t)}`;
 
 /**
- * window.removePlayersAtOnce(): a re-render that takes the player's iframe out the moment
- * it is put in, before its player can load; keepPlayers() ends it.
- * @return {string} The script.
+ * window.removePlayersAtOnce(): a re-render that takes the player's iframe out the moment it is put
+ * in.
+ * @return {string}
  */
 function removePlayersScript() {
   return `<script>
@@ -128,10 +121,10 @@ function removePlayersScript() {
 }
 
 /**
- * window.addVideo(): another video the page adds, as a re-render or the next item of a
- * single-page site does.
- * @param {number} t - The page's time, for a URL of its own.
- * @return {string} The script.
+ * window.addVideo(): another video the page adds, as a re-render or a single-page site's next item
+ * does.
+ * @param {number} t
+ * @return {string}
  */
 function addVideoScript(t) {
   return `<script>
@@ -147,11 +140,8 @@ function addVideoScript(t) {
 </script>`;
 }
 
-// The page's element (.box) in a wrapper with an id of its own. Each adds a strip below
-// the video, so .box has the video's bounds and is what content.js hides, and the
-// wrapper has the player's: the miniplayer lifts the wrapper, and the placeholder it
-// leaves in the page holds the wrapper's id. The spacer lets the page scroll the
-// placeholder out of view, as a miniplayer is used.
+// .box has the video's bounds (content.js hides it), the wrapper the player's: the miniplayer's
+// placeholder holds its id.
 const wrapperPage = (t) => `<!doctype html><title>wrapper</title>
 <style>
   body { margin: 0; }
@@ -222,8 +212,7 @@ const AD_EPISODE_PAGES = {
 </nav>`,
 };
 
-// Next-episode links content.js found only since 2026-10-11 (chrome/episode-links.js), and
-// two it must not take. Each page that a test goes to answers with "another page".
+// Next-episode links content.js finds (chrome/episode-links.js), and two it must not take.
 const DETECTION_PAGES = {
   // An icon link with no words: the address's episode number +1 (and -1), beside an ad's
   // "Next" on another site.
@@ -240,8 +229,7 @@ const DETECTION_PAGES = {
   // A link whose own click goes elsewhere, as an ad's handler does: its address is followed.
   '/ad/episode-1': `<!doctype html><title>episode 1</title>
 <a href="/ad/episode-2" onclick="event.preventDefault(); location.href = '/ad/hijacked'">Next episode</a>`,
-  // The very next episode's address in a link into a new tab: followed, in this tab (it is no
-  // ad's: deepseek's review, 2026-10-11 - missed, autoplay went on to the next season).
+  // The very next episode's address in a link into a new tab: followed, in this tab.
   '/nt/episode-7': `<!doctype html><title>episode 7</title>
 <a href="/nt/episode-8" target="_blank">Next episode</a>`,
   // No episode: a "next episode" into a new tab to anywhere else, and a pagination only.
@@ -250,9 +238,8 @@ const DETECTION_PAGES = {
   '/de/nur-seite': `<!doctype html><meta charset="utf-8"><title>Liste</title><a href="/de/nur-seite-2">Nächste Seite</a>`,
 };
 
-// A page that swaps its video for a copy on every frame, as one that keeps re-rendering
-// its player does. The copy goes in from a message posted as the frame starts: it runs
-// after the browser has measured what is visible, and before it hands that over.
+// A page that swaps its video for a copy on every frame, between the browser measuring what is
+// visible and handing it over.
 const swapPage = (t) => `<!doctype html><title>swap</title>
 <style>
   body { margin: 0; }
@@ -306,9 +293,8 @@ async function watchContentErrors() {
       win.__fsContentErrorListener = {
         observe(message) {
           try {
-            // A promise rejected with an error the browser made (a refused fullscreen
-            // request) comes without a source when nothing handles it. Kept apart: which
-            // script it came from is for the case to judge.
+            // A rejection the browser made (a refused fullscreen request) has no source: kept apart
+            // for the case to judge.
             if (message instanceof Ci.nsIScriptError && !message.sourceName &&
                 !(message.flags & Ci.nsIScriptError.warningFlag)) {
               win.__fsUnsourcedErrors.push(message.errorMessage);
@@ -316,13 +302,8 @@ async function watchContentErrors() {
             if (message instanceof Ci.nsIScriptError &&
                 /^moz-extension:\/\/[^/]+\/content\.js/.test(message.sourceName || '') &&
                 !(message.flags & Ci.nsIScriptError.warningFlag) &&
-                // Firefox's note that a message's answer came after its page had gone: the
-                // unload handler's FRAME_REMOVED, when a case loads the next page. Nothing
-                // content.js threw, and it comes or not with the timing. Its extension
-                // framework writes it four ways (ExtensionCommon's wrapPromise): resolved or
-                // rejected, for a page in the back-forward cache ("while context is
-                // inactive") or one unloaded ("after context unloaded" - the retried
-                // content-cleanup runs of 2026-10-05 and 06, content.js:346).
+                // Firefox's note that a message's answer came after its page had gone
+                // (ExtensionCommon's wrapPromise): not content.js's.
                 !/^Promise (resolved|rejected) (while context is inactive|after context unloaded)/.test(message.errorMessage || '')) {
               win.__fsContentErrors.push(`${message.errorMessage} (content.js:${message.lineNumber})`);
             }
@@ -379,10 +360,9 @@ async function tabMode() {
 
 /**
  * Sends a message to the site tab's top frame, as the background does.
- * @param {Object} message - The message.
- * @param {number} [within] - How long to wait for the answer, in ms; 0 for as long as it
- *   takes.
- * @return {Promise<*>} Its answer, or {error: 'no answer'} after `within`.
+ * @param {Object} message
+ * @param {number} [within] - How long to wait for the answer, in ms; 0 for as long as it takes.
+ * @return {Promise<*>}
  */
 async function sendToPage(message, within = 0) {
   const tabId = await siteTabId();
@@ -398,12 +378,11 @@ async function sendToPage(message, within = 0) {
 }
 
 /**
- * sendToPage for a message the site tab must be in front for: a tab in the background
- * runs none of the page's animation frames, and measures what is visible only once a
- * second. The extension's tab sends it a second after the site tab is shown again.
- * @param {Object} message - The message.
- * @param {number} within - How long to wait for the answer once sent, in ms.
- * @return {Promise<*>} Its answer, or {error: 'no answer'}.
+ * sendToPage for a message the site tab must be in front for: a background tab runs no animation
+ * frames.
+ * @param {Object} message
+ * @param {number} within
+ * @return {Promise<*>}
  */
 async function sendToPageInFront(message, within) {
   const tabId = await siteTabId();
@@ -425,9 +404,9 @@ async function sendToPageInFront(message, within) {
 
 /**
  * Runs a function in the site page.
- * @param {Function} fn - The function.
- * @param {...*} args - Serialisable arguments.
- * @return {Promise<*>} What it returned.
+ * @param {Function} fn
+ * @param {...*} args
+ * @return {Promise<*>}
  */
 async function inPage(fn, ...args) {
   await browser.switchToWindow(siteHandle);
@@ -442,7 +421,7 @@ async function hasPlayer() {
 
 /**
  * Loads a site page, and waits until its video has data: the background has detected it.
- * @param {string} pathname - The page.
+ * @param {string} pathname
  */
 async function openPage(pathname) {
   await browser.switchToWindow(siteHandle);
@@ -467,35 +446,23 @@ async function openPage(pathname) {
 }
 
 /**
- * Waits until the site page's own video has loaded all of its clip and fetches nothing:
- * what a test needs before it leaves a page that Back must give back from the
- * back-forward cache. openPage waits for the first frame only, and the preload="auto"
- * clip went on loading: leaving with it in flight kept the page out of the cache now and
- * then (window.__kept gone after Back: 6 first attempts failed in a week, on Linux and
- * Windows, #346).
+ * Waits until the page's own video has loaded its whole clip: a request still open keeps the page
+ * out of the bfcache.
  */
 async function pageMediaIdle() {
   await browser.waitUntil(async () => inPage(() => {
     const video = document.getElementById('main');
     if (!video || video.readyState !== 4 || video.networkState !== 1) return false;
-    // NETWORK_IDLE is also a download Firefox only suspended, with its request still open,
-    // and a page with a request open stays out of the cache: "Save of .../cleanup blocked
-    // because document has request .../clip.mp4?main=" (PageCache log, CI run 39483183549:
-    // the test left 0.55 s after the page came, Back loaded it again). The whole clip
-    // buffered is the request done.
+    // NETWORK_IDLE is also a suspended download with its request open; the whole clip buffered is
+    // the request done.
     const buffered = video.buffered;
     return buffered.length > 0 && buffered.end(buffered.length - 1) >= video.duration - 0.05;
   }), {timeout: 20000, timeoutMsg: 'the page\'s video never finished loading'});
 }
 
 /**
- * Marks the site page as the one Back must give back from the back-forward cache, and keeps
- * how it left (pagehide's persisted, and when) in the tab's sessionStorage, which a load
- * keeps: a Back that loaded the page again then says whether Firefox had cached it and
- * dropped it later, or never cached it (expectFromCache). The Linux runner did load it
- * again now and then after a Back from another site (CI runs 38502810489, 38572484166,
- * 39095642912; the driver log shows the page's video requested again), with nothing to say
- * why.
+ * Marks the page as the one Back must give back from the bfcache, and keeps pagehide's persisted in
+ * sessionStorage.
  */
 async function keepForBack() {
   await inPage(() => {
@@ -510,7 +477,7 @@ async function keepForBack() {
 /**
  * Checks that Back gave the page back from the back-forward cache (keepForBack): a load
  * fetches the video anew, and proves nothing.
- * @param {string} backAt - When Back was asked for (ISO time), for the driver log.
+ * @param {string} backAt
  */
 async function expectFromCache(backAt) {
   const state = await inPage(() => ({kept: window.__kept === true, left: sessionStorage.getItem('fsLeft')}));
@@ -522,14 +489,7 @@ async function expectFromCache(backAt) {
 }
 
 /**
- * Runs a test's way there and back (round: from opening the page to Back reaching it, giving
- * when Back was asked for) until Back gave the page back from the back-forward cache, three
- * rounds at most. Firefox keeps a page out of the cache now and then for a request that is not
- * the page's: CI run 44121075279 logged "Save of .../cleanup?t=...545 blocked because document
- * has request .../clip.mp4?main=...532", the video request of a load of the same address that
- * Firefox had begun and replaced 13 ms before, still in the tab's load group, with the page's
- * own video fully loaded. What these tests check starts after a Back from the cache.
- *
+ * Runs a test's way there and back until Back gave the page from the bfcache, three rounds at most.
  * A round repeated is written to logs/retried.jsonl as a spec's retry is (retriedSpecs.mjs),
  * under a suite of its own, so the run's summary and the weekly "Flaky e2e specs" issue show it:
  * a change that keeps the page out of the cache now and then (a request of the player's, #346)
@@ -547,8 +507,8 @@ async function untilCached(round) {
 }
 
 /**
- * @param {number} rounds - How many rounds it took.
- * @param {boolean} passed - Whether the last one came from the cache.
+ * @param {number} rounds
+ * @param {boolean} passed
  */
 function noteRepeatedRound(rounds, passed) {
   try {
@@ -564,12 +524,8 @@ function noteRepeatedRound(rounds, passed) {
 }
 
 /**
- * What the player in the session's frame was doing, for a wait on it that timed out: its
- * source and player, and every OPFS worker call that has not answered. The player sets its
- * source only once its storage is ready and cleared (DownloadManager.reset), and twice on
- * the Windows runner the source never came within 15 s (CI runs 38284548789, 38737247044:
- * the player logged "setSource", then nothing), as storage.e2e.mjs's OPFS worker stood
- * still there.
+ * What the player in the session's frame was doing, for a wait on it that timed out: source,
+ * player, open OPFS calls.
  * @return {Promise<Object>}
  */
 async function playerState() {
@@ -584,10 +540,8 @@ async function playerState() {
 }
 
 /**
- * Waits for the soft replace of the /cleanup page's video to turn hard, once the page
- * shrank it (shrinkWhenReplaced). On a slow runner it now and then did not within 10 s
- * (4 first attempts in a week, #346), for a reason the code did not show: the failure
- * now says what the replace left in the page, so the next one explains itself.
+ * Waits for the soft replace of the /cleanup page's video to turn hard; a timeout says what the
+ * replace left.
  */
 async function waitForHardReplace() {
   try {
@@ -635,8 +589,8 @@ async function nudgeWindowSize() {
 
 /**
  * Checks which of the page's media elements are playing after a play() on each.
- * @param {Array<string>} ids - Element ids.
- * @return {Promise<Object<string, boolean>>} id: playing.
+ * @param {Array<string>} ids
+ * @return {Promise<Object<string, boolean>>}
  */
 async function playingAfterPlay(ids) {
   await inPage((ids) => {
@@ -686,9 +640,8 @@ describe('content.js around an in-page player', function() {
       } else if (pathname.startsWith('/shadow')) {
         res.end(shadowPage(t));
       } else {
-        // Any other page of the site (the links' /other). The same page whatever was asked:
-        // the cases read location, and a server that echoes its request is reflected XSS
-        // to CodeQL.
+        // The same page whatever was asked: a server that echoes its request is reflected XSS to
+        // CodeQL.
         res.end('<!doctype html><title>another page</title><p>another page</p>');
       }
     });
@@ -717,11 +670,8 @@ describe('content.js around an in-page player', function() {
       }
     }
     await watchContentErrors();
-    // Firefox's own log of what kept a page in its back-forward cache or out of it, into the
-    // driver log (Firefox's stderr), for the Back cases (keepForBack). Set as preferences it
-    // is on in every process, and on Linux too, where CI sets no MOZ_LOG (mozLog.mjs).
-    // SHIPBFCache at Debug says what it checked, stored and evicted, and the flags that block
-    // a page; Verbose adds every request of every load group, six times the lines.
+    // Firefox's bfcache log (SHIPBFCache at Debug) into the driver log, for the Back cases; set as
+    // prefs it works on Linux too.
     await inChrome((done) => {
       Services.prefs.setBoolPref('logging.config.add_timestamp', true);
       Services.prefs.setIntPref('logging.PageCache', 5);
@@ -750,9 +700,6 @@ describe('content.js around an in-page player', function() {
     if (siteServer) await new Promise((r) => siteServer.close(r));
   });
 
-  // One case since 2026-10-13 with "keeps a video paused that the page adds inside a new
-  // element's shadow root" and "gives the page's video its own styles and id back", which
-  // opened the same player on the same page, and the second left it the same way.
   it('keeps the page\'s media paused while the player is up, and gives the page its video, styles and id back after', async function() {
     await openPage('/cleanup');
     await openPlayer();
@@ -762,12 +709,12 @@ describe('content.js around an in-page player', function() {
       window.addShadowHost();
     });
     await browser.pause(2000);
-    // The re-render one level down used to be missed and played under the player.
+    // a re-render one level down
     expect(await inPage(() => ({
       nested: document.getElementById('nested').paused,
       sfx: document.getElementById('sfx').paused,
     }))).toEqual({nested: true, sfx: true});
-    // The observer looked below each added element, but not into its own shadow root.
+    // into an added element's own shadow root
     expect(await inPage(() => {
       const video = document.getElementById('host').shadowRoot.getElementById('shadowed');
       return {paused: video.paused, played: video.currentTime > 0.5};
@@ -776,23 +723,19 @@ describe('content.js around an in-page player', function() {
     await inPage(() => window.leave());
     await browser.waitUntil(async () => !(await hasPlayer()),
         {timeout: 15000, timeoutMsg: 'leaving the page left the player up'});
-    // The page's transition used to stay replaced by "none !important", and the element
-    // stayed without its id, which the iframe had taken: the page's #wrap rule no longer
-    // sized it.
+    // the page's transition and the element's id come back, so the page's #wrap rule sizes it again
     expect(await inPage(() => ({
       id: window.wrap.id,
       transition: window.wrap.style.transition,
       width: window.wrap.getBoundingClientRect().width,
     }))).toEqual({id: 'wrap', transition: 'opacity 0.25s', width: 640});
-    // The <audio> kept its pause-on-play hook, so the page's sounds never played again.
+    // the <audio> loses its pause-on-play hook
     expect(await playingAfterPlay(['main', 'nested', 'sfx'])).toEqual({main: true, nested: true, sfx: true});
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // "This Frame > Reload Frame" on the player loads its page again in the same frame. The
-  // background had handed the page's video to the first load only, so the reloaded player
-  // sat on its welcome screen; and the page's content script, linking the same iframe
-  // again, no longer knew how to give the page its element back.
+  // "Reload Frame" on the player: the page's video goes to the reloaded player too, and the element
+  // comes back after.
   it('keeps the video, and the page\'s element, over a reload of the player\'s frame', async function() {
     await openPage('/cleanup');
     await openPlayer();
@@ -827,28 +770,18 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // One case since 2026-10-13: "keeps the player in the box the page's #id rule gives its
-  // element", "gives the page its video back when it removed a player that had linked up"
-  // and "cleans up after a page that removed the player itself" each opened the same player
-  // on the same page, and the last two then took its iframe out. Every assertion of the
-  // three is here. The next video's case stays apart: with a second video in the page, the
-  // tab (still on) opens a player again after the navigation, and the page's video is
-  // rightly paused under it (seen on Linux, 2026-10-14).
   it('keeps the player in the box the page\'s #id rule gives its element, and copes with a page that removes it', async function() {
     await openPage('/cleanup');
     await openPlayer();
-    // The soft replace measures the element again on each update: a resize, and 8 times in
-    // its first 2 s. It measured it without the id it had handed to the player, so the
-    // page's #wrap rule no longer sized it, and the player took the page's whole width.
+    // The soft replace measures the element with the id it handed over, so the #wrap rule keeps
+    // sizing it.
     await browser.pause(2500);
     expect(await inPage(() => {
       const r = window.playerIframe().getBoundingClientRect();
       return [r.left, r.top, r.width, r.height].map(Math.round);
     })).toEqual([0, 0, 640, 360]);
 
-    // The page takes the player out itself. Nothing watched the iframe of a player that had
-    // linked up, and the page's element stayed hidden, its video pausing itself on every
-    // play, until a navigation.
+    // The page takes the player out itself: its element and video must come back.
     await inPage(() => window.playerIframe().remove());
     await browser.pause(500);
     expect(await inPage(() => ({
@@ -869,10 +802,7 @@ describe('content.js around an in-page player', function() {
     await openPage('/cleanup');
     await openPlayer();
     await inPage(() => window.playerIframe().remove());
-    // The background keeps a player's frame apart: its streams are the player's own, and
-    // no player opens over it. Only the player's beforeunload told it the player went, and
-    // an iframe taken out of the page runs none: the page's next video was dropped as the
-    // player's, and no player opened for it until the page navigated.
+    // The page's next video is not taken for the gone player's own: a player opens for it.
     await inPage(() => window.addVideo());
     await browser.waitUntil(hasPlayer, {
       timeout: 15000,
@@ -892,9 +822,8 @@ describe('content.js around an in-page player', function() {
     await browser.waitUntil(async () => inPage(() => getComputedStyle(window.col).position === 'fixed'),
         {timeout: 10000, timeoutMsg: 'the miniplayer never opened'});
     await nudgeWindowSize();
-    // Each update measures the element for the placeholder, lending it its id back first
-    // (the case above). But this placeholder holds the wrapper's id: lent that, the element
-    // took the page's #col rule, and the placeholder became 660 wide.
+    // The placeholder holds the wrapper's id: the element is measured without taking the page's
+    // #col rule.
     expect(await inPage(() => {
       const placeholder = document.getElementById('col');
       const r = placeholder.getBoundingClientRect();
@@ -903,12 +832,9 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // One case since 2026-10-13 with "copes with a page that removed a hard-replaced player",
-  // which opened the same hard-replaced player and then took its iframe out.
   it('measures a hard-replaced element without putting it back into the page, and copes with a page that removes it', async function() {
-    // Each update (a resize, the timers after opening) put the page's element back to
-    // measure it: its observers and custom-element callbacks ran each time, and a <video
-    // autoplay> in it loaded again. A stand-in is measured instead.
+    // Measuring must not put the element back into the page (its observers, an autoplay video): a
+    // stand-in is measured.
     await openPage('/cleanup');
     await inPage(() => window.shrinkWhenReplaced());
     await openPlayer();
@@ -935,8 +861,7 @@ describe('content.js around an in-page player', function() {
       id: window.playerIframe().id,
     }))).toEqual({inserted: 0, inPage: false, size: [100, 100], id: 'wrap'});
 
-    // The page takes the hard-replaced player out. Each resize, and the cleanup, used to
-    // throw on the iframe that has no parent.
+    // The page takes the hard-replaced player out: resizes and the cleanup must cope.
     await inPage(() => window.playerIframe().remove());
     await nudgeWindowSize();
     await inPage(() => window.leave());
@@ -944,14 +869,8 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // One case since 2026-10-13 with "opens a player for the next video after the page
-  // removed a player still loading", which put the same player in the same way.
-  //
-  // The player it put in was taken out before it linked up, and nothing let go of what it
-  // took: the page's element stayed hidden (0 by 0), and its video paused itself on every
-  // play, until FastStream was turned off. And taken out before its player loaded, the
-  // iframe ran nothing to tell the background, and the background kept the frame's player
-  // opening: no player opened there again until the page navigated.
+  // A player taken out before it linked up: the element and video come back, and a player opens for
+  // the next video.
   it('gives the page its video back when it removed a player still loading, and opens a player for the next video', async function() {
     await openPage('/cleanup');
     await inPage(() => window.removePlayersAtOnce());
@@ -1008,11 +927,8 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // getVideo() waits for what is visible, measured while the browser draws and handed over
-  // in a task of its own: a page task queued as the frame started runs in between (Firefox
-  // 156, 40 tries of 40). A video swapped out meanwhile is still reported visible. Only its
-  // size, read again after the wait (0 once out of the page), keeps the player from being
-  // put next to an element with no parent - a TypeError, answered 'error'.
+  // A video swapped out after getVideo()'s measuring is still reported visible: its size, read
+  // again, keeps the player out.
   it('opens no player next to a video the page swapped out meanwhile', async function() {
     await browser.switchToWindow(siteHandle);
     await browser.url(`${SITE}/swap?t=${Date.now()}`);
@@ -1026,9 +942,8 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // Anything that threw while the player went in left OPEN_PLAYER without an answer, and
-  // the background kept the frame's player opening: no player opened there again until a
-  // navigation. A URL that is none stands in for whatever may throw.
+  // Anything that throws while the player goes in must still answer OPEN_PLAYER, or no player opens
+  // there again.
   it('answers OPEN_PLAYER when putting the player in fails', async function() {
     await openPage('/cleanup');
     expect(await sendToPage({type: 'OPEN_PLAYER', url: 'not a url', frameId: 0}, 5000)).toBe('error');
@@ -1057,10 +972,8 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // An iframe in a closed shadow root, as an embed's can be (the frame links find it there):
-  // the document's fullscreenElement is the root's host, the root's own is the iframe.
-  // Compared with the document's, the toggle entered fullscreen again instead of leaving it.
-  // Firefox wants a click for fullscreen; this case lets it go without.
+  // An iframe in a closed shadow root: the document's fullscreenElement is the root's host. Firefox
+  // wants no click here.
   it('leaves fullscreen of an iframe in a closed shadow root on the toggle', async function() {
     await openPage('/cleanup');
     await inChrome((done) => {
@@ -1082,10 +995,8 @@ describe('content.js around an in-page player', function() {
       expect(await sendToPage({type: 'FRAME_LINK_RECEIVER', key: 'fs-shadow-link', frameId: 424244})).toBe('ok');
       await inPage(() => window.__shadowed.iframe.contentWindow.postMessage('fs-shadow-link', '*'));
       await browser.pause(300);
-      // Fullscreen is refused to a tab in the background, and Firefox leaves it as soon as
-      // another tab comes to the front, as the extension's does to read an answer
-      // (sendToPageInFront). Both toggles go out from it on timers while the site's tab stays
-      // in front, and the page records what is in fullscreen after each change.
+      // Fullscreen is refused to a background tab: the toggles go out on timers while the site's
+      // tab stays in front.
       await inPage(() => {
         window.__fullscreenSeen = [];
         document.addEventListener('fullscreenchange', () => {
@@ -1110,8 +1021,7 @@ describe('content.js around an in-page player', function() {
       const seen = await browser.execute(() => window.__fullscreenSeen);
       await browser.switchToWindow(extHandle);
       const answers = await browser.execute(() => window.__answers);
-      // Entered on the first, left on the second; compared with the document's
-      // fullscreenElement, the second entered again: ['enter', 'enter'], seen ['host'].
+      // entered on the first, left on the second
       expect({answers, seen}).toEqual({answers: ['enter', 'exit'], seen: ['host', null]});
       expect(await takeContentErrors()).toEqual([]);
     } finally {
@@ -1123,13 +1033,11 @@ describe('content.js around an in-page player', function() {
     }
   });
 
-  // One case since 2026-10-13 with "removes a player that overlays the whole page", which
-  // opened the same overlay and left the page the same way.
   it('removes a player that overlays the whole page, and opens a player for the next video after that navigation', async function() {
     await openPage('/full');
     await openPlayer();
     await inPage(() => window.leave());
-    // The overlay was never tracked: it stayed on top of the restored page.
+    // the overlay must not stay on top of the restored page
     await browser.waitUntil(async () => !(await hasPlayer()),
         {timeout: 15000, timeoutMsg: 'leaving the page left the overlay player up'});
     expect(await playingAfterPlay(['main'])).toEqual({main: true});
@@ -1142,9 +1050,8 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // Back to a page Firefox kept in its back-forward cache: the page comes back as it was,
-  // content script and all, and fetches nothing again. Its leaving had made the background
-  // forget its frame and the video detected on it, so the toolbar's On opened no player.
+  // Back to a page in the bfcache: the toolbar's On must open a player for the video detected
+  // there.
   it('opens the player on a page Back brought out of the back-forward cache', async function() {
     await untilCached(async () => {
       await openPage('/cleanup');
@@ -1174,8 +1081,8 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // The same from another site: the background resets the tab on a new hostname
-  // (tabs.onUpdated), and that can come after the page named itself again.
+  // The same from another site: the background resets the tab on a new hostname, maybe after the
+  // page named itself again.
   it('opens the player on a page Back brought back from another site', async function() {
     await untilCached(async () => {
       await openPage('/cleanup');
@@ -1196,20 +1103,13 @@ describe('content.js around an in-page player', function() {
   });
 
   it('takes down the player a page brings back from the back-forward cache', async function() {
-    // Firefox caches a page with its in-page player up, a MediaSource player and a direct
-    // one alike, and Back gives it back with the player in it (measured 2026-10-04, #286).
-    // The background had reset that page's frames on its FRAME_ADDED, the player's with
-    // them. The URL change's REMOVE_PLAYERS then takes the player down, and the page has
-    // its own video back: no player is left that the background does not know.
+    // Firefox caches a page with its in-page player up; after Back, REMOVE_PLAYERS takes it down
+    // and the page has its video.
     await untilCached(async () => {
       await openPage('/cleanup');
       await openPlayer();
-      // The page leaves for the cache only once nothing in it is loading: openPage waits for
-      // the first frame only, and the clip went on loading; the player's source fetch was on
-      // top of that. With a request still open (in the page or its player frame), Firefox
-      // kept the page out of the cache and Back loaded it again ({kept: false}, 4 attempts
-      // in a week, pageMediaIdle's comment, #346). keepForBack keeps pagehide's persisted,
-      // so a red run says whether the page was never cached or cached and dropped.
+      // A request still open keeps the page out of the cache; keepForBack says whether it was never
+      // cached or dropped.
       await keepForBack();
       await pageMediaIdle();
       await inPage(() => {
@@ -1217,8 +1117,8 @@ describe('content.js around an in-page player', function() {
         window.addEventListener('pageshow', (e) => {
           window.__cachedWithPlayer = e.persisted && !!window.playerIframe();
         });
-        // A script's navigation: WebDriver's click leaves a listener that keeps a page out of
-        // the cache.
+        // A script's navigation: WebDriver's click leaves a listener that keeps a page out of the
+        // cache.
         location.href = '/other?x=' + Date.now();
       });
       await browser.waitUntil(async () => inPage(() => location.pathname === '/other'),
@@ -1269,14 +1169,13 @@ describe('content.js around an in-page player', function() {
     await browser.waitUntil(async () => (await browser.getWindowHandles()).length > before + 1,
         {timeout: 10000, timeoutMsg: 'the Ctrl+click opened no tab'});
     await browser.switchToWindow(siteHandle);
-    // The tab never navigated, and the player used to be torn down anyway.
+    // the tab never navigated: the player stays
     expect(await hasPlayer()).toBe(true);
     expect(await takeContentErrors()).toEqual([]);
   });
 
   it('keeps the player for a link to another page that the page handles itself', async function() {
-    // A "Sign in" that opens a dialog, comments paged in place: the page cancels the click,
-    // and the player was taken down though the page stayed.
+    // A "Sign in" that opens a dialog: the page cancels the click, and the player stays.
     await openPage('/cleanup');
     await openPlayer();
     await inPage(() => {
@@ -1298,7 +1197,7 @@ describe('content.js around an in-page player', function() {
     await browser.switchToWindow(siteHandle);
     await browser.url(`${SITE}/episodes/ep2`);
     await browser.pause(500);
-    // The first list matched, its next entry had no link, and the search gave up there.
+    // the first list's next entry has no link: the search goes on to the next list
     expect(await sendToPage({type: 'PLAYLIST_POLL'})).toEqual({next: true, previous: true, seriesEnd: false});
     expect(await sendToPage({type: 'PLAYLIST_NAVIGATION', direction: 'next'})).toBe('clicked');
     await browser.waitUntil(async () => (await inPage(() => location.pathname)) === '/episodes/ep3',
@@ -1341,7 +1240,7 @@ describe('content.js around an in-page player', function() {
       await browser.switchToWindow(siteHandle);
       await browser.url(`${SITE}${pathname}`);
       await browser.pause(500);
-      // The list's next entry, on another site, was taken all the same.
+      // the list's next entry on another site is not taken
       expect({pathname, poll: await sendToPage({type: 'PLAYLIST_POLL'})})
           .toEqual({pathname, poll: {next: false, previous: true, seriesEnd: false}});
       expect(await sendToPage({type: 'PLAYLIST_NAVIGATION', direction: 'next'})).toBe('no_button');
@@ -1349,8 +1248,7 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // The shortcut sends the video the user started. A 'play' the page made up, during a
-  // click, made its video count as one.
+  // The shortcut sends the video the user started: a 'play' the page made up does not count.
   it('counts no made-up play as the user starting a video', async function() {
     await openPage('/fakeplay');
     await inPage(() => document.getElementById('main').play());

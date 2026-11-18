@@ -1,15 +1,8 @@
-// The mpv side of the e2e specs that drive real mpv: whether the native host is
-// installed, and closing the mpv windows a spec started.
+// The mpv side of the e2e specs that drive real mpv: is the native host installed, and closing the
+// spec's own mpv windows.
 //
-// mpv is started detached, so it outlives the host, and a spec closes it when done -
-// but only its own. The cleanup used to close every mpv.exe that was not running when
-// the spec loaded, which also took one the developer opened meanwhile, or one FastStream
-// opened from their own Firefox. A spec's mpv is known by its stream: older hosts put the
-// stream URL and the page's Referer on mpv's command line, both on the spec's test servers.
-// The thin helper starts mpv with no stream and loads it over mpv's IPC pipe, so
-// its command line names nothing; such an mpv is asked over that pipe what its playlist
-// holds (a read only). (A window that ran before the spec keeps the developer's: a test
-// stream loaded into their own FastStream mpv window is left open, as it was before.)
+// Only the spec's own mpv is closed: one whose command line or IPC playlist names the spec's
+// servers, never the developer's.
 
 import fs from 'node:fs';
 import net from 'node:net';
@@ -39,9 +32,8 @@ export function hostInstalled() {
 }
 
 /**
- * What the native host logged since a moment, when its debug log is on (CI turns it on
- * with FASTSTREAM_MPV_DEBUG): each open request the extension sent, and what the host
- * started for it. install.ps1 puts the log next to the manifest.
+ * What the native host logged since a moment, with its debug log on (FASTSTREAM_MPV_DEBUG; next to
+ * the manifest).
  * @param {number} since - Date.now() of that moment.
  * @return {string[]} The log's lines since then; none without a log.
  */

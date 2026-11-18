@@ -1,11 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-// The options page rebuilds its search (initsearch) whenever it reloads its options: an
-// IntersectionObserver, or a change from another tab. The new instance takes each row's
-// current display as the row's own, and one built while a query hid rows took their
-// hiding for it: no later search showed them again. options-mpv.e2e.mjs failed that way
-// on the Windows CI runner (2026-10-03 and 05): after "fullscreen", "reuse" never showed
-// the single-instance row.
+// A search rebuilt while a query hid rows does not take that hiding as the rows' own
+// (options-mpv.e2e.mjs: "reuse" after "fullscreen").
 
 // Fuse is copied in by the build (tools/sync-vendor.mjs), and CI runs these tests before
 // it: a stand-in that matches by substring, which is all these cases need.

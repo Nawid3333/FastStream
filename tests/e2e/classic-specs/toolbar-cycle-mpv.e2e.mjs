@@ -1,22 +1,8 @@
-// The reordered MPV toolbar cycle (MPV -> Off -> On -> MPV) actually does
-// what each state implies, not just that the badge changes.
+// The toolbar cycle MPV -> Off -> On -> MPV does what each state implies: Off leaves the page
+// alone, On swaps in the overlay from the detected stream, MPV reloads the tab and the fresh stream
+// reaches mpv.
 //
-// toolbar-state.e2e.mjs already covers a chosen state surviving reloads and
-// background suspends. This spec drives the cycle itself and checks the
-// underlying effect at every step:
-//   - MPV -> Off really leaves the page alone (no in-page overlay, and the
-//     click does not itself launch a second mpv window).
-//   - Off -> On really swaps the page's <video> for FastStream's own overlay
-//     iframe, from the stream already detected while the tab sat idle.
-//   - On -> MPV is the transition that never existed before the reorder (the
-//     old cycle went MPV -> On -> Off, never back the other way from a
-//     toolbar click). There is no message that retracts an overlay iframe,
-//     so this reloads the tab to tear it down; the reload's freshly detected
-//     stream then has to reach mpv through the ordinary auto-forward path
-//     with no help from this code path.
-//
-// Drives the real native host and mpv; skips, not fails, when the host is
-// not installed.
+// Drives the real native host and mpv; skips when the host is not installed.
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -218,13 +204,8 @@ describe('The MPV toolbar cycle (MPV -> Off -> On -> MPV)', function() {
         expect(await hasOverlayPlayer()).toBe(false);
         expect(requests.filter(isMpvRequest).length).toBe(mpvRequestsAtOff);
 
-        // 3. Off -> On: the overlay iframe actually replaces the page's
-        //    video, built from the stream already detected while idle - no
-        //    reload. The new player then loads that same stream, and when its
-        //    request comes depends on how fast it starts: on the Windows
-        //    runner it came up to 1.3 s before the iframe was found, and up
-        //    to 0.5 s after. A reload shows up as a new load of the page and
-        //    a new stream URL, since the page cache-busts it on every load.
+        // 3. Off -> On: the overlay replaces the video from the stream detected while idle, no
+        // reload (that would load the page again).
         const pageLoadsAtOn = pageLoads;
         const cdnRequestsAtOn = requests.length;
         const detected = requests.filter((r) => !isMpvRequest(r)).pop().url;
@@ -240,10 +221,8 @@ describe('The MPV toolbar cycle (MPV -> Off -> On -> MPV)', function() {
             .map((r) => `${isMpvRequest(r) ? 'mpv' : 'browser'} ${r.url}`);
         expect(strays).toEqual([]);
 
-        // 4. On -> MPV: the overlay has to come down (there is no message
-        //    that retracts one, so the tab reloads), and the reload's fresh
-        //    stream detection has to reach mpv on its own, through the
-        //    ordinary auto-forward path.
+        // 4. On -> MPV: the tab reloads to take the overlay down, and the fresh detection reaches
+        // mpv on its own.
         await clickToolbar();
         await browser.waitUntil(async () => !(await hasOverlayPlayer()), {
           timeout: 15000,
@@ -255,10 +234,8 @@ describe('The MPV toolbar cycle (MPV -> Off -> On -> MPV)', function() {
               async () => requests.filter(isMpvRequest).length > mpvRequestsAtOff,
               {timeout: 45000, interval: 500});
         } catch (e) {
-          // Built here, not as timeoutMsg, which would be evaluated before the
-          // wait and miss everything the reload requested. Whether the
-          // browser asked for the reloaded page's video at all tells a
-          // detection failure apart from a hand-off failure.
+          // built after the wait, not as timeoutMsg: whether the reload asked for the video tells
+          // detection from hand-off
           throw new Error('mpv never received a fresh request after On -> MPV. CDN saw: ' +
               JSON.stringify(requests.map((r) => (isMpvRequest(r) ? 'mpv ' : 'browser ') + r.url)));
         }

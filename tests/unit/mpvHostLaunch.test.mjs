@@ -6,12 +6,8 @@ import {CommandLineEnv, ReusedWindowWaitSeconds, focusApiLines, focusOutcome, fo
 // What the WMI launch script reports about the mpv it started, and what the host makes
 // of it.
 //
-// An mpv that quits at once (an option it refuses, a broken install) used to be reported
-// as started. The script took it for a failed launch only when its first look found no
-// process ("FOCUS=gone"), but that look comes right after Win32_Process.Create returns,
-// when mpv is still starting: it saw mpv, saw it go, and said "FOCUS=nowindow", which
-// counts as a launch that worked. Now a process that was seen and went before it had a
-// window says "FOCUS=quit", a failure like "gone".
+// A process that was seen and went before it had a window says "FOCUS=quit", a failure like "gone",
+// not a launch that worked.
 
 const QuitError = 'mpv quit right after it started: check the mpv path, and mpv.conf for an option mpv refuses';
 

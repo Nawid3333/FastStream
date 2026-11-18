@@ -1,9 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {Utils} from '../../chrome/player/utils/Utils.mjs';
 
-// Until #378 a bare number in "Maximum size of predownloaded video" was bytes: "10" saved
-// 10 bytes where 10 MB was meant, and nothing could be predownloaded. Such a size, in options
-// saved before (no sizesVersion), is read as megabytes now, wherever the options are read.
+// A bare number in "Maximum size of predownloaded video" saved before sizesVersion is megabytes,
+// not bytes.
 describe('Utils.migrateSizes', () => {
   const migrate = (stored) => Utils.migrateSizes({...stored}, stored).maxVideoSize;
 

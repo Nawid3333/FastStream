@@ -1,8 +1,5 @@
-// Downloaded video stays in RAM up to the RAM budget, and only what does not fit goes to disk
-// (FastStreamClient.enforceMemoryBudget, MemoryBudget) - or, with "Keep video on disk" off,
-// is let go of and downloaded again when needed. Every fragment used to be written to
-// OPFS at once - 44 ms for a 1.5 MB fragment, measured - even for a video that fits in RAM
-// many times over.
+// Downloaded video stays in RAM up to the budget and only the rest goes to disk, or is let go of
+// with "Keep video on disk" off.
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -18,11 +15,8 @@ const SEGMENTS = path.resolve(import.meta.dirname, '../fixtures/hls-ts');
 
 let server;
 
-// A page call that has not come back in this time is a finding of its own. On CI's Windows
-// runner one never came back: the test ran into mocha's 120 s cap with nothing said
-// about where it was, or whether the page or its video had stopped. Every call here has
-// this limit, and each wait stays well inside the cap (a test's this.timeout() does not lift
-// it, testTimeout.mjs), so the step that got stuck says so, with the state it saw last.
+// Every page call has a time limit well inside mocha's 120 s cap, so a stuck step says which one,
+// with its last state.
 const PAGE_ANSWER_MS = 5000;
 const NO_ANSWER = 'no answer from the page';
 
@@ -65,8 +59,7 @@ async function downloadAll(budget, playlist = '/long.m3u8', timeout = 60000, dis
     client.options.ramBudget = bytes;
     client.options.bufferToDisk = disk;
     client.downloadManager.setBufferToDisk(disk);
-    // Every fragment the player lets go of, to be downloaded again when needed (holdings'
-    // letGo). With the disk on, the budget writes what does not fit and lets go of none.
+    // Fragments let go of, to be downloaded again (letGo); with the disk on, none are.
     if (client.letGo === undefined) {
       client.letGo = 0;
       const free = client.freeFragment;
@@ -87,18 +80,14 @@ async function downloadAll(budget, playlist = '/long.m3u8', timeout = 60000, dis
       return left === 0;
     }, {timeout, interval: 500});
   } catch (e) {
-    // -1: the playlist not read yet. What the player held then: a fragment let go of while
-    // it was being written was downloaded again and again (letGo), FastStreamClient.
-    // keepWithinMemoryBudget.
+    // -1: the playlist not read yet.
     throw new Error(`the stream never finished downloading in ${timeout} ms: ${left} fragments to go, ` +
         `holding ${JSON.stringify(await holdings())}`);
   }
 }
 
 /**
- * Plays the stream from its start - on disk, or let go of long ago - and waits for it to run
- * past 2 s. Polled from here, a short call at a time: the loop that waited in the page was
- * the call that never came back.
+ * Plays the stream from its start and waits for it to pass 2 s, polled a short call at a time.
  * @param {string} when - What is played, for the failure message.
  * @return {Promise<Object>} The video's state then: time, failed and more.
  */
@@ -121,7 +110,6 @@ async function playFromStart(when) {
         return {
           time: video.currentTime, seeking: video.seeking, paused: video.paused, readyState: video.readyState,
           buffered, failed: !!client.interfaceController.failed, visibility: document.visibilityState,
-          // The start's fragments: 3 is downloaded, in RAM or on disk.
           start: client.fragments.slice(0, 4).map((fragment) => fragment?.status),
         };
       });
@@ -134,9 +122,7 @@ async function playFromStart(when) {
 }
 
 /**
- * Waits until what the player holds passes a check. The failure says what it held last: the
- * message these waits had was made before their first look, and said "undefined" whatever
- * the player held.
+ * Waits until what the player holds passes a check; the failure says what it held last.
  * @param {function(Object): boolean} check - On holdings().
  * @param {number} timeout - ms.
  * @param {string} failure - What did not happen, for the message.
@@ -163,11 +149,8 @@ async function holdingsUntil(check, timeout, failure) {
  *     in time.
  */
 async function holdings() {
-  // The call walks every OPFS session's files; with the disk writes of this test's budget
-  // in flight it now and then took over the usual 5 s on the Windows runner, every poll of
-  // holdingsUntil said "no answer from the page", and 60 s ran out with nothing said (once
-  // in a week; the retry's writes were done in 15.7 s). Its own window: stuck is stuck at
-  // 20 s, slow-but-alive IO answers.
+  // Walks every OPFS session's files, slow while this test's writes run: a window of its own (stuck
+  // at 20 s).
   return inPage(() => new Promise((done) => {
     (async () => {
       const client = window.fastStream;
@@ -250,9 +233,8 @@ describe('The RAM budget', function() {
   });
 
   it('with "Keep video on disk" off, lets go of what does not fit, writes none of it, and plays it again', async function() {
-    // The option: as in a private window, what does not fit in the budget is let
-    // go of and downloaded again when needed. All of it in first (it fits in 2 GB), then a
-    // budget it does not fit in.
+    // The option off: what does not fit in the budget is let go of and downloaded again when
+    // needed.
     await downloadAll(2e9, '/long.m3u8', 60000, false);
     await inPage(() => {
       window.fastStream.options.ramBudget = 2e6;
@@ -277,17 +259,12 @@ describe('The RAM budget', function() {
     // Down to its share and the next seconds (MemoryBudget.KEEP_AT_LEAST: 10 s, here 2-3 MB).
     const bound = budget + 4e6;
     await downloadAll(budget);
-    // The local server mostly sends the whole stream before the client's next tick (once a
-    // second) keeps the budget; when not, the downloads ahead wait for the writes. A RAM copy
-    // goes only once it is on disk: 13-16 of the ~65 files were there after 4 s on the Windows
-    // runner (PR #366), all of them locally.
+    // A RAM copy goes only once it is on disk, so the downloads ahead may wait for the writes.
     const start = Date.now();
     const state = await holdingsUntil((held) => held.ram < bound, 60000, 'still more in RAM than its share');
     console.log(`      over the budget, after ${Date.now() - start} ms: ${JSON.stringify(state)}`);
     expect(state.files).toBeGreaterThan(0);
-    // Written, none let go of. A fragment still being written when the next tick chose it
-    // again was (FastStreamClient.keepWithinMemoryBudget), and downloaded again: on the
-    // Windows runner the stream then never finished downloading.
+    // written, none let go of: a fragment still being written is not chosen again
     expect(state.letGo).toBe(0);
 
     // The start, long written to disk, plays again.
@@ -298,25 +275,18 @@ describe('The RAM budget', function() {
   });
 
   it('with a budget of 0, downloads ahead to disk and keeps only the next seconds in RAM', async function() {
-    // 0 was nothing ahead: no download ahead at all, the stream never in (the user's
-    // decision, 2026-10-09: 0 RAM is straight to disk). Slow segments, for the budget to be
-    // set long before the stream is in.
+    // 0 RAM is straight to disk, not "nothing ahead"; slow segments, so the budget is set long
+    // before the stream is in.
     await downloadAll(0, '/slow/long.m3u8', 60000);
-    // The next 10 s (MemoryBudget.KEEP_AT_LEAST), here 2-3 MB, beside what is on its way to disk:
-    // a copy goes from RAM once its file is written, and the OPFS worker writes one file at a
-    // time. On the Windows runner 2.4-7.5 MB of writes were still under way after 30 s, three
-    // times in the week to 2026-11-02, the rest the same 1.7 MB each time: the budget
-    // held, the disk was slow. So the budget as the client counts it (keepWithinMemoryBudget:
-    // held - leaving), and the files written within 60 s, as the test above waits for them.
+    // The next 10 s (KEEP_AT_LEAST) stay in RAM beside the writes in flight: the budget as the
+    // client counts it.
     const state = await holdingsUntil((held) => held.ram - held.leaving < 4e6 && held.files > 40, 60000,
         'more in RAM than the next seconds, or the rest not written');
     console.log(`      budget 0: ${JSON.stringify(state)}`);
     // About 60 fragments: all but the next seconds on disk, written by this player (holdings).
     expect(state.files).toBeGreaterThan(40);
     expect(state.full).toBe(false);
-    // With a budget of 0 the next seconds are never let go of, so every tick asked for more
-    // than the rest held, and chose fragments still being written: let go of, downloaded
-    // again, written again. RAM stayed at 7-13 MB for 30 s on the Windows runner.
+    // With a budget of 0 the next seconds are never let go of, nor fragments still being written.
     expect(state.letGo).toBe(0);
   });
 });

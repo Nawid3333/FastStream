@@ -46,13 +46,8 @@ describe('SubtitleTrack.loadText', () => {
     expect(load(text)).toEqual([[0, 100, 'SIGN'], [10, 12, 'l1'], [11, 13, 'l2']]);
   });
 
-  // vtt.js accepts only HH:MM:SS.mmm with exactly three digits and drops a cue it cannot
-  // read without a word, so a loose SubRip file lost cues silently. SubtitleUtils.test.mjs
-  // pins each rule of the conversion; this runs a file with all of them through the
-  // conversion and the parser the player uses, as loadText does. (Until 2026-10-13 this
-  // was specs/subtitle-parsing.e2e.mjs: the conversion and vtt.js are plain JavaScript,
-  // and the parser builds the same cues in Firefox, where subtitle-empty-cue.e2e.mjs and
-  // subtitle-overlap.e2e.mjs load SubRip files through it.)
+  // vtt.js drops a cue it cannot read without a word: a loose SubRip file goes through the
+  // conversion and the player's parser (SubtitleUtils.test.mjs pins each rule).
   it('keeps every cue of a loosely written SubRip file, with its times and text', () => {
     const srt = [
       '1',
@@ -87,10 +82,8 @@ describe('SubtitleTrack.loadText', () => {
   });
 });
 
-// SubtitlesManager.addTrack keeps one of two equal tracks. Upstream's rule: the same cues
-// are the same subtitles unless the name and the language both differ. A 2026-09-11 review
-// took its && for a typo (||), and the same file under another name was listed twice: the
-// page's subtitle file and the user's copy of it, the same OpenSubtitles file saved twice.
+// Upstream's rule: the same cues are the same subtitles unless the name and the language both
+// differ (&&, not ||).
 describe('SubtitleTrack.equals', () => {
   const SRT = '1\n00:00:01,000 --> 00:00:02,000\nHello\n';
 

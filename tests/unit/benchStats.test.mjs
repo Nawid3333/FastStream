@@ -31,9 +31,8 @@ describe('A/B benchmark numbers', () => {
   });
 
   it('calls no difference between runs in the same two modes on both sides', () => {
-    // HLS's first frame on a slow line, 2026-11-13: about 1.47 s or 2.0-2.1 s by the round on
-    // both builds. Three slow rounds of five on A and two on B put the medians 475 ms apart, far
-    // over twice the MAD; the order of the runs says nothing.
+    // Two modes by the round on both builds put medians far apart over twice the MAD: the order of
+    // the runs says nothing.
     const a = [2017, 1461, 2090, 1478, 2066];
     const b = [1997, 1478, 1475, 1542, 2008];
     const result = compare(a, b, {floor: 10});

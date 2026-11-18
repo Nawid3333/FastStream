@@ -4,9 +4,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
 import {downloadStatusText} from '../../chrome/player/ui/DownloadStatusText.mjs';
 
-// The download line shows how many connections download at this moment, as upstream did
-// ("3C ↓1.2MB/s 50%"); it was dropped on 2026-10-09 and asked back for on 2026-10-22, now
-// with the speed in Mbit/s, the unit of the speed setting.
+// The download line shows the connections downloading now ("3C ↓1.2MB/s 50%"), the speed in Mbit/s.
 
 vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
   FSBlob: class {

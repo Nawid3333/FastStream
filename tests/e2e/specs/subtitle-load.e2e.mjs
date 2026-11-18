@@ -115,8 +115,7 @@ describe('Adding a subtitle file', function() {
     expect(texts).toEqual([['Gr' + String.fromCharCode(0xfc, 0xdf) + 'e'], ['Gr' + String.fromCharCode(0xf6, 0xdf) + 'e']]);
   });
 
-  // The same subtitles under another name are one track: listed twice since a 2026-09-11
-  // change to SubtitleTrack.equals (restored 2026-10-15).
+  // the same subtitles under another name are one track (SubtitleTrack.equals)
   it('lists the same file once, from disk and from a URL', async function() {
     await pickFile('real.vtt', VTT);
     await addUrl(VTT);

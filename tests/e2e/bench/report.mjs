@@ -23,10 +23,8 @@ export const MEASURES = {
   afterPreviewWake: {label: 'wake-ups while paused, after a seek preview', unit: '/s', floor: 0.5},
   endedWake: {label: 'wake-ups once the video has ended', unit: '/s', floor: 0.5},
   idleWake: {label: 'wake-ups, idle player (no video)', unit: '/s', floor: 0.5},
-  // A new tab's page start comes in two speeds in the benchmark's Firefox, about 0.25 s and
-  // 0.6 s, for one build as for another: main had the fast one in every round of one run and
-  // the slow one in every round of the next (docs/notes/player.md, 2026-11-14). Its floor
-  // is above their distance: less than that says nothing about a build.
+  // A new tab's page start comes in two speeds (about 0.25 and 0.6 s) whatever the build: the floor
+  // is above their distance.
   tabsModules: {label: 'in front of 3 background players: player modules ready', unit: 'ms', floor: 500},
   tabsFirstFrame: {label: '... first frame, after its first request for the video', unit: 'ms', floor: 10},
   tabsAhead10: {label: '... seconds of video ahead, 10 s in', unit: 's', floor: 1, lowerIsBetter: false},

@@ -1,9 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {loadContentScript} from './contentDom.mjs';
 
-// The next episode's page after an autoplay next (content.js startPagePlayer, background.mjs
-// startPagePlayers), and a fullscreen carried into it (content.js's Escape). Final review,
-// 2026-10-11.
+// The next episode's page after an autoplay next (startPagePlayer), and a fullscreen carried into
+// it (content.js's Escape).
 
 /**
  * A page with a video that waits to be played, in a background tab: its visibility comes

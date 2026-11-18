@@ -1,12 +1,6 @@
 // What must keep working in a Firefox private window.
 //
-// The regression this guards: OPFS is present and unusable in a private
-// window (navigator.storage.getDirectory() throws SecurityError), and FSBlob
-// used to commit to it on the strength of the API existing. Its setup then
-// rejected, and clear()/deleteBlob() handed that rejection to
-// DownloadManager.reset() -> FastStreamClient.setSource(), which caught it
-// and never built the player - no <video>, no playback, in every private
-// window, while the whole ext-specs suite stayed green.
+// OPFS is present and unusable in a private window: FSBlob moves on, and the player is still built.
 //
 // See wdio.pbm.conf.mjs for how the private session and the add-on's
 // private-browsing permission are set up, and why these specs run under
@@ -159,8 +153,7 @@ describe('the extension in a private window', function() {
         } catch (e) {
           out.clear = 'REJECTED: ' + (e && e.message);
         }
-        // The exact call the player makes on every new source, and the one
-        // whose rejection used to abandon player creation.
+        // the exact call the player makes on every new source
         try {
           await window.fastStream.downloadManager.reset();
           out.downloadManagerReset = 'resolved';
@@ -266,10 +259,8 @@ describe('the extension in a private window', function() {
        document.querySelector('#download')).click();
     });
 
-    // Firefox private-window downloads land in the download directory with
-    // no picker of their own, so the prompt has to come from us or the user
-    // never gets to name the file. SaveManager used to skip it in any
-    // incognito context, which is only correct for Chrome.
+    // Private-window downloads get no picker of their own: SaveManager shows its name prompt there
+    // too.
     await browser.waitUntil(
         async () => browser.execute(
             () => !!document.querySelector('.fs-dialog .fs-dialog-input')),

@@ -144,3 +144,35 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
 `yt_runner.js` and `custom/yt_content.js` are gone, along with the
 `userScripts` permission and every `PlayerModes.ACCELERATED_YT` branch. See
 "YouTube removal" below.
+
+## Tests: reasons behind the code
+
+- **wdio.conf.mjs** - The playback suite drives the web build, not the extension build:
+  geckodriver refuses to navigate to `moz-extension://`, Firefox refuses top-level navigation to
+  an extension page from web content, and framing one needs the add-on's internal uuid. The web
+  build ships the same players and libraries through the same `player/index.html#<url>` entry.
+- **content-cleanup.e2e.mjs** (`pageMediaIdle`, `untilCached`) - Firefox keeps a page out of the
+  back-forward cache while any request in its load group is open, even one of a load of the same
+  address it replaced a few ms before. So the Back cases wait for the whole clip to be buffered and
+  repeat a round (at most three, logged to `logs/retried.jsonl`) until Back gave the page from the
+  cache.
+- **mpv-shortcut.e2e.mjs** (`pressShortcut`) - `browser.keys()` synthesizes keys inside the
+  page's content process, where Firefox's window-level shortcuts never see them; a
+  TextInputProcessor on the browser window feeds them in at the widget, as a keyboard does. The
+  helper returns only once the extension's key has fired, as Firefox hands the command to whichever
+  tab is active at that moment.
+- **toolbarDrag.mjs** (`dragTool`) - Firefox's WebDriver starts an HTML5 drag but cannot end one
+  (bug 1515879), so each step of a mouse drag is dispatched in the page, in Firefox's order, to
+  what is under the pointer. The player stops dragover and drop at `.mainplayer`, so sortablejs
+  ends a toolbar drag on dragend.
+- **content-overlays.e2e.mjs** (`playerAtRest`) - content.js re-measures the page's element 8
+  times in the player's first 2 s and after every resize, hiding the iframe meanwhile, so the
+  player briefly lays out at 300x150; a WebDriver click taken in that layout lands on the video
+  instead of the fullscreen button. The helper waits until the iframe's style has been quiet for
+  twice content.js's 250 ms step, with the player at the iframe's size.
+- **keybinds.e2e.mjs** (speed cases) - Firefox plays a video without an audio track at 1x once
+  Web Audio takes its sound, whatever the rate, so the high-speed cases use a fixture with sound;
+  above 8x Firefox plays no sound at all (firefox.e2e.mjs pins that).
+- **mozLog.mjs** - The MOZ_LOG variables go into the wdio worker's own environment, which
+  geckodriver and Firefox inherit; `moz:firefoxOptions.env` took the capability and Firefox wrote
+  no log (geckodriver 0.37.1, Firefox 156).

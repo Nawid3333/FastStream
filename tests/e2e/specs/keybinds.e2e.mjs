@@ -1,38 +1,24 @@
 // Regression coverage for the keybinds in the player.
 //
-// Most presses are synthetic: a KeyboardEvent on document, turned into a key string by
-// WebUtils.getKeyString (the modifiers, then the key named by the character e.key types)
-// and matched exactly against the keybinds, so no window focus is needed. A few go through the
-// WebDriver keyboard instead, which is the path a real press takes. The video stays
-// paused throughout; nothing here depends on playback, only on seeks and on the playback
-// rate read back.
+// Most presses are synthetic KeyboardEvents on document (WebUtils.getKeyString), a few go through
+// WebDriver's keyboard. The video stays paused.
 //
 // Guarded:
 //
-// - A percent seek (Digit5, from the real keyboard) jumps to its share of the duration,
-//   and a percent seek does nothing on a live stream, whose duration is Infinity and which
-//   the currentTime setter would throw on.
-// - The mpv-style speed presets: a preset key sets its speed, pressing the SAME key
-//   again reverts to the rate that was active before it took effect, and that memory
-//   is per key (Q, then Y, then Y lands on 3x, not 1x). The target is clamped to
-//   options.maxPlaybackRate, which is 8.
+// - A percent seek (Digit5, real keyboard) jumps to its share; on a live stream (Infinity) it does
+// nothing.
+// - A speed preset sets its speed; the same key again reverts, per key; clamped to maxPlaybackRate
+// (8).
 //
-// The rules themselves are tests/unit/KeybindUtils.test.mjs's: seekPercentTarget for every
-// percent, applySpeedPreset for every preset, a rate set by hand, a preset put back by hand.
-// Keybinds.test.mjs ("KeybindManager wiring") pins that the player registers one handler
-// per percent and per preset from the same lists. The cases here press keys in the running
-// player, one of each kind; until 2026-10-13 they also pressed all nine digits and every
-// preset, and replayed the two hand-set-rate rules, which the unit tests already pin.
-// - The six moved defaults: plain KeyW is now the 3.5x preset, and Shift+KeyW is
-//   windowed fullscreen and must not touch the rate.
-// - The mpv seeks, on a 160 s video: Z/X 60 s, J/K 10 s, the arrows 5 s; a 60 s hop back
-//   near the start stops at 0; Shift+Backspace undoes a seek and plain Z no longer does.
-// - The mpv frame step on `,`/`.`, on a 24 fps video: it pauses, and the frame the browser
-//   presents next is exactly one frame on or back, which the old fixed 1/30 s step was not.
+// The rules themselves are KeybindUtils.test.mjs's and Keybinds.test.mjs's; here one key of each
+// kind in the running player.
+// - KeyW is the 3.5x preset; Shift+KeyW is windowed fullscreen and leaves the rate.
+// - The mpv seeks on a 160 s video: Z/X 60 s, J/K 10 s, arrows 5 s, stopped at 0; Shift+Backspace
+// undoes a seek.
+// - The frame step on `,`/`.` on a 24 fps video lands exactly one frame on or back.
 // - Every default key reaches exactly one action in the running player.
 // - Typing in a text field is not a command.
-// - Options saved before the layout changed are migrated when the player loads them,
-//   and a saved binding is never left firing two actions.
+// - Old saved options are migrated on load, and no binding fires two actions.
 
 import fs from 'node:fs';
 
@@ -53,12 +39,8 @@ async function openPlayer(fixture) {
       {timeout: 60000, timeoutMsg: 'video never became ready'});
 }
 
-// Dispatches a synthetic keydown on document, where the KeybindManager listens.
-// Dispatching on document itself means only the document listener handles the
-// event, so each press acts exactly once. e.key is what counts for a letter, a digit or
-// US punctuation (WebUtils.getKeyString names the key by the character typed), so it is
-// the US layout's: the digit for DigitN, the letter for KeyN; other keys go by e.code.
-// key: what the layout types, when it is not the US one (a German Z is KeyY, key 'z').
+// A synthetic keydown on document only (each press acts once); e.key is the US layout's unless
+// `key` says otherwise.
 const pressKey = (code, {shift, key: typed} = {}) => browser.execute((code, shift, typed) => {
   let key;
   if (typed) {
@@ -87,9 +69,8 @@ const time = () => browser.execute(() => window.fastStream.currentTime);
 // A press acts synchronously, but a seek lands a moment later.
 const settle = () => browser.pause(300);
 
-// The preset handlers keep per-key revert memory for the session and the client may
-// carry a rate over from an earlier test, so every test starts from a known 1x, at the
-// start, on a paused video.
+// Every test starts from 1x at the start, paused: the preset handlers keep per-key memory for the
+// session.
 async function reset() {
   await browser.execute(() => {
     const video = document.querySelector('video');
@@ -444,9 +425,7 @@ describe('mpv seek keys', function() {
     });
   }
 
-  // The numpad with NumLock off, from the real keyboard (WebDriver's numpad keys): its 4 and 6
-  // are ArrowLeft and ArrowRight with the codes Numpad4 and Numpad6. Named by position, no
-  // arrow binding fired.
+  // numpad 4 and 6 with NumLock off (ArrowLeft/Right with Numpad codes) seek like the arrows
   for (const [label, key, delta] of [['numpad ArrowLeft', '', -5], ['numpad ArrowRight', '', 5]]) {
     it(`the ${label} seeks ${delta > 0 ? '+' : ''}${delta} s as the main arrow does`, async function() {
       await seekTo(80);
@@ -456,9 +435,8 @@ describe('mpv seek keys', function() {
     });
   }
 
-  // A German (QWERTZ) keyboard: the key labelled Z sits where a US one has Y and sends
-  // KeyY, typing 'z'; Y the other way round. The shortcuts follow the letter typed, as
-  // mpv's input.conf does: by position, Y seeked back 60 s and Z set 5x.
+  // A German keyboard's Z sends KeyY typing 'z': the shortcuts follow the letter typed, as mpv's
+  // input.conf.
   it('on a German keyboard Z seeks -60 s and Y sets the 5x preset', async function() {
     await seekTo(80);
     await landsOn(80, 'the start position');
@@ -483,9 +461,7 @@ describe('mpv seek keys', function() {
     await landsOn(0, 'KeyZ');
   });
 
-  // The arrows are relative seeks like Z, and near either end of the video they hand on a
-  // time outside it just the same unless the time is clamped where every seek goes
-  // through: the client's currentTime setter.
+  // Arrow seeks near either end are clamped by the client's currentTime setter.
   for (const [code, from, to] of [['ArrowLeft', 2, 0], ['KeyJ', 4, 0]]) {
     it(`${code} near the start stops at 0 as well`, async function() {
       await seekTo(from);
@@ -499,12 +475,8 @@ describe('mpv seek keys', function() {
     });
   }
 
-  // A jump from the end of the video back to 0, as reset() makes after the test below, was
-  // once seen, about once in fifteen runs on one CPU core, to leave the player at 0 with
-  // nothing loading. mp4-seek.e2e.mjs checks that jump on its own, eight times over
-  // on the same file, with the player's state in the failure; a three-jump copy of it here
-  // went on 2026-10-13. The hop test further down starts from a freshly loaded video, so
-  // that jump cannot touch it.
+  // The jump from the end back to 0 is mp4-seek.e2e.mjs's to check; the hop test starts from a
+  // fresh load.
 
   it('ArrowRight and X near the end stop at the duration', async function() {
     const duration = await browser.execute(() => window.fastStream.duration);
@@ -520,19 +492,8 @@ describe('mpv seek keys', function() {
   });
 
   it('a hop back to 0 keeps the MP4 buffer that already holds the start', async function() {
-    // MP4Player throws away everything it has appended and demuxes again from the seek
-    // target when a seek lands outside its buffer. A hop back from 2 s landed on 0, which is
-    // buffered, but the check was made against the -3 s the arrow asked for.
-    //
-    // MP4Player appends and removes through a queue per SourceBuffer, and video.buffered
-    // only shows what has been applied. Jumping back here from the end of the video, as
-    // reset() does after the test before this one, queues a removal of everything behind
-    // appends still pending from there, so on a slow machine [0, 3] can look buffered, then
-    // empty, then refill from wherever the player was when the removal ran - and a seek in
-    // between rightly resets. That jump is checked on its own in mp4-seek.e2e.mjs ("loads
-    // the start again after jumping back to it from the end, every time"), so this test
-    // starts from a freshly loaded video, and every step waits until nothing is queued, the
-    // element is not seeking, and the start really is buffered.
+    // A hop back from 2 s lands on buffered 0 with no reset; every step waits until no append or
+    // removal is queued.
     const settled = async (what) => {
       let last;
       try {
@@ -562,9 +523,7 @@ describe('mpv seek keys', function() {
       }
     };
 
-    // The tests before this one saved a playback position for this video, and a fresh load
-    // resumes there (storeProgress), so resuming is off for this one load: the video has to
-    // really start at 0.
+    // resuming is off for this load: the video starts at 0
     const saved = await browser.execute(() => localStorage.getItem('options'));
     await browser.execute((saved) => {
       localStorage.setItem('options', JSON.stringify({...(saved ? JSON.parse(saved) : {}), storeProgress: false}));
@@ -582,8 +541,7 @@ describe('mpv seek keys', function() {
     await landsOn(2, 'the start position');
     await settled('at 2 s');
 
-    // Every reset is recorded with where the video was, what was buffered and who asked
-    // for it, so a failure says why.
+    // every reset is recorded with where, what was buffered and who asked
     const player = await browser.execute(() => {
       const player = window.fastStream.player;
       window.__resets = [];
@@ -647,7 +605,7 @@ describe('mpv seek keys', function() {
   });
 
   it('puts the screenshot on Shift+S, the slow-down on S and Save video on Shift+D', async function() {
-    // S and D step the speed as in mpv since 2026-10-10; Save video moved off D.
+    // S and D step the speed as in mpv
     const reached = await browser.execute(() => {
       const manager = window.fastStream.keybindManager;
       return [manager.keyStringToKeybinds('Shift+KeyS'), manager.keyStringToKeybinds('KeyS'), manager.keyStringToKeybinds('KeyX'),
@@ -658,10 +616,8 @@ describe('mpv seek keys', function() {
 });
 
 describe('mpv frame step', function() {
-  // frames-24fps.mp4: 96 frames, each starting at exactly n/24 s, every picture different.
-  // The usual use is play, pause, then step, so the stepper learns the frame length from
-  // the playback before the pause. What is on screen is checked on the picture itself: a
-  // step must change it, and stepping back must bring back the exact earlier picture.
+  // frames-24fps.mp4: 96 different frames at n/24 s; the step learns the frame length from
+  // playback, and the picture is checked.
   const FPS = 24;
   before(async function() {
     await openPlayer('frames-24fps.mp4');
@@ -684,19 +640,16 @@ describe('mpv frame step', function() {
     });
   });
 
-  // Plays the video element and does not wait on the promise: the steps below wait for the
-  // frames themselves. (window.fastStream.play() once waited for its AudioContext, which on
-  // the Linux CI runner, with no sound device, never started, and hung the test.)
+  // plays the element without awaiting play(): with no sound device the AudioContext may never
+  // start
   const startPlayback = () => browser.execute(() => {
     window.fastStream.player.getVideo().play().catch(() => {});
   });
   const frame = () => browser.execute((fps) => Math.floor(window.fastStream.currentTime * fps + 1e-6), FPS);
   const picture = () => browser.execute(() => window.__picture());
   const presented = () => browser.execute(() => window.__presented);
-  // Presses a key and waits for the browser to present the frame it seeks to.
-  // What the stepper and the video say, logged around each step: when a step lands on
-  // the wrong frame on another platform, the log shows whether the frame length, the
-  // grid anchor or the seek itself was off.
+  // Presses a key and waits for the presented frame; the stepper's state is logged around each
+  // step.
   const stepperState = () => browser.execute(() => {
     const stepper = window.fastStream.frameStepper;
     return {
@@ -774,19 +727,15 @@ describe('mpv frame step', function() {
   });
 });
 
-// On a video with sound: sample.mp4 has no audio track, and Firefox plays a video without one
-// at 1x once Web Audio takes its sound, whatever the rate (measured 2026-10-10: a plain
-// element went 1.9x at 2x, 0.95x once captured; with an audio track 15.8x at 16x either way).
-// The player takes every video's sound (the volume above 100 %).
+// On a video with sound: Firefox plays a video without an audio track at 1x once Web Audio takes
+// its sound.
 describe('The 16x key', function() {
   before(() => openPlayer('long-av.mp4'));
   beforeEach(reset);
 
   it('plays 16x with the 16x key, and says there is no sound', async function() {
-    // That Firefox plays no sound above 8x is firefox.e2e.mjs's to pin.
-    // It gave 8x, the same as the 8x key: 8 is where Firefox stops playing sound (measured,
-    // firefox.e2e.mjs). His decision: 16x anyway, silent, as mpv's 16x is.
-    // Everything else stops at the sound: the menu, the speed keys, holding the video.
+    // 16x is silent (Firefox plays no sound above 8x: firefox.e2e.mjs); everything else stops at
+    // the sound.
     expect(await browser.execute(() => window.fastStream.options.maxPlaybackRate)).toBe(8);
     await reset();
     await pressKey('KeyH');
@@ -796,9 +745,7 @@ describe('The 16x key', function() {
       const startedAt = video.currentTime;
       const waitStart = performance.now();
       video.play().catch(() => {});
-      // Measured once it plays: timed from play(), a slow runner's start took most of the
-      // 1.5 s, and the pace read 1.3x on a Linux runner where the run before read 4.5x.
-      // Stuck at 1x it gets there too, half a second later.
+      // measured once it plays: a slow runner's start would eat the window
       const measure = () => {
         const from = video.currentTime;
         const start = performance.now();
@@ -819,9 +766,7 @@ describe('The 16x key', function() {
     console.log(`      16x key: ${JSON.stringify(fast)}`);
     expect(fast.rate).toBe(16);
     expect(fast.osd).toBe(`16× · ${en.player_speed_nosound.message}`);
-    // Well past 1x: a video taken by Web Audio without an audio track stays at 1x whatever
-    // the rate (sample.mp4, above). How fast it really goes is the decoder's: 15.6x here, 4.5x
-    // on a Linux CI runner.
+    // well past 1x: how fast it really goes is the decoder's
     expect(fast.pace).toBeGreaterThan(2);
 
     // The speed-up key leaves it there (min() took it down to 8x).

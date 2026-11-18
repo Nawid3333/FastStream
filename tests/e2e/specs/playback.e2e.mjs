@@ -1,20 +1,8 @@
-// End-to-end playback checks.
-//
-// These replace the manual checklist in tests/manual-playback-urls.txt. That
-// checklist required a person to open three URLs and watch for video after
-// every change to a player, a loader or a vendored media library - which
-// meant it was skipped, and it never ran on CI.
-//
-// The player is driven through `player/index.html#<url>`, which main.mjs
-// treats as a source and loads with the mode implied by the extension. That
-// seam exercises the real players and the real vendored libraries (hls.js,
-// dash.js, mp4box) without depending on the page-interception UI, which is
-// far more brittle to drive and is not what these changes touch.
-//
-// What counts as a pass is deliberately strict: not "a video element exists"
-// but "currentTime advanced past zero while readyState reported decodable
-// data". A player that loads its manifest and then stalls fails here, which
-// is exactly the failure a library swap causes.
+// End-to-end playback checks of the real players and vendored libraries (hls.js, dash.js, mp4box).
+// Driven through `player/index.html#<url>`: main.mjs loads the hash as a source in the mode its
+// extension implies.
+// A pass is currentTime advancing with decodable data: a player that loads its manifest and stalls
+// fails.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -56,12 +44,7 @@ function localHls(fixture, kind) {
   };
 }
 
-/**
- * Streams chosen for stability and for exercising one library each. All local: this suite
- * gates CI and the release, so a third-party host being slow or down must not fail it.
- * Real streams on public hosts are the live suite's (live-specs/streams.e2e.mjs). This
- * list once had test-streams.mux.dev's HLS and dash.akamaized.net's DASH too.
- */
+/** Streams chosen to exercise one library each, all local: this suite gates CI and the release. */
 const STREAMS = [
   localHls('hls-ts', 'MPEG-TS segments'),
   localHls('hls-fmp4', 'fMP4 segments'),
@@ -72,11 +55,8 @@ const STREAMS = [
   localDash('dash-base', 'SegmentBase'),
   {
     name: 'MP4 (mp4box)',
-    // Served by the local test server: same-origin, so no CORS, and no
-    // network dependency once fetched. The URL is built at runtime against
-    // the test server's own origin - available as a global via the config
-    // (window.__E2E_FIXTURES_ORIGIN__, set by wdio.conf.mjs) - because the
-    // port is chosen at run time.
+    // Built at run time against the test server's origin (window.__E2E_FIXTURES_ORIGIN__): its port
+    // varies.
     get url() {
       return globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/sample.mp4';
     },
@@ -85,20 +65,12 @@ const STREAMS = [
 
 /**
  * Opens the web player at a given source.
- *
- * main.mjs treats the page hash as a source URL and picks the player mode
- * from its extension, so this one entry point reaches the HLS, DASH and MP4
- * paths - and therefore hls.js, dash.js and mp4box - without any UI driving.
- *
  * @param {string} [source] media URL to load, passed via the page's hash
  * @return {Promise<void>}
  */
 async function openPlayer(source) {
-  // The cache-busting query is load-bearing, not cosmetic. Navigating from
-  // `index.html#a` to `index.html#b` changes only the fragment, so Firefox
-  // does not reload - main.mjs reads the hash once at startup, and every test
-  // after the first would silently re-measure the first stream and pass.
-  // Making the path differ forces a real document load per case.
+  // The cache-busting query forces a document load: a changed fragment alone would not reload the
+  // page.
   const bust = `?t=${Date.now()}`;
   await browser.url(
       '/player/index.html' + bust + (source ? '#' + source : ''));
@@ -106,13 +78,8 @@ async function openPlayer(source) {
 
 /**
  * Checks FastStream's fragment list for a local DASH stream against its manifest.
- *
- * DashPlayer.mjs builds one fragment per segment from getAllSegments(), which FastStream
- * patches into each of dash.js's segment getters. Playback does not prove that works: a
- * segment missing from the list is still fetched, through DashLoader's fallback, and the
- * stream plays either way. The list itself does - every segment the manifest names, in
- * order, at its address, with no gap in time between one and the next.
- *
+ * Playback proves nothing here: a segment missing from the list is still fetched through
+ * DashLoader's fallback.
  * @param {string} fixture - Directory under fixtures/ holding expected.json.
  * @return {Promise<void>}
  */
@@ -149,10 +116,8 @@ async function expectEverySegmentListed(fixture) {
 }
 
 /**
- * Checks FastStream's fragment list for a local HLS stream against its playlists: every
- * segment each media playlist names, in order, with no gap in time between one and the
- * next. HLSPlayer builds the list from hls.js's level details, per level and audio track.
- *
+ * Checks FastStream's fragment list for a local HLS stream against its playlists: every segment, in
+ * order, no gap.
  * @param {string} fixture - Directory under fixtures/ holding expected.json.
  * @return {Promise<void>}
  */
@@ -192,9 +157,8 @@ async function expectEveryHlsSegmentListed(fixture) {
 
 describe('FastStream playback', function() {
   it('serves the player page', async function() {
-    // Guards the rest of the suite: if the local server or the web build ever
-    // stops producing a loadable page, every playback test would fail with a
-    // confusing "no <video>" rather than "the page did not load".
+    // Guards the rest of the suite: a page that does not load fails here, not as "no <video>"
+    // everywhere.
     await openPlayer();
     expect(await browser.getUrl()).toContain('/player/index.html');
   });
@@ -203,17 +167,13 @@ describe('FastStream playback', function() {
     it(`plays ${stream.name}`, async function() {
       await openPlayer(stream.url);
 
-      // The player mounts its own <video>; wait for one to exist at all
-      // before asking anything about it, or the first poll races the module
-      // graph loading.
+      // wait for the player's <video> first, or the first poll races the module graph loading
       await browser.waitUntil(
           async () => browser.execute(() => !!document.querySelector('video')),
           {timeout: 30000, timeoutMsg: 'no <video> element was created'},
       );
 
-      // readyState >= 2 (HAVE_CURRENT_DATA) means the decoder produced a
-      // frame for the current position - a manifest parsed but undecodable
-      // does not reach this.
+      // readyState >= 2: the decoder produced a frame for the current position
       await browser.waitUntil(
           async () => browser.execute(
               () => document.querySelector('video').readyState >= 2),
@@ -223,13 +183,8 @@ describe('FastStream playback', function() {
       const start = await browser.execute(
           () => document.querySelector('video').currentTime);
 
-      // Advancing currentTime is the part that distinguishes real playback
-      // from a loaded-but-stalled player.
-      //
-      // play() is re-issued on every poll rather than called once: FastStream
-      // drives the element through its own state machine and can pause it
-      // back while it finishes setting up, so a single call made at the wrong
-      // moment is silently undone and the clip never starts.
+      // currentTime advancing tells real playback from a stalled player; play() is sent on every
+      // poll, as the player may pause it while setting up.
       await browser.waitUntil(
           async () => browser.execute((t) => {
             const v = document.querySelector('video');
@@ -262,9 +217,8 @@ describe('FastStream playback', function() {
       }
       if (stream.hlsFixture) {
         await expectEveryHlsSegmentListed(stream.hlsFixture);
-        // hls.js transmuxes in modules/hls.worker.js (workerPath), and when that worker
-        // cannot load or throws, it turns enableWorker off and transmuxes on the main thread
-        // instead: the video still plays. So playing proves nothing about the worker; this does.
+        // hls.js falls back to main-thread transmuxing when its worker fails, and still plays: this
+        // checks the worker ran.
         const transmux = await browser.execute(() => {
           const hls = window.fastStream.player.hls;
           const main = hls.streamController.transmuxer;

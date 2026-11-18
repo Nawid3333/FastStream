@@ -6,13 +6,10 @@ import {RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 const ThinMessages = new Set(['play', 'ipc', 'relay']);
 const UnknownMessage = Object.freeze({ok: false, error: 'unknown message', hostVersion: 14});
 
-// Runs chrome/background/background.mjs in Node against a stand-in for the WebExtension
-// API, for what its listeners do together: a page's request, the page naming itself, a
-// toolbar click, a play. The pure helpers have their own tests; these cover the order of
-// events between them, which no single function shows. Firefox itself is the e2e suites'.
-//
-// Each load is a fresh background (vi.resetModules), with fake timers: a test moves time
-// itself (bg.wait), and nothing left over from a load fires in the next test.
+// Runs background.mjs in Node against a stand-in for the WebExtension API: the order of events
+// between listeners.
+// Each load is a fresh background (vi.resetModules) with fake timers: a test moves time itself
+// (bg.wait).
 
 /**
  * An event a listener can be added to.
@@ -85,10 +82,7 @@ let requestCounter = 0;
  *   A page's answer to a message the background sends it (tabs.sendMessage).
  * @param {function(Object): *} [setup.onNative] - The mpv host's answer; a current host's
  *   {ok: true} by default.
- * @param {boolean} [setup.thinHost] - The mpv host is the thin helper: onNative
- *   answers its play and ipc messages too. Without it the host is one from before,
- *   which answers them "unknown message" (onNative is not asked), and the background goes
- *   on with the messages it knows: the tests written for those keep testing them.
+ * @param {boolean} [setup.thinHost] - The mpv host is the thin helper (else an older one, which answers "unknown message").
  * @param {string} [setup.os] - What runtime.getPlatformInfo says ('win', 'linux', 'mac'):
  *   Windows, whatever the system the tests run on.
  * @param {function(): void} [setup.beforeImport] - Runs once the stand-in is in place,
@@ -112,9 +106,8 @@ export async function loadBackground({
 } = {}) {
   vi.useFakeTimers();
   vi.resetModules();
-  // mpv's fs-id is a SHA-256 (crypto.subtle, MpvTarget.mjs), which Node computes on its
-  // thread pool: under fake timers nothing waits for it, and a send to mpv never went. The
-  // same hash, as the moment's microtask.
+  // fs-id's SHA-256 runs on Node's thread pool, which fake timers never wait for: the same hash as
+  // a microtask.
   const realDigest = Object.hasOwn(globalThis.crypto.subtle, 'digest') ? globalThis.crypto.subtle.digest : null;
   globalThis.crypto.subtle.digest = async (algorithm, data) => {
     const view = ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : new Uint8Array(data);

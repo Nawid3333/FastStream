@@ -3,13 +3,8 @@ import {describe, expect, it, vi} from 'vitest';
 // run below was "user-provided" to CodeQL (js/code-injection).
 import DASH_SOURCE from '../../node_modules/dashjs/dist/modern/esm/dash.all.debug.js?raw';
 
-// dash.js sets a live stream's clock by a time server: the manifest's UTCTiming elements, and
-// after them its own default, https://time.akamai.com/?iso&ms. On a live manifest without a
-// UTCTiming element the player asked Akamai for the time - a server neither the page nor the
-// stream had named, and one the privacy policy says FastStream never contacts (found
-// 2026-11-17, checking docs/privacy-policy.md against the code). DashPlayer removes the default
-// after dash.js put it in: such a stream's clock comes from the Date header of the manifest's
-// own response (dash.js's useManifestDateHeaderTimeSource), or the computer's.
+// dash.js's default time server (time.akamai.com) is removed: a live stream's clock comes from the
+// manifest's Date header or the computer's, as the privacy policy says.
 //
 // This runs the installed dash.js's MediaPlayer, whose timing sources DashPlayer.setSource
 // leaves.

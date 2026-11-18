@@ -6,10 +6,8 @@ import {DownloadEntry} from '../../chrome/player/network/DownloadEntry.mjs';
 import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
 import {PLAYBACK_PRIORITY} from '../../chrome/player/network/StandardDownloader.mjs';
 
-// DashLoader hands dash.js's requests to FastStream's download manager, each URL as dash.js
-// has it: a `%` not followed by two hex digits (`seg_50%.m4s`, `?title=100%`) and a signed
-// link's escaped `%25` are requested as they are. (What a reload of a manifest gets:
-// manifestReload.test.mjs.)
+// DashLoader hands dash.js's requests to the download manager, each URL as dash.js has it (`%` as
+// written).
 
 /**
  * HTTPLoader's own ends of a request, as dash.js puts them in its customData for the loader:
@@ -78,10 +76,7 @@ describe('DashLoader URLs', () => {
 });
 
 describe('DashLoader downloads', () => {
-  // Nothing reads a DASH download's pieces as they come (onChunk): an entry with no
-  // postProcessor keeps a copy of them, for a watcher that might join on the way, until the
-  // download is over - a second copy of every segment while it loads (2026-11-15: the
-  // pre/post-processing hooks went, and with them the postProcessor that had kept it from it).
+  // A DASH download with no postProcessor keeps no second copy of its pieces while it loads.
   it('keeps no pieces of what it loads, and passes the answer on as it came', async () => {
     const details = loadManifest('http://127.0.0.1/a.mpd');
     const entry = new DownloadEntry(details);
@@ -101,10 +96,7 @@ describe('DashLoader downloads', () => {
 });
 
 describe('DashLoader and DashFragment, one segment through both paths', () => {
-  // dash.js can ask for a segment before the store has it: the "Fragment not found"
-  // fallback downloads it, keyed by the URL it decoded, while every later request for it
-  // goes through the store (DashFragment.getContext, the URL as dash.js has it). A manifest
-  // that writes seg%20one.m4s had the same bytes downloaded and stored twice.
+  // The "Fragment not found" fallback stores under the URL as dash.js has it: no second download.
   const SEGMENT_URL = 'http://127.0.0.1/seg%20one.m4s';
 
   /**
@@ -140,7 +132,7 @@ describe('DashLoader and DashFragment, one segment through both paths', () => {
   });
 
   it('takes a range with no end ("first-") to the file\'s end, on both paths', () => {
-    // Its end was NaN: FetchLoader sent no Range, and the file from its first byte came back.
+    // its end is not NaN: a Range is sent
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const getFile = vi.fn(() => ({abort() {}}));
     const player = {
@@ -159,9 +151,7 @@ describe('DashLoader and DashFragment, one segment through both paths', () => {
 });
 
 describe('DashLoader, a segment that keeps failing', () => {
-  // dash.js asks again for a segment reported as aborted, and its errors once the stream is
-  // up leave the player as it is (DashPlayer). A dead segment (an expired token's 403) was
-  // asked for forever, behind a spinner, with no error shown.
+  // A dead segment (an expired token's 403) ends in an error, not endless retries behind a spinner.
 
   /**
    * A player whose store holds every segment, with the download's callbacks recorded.
@@ -232,8 +222,7 @@ describe('DashLoader, a segment that keeps failing', () => {
   });
 
   it('counts the next period\'s segment at the same place on its own', () => {
-    // Indexes start again in each period: period 2's segment 7 failing once was its third
-    // failure, period 1's two counted with it, and the player's error came at once.
+    // failures are counted per period
     const {player, requestFragment} = makeSegmentPlayer();
     let url = 'http://127.0.0.1/seg7.m4s';
     player.client.getFragment = () => ({request: {url}});
@@ -267,11 +256,8 @@ describe('DashLoader, a segment that keeps failing', () => {
 });
 
 describe('DashLoader, how a request ends for dash.js', () => {
-  // dash.js's stock HTTPLoader gives its loader the request's ends: the answer goes into the
-  // CommonMediaResponse, then customData.onloadend (a 2xx with a body is the answer, anything
-  // else an error), an abort is customData.onabort. FastStream's patch used to add its own
-  // three callbacks to HTTPLoader for this, and cut HTTPLoader's ending out; the cut conflicted
-  // with dash.js's updates.
+  // dash.js's stock HTTPLoader gives the loader the request's ends: customData.onloadend and
+  // onabort.
 
   /**
    * A player whose store holds segment 7, and a request for it.
@@ -373,11 +359,7 @@ describe('dash.js\'s HTTPLoader, what DashLoader relies on', () => {
 });
 
 describe('DashLoader, a manifest of several periods', () => {
-  // dash.js numbers a representation's segments from 0 in each period, and a
-  // representation's id need only be unique within its period, so period 2's first segment
-  // has the same store key (video-1, 0) as period 1's. dash.js loads the next period while
-  // the current one plays: its request found period 1's stored segment, and got period 1's
-  // media at every period change.
+  // Segment keys include the period: period 2's first segment is not period 1's from the store.
 
   /**
    * A request dash.js makes for segment 0 of representation 1 of a period.
@@ -428,9 +410,8 @@ describe('DashLoader, a manifest of several periods', () => {
     expect(requestFragment).not.toHaveBeenCalled();
     expect(getFile).toHaveBeenCalledTimes(1);
     expect(getFile.mock.calls[0][0].url).toBe('http://127.0.0.1/p2/v1-0.m4s');
-    // As a segment from the store is asked for: at the default 0, a seek (cancelIfCheap) or a
-    // tab giving the line to another (setYield) cancelled it, and downloads ahead shared the
-    // line with it while the video waited for it (playbackAsked).
+    // A segment from the store is asked for at playback's priority: not cancelled by a seek or a
+    // yield.
     expect(getFile.mock.calls[0][2]).toBe(PLAYBACK_PRIORITY);
   });
 
@@ -454,13 +435,8 @@ describe('DashLoader, a manifest of several periods', () => {
 });
 
 describe('DashLoader, what dash.js calls on it', () => {
-  // dash.js's HTTPLoader calls resetInitialSettings when a decode error resets the
-  // MediaSource. DashLoader had no such method: the reset threw ("xhrLoader.
-  // resetInitialSettings is not a function") and a live DASH stream stopped for good (the
-  // real-streams check on Windows, 2026-10-05). It has every method of dash.js's own
-  // XHRLoader, whose list is read from dash.js, so an update that adds one shows here.
-  // The npm file, not chrome/player/modules/dash.mjs: the build copies that one from it
-  // (tools/sync-vendor.mjs), and CI runs the unit tests before the build.
+  // DashLoader has every method of dash.js's XHRLoader (read from the npm file):
+  // resetInitialSettings and any added later.
   const dash = fs.readFileSync(new URL('../../node_modules/dashjs/dist/modern/esm/dash.all.debug.js', import.meta.url), 'utf8');
   const opening = dash.indexOf('instance = {', dash.indexOf('function XHRLoader() {'));
   const methods = dash.slice(opening + 'instance = {'.length, dash.indexOf('};', opening))

@@ -60,15 +60,13 @@ describe('DownloadManager', () => {
 
     manager.destroy();
 
-    // The wait used to end in queueNext on a manager with no downloaders: a TypeError.
+    // the wait ends without a TypeError on a manager with no downloaders
     expect(() => vi.advanceTimersByTime(2000)).not.toThrow();
   });
 
   it('when the network is back, retries at once and sets the fragments that failed offline waiting again', () => {
-    // Offline, a download's retries ran out (1 + 2 + ... + 32 s) and its fragment stayed failed:
-    // only a failure while online set the failed ones waiting again, and the player downloaded
-    // nothing of them ahead until playback reached each. A retry still waiting out its backoff
-    // went up to 32 s after the network came back.
+    // Failed fragments wait again when the network comes back, and a retry in its backoff goes at
+    // once.
     const window = new EventTarget();
     vi.stubGlobal('addEventListener', window.addEventListener.bind(window));
     vi.stubGlobal('removeEventListener', window.removeEventListener.bind(window));
@@ -97,7 +95,7 @@ describe('DownloadManager', () => {
       expect(client.resetFailed).toHaveBeenCalledTimes(1);
       expect(waiting.retryNow).toHaveBeenCalledTimes(3);
 
-      // Gone with the player: no longer listening.
+      // gone with the player: not listening
       manager.onDownloaderFinished(downloader, /** @type {any} */ ({status: DownloadStatus.DOWNLOAD_FAILED, aborted: false}));
       manager.destroy();
       window.dispatchEvent(new Event('online'));
@@ -109,8 +107,7 @@ describe('DownloadManager', () => {
   });
 
   it('stays destroyed when a reset comes after it', async () => {
-    // A player reset as it went (FastStreamClient.destroy, after a save it waited for): the reset
-    // threw on the downloaders that were gone (Array.from(null)), an unhandled rejection.
+    // a reset as the player goes copes with downloaders already gone
     const manager = new DownloadManager({predownloadFragments: vi.fn()});
     manager.destroy();
     await expect(manager.reset()).resolves.toBeUndefined();
@@ -255,10 +252,8 @@ describe('DownloadManager', () => {
   });
 
   it('yielding cancels the downloads ahead, one nearly done too, not what playback waits for', () => {
-    // Another player the user watches is short of video (PlayerPeers.shouldYield). One at least
-    // half in was to be spared, by stats that were null in the real downloader until the whole
-    // body was in: it never was. Made to hold, the same check made a seek on a
-    // 12 Mbit/s line a second slower, and it went (cancelIfCheap); a nearly done one goes too.
+    // Another player short of video (PlayerPeers.shouldYield) cancels downloads ahead
+    // (cancelIfCheap), nearly done too.
     const client = {predownloadFragments: vi.fn()};
     const manager = new DownloadManager(client);
     const running = (priority, loaded, total, delivering = false) => {
@@ -290,8 +285,8 @@ describe('DownloadManager', () => {
   });
 
   it('a paused player that yields holds even its playback\'s requests until it stops yielding', () => {
-    // Paused MP4 players in background tabs asked for the ranges they buffer ahead
-    // themselves (priority 1000) once their downloads ahead were cancelled.
+    // Paused MP4 players in background tabs do not ask for their own ranges ahead once those were
+    // cancelled.
     const manager = new DownloadManager({predownloadFragments: vi.fn()});
     manager.downloaders = [idleDownloader()];
     manager.setYield(true, true);
@@ -428,8 +423,7 @@ describe('DownloadManager', () => {
   });
 
   it('ignores a watcher that gives up after its download is over', async () => {
-    // It was told "aborted" after "done", and the finished entry was aborted: a stored
-    // fragment marked failed, downloaded again on the next request.
+    // "aborted" after "done" leaves the stored fragment as it is
     const manager = new DownloadManager(null);
     manager.blobStore = {saveBlobAsync: async () => {}, getBlob: () => null, deleteBlob() {}, close() {}};
     manager.downloaders = [idleDownloader()];
@@ -455,19 +449,12 @@ describe('DownloadManager', () => {
     expect(new DownloadManager(null).downloaderLimit()).toBe(6);
   });
 
-  // A seek preview's build still running when a source was set again queued its manifest
-  // during the reset, while there were no downloaders. reset() added them without starting
-  // the queue, the client asked for nothing more while the queue held something
-  // (canGetFile), and the next player's request for the same manifest joined that entry:
-  // a live DASH stream reloaded without a failed codec never loaded (the real-streams
-  // check, 2026-10-06, 1 run in 4).
+  // A request queued during a reset (no downloaders) still starts: reset() starts the queue.
   describe('a request made while a reset has no downloaders', () => {
     const details = {url: 'https://cdn.example/live.mpd', responseType: 'text'};
     const callbacks = () => ({onSuccess() {}, onFail() {}, onAbort() {}});
 
-    // Each test destroys its manager: left running, its download of live.mpd retried after
-    // the test (with the real fetch, which fails) into the next test's stub, a fetch that
-    // test never made. On a slow CI runner it landed in the 429 retry test.
+    // Each test destroys its manager, or its retries land in the next test's stub.
     it('starts once the reset has its downloaders', async () => {
       globalThis.self = globalThis;
       vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
@@ -535,9 +522,7 @@ describe('DownloadManager', () => {
     });
   });
 
-  // The speed test started a video with one downloader and added one per three speed
-  // samples: 3.3 s, a third of a Vimeo video, before it had six. It starts
-  // with three and decides per sample; a server that answers 429 or 503 gets half.
+  // The speed test starts with three downloaders and decides per sample; a 429 or 503 gets half.
   describe('a fast start that backs off when a server asks', () => {
     const client = (maximumDownloaders = 6) => ({
       options: {maximumDownloaders}, resetFailed: vi.fn(), predownloadFragments: vi.fn(),
@@ -579,8 +564,7 @@ describe('DownloadManager', () => {
     });
 
     it('adds a downloader after each speed sample that shows a gain', () => {
-      // Each round (every downloader heard) is a sample; two were averaged until 2026-10-22,
-      // which doubled the time to six downloaders.
+      // each round (every downloader heard) is a sample
       const manager = new DownloadManager(client());
       manager.downloaders = [finished(), finished(), finished()];
       const round = () => manager.downloaders.slice().forEach((d) => manager.onDownloaderFinished(d, {status: DownloadStatus.DOWNLOAD_COMPLETE}));
@@ -594,9 +578,7 @@ describe('DownloadManager', () => {
     });
 
     it('still decides when a sample came with no speed (a cache hit)', () => {
-      // SpeedTracker gives 0 for a response from the cache: its downloader's place was marked
-      // heard without being counted, the round never closed, and no downloader was added again
-      // (after a throttle the probe never ended either; glm's review, 2026-10-13).
+      // A cache answer (speed 0) still closes the round.
       const manager = new DownloadManager(client());
       manager.downloaders = [finished(), finished(), finished()];
       manager.downloaders[0].getSpeed = () => 0;
@@ -609,8 +591,7 @@ describe('DownloadManager', () => {
     });
 
     it('closes a round on the downloaders there, one dropped meanwhile', () => {
-      // Heard by their place in the list: a dropped downloader moved the next one onto a place
-      // already heard, which was then never counted.
+      // heard by downloader, not by place in the list
       const manager = new DownloadManager(client());
       const [a, b, c] = [finished(), finished(), finished()];
       manager.downloaders = [a, b, c];
@@ -623,10 +604,8 @@ describe('DownloadManager', () => {
     });
 
     describe('how many run at once while the player is short of video (urgentParallel)', () => {
-      // PlayheadFirst ran two at most whatever the speed test found. On a server that limits
-      // each connection that was all a player short of video ever ran, and the speed test could
-      // not finish a round with its third downloader idle: a server giving each connection less
-      // than the video's rate kept the player short, on two, for the whole video.
+      // PlayheadFirst runs as many as the speed test found, not two: per-connection limits need
+      // more.
 
       /** The speed test's rounds, the total speed a function of how many downloaders there are. */
       const runTest = (manager, total) => {
@@ -656,9 +635,7 @@ describe('DownloadManager', () => {
       });
 
       it('runs all of them on a server that limits each connection, one failed during the test', () => {
-        // A downloader dropped for a failure left a round with fewer than the last sample's: its
-        // gain was read as one more's share, and with one left that was 0.5 / 0, so "they share
-        // the line" stuck for the rest of the video.
+        // A round with a dropped downloader is not read as one more's share (no 0.5 / 0).
         const manager = new DownloadManager(client());
         manager.downloaders = [finished()];
         manager.downloaders[0].getSpeed = () => 2e5;
@@ -699,11 +676,8 @@ describe('DownloadManager', () => {
       });
 
       it('tells the other players of a server that limits each connection only once the test is done', () => {
-        // One gain early on set perConnection while the test ran, and a flat round after it took
-        // it back: the players in background tabs on other hosts heard "limited" in between and
-        // started downloads ahead on a slow line (tab-turns.e2e.mjs, CI 2026-11-16).
-        // A line that gains once from the fourth, then stays: perConnection while the test runs,
-        // a shared line at its end.
+        // perConnection while the test runs, a shared line at its end: background players keep
+        // waiting their turn.
         const early = fresh();
         let rounds = 0;
         for (; rounds < 40 && early.testing && early.perConnection !== true; rounds++) {
@@ -759,10 +733,8 @@ describe('DownloadManager', () => {
       });
 
       it('stands still while the video waits during it, and measures afresh after (holdTest)', () => {
-        // A seek in the first seconds: playback's request downloads alone, the others idle, and
-        // an idle downloader reads slower for 10 s (SpeedTracker counts from its first sample).
-        // A round taken then read as a line the downloads share: on a server that limits each
-        // connection, two downloads for the rest of the video.
+        // A round taken while playback's request downloads alone (idle ones read slow) is no shared
+        // line.
         const perConnection = (count) => count * 2e5;
         const diluted = (manager) => manager.downloaders.slice().forEach((d) => {
           d.getSpeed = () => 1e5;
@@ -817,18 +789,14 @@ describe('DownloadManager', () => {
         const perConnection = fresh();
         runTest(perConnection, (count) => count * 2e5);
         expect(perConnection.sharesLine()).toBe(false);
-        // After a slow-down nothing is known until a probe measures again. (It retires some
-        // downloaders: here the test's own.)
+        // after a slow-down nothing is known until a probe measures again
         shared.downloaders.forEach((downloader) => {
           downloader.retire ??= vi.fn();
         });
         shared.slowDown(0);
         expect(shared.sharesLine()).toBe(false);
-        // Found midway, while the test still adds downloaders: not yet. That is the start, where
-        // holding back was left out, and the test needs every downloader heard;
-        // held back there, ram-budget.e2e's stream did not come in before its budget held it.
-        // Each one more adds a little (as 'runs two where each one more added a little'), so the
-        // test goes on up to the limit.
+        // Found while the test still adds downloaders: not held back yet; the test goes on to the
+        // limit.
         const midway = fresh();
         for (let round = 0; round < 2; round++) {
           const count = midway.downloaders.length;
@@ -1131,9 +1099,8 @@ describe('DownloadManager', () => {
       expect(manager.probing).toBe(true);
       expect(manager.testing).toBe(true);
 
-      // The speed test then adds a downloader per sample while the total speed rises:
-      // with the same speed per downloader, up to the limit, where the probe has found the
-      // rate the server takes.
+      // The speed test then adds a downloader per sample while the total speed rises, up to the
+      // server's limit.
       for (let i = 0; i < 40 && manager.testing; i++) {
         manager.downloaders.slice().forEach((d) => {
           d.getSpeed = () => 1e6;
@@ -1197,9 +1164,7 @@ describe('DownloadManager', () => {
             status: 429, statusText: 'Too Many Requests', headers: {'Retry-After': '4'},
           }))
           .mockResolvedValueOnce(new Response('small body', {status: 200, headers: {'Content-Type': 'text/plain'}}));
-      // Only this test's own fetches count, with when and from where each came: a download
-      // another test left running retried into this stub on a slow CI runner, a second fetch
-      // after 1 s that looked like this retry not waiting for its Retry-After.
+      // only this test's own fetches count (a retry another test left running could land here)
       const fetches = [];
       vi.stubGlobal('fetch', (...args) => {
         const address = String(args[0]?.url ?? args[0]);
@@ -1300,10 +1265,8 @@ describe('DownloadManager stopping every download (a new source, a failed load)'
   }
 
   it('stops all of them, and counts none as a failed download', async () => {
-    // Stopping one went through onDownloaderFinished as a failure (its entry was not marked
-    // aborted): online, with more than one downloader, it took the downloader out of the list
-    // abortAll was going through, so the next one was skipped and downloaded on for the old
-    // video, and lastFailed held the next video's first downloads back a second.
+    // Stopping one is no failure: the next downloader is not skipped and no lastFailed holds the
+    // next video back.
     vi.stubGlobal('navigator', {onLine: true});
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const manager = new DownloadManager({resetFailed: vi.fn(), predownloadFragments: vi.fn()});
@@ -1351,11 +1314,7 @@ describe('DownloadManager stopping every download (a new source, a failed load)'
 });
 
 describe('DownloadManager cancelling a running download however far in (setYield, cancelIfCheap)', () => {
-  // Both spared a download at least half in, by a check that held nothing until 2026-11-13 (the
-  // downloader's stats were null until the whole body was in). Made to work, it made a seek to
-  // 80 s in an MP4 on a 12 Mbit/s line a second slower (1557 -> 2547 ms, 7 of 7 rounds): the
-  // spared downloads shared the line with the ones the seek waited for. The check went again;
-  // these keep it gone.
+  // No download is spared for being half in: it shares the line with what a seek waits for.
 
   /**
    * A manager whose real downloaders run two downloads ahead, each answered with `sent` of its
@@ -1410,9 +1369,7 @@ describe('DownloadManager cancelling a running download however far in (setYield
   });
 
   describe('a segment playback asked for and gave up (letGo)', () => {
-    // hls.js and dash.js give up their segment at a seek. The download ahead that held it too
-    // kept playback's priority, the seek's cancelling spared it, and it shared the line with
-    // the new place's segment (stall-hls's trace, 2026-11-15: 1.2 s beside a seek's segment).
+    // A download ahead holding a segment the player gave up at a seek is cancelled with the rest.
 
     it('falls back to the priority of the download ahead, and has the client cancel the far ones (its window)', async () => {
       const {manager, details, watchers} = await downloading([100]);
@@ -1472,8 +1429,7 @@ describe('DownloadManager cancelling a running download however far in (setYield
     });
 
     it('waiting in the queue, leaves it when its last request gives it up', () => {
-      // Left there failed, canGetFile said no to every download ahead until a finished
-      // download moved it to the head.
+      // a failed entry left at the head does not block downloads ahead
       const manager = new DownloadManager({});
       manager.downloaders = [];
       const get = (name, priority) => manager.getFile({url: `https://cdn.test/${name}.ts`, responseType: 'arraybuffer'}, {onSuccess: vi.fn()}, priority);

@@ -1,18 +1,8 @@
 // The "Auto-enable URLs" list, as the background reads it.
 //
-// A `-domain` line leaves that site alone (upstream #241, "You can now exclude specific
-// domains by prepending -"): FastStream does not auto-enable there, and with "Use player
-// to load HLS/DASH" on, a manifest link on that site is not redirected into the player.
-// The background had its own parser for this list, and it dropped every `-domain` line,
-// so neither happened. It also kept a lone `~` as the empty regex, which matches every
-// URL: one stray line turned FastStream on on every site. The list now goes through
-// UrlMatchList, which the unit tests cover line by line; this checks the redirect in
-// Firefox, where it is a declarativeNetRequest rule. The other effect, a tab the list does
-// not turn on, is tests/unit/backgroundRobustness.test.mjs's ("the Auto-enable URLs list":
-// a -domain line after a line that lists its site, and a lone ~), through the background's
-// own tabs.onUpdated listener; it was two cases here until 2026-10-13. A tab the list does
-// turn on in Firefox is every spec's that puts its site on the list (source-length,
-// embed-page-query, page-subtitles...).
+// A `-domain` line leaves that site alone: a manifest link there is not redirected into the player
+// (the declarativeNetRequest rule). The list goes through UrlMatchList (unit-tested line by line);
+// backgroundRobustness.test.mjs covers the tabs it turns on.
 
 import http from 'node:http';
 

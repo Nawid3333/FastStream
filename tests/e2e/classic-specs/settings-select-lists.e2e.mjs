@@ -1,15 +1,10 @@
-// An open drop-down in the player's settings window has to be readable in every theme
-// (#458: Default Dark's were white on light grey, 1.6:1).
+// An open drop-down in the player's settings window is readable in every theme.
 //
-// Firefox draws a select's open list itself, in its own chrome: on a light or dark base,
-// chosen from the select's colour over what is behind it in its page, with the select's
-// colour painted on top and its text colour for the options. The settings window is a
-// transparent page over the player, so a select that lets it show through is judged over
-// white. Nothing in the page can see that list; its colours are read here from the chrome
-// context, which only the classic suite reaches.
+// Firefox draws an open select list in its own chrome, judged over what is behind the select (white
+// here): read from the chrome context.
 //
-// On Linux (Firefox 157, WSL Ubuntu 24.04, 2026-10-12) Firefox drew every list in its own
-// colours, the page's not used at all, so it is the Windows run that can catch a regression.
+// On Linux Firefox draws every list in its own colours: the Windows run is the one that catches a
+// regression.
 
 import {browser, expect} from '@wdio/globals';
 
@@ -126,8 +121,7 @@ function listContrast(list) {
 
 describe('The settings window\'s drop-down lists', function() {
   before(async function() {
-    // A dark system and Firefox, as #458's reporter had; Default Dark's list was the same
-    // grey on a light one.
+    // a dark system and Firefox
     await inChrome((done) => {
       Services.prefs.setIntPref('ui.systemUsesDarkTheme', 1);
       Services.prefs.setIntPref('layout.css.prefers-color-scheme.content-override', 0);

@@ -1,10 +1,7 @@
-// Builds MPEG transport streams for the HLS save's tests: a PAT, a PMT and PES packets
-// with the timestamps a test asks for, around access units made from real parameter sets.
-//
-// The parameter sets were taken from 64x64 encodes of ffmpeg's testsrc2 (libopenh264 for
-// H.264, libkvazaar for HEVC). The slices are only their first bytes: hls.js reads a
-// slice's NAL type and first header bits to find frames and keyframes, never the picture,
-// and the tests check the boxes written around the data, not what it decodes to.
+// Builds MPEG transport streams for the HLS save's tests: PAT, PMT and PES packets with the asked
+// timestamps.
+// Parameter sets from real 64x64 encodes; slices only their first bytes, as hls.js reads just NAL
+// type and header.
 
 const PACKET = 188;
 const PAT_PID = 0;

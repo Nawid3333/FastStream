@@ -2,8 +2,8 @@ import {afterEach, describe, expect, it} from 'vitest';
 
 import {loadBackground} from './backgroundHarness.mjs';
 
-// Where autoplay got stuck in the player (his wish, 2026-10-11), noted for the options page
-// (ProblemLog.mjs). mpv's own cases are in backgroundMpv.test.mjs.
+// Where autoplay got stuck in the player, noted for the options page (ProblemLog.mjs); mpv's cases
+// are in backgroundMpv.test.mjs.
 
 const EP1 = 'https://site.test/watch/1?token=abc';
 const EP2 = 'https://site.test/watch/2';
@@ -48,8 +48,7 @@ describe('where autoplay got stuck in the player', () => {
   });
 
   it('notes nothing for a page in a private window, whose sites leave nothing on disk', async () => {
-    // The list is storage.local, kept across sessions and shown on the options page (this
-    // review, 2026-10-13).
+    // the list is storage.local, kept across sessions
     bg = await loadBackground({
       tabs: [{id: 1, url: EP1, incognito: true}],
       onTabMessage: ({message}) => (message.type === 'PLAYLIST_NAVIGATION' ? 'clicked' : undefined),

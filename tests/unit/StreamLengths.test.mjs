@@ -164,8 +164,8 @@ describe('StreamLengths', () => {
   });
 
   it('takes a playlist of the master\'s audio or subtitles for the master, which alone plays it with a picture', async () => {
-    // The page's player asks for the sound's playlist after the variant's, as long as the
-    // video: sent alone, mpv played the sound alone (VOE, 2026-10-23).
+    // The sound's playlist the page asks for after the variant's, as long as the video, is not sent
+    // alone.
     const {fetch} = server({
       'https://cdn.example/a/master.m3u8': {
         redirect: 'https://edge.example/a/master.m3u8?sig=1',
@@ -205,8 +205,8 @@ describe('StreamLengths', () => {
   });
 
   describe('copy protection', () => {
-    // Vimeo's, measured 2026-10-28 (vimeo.com/863362136): a master with no key, and variants
-    // whose segments are SAMPLE-AES-CTR under a Widevine and a PlayReady key.
+    // Vimeo's: a master with no key, variants whose segments are SAMPLE-AES-CTR under Widevine and
+    // PlayReady keys.
     const WIDEVINE = '#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI="data:text/plain;base64,AAAANHBzc2g=",KEYID=0x46d7,' +
       'KEYFORMATVERSIONS="1",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"';
     const PLAYREADY = '#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,URI="data:text/plain;charset=UTF-16;base64,BgIAAA==",' +
@@ -662,9 +662,8 @@ describe('StreamLengths', () => {
 
 describe('StreamLengths.queue', () => {
   it('never runs more than four reads, wherever a new one comes in as one finishes', async () => {
-    // A woken waiter raced a newcomer for the freed slot, and both ran: five at once (final
-    // review, 2026-10-10). The newcomer comes in after 0 to 12 microtask hops, which puts it
-    // in every gap between the read finishing and the waiter going on.
+    // A woken waiter and a newcomer racing for the freed slot do not both run (0-12 microtask hops
+    // cover every gap).
     for (let hops = 0; hops <= 12; hops++) {
       const lengths = new StreamLengths({fetch: async () => new Response('')});
       let running = 0;

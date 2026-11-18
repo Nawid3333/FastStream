@@ -166,10 +166,8 @@ describe('playableUrl', () => {
   });
 });
 
-// What tells one video from another by its address (VideoSource.identifier: the remembered time,
-// the buffer handed over, link renewals). A signed link's query changes for the same video; a
-// fragment never reaches the server, but a page's service worker may read the video's id there
-// (abyss.to's player: one address for all its videos, #665).
+// VideoSource.identifier: a signed link's query changes for the same video; the fragment may hold
+// its id (one address for all of a site's videos).
 describe('URLUtils.mediaIdentifier', () => {
   it('drops the query, which a renewed link changes', () => {
     expect(URLUtils.mediaIdentifier('https://cdn.example/v.mp4?token=a&expires=1')).toBe('https://cdn.example/v.mp4');

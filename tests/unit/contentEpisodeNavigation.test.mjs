@@ -119,8 +119,7 @@ describe('the next episode\'s link', () => {
   });
 });
 
-// His report (2026-10-11, an anime site): after a season's last episode, autoplay went on to
-// another series. The next episode stays in the series: its next season's first, or none.
+// After a season's last episode the next stays in the series: its next season's first, or none.
 describe('the next episode, within the series', () => {
   const SERIES = 'https://site.example/anime/stream/example-series';
 
@@ -357,10 +356,8 @@ describe('the next episode, within the series', () => {
   });
 });
 
-// MPV autoplay with the episode's tab closed (his wish, 2026-10-27): the background reads the
-// page's episode links when its stream goes to mpv (EPISODE_LINKS), and opens one in a new tab
-// later. The address is the one handlePlaylistNavigation would follow; a link kept as a click
-// gives none.
+// MPV autoplay with the tab closed: the episode links read at the hand-off (EPISODE_LINKS) give the
+// address handlePlaylistNavigation would follow.
 describe('the episode links read for a tab closed later', () => {
   const links = (p) => p.send({type: 'EPISODE_LINKS'});
 

@@ -2,14 +2,8 @@ import {afterEach, describe, expect, it} from 'vitest';
 
 import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
-// A tab whose page FastStream had taken over is loaded again, and the page's own player
-// stayed, whatever the user did there (the owner's report, 2026-11-14). The tab is still on,
-// so the player is opened about half a second after the page's first stream request - while
-// the page's player is still starting, its video not on screen yet - and content.js answers
-// 'no_video'. Nothing tried again: every later request was for a stream already known, and a
-// play the user starts was heard only in MPV mode. Now a missed open is tried again
-// (background.mjs noteOpenMissed, reopenMissed). And two ways a page's player stayed after
-// the background had been started anew (an idle event page is unloaded after 30 s).
+// A reloaded page whose player was still starting answers 'no_video': a missed open is tried again
+// (noteOpenMissed, reopenMissed), also after a background restart.
 
 const PAGE = 'https://series-site.example/watch/1';
 const EMBED = 'https://hoster.example/e/abc';

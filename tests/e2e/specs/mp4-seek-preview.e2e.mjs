@@ -2,11 +2,8 @@
 // before the last one in the same part of the file, and after quick moves, while the video is
 // paused and while it plays.
 //
-// Its player is a second MP4Player, always paused. Its loop runs at the paused pace (250 ms)
-// and a seek wakes it (wakeLoop, 2026-11-13); a seek it did not make itself is checked as well
-// (onElementSeeking). The A/B benchmark (tools/bench-ab.mjs) once timed out waiting for the
-// preview at 120 s on that build, in one run of 21: this spec hovers many places in turn and
-// fails, with the preview's state, on any that does not show.
+// Its player is a second MP4Player, always paused: a seek wakes its loop (wakeLoop), and seeks it
+// did not make count too (onElementSeeking).
 
 import path from 'node:path';
 import {browser, expect} from '@wdio/globals';
@@ -16,7 +13,7 @@ import {ensureMp4Shape, fixturesDir} from '../mp4Shapes.mjs';
 // 160 s, 17 MB: 18 of MP4Player's 1 MB ranges. wdio.conf.mjs writes it.
 const LONG_FIXTURE = path.join(fixturesDir, 'long-av.mp4');
 
-// Ten seconds per place: a local file shows one in well under a second (about 30 ms measured).
+// ten seconds per place: a local file shows one in well under a second
 const SHOWN_WITHIN_MS = 10000;
 // long-av.mp4 is 160 s.
 const PLACES = [120, 30, 90, 10, 150, 60, 140, 5, 100, 45, 125, 70];
@@ -93,9 +90,8 @@ describe('The seek preview of an MP4', function() {
     expect(times.length).toBe(PLACES.length + 5);
   });
 
-  // A fragmented file without its duration in the metadata (no mehd box): the preview knows only
-  // what it has read, up to its first frame (about 9 s), and the element landed every place past
-  // that on 9 s - each hover past it showed the frame at 9 s (MP4Player's previewSeek).
+  // A fragmented file without mehd: places past what the preview has read show their own frame, not
+  // the one at 9 s.
   it('shows a place far into a fragmented MP4 without its duration in the metadata', async function() {
     // As mp4-files.e2e.mjs writes it.
     ensureMp4Shape('long-fragmented.mp4', ['-i', LONG_FIXTURE, '-c', 'copy', '-movflags', 'frag_keyframe+empty_moov']);

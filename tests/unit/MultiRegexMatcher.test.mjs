@@ -96,12 +96,8 @@ describe('match', () => {
   });
 
   it('still resolves the right output when a pattern has its own capturing group', () => {
-    // Regression test: match() used to map the first non-empty capture group
-    // back to an output by POSITION. A capturing group inside a caller's own
-    // pattern (e.g. a custom source pattern with (\d+) in it) shifted every
-    // later output's index, silently returning the wrong output - or
-    // undefined - for real, user-authored regexes. Named groups fixed this;
-    // patterns are no longer required to avoid capturing groups.
+    // Outputs are found by named group: a capturing group inside a caller's pattern does not shift
+    // later outputs.
     const m = build([
       ['\\/video\\/(\\d+)\\.mp4', '', 'mp4'],
       ['\\.m3u8', '', 'hls'],

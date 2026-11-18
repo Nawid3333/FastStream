@@ -109,8 +109,7 @@ describe('decodeSubtitleBytes at the places subtitle files come in', () => {
   });
 
   it('gets the bytes of a URL typed in from requestSimple, which read responseText', async () => {
-    // responseText throws for an 'arraybuffer' request, as XMLHttpRequest's did; request()
-    // uses fetch() since 2026-10-06.
+    // responseText throws for an 'arraybuffer' request, as XMLHttpRequest's did
     const fetchBefore = globalThis.fetch;
     globalThis.fetch = async () => new Response(windows1252(SRT), {status: 200});
     try {

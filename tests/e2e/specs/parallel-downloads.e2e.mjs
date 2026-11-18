@@ -1,13 +1,8 @@
 // A server that limits each connection's speed, as many video hosts do: more connections side
 // by side are faster, each at its own rate.
 //
-// A player short of video (under 10 s ahead) ran two downloads at most (PlayheadFirst), whatever
-// the speed test had found, and the speed test could not finish a round with its third
-// downloader idle. On a server giving each connection less than the video's rate the player
-// never got 10 s ahead: two connections for the whole video, stalling, where six would have
-// played it (measured 2026-10-22: 200 kB/s per connection for a 400 kB/s stream, 60 s at two).
-// While its speed test runs, a player short of video now runs every downloader, and afterwards
-// as many as the test saw add speed (DownloadManager.urgentParallel).
+// A player short of video runs every downloader while its speed test runs, then as many as add
+// speed (DownloadManager.urgentParallel).
 //
 // The download line shows those connections: "3C ↓2.4 Mbit/s 1.5%", as upstream did.
 

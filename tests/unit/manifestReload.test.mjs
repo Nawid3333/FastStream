@@ -1,11 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-// A live stream's playlist (HLS) or manifest (DASH) is loaded again and again, each time
-// with what is new. The download manager answers a URL it has already downloaded from its
-// store, so every reload got the first answer back, and a live stream stopped where its
-// first window ended (tests/e2e/specs/hls-live.e2e.mjs shows it in the browser for HLS).
-// These run the real loaders, download manager, downloader and fetch() loader, with only
-// fetch() and the blob storage stood in for (a unit test has no FileReader or OPFS).
+// A live stream's playlist or manifest reloads get the new answer, not the stored first one; real
+// loaders, stand-in fetch() and storage.
 
 vi.mock('../../chrome/player/utils/BlobManager.mjs', () => ({
   BlobManager: {
@@ -160,9 +156,8 @@ describe('reloading a live stream\'s playlist or manifest', () => {
   });
 });
 
-// A stored copy that can no longer be read (an OPFS file gone, a Cache API entry gone):
-// the read's rejection reached no callback, and the library waited for an answer for ever.
-// Now it is a failure the library retries, and the next request downloads it again.
+// A stored copy that can no longer be read is a failure the library retries; the next request
+// downloads it.
 describe('a stored copy that can no longer be read', () => {
   /**
    * Makes the stored copy of a URL unreadable, as a file deleted under its File.
@@ -198,9 +193,7 @@ describe('a stored copy that can no longer be read', () => {
   });
 });
 
-// A segment dash.js asks for that the fragment store does not have goes to the server
-// directly (DashLoader's fallback). Its failures were not counted: dash.js's own errors once
-// the stream is up leave it playing, and a dead segment spun forever behind a spinner.
+// Failures of DashLoader's direct fallback count too: a dead segment ends in an error.
 describe('a DASH segment the fragment store does not have', () => {
   it('fails in the player after three tries, as a stored one does', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', {status: 404})));
@@ -230,12 +223,8 @@ describe('a DASH segment the fragment store does not have', () => {
   });
 });
 
-// But the copy a player downloaded stays in the store. "Dump buffer" writes the store into
-// an .fsa archive, and a player opened from that archive finds its manifest there - with
-// the manifest dropped after every load, an archive could not be opened without the
-// network. The seek preview shares the main player's download manager, and finds the copy
-// there too instead of downloading it a second time. Only the same player loading it again
-// is a reload (tests/e2e/specs/archive-roundtrip.e2e.mjs shows the archive in the browser).
+// The copy stays in the store for "Dump buffer" archives and the seek preview; only the same player
+// loading it again is a reload.
 describe('a playlist or manifest a player has loaded', () => {
   it('stays in the store, and another player gets it from there: HLS', async () => {
     const main = makePlayer();

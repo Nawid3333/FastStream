@@ -1,18 +1,7 @@
-// End-to-end proof that MPV mode reaches mpv with usable headers.
+// End-to-end: MPV mode reaches mpv with the headers the CDN checks (allowlisted page -> webRequest
+// -> MpvBackend -> native host -> mpv -> HTTP).
 //
-// Every other check on this feature is a unit test or a hand-run of the
-// native host. Neither covers the part that was actually broken: the
-// background's webRequest path, where the Referer/Origin the CDN checks were
-// being dropped before they were ever read. This drives the whole chain --
-//
-//   allowlisted page -> webRequest detection -> MpvBackend
-//     -> com.faststream.mpv native host -> mpv -> HTTP request
-//
-// -- and inspects what mpv actually put on the wire.
-//
-// Requires the native host to be installed (native-host/install.ps1) and mpv
-// on the machine. Both are skipped, not failed, when missing: this suite also
-// runs on machines that have neither.
+// Needs the native host (native-host/install.ps1) and mpv; skipped, not failed, without them.
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -30,10 +19,8 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../../..');
 const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
 
-// Two origins on purpose. A real stream sits on a CDN separate from the page,
-// and that is what puts an Origin header on the request -- a same-origin
-// <video src> has none, so a single-origin test could never prove Origin is
-// relayed.
+// Two origins: a CDN apart from the page puts an Origin on the request, which a same-origin <video
+// src> never has.
 const SITE_PORT = 41993;
 const CDN_PORT = 41994;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
@@ -116,10 +103,8 @@ describe('MPV mode, end to end', function() {
           req.url.includes('3') ? 'clip3.mp4' :
           req.url.includes('2') ? 'clip2.mp4' : 'clip.mp4';
         res.writeHead(200, {'Content-Type': 'text/html'});
-        // crossorigin makes the media load a CORS request, which is what adds
-        // the Origin header. The source is attached after a beat so the
-        // background has certainly processed tabs.onUpdated and put the tab
-        // in MPV mode first; that race is not what this test measures.
+        // crossorigin makes it a CORS request (Origin); the source comes after a beat so the tab is
+        // in MPV mode first.
         res.end(`<!doctype html><title>mpv test</title>
           <video id="v" muted autoplay loop preload="auto"
                  crossorigin="anonymous"></video>
@@ -185,9 +170,7 @@ describe('MPV mode, end to end', function() {
         await browser.url(OPENER_URL);
         await browser.execute((u) => window.open(u, '_blank'),
             ORIGIN + '/player/index.html');
-        // Find the extension window by its URL rather than by assuming it is
-        // the newest handle. Handle order is not guaranteed, and landing on
-        // the opener page instead gives a bare "chrome is not defined".
+        // the extension window by its URL: handle order is not guaranteed
         await browser.waitUntil(async () => {
           for (const handle of await browser.getWindowHandles()) {
             await browser.switchToWindow(handle);
@@ -216,9 +199,8 @@ describe('MPV mode, end to end', function() {
         // Give the background a moment to apply the reloaded options.
         await browser.pause(1000);
 
-        // 2. Drop the extension page and drive the remaining window. Leaving
-        //    two windows open makes the media fetch depend on which one has
-        //    focus, which is not what this test is measuring.
+        // 2. Drop the extension page and drive the remaining window: focus must not decide the
+        // media fetch.
         const remaining = await browser.getWindowHandles();
         if (remaining.length > 1) {
           await browser.closeWindow();
@@ -250,13 +232,8 @@ describe('MPV mode, end to end', function() {
         const h = fromMpv[0].headers;
         expect(fromMpv[0].origin).toBe('cdn');
         expect(fromMpv[0].url).toContain('/clip.mp4');
-        // The three headers the fix is about. Before it, all three were
-        // absent: the background read them after its first await, by which
-        // point deleteHeaderCache had already dropped them.
-        // Origin-only, not `${SITE}/watch`: Firefox's default referrer policy
-        // is strict-origin-when-cross-origin, so the page path is stripped on
-        // a cross-origin media request. That is the value a CDN checks, and
-        // the value mpv must be given.
+        // The three headers the CDN checks; Referer is origin-only (strict-origin-when-cross-origin
+        // on a cross-origin request).
         expect(h.referer).toBe(`${SITE}/`);
         expect(h.origin).toBe(SITE);
         // The whole point of relaying User-Agent: without it this is "libmpv".
@@ -266,9 +243,7 @@ describe('MPV mode, end to end', function() {
         expect(fromMpv.filter((r) => r.url.startsWith('/clip.mp4')).length)
             .toBe(1);
 
-        // 6. Handing off to mpv pauses the page, so the site is not still
-        //    streaming behind the external player. The clip loops, so it
-        //    cannot have stopped by reaching its end.
+        // 6. The hand-off pauses the page; the clip loops, so it cannot have stopped at its end.
         await browser.waitUntil(async () => {
           return await browser.execute(() => {
             const v = document.getElementById('v');
@@ -285,10 +260,8 @@ describe('MPV mode, end to end', function() {
         });
         expect(ended).toBe(false);
 
-        // 7. A second video on the same site must reach mpv too. The
-        //    auto-open latch is there to stop one page opening a window per
-        //    detected source; it must not outlive the page, or every episode
-        //    after the first is silently dropped.
+        // 7. A second video on the same site reaches mpv too: the auto-open latch does not outlive
+        // the page.
         await browser.url(`${SITE}/watch2`);
 
         await browser.waitUntil(async () => {
@@ -306,11 +279,7 @@ describe('MPV mode, end to end', function() {
         console.log(`      second video reached mpv (${second.length} request)`);
         expect(second[0].headers.referer).toBe(`${SITE}/`);
 
-        // 8. Crossing to a different allowlisted host keeps working. The
-        //    hostname change runs tab.reset(); this is what would catch a
-        //    regression there clearing the tab out of MPV mode. (It does not
-        //    exercise re-arming -- the tab is already in MPV mode here. The
-        //    case that does is the second spec below.)
+        // 8. Crossing to another allowlisted host keeps the tab in MPV mode through tab.reset().
         await browser.url(`${SITE_B}/watch3`);
 
         await browser.waitUntil(async () => {
@@ -332,10 +301,7 @@ describe('MPV mode, end to end', function() {
         expect(third[0].headers.referer).toBe(`${SITE_B}/`);
       });
 
-  // A tab that FastStream already took over on an ordinary auto-enabled site
-  // still has to switch to mpv when it reaches an allowlisted one. The
-  // auto-start used to require !regexMatched, which the auto-enable list had
-  // already set, so MPV mode never engaged and the stream stayed in the page.
+  // A tab FastStream took over on an auto-enabled site switches to mpv on an allowlisted one.
   (HAVE_HOST ? it : it.skip)(
       'switches to mpv when an auto-enabled tab reaches an allowlisted site',
       async function() {
@@ -407,10 +373,8 @@ describe('MPV mode, end to end', function() {
         await browser.switchToWindow((await browser.getWindowHandles())[0]);
       });
 
-  // MPV mode sent a page's stream alone, while the in-page player showed that page's
-  // subtitles. They go with the stream now: the background reads them as the player does
-  // (the file with the page's Referer and Origin, the <track> as content.js reads it) and the
-  // host writes them as SubRip for mpv to load with it.
+  // The page's subtitles go with the stream: read as the player reads them, written as SubRip for
+  // mpv.
   (HAVE_HOST ? it : it.skip)(
       'sends the page\'s subtitles with its stream: a file its player asked for, and its <track>',
       async function() {

@@ -16,8 +16,7 @@ afterEach(() => {
 
 describe('the options', () => {
   it('are read again after a load that failed', async () => {
-    // The failed first load was kept: until the event page unloaded, every event acted on
-    // no options at all - MPV mode and both URL lists off.
+    // A failed first options load is retried, not kept until the event page unloads.
     vi.spyOn(console, 'error').mockImplementation(() => {});
     let failures = 1;
     bg = await loadBackground({
@@ -104,9 +103,7 @@ describe('a download from a container tab', () => {
   });
 
   it('creates the hidden tab in the playing tab\'s window', async () => {
-    // It went to the last focused window: after a switch to a normal window during the
-    // save, Firefox refused a private tab's cookie store there, and the save was answered
-    // null.
+    // the save's cookie store is the private tab's, not the last focused window's
     const privateTab = {id: 1, url: PAGE, windowId: 7, cookieStoreId: 'firefox-private'};
     bg = await loadBackground({tabs: [privateTab]});
     for (const listener of bg.chrome.runtime.onMessage.listeners) {
@@ -171,9 +168,7 @@ describe('a new link for a stream the server refused', () => {
 
 describe('a change of a tab other than its address', () => {
   it('does not set the toolbar button again for a title, a favicon or a sound', async () => {
-    // Firefox fires tabs.onUpdated for each of them, in every tab (a player's title counts its
-    // time up): each set the button's title, icon and badge again and kept the event page
-    // awake. Firefox's filter lets only address and load changes through.
+    // tabs.onUpdated only for address and load changes (Firefox's filter), not every title change.
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}, {id: 2, url: 'https://other.test/'}]});
     await bg.navigated(1, PAGE);
     expect(bg.titles.has(1)).toBe(true);
@@ -195,9 +190,8 @@ describe('a change of a tab other than its address', () => {
 
 describe('the toolbar\'s On with players for several frames', () => {
   it('opens the one over the largest video first, also when a frame gives no size', async () => {
-    // A frame without a content script answers nothing: its size was undefined, the sort
-    // compared NaN, and the order came out arbitrary. The first player opened is the one
-    // that plays without a click (isMainPlayer).
+    // A frame without a content script sorts last; the first player opened plays without a click
+    // (isMainPlayer).
     const sizes = {1: 100, 2: undefined, 3: 300};
     bg = await loadBackground({
       tabs: [{id: 1, url: PAGE}],
@@ -231,9 +225,7 @@ describe('the toolbar\'s On with players for several frames', () => {
   });
 
   it('opens none in a frame the tab dropped while its video was measured', async () => {
-    // The page answers its video's size when its scripts let it; the tab went on to another
-    // site meanwhile, and the frame's id was sent a player for the page there (glm's review,
-    // 2026-10-13). onSourceRecieved's own wait checked this already.
+    // A tab gone on to another site while the page answered gets no player by frame id.
     bg = await loadBackground({
       tabs: [{id: 1, url: PAGE}],
       onTabMessage: ({message}) => message.type === 'GET_VIDEO_SIZE' ?
@@ -249,9 +241,7 @@ describe('the toolbar\'s On with players for several frames', () => {
   });
 
   it('opens none from a detected stream whose frame the tab dropped while its length was read', async () => {
-    // The open a stream schedules (Options.replaceDelay) waits up to 2.5 s for the playlist's
-    // length; the tab went on to another site meanwhile, and OPEN_PLAYER went by frame id to
-    // the page there.
+    // The same for an open scheduled by replaceDelay that waits for the playlist's length.
     bg = await loadBackground({
       options: {autoEnableURLs: ['https://site.test/', 'https://other.test/']},
       tabs: [{id: 1, url: PAGE}],
@@ -266,9 +256,7 @@ describe('the toolbar\'s On with players for several frames', () => {
   });
 
   it('opens none in a frame that loaded another page while its video was measured', async () => {
-    // The frame stays the tab's (a new page in it is reset in place), so isTracked() let the
-    // player go to the new page, whose streams were not the ones measured (review of the
-    // fixes, 2026-10-13).
+    // the frame stays the tab's, but the new page in it is not the one measured
     bg = await loadBackground({
       tabs: [{id: 1, url: PAGE}],
       onTabMessage: ({message}) => message.type === 'GET_VIDEO_SIZE' ?
@@ -287,7 +275,7 @@ describe('the toolbar\'s On with players for several frames', () => {
 
 describe('the "use the player for stream links" redirect', () => {
   it('takes a link up to its query or fragment, and no other character', async () => {
-    // The rule's `[\?|#]` held a literal `|`: a.mp4|anything was redirected too.
+    // the rule's character class holds no literal `|`
     bg = await loadBackground({options: {playMP4URLs: true, playStreamURLs: true}});
     const rules = bg.dynamicRules.flatMap((update) => update.addRules || []);
     const filter = (id) => new RegExp(rules.find((rule) => rule.id === id).condition.regexFilter);
@@ -300,8 +288,8 @@ describe('the "use the player for stream links" redirect', () => {
   });
 
   it('does not take the extension from the query string', async () => {
-    // `.+` ran past the `?`: a search for index.mp4 (the address bar's search puts q= last)
-    // and an embed page naming its stream in the query were redirected to the player.
+    // `.+` does not run past the `?`: a search or an embed page naming a stream in its query is not
+    // redirected
     bg = await loadBackground({options: {playMP4URLs: true, playStreamURLs: true}});
     const rules = bg.dynamicRules.flatMap((update) => update.addRules || []);
     const filter = (id) => new RegExp(rules.find((rule) => rule.id === id).condition.regexFilter);
@@ -311,9 +299,8 @@ describe('the "use the player for stream links" redirect', () => {
   });
 
   it('keeps no rule for an option turned off while its rule was being added', async () => {
-    // The rule waits for its address key (a storage read): a second options load, the option
-    // off, removed the rule during that wait, and the first one's add came after it, the
-    // option off and its links still redirected.
+    // An options load that turns the option off during the rule's address-key read wins over the
+    // first load's add.
     bg = await loadBackground({options: {playMP4URLs: false}});
     bg.options = {playMP4URLs: true};
     const on = bg.message({type: 'LOAD_OPTIONS', time: 1}, {tabId: 99});
@@ -340,9 +327,8 @@ describe('the "use the player for stream links" redirect', () => {
   });
 
   it('is changed only when what it is made of changes', async () => {
-    // Every options save loads the options here again, and each load made both rules again:
-    // two declarativeNetRequest updates, the rules unchanged. A slider dragged for two seconds
-    // on the options page saves some 120 times.
+    // An unchanged options load makes no declarativeNetRequest updates (a dragged slider saves ~120
+    // times).
     const both = {playMP4URLs: true, playStreamURLs: true, autoEnableURLs: ['https://site.test/']};
     bg = await loadBackground({options: both});
     const load = async (options) => {
@@ -367,12 +353,8 @@ describe('the "use the player for stream links" redirect', () => {
   });
 });
 
-// The Auto-enable URLs list as the background turns a tab on by it (tabs.onUpdated). The
-// background had its own parser for the list, which dropped every `-domain` line and kept a
-// lone `~` as a regex matching every URL. UrlMatchList.test.mjs pins the
-// list line by line; these two were classic-specs/auto-enable-list.e2e.mjs's until
-// 2026-10-13, which still checks the -domain line against Firefox's own redirect rule. A
-// tab turned on by a list in Firefox is every spec's that puts its site on the list.
+// The Auto-enable URLs list as the background reads it (UrlMatchList): -domain lines kept, a lone
+// `~` no regex.
 describe('the Auto-enable URLs list', () => {
   it('does not auto-enable on a -domain site that an earlier line lists', async () => {
     bg = await loadBackground({options: {autoEnableURLs: ['https://site.test/']}, tabs: [{id: 1, url: 'about:blank'}]});
@@ -401,9 +383,8 @@ describe('the Auto-enable URLs list', () => {
 });
 
 describe('messages only FastStream\'s own pages send', () => {
-  // A send to mpv (with no MPV allowlist: it is the user's button), a header rule and a
-  // download each did what the message named for any sender, a content script in any page
-  // included. Only the player sends them.
+  // A send to mpv, a header rule and a download are taken only from the player, not a content
+  // script.
   const PLAYER_PAGE = 'moz-extension://bg-test/player/index.html';
   const messages = [
     {type: 'MPV_OPEN', url: 'https://cdn.test/a.m3u8', headers: []},
@@ -438,9 +419,7 @@ describe('messages only FastStream\'s own pages send', () => {
 
 describe('the permissions tab the player\'s VPN button opens', () => {
   it('is not closed as a popup by the same click', async () => {
-    // The button's click was the first into the player's iframe: content.js armed the popup
-    // guard for the page's tab, and the permissions tab, opened with that tab as its opener,
-    // was closed as a popup - the button seemed to do nothing.
+    // The permissions tab the button opens is not closed as the page's pop-up.
     bg = await loadBackground({options: {blockPopupsWhilePlaying: true}, tabs: [{id: 1, url: PAGE}]});
     await bg.navigated(1, PAGE);
     await bg.message({type: 'POPUP_GUARD_ARM'}, {tabId: 1, frameId: 0, url: PAGE});
@@ -468,9 +447,7 @@ describe('the permissions tab the player\'s VPN button opens', () => {
 });
 
 describe('a web page a player in a page opens', () => {
-  // EnvUtils.openExternalURL: the OpenSubtitles page of a subtitle, the error dialog's report.
-  // A player framed in a page has no chrome.tabs (measured, PageFetchRelay.mjs), and both did
-  // nothing there; the background opens them for it.
+  // A framed player has no chrome.tabs: the background opens external URLs for it.
   const PLAYER_FRAME = 'moz-extension://bg-test/player/index.html#https://site.test/video.mp4';
   const from = (url = PLAYER_FRAME) => ({tab: {id: 1, index: 0, url: PAGE}, frameId: 3, url});
 
@@ -513,10 +490,7 @@ describe('a web page a player in a page opens', () => {
 
 describe('the toolbar button of a tab that closed', () => {
   it('leaves no rejected call unhandled', async () => {
-    // Firefox rejects a toolbar call for a tab that is gone ("Invalid tab ID"): the "Off"
-    // badge's second, a start that waited for its page. Each was an unhandled error in the
-    // background's console. Each call's answer here records whether
-    // anything took its rejection.
+    // A toolbar call for a tab that is gone ("Invalid tab ID") is handled, not an unhandled error.
     const answers = [];
     const gone = () => {
       const answer = {handled: false};

@@ -1,11 +1,8 @@
 import fs from 'node:fs';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-// The A-B loop's check (LoopMenu.checkLoopLoop) asked for the next animation frame whenever
-// the loop was on, a paused video too: 60 to 144 calls a second for nothing, as the progress
-// loop did until 2026-10-06 (docs/notes/player.md). It rests while the video is paused now:
-// playing starts it again (InterfaceController.play), and a seek while paused is kept within
-// the loop by the video's timeupdate.
+// LoopMenu.checkLoopLoop rests while the video is paused (no animation frame for nothing); play
+// starts it, timeupdate keeps a paused seek in the loop.
 //
 // LoopMenu imports gif.mjs, which the build generates (tools/sync-vendor.mjs): a stand-in here,
 // as are the player's elements and its strings.

@@ -8,12 +8,8 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {Capabilities, HostVersion, withHostVersion} from '../../native-host/faststream-mpv-host.mjs';
 
-// The mpv host is not part of the extension: a PC runs the copy install.ps1 made in
-// %LOCALAPPDATA%\FastStreamMpvHost, and neither an extension update nor a `git pull`
-// changes that copy. Until 2026-10-04 a workflow (mpv-host-changed.yml) emailed the owner
-// to run install.ps1 again after a push that changed the host. Now the host says which
-// version it is with every answer, and the extension says so where MPV mode is used when
-// that is older than the host it was released with.
+// The host is not part of the extension (install.ps1's copy stays through updates): it reports its
+// version, and the extension says when it is older.
 //
 // That only works while the version moves with the host, so this file is the ratchet: a
 // change to the host or its installer fails it until HostVersion and RECORDED agree.
@@ -58,9 +54,8 @@ describe('the mpv host\'s version', () => {
   });
 
   it('is at least the one the extension asks for', () => {
-    // Higher than the host, and an extension release would call the host it ships beside
-    // outdated. Lower is a host change the extension does not need (comments, 2026-10-23):
-    // installed hosts keep working, and nobody is asked to reinstall for it.
+    // Higher than the host and a release would call its own host outdated; lower is a host change
+    // the extension does not need.
     expect(RequiredHostVersion).toBeLessThanOrEqual(HostVersion);
     expect(Number.isInteger(HostVersion) && HostVersion >= 1).toBe(true);
   });

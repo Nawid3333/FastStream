@@ -13,9 +13,7 @@ function pageName(page) {
   return page.sent.find((message) => message.type === 'FRAME_ADDED').document;
 }
 
-// A player naming a frame as its parent is taken for that frame's only when the frame's
-// page opened it. The background asks the frame's content script when it does not
-// know the page's name itself.
+// A player naming a frame as its parent counts only when that frame's page opened it.
 describe('IS_PLAYER_OPENER', () => {
   it('answers yes for the name this page put in its players\' URLs', async () => {
     const page = loadContentScript();
@@ -49,9 +47,7 @@ function addTrack(page, src, kind = 'subtitles') {
   return track;
 }
 
-// SCRAPE_CAPTIONS reads the page's <track> files for the player. A request that failed at
-// once (a src XMLHttpRequest refuses) answered inside the loop, before the next track was
-// even asked for: the player opened without a track it could have had.
+// SCRAPE_CAPTIONS: a track request that fails at once must not end the loop before the next track.
 describe('SCRAPE_CAPTIONS', () => {
   it('waits for every track when one request fails at once', async () => {
     const page = loadContentScript({responses: {'https://cdn.example/en.vtt': 'WEBVTT'}});
@@ -114,8 +110,7 @@ describe('SCRAPE_CAPTIONS', () => {
     expect(tracks.map((track) => track.source)).toEqual(['https://cdn.example/cc.vtt']);
   });
 
-  // Everything read goes to the background, which keeps it with the frame: a page must not
-  // be able to send any number of files of any size.
+  // A page must not send the background any number of files of any size.
   it('reads at most 64 tracks', async () => {
     const responses = {};
     for (let i = 0; i < 70; i++) responses[`https://cdn.example/${i}.vtt`] = 'WEBVTT';
@@ -186,9 +181,7 @@ describe('SCRAPE_CAPTIONS', () => {
 const PLAYER_URL = 'moz-extension://test/player/index.html';
 
 /**
- * Gives an element of the page a closed shadow root, as Firefox shows one to a content
- * script: element.shadowRoot is null, element.openOrClosedShadowRoot is the root. The root
- * is a stand-in element, in the page through its host.
+ * Gives an element a closed shadow root as Firefox shows one to a content script (shadowRoot null).
  * @param {Object} page - From loadContentScript.
  * @param {Object} host - The element.
  * @return {Object} The root.
@@ -201,8 +194,7 @@ function closedShadowRoot(page, host) {
 }
 
 /**
- * A page with a 640x360 video in a wrapper of the same size (#wrap), which a player
- * replaces.
+ * A page with a 640x360 video in a same-size wrapper (#wrap), which a player replaces.
  * @param {Object} [options] - For loadContentScript.
  * @return {{page: Object, wrap: Object, video: Object}}
  */
@@ -234,8 +226,7 @@ async function openPlayer(page) {
 }
 
 /**
- * Links a player that loaded in an iframe to it, as the background and the player do
- * (FRAME_LINK_RECEIVER here, then the player posts the key to its parent).
+ * Links a player that loaded in an iframe to it, as the background and the player do.
  * @param {Object} page - From loadContentScript.
  * @param {Object} iframe - The player's iframe.
  * @param {number} frameId - The player's frame.
@@ -247,9 +238,7 @@ async function linkPlayer(page, iframe, frameId) {
   await Promise.resolve();
 }
 
-// Opening a player sent the background a message for the site scripts' 'active-state',
-// and removing it another, which it passed back to the same frame, where nothing reads
-// them (the YouTube script that did is gone): two round trips per player for nothing.
+// Opening or removing a player sends the background no message nobody reads.
 describe('OPEN_PLAYER', () => {
   it('puts the player in place of the page\'s video', async () => {
     const {page, wrap} = pageWithVideo();
@@ -289,8 +278,7 @@ describe('OPEN_PLAYER', () => {
   });
 });
 
-// HideSoft saved only values unlike its own and never deleted the
-// saves, and showSoft cleared or restored the page's inline styles wrongly.
+// hideSoft and showSoft keep and give back the page's own inline styles.
 describe('the page\'s own inline styles after a soft replace', () => {
   it('come back as they were, !important too, and a later replace restores nothing stale', async () => {
     const {page, wrap} = pageWithVideo();
@@ -315,9 +303,8 @@ describe('the page\'s own inline styles after a soft replace', () => {
   });
 
   it('take no share of a flex box while hidden, and the page\'s flex comes back', async () => {
-    // bilibili (live check, 2026-11-15): its element has `flex: 1 1 0%` in a column, which
-    // sizes it whatever its height says; hidden at height 0 it kept half the box, the player
-    // the other half.
+    // An element sized by `flex: 1 1 0%` in a column keeps half the box at height 0 (as on
+    // bilibili).
     const {page, wrap} = pageWithVideo();
     wrap.setAttribute('style', 'flex-grow: 1; flex-basis: 0%;');
     const {iframe} = await openPlayer(page);
@@ -329,8 +316,7 @@ describe('the page\'s own inline styles after a soft replace', () => {
     expect(wrap.style.getPropertyValue('flex-basis')).toBe('0%');
   });
 
-  // Saved only at the first hide, a value the page set while the player was up
-  // was hidden again at the next measurement, and the old one came back.
+  // a value the page set while the player was up wins
   it('come back as the page set them last, while the player was up', async () => {
     const {page, wrap} = pageWithVideo();
     wrap.setAttribute('style', 'width: 640px;');
@@ -350,13 +336,11 @@ describe('the page\'s own inline styles after a soft replace', () => {
   });
 });
 
-// types/messages.d.ts described the answer as {width, height}; it is the visible area, a
-// number the background sorts frames by.
+// The answer is the visible area, a number the background sorts frames by.
 describe('OPEN_PLAYER overtaken by REMOVE_PLAYERS', () => {
   it('puts no player in the page given back meanwhile', async () => {
-    // The open waits for the video's visibility (an IntersectionObserver, up to a second in a
-    // background tab); a removal meanwhile (the page went on to another address) gave the
-    // page back, and the open then put its player in anyway.
+    // A removal while the open waits for visibility gives the page back, and the open must not go
+    // on.
     const {page, wrap} = pageWithVideo();
     const opening = page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, noRedirect: true, frameId: 0, parentFrameId: -1, attempt: 1});
     await page.send({type: 'REMOVE_PLAYERS'});
@@ -422,8 +406,7 @@ describe('the redirect to the player', () => {
   });
 
   it('tells nothing when the old page goes slowly, after a leave that never happened', async () => {
-    // The review of the fix: a timer ended the redirect after two seconds, and
-    // a page that had come back from a cancelled leave reported its pagehide after that.
+    // a page back from a cancelled leave reports its pagehide later
     const page = loadContentScript();
     page.document.fullscreenEnabled = false;
     const removed = () => page.sent.filter((message) => message.type === 'FRAME_REMOVED').length;
@@ -467,10 +450,8 @@ describe('the pop-up guard', () => {
   });
 });
 
-// Windowed fullscreen hides every other element of the page (fillScreenIframe). Each one
-// was looked up in an array of those already changed, and taken out of it with a splice:
-// both quadratic, seconds on the page's main thread for a page of 50,000 elements.
-// The walk also styled the <head>'s <meta>, <script> and <style> elements.
+// Windowed fullscreen hides every other element: linear on a 50,000-element page, and never the
+// <head>'s.
 describe('windowed fullscreen', () => {
   it('hides the rest of the page, and gives every element its style back', async () => {
     const {page, iframe} = await pageWithPlayer();
@@ -486,8 +467,7 @@ describe('windowed fullscreen', () => {
   });
 
   it('gives what holds the player its style back, and keeps what the page wrote to it meanwhile', async () => {
-    // The whole old attribute was put back, and a page whose
-    // framework drew the element again while the player filled the screen lost that.
+    // A page that draws the element again while the player fills the screen keeps what it drew.
     for (const pageWrites of [false, true]) {
       const {page, iframe} = await pageWithPlayer();
       // What the page draws the player in (the player is the body's here).
@@ -515,7 +495,7 @@ describe('windowed fullscreen', () => {
   });
 
   it('stays out when told to leave before it was ever entered', async () => {
-    // A frame's state starts empty: force false was compared with undefined, and entered.
+    // a frame's state starts empty: force false must not enter
     const {page, iframe} = await pageWithPlayer();
     const [plain] = addElements(page, 1);
     expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5, force: false})).toBe('exit');
@@ -539,11 +519,7 @@ describe('windowed fullscreen', () => {
     expect(flex.style.getPropertyValue('color')).toBe('blue');
   });
 
-  // The overlay guard hides a bar over the player with visibility. Windowed fullscreen then
-  // hid the bar too, and kept its whole style attribute, the guard's visibility in it; the
-  // guard gave the bar back meanwhile (hidden, it has no box), and leaving windowed
-  // fullscreen put the old attribute back: the bar stayed hidden for good, after the
-  // player went as well.
+  // A bar the overlay guard gave back meanwhile must not stay hidden after windowed fullscreen.
   it('leaves no bar hidden that the overlay guard gave back meanwhile', async () => {
     const page = loadContentScript();
     const {document} = page;
@@ -575,8 +551,8 @@ describe('windowed fullscreen', () => {
   });
 
   it('gives the page its own bar over an embed back once the player under it went', async () => {
-    // The embed's own page went elsewhere (the iframe stayed, same
-    // src), and the bar the guard hid over it stayed hidden for the page's life.
+    // The embed's own page went elsewhere (same iframe, same src): the bar the guard hid comes
+    // back.
     const page = loadContentScript();
     const {document} = page;
     document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 2000};
@@ -604,8 +580,7 @@ describe('windowed fullscreen', () => {
   });
 
   it('fits the player to its place at once when it ends', async () => {
-    // The fit waited a second after the page got its styles back, with the player at the
-    // size it had before windowed fullscreen.
+    // The fit uses the box the page has after it gets its styles back.
     const {page, wrap, video, iframe} = await pageWithPlayer();
     await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5});
     // The page's box for the video changed meanwhile (the window was made larger).
@@ -635,9 +610,7 @@ describe('windowed fullscreen', () => {
   }, 60000);
 
   it('keeps the player for a link the page\'s <base target> opens in a new tab', async () => {
-    // The click handler read the link's own target only: with <base target="_blank"> a link
-    // to another page of the site opened a new tab, and the player in this one, which the
-    // user stayed on, was taken down.
+    // <base target="_blank">: a link that opens a new tab keeps the player in this one.
     const {page, iframe} = await pageWithPlayer();
     const base = page.document.createElement('base');
     base.setAttribute('target', '_blank');
@@ -657,8 +630,7 @@ describe('windowed fullscreen', () => {
   });
 
   it('takes the player down for a link clicked inside a web component', async () => {
-    // At the document a click inside an open shadow root has the host as its target: the walk
-    // up from it never met the link, and the player stayed over the next page's.
+    // A click in an open shadow root: the walk starts from the composed path, not the host.
     const {page, iframe} = await pageWithPlayer();
     const [host] = addElements(page, 1);
     const root = page.document.createElement('div');
@@ -675,9 +647,7 @@ describe('windowed fullscreen', () => {
   });
 
   it('gives the page back when the page takes the player out', async () => {
-    // A page that draws its player again (a next episode without a page load) took the
-    // iframe out: the rest of the page stayed hidden until FastStream went off, and a next
-    // player's own windowed fullscreen left its box hidden too.
+    // A page that draws its player again takes the iframe out: the rest of the page comes back.
     const {page, iframe} = await pageWithPlayer();
     const [plain] = addElements(page, 1);
     expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5})).toBe('enter');
@@ -688,10 +658,7 @@ describe('windowed fullscreen', () => {
   });
 });
 
-// A click on a link to another page of the site takes the player down: the page goes. A link
-// the page handles itself - a "Sign in" that opens a dialog, comments paged in place - the
-// page's own listener cancels, after content.js's (a capture listener) ran: the page stayed,
-// and its player was taken down all the same.
+// A same-site link takes the player down; a click the page's own listener cancels does not.
 describe('a click on a link to another page of the site', () => {
   /**
    * Clicks a link in the page: content.js's listener has the click first, then the page's.
@@ -747,10 +714,7 @@ describe('a click on a link to another page of the site', () => {
   });
 });
 
-// A player in a site's embed iframe: the top frame links the embed iframe, and windowed
-// fullscreen fixes it over the whole page. REMOVE_PLAYERS (a same-site navigation) gave
-// the rest of the page back, but not the embed's own style, which stayed fixed over the
-// page.
+// REMOVE_PLAYERS also gives the embed iframe its own style back after windowed fullscreen.
 describe('REMOVE_PLAYERS', () => {
   it('takes an embed holding the player out of windowed fullscreen', async () => {
     const page = loadContentScript();
@@ -795,7 +759,7 @@ function requestMiniplayer(page) {
 // corner, with a placeholder in its place.
 describe('TOGGLE_MINIPLAYER', () => {
   it('answers, and changes nothing, when the page took the player\'s iframe out', async () => {
-    // insertBefore on the missing parent threw inside the message handler.
+    // no throw on the missing parent
     const {page, iframe} = await pageWithPlayer();
     iframe.remove();
     const childrenBefore = page.document.body.children.length;
@@ -811,8 +775,7 @@ describe('TOGGLE_MINIPLAYER', () => {
   });
 
   it('never makes the body the miniplayer', async () => {
-    // A wrapper that came to fill the body: the body was the element with the player's
-    // box, a second <body> went in before it, and the page's body was fixed to a corner.
+    // A wrapper that came to fill the body: the body is never the element moved to the corner.
     const {page, iframe} = await pageWithPlayer();
     iframe.rect = {x: 0, y: 0, width: 1280, height: 2000};
     expect(await requestMiniplayer(page)).toBe('enter');
@@ -821,11 +784,8 @@ describe('TOGGLE_MINIPLAYER', () => {
     expect(iframe.style.getPropertyValue('position')).toBe('fixed');
   });
 
-  // The placeholder was made with the element's own tag. For the player's iframe itself that
-  // was a new iframe, a browsing context of its own (about:blank, with the page's classes),
-  // for each miniplayer; for a site's custom element, the site's own code ran again in it
-  // (its constructor, and connectedCallback once put in): a second copy of its player (a
-  // review, 2026-11-13).
+  // The placeholder is a <div>: a copy of the element's tag would run a new browsing context or the
+  // site's own code.
   it('stands a <div> in for the player\'s iframe', async () => {
     const {page, iframe} = await pageWithPlayer();
     expect(await requestMiniplayer(page)).toBe('enter');
@@ -862,7 +822,7 @@ describe('TOGGLE_MINIPLAYER', () => {
   });
 
   it('gives the miniplayer a size when its placeholder has none', async () => {
-    // Here the placeholder is laid out at 0x0: the sizes were NaN.
+    // laid out at 0x0 here: no NaN sizes
     const {page, iframe} = await pageWithPlayer();
     expect(await requestMiniplayer(page)).toBe('enter');
     expect(iframe.style.getPropertyValue('width')).toMatch(/^[\d.]+px$/);
@@ -870,8 +830,7 @@ describe('TOGGLE_MINIPLAYER', () => {
   });
 
   it('fits a portrait player into its share of the screen, height too', async () => {
-    // Sized by the wider of the screen's two measures, a portrait player's miniplayer (a
-    // quarter of a 1920x1080 screen) came out 853 px high.
+    // Sized by the screen's shorter measure, so a portrait player's miniplayer stays small.
     const {page, iframe} = await pageWithPlayer();
     const create = page.document.createElement.bind(page.document);
     page.document.createElement = (tag) => {
@@ -888,10 +847,8 @@ describe('TOGGLE_MINIPLAYER', () => {
   });
 });
 
-// A soft replace keeps the page's element, at no size, next to the player. When that
-// element collapses once shown (under 100 px square), the replace turns hard a second
-// after opening: the element leaves the page. The check only looked at players that had
-// linked up, and on a slow start the player linked after it: the element stayed.
+// A soft replace whose element collapses (under 100 px square) turns hard, also for a player linked
+// late.
 describe('the soft replace turning hard', () => {
   /**
    * Opens a player on a page whose element collapses once it is replaced, and links the
@@ -927,9 +884,7 @@ describe('the soft replace turning hard', () => {
   });
 });
 
-// "This Frame > Reload Frame" on the player loads its page again in the same frame, which
-// links up with the same iframe again. The new entry had nothing to give back, so leaving
-// the page kept the page's element hidden and its media paused for good.
+// "Reload Frame" on the player links the same iframe again: leaving still gives the page back.
 describe('a player that loads again in its frame', () => {
   it('still gives the page its element back when the player goes', async () => {
     const {page, wrap, video, iframe} = await pageWithPlayer();
@@ -942,10 +897,8 @@ describe('a player that loads again in its frame', () => {
   });
 });
 
-// When the background was suspended and knows no stream of the tab, each frame reports
-// what its page loaded (REPORT_LOADED_MEDIA), from its Resource Timing entries. The page's
-// timeline keeps its first 250 requests, and a streaming page made that many (ads,
-// trackers) before its video asked for the manifest: the manifest was never reported.
+// REPORT_LOADED_MEDIA: the manifest is reported even after more requests than the timeline keeps
+// (250).
 describe('REPORT_LOADED_MEDIA', () => {
   /**
    * A page's requests: images, then its manifest last.
@@ -993,9 +946,7 @@ describe('REPORT_LOADED_MEDIA', () => {
       ({name: url(i), initiatorType: 'fetch', responseStatus: 200, startTime: from + i}));
   }
 
-  // The observer kept the first 1,000 of these requests and none after them: on a page that
-  // lives long (a single-page site going on to its next episode), the newest manifest was
-  // never reported, an older one was.
+  // The newest manifest is reported on a long-lived page, past the observer's 1,000 entries.
   it('reports a manifest the page asked for after 1,200 other requests of the kind', async () => {
     const entries = requests(300).slice(0, 300);
     entries.push(...fetches(1200, (i) => `https://api.example/item${i}.json`, 300));
@@ -1028,9 +979,7 @@ describe('REPORT_LOADED_MEDIA', () => {
   });
 });
 
-// While a FastStream player in the tab plays, the background has every frame hold the
-// page's own media paused: a site's player outside the box FastStream took over, or in
-// another frame, played on under it.
+// HOLD_PAGE_MEDIA: every frame keeps the page's own media paused while a FastStream player plays.
 describe('HOLD_PAGE_MEDIA', () => {
   /**
    * A page with a video and a sound that play.
@@ -1088,8 +1037,7 @@ describe('HOLD_PAGE_MEDIA', () => {
     expect(video.paused).toBe(false);
   });
 
-  // Firefox's back-forward cache gives a page back with its content script as it was. The
-  // hold's end, sent to the tab's frames while it was in the cache, never reached it.
+  // The hold's end must reach a page the bfcache gives back.
   it('ends when the back-forward cache gives the page back', async () => {
     const {page, video, play} = playingPage();
     await page.send({type: 'HOLD_PAGE_MEDIA', hold: true});
@@ -1108,7 +1056,7 @@ describe('HOLD_PAGE_MEDIA', () => {
     expect(video.paused).toBe(true);
   });
 
-  // A watch party's voice chat in the same tab fell silent, and again on every play.
+  // a watch party's voice chat in the same tab plays on
   it('leaves a call\'s live stream alone', async () => {
     const {page, video, sound, play} = playingPage();
     page.window.MediaStream = class MediaStream {};
@@ -1132,9 +1080,7 @@ describe('HOLD_PAGE_MEDIA', () => {
 
 // What the background sends every frame once mpv has the stream.
 describe('PAUSE_MEDIA', () => {
-  // A play in a closed shadow root was heard (listenInShadowRoots looks into closed roots)
-  // and sent to mpv, but the walk that pauses looked into open roots only: the page's
-  // player played on beside mpv.
+  // A play heard in a closed shadow root is paused there too.
   it('pauses a video playing in a closed shadow root', async () => {
     const page = loadContentScript();
     const root = closedShadowRoot(page, page.document.body);
@@ -1194,10 +1140,7 @@ describe('frame links', () => {
   });
 });
 
-// Fullscreen of an iframe in a shadow root (an embed's, linked in a closed one above): the
-// document's fullscreenElement is the root's host, the root's is the iframe. Compared with
-// the document's, the toggle entered fullscreen again instead of leaving it, and on entering
-// the page told the player it had left, which then left.
+// Fullscreen of an iframe in a shadow root: the document's fullscreenElement is the root's host.
 describe('fullscreen of an iframe in a shadow root', () => {
   /**
    * A page with an embed's iframe (frame 7) in a closed shadow root, linked, and Firefox's
@@ -1250,10 +1193,7 @@ describe('fullscreen of an iframe in a shadow root', () => {
 });
 
 describe('a player put in a shadow root', () => {
-  // A video straight in a shadow root, in a host with a bar below it (so the host is not
-  // the player's box): the player goes into the root, next to the video. The resize
-  // observer watched the iframe's parent, the root, which ResizeObserver refuses: the
-  // throw left the player without one.
+  // A video straight in a shadow root: ResizeObserver refuses the root, so the host is watched.
   it('has its box watched through the root\'s host', async () => {
     const page = loadContentScript();
     const {document} = page;
@@ -1285,9 +1225,8 @@ describe('a player put in a shadow root', () => {
     expect(root.querySelectorAll('iframe')).toHaveLength(1);
     expect(observed).toEqual([host]);
 
-    // The component renders its tree again before the player links up, and takes the player
-    // out: a watch of the page sees nothing inside the root, and the background kept that
-    // frame's player opening until some change of the page's own tree came.
+    // The component renders again and takes the player out before it links: the frame stops
+    // opening.
     const [iframe] = root.querySelectorAll('iframe');
     root.removeChild(iframe);
     await Promise.resolve();
@@ -1298,9 +1237,7 @@ describe('a player put in a shadow root', () => {
   });
 });
 
-// A player over the whole page pauses the page's media, and again on every play, while it
-// is up (pauseAllWithin). A call's live stream too: a watch party's voice chat fell silent,
-// the case every other pause leaves alone (playsLiveStream).
+// A player over the whole page pauses the page's media on every play, except a call's live stream.
 describe('a player over the whole page', () => {
   it('pauses the page\'s media in a closed shadow root too', async () => {
     const page = loadContentScript();
@@ -1343,9 +1280,8 @@ describe('a player over the whole page', () => {
   });
 
   /**
-   * Playing <audio> elements, added to an element of the page. Not in an async test itself:
-   * a loop there keeps its last element in a register across the test's next await, and
-   * the garbage collector then never takes it.
+   * Playing <audio> elements. Not in an async test: a loop there keeps its last element alive
+   * across awaits.
    * @param {Object} parent - The element.
    * @param {number} count - How many.
    * @return {Array<Object>}
@@ -1379,9 +1315,7 @@ describe('a player over the whole page', () => {
   };
 
   it('keeps none of the media the page dropped meanwhile alive', async () => {
-    // Every medium it paused was kept in a Set until the player went: a page that adds and
-    // drops media while the player is up (ads, previews on hover) kept them all alive, with
-    // their buffers.
+    // The paused media are not kept alive until the player goes (pages that add and drop media).
     const v8 = await import('node:v8');
     const vm = await import('node:vm');
     v8.setFlagsFromString('--expose-gc');
@@ -1421,9 +1355,7 @@ describe('a player over the whole page', () => {
   });
 });
 
-// The resize observer updated the player at most every 100 ms and dropped the changes in
-// between: after a box that kept changing (a sidebar sliding shut), the player kept a size
-// from the middle of it until the next resize.
+// The player follows a box that keeps changing to its last size.
 describe('a player whose box keeps changing', () => {
   it('takes the box\'s last size', async () => {
     const {page, wrap} = pageWithVideo();
@@ -1449,8 +1381,7 @@ describe('a player whose box keeps changing', () => {
     expect(iframe.style.width).toBe('960px');
   });
 
-  // A window being resized updated the players on every event: a hard-replaced page video
-  // went back into the page to be measured each time.
+  // window resizes update the players at most every 100 ms
   it('follows a window being resized at most every 100 ms, and to its last size', async () => {
     const {page, wrap} = pageWithVideo();
     const {iframe} = await openPlayer(page);
@@ -1466,8 +1397,7 @@ describe('a player whose box keeps changing', () => {
     expect(iframe.style.width).toBe('900px');
   });
 
-  // The player is hidden while the page's element is measured, and only taking its styles
-  // showed it again: a throw on the way left it hidden for good.
+  // A throw while measuring must not leave the player hidden.
   it('keeps the player as it was when the page refuses the measurement, and measures again at the next resize', async () => {
     const {page, wrap, video} = pageWithVideo();
     const {iframe} = await openPlayer(page);
@@ -1531,10 +1461,8 @@ describe('a player whose box keeps changing', () => {
   });
 });
 
-// Firefox fires beforeunload for a navigation that then never happens: a link answered
-// with a download or a 204, a "Leave page?" the user said no to. The page stays, but it had
-// told the background it left: the background forgot its frames and their streams, and
-// refused every player the page opened after that, as one of a gone page, until a reload.
+// beforeunload for a navigation that never happens (a download, a 204, "Leave page?" refused): the
+// page stays known.
 describe('a page that leaves', () => {
   /**
    * What the page told the background about itself since it started.

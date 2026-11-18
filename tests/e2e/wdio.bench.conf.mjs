@@ -1,18 +1,9 @@
 // A/B benchmark of two web builds of the player, in the e2e Firefox (tests/e2e/bench/).
-//
-// The player's speed has been measured by turns before (docs/notes/player.md: "builds served by
-// turns, 4 rounds, medians"), each time with a harness that was thrown away. This one stays:
-//
 //   node tools/bench-ab.mjs --a <git ref> [--b <git ref>] [--rounds N]
-//
-// builds both refs' web builds and runs this config with BENCH_A_DIR and BENCH_B_DIR pointing
-// at them. Each build gets a server of its own (the same fixtures), so both run in one browser,
-// one after the other, in alternating order (ABBA): a machine that warms up or gets busy
-// weighs on both alike. The servers can stand in for a slow site: BENCH_RATE_MBIT shares one
-// line between all of a server's answers, BENCH_TTFB_MS holds back each answer's first byte.
-//
-// It measures and writes logs/bench/ab-<time>.json and .md; it fails only when a scenario
-// cannot run (a broken build), never on a number.
+// Each build gets its own server; both run in one browser in ABBA order. BENCH_RATE_MBIT /
+// BENCH_TTFB_MS slow the line.
+// Writes logs/bench/ab-<time>.json and .md; fails only when a scenario cannot run, never on a
+// number.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -44,9 +35,7 @@ if (traceFile) fs.mkdirSync(path.dirname(traceFile), {recursive: true});
 const traceCounts = new Map();
 
 /**
- * A DASH manifest as long as a scenario needs: the dash-template fixture (9 s) Period after
- * Period, each Period's segments under addresses of their own (`p=`) with the run's name in
- * them, as the looped HLS playlist does with its discontinuities.
+ * A DASH manifest as long as a scenario needs: the dash-template fixture's Period after Period.
  * @param {number} seconds - Rounded up to whole Periods.
  * @param {string} run - Already URL-encoded.
  * @return {string}
@@ -81,19 +70,11 @@ const MIME = {
 };
 
 /**
- * A line: a byte goes out no sooner than the line's rate allows after the bytes before it,
- * whichever answer they were in (one line for all of a server's answers; one per answer for a
- * cap per connection).
+ * A line: a byte goes out no sooner than the line's rate allows after the bytes before it.
  * @param {number} mbit - Megabits a second; 0 for no limit.
- * @param {number} [jitter] - Every so many ms the rate switches between full and `factor` of
- *   it (0: steady), full first, from `since`: each run's own start (benchServer), so every run
- *   of both builds meets the same line. On one clock for all, the ABBA order was to spread
- *   where each build's runs fell in the pattern, and did not: in 5 rounds main's HLS first
- *   frames came at 4.1 s three times and 6.2 and 7.7 s, the other build's at 6.7-7.7 s each time,
- *   the same requests on the same line, its slow half or not.
+ * @param {number} [jitter] - Every so many ms the rate switches between full and `factor` of it (0: steady).
  * @param {number} [factor]
- * @return {(bytes: number, since?: number) => number} When (performance.now() ms) so many bytes
- *   are sent, if they are handed over now.
+ * @return {(bytes: number, since?: number) => number}
  */
 function paceLine(mbit, jitter = 0, factor = 1) {
   let freeAt = 0;
@@ -113,15 +94,12 @@ function paceLine(mbit, jitter = 0, factor = 1) {
 const asked = new Map();
 
 /**
- * Where to cut an answer part-way, if at all (BENCH_DROP_PCT): the same requests for both
- * builds - by path, place in a looped playlist and where the range ends, not by run - and only
- * the first time a run asks, so a retry gets through. By the range's end, not its start: a
- * retry that goes on from where the cut answer stopped is the same request (a review: by its
- * start, whether it was cut again would depend on how many bytes had arrived).
- * @param {string} rel - The path.
- * @param {URLSearchParams} params - The request's query.
+ * Where to cut an answer part-way (BENCH_DROP_PCT): the same requests for both builds, first ask
+ * only, by the range's end.
+ * @param {string} rel
+ * @param {URLSearchParams} params
  * @param {{start: number, end: number}} range
- * @return {number} The byte to cut at; Infinity for none.
+ * @return {number}
  */
 function cutAt(rel, params, range) {
   if (!dropPct || /\.(m3u8|mpd)$/.test(rel)) return Infinity;
@@ -144,8 +122,7 @@ function cutAt(rel, params, range) {
  * @param {{start: number, end: number}} range
  * @param {(bytes: number) => number} line
  * @param {number} ttfb - How long the first byte is held back, in ms.
- * @param {{cut?: number, capMbit?: number}} [media] - For the media: the byte at which the
- *   connection is cut (cutAt), and the cap on this answer (BENCH_CONN_MBIT, 0: none).
+ * @param {{cut?: number, capMbit?: number}} [media]
  */
 function sendPaced(res, file, {start, end}, line, ttfb, {cut = Infinity, capMbit = 0} = {}) {
   const fd = fs.openSync(file, 'r');
@@ -154,8 +131,7 @@ function sendPaced(res, file, {start, end}, line, ttfb, {cut = Infinity, capMbit
   const own = paceLine(capMbit);
   const next = () => {
     if (!res.destroyed && at >= cut && at <= end) {
-      // Cut at the byte chosen, after what came before it has gone out (an answer smaller
-      // than a piece was never cut, a larger one only at the next piece: a review).
+      // Cut at the chosen byte's piece, after what came before it has gone out.
       fs.closeSync(fd);
       res.destroy();
       return;
@@ -196,11 +172,8 @@ function benchServer(buildDir) {
   // When the run going on started (paceLine's pattern starts with it).
   let lineSince = performance.now();
   return http.createServer((req, res) => {
-    // BENCH_TRACE=1: each media request's start and end, one JSON line each, to see who had
-    // the line when (the tabs scenario). Only what the server knows itself goes in it - the
-    // address and port it was asked on (a tab's host, a build), the kind of file, a count -
-    // and into a file of its own choosing: nothing a request sends ends up in a file or a path
-    // (CodeQL, 2026-11-14).
+    // BENCH_TRACE=1: each media request's start and end, only what the server knows itself (no
+    // request data in files).
     if (traceFile && req.url.startsWith('/fixtures/')) {
       const socket = req.socket;
       const where = `${socket.localAddress}:${socket.localPort}`;
@@ -218,9 +191,8 @@ function benchServer(buildDir) {
       res.writeHead(400);
       return res.end();
     }
-    // A video as long as a scenario needs, at a film's bitrate (about 2.1 Mbit/s): the hls-ts
-    // fixture's segments over and over, each under an address of its own, the run's name in it
-    // (the tabs scenario: four players, each its own video).
+    // A video as long as a scenario needs, at a film's bitrate: the hls-ts segments over and over,
+    // the run's name in each.
     if (rel === '/fixtures/looped.m3u8') {
       const query = new URL(req.url, 'http://localhost').searchParams;
       const seconds = Math.min(Math.max(Number(query.get('seconds')) || 90, 9), 3600);
@@ -253,9 +225,8 @@ function benchServer(buildDir) {
       res.writeHead(416, {'Content-Range': `bytes */${size}`});
       return res.end();
     }
-    // Only the media goes over the slow line and waits for its first byte: the player's own
-    // files come at once, as from the extension's package (they waited too at first, 150 ms
-    // for each module, and every start took 4.5 s).
+    // Only the media goes over the slow line: the player's own files come at once, as from the
+    // extension's package.
     // A run starts its line's pattern (paceLine): the first request a server sees with a run's
     // name (its manifest or file; a playlist's segments carry none, and come from the run going on).
     const run = new URL(req.url, 'http://localhost').searchParams.get('run');

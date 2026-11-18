@@ -3,9 +3,8 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {linkTarget, menuItems, MenuIds, updateMenus} from '../../chrome/background/ContextMenu.mjs';
 import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
-// The page's right-click menu (his wish, 2026-10-24): FastStream and MPV for the page and its
-// video, as the toolbar button and the MPV key switch them, and a link opened in a new tab
-// with FastStream or MPV on. The harness's i18n gives no text, so an item's title is its key.
+// The page's right-click menu: FastStream and MPV for the page and its video, and links opened with
+// either on. Titles are i18n keys here.
 
 const PAGE = 'https://site.test/watch/1';
 const NEXT = 'https://site.test/watch/2';
@@ -202,8 +201,7 @@ describe('the right-click menu', () => {
   });
 
   it('keeps that choice when the new tab shows about:blank first', async () => {
-    // The review of the fix: the step from about:blank was taken for a new site,
-    // and the reset dropped what kept the allowlist off.
+    // the step from about:blank is no new site: the reset keeps what holds the allowlist off
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
       tabs: [{id: 1, url: 'https://other.test/', index: 0, windowId: 1}]});
     await bg.menuClick(MenuIds.LINK_PLAYER, 1, {linkUrl: NEXT});

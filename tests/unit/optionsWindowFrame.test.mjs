@@ -2,11 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-// The player's settings page, an iframe in every player, loaded with the player: its scripts
-// ran beside the player's own as it started, and held the first frame of a video back by
-// about 140 ms (tools/bench-ab.mjs, 2026-11-13: 945 -> 808 ms, 7 of 7 rounds). It loads once
-// the player showed its first frame, when the page is idle, or at once when the settings
-// window opens; a player with nothing to show loads it after a few seconds.
+// The settings iframe loads after the first frame (or when idle, or when opened): loaded with the
+// player it held the first frame back.
 
 /** A stand-in element: its style, its listeners, and a dataset. */
 function element(extra = {}) {

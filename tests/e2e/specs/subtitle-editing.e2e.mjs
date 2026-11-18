@@ -84,12 +84,8 @@ async function doubleClickAndAnswer(time, text) {
 }
 
 describe('Subtitle editing', function() {
-  // One case since 2026-10-13: "keeps a cue whose edit is cancelled", "adds no cue when the
-  // new one is cancelled" and "removes a cue whose text is emptied, and edits one whose text
-  // is changed" each opened the same video and track. They run on one player now, the
-  // third on a fresh track of its own, with every answer and expected cue list as they were.
-  // tests/unit/timelineDrag.test.mjs pins what the syncer does with each answer; these go
-  // through the real prompt, whose Cancel and empty answers are what the syncer gets.
+  // One player, the third case on a fresh track; timelineDrag.test.mjs pins what the syncer does
+  // with each answer, these go through the real prompt.
   it('keeps a cue whose edit is cancelled, adds no cue when the new one is cancelled, and removes or edits a cue by its text', async function() {
     await openPlayer();
     await editTrack();

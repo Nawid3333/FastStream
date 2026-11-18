@@ -4,10 +4,8 @@ import path from 'node:path';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {findMpvOnPath, isMpvExecutableName, preferGuiBuild, resolveMpvPath} from '../../native-host/faststream-mpv-host.mjs';
 
-// The native host used to hand a bare `mpv` on without looking: "Test mpv connection"
-// reported mpv on a machine that had none, and on Windows the WMI launch searches its own
-// PATH, not the user's, so a per-user mpv was not found there either. The host now looks
-// mpv up on the user's PATH and passes on an absolute path, or reports it missing.
+// The host looks mpv up on the user's PATH and passes an absolute path (WMI searches its own PATH),
+// or reports it missing.
 
 let root;
 

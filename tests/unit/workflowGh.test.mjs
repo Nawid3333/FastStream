@@ -31,11 +31,7 @@ function commands(file) {
 }
 
 describe('gh in the workflows', () => {
-  // gh pr list --head matches the branch name in any repository ("<owner>:<branch>" is not
-  // supported), so a fork's pull request from a branch of the same name is listed too, and
-  // was taken for the workflow's own: assigned, labelled, edited, closed, or read as
-  // the owner's decision. Each such list asks whether a pull request is a fork's, and drops
-  // it (the workflow tests check the dropping).
+  // gh pr list --head matches the branch in any repository: each list drops forks' pull requests.
   it('asks for isCrossRepository wherever it lists pull requests by branch', () => {
     const lists = files.flatMap(commands).filter(({command}) => /\bgh pr list\b/.test(command) && /\s(--head|-H)\s/.test(command));
     expect(lists.length).toBeGreaterThan(0);

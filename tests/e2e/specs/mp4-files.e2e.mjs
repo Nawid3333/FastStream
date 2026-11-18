@@ -1,32 +1,8 @@
-// MP4 files of shapes the MP4 fixture is not, through MP4Player (an .mp4 URL's player).
+// MP4 files of shapes the MP4 fixture is not, through MP4Player: audio only, fragmented, long and
+// fragmented, more than 30 ranges, ranges without the file's length (`bytes 0-1023/*`), and 6.0 AAC
+// (AacLayout.mjs).
 //
-// - Audio only. MP4Player handed each parsed segment to the video or the audio buffer by
-//   comparing its track with the file's video track, which an audio-only file does not
-//   have: a TypeError on the first segment, and nothing played.
-// - Fragmented (moof boxes, as ffmpeg's frag_keyframe and live recorders write). Since
-//   mp4box 2.x a fragmented file's duration comes as a {num, den} fraction, and MP4Player
-//   divided it by the timescale: NaN, which the MediaSource refuses, and nothing played.
-// - Long and fragmented (the long fixture cut the same way). MP4Player worked out the
-//   file's length from the samples mp4box knew after the first 1 MB range, not from the
-//   server's Content-Range: for a fragmented file those end with that range, so the file
-//   looked 10 s long, and the rest was never loaded.
-// - Fragmented and bigger than MP4Player's 30 buffered ranges (the long fixture three
-//   times over: 480 s, 51 MB). MP4Player picked the range to load from the samples it
-//   knew when the metadata was parsed, and a fragmented file's samples become known one
-//   moof at a time, so it played the first 30 ranges, 30 MB, and could not seek past them.
-// - From a server that answers ranges without the file's length (`bytes 0-1023/*`, which
-//   RFC 9110 allows). This one was already fine - the length is then worked out from the
-//   file's sample table - and is held here: a file that fits in MP4Player's first 1 MB
-//   range never needs it, so this is the long fixture, sought far into.
-// - Sound in a channel layout of its own (6.0 AAC, whose PCE Windows' decoder takes and gives
-//   nothing back for, AacLayout.mjs): the video waited for its first audio, at 0:00 for good -
-//   a film on a film site, 2026-10-12. Two of them: 6.0 as this ffmpeg writes it (Lavc62.30 and older
-//   put the front centre after the front pair), and the same relabelled the way the film's encoder
-//   had it (a lone side channel too), which does not depend on the ffmpeg. Long enough that
-//   MP4Player does not append all of the audio at once: a stream ended early, Firefox goes on
-//   without it.
-//
-// The fragmented file is cut from the MP4 fixture by ffmpeg, as save-fmp4.e2e.mjs's are.
+// The fragmented files are cut from the MP4 fixture by ffmpeg, as save-fmp4.e2e.mjs's are.
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -280,9 +256,8 @@ describe('MP4 files of other shapes', function() {
     expect(state.failed).toBe(false);
   });
 
-  // Its first range reaches mp4box piece by piece as it downloads (feedPiece): the media came in
-  // one piece, the moov in a later one, and the first gave no samples. The video sat at its start
-  // for good, only when the network happened to cut the file so (mp4-files in #644, since #629).
+  // The first range reaches mp4box piece by piece (feedPiece): media then moov in a later piece
+  // still plays.
   it('plays a short MP4 whose moov comes in a later piece of its first range', async function() {
     // The server cuts the file in half: this checks nothing if the moov moves to the first half.
     const file = fs.readFileSync(path.join(fixturesDir, 'mp4-shapes', 'audio-only.mp4'));
@@ -330,14 +305,8 @@ describe('MP4 files of other shapes', function() {
     expect(times.backwards).toEqual([]);
     const later = await seekAndPlay(450);
     expect(later.currentTime).toBeGreaterThan(451);
-    // Back to where the ranges played through have been let go. Firefox sometimes stops here,
-    // playing with minutes buffered ahead, until MP4Player's stall watchdog nudges it on; it
-    // must play on from about 60 s, not from where the element's clock ran on to. The stall
-    // is Firefox's own: measured on 2026-09-29, the data appended and both SourceBuffers'
-    // state were the same in the runs that stalled as in those that did not, and the element
-    // sat at readyState 2 with its clock running. So this checks where playback goes
-    // on from, and logs whether the watchdog had to act; StallWatchdog.test.mjs checks the
-    // watchdog itself.
+    // Firefox sometimes stalls here with data buffered (its own stall, at readyState 2) until
+    // MP4Player's watchdog nudges it: playback goes on from about 60 s.
     const back = await seekAndPlay(60);
     console.log('      nudged to:', await browser.execute(() => {
       const to = window.fastStream.player.stallWatchdog.nudgedTo;

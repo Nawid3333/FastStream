@@ -3,11 +3,8 @@ import path from 'node:path';
 import vm from 'node:vm';
 import {beforeAll, describe, expect, it} from 'vitest';
 
-// The site scripts (chrome/custom/*.js) read a stream's manifest out of Facebook's,
-// Bilibili's and Instagram's own pages and report it as a data: URL (DETECTED_SOURCE).
-// Issue #232: a report whose manifest was the word "undefined", uncaught throws on play
-// info of another shape and on any manifest with a character btoa refuses, and reports of
-// no type the background recorded anyway.
+// The site scripts (chrome/custom/*.js) read a manifest out of Facebook's, Bilibili's and
+// Instagram's pages and report it as a data: URL.
 
 // The site scripts' text, which vitest includes when it loads this file (?raw): read at run
 // time, the code run below was "user-provided" to CodeQL (js/code-injection).
@@ -182,9 +179,8 @@ describe('facebook_content.js', () => {
     expect(sent).toEqual([]);
   });
 
-  // A reel opened signed out (live page, 2026-11-15): no playlist; the manifest is in the
-  // delivery fields. The reel on screen is under data.video; the ones the page preloads after it
-  // are under viewer.lasso_blue_feed.
+  // A reel opened signed out: the manifest is in the delivery fields (data.video, the preloaded
+  // ones under viewer.lasso_blue_feed).
   /**
    * @param {?string} mpd - Its dash_manifest_xml_string.
    * @return {Object} A playback_video object of that shape.
@@ -224,8 +220,7 @@ describe('facebook_content.js', () => {
   });
 
   it('reports a new video that comes in the same batch after one already reported', () => {
-    // The batch's first manifest was the first video's again (Facebook repeats it), and the
-    // new one after it was skipped, its script then marked as read.
+    // the batch's repeated first manifest does not hide the new one after it
     const run = runSiteScript('facebook_content.js', [jsonScript({playlist: '<MPD id="first"/>'})]);
     run.location.href = 'https://www.example.com/watch/2';
     run.tick();
@@ -275,8 +270,7 @@ describe('bilibili_content.js', () => {
     expect(() => runSiteScript('bilibili_content.js', [{textContent: text}])).not.toThrow();
   });
 
-  // The play info was read up to the line's last "}": with more code after it, or over
-  // more than one line, the video was not detected.
+  // the play info read as a whole JSON value, across lines and with code after it
   it('reads the play info with more code after it, or over several lines', () => {
     const script = playInfoScript('next');
     const trailing = {textContent: script.textContent + ';window.__INITIAL_STATE__={"title":"a } \\" b"}'};
@@ -286,7 +280,7 @@ describe('bilibili_content.js', () => {
   });
 
   it('reports a video without sound, whose play info has no audio list', () => {
-    // data.dash.audio is null there: forEach threw, and the video was not detected at all.
+    // data.dash.audio may be null
 
     const playInfo = JSON.parse(playInfoScript('silent').textContent.replace('window.__playinfo__=', ''));
     playInfo.data.dash.audio = null;
@@ -298,9 +292,8 @@ describe('bilibili_content.js', () => {
   });
 
   it('gives each codec its own set, and every version an id of its own', () => {
-    // As bilibili sends them (a live page, 2026-11-15): each quality in H.264, HEVC and AV1,
-    // under the quality's id. In one set with the ids repeated, the player saw two levels, all
-    // HEVC, and reset the video ~125 times a second where Firefox could not start that decoder.
+    // Bilibili sends each quality in H.264, HEVC and AV1 under one id: codec sets stay apart, not
+    // one HEVC level twice.
     const track = (id, codecs, height) => ({id, codecs, height, width: height * 16 / 9, bandwidth: 1000 + id,
       baseUrl: `https://cdn.example.com/${id}-${codecs}.m4s`, mimeType: 'video/mp4', startWithSap: 1,
       SegmentBase: {indexRange: '0-99', Initialization: '0-9'}});
@@ -364,7 +357,7 @@ describe('instagram_content.js', () => {
     expect(manifestOf(sent[0].url)).toBe('<MPD>é</MPD>');
   });
 
-  // Instagram fetches a video's data more than once; each report was kept as another source.
+  // Instagram fetches a video's data more than once: one source
   it('reports a manifest once', () => {
     const {sent, listeners} = runSiteScript('instagram_content.js');
     post(listeners, {type: 'fs_source_detected', value: '<MPD/>', ext: 'mpd'});

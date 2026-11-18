@@ -45,9 +45,8 @@ describe('MP4Player, a range whose retries were used up', () => {
   });
 });
 
-// A destroyed player gave its holds on the fragments back only through resetHLS: a seek preview
-// or a frame extractor destroyed while the main player played on kept them, and the memory
-// budget could never let those fragments go.
+// A destroyed preview or frame extractor gives its holds on fragments back, so the memory budget
+// can let them go.
 describe('MP4Player.destroy', () => {
   it('gives back its own holds on the fragments, one each, and no other player\'s', async () => {
     const {Fragment} = await import('../../chrome/player/players/Fragment.mjs');

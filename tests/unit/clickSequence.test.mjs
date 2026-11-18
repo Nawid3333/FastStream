@@ -3,8 +3,7 @@ import {ClickSequence, ClickWindowMs} from '../../chrome/player/ui/ClickSequence
 import {ClickActions} from '../../chrome/player/options/defaults/ClickActions.mjs';
 import {DefaultOptions} from '../../chrome/player/options/defaults/DefaultOptions.mjs';
 
-// The clicks on the video (his wish, 2026-10-11): a click paused 300 ms after the Space key
-// did, as it waited to see whether a double click came.
+// A click on the video pauses at once, not after the double-click wait.
 
 let acted;
 beforeEach(() => {
@@ -89,7 +88,7 @@ describe('a click on the video', () => {
     expect(acted).toEqual([ClickActions.FULLSCREEN]);
     vi.advanceTimersByTime(ClickWindowMs);
     expect(acted).toEqual([ClickActions.FULLSCREEN]);
-    // Two quick clicks there are two single ones (deepseek's review): in and out again.
+    // two quick clicks there are two single ones
     acted = [];
     clickRow(clicks, 2);
     vi.advanceTimersByTime(ClickWindowMs);

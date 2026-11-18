@@ -191,8 +191,8 @@ describe.each([['an older helper', false], ['the thin helper', true]])('openStre
   });
 
   it('gives a send made while the same one is on its way that one\'s answer', async () => {
-    // It was told "ok" at once: the first then failed, and the player said it was sent to
-    // mpv and paused the page for nothing (glm's look at a noted edge case, 2026-10-13).
+    // not "ok" at once: the player does not say sent nor pause the page while the first send may
+    // fail
     let answer;
     const streams = [];
     globalThis.chrome = {
@@ -370,8 +370,7 @@ describe('openStream contentType', () => {
   });
 
   it('cuts a title and a subtitle label between whole characters as read', async () => {
-    // A flag is two code points: cut between them, one letter of it reached mpv (glm's review
-    // of #470's fix, 2026-10-13).
+    // a flag is two code points: never cut between them
     const host = captureNativeHost();
     const backend = new MpvBackend();
     const flag = '\u{1F1E9}\u{1F1EA}';
@@ -433,8 +432,8 @@ describe('openStream contentType', () => {
   });
 
   it('sends nothing, and says why, when the stream\'s address alone is over the host\'s limit', async () => {
-    // The host quit unread, and the hand-off said the helper was not installed (glm's review,
-    // 2026-10-13). Firefox takes URLs up to 1 MB.
+    // A message too big for the host is cut, not said to be "not installed"; Firefox takes URLs up
+    // to 1 MB.
     const host = captureNativeHost();
     const backend = new MpvBackend();
     // Known as a helper before host 15 (its answer names no capabilities): the open message.
@@ -730,8 +729,7 @@ describe('streams sent at once', () => {
   });
 
   it('go one after the other, the next once the last has its answer', async () => {
-    // Each is a helper process of its own: two at once with no mpv running started an mpv
-    // each, the second on the same pipe name with no IPC for good.
+    // Two helper processes at once with no mpv running start one mpv, not two on the same pipe.
     const sent = [];
     const answers = [];
     globalThis.chrome = {runtime: {lastError: undefined, sendNativeMessage(name, message, callback) {

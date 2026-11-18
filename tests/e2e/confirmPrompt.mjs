@@ -4,14 +4,9 @@ import {browser} from '@wdio/globals';
 // player's frame the session is in: OK only once the player's document has its size and the
 // button a box, checked in the same task as the click.
 //
-// The player in a page is an out-of-process frame, which takes its size from the page
-// asynchronously; its video loads and plays meanwhile at 0x0. Firefox does nothing for a click
-// on a submit button with no box (requestSubmit still submits), and a user cannot click a
-// button before it is on the screen. page-fetch.e2e saved as soon as the video had data and, on
-// CI (2026-11-15/16, both OSes, most runs), OK left the prompt open: the document 0 wide while
-// the page showed its frame at 640x360. A check one round trip before the click is not
-// enough: autoplay-next-episode's frame lost its size between the two. An ext or
-// classic spec answers the prompt through this (tests/unit/e2eConfirmPrompt.test.mjs).
+// The player in a page is an out-of-process frame that gets its size asynchronously: Firefox
+// ignores a click on a submit button with no box, so OK waits for the size in the click's task
+// (e2eConfirmPrompt.test.mjs).
 
 /**
  * Fills the open prompt's input and clicks its OK once laid out; waits up to 15 s for that.

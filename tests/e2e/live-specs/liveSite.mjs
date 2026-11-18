@@ -1,7 +1,5 @@
-// What the live specs share: the official releases of the libraries their test sites use,
-// fetched from the npm registry once and cached, and the steps that check FastStream's
-// player in a page - it replaced the page's video, it plays, a seek lands and plays on.
-// (Not a spec itself: wdio.live.conf.mjs runs live-specs/**/*.e2e.mjs.)
+// What the live specs share: the libraries their sites use (npm releases) and the checks of
+// FastStream's player in a page.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -68,10 +66,9 @@ function untar(tar) {
 const packages = new Map();
 
 /**
- * Returns every file of one npm package version, downloading its tarball from the
- * registry the first time in a run (checked against the integrity the registry gives for
- * it). Kept in memory only: a tarball cached on disk was read back unchecked, and
- * writing a download to disk is CodeQL js/http-to-file-access. About 66 MB a run.
+ * Every file of one npm package version, its tarball downloaded once per run, checked against the
+ * registry's integrity.
+ * Kept in memory only (CodeQL js/http-to-file-access).
  * @param {string} pkg - The package name, scoped or not.
  * @param {string} version - An exact version.
  * @return {Promise<Map<string, Buffer>>} Path inside the package -> contents.

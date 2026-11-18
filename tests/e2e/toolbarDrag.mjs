@@ -1,27 +1,11 @@
-// Drags a tool of the player's control bar the way a mouse drag reaches the page in Firefox,
-// and reads the bar's order: for specs/toolbar-reorder.e2e.mjs.
-//
-// The bar is three sortablejs lists sharing one group (ui/ToolManager.mjs), whose onEnd saves
-// the order as `toolSettings` (localStorage in the web build, storage.local in the extension);
-// the next player sorts the tools by it.
-//
-// In desktop Firefox sortablejs uses the browser's own drag and drop (HTML5 dragstart,
-// dragover, drop), and Firefox's WebDriver starts such a drag but cannot end one (bug
-// 1515879). Measured in Firefox 158 on CI's Linux and Windows (run 39477097683): a pointer
-// drag through WebDriver's actions gave the page pointerdown, mousedown, pointermove,
-// dragstart, pointercancel, then dragenter, dragover and dragleave, and sortablejs moved the
-// tool; letting go gave no drop, no dragend and no mouseup, so the drag never ended and
-// nothing was saved. Where the tool had got to depended on the pointer's path, too. So each
-// step of a mouse drag is dispatched in the page in that order, at the points on screen, to
-// what is under them: the press on the tool, a move past the drag threshold, dragstart on the
-// tool once the press has made it draggable, pointercancel, dragenter and dragover at the
-// place on the target tool (dragleave where the pointer was), then, letting go, drop there and
-// dragend on the tool. sortablejs takes them through its own listeners. The player stops every
-// dragover and drop at .mainplayer (InterfaceController, SaveManager's file drop), so
-// sortablejs ends a toolbar drag on dragend, never on its document-level drop listener.
-//
-// Not covered: Firefox turning the mouse's moves into those events, the many dragovers of a
-// real pointer's path, and a real press's own effects on the tool dragged (focus, :hover).
+// Drags a tool of the player's control bar the way a mouse drag reaches the page in Firefox
+// (toolbar-reorder.e2e.mjs).
+// The bar is three sortablejs lists in one group (ui/ToolManager.mjs); onEnd saves the order as
+// `toolSettings`.
+// Firefox's WebDriver starts an HTML5 drag but cannot end one (bug 1515879), so each step of a
+// mouse drag is dispatched in the page, in Firefox's order, to what is under the pointer.
+// Not covered: Firefox turning mouse moves into those events, a real path's many dragovers, a real
+// press's focus/:hover.
 import {browser, expect} from '@wdio/globals';
 
 /**
@@ -30,9 +14,7 @@ import {browser, expect} from '@wdio/globals';
  */
 
 /**
- * Opens the player with no source and waits for its saved options. The tool order is read
- * from localStorage within microtasks of the client's setup, before main.mjs applies the
- * other options and sets optionsApplied.
+ * Opens the player with no source and waits for its saved options (optionsApplied).
  * @return {Promise<void>}
  */
 export async function openPlayer() {
@@ -106,13 +88,10 @@ function dragging() {
 }
 
 /**
- * Drags one tool onto another the way a mouse drag reaches the page in Firefox (see the top
- * of the file), and lets go there.
+ * Drags one tool onto another the way a mouse drag reaches the page in Firefox, and lets go there.
  * @param {string} tool - The tool dragged (its data-tool).
  * @param {string} target - The tool it is let go on.
- * @param {number} along - Where on the target: 0 its left edge, 1 its right edge. sortablejs
- *     puts a tool from the same list before or after the target by the way it came, and one
- *     from another list on the side of the target's middle the pointer is on.
+ * @param {number} along - Where on the target: 0 its left edge, 1 its right edge.
  * @return {Promise<void>}
  */
 export async function dragTool(tool, target, along) {
@@ -207,8 +186,7 @@ export async function openReorderMode(tool) {
  */
 export async function expectOrderKept(expected) {
   expect(await shownOrder()).toEqual(expected);
-  // Waited for, not read once: the save is synchronous in the web build today, and a
-  // release that delays it (or a storage that does) must not make this flaky.
+  // waited for, not read once: a delayed save must not make this flaky
   let saved = null;
   await browser.waitUntil(async () => {
     saved = await savedOrder();

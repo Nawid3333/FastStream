@@ -213,9 +213,8 @@ describe('A page that offers its video in several qualities', function() {
       }, 20);
       window.fastStream.setCurrentVideoLevelID('page-quality:0');
     });
-    // Until the watcher has noted a time too: 'playing' may come before it is on the new
-    // video, and 'timeupdate' only four times a second, so the time could move on with nothing
-    // noted yet (firstPlayed -1, the Linux runner, 2026-11-14).
+    // until the watcher has noted a time too: 'playing' can come first, 'timeupdate' only four
+    // times a second
     let after;
     await browser.waitUntil(async () => {
       after = await playerState();

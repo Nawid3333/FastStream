@@ -1,21 +1,9 @@
 // Turning FastStream off right after turning it on removes the in-page player.
 //
-// A toolbar click on a page with a detected video turns FastStream on and opens the player
-// over the page's video: the background measures the page's videos (a round trip to
-// content.js), asks content.js to put the player iframe in, and hears the player announce
-// itself (PLAYER_LOADED) only once it has loaded. The Off click undid a player it had heard
-// from - frame.isPlayer - and nothing else. A click in between left the player on the page
-// while the toolbar said Off: during the measurement the player was not asked for yet, and
-// the answer went on to open it anyway; after the request, frame.playerOpening said a
-// player was on its way, and the Off path did not look at it. The MPV toolbar cycle checks
-// both (hasOrOpeningPlayer); the plain On/Off toggle now does too, and the player is not
-// opened for a tab that was turned off while its videos were being measured.
+// Off between On and the player's PLAYER_LOADED (while the videos are measured, or the player is on
+// its way) removes the player too (hasOrOpeningPlayer).
 //
-// All of that lives in the background's memory. Firefox keeps the background running
-// while a player is open (an extension page), but can still stop it - after a hang, or
-// with about:debugging's Terminate - and a restarted background knew no player, so Off
-// left it playing under a toolbar that said Off. Now it asks the tab (tabHasPlayer):
-// each frame's content script looks for a player iframe.
+// A restarted background asks the tab whether it has a player (tabHasPlayer), as it remembers none.
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -71,10 +59,8 @@ async function hasOverlayPlayer() {
 }
 
 /**
- * Whether the player in the page has announced itself to the background. Once it has
- * (PLAYER_LOADED), the background links it to its iframe: the player posts a key to the
- * page. So a message from the player's iframe means the background already counts it as
- * a player.
+ * Whether the player has announced itself: a message from its iframe means the background counts it
+ * as a player.
  * @return {Promise<boolean>}
  */
 async function playerAnnounced() {
@@ -160,8 +146,7 @@ describe('Toolbar: Off right after On', function() {
     await clickToolbar(1);
     await browser.waitUntil(hasOverlayPlayer, {timeout: 15000, timeoutMsg: 'the player never opened'});
     expect(await tabMode()).toBe('on');
-    // Off once the player has loaded - the case that always worked - which also leaves
-    // the tab off for the next test.
+    // Off once the player has loaded, which also leaves the tab off for the next test.
     await browser.waitUntil(playerAnnounced, {timeout: 15000, timeoutMsg: 'the player never announced itself'});
     await clickToolbar(1);
     await browser.waitUntil(async () => !(await hasOverlayPlayer()),
@@ -181,8 +166,7 @@ describe('Toolbar: Off right after On', function() {
   it('removes a player that is still loading when Off is clicked', async function() {
     await openSite();
     await clickToolbar(1);
-    // The iframe is in the page as soon as content.js puts it there; the player inside it
-    // announces itself only once it has loaded. Off in between.
+    // off between the iframe going in and the player announcing itself
     await browser.waitUntil(hasOverlayPlayer, {timeout: 15000, interval: 20,
       timeoutMsg: 'the player iframe never appeared'});
     // Logged, not asserted: whether this click beat the player's announcement is up to

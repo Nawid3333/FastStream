@@ -1,12 +1,8 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {HLSLoaderFactory as hlsLoaderFactory} from '../../chrome/player/players/hls/HLSLoader.mjs';
 
-// HLSLoader is the loader hls.js calls for every playlist, key and fragment. What it
-// tells hls.js about a failure decides what hls.js does next, and hls.js's loaders do
-// not all accept the same callbacks: its playlist loader passes onSuccess, onError and
-// onTimeout, and no onAbort (hls.mjs, PlaylistLoader.load). A failed playlist reported as
-// an abort reached nobody, and the player waited forever on a manifest that was not there.
-// (What a reload of a playlist gets: manifestReload.test.mjs.)
+// What HLSLoader tells hls.js on a failure decides what it does next: the playlist loader takes no
+// onAbort.
 
 /**
  * A player with just what HLSLoader reaches.
@@ -169,9 +165,8 @@ describe('HLSLoader, a download that failed', () => {
   });
 
   it('leaves the player\'s loading list when hls.js aborts it, while others still want the segment', async () => {
-    // The download entry tells only the last of its watchers that it was aborted
-    // (DownloadEntry.abortWatcher): a segment the client was downloading as well stayed in the
-    // list for good, and the seek preview took it for a segment still loading.
+    // Every watcher of an aborted entry hears it, or the seek preview takes the segment for one
+    // still loading.
     const {DownloadEntry} = await import('../../chrome/player/network/DownloadEntry.mjs');
     const {DownloadStatus} = await import('../../chrome/player/enums/DownloadStatus.mjs');
     const {player, requestFragment} = makePlayer({getFrag: () => ({})});
@@ -232,8 +227,7 @@ describe('HLSLoader, init segments', () => {
   });
 
   it('fails a load it could not start, rather than leaving hls.js waiting for it', () => {
-    // requestFragment refused an init segment still under hls.js's key (HLSEncryptedPlaylists
-    // test): the throw was logged, hls.js heard nothing, and the stream span forever.
+    // an init segment still under hls.js's key fails to hls.js, not only to the log
     const {player, requestFragment} = makePlayer(storedInit(INIT));
     requestFragment.mockImplementation(() => {
       throw new Error('unexpected decryptdata');
@@ -276,10 +270,8 @@ describe('HLSLoader, before a download has reported', () => {
   });
 });
 
-// A segment FastStream decrypts itself (HLSFragmentRequester.takeOverDecryption) that the
-// store has no place for - numbered before the level's first, a live stream that started
-// its numbering again, or the init segment of a changed EXT-X-MAP: its plain download went
-// to hls.js still encrypted, and hls.js decrypts none of it.
+// A segment FastStream decrypts itself that the store has no place for is decrypted before hls.js
+// gets it.
 describe('HLSLoader, an encrypted segment the store has no place for', () => {
   it('is downloaded with the decryption requestFragment gives a stored one', () => {
     const {player, getFile, requestFragment} = makePlayer();
@@ -296,12 +288,8 @@ describe('HLSLoader, an encrypted segment the store has no place for', () => {
   });
 });
 
-// The store finds a media segment by its number only. A live stream that starts its numbering
-// again can do so while the level's store still reaches that far (downloaded segments are
-// kept for saving), and the segment taking a stored one's number was served that one's
-// bytes, hours old, with no error. Not by URL alone: a live stream rotates a token in the
-// query on every refresh; and hls.js moves a live segment's start once it read its
-// timestamps.
+// The store finds a segment by number and its URL without the query: a live stream restarting its
+// numbering gets no old bytes.
 describe('HLSLoader, a live stream that started its numbering again', () => {
   const STORED = {sn: 0, url: 'http://127.0.0.1/live/seg-1000.ts?token=a', start: 0, duration: 4};
 

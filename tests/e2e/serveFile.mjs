@@ -1,7 +1,5 @@
-// What the e2e test servers (wdio.conf.mjs, wdio.extension.conf.mjs) share: the request's
-// path, its Range header, and sending a file. Neither server may go down on one bad
-// request: a throw in a request listener, or a read stream's unhandled 'error', ends the
-// whole test run.
+// What the e2e test servers share: path, Range and sending a file; a bad request must not end the
+// test run.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -64,9 +62,8 @@ export function byteRange(header, size) {
     return null;
   }
   const start = parseInt(match[1], 10);
-  // An end past the last byte is clamped, not rejected. FastStream asks for ranges that
-  // overshoot the file's end, and answering those with 416 broke the MP4 path with "First
-  // fragment failed to load", which reads like a decoder fault and is not.
+  // An end past the last byte is clamped, not a 416: FastStream overshoots the end, and a 416 reads
+  // like a decoder fault.
   const end = Math.min(match[2] ? parseInt(match[2], 10) : size - 1, size - 1);
   if (start >= size || start > end) {
     return 'unsatisfiable';

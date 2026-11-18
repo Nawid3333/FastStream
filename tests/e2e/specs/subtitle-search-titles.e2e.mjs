@@ -1,12 +1,8 @@
-// The subtitle search (OpenSubtitlesSearch) in the player, against the OpenSubtitles API's own
-// answers (tests/unit/fixtures/opensubtitles, recorded 2026-10-09): the page's requests are
-// answered from them, so this runs without the network and the API's key.
+// The subtitle search against the OpenSubtitles API's recorded answers
+// (tests/unit/fixtures/opensubtitles): no network, no key.
 //
-// A search finds the title first - a text search for subtitles and a title search side by side,
-// pooled and scored (SubtitleSearchTitles) - then lists that title's subtitles by its id, the
-// most downloaded first, each by its release name. Before, the text search's results were the
-// list: for "Oppenheimer" in German a 2025 documentary came first, and the film's most
-// downloaded subtitle was not among the first 8.
+// A search finds the title first (text and title search pooled, SubtitleSearchTitles), then lists
+// its subtitles by id, the most downloaded first.
 
 import fs from 'node:fs';
 import path from 'node:path';

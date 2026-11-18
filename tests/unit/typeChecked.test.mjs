@@ -4,10 +4,8 @@ import path from 'node:path';
 import * as url from 'node:url';
 import {describe, expect, it} from 'vitest';
 
-// T5's ratchet: the files TypeScript checks (`// @ts-check`, strictNullChecks; `pnpm run
-// typecheck`) only ever grow. Many of the bugs a review finds are null dereferences the
-// checker reports. Turning a file's checking on means fixing what tsc says and adding the
-// file here; taking the comment out of one fails this test.
+// The files TypeScript checks (`// @ts-check`) only grow: turning one on means fixing what tsc says
+// and adding it here.
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '../..');
 
@@ -291,10 +289,8 @@ describe('type-checked files', () => {
   });
 
   it('are read by tsc: a classic script (.js), which nothing imports, is in the include or the files', () => {
-    // The content scripts and the HLS decrypter's worker had // @ts-check and were listed
-    // here, but nothing named them in tsconfig.json and nothing imports a classic script:
-    // tsc never read them (213 errors in content.js when it first did, 2026-11-07). The
-    // worker is in `files`: chrome/player/modules is excluded, and `files` is not.
+    // Classic scripts nothing imports are read by tsc only when tsconfig.json names them; the
+    // worker is in `files` (modules are excluded).
     const {include, files = []} = JSON.parse(fs.readFileSync(path.join(root, 'tsconfig.json'), 'utf8'));
     const escape = (text) => text.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
     const patterns = include.map((glob) => new RegExp('^' + glob.split('**/')

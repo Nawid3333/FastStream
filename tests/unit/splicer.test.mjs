@@ -4,9 +4,8 @@ import path from 'node:path';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {splice, spliceAndCopy} from '../../tools/splicer.mjs';
 
-// build.mjs's SPLICER preprocessor (tools/splicer.mjs). A directive it misreads changes what
-// ships with no error: a misspelt one used to be kept as an ordinary line, and the text of
-// one anywhere in a line (a string, a template literal) was obeyed.
+// build.mjs's SPLICER preprocessor: a misspelt directive or one inside a string or template literal
+// is an error, not obeyed or kept.
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 
@@ -61,8 +60,7 @@ describe('splice: the directives', () => {
   });
 
   it('keeps blank lines, so a multi-line string ships as written', () => {
-    // Every blank line used to be deleted, the ones inside template literals too: hls.js's
-    // getSequenceError message shipped one line short.
+    // blank lines inside template literals stay
     const text = 'a();\n\nconst message = `${head}\n\nPlaylist starting @${sn}`;\n\nb();\n';
     expect(splice(text, 'WEB', 'x.mjs')).toBe(text);
     const removed = 'a();\n\n// SPLICER:WEB:REMOVE_START\ngone();\n\n// SPLICER:WEB:REMOVE_END\nb();\n';
@@ -95,9 +93,8 @@ describe('splice: the directives', () => {
   });
 });
 
-// Real files in a temp folder: on the Windows runner a copy of nine small files once took
-// 5.7 s (CI run 37331055771) while the same file's other copies took 2-7 ms - the disk, not
-// the code. These tests check what is copied, not how fast.
+// Real files in a temp folder: these check what is copied, not how fast (a slow disk is not the
+// code).
 describe('spliceAndCopy', {timeout: 30000}, () => {
   let tmp;
   beforeEach(() => {

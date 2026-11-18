@@ -1,12 +1,8 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {FakeDocument} from './helpers/fakeDom.mjs';
 
-// The review of 2026-10-14, on stand-in elements:
-// - the subtitle syncer's track drag ended only on a mouseup the player heard; let go over the
-//   subtitles menu (which stops mouseup), the track went on following the pointer with no
-//   button held;
-// - the language menu, open when the source changed to one with a single language, stayed
-//   open with the old rows; the audio menu did the same for a source with one track.
+// A track drag ends on any mouseup (the subtitles menu stops it), and menus open at a source change
+// show the new source's rows.
 
 const doc = new FakeDocument('<html><body></body></html>');
 vi.stubGlobal('document', doc);

@@ -2,9 +2,8 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {describe as describeInfo, MediaKeys} from '../../chrome/player/ui/MediaKeys.mjs';
 
-// The keyboard's next- and previous-track keys go to the next and previous episode, while the
-// player has one (his report, 2026-10-22: they did nothing). The Media Session stands in for
-// Firefox's: what matters is which actions have a handler, and what a handler does.
+// The next- and previous-track keys go to the next and previous episode; the Media Session stands
+// in for Firefox's.
 
 /** A Media Session that keeps what was set, as Firefox's does. */
 function fakeSession() {

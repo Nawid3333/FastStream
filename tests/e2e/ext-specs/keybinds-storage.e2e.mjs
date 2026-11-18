@@ -1,18 +1,11 @@
 // The keybind migration against the real installed extension, whose options live in
 // chrome.storage.local rather than localStorage.
 //
-// getOptionsFromStorage once handed an unresolved promise to the migration, which skipped
-// it without a word, so the migration never ran in the extension at all. Nothing noticed:
-// the unit tests fed the migration plain objects, and the web specs read localStorage. This
-// is the path that broke, driven the way the extension takes it.
+// getOptionsFromStorage hands the migration a resolved value: the path through chrome.storage,
+// driven as the extension takes it.
 //
-// What each layout step moves is tests/unit/KeybindUtils.test.mjs's ("migrateKeybinds", "to
-// version 3", "to version 4") and Keybinds.test.mjs's (Utils.getOptionsFromStorage, the same
-// function as here, over a stored string). Three cases here walked those steps again over
-// chrome.storage (version 2, version 3, a choice made after the migration); since
-// 2026-10-13 they are Keybinds.test.mjs's, with the same stored options: the first case
-// below already reads options of an earlier layout through chrome.storage, and the step it
-// takes is no different there.
+// What each layout step moves is KeybindUtils.test.mjs's and Keybinds.test.mjs's; here, options of
+// an earlier layout through chrome.storage.
 
 import {browser, expect} from '@wdio/globals';
 

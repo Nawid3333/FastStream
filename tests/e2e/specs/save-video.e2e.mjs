@@ -1,28 +1,9 @@
-// Regression coverage for the "Save video" (download) feature.
+// The "Save video" feature: HLS saves go through transmuxer.mjs, which drives hls.js's demuxer and
+// remuxer directly.
 //
-// Nawid reported the download button "behaving weird" -- the saved file
-// would not play, and the save-progress percentage stopped showing. Neither
-// SaveManager.mjs, StatusManager.mjs, DownloadManager.mjs nor any of the four
-// per-format saveVideo() implementations have changed from upstream (only
-// the MPV feature touches the first two, and that only adds new code paths).
-// The regression is one directory over: chrome/player/modules/hls2mp4/
-// transmuxer.mjs drives hls.js's TSDemuxer/MP4Remuxer classes directly, on
-// already-downloaded fragments, to remux HLS into a single MP4 for saving --
-// and hls.js 1.7.2 (this fork is now on 1.7.3; upstream is still on
-// 1.6.9) added a `chunkMeta` parameter to resetInitSegment/demux/remux that
-// is read unconditionally (`chunkMeta.iframe`) at the top of each. hls.js's
-// own pipeline always supplies a real one; transmuxer.mjs, written against
-// the old signatures, supplied none, so it arrived as undefined and threw
-// the moment a discontinuity was reset for a source with an out-of-band init
-// segment -- which fMP4/CMAF-packaged HLS (increasingly the common case) has.
+// DASH and plain MP4 do not use it; save-fmp4.e2e.mjs saves DASH and decodes what it saves.
 //
-// This only affects HLS saves that go through transmuxer.mjs. DASH
-// (dash2mp4/mp4merger.mjs) and plain MP4 do not import it and were
-// unaffected; save-fmp4.e2e.mjs saves local DASH streams and decodes them.
-//
-// Every stream here is local (wdio.conf.mjs's fixtures): this suite gates CI and the
-// release, and the HLS and DASH cases once streamed from test-streams.mux.dev and
-// dash.akamaized.net, so either host being slow or down failed both CI jobs.
+// Every stream is local (wdio.conf.mjs's fixtures): this suite gates CI and the release.
 
 import {browser, expect} from '@wdio/globals';
 import {pageState, phaseTimer} from './diagnostics.mjs';
@@ -38,24 +19,16 @@ async function openPlayer(source) {
 }
 
 /**
- * Waits for playable data, nudges playback so fragments actually download,
- * then drives player.saveVideo() directly -- bypassing the UI's filename
- * prompt and file-save dialog, neither of which WebDriver can drive -- and
- * validates the resulting blob by loading it into a fresh, disconnected
- * <video> element.
- *
- * A partial save (partialSave: true) is used throughout: waiting for an
- * entire clip to finish downloading before saving would make this suite
- * slow without adding coverage - the bug reproduces on the very first
- * fragment already in hand.
+ * Waits for playable data, plays so fragments download, calls player.saveVideo() directly
+ * (WebDriver cannot drive the save dialog), and loads the blob into a fresh <video>.
+ * A partial save: the first fragment in hand is enough.
  *
  * @return {Promise<Object>} {saveError, blobSize, blobType, decodeOk,
  *   decodeError, duration}
  */
 async function saveAndValidate() {
-  // Each phase is logged, and each wait is bounded so that a hang fails with its phase
-  // and the page state (pageState) before the test's own 120 s timeout: the DASH case
-  // once used all of it on the Windows runner with nothing in the log.
+  // Each phase is logged and each wait bounded, so a hang fails with its phase and pageState before
+  // the test's timeout.
   const phase = phaseTimer();
   let reached = 'start';
   try {
@@ -78,9 +51,7 @@ async function saveAndValidatePhases(phase) {
   phase('ready');
 
   await browser.execute(() => document.querySelector('video').play().catch(() => {}));
-  // Long enough for several fragments to actually download -- saveVideo can
-  // run with just the one fragment behind the playhead, but a save that
-  // starts before any fragment has fully landed exercises less of the path.
+  // several fragments in: a save before any landed exercises less of the path
   await new Promise((r) => setTimeout(r, 6000));
   phase('played');
 
@@ -131,13 +102,8 @@ async function saveAndValidatePhases(phase) {
 }
 
 /**
- * Same as saveAndValidate, but for canStream:true players (MP4Player and
- * DirectVideoPlayer), which write into a WritableStream instead of
- * returning a Blob. Builds a minimal chunk-collecting WritableStream in the
- * page context (standing in for the real StreamSaver-backed one
- * SaveManager.mjs would normally hand it) and validates the accumulated
- * bytes the same way saveAndValidate does.
- *
+ * As saveAndValidate, for canStream players (MP4Player, DirectVideoPlayer): they write into a
+ * WritableStream collected in the page.
  * @return {Promise<Object>} {saveError, blobSize, blobType, decodeOk,
  *   decodeError, duration}
  */
@@ -205,12 +171,8 @@ async function saveAndValidateStreamed() {
 }
 
 describe('Save video (download)', function() {
-  // Before the fix, saveError carried hls.js's own stack -- "TypeError: chunkMeta is
-  // undefined" thrown from demux(), reached via transmuxer.mjs's resetInitSegment() the
-  // moment the first discontinuity with an init segment was processed (confirmed by
-  // reverting the fix and observing exactly that stack). fMP4 segments with an
-  // out-of-band init segment are what put transmuxer.mjs on that path; a separate audio
-  // rendition makes it mux two tracks; MPEG-TS is the muxed transport-stream case.
+  // fMP4 with an init segment puts transmuxer.mjs on its init path; a separate audio rendition
+  // muxes two tracks; TS is the muxed case.
   for (const [fixture, playlist, kind] of [
     ['hls-ts', 'index.m3u8', 'MPEG-TS'],
     ['hls-fmp4', 'index.m3u8', 'fMP4'],
@@ -229,15 +191,10 @@ describe('Save video (download)', function() {
   }
 
   it('saves a DIRECT/webm source into a file that actually decodes', async function() {
-    // .webm has no fragment-based acceleration and used to be hard-routed
-    // to DirectVideoPlayer.canSave() => {canSave: false} -- no Save button
-    // functionality at all for this whole class of source. DirectVideoPlayer
-    // now does a real whole-resource fetch + streamed save.
+    // .webm: DirectVideoPlayer fetches the whole resource and saves it streamed.
     //
-    // Uses the local same-origin fixture (see wdio.conf.mjs's
-    // ensureWebmFixture), not a public host: DirectVideoPlayer.saveVideo()
-    // does its own fetch() of the source, which -- like the accelerated MP4
-    // path -- needs CORS a web page can't assume a random public host sends.
+    // the local same-origin fixture: DirectVideoPlayer.saveVideo() fetches the source itself and
+    // needs CORS
     await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/sample.webm');
     const result = await saveAndValidateStreamed();
 
@@ -270,12 +227,8 @@ describe('Save video (download)', function() {
         },
         filestream,
       });
-      // saveVideo() is an async function that calls registerCancel()
-      // synchronously before its first await (the fetch()), so `cancel` is
-      // already set by the time the call above returns control here --
-      // calling it now aborts before the fetch can complete, deterministically
-      // rather than racing a timer against a fixture small enough to finish
-      // instantly over loopback.
+      // registerCancel() runs before saveVideo()'s first await, so `cancel` is set: aborted before
+      // the fetch, deterministically.
       if (cancel) cancel();
       savePromise.then(() => {
         done({rejected: false, message: null, elapsed: performance.now() - start});

@@ -11,9 +11,8 @@ import {
 } from '../../tools/check-toolchain.mjs';
 import {ADDONS} from '../../tools/setup-dev-profile.mjs';
 
-// No release waits for its age any more (MIN_AGE_DAYS is 0: the owner's call of 2026-11-09), but
-// every function here still takes a minimum age, and that filter has been wanted before. These
-// tests ask for one, WAIT days, unless they say otherwise.
+// MIN_AGE_DAYS is 0, but every function still takes a minimum age: the tests ask for WAIT days
+// unless they say otherwise.
 const WAIT = 3;
 const aboveHold = (doc, below, now, minAge = WAIT) => aboveHoldOf(doc, below, now, minAge);
 const newestAddon = (page, now, minAge = WAIT) => newestAddonOf(page, now, minAge);
@@ -146,8 +145,7 @@ describe('every pinned tool is one an updater updates', () => {
   });
 
   it('leaves the images to toolchain-updates.yml, not to Dependabot', () => {
-    // Dependabot's docker job failed at every run from 2026-10-20 on, and told no one; two
-    // updaters would also race for the same line.
+    // one updater per line: a second one races it
     expect(entry('docker')).toBe('');
     expect(read('.github/workflows/toolchain-updates.yml')).toMatch(/^ +actionlint\|zizmor\)$/m);
   });
@@ -175,8 +173,7 @@ describe('every pinned tool is one an updater updates', () => {
   });
 });
 
-// The owner's call of 2026-11-09 (as from 2026-10-11 to 2026-10-20): no wait for a new release,
-// wherever the update comes from. He decides when each update is merged.
+// No wait for a new release, wherever the update comes from.
 describe('no release wait anywhere', () => {
   const root = new URL('../../', import.meta.url);
   const read = (path) => fs.readFileSync(new URL(path, root), 'utf8');

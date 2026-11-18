@@ -2,11 +2,8 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {ClickActions} from '../../chrome/player/options/defaults/ClickActions.mjs';
 import {Utils} from '../../chrome/player/utils/Utils.mjs';
 
-// The click defaults were "hide controls" on a click, play/pause on a double click and
-// fullscreen on a triple from 2023-12 until upstream's 2024-09-14 "click to play"; options
-// saved in that time keep them, and a pause then needed a double click, after the triple
-// click's wait (the owner's "the click to pause reacts late", 2026-10-13). Untouched, they
-// move to today's defaults once (clickActionsVersion); any choice of the user's stays.
+// Options saved with the old click defaults (hide controls, double click to pause) move to today's
+// once (clickActionsVersion); a user's own choice stays.
 const OLD = {
   singleClickAction: ClickActions.HIDE_CONTROLS,
   doubleClickAction: ClickActions.PLAY_PAUSE,

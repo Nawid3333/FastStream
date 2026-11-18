@@ -64,9 +64,8 @@ describe('replaceChildrenPerformant', () => {
 });
 
 describe('copyText', () => {
-  // The copy-link buttons copied with a selected input and document.execCommand('copy'),
-  // which browsers deprecate; since 2026-10-06 navigator.clipboard, the old way kept for
-  // where it refuses (no secure context or no click to answer: the web build on http).
+  // The copy-link buttons use navigator.clipboard, the execCommand way where it refuses (no secure
+  // context or no click).
   const fallback = () => {
     const calls = [];
     const input = {value: '', focus: () => calls.push('focus'), select: () => calls.push('select')};

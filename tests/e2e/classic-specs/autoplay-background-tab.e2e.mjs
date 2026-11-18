@@ -1,15 +1,8 @@
-// Autoplay next with the tab in the background (his report, 2026-10-27: MPV autoplay went on
-// to the next episode in a tab he was not looking at, and nothing played). The next page's
-// player is a hoster's, in a frame of another site, idle until played: FastStream starts it
-// (background.mjs startPagePlayers, content.js startPagePlayer), but only in the frame whose
-// video it finds on screen (content.js getVideo). A frame made in a hidden tab has a 0x0
-// viewport at first, and Firefox's IntersectionObserver says nothing in it is shown until
-// the tab is: no frame was asked, and the hoster's player was never started. The player's
-// autoplay next goes the same way as mpv's, and is what this drives (no mpv here).
+// Autoplay next with the tab in the background: a frame made in a hidden tab sees nothing on screen
+// (0x0 viewport), and the hoster's idle player must still be started.
 //
-// Over WebDriver classic: there, showing another tab hides this one (Firefox's
-// visibilityState "hidden"). The BiDi session's newWindow left the first tab "visible"
-// (measured 2026-10-27).
+// Over WebDriver classic, where showing another tab hides this one (BiDi's newWindow leaves it
+// "visible").
 
 import http from 'node:http';
 
@@ -147,9 +140,8 @@ describe('Autoplay next in a tab in the background', function() {
     await intoPlayer('the first episode');
     await browser.waitUntil(() => browser.execute(() => (window.fastStream?.player?.getVideo?.()?.readyState || 0) >= 2 &&
         window.fastStream.hasNextVideo()), {timeout: 30000, timeoutMsg: 'the player never found the next episode'});
-    // Its end comes once the tab is in the background: the player's own timer skips there
-    // after the switch, which takes WebDriver two calls (glm's review: a skip made before them
-    // could reach the end with the tab still in front on a slow runner).
+    // The end comes once the tab is in the background: the player's own timer skips after the
+    // switch.
     await browser.execute(() => {
       const client = window.fastStream;
       client.pause();

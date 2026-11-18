@@ -1,27 +1,7 @@
-// Drives the installed extension inside a PRIVATE Firefox session.
-//
-// Why this exists separately from wdio.extension.conf.mjs
-// -------------------------------------------------------
-// Everything the other suites do happens in an ordinary window, and a private
-// window is a materially different platform: storage APIs that are present
-// there still refuse to work. That gap hid a total failure - FastStream came
-// up with no <video> element at all in every private window, because
-// navigator.storage.getDirectory() exists in a Firefox private window and
-// throws SecurityError the moment OPFS calls it. FSBlob picked OPFS on the
-// strength of the API being present, its setup rejected, and clear() passed
-// that rejection up through DownloadManager.reset() into
-// FastStreamClient.setSource(), whose catch abandoned player creation. The
-// whole ext-specs suite was green throughout.
-//
-// Two prefs make the run private:
-//   browser.privatebrowsing.autostart - every window is a private window, so
-//     no spec has to open one and chase its handle.
-//   the ExtensionPermissions grant in before() - Firefox does not let an
-//     extension run in private windows until the user ticks "Run in Private
-//     Windows" in about:addons, and a temporary install is no exception.
-//     Granting it here is the same permission that checkbox writes, so the
-//     suite tests the extension's own code instead of the permission gate.
-//
+// Drives the installed extension inside a private Firefox session, where storage APIs present still
+// refuse to work.
+// browser.privatebrowsing.autostart makes every window private; before() grants "Run in Private
+// Windows".
 // Run with: pnpm run test:pbm
 
 import path from 'node:path';
@@ -30,13 +10,8 @@ import {recordRetriedSpecs} from './retriedSpecs.mjs';
 import {guardSetup} from './setupGuard.mjs';
 import {BUILD, config as base, EXTENSION_ID} from './wdio.extension.conf.mjs';
 
-// ExtensionPermissions and AddonManager are chrome-privileged, and
-// browser.setMozContext('chrome') is a WebDriver-classic command that the
-// BiDi session the other suites use ignores outright. Specs here therefore
-// run under classic: notably, an ArrayBuffer created inside a
-// browser.execute() body is cross-realm there, so anything that hands a
-// buffer to a library that checks `instanceof ArrayBuffer` belongs in the BiDi suite,
-// not this one.
+// Classic WebDriver (setMozContext('chrome') is classic only): an ArrayBuffer from
+// browser.execute() is cross-realm here.
 const caps = JSON.parse(JSON.stringify(base.capabilities));
 caps[0]['wdio:enforceWebDriverClassic'] = true;
 caps[0]['moz:firefoxOptions'].prefs['browser.privatebrowsing.autostart'] = true;
@@ -59,8 +34,8 @@ export const config = {
 /**
  * Installs the add-on (the extension config's before hook), and lets it run in private
  * windows.
- * @param {Object} hook - The before hook's this.
- * @param {Array} args - Its arguments.
+ * @param {Object} hook
+ * @param {Array} args
  * @return {Promise<void>}
  */
 async function grantPrivateBrowsing(hook, args) {

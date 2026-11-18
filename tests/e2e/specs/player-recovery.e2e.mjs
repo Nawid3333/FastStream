@@ -1,14 +1,10 @@
 // A player error after the video has played builds the player again, at the same time,
 // with what was downloaded (FastStreamClient.recoverPlayer).
 //
-// Every such error ended the video for good ("Failed to load video!"); the user reloaded the
-// tab, which downloaded everything again. Seeks were the usual trigger: Firefox can fail to
-// decode what a seek appends late (bug 2069633), and only a new MediaSource plays again.
-// Here the error is the player's own event, the way every player reports one.
+// Firefox can fail to decode what a seek appends late (bug 2069633): only a new MediaSource plays
+// again. The error here is the player's own event.
 //
-// The new player plays nothing before it is at that time (2026-10-12, a film site): it started
-// from 0 at once, and was sought to the time a second or more later, so a film built again an
-// hour in played its opening, then jumped back.
+// The new player plays nothing before it is at that time: no opening, then a jump back.
 
 import fs from 'node:fs';
 import http from 'node:http';

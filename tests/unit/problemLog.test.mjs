@@ -1,8 +1,8 @@
 import {beforeEach, describe, expect, it} from 'vitest';
 import {ProblemKinds, clearProblems, issueUrl, readProblems, recordProblem} from '../../chrome/player/utils/ProblemLog.mjs';
 
-// Sites where autoplay got stuck (his wish, 2026-10-11): noted per site and kind for the
-// options page, which reports one as a GitHub issue the user checks first.
+// Sites where autoplay got stuck, noted per site and kind for the options page, which reports one
+// as a GitHub issue.
 
 let store;
 beforeEach(() => {
