@@ -71,6 +71,7 @@ if (EnvUtils.isExtension()) {
           // Escape in the page around a carried fullscreen (content.js). false: this player had
           // none (a new one in the frame), and the background ends it.
           sendResponse(window.fastStream.interfaceController.exitCarriedFullscreen());
+          return;
         } else if (request.type === MessageTypes.UPDATE_OPTIONS) {
           if (request.time !== optionSendTime) {
             optionSendTime = request.time;
@@ -130,10 +131,6 @@ async function recieveSources(request, sendResponse) {
     request.forceAutoplay = true;
   }
 
-  if (continuationOptions.disableLoadProgress) {
-    /** @type {FastStreamWindow} */ (window).fastStream.options.disableLoadProgress = true;
-  }
-
   /** @type {import('./utils/SubtitleFetch.mjs').SentSubtitle[]|SubtitleData[]|undefined} */
   let subs = request.subtitles;
   /** @type {SentSource[]} */
@@ -175,6 +172,11 @@ async function recieveSources(request, sendResponse) {
     /** @type {FastStreamWindow} */ (window).fastStream.setAutoPlay(true);
   }
 
+  // For the source set here only (setSourceInternal takes it).
+  if (autoSetSource && continuationOptions.disableLoadProgress) {
+    /** @type {FastStreamWindow} */ (window).fastStream.options.disableLoadProgress = true;
+  }
+
   /**
    * A detected stream as a source, with the qualities its page's player offers it in
    * (page-qualities.js). The one played is the quality the user's setting asks for: the page
@@ -206,27 +208,6 @@ async function recieveSources(request, sendResponse) {
     /** @type {FastStreamWindow} */ (window).fastStream.addSource(toVideoSource(s, isAutoSet), isAutoSet, isAutoSet ? fallbacks : []);
   });
 
-  if (subs) {
-    subs = await loadSubtitles(subs);
-    subs = await sortSubtitles(/** @type {SubtitleData[]} */ (subs));
-
-    try {
-      subs.forEach((sub, i) => {
-        const track = new SubtitleTrack(sub.label, sub.language);
-        try {
-          track.loadText(sub.data);
-          if (track.cues.length > 0) {
-            /** @type {FastStreamWindow} */ (window).fastStream.loadSubtitleTrack(track, request.autoSetSource);
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      });
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
   const fullscreenState = continuationOptions.fullscreenState;
   if (fullscreenState === 'fullscreen') {
     // Firefox refuses a fullscreen nobody clicked for (the page went on by itself), and the
@@ -247,6 +228,29 @@ async function recieveSources(request, sendResponse) {
       void chrome.runtime.lastError;
       if (mayTake === true) window.focus();
     });
+  }
+
+  // Last: fetching and sorting subtitles may take a while, and the steps above are the ones the
+  // user waits for.
+  if (subs) {
+    subs = await loadSubtitles(subs);
+    subs = await sortSubtitles(/** @type {SubtitleData[]} */ (subs));
+
+    try {
+      subs.forEach((sub, i) => {
+        const track = new SubtitleTrack(sub.label, sub.language);
+        try {
+          track.loadText(sub.data);
+          if (track.cues.length > 0) {
+            /** @type {FastStreamWindow} */ (window).fastStream.loadSubtitleTrack(track, request.autoSetSource);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      });
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   sendResponse('sources_recieved');
@@ -270,6 +274,14 @@ async function sortSubtitles(subs) {
   await Promise.all(subs.map((sub) => {
     return /** @type {Promise<void>} */ (new Promise((resolve, reject)=>{
       chrome.i18n.detectLanguage(sub.data, (result) => {
+        // An error (runtime.lastError) answers with no result: thrown here, the promise never
+        // settled, and the sources were never answered.
+        if (!Array.isArray(result?.languages)) {
+          void chrome.runtime.lastError;
+          sub.score = 0;
+          resolve();
+          return;
+        }
         const langCandidates = result.languages.map((lang) => {
           return {
             matchLevel: Localize.getLanguageMatchLevel(lang.language, defLang),
@@ -377,8 +389,7 @@ async function setup() {
   const StayedMs = 3000;
   /** @type {any} */
   let stayTimer = null;
-  window.addEventListener('beforeunload', () => {
-    const time = window.fastStream?.source ? window.fastStream.currentTime : 0;
+  const tearDown = () => {
     if (window.fastStream) {
       // Its buffer to the next player of this video on this page, a reload's (BufferStash).
       // For a navigation that never happens too: the player loads again below, and takes it back.
@@ -386,11 +397,17 @@ async function setup() {
       window.fastStream.destroy();
       delete window.fastStream;
     }
-    sendFrameRemoved();
-    clearTimeout(stayTimer);
+  };
+  window.addEventListener('beforeunload', () => {
+    // A player tab goes at pagehide, once the navigation happens: one answered with a download
+    // or a 204 left it dead, and it does not load again by itself.
     if (window.top === window) {
       return;
     }
+    const time = window.fastStream?.source ? window.fastStream.currentTime : 0;
+    tearDown();
+    sendFrameRemoved();
+    clearTimeout(stayTimer);
     stayTimer = setTimeout(() => {
       const url = new URL(window.location.href);
       if (Number.isFinite(time) && time >= 1) {
@@ -406,6 +423,7 @@ async function setup() {
   window.addEventListener('pagehide', (e) => {
     clearTimeout(stayTimer);
     stayTimer = null;
+    if (window.top === window) tearDown();
     if (!e.persisted) {
       sendFrameRemoved();
     }

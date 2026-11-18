@@ -2375,3 +2375,95 @@ that fails without it.
 - **`content.js` `listenedRoots`** - Media events are not composed, so a play inside a shadow root
   never reached the document and the MPV shortcut ignored such players. The roots on the way to
   what was clicked get the listener at once, every root on the page at most every 2 s.
+
+## The player-core audit (2026-11-18)
+
+Three reviews (Claude API, Codex, glm in seven parts) of `FastStreamClient.mjs`, `main.mjs`,
+`VideoSource.mjs` and `SubtitleTrack.mjs`. Each claim was checked against the code, and each
+real one is fixed with a test that fails without it.
+
+- **A source change that a later one replaced while it waited its turn is skipped**
+  (`setSource`). Before, it built its player, took the stashed buffer and could autoplay, only
+  to be torn down.
+- **What a rebuild keeps is armed by its own request** (`SourceStart`: `keepStorage`,
+  `keepChoice`, `relink`, `rebuild`), in `setSourceInternal` before its reset. Armed by
+  the caller, a rebuild that a pick replaced left them for the picked video's reset: its
+  storage kept, the old version choice kept.
+- **Autoplay and the remembered time.**
+  - Autoplay that started at `canplay` while the player was still being set up was started
+    again at the end of the setup, after the user had paused it.
+  - A source with a remembered time (`storeProgress`) autoplayed from 0 and then jumped. It now
+    holds like a source with its own time (`startPending`) until the lookup answers. The hold is
+    at most `RememberedWaitMs` (3 s), because a blocked IndexedDB open never answers. A lookup
+    that answers later is still applied, unless the user has sought meanwhile; skipped, the next
+    save wrote the time played since 0 over it.
+  - `disableLoadProgress` is now taken by the one source set for an episode the player went on
+    to, and by the streams tried after it (`fallbacks.skipRemembered`). Before, it stayed for
+    the client's life, and a source picked by hand later ignored its remembered time.
+- **The reload without a failed codec** (`reloadWithoutFailedCodec`) builds the player again the
+  way `recoverPlayer` does: at the second it was at, keeping what was downloaded
+  (`keepStorageOnce`), with the audio track, and playing if it played. A codec that failed at a
+  quality switch an hour in started the video over, paused, with the download deleted.
+- **A player built again that fails before its first frame** is built again once more
+  (`hasPlayed`). This is the "same broken place again" case that `BrokenMedia` skips past, which
+  it never reached because the new source had not shown a frame yet. A source picked anew is
+  not a rebuild: `playedSource` is cleared for it.
+- **Live HLS.** hls.js gives a live stream a finite duration, so only `isLive()` tells.
+  - `updateHasDownloadSpace` took a live HLS stream for a video that fits, so with "Download
+    all" on nothing behind playback was ever freed.
+  - Waiting at the live edge in its "last second" asked for the next video.
+- **`play()` and `pause()` across a source change.** `resetPlayer` advances `playPauseTurn`, so a
+  play that waited on the last source's player does not show "playing" over the new source.
+  `pause()` pauses the separate audio only for its own turn.
+- **A refused play in the interface is handled.** This covers the play button, the speed-up
+  key, the loop menu, a dropped file and a pick in the Sources browser. Test:
+  `uiPlayRefused.test.mjs`.
+- **Web storage refused** (`dom.storage.enabled` off makes `localStorage` null). It goes through
+  `utils/WebStorage.mjs`. `LevelManager`'s constructor read it unguarded, and the whole player
+  failed to start. `setOptions` stopped halfway.
+- **A seek preview that reports an error while its build still runs** is let go by that build.
+  Before, the reload joined the same build, which then stored the broken player, and the preview
+  showed "loading" for the whole video.
+- **Login headers.**
+  - They no longer go from an https source to plain http, its own site included: Firefox sends a
+    Secure cookie over https only.
+  - A link's `faststream-headers` is taken only as names with text values.
+- **`main.mjs`.**
+  - The carried fullscreen's Escape is answered once.
+  - A `detectLanguage` that answers with an error (no result) threw in its callback. The promise
+    never settled, and the background never got its answer.
+  - The carried fullscreen and the keyboard now come before the subtitles are fetched.
+- **A player tab is torn down at `pagehide`, not `beforeunload`.** A navigation answered with a
+  download or a 204 left it dead, and a player tab does not load again by itself (a slow
+  navigation there is the user's). A player in a page's frame still goes at `beforeunload`, for
+  the back-forward cache, and loads again if the page stayed.
+
+Rejected, with the reason:
+
+- **Already guarded:**
+  - Every failure route of the old player: the `ERROR` and `PLAY_DIRECTLY` handlers ask
+    `isCurrentAttempt` before `playDirectly` and `reloadWithoutFailedCodec`.
+  - `disableProgressSave` and the artwork state: `resetPlayer` clears them.
+  - `fallbacks.next`: each request has its own fallbacks object.
+  - The main context: `resetPlayer` destroys it before the next `bindPlayer`.
+  - `autoplayNextVideo` is synchronous.
+  - `autoNextRequested` after a 'clicked' that never navigated: `play()` clears it.
+- **Not reachable:**
+  - `BUFFER_TAKE` is answered synchronously by the background.
+  - `StreamPick.played` never returns `[]`, and `pick` gets a non-empty list.
+  - `SubtitleTrack.loadText` runs twice on one track: every caller builds a new track.
+- **From the review of the fixes:**
+  - The decode failures carried over a reload keyed on `source.url`: `withTimestamp` is a
+    string edit, and adding then removing the time gives the URL back exactly (`?a=b%20c`,
+    `?flag`, `?`, `#t=5` checked).
+  - The new tests' fake timers and stubbed globals: the file's `afterEach` restores both.
+  - `preload.mjs` with an `import`: `index.html` loads it as a module.
+- **Small, and as designed:**
+  - Work left after `destroy`: it runs only as the document goes, or before a frame's reload.
+  - The object URL of an opened file is not revoked: it is a reference to the file on disk,
+    freed with the page.
+  - A superseded source's subtitles: they are the page's, not the stream's.
+  - Asks past `AutoNextTries`: each needs a new `waiting` or stall at the end, so there is no
+    loop.
+  - Credentials on a shared host's other tenants (`*.github.io`): Firefox's public suffix list is
+    not open to extensions, and the site rule stays as it is.

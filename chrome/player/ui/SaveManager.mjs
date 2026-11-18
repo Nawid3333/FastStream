@@ -646,7 +646,7 @@ export class SaveManager {
 
     // Only a dropped video plays: a subtitle file or an audio profile started the video.
     if (newSource) {
-      this.client.play();
+      this.client.play().catch((e) => console.warn('Could not play', e));
     }
   }
 

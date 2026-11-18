@@ -32,6 +32,7 @@ import {isPolicyRefusal} from './audio/AudioOutputDevice.mjs';
 import {SubtitlesManager} from './subtitles/SubtitlesManager.mjs';
 import {ToolManager} from './ToolManager.mjs';
 import {VolumeControls} from './VolumeControls.mjs';
+import {WebStorage} from '../utils/WebStorage.mjs';
 
 let MiniplayerCooldown = Date.now() + 500;
 /**
@@ -482,7 +483,7 @@ export class InterfaceController {
         // Twice as fast, up to the rate with sound; never slower than it was (the 16x key).
         this.client.setPlaybackRate(Math.max(lastSpeed, Math.min(lastSpeed * 2, this.client.options.maxPlaybackRate)), true);
 
-        this.client.play();
+        this.client.play().catch((e) => console.warn('Could not play', e));
       }, 800);
       hold = PressTracker.follow(e, {end: (release) => {
         hold = null;
@@ -742,7 +743,7 @@ export class InterfaceController {
 
   toggleAutoplayNext() {
     this.client.options.autoplayNext = !this.client.options.autoplayNext;
-    sessionStorage.setItem('autoplayNext', String(this.client.options.autoplayNext));
+    WebStorage.set('session', 'autoplayNext', String(this.client.options.autoplayNext));
     this.updateAutoNextIndicator();
   }
 
@@ -1363,7 +1364,8 @@ export class InterfaceController {
     if (!this.client.player) return;
 
     if (!this.state.playing) {
-      this.client.play();
+      // Refused (autoplay rules) or cut short by a pause: nothing more to do.
+      this.client.play().catch((e) => console.warn('Could not play', e));
     } else {
       this.client.pause();
     }

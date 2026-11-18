@@ -35,6 +35,13 @@ describe('sourceHeadersFor', () => {
     expect(source.headersFor('https://site.test/key')).toEqual(HEADERS);
   });
 
+  it('gives no login header from an https source to plain http, on its own site too', () => {
+    // Firefox sends a Secure cookie over https only.
+    expect(sourceHeadersFor(source, 'http://cdn2.site.test/seg1.ts')).toEqual(PUBLIC);
+    expect(sourceHeadersFor(new VideoSource('http://video.site.test/a.m3u8', HEADERS, 'hls'), 'https://cdn2.site.test/seg1.ts'))
+        .toEqual(HEADERS);
+  });
+
   it('gives another site no login header', () => {
     expect(sourceHeadersFor(source, 'https://collector.example/k')).toEqual(PUBLIC);
     // A country's public second level is no one site.

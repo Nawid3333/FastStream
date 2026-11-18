@@ -83,6 +83,8 @@ function sameSite(a, b) {
     const first = new URL(a);
     const second = new URL(b);
     if (!/^https?:$/.test(first.protocol) || !/^https?:$/.test(second.protocol)) return false;
+    // Not from https to plain http: Firefox sends a Secure cookie over https only.
+    if (first.protocol === 'https:' && second.protocol === 'http:') return false;
     return siteOfHost(first.hostname) === siteOfHost(second.hostname);
   } catch (e) {
     return false;
@@ -188,9 +190,11 @@ export class VideoSource {
       const headers = url.searchParams.get('faststream-headers');
       if (headers) {
         if (apply) {
-          const parsedHeaders = withoutCredentials(JSON.parse(headers));
+          const parsed = JSON.parse(headers);
+          // Names and values, as toCopyURL writes them: a list or a number is no header.
+          const parsedHeaders = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? withoutCredentials(parsed) : {};
           for (const key in parsedHeaders) {
-            if (Object.hasOwn(parsedHeaders, key)) {
+            if (Object.hasOwn(parsedHeaders, key) && typeof parsedHeaders[key] === 'string') {
               this.headers[key] = parsedHeaders[key];
             }
           }

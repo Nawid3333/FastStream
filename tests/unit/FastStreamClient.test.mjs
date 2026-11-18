@@ -248,6 +248,22 @@ async function setSource(client, source, prepare = () => {}) {
   return made;
 }
 
+/**
+ * Sets a source with a start of its own (setSource's third argument), a FakePlayer for it.
+ * @param {FastStreamClient} client
+ * @param {Object} source
+ * @param {Object} start
+ * @return {Promise<FakePlayer>}
+ */
+async function setSourceStarting(client, source, start) {
+  let made = null;
+  client.playerLoader.createPlayer = vi.fn(async () => (made = new FakePlayer(source)));
+  client.sourceRequests++;
+  await client.setSourceInternal(source, {request: client.sourceRequests, sources: []}, start);
+  await settle();
+  return made;
+}
+
 beforeEach(() => {
   vi.stubGlobal('localStorage', {getItem: () => null, setItem: () => {}});
   vi.stubGlobal('window', {location: {href: 'moz-extension://faststream/player/index.html'}, top: {}, self: {}});
@@ -927,6 +943,7 @@ describe('FastStreamClient, a video codec that failed to decode for good', () =>
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const client = makeClient();
+    client.downloadManager.keepStorageOnce = vi.fn();
     const source = makeSource('https://cdn.example/live.mpd');
     const first = await setSource(client, source, (player) => {
       player.takeCodecReload = () => true;
@@ -1914,9 +1931,14 @@ describe('FastStreamClient, a seek preview that keeps failing', () => {
     const client = makeClient({previewEnabled: true});
     client.interfaceController.resetPreviewVideo = vi.fn();
     const context = new EventEmitter();
-    client.setupPreviewPlayer = vi.fn(async () => {});
-    client.bindPreviewPlayer({createContext: () => context});
-    return {client, context};
+    // A preview that was built, and is built again the same way after each error.
+    const preview = {createContext: () => context, destroy() {}};
+    client.previewPlayer = preview;
+    client.setupPreviewPlayer = vi.fn(async () => {
+      client.previewPlayer = preview;
+    });
+    client.bindPreviewPlayer(preview);
+    return {client, context, preview};
   }
 
   it('is built again at most three times in two minutes', () => {
@@ -1925,15 +1947,20 @@ describe('FastStreamClient, a seek preview that keeps failing', () => {
     // 2026-10-13).
     vi.useFakeTimers();
     try {
-      const {client, context} = previewFailing();
+      const {client, context, preview} = previewFailing();
+      // Each error from a preview that was built (one still being built is its build's).
+      const fail = () => {
+        client.previewPlayer = preview;
+        context.emit(DefaultPlayerEvents.ERROR, new Error('preview failed'));
+      };
       for (let i = 0; i < 10; i++) {
         vi.advanceTimersByTime(2000);
-        context.emit(DefaultPlayerEvents.ERROR, new Error('preview failed'));
+        fail();
       }
       expect(client.setupPreviewPlayer).toHaveBeenCalledTimes(3);
       // ... and again once those two minutes are over, as recoverPlayer is.
       vi.advanceTimersByTime(120000);
-      context.emit(DefaultPlayerEvents.ERROR, new Error('preview failed'));
+      fail();
       expect(client.setupPreviewPlayer).toHaveBeenCalledTimes(4);
     } finally {
       vi.useRealTimers();
@@ -2208,12 +2235,20 @@ describe('FastStreamClient, frames this computer drops', () => {
     client.source = makeSource('http://127.0.0.1/720.mp4', {qualities: [
       {url: 'http://127.0.0.1/360.mp4', height: 360}, {url: 'http://127.0.0.1/720.mp4', height: 720},
     ]});
-    client.setSource = vi.fn(async () => client.resetPlayer());
-    client.droppedFrameWatch.userChose('page-quality:0');
+    client.setSource = vi.fn(async () => {});
     client.playPageQuality(0);
     await settle();
     expect(client.setSource).toHaveBeenCalledTimes(1);
+    expect(client.setSource.mock.calls[0][2]).toMatchObject({keepChoice: true});
+  });
+
+  it('keeps the version picked by hand over the reset of a source set with keepChoice', async () => {
+    const client = makeClient();
+    client.droppedFrameWatch.userChose('page-quality:0');
+    await setSourceStarting(client, makeSource('http://127.0.0.1/360.mp4'), {keepChoice: true});
     expect(client.droppedFrameWatch.chosen).toBe('page-quality:0');
+    await setSourceStarting(client, makeSource('http://127.0.0.1/other.mp4'), {});
+    expect(client.droppedFrameWatch.chosen).toBe(null);
   });
 
   it('starts over with the next video', async () => {
@@ -2738,5 +2773,317 @@ describe('FastStreamClient, what the other players hear (peerState)', () => {
     expect(shared({perConnection: true, testing: true, limitedPerConnection: () => false})).toBe(true);
     expect(shared({perConnection: true, testing: false, limitedPerConnection: () => true})).toBe(false);
     expect(shared(null)).toBe(true);
+  });
+});
+
+// The player-core audit (2026-11-18): each case failed before its fix.
+describe('FastStreamClient, the player-core audit', () => {
+  /**
+   * Records what the client plays, and at which time of its player.
+   * @param {FastStreamClient} client
+   * @return {Array<number>}
+   */
+  function recordPlays(client) {
+    const plays = [];
+    client.play = vi.fn(async () => {
+      plays.push(client.player.currentTime);
+    });
+    return plays;
+  }
+
+  it('skips a source change that a later one replaced while it waited its turn', async () => {
+    const client = makeClient();
+    const built = [];
+    client.playerLoader.createPlayer = vi.fn(async () => {
+      const player = new FakePlayer(null);
+      built.push(player);
+      return player;
+    });
+    const changes = [
+      client.setSource(makeSource('https://a.test/a.m3u8')),
+      client.setSource(makeSource('https://a.test/b.m3u8')),
+      client.setSource(makeSource('https://a.test/c.m3u8')),
+    ];
+    await Promise.all(changes);
+    await settle();
+    // a started at once; b was replaced by c before its turn.
+    expect(built.length).toBe(2);
+    expect(client.source.url).toBe('https://a.test/c.m3u8');
+  });
+
+  it('does not play again after the user paused an autoplay that started during the setup', async () => {
+    const client = makeClient({autoPlay: true});
+    const plays = recordPlays(client);
+    client.setupPreviewPlayer = vi.fn(async () => {
+      await settle();
+    });
+    await setSource(client, makeSource('http://127.0.0.1/film.mp4'), (made) => {
+      made.setSource = async () => {
+        made.emit(DefaultPlayerEvents.CANPLAY);
+      };
+    });
+    expect(plays.length).toBe(1);
+  });
+
+  it('autoplays a source with a remembered time only once that time is applied', async () => {
+    const client = makeClient({autoPlay: true, storeProgress: true});
+    client.progressMemory = makeProgressMemory({lastTime: 1200});
+    const plays = recordPlays(client);
+    const player = await setSource(client, makeSource('http://127.0.0.1/film.mp4'), (made) => {
+      made.duration = 7200;
+      made.setSource = async () => {
+        made.emit(DefaultPlayerEvents.CANPLAY);
+      };
+    });
+    await settle();
+    expect(player.seeks).toContain(1200);
+    expect(plays).toEqual([1200]);
+  });
+
+  it('autoplays without the remembered time when its lookup does not answer', async () => {
+    vi.useFakeTimers();
+    const client = makeClient({autoPlay: true, storeProgress: true});
+    client.progressMemory = makeProgressMemory({lastTime: 1200}, new Promise(() => {}));
+    const plays = recordPlays(client);
+    await setSource(client, makeSource('http://127.0.0.1/film.mp4'), (made) => {
+      made.duration = 7200;
+    });
+    expect(plays).toEqual([]);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(plays).toEqual([0]);
+  });
+
+  it('skips the remembered time for the episode it went on to, not for a source picked later', async () => {
+    const client = makeClient({storeProgress: true, disableLoadProgress: true});
+    client.progressMemory = makeProgressMemory({lastTime: 30});
+    const next = await setSource(client, makeSource('http://127.0.0.1/ep2.mp4'));
+    expect(next.seeks).not.toContain(30);
+    client.progressMemory = makeProgressMemory({lastTime: 30});
+    const picked = await setSource(client, makeSource('http://127.0.0.1/other.mp4'));
+    expect(picked.seeks).toContain(30);
+  });
+
+  it('loads a source again without a failed codec where it was, with what it had, playing', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const client = makeClient();
+    client.downloadManager.keepStorageOnce = vi.fn();
+    const source = makeSource('https://cdn.example/film.mpd');
+    const first = await setSource(client, source, (player) => {
+      player.duration = 7200;
+      player.takeCodecReload = () => true;
+    });
+    first._currentTime = 3600.7;
+    first.paused = false;
+    const plays = recordPlays(client);
+    let second = null;
+    client.playerLoader.createPlayer = vi.fn(async () => {
+      second = new FakePlayer(source);
+      second.duration = 7200;
+      return second;
+    });
+
+    first.emit(DefaultPlayerEvents.ERROR, {}, 'decode');
+    await client.sourceChange;
+    await settle();
+
+    expect(client.source.url).toBe(source.url);
+    expect(second.seeks).toContain(3600);
+    expect(client.downloadManager.keepStorageOnce).toHaveBeenCalled();
+    expect(plays).toEqual([3600]);
+  });
+
+  it('builds a player again once more when the rebuilt one fails before its first frame', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = makeClient();
+    client.downloadManager.keepStorageOnce = vi.fn();
+    client.recoveries = {url: null, times: []};
+    const first = await setSource(client, makeSource('http://127.0.0.1/film.mp4'), (made) => {
+      made.duration = 7200;
+    });
+    client.playedSource = client.source;
+    first._currentTime = 600;
+    let rebuilt = null;
+    client.playerLoader.createPlayer = vi.fn(async () => {
+      rebuilt = new FakePlayer(makeSource('http://127.0.0.1/film.mp4'));
+      rebuilt.duration = 7200;
+      return rebuilt;
+    });
+    expect(client.recoverPlayer(first, 'Playback stuck at 600')).toBe(true);
+    await client.sourceChange;
+    await settle();
+    // No LOADEDDATA from the rebuilt one: the same place fails again.
+    expect(client.recoverPlayer(rebuilt, 'Playback stuck at 600')).toBe(true);
+  });
+
+  it('does not predownload a live HLS stream as a whole video, whose duration is finite', () => {
+    const client = makeClient({downloadAll: true});
+    const player = new FakePlayer(makeSource('http://127.0.0.1/live.m3u8'));
+    player.duration = 120;
+    player.isLive = true;
+    player.videoLevel = 'video-1';
+    player.getVideoLevels = () => new Map([['video-1', {bitrate: 5e6}]]);
+    client.player = player;
+    client.hasDownloadSpace = true;
+    client.storageAvailable = 1e12;
+
+    client.updateHasDownloadSpace();
+
+    expect(client.hasDownloadSpace).toBe(false);
+    expect(client.shouldDownloadAll()).toBeFalsy();
+  });
+
+  it('does not go on to the next video while a live stream waits at its live edge', async () => {
+    const client = makeClient({autoplayNext: true});
+    const player = new FakePlayer(makeSource('http://127.0.0.1/live.m3u8'));
+    player.duration = 120;
+    player.isLive = true;
+    player._currentTime = 119.6;
+    client.player = player;
+    client.state.hasNextVideo = true;
+    client.bindPlayer(player);
+    player.emit(DefaultPlayerEvents.WAITING);
+    await settle();
+    const navigations = chrome.runtime.sendMessage.mock.calls.filter(([message]) => message.type === MessageTypes.REQUEST_PLAYLIST_NAVIGATION);
+    expect(navigations.length).toBe(0);
+    expect(client.interfaceController.setBuffering).toHaveBeenCalledWith(true);
+  });
+
+  it('does not show "playing" for a play that was waiting on the last source\'s player', async () => {
+    const client = makeClient();
+    const player = new FakePlayer(makeSource('http://127.0.0.1/a.mp4'));
+    const started = Promise.withResolvers();
+    player.play = () => started.promise;
+    client.player = player;
+    client.startAudio = vi.fn();
+    const playing = client.play();
+    await client.resetPlayer();
+    started.resolve();
+    await playing;
+    expect(client.interfaceController.play).not.toHaveBeenCalled();
+  });
+
+  it('applies the rest of the options when web storage is refused', () => {
+    vi.stubGlobal('document', {body: {dataset: {}}, getElementById: () => null});
+    const refused = () => {
+      throw new Error('SecurityError');
+    };
+    vi.stubGlobal('localStorage', {setItem: refused, getItem: refused});
+    vi.stubGlobal('sessionStorage', {setItem: refused, getItem: refused});
+    const client = makeClient();
+    client.videoAnalyzer.disable = vi.fn();
+    client.interfaceController.updateAutoNextIndicator = vi.fn();
+    client.loadProgressData = vi.fn(async () => {});
+
+    client.setOptions({decodingAwareQuality: false, autoplayNext: true});
+
+    expect(client.options.decodingAwareQuality).toBe(false);
+    expect(client.options.autoplayNext).toBe(true);
+  });
+
+  it('lets go of a seek preview that failed while it was built, and keeps none', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const client = makeClient({previewEnabled: true});
+    client.interfaceController.resetPreviewVideo = vi.fn();
+    client.interfaceController.addPreviewVideo = vi.fn();
+    client.player = new FakePlayer(makeSource('http://127.0.0.1/film.mp4'));
+    let preview = null;
+    client.playerLoader.createPlayer = vi.fn(async () => {
+      preview = new FakePlayer(makeSource('http://127.0.0.1/film.mp4'));
+      preview.destroy = vi.fn();
+      // Its source fails, and the setup still ends.
+      preview.setSource = async () => {
+        preview.emit(DefaultPlayerEvents.ERROR, new Error('manifest failed'));
+      };
+      return preview;
+    });
+
+    await client.setupPreviewPlayer().catch(() => {});
+    await settle();
+
+    expect(client.previewPlayer).toBe(null);
+    expect(preview.destroy).toHaveBeenCalled();
+    expect(client.interfaceController.addPreviewVideo).not.toHaveBeenCalled();
+  });
+});
+
+describe('FastStreamClient, the player-core audit: its review', () => {
+  it('applies a remembered time that comes after the wait, unless the user has sought', async () => {
+    vi.useFakeTimers();
+    const slow = Promise.withResolvers();
+    const client = makeClient({storeProgress: true});
+    client.progressMemory = makeProgressMemory({lastTime: 1200}, slow.promise);
+    const player = await setSource(client, makeSource('http://127.0.0.1/film.mp4'), (made) => {
+      made.duration = 7200;
+    });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(player.seeks).not.toContain(1200);
+    slow.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(player.seeks).toContain(1200);
+
+    const sought = Promise.withResolvers();
+    client.progressMemory = makeProgressMemory({lastTime: 1200}, sought.promise);
+    const next = await setSource(client, makeSource('http://127.0.0.1/other.mp4'), (made) => {
+      made.duration = 7200;
+    });
+    await vi.advanceTimersByTimeAsync(3000);
+    client.currentTime = 60;
+    sought.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(next.seeks).not.toContain(1200);
+  });
+
+  it('keeps the episode\'s skip of its remembered time for the stream tried after it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = makeClient({storeProgress: true, disableLoadProgress: true});
+    client.progressMemory = makeProgressMemory({lastTime: 30});
+    client.sourcesBrowser = {updateSources: vi.fn()};
+    let player = null;
+    client.playerLoader.createPlayer = vi.fn(async () => (player = new FakePlayer(client.source)));
+    client.sourceRequests++;
+    const fallback = makeSource('http://127.0.0.1/ep2-b.mp4');
+    await client.setSourceInternal(makeSource('http://127.0.0.1/ep2-a.mp4'), {request: client.sourceRequests, sources: [fallback]});
+    await settle();
+    expect(client.tryNextSource()).toBe(true);
+    await client.sourceChange;
+    await settle();
+    expect(client.source.url).toBe(fallback.url);
+    expect(player.seeks).not.toContain(30);
+  });
+
+  it('arms nothing for a rebuild that a source picked meanwhile replaced', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = makeClient();
+    client.downloadManager.keepStorageOnce = vi.fn();
+    client.recoveries = {url: null, times: []};
+    const first = await setSource(client, makeSource('http://127.0.0.1/a.mp4'), (made) => {
+      made.duration = 7200;
+    });
+    client.playedSource = client.source;
+    first._currentTime = 600;
+    client.droppedFrameWatch.userChose('720');
+    // A source change still running: the rebuild and the pick wait their turn.
+    const held = Promise.withResolvers();
+    client.sourceChange = held.promise;
+    expect(client.recoverPlayer(first, 'Playback stuck at 600')).toBe(true);
+    const picked = client.setSource(makeSource('http://127.0.0.1/b.mp4'));
+    held.resolve();
+    await picked;
+    await settle();
+    expect(client.source.url).toBe('http://127.0.0.1/b.mp4');
+    expect(client.downloadManager.keepStorageOnce).not.toHaveBeenCalled();
+    expect(client.droppedFrameWatch.chosen).toBe(null);
+  });
+
+  it('does not build again a source picked anew that fails before its first frame', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = makeClient();
+    client.recoveries = {url: null, times: []};
+    await setSource(client, makeSource('http://127.0.0.1/a.mp4'));
+    client.playedSource = client.source;
+    await setSource(client, makeSource('http://127.0.0.1/b.mp4'));
+    const again = await setSource(client, makeSource('http://127.0.0.1/a.mp4'));
+    expect(client.recoverPlayer(again, 'Playback stuck at 0')).toBe(false);
   });
 });

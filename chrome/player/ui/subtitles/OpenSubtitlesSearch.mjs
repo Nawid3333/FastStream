@@ -11,6 +11,7 @@ import {WebUtils} from '../../utils/WebUtils.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 import {createPagesBar} from '../components/PagesBar.mjs';
 import {chooseTitles, describeSubtitle, titleQuery, titlesFromFeatures, titlesFromSubtitles} from './SubtitleSearchTitles.mjs';
+import {WebStorage} from '../../utils/WebStorage.mjs';
 
 /** @typedef {import('./SubtitleSearchTitles.mjs').TitleCandidate} TitleCandidate */
 
@@ -241,7 +242,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
   loadFromSession() {
     let inputData;
     try {
-      inputData = JSON.parse(sessionStorage.getItem('subtitleSearch') || 'null');
+      inputData = JSON.parse(WebStorage.get('session', 'subtitleSearch') || 'null');
     } catch (e) {
       return;
     }
@@ -265,7 +266,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
       episode: this.subui.episodeInput.value,
     };
 
-    sessionStorage.setItem('subtitleSearch', JSON.stringify(inputData));
+    WebStorage.set('session', 'subtitleSearch', JSON.stringify(inputData));
   }
 
   /**
