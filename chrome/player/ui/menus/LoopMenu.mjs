@@ -193,7 +193,7 @@ export class LoopMenu extends EventEmitter {
       this.updateLoopAndGif();
       this.recordGif();
       // Nothing to record (the times make no loop): the loop as it was. It stayed on, and
-      // started by itself once the times were put right (review).
+      // started by itself once the times were put right.
       if (!this.gifLoopRunning) {
         this.loopEnabled = !!this.loopWasEnabled;
         this.loopWasEnabled = false;
@@ -419,7 +419,7 @@ export class LoopMenu extends EventEmitter {
   endGifLoop() {
     this.gifLoopRunning = false;
     // As it was before the GIF, unless the user switched the loop off meanwhile: that ended
-    // the recording, and was undone here (review).
+    // the recording, and was undone here.
     this.loopEnabled = this.loopEnabled && !!this.loopWasEnabled;
     this.loopWasEnabled = false;
     this.client.pause();

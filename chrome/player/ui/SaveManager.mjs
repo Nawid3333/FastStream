@@ -254,7 +254,7 @@ export class SaveManager {
    * Whether a video shows a picture a screenshot can take. Its size is known from the
    * metadata, but drawImage draws nothing until a frame is decoded (readyState 2): during a
    * slow seek, or the first moments of a video, the screenshot was an empty file that said
-   * "saved" (review).
+   * "saved".
    * @param {?HTMLVideoElement} video
    * @return {boolean}
    */

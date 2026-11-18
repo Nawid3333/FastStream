@@ -188,7 +188,7 @@ export class AudioAnalyzer extends EventEmitter {
       destroyPlayer(player);
     }
     // A failed analysis too: the start needs IDLE, so reopening the tool never tried that
-    // video again (review of 2026-10-14). A finished one stays finished.
+    // video again. A finished one stays finished.
     if (this.backgroundAnalyzerStatus === AnalyzerStatus.RUNNING ||
         this.backgroundAnalyzerStatus === AnalyzerStatus.FAILED) {
       this.backgroundAnalyzerStatus = AnalyzerStatus.IDLE;

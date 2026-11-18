@@ -34,7 +34,7 @@ export const AnalyzerStatus = {
  * Whether a range is the whole video, as far as an analysis goes: all of it but the last 5 s,
  * which a player may not reach, or but its last tenth for a video under 50 s. With the 5 s
  * alone, a video of 5 s or less counted as done at its first frame, and its strip stayed
- * empty (glm's review, 2026-11-16).
+ * empty.
  * @param {DoneRange} range
  * @param {number} duration - The video's, in seconds; NaN (not known yet) is never covered.
  * @return {boolean}
@@ -45,7 +45,7 @@ export function coversVideo(range, duration) {
 
 // The analysis players destroyed (failOnError watches for it). A player is not destroyed twice:
 // HLSPlayer's second destroy() hands destroyVideo a null video. An error, a stop and a stale
-// start's end can each come to the same player (Claude's review of #715).
+// start's end can each come to the same player.
 const destroyedPlayers = new WeakSet();
 
 /**
@@ -109,7 +109,7 @@ export async function startBackgroundPlayer(owner, label, newSource) {
   // Set by an end that came before the load returned the player (an error, or the frame
   // extractor's video with no size). The check for "the running player" compared two unset
   // values and passed, and the load's return then kept the dead player as the running one,
-  // which blocked every later start (glm's second look, 2026-10-13).
+  // which blocked every later start.
   /** @type {boolean|null} */
   let endedWhileLoading = null;
   try {
@@ -131,7 +131,7 @@ export async function startBackgroundPlayer(owner, label, newSource) {
   } catch (e) {
     // Thrown on, it was an unhandled rejection. The source is forgotten, so the next start
     // (the next play, the tool opened again) tries again: one dropped request left the video
-    // without its strip for good (glm's second look, 2026-10-13).
+    // without its strip for good.
     console.warn(`${label} The background analyzer did not start`, e);
     if (start === owner.backgroundStarts && owner.backgroundAnalyzerSource === newSource) {
       owner.backgroundAnalyzerSource = null;

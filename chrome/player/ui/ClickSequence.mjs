@@ -29,7 +29,7 @@ export class ClickSequence {
    */
   constructor(getOptions, act) {
     this.getOptions = getOptions;
-    // "Nothing" is no action to do (kimi's review).
+    // "Nothing" is no action to do.
     /** @param {string} action */
     this.act = (action) => {
       if (action && action !== ClickActions.NOTHING) act(action);

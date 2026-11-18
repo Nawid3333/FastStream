@@ -252,7 +252,7 @@ export class KeybindManager extends EventEmitter {
       this.client.updateVideoTransform();
     });
 
-    // Auto, then each ratio, then stretch, then auto again (upstream #552).
+    // Auto, then each ratio, then stretch, then auto again.
     this.on('CycleAspectRatio', /** @param {KeyboardEvent} e */ (e) => {
       const options = this.client.options;
       const ratios = Object.values(AspectRatios);

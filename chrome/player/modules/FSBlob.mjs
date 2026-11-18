@@ -60,7 +60,7 @@ export class FSBlob {
     // Every disk backend failed: what comes stays in RAM, and the player has to plan for
     // that (DownloadManager.canSpill, FastStreamClient.updateHasDownloadSpace). Its warning
     // sat in a catch around activateNextBackend() that nothing reached: that absorbs each
-    // backend's failure itself (review of 2026-10-14).
+    // backend's failure itself.
     this.diskGone = false;
 
     this.activateNextBackend();
@@ -488,7 +488,7 @@ export class FSBlob {
       await this.blobStorePromises.get(identifier);
       // Saved again while this waited (the fragment downloaded anew): the identifier is the
       // new save's now, and so is whatever the backend holds under it. Cleared, the new
-      // fragment was lost and downloaded once more (glm's review, 2026-11-16).
+      // fragment was lost and downloaded once more.
       if (this.blobStore.has(identifier)) return true;
     }
 
