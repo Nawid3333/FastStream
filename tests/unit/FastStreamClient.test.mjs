@@ -3087,3 +3087,16 @@ describe('FastStreamClient, the player-core audit: its review', () => {
     expect(client.recoverPlayer(again, 'Playback stuck at 0')).toBe(false);
   });
 });
+
+describe('FastStreamClient.currentTime, a live stream\'s end', () => {
+  it('seeks nowhere for Infinity: the media element throws on it', () => {
+    const client = makeClient();
+    const player = new FakePlayer(makeSource('https://cdn.test/live.mpd'));
+    player.duration = Infinity;
+    client.player = player;
+    client.currentTime = Infinity;
+    expect(player.seeks).toEqual([]);
+    client.currentTime = 12;
+    expect(player.seeks).toEqual([12]);
+  });
+});

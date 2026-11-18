@@ -1,4 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import fs from 'node:fs';
 
 import {AudioOutputDevice, isPolicyRefusal} from '../../chrome/player/ui/audio/AudioOutputDevice.mjs';
 
@@ -420,6 +421,18 @@ describe('AudioOutputDevice', () => {
     expect(await t.device.attach(audioContext, output)).toEqual({failed: null});
     expect(output.wired()).toEqual([audioContext.destination]);
     expect(t.device.playing).toBe(null);
+  });
+
+  it('shows the chooser for "choose another" after a device was chosen', async () => {
+    // Asked with the chosen device, Firefox may answer with it without showing its chooser:
+    // no other device could be picked.
+    const t = makeTest();
+    t.mediaDevices.selectAudioOutput.mockResolvedValue({...PHONES});
+    await t.device.choose();
+    await t.device.choose(null);
+    expect(t.mediaDevices.selectAudioOutput.mock.calls.at(-1)).toEqual([{}]);
+    const menu = fs.readFileSync(new URL('../../chrome/player/ui/menus/AudioQualityChanger.mjs', import.meta.url), 'utf8');
+    expect(menu).toMatch(/player_audio_output_choose'\), false,\s*\(\) => device\.choose\(null\)\)/);
   });
 
   it('gives the next video the device chosen while no video played', async () => {

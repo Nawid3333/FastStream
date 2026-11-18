@@ -2654,3 +2654,64 @@ Rejected:
   key bindings: the read fails only on a broken profile; `updateData` is only ever written by
   `JSON.stringify`; `mergeOptions` walks only the defaults' own keys and checks every binding
   with `isKeyString`.
+
+## The UI audit (2026-11-18)
+
+Two Claude API reviews and glm in five parts, of `chrome/player/ui/`. Each claim was checked
+against the code; picture-in-picture was run in Firefox 160 (`picture-in-picture.e2e.mjs`).
+Fixed, each with a test that fails without it (most in `interfaceControllerAudit.test.mjs`,
+which runs InterfaceController's and ProgressBar's methods from their source,
+`helpers/classMethods.mjs`):
+
+- **"Download paused" for good:** paused once everything was in, then resumed, the line stayed;
+  the pause now clears what "all buffered" was shown for.
+- **The visibility action** noted the visibility it acted on only after its play or pause was
+  answered: a change during it was lost, and the video played on in a hidden tab.
+- **Hiding the player and the visibility action** shared one "play again" flag: hidden, then the
+  tab switched away and back, the player did not play again when shown.
+- **Picture-in-picture and fullscreen refused** (a fullscreen the background could not give, a
+  PiP request rejected) were unhandled rejections in every click and key: they are said on the
+  console.
+- **The progress loop on audio alone** waited for video frames, which never come; it uses
+  screen frames when the video has no picture.
+- **A live stream's progress bar** (a DASH live stream's duration is Infinity) previewed and
+  dragged to Infinity, and a media element throws on such a seek. The bar does nothing there
+  (no preview, no drag: `ProgressBar.hasEnd`), and the client's `currentTime` refuses a
+  non-finite time.
+- **Saving:** a question answered after the next video came started a save on it; a second
+  click while a finished save's name was asked revoked that save's file; the mpv button
+  clicked twice sent the stream twice. The button waits for the background's answer, but no
+  longer than 15 s, and a send that throws (the extension reloaded) frees it at once: either
+  left the button dead for the life of the page.
+- **A subtitle URL** that answered after the next video came was added to it.
+- **The silence skipper** turned on again within 100 ms of a new video ran two loops.
+- **OpenSubtitles:** a refused request (a throttle) beside a title search that found nothing
+  said "no results" instead of why.
+- **The audio channel count:** an older counter failing to start after a newer one had
+  counted set the output back to stereo.
+- **"Choose an output…"** passed the chosen device to `selectAudioOutput`, which Firefox may
+  answer with that device without showing its chooser; it asks with none now.
+- **GIF:** the last frame drawn was never added (each was added when the next was drawn), and a
+  loop shorter than one frame threw in gif.js; it is dropped and says so. The last frame lasts
+  until the loop's end as it was during the recording: ending it turns a loop that was off
+  before the GIF off again, and with it its end.
+- **The resync tool's double click** edited the track the tool had when the prompt answered.
+
+Rejected:
+
+- Picture-in-picture throwing in Firefox: `requestPictureInPicture` is there since 153, and
+  Document Picture-in-Picture since 151 (MDN's compatibility data, the floor is 153).
+- Moving the player into the Document Picture-in-Picture window pausing it: run in Firefox
+  160, it plays on into the window and back.
+- `getAudioLevels()` undefined in the audio menu: the client answers an empty Map.
+- `copySourceLink`, the subtitle save, `releaseWhenDownloaded` and the speed menu's storage
+  calls rejecting: `copyText`, `downloadURL`, `whenDownloaded` and `setConfig` never reject.
+- The fine time controls on a long video not starting the progress loop: their `start()` does.
+- `dumpBuffer` leaving its stream open: `writeFSAToStream` aborts it on a failure.
+- The subtitles menu's first click doing nothing: it starts with an inline `display: none`.
+- An unbounded outline width: `SubtitleUtils.outlineWidth` caps it at 64.
+- Subtitle settings saved at each key: a few small storage writes while typing.
+- The subtitle bounds read on each time update: the reads are cheap while nothing changed.
+- A sources row's Play going on after the row was deleted: the player is loading that source.
+- Headers applied while typed: lines without a colon are left out, as intended.
+- The media-session seek keys with no player: the client's `currentTime` does nothing then.

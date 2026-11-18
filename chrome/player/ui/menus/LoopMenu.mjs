@@ -424,19 +424,37 @@ export class LoopMenu extends EventEmitter {
     this.loopWasEnabled = false;
     this.client.pause();
     this.client.setPlaybackRate(/** @type {number} */ (this.previousPlaybackRate), true);
+    // Before updateLoopAndGif: a loop that was off before the GIF has no end after it.
+    const end = this.loopEnd;
     this.updateLoopAndGif();
-    this.finishGif();
+    this.finishGif(end);
   }
 
-  finishGif() {
+  /** @param {?number} [end] - The loop's end, where the last frame ends. */
+  finishGif(end = this.loopEnd) {
+    const gif = this.gif;
+    // The last frame drawn is added only by the next one's sample.
+    const lastRecorded = this.lastTimeRecorded;
+    if (gif && this.gifCanvas && typeof lastRecorded === 'number') {
+      try {
+        const until = typeof end === 'number' ? end : lastRecorded;
+        gif.addFrame(this.gifCanvas, {delay: Math.max(Math.round((until - lastRecorded) * 1000), 33), copy: true});
+      } catch (e) {
+        console.warn('The GIF\'s last frame could not be added', e);
+      }
+    }
     this.recordingGif = false;
     this.gifLoopRunning = false;
     this.lastTimeRecorded = null;
     this.gifCtx = null;
     this.gifCanvas = null;
 
-
-    const gif = this.gif;
+    // No frame (a loop shorter than one): gif.js throws on rendering none.
+    if (gif && gif.frames.length === 0) {
+      this.gif = null;
+      this.client.interfaceController.setStatusMessage('save-gif', Localize.getMessage('loop_menu_gif_abort'), 'info', 5000);
+      return;
+    }
     if (gif) {
       this.client.interfaceController.setStatusMessage('save-gif', Localize.getMessage('loop_menu_gif_end'), 'info', 5000);
       // gif.js: the share of the frames rendered, 0 to 1; then the GIF.

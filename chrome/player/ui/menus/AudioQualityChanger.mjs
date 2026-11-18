@@ -301,7 +301,7 @@ export class AudioQualityChanger extends EventEmitter {
           () => (device.playing === chosen ? Promise.resolve() : device.choose())));
     }
     this.outputItems.push(this.makeOutputItem(Localize.getMessage('player_audio_output_choose'), false,
-        () => device.choose()));
+        () => device.choose(null)));
     this.outputItems.forEach((element) => list.appendChild(element));
     // A list with the output part is one to open, tracks or none.
     DOMElements.audioTracksBtn.classList.remove('hidden');

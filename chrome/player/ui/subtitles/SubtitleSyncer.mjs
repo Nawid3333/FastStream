@@ -122,8 +122,10 @@ export class SubtitleSyncer extends EventEmitter {
     // double click to edit
     this.ui.timelineTrack.addEventListener('dblclick', (e) => {
       if (!/** @type {any} */ (window).subEditMode) return;
+      const track = this.trackToSync;
+      if (!track) return;
       const time = this.client.interfaceController.fineTimeControls.mousePositionToTime(e.clientX);
-      const cue = /** @type {SubtitleTrack} */ (this.trackToSync).cues.find((c) => {
+      const cue = track.cues.find((c) => {
         return time >= c.startTime && time <= c.endTime;
       });
       if (cue) {
@@ -148,9 +150,9 @@ export class SubtitleSyncer extends EventEmitter {
             }
           } else {
             // if text is empty, remove cue
-            const index = /** @type {SubtitleTrack} */ (this.trackToSync).cues.indexOf(cue);
+            const index = track.cues.indexOf(cue);
             if (index !== -1) {
-              /** @type {SubtitleTrack} */ (this.trackToSync).cues.splice(index, 1);
+              track.cues.splice(index, 1);
             }
           }
           // Shown on the video at once: only playback redrew it, and paused the old text
@@ -162,9 +164,9 @@ export class SubtitleSyncer extends EventEmitter {
         // create new cue at this time with default duration of 2 seconds
         /** @type {SyncCue} */
         const newCue = new VTTCue(time, time + 2, Localize.getMessage('player_subtitles_new_cue'));
-        /** @type {SubtitleTrack} */ (this.trackToSync).cues.push(newCue);
+        track.cues.push(newCue);
         // sort cues by start time
-        /** @type {SubtitleTrack} */ (this.trackToSync).cues.sort((a, b) => a.startTime - b.startTime);
+        track.cues.sort((a, b) => a.startTime - b.startTime);
         this.client.interfaceController.subtitlesManager.renderSubtitles();
         this.redrawTrack();
         AlertPolyfill.prompt(Localize.getMessage('player_subtitlesmenu_resynctool_edit'), newCue.text).then((newText) => {
@@ -184,9 +186,9 @@ export class SubtitleSyncer extends EventEmitter {
             }
           } else {
             // Cancelled, or emptied: no new cue, rather than one reading "New subtitle".
-            const index = /** @type {SubtitleTrack} */ (this.trackToSync).cues.indexOf(newCue);
+            const index = track.cues.indexOf(newCue);
             if (index !== -1) {
-              /** @type {SubtitleTrack} */ (this.trackToSync).cues.splice(index, 1);
+              track.cues.splice(index, 1);
             }
           }
           // Either way: a cancelled one stayed on a paused video, reading "New subtitle".

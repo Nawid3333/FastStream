@@ -406,7 +406,13 @@ export class OpenSubtitlesSearch extends EventEmitter {
         {name: input.query, year: input.year, season: input.season, episode: input.episode},
     );
     if (!chosen) {
-      this.showMessage(Localize.getMessage('player_opensubtitles_noresults'));
+      // Nothing found because a request was refused (a throttle): say why.
+      const refused = subtitles.status === 'rejected' ? subtitles : features.status === 'rejected' ? features : null;
+      if (refused) {
+        this.showFailure(refused.reason);
+      } else {
+        this.showMessage(Localize.getMessage('player_opensubtitles_noresults'));
+      }
       return;
     }
     this.showTitle(chosen.best, chosen.others, input, input.language, 1).catch((e) => this.showFailure(e));

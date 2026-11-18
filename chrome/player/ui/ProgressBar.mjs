@@ -375,6 +375,7 @@ export class ProgressBar extends EventEmitter {
    * @param {MouseEvent} event
    */
   onProgressbarMouseMove(event) {
+    if (!this.hasEnd()) return;
     const currentX = Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(DOMElements.progressContainer), 0), DOMElements.progressContainer.clientWidth);
     const totalWidth = DOMElements.progressContainer.clientWidth;
 
@@ -413,7 +414,7 @@ export class ProgressBar extends EventEmitter {
    */
   onProgressbarMouseDown(event) {
     // check if left mouse button was pressed
-    if (event.button !== 0) {
+    if (event.button !== 0 || !this.hasEnd()) {
       return;
     }
 
@@ -438,7 +439,8 @@ export class ProgressBar extends EventEmitter {
     /** @type {(timeBarX: number) => void} */
     const shiftTime = (timeBarX) => {
       const totalWidth = DOMElements.progressContainer.clientWidth;
-      if (totalWidth) {
+      const duration = this.client.duration;
+      if (totalWidth && duration > 0 && Number.isFinite(duration)) {
         let newTime;
         if (preciseSavedPosition !== null) {
           newTime = /** @type {number} */ (preciseSavedTime) + 60 * (timeBarX - preciseSavedPosition) / totalWidth;
@@ -535,7 +537,17 @@ export class ProgressBar extends EventEmitter {
 
   onProgressbarMouseEnter() {
     this.isMouseOverProgressbar = true;
-    this.showPreview();
+    if (this.hasEnd()) this.showPreview();
+  }
+
+  /**
+   * Whether the bar places times: a live stream's duration (a DASH one's is Infinity) has no
+   * end to place them by, and a seek to Infinity throws.
+   * @return {boolean}
+   */
+  hasEnd() {
+    const duration = this.client.duration;
+    return duration > 0 && Number.isFinite(duration);
   }
 
   showPreview() {

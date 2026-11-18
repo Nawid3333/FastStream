@@ -129,14 +129,16 @@ export class AudioOutputDevice {
 
   /**
    * Firefox's own chooser of output devices (it needs the user's click), then the sound there.
+   * @param {?string} [asked] - The device to offer first; Firefox may answer with an allowed one
+   *   without showing its chooser, so none for "choose another".
    * @return {Promise<?OutputChoice>} The device chosen, or null when the user cancelled or
    *   chose something else meanwhile.
    * @throws {Error} When the page may not choose (a site's permissions policy) or the device
    *   cannot play: the sound stays where it was.
    */
-  async choose() {
+  async choose(asked = this.choice?.deviceId) {
     if (!this.isSupported()) throw new Error('This Firefox cannot choose the audio output');
-    const known = this.choice?.deviceId;
+    const known = asked;
     const devices = /** @type {OutputMediaDevices} */ (this.mediaDevices);
     let device;
     try {
