@@ -1047,7 +1047,7 @@
         "message": "Lista de permissões do MPV"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Sites nesta lista abrem streams detectados no mpv. Uma URL por linha; páginas que começam com essa URL também correspondem (https:// e www. podem ser omitidos: crunchyroll.com @anime). Use ~ para regex e ! para excluir. Sites sem etiqueta usam Filme por padrão na escolha de shaders do mpv – adicione @anime ao final da linha para sites de anime. @movie também é aceito, se você quiser escrever por extenso. O botão mpv do reprodutor pode substituir isso para cada vídeo."
+        "message": "Sites nesta lista abrem streams detectados no mpv. Uma URL por linha; páginas que começam com essa URL também correspondem (https:// e www. podem ser omitidos: crunchyroll.com @anime). Use ~ para regex e ! para excluir. Sites sem etiqueta usam Filme por padrão na escolha de shaders do mpv – adicione @anime ao final da linha para sites de anime. @movie também é aceito, se você quiser escrever por extenso. O botão mpv do reprodutor pode substituir isso para cada vídeo. Com @native, o mpv reproduz os vídeos de um site sem nenhum upscaler."
     },
     "options_mpv_path": {
         "message": "Caminho do mpv (opcional: apenas se o auxiliar do mpv não encontrar o mpv por conta própria)"
@@ -1140,13 +1140,16 @@
         "message": "O mpv aberto decodifica no processador ($1): adicione hwdec=auto-safe ao mpv.conf para decodificar na placa de vídeo."
     },
     "player_mpv_content_unset": {
-        "message": "Abrir este stream no mpv (tipo de conteúdo: automático – Filme, a menos que o site esteja marcado com @anime; clique com o botão direito para mudar neste vídeo)"
+        "message": "Abrir este stream no mpv (tipo de conteúdo: automático – Filme, a menos que o site esteja marcado com @anime/@native; clique com o botão direito para mudar neste vídeo)"
     },
     "player_mpv_content_anime": {
         "message": "Abrir este stream no mpv (tipo de conteúdo: Anime – clique com o botão direito para mudar)"
     },
     "player_mpv_content_movie": {
         "message": "Abrir este stream no mpv (tipo de conteúdo: Filme – clique com o botão direito para mudar)"
+    },
+    "player_mpv_content_native": {
+        "message": "Abrir este stream no mpv (tipo de conteúdo: Nativo, sem upscaler – clique com o botão direito para mudar)"
     },
     "options_help_header": {
         "message": "Ajuda"

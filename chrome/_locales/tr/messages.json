@@ -1047,7 +1047,7 @@
         "message": "MPV izin listesi"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Bu listedeki siteler algılanan akışları mpv'de açar. Satır başına bir URL; o URL ile başlayan sayfalar da eşleşir (https:// ve www. yazılmayabilir; örneğin crunchyroll.com @anime). Regex için ~, hariç tutmak için ! kullanın. Etiketsiz siteler mpv'nin shader seçiminde varsayılan olarak Film'i kullanır — anime siteleri için satır sonuna @anime ekleyin. Açıkça yazmak isterseniz @movie de kabul edilir. Oynatıcının mpv düğmesi bunu video başına geçersiz kılabilir."
+        "message": "Bu listedeki siteler algılanan akışları mpv'de açar. Satır başına bir URL; o URL ile başlayan sayfalar da eşleşir (https:// ve www. yazılmayabilir; örneğin crunchyroll.com @anime). Regex için ~, hariç tutmak için ! kullanın. Etiketsiz siteler mpv'nin shader seçiminde varsayılan olarak Film'i kullanır — anime siteleri için satır sonuna @anime ekleyin. Açıkça yazmak isterseniz @movie de kabul edilir. Oynatıcının mpv düğmesi bunu video başına geçersiz kılabilir. @native ile mpv, sitenin videolarını hiçbir ölçekleyici olmadan oynatır."
     },
     "options_mpv_path": {
         "message": "mpv yolu (isteğe bağlı: mpv yardımcısı mpv'yi kendisi bulamıyorsa)"
@@ -1140,13 +1140,16 @@
         "message": "Açık mpv penceresi işlemcide çözüyor ($1): ekran kartında çözmek için mpv.conf dosyasına hwdec=auto-safe ekleyin."
     },
     "player_mpv_content_unset": {
-        "message": "Bu akışı mpv'de aç (içerik türü: otomatik — site @anime ile etiketli değilse Film; bu video için değiştirmek üzere sağ tıklayın)"
+        "message": "Bu akışı mpv'de aç (içerik türü: otomatik — site @anime/@native ile etiketli değilse Film; bu video için değiştirmek üzere sağ tıklayın)"
     },
     "player_mpv_content_anime": {
         "message": "Bu akışı mpv'de aç (içerik türü: Anime — sağ tıklayarak değiştirin)"
     },
     "player_mpv_content_movie": {
         "message": "Bu akışı mpv'de aç (içerik türü: Film — sağ tıklayarak değiştirin)"
+    },
+    "player_mpv_content_native": {
+        "message": "Bu akışı mpv'de aç (içerik türü: Doğal, ölçekleyici yok — sağ tıklayarak değiştirin)"
     },
     "options_help_header": {
         "message": "Yardım"

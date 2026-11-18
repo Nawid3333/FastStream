@@ -292,6 +292,8 @@ describe('withContentTypeFragment', () => {
         .toBe('https://example.com/a.m3u8#fs-content=anime');
     expect(withContentTypeFragment('https://example.com/a.m3u8', 'movie'))
         .toBe('https://example.com/a.m3u8#fs-content=movie');
+    expect(withContentTypeFragment('https://example.com/a.m3u8', 'native'))
+        .toBe('https://example.com/a.m3u8#fs-content=native');
   });
 
   it('extends an existing fragment instead of adding a second #', () => {

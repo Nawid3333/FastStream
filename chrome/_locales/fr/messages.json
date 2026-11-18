@@ -1047,7 +1047,7 @@
         "message": "Liste d'autorisation MPV"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Les sites de cette liste ouvrent dans mpv les flux détectés. Une URL par ligne ; les pages commençant par cette URL correspondent aussi (vous pouvez omettre https:// et www. : crunchyroll.com @anime). Utilisez ~ pour les regex et ! pour exclure. Les sites sans balise utilisent Film par défaut pour la sélection de shaders de mpv - ajoutez @anime à la fin d'une ligne pour les sites d'anime. @movie est aussi accepté, si vous souhaitez l'écrire en toutes lettres. Le bouton mpv du lecteur peut remplacer cela pour chaque vidéo."
+        "message": "Les sites de cette liste ouvrent dans mpv les flux détectés. Une URL par ligne ; les pages commençant par cette URL correspondent aussi (vous pouvez omettre https:// et www. : crunchyroll.com @anime). Utilisez ~ pour les regex et ! pour exclure. Les sites sans balise utilisent Film par défaut pour la sélection de shaders de mpv - ajoutez @anime à la fin d'une ligne pour les sites d'anime. @movie est aussi accepté, si vous souhaitez l'écrire en toutes lettres. Le bouton mpv du lecteur peut remplacer cela pour chaque vidéo. Avec @native, mpv lit les vidéos d'un site sans aucun upscaler."
     },
     "options_mpv_path": {
         "message": "Chemin de mpv (facultatif : uniquement si l'assistant mpv ne trouve pas mpv par lui-même)"
@@ -1140,13 +1140,16 @@
         "message": "La fenêtre mpv ouverte décode sur le processeur ($1) : ajoutez hwdec=auto-safe à mpv.conf pour décoder sur la carte graphique."
     },
     "player_mpv_content_unset": {
-        "message": "Ouvrir ce flux dans mpv (type de contenu : auto – Film sauf si le site est marqué @anime ; clic droit pour le changer pour cette vidéo)"
+        "message": "Ouvrir ce flux dans mpv (type de contenu : auto – Film sauf si le site est marqué @anime/@native ; clic droit pour le changer pour cette vidéo)"
     },
     "player_mpv_content_anime": {
         "message": "Ouvrir ce flux dans mpv (type de contenu : Anime – clic droit pour le changer)"
     },
     "player_mpv_content_movie": {
         "message": "Ouvrir ce flux dans mpv (type de contenu : Film – clic droit pour le changer)"
+    },
+    "player_mpv_content_native": {
+        "message": "Ouvrir ce flux dans mpv (type de contenu : Natif, sans upscaler – clic droit pour le changer)"
     },
     "options_help_header": {
         "message": "Aide"

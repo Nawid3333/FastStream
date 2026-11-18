@@ -310,6 +310,9 @@ describe('openStream contentType', () => {
 
     await backend.openStream('https://cdn/b.m3u8', undefined, undefined, 'movie');
     expect(host.message().contentType).toBe('movie');
+
+    await backend.openStream('https://cdn/c.m3u8', undefined, undefined, 'native');
+    expect(host.message().contentType).toBe('native');
   });
 
   it('omits contentType when unset or invalid', async () => {

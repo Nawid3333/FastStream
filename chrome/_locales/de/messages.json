@@ -1047,7 +1047,7 @@
         "message": "MPV-Zulassungsliste"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Seiten auf dieser Liste öffnen erkannte Streams in mpv. Eine URL pro Zeile; Seiten, die mit dieser URL beginnen, passen ebenfalls (https:// und www. können weggelassen werden: crunchyroll.com @anime). Nutze ~ für reguläre Ausdrücke und ! zum Ausschließen. Seiten ohne Markierung verwenden für die Shader-Auswahl von mpv standardmäßig Film – hänge bei Anime-Seiten @anime ans Zeilenende an. @movie wird auch akzeptiert, falls du es ausgeschrieben haben willst. Die mpv-Schaltfläche des Players kann dies pro Video überschreiben."
+        "message": "Seiten auf dieser Liste öffnen erkannte Streams in mpv. Eine URL pro Zeile; Seiten, die mit dieser URL beginnen, passen ebenfalls (https:// und www. können weggelassen werden: crunchyroll.com @anime). Nutze ~ für reguläre Ausdrücke und ! zum Ausschließen. Seiten ohne Markierung verwenden für die Shader-Auswahl von mpv standardmäßig Film – hänge bei Anime-Seiten @anime ans Zeilenende an. @movie wird auch akzeptiert, falls du es ausgeschrieben haben willst. Die mpv-Schaltfläche des Players kann dies pro Video überschreiben. Mit @native spielt mpv die Videos einer Seite ohne Upscaler ab."
     },
     "options_mpv_path": {
         "message": "mpv-Pfad (optional: nur, wenn der mpv-Helfer mpv nicht selbst findet)"
@@ -1140,13 +1140,16 @@
         "message": "Das geöffnete mpv-Fenster dekodiert auf dem Prozessor ($1): Füge hwdec=auto-safe zu mpv.conf hinzu, um auf der Grafikkarte zu dekodieren."
     },
     "player_mpv_content_unset": {
-        "message": "Diesen Stream in mpv öffnen (Inhaltstyp: Automatisch – Film, außer die Seite ist mit @anime markiert; Rechtsklick, um es für dieses Video zu ändern)"
+        "message": "Diesen Stream in mpv öffnen (Inhaltstyp: Automatisch – Film, außer die Seite ist mit @anime/@native markiert; Rechtsklick, um es für dieses Video zu ändern)"
     },
     "player_mpv_content_anime": {
         "message": "Diesen Stream in mpv öffnen (Inhaltstyp: Anime – Rechtsklick zum Ändern)"
     },
     "player_mpv_content_movie": {
         "message": "Diesen Stream in mpv öffnen (Inhaltstyp: Film – Rechtsklick zum Ändern)"
+    },
+    "player_mpv_content_native": {
+        "message": "Diesen Stream in mpv öffnen (Inhaltstyp: Nativ, ohne Upscaler – Rechtsklick zum Ändern)"
     },
     "options_help_header": {
         "message": "Hilfe"

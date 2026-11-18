@@ -85,13 +85,24 @@ export function withoutFsTags(streamUrl) {
     streamUrl.slice(0, hashIndex);
 }
 
+/** What mpv's gpu-toggles.lua reads from fs-content: native means no upscaler. */
+export const MpvContentTypes = Object.freeze(['anime', 'movie', 'native']);
+
+/**
+ * @param {*} value
+ * @return {value is string}
+ */
+export function isMpvContentType(value) {
+  return MpvContentTypes.includes(value);
+}
+
 /**
  * @param {string} streamUrl
  * @param {*} [contentType]
  * @return {string}
  */
 export function withContentTypeFragment(streamUrl, contentType) {
-  if (contentType !== 'anime' && contentType !== 'movie') {
+  if (!isMpvContentType(contentType)) {
     return streamUrl;
   }
   return withFragmentTag(streamUrl, `fs-content=${contentType}`);

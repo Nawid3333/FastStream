@@ -61,10 +61,9 @@ export class SaveManager {
     this.makingDownload = false;
     this.downloadCancel = null;
     this.pendingSave = null;
-    // Manual override for the mpv anime/movie shader selection, cycled by
-    // right-clicking the mpv button. null defers to the MPV Allowlist's
-    // per-site @anime/@movie tag (see UrlMatchList.mjs / background.mjs).
-    /** @type {null|'anime'|'movie'} */
+    // Manual override for mpv's upscaler choice, cycled by right-clicking the mpv button.
+    // null defers to the MPV Allowlist's per-site @anime/@movie/@native tag (UrlMatchList.mjs).
+    /** @type {null|'anime'|'movie'|'native'} */
     this.mpvContentType = null;
   }
 
@@ -200,14 +199,14 @@ export class SaveManager {
   }
 
   /**
-   * Cycles the manual mpv content-type override: Unset -> Anime -> Movie ->
+   * Cycles the manual mpv content-type override: Unset -> Anime -> Movie -> Native ->
    * Unset. Right-click on the mpv button, since the button's main click
    * already does the "send to mpv" action.
    * @return {void}
    */
   cycleMpvContentType() {
-    const order = [null, 'anime', 'movie'];
-    const next = /** @type {null|'anime'|'movie'} */ (order[(order.indexOf(this.mpvContentType) + 1) % order.length]);
+    const order = [null, 'anime', 'movie', 'native'];
+    const next = /** @type {null|'anime'|'movie'|'native'} */ (order[(order.indexOf(this.mpvContentType) + 1) % order.length]);
     this.mpvContentType = next;
     this.updateMpvContentBadge();
   }
@@ -223,31 +222,23 @@ export class SaveManager {
   }
 
   /**
-   * Reflects the current mpvContentType on the mpv button: a small A/M
+   * Reflects the current mpvContentType on the mpv button: a small A/M/N
    * badge, and a tooltip naming the active state.
    * @return {void}
    */
   updateMpvContentBadge() {
     const banner = DOMElements.mpvContentBanner;
-    if (this.mpvContentType === 'anime') {
-      if (banner) {
-        banner.textContent = 'A';
-        banner.style.display = '';
-      }
-      WebUtils.setLabels(DOMElements.mpv, Localize.getMessage('player_mpv_content_anime'));
-    } else if (this.mpvContentType === 'movie') {
-      if (banner) {
-        banner.textContent = 'M';
-        banner.style.display = '';
-      }
-      WebUtils.setLabels(DOMElements.mpv, Localize.getMessage('player_mpv_content_movie'));
-    } else {
-      if (banner) {
-        banner.textContent = '';
-        banner.style.display = 'none';
-      }
-      WebUtils.setLabels(DOMElements.mpv, Localize.getMessage('player_mpv_content_unset'));
+    const type = this.mpvContentType;
+    const [badge, key] = (type && {
+      anime: ['A', 'player_mpv_content_anime'],
+      movie: ['M', 'player_mpv_content_movie'],
+      native: ['N', 'player_mpv_content_native'],
+    }[type]) || ['', 'player_mpv_content_unset'];
+    if (banner) {
+      banner.textContent = badge;
+      banner.style.display = badge ? '' : 'none';
     }
+    WebUtils.setLabels(DOMElements.mpv, Localize.getMessage(key));
   }
 
   /**

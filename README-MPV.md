@@ -108,11 +108,12 @@ FastStream settings → **MPV Mode**:
    the end of a line for the sites that are not, e.g.
    `https://crunchyroll.com @anime` — most people have more movie sites
    than anime ones, so only the exceptions need marking. (`@movie` is also
-   accepted, if you'd rather write it out.) This is passed to mpv as a
-   `#fs-content=anime`/`#fs-content=movie` marker on the stream URL (never
-   sent to the site — URL fragments stay client-side), for an mpv config
-   that reads it back to pick an anime- or movie-tuned shader chain
-   automatically.
+   accepted, if you'd rather write it out.) Add `@native` for a site whose
+   videos should play as they are, with no upscaler, e.g. `youtube.com @native`.
+   This is passed to mpv as a `#fs-content=anime`/`movie`/`native` marker on
+   the stream URL (never sent to the site — URL fragments stay client-side),
+   for an mpv config that reads it back to pick an anime- or movie-tuned
+   shader chain automatically, or none for `native`.
 
 ## 4. Use it
 

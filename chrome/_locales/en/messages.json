@@ -1047,7 +1047,7 @@
         "message": "MPV Allowlist"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Sites on this list open detected streams in mpv. One URL per line; pages starting with that URL also match (https:// and www. can be left out: crunchyroll.com @anime). Use ~ for regex and ! to exclude. Untagged sites default to Movie for mpv's shader selection -- add @anime at the end of a line for anime sites. @movie is also accepted, if you want it written out. The player's mpv button can override this per video."
+        "message": "Sites on this list open detected streams in mpv. One URL per line; pages starting with that URL also match (https:// and www. can be left out: crunchyroll.com @anime). Use ~ for regex and ! to exclude. Untagged sites default to Movie for mpv's shader selection -- add @anime at the end of a line for anime sites. @movie is also accepted, if you want it written out. The player's mpv button can override this per video. Add @native to play a site's videos in mpv without any upscaler."
     },
     "options_mpv_path": {
         "message": "mpv path (optional: only if the mpv helper does not find mpv by itself)"
@@ -1140,13 +1140,16 @@
         "message": "The open mpv window decodes on the processor ($1): add hwdec=auto-safe to mpv.conf to decode on the graphics card."
     },
     "player_mpv_content_unset": {
-        "message": "Open this stream in mpv (content type: auto -- Movie unless the site is tagged @anime; right-click to override for this video)"
+        "message": "Open this stream in mpv (content type: auto -- Movie unless the site is tagged @anime/@native; right-click to override for this video)"
     },
     "player_mpv_content_anime": {
         "message": "Open this stream in mpv (content type: Anime -- right-click to change)"
     },
     "player_mpv_content_movie": {
         "message": "Open this stream in mpv (content type: Movie -- right-click to change)"
+    },
+    "player_mpv_content_native": {
+        "message": "Open this stream in mpv (content type: Native, no upscaler -- right-click to change)"
     },
     "options_help_header": {
         "message": "Help"

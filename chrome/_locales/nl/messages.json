@@ -1047,7 +1047,7 @@
         "message": "MPV-toelatingslijst"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Sites op deze lijst openen gedetecteerde streams in mpv. Eén URL per regel; pagina's die met die URL beginnen, komen ook overeen (https:// en www. mogen worden weggelaten: crunchyroll.com @anime). Gebruik ~ voor regex en ! om uit te sluiten. Sites zonder label gebruiken standaard Film voor de shaderkeuze van mpv – voeg @anime toe aan het einde van een regel voor anime-sites. @movie wordt ook geaccepteerd, als je het voluit wilt schrijven. De mpv-knop van de speler kan dit per video overschrijven."
+        "message": "Sites op deze lijst openen gedetecteerde streams in mpv. Eén URL per regel; pagina's die met die URL beginnen, komen ook overeen (https:// en www. mogen worden weggelaten: crunchyroll.com @anime). Gebruik ~ voor regex en ! om uit te sluiten. Sites zonder label gebruiken standaard Film voor de shaderkeuze van mpv – voeg @anime toe aan het einde van een regel voor anime-sites. @movie wordt ook geaccepteerd, als je het voluit wilt schrijven. De mpv-knop van de speler kan dit per video overschrijven. Met @native speelt mpv de video's van een site af zonder upscaler."
     },
     "options_mpv_path": {
         "message": "mpv-pad (optioneel: alleen als het mpv-hulpje mpv niet zelf vindt)"
@@ -1140,13 +1140,16 @@
         "message": "Het geopende mpv-venster decodeert op de processor ($1): voeg hwdec=auto-safe toe aan mpv.conf om op de grafische kaart te decoderen."
     },
     "player_mpv_content_unset": {
-        "message": "Deze stream openen in mpv (inhoudstype: auto – Film tenzij de site als @anime is gelabeld; rechtsklikken om dit voor deze video te overschrijven)"
+        "message": "Deze stream openen in mpv (inhoudstype: auto – Film tenzij de site als @anime/@native is gelabeld; rechtsklikken om dit voor deze video te overschrijven)"
     },
     "player_mpv_content_anime": {
         "message": "Deze stream openen in mpv (inhoudstype: Anime – rechtsklikken om te wijzigen)"
     },
     "player_mpv_content_movie": {
         "message": "Deze stream openen in mpv (inhoudstype: Film – rechtsklikken om te wijzigen)"
+    },
+    "player_mpv_content_native": {
+        "message": "Deze stream openen in mpv (inhoudstype: Native, zonder upscaler – rechtsklikken om te wijzigen)"
     },
     "options_help_header": {
         "message": "Help"

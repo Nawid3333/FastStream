@@ -1047,7 +1047,7 @@
         "message": "Lista dozwolonych witryn dla MPV"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Witryny z tej listy otwierają wykryte strumienie w mpv. Jeden adres URL na wiersz; strony zaczynające się od tego adresu też pasują (https:// i www. można pominąć: crunchyroll.com @anime). Użyj ~ dla wyrażeń regularnych i ! do wykluczania. Witryny bez znacznika domyślnie używają Filmu do wyboru shaderów mpv - dodaj @anime na końcu wiersza dla witryn anime. @movie też jest akceptowany, jeśli chcesz to zapisać wprost. Przycisk mpv w odtwarzaczu może to nadpisać dla każdego wideo."
+        "message": "Witryny z tej listy otwierają wykryte strumienie w mpv. Jeden adres URL na wiersz; strony zaczynające się od tego adresu też pasują (https:// i www. można pominąć: crunchyroll.com @anime). Użyj ~ dla wyrażeń regularnych i ! do wykluczania. Witryny bez znacznika domyślnie używają Filmu do wyboru shaderów mpv - dodaj @anime na końcu wiersza dla witryn anime. @movie też jest akceptowany, jeśli chcesz to zapisać wprost. Przycisk mpv w odtwarzaczu może to nadpisać dla każdego wideo. Z @native mpv odtwarza filmy z witryny bez żadnego upscalera."
     },
     "options_mpv_path": {
         "message": "Ścieżka do mpv (opcjonalna: tylko jeśli host mpv sam nie znajdzie mpv)"
@@ -1140,13 +1140,16 @@
         "message": "Otwarte okno mpv dekoduje na procesorze ($1): dodaj hwdec=auto-safe do mpv.conf, aby dekodować na karcie graficznej."
     },
     "player_mpv_content_unset": {
-        "message": "Otwórz ten strumień w mpv (typ treści: automatycznie – Film, chyba że witryna ma znacznik @anime; kliknij prawym przyciskiem myszy, aby zmienić to dla tego wideo)"
+        "message": "Otwórz ten strumień w mpv (typ treści: automatycznie – Film, chyba że witryna ma znacznik @anime/@native; kliknij prawym przyciskiem myszy, aby zmienić to dla tego wideo)"
     },
     "player_mpv_content_anime": {
         "message": "Otwórz ten strumień w mpv (typ treści: Anime – kliknij prawym przyciskiem myszy, aby zmienić)"
     },
     "player_mpv_content_movie": {
         "message": "Otwórz ten strumień w mpv (typ treści: Film – kliknij prawym przyciskiem myszy, aby zmienić)"
+    },
+    "player_mpv_content_native": {
+        "message": "Otwórz ten strumień w mpv (typ treści: Natywny, bez upscalera – kliknij prawym przyciskiem myszy, aby zmienić)"
     },
     "options_help_header": {
         "message": "Pomoc"
