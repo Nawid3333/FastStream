@@ -103,6 +103,7 @@ export async function loadBackground({
   os = 'win',
   beforeImport = () => {},
   sessionReady = Promise.resolve(),
+  filterResponseData = undefined,
 } = {}) {
   vi.useFakeTimers();
   vi.resetModules();
@@ -152,6 +153,8 @@ export async function loadBackground({
     onHeadersReceived: event(),
     onErrorOccurred: event(),
     onBeforeRedirect: event(),
+    // Firefox's StreamFilter, for the manifest a response's first bytes tell (ManifestSniffer).
+    ...(filterResponseData ? {filterResponseData} : {}),
   };
   const tabEvents = {
     onRemoved: event(),

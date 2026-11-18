@@ -1337,6 +1337,18 @@
     "perms_page_breakdown_perm10d": {
         "message": "Добавляет пункты FastStream в контекстное меню веб-страниц: воспроизвести видео со страницы в FastStream или MPV или открыть ссылку в новой вкладке с включенным FastStream или MPV. Firefox не выводит предупреждений об этом."
     },
+    "perms_page_breakdown_perm11h": {
+        "message": "Доступ к блокирующему webRequest API"
+    },
+    "perms_page_breakdown_perm11d": {
+        "message": "FastStream задерживает запрос плеера лишь настолько, чтобы начать читать его первые байты (это нужно для следующего разрешения)."
+    },
+    "perms_page_breakdown_perm12h": {
+        "message": "Чтение первых байтов ответов"
+    },
+    "perms_page_breakdown_perm12d": {
+        "message": "FastStream читает первые байты запроса плеера, адрес и тип которого не указывают на поток, чтобы распознать плейлист HLS или манифест DASH. Байты передаются странице без изменений, а остальная часть ответа не затрагивается."
+    },
     "player_audio_output_label": {
         "message": "Вывод звука"
     },

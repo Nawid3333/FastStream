@@ -1337,6 +1337,18 @@
     "perms_page_breakdown_perm10d": {
         "message": "向网页的右键菜单添加 FastStream 项目：在 FastStream 或 MPV 中播放页面视频，或在开启 FastStream 或 MPV 的情况下在新标签页中打开链接。Firefox 对此不会显示警告。"
     },
+    "perms_page_breakdown_perm11h": {
+        "message": "访问阻塞式 webRequest API"
+    },
+    "perms_page_breakdown_perm11d": {
+        "message": "FastStream 只会短暂挂起播放器的请求，以便开始读取其最初的字节（下一项权限需要它）。"
+    },
+    "perms_page_breakdown_perm12h": {
+        "message": "读取响应的最初字节"
+    },
+    "perms_page_breakdown_perm12d": {
+        "message": "对于地址和类型都看不出是视频流的播放器请求，FastStream 会读取其最初的字节，以识别 HLS 播放列表或 DASH 清单。这些字节原样传给页面，响应的其余部分不受影响。"
+    },
     "player_audio_output_label": {
         "message": "音频输出"
     },

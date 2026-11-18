@@ -1337,6 +1337,18 @@
     "perms_page_breakdown_perm10d": {
         "message": "Web sayfalarının sağ tık menüsüne FastStream öğelerini ekler: sayfanın videosunu FastStream veya MPV'de oynatın veya bir bağlantıyı FastStream veya MPV açıkken yeni bir sekmede açın. Firefox bunun için herhangi bir uyarı göstermez."
     },
+    "perms_page_breakdown_perm11h": {
+        "message": "Engelleyici webRequest API'sine erişim"
+    },
+    "perms_page_breakdown_perm11d": {
+        "message": "FastStream, bir oynatıcı isteğini yalnızca ilk baytlarını okumaya başlayacak kadar bekletir (bir sonraki izin bunu gerektirir)."
+    },
+    "perms_page_breakdown_perm12h": {
+        "message": "Yanıtların ilk baytlarını okuma"
+    },
+    "perms_page_breakdown_perm12d": {
+        "message": "FastStream, adresi ve türü bir akış belirtmeyen oynatıcı isteklerinin ilk baytlarını okuyarak HLS çalma listesi veya DASH manifestosu olup olmadığını anlar. Baytlar sayfaya değiştirilmeden iletilir ve yanıtın geri kalanına dokunulmaz."
+    },
     "player_audio_output_label": {
         "message": "Ses çıkışı"
     },

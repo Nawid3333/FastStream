@@ -1290,6 +1290,53 @@ in a cross-origin iframe, which starts from 0 and loads through that frame. Each
 first two seek to 120 s. Then the saves above: the worker's video and the cookie's video whole,
 and a cancelled save followed by a whole one.
 
+## Streams that hide what they are
+
+Measured 2026-11-18 on 123moviesfree.net (vidsrc chain, five frames deep, hls.js 1.5.17 in the
+last one). FastStream releases back to 1.3.82.175 never saw the stream; neither did mpv. The
+hoster hides it three ways, all common among streaming hosters:
+
+- **The playlist names no type.** `copperkettleandco.space/pl/<id>?token=<jwt>`, Content-Type
+  `text/plain; charset=utf-8`, body `#EXTM3U ... #EXT-X-STREAM-INF`. Detection went by the
+  address, the custom source patterns and the Content-Type only, so it was ignored.
+  Fix: a blocking `onHeadersReceived` listener (types `xmlhttprequest` and `other` only) reads
+  the first bytes of a 200 GET answered `text/plain`, `application/octet-stream`,
+  `binary/octet-stream`, `application/binary` or without a type, at an address that is no
+  script, style, image, font, page or segment (`worthSniffing`). It uses Firefox's
+  `webRequest.filterResponseData`: every byte is passed on unchanged, and the filter lets go as
+  soon as the bytes tell (`ManifestSniffer.mjs`; at most 1 KB, 10 s for a trickle). HLS needs
+  `#EXTM3U` and an `#EXT-X-` tag: an IPTV channel list or a Winamp `.m3u` starts with `#EXTM3U`
+  too, and has none. DASH needs an `<MPD` root. The listener is registered before
+  `deleteHeaderCache`, so the request's headers are still there for the player. Firefox 160
+  shows no permission prompt for `webRequestBlocking` or `webRequestFilterResponse` (checked
+  with `ExtensionData.formatPermissionStrings`; `nativeMessaging` as the control shows its
+  line), so the update installs without asking.
+  Cost, measured 2026-11-18 (300 fetches in a row from a local page, three alternating runs of
+  1.3.82.214 and this build): 2.31 -> 2.98 ms per fetch the listener skips, 2.85 -> 2.79 ms per
+  fetch it reads; at most ~0.7 ms of the background's round trip per XHR/fetch, which Firefox
+  needs a blocking listener for (a filter attached later misses the first bytes).
+- **The files need the playlist address's key.** The playlists list `/pl/<id>/<hash>` and
+  `/content/.../page-0.html` without `?token=`; the server answers 403 without it, 200 with it
+  (curl, same Referer). The site's player adds it to every request. HLS has a way to say so
+  (`EXT-X-DEFINE:QUERYPARAM`), which this hoster does not use. `StreamQuery.mjs`: once a file of
+  the stream's own server is refused with 401/403 and lacks names of the stream address's query,
+  it is asked again with them, and every later file of that server gets them before it is asked
+  for. Only after a refusal, and only once a keyed retry was given the file: always adding them
+  would break a server that signs each file's
+  address itself (an S3 or Cloud Storage signed URL refuses parameters signed for another
+  path). Never to another server: the key stays where the page sent it.
+- **The segments are named `page-N.html` and called `text/html`**; their bytes start with
+  `0x47`, MPEG-TS. FetchLoader took any `text/html` answer to a media request for a web page
+  and asked the page for the file again, which also answered `text/html`: every segment was
+  downloaded twice (230 extra 0.9 MB fetches in under two minutes). `refuses()` now reads the
+  first bytes through a clone: a page starts with `<` after blanks and a byte order mark, and a
+  refusal in words or JSON has only text bytes in its first 16; media has control bytes there.
+
+mpv (0.42, ffmpeg's HLS demuxer) refuses the same playlist on its own: "Not detecting
+m3u8/hls with non standard extension and non standard mime type". `--demuxer-lavf-format=hls`
+gets past that, then the variant playlists are refused 403 for the missing key, which ffmpeg
+never adds.
+
 ## Firefox VPN
 
 Reported on a VOE page: "Failed to load video!" in the player and "could not open the stream"

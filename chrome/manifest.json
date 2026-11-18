@@ -75,6 +75,8 @@
     "storage",
     "tabs",
     "webRequest",
+    "webRequestBlocking",
+    "webRequestFilterResponse",
     "declarativeNetRequest",
     "nativeMessaging",
     "downloads",
