@@ -78,6 +78,12 @@ const PAGES = {
   '/blank-late': pageWritingFrame('blank-late', 1500),
   '/srcdoc': `<!doctype html><body style="margin:0"><iframe width="660" height="380"
     srcdoc="${`<!doctype html><body style='margin:0'>${video('srcdoc').replaceAll('"', '\'')}</body>`}"></iframe></body>`,
+  // An iframe given no address (content scripts run in its empty document), then a page of the same site: Firefox
+  // may keep its window for the page.
+  '/blank-then-page': `<!doctype html><body style="margin:0"><iframe width="660" height="380"></iframe><script>
+    setTimeout(() => { document.querySelector('iframe').src = '/framed'; }, 300);
+  </script></body>`,
+  '/framed': `<!doctype html><body style="margin:0">${video('framed')}</body>`,
 };
 
 /**
@@ -236,16 +242,21 @@ describe('Streams a page hides', function() {
     expect(state.url).toBe(`${SITE}/api/manifest?id=7`);
   });
 
-  for (const [where, page] of [
+  for (const [where, page, name] of [
     ['an about:blank frame the page wrote at once', '/blank'],
     ['an about:blank frame the page wrote 1.5 s later', '/blank-late'],
     ['a srcdoc frame', '/srcdoc'],
+    ['a frame that was about:blank, then a page of the same site', '/blank-then-page', 'framed'],
   ]) {
     it(`takes over a video in ${where}, and links up with the frame`, async function() {
       await browser.url(`${SITE}${page}`);
       const state = await playerShowing(`the video in ${where}`);
-      expect(state.url).toBe(`${SITE}/media/sample.mp4?${page.slice(1)}`);
+      expect(state.url).toBe(`${SITE}/media/sample.mp4?${name || page.slice(1)}`);
       expect(state.linked).toBe(true);
+      // One content script in it: one player.
+      await browser.switchFrame(await browser.$('iframe'));
+      expect(await browser.execute(() => document.querySelectorAll('iframe[src*="player/index.html"]').length)).toBe(1);
+      await browser.switchFrame(null);
     });
   }
 });

@@ -1358,6 +1358,12 @@ its base URL, which a `<base>` of the page's choosing sets (`http://127.0.0.1/` 
 local-page check). A sandboxed one keeps `about:srcdoc`, which gives no headers rather than
 wrong ones. It is never left by redirect: `document.open()` gives an about:blank frame the
 writer's address, so the check keeps how the frame started.
+A frame given no address and then a page of the same site (Firefox may keep its window) runs
+one content script and gets one player (e2e `/blank-then-page`). Ad scripts write such frames too
+(IMA): a video there is now reachable like any other, and which video FastStream takes is decided
+as before. Sniffing any type also reads the first chunk of a disguised hoster's segments
+(`page-N.html` as text/html) while the page's own player plays them, one StreamFilter each until
+its first bytes; FastStream's own player's requests are never sniffed (`frame.hasPlayer()`).
 `tests/e2e/ext-specs/hidden-streams.e2e.mjs` drives all of the above on the installed extension;
 against 1.3.82.215 the DASH, about:blank and srcdoc cases fail, the HLS one passes (#765).
 
