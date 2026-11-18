@@ -24,6 +24,12 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   arrow press near the start used to make `MP4Player` drop its whole buffer (`resetHLS`)
   for a seek to -3 s that landed on the buffered 0. `keyboard.png` on the welcome page predates version 2
   and is out of date; the text list above it is current.
+- **Subtitle sync tool on T** (layout version 6, as mpv's `t`, `subtitle_sync/toggle`):
+  `SubtitleSyncTool` opens the resync tool for the first subtitle track shown (what the
+  hourglass button in the subtitles menu does for its row); pressed again it brings the tool
+  to the front if another timeline tool covers it, else closes it; with none shown it names
+  why on the OSD (`describeActive`). `ShiftSubtitlesEarlier/Later` act only while the tool is
+  open. Saved options of version 5 get T only when it is free.
 - **Frame step** (`,`/`.`, moved from Shift+arrows in version 3): mpv's frame-step, pause then
   exactly one frame. `ui/FrameStepper.mjs` learns the frame length from
   `requestVideoFrameCallback` during playback. Measured on Firefox 156: a playback frame's

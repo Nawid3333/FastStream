@@ -123,4 +123,25 @@ describe('Subtitle resync tool', function() {
     const total = (Math.round(result.shiftTotal * 100) / 100).toFixed(2);
     expect(result.lastStatus).toContain('+' + total);
   });
+
+  it('opens and closes on T for the subtitles shown', async function() {
+    const result = await browser.execute(async () => {
+      const client = window.fastStream;
+      const subtitles = client.interfaceController.subtitlesManager;
+      const syncer = subtitles.subtitleSyncer;
+      const {SubtitleTrack} = await import('/player/SubtitleTrack.mjs');
+      const track = new SubtitleTrack('Key test', 'en');
+      track.loadText('1\n00:00:01,000 --> 00:00:02,000\nline\n\n');
+      client.loadSubtitleTrack(track);
+      if (!subtitles.activeTracks.includes(track)) subtitles.activateTrack(track);
+      const press = () => document.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyT', key: 't', bubbles: true, cancelable: true}));
+      press();
+      const opened = {started: syncer.started, shown: syncer.trackToSync === subtitles.activeTracks[0],
+        strip: !!document.querySelector('.fluid_controls_timeline_syncer .timeline_track')};
+      press();
+      return {opened, closedAfter: !syncer.started};
+    });
+    expect(result.opened).toEqual({started: true, shown: true, strip: true});
+    expect(result.closedAfter).toBe(true);
+  });
 });

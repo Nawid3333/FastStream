@@ -11,7 +11,7 @@ import {DefaultKeybinds, KeybindsWithModifiers} from './defaults/DefaultKeybinds
  * a migration that runs exactly once. 1: none saved; 2: percent seeks and speed presets;
  * 3: mpv's seeks; 4: speed steps on S and D; 5: numpad keys renamed by what they do.
  */
-export const KEYBINDS_VERSION = 5;
+export const KEYBINDS_VERSION = 6;
 
 export const SKIP_BUTTON_SECONDS = 10;
 
@@ -85,12 +85,15 @@ export const RENAMED_IN_VERSION_5 = {
   'Numpad8': 'ArrowUp', 'Numpad9': 'PageUp', 'NumpadDecimal': 'Delete', 'NumpadEnter': 'Enter',
 };
 
+export const ADDED_IN_VERSION_6 = ['SubtitleSyncTool'];
+
 // Oldest first. renamed applies to every saved binding.
 const MIGRATIONS = [
   {version: 2, moved: MOVED_IN_VERSION_2, added: ADDED_IN_VERSION_2, renamed: {}},
   {version: 3, moved: MOVED_IN_VERSION_3, added: ADDED_IN_VERSION_3, renamed: {}},
   {version: 4, moved: MOVED_IN_VERSION_4, added: [], renamed: {}},
   {version: 5, moved: {}, added: [], renamed: RENAMED_IN_VERSION_5},
+  {version: 6, moved: {}, added: ADDED_IN_VERSION_6, renamed: {}},
 ];
 
 /**
