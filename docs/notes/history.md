@@ -1,9 +1,8 @@
 # What was removed, and upstream bugs fixed here
 
-> Working notes, moved here from `CLAUDE.md` on 2026-10-04 so that file stays short. The
-> text is as it was written; dated entries describe the tree at their date. Where a note
-> says "above", "below" or names a section in quotes, [README.md](README.md) lists the
-> file each section is in now.
+> Why the code in this area is as it is. A date on an entry is when it was learned; where
+> the code and its tests say otherwise, they win. A section named in quotes may be in
+> another file: [README.md](README.md) lists every section.
 
 ## YouTube removal
 

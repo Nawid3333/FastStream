@@ -1,9 +1,8 @@
 # Vendored libraries
 
-> Working notes, moved here from `CLAUDE.md` on 2026-10-04 so that file stays short. The
-> text is as it was written; dated entries describe the tree at their date. Where a note
-> says "above", "below" or names a section in quotes, [README.md](README.md) lists the
-> file each section is in now.
+> Why the code in this area is as it is. A date on an entry is when it was learned; where
+> the code and its tests say otherwise, they win. A section named in quotes may be in
+> another file: [README.md](README.md) lists every section.
 
 ## Vendored libraries
 
@@ -48,7 +47,7 @@ carried the comment "Minified to reduce loading time (https://minify-js.com/)" -
 by hand, the modified-third-party-library problem AMO objects to - and shipped as the
 npm dist from 2026-09-30.)
 
-## sortablejs: what checks it (2026-10-20)
+## sortablejs: what checks it
 
 The control bar is three sortablejs lists in one group (`ui/ToolManager.mjs`: left, right and
 the "more" menu); its onEnd saves the order as `toolSettings`, and the next player sorts the
@@ -89,7 +88,7 @@ press opens (a real WebDriver press, held until the mode shows), and checks the 
   every spec that opens it fails. Not caught: a break only in Firefox's own turning of mouse
   moves into drag events, or only in the dragovers of a long pointer path.
 
-## Tools: reasons moved out of the code comments (2026-11-18)
+## Tools: reasons behind the code
 
 ### tools/sync-vendor.mjs
 

@@ -1,9 +1,8 @@
 # MPV mode and the native host
 
-> Working notes, moved here from `CLAUDE.md` on 2026-10-04 so that file stays short. The
-> text is as it was written; dated entries describe the tree at their date. Where a note
-> says "above", "below" or names a section in quotes, [README.md](README.md) lists the
-> file each section is in now.
+> Why the code in this area is as it is. A date on an entry is when it was learned; where
+> the code and its tests say otherwise, they win. A section named in quotes may be in
+> another file: [README.md](README.md) lists every section.
 
 ## MPV mode and the native host
 
@@ -965,54 +964,7 @@ second stays idle and empty until closed. An mpv that never answers on its pipe 
 is reported, not killed (the helper never kills a process it cannot identify as idle and its
 own).
 
-## What glm's review of MPV mode found (2026-11-16)
-
-- **MPV autoplay leaves a tab that went on to another site alone.** The user can take the tab
-  of mpv's stream to another site while mpv plays. The episode's end (or mpv's next key) then
-  asked that site's page for its "next" link and clicked it: the user's page went away under
-  them, and its video replaced the series in mpv. The watch now keeps the site the stream went
-  from (`MpvWatch.site`, its host). On another site, the episode the series' page linked to
-  opens in a tab that is not shown, as for a closed tab (his wish of 2026-10-27,
-  `goToEpisodeFromSiteLeft`), and the countdown does not ask the foreign page either. A host,
-  not a page: the series' next page, a reload, and an address the site's script changes all
-  stay on it. Tests: `backgroundMpv.test.mjs`, "goes on the same way when the tab went on to
-  another site" and its control.
-- **`mpvStandInPage` and `mpvPage` are kept over a wake** (`PersistedTabFields`). Without them, a
-  woken background took the toolbar's click on an On that stands in for MPV (#671) for On -> MPV:
-  the page reloaded, and Off came one click late. Test: "turns the tab off at the toolbar's next
-  click after Firefox stopped the event page too".
-- Left as they are: the episode links read at a hand-off are dropped when the tab closes during
-  the read (a second at most, before mpv's window is even up); a hand-off that throws keeps
-  `mpvAutoOpened` (no reachable throw: `tabTitle` catches, and the hand-off answers `{ok: false}`);
-  `watchNextEpisodeArrives`' timer dies with the event page (only its "no stream" note is lost).
-
-## The background audit (2026-11-17)
-
-- **A hand-off still being prepared sends nothing once its page, its tab or MPV went.**
-  `openInMpv` waits up to 1.5 s for a master playlist's read (`hlsQualityChoice`), and the
-  allowlist sends a page's first stream at once. mpv then started for a page the user had left,
-  a tab they had closed, or after they turned MPV off. The caller notes the tab as the hand-off
-  begins (`handOffStillWanted`, before its first await), and `openInMpv` asks right before
-  `Mpv.openStream`; the player's own button has no such check. The page counts as left only
-  with a new document in frame 0: an address the page sets itself (pushState, `?t=`) counts a
-  new `mpvPage` too, and its stream was dropped (the Claude API review of #738). The answer
-  `{ok: false, dropped: true}` is dropped by the callers: shown, Off put a "!" on the button.
-  Tests: `backgroundMpv.test.mjs`, "a hand-off still being prepared ...".
-- **A repeat play during an unanswered send no longer pauses the page.** The MPV key's repeat
-  rule paused at once; when mpv then failed (no helper, copy-protected, Firefox VPN), the page
-  stayed paused. A success pauses the page anyway (`pauseAfterHandOff`). The mark is kept in
-  memory only: after a wake, a repeat pauses as before. Test: "the same video played again
-  while its send is answered".
-- **MPV autoplay's next episode on another allowlisted site goes through its pick.** The
-  allowlist's start by address (500 ms after the address change) sent the newest stream, an
-  ad's, before `pickNextEpisodeForMpv` had the lengths; the episode was then dropped. Test:
-  "sends the longest stream of a next page on another allowlisted site too, not its ad".
-- Rejected: the player button's 3 s repeat guard ignoring the tab and start time (a repeat
-  click on the same stream within 3 s is what it guards against); a stale `time-remaining`
-  reply ending the next file (the helper relays commands and events over one mpv connection,
-  and mpv answers `get_property` synchronously, before any later event).
-
-## Background: reasons moved out of the code comments (2026-11-18)
+## Background: reasons behind the code
 
 - **`MpvSubtitles.mjs`** - A track's file is read only up to twice the host's message cap
   (`HostMaxMessageBytes`, 1 MB): a larger one could not be sent anyway, and parsing it would

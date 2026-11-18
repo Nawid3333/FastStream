@@ -27,8 +27,7 @@ here, and the fix is ported, not merged.
 It holds what applies to every change. What was learned about each area - why the code is
 as it is, what shipped broken once, how each workflow decides - is in `docs/notes/`, which
 is **not** loaded by itself. **Read the note for the area you are about to change before
-changing it**, and write what you learn into that note, not here. (Until 2026-10-04 it was
-all in this file: 128 KB, read into every session.)
+changing it**, and write what you learn into that note, not here.
 
 | Before you touch | Read |
 |---|---|
@@ -43,8 +42,10 @@ all in this file: 128 KB, read into every session.)
 | `update-local.cmd`, `tools/update-local*.ps1`, `tools/newest-release.mjs` | `docs/notes/local-pc.md` |
 | testing playback by hand or against live streams | `docs/notes/playback-testing.md` |
 | YouTube code that seems to be missing, a bug that looks like upstream's | `docs/notes/history.md` |
+| a bug or idea a review may have raised already | `docs/history/reviews.md` (what each review fixed and rejected) |
 
-`docs/notes/README.md` maps each old section title to its file; `docs/maintenance.md` is the
+`docs/notes/README.md` lists every section of each note; `docs/history/` holds the records
+that no longer describe the code; `docs/maintenance.md` is the
 owner's guide to the PRs and e-mails the workflows send.
 
 ## Reading big generated files
@@ -147,7 +148,7 @@ mpv host's installed copy, WSL): `docs/notes/local-pc.md`.
   it is Firefox-only and maintained on its own; nothing of upstream is merged. `upstream-watch.yml`
   lists upstream's new commits in one issue for review; a fix that helps this fork is ported
   by hand, then the issue is closed (closing marks the commits reviewed).
-  `sync-upstream.yml` (the daily merge PR) was removed that day; `docs/upstream-sync-log.md`
+  `sync-upstream.yml` (the daily merge PR) was removed that day; `docs/history/upstream-sync-log.md`
   records what was taken while it ran.
 - **A new string needs all 16 locales.** The 16 `chrome/_locales/*/messages.json` files are
   the source (4-space indent); edit those, then `pnpm run combine-locales`. Never
@@ -165,8 +166,8 @@ mpv host's installed copy, WSL): `docs/notes/local-pc.md`.
   never reads it; the same test checks that. `types/messages.d.ts` gets a message only
   after its real payload was read.
 - **Comments say what the code does and why, briefly** (the owner, 2026-11-17). Who asked,
-  which review found it, the date, and the story of the bug go into `docs/notes/<area>.md`
-  and the commit message, not into the code. A reason longer than a few lines goes to the
+  which review found it, the date, and the story of the bug go into the commit message and
+  `docs/history/reviews.md`, not into the code. A reason longer than a few lines goes to the
   note, with a pointer left in the code.
 - **No new top-level code in `background/background.mjs`, `content.js` or
   `player/FastStreamClient.mjs`** (the owner, 2026-11-07): a new feature gets a module of its
