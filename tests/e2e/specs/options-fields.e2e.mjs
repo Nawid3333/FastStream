@@ -3,6 +3,7 @@
 // Empty or unreadable numbers, 0 and no limit, imports of non-settings JSON, and search on input.
 
 import {browser, expect} from '@wdio/globals';
+import {DefaultKeybinds} from '../../../chrome/player/options/defaults/DefaultKeybinds.mjs';
 
 const optionsPagePath = () => '/player/options/index.html?t=' + Date.now();
 
@@ -93,12 +94,6 @@ describe('Options page settings import', function() {
   beforeEach(openOptions);
 
   /**
-   * Imports a file of the given text through the Import button, with the file dialog
-   * replaced by the test.
-   * @param {string} text - The file's contents.
-   * @return {Promise<string[]>} What the page alerted.
-   */
-  /**
    * Imports a settings file with this text through the page's own picker.
    * @param {string} text - The file's text.
    * @param {boolean} [alerts] - Whether the import is expected to say something: then
@@ -148,6 +143,25 @@ describe('Options page settings import', function() {
     await browser.waitUntil(
         async () => (await browser.execute(() => JSON.parse(localStorage.getItem('options'))?.seekStepSize)) === 7,
         {timeout: 10000, timeoutMsg: 'the imported seekStepSize (7) was never saved'});
+    expect(await browser.execute(() => window.__alerts)).toEqual([]);
+  });
+
+  it('gives a file from before the sync key T, unless the file has T for something else', async function() {
+    const savedKeys = () => browser.execute(() => JSON.parse(localStorage.getItem('options'))?.keybinds);
+    const row = () => browser.execute(() =>
+      document.querySelector('.keybind-container[data-keybind="SubtitleSyncTool"] .keybind-input')?.dataset.key);
+    for (const [step, mute, expected] of [[11, 'KeyM', 'KeyT'], [12, 'KeyT', 'None']]) {
+      const keybinds = {...DefaultKeybinds, Mute: mute};
+      delete keybinds.SubtitleSyncTool;
+      await importText(JSON.stringify({seekStepSize: step, keybindsVersion: 5, keybinds}), false);
+      await browser.waitUntil(
+          async () => (await browser.execute(() => JSON.parse(localStorage.getItem('options'))?.seekStepSize)) === step,
+          {timeout: 10000, timeoutMsg: `the imported seekStepSize (${step}) was never saved`});
+      const saved = await savedKeys();
+      expect(saved.SubtitleSyncTool).toBe(expected);
+      expect(saved.Mute).toBe(mute);
+      expect(await row()).toBe(expected);
+    }
     expect(await browser.execute(() => window.__alerts)).toEqual([]);
   });
 
