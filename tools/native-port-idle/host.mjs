@@ -1,12 +1,8 @@
-// A test-only native host: logs its start, each message and the end of its stdin (the port
-// closed: the event page went) as JSON lines to probe.log in the probe's work folder. PROBE_MODE: "drop" (this host exits after 2 s: the control), "silent" (says only the
-// mode), "out" (the page sends every 1.5 s), "in" (this host sends a line every second, as mpv's
-// lines come over FastStream's relay).
+// A test-only native host: logs each message and its stdin's end to probe.log. PROBE_MODE: drop, silent, out, in.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-// The modes, by name: an unknown one is silent.
 const MODES = ['drop', 'silent', 'out', 'in'];
 const mode = MODES.find((name) => name === process.env.PROBE_MODE) || 'silent';
 // Fixed, as run.mjs and probe.ps1 have it: Firefox starts this host with their environment.

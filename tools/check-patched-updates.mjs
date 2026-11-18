@@ -1,19 +1,9 @@
-#!/usr/bin/env node
 // @ts-check
-// Lists the patched libraries (pnpm-workspace.yaml, patchedDependencies) that have a newer
-// release than the version the patch is cut against.
-//
-// Dependabot ignores these libraries on purpose (.github/dependabot.yml): a bump leaves the
-// patch unapplied, so its PR could only fail. This is how their updates are still noticed -
-// .github/workflows/patched-libraries.yml runs it daily, and for each new version opens a pull
-// request when tools/recut-patch.mjs moves the patch cleanly, or an issue when it cannot.
-//
-// A library from npm is checked against the registry's `latest` tag; one installed from
-// GitHub (`github:owner/repo#tag` in package.json) against that repository's latest release.
-//
+// Lists the patched libraries (pnpm-workspace.yaml) with a release newer than their patch's base.
+// Dependabot ignores them (a bump leaves the patch unapplied); patched-libraries.yml runs this daily.
+// An npm library: the registry's latest tag; a github: one: its repository's latest release.
 // Usage: node tools/check-patched-updates.mjs [--json]
-//   prints a table, or with --json one {name, current, latest, url} object per line for
-//   every library, behind or not (the workflow needs both, to close issues as well as open them).
+//   a table, or with --json one {name, current, latest, url} line per library, behind or not.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,8 +12,8 @@ import {fileURLToPath} from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * @param {string} yaml - pnpm-workspace.yaml.
- * @return {Array<{name: string, version: string}>} The patched libraries.
+ * @param {string} yaml
+ * @return {Array<{name: string, version: string}>}
  */
 export function patchedDependencies(yaml) {
   const block = /^patchedDependencies:\s*\n((?:[ \t]+.*\n?)*)/m.exec(yaml);
@@ -33,13 +23,11 @@ export function patchedDependencies(yaml) {
 }
 
 /**
- * The libraries tools/sync-vendor.mjs marks `patched` whose patch pnpm does not apply: one
- * with no patchedDependencies entry, or installed at another version than its patch is cut
- * against. Either would be copied without FastStream's changes, with the build green (#176).
- * @param {Array<{name: string, patched?: boolean}>} vendor - sync-vendor.mjs's list.
- * @param {string} yaml - pnpm-workspace.yaml.
- * @param {(name: string) => string|null} installed - A library's installed version, null if none.
- * @return {string[]} One message per such library.
+ * sync-vendor's patched libraries whose patch pnpm does not apply: no entry, or another installed version.
+ * @param {Array<{name: string, patched?: boolean}>} vendor
+ * @param {string} yaml
+ * @param {(name: string) => string|null} installed
+ * @return {string[]}
  */
 export function unappliedPatches(vendor, yaml, installed) {
   const patches = patchedDependencies(yaml);
@@ -60,16 +48,13 @@ export function unappliedPatches(vendor, yaml, installed) {
 }
 
 /**
- * Compares two versions part by part, numerically; a leading v is ignored and a missing
- * part counts as 0. Pre-release suffixes are not expected here (only `latest` is read).
+ * Part by part, numerically; a leading v is ignored and a missing part is 0.
  * @param {string} a
  * @param {string} b
  * @return {number} Negative when a is older, 0 when equal, positive when newer.
  */
 export function compareVersions(a, b) {
-  /**
-  * @param {string} v
-  */
+  /** @param {string} v */
   const parts = (v) => String(v).replace(/^v/i, '').split(/[.-]/).map((p) => parseInt(p, 10) || 0);
   const pa = parts(a);
   const pb = parts(b);
@@ -80,9 +65,7 @@ export function compareVersions(a, b) {
   return 0;
 }
 
-/**
- * @param {string} url
- */
+/** @param {string} url */
 async function getJson(url) {
   /** @type {Object<string, string>} */
   const headers = {'accept': 'application/json', 'user-agent': 'faststream-check-patched-updates'};
@@ -97,19 +80,11 @@ async function getJson(url) {
 }
 
 /**
- * @param {string} name - The package name.
- * @param {string} spec - Its specifier in package.json.
- * @return {Promise<{latest: string, url: string}>}
- */
-/**
- * The repository of a library installed from GitHub.
- * @param {string} [spec] - Its specifier in package.json, `github:owner/repo#ref`.
+ * @param {string} [spec]
  * @return {{owner: string, repo: string}|null} Null for anything else (an npm range).
  */
 export function githubRepo(spec) {
-  // The #ref is part of every such spec (Coloris: github:mdbassit/Coloris#v0.25.0); a
-  // pattern that ended at the repo name sent Coloris to the npm registry, which has no
-  // such package (2026-10-02).
+  // The #ref is part of every such spec (github:mdbassit/Coloris#v0.25.0).
   const github = /^github:([^/#]+)\/([^/#]+)(?:#.*)?$/.exec(spec || '');
   if (!github) return null;
   if (!/^[\w.-]+$/.test(github[1]) || !/^[\w.-]+$/.test(github[2])) {
@@ -119,13 +94,12 @@ export function githubRepo(spec) {
 }
 
 /**
- * @param {string} name - The package name.
- * @param {string} spec - Its specifier in package.json.
+ * @param {string} name
+ * @param {string} spec
  * @return {Promise<{latest: string, url: string}>}
  */
 async function latestRelease(name, spec) {
-  // Both hosts are pinned; the name comes from this repo's package.json
-  // (CodeQL js/request-forgery).
+  // Both hosts are pinned (CodeQL js/request-forgery).
   const github = githubRepo(spec);
   if (github) {
     const release = await getJson(`https://api.github.com/repos/${github.owner}/${github.repo}/releases/latest`);

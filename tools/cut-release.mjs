@@ -1,24 +1,6 @@
-#!/usr/bin/env node
 // @ts-check
-// Cuts a release: bumps the version everywhere it needs to live in sync,
-// commits, tags, and pushes both. That push is what release.yml watches
-// for (v*.*.* / V*.*.* tags) - once this script exits, GitHub Actions
-// builds all four flavors, signs the Firefox one, and publishes the
-// GitHub Release on its own. Nothing here talks to GitHub's API directly.
-//
-// Replaces the multi-step-by-hand process (edit two files, commit, tag,
-// push branch, push tag, in the right order) that produced a race the
-// first time v1.3.79.0 was cut: the tag landed before every file agreed
-// on the version, and a manual gh release upload had to patch the result
-// afterward. This does the whole sequence atomically enough that a
-// pushed tag always points at a commit where package.json,
-// chrome/manifest.json and the tag itself already agree.
-//
-// For a deliberate version bump (a real minor/patch for a milestone) only -
-// every ordinary push to main gets released automatically
-// by .github/workflows/auto-release.yml once CI goes green on it, which
-// bumps just the trailing build number instead of running this script.
-//
+// Bumps the version in package.json and the manifest, commits, tags and pushes; release.yml does the rest.
+// Only for a deliberate version bump: auto-release.yml releases every ordinary push to main.
 // Usage:
 //   node tools/cut-release.mjs 1.3.80.0
 //   pnpm run release 1.3.80.0
@@ -39,16 +21,14 @@ if (!newVersion || !/^\d+\.\d+\.\d+\.\d+$/.test(newVersion)) {
 }
 
 /**
- * Runs a git command and returns trimmed stdout.
- * @param {Array<string>} args - git subcommand and arguments.
- * @return {string} Trimmed stdout.
+ * @param {Array<string>} args
+ * @return {string}
  */
 function git(args) {
   return execFileSync('git', args, {cwd: root, encoding: 'utf8'}).trim();
 }
 
-// 1. The tree has to be clean, or the version-bump commit this script
-//    makes would silently absorb unrelated work-in-progress changes.
+// 1. A clean tree, or the bump commit would absorb unrelated changes.
 const dirty = git(['status', '--porcelain']);
 if (dirty) {
   console.error('Working tree is not clean:');
@@ -57,11 +37,7 @@ if (dirty) {
   process.exit(1);
 }
 
-// 2. Refuse to reuse a version. AMO refuses the same version+channel
-//    twice and a duplicate git tag push is simply rejected, but both of
-//    those failures happen deep inside CI - much cheaper to catch here.
-//    The remote's tags too: one pushed from elsewhere (auto-release.yml tags
-//    on GitHub) is not in this clone until a fetch.
+// 2. A new version, checked against the remote's tags too: AMO and git refuse a reuse only deep in CI.
 const existingTags = git(['tag', '--list', `v${newVersion}`, `V${newVersion}`]);
 if (existingTags) {
   console.error(`Version ${newVersion} is already tagged:\n${existingTags}`);
@@ -73,9 +49,7 @@ if (remoteTags) {
   process.exit(1);
 }
 
-// 2b. Only from main. release.yml refuses a tag that is not on main, but only once the bump
-//     and its tag are on GitHub: a release cut on a branch left both there with nothing
-//     released.
+// 2b. Only from main: release.yml refuses a tag not on main, but only once both are on GitHub.
 const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
 if (branch !== 'main') {
   console.error(`A release is cut from main, not from ${branch}.`);
@@ -83,9 +57,7 @@ if (branch !== 'main') {
 }
 console.log(`Cutting ${newVersion} from ${branch}...`);
 
-// 3. Bump both files in the same commit. These two have drifted apart
-//    before (chore: update version to 1.3.79.0 in manifest and package
-//    files was needed specifically because they hadn't).
+// 3. Both files in the same commit.
 const packageJsonPath = path.join(root, 'package.json');
 const manifestPath = path.join(root, 'chrome/manifest.json');
 
@@ -99,12 +71,7 @@ git(['add', 'package.json', 'chrome/manifest.json']);
 git(['commit', '-m', `chore: release ${newVersion}`]);
 console.log('Committed version bump.');
 
-// 4. Tag and push both. The tag is what release.yml's `on: push: tags:`
-//    trigger is watching for - pushing it is what starts the build.
-//    In one atomic push, as auto-release.yml does: pushed one after the
-//    other, a refused tag left `chore: release X` on the branch with no tag,
-//    a version committed and never built, which auto-release then skipped
-//    as a release bump and moved past.
+// 4. Branch and tag in one atomic push: a refused tag would leave a bump that is never built.
 const tag = `v${newVersion}`;
 git(['tag', '-a', tag, '-m', `FastStream ${newVersion}`]);
 try {

@@ -1,14 +1,6 @@
-#!/usr/bin/env node
 // @ts-check
-// Launcher for `web-ext run` that:
-//  1. rebuilds the Firefox libre target,
-//  2. uses an absolute path for the dev profile,
-//  3. forces a separate Firefox instance so it never interferes with the
-//     user's normal default-browser workflow in other workspaces.
-//
-// web-ext's --firefox-profile flag treats a bare name as a Profile Manager
-// name, which caused a profile picker dialog. Using an absolute path plus
-// MOZ_NO_REMOTE=1 avoids that and avoids handing off to an existing Firefox.
+// web-ext run on a fresh build of the Firefox libre target, in the dev profile, as a Firefox of its own.
+// The profile by absolute path, and MOZ_NO_REMOTE=1: a bare name opens the Profile Manager.
 
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
@@ -26,9 +18,7 @@ const profileDir = path.join(root, '.dev-profile');
 console.log(`Rebuilding ${target.name}...\n`);
 await rebuild();
 
-// Checked after the rebuild, not before: on a fresh clone the build dir
-// does not exist yet, and aborting here would refuse to run the very build
-// that creates it.
+// Checked after the rebuild: on a fresh clone the build creates it.
 if (!fs.existsSync(sourceDir)) {
   console.error(`Source dir missing after rebuild: ${sourceDir}`);
   process.exit(1);
@@ -48,9 +38,6 @@ const {command, args, shell} = webExtSpawn([
   '--firefox-profile', profileDir,
   '--profile-create-if-missing',
   '--keep-profile-changes',
-  // Additional Firefox arguments: no-remote so it cannot hand off to the
-  // user's main Firefox, and a blank first-run page to avoid default-browser
-  // prompts. These combine with the user.js prefs for defense in depth.
   '--arg=-no-remote',
   '--arg=-new-instance',
 ]);
@@ -61,9 +48,7 @@ const webExt = spawn(command, args, {
   shell,
   env: {
     ...process.env,
-    // Force a separate Firefox process; prevents hand-off to the user's
-    // already-running default browser, which previously caused ECONNREFUSED
-    // on the RDP port and profile-picker dialogs.
+    // A separate Firefox process: no hand-off to the user's running browser.
     MOZ_NO_REMOTE: '1',
   },
 });

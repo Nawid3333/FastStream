@@ -1,19 +1,8 @@
-#!/usr/bin/env node
 // @ts-check
 // Proves where chrome/player/modules/vtt.mjs came from.
-//
-// vtt.mjs is the one vendored bundle that cannot be generated during the
-// build. videojs/vtt.js publishes only `lib/*` to npm - never the browserify
-// bundle - and the bundle FastStream ships is the one dash.js maintains at
-// contrib/videojs-vtt.js/vtt.js, which dash.js does not include in its npm
-// package either (it ships only the minified vtt.min.js).
-//
-// So instead of generating the file, this verifies it: fetch the upstream
-// bundle, apply the changes FastStream makes, and assert the result
-// parses to the same program as the file in the tree. That turns "trust this
-// vendored blob" into a claim anyone can re-run, which is the thing AMO's
-// review of vendored code is actually asking for.
-//
+// vtt.mjs cannot be generated: the bundle is dash.js's contrib/videojs-vtt.js/vtt.js,
+// which neither dash.js nor videojs/vtt.js publishes to npm.
+// So this verifies it: the upstream bundle plus the changes below must parse to the file's program.
 // Run with: pnpm run verify:vtt   (needs network)
 
 import fs from 'node:fs';
@@ -26,30 +15,14 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
 const vendored = path.join(root, 'chrome/player/modules/vtt.mjs');
 
-// Pinned by tag rather than branch so this cannot start failing because
-// upstream moved. The file is byte-identical across dash.js v4.7.4 through
-// v5.2.1, so the tag choice is not load-bearing - it is pinned for
-// determinism, not because only this tag matches.
+// Pinned by tag for determinism; the file is the same from dash.js v4.7.4 to v5.2.1.
 const UPSTREAM =
   'https://raw.githubusercontent.com/Dash-Industry-Forum/dash.js/v5.2.1/' +
   'contrib/videojs-vtt.js/vtt.js';
 
 /**
  * The differences between dash.js's bundle and the file FastStream ships.
- *
- * Two are *removals* of dash.js's own additions, which is the useful detail:
- * FastStream's copy is closer to videojs/vtt.js than dash.js's is. One is a
- * real product change - subtitles are rendered at a fifth of the default size
- * relative to the container. The fourth answers a CodeQL alert (2026-09-22), and
- * the next four keep a hostile cue from throwing, freezing the page or borrowing
- * the player's own classes (2026-10-03). The next four decode a cue's character
- * references without an innerHTML write, the last addons-linter warning in it
- * (2026-10-27), all of a cue's texts in one parse (2026-11-17), with the unused
- * textarea gone. The last three find a cue's region in a Map, not by a scan of
- * every region (2026-11-17).
- *
- * A change to vtt.mjs has to be added here in the same commit, or this check
- * fails - which is how it is meant to work, and why CI runs it.
+ * A change to vtt.mjs goes here in the same commit, or this check fails.
  */
 const CHANGES = [
   {

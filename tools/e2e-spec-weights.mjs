@@ -1,22 +1,7 @@
-#!/usr/bin/env node
 // @ts-check
-// Writes tests/e2e/specWeights.json anew from a CI run: how long each e2e spec file took on
-// the Windows runner, which tests/e2e/shardSpecs.mjs groups the suites by (E2E_SHARD).
-//
+// Writes tests/e2e/specWeights.json from a CI run: each spec file's time on the Windows runner (shardSpecs.mjs).
 // Usage: node tools/e2e-spec-weights.mjs <CI run id>
-//
-// Reads the logs of the run's Windows playback and extension jobs through gh (the GitHub
-// build's jobs run the same spec files again). A spec file's time is from the line before
-// its "PASSED in firefox" line - the previous spec file's, or WebdriverIO's "Execution of N
-// workers started at", which it prints once its onPrepare (the e2e servers, the fixtures)
-// is done - so the browser's start is in it, as it is on every run, and the start of the
-// run is not. (Not from the step's first line: gh can give a job's log with every line's
-// step as "UNKNOWN STEP", and the job's whole setup then went to its first spec file: 208 s
-// for archive-roundtrip, run 37385863816.) A weight moves halfway to the run's time, so
-// one slow run (a busy runner) moves it only half; a new spec file takes the run's time.
-// A spec file that needed its retry keeps the weight it has: its line holds both attempts.
-// Spec files the run did not reach keep theirs too, and a spec file no longer in the
-// suites is dropped.
+// A spec file's time runs from the line before its "PASSED in firefox"; a weight moves halfway to the run's time.
 
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -28,9 +13,8 @@ const WEIGHTS_FILE = path.join(root, 'tests/e2e/specWeights.json');
 const SUITES = ['specs', 'ext-specs', 'classic-specs'];
 
 /**
- * @param {string} log - `gh run view --job <id> --log`: "job<TAB>step<TAB>timestamp line".
- * @return {Object<string, number>} Seconds per spec file (by its path from tests/e2e) that
- *     passed on its first attempt.
+ * @param {string} log - `gh run view --job <id> --log`.
+ * @return {Object<string, number>} Seconds per spec file that passed on its first attempt.
  */
 export function timesFromLog(log) {
   const times = /** @type {Object<string, number>} */ ({});
@@ -58,11 +42,10 @@ export function timesFromLog(log) {
 }
 
 /**
- * @param {Object<string, number>} old - The weights so far.
- * @param {Object<string, number>} fresh - This run's times.
- * @param {Set<string>} existing - The spec files there are.
- * @return {Object<string, number>} By name: halfway between old and fresh where both have
- *     the spec file, else whichever has it.
+ * @param {Object<string, number>} old
+ * @param {Object<string, number>} fresh
+ * @param {Set<string>} existing
+ * @return {Object<string, number>} Halfway between old and fresh where both have it, else whichever has it.
  */
 export function mergeWeights(old, fresh, existing) {
   const merged = {...old};
@@ -74,9 +57,7 @@ export function mergeWeights(old, fresh, existing) {
       .sort(([a], [b]) => a.localeCompare(b)));
 }
 
-/**
- * @param {string} runId - The CI run id, from the command line.
- */
+/** @param {string} runId */
 function main(runId) {
   if (!/^\d+$/.test(runId ?? '')) {
     console.error('usage: node tools/e2e-spec-weights.mjs <CI run id>');

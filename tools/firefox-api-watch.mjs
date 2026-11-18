@@ -1,30 +1,7 @@
-#!/usr/bin/env node
 // @ts-check
-// Firefox API watch: what each new Firefox Stable release changed that could break or improve
-// FastStream, collected in one review issue (.github/workflows/firefox-api-watch.yml).
-//
-// Sources, all machine-readable and Mozilla's own:
-//   - product-details: the current Stable version and each major release's date;
-//   - MDN's release notes for developers (the markdown source in mdn/content);
-//   - @mdn/browser-compat-data (BCD): features whose Firefox support starts or ends in a release;
-//   - Bugzilla: WebExtensions bugs fixed in the release, and a few Core media/network ones;
-//   - the add-ons blog's feed: posts that name the release.
-// What is relevant: tools/firefox-api-watch.topics.mjs, plus what the extension's own code uses
-// (its chrome.*/browser.* namespaces, manifest keys, and any identifier of a change found in a
-// tracked file under chrome/).
-//
-// The review issue, "Firefox API Watch: starting with Firefox N":
-//   - no open one and something new: one is opened, the first release in its body, any further
-//     release as a comment, in version order;
-//   - one open: each new release is a comment on it;
-//   - the watcher never edits or deletes what it posted, so the owner's ticks and notes stay;
-//   - a closed one is never touched: closing it means "reviewed". What it lists still counts as
-//     reported, so the next issue starts with what came after;
-//   - nothing new in a release: no issue, no comment; the run's summary says so.
-// What was reported is read back from hidden markers in the bot's own posts, open and closed
-// issues alike (`<!-- ffw-item ... -->`), never from a file in the repository: a push to main
-// releases. A finding counts as reported when any of its keys (bug, BCD feature, note) is.
-//
+// Firefox API watch: what each new Firefox Stable release changed for FastStream, in one review issue (firefox-api-watch.yml).
+// Sources: product-details, MDN's notes, BCD, Bugzilla, the add-ons blog; relevance: the topics file and the code.
+// The issue is write-once and a closed one means "reviewed"; what was reported is read from the bot's hidden markers.
 // Run by hand: `node tools/firefox-api-watch.mjs --dry-run --no-github --from 158 --to 160`
 // prints what it would post, reading nothing from GitHub.
 
@@ -113,9 +90,6 @@ export const GitHubOwners = new Set(['mdn', 'mozilla', 'mozilla-firefox', 'w3c',
  * }} GitHub
  */
 
-// ---------------------------------------------------------------------------------------------
-// Fetching
-
 /** A source that could not be read. outage: no answer, a 5xx, 408 or 429 (try again later). */
 export class SourceError extends Error {
   /**
@@ -128,18 +102,15 @@ export class SourceError extends Error {
   }
 }
 
-/**
- * @typedef {{fetchImpl?: typeof fetch, wait?: (ms: number) => Promise<void>}} FetchOptions
- */
+/** @typedef {{fetchImpl?: typeof fetch, wait?: (ms: number) => Promise<void>}} FetchOptions */
 
 /** The only hosts the watcher asks anything of: the sources above, over https. */
 export const SourceHosts = new Set(['product-details.mozilla.org', 'raw.githubusercontent.com', 'registry.npmjs.org',
   'bugzilla.mozilla.org', 'blog.mozilla.org']);
 
 /**
- * A URL's body, asked up to three times when the server does not answer or answers 5xx, 408 or
- * 429. A 404 is returned (the caller decides whether that is a failure); any other 4xx throws at
- * once. Only https URLs on the sources' hosts (SourceHosts) are asked for.
+ * A URL's body, asked up to three times on no answer, a 5xx, 408 or 429. A 404 is returned; another 4xx throws.
+ * Only https URLs on SourceHosts are asked for.
  * @param {string} url
  * @param {FetchOptions & {binary?: boolean}} [options]
  * @return {Promise<{status: number, text: string, bytes: Uint8Array}>}
@@ -226,10 +197,8 @@ export async function productDetails(options = {}) {
 }
 
 /**
- * The newest browser-compat-data: its version and data. The tarball's integrity is checked
- * against the registry's sha512 before it is read.
- * @param {FetchOptions & {fixtures?: string}} [options] - fixtures: a folder (from tempPath)
- *   whose bcd.json stands in for the package's data (the workflow test).
+ * The newest browser-compat-data: its version and data, the tarball checked against the registry's sha512.
+ * @param {FetchOptions & {fixtures?: string}} [options] - fixtures: a folder (from tempPath) whose bcd.json stands in (the workflow test).
  * @return {Promise<{version: string, data: any}>}
  */
 export async function loadBcd({fixtures = '', ...options} = {}) {
@@ -239,8 +208,7 @@ export async function loadBcd({fixtures = '', ...options} = {}) {
   }
   const meta = await getJson(Urls.bcd, options);
   const integrity = String(meta?.dist?.integrity ?? '');
-  // The registry's own address for the package's file and nothing else: the URL is made here
-  // from the file's name, not taken as the answer gives it.
+  // The registry's own address, made here from the file's name, not taken from the answer.
   const file = /^https:\/\/registry\.npmjs\.org\/@mdn\/browser-compat-data\/-\/(browser-compat-data-\d+\.\d+\.\d+\.tgz)$/
       .exec(String(meta?.dist?.tarball ?? ''))?.[1];
   if (!file || !integrity.startsWith('sha512-')) {
@@ -278,9 +246,6 @@ export function readTarFile(tar, name) {
   return null;
 }
 
-// ---------------------------------------------------------------------------------------------
-// Parsing the sources
-
 /**
  * A text as a regular expression matching just it.
  * @param {string} text
@@ -291,9 +256,8 @@ export function escapeRegExp(text) {
 }
 
 /**
- * Text without its HTML comments (`<!-- ... -->`, also ended by `--!>`), as a browser shows it:
- * removed until none is left (one pass left "<!<!-- a -->-- b -->" as a comment of its own), and
- * an unclosed one hides the rest.
+ * Text without its HTML comments (`<!-- ... -->`, also ended by `--!>`) as a browser shows it: removed until
+ * none is left, and an unclosed one hides the rest.
  * @param {string} text
  * @return {string}
  */
@@ -308,8 +272,8 @@ export function stripComments(text) {
 }
 
 /**
- * MDN's inline markup as plain text with `code` spans: macros become the name they show, links
- * their text (an allowed link is kept apart), bold and HTML comments go.
+ * MDN's inline markup as plain text with `code` spans: macros become the name they show, links their text
+ * (an allowed link is kept apart), bold and HTML comments go.
  * @param {string} text
  * @return {{text: string, identifiers: string[], links: Link[], bugs: number[]}}
  */
@@ -387,8 +351,8 @@ function plainLabel(label) {
 }
 
 /**
- * A release's notes for developers: its date, whether MDN still calls them a work in progress,
- * and one item per bullet, with the section it is in.
+ * A release's notes for developers: whether MDN still calls them a work in progress, and one item per bullet
+ * with its section.
  * @param {string} markdown
  * @param {number} version
  * @return {{wip: boolean, beta: boolean, items: RawItem[]}}
@@ -466,8 +430,7 @@ export function hash(text) {
 }
 
 /**
- * Features whose Firefox support starts (without a preference) or ends in the release, under
- * the given path prefixes.
+ * Features whose Firefox support starts (without a preference) or ends in the release, under the wanted paths.
  * @param {any} data - BCD's data.json.
  * @param {number} version
  * @param {(path: string) => boolean} wanted - Whether a feature path is worth reporting.
@@ -522,8 +485,8 @@ export function bcdChanges(data, version, wanted) {
 }
 
 /**
- * The names in a BCD path that code would contain: for WebExtensions `tabs.sendMessage` and the
- * member after it; for web APIs the interface and its member.
+ * The names in a BCD path that code would contain: for WebExtensions `tabs.sendMessage` and the member
+ * after it; for web APIs the interface and its member.
  * @param {string} at
  * @return {string[]}
  */
@@ -546,8 +509,8 @@ export function identifiersOfPath(at) {
 }
 
 /**
- * Names in outside text that code could contain: dotted ones (`mediaCapabilities.decodingInfo()`)
- * and interface names (MediaSource, VideoDecoder).
+ * Names in outside text that code could contain: dotted ones (`mediaCapabilities.decodingInfo()`) and
+ * interface names (MediaSource, VideoDecoder).
  * @param {string} text
  * @return {string[]}
  */
@@ -620,9 +583,6 @@ function decodeXml(text) {
       .replace(/&amp;/g, '&').trim();
 }
 
-// ---------------------------------------------------------------------------------------------
-// What FastStream uses
-
 /**
  * @typedef {{files: Map<string, string>, namespaces: Set<string>, manifestKeys: Set<string>, permissions: Set<string>,
  *   known: {namespaces: Set<string>, manifestKeys: Set<string>}}} CodeIndex
@@ -631,8 +591,8 @@ function decodeXml(text) {
  */
 
 /**
- * The tracked files under chrome/ (vendored copies are gitignored, so they are not read), the
- * WebExtensions namespaces their code calls, the manifest's keys and permissions.
+ * The tracked files under chrome/ (vendored copies are gitignored), the WebExtensions namespaces their
+ * code calls, the manifest's keys and permissions.
  * @param {{files?: Map<string, string>}} [options]
  * @return {CodeIndex}
  */
@@ -667,10 +627,8 @@ export function codeIndex({files} = {}) {
 }
 
 /**
- * The files under chrome/ that are the project's own: git's list, or where git cannot tell (the
- * copy tools/linux/verify.sh makes has an empty repository; WSL cannot follow a Windows
- * worktree's .git), the folder without what .gitignore names (the vendored copies the build
- * makes).
+ * The project's own files under chrome/: git's list, or where git cannot tell (verify.sh's copy, WSL on a
+ * Windows worktree), the folder without what .gitignore names.
  * @return {string[]}
  */
 function trackedChromeFiles() {
@@ -704,16 +662,10 @@ export function knownWebExtensions(data) {
 }
 
 /**
- * Where the code uses the names a change gives: a dotted name as written; for a web API also its
- * member alone when that is distinctive and its interface is named in the same file
- * (`navigator.mediaCapabilities` ... `capabilities.decodingInfo(` uses
- * `mediaCapabilities.decodingInfo`, while `Animation.playbackRate` is not the video's
- * `playbackRate`). A WebExtensions name counts only whole (`runtime.getVersion` is not the
- * player's own `EnvUtils.getVersion`).
- * A bare name (`currentTime`) is weak evidence: it counts only when distinctive, and is dropped
- * when the same change names it with its interface (`Animation.playbackRate` is about animations,
- * and its bare `playbackRate` is not the video's). strong: a dotted name, or a member found with
- * its interface.
+ * Where the code uses the names a change gives: a dotted name as written; for a web API also its member
+ * alone when distinctive and its interface is named in the same file. A WebExtensions name counts only whole
+ * (`runtime.getVersion` is not `EnvUtils.getVersion`). A bare name is dropped when the change also names it
+ * with its interface. strong: a dotted name, or a member found with its interface.
  * @param {string[]} identifiers
  * @param {Map<string, string>} files
  * @param {Set<string>} stop
@@ -759,9 +711,6 @@ export function findUses(identifiers, files, stop, namespaces = new Set()) {
   return {files: [...found].sort(), used: [...used].sort(), strong};
 }
 
-// ---------------------------------------------------------------------------------------------
-// Relevance
-
 const Levels = /** @type {Level[]} */ (['low', 'medium', 'high']);
 const KindOrder = /** @type {Kind[]} */ (['Bug fix', 'New feature', 'Optimisation opportunity', 'Security change',
   'Compatibility risk']);
@@ -777,8 +726,7 @@ function distinctive(name) {
 }
 
 /**
- * The relevant findings among a release's items, items about the same bug, BCD feature or API
- * merged.
+ * The relevant findings among a release's items, items about the same bug, BCD feature or API merged.
  * @param {RawItem[]} items
  * @param {Config} config
  * @param {CodeIndex} index
@@ -793,8 +741,7 @@ export function relevantFindings(items, config, index) {
   const findings = [];
   for (const item of items) {
     const text = `${item.title} ${item.detail}`;
-    // MDN's "Developer Tools" notes are about the browser's devtools, not what a page or an
-    // extension can run.
+    // MDN's "Developer Tools" notes are about the browser's devtools, not what a page or extension runs.
     if (item.source === 'mdn' && /(^|› )developer tools\b/i.test(item.section)) continue;
     if (excluded.test(text) || item.bcd.some((b) => excluded.test(b.replace(/[._]/g, ' ')))) continue;
     const breaking = item.removal ||
@@ -806,8 +753,7 @@ export function relevantFindings(items, config, index) {
     // A Core bug or a web API's BCD entry that merely says "extension" is not a WebExtensions change.
     if (webext === 'none') matched = matched.filter((t) => t !== webextTopic || item.source === 'mdn' || item.source === 'blog');
     if (matched.length === 0) continue;
-    // WebDriver notes matter only to the e2e harness (Marionette/geckodriver), and only a change
-    // that can break it.
+    // WebDriver notes matter only when they can break the e2e harness.
     if (item.source === 'mdn' && /webdriver/i.test(item.section)) {
       matched = breaking && /\bMarionette\b|\bWebDriver classic\b|geckodriver/i.test(text) ? topics.filter((t) => t.id === 'e2e-harness') : [];
       if (matched.length === 0) continue;
@@ -829,14 +775,10 @@ export function relevantFindings(items, config, index) {
     // extension; MDN's curated notes keep their weight.
     else if (webext === 'general' && item.source === 'bugzilla') finalPriority = 'low';
     else if (confidence === 'low' || item.experimental) finalPriority = shift(priority, -1);
-    // A BCD entry's key is its change (textKey: path, release, added or removed), so a later
-    // change to a reported feature is reported again.
+    // A BCD entry's key is its change, so a later change to a reported feature is reported again.
     const aliases = [...item.bugs.map((b) => `bug:${b}`), ...(item.textKey ? [item.textKey] : [])];
     const own = aliases.filter((a) => a.startsWith('bug:') || a.startsWith('bcd:'));
-    // Only for merging items of this release, never recorded (a later change to the same API is
-    // reported again): the API a note and a BCD entry both name, a BCD entry's parent
-    // (runtime.PlatformArch.arm64 and .aarch64), and a distinctive member name shared by many
-    // entries (documentId in runtime, tabs, webRequest...).
+    // Merge-only keys, never recorded: a shared API name, a BCD parent, a member name shared by many entries.
     const leaves = item.source === 'bcd' ? item.bcd.map((b) => b.split('.').pop() ?? '') :
       item.source === 'mdn' ? item.identifiers.filter((id) => !id.includes('.')) : [];
     const mergeKeys = [
@@ -881,8 +823,7 @@ export function webExtensionUse(item, index) {
   const text = `${item.title} ${item.detail}`;
   const firsts = [...item.identifiers.map((id) => id.split('.')[0]), ...[...text.matchAll(/\b([a-z][A-Za-z]+)\.[a-zA-Z]+/g)].map((m) => m[1])];
   const spans = [...text.matchAll(/`([^`]+)`/g)].map((m) => m[1].replace(/\(\)$/, ''));
-  // An API named in plain words ("the userScripts API", "content scripts") counts too; only names
-  // that are not ordinary words ("extension", "background", "icons" are everywhere).
+  // An API named in plain words counts too, if its name is no ordinary word ("extension", "icons").
   const words = [...index.known.namespaces, ...index.known.manifestKeys].filter((n) => /[A-Z_]/.test(n) &&
     new RegExp(`(?<![\\w.])${escapeRegExp(n).replace(/_/g, '[_ ]')}s?(?![\\w])`, 'i').test(text));
   const specific = [...firsts.filter((n) => index.known.namespaces.has(n)), ...spans.filter((s) => index.known.manifestKeys.has(s)), ...words];
@@ -893,8 +834,8 @@ export function webExtensionUse(item, index) {
 }
 
 /**
- * Findings that share a bug, a BCD feature or an API become one: the most telling title (MDN's),
- * the strongest kind and priority, every link.
+ * Findings that share a bug, a BCD feature or an API become one: MDN's title, the strongest kind and priority,
+ * every link.
  * @param {Finding[]} findings
  * @return {Finding[]}
  */
@@ -964,9 +905,6 @@ export function mergeFindings(findings) {
     KindOrder.indexOf(b.kind) - KindOrder.indexOf(a.kind) || a.title.localeCompare(b.title));
 }
 
-// ---------------------------------------------------------------------------------------------
-// Rendering (all outside text goes through md())
-
 /**
  * A link only to an allowed Mozilla/MDN host over https, else ''.
  * @param {string} url
@@ -991,9 +929,8 @@ const Invisible = new RegExp('[' + [[0x00, 0x08], [0x0b, 0x1f], [0x7f, 0x7f], [0
   [0x2060, 0x2064], [0xfeff, 0xfeff]].map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('') + ']', 'g');
 
 /**
- * Outside text made safe for an issue: no HTML, no mention, no reference to this repository's
- * issues or commits, no link or image it chose, no autolink, no hidden marker. `code` spans stay
- * code (GitHub renders nothing inside them) when they hold no backtick or line break.
+ * Outside text made safe for an issue: no HTML, mention, reference to this repository, chosen link or image,
+ * autolink or hidden marker. `code` spans stay code when they hold no backtick or line break.
  * @param {string} text
  * @param {number} [limit]
  * @return {string}
@@ -1061,8 +998,7 @@ export function renderFinding(f) {
 }
 
 /**
- * A release's section, in parts no larger than MaxPost: high and medium items first, low ones
- * folded away.
+ * A release's section, in parts no larger than MaxPost: high and medium items first, low ones folded away.
  * @param {Review} review
  * @param {Finding[]} findings
  * @param {{late: boolean, bcdVersion: string}} options
@@ -1129,12 +1065,8 @@ export const IssueIntro = [
   '',
 ].join('\n');
 
-// ---------------------------------------------------------------------------------------------
-// What was reported
-
 /**
- * The keys and releases the bot's posts record. Markers are read only from the bot's posts and
- * only in their exact form: anything else in a post is text.
+ * The keys and releases the bot's posts record, read only in their exact form.
  * @param {string[]} posts
  * @return {{aliases: Set<string>, releases: Set<number>}}
  */
@@ -1152,9 +1084,7 @@ export function recordsOf(posts) {
   return {aliases, releases};
 }
 
-/**
- * @param {Issue} issue
- */
+/** @param {Issue} issue */
 function isWatcherIssue(issue) {
   return issue.user === Bot && issue.title.startsWith(Prefix);
 }
@@ -1196,9 +1126,6 @@ export function ghClient(repo, gh = (args, input) => execFileSync('gh', args, {e
   };
 }
 
-// ---------------------------------------------------------------------------------------------
-// One run
-
 /**
  * @typedef {{
  *   dryRun?: boolean, github?: GitHub|null, from?: number, to?: number, start?: number, lookback?: number,
@@ -1211,9 +1138,8 @@ export function ghClient(repo, gh = (args, input) => execFileSync('gh', args, {e
  */
 
 /**
- * Reviews the releases due and posts what is new. Never throws for a source that is down: that
- * release waits for the next run. failures: what should fail the run (a source that answers
- * wrongly, notes still missing GraceDays after a release).
+ * Reviews the releases due and posts what is new. A source that is down never throws: that release waits.
+ * failures: what should fail the run (a source answering wrongly, notes missing GraceDays after a release).
  * @param {RunOptions} [options]
  * @return {Promise<RunResult>}
  */
@@ -1335,9 +1261,7 @@ export async function run(options = {}) {
       review.reason = e.message;
     }
   }
-  // A source that stays down: the newest release unreviewed past the grace days fails the run.
-  // An older release was the newest before and had its days then; a short outage while it is
-  // looked at again (for notes added later) is no failure.
+  // A source that stays down fails the run only for the newest release past its grace days.
   const newest = reviews[reviews.length - 1];
   if (newest && !newest.complete && newest.date && daysBetween(newest.date, today) > GraceDays) {
     failures.push(`Firefox ${newest.version} (released ${newest.date}) could not be reviewed for more than ${GraceDays} days: ${newest.reason}`);
@@ -1389,13 +1313,11 @@ export async function run(options = {}) {
 }
 
 /**
- * Posts one section: a comment on the oldest open watcher issue, read again just before, or a
- * new issue when there is none (the one there was may have been closed meanwhile).
+ * Posts one section: a comment on the oldest open watcher issue, read again just before, or a new issue.
  * @param {GitHub} github
  * @param {number} version
  * @param {string} body
- * @param {number} [last] - The issue this run posted to before: GitHub's list of issues can
- *   lag behind an issue just opened, and a second one would be opened.
+ * @param {number} [last] - The issue this run posted to before: GitHub's issue list can lag behind a new one.
  * @return {Promise<number>}
  */
 export async function postSection(github, version, body, last = 0) {
@@ -1452,8 +1374,7 @@ function wantedPath(at, config, index) {
 }
 
 /**
- * Whether a BCD path is the prefix's feature or under it (`api.Blob` holds `api.Blob.text`, not
- * `api.BlobEvent`).
+ * Whether a BCD path is the prefix's feature or under it (`api.Blob` holds `api.Blob.text`, not `api.BlobEvent`).
  * @param {string} at
  * @param {string} pre
  */
@@ -1469,9 +1390,6 @@ function daysBetween(from, to) {
   if (!from) return 0;
   return Math.floor((Date.parse(to) - Date.parse(from)) / 86400000);
 }
-
-// ---------------------------------------------------------------------------------------------
-// Command line
 
 /**
  * @param {string[]} argv
@@ -1499,10 +1417,8 @@ export function parseArgs(argv) {
 }
 
 /**
- * A folder or file named on the command line or in the environment, which has to lie in a
- * temporary folder - the runner's (RUNNER_TEMP) or the system's: the memo, the workflow test's
- * fixtures, and the runner's own GITHUB_STEP_SUMMARY and GITHUB_OUTPUT files (in RUNNER_TEMP).
- * Anything else is refused, so none of them can make the watcher read or write elsewhere.
+ * A path from the command line or the environment, which must lie in a temporary folder (RUNNER_TEMP or the
+ * system's), so none can make the watcher read or write elsewhere.
  * @param {string} dir
  * @param {NodeJS.ProcessEnv} [env]
  * @return {string} The path, resolved.
@@ -1518,9 +1434,8 @@ export function tempPath(dir, env = process.env) {
 }
 
 /**
- * Mozilla's sources from files, for the workflow test (FFW_FIXTURES): versions.json,
- * majors.json, <version>.md, webextensions-<version>.json, core-<version>.json, feed.xml (and
- * bcd.json, read by loadBcd). Anything else answers 404.
+ * Mozilla's sources from files, for the workflow test (FFW_FIXTURES): versions.json, majors.json, <version>.md,
+ * webextensions-<version>.json, core-<version>.json, feed.xml, bcd.json; anything else answers 404.
  * @param {string} dir - From tempPath.
  * @return {typeof fetch}
  */

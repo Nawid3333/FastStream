@@ -1,42 +1,13 @@
-#!/usr/bin/env node
 // @ts-check
 // Re-cuts a library's pnpm patch onto a newer release of that library.
-//
 //   node tools/recut-patch.mjs <package> <new-version>          report only
 //   node tools/recut-patch.mjs <package> <new-version> --apply  and take it
-//
-// What it does, per file the current patch touches:
-//   base   = the release the patch is cut against, from npm
-//   ours   = that release with the patch applied (what ships today)
-//   theirs = the new release, from npm
-// and a three-way merge of ours onto theirs. A webpack bundle (dash.js) is merged
-// module by module, keyed by each module's source path, so an upstream change to one
-// module never conflicts with FastStream's change to another. A file whose name carries
-// a content hash (mp4box's rolldown chunks) is matched to the new release's renamed one.
-// Stray CR characters in the new release (dash.js ships 428) are kept, so the patch
-// holds only real changes. When a file's merge conflicts, the patch's hunks are tried on
-// the new release as they are, each where its lines occur exactly once: a release that
-// reorders its bundle throws the merge off while FastStream's changes still fit
-// (hls.js 1.7.4).
-//
-// Then it checks each merged JavaScript file: it must parse, and ESLint's no-undef and
-// no-unused-vars must report no name that the stock new release does not. A clean
-// merge is not a correct one: on the dash.js 5.2.1 upgrade two came out clean and threw
-// at run time (a helper upstream deleted, a webpack import upstream renumbered), and
-// this is the check that caught both.
-//
-// Exit status: 0 merged and checked, 1 usage or setup error, 2 conflicts or a failed
-// check (the report says where; the merged files, conflict markers and all, are in the
-// output directory), 3 the release is too new for pnpm's minimumReleaseAge - try again
-// later.
-//
-// --apply (only after a clean run) bumps package.json, swaps the patchedDependencies
-// entry, installs, commits the patch through `pnpm patch` / `pnpm patch-commit`, renames
-// hashed chunk names in tools/sync-vendor.mjs, and regenerates the vendored files. It
-// does not run the tests: `pnpm run verify` is the next step, and it is what proves
-// playback (docs/updating-patched-libraries.md).
-//
-// Replaying a past upgrade, to check this tool against one done by hand:
+// Per patched file: a three-way merge of ours (base + patch) onto theirs (the new release), by module for a
+// webpack bundle; on a conflict, the patch's hunks are tried where their lines occur exactly once.
+// Each merged JavaScript file must parse and add no no-undef/no-unused-vars name: a clean merge is not a correct one.
+// Exit status: 0 merged and checked, 1 usage or setup error, 2 conflicts or a failed check, 3 too new (minimumReleaseAge).
+// --apply (after a clean run) bumps, installs, commits the patch and regenerates; `pnpm run verify` proves playback.
+// Replaying a past upgrade:
 //   --from <version> --patch <file>   start from that release and patch instead of the
 //                                     current patchedDependencies entry
 // After conflicts: resolve them in <out>/merged, then run the same command with
@@ -53,29 +24,25 @@ import {spawnSync} from 'node:child_process';
 import {patchedDependencies} from './check-patched-updates.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
-// This repository, always. An environment variable could point it elsewhere until 2026-10-06;
-// nothing set it, and CodeQL traced every file path from it (js/path-injection).
+// This repository, always (CodeQL js/path-injection).
 const root = path.resolve(__dirname, '..');
-
-// --- arguments -------------------------------------------------------------------
 
 /**
  * The command line, parsed.
  * @typedef {Object} RecutOptions
- * @property {Map<string, string>} map - --map: a file's path in the old release to its path
- *     in the new one.
+ * @property {Map<string, string>} map - --map: a file's old path to its new one.
  * @property {boolean} apply
  * @property {boolean} json
  * @property {boolean} [resume]
  * @property {string} [from] - --from: the release to start from; always with patch.
- * @property {string} [patch] - --patch: the patch file to start from.
+ * @property {string} [patch]
  * @property {string} [out]
  * @property {string} pkg
  * @property {string} to - The new version.
  */
 
 /**
- * @param {string[]} argv - The arguments after the script's path.
+ * @param {string[]} argv
  * @return {RecutOptions}
  */
 function parseArgs(argv) {
@@ -99,10 +66,7 @@ function parseArgs(argv) {
   }
   if (rest.length !== 2) usage('expected <package> <new-version>');
   [opts.pkg, opts.to] = rest;
-  // A package name is npm's own shape (optionally @scope/name); a version is semver.
-  // Both end up in paths (node_modules/<pkg>, the mkdtemp work dir) and in a shell
-  // command (npm pack <pkg>@<version>), so anything off this shape is refused before
-  // any of that (CodeQL js/path-injection, js/command-line-injection).
+  // npm shapes only: both reach paths and a shell command (CodeQL js/path-injection, js/command-line-injection).
   if (!/^@[\w.-]+\/[\w.-]+$|^[A-Za-z0-9][\w.-]*$/.test(opts.pkg)) usage(`not an npm package name: ${opts.pkg}`);
   if (!/^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][\w.-]+)?$/.test(opts.to)) usage(`not a version: ${opts.to}`);
   if (opts.patch && !/^[\w/@.-]+\.patch$/.test(opts.patch)) usage(`not a patch file: ${opts.patch}`);
@@ -123,8 +87,6 @@ function usage(msg) {
   process.exit(1);
 }
 
-// --- helpers -----------------------------------------------------------------------
-
 /**
  * @param {string} cmd
  * @param {string[]} args
@@ -133,11 +95,8 @@ function usage(msg) {
  */
 function run(cmd, args, opts = {}) {
   const base = /** @type {{encoding: 'utf8', maxBuffer: number}} */ ({encoding: 'utf8', maxBuffer: 1 << 30, ...opts});
-  // npm and pnpm are .cmd shims on Windows, which Node only starts through a shell - and
-  // a shell does not quote arguments, so they are quoted here (paths have spaces). The
-  // percent sign joins the quoted set: cmd.exe expands %VAR% even inside double quotes,
-  // and pnpm patch-commit's output paths reach this line (CodeQL
-  // js/command-line-injection; the args are this repo's own values).
+  // npm and pnpm are .cmd shims on Windows, started through a shell that does not quote: quoted here,
+  // % included, since cmd.exe expands %VAR% inside double quotes (CodeQL js/command-line-injection).
   const r = process.platform === 'win32' && (cmd === 'npm' || cmd === 'pnpm') ?
     spawnSync([cmd, ...args].map((a) => /[\s"&|<>^()%!]/.test(a) ? `"${a.replace(/"/g, '""')}"` : a).join(' '), {...base, shell: true}) :
     spawnSync(cmd, args, base);
@@ -166,8 +125,8 @@ const norm = /** @param {string} s @return {string} */ (s) => s.replace(/\r\n/g,
  * @typedef {Object} PatchInUse
  * @property {string} version - The release it is cut against.
  * @property {string} patch - Its file, relative to the repository.
- * @property {string} [line] - Its line in pnpm-workspace.yaml (currentPatch(); not with --from).
- * @property {string} [text] - The patch file's text, which main() reads.
+ * @property {string} [line] - Its line in pnpm-workspace.yaml (not with --from).
+ * @property {string} [text]
  */
 
 /**
@@ -186,9 +145,8 @@ function currentPatch(pkg) {
 }
 
 /**
- * package.json's git spec for a library installed from GitHub (Coloris:
- * `github:mdbassit/Coloris#v0.25.0`), pointed at another version's tag; undefined for a
- * library from the npm registry.
+ * package.json's git spec for a library from GitHub (`github:mdbassit/Coloris#v0.25.0`) at another version's tag;
+ * undefined for an npm library.
  * @param {string} pkg
  * @param {string} version
  * @return {string|undefined}
@@ -211,13 +169,10 @@ async function fetchRelease(pkg, version, dir) {
   fs.mkdirSync(dir, {recursive: true});
   const git = gitSpec(pkg, version);
   if (git) {
-    // GitHub's archive of the tag. Not `npm pack <git spec>`: npm may be set not to fetch
-    // git dependencies (allow-git), and this needs no git at all.
+    // GitHub's archive of the tag, not `npm pack <git spec>`: npm may be set not to fetch git dependencies.
     const m = /^github:([\w.-]+)\/([\w.-]+)#([\w.-]+)$/.exec(git);
     if (!m) throw new Error(`${pkg}: only github: git specs are supported (${git})`);
-    // The host is pinned to codeload.github.com, and the owner/repo/tag are checked
-    // against a strict shape, so the spec (from this repo's own package.json) cannot
-    // direct the request anywhere else (CodeQL js/request-forgery).
+    // The host is pinned and the owner/repo/tag shapes are checked (CodeQL js/request-forgery).
     if (!/^[a-zA-Z0-9._-]+$/.test(m[3])) throw new Error(`${pkg}: unsupported tag ${m[3]}`);
     const res = await fetch(`https://codeload.github.com/${m[1]}/${m[2]}/tar.gz/refs/tags/${m[3]}`);
     if (!res.ok) throw new Error(`${pkg}: GitHub has no tag ${m[3]} (${res.status})`);
@@ -252,12 +207,11 @@ function copyDir(from, to) {
 }
 
 /**
- * Applies one file's hunks of a unified diff, the way pnpm does. `git apply` is stricter
- * than pnpm about one thing pnpm's own patches do: dropping a file's last line when it
- * has no final newline, without the "\ No newline at end of file" marker.
- * @param {string} original - The file's text.
- * @param {Hunk[]} hunks - The file's, from parseDiff.
- * @param {string} label - The file, for an error.
+ * Applies one file's hunks the way pnpm does: `git apply` refuses what pnpm's own patches do,
+ * dropping a last line that has no final newline without the "No newline at end of file" marker.
+ * @param {string} original
+ * @param {Hunk[]} hunks
+ * @param {string} label
  * @return {string}
  */
 function applyHunks(original, hunks, label) {
@@ -296,16 +250,11 @@ function applyHunks(original, hunks, label) {
 }
 
 /**
- * Applies a patch's hunks to a newer release of the file, each where its old lines (context
- * and removed) occur exactly once, in any order: a release that reordered the bundle moves
- * FastStream's changes by thousands of lines, and some past others (hls.js 1.7.4 moved whole
- * classes, 2026-10-29: the three-way merge marked 3 conflicts, every hunk applied as it was).
- * A hunk whose old lines are missing or found more than once is not guessed at.
- *
+ * Applies a patch's hunks to a newer release, each where its old lines occur exactly once, in any order:
+ * a reordered bundle moves FastStream's changes. A hunk whose old lines are missing or repeated is not guessed at.
  * @param {string} text - The new release's file, CRs taken out (norm).
- * @param {Hunk[]} hunks - The file's, from parseDiff.
- * @return {{text?: string, failed: string[]}} text: when every hunk applied; failed: why
- *     each one that did not.
+ * @param {Hunk[]} hunks
+ * @return {{text?: string, failed: string[]}} text: when every hunk applied; failed: why each one did not.
  */
 function applyHunksByContext(text, hunks) {
   const lines = text.split('\n');
@@ -353,9 +302,7 @@ function applyHunksByContext(text, hunks) {
  */
 
 /**
- * Splits a unified diff into {file, hunks} per file. deleted: the patch deletes the file
- * (gif.js's .npmignore, which pnpm never installs, so pnpm patch-commit records it as
- * deleted).
+ * Splits a unified diff into {file, hunks} per file; deleted: the patch deletes the file.
  * @param {string} patchText
  * @return {Array<{file: string, hunks: Hunk[], deleted?: boolean}>}
  */
@@ -416,8 +363,8 @@ function patchedFiles(patchText) {
 
 /**
  * Finds a file's counterpart in the new release when a content hash renamed it.
- * @param {string} rel - Its path in the old release.
- * @param {string} theirsDir - The new release's directory.
+ * @param {string} rel
+ * @param {string} theirsDir
  * @return {{candidates: string[], match?: string}} match: the one candidate, if one.
  */
 function renamedCounterpart(rel, theirsDir) {
@@ -430,38 +377,27 @@ function renamedCounterpart(rel, theirsDir) {
   return {candidates, match: candidates.length === 1 ? candidates[0] : undefined};
 }
 
-// --- hashed chunk names -------------------------------------------------------------
-
 /**
- * Rewrites every content-hashed chunk name in tools/sync-vendor.mjs (mp4box's
- * MP4BOX_CHUNKS) to its counterpart in the freshly installed release. A patch names
- * only the chunk it patches (mp4box's styp-*), so the renames it records cover one
- * chunk; the unpatched ones (mp4box's rolldown-runtime-*) are renamed by every release
- * too - their content changes - and a stale name fails the sync's checkMp4boxImports,
- * which turns the update into a hand issue instead of its pull request (2026-10-26).
- *
- * @param {string} text - tools/sync-vendor.mjs as it is now, with the old names.
- * @param {string} distDir - The new release's dist directory in node_modules.
- * @param {{from: string, to: string}[]} known - Renames the patch itself recorded;
- *     their new names are already in the text.
- * @return {{text: string, renamed: {from: string, to: string}[]}} The reworked text and
- *     every rename applied, patch ones included - a caller logs them.
+ * Rewrites every content-hashed chunk name in tools/sync-vendor.mjs to its counterpart in the new release:
+ * a patch records only the chunk it patches, and a stale name fails the sync's checkMp4boxImports.
+ * @param {string} text
+ * @param {string} distDir
+ * @param {{from: string, to: string}[]} known - Renames the patch recorded; their new names are already in the text.
+ * @return {{text: string, renamed: {from: string, to: string}[]}} The reworked text and every rename applied.
  */
 function renameHashedChunks(text, distDir, known) {
   const renamed = [...known];
   for (const {from, to} of known) {
     text = text.split(path.posix.basename(from)).join(path.posix.basename(to));
   }
-  // The names the patch renames applied: not to be looked at again, or a second run of
-  // the same pass would rename the new names to still other candidates.
+  // The patch's renames are not looked at again, or a second pass would rename them onward.
   const seen = new Set(renamed.map(({to}) => path.posix.basename(to)));
   for (const entry of text.matchAll(/['"]([^'"]*?-[A-Za-z0-9_-]{6,}\.(?:mjs|js|cjs))['"]/g)) {
     const rel = entry[1];
     if (seen.has(rel)) continue;
     seen.add(rel);
     const {match} = renamedCounterpart(rel, distDir);
-    // Itself as the one candidate means the name is current; a stale name is
-    // not in the new release's directory, which is why it needs renaming.
+    // Itself as the one candidate: the name is current.
     if (!match || match === rel) continue;
     text = text.split(path.posix.basename(rel)).join(path.posix.basename(match));
     renamed.push({from: rel, to: match});
@@ -469,13 +405,11 @@ function renameHashedChunks(text, distDir, known) {
   return {text, renamed};
 }
 
-// --- three-way merges ----------------------------------------------------------------
-
 /**
  * @param {string} ours
  * @param {string} base
  * @param {string} theirs
- * @param {string} label - What is merged, for an error.
+ * @param {string} label
  * @return {{text: string, conflicts: number}} conflicts: how many git merge-file marked.
  */
 function mergeText(ours, base, theirs, label) {
@@ -492,8 +426,8 @@ function mergeText(ours, base, theirs, label) {
 }
 
 /**
- * Splits a webpack debug bundle into its runtime head, modules keyed by source path,
- * and runtime tail. Returns null for anything that is not one.
+ * Splits a webpack debug bundle into its runtime head, modules keyed by source path, and runtime tail;
+ * null for anything else.
  * @param {string} text
  * @return {?WebpackParts}
  */
@@ -525,7 +459,7 @@ function splitWebpack(text) {
  * @typedef {Object} WebpackParts
  * @property {string} head - The runtime before the modules.
  * @property {Map<string, string>} modules - Source path to the module's text.
- * @property {string[]} order - The source paths, as the bundle lists them.
+ * @property {string[]} order - The source paths, in bundle order.
  * @property {string} tail - The runtime after the modules.
  */
 
@@ -553,9 +487,8 @@ function mergeWebpack(b, o, t, label) {
       out.push(tv); report.theirs++; continue;
     }
     if (ov === undefined) {
-      // In base and the new release, not in ours: the patch deleted it. Taking the new
-      // release's copy brought back what the patch removed, with a clean report. Kept
-      // deleted; one the new release changed too is for a person to decide.
+      // In base and the new release, not in ours: the patch deleted it, so it stays deleted;
+      // one the new release changed too is for a person to decide.
       if (tv === bv) {
         report.merged.push(`${p} (FastStream's deletion, kept)`);
       } else {
@@ -590,8 +523,7 @@ function mergeWebpack(b, o, t, label) {
 }
 
 /**
- * Applies the line changes between norm(raw) and target onto raw, so every untouched
- * line keeps its bytes - stray CRs included - and the patch holds only real changes.
+ * Applies the line changes between norm(raw) and target onto raw: untouched lines keep their bytes, stray CRs included.
  * @param {string} raw - The new release's file.
  * @param {string} target - The merge, CRs taken out (norm).
  * @return {string}
@@ -622,13 +554,9 @@ function spliceOnto(raw, target) {
   }
 }
 
-// --- checks ------------------------------------------------------------------------
-
 /**
- * Parses the merged file, and reports any undefined or unused name it has that neither
- * the stock new release has nor the current patch already brought in (those were
- * reviewed when that patch was cut: dash.js's _getL3DBootstrapTracks, whose only caller
- * FastStream removed, is one).
+ * Parses the merged file and reports any undefined or unused name that neither the stock new release
+ * nor the current patch already has.
  * @param {string} merged
  * @param {string} stock - The new release's file.
  * @param {string} label
@@ -683,14 +611,10 @@ async function checkJavaScript(merged, stock, label, oldBase, oldOurs) {
   return problems;
 }
 
-// --- main --------------------------------------------------------------------------
-
 /**
- * One file the patch touches, as reported and as carried into --apply: the paths it has
- * in each release and how its merge went. mode and the module counts are set only when
- * the file merged as webpack modules.
+ * One file the patch touches: its paths in each release and how its merge went.
  * @typedef {Object} MergedFile
- * @property {string} file - The file's path in the new release.
+ * @property {string} file - Its path in the new release.
  * @property {string} from - Its path in the release the patch was cut against.
  * @property {number} conflicts
  * @property {string} [mode]
@@ -700,9 +624,8 @@ async function checkJavaScript(merged, stock, label, oldBase, oldOurs) {
  * @property {string[]} merged - Modules merged or kept; empty for a whole-file merge.
  * @property {string[]} [removedUpstream]
  * @property {string[]} [conflictList]
- * @property {{conflicts: number, hunks: number}} [byContext] - A merge that conflicted,
- *     taken from the patch's hunks instead (applyHunksByContext).
- * @property {string[]} [contextMisses] - Why the hunks did not fit, when they did not.
+ * @property {{conflicts: number, hunks: number}} [byContext] - A conflicting merge taken from the patch's hunks instead.
+ * @property {string[]} [contextMisses] - Why the hunks did not fit.
  * @property {boolean} [resumed]
  * @property {boolean} [deleted] - The patch deletes the file.
  * @property {boolean} [landed]
@@ -720,9 +643,7 @@ async function checkJavaScript(merged, stock, label, oldBase, oldOurs) {
  * @property {{from: string, to: string}[]} renamed - Files a content hash renamed.
  */
 
-/**
- * @return {Promise<number>} The exit status.
- */
+/** @return {Promise<number>} The exit status. */
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   // --from comes with --patch (parseArgs).
@@ -732,8 +653,7 @@ async function main() {
   const patchText = fs.readFileSync(patchPath, 'utf8');
   cur.text = patchText; // --apply puts it back if the install fails
   const files = patchedFiles(patchText);
-  // An empty patch (truncated by accident) changes no file: every check below passed over
-  // nothing, "merged cleanly" was said, and --apply deleted the patch as merged.
+  // An empty patch changes no file: every check would pass over nothing.
   if (files.length === 0) throw new Error(`${cur.patch} changes no file (empty, or no git diff): nothing to move`);
   if (cur.version === opts.to && !opts.from) {
     console.log(`${opts.pkg} is already patched at ${opts.to}.`);
@@ -765,8 +685,7 @@ async function main() {
     fs.writeFileSync(f, applyHunks(fs.readFileSync(f, 'utf8'), hunks, file));
     patchHunks.set(file, hunks);
   }
-  // What pnpm installed is what ships. For the current patch it must be exactly what the
-  // hunks above produced, or this tool would be merging something else.
+  // What pnpm installed is what ships: for the current patch it must equal what the hunks produced.
   const installed = path.join(root, 'node_modules', opts.pkg);
   const installedVersion = fs.existsSync(path.join(installed, 'package.json')) &&
     JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8')).version;
@@ -820,8 +739,7 @@ async function main() {
       Object.assign(entry, {mode: 'whole file'});
     }
     if (merged.conflicts) {
-      // The three-way merge lines the releases up by their diff, which a reordered bundle
-      // throws off; the patch's own hunks may still fit the new release as they are.
+      // A reordered bundle throws the three-way merge off; the patch's own hunks may still fit.
       const hunks = (patchHunks.get(rel) || []).map((h) => ({...h, lines: h.lines.map((l) => ({...l, text: l.text.replace(/\r$/, '')}))}));
       const byContext = applyHunksByContext(t, hunks);
       if (byContext.text !== undefined) {
@@ -840,8 +758,7 @@ async function main() {
     if (opts.resume) {
       // The file a person resolved after an earlier run, instead of this run's merge.
       const resolved = fs.existsSync(outFile) && norm(fs.readFileSync(outFile, 'utf8'));
-      // An empty file (truncated by accident) passed every check below, and --apply put a
-      // patch that empties the module into the commit.
+      // An empty file would pass every check below.
       if (resolved === false || !resolved.trim()) {
         result.problems.push(`${target}: --resume, but ${outFile} is not there or empty`);
         continue;
@@ -902,8 +819,7 @@ async function main() {
 }
 
 /**
- * Takes names off .github/dependabot.yml's ignore list, so Dependabot updates them again:
- * a library whose patch is dropped.
+ * Takes names off .github/dependabot.yml's ignore list (a library whose patch is dropped).
  * @param {string[]} names
  * @param {string} [file] - The Dependabot config.
  * @return {string[]} The names that were on the list.
@@ -923,7 +839,7 @@ function dropDependabotIgnores(names, file = path.join(root, '.github/dependabot
 
 /**
  * package.json with a library moved from one version to another.
- * @param {string} text - package.json.
+ * @param {string} text
  * @param {string} pkg
  * @param {string} from
  * @param {string} to
@@ -931,8 +847,7 @@ function dropDependabotIgnores(names, file = path.join(root, '.github/dependabot
  */
 function bumpPackageJson(text, pkg, from, to) {
   const esc = /** @param {string} s */ (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // A registry range keeps its prefix (hls.js was "^1.7.3"); a git spec moves to the new
-  // version's tag.
+  // A registry range keeps its prefix; a git spec moves to the new version's tag.
   const verRe = new RegExp(`("${esc(pkg)}":\\s*"(?:[~^]?|(?:github:|git\\+|git:)[^#"]+#v?))${esc(from)}"`);
   if (!verRe.test(text)) throw new Error(`package.json has no "${pkg}" at ${from}`);
   return text.replace(verRe, `$1${to}"`);
@@ -958,9 +873,7 @@ function applyUpdate(opts, cur, result, work) {
   fs.writeFileSync(ws, wsText.replace(cur.line + '\n', ''));
   fs.rmSync(path.join(root, cur.patch));
 
-  // Not frozen: pnpm freezes the lockfile by default in CI, and this has to change it. No
-  // install scripts: the new release is only diffed and patched here, none of its code (nor any
-  // other package's) has to run; `pnpm run verify` afterwards builds and tests it.
+  // Not frozen: this has to change the lockfile. No install scripts: none of the new release's code runs here.
   const install = run('pnpm', ['install', '--no-frozen-lockfile', '--ignore-scripts'], {cwd: root});
   if (install.status !== 0) {
     const text = install.stdout + install.stderr;
@@ -993,8 +906,7 @@ function applyUpdate(opts, cur, result, work) {
     must('pnpm', ['patch-commit', edit], {cwd: root});
   }
 
-  // Chunks named in tools/sync-vendor.mjs (mp4box's MP4BOX_CHUNKS): every hashed chunk
-  // name gets its new-release counterpart, patch renames first (renameHashedChunks).
+  // Every hashed chunk name in tools/sync-vendor.mjs gets its new-release counterpart, patch renames first.
   const sv = path.join(root, 'tools/sync-vendor.mjs');
   const svText = fs.readFileSync(sv, 'utf8');
   const {text, renamed} = renameHashedChunks(svText, path.join(root, 'node_modules', pkg, 'dist'), result.renamed);

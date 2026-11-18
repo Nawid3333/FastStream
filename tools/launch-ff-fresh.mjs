@@ -1,14 +1,5 @@
-#!/usr/bin/env node
 // @ts-check
-// Launcher for a *fresh* `web-ext run`:
-//  1. resets the persistent dev profile's mutable state while keeping
-//     pre-installed extensions like uBlock Origin,
-//  2. rebuilds the Firefox libre target from scratch,
-//  3. launches a new Firefox instance with the clean extension.
-//
-// Use this when you need to verify that a change is not masked by profile
-// state or cached data from previous runs, but still want uBlock Origin
-// and the dev prefs from tools/setup-dev-profile.mjs.
+// web-ext run with a reset dev profile (pre-installed add-ons kept) and a build from scratch.
 
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
@@ -25,12 +16,8 @@ const profileDir = path.join(root, '.dev-profile');
 const builtDir = path.join(root, 'built');
 
 /**
- * Resets a Firefox profile without removing pre-installed extensions or
- * user.js prefs. Deletes the entries that accumulate runtime state
- * (cache, storage, session, etc.) so the next run starts clean, but keeps
- * extensions/, user.js and the seeded bookmarks intact.
- *
- * @param {string} profilePath the profile directory to reset
+ * Deletes the runtime state (cache, storage, session) but keeps extensions/, user.js and the seeded bookmarks.
+ * @param {string} profilePath
  */
 function resetProfilePreservingAddons(profilePath) {
   if (!fs.existsSync(profilePath)) {
@@ -47,11 +34,9 @@ function resetProfilePreservingAddons(profilePath) {
   }
 }
 
-// Reset the profile while keeping uBlock Origin and other preinstalled add-ons.
 console.log('Resetting dev profile (keeping pre-installed add-ons)...');
 resetProfilePreservingAddons(profileDir);
 
-// Remove any packaged zips from previous builds.
 if (fs.existsSync(builtDir)) {
   console.log('Removing old packaged builds...');
   fs.readdirSync(builtDir)
@@ -59,8 +44,7 @@ if (fs.existsSync(builtDir)) {
       .forEach((f) => fs.unlinkSync(path.join(builtDir, f)));
 }
 
-// Rebuild the extension. rebuild() keeps the unpacked build_* directories
-// so web-ext run has a source-dir to read; the profile is still fresh.
+// rebuild() keeps the unpacked build_* directory: web-ext run reads it.
 console.log(`Rebuilding ${target.name} from scratch...\n`);
 await rebuild();
 
@@ -82,9 +66,6 @@ const {command, args, shell} = webExtSpawn([
   '--target', 'firefox-desktop',
   '--firefox-profile', profileDir,
   '--profile-create-if-missing',
-  // Do not keep profile changes between runs for the fresh launcher.
-  // This is redundant with the delete above, but protects against
-  // accidental state leakage if the profile survives for any reason.
   '--arg=-no-remote',
   '--arg=-new-instance',
 ]);

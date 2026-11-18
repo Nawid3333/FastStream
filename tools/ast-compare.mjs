@@ -1,29 +1,13 @@
 // @ts-check
-// Structural comparison of two JavaScript files, ignoring the differences
-// that the project's own `eslint --fix` introduces.
-//
-// Why this exists
-// ---------------
-// Every vendored library in this tree was run through the project's eslint
-// before being committed. That produces enormous textual diffs from files
-// that are functionally untouched - pako's diff was 12,855 lines and collapsed
-// to 25 once whitespace was ignored - which makes "is this the same code as
-// the published release?" impossible to answer by reading a diff.
-//
-// Comparing parsed programs answers it. The normalisation below undoes only
-// transformations that eslint's autofixer performs and that cannot change
-// behaviour, so anything still differing afterwards is a real difference.
-//
-// This is the tool that found mp4-muxer's base version (4.3.3, where a
-// line-count search pointed at 5.0.0), proved gif.js and vtt.js, and would
-// have prevented the mp4box mistake, which was argued from the shape of a
-// diff rather than from the parsed program.
+// Structural comparison of two JavaScript files, ignoring what the project's `eslint --fix` changes.
+// Vendored libraries were run through eslint, so a text diff cannot tell whether code matches a release.
+// The normalisation undoes only autofixes that cannot change behaviour: what still differs is real.
 
 import * as acorn from 'acorn';
 
 /**
  * Wraps a bare statement in a block, so `curly` cannot cause a mismatch.
- * @param {any} n an AST node, array of nodes, or primitive
+ * @param {any} n
  */
 function block(n) {
   if (!n || typeof n !== 'object' || Array.isArray(n)) return n;
@@ -37,24 +21,10 @@ const LOOPS = new Set([
 ]);
 
 /**
- * Rewrites an AST into a canonical form.
- *
- * Each rule below corresponds to an eslint rule in this project's config
- * whose autofix rewrites source without changing what it does:
- *
- * | Rule                      | What it changes                          |
- * |---------------------------|------------------------------------------|
- * | `one-var`                 | `var a, b` into `var a; var b`            |
- * | `curly`                   | `if (x) stmt;` into `if (x) { stmt; }`    |
- * | `quotes`                  | a literal's raw text, not its value       |
- * | `no-var` / `prefer-const` | the declaration keyword                   |
- * | `indent`                  | whitespace inside a template literal      |
- * | `no-extra-semi`           | a stray `;` between statements            |
- *
- * Positions and comments are dropped too: they carry no behaviour.
- *
- * @param {any} node an AST node, array of nodes, or primitive
- * @return {any} the node in canonical form
+ * Rewrites an AST into a canonical form, undoing the eslint autofixes that change no behaviour
+ * (one-var, curly, quotes, no-var/prefer-const, indent, no-extra-semi); positions and comments are dropped.
+ * @param {any} node
+ * @return {any}
  */
 export function normalise(node) {
   if (Array.isArray(node)) {
@@ -62,8 +32,7 @@ export function normalise(node) {
     for (const n of node) {
       // `no-extra-semi`: a stray `;` parses to a statement that does nothing.
       if (n && n.type === 'EmptyStatement') continue;
-      // `one-var`: a grouped declaration and separate ones are the same
-      // program, so flatten every group to single declarators.
+      // `one-var`: flatten every group to single declarators.
       if (n && n.type === 'VariableDeclaration' && n.declarations.length > 1) {
         for (const d of n.declarations) {
           out.push(normalise(
@@ -79,8 +48,7 @@ export function normalise(node) {
   if (node && typeof node === 'object') {
     /** @type {{[key: string]: any}} */
     const out = {};
-    // Sorted so that a node this function rebuilds cannot differ from an
-    // equivalent one merely by key order.
+    // Sorted, so a rebuilt node cannot differ by key order alone.
     for (const k of Object.keys(node).sort()) {
       // `raw` is the literal's original text, including its quote characters.
       if (k === 'start' || k === 'end' || k === 'loc' || k === 'range' ||
@@ -88,8 +56,7 @@ export function normalise(node) {
         continue;
       }
       if (node.type === 'TemplateElement' && k === 'value') {
-        // `indent` re-wraps multi-line template literals, which changes the
-        // whitespace inside the string. Only error messages are affected.
+        // `indent` re-wraps multi-line template literals, changing the whitespace inside them.
         out[k] = {
           cooked: String(node.value.cooked).replace(/\s+/g, ' ').trim(),
         };
@@ -110,22 +77,16 @@ export function normalise(node) {
     return out;
   }
 
-  // A BigInt literal survives parsing as an actual BigInt, which
-  // JSON.stringify refuses to serialise. Only the value matters here, and
-  // acorn keeps the source text alongside it in `bigint`.
+  // JSON.stringify refuses a BigInt.
   if (typeof node === 'bigint') return `${node}n`;
 
   return node;
 }
 
 /**
- * Parses source as a module, falling back to a script.
- *
- * Several vendored bundles are classic scripts rather than modules, and
- * acorn needs to be told which; trying both avoids having to record it.
- *
- * @param {string} src JavaScript source
- * @return {any} the parsed program
+ * Parses source as a module, falling back to a script (several vendored bundles are scripts).
+ * @param {string} src
+ * @return {any}
  */
 export function parse(src) {
   try {
@@ -137,35 +98,21 @@ export function parse(src) {
 
 /**
  * Canonical fingerprint of a source string.
- *
- * @param {string} src JavaScript source
- * @return {string} a string equal for programs that differ only by lint fixes
+ * @param {string} src
+ * @return {string} equal for programs that differ only by lint fixes
  */
 export function fingerprint(src) {
   return JSON.stringify(normalise(parse(src)));
 }
 
 /**
- * Extracts every top-level named declaration, keyed by name.
- *
- * Whole-file comparison answers "is this the same program?" but says nothing
- * useful when the answer is no. These files are concatenations or adapted
- * forks, so the interesting question is *which parts* match: a candidate
- * where 40 of 44 functions are byte-for-byte the published ones is the base,
- * and the four that differ are the modifications to document.
- *
- * Ranking by whole-file size cannot see that. It ranked coloris v0.25.0 top
- * only because the vendored file is larger than every release, which makes
- * "newest" and "nearest" the same answer for the wrong reason.
- *
- * @param {string} src JavaScript source
- * @return {Map<string, string>} declaration name to its canonical form
+ * Every top-level named declaration, keyed by name: which parts match shows the base and its modifications.
+ * @param {string} src
+ * @return {Map<string, string>}
  */
 export function declarations(src) {
   const out = new Map();
-  /**
-   * @param {any[]} body an array of AST statement nodes
-   */
+  /** @param {any[]} body */
   const walk = (body) => {
     for (const node of body) {
       if (node.type === 'ExportNamedDeclaration' ||
@@ -173,8 +120,7 @@ export function declarations(src) {
         if (node.declaration) walk([node.declaration]);
         continue;
       }
-      // A bundle's whole payload is often one IIFE or one block; descend so
-      // its contents are compared rather than treated as a single unit.
+      // A bundle's payload is often one IIFE or block: its contents are compared, not the unit.
       if (node.type === 'ExpressionStatement' &&
           node.expression.type === 'CallExpression' &&
           /Function/.test(node.expression.callee.type) &&
@@ -205,23 +151,13 @@ export function declarations(src) {
 }
 
 /**
- * Extracts every top-level `A.b.c = ...` assignment, keyed by its path.
- *
- * `declarations` only sees named declarations, which makes a prototype-based
- * library almost entirely invisible to it: mp4box declares twelve things and
- * then hangs 339 assignments off them. Comparing only the declarations there
- * reported "2 differing" and missed that four prototype methods had changed
- * and three existed in one file and not the other - one of which, mp4box's
- * `getSampleList`, FastStream's own mp4merger.mjs calls.
- *
- * @param {string} src JavaScript source
- * @return {Map<string, string>} assignment path to its canonical right side
+ * Every top-level `A.b.c = ...` assignment, keyed by its path: a prototype-based library declares almost nothing.
+ * @param {string} src
+ * @return {Map<string, string>}
  */
 export function prototypeAssignments(src) {
   const out = new Map();
-  /**
-   * @param {any} node an AST expression node
-   */
+  /** @param {any} node */
   const pathOf = (node) => {
     if (!node || node.type !== 'MemberExpression') return null;
     const parts = [];
@@ -246,11 +182,9 @@ export function prototypeAssignments(src) {
 }
 
 /**
- * Buckets two maps of the shape `declarations` and `prototypeAssignments`
- * return.
- *
- * @param {Map<string, string>} da first map
- * @param {Map<string, string>} db second map
+ * Buckets two maps of the shape `declarations` and `prototypeAssignments` return.
+ * @param {Map<string, string>} da
+ * @param {Map<string, string>} db
  * @return {{same: string[], differs: string[], onlyA: string[],
  *   onlyB: string[]}} the four buckets
  */
@@ -269,9 +203,8 @@ function bucket(da, db) {
 
 /**
  * Compares two sources by their top-level assignments.
- *
- * @param {string} a first source
- * @param {string} b second source
+ * @param {string} a
+ * @param {string} b
  * @return {{same: string[], differs: string[], onlyA: string[],
  *   onlyB: string[]}} the four buckets
  */
@@ -281,9 +214,8 @@ export function comparePrototypes(a, b) {
 
 /**
  * Compares two sources declaration by declaration.
- *
- * @param {string} a first source
- * @param {string} b second source
+ * @param {string} a
+ * @param {string} b
  * @return {{same: string[], differs: string[], onlyA: string[],
  *   onlyB: string[]}} the four buckets
  */
@@ -293,10 +225,9 @@ export function compareDeclarations(a, b) {
 
 /**
  * Compares two sources and reports where they first differ.
- *
- * @param {string} a first source
- * @param {string} b second source
- * @return {{equal: boolean, at?: number, aCtx?: string, bCtx?: string}} result
+ * @param {string} a
+ * @param {string} b
+ * @return {{equal: boolean, at?: number, aCtx?: string, bCtx?: string}}
  */
 export function compare(a, b) {
   const fa = fingerprint(a);

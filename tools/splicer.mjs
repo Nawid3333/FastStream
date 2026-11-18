@@ -1,8 +1,5 @@
 // @ts-check
-// The SPLICER preprocessor that build.mjs runs on every script it copies into a build:
-// comment directives strip or inject code per build target (docs/notes/build-and-release.md, "The
-// SPLICER preprocessor"). It is a module of its own so the unit tests can run it without a build;
-// build.mjs runs everything at load.
+// The SPLICER preprocessor build.mjs runs on every copied script (docs/notes/build-and-release.md).
 
 import fs from 'fs';
 import path from 'path';
@@ -17,17 +14,12 @@ export const TARGETS = ['EXTENSION', 'FIREFOX', 'WEB', 'NO_UPDATE_CHECKER'];
 const COMMANDS = ['REMOVE_FILE', 'REMOVE_LINE', 'REMOVE_START', 'REMOVE_END', 'INSERT_LOCALE', 'INSERT_VERSION'];
 
 /**
- * Reads a line's directive: a `//` comment that is exactly SPLICER:<TARGET>:<COMMAND>, on a
- * line of its own or after code, ending the line. The text without its `//` (in a string, a
- * template literal, a block comment) is not one; it used to be obeyed wherever it stood
- * (#168). The line is not parsed: a `// SPLICER:` in a string before more code throws
- * below, and a template literal's line that is exactly such a comment would be obeyed.
- *
- * @param {string} line one line of a script
- * @param {string} where file and line number, for the error
+ * A line's directive: a `//` comment that is exactly SPLICER:<TARGET>:<COMMAND>, ending the line.
+ * The line is not parsed: a `// SPLICER:` in a string before more code throws.
+ * An unknown target or command throws, so a misspelt directive never ships its line.
+ * @param {string} line
+ * @param {string} where
  * @return {{target: string, command: string}|null} null when the line has no directive
- * @throws when a `// SPLICER:` comment names a target or a command this build does not know:
- *   it used to be kept as an ordinary line, so a misspelt REMOVE_LINE shipped the line.
  */
 function readDirective(line, where) {
   const comment = /\/\/\s*SPLICER:(.*)$/.exec(line);
@@ -81,14 +73,12 @@ export function splice(fileText, target, relativePath) {
         continue;
       } else if (command === 'INSERT_LOCALE') {
         const localesPath = path.join(chromeSourceDir, '_locales/');
-        // get all locale folders
         const localeFolders = fs.readdirSync(localesPath);
         /** @type {{translationMap: Object<string, string>, code: string}[]} */
         const locales = [];
 
         localeFolders.forEach((localeFolder) => {
           const localePath = path.join(localesPath, localeFolder, 'messages.json');
-          // check if file exists
           if (!fs.existsSync(localePath)) {
             return;
           }
@@ -96,8 +86,7 @@ export function splice(fileText, target, relativePath) {
           const messages = JSON.parse(fs.readFileSync(localePath, 'utf8'));
           /** @type {Object<string, string>} */
           const translationMap = {};
-          // Own-property reads only: a messages.json key like __proto__ must not reach
-          // the lookup (CodeQL js/remote-property-injection).
+          // Own-property reads only: a key like __proto__ must not reach the lookup (CodeQL js/remote-property-injection).
           Object.keys(messages).forEach((key) => {
             if (!Object.hasOwn(messages, key)) return;
             translationMap[key] = messages[key] && messages[key].message;
@@ -108,7 +97,6 @@ export function splice(fileText, target, relativePath) {
           });
         });
 
-        // put english first
         const defaultLanguage = 'en';
         locales.sort((a, b) => {
           if (a.code === defaultLanguage) {
@@ -125,8 +113,7 @@ export function splice(fileText, target, relativePath) {
         newLocales['LANGUAGES'] = locales.map((locale) => locale.code);
         const englishMap = locales[0].translationMap;
         Object.keys(englishMap).forEach((key) => {
-          // Locales that predate a new key would otherwise inline `undefined`
-          // and render blank strings on the web build; fall back to English.
+          // A locale without a newer key falls back to English, not `undefined`.
           const translations = locales.map((locale) => locale.translationMap[key] || englishMap[key]);
           newLocales[key] = translations;
         });
@@ -155,8 +142,7 @@ export function splice(fileText, target, relativePath) {
     throw new Error('Unmatched SPLICER');
   }
 
-  // Blank lines stay. Every one used to be dropped, those inside a template literal too,
-  // which changed the string (#168); a removed line or block leaves none behind anyway.
+  // Blank lines stay: dropping them changed template literals.
   return newLines.join('\n');
 }
 
@@ -175,8 +161,7 @@ export function spliceAndCopy(sourceDir, buildDir, spliceTargets = [], excludeFi
         const relativePath = path.relative(sourceDir, file);
         const targetPath = path.resolve(buildDir, relativePath);
 
-        // An entry names a file or a directory, by whole path segments: as a plain prefix,
-        // 'background' also left out a backgroundAudio.mjs (#175).
+        // By whole path segments: 'background' must not match backgroundAudio.mjs.
         const relative = relativePath.split(path.sep).join('/');
         if (excludeFiles.some((exclude) => relative === exclude || relative.startsWith(exclude + '/'))) {
           return;
@@ -187,7 +172,7 @@ export function spliceAndCopy(sourceDir, buildDir, spliceTargets = [], excludeFi
         }
 
         if (fileExtension === '.mjs' || fileExtension === '.js') {
-          // Only scripts are read as text: every wasm, model and image was too, for nothing (#174).
+          // Only scripts are read as text.
           let spliced = fs.readFileSync(file, 'utf8');
 
           spliceTargets.forEach((target) => {

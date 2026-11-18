@@ -1,18 +1,11 @@
-#!/usr/bin/env node
 // @ts-check
 // Hashes an unpacked extension build so two builds can be compared.
-//
-// Text files are hashed with CRLF collapsed to LF. Without that, a build made
-// on Windows never matches one made on Linux CI even when every byte of
-// meaning is the same - line endings alone change all 620 text hashes. Binary
-// assets (png and the like) are hashed verbatim.
-//
+// Text files are hashed with CRLF collapsed to LF, so a Windows build matches a Linux one.
 //   node tools/hash-build.mjs build_firefox_github > before.txt
 //   ...refactor...
 //   node tools/hash-build.mjs build_firefox_github > after.txt
 //   diff before.txt after.txt
-//
-// Any change claiming to be output-neutral must produce an empty diff.
+// An output-neutral change gives an empty diff.
 
 import {createHash} from 'node:crypto';
 import fs from 'node:fs';
@@ -23,10 +16,9 @@ const TEXT = new Set([
 ]);
 
 /**
- * Lists every file under dir, depth first, as paths relative to dir.
- * @param {string} dir Directory to walk.
- * @param {string} [base] Internal: the root the paths are relative to.
- * @return {string[]} Relative POSIX-style paths, unsorted.
+ * @param {string} dir
+ * @param {string} [base]
+ * @return {string[]}
  */
 function walk(dir, base = dir) {
   const out = [];

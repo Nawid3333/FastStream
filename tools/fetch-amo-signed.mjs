@@ -1,24 +1,10 @@
-#!/usr/bin/env node
 // @ts-check
-// Fetches the signed xpi of a version already submitted to addons.mozilla.org, without
-// uploading anything.
-//
-// release.yml signs inline with web-ext, which uploads the build and then polls AMO until
-// the version is approved or its wait runs out. AMO has no webhook or callback for
-// "signed" (its API documents none), so when the wait runs out the release is published
-// without the xpi and updates.json. AMO still finishes the review afterwards: v1.3.79.0 and
-// v1.3.82.2 both shipped without an xpi, and both are `public` on AMO. Running web-ext
-// sign again cannot collect them - AMO refuses a second upload of the same version - so
-// .github/workflows/amo-signing-failsafe.yml asks AMO for that version with this script.
-// The file it downloads is byte-identical to what web-ext saves (checked on 1.3.82.27).
-//
+// Fetches the signed xpi of a version already submitted to AMO, without uploading anything.
+// AMO has no "signed" callback and refuses a second upload: amo-signing-failsafe.yml collects a late xpi.
 // Usage: node tools/fetch-amo-signed.mjs <version> [--wait <minutes>]
 //   Credentials as in tools/sign-amo.mjs: .amo-credentials.json, or AMO_API_KEY and
 //   AMO_API_SECRET. The add-on id is read from build_firefox_amo/manifest.json.
-//   --wait keeps asking, every 30 s, while the version is pending or the network fails,
-//   for up to that many minutes: the failsafe runs right after a release whose signing
-//   did not finish, when AMO is often minutes from done.
-//
+//   --wait keeps asking every 30 s while the version is pending or the network fails, up to that many minutes.
 // Prints `state=<state>` for the workflow and exits with:
 //   0  signed   - the xpi is saved in web-ext-artifacts/
 //   3  pending  - uploaded, still awaiting review: try again later
@@ -30,7 +16,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 // @ts-ignore - web-ext/util/submit-addon resolves to untyped JavaScript with no published
-// declarations (TS7016), so JwtApiAuth has no real type that can be written here by comment
 import {JwtApiAuth} from 'web-ext/util/submit-addon';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,9 +24,8 @@ const AMO_API = 'https://addons.mozilla.org/api/v5';
 export const EXIT = {signed: 0, error: 1, pending: 3, missing: 4, rejected: 5};
 
 /**
- * What a version's API response says about its signing.
- * @param {number} httpStatus - The response status.
- * @param {{file?: {status: string, url: string}}|null} version - The response body, when there is one.
+ * @param {number} httpStatus
+ * @param {{file?: {status: string, url: string}}|null} version
  * @return {'signed'|'pending'|'missing'|'rejected'|'error'}
  */
 export function signingState(httpStatus, version) {
@@ -66,10 +50,8 @@ function credentials() {
 }
 
 /**
- * Whether an error is the network failing rather than AMO answering. Node's fetch
- * rejects with TypeError('fetch failed') and the socket error as its cause; web-ext
- * passes that on unchanged ("Signing failed: fetch failed", v1.3.82.37).
- * @param {*} error - What was thrown.
+ * Node's fetch rejects with TypeError('fetch failed') and the socket error as its cause; web-ext passes it on.
+ * @param {*} error
  * @return {boolean}
  */
 export function isNetworkError(error) {
@@ -84,18 +66,15 @@ export function isNetworkError(error) {
 }
 
 /**
- * Asks AMO about a version until it is signed, rejected or missing, or the time runs out.
- * A check the network failed is asked again at the next interval; any other error (no
- * credentials, the wrong build) is thrown at once, as waiting cannot mend it.
- * @param {() => Promise<string>} check - Resolves with a signingState() state.
+ * A check the network failed is asked again at the next interval; any other error is thrown at once.
+ * @param {() => Promise<string>} check
  * @param {Object} options
- * @param {number} options.deadline - Stop asking after this time (ms since the epoch).
- * @param {number} [options.interval] - Wait between checks, in ms.
+ * @param {number} options.deadline - ms since the epoch.
+ * @param {number} [options.interval] - ms.
  * @param {() => number} [options.now]
  * @param {(ms: number) => Promise<void>} [options.sleep]
  * @param {(message: string) => void} [options.log]
- * @return {Promise<string>} 'signed', 'rejected' or 'missing'; when the time runs out,
- *   'pending', or 'error' if the last check failed too.
+ * @return {Promise<string>} signed, rejected or missing; when the time runs out pending, or error if the last check failed.
  */
 export async function waitForSigned(check, {
   deadline,
@@ -126,10 +105,8 @@ export async function waitForSigned(check, {
 }
 
 /**
- * Asks AMO for a version of the add-on in build_firefox_amo and, once it is signed,
- * saves the xpi in web-ext-artifacts/.
- * @param {string} version - The version, e.g. 1.3.82.37.
- * @return {Promise<string>} Its signingState() state.
+ * @param {string} version
+ * @return {Promise<string>}
  */
 export async function fetchSigned(version) {
   const {apiKey, apiSecret} = credentials();
@@ -142,8 +119,7 @@ export async function fetchSigned(version) {
     throw new Error(`build_firefox_amo is version ${manifest.version}, not ${version}: build the right tag first`);
   }
 
-  // The same authentication web-ext's `sign` uses for every release (a short-lived HS256
-  // token per request), so this cannot drift from the path that already works.
+  // web-ext sign's own authentication (a short-lived HS256 token per request).
   const jwt = new JwtApiAuth({apiKey, apiSecret});
   const auth = async () => ({Authorization: await jwt.getAuthHeader()});
   // The `v` prefix makes AMO look the version up by number rather than by id.
@@ -154,9 +130,7 @@ export async function fetchSigned(version) {
   console.log(`AMO: ${id} ${version}: HTTP ${response.status}${body ? `, file.status=${body.file?.status}` : ''}`);
 
   if (state === 'signed') {
-    // The download URL comes from AMO's authenticated API response; the host is still
-    // checked against AMO's own, so a confused response cannot point the write of
-    // downloaded bytes anywhere else (CodeQL js/http-to-file-access).
+    // The host is checked against AMO's own (CodeQL js/http-to-file-access).
     const fileUrl = new URL(body.file.url);
     if (fileUrl.protocol !== 'https:' || !/(^|\.)addons\.(mozilla\.org|allizom\.org)$/.test(fileUrl.hostname)) {
       throw new Error(`${body.file.url}: not an addons.mozilla.org download URL`);
@@ -171,9 +145,7 @@ export async function fetchSigned(version) {
     }
     const artifacts = path.join(root, 'web-ext-artifacts');
     fs.mkdirSync(artifacts, {recursive: true});
-    // The bytes were hashed nowhere yet, so the write is guarded by the file name
-    // check above and the https + AMO-host check on fileUrl earlier (CodeQL
-    // js/http-to-file-access).
+    // Guarded by the file name check and the https and AMO-host check above (CodeQL js/http-to-file-access).
     const bytes = Buffer.from(await download.arrayBuffer());
     const target = path.join(artifacts, name);
     fs.writeFileSync(target, bytes);
@@ -183,8 +155,7 @@ export async function fetchSigned(version) {
 }
 
 /**
- * Reads the command line.
- * @param {string[]} args - process.argv after the script.
+ * @param {string[]} args
  * @return {{version: string, waitMinutes: number}}
  */
 export function parseArgs(args) {

@@ -1,46 +1,19 @@
-#!/usr/bin/env node
 // @ts-check
-// Finds the development-toolchain updates for .github/workflows/toolchain-updates.yml,
-// which turns each into a pull request "Toolchain update: <name> <version>" with CI
-// started on it. Node never runs inside the extension - it builds and tests it - so none
-// of these changes what ships.
-//
-//   - Node.js: a newer LTS major than .nvmrc names. Every workflow's setup-node reads
-//     .nvmrc, so the pull request changes that one file. Routine: ready to merge once CI
-//     passes and the build is unchanged; the owner merges it (2026-10-02).
-//   - pnpm, same major: the newest release of the pinned major ("packageManager" in
-//     package.json), as soon as it is out. Routine: .github/workflows/update-prs.yml says
-//     it is ready to merge once CI passes.
-//   - pnpm, next major: the same change, routine as the same major is, unless it wants the
-//     lockfile rewritten (CI fails at the frozen install, and the owner pushes it). pnpm 12
-//     came by hand on 2026-10-11; pmOnFail: ignore (pnpm-workspace.yaml) keeps its
-//     pnpm-lock.yaml one YAML document, which GitHub's dependency graph needs
-//     (dependabot/dependabot-core#15904).
-//   - uBlock Origin, which tools/setup-dev-profile.mjs puts into the developer's Firefox
-//     profile: the newest public release on AMO. Dependabot cannot
-//     see an add-on pin, and nothing in CI downloads it, so the workflow downloads the file
-//     and checks it against AMO's SHA-256 before it pushes anything. Routine.
-//   - actionlint and zizmor, the images CI's "Lint workflows" job runs: the newest x.y.z tag
-//     and its digest, on the FROM line of .github/<name>/Dockerfile (IMAGES). Routine.
-//   - The player libraries the live suite plays (tests/e2e/live-specs/player-libraries.json),
-//     as one set ("players" in the plan): each at its newest release that fits the ranges they declare on each other and on hls.js (the repository's
-//     own pin), a new major included: the live suite plays each page before the pull request
-//     is ready, and a page a major breaks keeps it red until the page is changed. MAJOR_HOLDS
-//     keeps a library on its major on purpose, each hold with its reason, while the held line
-//     still gets releases. The workflow keeps ONE rolling pull request for the set (see
-//     playerTargets()).
-//
+// Finds the development-toolchain updates that toolchain-updates.yml turns into pull requests; none changes what ships.
+//   - Node.js: a newer LTS major than .nvmrc names (every setup-node reads .nvmrc).
+//   - pnpm, same major: the newest release of package.json's packageManager major.
+//   - pnpm, next major: the same change; one that wants the lockfile rewritten fails CI's frozen install.
+//   - uBlock Origin (setup-dev-profile.mjs): the newest public AMO release, checked against AMO's SHA-256.
+//   - actionlint and zizmor: the newest x.y.z tag and digest on .github/<name>/Dockerfile's FROM line.
+//   - The live suite's player libraries (player-libraries.json), as one set at their newest fitting releases,
+//     new majors included; MAJOR_HOLDS keeps one on its major on purpose. One rolling pull request for the set.
 // Usage: node tools/check-toolchain.mjs [--json | --plan <open.json> <titles.txt>]
 //   (none)   one line per update, for reading.
 //   --json   one {name, current, latest, behind, routine, note[, file]} object per line.
-//   --plan   what the workflow is to do, as one JSON object {raise: [...], close: [...],
-//            updates: [...]} (updates: every track, for rebuilding an open pull request).
-//            open.json: [{number, title}] - the open pull requests and issues whose titles
-//            start with TITLE_PREFIX. titles.txt: every title ever used, one per line, open
-//            or closed, pull request or issue.
+//   --plan   what the workflow is to do: one JSON object {raise, close, updates}.
+//            open.json: the open PRs and issues titled TITLE_PREFIX...; titles.txt: every title ever used.
 //   --apply-addon <id> <version> <url> <sha256>
-//            writes that add-on's entry in tools/setup-dev-profile.mjs and prints the version
-//            it had (the workflow's recipe; no network).
+//            writes that add-on's entry in tools/setup-dev-profile.mjs, prints the version it had.
 //   --addon-version <id> <file>
 //            prints the version a copy of tools/setup-dev-profile.mjs pins for that add-on.
 //   --apply-image <name> <tag> <digest>
@@ -48,8 +21,7 @@
 //   --image-version <file>
 //            prints the tag a copy of an IMAGES Dockerfile pins.
 //   --apply-players <players.json>
-//            writes tests/e2e/live-specs/player-libraries.json at the plan's "players".target
-//            (the workflow's recipe; no network), refusing any library that would go back.
+//            writes player-libraries.json at the plan's "players".target, refusing any library going back.
 
 import {createHash} from 'node:crypto';
 import fs from 'node:fs';
@@ -60,9 +32,8 @@ import {compareVersions} from './check-patched-updates.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * How old a release must be before it is tried: no wait (the owner's call of 2026-11-09, as
- * from 2026-10-11 to 2026-10-20: nothing merges itself, and he decides when each update is
- * merged). tools/newest-release.mjs takes it for the owner's PC too.
+ * How old a release must be before it is tried: none, the owner decides when each is merged.
+ * tools/newest-release.mjs uses it too.
  */
 export const MIN_AGE_DAYS = 0;
 
@@ -79,9 +50,7 @@ export function latestLtsMajor(index) {
 }
 
 /**
- * The oldest Node major the project builds with: .nvmrc, and any `node-version:` a
- * workflow still hard-codes (none should: they read .nvmrc), since one left behind is
- * what still needs moving.
+ * The oldest Node major the project builds with: .nvmrc, and any `node-version:` a workflow still hard-codes.
  * @param {string[]} texts - Workflow files and .nvmrc.
  * @return {number|null}
  */
@@ -98,7 +67,6 @@ export function projectNodeMajor(texts) {
 /**
  * The newest stable release of one pnpm major that is old enough to try.
  * @param {{versions: Object<string, {deprecated?: string}>, time: Object<string, string>}} doc
- *     - registry.npmjs.org/pnpm.
  * @param {number} major
  * @param {number} now - Date.now().
  * @param {number} [minAgeDays]
@@ -121,11 +89,10 @@ export const UBLOCK = {id: 'uBlock0@raymondhill.net', slug: 'ublock-origin', nam
 const AMO_FILE = /^https:\/\/addons\.mozilla\.org\/firefox\/downloads\/file\/\d+\/[\w.-]+\.xpi$/;
 
 /**
- * The newest release of an add-on on AMO that is old enough to try: a public file on the
- * listed channel (what addons.mozilla.org offers), a plain version number, and a download
- * of AMO's own with its SHA-256.
+ * The newest release of an add-on on AMO old enough to try: a public listed file, a plain version,
+ * and AMO's own download with its SHA-256.
  * @param {{results?: Array<{version: string, channel?: string, file?: {created?: string,
- *     status?: string, hash?: string, url?: string}}>}} page - /api/v5/addons/addon/<slug>/versions/.
+ *     status?: string, hash?: string, url?: string}}>}} page
  * @param {number} now - Date.now().
  * @param {number} [minAgeDays]
  * @return {{version: string, url: string, sha256: string}|null}
@@ -144,17 +111,16 @@ export function newestAddon(page, now, minAgeDays = MIN_AGE_DAYS) {
 }
 
 /**
- * One field line of an add-on's entry, as the file writes them: `    key: 'value',`.
+ * One field line of an add-on's entry: `    key: 'value',`.
  * @param {string} key
  * @return {RegExp} Groups: indent, value, line end.
  */
 const fieldLine = (key) => new RegExp(`^(\\s*)${key}: '([^']*)',(\\r?)$`);
 
 /**
- * One add-on's entry in tools/setup-dev-profile.mjs's ADDONS, found by its id line: its field
- * lines, between its `{` and `}` lines. Line by line, inside the array only, so a brace or an
- * id in a comment can neither move the entry nor be taken for it.
- * @param {string[]} lines - The file's lines.
+ * One add-on's entry in setup-dev-profile.mjs's ADDONS, by its id line, read line by line inside the array:
+ * a brace or an id in a comment can neither move the entry nor be taken for it.
+ * @param {string[]} lines
  * @param {string} id
  * @return {Object<string, number>} Each field's line index, by key.
  */
@@ -188,7 +154,7 @@ function addonFields(lines, id) {
 
 /**
  * The version one add-on's entry pins.
- * @param {string} text - tools/setup-dev-profile.mjs.
+ * @param {string} text
  * @param {string} id
  * @return {string}
  */
@@ -198,9 +164,8 @@ export function addonVersion(text, id) {
 }
 
 /**
- * tools/setup-dev-profile.mjs with one add-on's version, url and sha256 lines rewritten and
- * nothing else changed.
- * @param {string} text - The file.
+ * tools/setup-dev-profile.mjs with one add-on's version, url and sha256 lines rewritten, nothing else changed.
+ * @param {string} text
  * @param {string} id
  * @param {{version: string, url: string, sha256: string}} release
  * @return {{text: string, was: string}}
@@ -223,8 +188,7 @@ export function applyAddon(text, id, {version, url, sha256}) {
 export const PLAYER_LIBRARIES = 'tests/e2e/live-specs/player-libraries.json';
 
 /**
- * A library kept below a version on purpose: no release at or above `below` is taken. The
- * hold stands while the line it keeps still gets releases; once its newest is older than
+ * A library kept below a version on purpose. Once the held line's newest release is older than
  * staleAfterDays, every run fails until the hold is looked at again.
  * @typedef {{below: string, staleAfterDays: number, reason: string}} Hold
  */
@@ -345,8 +309,7 @@ function band(version, range) {
 }
 
 /**
- * ^ keeps the left-most part that is not 0: ^1.2.3 is below 2.0.0, ^0.3.5 below 0.4.0,
- * ^0.0.4 below 0.0.5.
+ * ^ keeps the left-most part that is not 0: ^1.2.3 is below 2.0.0, ^0.3.5 below 0.4.0, ^0.0.4 below 0.0.5.
  * @param {string} text
  * @return {{lower: number[], upper: number[]}|null}
  */
@@ -411,9 +374,8 @@ function bare(version, atom) {
 }
 
 /**
- * The versions a pin may move to: plain, not deprecated, above the pin, a
- * new major included, and below a hold's bound when the library has one. Newest first, the pin
- * itself last as the floor (even when it is deprecated or young: it is what main has).
+ * The versions a pin may move to: plain, not deprecated, above the pin (new majors too), below a hold's bound.
+ * Newest first, the pin itself last as the floor.
  * @param {RegistryDoc} doc
  * @param {string} pin
  * @param {number} now - Date.now().
@@ -435,8 +397,7 @@ export function pinCandidates(doc, pin, now, minAgeDays = MIN_AGE_DAYS, below = 
 }
 
 /**
- * The newest old-enough release at or above a hold's bound: what the hold keeps out. Null
- * when there is none.
+ * The newest old-enough release at or above a hold's bound: what the hold keeps out; null when none.
  * @param {RegistryDoc} doc
  * @param {string} below
  * @param {number} now - Date.now().
@@ -454,9 +415,8 @@ export function aboveHold(doc, below, now, minAgeDays = MIN_AGE_DAYS) {
 }
 
 /**
- * What is wrong with a hold, if anything: a library player-libraries.json does not pin, a pin
- * already at or above the bound, or a held line that has stopped getting releases (its
- * newest is older than the hold's staleAfterDays, or has no date the registry gives).
+ * What is wrong with a hold, if anything: an unpinned library, a pin at or above the bound, or a held line
+ * whose newest release is older than staleAfterDays or undated.
  * @param {string} name
  * @param {Hold} hold
  * @param {string|undefined} pin
@@ -481,12 +441,11 @@ export function holdProblem(name, hold, pin, doc, now) {
 }
 
 /**
- * The set the player libraries' pull request offers: each library at its newest candidate,
- * stepped down wherever a range one of them declares on another (or on a package the
- * repository pins itself, such as hls.js) does not hold. A library too new for another's
- * range steps down first, the one that declares it only when that cannot; one that needs a
- * newer library than the set can have steps down; one whose range cannot be read is not
- * taken new. Each step lowers one library along a finite list, so this ends.
+ * The set the player libraries' pull request offers: each library at its newest candidate, stepped down
+ * wherever a range one declares on another (or on a repository pin such as hls.js) does not hold.
+ * Each step lowers one library along a finite list, so this ends. newMajors leave the pin's caret range;
+ * held: a candidate a range keeps out; kept: a release a hold keeps out; unresolved: a range that fails
+ * even at the pins; holdProblems: holds to look at again.
  * @param {Object<string, string>} pins - player-libraries.json.
  * @param {Object<string, RegistryDoc>} docs - Each library's registry document.
  * @param {Object<string, string>} fixed - The versions the repository pins itself.
@@ -499,10 +458,6 @@ export function holdProblem(name, hold, pin, doc, now) {
  *     kept: Array<{name: string, version: string, latest: string, below: string, reason: string}>,
  *     unresolved: Array<{name: string, version: string, needs: string, range: string}>,
  *     holdProblems: string[]}}
- *     newMajors: the changes that leave the pin's major (its caret range); held: a newer
- *     candidate that a range keeps out; kept: a newer release a hold keeps out; unresolved: a
- *     range that does not hold even at the pins (main's own state); holdProblems: holds to
- *     look at again (holdProblem()), which the run reports as errors.
  */
 export function playerTargets(pins, docs, fixed, now, minAgeDays = MIN_AGE_DAYS, holds = MAJOR_HOLDS) {
   const names = Object.keys(pins);
@@ -600,8 +555,7 @@ export function playerTargets(pins, docs, fixed, now, minAgeDays = MIN_AGE_DAYS,
 const NPM_NAME = /^(?:@[a-z0-9~-][a-z0-9._~-]*\/)?[a-z0-9~-][a-z0-9._~-]*$/;
 
 /**
- * A short name for a set of versions: the pull request's marker, so that one closed by hand
- * skips exactly that set.
+ * A short name for a set of versions: the pull request's marker, so one closed by hand skips exactly that set.
  * @param {Object<string, string>} target
  * @return {string} 12 hex digits.
  */
@@ -611,8 +565,8 @@ export function playerState(target) {
 }
 
 /**
- * player-libraries.json at a set's versions: the same libraries in the same order, each at a
- * plain x.y.z no lower than it is. Anything else is refused, not written.
+ * player-libraries.json at a set's versions: same libraries, same order, each a plain x.y.z no lower;
+ * anything else is refused.
  * @param {string} text - player-libraries.json as it is.
  * @param {Object<string, string>} target
  * @return {string}
@@ -631,13 +585,8 @@ export function applyPlayers(text, target) {
 }
 
 /**
- * The images CI's "Lint workflows" job and tools/linux/setup.sh run, each pinned by tag and
- * digest on the one FROM line of `.github/<name>/Dockerfile`. Dependabot's docker job was
- * meant to update them and failed at every run (docs/notes/workflows.md).
- *
- * Each image's registry and its anonymous token endpoint are fixed here: no file and no answer
- * chooses a host this asks (server-side request forgery). The Dockerfile gives only the tag it
- * pins, and naming another image there fails the track.
+ * The images CI's "Lint workflows" job and tools/linux/setup.sh run, pinned by tag and digest in `.github/<name>/Dockerfile`.
+ * Registries and token endpoints are fixed here, never read from a file or an answer (request forgery).
  */
 export const IMAGES = {
   actionlint: {image: 'rhysd/actionlint', registry: 'https://registry-1.docker.io', repository: 'rhysd/actionlint',
@@ -694,9 +643,8 @@ const MANIFEST_TYPES = ['application/vnd.oci.image.index.v1+json', 'application/
   'application/vnd.oci.image.manifest.v1+json', 'application/vnd.docker.distribution.manifest.v2+json'].join(', ');
 
 /**
- * An image's newest x.y.z tag and the digest its registry gives for it, read as `docker pull`
- * reads them, with an anonymous pull token. The tags come in pages; the next page is asked for
- * by the last tag of this one (the registry API's `last`), not at a URL the answer names.
+ * An image's newest x.y.z tag and its digest, read as `docker pull` does, with an anonymous token.
+ * The next tags page is asked for by this page's last tag, not at a URL the answer names.
  * @param {{registry: string, repository: string, token: string}} source - An entry of IMAGES.
  * @param {{wait?: (ms: number) => Promise<void>}} [options]
  * @return {Promise<{tag: string, digest: string}>}
@@ -731,15 +679,12 @@ export async function newestImage({registry, repository, token: tokenUrl}, optio
 }
 
 /**
- * What to do about the updates: raise each one that is behind and whose title was never
- * used (closing one by hand is how an update is skipped, for good), and close the open
- * ones the project has caught up with or that a newer one on the same track replaces.
- * Two tracks for pnpm: its current major, and the next.
+ * What to do: raise each update that is behind and whose title was never used (closing one by hand skips it
+ * for good), and close the open ones caught up with or replaced by a newer one on the same track.
  * @param {Array<{name: string, current: string, latest: string, behind: boolean}>} updates
  * @param {Array<{number: number, title: string}>} open
  * @param {Set<string>} used - Every title ever used.
- * @param {{raising?: boolean}} [options] - raising: false for a run that raises nothing (a push
- *     only closes); a newer update then replaces an open one only when it is open itself.
+ * @param {{raising?: boolean}} [options] - raising: false for a run that raises nothing (a push only closes).
  * @return {{raise: Array<Object>, close: Array<{number: number, comment: string}>}}
  */
 export function plan(updates, open, used, {raising = true} = {}) {
@@ -791,9 +736,8 @@ export async function getJson(url, options = {}) {
 }
 
 /**
- * What read() takes from the answer, asked up to three times: no answer, none within a minute,
- * a 5xx or 429, or an answer read() fails on (JSON that is not) is asked again. A 4xx other than
- * 429 is the request's own fault, and asking again would change nothing.
+ * What read() takes from the answer, asked up to three times: no answer, none within a minute, a 5xx or 429,
+ * or an answer read() fails on is asked again. Another 4xx is the request's own fault.
  * @template T
  * @param {string} url
  * @param {{method?: string, headers?: Record<string, string>}} init
@@ -831,11 +775,9 @@ async function request(url, init, read,
  */
 
 /**
- * The updates, one per track, the player libraries' set, and what could not be read. Each
- * source is read on its own: one that fails (AMO down, say) leaves its track out and is named in
- * `errors`, and the others go ahead; the workflow then still fails the run, so the owner hears
- * of it. A track left out is neither raised nor closed (plan() leaves an open one alone); a set
- * left out (players null) leaves the rolling pull request as it is.
+ * The updates, one per track, the player libraries' set, and what could not be read. A source that fails
+ * leaves its track out and is named in `errors`; the others go ahead, and the workflow then fails the run.
+ * A track left out is neither raised nor closed; a set left out leaves the rolling pull request as it is.
  * @return {Promise<{list: Update[], errors: string[], players: PlayerSet|null}>}
  */
 async function updates() {

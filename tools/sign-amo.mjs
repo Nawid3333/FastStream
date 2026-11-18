@@ -1,35 +1,12 @@
-#!/usr/bin/env node
 // @ts-check
 // Signs the Firefox AMO build with web-ext and submits it to addons.mozilla.org.
-//
-// Locally, credentials come from .amo-credentials.json (gitignored), never
-// from the command line, so they cannot leak into shell history. The file
-// is:
-//
-//   {
-//     "apiKey": "user:...",
-//     "apiSecret": "..."
-//   }
-//
-// In CI (no file on the runner), AMO_API_KEY / AMO_API_SECRET env vars are
-// used instead: .github/workflows/release.yml and amo-signing-failsafe.yml
-// inject them from the "release" environment's secrets (docs/maintenance.md,
-// "Secrets in environments").
-//
-// Usage
-// -----
+// Credentials: .amo-credentials.json {"apiKey": "user:...", "apiSecret": "..."} (gitignored, never argv),
+// or AMO_API_KEY / AMO_API_SECRET in CI (the "release" environment's secrets).
+// Usage (after `pnpm run build:keep`):
 //   node tools/sign-amo.mjs            # unlisted (self-distributed) signing
 //   node tools/sign-amo.mjs --listed   # listed (public AMO store) submission
-//
-// The build must already exist: run `pnpm run build:keep` first.
-//
-// web-ext uploads the build and then polls AMO until the version is signed. When
-// the network fails under it (v1.3.82.37: "fetch failed" while waiting for
-// approval, a minute after a clean upload), web-ext gives up, and the release went
-// out without its xpi until amo-signing-failsafe.yml collected it hours later.
-// Now the wait goes on here instead, with tools/fetch-amo-signed.mjs - the check
-// the failsafe makes - within the same 30 minutes; a version AMO never received is
-// uploaded once more.
+// When the network fails under web-ext's approval wait, the wait goes on here (fetch-amo-signed.mjs);
+// a version AMO never received is uploaded once more.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -44,40 +21,27 @@ const credPath = path.join(root, '.amo-credentials.json');
 const sourceDir = path.join(root, 'build_firefox_amo');
 const artifactsDir = path.join(root, 'web-ext-artifacts');
 
-// How long to wait for AMO's approval before giving up. Measured over 30
-// releases, signing took 2-6 minutes, once 15 (v1.3.82.2, which hit
-// web-ext's old 15-minute default and shipped without its xpi). 30 minutes
-// is twice the slowest seen. Giving up is not a failure any more: AMO keeps
-// reviewing, and .github/workflows/amo-signing-failsafe.yml collects the
-// signed xpi afterwards (tools/fetch-amo-signed.mjs), so a longer wait
-// would only hold release.yml's runner.
+// Twice the slowest signing seen; amo-signing-failsafe.yml collects a later xpi, so a longer wait only holds the runner.
 const APPROVAL_TIMEOUT = 30 * 60 * 1000;
 // A second upload is worth starting only with time left to be signed in.
 const MIN_UPLOAD_TIME = 60 * 1000;
 
 /**
- * Signs through web-ext, and when the network fails under it, asks AMO for the
- * version itself until the deadline.
+ * Signs through web-ext; when the network fails under it, asks AMO for the version itself until the deadline.
  * @param {object} deps
- * @param {(ms: number) => Promise<{downloadedFiles?: string[]}>} deps.sign - web-ext's sign, given the
- *   approval timeout left; resolves with its result.
- * @param {() => Promise<string>} deps.check - fetchSigned() for this version.
- * @param {number} deps.deadline - When to stop waiting (ms since the epoch).
+ * @param {(ms: number) => Promise<{downloadedFiles?: string[]}>} deps.sign - web-ext's sign, given the approval timeout left.
+ * @param {() => Promise<string>} deps.check
+ * @param {number} deps.deadline - ms since the epoch.
  * @param {() => number} [deps.now]
- * @param {Object} [deps.wait] - Passed on to waitForSigned() (interval, sleep).
+ * @param {Object} [deps.wait] - Passed on to waitForSigned().
  * @param {(msg: string) => void} [deps.log]
- * @return {Promise<{signed: boolean, files: string[], state: string}>} files are
- *   web-ext's downloads; after a network failure the xpi is saved by fetchSigned().
+ * @return {Promise<{signed: boolean, files: string[], state: string}>} files are web-ext's downloads; after a network failure fetchSigned() saves the xpi.
  */
 export async function signOrCollect({sign, check, deadline, now = Date.now, wait = {}, log = console.log}) {
   for (let upload = 1; ; upload++) {
     try {
       const result = await sign(deadline - now());
-      // web-ext 10.x resolves with the downloaded files; `success` is not
-      // populated, so treat a downloaded .xpi as the success signal. It resolves
-      // with none when it did not wait for the signed file (an approval timeout of
-      // 0; a later web-ext might on the timeout): that is not signed, or the step
-      // would pass and release.yml fail at the update manifest with no xpi (#172).
+      // web-ext 10.x leaves `success` unset: a downloaded .xpi is the success signal, and none is not signed.
       const files = result.downloadedFiles || [];
       if (files.length === 0) {
         return {signed: false, files, state: 'not downloaded'};
@@ -147,8 +111,7 @@ async function main() {
     deadline: Date.now() + APPROVAL_TIMEOUT,
   });
 
-  // Not signed fails the step (continue-on-error in release.yml), which then publishes the
-  // zip without the xpi for amo-signing-failsafe.yml to complete.
+  // Not signed fails the step (continue-on-error); amo-signing-failsafe.yml completes the release.
   if (!result.signed) {
     console.error(result.state === 'not downloaded' ?
         `\nSigning failed: web-ext finished without downloading a signed xpi of ${version}.` :

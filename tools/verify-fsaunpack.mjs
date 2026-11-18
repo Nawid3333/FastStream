@@ -1,13 +1,7 @@
-#!/usr/bin/env node
 // @ts-check
 // Starts fsaunpack/testserver.mjs on a recorded archive and checks what it serves.
-//
-// fsaunpack is a helper outside the extension, with its own package.json and npm
-// lockfile. Before this, CI neither installed nor ran it, so a Dependabot pull request
-// for its express passed CI without the server ever starting. This installs its
-// lockfile as it stands (npm ci, with install scripts off: npm runs them by default)
-// and serves paths that hold ':', '(', ')' and '*', which express reads as route syntax.
-//
+// fsaunpack has its own npm lockfile: npm ci (install scripts off) installs it as it stands,
+// and the paths served hold ':', '(', ')' and '*', which express reads as route syntax.
 // Run with: pnpm run verify:fsaunpack   (npm ci needs network)
 
 import {execSync, spawn} from 'node:child_process';
@@ -41,9 +35,7 @@ entries.forEach((entry, i) => {
   fs.writeFileSync(path.join(output, `${i}.${entry.responseType === 'arraybuffer' ? 'bin' : 'txt'}`), entry.data);
 });
 
-/**
- * @return {?string} An IPv4 address of this machine that is not the loopback one, if any.
- */
+/** @return {?string} A non-loopback IPv4 address of this machine, if any. */
 function notLoopbackAddress() {
   const found = Object.values(os.networkInterfaces()).flat()
       .find((address) => address && (address.family === 'IPv4' || (/** @type {string|number} */ (address.family)) === 4) && !address.internal);
@@ -51,17 +43,15 @@ function notLoopbackAddress() {
 }
 
 /**
- * Whether a TCP connection to an address and port is accepted within 3 s.
- * @param {string} host - The address.
- * @param {number} port - The port.
+ * Whether a TCP connection to the address and port is accepted within 3 s.
+ * @param {string} host
+ * @param {number} port
  * @return {Promise<boolean>}
  */
 function reachable(host, port) {
   return new Promise((resolve) => {
     const socket = net.connect(port, host);
-    /**
-     * @param {boolean} answer - Whether the connection was established.
-     */
+    /** @param {boolean} answer */
     const done = (answer) => {
       socket.destroy();
       resolve(answer);
@@ -97,9 +87,7 @@ try {
     check();
   }));
 
-  /**
-   * @param {string} pathname
-   */
+  /** @param {string} pathname */
   const get = async (pathname) => {
     const response = await fetch(`http://127.0.0.1:${port}${pathname}`);
     return {status: response.status, cors: response.headers.get('access-control-allow-origin'),
@@ -108,7 +96,7 @@ try {
   /**
    * @param {string} pathname
    * @param {number} status
-   * @param {string|Buffer} [body] - Expected payload; left out when only the status is checked.
+   * @param {string|Buffer} [body] - Left out when only the status is checked.
    */
   const expect = async (pathname, status, body) => {
     const got = await get(pathname);
