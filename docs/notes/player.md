@@ -1352,7 +1352,12 @@ too, and Firefox does not run them again (they ran in the first, empty document)
 answered nothing and its player was never linked (the e2e's `/blank` case, measured). Content
 scripts add window and document listeners through `PageListeners` (`page-listeners.js`, the first
 of them), which adds them again when the document's element is replaced; a MutationObserver on
-the document itself survives `document.open()`.
+the document itself survives `document.open()`. Such a frame's page address (media it reports,
+same-site checks) is that of the document it is in, which its requests name as their page; not
+its base URL, which a `<base>` of the page's choosing sets (`http://127.0.0.1/` would pass the
+local-page check). A sandboxed one keeps `about:srcdoc`, which gives no headers rather than
+wrong ones. It is never left by redirect: `document.open()` gives an about:blank frame the
+writer's address, so the check keeps how the frame started.
 `tests/e2e/ext-specs/hidden-streams.e2e.mjs` drives all of the above on the installed extension;
 against 1.3.82.215 the DASH, about:blank and srcdoc cases fail, the HLS one passes (#765).
 

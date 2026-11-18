@@ -172,12 +172,14 @@ describe('Streams a page hides', function() {
    */
   async function playerShowing(what) {
     const selector = 'iframe[src*="player/index.html"]';
+    let nested = false;
     await browser.waitUntil(async () => {
       await browser.switchFrame(null);
       if (await browser.$(selector).isExisting()) return true;
       const frame = await browser.$('iframe');
       if (!await frame.isExisting()) return false;
       await browser.switchFrame(frame);
+      nested = true;
       return browser.$(selector).isExisting();
     }, {timeout: 30000, interval: 500, timeoutMsg: `FastStream's player never took over ${what}`});
     await browser.switchFrame(await browser.$(selector));
@@ -197,6 +199,15 @@ describe('Streams a page hides', function() {
     });
     state.linked = await browser.waitUntil(() => browser.execute(() => window.fastStream.state.windowedFullscreen),
         {timeout: 5000, interval: 250}).catch(() => false);
+    if (nested && state.linked) {
+      // The frame between the page and the player did its part too: the player fills it.
+      await browser.switchFrame(null);
+      await browser.switchFrame(await browser.$('iframe'));
+      state.linked = await browser.waitUntil(() => browser.execute((player) => {
+        const box = document.querySelector(player)?.getBoundingClientRect();
+        return !!box && box.left <= 1 && box.top <= 1 && box.width >= innerWidth - 2 && box.height >= innerHeight - 2;
+      }, selector), {timeout: 5000, interval: 250}).catch(() => false);
+    }
     await browser.switchFrame(null);
     return state;
   }

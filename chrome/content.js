@@ -453,11 +453,19 @@
   }
 
   /**
-   * The page's address; a srcdoc frame's (about:srcdoc) is its creator's, which its requests name as their page.
+   * The page's address; an about: frame's is that of the document it is in (same origin unless sandboxed), which
+   * its requests name as their page. Not its base URL: a <base> of the page's choosing would stand for the page.
    * @return {string}
    */
   function pageAddress() {
-    return window.location.protocol === 'about:' ? document.baseURI : window.location.href;
+    /** @type {Window} */
+    let page = window;
+    try {
+      while (page.location.protocol === 'about:' && page.parent !== page) page = page.parent;
+      return page.location.href;
+    } catch (e) {
+      return window.location.href;
+    }
   }
 
   /**

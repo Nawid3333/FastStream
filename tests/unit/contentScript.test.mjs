@@ -952,12 +952,26 @@ describe('REPORT_LOADED_MEDIA', () => {
     expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
   });
 
-  it('names a srcdoc frame\'s media by its creator\'s page, which its requests name as theirs', async () => {
-    const page = loadContentScript({entries: requests(1), observer: true});
-    page.window.location = {...page.window.location, href: 'about:srcdoc', protocol: 'about:', origin: 'null', pathname: 'srcdoc'};
-    page.document.baseURI = 'https://site.example/watch/1';
+  it('names a srcdoc frame\'s media by the page it is in, which its requests name as theirs, never by a <base>', async () => {
+    const page = loadContentScript({entries: requests(1), observer: true, inFrame: true});
+    const srcdoc = {...page.window.location, href: 'about:srcdoc', protocol: 'about:', origin: 'null', pathname: 'srcdoc'};
+    page.window.location = srcdoc;
+    page.document.baseURI = 'http://127.0.0.1/';
+    const top = {location: {href: 'https://site.example/watch/1', protocol: 'https:'}};
+    top.parent = top;
+    page.window.parent = {location: srcdoc, parent: top};
     expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
     expect(page.sent.find((message) => message.type === 'LOADED_MEDIA').url).toBe('https://site.example/watch/1');
+  });
+
+  it('keeps a sandboxed srcdoc frame\'s own address, its page out of reach', async () => {
+    const page = loadContentScript({entries: requests(1), observer: true, inFrame: true});
+    page.window.location = {...page.window.location, href: 'about:srcdoc', protocol: 'about:', origin: 'null', pathname: 'srcdoc'};
+    page.window.parent = {get location() {
+      throw new Error('SecurityError');
+    }};
+    await reported(page);
+    expect(page.sent.find((message) => message.type === 'LOADED_MEDIA').url).toBe('about:srcdoc');
   });
 
   /**
