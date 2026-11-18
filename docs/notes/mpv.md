@@ -37,6 +37,11 @@ extension changes with it, so such a push releases, Firefox updates the extensio
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run.
 
+**Host 25 (2026-11-18, comments only; RequiredHostVersion stays 19).** The host's comments were
+cut to its constraints (1268 comment lines to 837, the reasons kept here and in
+`native-host/README.md`); `tools/same-code.mjs` shows no code token changed, so an installed
+host 24 behaves the same, and nobody sees the "!". `update-local.cmd` offers the new copy.
+
 **Host 24 (2026-11-17, MPV autoplay without keep-open; RequiredHostVersion stays 19).** MPV
 autoplay never went on at an episode's natural end for an mpv at keep-open "no", mpv's default:
 the helper starts mpv with `--idle=once`, so mpv let the file go at its end and quit. Its
@@ -892,7 +897,7 @@ and a host before 15 answers those types "unknown message" without it.
 - `relay` (`checkRelayMessage`, `relayMpv`): a port like `watch`. Every line of mpv's goes to
   the extension as `{type: 'mpv', data}` except the replies to the relay's own requests (every
   line it writes, the heartbeat's and onStop's included, carries a request id of its own, so
-  mpv's answers are told apart from events); a line over 256 KB is dropped, and when it was the
+  mpv's answers are told apart from events); a line over 1000 KB (`MaxRelayLineBytes`) is dropped, and when it was the
   answer to a numbered request of the extension's, that request gets `{type: 'mpv-reply', id,
   error: 'reply too large'}` (mpv writes `{"data":...,"request_id":N,"error":"success"}`, the id
   at the end, measured). The extension's `{type: 'mpv', command, id?}` goes to mpv with a
@@ -958,9 +963,7 @@ the target on the command line, no pipe wait, newWindow reusing, a busy pipe sta
 mpv, a partial ipc send, the relay passing its own replies on or dropping onStop or the size
 cap...) each failed these tests.
 
-**Risks left.** Two plays at the same moment with no mpv running can both start one: the
-second mpv cannot create the pipe the first holds, both loads go to the first window, and the
-second stays idle and empty until closed. An mpv that never answers on its pipe within 15 s
+**Risks left.** An mpv that never answers on its pipe within 15 s
 is reported, not killed (the helper never kills a process it cannot identify as idle and its
 own).
 
@@ -1015,3 +1018,12 @@ own).
   (a preroll or a preview). A pick plainly another length than the video is none, and the next
   stream the page asks for decides; streams found while one is checked wait their turn, as the
   first stream after a play can be an ad's or a preview's.
+
+## The native host: reasons behind the code
+
+- **`WindowWaitSeconds`** - 30 s, half of mpv's 60 s `--network-timeout`: deadlines of 3 s and
+  10 s expired on cold starts of this mpv setup (gpu-next on Vulkan, uosc, thumbfast, shaders)
+  and on slow streams, and mpv then opened behind the browser.
+- **`watchMpv`'s `notify`, `hide`** - A notice names how long it stays: with notify.lua's 2 s
+  default, a countdown ("next episode in 5 s") or a sentence to read was gone before it was read.
+  `hide` takes a countdown down when it stops with nothing else to say.
