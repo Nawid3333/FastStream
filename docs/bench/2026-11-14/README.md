@@ -3,7 +3,7 @@
 The A/B runs of main (before PR #679) against `test/all-prs` (what #679 brought in). The reports
 beside this file are as `tools/bench-ab.mjs` wrote them (`.md` to read, `.json` with every run's
 numbers). This summary was section 3 of the review round's brief (`docs/review-2026-11-14.md`, deleted
-on 2026-11-15 when the round was done; its results are in `docs/firefox-optimization-ui-review.md`,
+on 2026-11-15 when the round was done; its results are in `docs/history/firefox-optimization-ui-review.md`,
 section 9).
 
 `tools/bench-ab.mjs` (`docs/notes/player.md`, "Measuring two builds"): two builds, one server

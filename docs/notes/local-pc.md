@@ -1,7 +1,8 @@
 # The owner's PC: update-local.cmd
 
-> Working notes, moved here from `CLAUDE.md` on 2026-10-04 so that file stays short. The
-> text is as it was written; [README.md](README.md) lists where the other sections went.
+> Why the code in this area is as it is. A date on an entry is when it was learned; where
+> the code and its tests say otherwise, they win. A section named in quotes may be in
+> another file: [README.md](README.md) lists every section.
 > For the owner's own instructions see `docs/maintenance.md`.
 
 `update-local.cmd` (double-click; `tools/update-local.ps1 [-Apply] [-Repo <path>]`) checks

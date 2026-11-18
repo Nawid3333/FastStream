@@ -1,9 +1,21 @@
-# The player: architecture, MP4Player, the loaders
+# The player
 
-> Working notes, moved here from `CLAUDE.md` on 2026-10-04 so that file stays short. The
-> text is as it was written; dated entries describe the tree at their date. Where a note
-> says "above", "below" or names a section in quotes, [README.md](README.md) lists the
-> file each section is in now.
+> Why the code in this area is as it is. A date on an entry is when it was learned; where
+> the code and its tests say otherwise, they win. A section named in quotes may be in
+> another file: [README.md](README.md) lists every section.
+
+Sections, by area:
+
+- Player core: "Player core: what the loaders tell the libraries", "Which version of a height gets picked", "A quality lowered when the computer drops frames", "The audio output", "The qualities a page's own player offers".
+- Player engines: "Player engines: reasons behind the code", "MP4Player and its MediaSource", "MP4 from servers that do not answer ranges", "An MP4 paused, at its end, and played again", "An MP4's audio tracks", "A file is what its bytes are, and Firefox's own player keeps the page's headers", "AAC in a channel layout of its own, on Windows".
+- Downloads and network: "Downloads between players, after seeks and errors", "Players in several tabs take turns", "Loading through the page", "Firefox VPN", "A copy-protected video stays in the page's player".
+- Background: "Background: reasons behind the code", "The background's questions to a frame have a time limit", "The background analyses and hostile subtitle files", "A page loaded again keeps FastStream's player".
+- Content scripts: "Content scripts: reasons behind the code".
+- Utils and options: "Utils, options, enums, dash2mp4: reasons behind the code".
+- Measuring: "Measuring two builds: tools/bench-ab.mjs".
+
+What each review and audit found, fixed and rejected is in
+[../history/reviews.md](../history/reviews.md); read it before raising a finding again.
 
 ## Architecture facts that are easy to get wrong
 
@@ -128,7 +140,330 @@
   bundle against the commit it was built from, not the nearest release
   (`docs/vendored-libraries.md`, dash.js "Status").
 
-## MP4Player and its MediaSource (2026-09-27)
+## Player core: what the loaders tell the libraries
+
+- **hls.js's playlist loader has no `onAbort`** (`hls.mjs`, `PlaylistLoader.load` passes
+  `onSuccess`/`onError`/`onTimeout`). `HLSLoader` reports a failed playlist with `onError`
+  and `FetchLoader`'s `stats.error` (`{code, text}`). A fragment or key that fails gets
+  `onAbort` after 1 s, and hls.js picks it again: upstream's design. (`FetchLoader` itself
+  does not retry a segment hls.js asks for: hls.js's `maxRetry` for it is 0. The six retries
+  are those of a download ahead, and of DASH and MP4; corrected 2026-11-14.) From the third
+  failure in a row of the same one it gets
+  `onError` (`SEGMENT_FAILURES_BEFORE_ERROR`), so hls.js retries it by its own policy and
+  fails the player once it gives up; for good, a dead segment (an expired token's 403) spun
+  forever. `DashLoader` counts the same way and then gives dash.js `onFail` and the player an
+  error (2026-09-30). `MP4Player` asks a failed range again after 2, 4 and 8 s, then shows
+  the error once playback reaches it (`retryFailedRange`).
+- **`<video>` fires no `error` for a manifest that never loaded.** `HLSPlayer` passes a
+  fatal `Hls.Events.ERROR` on as `DefaultPlayerEvents.ERROR` (after a fatal error hls.js
+  loads nothing more). `DashPlayer` does the same for dash.js's manifest codes
+  (`MediaPlayer.errors` 10, 11, 25) until `initialInit`. Before that, a dead `.m3u8` or
+  `.mpd` spun forever (`failed-load.e2e.mjs`).
+- **`DownloadManager.getFile` answers a finished download from its store** (keyed by URL,
+  range and type). So a playlist or manifest that gets loaded again must be removed once
+  loaded, and `HLSLoader` and `DashLoader` do that. Before, a live HLS stream stopped
+  where its first window ended: one request reached the server in 30 s
+  (`hls-live.e2e.mjs`). dash.js reloads a live manifest only once playback has started
+  (`ManifestUpdater`'s `isPaused`), and a local live MPD never got that far in the web
+  player. So the DASH side is covered only by `tests/unit/manifestReload.test.mjs`, which
+  runs the real loaders and download manager.
+- **`HLSPlayer.trackUpdated` starts at `levelDetails.fragments[0].start`.** hls.js has
+  aligned a live playlist to its timeline before `LEVEL_UPDATED`; a VOD playlist's first
+  fragment is at 0.
+- **mp4box 2.x's `info.fragment_duration` is a `{num, den}` fraction.** Without a `mehd`
+  box it is also only what had been parsed when the metadata was read. So
+  `MP4Player.calculateDuration` reads `mehd` itself, and otherwise the tracks as they grow.
+  Dividing the fraction gave NaN, and every fragmented MP4 died at the start. A long
+  fragmented MP4 still stops after about 3 s in `MP4Player` (not fixed).
+- **A save pins its fragments (`ReferenceTypes.SAVER`) last**, just before the `try` whose
+  `catch` unpins them. Anything that throws in between leaves them pinned for the session.
+  It downloads them through `players/SaveFragmentFetcher.mjs`: the next few (the user's
+  downloader limit) while the converter reads the current one, in order; the `catch` calls
+  its `cancel()`, which aborts what is still downloading for the save. They go at priority -1,
+  and nothing else cancels or holds them: not the network yield, not a paused player's hold
+  (2026-10-09, "Downloads between players").
+- **A partial save keeps the time of the fragments it lacks** (2026-10-04, #224). Both
+  writers place samples one after the other, so a hole would close up. `MP4Merger` (DASH)
+  and `HLS2MP4` (HLS) stretch the last sample before a hole until the next fragment's
+  decode time. In HLS that is only within one timeline (same `cc`, a jump in `sn`): at an
+  `EXT-X-DISCONTINUITY` the clock starts over, and the pieces are written back to back. An
+  audio rendition has holes of its own, and without the padding it played out of step with
+  the video after the first one (`hls2mp4.test.mjs`, "discontinuities"). **Since 2026-11-13 (a
+  review) it also says how long it is.** An Alt-click save of 10 minutes of an hour-long stream
+  said it lasted an hour (Firefox takes `video.duration` from the moov), with a seek bar to
+  match: both converters wrote the whole stream's length into mdhd, tkhd and mvhd (`HLS2MP4`
+  hls.js's level `totalduration`, `MP4Merger` the DASH period's). In both `finalize()`s the
+  media's length (mdhd) is now the sum of its sample durations, the track's (tkhd) what its edits
+  present, and the movie's (mvhd) the longest track's; `MP4Generator` rounds the three to its
+  ticks and takes tkhd/mvhd from the new `presentedDuration`. `hls2mp4.test.mjs`,
+  `mp4merger.test.mjs`.
+- **Fast playback needs no bigger forward buffer** (measured 2026-10-04, #214). hls.js keeps
+  10 s ahead (`maxBufferLength`), which at 8x is 1.25 s of wall time. In the e2e Firefox on
+  the owner's PC: a 10 min 720p HLS at 3 Mbit/s with 4 s segments, a 15 s pre-buffer, then
+  30 s of wall time at 1x, 4x and 8x (the player's limit; 16x is clamped to 8x). There were
+  no `waiting` events and no time at `readyState` < 3, and the forward buffer never fell
+  below 9.1 s. With the buffer at 10 s × rate (at most 60 s), the result was the same.
+  hls.js reads the next fragment from the download manager's store, which is filled ahead
+  by `DownloadManager`, not by this buffer; on a network slower than 8x the bitrate, a
+  bigger MSE buffer would not help either. "Auto" quality stays "the highest level", as
+  decided on #316 (D5).
+- **`DownloadEntry.notifyWatchers`**: a watcher that throws neither silences the others
+  nor skips the cleanup. `StandardDownloader.onSuccess` cleans up in `finally`, or the
+  downloader stays busy for good - but only while it still holds the entry it delivered
+  (upstream #568, ported 2026-10-15): an abort during the delivery (a watcher giving up on an
+  AES-128 segment during its decryption, the downloads paused) has cleaned up already, the
+  manager may have given the downloader its next entry, and a second cleanup ended that one,
+  left "downloading" for good. `cleanup()` also resets `delivering`.
+- **An HLS segment hls.js aborts leaves `HLSPlayer.activeRequests`** (2026-11-13). A loader
+  leaves the list in its download's `onSuccess`, `onFail` or `onAbort`, and a download with other
+  watchers tells only its last watcher that it was aborted (`DownloadEntry.abortWatcher`): an
+  aborted loader that was not the last heard nothing and stayed in the list for the session, its
+  loader and callbacks kept in memory, and the seek preview, the list's only reader, took it for
+  a segment still loading. `HLSLoader.abort()` takes its loader out itself. `DownloadEntry` is
+  unchanged: telling every watcher would reach the other players' and the saves' handlers.
+  `HLSLoader.test.mjs`.
+- **`SubtitleTrack.equals`** (`SubtitlesManager.addTrack` keeps one of two equal tracks): the
+  same cues are one track unless the name *and* the language differ, as upstream has it. The
+  2026-09-11 review took that `&&` for a typo, and the same file under another name was listed
+  twice (restored 2026-10-15, `tests/unit/SubtitleTrack.test.mjs`).
+- **`setSourceInternal`'s progress chain returns if another source came in**, both before
+  it switches progress saving off and after it waits for the player. The wait ends when
+  whichever player is current is ready, which may be the next source's.
+
+## Which version of a height gets picked
+
+`LevelManager.pickVideoLevel` used to take the highest bitrate among the versions of the
+chosen height and never looked at the codec: 1080p AV1 at 2.5 Mbit/s lost to 1080p H.264 at
+5 Mbit/s, and on a GPU without AV1 decoding a higher-bitrate AV1 version was decoded in
+software. Now the players ask Firefox first (`players/DecodingCapabilities.mjs`, the Media
+Capabilities API's `decodingInfo`) and `rankHeightGroup` orders the versions of that height
+by, in turn: playable, no HDR the screen cannot show, decoded in hardware (`powerEfficient`,
+which in Firefox means a hardware decoder), smooth, HDR when screen and decoder both can,
+frame rate, codec efficiency (AV1 > VP9 = HEVC > H.264), bitrate.
+
+- **It only reorders, and only within the height.** `matchQuality` still decides the height
+  (the user's setting), so no answer ever lowers the resolution; nothing is removed. A
+  version without an answer (no codec in the playlist, a probe that timed out) sits between
+  hardware and software ones.
+- **Frame rate and codec count only between hardware-decoded versions.** Between software
+  ones, or ones without an answer, the bitrate decides as before: a deviation from the old
+  pick needs a known hardware decoder behind it.
+- **The answers are in before the first pick.** The pick is synchronous (dash.js calls it
+  from its track selection). HLS: the `MANIFEST_PARSED` handler awaits the probes before it
+  emits, picks and calls `load()` (`autoStartLoad` is off). DASH:
+  `registerCustomCapabilitiesFilter` - dash.js 5.2 awaits custom capability filters
+  (`CapabilitiesFilter._applyCustomFilters`, after its own codec filter) before selecting
+  tracks. The filter always answers true. It gets the representation as parsed, with the
+  AdaptationSet's `codecs`, `mimeType`, `frameRate` and `EssentialProperty` pushed down
+  (dash.js's objectiron `commonProperties`). A probe gives up after 1.5 s, and a timed-out
+  one is asked again next time, not remembered as unknown.
+- **The container priority still runs after it**: with the default `mp4`, a WebM VP9 version
+  of the same height loses to the MP4 ones unless the user picked WebM. Unchanged.
+- **HLS audio levels store a whole MIME type** (`audio/mp4; codecs="..."`) in `audioCodec`,
+  DASH a bare codec; `bareCodec` reads both.
+- **A codec picked by hand is now a family per site** (`videoCodecFamilyBySite`, the 200 most
+  recent sites; the site is the source's Referer or Origin, else the stream's host, without
+  "www."). It was one global exact string (`prioritizedVideoCodec`, "avc1.640028"), which
+  seldom matched anywhere else and, where it did, overrode every site. The old value is
+  ignored.
+- The option `decodingAwareQuality` (on) switches the ranking and "playable audio first" off.
+  The quality menu shows HW/SW (`getDecodingLabel`) and the codec name of each version.
+- **Measured:** unit tests only (`tests/unit/decodingAwareQuality.test.mjs`,
+  `DecodingCapabilities.test.mjs`, the `setOptions` test in `FastStreamClient.test.mjs`); 20
+  of the ranking tests failed against the old `LevelManager`. Not yet run in a real Firefox:
+  check a stream with AV1 and H.264 at one height, the menu's labels against
+  `about:support`'s codec table, and the start-up delay the probes add.
+- mpv still picks its own version (`--hls-bitrate`, highest): issue #330.
+
+## A quality lowered when the computer drops frames
+
+His wish: a version this computer cannot decode in time is stepped down, and never without a
+word. `DroppedFrameWatch.mjs` reads Firefox's `getVideoPlaybackQuality()` once a second at the
+time updates (`watchDroppedFrames`).
+- **When**: a fifth of the frames dropped over 10 s of steady playback, after a version's first
+  4 s, and only with 100 frames or more in the stretch. Steady means playing at 0.5x-1.25x, not
+  seeking or starving, in a visible tab or in picture-in-picture. A seek, a change of speed, a
+  stall and its end start the stretch again (the counts run on through them).
+- **Where to**: the best version of the next smaller height, else the same height at a lower
+  frame rate (`lowerLevel`); nothing lighter, nothing done and nothing said.
+- **Said**: the status line, 15 s: "Quality lowered to 720p: this computer dropped 30% of the
+  frames at 1080p. Choose 1080p in the quality menu to keep it." A height that comes at two
+  frame rates is named with its rate (720p60).
+- **A version picked by hand** in the quality menu is never stepped down from, also through
+  the new player another of the page's files plays in (`keepChoiceOnce`); a new video forgets
+  it. Nothing steps back up by itself.
+- Off with the option `lowerOnDroppedFrames` ("Lower the video quality when this computer
+  cannot show all frames in time").
+- **Measured:** unit tests (`DroppedFrameWatch.test.mjs`, `FastStreamClient.test.mjs`,
+  `statusLevels.test.mjs`) and `page-qualities.e2e.mjs` in Firefox 158, where the video's
+  count is stood in for (a third dropped): 720p stepped down to 360p with the message, and
+  720p picked again stayed. Red without each part. Not measured: a real slow computer.
+
+## The audio output
+
+His wish: the sound on another device than the system's default (headphones, say).
+`AudioOutputDevice.mjs`; the audio button's list has an "Audio output" part: Default output,
+the device chosen, "Choose an output...".
+- **How**: all of the player's sound runs through Web Audio, and Firefox has no
+  `AudioContext.setSinkId`. For a chosen device the graph's end goes into a
+  `MediaStreamAudioDestinationNode`, whose stream a hidden `<audio>` plays with
+  `setSinkId(device)`; the graph moves over only once that plays. For the default output
+  nothing changes: the graph ends at the context's destination, as before.
+- **Measured on Firefox 158** (extension pages; the harness answers the chooser with
+  `media.navigator.permission.disabled`):
+  - `selectAudioOutput` and the element's `setSinkId` exist; in a page's iframe only with
+    `allow="speaker-selection"` (else `NotAllowedError`, "Document's Permissions Policy does
+    not allow..."). content.js gives the player's iframe that token.
+  - `selectAudioOutput` needs a click, also with a known `deviceId` (`InvalidStateError`
+    without one).
+  - A device is usable only in the document it was chosen in: the next video's player
+    (a new document) gets `NotFoundError` for the saved id.
+- **So**: the choice is kept (`chrome.storage.local`, `audioOutputDevice`), and each new
+  video starts on the default output and says so in the status line: "click here to play it
+  on <device>". The click opens Firefox's chooser with that device picked (or nothing picked,
+  when it is gone). A device unplugged while it plays (`devicechange`, gone from
+  `enumerateDevices`) sends the sound back to the default output, with the same notice.
+- **Not established**: whether a real prompt can be remembered so that the chooser no longer
+  shows; the latency the detour adds (A/V sync); whether more than two channels get through it.
+- **Tests**: `AudioOutputDevice.test.mjs` (20, drafted by glm-5.3-flash and checked; each
+  review fix red without it), `statusLevels.test.mjs` (the clickable status message),
+  `audio-output.e2e.mjs` in a page's iframe (chooses, the next video's notice and its click,
+  back to the default; skips on a machine with no audio output).
+
+## The qualities a page's own player offers
+
+His report (a film on a film site, its hoster): the player showed one quality and played the
+lowest, though the page's player offers three; MPV mode sent the lowest too. The hoster's
+Playerjs is set up with `file: "[360p]<get_file link>,[720p]...,[1080p]..."` and
+`default_quality: "360p"`; the page's video asks for the 360p link, which answers with a 302 to
+the CDN (`remote_control.php?time=...`). That one request was all FastStream saw. Measured in the
+test Firefox: `player.api("qualities")` gives only the labels (`["360p","720p","1080p"]`); the
+links are only in the page's script. FastStream had the 360p file twice (the link, from the
+video's `loadedmetadata`, and the CDN's address) and played the CDN's.
+
+- **Reading them** (`chrome/page-qualities.js`, a content script before content.js; the
+  background asks with `GET_PAGE_QUALITIES`): `<source>` lists with a quality attribute (Plyr's
+  `size`, Video.js's `label`/`res`, Fluid Player's `title`, OpenPlayerJS's and MediaElement's
+  `data-quality`), Artplayer's instances (`option.quality`, checked against its 5.4.0 typings),
+  JW Player's playlist item (`sources` with labels), a DPlayer in a page variable (it keeps no
+  list of its instances), and Playerjs's file string in the page's scripts. Only what the page
+  holds; no guessed sibling URLs. A list counts with 2 to 12 files.
+- **Tying them to the stream** (`PageQualityPick.listForSource`): the stream's URL, or the address
+  its request was first made to (`TabHolder.noteRedirect`, from `webRequest.onBeforeRedirect`; the
+  source keeps it as `requestedUrl`). `sendSources` asks each frame the streams came from
+  (`attachPageQualities`, 1 s at most) and sends the list as `qualities`.
+- **Playing them** (main.mjs): the stream played is the entry the quality setting asks for
+  (`pickQuality`: the smallest at or above it, Auto the highest; none when no entry says its
+  height). The quality menu lists them (`FastStreamClient.getMenuVideoLevels`, ids
+  `page-quality:<i>`); the player's own levels stay as they were, for the analyzers, the
+  downloads and the embed API. A pick plays the file from the same time, nothing of its start
+  first (`playPageQuality`, the start-time path of #465). The remembered time goes by the list's
+  first file (`VideoSource.setQualities`): it went by the URL played, and the CDN's
+  `remote_control.php` was the same for every film on its node.
+- **MPV mode** (`openInMpv`): the same pick, asked of the page at the hand-off; the list goes in
+  the host message as `qualities` (`MpvBackend.relayQualities`). Host 11 ignores the field; mpv
+  offering the list is the next step (docs/notes/mpv.md). The player's own mpv button is not
+  overridden.
+- **Tests:** `pageQualities.test.mjs` (the hoster's real file string, each player's shape),
+  `PageQualityPick.test.mjs`, the menu and the switch in `FastStreamClient.test.mjs`, MPV in
+  `backgroundMpv.test.mjs` (the hoster's redirect; two fail without the pick), and
+  `page-qualities.e2e.mjs`: the hoster rebuilt locally (a cross-origin frame, the file string,
+  302s to a "CDN") - the 720p file plays, the menu offers both, a switch at 4 s goes on at 4 s.
+  Live, on the real hoster (the same file): 1080p (1920x816) played, 360p/720p/1080p listed, the
+  switch to 720p went on from where it was.
+
+## Player engines: reasons behind the code
+
+- **`hls2mp4/transmuxer.mjs`** - hls.js reads `chunkMeta.iframe` unconditionally at the top of
+  `demux`, `resetInitSegment` and `remux`. Outside hls.js's own pipeline nothing builds a
+  `ChunkMetadata`, so one inert instance (with the level's duration) is passed to all three. In
+  `demux` the flag after it is `isSampleAes`, then `flush`: without the flush, the PES data at the
+  end of the last segment is never parsed, and a save loses the video's last frames and the
+  audio's last packet.
+- **`Transmuxer` typeSupported** - The output is an MP4 file, not something MSE has to take: MP3
+  goes in as MP3 in MP4 (bare MPEG audio has no mdat for HLS2MP4 to place and no sample entry in
+  MP4Generator), and AC-3 is declared supported, else hls.js drops the track; MP4Generator writes
+  it as `ac-3` with its `dac3`. TSDemuxer logs through the logger it is given, and without one its
+  first report (HEVC found, AC-3 skipped, a damaged packet) throws and fails the save.
+- **`HLS2MP4.pushChunk`** - Each transmuxer (the level's, the audio rendition's) counts from its
+  own stream's first timestamp (the initPTS hls.js picks after each reset). The chunks keep the
+  stream's clock instead, which both renditions share, so the tracks start as far apart as they
+  played.
+- **`HLS2MP4.setup` edit lists** - An edit's media time is measured on the samples as they are
+  written, one after the other: across an EXT-X-DISCONTINUITY the stream's timestamps start over
+  (or jump past a fragment a partial save lacks), and an edit worked out from them shows only the
+  first piece of a stream with ad breaks in players that follow edit lists (mpv, VLC, ffmpeg).
+  The edit lasts as long as the track's media, its last presented end included: a stream cut in
+  decode order (a recording stopped inside a group of pictures) shows a frame past the decode
+  timeline's end.
+- **`HLS2MP4.setup` video sample entry** - The `avc1`/`hvc1` entry with its parameter sets comes
+  from hls.js's own MP4 writer, so hls.js's changes to it come with hls.js. It is made here and
+  handed to MP4Generator as `codecBuffer`, not made inside MP4Generator: a DASH save would then
+  load hls.js.
+- **`HLSFragmentStore`** - A level's segments are stored from its first one, at `sn - snBase`. A
+  live stream may start its media sequence numbers anywhere (millions, a timestamp), and the
+  client walks each level's array every second (freeing, the next download, the buffer bar):
+  indexed by sn, every hole below it was walked each time (52 ms a walk at 2 million in Node).
+- **`SegmentAppender`** - A SourceBuffer refuses an append by throwing (QuotaExceededError when
+  full, InvalidStateError when its MediaSource is gone). MP4Player releases a segment's samples
+  from mp4box as soon as it is queued, so a refused segment is gone: the player loads again from
+  the playhead (reading less ahead when the SourceBuffer was full), and the third refusal in a row
+  is its error. Refusals of segments appended before the last reload, or of SourceBuffers no
+  longer in use, are that reload's business.
+- **`HLSDecrypter`** - `decrypter-worker.js` answers a failure (a wrong key, an IV that is not 16
+  bytes, a download cut short) with 0 bytes and an error. No data is a failure, never a result:
+  stored, it would be the segment, complete and empty. A worker that fails to load or throws
+  answers nothing: what waits fails, and the next decrypt starts a new worker.
+- **`SourceBufferWrapper`** - An operation that throws starts no update, so no `updateend` follows
+  it: the wrapper must not stay marked updating, nor keep the operation at the head of the queue.
+  `remove()` resolves once the removal has started, not once the range is gone: `buffered` holds
+  it until the removal's `updateend`. `removalPending` exists for that: a seek decides from
+  `buffered` whether to load anew, and a seek to 0 just after a jump to the end found the start
+  still buffered (the removal of everything waited behind the end's appends), did not reload, and
+  the removal then took the start away with nothing loading it again.
+- **`SampleIndex.RangeTimes`** - Each range's earliest time is kept and worked out again only for
+  the ranges new samples fall in (working out every range from every sample at each moof took
+  10 ms a call on a 2-hour file, once per megabyte read). It is kept only while the sample list
+  stays sorted by offset, which `minTimeIn`'s binary search needs; a list that gets an earlier
+  part after a later one (a seek back) is worked out whole each time.
+- **`StallWatchdog`** - Firefox sometimes stops a video that says it is playing after a seek back
+  into what is buffered: not paused, not seeking, readyState 2 with minutes buffered, its time and
+  frame count still. `play()` restarts it at the time its clock has run on to, a minute later; a
+  seek starts it where it was sought to, so a stuck video is sought a little forward, as hls.js
+  does.
+- **`LevelManager.rememberVideoChoice`** - A version picked by hand stores its codec family only
+  when the click chose between codecs (`isCodecChoice`). A quality with one version, or versions
+  that differ only in bitrate, says nothing about codecs: the family stored from such a click
+  outranked hardware decoding at every height on that site.
+- **`HLSPlayer`'s hls.js config** - `_abandonRulesCheck` (hls.js dropping quality mid-fragment)
+  fights pre-buffering far ahead; it is an instance property set in the base constructor, so it
+  is reassigned after `super()`. hls.js's text tracks and metadata cues are off: FastStream shows
+  none of them, and hls.js otherwise decodes CEA-608 captions and makes ID3, emsg and DATERANGE
+  cues for every fragment. Interstitials are off: hls.js plays each in a player of its own made
+  from this config, which FastStream does not drive (measured: a replacing break skipped the
+  stream's start and ended inside the break). `preserveManualLevelOnError`: hls.js's error
+  controller otherwise resets a pinned level to auto on a load failure, and its bandwidth ABR
+  settles lower while LevelManager believes the user's quality is in effect.
+- **`HLSPlayer.saveVideo`** - A level is fMP4 exactly when its playlist names an init segment, and
+  those go to the merger (through DASH2MP4, for its remux fallback); HLS2MP4 demuxes transport
+  streams only. A level that carries its own audio goes there too: the audio side is handed over
+  only when it is a rendition of its own.
+- **`HLSPlayer.saveVideo`, `DashPlayer.saveVideo` (keepPinned)** - A fragment is let go of once
+  read, except for the remuxer: it reads the store's own Blobs as it writes, after reading them
+  all, and a fragment freed before that reads nothing. Those stay pinned until the save ends.
+- **`HLSLoader`** - hls.js's `timeout` is the longest a whole load may take (120 s for a segment),
+  FetchLoader's how long nothing may come; it is capped at `STALL_TIMEOUT_MS`, else a dead
+  connection held playback for two minutes. A stored segment answers a request only for its own
+  place (`isSamePlace`): a live stream that starts its numbering again gives a new segment a
+  stored one's number, and only when both its address without the query (a rotating token) and
+  its place (start, duration) differ is it another. hls.js's playlist loader passes no `onAbort`,
+  so a failed playlist is reported as an error, which hls.js retries.
+- **`DashLoader`** - The loader dash.js extends has `resetInitialSettings`: HTTPLoader calls it
+  when a decode error resets the MediaSource, and without it the reset threw and the stream never
+  recovered. A segment it downloads itself gets the download manager's retries (dash.js retries
+  nothing); a manifest fails at the first error, so a source that is down shows so at once.
+
+## MP4Player and its MediaSource
 
 `MP4Player` (accelerated MP4) feeds mp4box-extracted samples into a
 MediaSource through one `SourceBufferWrapper` queue per SourceBuffer; `mainLoop()` runs
@@ -248,7 +583,7 @@ is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
   without sound keeps its picture in such a player, as before. `mp4AudioOnly.test.mjs`,
   `video-delay.e2e.mjs`.
 
-## MP4 from servers that do not answer ranges (2026-10-09)
+## MP4 from servers that do not answer ranges
 
 `MP4Player` loads a file in 1 MB ranges and takes its length from `Content-Range`
 (`RangeAnswers.mjs` reads the first answer). Two kinds of server broke that:
@@ -291,7 +626,81 @@ played a minute in, and one padded to whole ranges that must fire `ended` with n
 the one after its end (without `endsAt`: 11 ranges past the end and no end, or 6 retries of the
 416 and the load error).
 
-## A file is what its bytes are, and Firefox's own player keeps the page's headers (2026-10-28)
+## An MP4 paused, at its end, and played again
+
+Found with the A/B benchmark below (its `--where` lists which place in the player's code asked
+for each timer callback), on main and the branch alike:
+
+- **The main loop woke the page while there was nothing to do.** `MP4Player.mainLoop` ran every
+  50 ms while paused - in each MP4 player, and the seek preview is a second one that is always
+  paused - and every 1 ms (4 in Firefox) once the video had ended: an ended video's `readyState`
+  stays below 3 with nothing ahead, which counted as urgent. 41 timer callbacks a second paused,
+  250 a second ended, for as long as the tab stayed open. Paused or ended it now runs every
+  250 ms (`PAUSED_LOOP_MS`); a seek (the setter, and the element's `seeking`) and a `play` run
+  its next round at once (`wakeLoop`), so nothing that matters waits: downloads go on by
+  themselves (`onSuccess` runs `runLoad`), the stall watchdog does nothing while paused, the end
+  of the stream, a duration to set or a range to retry can wait a quarter second. A round that
+  seeks by itself (the start's seek to the buffered start) does not wake the loop a second time:
+  `loopTimeout` is null while a round runs. Measured: 9.3 callbacks a second paused and ended
+  (the two players at 4 a second and the client's one-second loop); a seek while paused landed
+  62-109 ms after it was asked for.
+- **Played again after its end, an MP4 never started.** `play()` on an ended element seeks it to
+  0 by itself, past `MP4Player`'s `currentTime` setter - the only place that called `resetHLS`,
+  which takes mp4box to the new place. mp4box went on from the end, the start had left the
+  buffer (10 s of back buffer), and the video stood seeking at 0 for good: the play button after
+  the end of any MP4 longer than about 40 s. Firefox's picture-in-picture seek controls seek the
+  element the same way. `onElementSeeking` now checks a seek the element made itself as the
+  setter checks its own (`reloadUnlessBuffered`); one made through the setter is recognised by
+  where it took the element (`ownSeek`) and not checked twice. The mark is cleared only by a
+  `seeked` after which the element no longer seeks (a later fix the same day): cleared on any
+  `seeked`, two quick seeks, the first into what was buffered, reset the player twice - the
+  first seek's `seeked`, queued before the second began, cleared the second's mark, whose
+  `seeking` was then taken for one the element made itself, and the range the second had just
+  asked for was aborted and asked for again (`mp4OwnSeek.test.mjs`). The stall
+  watchdog's nudge is such a seek too: it lands in what is buffered, so nothing is reloaded.
+  `ownSeek` is set only when the element started a seek (`video.seeking` right after the
+  assignment): the client sets the start right after `setSource`, at readyState 0, where no seek
+  runs and no `seeked` ever came - a video played to its end without a seek was then still stuck
+  at the replay (an independent review found it; the first version of the test sought first).
+- **An audio-only MP4's seek preview woke the page every 4 ms.** The preview plays no audio, so
+  for a file without a picture it made no SourceBuffer, its element never left HAVE_NOTHING, and
+  its loop waited for a first frame (`needsInit`) at 1 ms for the tab's life: 236 callbacks a
+  second. Such a preview now stops once the metadata is in (`nothingToPreview`), and loads
+  nothing: 6.7 a second.
+
+`tests/e2e/specs/mp4-loop-pace.e2e.mjs`: wake-ups paused and ended under 20 a second (failed on
+the old build at 41), a seek while paused lands, play after the end starts the video over
+(failed on main and the old build: seeking at 0, readyState 1), also after a play-through
+without a seek, and an audio-only MP4 under 20 a second (236 before).
+
+## An MP4's audio tracks
+
+- **Before:** MP4Player played audio track 0, always, and offered it as the only audio level. A
+  film whose first track is Dolby AC-3/E-AC-3 (Firefox decodes neither) failed with "Failed to
+  create SourceBuffers: Codec not supported" though an AAC track sat next to it, and a second
+  language could not be chosen. HLS and DASH had their languages already.
+- **Now** (`players/mp4/AudioTracks.mjs`): every track `MediaSource.isTypeSupported` takes is a
+  level (`1:<index>`, 'und' as no language, the hdlr name as its label unless a muxer's default).
+  The start track: the one LevelManager remembers for this video, else the preferred language's,
+  else the one the file enables (tkhd flag 1), else the first; only playable ones. The language
+  and audio menus then work as for HLS. A track Firefox cannot play is left out, not greyed.
+- **The switch** (`switchAudioTrack`): the same audio SourceBuffer goes on - `resetHLS(true)`
+  empties both SourceBuffers and mp4box, a queued `changeType()` follows when the codec differs
+  (SourceBufferWrapper: it fires no updateend, so the next operation runs at once), then
+  `startSegmentation({audioOnly: true})` appends only the new audio init segment and mp4box seeks
+  to the keyframe before the playhead. Both tracks load again from there, from the RAM/disk
+  cache, as after a seek. No second SourceBuffer: Firefox may refuse one once media is in.
+- **Labels:** AudioLevel has a `label` (HLS: the rendition's NAME), shown first in the audio menu,
+  so two tracks in one language (film and commentary) read differently.
+- **Tests:** `AudioTracks.test.mjs`, `SourceBufferWrapper.test.mjs` (changeType in the queue);
+  `mp4-files.e2e.mjs` plays an AC-3-first file from its AAC track and switches a two-language
+  file mid-play, then seeks - both failed on main (the AC-3 file did not play through
+  MP4Player; one audio level).
+- **Not covered:** Firefox's own player (DIRECT: WebM, MKV, servers without ranges) plays the
+  file's default track. `HTMLMediaElement.audioTracks` is behind the `media.track.enabled`
+  preference in Firefox (MDN's compatibility data, 2026-11-11), which an extension cannot set.
+
+## A file is what its bytes are, and Firefox's own player keeps the page's headers
 
 A hoster served a Matroska file (H.264, AAC, SRT; written by mkvmerge) as `video/mp4`, from a
 URL ending in `.mp4`, beside an MP4 of the same video on another link. Measured on the installed
@@ -344,7 +753,7 @@ version that gave the page its player back when nothing had shown was built and 
 the owner's word ("if Faststream does that automatically, that is unwanted behavior"): the Off is
 the user's to click.
 
-## AAC in a channel layout of its own, on Windows (2026-10-12)
+## AAC in a channel layout of its own, on Windows
 
 Reported on a film site (its hoster: one MP4 per quality, `[360p]url,...`
 in a Playerjs page; the site itself is behind Cloudflare's challenge, the hoster is not): the
@@ -382,324 +791,7 @@ player buffered and never played. Measured on a film (one file on that hoster), 
   test Firefox: the whole file downloaded in about 50 s, seeks to 40:00 and back, 4x - no stall,
   no nudge, no rebuild, 4 dropped frames of 11,970 at 1x.
 
-## An MP4's audio tracks (2026-11-11, #665)
-
-- **Before:** MP4Player played audio track 0, always, and offered it as the only audio level. A
-  film whose first track is Dolby AC-3/E-AC-3 (Firefox decodes neither) failed with "Failed to
-  create SourceBuffers: Codec not supported" though an AAC track sat next to it, and a second
-  language could not be chosen. HLS and DASH had their languages already.
-- **Now** (`players/mp4/AudioTracks.mjs`): every track `MediaSource.isTypeSupported` takes is a
-  level (`1:<index>`, 'und' as no language, the hdlr name as its label unless a muxer's default).
-  The start track: the one LevelManager remembers for this video, else the preferred language's,
-  else the one the file enables (tkhd flag 1), else the first; only playable ones. The language
-  and audio menus then work as for HLS. A track Firefox cannot play is left out, not greyed.
-- **The switch** (`switchAudioTrack`): the same audio SourceBuffer goes on - `resetHLS(true)`
-  empties both SourceBuffers and mp4box, a queued `changeType()` follows when the codec differs
-  (SourceBufferWrapper: it fires no updateend, so the next operation runs at once), then
-  `startSegmentation({audioOnly: true})` appends only the new audio init segment and mp4box seeks
-  to the keyframe before the playhead. Both tracks load again from there, from the RAM/disk
-  cache, as after a seek. No second SourceBuffer: Firefox may refuse one once media is in.
-- **Labels:** AudioLevel has a `label` (HLS: the rendition's NAME), shown first in the audio menu,
-  so two tracks in one language (film and commentary) read differently.
-- **Tests:** `AudioTracks.test.mjs`, `SourceBufferWrapper.test.mjs` (changeType in the queue);
-  `mp4-files.e2e.mjs` plays an AC-3-first file from its AAC track and switches a two-language
-  file mid-play, then seeks - both failed on main (the AC-3 file did not play through
-  MP4Player; one audio level).
-- **Not covered:** Firefox's own player (DIRECT: WebM, MKV, servers without ranges) plays the
-  file's default track. `HTMLMediaElement.audioTracks` is behind the `media.track.enabled`
-  preference in Firefox (MDN's compatibility data, 2026-11-11), which an extension cannot set.
-
-## The qualities a page's own player offers (2026-10-12)
-
-His report (a film on a film site, its hoster): the player showed one quality and played the
-lowest, though the page's player offers three; MPV mode sent the lowest too. The hoster's
-Playerjs is set up with `file: "[360p]<get_file link>,[720p]...,[1080p]..."` and
-`default_quality: "360p"`; the page's video asks for the 360p link, which answers with a 302 to
-the CDN (`remote_control.php?time=...`). That one request was all FastStream saw. Measured in the
-test Firefox: `player.api("qualities")` gives only the labels (`["360p","720p","1080p"]`); the
-links are only in the page's script. FastStream had the 360p file twice (the link, from the
-video's `loadedmetadata`, and the CDN's address) and played the CDN's.
-
-- **Reading them** (`chrome/page-qualities.js`, a content script before content.js; the
-  background asks with `GET_PAGE_QUALITIES`): `<source>` lists with a quality attribute (Plyr's
-  `size`, Video.js's `label`/`res`, Fluid Player's `title`, OpenPlayerJS's and MediaElement's
-  `data-quality`), Artplayer's instances (`option.quality`, checked against its 5.4.0 typings),
-  JW Player's playlist item (`sources` with labels), a DPlayer in a page variable (it keeps no
-  list of its instances), and Playerjs's file string in the page's scripts. Only what the page
-  holds; no guessed sibling URLs. A list counts with 2 to 12 files.
-- **Tying them to the stream** (`PageQualityPick.listForSource`): the stream's URL, or the address
-  its request was first made to (`TabHolder.noteRedirect`, from `webRequest.onBeforeRedirect`; the
-  source keeps it as `requestedUrl`). `sendSources` asks each frame the streams came from
-  (`attachPageQualities`, 1 s at most) and sends the list as `qualities`.
-- **Playing them** (main.mjs): the stream played is the entry the quality setting asks for
-  (`pickQuality`: the smallest at or above it, Auto the highest; none when no entry says its
-  height). The quality menu lists them (`FastStreamClient.getMenuVideoLevels`, ids
-  `page-quality:<i>`); the player's own levels stay as they were, for the analyzers, the
-  downloads and the embed API. A pick plays the file from the same time, nothing of its start
-  first (`playPageQuality`, the start-time path of #465). The remembered time goes by the list's
-  first file (`VideoSource.setQualities`): it went by the URL played, and the CDN's
-  `remote_control.php` was the same for every film on its node.
-- **MPV mode** (`openInMpv`): the same pick, asked of the page at the hand-off; the list goes in
-  the host message as `qualities` (`MpvBackend.relayQualities`). Host 11 ignores the field; mpv
-  offering the list is the next step (docs/notes/mpv.md). The player's own mpv button is not
-  overridden.
-- **Tests:** `pageQualities.test.mjs` (the hoster's real file string, each player's shape),
-  `PageQualityPick.test.mjs`, the menu and the switch in `FastStreamClient.test.mjs`, MPV in
-  `backgroundMpv.test.mjs` (the hoster's redirect; two fail without the pick), and
-  `page-qualities.e2e.mjs`: the hoster rebuilt locally (a cross-origin frame, the file string,
-  302s to a "CDN") - the 720p file plays, the menu offers both, a switch at 4 s goes on at 4 s.
-  Live, on the real hoster (the same file): 1080p (1920x816) played, 360p/720p/1080p listed, the
-  switch to 720p went on from where it was.
-
-## Player core: what the loaders tell the libraries (2026-09-28)
-
-- **hls.js's playlist loader has no `onAbort`** (`hls.mjs`, `PlaylistLoader.load` passes
-  `onSuccess`/`onError`/`onTimeout`). `HLSLoader` reports a failed playlist with `onError`
-  and `FetchLoader`'s `stats.error` (`{code, text}`). A fragment or key that fails gets
-  `onAbort` after 1 s, and hls.js picks it again: upstream's design. (`FetchLoader` itself
-  does not retry a segment hls.js asks for: hls.js's `maxRetry` for it is 0. The six retries
-  are those of a download ahead, and of DASH and MP4; corrected 2026-11-14.) From the third
-  failure in a row of the same one it gets
-  `onError` (`SEGMENT_FAILURES_BEFORE_ERROR`), so hls.js retries it by its own policy and
-  fails the player once it gives up; for good, a dead segment (an expired token's 403) spun
-  forever. `DashLoader` counts the same way and then gives dash.js `onFail` and the player an
-  error (2026-09-30). `MP4Player` asks a failed range again after 2, 4 and 8 s, then shows
-  the error once playback reaches it (`retryFailedRange`).
-- **`<video>` fires no `error` for a manifest that never loaded.** `HLSPlayer` passes a
-  fatal `Hls.Events.ERROR` on as `DefaultPlayerEvents.ERROR` (after a fatal error hls.js
-  loads nothing more). `DashPlayer` does the same for dash.js's manifest codes
-  (`MediaPlayer.errors` 10, 11, 25) until `initialInit`. Before that, a dead `.m3u8` or
-  `.mpd` spun forever (`failed-load.e2e.mjs`).
-- **`DownloadManager.getFile` answers a finished download from its store** (keyed by URL,
-  range and type). So a playlist or manifest that gets loaded again must be removed once
-  loaded, and `HLSLoader` and `DashLoader` do that. Before, a live HLS stream stopped
-  where its first window ended: one request reached the server in 30 s
-  (`hls-live.e2e.mjs`). dash.js reloads a live manifest only once playback has started
-  (`ManifestUpdater`'s `isPaused`), and a local live MPD never got that far in the web
-  player. So the DASH side is covered only by `tests/unit/manifestReload.test.mjs`, which
-  runs the real loaders and download manager.
-- **`HLSPlayer.trackUpdated` starts at `levelDetails.fragments[0].start`.** hls.js has
-  aligned a live playlist to its timeline before `LEVEL_UPDATED`; a VOD playlist's first
-  fragment is at 0.
-- **mp4box 2.x's `info.fragment_duration` is a `{num, den}` fraction.** Without a `mehd`
-  box it is also only what had been parsed when the metadata was read. So
-  `MP4Player.calculateDuration` reads `mehd` itself, and otherwise the tracks as they grow.
-  Dividing the fraction gave NaN, and every fragmented MP4 died at the start. A long
-  fragmented MP4 still stops after about 3 s in `MP4Player` (not fixed).
-- **A save pins its fragments (`ReferenceTypes.SAVER`) last**, just before the `try` whose
-  `catch` unpins them. Anything that throws in between leaves them pinned for the session.
-  It downloads them through `players/SaveFragmentFetcher.mjs`: the next few (the user's
-  downloader limit) while the converter reads the current one, in order; the `catch` calls
-  its `cancel()`, which aborts what is still downloading for the save. They go at priority -1,
-  and nothing else cancels or holds them: not the network yield, not a paused player's hold
-  (2026-10-09, "Downloads between players").
-- **A partial save keeps the time of the fragments it lacks** (2026-10-04, #224). Both
-  writers place samples one after the other, so a hole would close up. `MP4Merger` (DASH)
-  and `HLS2MP4` (HLS) stretch the last sample before a hole until the next fragment's
-  decode time. In HLS that is only within one timeline (same `cc`, a jump in `sn`): at an
-  `EXT-X-DISCONTINUITY` the clock starts over, and the pieces are written back to back. An
-  audio rendition has holes of its own, and without the padding it played out of step with
-  the video after the first one (`hls2mp4.test.mjs`, "discontinuities"). **Since 2026-11-13 (a
-  review) it also says how long it is.** An Alt-click save of 10 minutes of an hour-long stream
-  said it lasted an hour (Firefox takes `video.duration` from the moov), with a seek bar to
-  match: both converters wrote the whole stream's length into mdhd, tkhd and mvhd (`HLS2MP4`
-  hls.js's level `totalduration`, `MP4Merger` the DASH period's). In both `finalize()`s the
-  media's length (mdhd) is now the sum of its sample durations, the track's (tkhd) what its edits
-  present, and the movie's (mvhd) the longest track's; `MP4Generator` rounds the three to its
-  ticks and takes tkhd/mvhd from the new `presentedDuration`. `hls2mp4.test.mjs`,
-  `mp4merger.test.mjs`.
-- **Fast playback needs no bigger forward buffer** (measured 2026-10-04, #214). hls.js keeps
-  10 s ahead (`maxBufferLength`), which at 8x is 1.25 s of wall time. In the e2e Firefox on
-  the owner's PC: a 10 min 720p HLS at 3 Mbit/s with 4 s segments, a 15 s pre-buffer, then
-  30 s of wall time at 1x, 4x and 8x (the player's limit; 16x is clamped to 8x). There were
-  no `waiting` events and no time at `readyState` < 3, and the forward buffer never fell
-  below 9.1 s. With the buffer at 10 s × rate (at most 60 s), the result was the same.
-  hls.js reads the next fragment from the download manager's store, which is filled ahead
-  by `DownloadManager`, not by this buffer; on a network slower than 8x the bitrate, a
-  bigger MSE buffer would not help either. "Auto" quality stays "the highest level", as
-  decided on #316 (D5).
-- **`DownloadEntry.notifyWatchers`**: a watcher that throws neither silences the others
-  nor skips the cleanup. `StandardDownloader.onSuccess` cleans up in `finally`, or the
-  downloader stays busy for good - but only while it still holds the entry it delivered
-  (upstream #568, ported 2026-10-15): an abort during the delivery (a watcher giving up on an
-  AES-128 segment during its decryption, the downloads paused) has cleaned up already, the
-  manager may have given the downloader its next entry, and a second cleanup ended that one,
-  left "downloading" for good. `cleanup()` also resets `delivering`.
-- **An HLS segment hls.js aborts leaves `HLSPlayer.activeRequests`** (2026-11-13). A loader
-  leaves the list in its download's `onSuccess`, `onFail` or `onAbort`, and a download with other
-  watchers tells only its last watcher that it was aborted (`DownloadEntry.abortWatcher`): an
-  aborted loader that was not the last heard nothing and stayed in the list for the session, its
-  loader and callbacks kept in memory, and the seek preview, the list's only reader, took it for
-  a segment still loading. `HLSLoader.abort()` takes its loader out itself. `DownloadEntry` is
-  unchanged: telling every watcher would reach the other players' and the saves' handlers.
-  `HLSLoader.test.mjs`.
-- **`SubtitleTrack.equals`** (`SubtitlesManager.addTrack` keeps one of two equal tracks): the
-  same cues are one track unless the name *and* the language differ, as upstream has it. The
-  2026-09-11 review took that `&&` for a typo, and the same file under another name was listed
-  twice (restored 2026-10-15, `tests/unit/SubtitleTrack.test.mjs`).
-- **`setSourceInternal`'s progress chain returns if another source came in**, both before
-  it switches progress saving off and after it waits for the player. The wait ends when
-  whichever player is current is ready, which may be the next source's.
-
-## Which version of a height gets picked (2026-10-04)
-
-`LevelManager.pickVideoLevel` used to take the highest bitrate among the versions of the
-chosen height and never looked at the codec: 1080p AV1 at 2.5 Mbit/s lost to 1080p H.264 at
-5 Mbit/s, and on a GPU without AV1 decoding a higher-bitrate AV1 version was decoded in
-software. Now the players ask Firefox first (`players/DecodingCapabilities.mjs`, the Media
-Capabilities API's `decodingInfo`) and `rankHeightGroup` orders the versions of that height
-by, in turn: playable, no HDR the screen cannot show, decoded in hardware (`powerEfficient`,
-which in Firefox means a hardware decoder), smooth, HDR when screen and decoder both can,
-frame rate, codec efficiency (AV1 > VP9 = HEVC > H.264), bitrate.
-
-- **It only reorders, and only within the height.** `matchQuality` still decides the height
-  (the user's setting), so no answer ever lowers the resolution; nothing is removed. A
-  version without an answer (no codec in the playlist, a probe that timed out) sits between
-  hardware and software ones.
-- **Frame rate and codec count only between hardware-decoded versions.** Between software
-  ones, or ones without an answer, the bitrate decides as before: a deviation from the old
-  pick needs a known hardware decoder behind it.
-- **The answers are in before the first pick.** The pick is synchronous (dash.js calls it
-  from its track selection). HLS: the `MANIFEST_PARSED` handler awaits the probes before it
-  emits, picks and calls `load()` (`autoStartLoad` is off). DASH:
-  `registerCustomCapabilitiesFilter` - dash.js 5.2 awaits custom capability filters
-  (`CapabilitiesFilter._applyCustomFilters`, after its own codec filter) before selecting
-  tracks. The filter always answers true. It gets the representation as parsed, with the
-  AdaptationSet's `codecs`, `mimeType`, `frameRate` and `EssentialProperty` pushed down
-  (dash.js's objectiron `commonProperties`). A probe gives up after 1.5 s, and a timed-out
-  one is asked again next time, not remembered as unknown.
-- **The container priority still runs after it**: with the default `mp4`, a WebM VP9 version
-  of the same height loses to the MP4 ones unless the user picked WebM. Unchanged.
-- **HLS audio levels store a whole MIME type** (`audio/mp4; codecs="..."`) in `audioCodec`,
-  DASH a bare codec; `bareCodec` reads both.
-- **A codec picked by hand is now a family per site** (`videoCodecFamilyBySite`, the 200 most
-  recent sites; the site is the source's Referer or Origin, else the stream's host, without
-  "www."). It was one global exact string (`prioritizedVideoCodec`, "avc1.640028"), which
-  seldom matched anywhere else and, where it did, overrode every site. The old value is
-  ignored.
-- The option `decodingAwareQuality` (on) switches the ranking and "playable audio first" off.
-  The quality menu shows HW/SW (`getDecodingLabel`) and the codec name of each version.
-- **Measured:** unit tests only (`tests/unit/decodingAwareQuality.test.mjs`,
-  `DecodingCapabilities.test.mjs`, the `setOptions` test in `FastStreamClient.test.mjs`); 20
-  of the ranking tests failed against the old `LevelManager`. Not yet run in a real Firefox:
-  check a stream with AV1 and H.264 at one height, the menu's labels against
-  `about:support`'s codec table, and the start-up delay the probes add.
-- mpv still picks its own version (`--hls-bitrate`, highest): issue #330.
-
-## A quality lowered when the computer drops frames (2026-10-24)
-
-His wish: a version this computer cannot decode in time is stepped down, and never without a
-word. `DroppedFrameWatch.mjs` reads Firefox's `getVideoPlaybackQuality()` once a second at the
-time updates (`watchDroppedFrames`).
-- **When**: a fifth of the frames dropped over 10 s of steady playback, after a version's first
-  4 s, and only with 100 frames or more in the stretch. Steady means playing at 0.5x-1.25x, not
-  seeking or starving, in a visible tab or in picture-in-picture. A seek, a change of speed, a
-  stall and its end start the stretch again (the counts run on through them).
-- **Where to**: the best version of the next smaller height, else the same height at a lower
-  frame rate (`lowerLevel`); nothing lighter, nothing done and nothing said.
-- **Said**: the status line, 15 s: "Quality lowered to 720p: this computer dropped 30% of the
-  frames at 1080p. Choose 1080p in the quality menu to keep it." A height that comes at two
-  frame rates is named with its rate (720p60).
-- **A version picked by hand** in the quality menu is never stepped down from, also through
-  the new player another of the page's files plays in (`keepChoiceOnce`); a new video forgets
-  it. Nothing steps back up by itself.
-- Off with the option `lowerOnDroppedFrames` ("Lower the video quality when this computer
-  cannot show all frames in time").
-- **Measured:** unit tests (`DroppedFrameWatch.test.mjs`, `FastStreamClient.test.mjs`,
-  `statusLevels.test.mjs`) and `page-qualities.e2e.mjs` in Firefox 158, where the video's
-  count is stood in for (a third dropped): 720p stepped down to 360p with the message, and
-  720p picked again stayed. Red without each part. Not measured: a real slow computer.
-
-## The audio output (2026-10-24)
-
-His wish: the sound on another device than the system's default (headphones, say).
-`AudioOutputDevice.mjs`; the audio button's list has an "Audio output" part: Default output,
-the device chosen, "Choose an output...".
-- **How**: all of the player's sound runs through Web Audio, and Firefox has no
-  `AudioContext.setSinkId`. For a chosen device the graph's end goes into a
-  `MediaStreamAudioDestinationNode`, whose stream a hidden `<audio>` plays with
-  `setSinkId(device)`; the graph moves over only once that plays. For the default output
-  nothing changes: the graph ends at the context's destination, as before.
-- **Measured on Firefox 158** (extension pages; the harness answers the chooser with
-  `media.navigator.permission.disabled`):
-  - `selectAudioOutput` and the element's `setSinkId` exist; in a page's iframe only with
-    `allow="speaker-selection"` (else `NotAllowedError`, "Document's Permissions Policy does
-    not allow..."). content.js gives the player's iframe that token.
-  - `selectAudioOutput` needs a click, also with a known `deviceId` (`InvalidStateError`
-    without one).
-  - A device is usable only in the document it was chosen in: the next video's player
-    (a new document) gets `NotFoundError` for the saved id.
-- **So**: the choice is kept (`chrome.storage.local`, `audioOutputDevice`), and each new
-  video starts on the default output and says so in the status line: "click here to play it
-  on <device>". The click opens Firefox's chooser with that device picked (or nothing picked,
-  when it is gone). A device unplugged while it plays (`devicechange`, gone from
-  `enumerateDevices`) sends the sound back to the default output, with the same notice.
-- **Not established**: whether a real prompt can be remembered so that the chooser no longer
-  shows; the latency the detour adds (A/V sync); whether more than two channels get through it.
-- **Tests**: `AudioOutputDevice.test.mjs` (20, drafted by glm-5.3-flash and checked; each
-  review fix red without it), `statusLevels.test.mjs` (the clickable status message),
-  `audio-output.e2e.mjs` in a page's iframe (chooses, the next video's notice and its click,
-  back to the default; skips on a machine with no audio output).
-
-## Firefox VPN (2026-10-06)
-
-Reported on a VOE page: "Failed to load video!" in the player and "could not open the stream"
-in mpv, while the site's own player played. The cause was Firefox VPN (Firefox's built-in
-"IP protection", 149+), not FastStream's downloads: with the VPN off, the same build played.
-
-- **What Firefox does.** Its channel filter proxies a request only when the loading
-  principal is http(s) (or a null principal): `IPPExceptionsManager.getPrincipalRule`
-  returns EXCLUDED for every other scheme, moz-extension:// among them (Firefox 157,
-  `toolkit/components/ipprotection`). So the page reaches the CDN through the VPN, and
-  FastStream's player and background reach it from the user's own address.
-- **Why the site refuses.** VOE ties the stream URL to the address that asked for the page:
-  `…&i=63.245&asn=54113` with the VPN (Fastly's network), `i=95.91&asn=3209` without. The
-  mpv host's debug log showed the VPN-bound URL handed to mpv, which asks from the user's
-  address too.
-- **The fix** (`chrome/background/VpnProxyMirror.mjs`): FastStream's own requests to a host go
-  the way the page's latest request to it went. Measured in Firefox 157: webRequest's
-  `details.proxyInfo` reports type, host, port, `proxyAuthorizationHeader` and
-  `connectionIsolationKey` (not `masqueTemplate`), and `proxy.onRequest` applies to an
-  extension's own requests. The VPN's servers are CONNECT proxies over TLS (Remote Settings'
-  `vpn-serverlist` names no other protocol), so the copy is exact; a MASQUE proxy would not be
-  copied. Firefox gives every proxied channel one `proxyInfo` (one token, one isolation key),
-  so the newest seen on any page request is the one to use.
-- **The tab's proxy is guessed only for Firefox VPN's** (a `proxyAuthorizationHeader` on
-  every request; 2026-10-21). A host the page was not seen asking goes the way the tab's
-  page went (`noteOwnRequest`); a proxy of the network settings or a PAC file applies to an
-  extension's own requests by itself, chosen per host, and with a PAC file that sends the
-  page through a proxy and an intranet CDN directly, FastStream's request to the CDN was
-  forced through the page's proxy, which could not reach it. A host the page itself reached
-  through a proxy is still copied, token or not: for that host a PAC file answers alike, and
-  `firefox-vpn.e2e.mjs`'s VPN stand-in is a plain http proxy (Firefox sends the token only to
-  an https one). The first version of this fix dropped every proxy without a token, and that
-  spec failed. `tests/unit/VpnProxyMirror.test.mjs` fails without it.
-- **Only where needed.** Hosts are added when FastStream fetches them (a detected source, its
-  own request in a tab whose page went through the VPN), at most 200; the listener asks for
-  those hosts only. A host goes off the list once its tab's page, loaded again, reaches it
-  directly (the VPN off, or off for the site); a content script's fetch, which always goes
-  direct, does not count, nor does another tab.
-- **The permission.** `proxy` is optional. A player in a page has no `chrome.permissions`
-  (undefined there, measured), so its "Play through Firefox VPN" button opens
-  `perms.html#proxy`; once granted, the page closes itself and the background sends
-  `VPN_ALLOWED` to the tabs, and the player loads the source again.
-- **Limits.** The mirror lives in the background's memory. An open player keeps the event
-  page running (measured 2026-09-28), but a background that is terminated or crashes while a
-  video plays starts with nothing, and the player's requests go direct until the page asks
-  again. A plain http proxy gets no `Proxy-Authorization` from Firefox (only https proxies
-  do, measured), which is why the e2e stand-in has no token.
-- **mpv** cannot use Firefox VPN at all: it runs outside Firefox (confirmed by the user on
-  1.3.82.67). So a stream whose page request went through the VPN - a proxy with a bearer
-  token, as IPProtection's `pass.asBearerToken()` makes it - is not handed off
-  (`openInMpv` in background.mjs, every hand-off path); the toolbar's "!" and the player's
-  status line say to turn the VPN off for the site. Which hosts count follows the tab's
-  private-window flag (the VPN can be on for private windows only). A proxy without a token
-  (one set in Firefox's network settings) does not block mpv.
-- **Tests.** `tests/unit/VpnProxyMirror.test.mjs`; `tests/e2e/ext-specs/firefox-vpn.e2e.mjs`
-  (a helper add-on plays the VPN: page requests only, through a local proxy, to a host no DNS
-  answers). With `proxyFor` disabled, its two playback tests fail.
-
-## Downloads between players, after seeks and errors (2026-10-09)
+## Downloads between players, after seeks and errors
 
 Firefox opens six connections to a host for all tabs together (per kind of window), and each
 player page downloads on its own, up to six at once. Measured on a throttled local server at
@@ -951,45 +1043,115 @@ player's own playback requests are never held unless it is paused and yielding. 
 re-evaluated on each peer message and on the client's tick, play, pause, seek and
 visibilitychange. A scrub sends the same state at most every 250 ms.
 
-## A copy-protected video stays in the page's player (2026-10-28)
+## Players in several tabs take turns
 
-Found while testing upstream #456 (saving from vimeo.com/863362136 looped a part, 1.3.70): that
-video is copy-protected now. FastStream took it over, its player loaded the manifest and sat at
-readyState 0 behind "This video is copy-protected (DRM)…", where Vimeo's own player plays it.
+The owner's question: with FastStream loading videos in several tabs, how does the tab he looks
+at get its video first, and when do the others load - one after the other, or all at once?
 
-- **What Vimeo sends** (Firefox 159, measured): a master playlist with no key at all, and
-  variant and audio playlists with two keys each, both `METHOD=SAMPLE-AES-CTR`: Widevine
-  (`KEYFORMAT="urn:uuid:edef8ba9-…"`, the PSSH as a `data:` URI) and PlayReady. The URL names
-  `/drm/cenc,derivedv2,…/`, which the rule does not go by.
-- **Where it is told.** The background already reads a stream's master and its first variant
-  for the length (StreamLengths, `MAX_PLAYLIST_READS = 2`), so the variant's keys come with no
-  request of their own. `StreamLength.hlsProtected` keeps the keys in force as hls.js does (one
-  per KEYFORMAT until `METHOD=NONE`), and a segment plays when the identity key is one FastStream
-  decrypts (`Decryptable.mjs`: AES-128, AES-256), which is the rule
-  `HLSFragmentRequester.takeOverDecryption` goes by too: `HLSEncryptedPlaylists.test.mjs` runs
-  both on the same playlists through hls.js's parser. One deliberate difference: a key format
-  hls.js does not know, which it drops and plays as clear (still encrypted, it shows nothing).
-  `EXT-X-SESSION-KEY` decides nothing: it may name a key no variant uses. DASH:
-  `StreamLength.dashProtected`, every video adaptation set under ContentProtection (a clear one
-  beside them plays).
-- **What changes.** `hasVideoSource` (every in-page open: auto-enable, the toolbar's On, a
-  stream found while on) opens no player when the stream the player would play is protected:
-  that one, as main.mjs picks (the longest, `StreamPick.pick`), not any protected one, or a
-  film's clear ad won the pick. It now waits for DASH manifests' reads too, as for HLS. The
-  toolbar button shows "DRM" and why (`tab.protectedVideo`, cleared on a new page and at Off).
-  `openInMpv` refuses a protected stream as it refuses a Firefox VPN one ("!" and the reason in
-  the tooltip), after waiting for an unread manifest (`HlsQualitiesWaitMs`); the allowlist's MPV
-  then sends the page's next stream neither (an ad's, or a piece of the film); since 2026-11-13
-  the toolbar's MPV and a start by address neither (mpv.md, "One latch for every automatic
-  hand-off"). A read sets the mark either way, and none for a URL forgotten while it was read
-  (`noteProtection`).
-- **Left as it was.** A stream the background could not tell (its variant's read failed, a key
-  that comes later in a live playlist) still opens the player, which says DRM on hls.js's or
-  dash.js's word (NEED_KEY), as before.
-- **Live, 2026-10-28:** player.vimeo.com/video/863362136 kept Vimeo's player, badge "DRM";
-  vimeo.com/22439234 (clear) was still taken over and played.
+**What it was.** A player in a background tab stepped aside only while a watched one was short
+of video (under 10 s ahead: `PlayerPeers.shouldYield`, above). Past that every player downloaded
+its whole video ahead at once, on up to six connections each. Measured with the benchmark below:
+three players paused in background tabs and one playing in front, each video on a host of its
+own, all on one 8 Mbit/s line, 90 s of video at 2.1 Mbit/s each. The one in front had its first
+10 s as fast as alone, and then a quarter of the line: its whole video after 66 s, where 24 s is
+what the line gives one player.
 
-## Loading through the page (2026-11-11, #665)
+**On one host Firefox does it already.** The same run with all four videos on one host: the
+player in front had its whole video after 29.5 s on main as well. Firefox gives the active tab's
+requests its six connections to a host before the other tabs'; the background players' requests
+waited in Firefox's queue. Tabs on different sites (different hosts) get nothing of that, and
+those are what the turns are for; the benchmark and the e2e spec give each tab a host of its own
+for that reason (`BENCH_TABS_HOSTS=same` puts them on one).
+
+**The rule** (`network/PlayerTurns.mjs`, pure; `PlayerPeers.shouldWait`;
+`DownloadManager.setWaiting`):
+
+- A player the user can see never waits.
+- One in a background tab waits while a player that goes before it still downloads and does not
+  leave room. The order: visible ones, then one that plays unseen (music in a background tab),
+  then the rest - the one seen last first (the tab just left is the likeliest to be come back
+  to), and of those never seen the oldest. The order is total (rank, seen, born, id), so of the
+  players that want the network the first never waits: no deadlock, and a fast-check property
+  says so for any set of players.
+- A player leaves room when its line is fast: it downloads at 4 times the rate its video plays
+  at, or more (`JOIN_FACTOR`); the next one then downloads beside it, until the first is down to
+  2 times (`LEAVE_FACTOR`: the gap keeps them from starting and stopping). A visible player asks
+  twice as much before it shares (`SEEN_FACTOR`). So on a fast line all download at once, on a
+  slow one in turns, with no setting and no site list: each player measures its own speed (the
+  bytes it received over the last 5 s) and its video's rate (measured from what it downloaded,
+  else the level's bitrate) and tells the others.
+- A player whose server limits each connection (the speed test's verdict, `perConnection`)
+  leaves room for players on other hosts: its speed is the server's, not the line's. On the same
+  host they share Firefox's six connections and still take turns. Only the finished test's verdict counts
+  (`DownloadManager.limitedPerConnection`): one gain early in the test set `perConnection`, a flat
+  round after it took it back, and a background tab told in between started segments ahead on a
+  slow line (tab-turns.e2e.mjs on CI, 2026-11-16: 6, 7 and 8 again and a new 9 in 3 ms; Codex
+  found it, 2026-11-17).
+- "Still downloads" (`wants`) ends when the player has its video, its RAM share is full, the
+  user paused its downloads or set the speed limit to 0, it is offline or waits for a click, and
+  when nothing arrived for 15 s though something should have (`STUCK_MS`: a dead server). A live
+  stream never counts: it takes what its server makes. A save is never held back.
+- Waiting is soft: the downloads already running finish, no new ones ahead start, new requests
+  go out `'low'`, and what the player's own playback asks for goes as always. Nothing is
+  cancelled, so a wait that ends a second later cost nothing. Stepping aside for a watched player
+  that is short of video stays the hard rule (it cancels).
+- A hidden page's timers run late, so a player decides when a peer's message arrives
+  (`receive` calls `onChange` when its answer changed) and when one of its downloads finishes
+  (`DownloadManager.onDownloaderFinished` tells the client), not only on its tick.
+
+**Who counts as short of video** (`PlayerPeers.needy`) had four holes, each of which stopped
+every background player for as long as the tab in front stayed as it was: a live stream (never
+10 s ahead of its edge: now only while it buffers or has under 3 s), a looping clip shorter than
+10 s and the last seconds of any video (all there is to have is ahead: `room`), and a video whose
+server stopped answering (`isStuck`). `PlayerTurns.test.mjs` has each.
+
+**Measured** (`node tools/bench-ab.mjs --scenarios tabs --rate 8`, 7 rounds, main against this):
+
+| | main | turns |
+|---|---:|---:|
+| the player in front has its whole video | 66.1 s | 29.6 s |
+| all four players have theirs | 109.1 s | 92.3 s |
+| seconds ahead in front, 10 s in | 18.8 s | 19.1 s |
+| first frame in front, from its first request for the video | 1.17 s | 1.08 s |
+
+Each of the first, second and fourth in 7 rounds of 7 (p < 0.001). All four have their videos
+sooner as well; why was not looked into.
+
+That it is the turns, and nothing else on the branch: main against the branch as it was before
+them, the same benchmark, 3 rounds: 64.0 s and 63.6 s in front, 109.9 s and 110.0 s for all four.
+And on a fast line nothing changes, since everyone downloads at once there (`--rate 40`, 5
+rounds): 6.5 s and 6.5 s in front, 18.3 s and 18.2 s for all four.
+
+**The page's own start is not in these numbers, and cannot be compared in this benchmark.** A
+new tab's "player modules ready" came in two speeds, about 0.25 s and 0.6 s, by the Firefox
+session and the server a build was given, not by the build: main had 0.25 s in every round of the
+7-round run and 0.6 s in every round of the 3-round run after it; the branch had 0.6 s in the
+first and 0.28 s on the fast line, where main had 0.57 s; two copies of main gave 0.36 to 0.69 s.
+Counted from the navigation, the first frame in front therefore read 0.27 s later for the branch
+in the first run of this benchmark, 7 rounds of 7. It is counted from the page's first request
+for its video now (`tabsFirstFrame`), the page's start is reported beside it
+(`tabsModules`), and that measure's floor is 0.5 s, above the distance of the two speeds. What
+makes the two speeds was not found (the page's modules come from the benchmark's own server, not
+over the slow line).
+
+Tests: `PlayerTurns.test.mjs` (the rule, its properties, the peers' side),
+`DownloadManager.test.mjs` (a wait cancels nothing; `received`), and in a real Firefox
+`tests/e2e/specs/tab-turns.e2e.mjs`: two tabs, two hosts, one 6 Mbit/s line; the background tab
+asks for nothing while the one in front still has segments to ask for, and gets its video after.
+
+**Sites that buffer at different speeds** (the owner's other question: one buffering system, or
+one per site?). There is one already, and it adapts by measuring, not by site: every player
+starts with three connections, tries six, and keeps what was faster (`DownloadManager`'s speed
+test); a server that limits each connection is recognised and then gets all six; a server that
+answers 429 or 503 is slowed down; under 10 s ahead the next seconds come first on two
+connections (`PlayheadFirst`). What differs between sites is the server: its speed per
+connection, how many it allows, how large its segments are, and whether the file can be asked
+for in ranges at all. A list of sites with settings of their own would have to be kept up by
+hand and is what the "no site-specific code" rule keeps out. What a measurement could still add
+is remembering a host's verdict for the next video from it (it is measured again for each video
+now, which costs the first seconds on three connections): a behaviour change, asked of the owner.
+
+## Loading through the page
 
 abyss.to's player (abyssplayer.com, embedded as an iframe) played in the page and never in
 FastStream. The video's address (`https://player.abyssplayer.com/#mp4/<video>/<quality>`) is
@@ -1127,964 +1289,103 @@ in a cross-origin iframe, which starts from 0 and loads through that frame. Each
 first two seek to 120 s. Then the saves above: the worker's video and the cookie's video whole,
 and a cancelled save followed by a whole one.
 
-## Optimisation review of the whole player, 2026-11-07
-
-glm-5.3-flash reviewed the network layer and client, the players, the interface's playback-time
-code and the background script for speed on Windows 11 and Firefox (Codex was asked too, and
-stopped at its usage limit). Each finding was checked against the code before anything was
-changed.
-
-Changed:
-
-- **A queued download that was removed stayed in the queue** (`DownloadManager.removeFile`,
-  as on a level switch freeing the old level's downloads ahead): `canGetFile` says no while
-  the queue holds anything, so the new level's downloads ahead waited until a finished
-  download let `queueNext` drop it. Now taken out, as the other ways a queued download ends do.
-- **MP4Player's main loop** re-armed every 1 ms (4 ms in Firefox) for as long as an MP4
-  played, about 250 rounds a second per player (the seek preview is a second one). Now 1 ms
-  only while it starts, seeks or has run out of media, 50 ms while it plays with media ahead
-  (`STEADY_LOOP_MS`): measured about 20 rounds a second per player while playing. First frame
-  and seek times: the interleaved comparison in the pull request.
-- **Header rules**: the expiry round called `declarativeNetRequest.updateSessionRules` every
-  second with nothing to remove while any rule was held; now only when one ran out. The same
-  rule asked for again (an MP4's every range, a direct video's renewals) is kept longer
-  instead of added again - each add made Firefox compile the session rules anew - and a
-  second request waits until the browser took the first.
-- **A stream detected with no player tab to send it to** queried every tab
-  (`sendSourcesToMainFramePlayers`, for each segment a page's own player fetched).
-- **Heartbeats every 5 s, not 1 s** (opfs-worker, IndexedDB temporary databases): a file
-  opened, written and closed, or a transaction, each second for every player page's life.
-  Only `prune`'s 60 s staleness window reads them.
-- Small: an IndexedDB request's timeout timer is cleared once answered; `chooseToRelease`'s
-  second pass uses a Set (it was quadratic over the held fragments); the progress loop and
-  the MP4 main loop reuse one bound function instead of making one per round.
-
-Checked and not changed (the reason each time):
-
-- **Update the toolbar icon only when a tab's URL changes** (`tabs.onUpdated`): Firefox resets
-  a tab's own action title, badge and icon when the tab navigates; setting them on every
-  update is what puts FastStream's state back whenever that reset lands. Changed on 2026-11-13
-  after all, with the reset still covered: the listener hears `url` and `status` changes only
-  (a reload's event need not carry the address), not every title, favicon and sound change
-  (the review below).
-- **Renew DirectVideoPlayer's header rule every 30 s instead of 10 s**: its comment's reason
-  holds - a hidden tab's timer can be up to 50 s late, and the renewal has to land within the
-  60 s rule.
-- **Filter the detection listener by request type**: subtitle and file-extension detection run
-  for every type before the type checks (a video in `<embed>`/`<object>` is type `object`), and
-  `onBeforeRequest` has to see every request anyway (the frame tree, the VPN mirror), so the
-  background is woken all the same. Not worth the risk of missing a source.
-- **Run the start-up's storage estimate and buffer take-back while the player is built**
-  (`setSourceInternal`): the order is what keeps adoption before the first download; not
-  measured to be slow.
-- **Re-index a fragmented MP4's samples only every 4th range**, **run the subtitle bounds
-  check only when something changed**, **skip the silence skipper's checks while paused**,
-  **cache each tracked source's URL shape** (`trimTracked`: a split and a replace, well under
-  a millisecond per detected segment): small or unmeasured gains, each with a way to go wrong.
-- HLSPlayer.currentFragment's fallback to `hls.loadLevel`: part of the start-up change measured
-  and reverted on 2026-11-06 (above); the glm knowledge-base entry that described it is retired.
-
-Second round (the save and storage modules, the repository's CI and tests, what runs on every
-page; 2026-11-07):
-
-- Changed: `MP4Merger.finalize` handed each chunk of the file to the OPFS worker through
-  `toStandaloneBuffer`, which copied it once more - the whole file over, after the progress
-  showed 100 %. `Blob.arrayBuffer()` gives a fresh buffer of its own, which goes as it is.
-  Superseded on 2026-11-13: `MP4Merger` writes nothing at `finalize` any more. Each fragment's
-  media goes into the save's file as it is read (`SaveFile`, as the HLS save below), and
-  `finalize` only puts the moov in front (storage.md, "Storage in a private window").
-- **An HLS save's chunks wait in RAM while the disk is slower than the conversion**
-  (`hls2mp4.pushChunk` -> `FSBlob.saveBlob`, not awaited): measured and changed in the third
-  round below (one file on disk as it goes). Reading the next fragment while the current one
-  converts: done then too. Not changed: awaiting in-flight offloads in `FSBlob.clear()` (an
-  orphan lives only until the session's directory is pruned).
-- CI: the lint/test/build job takes 68 s. `verify:vtt` runs first since the third round;
-  running lint and typecheck in parallel would save seconds, not worth interleaved logs; the e2e jobs (7-8 min) spend 17 s before the first
-  spec, fixtures included, so caching fixtures or building one target per job is not worth
-  the workflow. `isolate: false` for vitest would share module state and mocks between test
-  files, for the Windows unit job that runs beside the e2e jobs and sets nothing's pace.
-- Every page: `overlay-guard`'s second check spends its time in `getBoundingClientRect` per
-  element (the comment's measurement), not in the allocations around it; `PLAYLIST_POLL`'s two
-  walks of the page's links run ten times when a player starts; the gesture scan's 2 s cadence
-  is load-bearing for the 5 s activation window.
-
-Third round (2026-11-07): the trade-offs measured in Firefox (dev build, Windows 11, local
-server) before deciding. Interleaved runs, a brief try before each long run.
-
-- **HLS save of a long stream** (30 minutes of a 2 Mbit/s HLS stream, 1000 fragments, a
-  458.5 MB file; RAM = what the save's blob stores held, sampled every 100 ms). Medians of 6:
-  as Blobs until the end (before) 1118 ms, 454 MB held; one OPFS file written as it goes,
-  flushed at its end, 1770 ms; the same without the flush, 1259 ms, nothing held but at most
-  8 pieces on their way (`SAVE_APPENDS_AHEAD`, about 0.5 MB each here). Waiting for each
-  Blob's write to the disk instead (backpressure): 1983 ms for a 90 s stream that took 74 ms -
-  dropped after the brief try. Kept: one file, no flush (`saveEnd`: the file is only read
-  back in this session; the flush served nothing and slowed the DASH and other saves too).
-  Since 2026-11-13 a DASH or fMP4 save writes the same way, through the same code (`SaveFile`,
-  taken out of `HLS2MP4`), and a save's copy on disk goes once Firefox reports its download
-  over, not at the next player's start (storage.md).
-- **The RAM budget stopped downloads ahead for good** (found by that measurement: the stream
-  stopped downloading at 70 %, 153 of 200 MB held, nothing being written). Full from HIGH
-  until back at LOW, it let go only over HIGH; the downloads that were running when it let
-  go came in after and left it a little over LOW. While full it now lets go down to LOW
-  (`keepWithinMemoryBudget`). With it, all 1000 fragments came in within 10 s.
-- **A seek that loads afresh drops the MP4 appends still queued** (`dropQueuedMedia`). A seek
-  far ahead with about 685 one-frame appends queued, n=8: playing again after 198 ms against
-  232 ms (medians), first frame 117 against 129 ms. Queue peaks while playing: 2,000-3,000.
-- **Build the seek preview's player lazily or alongside the start**, instead of before
-  `play()`: no start-up gain, kept as it is. First frame / playing in ms, means of 4, network
-  A (1.5 MB/s shared) and B (500 kB/s per connection):
-  A mp4 487/581 eager, 512/606 alongside, 511/603 lazy; A ts 1005/1097, 1021/1114, 999/1092;
-  A fmp4 1017/1103, 1013/1107, 998/1045; B mp4 1000/1109, 1001/1116, 1022/1116;
-  B ts 2135/2229, 2153/2247, 2110/2204; B fmp4 2074/2167, 2072/2166, 2074/2167.
-  The preview is ready 75-120 ms after `addSource`, long before the first frame.
-- **Preview thumbnails only after their seek ended**: 32 frames in 12 s and none taken during
-  a pending seek, old and new alike (Firefox's `readyState` gated it already); kept for the
-  `toBlob` encoding.
-
-## An MP4 paused, at its end, and played again (2026-11-13)
-
-Found with the A/B benchmark below (its `--where` lists which place in the player's code asked
-for each timer callback), on main and the branch alike:
-
-- **The main loop woke the page while there was nothing to do.** `MP4Player.mainLoop` ran every
-  50 ms while paused - in each MP4 player, and the seek preview is a second one that is always
-  paused - and every 1 ms (4 in Firefox) once the video had ended: an ended video's `readyState`
-  stays below 3 with nothing ahead, which counted as urgent. 41 timer callbacks a second paused,
-  250 a second ended, for as long as the tab stayed open. Paused or ended it now runs every
-  250 ms (`PAUSED_LOOP_MS`); a seek (the setter, and the element's `seeking`) and a `play` run
-  its next round at once (`wakeLoop`), so nothing that matters waits: downloads go on by
-  themselves (`onSuccess` runs `runLoad`), the stall watchdog does nothing while paused, the end
-  of the stream, a duration to set or a range to retry can wait a quarter second. A round that
-  seeks by itself (the start's seek to the buffered start) does not wake the loop a second time:
-  `loopTimeout` is null while a round runs. Measured: 9.3 callbacks a second paused and ended
-  (the two players at 4 a second and the client's one-second loop); a seek while paused landed
-  62-109 ms after it was asked for.
-- **Played again after its end, an MP4 never started.** `play()` on an ended element seeks it to
-  0 by itself, past `MP4Player`'s `currentTime` setter - the only place that called `resetHLS`,
-  which takes mp4box to the new place. mp4box went on from the end, the start had left the
-  buffer (10 s of back buffer), and the video stood seeking at 0 for good: the play button after
-  the end of any MP4 longer than about 40 s. Firefox's picture-in-picture seek controls seek the
-  element the same way. `onElementSeeking` now checks a seek the element made itself as the
-  setter checks its own (`reloadUnlessBuffered`); one made through the setter is recognised by
-  where it took the element (`ownSeek`) and not checked twice. The mark is cleared only by a
-  `seeked` after which the element no longer seeks (a later fix the same day): cleared on any
-  `seeked`, two quick seeks, the first into what was buffered, reset the player twice - the
-  first seek's `seeked`, queued before the second began, cleared the second's mark, whose
-  `seeking` was then taken for one the element made itself, and the range the second had just
-  asked for was aborted and asked for again (`mp4OwnSeek.test.mjs`). The stall
-  watchdog's nudge is such a seek too: it lands in what is buffered, so nothing is reloaded.
-  `ownSeek` is set only when the element started a seek (`video.seeking` right after the
-  assignment): the client sets the start right after `setSource`, at readyState 0, where no seek
-  runs and no `seeked` ever came - a video played to its end without a seek was then still stuck
-  at the replay (an independent review found it; the first version of the test sought first).
-- **An audio-only MP4's seek preview woke the page every 4 ms.** The preview plays no audio, so
-  for a file without a picture it made no SourceBuffer, its element never left HAVE_NOTHING, and
-  its loop waited for a first frame (`needsInit`) at 1 ms for the tab's life: 236 callbacks a
-  second. Such a preview now stops once the metadata is in (`nothingToPreview`), and loads
-  nothing: 6.7 a second.
-
-`tests/e2e/specs/mp4-loop-pace.e2e.mjs`: wake-ups paused and ended under 20 a second (failed on
-the old build at 41), a seek while paused lands, play after the end starts the video over
-(failed on main and the old build: seeking at 0, readyState 1), also after a play-through
-without a seek, and an audio-only MP4 under 20 a second (236 before).
-
-## What an independent review of the player, background and content scripts found (2026-11-13)
-
-Two Claude agents read the player's lifecycle and the background/content scripts for bugs of the
-kind above; each finding was checked against the code and, where fixed, shown by a test that
-failed before. Fixed:
-
-- **The next episode's instructions reached a later, unrelated player.** After FastStream went on
-  to the next episode by itself, its continuation (autoplay, the carried fullscreen, no
-  remembered place) stayed on the tab until some player took it. A next page with no player (a
-  failed hoster), then a page the user went to himself, and the next video opened there - minutes
-  later - went fullscreen, played by itself and skipped its place. It now holds only for the first
-  page after the click (`continuationArrived`; what counts as a page: the second round, below);
-  MPV's own (`mpvNext`) is unchanged. The opposite
-  case too: a next episode on another hostname lost it to the new site's reset; it goes along now.
-  `backgroundFullscreen.test.mjs`.
-- **Escape could not end a carried fullscreen whose player's frame went or reloaded.** The
-  background passed Escape on to that frame, which was gone or held a new player that had never
-  taken it over; the window stayed fullscreen. The player now answers whether it ended it
-  (`exitCarriedFullscreen` returns true), and the background ends it otherwise.
-- **The page around an embed kept its own menu hidden after the player left the embed** (the
-  embed's page went elsewhere or took its player out, the iframe stayed): only the player's
-  leaving page released the overlay guard. On a player frame's `FRAME_REMOVED` the background now
-  tells each frame above to let go of the iframe on the way (`RELEASE_OVERLAY_GUARD`), unless
-  another player still lives under it. `content-overlays.e2e.mjs` (failed on main),
-  `backgroundOverlayGuard.test.mjs`, `contentScript.test.mjs`.
-- **A player gone with its page was counted gone twice.** A frame that goes takes the frames
-  inside it along; a player inside sends its own `FRAME_REMOVED` too, and it can come last. Its
-  entry in `playerPageFrames` was still there, so it was taken for a player lost while Firefox
-  had unloaded the background (`restorePlayerFrame`): made again with its page frame, and
-  counted gone a second time. With two players in a tab, the next one to open was told it was
-  the tab's main player. Every frame forgotten with the removed one now leaves
-  `playerPageFrames` and `playingPlayers`. `backgroundFrameRemoved.test.mjs`.
-- **Toolbar calls for a closed tab were rejected unhandled** (the "Off" badge's second, a start
-  that waited for its page). They go through `setAction` (`BackgroundUtils.mjs`), which takes
-  the rejection. `backgroundRobustness.test.mjs`.
-- **A start by address was lost when only the part after `#` changed during its half-second
-  wait** (a page setting `#t=...` at once): the wait checked the address string. The same page
-  (`isSamePageUrlChange`) keeps it; a `#/` or `#!` route still cancels it. `backgroundMpv.test.mjs`.
-
-A second round the same day went through the background, the content scripts, the options page,
-the player and the saves area by area. What it fixed is recorded with its subject where the notes
-have one (keybinds.md, storage.md, mpv.md, build-and-release.md, libraries.md, the sections above);
-the rest is here:
-
-- **The next episode's instructions count pages, not address changes.** The continuation (and,
-  since 2026-10-11, the carried fullscreen's handover) ended at the second address change after
-  the click, and a `pushState` or `replaceState` counts as one; only a `#` change was the same
-  page. A next episode whose page set its own address before its player asked (`?server=`, a
-  canonical slug) played with no autoplay and its remembered place, and the carried fullscreen
-  went back to a window. The pages are now the documents frame 0 names (`FRAME_ADDED`,
-  `noteContinuationPage`). The first after the click's address change is the next page, also
-  when it named itself before its address came; a different one after it (the user went on, or
-  back) ends the instructions and gives back a fullscreen no player took over. An address change
-  still ends them while the next page has not named itself (an error page, a PDF: no content
-  script), so the user's page after such a page gets none. The window follows the instructions:
-  it stays fullscreen while they wait for the next page's player. `backgroundFullscreen.test.mjs`.
-- **A player kept over a restart of the background counts as the tab's player.** After Firefox
-  unloaded the idle event page while a player played, a second player in the same tab was told
-  it was the main player and played without a click: `restorePlayerFrame` made the frame a
-  player's again but did not count it in `tab.playerCount`, which `acceptPlayer`'s `isMainPlayer`
-  goes by (its leaving still counted it gone). Both now count the frame when it becomes a
-  player's, so a frame restored and then loading its player anew is counted once.
-  `backgroundFrameRemoved.test.mjs`.
-- **`tabs.onUpdated` hears the address and the load's status only** (`{properties: ['url',
-  'status']}`; `url` since Firefox 88, the floor is 153). Unfiltered, every title, favicon and
-  sound change of every tab (a site's title counting its player's time up) set the toolbar
-  button's title, icon and badge again and kept the event page awake. Firefox resets a tab's
-  own button state on a new document, which comes with its address; `status` stays in because a
-  reload resets the button too, and its event need not carry the address it already had (with
-  the address alone the button could stay reset). The test harness's stand-in honours a
-  listener's filter. `backgroundRobustness.test.mjs`.
-- **What the background fetched for a private window's or a container's tab** went with the
-  normal window's cookies, cache and proxy: FreshLink gives no link there now, and the length
-  reads keep nothing in the HTTP cache (`cache: 'no-store'`). storage.md, "Storage in a private
-  window".
-- **A crafted manifest could hold the event page.** `StreamLengths` reads up to 4 MB on the event
-  page's thread, where `SourceLengthWaitMs` cannot stop a parse, and its patterns looked from
-  every tag (every character of a name) to the end of the text: an MPD of `<AdaptationSet>` tags
-  never closed, of `<MPD` or `<Period` never ended, a tag of a megabyte of name characters, or a
-  master playlist of thousands of `EXT-X-STREAM-INF` lines and one URI. 1 MB took 1.6-8 s, a run
-  of names of 80 KB 4-7 s. Tags are now found one after the other with `indexOf` from where the
-  last ended (none after one that has no end), a name is read from its first character only (a
-  lookbehind, the same matches), and the STREAM-INF tags before one URI share one search for it
-  (each copied the lines after it). 1 MB of each takes under 12 ms. A differential fuzz against
-  the old code agreed on 200,000 inputs for each function. `StreamLength.test.mjs`.
-- **URL lists: a plain entry matches the page's host, not a user name.** A plain entry
-  `example.com` on the Auto-enable URLs list or the MPV allowlist matched
-  `https://example.com:x@evil.com/`, a page of evil.com: the entry was compared with the raw text
-  after the scheme, and the ':' after the user name read as the start of a port. The page is now
-  read through `URL`, its user name and password taken off, and compared from its host on as
-  before; for every address without a user name the result is the same (checked against the old
-  code on 580,000 address and entry pairs, addresses as Firefox writes them). **Behaviour
-  change:** a page of the site itself with a user name before its host (`https://u:p@example.com/`)
-  now matches the site's entry; it did not before. And a site typed in Unicode (`bücher.example`)
-  matched no page, as Firefox gives a tab's address with its host in punycode
-  (`https://xn--bcher-kva.example/`): a plain entry's site (the part before its first `/ ? # :`
-  or `@`) now goes through `URL`'s hostname when it holds a non-ASCII character. An ASCII site,
-  one that does not parse, and the rest of the entry (port, path, query) stay as written; a
-  `-domain` entry went through `URL` already. `UrlMatchList.test.mjs`.
-- **A stream's pieces are not read, nor scraped for captions, one by one.** A page whose own
-  player fetches a stream's pieces named `.mp4` (`seg-14.mp4`, thousands in an evening) made each
-  piece a source. In a tab that is on, each was read in the background (a 64 KB range request,
-  and a session header rule added and taken away), though `lengthsOf` already counts an unread
-  file of a piece's shape as a piece; in any tab each asked the page for its `<track>` captions,
-  and content.js walked the page and fetched every `<track>` file again. A file `lengthsOf`
-  counts as a piece is not read when it is detected; a pick that waits for the lengths
-  (`settle`) still reads it then, as for any unread source. A file of the shape of one the frame
-  holds already waits for the captions' answer asked at the first, in the same page; a stream of
-  another shape, or the next page, asks again, and the player still opens only after that
-  answer. `backgroundDetection.test.mjs`.
-- **An options save gives Firefox the redirect rules only when they change.** Every save made
-  the background load the options again, and each load set both "use the player for stream
-  links" rules again (`declarativeNetRequest.updateDynamicRules`), unchanged: some 120 updates
-  of the browser's rules for a slider dragged for two seconds. The background keeps each rule as
-  it last gave it, for as long as it runs (`RedirectRulesMade`: the rule's JSON, or removed), and
-  leaves out an update that would give the same. The first load of each background still gives
-  both, and a failed update is forgotten, so the next load tries again.
-  `backgroundRobustness.test.mjs`.
-- **A link the page handles itself keeps the player** (content.js). A click on a link to another
-  page of the site took the player down before the page's own listeners ran, so a same-site link
-  the page cancels (a "Sign in" that opens a dialog, comments paged in place) removed the player
-  though the page never left. The decision now waits one task, as the cancelled-shortcut
-  listener does: the player stays only when the page cancelled the click and did not change its
-  address meanwhile (a single-page site's router still takes it down). `contentScript.test.mjs`,
-  `content-cleanup.e2e.mjs`.
-- **The resource observer keeps the newest 1,000 requests, manifests last** (content.js; added
-  2026-10-03 for #231, so that the recovery after a background restart finds a stream past the
-  first 250 requests the page's Resource Timing keeps). It kept the first 1,000 stream-like
-  requests and nothing after them: on a page that lives long (a single-page site going on to its
-  next episode) the recovery found no stream, or the previous episode's. When full it now drops
-  the oldest request that names no manifest (by its path, or by an address a proxy's query
-  names), so a manifest asked for once stays past the thousands of segments its player asks for
-  after it. `contentScript.test.mjs`.
-- **Fullscreen of a linked iframe in a shadow root** (open or closed: the frame links find embeds
-  there) is asked of its own root. `document.fullscreenElement` is the root's host there, not the
-  iframe: the toggle entered fullscreen again instead of leaving it, and `fullscreenchange` told
-  the player it had left as it entered, so it left at once. Each of the three checks asks
-  `getRootNode().fullscreenElement`, which is the document for any other iframe.
-  `contentScript.test.mjs`, `content-cleanup.e2e.mjs`.
-- **The miniplayer's placeholder is a `<div>` for an iframe or a custom element.** It was made
-  with the miniplayer element's own tag: for the player's iframe itself (the usual soft replace)
-  a new iframe, a browsing context of its own, for each miniplayer; for a site's custom element
-  wrapper the site's constructor and `connectedCallback` ran again, a second copy of its player.
-  `transferStyles` sizes the div as before. Any other wrapper keeps its tag, so the page's rules
-  for it still hold the layout. `contentScript.test.mjs`.
-- **Typing in a shadow root or in a chat's iframe counts as typing.** After FastStream goes on to
-  the next episode by itself, the new player takes the keyboard (`REQUEST_KEYBOARD`, main.mjs;
-  reported 2026-10-11: F, Space and the arrows did nothing on the next episode until a click in
-  the player) unless the user types in the page or looks at another tab (content.js
-  `PAGE_TYPING`, asked of the top frame). It looked at `document.activeElement` only: typing in
-  a web component's field (`activeElement` is its host) or in a chat's or comment box's iframe
-  counted as not typing, and the player took the keyboard mid-word. It now asks the overlay
-  guard's `focused()`, which goes into open and closed shadow roots, and counts an iframe with
-  the focus as typing unless it is a FastStream player's or one a player plays in.
-  `contentEpisodeNavigation.test.mjs`.
-
-Found and not changed yet:
-
-- MP4 and DASH seek previews restart the hovered range's download on every pointer move while it
-  loads (HLS has a guard: `HLSPlayer`, "a pointer still inside the segment that is loading");
-  the DASH preview buffers 10-18 s at each hovered place, HLS's 1 s. Not a copy of HLS's guard:
-  skipping `resetHLS` for a place inside the range on its way leaves mp4box at the last place's
-  sync sample, so a place before it in the same range would get no samples. Needs its own
-  design (mp4box's seek point) and a slow-line A/B (`tools/bench-ab.mjs --rate`); on a local
-  file the preview is ready in about 35 ms.
-- An iframe the page takes out (no `beforeunload`) never sends `FRAME_REMOVED`: its frame and
-  sources stay in the background until the page navigates. Memory only; nothing acts on them.
-- Synced audio (a video delay set) follows play, pause and seek made on the element itself -
-  Firefox's picture-in-picture window - only at the next `watcherLoop` round, about a second
-  later; media keys go through the client and are followed at once. Forwarding the element's
-  own events has to keep the resync guards (`SyncedAudioPlayer.test.mjs`: a pause during a
-  resync, a resync after destroy) and wants a test of its own.
-
-## Measuring two builds: tools/bench-ab.mjs (2026-11-13)
-
-The by-turns comparisons above were each made with a harness thrown away afterwards. This one
-stays: `node tools/bench-ab.mjs --a main` builds main in a worktree of its own (outside the
-checkout, node_modules linked; both need the same lockfile), builds this checkout, and runs
-`tests/e2e/wdio.bench.conf.mjs`: one server per build on its own port, the same fixtures, both in
-one e2e Firefox, ABBA order per round, one warm-up round thrown away. `--rate`/`--ttfb` put the
-media (not the player's own files) on one shared slow line. A probe added before the page's
-scripts (`browser.addInitScript`) records the moments (player modules ready, first frame,
-playing, a seek to 80 s, a seek preview at 120 s) and counts timer, interval, animation-frame
-and idle callbacks, DOM changes, frames more than 50 ms apart and dropped video frames while
-playing, paused, after a seek preview, once ended, and in an idle player. The report
-(`logs/bench/ab-<time>.md` and `.json`) gives medians, the spread (MAD) and a verdict only where
-the medians differ by more than twice the larger spread and the measure's floor (a timeupdate's
-250 ms, one frame). `--where` adds, per phase, the places in the player's code that asked for
-the callbacks. `--clean` removes the worktrees (the node_modules link first). It measures; it
-never fails on a number, only when a build cannot play.
-
-**The settings page loads after the first frame** (2026-11-13, measured with it). The player's
-settings page is an iframe in every player, and it loaded with the player: its scripts ran beside
-the player's own as it started. 7 rounds, MP4: the first frame came 137 ms later with it (945 ms
-against 808 ms without, p 0.004, 7 of 7 rounds); seeks, wake-ups and frame drops the same. It
-loads now when the page is idle after the first frame (`OptionsWindow.loadFrameWhenIdle`, from
-the client), at once when the settings window opens, and after 5 s in a player that shows
-nothing, so the GitHub build's update check, which runs in it, still runs and shows its mark on
-the settings button. `optionsWindowFrame.test.mjs`.
-
-**Several tabs** (2026-11-14). `--scenarios tabs` (not in the default set: it takes two minutes
-a run on a slow line) opens three players, paused, in background tabs and one playing in front,
-each video on a loopback host of its own (`BENCH_TABS_HOSTS=same`: all on one), and tells when
-the one in front has its whole video, when all four have, the seconds ahead in front 10 s in, the
-first frame from the page's first request for the video, and the page's start.
-`BENCH_TABS_VIDEO_S` is the videos' length (90). `BENCH_TRACE=1` writes a line of JSON for each
-media request's start, end and cut to `logs/bench/trace-<time>.jsonl`: the address and port the
-server was asked on (a tab's host, a build), playlist or segment, its count there, and the time:
-who had the line when. Nothing the request sends goes into the file or its name (CodeQL found
-both in the first version, which took the file's name from the variable and wrote the request's
-address and headers).
-
-**Buffering** (2026-11-15). `--scenarios stall-mp4,stall-hls,stall-dash` play a long video (the
-long MP4, a looped HLS playlist, a looped DASH manifest - the dash-template fixture Period after
-Period, `looped.mpd`) for `--stall-ms` (60 s), then seek three times far into it: how often and
-how long it waited for media while playing (`waiting` not caused by a seek), the seconds it played,
-the megabytes it fetched, and the median time from a seek to playing past the place. The line can
-be made like real ones: `--jitter P` drops it to `--jitter-factor` (0.25) of its rate every other
-P ms, from each run's start (full first), so every run of both builds meets the same line - on
-one clock for all, main's HLS first frames came at 4.1 s three times in 5 rounds and the other
-build's at 6.7-7.7 s each time, the same requests in the line's slow half or not; `--conn C` caps each answer at C Mbit/s, as servers that throttle a connection do; `--drop D`
-cuts D % of the media answers part-way, at the byte chosen - the same requests for both builds
-(by path, place and where the range ends, not the run), and only a run's first ask, so a retry
-gets through, also one that goes on from where the cut stopped. The megabytes count requests
-finished in the playing time. The long MP4 (17 MB) is often all loaded after a minute on a fast
-line: its seeks then time a seek into what is there (after `--stall-ms 5000`, 4 MB in, mostly not). A trial, main against
-itself, 1 round, 3 Mbit/s with jitter 5000, 150 ms to the first byte, 5 % cut: first frame 9-10 s
-(MP4), 6-7 s (HLS, DASH); seeks 2.4-7.9 s.
-
-## Players in several tabs take turns (2026-11-14)
-
-The owner's question: with FastStream loading videos in several tabs, how does the tab he looks
-at get its video first, and when do the others load - one after the other, or all at once?
-
-**What it was.** A player in a background tab stepped aside only while a watched one was short
-of video (under 10 s ahead: `PlayerPeers.shouldYield`, above). Past that every player downloaded
-its whole video ahead at once, on up to six connections each. Measured with the benchmark below:
-three players paused in background tabs and one playing in front, each video on a host of its
-own, all on one 8 Mbit/s line, 90 s of video at 2.1 Mbit/s each. The one in front had its first
-10 s as fast as alone, and then a quarter of the line: its whole video after 66 s, where 24 s is
-what the line gives one player.
-
-**On one host Firefox does it already.** The same run with all four videos on one host: the
-player in front had its whole video after 29.5 s on main as well. Firefox gives the active tab's
-requests its six connections to a host before the other tabs'; the background players' requests
-waited in Firefox's queue. Tabs on different sites (different hosts) get nothing of that, and
-those are what the turns are for; the benchmark and the e2e spec give each tab a host of its own
-for that reason (`BENCH_TABS_HOSTS=same` puts them on one).
-
-**The rule** (`network/PlayerTurns.mjs`, pure; `PlayerPeers.shouldWait`;
-`DownloadManager.setWaiting`):
-
-- A player the user can see never waits.
-- One in a background tab waits while a player that goes before it still downloads and does not
-  leave room. The order: visible ones, then one that plays unseen (music in a background tab),
-  then the rest - the one seen last first (the tab just left is the likeliest to be come back
-  to), and of those never seen the oldest. The order is total (rank, seen, born, id), so of the
-  players that want the network the first never waits: no deadlock, and a fast-check property
-  says so for any set of players.
-- A player leaves room when its line is fast: it downloads at 4 times the rate its video plays
-  at, or more (`JOIN_FACTOR`); the next one then downloads beside it, until the first is down to
-  2 times (`LEAVE_FACTOR`: the gap keeps them from starting and stopping). A visible player asks
-  twice as much before it shares (`SEEN_FACTOR`). So on a fast line all download at once, on a
-  slow one in turns, with no setting and no site list: each player measures its own speed (the
-  bytes it received over the last 5 s) and its video's rate (measured from what it downloaded,
-  else the level's bitrate) and tells the others.
-- A player whose server limits each connection (the speed test's verdict, `perConnection`)
-  leaves room for players on other hosts: its speed is the server's, not the line's. On the same
-  host they share Firefox's six connections and still take turns. Only the finished test's verdict counts
-  (`DownloadManager.limitedPerConnection`): one gain early in the test set `perConnection`, a flat
-  round after it took it back, and a background tab told in between started segments ahead on a
-  slow line (tab-turns.e2e.mjs on CI, 2026-11-16: 6, 7 and 8 again and a new 9 in 3 ms; Codex
-  found it, 2026-11-17).
-- "Still downloads" (`wants`) ends when the player has its video, its RAM share is full, the
-  user paused its downloads or set the speed limit to 0, it is offline or waits for a click, and
-  when nothing arrived for 15 s though something should have (`STUCK_MS`: a dead server). A live
-  stream never counts: it takes what its server makes. A save is never held back.
-- Waiting is soft: the downloads already running finish, no new ones ahead start, new requests
-  go out `'low'`, and what the player's own playback asks for goes as always. Nothing is
-  cancelled, so a wait that ends a second later cost nothing. Stepping aside for a watched player
-  that is short of video stays the hard rule (it cancels).
-- A hidden page's timers run late, so a player decides when a peer's message arrives
-  (`receive` calls `onChange` when its answer changed) and when one of its downloads finishes
-  (`DownloadManager.onDownloaderFinished` tells the client), not only on its tick.
-
-**Who counts as short of video** (`PlayerPeers.needy`) had four holes, each of which stopped
-every background player for as long as the tab in front stayed as it was: a live stream (never
-10 s ahead of its edge: now only while it buffers or has under 3 s), a looping clip shorter than
-10 s and the last seconds of any video (all there is to have is ahead: `room`), and a video whose
-server stopped answering (`isStuck`). `PlayerTurns.test.mjs` has each.
-
-**Measured** (`node tools/bench-ab.mjs --scenarios tabs --rate 8`, 7 rounds, main against this):
-
-| | main | turns |
-|---|---:|---:|
-| the player in front has its whole video | 66.1 s | 29.6 s |
-| all four players have theirs | 109.1 s | 92.3 s |
-| seconds ahead in front, 10 s in | 18.8 s | 19.1 s |
-| first frame in front, from its first request for the video | 1.17 s | 1.08 s |
-
-Each of the first, second and fourth in 7 rounds of 7 (p < 0.001). All four have their videos
-sooner as well; why was not looked into.
-
-That it is the turns, and nothing else on the branch: main against the branch as it was before
-them, the same benchmark, 3 rounds: 64.0 s and 63.6 s in front, 109.9 s and 110.0 s for all four.
-And on a fast line nothing changes, since everyone downloads at once there (`--rate 40`, 5
-rounds): 6.5 s and 6.5 s in front, 18.3 s and 18.2 s for all four.
-
-**The page's own start is not in these numbers, and cannot be compared in this benchmark.** A
-new tab's "player modules ready" came in two speeds, about 0.25 s and 0.6 s, by the Firefox
-session and the server a build was given, not by the build: main had 0.25 s in every round of the
-7-round run and 0.6 s in every round of the 3-round run after it; the branch had 0.6 s in the
-first and 0.28 s on the fast line, where main had 0.57 s; two copies of main gave 0.36 to 0.69 s.
-Counted from the navigation, the first frame in front therefore read 0.27 s later for the branch
-in the first run of this benchmark, 7 rounds of 7. It is counted from the page's first request
-for its video now (`tabsFirstFrame`), the page's start is reported beside it
-(`tabsModules`), and that measure's floor is 0.5 s, above the distance of the two speeds. What
-makes the two speeds was not found (the page's modules come from the benchmark's own server, not
-over the slow line).
-
-Tests: `PlayerTurns.test.mjs` (the rule, its properties, the peers' side),
-`DownloadManager.test.mjs` (a wait cancels nothing; `received`), and in a real Firefox
-`tests/e2e/specs/tab-turns.e2e.mjs`: two tabs, two hosts, one 6 Mbit/s line; the background tab
-asks for nothing while the one in front still has segments to ask for, and gets its video after.
-
-**Sites that buffer at different speeds** (the owner's other question: one buffering system, or
-one per site?). There is one already, and it adapts by measuring, not by site: every player
-starts with three connections, tries six, and keeps what was faster (`DownloadManager`'s speed
-test); a server that limits each connection is recognised and then gets all six; a server that
-answers 429 or 503 is slowed down; under 10 s ahead the next seconds come first on two
-connections (`PlayheadFirst`). What differs between sites is the server: its speed per
-connection, how many it allows, how large its segments are, and whether the file can be asked
-for in ranges at all. A list of sites with settings of their own would have to be kept up by
-hand and is what the "no site-specific code" rule keeps out. What a measurement could still add
-is remembering a host's verdict for the next video from it (it is measured again for each video
-now, which costs the first seconds on three connections): a behaviour change, asked of the owner.
-
-## A page loaded again keeps FastStream's player (2026-11-14)
-
-The owner's report: FastStream is on, the page is loaded again, and sometimes the site's own
-player stays - and playing it does not bring FastStream back.
-
-**Cause.** The background opens the player about half a second after the page's first stream
-request (`replaceDelay`). content.js then looks for the page's largest visible video and answers
-`'no_video'` when there is none: a page whose own player is still starting has no video on the
-screen yet, and neither has one whose video is below what the window shows. Which of the two a
-reload makes more likely than a first load was not measured on a real site; both are covered.
-Nothing tried again. Every later request was for a stream the background knew
-already (`onSourceRecieved` returns for a known URL), and a play the user starts was heard only
-in MPV mode.
-
-**Now** (`background.mjs`: `noteOpenMissed`, `reopenMissed`, `reopenOnUserPlay`):
-
-- An open that ended with no player (`'no_video'`, `'error'`) is tried again by itself 1, 2 and
-  4 s later (`ReopenMissedTimes`).
-- After that, a request of the page for a stream it already has tries again, at most every 2,
-  4, 8 ... 60 s since the last try (a player that fetches a segment every few seconds would
-  otherwise ask the page every time).
-- A play the user starts in the page (content.js reports every trusted one: `MPV_USER_PLAY`)
-  tries again at once, from the frame that played or the nearest frame above it that missed.
-- A player the page itself took out again (`PLAYER_OPEN_GONE`, or its frame removed while the
-  page stays) is not put back by the page's own requests - it would be taken out again - but a
-  play the user starts does (`openGone`).
-- Two more ways a page's player stayed after the event page had been unloaded and started
-  again: a video file told by the page (`LOADED_MEDIA`) was dropped when the frame had not named
-  itself to the new background yet; and a player accepted after its frame was forgotten (the
-  page was asked whose it is meanwhile) left its page marked as opening for good.
-
-Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
-`tests/e2e/ext-specs/reload-takes-over.e2e.mjs`: a page whose player has its video on the page
-2.5 s late after a reload, and a video three screens down that the user scrolls to and plays.
-
-## What a third review found (2026-11-14)
-
-Six agents read the branch against main (buffering, the background and content scripts, the
-player core, the interface, the tools and workflows, and the reload report above). Each finding
-was checked against the code; what was fixed has a test that failed before.
-
-Regressions of this branch against main, fixed:
-
-- **A player opened on a page that had played for a while read up to 19 stream pieces first.**
-  The branch stopped reading each `.mp4` piece as it is detected (below, "A stream's pieces are
-  not read ... one by one"), and `StreamLengths.settle`, which a player's request for the page's
-  streams waits on, then read every one of them, four at a time. It reads only the newest unread
-  file of a shape that was read as a piece (`unreadOf`): the one that would play, were it a film
-  after all. `StreamLengths.test.mjs`.
-- **A second video named like the first got the first one's captions.** The captions on the
-  page are asked for once per stream, and "the same stream" was any file of the same shape
-  (`lesson-1.mp4`, `lesson-2.mp4`). Now not when one of that shape was read as a film; where none
-  was read (a tab that is off), a file counts as the next piece only within 15 s of the last
-  (`isRepeatPiece`). `backgroundDetection.test.mjs`.
-- **A carried fullscreen stayed on a page that never names itself.** The next episode's page
-  named itself, no player took the fullscreen, and the user went on to a PDF or an error page
-  (no content script): the window stayed fullscreen. The instructions now end when their page
-  leaves the tab (`FRAME_REMOVED`) or at the first address without it, whichever comes first
-  (`endContinuation`). `backgroundFullscreen.test.mjs`.
-- **MP4: a start set before the element had data reset the player twice.** The mark that tells
-  a seek made through the setter from one the element makes itself (`ownSeek`) was no longer set
-  at `readyState` 0, so the element's seek to that start, once it had its metadata, was taken for
-  a foreign one and aborted the range just asked for (a seek preview pointed at while it loads, a
-  sound set to start late). Set again for a start past 0; a start at 0 still sets none (no seek
-  follows, and the stale mark was the bug fixed on 2026-11-13); dropped at `loadeddata` if no
-  seek came. `mp4OwnSeek.test.mjs`.
-
-On main as well, fixed:
-
-- **A fragmented MP4 in a download window stopped downloading ahead after 19 s.** A player that
-  does not keep the whole video (a private window, "download all" off, a video too large) keeps a
-  window around the playhead, by the fragments' times. A fragmented MP4's ranges have times only
-  once parsed; those downloaded ahead have none (-1), and counted as long behind the playhead
-  once that passed 19 s: no download ahead started any more, and each range downloaded ahead was
-  let go of at the next tick. The file came on the player's own connection only. Such a range is
-  now placed between its parsed neighbours, or after them at the pace they had
-  (`network/UntimedSpans.mjs`); one nothing places yet is downloaded and kept. The RAM budget's
-  branch for them asked for "not finite" and never ran (-1 is finite): `isTimed` now.
-  `UntimedSpans.test.mjs`, `FastStreamClient.test.mjs`.
-- **An HLS segment whose connection went dead held playback for two minutes.** hls.js gives its
-  loader the longest a whole load may take as `timeout` (120 s for a segment), and `FetchLoader`
-  takes `timeout` for how long nothing may come. `HLSLoader` caps it at the 30 s every other
-  download has (`STALL_TIMEOUT_MS`). The retries are as they were, and not as this file said
-  above until today: a segment hls.js asks for itself goes with hls.js's `maxRetry: 0`, so
-  `FetchLoader` does not retry it; `HLSLoader` reports each failure to hls.js, which asks again
-  (twice as an abort, then as an error, its own policy from there). The six retries are those
-  of a download ahead and of DASH and MP4. `HLSLoader.test.mjs`.
-- **A player whose disk folder another player deleted stored nothing on disk any more.** A live
-  session with no heartbeat for a minute (the computer slept) is a dead one to the next player
-  that starts, which deletes its OPFS directory (`prune`). Every write of the session failed
-  from then on. Its directory is made again at the next write or heartbeat (`sessionFile`); what
-  was in it is downloaded again as it is needed (lost data was handled already).
-  `opfsStorage.test.mjs`.
-- **Escape did nothing in a dropdown's name field** (the sound profiles'): it goes on to the
-  player now, as from its other fields. `playerFieldKeys.test.mjs`.
-- **A link opened by the web player had the player as its opener**: `noopener`, as the update
-  notice's link had before it came through `EnvUtils.openExternalURL`. `EnvUtils.test.mjs`.
-- Tools: `verify-linux.mjs` ended with 0 when its script could not be started or was ended by
-  a signal; the dev launchers the same; `cut-release.mjs` refuses another branch than main
-  before it commits (release.yml refused the tag only once it was on GitHub); the launchers say
-  so on a newer Node than `.nvmrc`, where web-ext could not connect to Firefox (Node 27).
-  `localeKeys.test.mjs` now reads `data-i18n-placeholder` too.
-
-Two fuzz tests came with it (fast-check). `backgroundMessages.property.test.mjs`: any sequence
-of the messages a content script may send, with any contents, from any frame or tab, throws
-nothing in the background, and a page that plays a stream afterwards still gets its player; no
-message that only FastStream's own pages may send does anything from a content script; and
-`backgroundMessages.test.mjs` now says a type is open to content scripts only when one sends it.
-`untrustedInput.property.test.mjs`: the small parsers of a file's first bytes, an answer's
-headers, an address, the user's site entries and a page's title take any input, answer in the
-shape their callers read, and take no time on 100,000 characters made to backtrack. Neither
-found a bug; a throw planted in `FRAME_ADDED` was found at the first try.
-
-Looked at and left:
-
-- Starting the downloads ahead at once after a seek, not at the next tick or finished
-  download (up to 1 s later): started before the player's own request for the segment at the
-  new place, they would make that segment a download ahead (`'auto'`, not `'high'`).
-- The key a kept buffer waits under (`BufferStash`) has no tab in it: of two tabs with the same
-  video on the same page, loaded again within the same 20 s, one takes the other's buffer and
-  the other downloads again. With the tab in the key, a tab closed and opened again (a new tab
-  to Firefox) would never get its buffer back, which is the commoner case.
-- The disk space a player plans with is read once, when its video starts, and each player
-  plans with 60 % of what was free then: several large videos on a nearly full disk could plan
-  for more than there is. Not reproduced; a write that fails is handled (the fragment is
-  downloaded again when needed).
-- After the event page was started again, the first player of a tab is counted only at the
-  tab's next message, not at its `PING` (a reviewer's finding, on main as well; its effect was
-  not looked into, and nothing was changed).
-- The progress bar's width is written at every video frame of a video under 5 minutes (so a
-  short clip's bar moves evenly), four times a second for a longer one: by design.
-- Loading `sortable.mjs`, the subtitle search and `gif.mjs` only when first used (176 KB of
-  1.4 MB the player loads at its start): not measured and not built. Each is a way for a menu
-  to open late, and what it could save is the parsing of an eighth of the player's code.
-
-## The polish round (2026-11-15)
-
-What the review of 2026-11-14 left open, done or measured on main, before the review round of
-2026-11-17.
-
-- **An MP4 start that gets nowhere no longer runs its loop every millisecond.** While the
-  player waits for its first frame (`needsInit`) the main loop ran at the urgent pace (1 ms,
-  4 ms in Firefox) for as long as it took, and for good when the element could not decode the
-  data. It runs so only for 2 s after the start last got somewhere - an append (`updateend`), a
-  seek, a play - and then at the steady 50 ms; `loadeddata` and each append wake it at once.
-  `LoopPace.mjs` holds the choice (`LoopPace.test.mjs`). A/B against main
-  (`tools/bench-ab.mjs --scenarios mp4`, 7 rounds), with the files local and on a 12 Mbit/s
-  line with 150 ms to the first byte: every measure "same" (first frame 562/561 ms local,
-  887/879 ms slow; seek to 80 s and playing past it 349/350 and 1839/1851 ms; wake-ups while
-  playing, paused and ended 25.0/9.5/9.4 a second on both). The change is for a start that
-  never gets its first frame, which the benchmark does not play.
-- **A fragmented MP4's keyframe index takes in only the new samples.** `refreshSampleIndex`
-  filtered and sorted every sample of every track again after each range: 7.7 ms a range on a
-  2-hour file (Node, synthetic samples: 216,000 video, 338,000 audio, every audio sample a
-  keyframe), on the player's thread. `addKeyframes` (`SampleIndex.mjs`) sorts in only what
-  mp4box added since: appended when it all comes later (a file played on: about nothing),
-  merged in otherwise (an earlier part read after a seek back: 0.75 ms). mp4box builds a
-  track's list once, at the moov, and only appends to it, so the result is the full sort's,
-  ties included (`SampleIndex.test.mjs`, a property test). `setFragmentTimes`, run with it,
-  stays linear in the samples (a binary search per range, then the range's samples).
-- **One fragment status for the three requesters.** DASH's, HLS's and MP4's fragment requesters
-  kept a fragment's status in three copies of the same 40 lines; `players/FragmentStatus.mjs`
-  holds it (`FragmentStatus.test.mjs`). DASH's `preProcessFragment`/`postProcessFragment`
-  hooks, which no player had, are gone from `DashFragmentRequester` and `DashLoader`. Their
-  postProcessor stays as one that changes nothing: a download with none keeps its pieces for a
-  watcher that might join on the way (`DownloadEntry.onChunk`), and nothing reads a DASH
-  download's, so it held a second copy of each while it loaded (`DashLoader.test.mjs`).
-- **A dropped `.fsa` archive is read from the File.** `parseFSAFile` fetched the file's own
-  object URL in Range requests (`RequestUtils.httpGetLarge`, its only use, now gone) and read
-  the length back from `Content-Range`; it reads `file.slice()` chunks now, the next one
-  ahead as before.
-- **PC-4, measured and not built.** A body read in 64 KiB pieces and joined at the end holds
-  its bytes twice at the peak; one buffer the size of the `Content-Length`, written in place,
-  was to hold them once. Measured in Node with a 64 MB body: the peak was 128 MB as it is and
-  123.8 MB written in place, the time the same. The pieces are freed only at the next garbage
-  collection, which comes after the copy either way, so the body is in memory twice all the
-  same.
-- **CS-7, measured and left.** The content script walks the page and its shadow roots on a
-  click or key (at most every 2 s, in the frame that got it). In the page's own realm the walk
-  takes under 1 ms for 10,000 elements, 2 ms for 50,000 and 15 ms for 200,000; from the
-  content script (through Xray wrappers) 3, 17 and 72 ms. Asking only for open-or-closed shadow
-  roots, or a live `getElementsByTagName` list, changes nothing (4/18/80 and 3/17/69 ms): the
-  cost is the iteration. A walk spread over idle time could miss a play that comes right
-  after the click, which is what the walk is for.
-- **Zero motion, in the stylesheet itself.** `fluidplayer.css` declared 20 transitions and 2
-  animations (and the "shaking" keyframes) that the global override cancelled; they are gone,
-  with the rules and selectors nothing in the player uses (`.no_volume_bar`, the playback-rate
-  menu's, the pseudo poster, `.freeze`'s buffered bar), and `options.css`'s `#submitter`.
-  `playerA11y.test.mjs` now fails on any transition, animation or `@keyframes` that is not
-  `none`. The locale key `options_general_vischangeaction_pip` (a choice removed long ago) is
-  gone from the 16 locales.
-- **SEC-3**: `patched-libraries.yml` in two jobs (`docs/notes/workflows.md`, "Patched libraries:
-  two jobs").
-- **R-1** was done already: `update-prs.yml`'s concurrency is per job.
-- **A second review of the round's diff** (the Claude API, with the changed files): seven
-  claims, each checked against the code and each real - the rename, cache and pull-request read
-  of SEC-3 above, the DASH pieces above, two in `tools/same-code.mjs` (a template's raw text, a
-  name not in ASCII) and a motion check that saw shorthands only. All fixed, with a test each
-  that fails without its fix. Writing `same-code`'s own test found one more: a removed
-  statement was reported at the enclosing node's line.
-
-The second pass: the three largest files, each reviewed whole through the Claude API (with
-line numbers), every claim checked against the code. Fixed, each with a test that fails
-without its fix (but one):
-
-- `FastStreamClient`: `wantsNetwork` read a fragment without times as -1, behind the
-  playhead, where `predownloadFragments` places it (`windowSpan`): a background player told
-  its peers it wanted nothing it would download. "Buffer ahead" is taken anew each tick in a
-  private window, for a live stream and without a bitrate: the fit in the RAM share only
-  lowered it. The seek preview's context is stored with the preview it belongs to: a build for
-  a replaced video took it over, and its error destroyed the shown preview. A player that
-  could not take its source lets go of its listeners and its once-a-second wait for a picture.
-- `content.js`: an exit asked of a windowed fullscreen or miniplayer never entered entered it;
-  the pop-up guard missed a player in a shadow root, the pending-player watch missed one taken
-  out of a shadow root, and the link-click check missed a link inside one (composedPath);
-  "Display", "Autoplay", "Replay", "Playlist", "Playback speed" and any "player-..." class were
-  clicked as play buttons (`saysPlay` takes those words out, in any case, and looks for "play"
-  in what is left: "playbtn", "bigPlay" stay); a redirect to the player that did not happen
-  stopped every later leave report (the redirect now owns only the first `beforeunload` after
-  it, not a time: an old page that unloads slowly must not report itself gone);
-  `pauseAllWithin` and `loadedMedia` skipped closed shadow roots. The test page
-  (`contentDom.mjs`) now runs an observer only for its own tree, as Firefox does.
-- `background.mjs`: "Clear Sources" in a player tab was undone by the next stream another tab
-  found (the tab keeps the entries other tabs held at the clear, not a time: a page's report
-  keeps its request's time); "Open link in player" went to MPV on an allowlisted site, also
-  through a first `about:blank`; an Off whose question to the tab outlasted an On clicked
-  meanwhile reloaded that On's player away (no test: the question waits only after a restart);
-  the next-episode request of a player in a top frame was asked of the player itself.
-
-The fixes themselves went through a second API review. Kept from it: the play-button words, the
-clear by entries, the redirect's `beforeunload`, the `about:blank` step, and the preview's
-context let go of when the preview is switched off. Dropped: a next-season link put into the
-page so it could navigate. A link out of the page navigates by the HTML spec (only other
-elements must be in the document), and in the page it passed through the page's click handlers.
-
-Checked and not real: page qualities and fresh links carrying a source's headers elsewhere
-(the background keeps both to the source's host); a `resetPlayer` that rejects (`FSBlob.clear`
-never does); the container download's 30 s timeout during a save (the player answers at once,
-`forceDirect`); unguarded `localStorage` (only the unhosted web build could refuse it).
-
-Looked at and left:
-
-- Two parent walks in `content.js` differ (`getParentElement` the light tree, `flatTreeParents`
-  the flat one): which element the miniplayer takes would change with them, a behaviour change.
-- A tab closed in the milliseconds of a cold start's storage read can have its state saved
-  back once: a stale entry, nothing more.
-
-- `SaveFile.add` copies a view of a fragment (`slice()`) before handing it to the OPFS worker:
-  the worker takes the buffer (transferred), and the fragment's buffer holds more than the
-  mdat. Writing a view in the worker would spare one copy of each fragment, a memcpy of a few
-  MB, for a change to the worker's protocol.
-- The progress bar reads every fragment of the level per fragment event (about two a
-  fragment) and writes the DOM only where something changed.
-- Skipping a `saveTabState` write whose state is the one written last: most writes come with
-  an address change, and the address is part of the state.
-- The settings sliders save once a frame while dragged (OP-6) - not at every input event, as
-  the review of 2026-11-14 had it.
-- `content.js` keeps a copy of `SubtitleUtils.decodeSubtitleBytes` and `MpvTarget.mjs` builds
-  what the mpv helper built until host 14, byte for byte: a classic script cannot import a
-  module, and the helper is a program of its own. Each copy has a test that keeps it the same
-  (`decodeSubtitleBytes.test.mjs`, `MpvTarget.test.mjs`).
-- The site scripts in `chrome/custom/` (bilibili, Facebook, Instagram) are still in the
-  manifest. Retiring them once the general detection is shown to play those sites (the owner's
-  rule of 2026-10-28) needs those sites tested, signed in: for the owner.
-
-## The background's questions to a frame have a time limit (2026-11-16)
-
-A content script shares its page's event loop, so a page that never lets go of it never answers
-`tabs.sendMessage`. Every question the background asks a frame goes through `askFrame`, which
-answers `undefined` (as a frame without a content script does) after `FrameAnswerWaitMs`
-(3 s). glm's review of 2026-11-16 found three that still waited with no limit, each holding a
-player for good:
-
-- `isPlayerParentProven`'s IS_PLAYER_OPENER: the player's PLAYER_LOADED was never answered, and
-  the player never started. No answer is now no proof: no page's player, as when the page says no.
-- `linkToParentFrame` (FRAME_LINK_RECEIVER, then FRAME_LINK_SENDER), awaited by `getPageFrame`
-  in `acceptPlayer`: the same, for a page that is the player's parent. It now resolves after
-  `FrameAnswerWaitMs`, and the introduction still goes on when the parent answers later.
-- `cascadedFullscreen`: the player's fullscreen, windowed fullscreen and miniplayer requests.
-  The first question waits `3 * FrameAnswerWaitMs`, because content.js answers a fullscreen
-  request only once Firefox has entered it (`requestFullscreen`'s promise), after the
-  transition. The windowed-fullscreen steps of the frames in between wait the usual time.
-
-`backgroundJammedFrame.test.mjs` jams each one (an answer that never settles). All three
-tests fail without the limits.
-
-The same review's look at `content.js`:
-
-- **Leaving windowed fullscreen keeps what the page wrote meanwhile.** Each element that holds
-  the player gets its whole style attribute back (`undoFillScreenIframe`). A page whose
-  framework drew such an element again while the player filled the screen lost that change.
-  Now the old attribute goes back whole only when the attribute is still exactly what the fill
-  set (`filled`). Otherwise it goes back property by property: what the fill set returns to
-  what was there before, and what the page wrote stays. Test: `contentScript.test.mjs`, "keeps
-  what the page wrote to it meanwhile".
-- Not changed: the frame-link key posted with `'*'` reaches only the parent window, which owns
-  the iframe anyway, so it can take nothing from it. A Shift-only shortcut cannot exist (Firefox
-  asks for Ctrl or Alt), so `couldBeExtensionShortcut` has nothing to add.
-
-## The whole-repository review, second part (2026-11-16)
-
-The rest of the repository read through by me and, file group by file group, by glm (UI,
-menus, subtitles, utils, options, players, release tools, workflows, storage, the saves'
-remuxers, vtt.js). Kept only what the code proved; each fix has a test that fails without it.
-
-- **A source's headers stay on its own site.** The headers captured with a source (its Cookie
-  among them: Firefox's webRequest gives it) went with every request the loaders made for it,
-  also to a segment, key or playlist on another site (a CDN, a key server). Now
-  `sourceHeadersFor(source, url)` (`VideoSource.mjs`) gives them only for a URL on the
-  source's own site (`siteOfHost`: the last two labels, three under a public second level such
-  as `co.uk`, a trailing dot dropped first), and the headers without credentials otherwise. Used by `HLSLoader`,
-  `HLSFragmentRequester` (segments and keys), `DashLoader` and `DashFragmentRequester`.
-  Test: `sourceHeaders.test.mjs`.
-- **The settings file:** the export left out nothing, the mpv path too (it names the Windows
-  account); an imported `keybindsVersion` above this build's was kept, and no later layout change
-  ever applied; an imported number only had to be a number (-5 GB of RAM, an Infinity of
-  buffer, a zoom of 1e9). `options/SettingsFile.mjs` does all three. Test: `SettingsFile.test.mjs`.
-- **Long or hostile input:** `page-qualities.js` built a URL for every `<source>` of a page
-  (now it stops past its maximum); `xml2vtt` sliced the rest of the cue list for each cue with no
-  end (150,000 cues: 7.7 s, now 0.1 s). The error report put the whole stack into the issue's
-  address (52,777 characters, which GitHub refuses) with the extension's install id; it is
-  clipped, and the id replaced.
-- **UI:** a click on a source that is still loading started it a second time
-  (`SourcesBrowser`); a volume changed before the stored one was read was overwritten by it
-  (`VolumeControls`); GIF recording in a background tab never ended (no rAF there) and a
-  tainted canvas threw out of the loop (`LoopMenu`); the subtitle syncer drew bars before the
-  video had a length (`SubtitleSyncer`).
-- **The saves:** data no demuxer takes failed with "Cannot read properties of undefined
-  (reading 'demux')" (the transmuxer dropped its own error).
-- Not changed, and why: an fMP4 HLS level never reaches `samplesFromMoof` (HLSPlayer routes it
-  to DASH2MP4), so a packager's trun flags cannot fail there; dash.js's `processCues` (vtt.js's
-  `determineBidi` recursion) runs only with a rendering div, and none is attached. (vtt.js's
-  parse per text and its region scan: fixed the next day, below.)
-- **Dead code and repeats** (a scan of every first-party export and file, and of runs of 8+
-  repeated code lines): gone are `npmLockVersions` (security-overrides; no caller, the repo's
-  lockfile is pnpm's), `compareFiles` (ast-compare; every user imports `compare`) and the host's
-  `allowedIpcCommand` (only a test called it; host 23). One function each now does what two
-  copies did: the language filter of `LevelManager` (`bestLanguageMatches`) and the host's
-  answer for an open mpv (`answerOfOpenMpv`, launchMpv and playMpv). Kept as copies on purpose:
-  the BOM/charset sniff in `content.js` and `SubtitleUtils` (a classic script imports nothing),
-  `withFragmentTag` in `MpvTarget` and the host (the host is a program of its own). No file is
-  unreferenced. (The two analyzers' start: shared the next day, below.)
-
-## The background analyses and hostile subtitle files (2026-11-17)
-
-What the review of 2026-11-16 left open. Each fix has a test that fails without it.
-
-- **The analyses share one module**, `modules/analyzer/BackgroundAnalysis.mjs`: the status
-  values, the start of the background player (`startBackgroundPlayer`: only the latest start
-  keeps its player, an end before the load returned is no "running" player), the end rule and
-  the error handling. Before, both analyzers had their own copy of the start, and the audio
-  analyzer's lacked the end-while-loading guard the frame extractor got on 2026-10-13.
-- **An analysis player's error ends its analysis as failed** (`failOnError`). The preview player
-  had an ERROR handler; the analysis players had none, and an error (a link that expired, a
-  manifest that failed) left the analysis "running" with a dead player. A start needs it idle,
-  so that video's volume strip or seek previews never came. Tests: `backgroundAnalyzers.test.mjs`,
-  "ends the analysis as failed on an error before its metadata ..." and "keeps no player that
-  failed while it loaded", for both analyzers. An analysis player is destroyed once
-  (`destroyPlayer`, which `failOnError`'s DESTROYED listener feeds): an error, a stop and a stale
-  start can each reach the same player, and HLSPlayer's second `destroy()` hands `destroyVideo` a
-  null video. An error after the player was destroyed ends nothing more (Claude's review of #715).
-- **A short video is analysed to its end** (`coversVideo`): an analysis is done at all but the
-  last 5 s, or the last tenth for a video under 50 s. With the 5 s alone, a video of 5 s or less
-  was done at its first frame, and its strip stayed empty. A long video ends as before.
-- **vtt.js decodes a cue's texts in one parse** (`unescapeAll`): a parse per text with an `&` let
-  a cue of many short texts (`&a<i></i>` x 5000) parse a document for every one. Checked in
-  Firefox against the old way, text by text, by `modules.e2e.mjs`. And a cue's region is found
-  in a Map, not by a scan of every region: 40,000 regions and cues took 4.9 s, now 0.4 s
-  (`vtt.test.mjs`, which compares the same file without region names on the same machine:
-  a fixed 1.5 s limit failed on a slow CI runner, 2026-11-17). The unused `TEXTAREA_ELEMENT` is gone. All in `tools/verify-vtt.mjs`'s list
-  and `docs/vendored-libraries.md`'s table, which had missed the DOMParser change.
-- **Facebook: one manifest per scan stays.** glm read it as losing a second new video found in
-  the same scan. On the page as recorded (live, 2026-11-15) the reels Facebook preloads sit under
-  `viewer.lasso_blue_feed`, outside any `video` key, so they are never candidates; the one on
-  screen is the one reported, which `customSiteScripts.test.mjs` pins. Reporting more would put
-  preloaded videos into the sources. No page with two `video`-path manifests in one scan is
-  known; if one turns up, the test gets that page's shape first.
-- **The maintenance scan of the same day** found little else to remove. All 445 locale strings
-  are used (the ones built at run time, `prefix + '_' + value`, checked against the enums they are
-  built from; `options_general_vischangeaction_miniplayer` is live: only the web build drops that
-  value). Every skipped unit test is a platform one that CI runs on the other OS. No test helper
-  is unused. Every path the docs name exists or is written as history. One dead CSS rule went:
-  fluidplayer's `.pseudo_fullscreen`, which nothing ever set (`vtt.test.mjs`'s #292 test tries
-  every class the player has instead). Left as they are: 58 exports used only in their own file
-  (removing `export` gains nothing).
-- **The privacy policy against the code (same day).** Checking `docs/privacy-policy.md` line by
-  line found one request it said never happens: dash.js's `initialize` adds its own time server,
-  `https://time.akamai.com/?iso&ms`, after the `UTCTiming` sources of a live manifest, and asks it
-  with its own `XMLHttpRequest` (not through DashLoader) when the manifest names none or none of
-  them answers; the
-  extension's CSP has no `connect-src`, so the request went out. `DashPlayer.setSource` now calls
-  `clearDefaultUTCTimingSources()` after `initialize` (nothing in dash.js adds it again: only the
-  first `initialize` does, and `reset` empties the list). Such a stream's clock then comes from the
-  `Date` header dash.js recorded from the manifest's own response
-  (`useManifestDateHeaderTimeSource`, no extra request), or the computer's. A manifest's own
-  sources are still asked first. `dashTimeSource.test.mjs` runs the installed dash.js's
-  MediaPlayer and fails without the call. The policy also lacked the optional `proxy` permission
-  (VpnProxyMirror), the options page's problem list (host and path in `storage.local`), the two
-  report buttons (a prefilled GitHub issue the user submits), and the same-site rule for a page
-  request's cookies (`sourceHeadersFor`); all are in it now.
-
-## The final review of the whole repository (2026-11-17)
-
-Codex read the MP4 player and the tab turns, Claude's API reviewer the diff. Each fix has a test
-that fails without it.
-
-- **A range's whole answer gets the same start check as its pieces.** `feedPiece` refused a 206
-  whose `Content-Range` starts elsewhere than the range asked for, but the finished range's
-  handler then appended the whole answer at the asked place (its fed bytes were 0). It now plays
-  the file directly (`RangeAnswers.startsElsewhere`; `mp4FileLength.test.mjs`).
-- **A file that ends without a moov is an error**, not a wait for good: mp4box reached the end
-  without metadata, the last range was counted as read, and `runLoad` found nothing more to do
-  (an interrupted recording: `ftyp` and `mdat` only).
-- **A fragmented file without `mehd` ends where its last sample ends** (`sampledDuration`): the
-  summed sample lengths left out the first moof's `tfdt`, so a file cut from a longer recording
-  (10 s to 12 s) said 2 s. The edit list's start is taken off, as Firefox's demuxer does
-  (`Edts::mMediaStart` in `MoofParser.cpp`); its empty-edit delay is not added.
-- **A regular MP4 that keeps its audio apart from its video plays directly** (`apartBy`, more than
-  5 s apart at the start). The ranges take their times from the video and are read no further
-  than `maxBufferLength` past the playhead, so the audio stored after all the video was never
-  read, and nothing played. Reading each track's ranges by its own times would let FastStream
-  load such a file in ranges too; no such file has been reported, so it plays directly. Only the
-  audio track chosen at the start is checked: a file whose other language track alone is stored
-  apart still stalls after a switch to it.
-- **Only a finished speed test tells the other players a server limits each connection**
-  (`DownloadManager.perConnectionFound`): a test cut short by failures or a removed downloader
-  kept the guess of its last round (follow-up of the tab-turns fix above).
-- **Two `DownloadManager.reset()` calls that overlap add the downloaders of the newest only**:
-  both waited for the storage to clear, then both added theirs.
-- **content-cleanup's bfcache tests try a round up to three times** (`untilCached`). Firefox keeps
-  a replaced load's request in the docshell's load group ("Save of .../cleanup blocked because
-  document has request .../clip.mp4", CI run 44121075279), so now and then the page is not cached
-  through no fault of the extension's. A repeated round goes into `logs/retried.jsonl` as suite
-  `classic-<build>-bfcache`, so the weekly flaky-specs issue counts it.
-
-## The background audit (2026-11-17)
-
-- **Length reads send login headers only to the master's own site** (`sourceHeadersFor`, as the
-  player does): a variant on another host got the master's Cookie and Authorization.
-- **A refused header rule no longer fails a length read.** Firefox refuses a `set` with no value
-  (`header-rules.e2e.mjs`); the read then went unread, and the stream was never marked
-  copy-protected or page-only. It reads without the headers now, as `MpvSubtitles` does.
-- **A header rule's `#fragment` is harmless.** Firefox 160 matches `urlFilter` against the URL
-  with its fragment (`header-rules.e2e.mjs`, "a URL with a #fragment"), though the request
-  never sends it.
-- **Firefox VPN: a host whose proxy changes kind is listened for again.** The listener only
-  covers hosts behind a proxy FastStream can copy (http, https); a host that went from MASQUE to
-  https stayed out of it. Test: `VpnProxyMirror.test.mjs`.
-- **TabTracker: a frame already forgotten is not forgotten again.** Firefox keeps a frame's id
-  across navigations, so a late FRAME_REMOVED removed the frame's next document
-  (`isTracked`). The saved states read at a wake no longer drop a player page frame noted
-  meanwhile. Tests: `TabTracker.test.mjs`.
-- Rejected: `DETECTED_SOURCE` without an address check (pages cannot send it; site scripts
-  send only `data:` URLs); length reads shared across containers (the same URL, and the data
-  stays in FastStream); an unbounded read queue (each URL is read once, pieces are skipped,
-  every fetch ends within 8 s); `tabs.onUpdated` re-creating a closed tab (only the first
-  `ensureOptions` after a wake, and the next wake prunes it); the container download's 30 s
-  timer (the player answers right after its anchor click).
-
-## Background: reasons moved out of the code comments (2026-11-18)
+## Firefox VPN
+
+Reported on a VOE page: "Failed to load video!" in the player and "could not open the stream"
+in mpv, while the site's own player played. The cause was Firefox VPN (Firefox's built-in
+"IP protection", 149+), not FastStream's downloads: with the VPN off, the same build played.
+
+- **What Firefox does.** Its channel filter proxies a request only when the loading
+  principal is http(s) (or a null principal): `IPPExceptionsManager.getPrincipalRule`
+  returns EXCLUDED for every other scheme, moz-extension:// among them (Firefox 157,
+  `toolkit/components/ipprotection`). So the page reaches the CDN through the VPN, and
+  FastStream's player and background reach it from the user's own address.
+- **Why the site refuses.** VOE ties the stream URL to the address that asked for the page:
+  `…&i=63.245&asn=54113` with the VPN (Fastly's network), `i=95.91&asn=3209` without. The
+  mpv host's debug log showed the VPN-bound URL handed to mpv, which asks from the user's
+  address too.
+- **The fix** (`chrome/background/VpnProxyMirror.mjs`): FastStream's own requests to a host go
+  the way the page's latest request to it went. Measured in Firefox 157: webRequest's
+  `details.proxyInfo` reports type, host, port, `proxyAuthorizationHeader` and
+  `connectionIsolationKey` (not `masqueTemplate`), and `proxy.onRequest` applies to an
+  extension's own requests. The VPN's servers are CONNECT proxies over TLS (Remote Settings'
+  `vpn-serverlist` names no other protocol), so the copy is exact; a MASQUE proxy would not be
+  copied. Firefox gives every proxied channel one `proxyInfo` (one token, one isolation key),
+  so the newest seen on any page request is the one to use.
+- **The tab's proxy is guessed only for Firefox VPN's** (a `proxyAuthorizationHeader` on
+  every request; 2026-10-21). A host the page was not seen asking goes the way the tab's
+  page went (`noteOwnRequest`); a proxy of the network settings or a PAC file applies to an
+  extension's own requests by itself, chosen per host, and with a PAC file that sends the
+  page through a proxy and an intranet CDN directly, FastStream's request to the CDN was
+  forced through the page's proxy, which could not reach it. A host the page itself reached
+  through a proxy is still copied, token or not: for that host a PAC file answers alike, and
+  `firefox-vpn.e2e.mjs`'s VPN stand-in is a plain http proxy (Firefox sends the token only to
+  an https one). The first version of this fix dropped every proxy without a token, and that
+  spec failed. `tests/unit/VpnProxyMirror.test.mjs` fails without it.
+- **Only where needed.** Hosts are added when FastStream fetches them (a detected source, its
+  own request in a tab whose page went through the VPN), at most 200; the listener asks for
+  those hosts only. A host goes off the list once its tab's page, loaded again, reaches it
+  directly (the VPN off, or off for the site); a content script's fetch, which always goes
+  direct, does not count, nor does another tab.
+- **The permission.** `proxy` is optional. A player in a page has no `chrome.permissions`
+  (undefined there, measured), so its "Play through Firefox VPN" button opens
+  `perms.html#proxy`; once granted, the page closes itself and the background sends
+  `VPN_ALLOWED` to the tabs, and the player loads the source again.
+- **Limits.** The mirror lives in the background's memory. An open player keeps the event
+  page running (measured 2026-09-28), but a background that is terminated or crashes while a
+  video plays starts with nothing, and the player's requests go direct until the page asks
+  again. A plain http proxy gets no `Proxy-Authorization` from Firefox (only https proxies
+  do, measured), which is why the e2e stand-in has no token.
+- **mpv** cannot use Firefox VPN at all: it runs outside Firefox (confirmed by the user on
+  1.3.82.67). So a stream whose page request went through the VPN - a proxy with a bearer
+  token, as IPProtection's `pass.asBearerToken()` makes it - is not handed off
+  (`openInMpv` in background.mjs, every hand-off path); the toolbar's "!" and the player's
+  status line say to turn the VPN off for the site. Which hosts count follows the tab's
+  private-window flag (the VPN can be on for private windows only). A proxy without a token
+  (one set in Firefox's network settings) does not block mpv.
+- **Tests.** `tests/unit/VpnProxyMirror.test.mjs`; `tests/e2e/ext-specs/firefox-vpn.e2e.mjs`
+  (a helper add-on plays the VPN: page requests only, through a local proxy, to a host no DNS
+  answers). With `proxyFor` disabled, its two playback tests fail.
+
+## A copy-protected video stays in the page's player
+
+Found while testing upstream #456 (saving from vimeo.com/863362136 looped a part, 1.3.70): that
+video is copy-protected now. FastStream took it over, its player loaded the manifest and sat at
+readyState 0 behind "This video is copy-protected (DRM)…", where Vimeo's own player plays it.
+
+- **What Vimeo sends** (Firefox 159, measured): a master playlist with no key at all, and
+  variant and audio playlists with two keys each, both `METHOD=SAMPLE-AES-CTR`: Widevine
+  (`KEYFORMAT="urn:uuid:edef8ba9-…"`, the PSSH as a `data:` URI) and PlayReady. The URL names
+  `/drm/cenc,derivedv2,…/`, which the rule does not go by.
+- **Where it is told.** The background already reads a stream's master and its first variant
+  for the length (StreamLengths, `MAX_PLAYLIST_READS = 2`), so the variant's keys come with no
+  request of their own. `StreamLength.hlsProtected` keeps the keys in force as hls.js does (one
+  per KEYFORMAT until `METHOD=NONE`), and a segment plays when the identity key is one FastStream
+  decrypts (`Decryptable.mjs`: AES-128, AES-256), which is the rule
+  `HLSFragmentRequester.takeOverDecryption` goes by too: `HLSEncryptedPlaylists.test.mjs` runs
+  both on the same playlists through hls.js's parser. One deliberate difference: a key format
+  hls.js does not know, which it drops and plays as clear (still encrypted, it shows nothing).
+  `EXT-X-SESSION-KEY` decides nothing: it may name a key no variant uses. DASH:
+  `StreamLength.dashProtected`, every video adaptation set under ContentProtection (a clear one
+  beside them plays).
+- **What changes.** `hasVideoSource` (every in-page open: auto-enable, the toolbar's On, a
+  stream found while on) opens no player when the stream the player would play is protected:
+  that one, as main.mjs picks (the longest, `StreamPick.pick`), not any protected one, or a
+  film's clear ad won the pick. It now waits for DASH manifests' reads too, as for HLS. The
+  toolbar button shows "DRM" and why (`tab.protectedVideo`, cleared on a new page and at Off).
+  `openInMpv` refuses a protected stream as it refuses a Firefox VPN one ("!" and the reason in
+  the tooltip), after waiting for an unread manifest (`HlsQualitiesWaitMs`); the allowlist's MPV
+  then sends the page's next stream neither (an ad's, or a piece of the film); since 2026-11-13
+  the toolbar's MPV and a start by address neither (mpv.md, "One latch for every automatic
+  hand-off"). A read sets the mark either way, and none for a URL forgotten while it was read
+  (`noteProtection`).
+- **Left as it was.** A stream the background could not tell (its variant's read failed, a key
+  that comes later in a live playlist) still opens the player, which says DRM on hls.js's or
+  dash.js's word (NEED_KEY), as before.
+- **Live, 2026-10-28:** player.vimeo.com/video/863362136 kept Vimeo's player, badge "DRM";
+  vimeo.com/22439234 (clear) was still taken over and played.
+
+## Background: reasons behind the code
 
 - **`LocalAddress.mjs`** - Local is told by the host alone, with no DNS lookup (that needs the
   `dns` permission), so a public name that resolves to a local address (`192.168.1.1.nip.io`)
@@ -2170,61 +1471,134 @@ that fails without it.
   on disk and shown on the options page, so a private window's sites stayed listed there for
   good.
 
-## The content-script audit (2026-11-18)
+## The background's questions to a frame have a time limit
 
-Three reviews (Claude API, Codex, glm in six parts) of `content.js`, the site scripts and the
-small content scripts; each claim checked against the code, each real one fixed with a test
-that fails without it.
+A content script shares its page's event loop, so a page that never lets go of it never answers
+`tabs.sendMessage`. Every question the background asks a frame goes through `askFrame`, which
+answers `undefined` (as a frame without a content script does) after `FrameAnswerWaitMs`
+(3 s). glm's review of 2026-11-16 found three that still waited with no limit, each holding a
+player for good:
 
-- **Next episode by an "Episode N" list** needs this page's own link in the list. When none
-  matched, every "Episode N" link was taken for the current one, and the first one's neighbour
-  (episode 2) was followed from any episode.
-- **The page's own `beforeunload`, `pagehide` and `pageshow`** (`dispatchEvent`, `isTrusted`
-  false) are ignored: a page could make the background forget its frame and its streams.
-- **The replaced element itself is paused** when it is the page's `<video>` (`pauseAllWithin`):
-  `querySelectorAll` lists only what is below it, and the hidden original played on.
-- **Leaving windowed fullscreen** gives an element its old `display` only while it still has
-  the fill's `none !important`: a menu the page closed meanwhile came back.
-- **The player's iframe is `box-sizing: border-box`**: it gets the element's outer size and its
-  border, which made it larger by the border.
-- **Page qualities resolve against `document.baseURI`** (`<base href>`), as the page's own player
-  does, not against the page's address. A `<video>` with more `<source>` elements than a menu
-  holds is not read at all (each read goes through Xray on the page's thread).
-- **Episode words that are not ASCII** (`épisode`, `episódio`, `bölüm`) are matched in the
-  decoded path (`decodeURI`, reserved characters stay encoded): the address gives them
-  percent-encoded, and the series guard and the season's rollover were off on such sites.
-  One back from episode 10 is tried as 9 and as 09. The changed number is written into the
-  address's own path (`rawIndex` finds the same run of digits there), never the decoded one:
-  the URL setter encodes again its own way (`%c3%a9` came back as `%C3%A9`, `%27` as `'`), and
-  the candidates are compared with the page's links as they are.
-- **The overlay guard** protects a layer only for a dialog in it that is shown: a closed one kept
-  in the page (`display: none`) protected an ad layer for good. Shown is a box of its own or of a
-  child, as an open `display: contents` dialog has only the latter. A dialog closed with
-  `visibility: hidden` still counts: the guard hides layers that way itself, so a dialog opened
-  in a layer it hid reads as hidden too, and must still give that layer back.
-- **Instagram's fetch hook** copies no stream (`text/event-stream`, NDJSON, `json-seq`,
-  `stream+json`): the copy of one that never ends was read and held for the page's life.
-- Left as it is: a page that closes a menu with `display: none !important` during windowed
-  fullscreen gets it back on leaving (the value is the fill's own; telling them apart needs a
-  watcher on every element for a rare case).
-- **REMOVE_PLAYERS' "no receiver"** is not logged: it goes to frame 0 at every address change,
-  often before the next page's content script runs. This was the `Object { message }` seen in
-  the console next to `remove_players`.
-- Rejected, with the reason: the player iframe's entry kept after the page removed it
-  (deliberate, `removePlayers` reports it; small); a click on a same-site link taking the player
-  down before the page leaves (it lets the page into the back-forward cache; a link that only
-  downloads gives the page its own video back); the closed-shadow-root video not taken over
-  (the player goes only where open roots are, by design); Facebook and Instagram reporting the
-  first new manifest of a batch (which one the player opens on a feed needs live tests);
-  a descendant with `visibility: visible` in a hidden layer, media re-created inside a known
-  shadow root, the opener key visible in the iframe's `src`, no flow control on page fetches
-  (requests are segments or ranges), the hold released per frame (reverted design of
-  2026-10-04), a hard-replaced bare `<video>` measured in place (hard replace only on twitch and
-  vimeo, whose videos are wrapped), the miniplayer's whole-style restore (`updateMiniPlayer`
-  rewrites it), and the input-time root scan (throttled to 2 s, and it must come before the
-  play it is for).
+- `isPlayerParentProven`'s IS_PLAYER_OPENER: the player's PLAYER_LOADED was never answered, and
+  the player never started. No answer is now no proof: no page's player, as when the page says no.
+- `linkToParentFrame` (FRAME_LINK_RECEIVER, then FRAME_LINK_SENDER), awaited by `getPageFrame`
+  in `acceptPlayer`: the same, for a page that is the player's parent. It now resolves after
+  `FrameAnswerWaitMs`, and the introduction still goes on when the parent answers later.
+- `cascadedFullscreen`: the player's fullscreen, windowed fullscreen and miniplayer requests.
+  The first question waits `3 * FrameAnswerWaitMs`, because content.js answers a fullscreen
+  request only once Firefox has entered it (`requestFullscreen`'s promise), after the
+  transition. The windowed-fullscreen steps of the frames in between wait the usual time.
 
-## Content scripts: reasons moved out of the code comments (2026-11-18)
+`backgroundJammedFrame.test.mjs` jams each one (an answer that never settles). All three
+tests fail without the limits.
+
+The same review's look at `content.js`:
+
+- **Leaving windowed fullscreen keeps what the page wrote meanwhile.** Each element that holds
+  the player gets its whole style attribute back (`undoFillScreenIframe`). A page whose
+  framework drew such an element again while the player filled the screen lost that change.
+  Now the old attribute goes back whole only when the attribute is still exactly what the fill
+  set (`filled`). Otherwise it goes back property by property: what the fill set returns to
+  what was there before, and what the page wrote stays. Test: `contentScript.test.mjs`, "keeps
+  what the page wrote to it meanwhile".
+- Not changed: the frame-link key posted with `'*'` reaches only the parent window, which owns
+  the iframe anyway, so it can take nothing from it. A Shift-only shortcut cannot exist (Firefox
+  asks for Ctrl or Alt), so `couldBeExtensionShortcut` has nothing to add.
+
+## The background analyses and hostile subtitle files
+
+What the review of 2026-11-16 left open. Each fix has a test that fails without it.
+
+- **The analyses share one module**, `modules/analyzer/BackgroundAnalysis.mjs`: the status
+  values, the start of the background player (`startBackgroundPlayer`: only the latest start
+  keeps its player, an end before the load returned is no "running" player), the end rule and
+  the error handling. Before, both analyzers had their own copy of the start, and the audio
+  analyzer's lacked the end-while-loading guard the frame extractor got on 2026-10-13.
+- **An analysis player's error ends its analysis as failed** (`failOnError`). The preview player
+  had an ERROR handler; the analysis players had none, and an error (a link that expired, a
+  manifest that failed) left the analysis "running" with a dead player. A start needs it idle,
+  so that video's volume strip or seek previews never came. Tests: `backgroundAnalyzers.test.mjs`,
+  "ends the analysis as failed on an error before its metadata ..." and "keeps no player that
+  failed while it loaded", for both analyzers. An analysis player is destroyed once
+  (`destroyPlayer`, which `failOnError`'s DESTROYED listener feeds): an error, a stop and a stale
+  start can each reach the same player, and HLSPlayer's second `destroy()` hands `destroyVideo` a
+  null video. An error after the player was destroyed ends nothing more (Claude's review of #715).
+- **A short video is analysed to its end** (`coversVideo`): an analysis is done at all but the
+  last 5 s, or the last tenth for a video under 50 s. With the 5 s alone, a video of 5 s or less
+  was done at its first frame, and its strip stayed empty. A long video ends as before.
+- **vtt.js decodes a cue's texts in one parse** (`unescapeAll`): a parse per text with an `&` let
+  a cue of many short texts (`&a<i></i>` x 5000) parse a document for every one. Checked in
+  Firefox against the old way, text by text, by `modules.e2e.mjs`. And a cue's region is found
+  in a Map, not by a scan of every region: 40,000 regions and cues took 4.9 s, now 0.4 s
+  (`vtt.test.mjs`, which compares the same file without region names on the same machine:
+  a fixed 1.5 s limit failed on a slow CI runner, 2026-11-17). The unused `TEXTAREA_ELEMENT` is gone. All in `tools/verify-vtt.mjs`'s list
+  and `docs/vendored-libraries.md`'s table, which had missed the DOMParser change.
+- **Facebook: one manifest per scan stays.** glm read it as losing a second new video found in
+  the same scan. On the page as recorded (live, 2026-11-15) the reels Facebook preloads sit under
+  `viewer.lasso_blue_feed`, outside any `video` key, so they are never candidates; the one on
+  screen is the one reported, which `customSiteScripts.test.mjs` pins. Reporting more would put
+  preloaded videos into the sources. No page with two `video`-path manifests in one scan is
+  known; if one turns up, the test gets that page's shape first.
+- **The maintenance scan of the same day** found little else to remove. All 445 locale strings
+  are used (the ones built at run time, `prefix + '_' + value`, checked against the enums they are
+  built from; `options_general_vischangeaction_miniplayer` is live: only the web build drops that
+  value). Every skipped unit test is a platform one that CI runs on the other OS. No test helper
+  is unused. Every path the docs name exists or is written as history. One dead CSS rule went:
+  fluidplayer's `.pseudo_fullscreen`, which nothing ever set (`vtt.test.mjs`'s #292 test tries
+  every class the player has instead). Left as they are: 58 exports used only in their own file
+  (removing `export` gains nothing).
+- **The privacy policy against the code (same day).** Checking `docs/privacy-policy.md` line by
+  line found one request it said never happens: dash.js's `initialize` adds its own time server,
+  `https://time.akamai.com/?iso&ms`, after the `UTCTiming` sources of a live manifest, and asks it
+  with its own `XMLHttpRequest` (not through DashLoader) when the manifest names none or none of
+  them answers; the
+  extension's CSP has no `connect-src`, so the request went out. `DashPlayer.setSource` now calls
+  `clearDefaultUTCTimingSources()` after `initialize` (nothing in dash.js adds it again: only the
+  first `initialize` does, and `reset` empties the list). Such a stream's clock then comes from the
+  `Date` header dash.js recorded from the manifest's own response
+  (`useManifestDateHeaderTimeSource`, no extra request), or the computer's. A manifest's own
+  sources are still asked first. `dashTimeSource.test.mjs` runs the installed dash.js's
+  MediaPlayer and fails without the call. The policy also lacked the optional `proxy` permission
+  (VpnProxyMirror), the options page's problem list (host and path in `storage.local`), the two
+  report buttons (a prefilled GitHub issue the user submits), and the same-site rule for a page
+  request's cookies (`sourceHeadersFor`); all are in it now.
+
+## A page loaded again keeps FastStream's player
+
+The owner's report: FastStream is on, the page is loaded again, and sometimes the site's own
+player stays - and playing it does not bring FastStream back.
+
+**Cause.** The background opens the player about half a second after the page's first stream
+request (`replaceDelay`). content.js then looks for the page's largest visible video and answers
+`'no_video'` when there is none: a page whose own player is still starting has no video on the
+screen yet, and neither has one whose video is below what the window shows. Which of the two a
+reload makes more likely than a first load was not measured on a real site; both are covered.
+Nothing tried again. Every later request was for a stream the background knew
+already (`onSourceRecieved` returns for a known URL), and a play the user starts was heard only
+in MPV mode.
+
+**Now** (`background.mjs`: `noteOpenMissed`, `reopenMissed`, `reopenOnUserPlay`):
+
+- An open that ended with no player (`'no_video'`, `'error'`) is tried again by itself 1, 2 and
+  4 s later (`ReopenMissedTimes`).
+- After that, a request of the page for a stream it already has tries again, at most every 2,
+  4, 8 ... 60 s since the last try (a player that fetches a segment every few seconds would
+  otherwise ask the page every time).
+- A play the user starts in the page (content.js reports every trusted one: `MPV_USER_PLAY`)
+  tries again at once, from the frame that played or the nearest frame above it that missed.
+- A player the page itself took out again (`PLAYER_OPEN_GONE`, or its frame removed while the
+  page stays) is not put back by the page's own requests - it would be taken out again - but a
+  play the user starts does (`openGone`).
+- Two more ways a page's player stayed after the event page had been unloaded and started
+  again: a video file told by the page (`LOADED_MEDIA`) was dropped when the frame had not named
+  itself to the new background yet; and a player accepted after its frame was forgotten (the
+  page was asked whose it is meanwhile) left its page marked as opening for good.
+
+Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
+`tests/e2e/ext-specs/reload-takes-over.e2e.mjs`: a page whose player has its video on the page
+2.5 s late after a reload, and a video three screens down that the user scrolls to and plays.
+
+## Content scripts: reasons behind the code
 
 - **`custom/bilibili_content.js` `loadDashTracks`** - Bilibili lists one quality in up to three
   codecs (H.264, HEVC, AV1) under one id (32 for 480p). Put in one AdaptationSet, the player saw
@@ -2376,178 +1750,7 @@ that fails without it.
   never reached the document and the MPV shortcut ignored such players. The roots on the way to
   what was clicked get the listener at once, every root on the page at most every 2 s.
 
-## The player-core audit (2026-11-18)
-
-Three reviews (Claude API, Codex, glm in seven parts) of `FastStreamClient.mjs`, `main.mjs`,
-`VideoSource.mjs` and `SubtitleTrack.mjs`. Each claim was checked against the code, and each
-real one is fixed with a test that fails without it.
-
-- **A source change that a later one replaced while it waited its turn is skipped**
-  (`setSource`). Before, it built its player, took the stashed buffer and could autoplay, only
-  to be torn down.
-- **What a rebuild keeps is armed by its own request** (`SourceStart`: `keepStorage`,
-  `keepChoice`, `relink`, `rebuild`), in `setSourceInternal` before its reset. Armed by
-  the caller, a rebuild that a pick replaced left them for the picked video's reset: its
-  storage kept, the old version choice kept.
-- **Autoplay and the remembered time.**
-  - Autoplay that started at `canplay` while the player was still being set up was started
-    again at the end of the setup, after the user had paused it.
-  - A source with a remembered time (`storeProgress`) autoplayed from 0 and then jumped. It now
-    holds like a source with its own time (`startPending`) until the lookup answers. The hold is
-    at most `RememberedWaitMs` (3 s), because a blocked IndexedDB open never answers. A lookup
-    that answers later is still applied, unless the user has sought meanwhile; skipped, the next
-    save wrote the time played since 0 over it.
-  - `disableLoadProgress` is now taken by the one source set for an episode the player went on
-    to, and by the streams tried after it (`fallbacks.skipRemembered`). Before, it stayed for
-    the client's life, and a source picked by hand later ignored its remembered time.
-- **The reload without a failed codec** (`reloadWithoutFailedCodec`) builds the player again the
-  way `recoverPlayer` does: at the second it was at, keeping what was downloaded
-  (`keepStorageOnce`), with the audio track, and playing if it played. A codec that failed at a
-  quality switch an hour in started the video over, paused, with the download deleted.
-- **A player built again that fails before its first frame** is built again once more
-  (`hasPlayed`). This is the "same broken place again" case that `BrokenMedia` skips past, which
-  it never reached because the new source had not shown a frame yet. A source picked anew is
-  not a rebuild: `playedSource` is cleared for it.
-- **Live HLS.** hls.js gives a live stream a finite duration, so only `isLive()` tells.
-  - `updateHasDownloadSpace` took a live HLS stream for a video that fits, so with "Download
-    all" on nothing behind playback was ever freed.
-  - Waiting at the live edge in its "last second" asked for the next video.
-- **`play()` and `pause()` across a source change.** `resetPlayer` advances `playPauseTurn`, so a
-  play that waited on the last source's player does not show "playing" over the new source.
-  `pause()` pauses the separate audio only for its own turn.
-- **A refused play in the interface is handled.** This covers the play button, the speed-up
-  key, the loop menu, a dropped file and a pick in the Sources browser. Test:
-  `uiPlayRefused.test.mjs`.
-- **Web storage refused** (`dom.storage.enabled` off makes `localStorage` null). It goes through
-  `utils/WebStorage.mjs`. `LevelManager`'s constructor read it unguarded, and the whole player
-  failed to start. `setOptions` stopped halfway.
-- **A seek preview that reports an error while its build still runs** is let go by that build.
-  Before, the reload joined the same build, which then stored the broken player, and the preview
-  showed "loading" for the whole video.
-- **Login headers.**
-  - They no longer go from an https source to plain http, its own site included: Firefox sends a
-    Secure cookie over https only.
-  - A link's `faststream-headers` is taken only as names with text values.
-- **`main.mjs`.**
-  - The carried fullscreen's Escape is answered once.
-  - A `detectLanguage` that answers with an error (no result) threw in its callback. The promise
-    never settled, and the background never got its answer.
-  - The carried fullscreen and the keyboard now come before the subtitles are fetched.
-- **A player tab is torn down at `pagehide`, not `beforeunload`.** A navigation answered with a
-  download or a 204 left it dead, and a player tab does not load again by itself (a slow
-  navigation there is the user's). A player in a page's frame still goes at `beforeunload`, for
-  the back-forward cache, and loads again if the page stayed.
-
-Rejected, with the reason:
-
-- **Already guarded:**
-  - Every failure route of the old player: the `ERROR` and `PLAY_DIRECTLY` handlers ask
-    `isCurrentAttempt` before `playDirectly` and `reloadWithoutFailedCodec`.
-  - `disableProgressSave` and the artwork state: `resetPlayer` clears them.
-  - `fallbacks.next`: each request has its own fallbacks object.
-  - The main context: `resetPlayer` destroys it before the next `bindPlayer`.
-  - `autoplayNextVideo` is synchronous.
-  - `autoNextRequested` after a 'clicked' that never navigated: `play()` clears it.
-- **Not reachable:**
-  - `BUFFER_TAKE` is answered synchronously by the background.
-  - `StreamPick.played` never returns `[]`, and `pick` gets a non-empty list.
-  - `SubtitleTrack.loadText` runs twice on one track: every caller builds a new track.
-- **From the review of the fixes:**
-  - The decode failures carried over a reload keyed on `source.url`: `withTimestamp` is a
-    string edit, and adding then removing the time gives the URL back exactly (`?a=b%20c`,
-    `?flag`, `?`, `#t=5` checked).
-  - The new tests' fake timers and stubbed globals: the file's `afterEach` restores both.
-  - `preload.mjs` with an `import`: `index.html` loads it as a module.
-- **Small, and as designed:**
-  - Work left after `destroy`: it runs only as the document goes, or before a frame's reload.
-  - The object URL of an opened file is not revoked: it is a reference to the file on disk,
-    freed with the page.
-  - A superseded source's subtitles: they are the page's, not the stream's.
-  - Asks past `AutoNextTries`: each needs a new `waiting` or stall at the end, so there is no
-    loop.
-  - Credentials on a shared host's other tenants (`*.github.io`): Firefox's public suffix list is
-    not open to extensions, and the site rule stays as it is.
-
-## The player-engine audit (2026-11-18)
-
-Two Claude API reviews (MP4Player; the other engines), Codex, and glm in eleven parts, of
-`chrome/player/players/`. Each claim was checked against the code. Fixed, each with a test that
-fails without it:
-
-- **MP4: a start time set before the metadata** (a resume, a seek preview) began segmenting at
-  the sample there, and Firefox dropped the frames up to the next keyframe. `startSegmentation`
-  seeks to the keyframe before it, as `resetHLS` does. Test: `mp4TrackEnd.test.mjs`.
-- **MP4 save of a file read range by range** said nothing of streaming, and SaveManager opened
-  no stream for `saveVideo` to write to (`canSave` gives `canStream`). A file found shorter while
-  it saves (`endsAt` drops the ranges past it) threw on the missing range; it ends there now and
-  stops the downloads it had started ahead. Tests: `mp4FileLength.test.mjs`,
-  `saveDownloadsAhead.test.mjs`.
-- **MP4 audio track chosen before the SourceBuffers exist** (at `MANIFEST_PARSED`) was ignored,
-  and the first track was set up. Test: `mp4AudioOnly.test.mjs`.
-- **A stopped or destroyed MP4 player** went on loading (`runLoad`), and `mainLoop` read the
-  video after a listener of its own event had destroyed the player. Tests:
-  `mp4FileLength.test.mjs`, `StallWatchdog.test.mjs`.
-- **DirectVideoPlayer** set `src` on a player destroyed, or given another source, while its
-  header rule was being set. Test: `DirectVideoPlayer.test.mjs`.
-- **A separate audio player handed to Firefox's own player** (PLAY_DIRECTLY) kept running; it
-  is dropped as on an error, and a refused `play()` of it is no unhandled rejection. Test:
-  `SyncedAudioPlayer.test.mjs`.
-- **DASH manifest and xlink URLs** were decoded before they were fetched: a signed link's `%25`
-  became `%`, another URL. They are fetched as dash.js has them. Test: `DashLoader.test.mjs`.
-- **DASH failures** were counted per representation and index, which start again in each period:
-  the next period's segment failing once was taken for its third failure. They are counted per
-  segment's bytes. Test: `DashLoader.test.mjs`.
-- **An open byte range** ("first-", which a DASH `mediaRange` may be) had a NaN end: no Range
-  header was sent and the file from its first byte came back as the range. It goes as
-  `bytes=first-`, and a server that ignores Range has the rest of the file cut out. Tests:
-  `DashLoader.test.mjs`, `FetchLoader.test.mjs`.
-- **HLS AES key failure** while nothing awaited it (a segment aborted, or answered from the
-  store) was an unhandled rejection. Test: `HLSDecrypt.test.mjs`.
-- **HLS live segment tokens:** a stored segment not downloaded yet kept the URL of the playlist
-  that first listed it; a live playlist renews its tokens, and the old one may have expired. It
-  takes the latest URL while it is waiting. Test: `HLSFragmentStore.test.mjs`.
-- **MP4 sample times for ranges** of a file whose samples are not in offset order searched the
-  unsorted list. A copy sorted by offset is searched. Test: `SampleIndex.test.mjs`.
-- **The remembered audio codec** was the exact string of the last hand pick: picking HE-AAC
-  (`mp4a.40.5`) held every later pick, on every site, to that profile. It is matched by family.
-  Test: `decodingAwareQuality.test.mjs`.
-- **A separate audio MP4 player destroyed inside its own append** (its PLAY_DIRECTLY, answered
-  by SyncedAudioPlayer at once) went on with the range: held it for good, or threw on the gone
-  mp4box. Test: `mp4FileLength.test.mjs`.
-- **A whole save of a file whose length is not known yet** (a 206 without Content-Range) wrote
-  the ranges made so far and said it was complete. Such a player says `onlyLoaded`, and
-  SaveManager saves what is loaded, after the partial save's question. Test:
-  `SaveManager.test.mjs`.
-- **DirectVideoPlayer** given the same source twice while its header rule was set started two
-  renewals, one never stopped. Test: `DirectVideoPlayer.test.mjs`.
-
-Rejected:
-
-- A DASH segment failing for good raising ERROR twice: dash.js's own error after the start is
-  not the player's (`isCurrentAttempt`, DashErrors).
-- Codecs of an unknown family resetting dash.js for ever: Firefox's MSE refuses those codecs
-  before they reach the decoder, and dash.js filters them.
-- HLS `forgetPassed` walking from 0 each refresh: negligible next to the playlist parse.
-- The decrypter failing pending decrypts at destroy: the entry fails and is downloaded anew.
-- Short 206 bodies taken as whole: Firefox fails a transfer cut short.
-- A failed decrypt storing a detached buffer: a post-processor that throws fails the entry,
-  and nothing is stored.
-- Low-latency HLS parts answered with whole segments: `lowLatencyMode` is off.
-- An HLS loader reused without an abort: hls.js makes a new loader for each load.
-- An HLS save declaring audio it has no init segment for: the merger is given none, and the
-  remuxer reads the audio side only with its init segment.
-- DASH representation ids repeated across AdaptationSets: the standard makes them unique
-  within a Period.
-- Save cancels overwriting each other: SaveManager chains every registered cancel.
-- Dropped-frame samples spanning a hidden tab: a hidden tab is not steady, and that clears them.
-- A save's fetcher retrying aborts for ever after a source change: resetPlayer cancels the save
-  first.
-- Live DASH storing fragments at indexes near now / segment duration: extraction gets no
-  segments of a `$Number$` template (dash.js lists from index 0, which a live stream no longer
-  has, and the patched `getAllSegments` gives none past 100000), and a SegmentTimeline's indexes
-  count within the listed window. Requests for the rest go through the loader's fallback.
-
-## Utils, options, enums, dash2mp4: reasons moved out of the code comments (2026-11-18)
+## Utils, options, enums, dash2mp4: reasons behind the code
 
 - **`EnvUtils.os`** - The system comes from `chrome.runtime.getPlatformInfo`: with
   `privacy.resistFingerprinting` on, `navigator.platform` says "Win32" on every system, and the
@@ -2596,212 +1799,58 @@ Rejected:
   redraw then would rebuild the keybind rows (the box a key was just pressed in loses focus), move
   a number field's caret and undo a search, so the page skips the options it saved last.
 
-## The utils and options audit (2026-11-18)
+## Measuring two builds: tools/bench-ab.mjs
 
-A Claude API review and glm in three parts, of `chrome/player/utils/` and
-`chrome/player/options/`. Each claim was checked against the code. Fixed, each with a test that
-fails without it:
+The by-turns comparisons above were each made with a harness thrown away afterwards. This one
+stays: `node tools/bench-ab.mjs --a main` builds main in a worktree of its own (outside the
+checkout, node_modules linked; both need the same lockfile), builds this checkout, and runs
+`tests/e2e/wdio.bench.conf.mjs`: one server per build on its own port, the same fixtures, both in
+one e2e Firefox, ABBA order per round, one warm-up round thrown away. `--rate`/`--ttfb` put the
+media (not the player's own files) on one shared slow line. A probe added before the page's
+scripts (`browser.addInitScript`) records the moments (player modules ready, first frame,
+playing, a seek to 80 s, a seek preview at 120 s) and counts timer, interval, animation-frame
+and idle callbacks, DOM changes, frames more than 50 ms apart and dropped video frames while
+playing, paused, after a seek preview, once ended, and in an idle player. The report
+(`logs/bench/ab-<time>.md` and `.json`) gives medians, the spread (MAD) and a verdict only where
+the medians differ by more than twice the larger spread and the measure's floor (a timeupdate's
+250 ms, one frame). `--where` adds, per phase, the places in the player's code that asked for
+the callbacks. `--clean` removes the worktrees (the node_modules link first). It measures; it
+never fails on a number, only when a build cannot play.
 
-- **`OptionsStore.replace` wrote the page's whole copy.** A settings page holds the options it
-  read; a save made elsewhere since (a player's settings, the background's mpv switches) reaches
-  it only through UPDATE_OPTIONS, which the background sends to the tabs it knows, and through
-  the visibility observer, which a tab switch does not fire. Its next save put the other save
-  back. A save now writes only the keys that differ from what the page last read or saved, over
-  the options as stored now, one save after the other; when the stored ones differed, the page
-  takes and shows them. A reload waits for the saves on their way: read before one was written,
-  the page showed the value it had just replaced. The store keeps a copy (`#saved`): the page
-  changes the object it was given in place.
-- **The error report** scrubbed the extension's address (it names the install) from the stack
-  only; Firefox's message for a module that failed to load holds it too.
-- **An archive's source headers** were taken as the file had them. A crafted `.fsa` could have
-  the player send a Cookie or Authorization of its choosing, which a crafted link cannot
-  (`withoutCredentials`); the reader strips them as the writer does.
-- **The options page's fields** got `role="button"` (`setupTabIndex`): a screen reader said
-  "button" for every check box, without whether it is ticked, and for every text field. They
-  get Enter only (`setupKeyPress`).
-- **`StreamLength.fromMp4`** pointed past the end of a file that had ended with no movie
-  header: one more request for nothing.
+**The settings page loads after the first frame** (2026-11-13, measured with it). The player's
+settings page is an iframe in every player, and it loaded with the player: its scripts ran beside
+the player's own as it started. 7 rounds, MP4: the first frame came 137 ms later with it (945 ms
+against 808 ms without, p 0.004, 7 of 7 rounds); seeks, wake-ups and frame drops the same. It
+loads now when the page is idle after the first frame (`OptionsWindow.loadFrameWhenIdle`, from
+the client), at once when the settings window opens, and after 5 s in a player that shows
+nothing, so the GitHub build's update check, which runs in it, still runs and shows its mark on
+the settings button. `optionsWindowFrame.test.mjs`.
 
-Rejected:
+**Several tabs** (2026-11-14). `--scenarios tabs` (not in the default set: it takes two minutes
+a run on a slow line) opens three players, paused, in background tabs and one playing in front,
+each video on a loopback host of its own (`BENCH_TABS_HOSTS=same`: all on one), and tells when
+the one in front has its whole video, when all four have, the seconds ahead in front 10 s in, the
+first frame from the page's first request for the video, and the page's start.
+`BENCH_TABS_VIDEO_S` is the videos' length (90). `BENCH_TRACE=1` writes a line of JSON for each
+media request's start, end and cut to `logs/bench/trace-<time>.jsonl`: the address and port the
+server was asked on (a tab's host, a build), playlist or segment, its count there, and the time:
+who had the line when. Nothing the request sends goes into the file or its name (CodeQL found
+both in the first version, which took the file's name from the variable and wrote the request's
+address and headers).
 
-- Two saves in the same millisecond taken for one echo: harmless now that a save writes only
-  its own keys; the page shows the other save at its next reload.
-- `MediaTitle` dropping a title word like the site's name ("Max Payne | Max" on max.com
-  became "Payne"): keeping it where the site names itself apart kept "FMovies" in "FMovies Dune
-  | FMovies". The two cannot be told apart, and the search's title can be edited.
-- Typed text lost to a reload during the 400 ms save wait: needs a save elsewhere inside those
-  400 ms.
-- `dashProtected` and a self-closing AdaptationSet: the entry it makes holds the next set's own
-  tag and content, and the verdict is the same as without the empty set.
-- `xml2vtt` and TTML: it reads timed-text XML (`<text start dur>`); TTML comes only as a
-  dropped `.xml` or a subtitle URL, and parses to no cue, which the player reports as no
-  subtitles. Reading TTML would be a feature (the doc comment no longer claims it).
-- Its O(n²) look for the next start: it stops at the first later start, which in a file in
-  order is the next cue.
-- `downloadURL` and `lastError`: the background is gone only while the extension reloads, when
-  the player page goes too.
-- `RequestUtils.request` and an empty body: no caller sends one.
-- Two `#EXT-X-STREAM-INF` tags before one URI sharing it: a playlist RFC 8216 does not allow,
-  read as the comment says.
-- The archive's sizes: `LargeBuffer.read` checks a length against the file before allocating.
-- `closeWindows` clicking the close buttons of closed windows: each only hides its window.
-- `formatDuration(Infinity)`: both callers pass only finite times.
-- Decimal aspect ratios: the list holds none.
-- `copyText`'s fallback result: it runs in the web build only.
-- Imported subtitle and tool settings written after the broadcast: open players read them only
-  when they start.
-- A failed first options read, an unparsable `updateData`, prototype pollution and imported
-  key bindings: the read fails only on a broken profile; `updateData` is only ever written by
-  `JSON.stringify`; `mergeOptions` walks only the defaults' own keys and checks every binding
-  with `isKeyString`.
-
-## The UI audit (2026-11-18)
-
-Two Claude API reviews and glm in five parts, of `chrome/player/ui/`. Each claim was checked
-against the code; picture-in-picture was run in Firefox 160 (`picture-in-picture.e2e.mjs`).
-Fixed, each with a test that fails without it (most in `interfaceControllerAudit.test.mjs`,
-which imports the UI modules with their page as stand-ins and calls their real methods):
-
-- **"Download paused" for good:** paused once everything was in, then resumed, the line stayed;
-  the pause now clears what "all buffered" was shown for.
-- **The visibility action** noted the visibility it acted on only after its play or pause was
-  answered: a change during it was lost, and the video played on in a hidden tab.
-- **Hiding the player and the visibility action** shared one "play again" flag: hidden, then the
-  tab switched away and back, the player did not play again when shown.
-- **Picture-in-picture and fullscreen refused** (a fullscreen the background could not give, a
-  PiP request rejected) were unhandled rejections in every click and key: they are said on the
-  console.
-- **The progress loop on audio alone** waited for video frames, which never come; it uses
-  screen frames when the video has no picture.
-- **A live stream's progress bar** (a DASH live stream's duration is Infinity) previewed and
-  dragged to Infinity, and a media element throws on such a seek. The bar does nothing there
-  (no preview, no drag: `ProgressBar.hasEnd`), and the client's `currentTime` refuses a
-  non-finite time.
-- **Saving:** a question answered after the next video came started a save on it; a second
-  click while a finished save's name was asked revoked that save's file; the mpv button
-  clicked twice sent the stream twice. The button waits for the background's answer, but no
-  longer than 15 s, and a send that throws (the extension reloaded) frees it at once: either
-  left the button dead for the life of the page.
-- **A subtitle URL** that answered after the next video came was added to it.
-- **The silence skipper** turned on again within 100 ms of a new video ran two loops.
-- **OpenSubtitles:** a refused request (a throttle) beside a title search that found nothing
-  said "no results" instead of why.
-- **The audio channel count:** an older counter failing to start after a newer one had
-  counted set the output back to stereo.
-- **"Choose an output…"** passed the chosen device to `selectAudioOutput`, which Firefox may
-  answer with that device without showing its chooser; it asks with none now.
-- **GIF:** the last frame drawn was never added (each was added when the next was drawn), and a
-  loop shorter than one frame threw in gif.js; it is dropped and says so. The last frame lasts
-  until the loop's end as it was during the recording: ending it turns a loop that was off
-  before the GIF off again, and with it its end.
-- **The resync tool's double click** edited the track the tool had when the prompt answered.
-
-Rejected:
-
-- Picture-in-picture throwing in Firefox: `requestPictureInPicture` is there since 153, and
-  Document Picture-in-Picture since 151 (MDN's compatibility data, the floor is 153).
-- Moving the player into the Document Picture-in-Picture window pausing it: run in Firefox
-  160, it plays on into the window and back.
-- `getAudioLevels()` undefined in the audio menu: the client answers an empty Map.
-- `copySourceLink`, the subtitle save, `releaseWhenDownloaded` and the speed menu's storage
-  calls rejecting: `copyText`, `downloadURL`, `whenDownloaded` and `setConfig` never reject.
-- The fine time controls on a long video not starting the progress loop: their `start()` does.
-- `dumpBuffer` leaving its stream open: `writeFSAToStream` aborts it on a failure.
-- The subtitles menu's first click doing nothing: it starts with an inline `display: none`.
-- An unbounded outline width: `SubtitleUtils.outlineWidth` caps it at 64.
-- Subtitle settings saved at each key: a few small storage writes while typing.
-- The subtitle bounds read on each time update: the reads are cheap while nothing changed.
-- A sources row's Play going on after the row was deleted: the player is loading that source.
-- Headers applied while typed: lines without a colon are left out, as intended.
-- The media-session seek keys with no player: the client's `currentTime` does nothing then.
-
-## Player engines: reasons moved out of the code comments (2026-11-18)
-
-- **`hls2mp4/transmuxer.mjs`** - hls.js reads `chunkMeta.iframe` unconditionally at the top of
-  `demux`, `resetInitSegment` and `remux`. Outside hls.js's own pipeline nothing builds a
-  `ChunkMetadata`, so one inert instance (with the level's duration) is passed to all three. In
-  `demux` the flag after it is `isSampleAes`, then `flush`: without the flush, the PES data at the
-  end of the last segment is never parsed, and a save loses the video's last frames and the
-  audio's last packet.
-- **`Transmuxer` typeSupported** - The output is an MP4 file, not something MSE has to take: MP3
-  goes in as MP3 in MP4 (bare MPEG audio has no mdat for HLS2MP4 to place and no sample entry in
-  MP4Generator), and AC-3 is declared supported, else hls.js drops the track; MP4Generator writes
-  it as `ac-3` with its `dac3`. TSDemuxer logs through the logger it is given, and without one its
-  first report (HEVC found, AC-3 skipped, a damaged packet) throws and fails the save.
-- **`HLS2MP4.pushChunk`** - Each transmuxer (the level's, the audio rendition's) counts from its
-  own stream's first timestamp (the initPTS hls.js picks after each reset). The chunks keep the
-  stream's clock instead, which both renditions share, so the tracks start as far apart as they
-  played.
-- **`HLS2MP4.setup` edit lists** - An edit's media time is measured on the samples as they are
-  written, one after the other: across an EXT-X-DISCONTINUITY the stream's timestamps start over
-  (or jump past a fragment a partial save lacks), and an edit worked out from them shows only the
-  first piece of a stream with ad breaks in players that follow edit lists (mpv, VLC, ffmpeg).
-  The edit lasts as long as the track's media, its last presented end included: a stream cut in
-  decode order (a recording stopped inside a group of pictures) shows a frame past the decode
-  timeline's end.
-- **`HLS2MP4.setup` video sample entry** - The `avc1`/`hvc1` entry with its parameter sets comes
-  from hls.js's own MP4 writer, so hls.js's changes to it come with hls.js. It is made here and
-  handed to MP4Generator as `codecBuffer`, not made inside MP4Generator: a DASH save would then
-  load hls.js.
-- **`HLSFragmentStore`** - A level's segments are stored from its first one, at `sn - snBase`. A
-  live stream may start its media sequence numbers anywhere (millions, a timestamp), and the
-  client walks each level's array every second (freeing, the next download, the buffer bar):
-  indexed by sn, every hole below it was walked each time (52 ms a walk at 2 million in Node).
-- **`SegmentAppender`** - A SourceBuffer refuses an append by throwing (QuotaExceededError when
-  full, InvalidStateError when its MediaSource is gone). MP4Player releases a segment's samples
-  from mp4box as soon as it is queued, so a refused segment is gone: the player loads again from
-  the playhead (reading less ahead when the SourceBuffer was full), and the third refusal in a row
-  is its error. Refusals of segments appended before the last reload, or of SourceBuffers no
-  longer in use, are that reload's business.
-- **`HLSDecrypter`** - `decrypter-worker.js` answers a failure (a wrong key, an IV that is not 16
-  bytes, a download cut short) with 0 bytes and an error. No data is a failure, never a result:
-  stored, it would be the segment, complete and empty. A worker that fails to load or throws
-  answers nothing: what waits fails, and the next decrypt starts a new worker.
-- **`SourceBufferWrapper`** - An operation that throws starts no update, so no `updateend` follows
-  it: the wrapper must not stay marked updating, nor keep the operation at the head of the queue.
-  `remove()` resolves once the removal has started, not once the range is gone: `buffered` holds
-  it until the removal's `updateend`. `removalPending` exists for that: a seek decides from
-  `buffered` whether to load anew, and a seek to 0 just after a jump to the end found the start
-  still buffered (the removal of everything waited behind the end's appends), did not reload, and
-  the removal then took the start away with nothing loading it again.
-- **`SampleIndex.RangeTimes`** - Each range's earliest time is kept and worked out again only for
-  the ranges new samples fall in (working out every range from every sample at each moof took
-  10 ms a call on a 2-hour file, once per megabyte read). It is kept only while the sample list
-  stays sorted by offset, which `minTimeIn`'s binary search needs; a list that gets an earlier
-  part after a later one (a seek back) is worked out whole each time.
-- **`StallWatchdog`** - Firefox sometimes stops a video that says it is playing after a seek back
-  into what is buffered: not paused, not seeking, readyState 2 with minutes buffered, its time and
-  frame count still. `play()` restarts it at the time its clock has run on to, a minute later; a
-  seek starts it where it was sought to, so a stuck video is sought a little forward, as hls.js
-  does.
-- **`LevelManager.rememberVideoChoice`** - A version picked by hand stores its codec family only
-  when the click chose between codecs (`isCodecChoice`). A quality with one version, or versions
-  that differ only in bitrate, says nothing about codecs: the family stored from such a click
-  outranked hardware decoding at every height on that site.
-- **`HLSPlayer`'s hls.js config** - `_abandonRulesCheck` (hls.js dropping quality mid-fragment)
-  fights pre-buffering far ahead; it is an instance property set in the base constructor, so it
-  is reassigned after `super()`. hls.js's text tracks and metadata cues are off: FastStream shows
-  none of them, and hls.js otherwise decodes CEA-608 captions and makes ID3, emsg and DATERANGE
-  cues for every fragment. Interstitials are off: hls.js plays each in a player of its own made
-  from this config, which FastStream does not drive (measured: a replacing break skipped the
-  stream's start and ended inside the break). `preserveManualLevelOnError`: hls.js's error
-  controller otherwise resets a pinned level to auto on a load failure, and its bandwidth ABR
-  settles lower while LevelManager believes the user's quality is in effect.
-- **`HLSPlayer.saveVideo`** - A level is fMP4 exactly when its playlist names an init segment, and
-  those go to the merger (through DASH2MP4, for its remux fallback); HLS2MP4 demuxes transport
-  streams only. A level that carries its own audio goes there too: the audio side is handed over
-  only when it is a rendition of its own.
-- **`HLSPlayer.saveVideo`, `DashPlayer.saveVideo` (keepPinned)** - A fragment is let go of once
-  read, except for the remuxer: it reads the store's own Blobs as it writes, after reading them
-  all, and a fragment freed before that reads nothing. Those stay pinned until the save ends.
-- **`HLSLoader`** - hls.js's `timeout` is the longest a whole load may take (120 s for a segment),
-  FetchLoader's how long nothing may come; it is capped at `STALL_TIMEOUT_MS`, else a dead
-  connection held playback for two minutes. A stored segment answers a request only for its own
-  place (`isSamePlace`): a live stream that starts its numbering again gives a new segment a
-  stored one's number, and only when both its address without the query (a rotating token) and
-  its place (start, duration) differ is it another. hls.js's playlist loader passes no `onAbort`,
-  so a failed playlist is reported as an error, which hls.js retries.
-- **`DashLoader`** - The loader dash.js extends has `resetInitialSettings`: HTTPLoader calls it
-  when a decode error resets the MediaSource, and without it the reset threw and the stream never
-  recovered. A segment it downloads itself gets the download manager's retries (dash.js retries
-  nothing); a manifest fails at the first error, so a source that is down shows so at once.
+**Buffering** (2026-11-15). `--scenarios stall-mp4,stall-hls,stall-dash` play a long video (the
+long MP4, a looped HLS playlist, a looped DASH manifest - the dash-template fixture Period after
+Period, `looped.mpd`) for `--stall-ms` (60 s), then seek three times far into it: how often and
+how long it waited for media while playing (`waiting` not caused by a seek), the seconds it played,
+the megabytes it fetched, and the median time from a seek to playing past the place. The line can
+be made like real ones: `--jitter P` drops it to `--jitter-factor` (0.25) of its rate every other
+P ms, from each run's start (full first), so every run of both builds meets the same line - on
+one clock for all, main's HLS first frames came at 4.1 s three times in 5 rounds and the other
+build's at 6.7-7.7 s each time, the same requests in the line's slow half or not; `--conn C` caps each answer at C Mbit/s, as servers that throttle a connection do; `--drop D`
+cuts D % of the media answers part-way, at the byte chosen - the same requests for both builds
+(by path, place and where the range ends, not the run), and only a run's first ask, so a retry
+gets through, also one that goes on from where the cut stopped. The megabytes count requests
+finished in the playing time. The long MP4 (17 MB) is often all loaded after a minute on a fast
+line: its seeks then time a seek into what is there (after `--stall-ms 5000`, 4 MB in, mostly not). A trial, main against
+itself, 1 round, 3 Mbit/s with jitter 5000, 150 ms to the first byte, 5 % cut: first frame 9-10 s
+(MP4), 6-7 s (HLS, DASH); seeks 2.4-7.9 s.

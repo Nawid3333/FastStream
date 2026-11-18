@@ -27,7 +27,7 @@ its fixes (section 4).
 
 **2026-11-14.** The owner's decision: no hand test. `test/all-prs` holds all of it and the work
 of 2026-11-14 on top (players in several tabs take turns; a page loaded again keeps the player; a
-third review's fixes; two fuzz tests: `docs/notes/player.md`, the three sections of that date),
+third review's fixes; two fuzz tests: `docs/history/reviews.md` and `docs/notes/player.md`),
 and goes to main in one merge (PR #679) while the releases are turned off (the owner's
 decision, 2026-11-15); a second review round on main followed (section 9), and the owner
 turned the releases on again on 2026-11-15, to test each release as it comes. **The rename is dropped** (his word, 2026-11-14): the add-on

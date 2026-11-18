@@ -4,7 +4,7 @@ name: Upstream watch
 # merges upstream. The owner's decision of 2026-10-09: the fork is Firefox-only and
 # maintained on its own, ahead of upstream, which targets Chrome first; an upstream change
 # matters here only as a fix this fork's code may need too, ported by hand. (Until then
-# sync-upstream.yml merged upstream into a pull request; docs/upstream-sync-log.md records
+# sync-upstream.yml merged upstream into a pull request; docs/history/upstream-sync-log.md records
 # what was taken.)
 #
 # Once a day this lists upstream's commits that were not reviewed yet in one issue,

@@ -1,11 +1,10 @@
 # Workflows
 
-> Working notes, moved here from `CLAUDE.md` on 2026-10-04 so that file stays short. The
-> text is as it was written; dated entries describe the tree at their date. Where a note
-> says "above", "below" or names a section in quotes, [README.md](README.md) lists the
-> file each section is in now.
+> Why the code in this area is as it is. A date on an entry is when it was learned; where
+> the code and its tests say otherwise, they win. A section named in quotes may be in
+> another file: [README.md](README.md) lists every section.
 
-## Workflows (reworked 2026-09-25)
+## Workflows
 
 - **`ci.yml`** runs what `pnpm run verify` runs (including `test:pbm` and,
   since 2026-09-25, `verify:vtt` - it had been red for three days when nothing ran it -
@@ -781,7 +780,7 @@
   `dependency-review.yml`. The last sync PR (#368) was closed: of its 18 commits, 13 were the
   owner's own upstream PRs, the security fix came from his report and was here already, "Fix
   yt" has no code to apply to, V1.3.78 is a version bump; the aspect-ratio option (#552) is a
-  feature for his decision. `docs/upstream-sync-log.md` keeps the record of the merge years.
+  feature for his decision. `docs/history/upstream-sync-log.md` keeps the record of the merge years.
 - **`upstream-watch.yml`** (2026-10-09) runs daily (06:00 UTC) and lists upstream's commits
   not reviewed yet in one issue, "Upstream: N commit(s) to review"; when upstream moves again the issue is updated and a comment says how many
   came. Each commit names its files, those this fork still has in
@@ -855,7 +854,7 @@
   of its vitest runner, an override and 34 MB of packages. The fixes kept their own check: a
   hand-made mutation of each one, which its test must catch.
 
-## Firefox API watch (2026-11-13)
+## Firefox API watch
 
 `firefox-api-watch.yml` (daily, 07:40 UTC) tells the owner what each new Firefox Stable release
 changed that could break or improve FastStream. It sits beside `firefox-stable.yml`/`firefox-beta.yml`,
@@ -945,7 +944,7 @@ relevant is `tools/firefox-api-watch.topics.mjs`.
   summary pattern for `excludeSummary`, a platform area for `excludeText`), with a unit test
   case; the last dry run's numbers above say what "normal" looks like.
 
-## Issues anyone can open (2026-11-16)
+## Issues anyone can open
 
 The repository is public: anyone can open an issue, and comment. `mpv-updates.yml` took any
 open issue titled "mpv update failed: ..." for its own, and a report key in anyone's comment
@@ -968,7 +967,7 @@ lockfile" when the lockfile held only a prerelease of the package, which it neve
 against the range; the issue then read as if the alert were fixed. It now names the
 prerelease as not checked. Test: `securityOverrides.test.mjs`.
 
-## Tools: reasons moved out of the code comments (2026-11-18)
+## Tools: reasons behind the code
 
 ### tools/e2e-spec-weights.mjs
 

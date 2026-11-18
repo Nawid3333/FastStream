@@ -1,11 +1,10 @@
 # Network layer and storage
 
-> Working notes, moved here from `CLAUDE.md` on 2026-10-04 so that file stays short. The
-> text is as it was written; dated entries describe the tree at their date. Where a note
-> says "above", "below" or names a section in quotes, [README.md](README.md) lists the
-> file each section is in now.
+> Why the code in this area is as it is. A date on an entry is when it was learned; where
+> the code and its tests say otherwise, they win. A section named in quotes may be in
+> another file: [README.md](README.md) lists every section.
 
-## Network layer: fetch() + OPFS (2026-09-10)
+## Network layer: fetch() + OPFS
 
 `chrome/player/network/FetchLoader.mjs` — the single loader shared by HLS,
 DASH and MP4 fragment/playlist/manifest fetching (`DownloadManager.mjs` →
@@ -98,7 +97,7 @@ than trusting `FSBlob`'s own self-report.
   client start at 0 and save over it. A read that merely failed keeps no progress for that
   video, instead of overwriting the intact record from 0 a second later.
 
-## Storage in a private window (2026-09-17)
+## Storage in a private window
 
 **OPFS exists and does not work in a Firefox private window.**
 `navigator.storage.getDirectory` is present there and throws
@@ -270,7 +269,7 @@ its requests did:
   `credentials: 'omit'` and no cache option; now `cache: 'no-store'` too, as `MpvSubtitles`'
   reads already did for the same reason. `StreamLengths.test.mjs`.
 
-## RAM first, a budget, and private windows in RAM only (2026-10-09)
+## RAM first, a budget, and private windows in RAM only
 
 Every downloaded fragment was written to disk at once - 44 ms for a 1.5 MB piece on OPFS,
 measured in Firefox 157 - even for a video that fits in RAM many times over. A private window
@@ -363,7 +362,7 @@ disk; the same with "Keep video on disk" off: let go, no file, played again);
 `MemoryBudget.test.mjs`; `opfsStorage.test.mjs` (deferred saves, spill, `memoryOnly`, an old
 write racing a new save); `DownloadEntry.test.mjs`, `DownloadManager.test.mjs` (lost data).
 
-## What goes to the disk, measured (2026-10-09)
+## What goes to the disk, measured
 
 Three player tabs, a 241 MB HLS video each, from a local server, in a test profile; the
 system-wide bytes written to physical disks (`Win32_PerfRawData_PerfDisk_PhysicalDisk`),
@@ -385,7 +384,7 @@ against an idle baseline of the same length:
   typically 600 TBW); 10 GB of spilled video a day is ~9 TB a year with the overhead, about 1.5 %
   of that. The budget is what decides how much is written: the overflow beyond it.
 
-## A reload keeps the buffer for 20 s (2026-10-28)
+## A reload keeps the buffer for 20 s
 
 His wish: a reload of the page must not throw away what was buffered; what nobody takes back is let
 go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e2e.mjs`.
@@ -437,77 +436,7 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   no longer downloads everything again. (FreshLink gives no link in a private window or a
   container tab since 2026-11-13: "Storage in a private window".)
 
-## What glm's review of the download layer found (2026-11-16)
-
-- **A queued download whose last request gives it up leaves the queue at once**
-  (`DownloadManager.letGo`). hls.js and dash.js give up their segment at a seek. When that
-  segment was still waiting in the queue, `abortWatcher` marked it failed but left it there, and
-  `canGetFile` refused every download ahead until a finished download moved it to the head.
-  `removeFile` already took entries out this way. Test: `DownloadManager.test.mjs`, "leaves it
-  when its last request gives it up".
-- **An error answer's unread body is cancelled at once** (`FetchLoader.loadInternal`). A
-  retry's teardown aborts its attempt, but a final error (a 4xx, the last try) held the body,
-  and with it the connection, until garbage collection: once per fragment of a link that ran
-  out. Test: `FetchLoader.test.mjs`, "lets a final error's unread body go at once".
-- **What was pinned when the room ran out still goes to disk.** `updateHasDownloadSpace` pins
-  every downloaded fragment (GRANDFATHERED) so that it is not deleted. `keepWithinMemoryBudget`
-  then skipped those fragments entirely, so the ones held in RAM never left it, "full" stayed on,
-  and nothing more was downloaded ahead for the rest of the video. Now they are spilled
-  (written to disk), never freed. A fragment a save holds (SAVER) stays in RAM as before.
-  Test: `FastStreamClient.test.mjs`, "writes what was kept for good ... to disk".
-- Checked and left as they are: the MP4 player halving its read-ahead after a
-  QuotaExceededError and never growing it back (the quota is fixed for the file's bitrate, so
-  growing back would only hit it again); a Content-Range total over `MAX_FILE_LENGTH`
-  (`lengthFromAnswer` already answers 0 for one).
-
-## What the second review found in storage (2026-11-16)
-
-- **The memory sink's save** (`StreamSaver.mjs`, a private window's streamed save) put a chunk
-  the Cache API had let go of into the file as the word "undefined", behind a "Save complete":
-  the guard `SaveFile` got for the same fault was missing there. Now the save fails ("A piece
-  of the saved file is gone"). Test: `StreamSaver.test.mjs`.
-- **`FSBlob.deleteBlob`** waits for the blob's write to end, then cleared the identifier again;
-  a fragment downloaded anew under it in that time was lost and downloaded a third time. Now a
-  blob saved again meanwhile is the new save's, and stays. Test: `opfsStorage.test.mjs`, "does
-  not let a delete take away a fragment saved again while it waited".
-- **IndexedDB at unload:** the beforeunload loop closed the databases over the list `close()`
-  splices, and skipped every second one. It runs over a copy. Test: `IndexedDBUnload.test.mjs`.
-
-## The network-layer audit (2026-11-18)
-
-A Claude API review of `chrome/player/network/`, each claim checked against the code.
-
-Fixed, each with a test that fails without it:
-
-- **RAM budget and a file under a new link:** a download taken over under a new link (`stored`,
-  after a hand-off or FreshLink) keeps its data under the old key (`blobId`). `ramBytesOf`,
-  `isInRam`, `isSpilling` and `spill` looked under the new key, found nothing, and the budget
-  could neither spill nor free those bytes. They go through `blobKey` now.
-  Test: `DownloadManagerHandOff.test.mjs`, "counts a file found under the new link in its RAM".
-- **A downloader given back past the limit:** after a failure took one away, the speed test went
-  on adding up to `downloaderLimit()`, and the one given back on a later success made one more
-  than the option allows. Test: `DownloadManager.test.mjs`, "gives none back past the most
-  downloaders allowed".
-- **Hand-off moves after a new source:** `adoptOne` checked the storage generation only after
-  the move, so every disk file of a long video was moved and then deleted while the next source
-  started. It returns at once now, and `dropSession` takes the old session's files.
-- **IndexedDB:** a `setup()` whose database did not open left its 5 s heartbeat running for the
-  page (FSBlob drops the manager and goes on), and a failed request's own promise in `transact`
-  was an unhandled rejection (the call itself rejects through `onerror`).
-
-Rejected:
-
-- A joining request replacing a running download's processors: every caller of one key goes
-  through the same fragment requester, with the same processors.
-- Archiving racing a removal: `saveBlobAsync` with `deferred` keeps the Blob synchronously.
-- `record.blob instanceof Blob` across realms: BufferStash's hand-off is structured-cloned into
-  the player's realm (`takeBackBuffer`).
-- Stripping a signature parameter only for the link's own values (two files told apart by a
-  parameter of the same name): after a FreshLink renewal the hand-off's link is the latest issue,
-  and files under the earlier issue carry other values, so they were no longer found. No host
-  is known whose files are told apart by a parameter of a name the link's signature changes.
-
-## Network layer: reasons moved out of the code comments (2026-11-18)
+## Network layer: reasons behind the code
 
 - **`OPFSManager.setFile`** - The Blob itself goes to the worker, which reads it in its turn: a
   Blob crosses to a worker without a copy. Read on the main thread first, every fragment a memory

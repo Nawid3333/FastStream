@@ -43,7 +43,7 @@ at that point: eslint 0, `tsc --noEmit` clean, 164 unit tests, both web-ext lint
 each, installed-extension e2e 8/8, private-window e2e, `verify:ort`. The
 installed-extension `mpv` spec failed once and passed 2 of 2 reruns; treat it as
 an intermittent flake. Maintenance is: decide the upstream sync PR when one
-appears (`docs/upstream-sync-log.md`), and every green push to `main` is
+appears (`docs/history/upstream-sync-log.md`), and every green push to `main` is
 released automatically. Open decisions (the licence) are unchanged, below.
 
 **Date:** 2026-09-07 (MPV section added 2026-09-09)

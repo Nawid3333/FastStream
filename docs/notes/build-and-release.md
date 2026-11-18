@@ -1,9 +1,8 @@
 # Building and releasing
 
-> Working notes, moved here from `CLAUDE.md` on 2026-10-04 so that file stays short. The
-> text is as it was written; dated entries describe the tree at their date. Where a note
-> says "above", "below" or names a section in quotes, [README.md](README.md) lists the
-> file each section is in now.
+> Why the code in this area is as it is. A date on an entry is when it was learned; where
+> the code and its tests say otherwise, they win. A section named in quotes may be in
+> another file: [README.md](README.md) lists every section.
 
 ## The SPLICER preprocessor
 
@@ -85,7 +84,7 @@ itself. It has an entry of its own now, with the content script's match. The
 player's page stays open to every page (a page frames it: mpv.md, "A player a
 page frames itself"). `customSiteScripts.test.mjs`.
 
-## Releasing (auto-release.yml, added 2026-09-12)
+## Releasing (auto-release.yml)
 
 Every push to `main` that passes CI now gets released
 automatically — no separate "ship it" step. `auto-release.yml` waits for
