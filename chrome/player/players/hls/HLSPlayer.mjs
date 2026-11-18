@@ -15,16 +15,9 @@ import {SaveFragmentFetcher, savedEntry} from '../SaveFragmentFetcher.mjs';
 
 /** @typedef {import('./HLSFragment.mjs').HLSFragment} HLSFragment */
 
-// hls.js watches for a fragment loading too slowly and drops quality
-// mid-fragment (AbrController._abandonRulesCheck). That heuristic fights
-// FastStream's whole premise of pre-buffering far ahead at up to 6x, so it
-// is disabled here. _abandonRulesCheck is assigned as an instance property
-// in the base constructor (not a prototype method), so it has to be
-// reassigned after `super()` runs rather than simply redeclared - a
-// prototype method of the same name would be shadowed by that instance
-// property and never called. hls.js's types call it private, so the base is cast.
+// No mid-fragment quality drop: _abandonRulesCheck is an instance property, reassigned after super().
 class FastStreamAbrController extends /** @type {any} */ (AbrController) {
-  /** @param {Hls} hls - The hls.js instance it controls. */
+  /** @param {Hls} hls */
   constructor(hls) {
     super(hls);
     this._abandonRulesCheck = () => {};
@@ -34,8 +27,7 @@ class FastStreamAbrController extends /** @type {any} */ (AbrController) {
 export default class HLSPlayer extends EventEmitter {
   /**
    * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
-   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config] -
-   *   What the player is for (PlayerLoader.createPlayer's callers).
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config]
    */
   constructor(client, config) {
     super();
@@ -47,13 +39,11 @@ export default class HLSPlayer extends EventEmitter {
     // The segment downloads hls.js waits for (HLSLoader), dropped when the preview seeks.
     /** @type {import('../../network/DownloadEntry.mjs').DownloadWatcher[]} */
     this.activeRequests = [];
-    // Download-manager keys of the playlists this player has loaded; a second load of
-    // one is a live refresh (HLSLoader).
+    // Download-manager keys of the playlists loaded: a second load of one is a live refresh.
     /** @type {Set<string>} */
     this.loadedManifests = new Set();
     this.fragmentRequester = new HLSFragmentRequester(this);
-    // An audio-only player's <audio> is used only as a media element (InterfaceController's
-    // dressVideo and addVideo, AudioAnalyzer), as DirectVideoPlayer and DashPlayer declare it.
+    // An audio-only player's <audio> serves only as a media element.
     this.video = /** @type {HTMLVideoElement} */ (document.createElement(this.isAudioOnly ? 'audio' : 'video'));
     if (!Hls.isSupported()) {
       throw new Error('HLS Not supported');
@@ -64,9 +54,7 @@ export default class HLSPlayer extends EventEmitter {
     const basePath = split.slice(0, split.length - 3).join('/');
     const workerPath = `${basePath}/${workerLocation}`;
 
-    /**
-     * @type {Hls}
-     */
+    /** @type {Hls} */
     this.hls = new Hls({
       autoStartLoad: false,
       startPosition: -1,
@@ -99,23 +87,14 @@ export default class HLSPlayer extends EventEmitter {
       appendErrorMaxRetry: 3,
       // eslint-disable-next-line new-cap
       loader: HLSLoaderFactory(this),
-      // hls.js's text and metadata tracks are not FastStream's: it turns hls.js's subtitles off
-      // (subtitleTrack -1, MANIFEST_PARSED) and reads no video.textTracks. With these on, hls.js
-      // still decoded CEA-608 captions and made cues of ID3, emsg and EXT-X-DATERANGE metadata
-      // for every fragment, and a text track per subtitle rendition, all hidden.
+      // FastStream shows neither hls.js's text tracks nor its metadata cues: all off.
       enableDateRangeMetadataCues: false,
       enableEmsgMetadataCues: false,
       enableID3MetadataCues: false,
       enableWebVTT: false,
       enableIMSC1: false,
       enableCEA708Captions: false,
-      // Interstitials (EXT-X-DATERANGE CLASS="com.apple.hls.interstitial", ad breaks): hls.js
-      // plays each in a player of its own made from this config, FastStream's loader and level
-      // control included, and FastStream drives none of it. Measured (hls-interstitials.e2e.mjs):
-      // a break that replaces part of the stream made the video skip the stream's first seconds
-      // and end inside the break; one inserted before it played no ad, though hls.js fetched the
-      // ad's playlist. Off, hls.js plays the stream itself, in order, as the HLS spec has a
-      // player without interstitials do.
+      // Interstitials off: hls.js would play them in players FastStream does not drive.
       enableInterstitialPlayback: false,
       stretchShortVideoTrack: false,
       maxAudioFramesDrift: 1,
@@ -130,16 +109,7 @@ export default class HLSPlayer extends EventEmitter {
       abrMaxWithRealBitrate: false,
       // Cast as its base is (FastStreamAbrController): hls.js's types call a member it overrides private.
       abrController: /** @type {any} */ (FastStreamAbrController),
-      // Without this, hls.js's error controller silently resets a manually
-      // pinned level back to auto (getLevelSwitchAction -> hls.loadLevel =
-      // -1) whenever a fragment/level load fails - exactly what a weak
-      // connection triggers. Its bandwidth-based ABR then takes over and
-      // settles on a lower quality that's never restored, even though
-      // FastStream (via LevelManager.currentVideoLevelID) still believes the
-      // user's chosen quality is in effect. FastStream always drives level
-      // selection itself, including for "Auto" (see LevelManager.
-      // getDesiredVideoHeight/matchQuality), so there's no legitimate ABR
-      // mode here for hls.js to fall back to.
+      // hls.js's error controller resets a pinned level to auto on a load failure; FastStream picks levels itself.
       preserveManualLevelOnError: true,
       maxStarvationDelay: 4,
       maxLoadingDelay: 4,
@@ -148,7 +118,6 @@ export default class HLSPlayer extends EventEmitter {
       licenseXhrSetup: undefined,
       drmSystems: {},
       drmSystemOptions: {},
-      // requestMediaKeySystemAccessFunc: requestMediaKeySystemAccess,
       cmcd: undefined,
     });
   }
@@ -176,8 +145,7 @@ export default class HLSPlayer extends EventEmitter {
   }
 
   /**
-   * Reads an init segment, downloading it first if hls.js has not yet (a level just
-   * switched to), as DashPlayer's save does.
+   * Reads an init segment, downloading it first if hls.js has not yet (a level just switched to).
    * @param {HLSFragment} init - The level's fragment -1.
    * @return {Promise<Uint8Array>}
    */
@@ -192,14 +160,11 @@ export default class HLSPlayer extends EventEmitter {
   }
 
   /**
-   * Makes an MP4 file of the fragments of the levels playing: fMP4 levels through DASH2MP4,
-   * transport streams through HLS2MP4.
+   * fMP4 levels go through DASH2MP4, transport streams through HLS2MP4.
    * @param {{filestream?: WritableStream<Uint8Array>, partialSave: boolean,
-   *   registerCancel: (cancel: () => void) => void, onProgress: (progress: number) => void}} options -
-   *   SaveManager's: no stream for an HLS save (canSave says nothing of streaming).
+   *   registerCancel: (cancel: () => void) => void, onProgress: (progress: number) => void}} options
    */
   async saveVideo(options) {
-    // An HLS player's store holds HLSFragments.
     const fragments = /** @type {import('./HLSFragmentStore.mjs').FragmentStore} */ (this.client.getFragments(this.getCurrentVideoLevelID()) || []);
     const audioFragments = /** @type {import('./HLSFragmentStore.mjs').FragmentStore} */ (this.client.getFragments(this.getCurrentAudioLevelID()) || []);
 
@@ -211,7 +176,6 @@ export default class HLSPlayer extends EventEmitter {
       });
     }
 
-    // Downloads the fragments a few ahead of the one being saved: see SaveFragmentFetcher.
     const fetcher = new SaveFragmentFetcher(this.fragmentRequester, zippedFragments.map((data) => data.fragment),
         this.client.downloadManager.downloaderLimit());
     if (options?.registerCancel) {
@@ -224,8 +188,7 @@ export default class HLSPlayer extends EventEmitter {
     const level = this.hls.levels[this.getIndexes(/** @type {string} */ (this.getCurrentVideoLevelID())).levelID];
     const audioLevel = this.hls.audioTracks[this.hls.audioTrack];
 
-    // Read before the fragments are pinned below: a pinned fragment is unpinned only by
-    // its getEntry or by the catch at the end, so nothing between the two may throw.
+    // Read before the fragments are pinned: a pinned fragment is unpinned only by its getEntry or the catch.
     /** @type {Uint8Array|null} */
     let levelInitData = null;
     /** @type {Uint8Array|null} */
@@ -241,10 +204,7 @@ export default class HLSPlayer extends EventEmitter {
 
     zippedFragments.forEach((data, index) => {
       data.fragment.addReference(ReferenceTypes.SAVER);
-      // Let go of once read: the converter keeps a copy of its own. Not for the remuxer
-      // (keepPinned), which reads the store's own Blobs as it writes, after it read them all:
-      // freed before that, a fragment's File read nothing. Those stay pinned until the save
-      // ends (below); one the merger let go of before it gave up is pinned again.
+      // Let go of once read, except for the remuxer (keepPinned): it reads the store's Blobs as it writes.
       data.getEntry = async ({keepPinned = false} = {}) => {
         if (keepPinned) data.fragment.addReference(ReferenceTypes.SAVER);
         const entry = await fetcher.entry(index, () => this.client.downloadManager.getEntry(data.fragment.getContext()));
@@ -253,19 +213,12 @@ export default class HLSPlayer extends EventEmitter {
       };
     });
 
-    // A level is fMP4 exactly when its playlist named an initialization segment, and
-    // those belong to the merger - HLS2MP4 below demuxes transport streams and cannot
-    // read them. A level that carries its own audio rather than taking it from a
-    // separate rendition belongs there too, so the audio side is handed over only when
-    // it is a rendition of its own. Requiring both init segments sent fMP4-with-muxed-
-    // audio to HLS2MP4, which then failed on data it was never meant to parse.
+    // fMP4 (an init segment) goes to the merger, its audio side only when it is a rendition of its own.
     const mergeable = levelInitData && (audioLevelInitData || audioFragments.length === 0);
 
     try {
       if (mergeable) {
-        // Routed through the DASH2MP4 wrapper (not MP4Merger directly) so a
-        // codec/packaging failure here gets the same remux
-        // fallback DASH already has, instead of hard-failing the save.
+        // Through DASH2MP4, not MP4Merger, for its remux fallback.
         const {DASH2MP4} = await import('../../modules/dash2mp4/dash2mp4.mjs');
 
         const dash2mp4 = new DASH2MP4(options.registerCancel);
@@ -276,9 +229,7 @@ export default class HLSPlayer extends EventEmitter {
           }
         });
 
-        // audioLevel is only there when a separate audio rendition is selected, which
-        // a muxed level does not have - hence the optional access and the zero/null
-        // audio side, the same shape DASHPlayer already hands to a video-only save.
+        // audioLevel exists only for a separate rendition: a muxed level has a zero/null audio side.
         const videoMimeType = level.videoCodec ? `video/mp4; codecs="${level.videoCodec}"` : null;
         const audioMimeType = audioLevel?.audioCodec ? `audio/mp4; codecs="${audioLevel.audioCodec}"` : null;
 
@@ -351,10 +302,7 @@ export default class HLSPlayer extends EventEmitter {
 
 
     this.hls.on(Hls.Events.MANIFEST_PARSED, async (event, data) => {
-      // What Firefox says about decoding each version, before the first pick reads it.
-      // Nothing loads until load() below (autoStartLoad is off), and a probe gives up
-      // after DecodingCapabilities.PROBE_TIMEOUT_MS. It never throws (an error is no answer),
-      // so the pick and load() below always run.
+      // What Firefox says about decoding each version, before the first pick; it never throws.
       await this.probeLevels().catch((e) => console.warn('[HLSPlayer] probing levels failed', e));
       if (!this.video) {
         // Destroyed while asking.
@@ -390,27 +338,22 @@ export default class HLSPlayer extends EventEmitter {
       this.trackUpdated(data.details, 1);
     });
 
-    // After a fatal error hls.js loads nothing more. A manifest or playlist that could not
-    // be loaded gives <video> no error of its own, so without this the player would wait
-    // forever instead of saying it failed.
+    // A manifest or playlist that could not be loaded gives <video> no error of its own.
     this.hls.on(Hls.Events.ERROR, (event, data) => {
       if (data.fatal) this.emit(DefaultPlayerEvents.ERROR, data);
     });
   }
 
   /**
-   * A level's or an audio track's playlist was loaded: its segments go into the store.
    * @param {import('../../modules/hls.mjs').LevelDetails} levelDetails
    * @param {number} trackID - 0 for a level, 1 for an audio track.
    */
   trackUpdated(levelDetails, trackID) {
     levelDetails.trackID = trackID;
-    // FastStream decrypts AES-128 segments itself (HLSFragmentRequester), its init segment
-    // too; other encryption (SAMPLE-AES, DRM) it cannot play.
+    // FastStream decrypts AES-128 segments itself (HLSFragmentRequester); other encryption it cannot play.
     if (!HLSFragmentRequester.takeOverDecryption(levelDetails.fragments)) {
       this.emit(DefaultPlayerEvents.NEED_KEY);
     }
-    // Into the store, from the level's first segment (HLSFragmentStore).
     storeLevel(this.client, levelDetails, (level) => this.getIdentifier(trackID, level));
   }
   getVideo() {
@@ -419,8 +362,7 @@ export default class HLSPlayer extends EventEmitter {
 
   /**
    * The store's id of a level or an audio track ("track:index").
-   * @param {number|undefined} trackID - 0 for a level, 1 for an audio track; HLSLoader passes
-   *   an hls.js fragment's, which the store notes (types/vendor-patches.d.ts: optional).
+   * @param {number|undefined} trackID - 0 for a level, 1 for an audio track.
    * @param {number} levelID - Its index in hls.js's levels or audio tracks.
    * @return {string}
    */
@@ -429,7 +371,7 @@ export default class HLSPlayer extends EventEmitter {
   }
 
   /**
-   * @param {string} identifier - A getIdentifier id.
+   * @param {string} identifier
    * @return {{trackID: number, levelID: number}}
    */
   getIndexes(identifier) {
@@ -440,9 +382,7 @@ export default class HLSPlayer extends EventEmitter {
     };
   }
 
-  /**
-   * @param {import('../../VideoSource.mjs').VideoSource} source
-   */
+  /** @param {import('../../VideoSource.mjs').VideoSource} source */
   async setSource(source) {
     this.source = source;
     this.hls.loadSource(source.url);
@@ -454,7 +394,7 @@ export default class HLSPlayer extends EventEmitter {
 
   /**
    * @param {HLSFragment} fragment
-   * @param {number} priority - In the download manager's queue, higher first (a save's -1).
+   * @param {number} priority - Higher first (a save's -1).
    * @return {Promise<void>}
    */
   downloadFragment(fragment, priority) {
@@ -494,23 +434,15 @@ export default class HLSPlayer extends EventEmitter {
     this.hls.destroy();
 
     VideoUtils.destroyVideo(/** @type {HTMLVideoElement} */ (this.video));
-    // Not used after destroy; typed as always there, as the other players do.
     this.video = /** @type {any} */ (null);
 
     this.emit(DefaultPlayerEvents.DESTROYED);
   }
 
   set currentTime(value) {
-    // The seek preview follows the pointer: what it was loading for the old place is dropped,
-    // through hls.js, which then loads from the new one. Its loaders were aborted behind its
-    // back before, and hls.js resets after an abort only once its first segment has loaded
-    // (handleFragLoadAborted needs its transmuxer): a hover before that left the preview
-    // loading that first segment for good, and hovering loaded nothing for the rest of the
-    // video.
+    // The preview follows the pointer through hls.js: an abort behind its back stuck it on its first segment.
     if (this.isPreview && this.activeRequests.length > 0 && !VideoUtils.isBuffered(this.video.buffered, value)) {
-      // Still on the segment that is loading: it goes on. The pointer moves many times a
-      // second, and on a slow line each move started that segment over.
-      // hls.js's types keep streamController and its fragCurrent protected.
+      // Still on the segment that is loading: it goes on (each pointer move would start it over).
       const loading = /** @type {any} */ (this.hls).streamController?.fragCurrent;
       if (loading && value >= loading.start && value < loading.start + loading.duration) {
         this.video.currentTime = value;
@@ -539,9 +471,8 @@ export default class HLSPlayer extends EventEmitter {
   }
 
   /**
-   * @param {import('../../modules/hls.mjs').Level} level - An hls.js Level.
-   * @return {?import('../DecodingCapabilities.mjs').VideoProbe} What DecodingCapabilities asks
-   *   about it; null for a codec it does not know.
+   * @param {import('../../modules/hls.mjs').Level} level
+   * @return {?import('../DecodingCapabilities.mjs').VideoProbe} Null for a codec it does not know.
    */
   static videoProbeForLevel(level) {
     return videoProbeFor({
@@ -555,8 +486,8 @@ export default class HLSPlayer extends EventEmitter {
   }
 
   /**
-   * @param {import('../../modules/hls.mjs').MediaPlaylist} track - An hls.js audio track.
-   * @return {?import('../DecodingCapabilities.mjs').AudioProbe} Null for a codec it does not know.
+   * @param {import('../../modules/hls.mjs').MediaPlaylist} track
+   * @return {?import('../DecodingCapabilities.mjs').AudioProbe}
    */
   static audioProbeForTrack(track) {
     return audioProbeFor({codec: track.audioCodec, bitrate: track.bitrate});
@@ -601,7 +532,6 @@ export default class HLSPlayer extends EventEmitter {
         bitrate: track.bitrate,
         mimeType: null,
         language: track.lang,
-        // The playlist's NAME, which every audio rendition has.
         label: track.name,
         audioCodec: track.audioCodec ? `audio/mp4; codecs="${track.audioCodec}"` : null,
         decoding: cachedAnswer(HLSPlayer.audioProbeForTrack(track)),
@@ -612,24 +542,15 @@ export default class HLSPlayer extends EventEmitter {
 
   getCurrentVideoLevelID() {
     const level = this.hls.currentLevel === -1 ? this.hls.loadLevel : this.hls.currentLevel;
-    // No level before the manifest is parsed. This was "0:null", which FastStreamClient took
-    // for a level and wrote over the level an archive had asked for.
+    // No level before the manifest is parsed.
     return level === -1 ? null : this.getIdentifier(0, level);
   }
 
-  /**
-   * @param {string|number|null} value - What the client has as the level's id: one of this
-   *   player's (getCurrentVideoLevelID, a string); null for none.
-   */
+  /** @param {string|number|null} value - A getCurrentVideoLevelID string; null for none. */
   setCurrentVideoLevelID(value) {
     if (value === null) return;
     const level = this.getIndexes(/** @type {string} */ (value)).levelID;
-    // The level it loads already: pinned for what it loads next. Setting currentLevel makes
-    // hls.js switch at once even to the same level - it drops the segment loading and the
-    // buffer: the client's level check (checkLevelChange) told the seek preview the level it
-    // was on, and the segment under the pointer was dropped 0.4 s in and downloaded again.
-    // In effect: the level it loads next (loadLevel, once set) or the one playing; a real
-    // change still switches at once.
+    // The level it loads already is only pinned: setting currentLevel switches at once even to the same level.
     if (level === this.hls.loadLevel || level === this.hls.currentLevel) {
       this.hls.loadLevel = level;
       return;
@@ -642,8 +563,7 @@ export default class HLSPlayer extends EventEmitter {
   }
 
   /**
-   * Whether the stream is live. Its duration does not say so: with liveDurationInfinity off,
-   * hls.js makes it the end of the live window, not Infinity.
+   * Its duration does not say so: hls.js makes it the end of the live window.
    * @return {boolean}
    */
   get isLive() {
@@ -652,20 +572,13 @@ export default class HLSPlayer extends EventEmitter {
   }
 
   /**
-   * The fragment at the playhead, in the level that is playing. The client downloads ahead
-   * from it (FastStreamClient.getNextToDownload). hls.js's currentFrag is the fragment that
-   * plays, and after a seek it stays the old one until the first fragment at the new time
-   * plays: the downloads went on from the old place meanwhile, three segments there before
-   * the one the seek needed. So the level comes from hls.js, the fragment from the time, as
-   * currentAudioFragment and DashPlayer's do.
+   * The fragment at the playhead: hls.js's currentFrag stays the old one after a seek until the new one plays.
    * @return {HLSFragment|null|undefined} None when the store has no fragment there.
    */
   get currentFragment() {
-    // hls.js's types keep streamController protected.
     const frag = /** @type {any} */ (this.hls).streamController.currentFrag;
     if (!frag) return null;
     const identifier = this.getIdentifier(0, frag.level);
-    // An HLS player's store holds HLSFragments.
     const fragments = /** @type {import('./HLSFragmentStore.mjs').FragmentStore|undefined} */ (this.client.getFragments(identifier));
     const time = this.currentTime;
     // (A store has holes where segments were forgotten: HLSFragmentStore.)
@@ -682,20 +595,13 @@ export default class HLSPlayer extends EventEmitter {
     return this.hls.audioTrack === -1 ? null : this.getIdentifier(1, this.hls.audioTrack);
   }
 
-  /**
-   * @param {string|number|null} value - What the client has as the audio track's id: one of
-   *   this player's (getCurrentAudioLevelID, a string); null for none.
-   */
+  /** @param {string|number|null} value - A getCurrentAudioLevelID string; null for none. */
   setCurrentAudioLevelID(value) {
     if (value === null) return;
     this.hls.audioTrack = this.getIndexes(/** @type {string} */ (value)).levelID;
   }
 
-  /**
-   * The audio track's fragment at the playhead.
-   * @return {HLSFragment|null|undefined} Null without an audio track's store; none when it has
-   *   no fragment there.
-   */
+  /** @return {HLSFragment|null|undefined} Null without an audio store; none when it has no fragment there. */
   get currentAudioFragment() {
     const frags = /** @type {import('./HLSFragmentStore.mjs').FragmentStore|undefined} */ (this.client.getFragments(this.getCurrentAudioLevelID()));
     if (!frags) return null;

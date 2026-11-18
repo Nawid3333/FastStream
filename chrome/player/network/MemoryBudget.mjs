@@ -1,43 +1,22 @@
 // @ts-check
 
-// How much of the RAM budget a player may hold, and what it lets go of first.
-//
-// Downloaded fragments are kept in RAM (fast: a 1.5 MB piece reads in 0.24 ms from RAM,
-// 1.5 ms from OPFS, 5.6 ms from the Cache API, measured in Firefox 157) up to a budget the
-// user sets, 2 GB by default, for all FastStream players together: Firefox tells an extension
-// nothing of the computer's RAM (no navigator.deviceMemory). A player over its share writes
-// what it holds furthest from the playhead to disk (a normal window), or lets it go to be
-// downloaded again when needed (a private window, which keeps nothing on disk, as Firefox
-// keeps a private window's media in RAM). Behind the playhead goes first: watched footage is
-// the least likely to be wanted again.
-
 export const DEFAULT_BUDGET_BYTES = 2e9;
-// Over HIGH of its share, a player lets go of fragments until it is down to LOW, and starts
-// no downloads ahead until then; the gap keeps it from starting and stopping each second.
+// Over HIGH of its share a player frees down to LOW; the gap keeps it from flapping.
 export const HIGH = 0.9;
 export const LOW = 0.75;
-// A player the user watches and that plays weighs this much more than one in a background tab.
 export const WATCHED_WEIGHT = 4;
-// What is never let go of: around the playhead, what playback needs next.
 export const KEEP_ON_DISK_WINDOW = {behind: 10, ahead: 60};
 export const KEEP_IN_RAM_ONLY_WINDOW = {behind: 5, ahead: 30};
-// When the window alone holds more than the share (a high bitrate, a small budget), all but
-// the next seconds may go: a window bigger than the budget let RAM grow without a bound.
+// When the window alone exceeds the share, all but the next seconds may go.
 export const KEEP_AT_LEAST = {behind: 0, ahead: 10};
-// A budget of 0 keeps nothing in RAM: in a normal window all but the next seconds goes to
-// disk (KEEP_AT_LEAST). What is downloaded passes through RAM on its way there, so downloads
-// ahead go on while a player holds less than this; the user's decision: 0 RAM
-// is straight to disk, not nothing downloaded ahead. A private window keeps nothing on disk:
-// there, 0 downloads nothing ahead.
+// 0 RAM means straight to disk, not nothing ahead (in a private window it is nothing ahead).
 export const DISK_ONLY_ROOM_BYTES = 64e6;
 
 /**
- * A player's share of the budget: its weight's part of it, or all that the other players
- * leave free, whichever is more (a lone player may use the whole budget).
- * @param {number} budget - Bytes, for all players.
- * @param {number} weight - This player's.
- * @param {Array<{ramBytes: number, weight: number}>} peers - The others'.
- * @return {number} Bytes.
+ * @param {number} budget
+ * @param {number} weight
+ * @param {Array<{ramBytes: number, weight: number}>} peers
+ * @return {number}
  */
 export function shareOf(budget, weight, peers) {
   let totalWeight = weight;
@@ -52,7 +31,7 @@ export function shareOf(budget, weight, peers) {
 }
 
 /**
- * @param {boolean} watched - Seen by the user and playing.
+ * @param {boolean} watched
  * @return {number}
  */
 export function weightOf(watched) {
@@ -63,17 +42,15 @@ export function weightOf(watched) {
  * @typedef {Object} HeldFragment
  * @property {number} start
  * @property {number} end
- * @property {number} bytes - What it holds in RAM.
+ * @property {number} bytes
  */
 
 /**
- * The fragments to let go of to free a number of bytes: outside the window around the
- * playhead; first those behind it, the oldest first, then those ahead, the furthest first.
  * @template {HeldFragment} F
- * @param {F[]} held - Fragments held in RAM that may be let go of.
- * @param {number} time - The playhead.
- * @param {{behind: number, ahead: number}} keep - The window never let go of.
- * @param {number} bytes - How much to free.
+ * @param {F[]} held
+ * @param {number} time
+ * @param {{behind: number, ahead: number}} keep
+ * @param {number} bytes
  * @return {F[]}
  */
 export function chooseToRelease(held, time, keep, bytes) {
@@ -83,8 +60,6 @@ export function chooseToRelease(held, time, keep, bytes) {
   if (freed >= bytes || (keep.behind <= KEEP_AT_LEAST.behind && keep.ahead <= KEEP_AT_LEAST.ahead)) {
     return first;
   }
-  // A set: includes() on the list made this pass quadratic, each client tick while a long
-  // video sat over its budget with thousands of fragments held.
   const chosen = new Set(first);
   const rest = releaseOutside(held.filter((fragment) => !chosen.has(fragment)), time, KEEP_AT_LEAST, bytes - freed);
   return [...first, ...rest];
@@ -99,8 +74,7 @@ export function chooseToRelease(held, time, keep, bytes) {
  * @return {F[]}
  */
 function releaseOutside(held, time, keep, bytes) {
-  // Not a fragment whose times are not parsed yet (-1): it read as the furthest behind and
-  // went first, though playback may need it next.
+  // Not a fragment without times (-1): playback may need it next.
   const behind = held.filter((fragment) => fragment.end >= 0 && fragment.end < time - keep.behind)
       .sort((a, b) => a.end - b.end);
   const ahead = held.filter((fragment) => fragment.start >= 0 && fragment.start > time + keep.ahead)
@@ -117,11 +91,9 @@ function releaseOutside(held, time, keep, bytes) {
 }
 
 /**
- * Whether a player is out of RAM for downloads ahead: from HIGH of its share until it is
- * back down to LOW (what is on its way to disk counts as gone).
- * @param {number} held - Bytes it holds in RAM.
- * @param {number} leaving - Bytes on their way to disk.
- * @param {number} share - Its share of the budget.
+ * @param {number} held
+ * @param {number} leaving
+ * @param {number} share
  * @param {boolean} wasFull
  * @return {boolean}
  */

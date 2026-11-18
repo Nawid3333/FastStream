@@ -1,28 +1,12 @@
 // @ts-check
-// Loading a stream through its page, for what FastStream cannot load itself (the page's side:
-// page-fetch.js). The player loads from its extension page, which is no part of the page that
-// showed the video: a video only the page's service worker answers (abyss.to's player, #665),
-// or one whose server wants the page's cookies as they are now, is refused there. The page's own
-// requests are not: a content script's fetch() in Manifest V3 is made in the page's context.
-//
-// FetchLoader asks PageFetch first, for every request: a host that refused FastStream's request
-// and answered the page's is loaded this way from then on (route), the rest as before. What comes back is a real
-// Response, its body streamed as the page reads it, so FetchLoader treats it as any other.
+// Loading a stream through its page (page-fetch.js), for what only the page's context gets.
 
-// The port's name in the page (page-fetch.js), and the player's port to the background, which
-// joins the two (PageFetchRelay.mjs), named for the page's frame.
 export const PAGE_PORT_NAME = 'faststream-page-fetch';
 export const RELAY_PORT_PREFIX = 'faststream-page-fetch-relay:';
-// How long the page may take to answer with a request's head.
 const HEAD_TIMEOUT_MS = 30000;
 
-/**
- * A port to page-fetch.js in one frame of a tab, with the requests sent on it.
- */
 export class PageFetchChannel {
-  /**
-   * @param {() => chrome.runtime.Port} connect - Opens the port (through the background).
-   */
+  /** @param {() => chrome.runtime.Port} connect */
   constructor(connect) {
     this.connect = connect;
     /** @type {?chrome.runtime.Port} */
@@ -40,7 +24,6 @@ export class PageFetchChannel {
     port.onMessage.addListener((/** @type {*} */ msg) => this.onMessage(msg));
     port.onDisconnect.addListener(() => {
       if (this.port === port) this.port = null;
-      // Its page went, or never had page-fetch.js: every request on it fails.
       const reason = new TypeError('The page is gone');
       for (const request of this.pending.values()) {
         request.fail(reason);
@@ -68,21 +51,17 @@ export class PageFetchChannel {
           this.port?.postMessage({abort: msg.id});
         },
       });
-      // A Response's status is 200 to 599, and one of 204, 205 and 304 has no body (its
-      // constructor throws otherwise).
+      // A Response's status is 200 to 599, and 204, 205 and 304 have no body.
       const status = Math.min(Math.max(msg.status, 200), 599);
       const response = new Response([204, 205, 304].includes(status) ? null : body, {
         status,
         statusText: typeof msg.statusText === 'string' ? msg.statusText : '',
         headers: msg.headers || {},
       });
-      // Where it came from after the page's redirects, as a fetch's own Response says.
       Object.defineProperty(response, 'url', {value: typeof msg.url === 'string' && msg.url ? msg.url : request.url});
       request.head(response);
     } else if (ArrayBuffer.isView(msg.chunk)) {
-      // Not `instanceof Uint8Array`: a port's message is another realm's (measured, Firefox 160:
-      // "[object Uint8Array]", instanceof false), and every piece was dropped. Copied into one of
-      // this page's own, which the body's readers (Response, FetchLoader) take as they take any.
+      // Not instanceof: a port's message is another realm's. Copied into one of this realm.
       const piece = new Uint8Array(msg.chunk.byteLength);
       piece.set(/** @type {Uint8Array} */ (msg.chunk));
       try {
@@ -102,7 +81,6 @@ export class PageFetchChannel {
   }
 
   /**
-   * Loads a URL through the page.
    * @param {string} url
    * @param {{headers?: Object<string, string>, signal?: AbortSignal, priority?: string}} [init]
    * @return {Promise<Response>}
@@ -135,13 +113,10 @@ export class PageFetchChannel {
           settled = true;
           resolve(response);
         },
-        // Ended (done, cancelled, failed): the signal no longer holds it.
         dispose: () => signal?.removeEventListener('abort', onAbort),
         fail: (/** @type {Error} */ e) => {
           clearTimeout(timer);
           request.dispose();
-          // The page stops too, when its port is still open: a head that came too late, an
-          // abort. A page that sent the error itself has ended it already (an unknown id there).
           if (this.pending.has(id)) {
             try {
               this.port?.postMessage({abort: id});
@@ -155,7 +130,6 @@ export class PageFetchChannel {
             reject(e);
             return;
           }
-          // The head came, the body breaks off: the reader gets the error.
           try {
             request.controller?.error(e);
           } catch (err) {
@@ -184,27 +158,20 @@ export class PageFetchChannel {
   }
 }
 
-/**
- * The player's way to its page: which frame, and which hosts go through it.
- */
 class PageFetchRoutes {
   constructor() {
     /** @type {?PageFetchChannel} */
     this.channel = null;
     /** @type {?string} */
     this.target = null;
-    // Hosts (origins) loaded through the page.
     /** @type {Set<string>} */
     this.routed = new Set();
   }
 
   /**
-   * The frame the player's stream came from, or none (a file, a link typed in, no page): for each
-   * source the player sets. Its routes start empty: a host proves again, for each stream, that
-   * only the page gets it (another episode's links may load directly). The port to the same frame
-   * is kept.
+   * Routes start empty for each source: a host proves again that only the page gets it.
    * @param {?{tabId: number, frameId: number}} target
-   * @param {(tabId: number, frameId: number) => chrome.runtime.Port} [connect] - Opens a port to the frame.
+   * @param {(tabId: number, frameId: number) => chrome.runtime.Port} [connect]
    */
   configure(target, connect = defaultConnect) {
     const key = target && Number.isInteger(target.tabId) && target.tabId >= 0 && Number.isInteger(target.frameId) ?
@@ -217,7 +184,7 @@ class PageFetchRoutes {
     this.channel = key && target ? new PageFetchChannel(() => connect(target.tabId, target.frameId)) : null;
   }
 
-  /** @return {boolean} Whether there is a page to load through. */
+  /** @return {boolean} */
   available() {
     return !!this.channel;
   }
@@ -235,7 +202,6 @@ class PageFetchRoutes {
   }
 
   /**
-   * Whether a URL is loaded through the page.
    * @param {string} url
    * @return {boolean}
    */
@@ -244,19 +210,13 @@ class PageFetchRoutes {
     return !!this.channel && !!origin && this.routed.has(origin);
   }
 
-  /**
-   * Loads the URL's host through the page from now on.
-   * @param {string} url
-   */
+  /** @param {string} url */
   route(url) {
     const origin = this.originOf(url);
     if (origin && this.channel) this.routed.add(origin);
   }
 
-  /**
-   * Loads the URL's host directly again: the page could not load it.
-   * @param {string} url
-   */
+  /** @param {string} url */
   unroute(url) {
     const origin = this.originOf(url);
     if (origin) this.routed.delete(origin);
@@ -274,9 +234,7 @@ class PageFetchRoutes {
 }
 
 /**
- * A port to the frame, through the background (PageFetchRelay.mjs): the player's iframe in a page
- * has no tabs API, and the background joins it to the frame of the player's own tab.
- * @param {number} tabId - The player's tab (the background takes the port's own).
+ * @param {number} tabId
  * @param {number} frameId
  * @return {chrome.runtime.Port}
  */

@@ -3,7 +3,6 @@ import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {cachedAnswer} from '../DecodingCapabilities.mjs';
 
 /**
- * What DashPlayer.probeRepresentation notes of a representation, by level id.
  * @typedef {{probe: ?(import('../DecodingCapabilities.mjs').VideoProbe|import('../DecodingCapabilities.mjs').AudioProbe), frameRate?: number,
  *   videoRange?: import('../DecodingCapabilities.mjs').VideoRange}} RepresentationDetails
  */
@@ -11,7 +10,7 @@ import {cachedAnswer} from '../DecodingCapabilities.mjs';
 export class DashTrackUtils {
   /**
    * @param {import('../../modules/dash.mjs').Representation} rep
-   * @return {string} Its level id: "<type>-<representation id>".
+   * @return {string} <type>-<representation id>.
    */
   static getLevelFromRepresentation(rep) {
     // A representation dash.js plays is one of an adaptation.
@@ -21,12 +20,9 @@ export class DashTrackUtils {
   }
 
   /**
-   * The level dash.js plays for a type, or null while it has none: no stream yet, or a
-   * stream processor before its first representation (at the start, or a period change).
-   * The players' "no level" was -1 for the one, which FastStreamClient took for a level
-   * and wrote over the level an archive had asked for; the other threw.
-   * @param {?import('../../modules/dash.mjs').MediaPlayerClass} dash - dash.js's MediaPlayer.
-   * @param {string} type - 'video' or 'audio'.
+   * Null while dash.js has none: no stream yet, or a stream processor before its first representation.
+   * @param {?import('../../modules/dash.mjs').MediaPlayerClass} dash
+   * @param {string} type
    * @return {?string}
    */
   static getCurrentLevel(dash, type) {
@@ -36,7 +32,7 @@ export class DashTrackUtils {
   }
 
   /**
-   * @param {string} levelId - "<type>-<representation id>".
+   * @param {string} levelId - <type>-<representation id>.
    * @return {string|{type: string, id: string}} Its parts, or the id itself without a type.
    */
   static deconstructLevel(levelId) {
@@ -50,12 +46,11 @@ export class DashTrackUtils {
   }
 
   /**
-   * @param {Array<import('../../modules/dash.mjs').MediaInfo>} tracks - dash.js MediaInfo objects.
-   * @param {?Map<string, RepresentationDetails>} [details] - DashPlayer.representationDetails.
+   * @param {Array<import('../../modules/dash.mjs').MediaInfo>} tracks
+   * @param {?Map<string, RepresentationDetails>} [details]
    * @return {Map<string, VideoLevel>}
    */
   static getVideoLevelList(tracks, details = null) {
-    // make into map
     const map = new Map();
 
     tracks.forEach((track) => {
@@ -107,12 +102,11 @@ export class DashTrackUtils {
   }
 
   /**
-   * @param {Array<import('../../modules/dash.mjs').MediaInfo>} tracks - dash.js MediaInfo objects.
-   * @param {?Map<string, RepresentationDetails>} [details] - DashPlayer.representationDetails.
+   * @param {Array<import('../../modules/dash.mjs').MediaInfo>} tracks
+   * @param {?Map<string, RepresentationDetails>} [details]
    * @return {Map<string, AudioLevel>}
    */
   static getAudioLevelList(tracks, details = null) {
-    // make into map
     const map = new Map();
 
     tracks.forEach((track) => {

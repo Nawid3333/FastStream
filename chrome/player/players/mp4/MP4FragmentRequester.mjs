@@ -6,10 +6,6 @@ import {fragmentDownloadCallbacks, markRequested} from '../FragmentStatus.mjs';
 /** @typedef {import('./MP4Fragment.mjs').MP4Fragment} MP4Fragment */
 
 /**
- * What a range's request tells (requestFragment): the entry once it is stored, with the
- * range's bytes at their place in the file (fileStart) unless skipProcess asked for none;
- * FetchLoader's progress, with the range's request and its body (an ArrayBuffer: a range is
- * asked for as one); the entry of a failed or an aborted one.
  * @typedef {{onProgress?: (stats: import('../../network/FetchLoader.mjs').LoaderStats,
  *     context: ReturnType<MP4Fragment['getContext']>, data: ArrayBuffer, xhr: null) => void,
  *   onFail: (entry: DownloadEntry) => void, onAbort?: (entry: DownloadEntry) => void,
@@ -25,13 +21,10 @@ export class MP4FragmentRequester {
   }
 
   /**
-   * Downloads a range through the download manager, keeping its status and telling the
-   * player each change of it (FragmentStatus.mjs).
    * @param {MP4Fragment} fragment
    * @param {FragmentCallbacks} callbacks
-   * @param {?{headers?: Object<string, string>}} config - The download's config (null for
-   *   the default), its headers under the source's.
-   * @param {number} priority - In the download manager's queue, higher first.
+   * @param {?{headers?: Object<string, string>}} config - Null for the default.
+   * @param {number} priority - Higher first.
    * @return {ReturnType<import('../../network/DownloadManager.mjs').DownloadManager['getFile']>}
    */
   requestFragment(fragment, callbacks, config, priority) {
@@ -45,20 +38,17 @@ export class MP4FragmentRequester {
       config,
       headers: {
         ...config.headers,
-        // Set: the player's ranges are made from its source (setSource).
         .../** @type {import('../../VideoSource.mjs').VideoSource} */(this.player.source).headers,
       },
     }, {
       /**
-       * A piece of the range as it downloads (progressive: MP4Player.feedPiece).
        * @param {Uint8Array} chunk
        * @param {number} offset
        * @param {import('../../network/FetchLoader.mjs').PartialAnswer} answer
        */
       onChunk: (chunk, offset, answer) => callbacks.onChunk?.(chunk, offset, answer),
       ...fragmentDownloadCallbacks(this.player, fragment, callbacks, (entry, read) => {
-        // An ArrayBuffer (a range is asked for as one), an MP4BoxBuffer once its fileStart is
-        // set: a range's entry has its start (MP4Fragment.getContext).
+        // A range's entry has its start (MP4Fragment.getContext).
         const data = /** @type {MP4BoxBuffer|undefined} */ (read);
         if (data) data.fileStart = /** @type {number} */ (entry.rangeStart);
         // The data is there exactly when skipProcess did not ask for none (FragmentCallbacks).
@@ -66,9 +56,9 @@ export class MP4FragmentRequester {
       }),
       /**
        * @param {import('../../network/FetchLoader.mjs').LoaderStats} stats
-       * @param {import('../../network/DownloadEntry.mjs').DownloadRequest} context2 - The request.
+       * @param {import('../../network/DownloadEntry.mjs').DownloadRequest} context2
        * @param {ArrayBuffer|string} data
-       * @param {null} xhr - FetchLoader has none.
+       * @param {null} xhr
        */
       onProgress: (stats, context2, data, xhr) => {
         // An ArrayBuffer: a range is asked for as one.

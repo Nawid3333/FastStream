@@ -19,8 +19,7 @@ import {SaveFragmentFetcher, savedEntry} from '../SaveFragmentFetcher.mjs';
 export default class DashPlayer extends EventEmitter {
   /**
    * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
-   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config] -
-   *   What the player is for (PlayerLoader.createPlayer's callers).
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config]
    */
   constructor(client, config) {
     super();
@@ -31,19 +30,14 @@ export default class DashPlayer extends EventEmitter {
     this.video = /** @type {HTMLVideoElement} */ (document.createElement(this.isAudioOnly ? 'audio' : 'video'));
 
     this.fragmentRequester = new DashFragmentRequester(this);
-    // Download-manager keys of the manifests this player has loaded; a second load of one
-    // is a live refresh (DashLoader).
+    // Download-manager keys of the manifests loaded: a second load of one is a live refresh.
     this.loadedManifests = new Set();
-    // Level id ("video-<representation id>") to what its representation says about itself
-    // and what to ask Firefox about it; read when levels are built (DashTrackUtils).
     this.representationDetails = new Map();
   }
 
   /**
-   * dash.js waits for its capability filters before it picks tracks, so the answers are
-   * in by the first pick. This one never removes anything: it always answers true, and a
-   * probe gives up after DecodingCapabilities.PROBE_TIMEOUT_MS.
-   * @param {Representation} rep - A representation as dash.js parsed it.
+   * Never removes anything: answers true, and a probe gives up after PROBE_TIMEOUT_MS.
+   * @param {Representation} rep
    * @return {Promise<boolean>}
    */
   async probeRepresentation(rep) {
@@ -70,11 +64,7 @@ export default class DashPlayer extends EventEmitter {
     // eslint-disable-next-line new-cap
     this.dash = MediaPlayer().create();
 
-    // A codec that fails to decode: dash.js resets the MediaSource and picks the track
-    // again (errors.recoverAttempts below), and the second failure of one codec family
-    // leaves it out of that pick (LevelManager.noteVideoDecodeFailure) - and has the
-    // client load the source again (takeCodecReload). Not the preview's: it picks for
-    // itself.
+    // A codec that fails to decode twice is left out of the pick, and the client loads the source again.
     if (!this.isPreview) {
       this.videoErrorListener = () => this.onVideoError();
       this.video.addEventListener('error', this.videoErrorListener);
@@ -84,9 +74,7 @@ export default class DashPlayer extends EventEmitter {
     const emitterRelay = new EmitterRelay([preEvents, this]);
     VideoUtils.addPassthroughEventListenersToVideo(this.video, emitterRelay);
 
-    // dash.js asks for nothing again by itself (its HTTPLoader's retries): FastStream's download
-    // manager retries, and DashLoader counts a segment's failures, so a failure DashLoader reports
-    // is the last. Every request type dash.js's settings know, so one a later version adds is in.
+    // dash.js retries nothing itself: the download manager does, and DashLoader counts failures.
     /** @type {Object<string, number>} */
     const retryAttempts = {};
     for (const type of Object.keys(this.dash.getSettings().streaming?.retryAttempts || {})) {
@@ -115,8 +103,7 @@ export default class DashPlayer extends EventEmitter {
       },
       errors: {
         recoverAttempts: {
-          // The seek preview has no client to build it again (recoverPlayer): dash.js's own
-          // reset is all it has, and a segment that never decodes reset it for ever.
+          // The seek preview has no client to rebuild it: dash.js's own reset is all it has.
           mediaErrorDecode: this.isPreview ? 5 : 1000000,
         },
       },
@@ -195,10 +182,7 @@ export default class DashPlayer extends EventEmitter {
       initialize();
     });
 
-    // A manifest dash.js could not load or parse is reported only here: <video> gets no
-    // error, so without this the player would wait forever. Once the stream is up, the errors
-    // it stays stuck after for good (DashErrors.mjs): they were dropped, and such a stream sat
-    // behind a spinner for ever.
+    // A manifest dash.js could not load or parse is reported only here: <video> gets no error.
     /** @type {number[]} */
     const manifestErrors = [
       MediaPlayer.errors.MANIFEST_LOADER_PARSING_FAILURE_ERROR_CODE,
@@ -216,8 +200,6 @@ export default class DashPlayer extends EventEmitter {
       } catch (err) {
         // Not known yet: as for a video on demand.
       }
-      // Before the start, a manifest that loads but cannot be used (no stream, a muxed track,
-      // a type MSE refuses) waited for ever as well.
       if (initAlready ? (live ? stuckLive : stuck).has(code) : (manifestErrors.includes(code) || stuck.has(code))) {
         this.emit(DefaultPlayerEvents.ERROR, e);
       }
@@ -242,7 +224,6 @@ export default class DashPlayer extends EventEmitter {
   }
 
   extractAllFragments() {
-    // Called from dash.js's stream events, so a stream is active.
     const processors = /** @type {import('../../modules/dash.mjs').DashStream} */ (this.dash.getStreamController().getActiveStream()).getStreamProcessors();
     processors.forEach((processor) => {
       const mediaInfo = processor.getMediaInfo();
@@ -253,10 +234,7 @@ export default class DashPlayer extends EventEmitter {
     });
   }
 
-  /**
-   * Stores a representation's init segment and segments as DashFragments.
-   * @param {Representation} rep - One extractAllFragments noted the processor of.
-   */
+  /** @param {Representation} rep */
   extractFragments(rep) {
     const processor = rep.processor;
     if (!processor) {
@@ -277,7 +255,6 @@ export default class DashPlayer extends EventEmitter {
       }
     }
     if (rep.hasSegments() || rep.segments) {
-      // A list: dash.js has a getter of segments for a representation that has them.
       const segments = /** @type {Array<import('../../modules/dash.mjs').Segment>} */ (segmentsController.getAllSegments(rep)).map((segment) => {
         return dashHandler._getRequestForSegment(mediaInfo, segment);
       });
@@ -308,11 +285,7 @@ export default class DashPlayer extends EventEmitter {
   async setSource(source) {
     this.source = source;
     this.dash.initialize(this.video, this.source.url, false);
-    // dash.js's initialize adds its own time server, time.akamai.com, after the ones a live
-    // manifest names: without a UTCTiming element, or when none answered, the player asked
-    // Akamai for the time. Its clock comes from the Date header of the manifest's own response
-    // then, or the computer's
-    // (2026-11-17, docs/privacy-policy.md; dashTimeSource.test.mjs).
+    // dash.js's initialize adds time.akamai.com as a time server: cleared (docs/privacy-policy.md).
     this.dash.clearDefaultUTCTimingSources();
   }
 
@@ -322,7 +295,7 @@ export default class DashPlayer extends EventEmitter {
 
   /**
    * @param {DashFragment} fragment
-   * @param {number} priority - In the download manager's queue, higher first (a save's -1).
+   * @param {number} priority - Higher first (a save's -1).
    * @return {Promise<void>}
    */
   downloadFragment(fragment, priority) {
@@ -363,7 +336,6 @@ export default class DashPlayer extends EventEmitter {
     } catch (e) {
 
     }
-    // Its last use: nothing reads it once the player is destroyed.
     this.dash = /** @type {any} */ (null);
 
     if (this.videoErrorListener) {
@@ -376,35 +348,22 @@ export default class DashPlayer extends EventEmitter {
     this.emit(DefaultPlayerEvents.DESTROYED);
   }
 
-  /** Counts a decode error against the video codec playing (setup). */
   onVideoError() {
     if (!this.dash || this.video?.error?.code !== MediaError.MEDIA_ERR_DECODE) {
       return;
     }
-    // An audio decoder's failure arrives as the same error, and is no reason to drop the
-    // video codec: Firefox's message names the decoder ("RemoteVideoDecoderChild::InitIPDL"
-    // for the AV1 one that failed, an "...AudioDecoder..." for audio).
+    // An audio decoder's failure arrives as the same error: Firefox's message names the decoder.
     const message = String(this.video.error.message || '');
     if (/audio/i.test(message) && !/video/i.test(message)) {
       return;
     }
-    // Runs before dash.js's own handler (registered first), while the failing level is still
-    // the current one; a throw here would only end up in the console.
+    // Runs before dash.js's own handler, while the failing level is still the current one.
     try {
       const level = this.getVideoLevels().get(this.getCurrentVideoLevelID());
-      // A decoder Firefox could not even create - its message names InitIPDL, the step that
-      // makes it - is not made by a retry: that one failure leaves the codec out. The second
-      // the count waits for did not always come: a live DASH stream sat at "Failed to load
-      // video!" with HEVC on a GPU-less Windows Firefox (the real-streams check, 2026-10-06).
+      // A decoder Firefox could not even create (InitIPDL) is not made by a retry.
       const cannotStart = /InitIPDL/.test(message);
       const levelManager = this.client.getLevelManager();
-      // Its decoder cannot be made, and its codec was left out already: a version picked by
-      // hand in the menu, or the only codec there is (the load again without it,
-      // reloadWithoutFailedCodec, came back to it). dash.js would reset the video for ever
-      // (mediaErrorDecode, setup): a bilibili video whose levels all named HEVC reset ~130
-      // times a second. With another codec there, the client loads the source
-      // again and the pick takes that one; with none, this error ends it, and the client shows
-      // it. Not for any other decode error: dash.js skips a bad segment and plays on.
+      // Its codec was left out already and it still cannot start: dash.js would reset for ever.
       if (level && cannotStart && levelManager.isVideoCodecFailed(level.videoCodec)) {
         const another = Array.from(this.getVideoLevels().values())
             .some((other) => !levelManager.isVideoCodecFailed(other.videoCodec));
@@ -424,11 +383,7 @@ export default class DashPlayer extends EventEmitter {
   }
 
   /**
-   * Whether a video codec just failed to decode for good (onVideoError), asked once by the
-   * client's handler of the same error. dash.js picks another codec in place, but Firefox's
-   * element then never loaded the new one's metadata: a live stream stayed at readyState 0
-   * with its buffer full (#348, Windows runner: HEVC failed, then H.264 never started). A
-   * player made anew, with its own element, plays it.
+   * Whether a codec just failed for good: the element then never loads the new codec's metadata, a new player does.
    * @return {boolean}
    */
   takeCodecReload() {
@@ -461,7 +416,7 @@ export default class DashPlayer extends EventEmitter {
     return DashTrackUtils.getCurrentLevel(this.dash, 'video');
   }
 
-  /** @param {string|number|null} id - A level's (LevelManager's); only a string names a DASH one. */
+  /** @param {string|number|null} id - A level's; only a string names a DASH one. */
   setCurrentVideoLevelID(id) {
     if (typeof id !== 'string') return;
     try {
@@ -475,7 +430,7 @@ export default class DashPlayer extends EventEmitter {
     return DashTrackUtils.getCurrentLevel(this.dash, 'audio');
   }
 
-  /** @param {string|number|null} id - A level's (LevelManager's); only a string names a DASH one. */
+  /** @param {string|number|null} id - A level's; only a string names a DASH one. */
   setCurrentAudioLevelID(id) {
     if (typeof id !== 'string') return;
     try {
@@ -490,7 +445,6 @@ export default class DashPlayer extends EventEmitter {
   }
 
   get currentFragment() {
-    // A DASH level's fragments are DashFragments (extractFragments).
     const frags = /** @type {Array<DashFragment>|undefined} */ (this.client.getFragments(this.getCurrentVideoLevelID()));
     if (!frags) return null;
 
@@ -502,7 +456,6 @@ export default class DashPlayer extends EventEmitter {
   }
 
   get currentAudioFragment() {
-    // A DASH level's fragments are DashFragments (extractFragments).
     const frags = /** @type {Array<DashFragment>|undefined} */ (this.client.getFragments(this.getCurrentAudioLevelID()));
     if (!frags) return null;
 
@@ -545,14 +498,11 @@ export default class DashPlayer extends EventEmitter {
   }
 
   /**
-   * Makes an MP4 file of the fragments of the levels playing (DASH2MP4).
    * @param {{filestream?: WritableStream<Uint8Array>, partialSave: boolean,
-   *   registerCancel: (cancel: () => void) => void, onProgress: (progress: number) => void}} options -
-   *   SaveManager's: no stream for a DASH save (canSave says nothing of streaming).
+   *   registerCancel: (cancel: () => void) => void, onProgress: (progress: number) => void}} options
    * @return {Promise<{extension: string, blob: Blob, release: (removeFiles?: boolean) => void}>}
    */
   async saveVideo(options) {
-    // A DASH player's store holds DashFragments.
     const videoFragments = /** @type {Array<DashFragment>} */ (this.client.getFragments(this.getCurrentVideoLevelID()) || []);
     const audioFragments = /** @type {Array<DashFragment>} */ (this.client.getFragments(this.getCurrentAudioLevelID()) || []);
 
@@ -564,7 +514,6 @@ export default class DashPlayer extends EventEmitter {
       });
     }
 
-    // Downloads the fragments a few ahead of the one being saved: see SaveFragmentFetcher.
     const fetcher = new SaveFragmentFetcher(this.fragmentRequester, zippedFragments.map((data) => data.fragment),
         this.client.downloadManager.downloaderLimit());
     if (options?.registerCancel) {
@@ -582,7 +531,6 @@ export default class DashPlayer extends EventEmitter {
     const videoInitSegment = videoFragments?.[-1];
     const audioInitSegment = audioFragments?.[-1];
 
-    // if init segments are not downloaded, we will try to download them
     if (videoInitSegment && videoInitSegment.status !== DownloadStatus.DOWNLOAD_COMPLETE) {
       await this.downloadFragment(videoInitSegment, -1);
     }
@@ -612,14 +560,10 @@ export default class DashPlayer extends EventEmitter {
     const videoMimeType = videoProcessor?.getRepresentation()?.mimeType;
     const audioMimeType = audioProcessor?.getRepresentation()?.mimeType;
 
-    // Pinned last: a pinned fragment is unpinned only by its getEntry or by the catch
-    // below, so nothing between the two may throw (an init download above can).
+    // Pinned last: a pinned fragment is unpinned only by its getEntry or the catch below.
     zippedFragments.forEach((data, index) => {
       data.fragment.addReference(ReferenceTypes.SAVER);
-      // Let go of once read: the converter keeps a copy of its own. Not for the remuxer
-      // (keepPinned), which reads the store's own Blobs as it writes, after it read them all:
-      // freed before that, a fragment's File read nothing. Those stay pinned until the save
-      // ends (below); one the merger let go of before it gave up is pinned again.
+      // Let go of once read, except for the remuxer (keepPinned): it reads the store's Blobs as it writes.
       data.getEntry = async ({keepPinned = false} = {}) => {
         if (keepPinned) data.fragment.addReference(ReferenceTypes.SAVER);
         const entry = await fetcher.entry(index, () => this.client.downloadManager.getEntry(data.fragment.getContext()));

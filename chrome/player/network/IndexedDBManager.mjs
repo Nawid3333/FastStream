@@ -1,19 +1,11 @@
 // @ts-check
-// The open managers, closed when the page goes (beforeunload, below).
 /** @type {IndexedDBManager[]} */
 const closeQueue = [];
 
-/**
- * A manager's database: none before setup() or after close(). A call given none rejects, as
- * for any database it cannot use: the transaction cannot be made (transact, addValue).
- * @typedef {IDBDatabase|null|undefined} MaybeDatabase
- */
+/** @typedef {IDBDatabase|null|undefined} MaybeDatabase */
 
 export class IndexedDBManager {
-  /**
-   * @param {string} [persistentName] - The database to keep (SecureMemory's); none for a
-   *   temporary one of this page's, deleted when it closes and pruned once it is stale.
-   */
+  /** @param {string} [persistentName] - None: a temporary one, deleted when it closes. */
   constructor(persistentName) {
     this.persistentName = persistentName || null;
   }
@@ -31,14 +23,12 @@ export class IndexedDBManager {
 
     if (!this.isPersistent()) {
       this.prune();
-      // Every 5 s, as opfs-worker.mjs's heartbeat: a transaction each second for the page's
-      // whole life was more than prune's 60 s window needs (a beat at most ~20 s old).
+      // As opfs-worker.mjs's heartbeat: prune's 60 s window needs no more.
       this.aliveInterval = setInterval(()=>{
         this.keepAlive();
       }, 5000);
       this.dbName = 'faststream-temp-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
     } else {
-      // Persistent: it has a name.
       this.dbName = /** @type {string} */ (this.persistentName);
     }
 
@@ -54,7 +44,6 @@ export class IndexedDBManager {
         }
       });
     } catch (e) {
-      // FSBlob goes on to its next backend and drops this one: its heartbeat stops here.
       await this.close();
       throw e;
     }
@@ -67,7 +56,6 @@ export class IndexedDBManager {
       this.db = null;
 
       if (!this.isPersistent()) {
-        // Named: setup() named it before it opened it.
         await IndexedDBManager.deleteDB(/** @type {string} */ (this.dbName));
       }
 
@@ -86,23 +74,18 @@ export class IndexedDBManager {
     const databases = await IndexedDBManager.getDatabases();
 
     return Promise.all(databases.map(async (database)=>{
-      // (A string from here on: it starts with the prefix.)
       if (/** @type {string} */ (database.name).startsWith('faststream-temp-')) {
         try {
           const db = await IndexedDBManager.requestDB(/** @type {string} */ (database.name), false);
-          // check if stale
           let stale = false;
           try {
             const updatedTime = await IndexedDBManager.getValue(db, 'metadata', 'updated_time');
-            // A live tab writes it every 5 s, but Firefox delays a hidden tab's timers by up
-            // to 15 s (PlayerPeers): 10 s took live databases for dead ones.
-            // (A Date.now(): setup and keepAlive write it.)
+            // A hidden tab's timers run up to 15 s late, so 60 s, not less, tells a dead database.
             stale = !updatedTime || Date.now() - /** @type {number} */ (updatedTime) > 60000;
           } catch (e) {
             stale = true;
           } finally {
-            // A live tab's database too: kept open, it blocked that tab's own
-            // deleteDatabase when it closed, until this tab closed as well.
+            // A live tab's too: kept open, it blocks that tab's deleteDatabase when it closes.
             db.close();
           }
           if (stale) {
@@ -117,9 +100,8 @@ export class IndexedDBManager {
   }
 
   /**
-   * Opens a database (version 3), giving a new one its two stores when `open` asks for that.
    * @param {string} dbName
-   * @param {boolean} [open] - Create it with its stores if it is not there.
+   * @param {boolean} [open]
    * @return {Promise<IDBDatabase>}
    */
   static async requestDB(dbName, open = false) {
@@ -134,14 +116,13 @@ export class IndexedDBManager {
     try {
       return await IndexedDBManager.wrapRequest(request, 5000);
     } catch (e) {
-      // A connection that comes after the timeout is closed: kept open, it held the
-      // database, and its tab's own deleteDatabase waited on it when that tab closed.
+      // A connection after the timeout is closed: kept open, it blocks its tab's deleteDatabase.
       request.onsuccess = (event) => /** @type {IDBOpenDBRequest} */ (event.target).result.close();
       throw e;
     }
   }
 
-  /** @param {string} dbName - Deleted; a failure is logged, not thrown. */
+  /** @param {string} dbName */
   static async deleteDB(dbName) {
     try {
       await IndexedDBManager.wrapRequest(window.indexedDB.deleteDatabase(dbName), 5000);
@@ -152,10 +133,9 @@ export class IndexedDBManager {
 
   /**
    * @param {MaybeDatabase} db
-   * @param {string} storeName - 'metadata' or 'files'.
+   * @param {string} storeName
    * @param {IDBValidKey} key
-   * @return {Promise<unknown>} What is stored under the key (any value IndexedDB can hold),
-   *   undefined for none.
+   * @return {Promise<unknown>}
    */
   static async getValue(db, storeName, key) {
     return IndexedDBManager.transact(db, storeName, 'readonly', (transaction)=>{
@@ -166,9 +146,9 @@ export class IndexedDBManager {
 
   /**
    * @param {MaybeDatabase} db
-   * @param {string} storeName - 'metadata' or 'files'.
+   * @param {string} storeName
    * @param {IDBValidKey} key
-   * @param {unknown} value - Any value IndexedDB can hold (one it can clone).
+   * @param {unknown} value
    */
   static async setValue(db, storeName, key, value) {
     return IndexedDBManager.transact(db, storeName, 'readwrite', (transaction)=>{
@@ -178,19 +158,17 @@ export class IndexedDBManager {
   }
 
   /**
-   * Stores a value only when the key has none yet, in one transaction, so of two tabs
-   * racing to create the same value exactly one wins.
+   * Stores only when the key has none yet, in one transaction: of two racing tabs one wins.
    * @param {MaybeDatabase} db
-   * @param {string} storeName - 'metadata' or 'files'.
+   * @param {string} storeName
    * @param {IDBValidKey} key
-   * @param {unknown} value - Any value IndexedDB can hold (one it can clone).
-   * @return {Promise<boolean>} true when this call stored it, false when the key had a value
+   * @param {unknown} value
+   * @return {Promise<boolean>} True when this call stored it.
    */
   static addValue(db, storeName, key, value) {
     return new Promise((resolve, reject)=>{
       let transaction;
       try {
-        // None throws here as a closed one does, and the call rejects (MaybeDatabase).
         transaction = /** @type {IDBDatabase} */ (db).transaction(storeName, 'readwrite');
       } catch (e) {
         reject(e);
@@ -221,18 +199,16 @@ export class IndexedDBManager {
   }
 
   /**
-   * @param {IDBValidKey} identifier - FSBlob's (a string), SecureMemory's (an identifierHash,
-   *   an ArrayBuffer).
-   * @return {Promise<unknown>} What setFile stored under it, undefined for none.
+   * @param {IDBValidKey} identifier
+   * @return {Promise<unknown>}
    */
   async getFile(identifier) {
     return IndexedDBManager.getValue(this.db, 'files', identifier);
   }
 
   /**
-   * @param {IDBValidKey} identifier - As getFile's.
-   * @param {unknown} data - Any value IndexedDB can hold: FSBlob's Blobs, SecureMemory's
-   *   encrypted records.
+   * @param {IDBValidKey} identifier
+   * @param {unknown} data
    */
   async setFile(identifier, data) {
     return IndexedDBManager.transact(this.db, 'files', 'readwrite', (transaction)=>{
@@ -241,7 +217,7 @@ export class IndexedDBManager {
     });
   }
 
-  /** @param {IDBValidKey} identifier - As getFile's. */
+  /** @param {IDBValidKey} identifier */
   async deleteFile(identifier) {
     return IndexedDBManager.transact(this.db, 'files', 'readwrite', (transaction)=>{
       const fileStore = transaction.objectStore('files');
@@ -255,33 +231,28 @@ export class IndexedDBManager {
 
   keepAlive() {
     if (this.db && !this.isPersistent()) {
-      // A beat that fails is tried again in a second.
       IndexedDBManager.setValue(this.db, 'metadata', 'updated_time', Date.now()).catch(() => {});
     }
   }
 
   /**
-   * Runs the callback's requests in one transaction, and answers once it is committed.
    * @template T
    * @param {MaybeDatabase} db
-   * @param {string} storeName - 'metadata' or 'files'.
+   * @param {string} storeName
    * @param {IDBTransactionMode} mode
-   * @param {(transaction: IDBTransaction) => T} callback - Makes the requests; what it
-   *   returns (a request's wrapRequest, or nothing) is the answer.
+   * @param {(transaction: IDBTransaction) => T} callback
    * @return {Promise<Awaited<T>>}
    */
   static transact(db, storeName, mode, callback) {
     return new Promise((resolve, reject)=>{
       let transaction;
       try {
-        // None throws here as a closed one does, and the call rejects (MaybeDatabase).
         transaction = /** @type {IDBDatabase} */ (db).transaction(storeName, mode);
       } catch (e) {
         reject(e);
         return;
       }
 
-      // The callback's answer once it has run (below), before the transaction completes.
       /** @type {T|Promise<null>} */
       let result = Promise.resolve(null);
       transaction.onerror = (event) => {
@@ -294,8 +265,6 @@ export class IndexedDBManager {
       };
 
       transaction.oncomplete = async (event) => {
-        // The callback's answer: it ran before the transaction could complete, and one that
-        // threw rejected first (the null is never what the call answers).
         resolve(/** @type {Awaited<T>} */ (await result));
       };
 
@@ -305,9 +274,7 @@ export class IndexedDBManager {
         if (result instanceof Promise) result.catch(() => {});
         transaction.commit();
       } catch (e) {
-        // A request the callback could not make (put() of a value that cannot be stored):
-        // the transaction, with nothing in it, completed and the call answered null, as if
-        // it had worked.
+        // A request the callback cannot make (an unstorable value) aborts the empty transaction.
         try {
           transaction.abort();
         } catch (abortError) {
@@ -319,16 +286,13 @@ export class IndexedDBManager {
   }
 
   /**
-   * The request's result, as a promise.
    * @template T
    * @param {IDBRequest<T>} request
-   * @param {number} [timeout] - Reject after this many ms; none to wait for good.
+   * @param {number} [timeout]
    * @return {Promise<T>}
    */
   static wrapRequest(request, timeout) {
     return new Promise((resolve, reject)=>{
-      // Cleared once the request is answered: each one left its timer to fire for nothing
-      // seconds later - every get, set and heartbeat.
       const timer = timeout ? setTimeout(()=>{
         reject(new Error('Timeout'));
       }, timeout) : undefined;
@@ -339,7 +303,6 @@ export class IndexedDBManager {
       };
       request.onsuccess = (event) => {
         clearTimeout(timer);
-        // The event's target is the request.
         resolve(/** @type {IDBRequest<T>} */ (event.target).result);
       };
     });
@@ -347,8 +310,7 @@ export class IndexedDBManager {
 }
 
 window.addEventListener('beforeunload', async ()=>{
-  // Over a copy: a persistent manager's close() takes it out of the list at once, and the
-  // manager after it was skipped - a temporary database left on disk.
+  // Over a copy: a persistent manager's close() takes it out of the list at once.
   await Promise.all([...closeQueue].map((manager)=>{
     return manager.close();
   }));

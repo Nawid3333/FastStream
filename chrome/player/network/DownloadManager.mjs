@@ -7,14 +7,10 @@ import {signatureParams, withoutSignature} from './LinkSignature.mjs';
 import {URGENT_PARALLEL} from './PlayheadFirst.mjs';
 import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 
-// How many of a hand-off's disk files are moved at a time (DownloadManager.adoptDiskFiles).
 const AdoptAtOnce = 8;
 
 /** @typedef {import('./DownloadEntry.mjs').DownloadRequest} DownloadRequest */
 /**
- * A file an earlier player of this video left on the disk, taken back (adopt): its entry, its
- * identifier here, where it is (the old session, its file name), the storage it was taken into
- * (storageGeneration), and its move once begun (adoptOne).
  * @typedef {{entry: DownloadEntry, identifier: string, session: string, file: string, generation: number,
  *   moved: ?Promise<boolean>}} AdoptedFile
  */
@@ -23,149 +19,100 @@ export class DownloadManager {
   /** How long no download may fail before a downloader dropped for a failure comes back. */
   static FailureRecoveryMs = 10000;
 
-  // The speed test. A video started with one downloader and added one each time three
-  // speed samples showed a gain: on a Vimeo video at 15 MB/s it took 3.3 s, a third of
-  // the video, to reach six. It starts with three now and decides after each
-  // sample (two until 2026-10-22: on a server giving each connection 500 kB/s, ±30% each
-  // second, six came at 14 s instead of 25 s, in 3 of 3 runs, the test's verdict the same);
-  // a server that asks to slow down (SlowDownStatuses) halves them at once.
   /** Downloaders a video starts with, the limit allowing; one after a server throttled. */
   static StartDownloaders = 3;
   /** Speed samples averaged before the test adds a downloader. */
   static SamplesPerStep = 1;
-  /** HTTP answers that ask to slow down: too many requests, overloaded. */
   static SlowDownStatuses = [429, 503];
   /** The longest a server's Retry-After holds every download back. */
   static MaxRetryAfterMs = 30000;
   /** Base calm period after a slow-down, before the player probes the server speed again. */
   static CalmPeriodMs = 15000;
-  /** The longest calm period, even after several slow-downs in a row. */
   static MaxCalmPeriodMs = 120000;
-  /** Answers within this time of the last halving belong to the same burst: they extend
-   * the Retry-After hold but do not halve again. */
+  /** Answers this soon after the last halving extend the Retry-After hold but do not halve again. */
   static SlowDownSettleMs = 2000;
 
   /** @param {import('../FastStreamClient.mjs').FastStreamClient} client */
   constructor(client) {
     this.client = client;
-    // Waiting for a downloader, the highest priority first.
     /** @type {DownloadEntry[]} */
     this.queue = [];
 
-    // Every download by its identifier (getIdentifier), finished or not. Left untyped: as a
-    // Map<string, DownloadEntry>, getEntry gives undefined for one never asked for, and
-    // savedEntry's entryOf (SaveFragmentFetcher) takes an entry or null only.
+    // Untyped: getEntry gives undefined for one never asked for; SaveFragmentFetcher takes an entry or null.
     this.storage = new Map();
 
     /** @type {StandardDownloader[]} */
     this.downloaders = [];
     this.paused = false;
-    // What an earlier player of this video handed over (adopt), by its address with the source
-    // link's signature left out, until a request under the new link takes it (stored).
+    // Handed over by an earlier player (adopt), by address without the link's signature.
     /** @type {?Map<string, DownloadEntry>} */
     this.adopted = null;
     /** @type {?Set<string>} */
     this.adoptedSignature = null;
-    // Counts clearStorage(): a handed-over file moved after the downloads it was taken into went
-    // is not kept (adoptOne).
+    // Counts clearStorage(): a handed-over file moved after its downloads went is not kept.
     this.storageGeneration = 0;
-    // The next reset() keeps the downloads (keepStorageOnce).
     this.keepStorageNext = false;
-    // Leaving the network to a watched player that is short of video (setYield).
     this.yielding = false;
-    // ...and holding even its own playback's requests: it is paused (setYield), or it is
-    // paused, waits for its turn and has its next seconds (setWaiting). yieldHold and waitHold
-    // say which of the two asked for it.
+    // ...and its own playback's requests too. yieldHold and waitHold say which asked for it.
     this.holdingPlayback = false;
     this.yieldHold = false;
     this.waitHold = false;
-    // Waiting for its turn among the players in background tabs (setWaiting, PlayerTurns).
     this.waiting = false;
-    // Bytes of the downloads that finished (received): with what the running ones have so far,
-    // what this player tells the others of its speed (PlayerPeers.measure).
     this.receivedDone = 0;
-    // The host of the download started last: players on one host share Firefox's connections
-    // to it (PlayerTurns.leavesRoom).
+    // Players on one host share Firefox's connections to it (PlayerTurns.leavesRoom).
     this.lastHost = '';
-    // The speed test's samples of the total speed, until SamplesPerStep are averaged.
     /** @type {number[]} */
     this.speedTestBuffer = [];
-    // The downloaders heard with a speed in this round of the speed test.
     /** @type {Set<StandardDownloader>} */
     this.speedTestSeen = new Set();
     this.testing = true;
-    // The speed test stands still while playback's request downloads alone (holdTest).
     this.testHeld = false;
     this.lastSpeed = 0;
-    // How many downloaders lastSpeed was measured with.
     this.lastSpeedCount = 0;
-    // What the speed test found: true when each downloader it added brought about its share of
-    // speed (a server that limits each connection), false when one did not (a line they share),
-    // null before it could tell. A player short of video runs that many at once (urgentParallel).
+    // The speed test's verdict: true for a server limiting each connection, false for a shared line.
     /** @type {boolean|null} */
     this.perConnection = null;
-    // Whether perConnection is the speed test's verdict (or the user's choice): a test cut short
-    // (failures, a downloader removed) leaves the guess of its last round.
+    // Whether perConnection is a verdict: a test cut short leaves the guess of its last round.
     this.perConnectionFound = false;
     this.lastFailed = 0;
-    // True while stopDownloaders() stops downloaders on purpose.
     this.stopping = false;
-    // Downloaders taken away after failed downloads, and not back yet.
     this.droppedDownloaders = 0;
     // A server answered 429 or 503: this player stays careful, for the next video too.
     this.throttled = false;
     // Until when a server's Retry-After holds downloads back (Date.now() time).
     this.holdUntil = 0;
-    // Slow-downs in a row, for the doubling calm period.
     this.slowDowns = 0;
     // Until when the player waits before probing the server speed again (Date.now() time).
     this.calmUntil = 0;
-    // Date.now() of the last halving, to group answers from the same burst.
     this.lastSlowDown = 0;
-    // True while the speed test is probing after a calm period, not an ordinary start.
     this.probing = false;
-    // Downloaders a slow-down took away while they delivered a finished download: out of
-    // this.downloaders, but a reset, pause or destroy must still stop them, or an old
-    // video's piece reaches a player torn down meanwhile.
+    // Retired while delivering: out of this.downloaders, but a reset, pause or destroy still stops them.
     /** @type {Set<StandardDownloader>} */
     this.retiring = new Set();
 
     this.failed = 0;
 
-    // A private window's downloads never reach the disk (FSBlob memoryOnly), nor anyone's
-    // with "Keep video on disk" off (setBufferToDisk).
     this.blobStore = new FSBlob({memoryOnly: EnvUtils.isIncognito() || client?.options?.bufferToDisk === false});
-    // The RAM budget is used up: no downloads ahead until some is let go of
-    // (FastStreamClient.enforceMemoryBudget).
     this.memoryFull = false;
 
-    // A download failed while offline: its fragment waits again when the network is back.
     this.failedOffline = false;
     this.onNetworkBack = this.onNetworkBack.bind(this);
     globalThis.addEventListener?.('online', this.onNetworkBack);
   }
 
-  /**
-   * The network is back (the window's online event: the browser has network access again; a
-   * hint only, and a wrong one costs at most an early retry). A download that failed while it was gone - its retries spent, over a
-   * minute (FetchLoader: 1 + 2 + ... + 32 s) - left its fragment failed, and only one that failed
-   * while online set the failed ones waiting again (onDownloaderFinished): the player downloaded
-   * nothing of them ahead until playback reached each. Now they wait again, and the retries still
-   * waiting out their backoff go at once (FetchLoader.retryNow).
-   */
+  /** Failed fragments wait again, and retries waiting out their backoff go now (FetchLoader.retryNow). */
   onNetworkBack() {
     if (!this.downloaders) return;
     // A downloader still making its request holds a stand-in without retryNow (StandardDownloader.run).
     for (const downloader of this.downloaders) downloader.loader?.retryNow?.();
-    // Only after a failure while offline: a link that failed for good (a 403) is not tried again
-    // at each return of a flapping Wi-Fi, each failure online taking a downloader away.
+    // Only after a failure offline: a link that failed for good is not retried at each Wi-Fi flap.
     if (this.failedOffline) {
       this.failedOffline = false;
       this.client?.resetFailed?.();
     }
   }
 
-  /** @return {DownloadEntry[]} The finished downloads. */
+  /** @return {DownloadEntry[]} */
   getCompletedEntries() {
     /** @type {DownloadEntry[]} */
     const entries = [];
@@ -177,17 +124,14 @@ export class DownloadManager {
     return entries;
   }
 
-  /** @param {DownloadEntry[]} entries - Downloads to keep, an archive's (SaveManager). */
+  /** @param {DownloadEntry[]} entries */
   setEntries(entries) {
     entries.forEach((entry) => {
       this.setEntry(entry);
     });
   }
 
-  /**
-   * Hands a finished download's Blob to the store, and has the entry read it from there.
-   * @param {DownloadEntry} entry
-   */
+  /** @param {DownloadEntry} entry */
   async archiveEntryData(entry) {
     if (entry.status !== DownloadStatus.DOWNLOAD_COMPLETE || entry.storeRaw || typeof entry.data === 'function') {
       return;
@@ -195,7 +139,6 @@ export class DownloadManager {
 
     const identifier = entry.blobId ?? this.getIdentifier(entry);
     // Kept in RAM; the client writes it to disk only when the RAM budget needs it to.
-    // Complete, not raw, not stored yet: its data is the Blob onSuccess made.
     await this.blobStore.saveBlobAsync(/** @type {Blob} */ (entry.data), identifier, {deferred: true});
 
     entry.data = () => {
@@ -203,14 +146,10 @@ export class DownloadManager {
     };
   }
 
-  /**
-   * Keeps a download under its identifier, its data handed to the store once it is done.
-   * @param {DownloadEntry} entry
-   */
+  /** @param {DownloadEntry} entry */
   setEntry(entry) {
-    // A save that failed (a full disk) leaves the data in memory, as before - without an
-    // unhandled rejection, which neither caller awaited.
-    /** @param {DownloadEntry} done - The finished entry. */
+    // A failed save (a full disk) leaves the data in memory.
+    /** @param {DownloadEntry} done */
     const archive = (done) => this.archiveEntryData(done).catch((e) => console.warn('Could not archive a download', e));
     if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE) {
       archive(entry);
@@ -222,13 +161,10 @@ export class DownloadManager {
   }
 
   /**
-   * Keeps a download under an identifier.
    * @param {DownloadEntry} entry
-   * @param {string} identifier - getIdentifier's, for its address now.
+   * @param {string} identifier
    */
   keepEntry(entry, identifier) {
-    // Its stored data cannot be read any more (DownloadEntry.getDataFromBlob): forgotten,
-    // so the next request for it downloads it again.
     entry.onDataLost = (error) => {
       if (this.storage?.get(identifier) !== entry) return;
       console.warn('A stored download could not be read, it will be downloaded again', error);
@@ -239,8 +175,7 @@ export class DownloadManager {
   }
 
   /**
-   * Whether a download would be answered now: stored, or a downloader free for it.
-   * @param {DownloadRequest} details - The request (a fragment's getContext()).
+   * @param {DownloadRequest} details
    * @return {boolean}
    */
   canGetFile(details) {
@@ -262,21 +197,17 @@ export class DownloadManager {
     });
   }
 
-  /**
-   * A download, finished or not; undefined if it was never asked for.
-   * @param {DownloadRequest} details - The request (a fragment's getContext()).
-   */
+  /** @param {DownloadRequest} details */
   getEntry(details) {
     const key = this.getIdentifier(details);
     return this.stored(details, key);
   }
 
   /**
-   * The download kept for a request: under its address, or one an earlier player of this video
-   * handed over (adopt) under the link's old signature, kept under this address from now on.
-   * @param {DownloadRequest} details - The request.
-   * @param {string} key - Its identifier (getIdentifier).
-   * @return {*} The DownloadEntry, undefined for none; untyped as the storage is (its field).
+   * Under its address, or one handed over under the link's old signature, kept under this one from now on.
+   * @param {DownloadRequest} details
+   * @param {string} key
+   * @return {*}
    */
   stored(details, key) {
     const entry = this.storage.get(key);
@@ -299,8 +230,6 @@ export class DownloadManager {
   }
 
   /**
-   * A request's identifier with the source link's signature left out: the same for a file
-   * under the old link and the new one (LinkSignature).
    * @param {{url: string, rangeStart?: number, rangeEnd?: number, responseType?: string}} details
    * @return {string}
    */
@@ -309,11 +238,9 @@ export class DownloadManager {
   }
 
   /**
-   * Keeps this player's downloads for its source under a new link to it (FreshLink, with
-   * keepStorageOnce): a request under the new link finds the file downloaded under the old one,
-   * the signature the two links differ in left out (stored). Every file was downloaded again.
-   * @param {string} oldUrl - The source's link as it was.
-   * @param {string} newUrl - Its new link.
+   * Keeps the downloads for a new link to the source (FreshLink): found without the signature.
+   * @param {string} oldUrl
+   * @param {string} newUrl
    */
   relink(oldUrl, newUrl) {
     const signature = signatureParams(oldUrl, newUrl);
@@ -334,12 +261,8 @@ export class DownloadManager {
   }
 
   /**
-   * The finished downloads, as plain records another player can take back (BufferStash), for a
-   * reload of the page not to lose them: the ones in RAM as their Blobs, the ones on the disk
-   * as their file names in this player's OPFS session. Only a video's files: not a playlist
-   * or a manifest (text: the next player loads them anew, under the new link, and a live one
-   * moves on), not a key (raw), not one stored elsewhere (the Cache API, IndexedDB: read back
-   * now, they would be copied into RAM as the page goes).
+   * The finished downloads as plain records for the next player after a reload (BufferStash).
+   * Only a video's files, in RAM or in this session's OPFS.
    * @return {{session: ?string, entries: import('../../background/BufferStash.mjs').HandedEntry[]}}
    */
   handOff() {
@@ -369,15 +292,10 @@ export class DownloadManager {
   }
 
   /**
-   * Takes back what an earlier player of this video handed over (handOff): each file as a
-   * finished download, its Blob into this player's RAM at once (counted in its budget like any
-   * download), its file on the disk moved into this player's session meanwhile (adoptDiskFiles).
-   * A request finds it under its old address, or under the new link's with the signature both
-   * links differ in left out (stored). Nothing for another link (another host or path).
+   * Takes back what an earlier player of this video handed over; its disk files are moved meanwhile.
    * @param {{url: string, session: ?string, entries: import('../../background/BufferStash.mjs').HandedEntry[]}} handOff
-   * @param {string} url - The new source's URL.
-   * @return {{taken: number, onDisk: Promise<number>}} How many it took back at once (RAM), and
-   *   how many of the disk's it has once those are moved.
+   * @param {string} url
+   * @return {{taken: number, onDisk: Promise<number>}} Taken at once (RAM), and how many of the disk's once moved.
    */
   adopt(handOff, url) {
     const signature = signatureParams(handOff.url, url);
@@ -399,30 +317,24 @@ export class DownloadManager {
       entry.status = DownloadStatus.DOWNLOAD_COMPLETE;
       entry.dataSize = record.dataSize || 0;
       entry.blobId = identifier;
-      // One file under two issues of the link (a FreshLink renewal downloaded it again): taken
-      // once, the twin left out, or both were handed on at every reload after.
+      // One file under two issues of the link: taken once.
       const loose = this.looseIdentifier(entry);
       if (seen.has(loose)) continue;
       seen.add(loose);
       if (record.blob instanceof Blob) {
         if (this.storage.has(identifier)) continue;
-        // Stored in RAM by setEntry (archiveEntryData), as an archive's downloads are.
         entry.data = record.blob;
         this.keepAdopted(entry);
         taken++;
       } else if (typeof record.file === 'string' && handOff.session) {
         if (this.storage.has(identifier)) continue;
-        // Here at once, read once its file is moved into this player's session: in its turn
-        // (adoptDiskFiles), or at once for a read that comes first. A request for it before its
-        // turn downloaded it again (reload-keeps-buffer.e2e: the start, or where the video
-        // resumes; twice in the week to 2026-11-02, #620).
+        // Here at once, read once its file is moved: in its turn, or at once for a read that comes first.
         /** @type {AdoptedFile} */
         const item = {entry, identifier, session: handOff.session, file: record.file, generation: this.storageGeneration, moved: null};
         entry.data = async () => {
           try {
             return await this.adoptOne(item) ? await this.blobStore.getBlob(identifier) : undefined;
           } catch (e) {
-            // Unread: lost data (DownloadEntry.getDataFromBlob), dropped, downloaded again.
             return undefined;
           }
         };
@@ -434,10 +346,8 @@ export class DownloadManager {
   }
 
   /**
-   * Moves one handed-over file into this player's session, once, whoever asks first: its turn in
-   * adoptDiskFiles or a read of its entry. One that cannot be moved, or whose downloads went
-   * meanwhile (a new source), is dropped - under the key its entry has now: a request under
-   * the new link moved it (stored) - so the next request downloads it.
+   * Moves one handed-over file into this session once, whoever asks first.
+   * One that cannot be moved, or whose downloads went meanwhile, is dropped.
    * @param {AdoptedFile} item
    * @return {Promise<boolean>} Whether it is here.
    */
@@ -452,8 +362,7 @@ export class DownloadManager {
       } catch (e) {
         moved = false;
       }
-      // Let go of meanwhile (removeFile destroys it: a fragment freed behind the playhead), its
-      // file would stay in this session with nothing to read or delete it.
+      // Let go of meanwhile: its file would stay with nothing to read or delete it.
       const kept = !item.entry.aborted && item.entry.status === DownloadStatus.DOWNLOAD_COMPLETE;
       if (moved && kept && this.blobStore === store && this.storageGeneration === item.generation) {
         return true;
@@ -467,10 +376,7 @@ export class DownloadManager {
     return item.moved;
   }
 
-  /**
-   * Keeps a download taken back (adopt), found under the new link too (stored).
-   * @param {DownloadEntry} entry
-   */
+  /** @param {DownloadEntry} entry */
   keepAdopted(entry) {
     this.setEntry(entry);
     if (this.adoptedSignature?.size) {
@@ -479,14 +385,10 @@ export class DownloadManager {
   }
 
   /**
-   * Moves the disk's files of a hand-off into this player's session, a few at a time and the
-   * first ones first, while the player starts: each takes a few ms (4 ms for 1 MB, measured), and
-   * a long video has thousands, which the player would have waited for. Their entries are here
-   * from the start (adopt): one read before its turn is moved at once (adoptOne). What is left of
-   * the old session goes after every move has ended (its heartbeat, the files not taken).
+   * A few at a time while the player starts: each takes a few ms, and a long video has thousands.
    * @param {AdoptedFile[]} disk
-   * @param {?string} session - The old session directory.
-   * @return {Promise<number>} How many it took.
+   * @param {?string} session
+   * @return {Promise<number>}
    */
   async adoptDiskFiles(disk, session) {
     const store = this.blobStore;
@@ -502,10 +404,8 @@ export class DownloadManager {
   }
 
   /**
-   * Drops a finished stored copy, so the next getFile fetches the file again. A manifest a
-   * player loads a second time is a live one being refreshed, and its stored copy is the
-   * old window. A copy still downloading is left alone.
-   * @param {DownloadRequest} details - The request (url, range and response type).
+   * A live manifest loaded again: its stored copy is the old window. A copy still downloading stays.
+   * @param {DownloadRequest} details
    */
   forgetCompletedFile(details) {
     if (this.getEntry(details)?.status === DownloadStatus.DOWNLOAD_COMPLETE) {
@@ -513,18 +413,12 @@ export class DownloadManager {
     }
   }
 
-  /**
-   * Stops and forgets a download, and lets its stored data go.
-   * @param {DownloadRequest} details - The request (a fragment's getContext()).
-   */
+  /** @param {DownloadRequest} details */
   removeFile(details) {
     const key = this.getIdentifier(details);
     const storedEntry = this.stored(details, key);
     if (storedEntry) {
-      // Out of the queue too, as the other ways a queued download ends take it out: left
-      // there failed, it kept canGetFile saying no to every download ahead (a level switch
-      // freeing the old level's queued ones), until a finished download moved it to the
-      // head and queueNext dropped it.
+      // Out of the queue too: left there failed, it kept canGetFile saying no to every download ahead.
       const queued = this.queue.indexOf(storedEntry);
       if (queued !== -1) this.queue.splice(queued, 1);
       storedEntry.destroy();
@@ -550,13 +444,11 @@ export class DownloadManager {
   }
 
   /**
-   * Asks for a download: a stored one answers at once (onSuccess), one already asked for is
-   * joined, and a new one is queued by priority.
+   * A stored one answers at once, one already asked for is joined, a new one is queued by priority.
    * @param {import('./DownloadEntry.mjs').DownloadDetails} details
    * @param {import('./DownloadEntry.mjs').DownloadCallbacks} callbacks
-   * @param {number} [priority] - Higher first; 0 by default, a save's -1, playback's
-   *   PLAYBACK_PRIORITY.
-   * @return {import('./DownloadEntry.mjs').DownloadWatcher} This request's hold on it.
+   * @param {number} [priority] - Higher first: 0 by default, a save's -1, playback's PLAYBACK_PRIORITY.
+   * @return {import('./DownloadEntry.mjs').DownloadWatcher}
    */
   getFile(details, callbacks, priority) {
     priority = priority || 0;
@@ -596,7 +488,6 @@ export class DownloadManager {
     storedEntry.addWatcher(watcher);
 
     if (storedEntry.status === DownloadStatus.ENQUEUED && storedEntry.priority < priority) {
-      // remove from queue
       storedEntry.status = DownloadStatus.WAITING;
       const ind = this.queue.indexOf(storedEntry);
       if (ind !== -1) {
@@ -607,7 +498,6 @@ export class DownloadManager {
     if (storedEntry.status === DownloadStatus.WAITING) {
       storedEntry.priority = priority;
 
-      // append to end of priority queue
       let ind = this.queue.length;
       while (ind > 0 && this.queue[ind - 1].priority < priority) {
         ind--;
@@ -617,14 +507,10 @@ export class DownloadManager {
       storedEntry.status = DownloadStatus.ENQUEUED;
       this.queueNext();
     } else if (storedEntry.status === DownloadStatus.ENQUEUED) {
-      // Joined in the queue: started if a downloader is free. An entry queued while there
-      // were none (during reset) was waiting for a queueNext that nothing called: the
-      // manifest a new player asked for again joined it, and never loaded.
+      // Started if a downloader is free: an entry queued during a reset waits for a queueNext.
       this.queueNext();
     } else if (storedEntry.status === DownloadStatus.DOWNLOAD_INITIATED && storedEntry.priority < priority) {
-      // Joined while it downloads (playback now waits for what was a download ahead): a
-      // retry goes out with the higher priority (StandardDownloader's fetchPriority). The
-      // request already sent keeps its own.
+      // Joined while it downloads: a retry goes out with the higher priority.
       storedEntry.priority = priority;
     }
 
@@ -632,25 +518,15 @@ export class DownloadManager {
   }
 
   /**
-   * A request gives up its hold on a download (its watcher's abort). The last one stops it; for
-   * the others it goes on, at the highest priority they asked for. It kept the one that left:
-   * hls.js and dash.js give up their segment at a seek, and the download ahead that held the
-   * same segment kept playback's priority, so the seek's cancelling of the old place
-   * (FastStreamClient's currentTime, cancelIfCheap) spared it and it shared the line with the
-   * new place's segment (stall-hls's trace, 2026-11-15: 1.2 s of it beside a seek's segment).
-   * One that playback let go of is cancelled now if it lies outside the window around the
-   * playhead, while the player keeps to that window (short of video, as after every seek:
-   * FastStreamClient.cancelFarDownloads); with video enough ahead, its downloads far ahead are
-   * wanted.
+   * The last hold stops it; the others keep the highest priority they asked for.
+   * One playback let go of outside the playhead's window is cancelled now, while the player keeps to it.
    * @param {import('./DownloadEntry.mjs').DownloadWatcher} watcher
    */
   letGo(watcher) {
     const entry = watcher.entry;
     entry.abortWatcher(watcher);
     if (!entry.watchers.length && entry.status !== DownloadStatus.ENQUEUED) {
-      // The last one aborted it: out of the queue, as removeFile takes one. Left there failed,
-      // it kept canGetFile saying no to every download ahead until a finished download moved
-      // it to the head (a seek's giving up of a queued segment).
+      // Out of the queue, as removeFile takes one.
       const queued = this.queue.indexOf(entry);
       if (queued !== -1) this.queue.splice(queued, 1);
     }
@@ -660,7 +536,6 @@ export class DownloadManager {
     const was = entry.priority || 0;
     if (priority >= was) return;
     if (entry.status === DownloadStatus.ENQUEUED) {
-      // Back to its place in the queue, by the priority it has now.
       const index = this.queue.indexOf(entry);
       if (index !== -1) this.queue.splice(index, 1);
       entry.priority = priority;
@@ -685,10 +560,7 @@ export class DownloadManager {
   }
 
   /**
-   * How many downloaders may run: the option, from 1 to 6 (a browser's limit per server).
-   * No value is no limit, 6; 0 is the least that still downloads, 1 (0 is none, as in every
-   * number setting). The speed test read 0 as "add none", the add-downloader key as "no
-   * limit", and this as the default 6, the most.
+   * The option, 1 to 6 (a browser's limit per server): none is 6, and 0 is the least that downloads, 1.
    * @return {number}
    */
   downloaderLimit() {
@@ -708,8 +580,6 @@ export class DownloadManager {
   }
 
   /**
-   * A server refused a link (401, 403, 410; FetchLoader's onRefused, through
-   * StandardDownloader): the player may get it anew from its page.
    * @param {number} status
    * @param {string} url
    */
@@ -718,29 +588,16 @@ export class DownloadManager {
   }
 
   /**
-   * A server answered 429 or 503 (FetchLoader tells at once, before it retries): half the
-   * downloaders go (one stays) - one mid-fetch hands its download back to the queue, one
-   * delivering a finished download finishes it first (StandardDownloader.retire) - the
-   * speed test stops, and every download waits for the server's Retry-After (up to
-   * MaxRetryAfterMs), or the usual second after a failure. Answers of the same burst
-   * (SlowDownSettleMs) halve once. After a calm period, at least the Retry-After and
-   * doubling with each slow-down in a row (CalmPeriodMs, up to MaxCalmPeriodMs), the speed
-   * test probes again (onDownloaderFinished): downloads go as fast as the server allows.
-   * It went "for good" until 2026-10-06; the user wanted the speed back. A next video
-   * starts with one downloader until a probe ends without one.
-   * @param {number|null} [retryAfter] - The wait the server asked for, in ms; null when it
-   *   named none (FetchLoader's onSlowDown, through StandardDownloader).
+   * Half the downloaders go, and every download waits for the Retry-After.
+   * After a calm period, doubling with each slow-down in a row, the speed test probes again.
+   * @param {number|null} [retryAfter] - In ms; null when the server named none.
    */
   slowDown(retryAfter) {
-    if (!this.downloaders) return; // destroyed
+    if (!this.downloaders) return;
     const now = Date.now();
-    // Hold every download back for at least the server's Retry-After, as before. An answer
-    // in the same burst still extends this, even if it does not halve again.
     if (/** @type {number} */ (retryAfter) > 0) {
       this.holdUntil = Math.max(this.holdUntil, now + Math.min(/** @type {number} */ (retryAfter), DownloadManager.MaxRetryAfterMs));
     }
-    // Answers within this time of the last halving belong to the same burst: they extend
-    // the Retry-After hold but do not halve again.
     if (now - this.lastSlowDown < DownloadManager.SlowDownSettleMs) {
       return;
     }
@@ -754,15 +611,11 @@ export class DownloadManager {
     this.droppedDownloaders = 0;
     this.lastFailed = now;
     this.slowDowns++;
-    // The calm period doubles with each slow-down in a row, up to MaxCalmPeriodMs.
     this.calmUntil = now + Math.min(
         Math.max(DownloadManager.CalmPeriodMs, retryAfter || 0) * Math.pow(2, this.slowDowns - 1),
         DownloadManager.MaxCalmPeriodMs,
     );
-    // Taken off their downloads, none still running untracked when the player pauses or
-    // goes, nor answering a 429 later to halve the rest again; retire() hands a download
-    // back to the queue without its watchers hearing of it (it went "aborted" to them, and
-    // one being delivered was thrown away).
+    // retire() hands a download back to the queue without its watchers hearing of it.
     const keep = Math.max(1, Math.floor(this.downloaders.length / 2));
     for (const cut of this.downloaders.splice(keep)) {
       if (cut.delivering) this.retiring.add(cut);
@@ -773,11 +626,8 @@ export class DownloadManager {
   }
 
   /**
-   * The speed test that probed after a calm period ended. Without a slow-down it found
-   * the rate the server takes: careful no more, the slow-downs in a row forgotten. Ended
-   * by failures, it waits another calm period before it probes again, or every next
-   * success would start it at once.
-   * @param {boolean} found - It ended on the speed (no gain, or the limit), not failures.
+   * One ended by failures waits another calm period, or every next success would start it at once.
+   * @param {boolean} found
    */
   endProbe(found) {
     if (!this.probing) return;
@@ -792,20 +642,17 @@ export class DownloadManager {
   }
 
   /**
-   * Puts an entry handed back by StandardDownloader.retire() into the queue again, so a
-   * download cut by a slow-down resumes without its watchers hearing anything. An entry
-   * whose watchers gave up meanwhile (failed or complete) is left alone.
-   * @param {DownloadEntry} entry - The entry to requeue.
+   * A download cut by a slow-down resumes without its watchers hearing; one they gave up on stays out.
+   * @param {DownloadEntry} entry
    */
   requeueEntry(entry) {
-    if (!this.downloaders) return; // destroyed
+    if (!this.downloaders) return;
     if (entry.status === DownloadStatus.DOWNLOAD_FAILED || entry.status === DownloadStatus.DOWNLOAD_COMPLETE) {
       return;
     }
     entry.status = DownloadStatus.ENQUEUED;
     const priority = entry.priority || 0;
     entry.priority = priority;
-    // Insert by priority exactly like getFile: after entries of equal or higher priority.
     let ind = this.queue.length;
     while (ind > 0 && this.queue[ind - 1].priority < priority) {
       ind--;
@@ -818,7 +665,6 @@ export class DownloadManager {
     this.testing = false;
     this.droppedDownloaders = 0;
     const downloader = this.downloaders.pop();
-    // The Minus key once more with none left threw
     if (!downloader) {
       return;
     }
@@ -833,12 +679,7 @@ export class DownloadManager {
   }
 
   /**
-   * Stops downloaders on purpose: a new source, a failed load, a pause. Each stop came back
-   * through onDownloaderFinished as a failed download (its entry was not marked aborted):
-   * online, with more than one downloader, it took the downloader out of the list being gone
-   * through, so the next one was skipped and downloaded on for the old video; it set
-   * lastFailed, and the next video's first downloads waited a second; and it started more
-   * downloads half way through the stop.
+   * Stops downloaders on purpose (a new source, a failed load, a pause): no failure is counted.
    * @param {Iterable<StandardDownloader>} downloaders
    */
   stopDownloaders(downloaders) {
@@ -863,20 +704,10 @@ export class DownloadManager {
   }
 
   /**
-   * Leaves the network to another FastStream player that the user watches and that is short
-   * of video (PlayerPeers.shouldYield), or takes it back. While yielding the client starts no
-   * downloads ahead (predownloadFragments), what still goes out asks Firefox for 'low'
-   * priority (StandardDownloader), and the downloads ahead that are running are cancelled -
-   * not those this player's own playback waits for (priority 1000 and up), nor one being
-   * delivered; one nearly done goes too (cancelIfCheap says why). A cancelled one is downloaded again later, from the
-   * start: DownloadEntry.abort() puts its fragment back to waiting. Not pause(): that is the
-   * user's, and stops everything.
-   * A paused player holds its playback's requests too (holdPlayback): they wait in the queue
-   * until it stops yielding. Its player still wanted to buffer ahead, and once its downloads
-   * ahead were cancelled it asked for them itself - measured: three paused MP4 players in
-   * background tabs kept a request each running all through a seek in the watched one.
+   * Leaves the network to a watched player short of video: downloads ahead are cancelled, the rest go 'low'.
+   * Not pause(): that is the user's. A paused player holds its playback's requests too.
    * @param {boolean} yielding
-   * @param {boolean} [holdPlayback] - Hold its playback's requests as well.
+   * @param {boolean} [holdPlayback]
    */
   setYield(yielding, holdPlayback = false) {
     if (!this.downloaders) return;
@@ -888,9 +719,7 @@ export class DownloadManager {
     this.holdingPlayback = hold || this.waitHold;
     this.yielding = yielding;
     if (yieldChanged && yielding) {
-      // The downloads ahead: queued ones leave the queue, running ones stop, however far in
-      // (cancelIfCheap says why). Not a save's (priority below 0: the user asked for it), not
-      // what playback waits for.
+      // Not a save's (priority below 0: the user asked for it), nor what playback waits for.
       /** @param {DownloadEntry} entry */
       const cancellable = (entry) => {
         const priority = entry.priority || 0;
@@ -910,25 +739,14 @@ export class DownloadManager {
       this.client?.predownloadFragments?.();
     }
     if (yieldChanged || holdChanged) {
-      // Freed connections go to what may run now.
       this.queueNext();
     }
   }
 
   /**
-   * Waits for this player's turn to download ahead, or ends the wait (PlayerPeers.shouldWait:
-   * a player in a background tab, while one that goes before it still downloads on a line
-   * they share). Softer than setYield: the client starts no new downloads ahead
-   * (predownloadFragments) and what goes out asks for 'low' priority, but what runs finishes
-   * - nothing is cancelled, so a wait that ends a second later has cost nothing - and its own
-   * playback's requests go as always.
-   * Unless it is told to hold them (holdPlayback: a paused player that has its next seconds,
-   * PlayerPeers.waitHoldsPlayback): they wait in the queue then, as a paused player's do
-   * while it yields. A paused MP4 player's own loading reads 30 ranges ahead of the playhead
-   * (30 MB) at playback's priority; waiting with nothing held, it took them while it was
-   * another player's turn.
+   * Softer than setYield: nothing is cancelled, no new downloads ahead start, what goes out is 'low'.
    * @param {boolean} waiting
-   * @param {boolean} [holdPlayback] - Hold its playback's requests as well.
+   * @param {boolean} [holdPlayback]
    */
   setWaiting(waiting, holdPlayback = false) {
     if (!this.downloaders) return;
@@ -944,9 +762,7 @@ export class DownloadManager {
   }
 
   /**
-   * Bytes this player's downloads have received: the finished ones, and what the running ones
-   * have so far (FetchLoader counts as the body comes). It goes down when a running download
-   * is cancelled; PlayerPeers reads only that it moves, and how fast it grows.
+   * Goes down when a running download is cancelled: PlayerPeers reads only how fast it grows.
    * @return {number}
    */
   received() {
@@ -958,18 +774,9 @@ export class DownloadManager {
   }
 
   /**
-   * Cancels the download of a request, when that is cheap and harmless: not one this player's
-   * playback waits for (priority 1000 and up), not one being delivered. A queued one leaves the
-   * queue. Its fragment goes back to waiting (DownloadEntry.abort tells the watchers) and is
-   * downloaded again when it is wanted.
-   *
-   * A running one goes however far it is in. Sparing those at least half in (2026-11-13, a
-   * check that had held nothing until then) made a seek to 80 s in an MP4 on a 12 Mbit/s line
-   * take a second longer, 1557 -> 2547 ms in 7 of 7 rounds (tools/bench-ab.mjs): the spared
-   * downloads, outside the new place's window, shared the line with the ones the seek waited
-   * for. Their half comes again from its first byte only if the user goes back there.
-   * @param {DownloadRequest} details - The request (a fragment's getContext()).
-   * @return {boolean} Whether it was cancelled.
+   * Not one playback waits for, nor one being delivered. A running one goes however far it is in.
+   * @param {DownloadRequest} details
+   * @return {boolean}
    */
   cancelIfCheap(details) {
     const entry = this.getEntry(details);
@@ -988,9 +795,7 @@ export class DownloadManager {
   }
 
   /**
-   * Downloads running now, each on a connection of its own: the "3C" of the download line.
-   * Not the downloaders there are: a player short of video runs fewer (PlayheadFirst), one
-   * that leaves the network to another or has everything runs none.
+   * Running downloads: a player short of video runs fewer than its downloaders, a yielding one none.
    * @return {number}
    */
   runningCount() {
@@ -999,14 +804,7 @@ export class DownloadManager {
   }
 
   /**
-   * How many downloads a player short of video runs at once (PlayheadFirst). Downloads that
-   * share one line slow each other, and the fragment playback needs next arrives no sooner
-   * than those beside it: two (URGENT_PARALLEL). A server that limits each connection is
-   * another matter: one more beside it does not slow it. Two were all a player ever ran while
-   * short, and its speed test, with a downloader idle, never finished a round: on a server
-   * giving each connection less than the video's rate it stayed short, on two, for the whole
-   * video (measured 2026-10-22). So all the downloaders while the speed test runs (it needs
-   * them all), and afterwards too when each one it added brought its share (perConnection).
+   * Two on a shared line; all of them while the speed test runs or for a server limiting each connection.
    * @return {number}
    */
   urgentParallel() {
@@ -1015,11 +813,7 @@ export class DownloadManager {
   }
 
   /**
-   * Whether the speed test is done and found a line the downloads share: one more download added
-   * nothing or little. There each one running beside the fragment playback waits for slows it.
-   * Not while the test runs: that is the start, where holding back was measured and left out
-   * (docs/notes/player.md, 2026-11-06), and the test needs every downloader heard. Not known
-   * before, nor after a slow-down until a probe has measured again.
+   * Only once the speed test is done: not before, nor after a slow-down until a probe measured again.
    * @return {boolean}
    */
   sharesLine() {
@@ -1027,11 +821,7 @@ export class DownloadManager {
   }
 
   /**
-   * Whether the speed test is done and found a server that limits each connection: each one
-   * added brought its share. The other players hear it (PlayerTurns: such a player leaves room
-   * for players on other hosts). Not while the test runs, nor after one cut short: one gain early
-   * on sets perConnection, and a flat round after it takes it back; a background player told in
-   * between started downloads ahead on a slow line (tab-turns.e2e.mjs).
+   * Not while the test runs, nor after one cut short: a gain early on is taken back by a flat round.
    * @return {boolean}
    */
   limitedPerConnection() {
@@ -1039,13 +829,8 @@ export class DownloadManager {
   }
 
   /**
-   * Holds the speed test while the video seeks during it and downloads playback's request
-   * alone (FastStreamClient.predownloadFragments), and starts its round again afterwards. A
-   * round needs every downloader heard: the ones left idle then read slower for 10 s
-   * (SpeedTracker), and the test would have taken that for a line the downloads share - on a
-   * server that limits each connection, two downloads for the rest of the video. So nothing
-   * measured while held counts, and the downloaders' speeds start afresh when it ends; the
-   * step's comparison (lastSpeed) is kept, the line being the same.
+   * Idle downloaders read slower for 10 s, which the test would take for a shared line:
+   * nothing measured while held counts, and the speeds start afresh when it ends.
    * @param {boolean} held
    */
   holdTest(held) {
@@ -1059,44 +844,33 @@ export class DownloadManager {
     }
   }
 
-  /**
-   * Whether this player's playback has a request downloading or waiting for a downloader (its
-   * PLAYBACK_PRIORITY): what a waiting video waits for.
-   * @return {boolean}
-   */
+  /** @return {boolean} */
   playbackAsked() {
     const playback = (/** @type {DownloadEntry|null|undefined} */ entry) => !!entry && (entry.priority || 0) >= PLAYBACK_PRIORITY;
     return this.queue.some(playback) || !!this.downloaders?.some((downloader) => playback(downloader.entry));
   }
 
-  /**
-   * Downloads running or waiting in the queue.
-   * @return {number}
-   */
+  /** @return {number} */
   activeCount() {
     if (!this.downloaders) return 0;
     return this.downloaders.filter((downloader) => downloader.entry).length + this.queue.length;
   }
 
-  /**
-   * Bytes of downloaded data held in RAM.
-   * @return {number}
-   */
+  /** @return {number} */
   ramBytes() {
     return this.blobStore?.ramBytes() || 0;
   }
 
   /**
-   * @param {DownloadRequest} details - A fragment's getContext().
-   * @return {number} Bytes of its downloaded data held in RAM.
+   * @param {DownloadRequest} details
+   * @return {number}
    */
   ramBytesOf(details) {
     return this.blobStore?.inRam.get(this.blobKey(details)) || 0;
   }
 
   /**
-   * The key its data is stored under: a download taken over under a new link (stored) keeps
-   * its data under the old key (blobId).
+   * A download taken over under a new link keeps its data under the old key (blobId).
    * @param {DownloadRequest} details
    * @return {string}
    */
@@ -1105,51 +879,42 @@ export class DownloadManager {
     return this.storage?.get(key)?.blobId ?? key;
   }
 
-  /**
-   * Bytes on their way to disk (spill).
-   * @return {number}
-   */
+  /** @return {number} */
   spillingBytes() {
     return this.blobStore?.spillingBytes() || 0;
   }
 
   /**
-   * @param {DownloadRequest} details - A fragment's getContext().
-   * @return {boolean} Whether its downloaded data is being written to disk now (spill).
+   * @param {DownloadRequest} details
+   * @return {boolean}
    */
   isSpilling(details) {
     return !!this.blobStore?.isSpilling(this.blobKey(details));
   }
 
   /**
-   * @param {DownloadRequest} details - A fragment's getContext().
-   * @return {boolean} Whether its downloaded data is held in RAM.
+   * @param {DownloadRequest} details
+   * @return {boolean}
    */
   isInRam(details) {
     return !!this.blobStore?.isInRam(this.blobKey(details));
   }
 
   /**
-   * Writes a downloaded fragment's data to disk and lets the RAM copy go.
-   * @param {DownloadRequest} details - A fragment's getContext().
+   * @param {DownloadRequest} details
    * @return {Promise<boolean>}
    */
   spill(details) {
     return this.blobStore?.spill(this.blobKey(details)) ?? Promise.resolve(false);
   }
 
-  /**
-   * Whether what does not fit in the RAM budget may go to disk: the option "Keep video on
-   * disk when this RAM is full". A private window never does.
-   * @param {boolean} allowed
-   */
+  /** @param {boolean} allowed */
   setBufferToDisk(allowed) {
     this.blobStore?.setMemoryOnly(EnvUtils.isIncognito() || !allowed);
   }
 
   /**
-   * @return {boolean} Whether downloads can go to disk at all: not in a private window, nor with
-   *   "Keep video on disk" off, nor once no disk store works.
+   * @return {boolean} Not in a private window, with "Keep video on disk" off, or once no disk store works.
    */
   canSpill() {
     return !!this.blobStore && !this.blobStore.memoryOnly && !this.blobStore.diskGone;
@@ -1163,7 +928,6 @@ export class DownloadManager {
     this.downloaders.length = 0;
   }
 
-  /** Stops the downloaders a slow-down took away that are still delivering. */
   abortRetiring() {
     const retiring = Array.from(this.retiring);
     this.retiring.clear();
@@ -1171,9 +935,8 @@ export class DownloadManager {
   }
 
   /**
-   * A downloader is done with a download, however it ended (StandardDownloader.cleanup).
    * @param {StandardDownloader} downloader
-   * @param {DownloadEntry} entry - The download it ran.
+   * @param {DownloadEntry} entry
    */
   onDownloaderFinished(downloader, entry) {
     this.retiring.delete(downloader);
@@ -1181,12 +944,9 @@ export class DownloadManager {
 
     const failed = entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted;
     if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE) this.receivedDone += downloader.stats?.loaded || 0;
-    // A 429/503 was already signalled when the answer came (StandardDownloader.onSlowDown ->
-    // slowDown). It is not an ordinary failure: no lastFailed and no downloader dropped.
-    // (A download without an error has no code: includes(undefined) is false.)
+    // A 429/503 was handled by slowDown when it came: no ordinary failure.
     const slowDownStatus = failed && /** @type {(number|undefined)[]} */ (DownloadManager.SlowDownStatuses).includes(downloader.stats?.error?.code);
     if (slowDownStatus) {
-      // handled by slowDown() when the answer arrived
     } else if (navigator.onLine && failed) {
       this.lastFailed = Date.now();
 
@@ -1200,14 +960,11 @@ export class DownloadManager {
         }
       }
     } else if (failed) {
-      // Offline: no downloader taken away (the server is not to blame), and its fragment
-      // waits again when the network is back (onNetworkBack).
+      // Offline: no downloader taken away; its fragment waits again when the network is back.
       this.failedOffline = true;
     } else if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE && this.droppedDownloaders > 0 &&
         Date.now() - this.lastFailed > DownloadManager.FailureRecoveryMs) {
-      // A failure takes a downloader away, easing off a server that is struggling, and it
-      // never came back: three failures in a long video left three downloaders of six for
-      // the rest of it. Once downloads succeed again, each success brings one back.
+      // Each success brings back one downloader a failure took away.
       this.droppedDownloaders--;
       // The speed test may have filled the limit meanwhile, or the option lowered it.
       if (this.downloaders.length < this.downloaderLimit()) {
@@ -1217,8 +974,7 @@ export class DownloadManager {
       }
     }
 
-    // After a slow-down the player stays careful; once the calm period is over, a successful
-    // download starts the speed test again, from the small number of downloaders left.
+    // Past the calm period, a successful download starts the speed test again.
     if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE && this.downloaders.includes(downloader) &&
         this.throttled && !this.testing && this.calmUntil &&
         Date.now() >= Math.max(this.calmUntil, this.holdUntil)) {
@@ -1243,11 +999,7 @@ export class DownloadManager {
             this.endProbe(false);
           }
         } else {
-          // Each downloader there now, heard once with a speed. They were counted by their place
-          // in the list: one dropped meanwhile moved the next onto a place already heard, never
-          // counted then; and a sample without a speed (a cache hit: SpeedTracker gives 0) marked
-          // its place heard without counting it. Either way the round never closed, and the test
-          // ran on for the rest of the video.
+          // Each downloader heard once with a speed: a sample without one (a cache hit) does not count.
           if (downloader.getSpeed()) {
             this.speedTestSeen.add(downloader);
           }
@@ -1263,12 +1015,7 @@ export class DownloadManager {
               this.speedTestBuffer = [];
 
               if (speed > this.lastSpeed) {
-                // Each one added so far brought at least half its share (the first sample has
-                // nothing to compare with): a line they share gains little or nothing, and a
-                // gain from elsewhere (other players stepping aside) comes once, not at each step.
-                // Only a round with exactly one more than the last sample's tells: after one was
-                // dropped for a failure, a gain was read as one more's share, and with one left
-                // the share was 0.5 / 0, so "they share the line" stuck for the rest of the video.
+                // Each one added brought at least half its share; only a round of exactly one more tells.
                 if (this.lastSpeed > 0 && this.downloaders.length === this.lastSpeedCount + 1) {
                   const share = speed >= this.lastSpeed * (1 + 0.5 / this.lastSpeedCount);
                   this.perConnection = this.perConnection !== false && share;
@@ -1300,24 +1047,17 @@ export class DownloadManager {
 
     this.client.predownloadFragments();
     this.queueNext();
-    // The others hear at once when this player has all it wanted: the next in turn starts then,
-    // not at this page's next tick, which in a background tab can be 15 s away.
+    // The others hear at once: a background tab's next tick may be 15 s away.
     this.client.updatePeers?.();
   }
 
-  /**
-   * Starts as many queued downloads as there are free downloaders. It started one per call,
-   * so after a failure's cooldown, which calls it once, one download ran at a time until
-   * something else called it.
-   */
   queueNext() {
     while (!this.paused && this.queue.length > 0) {
       if (this.queue[0].status !== DownloadStatus.ENQUEUED) {
         this.queue.shift();
         continue;
       }
-      // A paused player that leaves the network to a watched one starts only a save (priority
-      // below 0: the user asked for it), nothing of its own playback (setYield).
+      // A paused yielding player starts only a save (priority below 0), not its own playback.
       const index = this.holdingPlayback ?
         this.queue.findIndex((entry) => entry.status === DownloadStatus.ENQUEUED && (entry.priority || 0) < 0) : 0;
       if (index === -1) return;
@@ -1344,8 +1084,7 @@ export class DownloadManager {
   }
 
   /**
-   * The key a download is stored under: its URL, byte range and response type.
-   * @param {DownloadRequest} details - A request (a DownloadEntry, a fragment's getContext()).
+   * @param {DownloadRequest} details
    * @return {string}
    */
   getIdentifier(details) {
@@ -1358,11 +1097,9 @@ export class DownloadManager {
   }
 
   async reset() {
-    // Destroyed: nothing to reset. It threw on the downloaders that went, an unhandled
-    // rejection (a player reset as it went, once a save it waited for had stopped).
+    // Destroyed: nothing to reset.
     if (!this.downloaders) return;
-    // A reset begun while this one waits for its storage: that one's downloaders are the ones.
-    // Both adding theirs ran twice the limit.
+    // A reset begun while this one waits for its storage owns the downloaders.
     const resetting = this.resetting = {};
     this.abortAll();
     this.failedOffline = false;
@@ -1380,11 +1117,9 @@ export class DownloadManager {
     this.failed = 0;
     this.holdUntil = 0;
     this.lastSlowDown = 0;
-    // A failure's cooldown is the last video's: its next downloads waited a second.
+    // A failure's cooldown is the last video's.
     this.lastFailed = 0;
-    // After a server throttled, the next video starts with one downloader, and its speed
-    // test is a probe: one that climbs without another 429 or 503 ends the caution. One
-    // stopped short (the add/remove downloader keys) probes again after a calm period.
+    // After a server throttled, the next video's speed test is a probe.
     this.probing = this.throttled;
     this.calmUntil = this.throttled ? Date.now() + DownloadManager.CalmPeriodMs : 0;
 
@@ -1402,23 +1137,17 @@ export class DownloadManager {
     for (let i = 0; i < start; i++) {
       this.downloaders?.push(new StandardDownloader(this));
     }
-    // What was asked for while there were no downloaders (the reset's await): a player set
-    // up meanwhile - a seek preview's build still running - queued its manifest then, and
-    // nothing started it. The queue holding it, the client asked for nothing more
-    // (canGetFile), and the next player's request for the same manifest joined it: a live
-    // DASH stream reloaded without a failed codec never loaded.
+    // A player set up during the reset's await may have queued its manifest: nothing else starts it.
     if (this.downloaders) this.queueNext();
   }
 
-  /** @param {boolean} value - Keep the downloads at every reset() (a loaded archive's). */
+  /** @param {boolean} value */
   resetOverride(value) {
     this.dontClearStorage = value;
   }
 
   /**
-   * The next reset() keeps what was downloaded, and only that one (the player built again
-   * for its source after an error, FastStreamClient.recoverPlayer). Not resetOverride(), the
-   * save manager's switch for a loaded archive: one turned it off under the other.
+   * Only the next reset() keeps the downloads (recoverPlayer); resetOverride() is the save manager's switch.
    */
   keepStorageOnce() {
     this.keepStorageNext = true;
@@ -1427,7 +1156,6 @@ export class DownloadManager {
   async clearStorage() {
     this.storageGeneration++;
     this.storage.clear();
-    // The downloads an earlier player handed over (adopt) went with them.
     this.adopted = null;
     this.adoptedSignature = null;
     await this.blobStore.clear();

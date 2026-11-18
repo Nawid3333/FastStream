@@ -1,31 +1,24 @@
 // @ts-check
 
 /**
- * Watches for a video this computer cannot decode in time, and says when to play a lower
- * quality (step down when Firefox drops frames, and always say so).
- * Firefox counts the frames it decoded too late to show (getVideoPlaybackQuality's
- * droppedVideoFrames); a version too heavy for the machine drops a share of them for as long
- * as it plays. Only steady playback counts: playing, not seeking or starving, in a visible
- * tab (a hidden one shows no frames), and at about the normal speed, since at 2x and more
- * Firefox drops frames by design to keep up. After a switch the new version gets a few
- * seconds before it is judged.
+ * Says when to play a lower quality. Only steady playback counts: visible, about 1x (at 2x Firefox drops frames by design).
  */
 
 /**
  * @typedef {Object} FrameSample
- * @property {number} now - Date.now().
- * @property {number} total - getVideoPlaybackQuality().totalVideoFrames.
- * @property {number} dropped - getVideoPlaybackQuality().droppedVideoFrames.
+ * @property {number} now
+ * @property {number} total
+ * @property {number} dropped
  * @property {boolean} steady - Playing at about the normal speed, visible, not seeking or starving.
- * @property {string|number|null} levelId - The version playing.
+ * @property {string|number|null} levelId
  */
 
 /**
  * @typedef {Object} WatchOptions
- * @property {number} [windowMs] - How long a stretch of steady playback is judged.
- * @property {number} [minFrames] - Frames the stretch must have, for a share that means something.
- * @property {number} [ratio] - The share of dropped frames that steps down.
- * @property {number} [warmupMs] - What a version gets after it starts, before it is judged.
+ * @property {number} [windowMs]
+ * @property {number} [minFrames]
+ * @property {number} [ratio]
+ * @property {number} [warmupMs]
  */
 
 export class DroppedFrameWatch {
@@ -37,17 +30,15 @@ export class DroppedFrameWatch {
     this.warmupMs = warmupMs;
     /** @type {Array<FrameSample>} */
     this.samples = [];
-    /** @type {string|number|null} The version the user chose by hand: never stepped down from. */
+    /** @type {string|number|null} Chosen by hand: never stepped down from. */
     this.chosen = null;
     /** @type {string|number|null} */
     this.levelId = null;
     this.levelSince = 0;
-    // The next reset is the same video's (keepChoiceOnce).
     this.keepChoice = false;
   }
 
   /**
-   * One more sample. A step down is due when the stretch it ends dropped too much.
    * @param {FrameSample} sample
    * @return {?{ratio: number, frames: number}} The share dropped and the frames counted, when due.
    */
@@ -76,29 +67,18 @@ export class DroppedFrameWatch {
     return {ratio: dropped / frames, frames};
   }
 
-  /**
-   * A seek, a change of speed or a stall: the counts are the video's since it started, and
-   * one that came and went between two samples would be counted in the stretch, with the
-   * frames dropped by design while it lasted. The stretch starts again at the next sample.
-   */
+  /** The counts are the video's since it started: the stretch starts again at the next sample. */
   interrupt() {
     this.samples = [];
   }
 
-  /**
-   * The user chose this version by hand: it plays as chosen, whatever it drops.
-   * @param {string|number|null} levelId
-   */
+  /** @param {string|number|null} levelId */
   userChose(levelId) {
     this.chosen = levelId;
     this.samples = [];
   }
 
-  /**
-   * The next reset is the same video's, in a player built anew: another of the page's files
-   * (playPageQuality), or a player rebuilt after an error (recoverPlayer). The version chosen
-   * by hand stays chosen through it.
-   */
+  /** The next reset is the same video's (playPageQuality, recoverPlayer): the hand choice stays. */
   keepChoiceOnce() {
     this.keepChoice = true;
   }
@@ -118,8 +98,7 @@ export class DroppedFrameWatch {
  */
 
 /**
- * The version to step down to: the best of the next smaller height, or, with none smaller,
- * the same height at a lower frame rate. Null when there is nothing lighter.
+ * The best of the next smaller height, else the same height at a lower frame rate.
  * @param {Array<QualityLevel>} levels
  * @param {QualityLevel} current
  * @return {?QualityLevel}
@@ -138,9 +117,7 @@ export function lowerLevel(levels, current) {
 }
 
 /**
- * How the status line names a version: its height, and its frame rate too when the video has
- * that height at another rate (720p60 and 720p30), so the version to choose again is the one
- * named.
+ * Its height, with its frame rate when the video has that height at another rate (720p60, 720p30).
  * @param {Array<QualityLevel>} levels
  * @param {QualityLevel} level
  * @return {string}

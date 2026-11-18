@@ -15,19 +15,13 @@ import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
 
 /** @typedef {import('../../modules/mp4box/mp4box.all.mjs').ISOFile} ISOFile */
 /** @typedef {import('../../modules/mp4box/mp4box.all.mjs').Sample} Sample */
-/**
- * mp4box's trak box, reached through ISOFile: mp4box does not export its class by name.
- * @typedef {ISOFile['moov']['traks'][number]} TrakBox
- */
+/** @typedef {ISOFile['moov']['traks'][number]} TrakBox */
 /** @typedef {import('../../modules/mp4box/mp4box.all.mjs').Movie} Movie */
 /** @typedef {import('../../modules/mp4box/mp4box.all.mjs').Track} Track */
 /** @typedef {import('../../modules/mp4box/mp4box.all.mjs').MP4BoxBuffer} MP4BoxBuffer */
 /** @typedef {import('../../network/DownloadEntry.mjs').DownloadEntry} DownloadEntry */
 /** @typedef {import('../../network/FetchLoader.mjs').FetchLoader['stats']} LoadStats */
 /**
- * A track of the file as this player reads it (onMetadataParsed): mp4box's trak box and
- * track, its samples, and its keyframes by time (sortKeyframes), brought up to date when a
- * fragmented file's samples grow (refreshSampleIndex).
  * @typedef {{trak: TrakBox|undefined, track: Track, samples: Array<Sample>,
  *   sortedSamples: Array<Sample>, sortedCount: number}} PlayedTrack
  */
@@ -43,18 +37,14 @@ const FRAGMENT_SIZE = 1000000;
 const BACK_BUFFER_SLACK = 1;
 // The least maxBufferLength comes down to (a SourceBuffer that is full), in seconds.
 const MIN_BUFFER_LENGTH = 5;
-// A range that failed (after FetchLoader's own retries, or at once for a 4xx) is asked for
-// again after each of these waits, in ms. Still failing, it is the player's error once
-// playback has reached it.
+// Waits before a failed range is asked for again, in ms; still failing, it is the error once playback is there.
 const RANGE_RETRY_DELAYS_MS = [2000, 4000, 8000];
 
 const VIDEO_TRACK = 0;
 const AUDIO_TRACK = 1;
 
 /**
- * An init segment or a removal the SourceBuffer refused: nothing to mend (a removal that
- * failed loses nothing, and an init segment is appended again with the SourceBuffers), but
- * it was an unhandled rejection.
+ * An init segment or a removal the SourceBuffer refused: nothing to mend.
  * @param {Error} e
  */
 function warnRefused(e) {
@@ -64,13 +54,11 @@ function warnRefused(e) {
 export default class MP4Player extends EventEmitter {
   /**
    * @param {import('../../FastStreamClient.mjs').FastStreamClient} client
-   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config] -
-   *   What the player is for (PlayerLoader.createPlayer's callers).
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config]
    */
   constructor(client, config) {
     super();
     this.client = client;
-    // One function for every round of the main loop, not a new one each time.
     this.boundMainLoop = this.mainLoop.bind(this);
     // Waiting for the first frame (setSource), and when that start last got somewhere.
     this.needsInit = false;
@@ -78,7 +66,6 @@ export default class MP4Player extends EventEmitter {
 
     this.isPreview = config?.isPreview || false;
     this.isAudioOnly = config?.isAudioOnly || false;
-    // An <audio> for an audio-only player, used only as a media element (sound, time).
     this.video = /** @type {HTMLVideoElement} */ (document.createElement(this.isAudioOnly ? 'audio' : 'video'));
     // A seek or a play while the main loop waits at its paused pace: its next round at once.
     this.video.addEventListener('play', () => this.wakeLoop());
@@ -94,19 +81,15 @@ export default class MP4Player extends EventEmitter {
     /** @type {number|null} */
     this.ownSeek = null;
     this.video.addEventListener('seeked', () => {
-      // Not the `seeked` of an earlier seek, queued before the next began: that one dropped
-      // the next seek's mark, its `seeking` was taken for a seek the element made itself, and
-      // the player was reset a second time, aborting the range the first reset had asked for.
+      // Not the seeked of an earlier seek, queued before the next began.
       if (!this.video?.seeking) this.ownSeek = null;
     });
-    // A start set before the element had data (the setter, below) that it never sought to:
-    // the mark goes once the element has its first frame without a seek under way.
+    // A start set before the element had data that it never sought to: the mark goes at the first frame.
     this.video.addEventListener('loadeddata', () => {
       if (!this.video?.seeking) this.ownSeek = null;
     });
 
     this.mp4box = createFile(false);
-    // Where each range of the file starts in time, per track (setFragmentTimes).
     this.rangeTimes = new RangeTimes();
 
     this.options = {
@@ -117,14 +100,11 @@ export default class MP4Player extends EventEmitter {
 
     this.metaData = null;
     this.fileLength = 0;
-    // Handed to Firefox's own player (playDirectly): this player stops.
     this.handedOver = false;
 
     this.fragmentRequester = new MP4FragmentRequester(this);
 
     this.running = false;
-    // A seek preview of a file without a picture: it stopped once the metadata was in
-    // (onMetadataParsed).
     this.nothingToPreview = false;
 
     this.loaded = false;
@@ -140,19 +120,15 @@ export default class MP4Player extends EventEmitter {
 
     /** @type {Array<MP4Fragment>} */
     this.currentFragments = [];
-    // Failed ranges' retries: fragment -> {count, at}.
     this.rangeRetries = new Map();
-    // How much of each range mp4box has had while it downloads (feedPiece), until the range is
-    // in (its onSuccess) or a reset empties mp4box (resetHLS).
+    // How much of each range mp4box has had while it downloads (feedPiece).
     /** @type {Map<MP4Fragment, {bytes: number, off: boolean, hadMetaData: boolean, moovInFirstPiece: boolean}>} */
     this.fedRanges = new Map();
 
     this._duration = 0;
-    // The element gets _duration once its SourceBuffers let it (DurationSync.mjs).
     this.durationSync = new DurationSync(() => this.mediaSource,
         () => /** @type {SourceBufferWrapper[]} */ ([this.videoSourceBuffer, this.audioSourceBuffer].filter(Boolean)));
-    // On each SourceBuffer's updateend. While the player waits for its first frame, an
-    // append is its progress: the loop's next round at once (it seeks to the buffered start).
+    // While the player waits for its first frame, an append is progress: the next loop round at once.
     this.boundApplyDuration = () => {
       this.durationSync.apply();
       if (this.needsInit) this.wakeLoop();
@@ -160,13 +136,11 @@ export default class MP4Player extends EventEmitter {
     // A seek past the element's duration, waiting for the duration to be set; null: none.
     /** @type {?number} */
     this.pendingSeek = null;
-    // A seek preview's place past the duration it knows of a fragmented file, held while it
-    // reads on to learn it (the currentTime setter, runLoad); null: none.
+    // A preview's place past the duration it knows of a fragmented file, held while it reads on.
     /** @type {?number} */
     this.previewSeek = null;
 
-    // Still stuck once its nudges are spent: an error the player shows, rather than a
-    // video frozen for good with nothing said.
+    // Still stuck once its nudges are spent: an error the player shows.
     this.stallWatchdog = new StallWatchdog((time) => {
       this.emit(DefaultPlayerEvents.ERROR, 'Playback stuck at ' + time);
     });
@@ -208,13 +182,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * The video track this player plays. None for a player made for sound only (isAudioOnly: the
-   * two a video delay adds, SyncedAudioPlayer, and the audio analyzer's) of a file with sound:
-   * each made a video SourceBuffer in its <audio>, had mp4box cut every frame into a segment and
-   * appended it, about 30 s ahead and 10 s behind of video - the MediaSource memory and the
-   * per-frame work three times over with a video delay. The seek preview leaves out the sound
-   * the same way (currentAudioTrack null). A file without sound keeps its picture there, as
-   * before: such a player has nothing else to play.
+   * None for a sound-only player of a file with sound (SyncedAudioPlayer, the analyzer): it plays no picture.
    * @return {Track|undefined} Once the metadata is in.
    */
   playedVideoTrack() {
@@ -224,7 +192,6 @@ export default class MP4Player extends EventEmitter {
   }
 
   makeSourceBuffers() {
-    // Only setupHLS calls this, once the metadata is in.
     const videoTrack = this.playedVideoTrack();
     if (videoTrack) {
       const videoCodec = 'video/mp4; codecs=\"' + videoTrack.codec + '\"';
@@ -241,7 +208,7 @@ export default class MP4Player extends EventEmitter {
     }
   }
 
-  /** @param {number} id - The track's. */
+  /** @param {number} id */
   freeSamples(id) {
     // samples_stored: patches/mp4box@*.patch.
     const trak = /** @type {TrakBox & {samples_stored: Sample[]}} */ (this.mp4box.getTrackById(id));
@@ -265,30 +232,19 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * Has mp4box cut the tracks played (currentVideoTrack, currentAudioTrack) into segments
-   * for their SourceBuffers, from the playhead on.
-   * @param {{audioOnly?: boolean}} [options] - audioOnly: the audio track changed
-   *   (switchAudioTrack); the video's initialization segment is in its SourceBuffer already.
+   * Has mp4box cut the played tracks into segments for their SourceBuffers, from the playhead on.
+   * @param {{audioOnly?: boolean}} [options] - audioOnly: the audio track changed; the video's init segment is in already.
    */
   startSegmentation({audioOnly = false} = {}) {
     this.mp4box.fragmentedTracks.length = 0;
 
-    // Only once the metadata is in (setupHLS, switchAudioTrack).
     const videoTrack = this.playedVideoTrack();
     const audioTrack = /** @type {Movie} */ (this.metaData).audioTracks[/** @type {number} */ (this.currentAudioTrack)];
 
     this.mp4box.onSegment = (id, user, buffer, sampleNumber, last) => {
-      // A file can have no video track (audio only) or no audio track.
-      // The samples are released once the segment is queued: one the SourceBuffer refuses
-      // is handled by the appender, which loads again from the playhead.
-      // makeSourceBuffers made a SourceBuffer for each track it found.
-      // The tracks played now, not when this was set: switchAudioTrack's reset flushes mp4box,
-      // which gives the samples of the audio before the switch that it still had - after the
-      // removal, so they would have stayed in the SourceBuffer. Dropped.
+      // The tracks played now, not when this was set: switchAudioTrack's flush gives samples of the old audio.
       const playedAudio = this.currentAudioTrack === null ? undefined : this.metaData?.audioTracks[this.currentAudioTrack];
-      // A seek preview reading on to a place past the duration it knew (previewSeek): what it
-      // reads on the way is not that place, and the seek's reset would take it away again. Only
-      // the duration it tells is kept.
+      // A preview reading on past the duration it knew: only the duration it tells is kept.
       if (this.previewSeek !== null) {
         this.freeSamples(id);
         this.updateDuration();
@@ -314,14 +270,7 @@ export default class MP4Player extends EventEmitter {
     if (videoTrack) {
       this.mp4box.setSegmentOptions(videoTrack.id, 1, {
         nbSamples: 1,
-        // Each frame on its own, as soon as its bytes are in. mp4box's default cuts a video
-        // segment only at a keyframe: after the first frame, the frames up to the next
-        // keyframe went to the SourceBuffer together, once the last of them was downloaded.
-        // The video showed its first frame and waited there for that whole stretch - 8.3 s
-        // of video in the e2e file (playback 2.0 s after the first frame on a shared
-        // 12 Mbit/s line, 3.3 s at 4 Mbit/s per connection), and the same after every seek
-        // and every stall. Where a segment starts is the seek's (mp4box.seek(time, true)),
-        // not this: these segments ended on a keyframe and started after one before too.
+        // Each frame on its own as soon as its bytes are in: cut at keyframes, the first frame waited for the whole GOP.
         rapAlignement: false,
       });
     }
@@ -330,8 +279,7 @@ export default class MP4Player extends EventEmitter {
       this.mp4box.setSegmentOptions(audioTrack.id, 1, {
         nbSamples: 1,
       });
-      // AAC in a channel layout Windows' decoder gives nothing back for: relabelled, or the
-      // video waits for its first audio for good (AacLayout.mjs).
+      // AAC in a channel layout Windows' decoder plays as silence is relabelled (AacLayout.mjs).
       const esd = this.mp4box.getTrackById(audioTrack.id)?.mdia?.minf?.stbl?.stsd?.entries?.[0]?.esds?.data;
       if (esd && relabelEsdsAacLayout(esd)) {
         console.log('Relabelled the AAC channel layout for Windows\' decoder');
@@ -339,8 +287,7 @@ export default class MP4Player extends EventEmitter {
     }
 
 
-    // One initialization segment per track, each for its own SourceBuffer. mp4box 2.x
-    // otherwise returns a single one for all the tracks.
+    // One initialization segment per track: mp4box 2.x otherwise returns one for all.
     const initSegs = this.mp4box.initializeSegmentation('per-track');
 
     let ind = 0;
@@ -353,21 +300,14 @@ export default class MP4Player extends EventEmitter {
       /** @type {SourceBufferWrapper} */ (this.audioSourceBuffer).appendBuffer(initSegs[ind++].buffer).catch(warnRefused);
     }
 
-    // From the keyframe before the playhead, as resetHLS seeks: a start time set before the
-    // metadata (a resume, a seek preview) began at the sample there, and Firefox dropped the
-    // frames before the next keyframe, which the start then moved to.
+    // From the keyframe before the playhead: from a sample, Firefox drops the frames up to the next keyframe.
     this.seekMp4box(this.currentTime, true);
     this.mp4box.start();
   }
 
   /**
-   * Takes mp4box's segmentation to a time: each track from its sample there (mp4box.seek), and
-   * a track that ends before it - a sound 2 s shorter than the picture, a seek to the end - from
-   * its own last keyframe. mp4box leaves such a track where it was (ISOFile.seek skips a time
-   * past the track's duration), at a place whose bytes the reset threw away and nothing loads
-   * again: the track never finished, the stream never ended (checkEndOfStream), and Firefox
-   * waited at the seek for good, the loop running at 1 ms. Its last keyframe is in what runLoad
-   * reads from (keyframeOffset takes each track's last keyframe at or before the time).
+   * A track that ends before the time (a shorter sound, a seek to the end) goes from its own last keyframe:
+   * mp4box leaves it where it was, and the stream never ends.
    * @param {number} time - Seconds.
    * @param {boolean} useRap - From the keyframe at or before the time.
    */
@@ -412,12 +352,9 @@ export default class MP4Player extends EventEmitter {
 
   estimateTotalSizeFromMetadats() {
     if (this.fileLength || !this.metaData) return;
-    // A fragmented file's samples are only those of the fragments parsed so far: taken for its
-    // length, they ended the video after the first range. Without a length from the server it
-    // is read on, range by range, until a range comes back short (onSuccess).
+    // A fragmented file's known samples are only those of the parsed fragments: no length from them.
     if (this.metaData.isFragmented) return;
     const info = this.metaData;
-    // get last sample offset
     let maxOffset = 0;
     info.tracks.forEach((track) => {
       const trak = this.mp4box.moov.traks.find((trak) => {
@@ -431,15 +368,13 @@ export default class MP4Player extends EventEmitter {
         }
       }
     });
-    // A sample past the longest file loaded in ranges (a broken or hostile file): no length
-    // from it, or every range up to there was made at once and the page hung (RangeAnswers'
-    // MAX_FILE_LENGTH). The file is read on range by range, as without a sample table.
+    // A sample past MAX_FILE_LENGTH (a broken or hostile file) gives no length.
     if (maxOffset > MAX_FILE_LENGTH) return;
     this.fileLength = maxOffset;
     this.initializeFragments();
   }
 
-  /** @param {Movie} info - mp4box's description of the file (onReady). */
+  /** @param {Movie} info - mp4box's description of the file. */
   onMetadataParsed(info) {
     this.metaData = info;
     this.estimateTotalSizeFromMetadats();
@@ -480,8 +415,7 @@ export default class MP4Player extends EventEmitter {
 
     this.setFragmentTimes();
     this.currentAudioTrack = this.firstAudioTrack();
-    // A file that keeps its audio far from its video (all of one after all of the other)
-    // cannot be read in ranges timed by the video (apartBy). The seek preview reads no audio.
+    // A file keeping its audio far from its video cannot be read in ranges timed by the video (apartBy).
     const audio = this.currentAudioTrack === null ? null : this.audioTracks[this.currentAudioTrack];
     if (!this.isPreview && !info.isFragmented && this.videoTracks.length && audio &&
         apartBy(this.videoTracks[0].samples, audio.samples) > MIN_BUFFER_LENGTH) {
@@ -490,10 +424,7 @@ export default class MP4Player extends EventEmitter {
     }
     this.emit(DefaultPlayerEvents.MANIFEST_PARSED);
     this.updateDuration();
-    // A seek preview of a file without a picture (audio only) has nothing to show, and stops
-    // here. It made no SourceBuffer (a preview plays no audio), so its element never left
-    // HAVE_NOTHING, and its loop, waiting for a first frame (needsInit), woke the page every
-    // 4 ms for as long as the tab stayed open.
+    // A preview of a file without a picture has nothing to show: it stops here.
     if (this.isPreview && this.videoTracks.length === 0) {
       this.nothingToPreview = true;
       this.running = false;
@@ -534,14 +465,11 @@ export default class MP4Player extends EventEmitter {
     if (!this.running) {
       return;
     }
-    // A round runs now: a wake while it runs (a seek it makes itself, below) leaves the next
-    // round to it, or the loop would run twice over from then on.
+    // A round runs now: a wake while it runs leaves the next round to it.
     this.loopTimeout = null;
 
     try {
-      // Nothing to do while nothing is buffered: a seek to the time it is already at went
-      // through the setter, found nothing buffered there, and reset the player - on every
-      // tick until the first media arrived, 482 times opening a long fragmented file at 30 s.
+      // Only once something is buffered: a seek to the current time with nothing buffered resets the player.
       if (this.needsInit && this.readyState === 1 && this.buffered.length > 0) {
         const start = this.buffered.start(0);
         if (this.currentTime < start) {
@@ -560,9 +488,7 @@ export default class MP4Player extends EventEmitter {
       this.checkEndOfStream();
       this.stallWatchdog.check(this.video);
     } catch (e) {
-      // runLoad stops the player with an error of its own (running is then false). Anything
-      // else thrown here stopped the loop just the same, the loading, the end of the stream
-      // and the stall watchdog with it, and nothing was said.
+      // runLoad stops the player with an error of its own; anything else thrown here is the error.
       console.error(e);
       if (this.running) {
         this.running = false;
@@ -572,28 +498,13 @@ export default class MP4Player extends EventEmitter {
     }
     // Stopped, or destroyed, by a listener of an event this round emitted (the stall watchdog's).
     if (!this.running || !this.video) return;
-    // At once (1 ms, which Firefox makes 4) while something here is urgent: starting (the
-    // first frame waits for the seek to the buffered start above), seeking, or out of media
-    // to play. Playing with media ahead, nothing is: a range that ends starts the next itself
-    // (onSuccess runs runLoad), and the stall watchdog counts seconds. The loop woke the page
-    // about 250 times a second for as long as an MP4 played.
-    // Paused, or at its end, nothing is: downloads go on by themselves all the same, a seek or
-    // a play wakes the loop (wakeLoop), and the rest (the end of the stream, a duration to
-    // set, a range to try again) can wait a quarter of a second. Every player woke the page
-    // 20 times a second while paused - the seek preview, a second player, always is - and an
-    // MP4 that had ended, whose readyState stays below 3 with nothing ahead, 250 times a
-    // second, for as long as its tab stayed open (measured with tools/bench-ab.mjs).
-    // A start that gets nowhere (no first frame 2 s after its last append, seek or play: data
-    // the element cannot decode) waits at the steady pace: LoopPace.mjs.
+    // The pace: LoopPace.mjs.
     const video = this.video;
     const delay = loopDelay({ended: video.ended, paused: video.paused, seeking: video.seeking,
       readyState: this.readyState, needsInit: this.needsInit, sinceProgress: performance.now() - this.initProgressAt});
     this.loopTimeout = setTimeout(this.boundMainLoop, delay);
   }
 
-  /**
-   * Runs the main loop's next round at once, not at its paused pace: a seek or a play.
-   */
   wakeLoop() {
     // Progress for a start that waits for its first frame (LoopPace.INIT_URGENT_MS).
     this.initProgressAt = performance.now();
@@ -604,11 +515,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * Tells the MediaSource there is no more media once every track's last sample has been
-   * appended. Without it Firefox waits for data after the last frame: playback that
-   * reaches the end sits there buffering and never fires 'ended', and a seek to exactly
-   * the end never completes. A later append or removal - a seek back, say - opens the
-   * MediaSource again by itself, and this runs again when the end is reached again.
+   * Without endOfStream Firefox waits for data after the last frame: no 'ended', and a seek to the end never completes.
    */
   checkEndOfStream() {
     if (!this.metaData || !this.mediaSource || this.mediaSource.readyState !== 'open') {
@@ -627,10 +534,7 @@ export default class MP4Player extends EventEmitter {
       return;
     }
 
-    // A fragmented file's sample list grows with each moof parsed, so "every sample
-    // appended" also holds between two fragments, whenever a range ends there: ending the
-    // stream then cuts the duration to what is buffered, and the video stops early. Its
-    // samples are all known only once the range with the file's last byte is in.
+    // A fragmented file's samples are all known only once the range with its last byte is in.
     if (this.metaData.isFragmented && !this.hasLastRange()) {
       return;
     }
@@ -643,9 +547,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * Whether the range holding the file's last byte has reached mp4box since the last
-   * reset: resetHLS() empties currentFragments and seeks. False while the file's length is
-   * not known.
+   * Whether the range holding the file's last byte has reached mp4box since the last reset.
    * @return {boolean}
    */
   hasLastRange() {
@@ -663,12 +565,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * A fragmented file's samples become known one moof at a time, as its ranges are parsed;
-   * mp4box adds them to the track's sample list. The keyframe index that picks the range to
-   * load, and the fragments' times, were made only from the samples known when the metadata
-   * was parsed, so the player loaded the first maxFragmentsBuffered ranges (30 MB) and
-   * stopped there. Both are brought up to date whenever the list has grown: the keyframes
-   * with the new samples only (addKeyframes).
+   * A fragmented file's samples come one moof at a time: the keyframe index and the ranges' times follow them.
    */
   refreshSampleIndex() {
     if (!this.metaData?.isFragmented) return;
@@ -682,19 +579,15 @@ export default class MP4Player extends EventEmitter {
   }
 
   setFragmentTimes() {
-    // The ranges are kept under the video level's id, an audio-only file's too, and its
-    // times come from its audio track. They were never set: nothing behind playback was
-    // freed, and the whole file went into the SourceBuffer.
+    // The ranges are kept under the video level's id, an audio-only file's too: times from its audio track.
     const tracks = this.videoTracks.length ? this.videoTracks : this.audioTracks;
     const levels = this.videoTracks.length ? this.getVideoLevels() :
       new Map(this.audioTracks.length ? [[this.getCurrentVideoLevelID(), null]] : []);
     levels.forEach((level, l) => {
-      // The player's ranges: setSource made the first under this level.
       const frags = /** @type {Array<MP4Fragment>} */ (this.client.getFragments(l.toString()));
       let currentFragment = frags[0];
       currentFragment.start = 0;
       const indexes = this.getIndexes(l);
-      // Each range's earliest time (minTimeIn), worked out again only where samples came.
       const times = this.rangeTimes.times(tracks[indexes.levelID].samples, frags);
       for (let i = 1; i < frags.length; i++) {
         const frag = frags[i];
@@ -708,8 +601,7 @@ export default class MP4Player extends EventEmitter {
         }
       }
 
-      // The duration as the player counts it: a fragmented file without a mehd box has none
-      // in its metadata (0), and this last fragment then ended at 0.
+      // The player's duration: a fragmented file without a mehd box has none in its metadata.
       currentFragment.end = Math.ceil(this.calculateDuration());
       currentFragment.duration = currentFragment.end - currentFragment.start;
     });
@@ -735,13 +627,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * Removes what is buffered before `end`. runLoad() runs every millisecond, and this used
-   * to remove [0, end) from both SourceBuffers on every run once playback was past the back
-   * buffer: about 470 removals a second, nearly all of them of nothing. Each one still put
-   * the SourceBuffer through an update, queued behind the appends playback needs (on a slow
-   * machine the queue grew into the tens of thousands and the video stalled), and reopened
-   * the MediaSource after endOfStream(). So a SourceBuffer is trimmed only while it is idle,
-   * and only once it holds a second more than the back buffer keeps.
+   * Only while a SourceBuffer is idle and holds a second more than the back buffer keeps: each removal is an update.
    * @param {number} end - Keep what is buffered from here on.
    */
   removeBackBuffer(end) {
@@ -759,9 +645,7 @@ export default class MP4Player extends EventEmitter {
   runLoad() {
     if (!this.running || this.nothingToPreview || (this.metaData && !this.loaded)) return;
 
-    // A seek preview's place past the duration it knew (the setter): sought to once the
-    // duration has reached it, or once the file's last range is in (a place past the end lands
-    // on the end). Until then the preview reads on, its first frame shown or not.
+    // A preview's place past the duration it knew: sought to once the duration reaches it or the last range is in.
     if (this.previewSeek !== null && (this._duration >= this.previewSeek || this.hasLastRange())) {
       const time = this.previewSeek;
       this.previewSeek = null;
@@ -778,9 +662,7 @@ export default class MP4Player extends EventEmitter {
       return;
     }
 
-    // The whole file parsed and no moov in it (a recording cut off before it was written): the
-    // place to read from was the last range, already in, and nothing more was asked for, a
-    // spinner for good. Firefox's own player cannot play it either.
+    // The whole file parsed and no moov in it (a recording cut off): an error, not a spinner.
     if (!this.metaData && this.fileLength > 0 && this.mp4box.nextParsePosition >= this.fileLength) {
       this.running = false;
       this.emit(DefaultPlayerEvents.ERROR, 'The file has no moov box: it ends before its index was written');
@@ -789,9 +671,7 @@ export default class MP4Player extends EventEmitter {
 
     const currentFragment = this.currentFragment;
 
-    // Both exits below stopped the player without an error, unlike the others: a spinner
-    // forever, and no next stream tried (a file shorter than its moov says, a page that is
-    // no MP4 answered with 200).
+    // Both exits below are errors: no spinner forever, and the next stream is tried.
     if (!currentFragment) {
       this.running = false;
       this.emit(DefaultPlayerEvents.ERROR, 'No current fragment');
@@ -801,9 +681,7 @@ export default class MP4Player extends EventEmitter {
     const frags = this.client.getFragments(this.getCurrentVideoLevelID()) || [];
 
     const time = this.video.currentTime;
-    // A seek preview reading on to a place past the duration it knew (previewSeek) needs none
-    // of the ranges it has read on the way: held, they would all be held until it got there,
-    // and the memory budget cannot let go of a range a player holds.
+    // A preview reading on holds none of the ranges on the way: the memory budget cannot free a held range.
     const keptFrom = this.previewSeek ?? time;
     for (let i = 0; i < this.currentFragments.length; i++) {
       const frag = this.currentFragments[i];
@@ -838,9 +716,7 @@ export default class MP4Player extends EventEmitter {
         }
       }
 
-      // A fragmented file says where a time is only once the ranges before it are parsed,
-      // so it is read ahead by ranges (maxFragmentsBuffered), not by seconds: that is how
-      // its duration, and a seek far into it, come to be known.
+      // A fragmented file says where a time is only once the ranges before it are parsed: read ahead by ranges.
       if (i !== currentFragment.sn && !this.metaData?.isFragmented &&
           frag.start > this.video.currentTime + this.options.maxBufferLength) {
         break;
@@ -851,27 +727,20 @@ export default class MP4Player extends EventEmitter {
         const loader = this.loader = this.fragmentRequester.requestFragment(frag, {
           /**
            * @param {DownloadEntry} entry
-           * @param {MP4BoxBuffer} data - The range, its place in the file its fileStart
-           *   (MP4FragmentRequester).
+           * @param {MP4BoxBuffer} data
            */
           onSuccess: (entry, data) => {
             if (this.loader === loader) {
               this.loader = null;
             } else return;
 
-            // Another range than this one: its bytes would go to mp4box at this range's place
-            // (feedPiece checks each piece the same way). A server that does so cannot be read
-            // in ranges.
+            // Another range than this one: its bytes would go to mp4box at the wrong place.
             if (startsElsewhere({status: entry.responseStatus, headers: entry.responseHeaders}, frag.rangeStart)) {
               this.playDirectly('The server answers a range other than the one asked for');
               return;
             }
 
-            // The file's length has to be known before mp4box parses the data: parsing the
-            // moov runs onMetadataParsed, which otherwise works the length out from the
-            // samples known so far. For a fragmented file those are only the fragments in
-            // this range, so the ranges after it were never made, and the file was
-            // taken to end there.
+            // The file's length must be known before mp4box parses the moov (onMetadataParsed makes the ranges).
             if (!this.fileLength) {
               const {length, playDirectly, tooLong} = lengthFromAnswer({
                 status: entry.responseStatus,
@@ -888,27 +757,20 @@ export default class MP4Player extends EventEmitter {
                 this.initializeFragments();
               }
             }
-            // More than the range (a 206 without Content-Range that sent the rest of the file,
-            // say): the rest would be parsed as this range's, and the offsets would no longer
-            // match. Only the range is this fragment's.
+            // More than the range (a 206 without Content-Range): only the range is this fragment's.
             if (data?.byteLength > frag.rangeEnd - frag.rangeStart) {
-              // An MP4BoxBuffer once its fileStart is set, the line below.
               const range = /** @type {MP4BoxBuffer} */ (data.slice(0, frag.rangeEnd - frag.rangeStart));
               range.fileStart = data.fileStart;
               data = range;
             }
-            // Past the end: a range read on that came back empty (a file whose length is a
-            // multiple of the range size), or one at or past the length this answer just told
-            // (a file of exactly one range from a server that ignores Range, whose answer
-            // FetchLoader took for this range: the file's start again).
+            // Past the end: a range read on that came back empty, or at or past the length just told.
             if (frag.rangeStart > 0 &&
                 (this.fileLength ? frag.rangeStart >= this.fileLength : !(data?.byteLength > 0))) {
               this.endsAt(this.fileLength || frag.rangeStart);
               return;
             }
 
-            // Not an MP4 at all, whatever its server and URL call it (a Matroska file served
-            // as video/mp4): mp4box reads only MP4's boxes, Firefox's own player reads it.
+            // Not an MP4 (a Matroska file served as video/mp4): Firefox's own player reads it.
             if (frag.rangeStart === 0 && !this.metaData && data?.byteLength &&
                 !startsLikeMp4(new Uint8Array(data, 0, Math.min(data.byteLength, 8)))) {
               this.playDirectly('The file is not an MP4 file');
@@ -918,8 +780,7 @@ export default class MP4Player extends EventEmitter {
             // What mp4box had of it while it downloaded (feedPiece): the rest goes now.
             const fed = this.fedRanges.get(frag);
             this.fedRanges.delete(frag);
-            // As it was before its first piece, if any was fed (a moov in it is no moov "after the
-            // media"); else as now, as before progressive feeding.
+            // As it was before its first piece: a moov in a fed range is no moov after the media.
             const hadMetaData = fed?.bytes ? fed.hadMetaData : !!this.metaData;
             const fedBytes = fed?.bytes || 0;
             if (!fedBytes) {
@@ -936,23 +797,13 @@ export default class MP4Player extends EventEmitter {
             this.rangeRetries.delete(frag);
             frag.addReference(ReferenceTypes.MP4PLAYER, true);
 
-            // The moov came after the media (ffmpeg's default without +faststart, OBS's
-            // recordings): the ranges read to reach it were parsed without it, and gave no
-            // samples, yet counted as loaded. A long such file sat at its start with nothing
-            // buffered, for good. They are read again, as for a seek, now the moov is known.
-            // The first range too when it came in pieces and the moov in a later one than the
-            // media: a short such file sat so, only when the network cut it there (measured with
-            // mp4box: 0 segments from two pieces, 27 from one buffer).
+            // The moov came after the media (no +faststart): the ranges read before it gave no samples, read again.
             if (!hadMetaData && this.metaData && (frag.sn > 0 || this.moovCameAfterFedMedia(fed))) {
               this.resetHLS(true);
             }
 
             if (!this.fileLength) {
-              // No length from the server (a 206 without Content-Range): a regular file's comes
-              // from its sample table once the moov is in (estimateTotalSizeFromMetadats); until
-              // then, and for a fragmented file, it is read on range by range. A range shorter
-              // than asked for is the file's end. (A fragmented file failed with "No content
-              // range", or ended after the first range.)
+              // No length from the server: a regular file's comes from its sample table; a short range is the end.
               const received = data?.byteLength || 0;
               const levelID = this.getCurrentVideoLevelID();
               if (received > 0 && received < frag.rangeEnd - frag.rangeStart) {
@@ -960,9 +811,7 @@ export default class MP4Player extends EventEmitter {
                 return;
               } else {
                 const nextParsePosition = this.metaData ? frag.rangeEnd : (this.mp4box.nextParsePosition || (frag.rangeEnd + 1));
-                // Where mp4box reads next is where a box before the moov says it ends: one past
-                // the longest file loaded in ranges made every range up to there at once
-                // (RangeAnswers' MAX_FILE_LENGTH).
+                // A box before the moov ending past MAX_FILE_LENGTH would make every range up to there at once.
                 if (nextParsePosition > MAX_FILE_LENGTH) {
                   this.playDirectly('The file is too long to load in ranges');
                   return;
@@ -979,9 +828,9 @@ export default class MP4Player extends EventEmitter {
           },
           /**
            * @param {LoadStats} stats
-           * @param {ReturnType<MP4Fragment['getContext']>} context - The range's request.
+           * @param {ReturnType<MP4Fragment['getContext']>} context
            * @param {ArrayBuffer} data
-           * @param {null} xhr - FetchLoader has none.
+           * @param {null} xhr
            */
           onProgress: (stats, context, data, xhr) => {
 
@@ -999,8 +848,7 @@ export default class MP4Player extends EventEmitter {
             if (this.loader === loader) {
               this.loader = null;
             }
-            // Read on range by range (no length from the server), the range after the file's
-            // end: 416, Range Not Satisfiable. The file ends there.
+            // Read on without a length: 416 for the range after the end. The file ends there.
             if (!this.fileLength && frag.rangeStart > 0 && entry?.stats?.error?.code === 416) {
               this.endsAt(frag.rangeStart);
             }
@@ -1019,13 +867,8 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * Gives mp4box a piece of a range while the range downloads. Its first frame needs the moov and
-   * that frame's bytes, a seek its keyframe's, not the whole megabyte: a range went to mp4box only
-   * once all of it was in. Only a range's own answer (206 and its Content-Range, FetchLoader),
-   * from its start on and without a hole, never a byte twice (a retried download starts over);
-   * before the moov only the file's first range, an MP4's, whose answer says the file's length
-   * (mp4box needs it before it parses the moov). What is not fed here goes when the range is
-   * in (onSuccess), whose checks run as before.
+   * Gives mp4box a piece of a range while it downloads: the range's own answer, from its start, no holes.
+   * Before the moov only the first range. The rest goes when the range is in (onSuccess).
    * @param {MP4Fragment} frag
    * @param {Uint8Array} chunk
    * @param {number} offset - Its place in the range.
@@ -1038,8 +881,7 @@ export default class MP4Player extends EventEmitter {
       if (offset !== 0) return;
       state = {bytes: 0, off: false, hadMetaData: !!this.metaData, moovInFirstPiece: false};
       this.fedRanges.set(frag, state);
-      // Only an answer that is this range from its start: one whose Content-Range starts
-      // elsewhere would put its bytes at the wrong place in the file.
+      // Only an answer that is this range from its start.
       if (parseInt(/^bytes (\d+)-/.exec(answer.contentRange)?.[1] ?? '', 10) !== frag.rangeStart) {
         state.off = true;
         return;
@@ -1075,10 +917,8 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * Whether a range fed in pieces lost its samples: its moov came after the first piece, with
-   * media before it.
-   * @param {{bytes: number, hadMetaData: boolean, moovInFirstPiece: boolean}} [fed] - The range's
-   *   state in fedRanges, if it was fed.
+   * Whether a range fed in pieces lost its samples: its moov came after the first piece, with media before it.
+   * @param {{bytes: number, hadMetaData: boolean, moovInFirstPiece: boolean}} [fed]
    * @return {boolean}
    */
   moovCameAfterFedMedia(fed) {
@@ -1086,9 +926,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * Whether the file's media starts before its moov. A moov that merely spans two pieces, at the
-   * start of a long film, loses nothing: reading its range again would stop the video that is
-   * already playing from it.
+   * A moov merely spanning two pieces loses nothing: reading its range again would stop the playing video.
    * @return {boolean}
    */
   moovIsAfterMedia() {
@@ -1097,11 +935,8 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * A range that failed to load is asked for again after a growing wait, since the network
-   * may come back. Once the waits are spent it is the player's error, as soon as playback
-   * has reached it. Loading used to stop at it for good: the video played up to it, then
-   * spun with no error, unless several downloaders happened to run.
-   * @param {MP4Fragment} frag - The failed range.
+   * Asked for again after a growing wait; once the waits are spent it is the error when playback reaches it.
+   * @param {MP4Fragment} frag
    * @return {boolean} Whether to ask for it again now.
    */
   retryFailedRange(frag) {
@@ -1132,7 +967,7 @@ export default class MP4Player extends EventEmitter {
 
   /**
    * @param {MP4Fragment} fragment
-   * @param {number} priority - In the download manager's queue, higher first (a save's -1).
+   * @param {number} priority - Higher first (a save's -1).
    * @return {Promise<void>}
    */
   downloadFragment(fragment, priority) {
@@ -1141,16 +976,16 @@ export default class MP4Player extends EventEmitter {
         skipProcess: true,
         /**
          * @param {DownloadEntry} entry
-         * @param {undefined} data - None: skipProcess.
+         * @param {undefined} data
          */
         onSuccess: (entry, data) => {
           resolve();
         },
         /**
          * @param {LoadStats} stats
-         * @param {ReturnType<MP4Fragment['getContext']>} context - The range's request.
+         * @param {ReturnType<MP4Fragment['getContext']>} context
          * @param {ArrayBuffer} data
-         * @param {null} xhr - FetchLoader has none.
+         * @param {null} xhr
          */
         onProgress: (stats, context, data, xhr) => {
 
@@ -1159,7 +994,7 @@ export default class MP4Player extends EventEmitter {
         onFail: (entry) => {
           reject(new Error('Failed to download fragment'));
         },
-        /** @param {DownloadEntry} e - The entry. */
+        /** @param {DownloadEntry} e */
         onAbort: (e) => {
           reject(new Error('Aborted download'));
         },
@@ -1182,15 +1017,12 @@ export default class MP4Player extends EventEmitter {
 
   destroy() {
     this.running = false;
-    // First: the release of a duration held (clear, below) started the next append on the
-    // dying player, and the abort's updateend every queued one (SourceBufferWrapper.dispose).
+    // First: a duration released afterwards would start the next append on the dying player.
     this.videoSourceBuffer?.dispose();
     this.audioSourceBuffer?.dispose();
     this.durationSync?.clear();
     this.pendingSeek = null;
-    // SourceBuffer.abort() throws unless the MediaSource is open, and after endOfStream()
-    // it is 'ended': the throw left the player half destroyed, without DESTROYED ever being
-    // emitted.
+    // SourceBuffer.abort() throws unless the MediaSource is open (after endOfStream() it is 'ended').
     const open = this.mediaSource?.readyState === 'open';
     if (this.videoSourceBuffer) {
       if (open) this.videoSourceBuffer.abort();
@@ -1210,14 +1042,11 @@ export default class MP4Player extends EventEmitter {
       this.loader = null;
     }
 
-    // Its holds on the fragments it appended go with it, one each, as resetHLS gives them
-    // back. A seek preview or a frame extractor destroyed while the main player played on kept
-    // them, and the memory budget could never let those fragments go (Codex's review).
+    // Its holds on the fragments it appended go with it, or the memory budget could never free them.
     for (const frag of this.currentFragments.splice(0)) {
       frag.removeReference(ReferenceTypes.MP4PLAYER);
     }
 
-    // Its last use: nothing reads it once the player is destroyed.
     this.mp4box = /** @type {any} */ (null);
     this.metaData = null;
 
@@ -1233,8 +1062,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * The file ends at a range read on (no length from the server) that brought nothing: its
-   * length is known now, and the stream can end.
+   * The file ends at a range read on (no length from the server) that brought nothing.
    * @param {number} length
    */
   endsAt(length) {
@@ -1255,9 +1083,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * Hands the source to Firefox's own player (DirectVideoPlayer), for a server this player
-   * cannot load in ranges (RangeAnswers.mjs) or a file that is no MP4 (ContainerSniff.mjs).
-   * Once: this player stops loading.
+   * Hands the source to Firefox's own player (DirectVideoPlayer), once: this player stops loading.
    * @param {string} reason
    */
   playDirectly(reason) {
@@ -1272,11 +1098,7 @@ export default class MP4Player extends EventEmitter {
   resetHLS(noLoad) {
     if (!this.metaData || this.nothingToPreview) return;
     this.segmentAppender.reloaded();
-    // The media segments still queued would be appended only for the removal below to take
-    // them away again: dropped instead, so the new place's segments follow the removal at
-    // once. Before the flush: a segment the flush gives is appended under the new count
-    // (reloaded()), and dropped, its AbortError counted as a refusal. It goes
-    // in after the removal, as it always did.
+    // Queued media segments would only be removed again: dropped, before the flush.
     this.videoSourceBuffer?.dropQueuedMedia();
     this.audioSourceBuffer?.dropQueuedMedia();
     this.removeFromBuffers(0, this.video.duration);
@@ -1297,8 +1119,7 @@ export default class MP4Player extends EventEmitter {
     });
 
     this.currentFragments.length = 0;
-    // A seek (or any reset) tries a failed range afresh: one whose three retries a network
-    // blip used up failed on sight for good, even after seeking away and back.
+    // A seek tries a failed range afresh.
     this.rangeRetries.clear();
     this.seekMp4box(this.currentTime, true);
     if (!noLoad) this.runLoad();
@@ -1307,23 +1128,14 @@ export default class MP4Player extends EventEmitter {
   set currentTime(value) {
     // A seek held below for the duration waits for the loop's next round (durationSync).
     this.wakeLoop();
-    // A seek preview of a fragmented file without its duration in the metadata (no mehd box,
-    // as ffmpeg's frag_keyframe+empty_moov writes it) knows only as much of it as it has read,
-    // and it reads only up to its first frame: the element landed a place past that on the
-    // duration it had, about 9 s of a 160 s file, and every place past 9 s showed the frame at
-    // 9 s. Such a place is held (previewSeek) while the preview reads on, and sought to once
-    // the duration reaches it (runLoad). The client hides the preview meanwhile: it is not
-    // where it was pointed (FastStreamClient.updatePreview).
+    // A preview past the known duration of a fragmented file without mehd is held while it reads on.
     if (this.isPreview && this.metaData?.isFragmented && value > this._duration && !this.hasLastRange()) {
       this.pendingSeek = null;
       this.previewSeek = value;
       return;
     }
     this.previewSeek = null;
-    // The element would land a seek past its duration on that duration: one waiting to be set
-    // (DurationSync) is set first. So does any seek while the element has none yet (NaN, or
-    // +Infinity from an initialization segment without one): it is then held to what is
-    // buffered. The latest seek wins.
+    // A seek past the element's duration, or while it has none, waits for the pending duration.
     if (this.durationSync.pending && (!Number.isFinite(this.video.duration) || value > this.video.duration)) {
       this.pendingSeek = value;
       this.durationSync.whenApplied(() => {
@@ -1335,22 +1147,11 @@ export default class MP4Player extends EventEmitter {
     }
     this.pendingSeek = null;
     this.video.currentTime = value;
-    // Only a seek the element started, or will start. With no data yet (readyState 0, as when
-    // the client sets the start right after setSource) the time is only where it will start.
-    // At 0 no seek ever runs, and no seeked would clear the mark - the element's own seek to 0
-    // when the video was played again after its end was then taken for this one (a review,
-    // 2026-11-13). Past 0 the element seeks there once it has its metadata, and that
-    // `seeking` is this seek, checked below: unmarked, it reset the player a second time and
-    // aborted the range the first reset had just asked for (a seek preview pointed at while it
-    // still loads, the player of a sound set to start late).
+    // Marked only for a seek the element runs or will run: no seeked would clear a mark at 0.
     const video = this.video;
     this.ownSeek = video.seeking || (video.readyState === 0 && video.currentTime > 0) ? video.currentTime : null;
 
-    // What matters is where the element is going: a seek to -3 s lands on 0, which may well
-    // be buffered, and throwing the whole buffer away for it made every arrow press near the
-    // start rebuffer the video. The target is clamped here to the range the element clamps a
-    // seek to (MediaSource makes it [0, duration]), so the check does not depend on reading
-    // the time back.
+    // Clamped as the element clamps a seek ([0, duration]): a seek to -3 s lands on 0, maybe buffered.
     let target = Math.max(0, value);
     const duration = this.video.duration;
     if (Number.isFinite(duration)) {
@@ -1359,12 +1160,9 @@ export default class MP4Player extends EventEmitter {
     this.reloadUnlessBuffered(target);
   }
 
-  /**
-   * Starts loading at a time sought to, unless it is buffered: resetHLS takes mp4box there.
-   * @param {number} target
-   */
+  /** @param {number} target */
   reloadUnlessBuffered(target) {
-    // A removal still queued takes away what `buffered` shows (removalPending, #265).
+    // A removal still queued takes away what buffered shows (removalPending).
     if (!VideoUtils.isBuffered(this.buffered, target) ||
         removalPending(/** @type {Array<SourceBufferWrapper|null>} */ ([this.videoSourceBuffer, this.audioSourceBuffer]), target)) {
       this.resetHLS();
@@ -1372,13 +1170,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * A seek the element made itself, not through currentTime here: play() on a video that has
-   * ended starts it over from 0, and Firefox's picture-in-picture controls seek the element.
-   * Without resetHLS mp4box went on from where it was, never gave the new place's samples,
-   * and the video stood seeking at 0 for good once its start had left the buffer: played
-   * again after its end, an MP4 longer than about 40 s never started (tools/bench-ab.mjs
-   * found it, 2026-11-13; tests/e2e/specs/mp4-loop-pace.e2e.mjs). A seek made through the
-   * setter was checked there.
+   * A seek the element made itself (play() after the end, picture-in-picture controls): mp4box follows it.
    */
   onElementSeeking() {
     const video = this.video;
@@ -1418,8 +1210,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * The audio tracks Firefox can play, by level id, in file order. One it cannot (Dolby
-   * AC-3, say) is no choice: it would only fail.
+   * The audio tracks Firefox can play, by level id, in file order.
    * @return {Map<string, AudioLevel>}
    */
   getAudioLevels() {
@@ -1444,9 +1235,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * The audio track to start with (AudioTracks.pickAudioTrack): the one chosen before for this
-   * video, else the preferred language's, else the one the file enables, else the first;
-   * only one Firefox can play. 0 when none can, which then fails as it always did.
+   * The audio track to start with (AudioTracks.pickAudioTrack); 0 when none can play.
    * @return {?number} Null for a preview, which plays no audio.
    */
   firstAudioTrack() {
@@ -1469,13 +1258,13 @@ export default class MP4Player extends EventEmitter {
     return this.getIdentifier(AUDIO_TRACK, this.currentAudioTrack);
   }
 
-  /** @param {string|number|null} levelID - What the client has (none: null); unused. */
-  setCurrentVideoLevelID(levelID) { // not implemented yet
+  /** @param {string|number|null} levelID */
+  setCurrentVideoLevelID(levelID) {
   }
 
   /**
-   * Plays another of the file's audio tracks (getAudioLevels' ids), from the playhead on.
-   * @param {string|number|null} levelID - What the client has (none: null).
+   * Plays another of the file's audio tracks, from the playhead on.
+   * @param {string|number|null} levelID
    */
   setCurrentAudioLevelID(levelID) {
     // A preview plays no audio; before the metadata there is nothing to switch.
@@ -1486,11 +1275,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * The same audio SourceBuffer goes on with the other track: what it holds goes, its type
-   * changes if the codec does, the new track's initialization segment goes in, and both
-   * tracks load again from the keyframe before the playhead, as after a seek. The video's
-   * SourceBuffer is emptied too, so the two start together. No new SourceBuffer: Firefox
-   * may refuse one once media has been appended.
+   * The same audio SourceBuffer goes on with the other track: Firefox may refuse a new one once media is in.
    * @param {number} index - Into the file's audio tracks.
    */
   switchAudioTrack(index) {
@@ -1524,10 +1309,7 @@ export default class MP4Player extends EventEmitter {
   calculateDuration() {
     if (!this.metaData) return 0;
     const info = this.metaData;
-    // A fragmented file's length is in its mehd box, if it has one. info.fragment_duration
-    // was that box's value in mp4box 0.5; since 2.x it is a {num, den} fraction (a number
-    // divided by it is NaN, which the MediaSource refuses), and without a mehd box it is
-    // what had been parsed when the metadata was read, which does not grow.
+    // A fragmented file's length is in its mehd box; mp4box 2.x's fragment_duration is a fraction.
     const mehd = this.mp4box.moov?.mvex?.mehd;
     let duration = info.isFragmented ?
       (mehd ? mehd.fragment_duration / this.mp4box.moov.mvhd.timescale : 0) :
@@ -1540,10 +1322,7 @@ export default class MP4Player extends EventEmitter {
 
   updateDuration() {
     const newDuration = this.calculateDuration();
-    // The MediaSource takes a duration only while it is open; after endOfStream() it is
-    // 'ended' until the next append opens it again, and the setter would throw. It also
-    // throws while a SourceBuffer is updating, as one is right after an append: DurationSync
-    // sets it once none is.
+    // The MediaSource takes a duration only while open and idle: DurationSync sets it once it can.
     if (newDuration !== this._duration && /** @type {MediaSource} */ (this.mediaSource).readyState === 'open') {
       this._duration = newDuration;
       this.durationSync.set(newDuration);
@@ -1558,8 +1337,7 @@ export default class MP4Player extends EventEmitter {
     } else if (this.videoTracks.length || this.audioTracks.length) {
       const time = this.currentTime;
       const sortedSamples = [];
-      // Only the tracks it plays: a player for sound only reads from the sound's place, not
-      // from the picture's keyframe before it (playedVideoTrack).
+      // Only the tracks it plays: a sound-only player reads from the sound's place.
       if (this.videoTracks[this.currentVideoTrack] && this.playedVideoTrack()) {
         sortedSamples.push(this.videoTracks[parseInt(/** @type {any} */ (this.currentVideoTrack))].sortedSamples);
       }
@@ -1567,27 +1345,24 @@ export default class MP4Player extends EventEmitter {
       if (this.currentAudioTrack !== null && this.audioTracks[this.currentAudioTrack]) {
         sortedSamples.push(this.audioTracks[this.currentAudioTrack].sortedSamples);
       }
-      // No keyframe in any track yet (a fragmented file none of whose moofs the ranges read
-      // so far held): read on from where mp4box stopped.
+      // No keyframe in any track yet: read on from where mp4box stopped.
       startOffset = keyframeOffset(sortedSamples, time) ?? (this.mp4box.nextParsePosition || 0);
     }
 
 
     const index = Math.floor(startOffset / FRAGMENT_SIZE);
 
-    // The player's ranges are MP4Fragments (makeFragment above).
     return /** @type {?MP4Fragment} */ (this.client.getFragment(this.getCurrentVideoLevelID(), index));
   }
 
   canSave() {
     const frags = this.client.getFragments(this.getCurrentVideoLevelID());
-    // Read on range by range, the file's end not known yet: what is there is no whole file.
     if (frags && !this.fileLength) {
       return {
         canSave: true,
         canStream: true,
         isComplete: false,
-        // A whole save wrote the ranges made so far and said it was complete.
+        // A whole save would write the ranges made so far and call it complete.
         onlyLoaded: true,
       };
     }
@@ -1613,16 +1388,13 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * Writes the file's ranges into the stream SaveManager opened.
    * @param {{filestream: WritableStream<Uint8Array>, partialSave: boolean,
-   *   registerCancel: (cancel: () => void) => void, onProgress: (progress: number) => void}} options -
-   *   SaveManager's: an MP4 is streamed (canSave's canStream), so it opened the stream.
+   *   registerCancel: (cancel: () => void) => void, onProgress: (progress: number) => void}} options
    * @return {Promise<{extension: string, blob: null}>}
    */
   async saveVideo(options) {
     const filestream = options.filestream;
     const writer = filestream.getWriter();
-    // There: canSave allows no save without them.
     const frags = /** @type {Array<MP4Fragment>} */ (this.client.getFragments(this.getCurrentVideoLevelID()));
     const emptyTemplate = new Uint8Array(FRAGMENT_SIZE);
 
@@ -1639,14 +1411,12 @@ export default class MP4Player extends EventEmitter {
       lastFrag = frags.length;
     }
 
-    // Held until written, partial save or not: a partial one took none, and a range playback
-    // had passed could be let go of meanwhile, written as zeros.
+    // Held until written: a range playback passed could be let go of meanwhile.
     for (let i = 0; i < lastFrag; i++) {
       frags[i].addReference(ReferenceTypes.SAVER);
     }
 
     let cancelled = false;
-    // Downloads the ranges a few ahead of the one being written: see SaveFragmentFetcher.
     const fetcher = new SaveFragmentFetcher(this.fragmentRequester, frags.slice(0, lastFrag),
         this.client.downloadManager.downloaderLimit());
     if (options?.registerCancel) {
@@ -1664,7 +1434,6 @@ export default class MP4Player extends EventEmitter {
         const frag = frags[i];
         // Past the file's end found meanwhile (endsAt): nothing more to write.
         if (!frag) {
-          // The ranges past it are still being fetched ahead.
           fetcher.cancel();
           break;
         }
@@ -1672,8 +1441,7 @@ export default class MP4Player extends EventEmitter {
           await fetcher.get(i);
         }
         if (frag.status === DownloadStatus.DOWNLOAD_COMPLETE) {
-          // Downloaded again when the store lost it (savedEntry): a partial save reads the
-          // ranges it has without the fetcher.
+          // Downloaded again when the store lost it (savedEntry).
           const entry = await savedEntry(() => this.client.downloadManager.getEntry(frag.getContext()),
               () => this.downloadFragment(frag, -1));
           await writer.write(new Uint8Array(await entry.getDataFromBlob()));
@@ -1724,7 +1492,7 @@ export default class MP4Player extends EventEmitter {
 
   /**
    * @param {number} trackID - VIDEO_TRACK or AUDIO_TRACK.
-   * @param {?number} levelID - The track's index; null for a preview's audio, which has none.
+   * @param {?number} levelID - The track's index; null for a preview's audio.
    * @return {string}
    */
   getIdentifier(trackID, levelID) {
@@ -1732,7 +1500,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   /**
-   * @param {string} identifier - getIdentifier's.
+   * @param {string} identifier
    * @return {{trackID: number, levelID: number}}
    */
   getIndexes(identifier) {

@@ -12,10 +12,6 @@ import {HLSDecrypter} from './HLSDecrypter.mjs';
 /** @typedef {ReturnType<import('./HLSFragment.mjs').HLSFragment['getContext']>} SegmentContext */
 
 /**
- * What a segment's request tells (requestFragment), as hls.js's loader callbacks are told
- * (HLSLoader): the segment's URL and bytes (an ArrayBuffer: a segment is asked for as one)
- * unless skipProcess asked for none, the download's stats and the segment's request;
- * FetchLoader's progress; the entry of a failed or an aborted one.
  * @typedef {{onProgress?: (stats: LoaderStats, context: SegmentContext, data: ArrayBuffer, xhr: null) => void,
  *   onFail: (entry: DownloadEntry) => void, onAbort?: (entry: DownloadEntry) => void} & ({skipProcess?: false,
  *     onSuccess: (response: {url: string, data: ArrayBuffer}, stats: LoaderStats, context: SegmentContext, xhr: null) => void} |
@@ -31,19 +27,13 @@ export class HLSFragmentRequester {
   }
 
   /**
-   * Takes the decryption of a playlist's encrypted segments over from hls.js: each one's
-   * key is kept as fs_oldcryptdata for requestFragment, and hls.js's own is removed, so
-   * hls.js neither loads the key nor decrypts what requestFragment hands it. The same for
-   * the first segment's init segment, which HLSPlayer stores as the level's fragment -1: an
-   * EXT-X-KEY before the EXT-X-MAP encrypts it too (RFC 8216, 4.3.2.5), and requestFragment
-   * refused it, so hls.js waited for it forever. Other init segments are not stored; HLSLoader
-   * downloads them as they are, and hls.js decrypts them itself.
-   * @param {HlsFragment[]} fragments - The playlist's hls.js fragments.
-   * @return {boolean} False when some of them are encrypted in a way this cannot decrypt.
+   * Takes over decrypting a playlist's segments, and the first's init segment (EXT-X-KEY before EXT-X-MAP).
+   * @param {HlsFragment[]} fragments
+   * @return {boolean} False when some are encrypted in a way this cannot decrypt.
    */
   static takeOverDecryption(fragments) {
     let decryptable = true;
-    /** @param {HlsFragment|null|undefined} frag - A fragment, or the first one's init segment. */
+    /** @param {HlsFragment|null|undefined} frag */
     const takeOver = (frag) => {
       if (!frag?.encrypted) return;
       const decryptdata = frag.decryptdata;
@@ -54,8 +44,7 @@ export class HLSFragmentRequester {
       } else {
         decryptable = false;
       }
-      // hls.js reads both as no key (Fragment.decryptdata). Its types have no null for
-      // levelkeys, and keep _decryptdata private.
+      // hls.js reads both as no key; its types have no null for levelkeys and keep _decryptdata private.
       /** @type {{levelkeys?: HlsFragment['levelkeys']|null}} */ (frag).levelkeys = null;
       /** @type {any} */ (frag)._decryptdata = null;
     };
@@ -69,21 +58,16 @@ export class HLSFragmentRequester {
   }
 
   /**
-   * What decrypts a segment whose decryption this took over (fs_oldcryptdata): the key's
-   * download starts now, and the postProcessor decrypts the segment's bytes with it.
-   * requestFragment needs it, and so does HLSLoader's own download of such a segment, one
-   * the store has no place for.
-   * @param {HlsFragment} frag - The hls.js fragment.
-   * @param {Object<string, string>} headers - The request headers, for the key's download too.
+   * The postProcessor that decrypts a taken-over segment; HLSLoader's own download of one needs it too.
+   * @param {HlsFragment} frag
+   * @param {Object<string, string>} headers - For the key's download too.
    * @return {?((entry: DownloadEntry, response: LoaderResponse) => Promise<LoaderResponse>)}
-   *   The postProcessor for downloadManager.getFile; null for a segment this did not take over.
    */
   decryptionFor(frag, headers) {
     const decryptdata = frag?.fs_oldcryptdata;
     if (!decryptdata) {
       return null;
     }
-    // The key's bytes: a raw arraybuffer download's data (storeRaw).
     /** @type {Promise<ArrayBuffer>} */
     const keyPromise = new Promise((resolve, reject) => {
       this.player.getClient().downloadManager.getFile({
@@ -96,16 +80,15 @@ export class HLSFragmentRequester {
       }, {
         /** @param {DownloadEntry} entry */
         onSuccess: async (entry) => {
-          // Raw arraybuffer: the key's bytes (from an archive a Uint8Array view, which the key
-          // import takes as well).
+          // From an archive a Uint8Array view, which the key import takes as well.
           resolve(/** @type {ArrayBuffer} */ (await entry.getData()));
         },
-        /** @param {DownloadEntry} err - The key's entry. */
+        /** @param {DownloadEntry} err */
         onFail: (err) => {
           console.log('failed to get key', err);
           reject(err);
         },
-        /** @param {DownloadEntry} err - The key's entry. */
+        /** @param {DownloadEntry} err */
         onAbort: (err) => {
           console.log('key aborted', err);
           reject(err);
@@ -119,26 +102,19 @@ export class HLSFragmentRequester {
       if (!decryptdata.iv || !key) {
         console.error('missing decryptdata', decryptdata, key);
         this.player.emit(DefaultPlayerEvents.NEED_KEY);
-        // Failed, not complete: the still-encrypted data was stored as the segment, and
-        // played or saved as it was.
+        // Failed, not complete: else the encrypted data is stored as the segment.
         throw new Error('Segment key or IV missing');
       }
-      // An ArrayBuffer: a segment is asked for as one.
       response.data = await this.decrypter.decryptAES(/** @type {ArrayBuffer} */ (response.data), decryptdata.iv.buffer, key);
       return response;
     };
   }
 
   /**
-   * Downloads a segment through the download manager, decrypting it if its decryption was
-   * taken over, keeping its status and telling the player each change of it
-   * (FragmentStatus.mjs).
    * @param {import('./HLSFragment.mjs').HLSFragment} fragment
    * @param {FragmentCallbacks} callbacks
-   * @param {?(Partial<import('../../modules/hls.mjs').LoaderConfiguration> & {headers?: Object<string, string>})} config -
-   *   hls.js's loader config (HLSLoader), or null for the default; any headers in it go under
-   *   the source's.
-   * @param {number} priority - In the download manager's queue, higher first.
+   * @param {?(Partial<import('../../modules/hls.mjs').LoaderConfiguration> & {headers?: Object<string, string>})} config - hls.js's loader config, or null; its headers go under the source's.
+   * @param {number} priority - Higher first.
    * @return {ReturnType<import('../../network/DownloadManager.mjs').DownloadManager['getFile']>}
    */
   requestFragment(fragment, callbacks, config, priority) {
@@ -147,8 +123,7 @@ export class HLSFragmentRequester {
 
     const frag = fragment.getFrag();
 
-    // Before the fragment is marked as downloading: it stayed marked for good, and was
-    // never asked for again.
+    // Before the fragment is marked as downloading, or it stays marked for good.
     if (frag.decryptdata) {
       throw new Error('unexpected decryptdata');
     }
@@ -158,8 +133,7 @@ export class HLSFragmentRequester {
     const source = /** @type {import('../../VideoSource.mjs').VideoSource} */ (this.player.source);
     const headers = {
       ...config.headers,
-      // Set: fragments are asked for once the player has its source. Its login headers only to
-      // its own site (VideoSource.headersFor), for the segment and for its key each.
+      // Login headers only to the source's own site (VideoSource.headersFor), for segment and key.
       ...sourceHeadersFor(source, context.url),
     };
     const decrypt = this.decryptionFor(frag, {...config.headers, ...sourceHeadersFor(source, frag?.fs_oldcryptdata?.uri ?? '')});
@@ -171,21 +145,18 @@ export class HLSFragmentRequester {
       postProcessor: decrypt || (async (entry, response) => response),
     }, {
       ...fragmentDownloadCallbacks(this.player, fragment, callbacks, (entry, data) => {
-        // An ArrayBuffer (a segment is asked for as one: HLSFragment.getContext), there exactly
-        // when skipProcess did not ask for none (FragmentCallbacks).
         /** @type {(response: {url: string, data: ArrayBuffer|undefined}, stats: LoaderStats, context: SegmentContext, xhr: null) => void} */ (callbacks.onSuccess)({
           url: entry.url,
           data: /** @type {ArrayBuffer|undefined} */ (data),
-        }, /** @type {LoaderStats} */ (entry.stats), context, null); // set on success
+        }, /** @type {LoaderStats} */ (entry.stats), context, null);
       }),
       /**
        * @param {LoaderStats} stats
-       * @param {import('../../network/DownloadEntry.mjs').DownloadRequest} context2 - The request.
+       * @param {import('../../network/DownloadEntry.mjs').DownloadRequest} context2
        * @param {ArrayBuffer|string} data
-       * @param {null} xhr - FetchLoader has none.
+       * @param {null} xhr
        */
       onProgress: (stats, context2, data, xhr) => {
-        // An ArrayBuffer: a segment is asked for as one.
         if (callbacks.onProgress) callbacks.onProgress(stats, context, /** @type {ArrayBuffer} */ (data), xhr);
       },
     }, priority);

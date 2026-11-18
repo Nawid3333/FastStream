@@ -1,29 +1,14 @@
 // @ts-check
-// How many refused appends in a row (with no accepted one between) MP4Player reloads from
-// the playhead before it gives up with an error.
 const REFUSALS_BEFORE_ERROR = 3;
 
-/**
- * Appends MP4Player's media segments to its SourceBuffers, and decides what a refused one
- * means. A SourceBuffer refuses an append by throwing (QuotaExceededError when it is full,
- * InvalidStateError when its MediaSource is gone), and SourceBufferWrapper passes that on as
- * a rejection. Nothing caught it: an unhandled rejection, and since MP4Player releases a
- * segment's samples from mp4box as soon as it is queued, the segment was gone for good.
- * Playback reached the hole and waited there, with no error, until the user sought.
- *
- * Now a refused segment has the player load again from the playhead (reload), reading less
- * ahead (readLess) when the SourceBuffer was full, and a third refusal in a row is the
- * player's error (fail). Refusals of segments appended before the last reload are that
- * reload's business, as are those of SourceBuffers no longer in use.
- */
+/** A refused segment reloads from the playhead (reading less ahead when full); a third in a row fails. */
 export class SegmentAppender {
   /**
-   * @param {Object} player - What to do about a refusal.
-   * @param {() => void} player.reload - Load again from the playhead.
-   * @param {() => void} player.readLess - Buffer less ahead from now on.
-   * @param {(error: string) => void} player.fail - Stop with this error.
-   * @param {(wrapper: Object) => boolean} player.isCurrent - Whether a SourceBufferWrapper is
-   *   still the player's, and the player still running.
+   * @param {Object} player
+   * @param {() => void} player.reload
+   * @param {() => void} player.readLess
+   * @param {(error: string) => void} player.fail
+   * @param {(wrapper: Object) => boolean} player.isCurrent
    */
   constructor(player) {
     this.player = player;
@@ -32,8 +17,7 @@ export class SegmentAppender {
   }
 
   /**
-   * Appends a media segment.
-   * @param {import('./SourceBufferWrapper.mjs').SourceBufferWrapper} wrapper - The SourceBufferWrapper.
+   * @param {import('./SourceBufferWrapper.mjs').SourceBufferWrapper} wrapper
    * @param {ArrayBuffer} buffer
    */
   append(wrapper, buffer) {
@@ -50,17 +34,11 @@ export class SegmentAppender {
     });
   }
 
-  /**
-   * The player loaded again from the playhead: what was appended before is no longer its
-   * concern.
-   */
   reloaded() {
     this.reloads++;
   }
 
-  /**
-   * @param {Error} e - Why the SourceBuffer refused a segment.
-   */
+  /** @param {Error} e */
   refused(e) {
     console.warn('The SourceBuffer refused a segment', e);
     this.refusals++;

@@ -506,3 +506,21 @@ Rejected:
   parameter of the same name): after a FreshLink renewal the hand-off's link is the latest issue,
   and files under the earlier issue carry other values, so they were no longer found. No host
   is known whose files are told apart by a parameter of a name the link's signature changes.
+
+## Network layer: reasons moved out of the code comments (2026-11-18)
+
+- **`OPFSManager.setFile`** - The Blob itself goes to the worker, which reads it in its turn: a
+  Blob crosses to a worker without a copy. Read on the main thread first, every fragment a memory
+  budget spilled at once sat in RAM twice before the first was written.
+- **`DownloadManager.adopt`** - One file under two issues of the link (a FreshLink renewal
+  downloaded it again) is taken once, the twin left out: both were otherwise handed on at every
+  later reload.
+- **`DownloadManager.onDownloaderFinished`** - A speed-test round counts each downloader once,
+  heard with a speed: counted by their place in the list, a downloader dropped meanwhile moved the
+  next onto a place already heard, and a sample without a speed (a cache hit) marked its place
+  heard without counting it, so the round never closed. Only a round with exactly one more
+  downloader than the last sample tells whether one more adds speed.
+- **`DownloadManager.reset`** - A reset begun while another waits for its storage owns the
+  downloaders (both adding theirs ran twice the limit), and what was queued during the reset's
+  await is started at its end: a player set up meanwhile (a seek preview being built) queued its
+  manifest then, and nothing else started it.

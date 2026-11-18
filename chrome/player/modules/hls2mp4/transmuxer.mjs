@@ -2,25 +2,8 @@
 import {TSDemuxer, MP4Remuxer, MP4Demuxer, AACDemuxer, MP3Demuxer, PassThroughRemuxer, ChunkMetadata} from '../hls.mjs';
 import {normalizePts} from './ptsNormalize.mjs';
 
-// hls.js 1.7.2 added a chunkMeta parameter to Demuxer.resetInitSegment/demux
-// and Remuxer.remux that 1.6.9 (what this file was written against) did not
-// have. In hls.js's own pipeline it is built per-fragment by the
-// FragmentController and always a real object; here, where this file drives
-// the demuxer/remuxer classes directly on already-downloaded fragments for
-// the offline HLS-to-MP4 save path, nothing ever constructs one, so it
-// arrived as undefined -- and hls.js reads chunkMeta.iframe unconditionally
-// at the top of demux(), resetInitSegment() and remux(), so every save of an
-// HLS source with an out-of-band init segment (fMP4/CMAF-packaged HLS is
-// increasingly the common case) threw immediately.
-//
-// A single reused, mostly-inert instance is enough: this file bypasses hls.js's
-// FragmentController/BufferController entirely and never reads sn/level/part
-// back out of it, so the exact values only need to be well-typed, not
-// individually meaningful, other than duration, which is worth keeping real
-// since box generation downstream can consult it.
-/**
- * @param {?number} [duration] - The level's, in seconds; null or none: 0.
- */
+// hls.js reads chunkMeta.iframe in demux, resetInitSegment and remux: one inert instance serves.
+/** @param {?number} [duration] */
 function makeChunkMeta(duration) {
   return new ChunkMetadata(0, 0, 1, 0, -1, false, duration || 0, false);
 }
@@ -39,8 +22,6 @@ const muxConfig = [{
   remux: MP4Remuxer,
 }];
 
-// The logger hls.js's demuxers and remuxers get (hls.js's ILogger, but trace, which they do
-// not call).
 /** @type {Omit<import('../hls.mjs').ILogger, 'trace'>} */
 const Logger = {
   debug: (msg, ...args) => {
@@ -62,16 +43,10 @@ const Logger = {
 export default class Transmuxer {
   /**
    * @param {{audioCodec?: string, videoCodec?: string, initSegmentData?: Uint8Array|[],
-   *   duration?: number, defaultInitPts?: number}} transmuxConfig - HLS2MP4.setup's: the
-   *   level's or rendition's codecs and length, its init segment (or an empty array), and 0.
+   *   duration?: number, defaultInitPts?: number}} transmuxConfig
    */
   constructor(transmuxConfig) {
-    // What the remuxer may produce. The output is an MP4 file, not something this
-    // browser's MSE has to take, so MP3 always goes in as MP3 in MP4: asked of
-    // MediaSource, a browser that takes 'audio/mpeg' got bare MPEG audio, which has no mdat
-    // for HLS2MP4 to place and no sample entry in MP4Generator, and the file was broken.
-    // AC-3 too: hls.js drops an AC-3 track unless told the output takes it, and an MP4
-    // file does (MP4Generator writes it as ac-3 with its dac3).
+    // The output is an MP4 file, not MSE: MP3 goes in as MP3 in MP4, and AC-3 is kept.
     this.typeSupported = {
       mp4: true,
       mpeg: false,
@@ -112,10 +87,9 @@ export default class Transmuxer {
   get observer() {
     return {
       /**
-       * hls.js's emit(event, name, data), as its demuxers call it (an error, say).
        * @param {import('../hls.mjs').Events} event
-       * @param {import('../hls.mjs').Events} name - The event again.
-       * @param {Object} data - The event's data.
+       * @param {import('../hls.mjs').Events} name
+       * @param {Object} data
        */
       emit: (event, name, data) => {
         console.log(event, name, data);
@@ -127,7 +101,7 @@ export default class Transmuxer {
   }
 
   /**
-   * @param {Uint8Array} data - The first fragment's, to probe.
+   * @param {Uint8Array} data
    * @return {Error|undefined} An error when no demuxer takes it.
    */
   configureTransmuxer(data) {
@@ -136,7 +110,6 @@ export default class Transmuxer {
       observer,
       typeSupported,
     } = this;
-    // probe for content type
     let mux;
     for (let i = 0, len = muxConfig.length; i < len; i++) {
       if (muxConfig[i].demux.probe(data, Logger)) {
@@ -147,7 +120,6 @@ export default class Transmuxer {
     if (!mux) {
       return new Error('Failed to find demuxer by probing fragment data');
     }
-    // so let's check that current remuxer and demuxer are still valid
     const demuxer = this.demuxer;
     const remuxer = this.remuxer;
     const Remuxer = mux.remux;
@@ -157,9 +129,7 @@ export default class Transmuxer {
       this.remuxer = new Remuxer(observer, config, typeSupported, Logger);
     }
     if (!demuxer || !(demuxer instanceof Demuxer)) {
-      // The logger too: TSDemuxer logs through the one it is given, and without it the
-      // first thing it reported (HEVC found, AC-3 skipped, a damaged packet, a PES with no
-      // timestamp) threw a TypeError that failed the save.
+      // TSDemuxer logs through the logger it is given: without one, its first report threw.
       this.demuxer = new Demuxer(observer, config, typeSupported, Logger);
       this.probe = Demuxer.probe;
     }
@@ -167,18 +137,14 @@ export default class Transmuxer {
   }
 
   /**
-   * @param {Uint8Array} data - A fragment.
-   * @param {boolean} discontinuity - Whether it does not follow the last one pushed.
+   * @param {Uint8Array} data
+   * @param {boolean} discontinuity
    */
   pushData(data, discontinuity) {
-    // HLS2MP4 hands over a Uint8Array over the fragment's own buffer, read for this save and
-    // used for nothing else: copied here, a 458 MB save copied 458 MB more. Nothing below
-    // writes into it or hands it to another thread.
+    // Not copied: the fragment's buffer is read for this save only, and nothing writes into it.
     const uintData = data instanceof Uint8Array ? data : new Uint8Array(data);
 
     if (!this.demuxer || !this.remuxer) {
-      // Data no demuxer takes: dropped, this error became "Cannot read properties of undefined
-      // (reading 'demux')" (glm's review, 2026-11-16).
       const error = this.configureTransmuxer(uintData);
       if (error) throw error;
     }
@@ -194,9 +160,7 @@ export default class Transmuxer {
     }
     const result = this.demux(uintData);
     const remuxed = this.remux(result.videoTrack, result.audioTrack, result.minPTS || 0);
-    // The times hls.js gives back count from an initPTS it picks from the first timestamps
-    // after each reset, separately in every transmuxer. It reports the one it picked with
-    // the init segment it makes then.
+    // hls.js picks an initPTS after each reset, per transmuxer, and reports it with the init segment.
     const initSegment = remuxed.initSegment;
     if (initSegment && Number.isFinite(initSegment.initPTS) && initSegment.timescale) {
       this.initPTS = initSegment.initPTS / initSegment.timescale;
@@ -208,9 +172,7 @@ export default class Transmuxer {
     return remuxed;
   }
 
-  /**
-   * @param {?number} defaultInitPts - transmuxConfig's (0, or null without one).
-   */
+  /** @param {?number} defaultInitPts */
   resetInitialTimestamp(defaultInitPts) {
     const {demuxer, remuxer} = this;
     if (!demuxer || !remuxer) {
@@ -228,20 +190,17 @@ export default class Transmuxer {
     remuxer.resetNextTimestamp();
   }
   /**
-   * @param {?Uint8Array|[]} initSegmentData - transmuxConfig's.
+   * @param {?Uint8Array|[]} initSegmentData
    * @param {?string|undefined} audioCodec
    * @param {?string|undefined} videoCodec
-   * @param {?number} trackDuration - Seconds.
+   * @param {?number} trackDuration
    */
   resetInitSegment(initSegmentData, audioCodec, videoCodec, trackDuration) {
     const {demuxer, remuxer} = this;
     if (!demuxer || !remuxer) {
       return;
     }
-    // decryptdata (5th) stays undefined -- this offline save path never
-    // handles DRM-encrypted content -- but chunkMeta (6th) has to be a real
-    // object: TSDemuxer.resetInitSegment reads chunkMeta.iframe as soon as
-    // an init segment is present, unconditionally.
+    // chunkMeta (6th) must be a real object: TSDemuxer.resetInitSegment reads chunkMeta.iframe.
     demuxer.resetInitSegment(initSegmentData, audioCodec, videoCodec, trackDuration,
         undefined, makeChunkMeta(trackDuration));
     remuxer.resetInitSegment(initSegmentData, audioCodec, videoCodec);
@@ -257,8 +216,8 @@ export default class Transmuxer {
     }
   }
   /**
-   * @param {*} videoTrack - TSDemuxer's (an hls.js internal its types do not describe).
-   * @param {*} audioTrack - Likewise.
+   * @param {*} videoTrack
+   * @param {*} audioTrack
    * @param {number} timeOffset - Seconds.
    */
   remux(videoTrack, audioTrack, timeOffset) {
@@ -282,14 +241,12 @@ export default class Transmuxer {
       'dropped': 0,
     };
 
-    // 9th positional arg (chunkMeta) is new in hls.js 1.7.2 and read
-    // unconditionally at the top of remux() -- see makeChunkMeta above.
+    // chunkMeta (9th): remux() reads it unconditionally (makeChunkMeta).
     return this.remuxer.remux(audioTrack, videoTrack, id3Track, textTrack, timeOffset, true, false, 3,
         makeChunkMeta(this.transmuxConfig.duration));
   }
   /**
-   * @param {Array<{pts: number}>} videoSamples - TSDemuxer's video samples (hls.js's
-   *   VideoSample, which its types do not describe), of which this reads pts.
+   * @param {Array<{pts: number}>} videoSamples
    * @return {number}
    */
   getVideoStartPts(videoSamples) {
@@ -297,7 +254,7 @@ export default class Transmuxer {
     const startPTS = videoSamples.reduce((minPTS, sample) => {
       const delta = sample.pts - minPTS;
       if (delta < -4294967296) {
-        // 2^32, see PTSNormalize for reasoning, but we're hitting a rollover here, and we don't want that to impact the timeOffset calculation
+        // A 2^32 rollover (hls.js's PTSNormalize) must not affect the timeOffset.
         rolloverDetected = true;
         return normalizePts(minPTS, sample.pts);
       } else if (delta > 0) {
@@ -311,16 +268,9 @@ export default class Transmuxer {
     }
     return startPTS;
   }
-  /** @param {Uint8Array} data - A fragment. */
+  /** @param {Uint8Array} data */
   demux(data) {
-    // 3rd positional arg (chunkMeta) used to be harmless as `false` here --
-    // TSDemuxer.demux only reads chunkMeta.iframe, and false.iframe reads as
-    // undefined rather than throwing -- but a real object is used for
-    // consistency with the other two call sites, which do throw on it.
-    // The flag after it is isSampleAes, then flush: 1.6.9's demux(data, timeOffset,
-    // isSampleAes, flush) took this call's `true` as flush, and 1.7.2 as isSampleAes. Without
-    // the flush, the PES data left at the end of the last segment was never parsed, and a
-    // save lost the video's last frames and the audio's last packet.
+    // chunkMeta, then isSampleAes, then flush: without the flush, the last segment's PES data is never parsed.
     const {audioTrack, videoTrack} = this.demuxer.demux(
         data, null, makeChunkMeta(this.transmuxConfig.duration), false, true);
 

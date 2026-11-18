@@ -5,9 +5,6 @@ import {fragmentDownloadCallbacks, markRequested} from '../FragmentStatus.mjs';
 /** @typedef {import('../../network/DownloadEntry.mjs').DownloadEntry} DownloadEntry */
 
 /**
- * What a fragment's request tells (requestFragment): the download's entry once it is
- * stored, with its data unless skipProcess asked for none; FetchLoader's progress, with the
- * fragment's context; the entry of a failed or an aborted one.
  * @typedef {{skipProcess?: boolean,
  *   onSuccess: (entry: DownloadEntry, data: ArrayBuffer|string|undefined) => void,
  *   onProgress?: (stats: import('../../network/FetchLoader.mjs').FetchLoader['stats'],
@@ -17,21 +14,16 @@ import {fragmentDownloadCallbacks, markRequested} from '../FragmentStatus.mjs';
  */
 
 export class DashFragmentRequester {
-  /**
-   * @param {import('./DashPlayer.mjs').default} player
-   */
+  /** @param {import('./DashPlayer.mjs').default} player */
   constructor(player) {
     this.player = player;
   }
 
   /**
-   * Downloads a fragment through the download manager, keeping its status and telling the
-   * player each change of it (FragmentStatus.mjs).
    * @param {import('./DashFragment.mjs').DashFragment} fragment
    * @param {FragmentCallbacks} callbacks
-   * @param {?{headers?: Object<string, string>}} config - The download's config (null for
-   *   the default), its headers under the source's.
-   * @param {number} priority - In the download manager's queue, higher first.
+   * @param {?{headers?: Object<string, string>}} config - Null for the default.
+   * @param {number} priority - Higher first.
    * @return {ReturnType<import('../../network/DownloadManager.mjs').DownloadManager['getFile']>}
    */
   requestFragment(fragment, callbacks, config, priority) {
@@ -45,17 +37,16 @@ export class DashFragmentRequester {
       config,
       headers: {
         ...config.headers,
-        // Set: fragments are asked for only once the player has its source. Its login headers
-        // only to its own site (VideoSource.headersFor).
+        // Login headers only to the source's own site (VideoSource.headersFor).
         ...sourceHeadersFor(/** @type {import('../../VideoSource.mjs').VideoSource} */ (this.player.source), context.url),
       },
     }, {
       ...fragmentDownloadCallbacks(this.player, fragment, callbacks, (entry, data) => callbacks.onSuccess(entry, data)),
       /**
        * @param {import('../../network/FetchLoader.mjs').FetchLoader['stats']} stats
-       * @param {Awaited<ReturnType<DownloadEntry['getRequest']>>} context2 - The request.
+       * @param {Awaited<ReturnType<DownloadEntry['getRequest']>>} context2
        * @param {ArrayBuffer|string} data
-       * @param {null} xhr - FetchLoader has none.
+       * @param {null} xhr
        */
       onProgress: (stats, context2, data, xhr) => {
         if (callbacks.onProgress) callbacks.onProgress(stats, context, data, xhr);

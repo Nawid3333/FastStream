@@ -1,43 +1,31 @@
 // @ts-check
-// The save's MP4 writer: a whole MP4 file (sample tables, edit lists, no fragments). It began as
-// hls.js's mp4-generator; what was still hls.js's own comes from hls.js now, and the rest is
-// checked against it (tests/unit/mp4WriterUpstream.test.mjs, docs/vendored-libraries.md).
+// The save's MP4 writer: whole MP4 files, checked against hls.js's (mp4WriterUpstream.test.mjs).
 
-/**
- * A sample of a track, as the saves give it (hls2mp4's samplesFromMoof, MP4Merger).
- * @typedef {{duration: number, size: number, cts: number, flags: Mp4SampleFlags}} Mp4Sample
- */
+/** @typedef {{duration: number, size: number, cts: number, flags: Mp4SampleFlags}} Mp4Sample */
 /**
  * @typedef {{isLeading?: number, isDependedOn: number, hasRedundancy: number, degradPrio?: number,
  *   paddingValue?: number, dependsOn: number, isNonSync: number}} Mp4SampleFlags
  */
+/** @typedef {{id: number, samples: Array<Mp4Sample>, offset: number}} Mp4Chunk */
 /**
- * A run of a track's samples stored one after the other in the file (stsc, stco).
- * @typedef {{id: number, samples: Array<Mp4Sample>, offset: number}} Mp4Chunk
- */
-/**
- * A track to write (hls2mp4's makeTrack, MP4Merger's makeVideoTrack and makeAudioTrack).
  * @typedef {Object} Mp4Track
  * @property {number} id
  * @property {string} type - 'video' or 'audio'.
  * @property {number} timescale
- * @property {number} [movieTimescale] - The movie's (its first track's): tkhd and the edits count in
- *   it. Set before the file is written (hls2mp4, MP4Merger.finalize).
- * @property {number} duration - In seconds: the media's (mdhd).
- * @property {number} [presentedDuration] - In seconds: what its edits present (tkhd). The movie
- *   (mvhd) lasts as long as its longest track. duration where it is not given.
+ * @property {number} [movieTimescale] - The movie's (its first track's): tkhd and the edits count in it.
+ * @property {number} duration - Seconds: the media's (mdhd).
+ * @property {number} [presentedDuration] - Seconds: what its edits present (tkhd).
  * @property {number} [width]
  * @property {number} [height]
  * @property {Array<Mp4Sample>} samples
  * @property {Array<Mp4Chunk>} chunks
  * @property {Array<{media_time: number, segment_duration: number}>} elst
  * @property {boolean} [use64Offsets] - co64 instead of stco: a file past 4 GB.
- * @property {ArrayBuffer|Uint8Array} [codecBuffer] - Its sample entry, written already: a DASH
- *   or fMP4 track's from its own init segment, an HLS video track's by hls.js (hls2mp4).
+ * @property {ArrayBuffer|Uint8Array} [codecBuffer] - Its sample entry, written already.
  * @property {?string} [segmentCodec]
  * @property {string} [codec]
- * @property {Array<number>|Uint8Array} [config] - AAC's AudioSpecificConfig bytes, or AC-3's dac3.
- * @property {Array<number>|Uint8Array} [esds] - An esds box's payload after its version and flags.
+ * @property {Array<number>|Uint8Array} [config] - AAC's AudioSpecificConfig, or AC-3's dac3.
+ * @property {Array<number>|Uint8Array} [esds] - An esds payload after its version and flags.
  * @property {number} [channelCount]
  * @property {number} [samplerate]
  * @property {*} [params]
@@ -45,10 +33,7 @@
 
 const UINT32_MAX = Math.pow(2, 32) - 1;
 export class MP4 {
-  /**
-   * Each box type's four character codes, set by init() on the first file.
-   * @type {Object<string, Array<number>>}
-   */
+  /** @type {Object<string, Array<number>>} */
   static types;
   /** @type {Object<string, Uint8Array>} */
   static HDLR_TYPES;
@@ -203,7 +188,7 @@ export class MP4 {
     MP4.DINF = MP4.box(MP4.types.dinf, MP4.box(MP4.types.dref, dref));
   }
   /**
-   * @param {ArrayLike<number>} type - The box type's four character codes (MP4.types).
+   * @param {ArrayLike<number>} type
    * @param {...ArrayLike<number> & {byteLength: number}} payload
    * @return {Uint8Array<ArrayBuffer>}
    */
@@ -211,7 +196,6 @@ export class MP4 {
     let size = 8;
     let i = payload.length;
     const len = i;
-    // calculate the total size we need to allocate
     while (i--) {
       size += payload[i].byteLength;
     }
@@ -221,16 +205,14 @@ export class MP4 {
     result[2] = size >> 8 & 0xff;
     result[3] = size & 0xff;
     result.set(type, 4);
-    // copy the payload into the result
     for (i = 0, size = 8; i < len; i++) {
-      // copy payload[i] array @ offset size
       result.set(payload[i], size);
       size += payload[i].byteLength;
     }
     return result;
   }
   /**
-   * @param {string} type - 'video' or 'audio'.
+   * @param {string} type
    * @return {Uint8Array}
    */
   static hdlr(type) {
@@ -238,7 +220,7 @@ export class MP4 {
   }
   /**
    * @param {number} timescale
-   * @param {number} duration - In seconds.
+   * @param {number} duration - Seconds.
    * @return {Uint8Array}
    */
   static mdhd(timescale, duration) {
@@ -281,7 +263,7 @@ export class MP4 {
   }
 
   /**
-   * @param {Array<Mp4Track>} tracks - The movie's tracks.
+   * @param {Array<Mp4Track>} tracks
    * @return {Uint8Array}
    */
   static moov(tracks) {
@@ -297,7 +279,7 @@ export class MP4 {
   }
   /**
    * @param {number} timescale
-   * @param {number} duration - In seconds.
+   * @param {number} duration - Seconds.
    * @return {Uint8Array}
    */
   static mvhd(timescale, duration) {
@@ -526,10 +508,7 @@ export class MP4 {
       }
     }
 
-    // FastStream: version 1 offsets are signed. MP4Merger copies a stream's offsets as they
-    // are, and CMAF packagers (ffmpeg's +negative_cts_offsets) make some negative: written
-    // into version 0, which is unsigned, -3000 read as 4294964296. Without a negative one
-    // the box stays version 0.
+    // Version 1 offsets are signed: CMAF packagers make some negative (ffmpeg's +negative_cts_offsets).
     const version = composition_offsets.some((offset) => offset < 0) ? 1 : 0;
     const len = sample_counts.length;
     const table = new ArrayBuffer(len * 8 + 4 + 4);
@@ -589,7 +568,6 @@ export class MP4 {
     let i;
     let flags;
     // leave the full box header (4 bytes) all zero
-    // write the sample table
     for (i = 0; i < samples.length; i++) {
       flags = samples[i].flags;
       bytes[i + 4] = flags.dependsOn << 4 | flags.isDependedOn << 2 | flags.hasRedundancy;
@@ -597,9 +575,6 @@ export class MP4 {
     return MP4.box(MP4.types.sdtp, bytes);
   }
 
-  // FastStream: hls.js 1.7.3's MP4.hvc1 (src/remux/mp4-generator.ts), as it writes the
-  // sample entry for the HEVC it demuxes from a transport stream. track.params is what its
-  // HEVC parser read from the VPS and SPS.
   /**
    * @param {Mp4Track} track
    * @return {Uint8Array}
@@ -698,10 +673,7 @@ export class MP4 {
       //
       0x00, 0x00]));
   }
-  // FastStream: hls.js 1.7.3's MP4.ac3 (src/remux/mp4-generator.ts, with its audioStsd), as
-  // it writes the sample entry for the AC-3 it demuxes from a transport stream. track.config
-  // is the dac3 payload hls.js's AC-3 parser (src/demux/audio/ac3-demuxer.ts, appendFrame)
-  // built from the first frame header: fscod, bsid, bsmod, acmod, lfeon, bit_rate_code.
+  // hls.js's MP4.ac3: track.config is the dac3 hls.js's AC-3 parser built from the first frame header.
   /**
    * @param {Mp4Track} track
    * @return {Uint8Array}
@@ -744,8 +716,6 @@ export class MP4 {
       }
       return MP4.box(MP4.types.stsd, MP4.STSD, MP4.mp4a(track));
     }
-    // A video track comes with its sample entry: a DASH or fMP4 track's from its own init
-    // segment (mp4merger), an HLS transport stream's written by hls.js's MP4 writer (hls2mp4).
     throw new Error(`A ${track.type} track without its sample entry (codecBuffer)`);
   }
   /**
@@ -754,7 +724,6 @@ export class MP4 {
    */
   static tkhd(track) {
     const id = track.id;
-    // What its edits present, in the movie's timescale.
     const duration = Math.round((track.presentedDuration ?? track.duration) * /** @type {number} */ (track.movieTimescale));
     const width = /** @type {number} */ (track.width);
     const height = /** @type {number} */ (track.height);
@@ -798,9 +767,7 @@ export class MP4 {
    * @return {Uint8Array}
    */
   static elst(segment_durations, media_times) {
-    // FastStream: version 1 counts in 64 bits. The movie timescale is the first track's,
-    // and a DASH video track's can be 10 MHz: 32 bits ran out after 7 minutes, and the
-    // edit wrapped to a fraction of the media. An edit that fits stays version 0.
+    // Version 1 counts in 64 bits: a 10 MHz DASH timescale overflows 32 bits after 7 minutes.
     const wide = segment_durations.some((duration) => duration > UINT32_MAX) ||
       media_times.some((time) => time > 0x7fffffff || time < -0x80000000);
     const entrySize = wide ? 20 : 12;
@@ -848,11 +815,6 @@ export class MP4 {
     }
     return MP4.box(MP4.types.edts, MP4.elst(segment_durations, media_times));
   }
-  /**
-     * Generate a track box.
-     * @param track {object} a track definition
-     * @return {Uint8Array} the track box
-     */
   /**
    * @param {Mp4Track} track
    * @return {Uint8Array}

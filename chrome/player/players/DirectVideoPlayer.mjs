@@ -7,14 +7,12 @@ import {RequestUtils} from '../utils/RequestUtils.mjs';
 import {URLUtils} from '../utils/URLUtils.mjs';
 import {VideoUtils} from '../utils/VideoUtils.mjs';
 
-// Headers a rule on the element's requests must not set: Firefox's player asks for its own
-// ranges, and these describe the connection or the request itself, not the site's wishes.
+// Headers a rule on the element's requests must not set: they describe the request, not the site.
 const NOT_FOR_THE_ELEMENT = new Set(['range', 'if-range', 'accept-encoding', 'host', 'connection', 'content-length',
   'transfer-encoding', 'te', 'upgrade', 'keep-alive', 'expect', 'trailer']);
 
 /**
- * The background's header commands (SET_HEADERS) that give the element's requests a source's
- * headers: the value false removes a header.
+ * The background's header commands (SET_HEADERS) for the element's requests: false removes a header.
  * @param {Object<string, string|boolean>|null|undefined} headers
  * @return {FSHeaderCommand[]}
  */
@@ -31,24 +29,15 @@ export function elementHeaderCommands(headers) {
   return commands;
 }
 
-// How long the background keeps the element's header rule, and how often the player renews
-// it while it has the source. Firefox's player asks for ranges when it needs them: on a
-// seek, after a long pause, for a Matroska file's index at its end. A request's rule lives
-// 5 s, and those went out without the page's Referer or cookie: a hoster's server answered
-// the first one after 5 s with a redirect to a decoy, and the source was reloaded. The most
-// the background grants (MAX_RULE_LIFETIME_MS): Firefox may hold a hidden tab's timers back,
-// and a renewal up to 50 s late still comes before the rule ends.
+// Firefox's player asks for ranges later (a seek, a long pause, an index at the end): the rule is renewed.
 export const HEADER_RULE_LIFETIME_MS = 60000;
 export const HEADER_RULE_RENEW_MS = 10000;
 
-// What a direct video can be saved as. A URL without an extension (".../watch?v=1") was saved
-// as .webm, and one ending in .php as .php: most direct videos are MP4.
+// Most direct videos are MP4: any other extension saves as .mp4.
 const MEDIA_EXTENSIONS = new Set(['mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'ogg', 'mp3', 'm4a', 'aac', 'wav', 'flac', 'opus', 'weba', 'oga']);
 
 /**
- * The file extension to save a direct source as.
- * @param {{identifier?: string, url?: string}|null|undefined} source - The player's source (its
- *   file name or URL), if it has one.
+ * @param {{identifier?: string, url?: string}|null|undefined} source
  * @return {string}
  */
 export function saveExtension(source) {
@@ -59,8 +48,7 @@ export function saveExtension(source) {
 export default class DirectVideoPlayer extends EventEmitter {
   /**
    * @param {import('../FastStreamClient.mjs').FastStreamClient} client
-   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config] - What the
-   *   player is for (PlayerLoader.createPlayer's callers).
+   * @param {{isPreview?: boolean, isAudioOnly?: boolean}} [config]
    */
   constructor(client, config) {
     super();
@@ -97,15 +85,11 @@ export default class DirectVideoPlayer extends EventEmitter {
     this.stopHeaderRenewal();
     const url = URLUtils.playableUrl(source.url, document.baseURI);
     if (!url) {
-      // As the media element reports a source it cannot load: an ERROR after this call,
-      // which the client answers with the next source or the load error.
+      // As the element reports a source it cannot load: an ERROR after this call.
       setTimeout(() => this.emit(DefaultPlayerEvents.ERROR, 'The source is not an http(s), blob, data or file URL'));
       return;
     }
-    // Firefox's own loader sends the page's headers only if the background's rule for this URL
-    // sets them (the rule the MP4 player's requests get through FetchLoader): the Referer or
-    // cookie a site asks for, so a source handed over from the MP4 player (playDirectly) plays.
-    // Renewed while this is the source: the element's later requests need it as much.
+    // Firefox's loader sends the page's headers only through the background's rule, renewed while this is the source.
     const hasHeaders = await this.setHeaderRule(source, url);
     // Destroyed, or given another source, while the rule was set.
     if (this.source !== source || !this.video) return;
@@ -123,9 +107,8 @@ export default class DirectVideoPlayer extends EventEmitter {
   }
 
   /**
-   * Asks the background to set the source's headers on the requests for its URL.
    * @param {?import('../VideoSource.mjs').VideoSource} source
-   * @param {string} url - The URL the element loads.
+   * @param {string} url
    * @return {Promise<boolean>} Whether the source has headers to set.
    */
   async setHeaderRule(source, url) {
@@ -212,7 +195,6 @@ export default class DirectVideoPlayer extends EventEmitter {
   }
 
   /**
-   * Downloads the file again into the stream SaveManager opened.
    * @param {{filestream: WritableStream<Uint8Array>, partialSave?: boolean,
    *   registerCancel?: (cancel: () => void) => void, onProgress?: (progress: number) => void}} options
    */
@@ -231,14 +213,12 @@ export default class DirectVideoPlayer extends EventEmitter {
       const {customHeaderCommands, regularHeaders} = RequestUtils.splitSpecialHeaders(headers);
       for (const header in regularHeaders) {
         if (!Object.hasOwn(regularHeaders, header)) continue;
-        // Its text: only special headers are false (removed).
         fetchHeaders[header] = /** @type {string} */ (regularHeaders[header]);
       }
 
       if (customHeaderCommands.length && EnvUtils.isExtension()) {
         await chrome.runtime.sendMessage({
           type: MessageTypes.SET_HEADERS,
-          // Set: a video is saved once it has its source.
           url: /** @type {import('../VideoSource.mjs').VideoSource} */ (this.source).url,
           commands: customHeaderCommands,
         });
@@ -269,7 +249,6 @@ export default class DirectVideoPlayer extends EventEmitter {
     let loaded = 0;
 
     try {
-      // A GET answer has a body.
       const reader = /** @type {ReadableStream<Uint8Array>} */ (response.body).getReader();
       while (true) {
         const {done, value} = await reader.read();
@@ -333,7 +312,7 @@ export default class DirectVideoPlayer extends EventEmitter {
   setCurrentVideoLevelID(levelID) {
   }
 
-  /** @param {string|number|null} levelID - As setCurrentVideoLevelID. */
+  /** @param {string|number|null} levelID */
   setCurrentAudioLevelID(levelID) {
   }
 }

@@ -4,33 +4,24 @@ import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {RequestUtils} from '../utils/RequestUtils.mjs';
 import {PageFetch} from './PageFetch.mjs';
 
-// Every fragment, playlist, manifest and MP4 range the player loads: fetch() with stall
-// timeouts, retries with backoff, byte ranges and the stats hls.js and dash.js read.
-// (dash.js has an XHRLoader of its own, which DashPlayer replaces by that name.)
+// fetch() with stall timeouts, retries and byte ranges, for everything the player loads.
 
 /** @typedef {{aborted: boolean, timedout: boolean, loaded: number, total: number, retry: number, chunkCount: number, bwEstimate: number, loading: {start: number, first: number, end: number}, parsing: {start: number, end: number}, buffering: {start: number, first: number, end: number}, error?: {code: number, text: string, retryAfter?: number, page?: string, viaPage?: boolean}}} LoaderStats */
 /** @typedef {{url: string, method?: string, headers?: Object<string, string>, body?: *, responseType?: string, rangeStart: number, rangeEnd: number}} LoaderRequest */
 /** @typedef {{retryDelay: number, timeout: number, maxRetry: number, maxRetryDelay: number, fetchPriority?: 'high'|'low'|'auto'|(() => 'high'|'low'|'auto')}} LoaderConfig */
 /** @typedef {{url: string, status: number, headers: Object<string, string>, data: string|ArrayBuffer}} LoaderResponse */
 /** @typedef {{onError: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onProgress?: (stats: LoaderStats, request: LoaderRequest, data: string|ArrayBuffer, networkDetails: null) => void, onSuccess: (response: LoaderResponse, stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onTimeout: (stats: LoaderStats, request: LoaderRequest, networkDetails: null) => void, onSlowDown?: (retryAfter: number|null) => void, onRefused?: (status: number, url: string) => void, onChunk?: (chunk: Uint8Array, offset: number, answer: PartialAnswer) => void}} LoaderCallbacks */
-/**
- * What a range's answer said, given with each of its pieces (onChunk): a 206 and its Content-Range.
- * @typedef {{status: number, contentRange: string, headers: Object<string, string>}} PartialAnswer
- */
+/** @typedef {{status: number, contentRange: string, headers: Object<string, string>}} PartialAnswer */
 
-// The answers that say the server will not give FastStream what it gives the page: tried once
-// more through the page (PageFetch), when there is one.
+// Answers that refuse FastStream what the page may get: tried once more through the page.
 const REFUSALS = new Set([401, 403, 404, 410]);
 
-// How long a download may bring nothing before it is given up (LoaderConfig.timeout), unless
-// its request says otherwise (StandardDownloader).
 export const STALL_TIMEOUT_MS = 30000;
 
 /**
- * Whether an answer refuses what was asked: one of REFUSALS, or a web page where media was asked
- * for (abyss.to's player address answers "Video not found" from anywhere but its page, #665).
+ * One of REFUSALS, or a web page where media was asked for.
  * @param {Response} response
- * @param {boolean} isArrayBuffer - Media was asked for, not a playlist or a manifest.
+ * @param {boolean} isArrayBuffer
  * @return {boolean}
  */
 export function isRefusal(response, isArrayBuffer) {
@@ -39,10 +30,10 @@ export function isRefusal(response, isArrayBuffer) {
 }
 
 /**
- * How long a Retry-After header asks to wait: a number of seconds or an HTTP date.
- * @param {string|null} value - The header.
- * @param {number} [now] - The time, for a date.
- * @return {number|null} Milliseconds, or null for no usable header.
+ * Retry-After is a number of seconds or an HTTP date.
+ * @param {string|null} value
+ * @param {number} [now]
+ * @return {number|null} Milliseconds; null for no usable header.
  */
 export function retryAfterMs(value, now = Date.now()) {
   if (!value) return null;
@@ -53,10 +44,8 @@ export function retryAfterMs(value, now = Date.now()) {
 }
 
 /**
- * The Fetch Priority a load asks for: config.fetchPriority, a value or a function asked at
- * each attempt (a retry goes out with the priority the download has by then).
- * @param {LoaderConfig} config - The load's config.
- * @return {'high'|'low'|'auto'} 'high', 'low' or 'auto'.
+ * @param {LoaderConfig} config
+ * @return {'high'|'low'|'auto'}
  */
 export function fetchPriorityOf(config) {
   const priority = typeof config.fetchPriority === 'function' ? config.fetchPriority() : config.fetchPriority;
@@ -65,7 +54,6 @@ export function fetchPriorityOf(config) {
 
 export class FetchLoader {
   constructor() {
-    // The next attempt's timer while a retry waits out its backoff (retryNow).
     /** @type {number|undefined} */
     this.retryTimeout = undefined;
     // The retry waiting there follows a failure with no answer (status 0).
@@ -103,7 +91,7 @@ export class FetchLoader {
     this.controller = null;
   }
 
-  /** @param {LoaderCallbacks} callbacks - The load's progress and error callbacks. */
+  /** @param {LoaderCallbacks} callbacks */
   addCallbacks(callbacks) {
     if (this.callbacks !== null) {
       this.callbacks.push(callbacks);
@@ -113,8 +101,8 @@ export class FetchLoader {
   }
 
   /**
-   * @param {LoaderRequest} request - The load to fetch.
-   * @param {LoaderConfig} config - The load's retry and timeout configuration.
+   * @param {LoaderRequest} request
+   * @param {LoaderConfig} config
    */
   load(request, config) {
     if (this.stats.loading.start) {
@@ -128,7 +116,6 @@ export class FetchLoader {
     this.loadInternal();
   };
 
-  /** Abort any loading in progress. */
   abort() {
     if (this.callbacks !== null) {
       this.callbacks = null;
@@ -136,18 +123,12 @@ export class FetchLoader {
     }
   };
 
-  /** Destroy loading entry. */
   destroy() {
     this.callbacks = null;
     this.abortInternal();
   }
 
-  /**
-   * Tears down whatever attempt is currently in flight (timers + in-flight
-   * fetch) without marking the whole load as aborted. Used both by a real
-   * abort and by retry() - a retry must not leave stats.aborted latched
-   * true, or the next attempt's own completion would be silently swallowed.
-   */
+  /** Tears down the attempt in flight, not the load: stats.aborted would swallow a retry's completion. */
   teardownAttempt() {
     self.clearTimeout(this.requestTimeout);
     self.clearTimeout(this.retryTimeout);
@@ -194,8 +175,7 @@ export class FetchLoader {
           if (!Object.hasOwn(regularHeaders, header)) continue;
           fetchHeaders[header] = regularHeaders[header];
         }
-        // A header fetch() cannot send (a name with a space, a value with a line break)
-        // fails here, for good: from fetch() it was a network error, retried six times.
+        // A header fetch() cannot send fails here for good, not as a network error retried six times.
         new Headers(fetchHeaders);
 
         if (customHeaderCommands.length) {
@@ -216,8 +196,6 @@ export class FetchLoader {
       return;
     }
 
-    // Aborted while the background set the headers: the answer would be thrown away, so
-    // do not ask for it.
     if (stats.aborted) {
       return;
     }
@@ -230,21 +208,12 @@ export class FetchLoader {
     }
 
     const controller = (this.controller = new AbortController());
-    // This attempt is over once teardownAttempt() has aborted its controller - a real
-    // abort, or retry() replacing it with the next attempt. A real fetch() then rejects
-    // with an AbortError, and that rejection is not a failure of the load: counting it
-    // as one called retry() a second time for the same stall, spending two retries,
-    // doubling the backoff twice and cancelling the retry that was already scheduled.
+    // A torn-down attempt's AbortError is no failure of the load: counted, it would retry twice.
     const isStale = () => stats.aborted || controller.signal.aborted;
 
-    // setup timeout before we perform request - a stall at any point (no
-    // headers yet, or no further body chunks) re-arms this the same way, see
-    // rearmTimeout() calls below.
     this.rearmTimeout();
 
     const isArrayBuffer = request.responseType === 'arraybuffer';
-    // Through the page from the start: its host refused FastStream before and answered the page,
-    // or the stream is the page's own (PageFetch.route).
     const viaPage = PageFetch.routes(request.url);
     this.viaPage = viaPage;
     /** @type {Object<string, string>} */
@@ -257,32 +226,17 @@ export class FetchLoader {
         headers: fetchHeaders,
         body: request.body,
         credentials: 'same-origin',
-        // Not through Firefox's HTTP cache. FastStream keeps what it loads itself, a live
-        // playlist must come fresh, and an attempt that goes through the cache first waits
-        // for its cache entry: on a busy disk, behind the cache's own writes, before it
-        // reaches the network. On the Windows CI runner every attempt of a stalled load,
-        // retries included, waited 2 to 5 s that way while the cache wrote a page's ~150
-        // module files, and the stall timer fired again before any reached the server
-        // (loader-retry.e2e.mjs, Firefox's cache2 log of CI run 37018281037). With
-        // 'no-store' Firefox opens no cache entry at all (INHIBIT_CACHING and
-        // LOAD_BYPASS_CACHE; nsHttpChannel::OpenCacheEntryInternal returns before it).
+        // 'no-store': no cache entry at all, which on a busy disk waits behind the cache's writes.
         cache: 'no-store',
-        // Firefox opens six connections to a host, for all tabs together, and the rest of
-        // their requests wait in its queue in the order of their priority. The fragment
-        // playback waits for goes out 'high' (StandardDownloader), so it is not stuck
-        // behind what this or another FastStream tab loads ahead (Fetch Priority, Firefox
-        // 132).
         priority: fetchPriorityOf(config),
         signal: controller.signal,
       });
     } catch (e) {
       if (isStale()) {
-        // teardownAttempt() aborted this on purpose (real abort, or retry
-        // tearing down the previous attempt) - not a network failure.
+        // teardownAttempt() aborted it on purpose.
         return;
       }
-      // The page could not load it (gone, navigated, a network error): the next try goes
-      // direct again, and through the page only when that is refused.
+      // The page could not load it: the next try goes direct again.
       if (viaPage) PageFetch.unroute(request.url);
       this.handleLoadFailure(0, /** @type {Error} */ (e).message);
       return;
@@ -293,8 +247,6 @@ export class FetchLoader {
     }
 
     if (viaPage && isRefusal(response, isArrayBuffer)) {
-      // Refused through the page too (a link run out, a site's page where media was asked for):
-      // direct again from the next try, which hands a refusal to the link's renewal as before.
       PageFetch.unroute(request.url);
       if (response.ok) {
         response.body?.cancel().catch(() => {});
@@ -303,11 +255,7 @@ export class FetchLoader {
       }
     }
 
-    // Refused here: the page may be given it (its service worker, its cookies as they are now).
-    // Once, at once, and only taken when the page's answer is the file: 2xx and no web page, for
-    // a playlist too (a site's "not found" page, an app's fallback page, would stand in for the
-    // refusal its link's renewal waits for). Its host goes through the page from then on only on
-    // a media answer: a playlist alone proves less.
+    // Tried once through the page, taken only when its answer is the file; only media routes the host.
     if (!viaPage && PageFetch.available() && isRefusal(response, isArrayBuffer)) {
       try {
         const fromPage = await PageFetch.fetch(request.url, {headers: pageHeaders, signal: controller.signal, priority: fetchPriorityOf(config)});
@@ -333,30 +281,21 @@ export class FetchLoader {
     if (stats.loading.first === 0) {
       stats.loading.first = Math.max(self.performance.now(), stats.loading.start);
     }
-    // headers received - rearm for the body phase.
     this.rearmTimeout();
 
     const status = response.status;
     if (status < 200 || status >= 300) {
-      // Its body is not read: let its connection go now. A retry's teardown aborts the
-      // attempt, but a final error (a 4xx, the last try) left it held until garbage collection,
-      // once per fragment with a link that ran out.
+      // Its body is not read: let its connection go now.
       response.body?.cancel().catch(() => {});
       this.handleLoadFailure(status, response.statusText, retryAfterMs(response.headers.get('retry-after')));
       return;
     }
 
-    // A server that ignores Range answers 200 with the whole file, from its first byte. That
-    // was taken for the range asked for (the file's start, labelled as a range further in);
-    // the range is cut out of it now (readBody). A 200 that says it is the range (a
-    // Content-Range, or exactly the range's length) is taken as one, as before.
+    // A server that ignores Range answers 200 with the whole file: the range is cut out (readBody).
     const length = parseInt(/** @type {string} */ (response.headers.get('content-length')), 10);
     const wholeFile = status === 200 && (!!request.rangeEnd || request.rangeStart > 0) && !response.headers.has('content-range') &&
         !(request.rangeStart > 0 && length === request.rangeEnd - request.rangeStart);
-    // A 206 without Content-Range (a broken server or proxy) does not say what it sends: one that
-    // answered each range with the rest of the file was read to its end, gigabytes for a 1 MB
-    // range, all of it held in RAM and stored before MP4Player cut the range out. It is taken as
-    // starting where the range does, as a 206 does, and reading stops once the range is in.
+    // A 206 without Content-Range is taken as starting at the range; reading stops once it is in.
     const unsized = status === 206 && !!request.rangeEnd && !response.headers.has('content-range');
     const cut = wholeFile ? {rangeStart: request.rangeStart, rangeEnd: request.rangeEnd || Infinity} : unsized ? {rangeStart: 0, rangeEnd: request.rangeEnd - (request.rangeStart || 0)} : null;
 
@@ -407,8 +346,7 @@ export class FetchLoader {
 
     const responseObj = {
       url: response.url,
-      // 200 for a range request is the whole file, cut to the range (wholeFile above): what
-      // MP4Player needs to know to tell a server that ignores Range.
+      // 200 to a range request: the whole file, cut to the range; MP4Player reads it.
       status: response.status,
       headers: responseHeaders,
       data: data,
@@ -421,19 +359,12 @@ export class FetchLoader {
   }
 
   /**
-   * Reads a fetch Response body to completion, tracking stats.loaded as
-   * chunks arrive and re-arming the stall timeout on every chunk - unlike
-   * the previous XHR-based loader, which only re-armed on readyState
-   * transitions and could time out mid-transfer on a large, slow-but-still-
-   * progressing body.
-   * @param {Response} response - the fetch Response to read.
-   * @param {boolean} isArrayBuffer - true to return an ArrayBuffer, false for text.
-   * @param {() => boolean} [isStale] - true once this attempt has been torn down;
-   *   a chunk still delivered then must not re-arm the next attempt's stall timer.
-   * @param {?{rangeStart: number, rangeEnd: number}} [range] - for a body that may be longer
-   *   than the range asked for (the whole file, or a 206 without Content-Range): only the bytes
-   *   from rangeStart to rangeEnd of the body are returned, and reading stops once they are in.
-   * @return {Promise<ArrayBuffer|string>} the concatenated response body.
+   * Reads the body, re-arming the stall timeout on every chunk.
+   * @param {Response} response
+   * @param {boolean} isArrayBuffer
+   * @param {() => boolean} [isStale] - True once this attempt is torn down.
+   * @param {?{rangeStart: number, rangeEnd: number}} [range] - Only the range of a longer body is returned.
+   * @return {Promise<ArrayBuffer|string>}
    */
   async readBody(response, isArrayBuffer, isStale = () => false, range = null) {
     const stats = this.stats;
@@ -448,9 +379,7 @@ export class FetchLoader {
 
     const reader = response.body.getReader();
     const chunks = [];
-    // Each piece of a range's own answer (a 206 with its Content-Range), at its place in the range,
-    // as it comes: a reader that can use part of it (MP4Player) need not wait for the rest. Not
-    // for a whole file cut to the range (range), nor for text.
+    // Each piece of a range's own answer (a 206 with its Content-Range) goes out as it comes.
     const contentRange = response.headers.get('content-range');
     /** @type {?PartialAnswer} */
     let partial = null;
@@ -474,8 +403,6 @@ export class FetchLoader {
         throw new DOMException('The attempt was torn down.', 'AbortError');
       }
 
-      // Of a whole file, only the range is kept: every byte before it was held in RAM, and
-      // the whole again to cut the range out, for a range near the end of a big file.
       const chunkStart = receivedLength;
       receivedLength += value.byteLength;
       if (receivedLength > from) {
@@ -514,42 +441,29 @@ export class FetchLoader {
   }
 
   /**
-   * Decides whether a failed attempt (bad HTTP status or a rejected fetch,
-   * status 0) should be retried or reported as a final error - shared by
-   * both failure paths in loadInternal().
-   * @param {number} status - HTTP status, or 0 for a network-level failure.
-   * @param {string} statusText - status text / error message to report.
-   * @param {number|null} [retryAfter] - The wait the server asked for (Retry-After), in ms:
-   *   a retry waits at least that long (up to maxRetryDelay), and a final error carries it
-   *   for the DownloadManager, which holds every download back for it.
+   * @param {number} status - 0 for a network failure.
+   * @param {string} statusText
+   * @param {number|null} [retryAfter] - In ms: a retry waits at least that long, and a final error carries it.
    */
   handleLoadFailure(status, statusText, retryAfter = null) {
     const {stats, config, request} = this;
-    // Stop the current attempt's stall timer regardless of outcome: retry()
-    // below re-arms its own via teardownAttempt(), and a final give-up must
-    // not leave a stale timer around to fire loadtimeout() again later.
     self.clearTimeout(this.requestTimeout);
-    // 429 and 503 ask the player to slow down: half the downloaders stop at once. Do this
-    // before deciding to retry or give up, so the manager knows even when the answer is final.
+    // 429 and 503: told before deciding to retry, so the manager knows of a final answer too.
     if (status === 429 || status === 503) {
       this.callbacks?.forEach((callbacks) => {
         callbacks?.onSlowDown?.(retryAfter);
       });
-      // onSlowDown can synchronously slow down and abort this loader (DownloadManager.slowDown
-      // -> StandardDownloader.retire): do not retry or report a stopped loader.
+      // onSlowDown may abort this loader synchronously (DownloadManager.slowDown).
       if (!this.callbacks) return;
     }
-    // 401, 403 and 410 refuse the link itself, an expired one among them: the player may get
-    // it anew from its page (FastStreamClient.linkRefused, FreshLink.mjs).
+    // 401, 403 and 410 refuse the link itself: the player may get it anew (FreshLink).
     if (status === 401 || status === 403 || status === 410) {
       this.callbacks?.forEach((callbacks) => {
         callbacks?.onRefused?.(status, request.url);
       });
       if (!this.callbacks) return;
     }
-    // if max nb of retries reached or if http status between 400 and 499
-    // (such error cannot be recovered, retrying is useless), return error
-    // 429 is retryable like 503: the Retry-After waits below respect the server.
+    // The last try, or a 4xx other than 429, is final.
     if (
       stats.retry >= config.maxRetry ||
             ((status >= 400 && status < 500) && status !== 429)
@@ -566,7 +480,6 @@ export class FetchLoader {
         callbacks?.onError(this.stats, request, null);
       });
     } else {
-      // retry, no sooner than the server asked
       if (retryAfter !== null) {
         this.retryDelay = Math.max(this.retryDelay, Math.min(retryAfter, config.maxRetryDelay));
       }
@@ -574,19 +487,15 @@ export class FetchLoader {
           `${status} while loading ${request.url}, retrying in ${this.retryDelay}...`,
       );
       this.retry();
-      // No answer at all (the network gone): retryNow may send it early. A server's answer
-      // (a 5xx, a 429 with its Retry-After) is waited out.
+      // No answer at all: retryNow may send it early. A server's answer is waited out.
       this.retryOnNetwork = status === 0;
     }
   }
 
   retry() {
     const {stats, config} = this;
-    // A stall's retry (loadtimeout) is not sent early; handleLoadFailure marks one after no answer.
     this.retryOnNetwork = false;
-    // Tear down the in-flight attempt only - must not set stats.aborted, or
-    // the retried attempt's own completion would be silently swallowed by
-    // the `if (stats.aborted) return;` guards above.
+    // The attempt only: stats.aborted would swallow the retried attempt's own completion.
     this.teardownAttempt();
 
     self.clearTimeout(this.retryTimeout);
@@ -594,7 +503,6 @@ export class FetchLoader {
       this.retryTimeout = undefined;
       this.loadInternal();
     }, this.retryDelay);
-    // set exponential backoff
     this.retryDelay = Math.min(
         2 * this.retryDelay,
         config.maxRetryDelay,
@@ -603,12 +511,8 @@ export class FetchLoader {
   }
 
   /**
-   * The network is back (the window's online event): a retry waiting out its backoff goes now.
-   * The backoff doubles from 1 s to 32 s, so a download that failed while the network was gone
-   * waited up to half a minute after it came back, and the video with it when playback needed it.
-   * The attempts count as before (stats.retry), and so does the next wait. Only a retry after no
-   * answer at all: a wait a server asked for (a 5xx, a 429 with its Retry-After) is kept.
-   * @return {boolean} Whether a retry was waiting.
+   * A retry after no answer at all goes now; a wait a server asked for is kept.
+   * @return {boolean}
    */
   retryNow() {
     if (!this.retryTimeout || !this.retryOnNetwork || this.stats.aborted) return false;
