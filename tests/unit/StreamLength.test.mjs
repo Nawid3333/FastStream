@@ -328,7 +328,7 @@ describe('StreamLength.fromHls', () => {
   });
 
   it('takes a playlist of images or of keyframes for stills, not a video of its length', () => {
-    // vixeo.io's seek bar thumbnails (2026-09-30), which its page asked for just before the
+    // vixeo.io's seek bar thumbnails, which its page asked for just before the
     // video's playlist, and which ran as long as the video.
     const tile = (n, length) => `#EXTINF:${length},\n#EXT-X-TILES:RESOLUTION=160x90,LAYOUT=10x10,DURATION=10.000\nthumbnail${n}.jpg\n\n`;
     const thumbnails = '#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:1000\n#EXT-X-MEDIA-SEQUENCE:0\n' +

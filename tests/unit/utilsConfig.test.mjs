@@ -3,7 +3,7 @@ import {Utils} from '../../chrome/player/utils/Utils.mjs';
 
 // A storage read that failed answers nothing (runtime.lastError): getConfig read result[key]
 // in the callback, threw there, and never settled - whatever waited for a setting waited for
-// good (glm's review, 2026-10-22).
+// good.
 
 afterEach(() => {
   vi.unstubAllGlobals();

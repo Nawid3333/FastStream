@@ -4,7 +4,7 @@ import {Utils} from '../../chrome/player/utils/Utils.mjs';
 
 // A finished GIF was handed to the browser by an anchor clicked in the player, a frame of the
 // page, which in Firefox downloads no blob: Utils.downloadURL sends a download through the
-// background for that (glm's review, 2026-10-22).
+// background for that.
 
 afterEach(() => {
   vi.restoreAllMocks();

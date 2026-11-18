@@ -9,8 +9,8 @@ import {FakeDocument} from './helpers/fakeDom.mjs';
 // - They ended only on a mouseup inside the player. Let go outside it, the next mouse
 //   move over the player went on dragging with no button held.
 // They now start on the left button only, and end on a mouseup anywhere in the document
-// or on a move with no button held, as FineTimeControls' timeline grab does (#183) - and,
-// since every press goes by PressTracker (2026-10-28), the moment the window loses the focus
+// or on a move with no button held, as FineTimeControls' timeline grab does - and,
+// since every press goes by PressTracker, the moment the window loses the focus
 // (a window switch takes the mouseup elsewhere).
 
 const doc = new FakeDocument('<html><body></body></html>');
@@ -64,7 +64,7 @@ describe('the volume bar', () => {
   beforeEach(() => controls.setVolume(1));
 
   it('saves the volume once, after its last change, and shows each change at once', () => {
-    // The review of 2026-10-14: a wheel turn or a drag wrote it at every step.
+    // A wheel turn or a drag wrote it at every step.
     vi.useFakeTimers();
     try {
       Utils.setConfig.mockClear();
@@ -106,7 +106,7 @@ describe('the volume bar', () => {
   });
 
   it('keeps a change made before the stored volume was read', async () => {
-    // glm's review, 2026-11-16: the stored volume, read after it, put the old one back.
+    // The stored volume, read after it, put the old one back.
     /** @type {Function} */
     let answer = () => {};
     vi.spyOn(Utils, 'loadAndParseOptions').mockImplementationOnce(() => new Promise((resolve) => {
@@ -271,7 +271,7 @@ describe('the silence-skip threshold line', () => {
 
 describe('the speed menu', () => {
   it('saves the speed once, after its last change, as the volume is saved', () => {
-    // The review of 2026-10-21: an arrow key held on the speed button wrote it at every repeat.
+    // An arrow key held on the speed button wrote it at every repeat.
     vi.useFakeTimers();
     try {
       const changer = new PlaybackRateChanger({options: {maxPlaybackRate: 8}});

@@ -174,7 +174,7 @@ const LOCK = [
   '  undici@8.11.2: {}',
 ].join('\n');
 
-// The two real undici alerts (2026-10-23). state: 'fixed' is routing's business, not
+// The two real undici alerts. state: 'fixed' is routing's business, not
 // the planner's ÔÇö planFloors sees already-routed alerts as the workflow hands them over.
 const REAL_ALERTS = [
   {
@@ -386,7 +386,7 @@ describe('planFloors', () => {
     expect(plan.declined).toEqual([{alert: 88, reason: 'stale: no vulnerable version in the lockfile'}]);
   });
 
-  // glm's review, 2026-11-16: with only a prerelease in the tree, the issue called the alert
+  // With only a prerelease in the tree, the issue called the alert
   // stale (fixed) though nothing had checked that copy.
   it('names a prerelease it cannot check instead of calling the alert stale', () => {
     const plan = planFloors([mkAlert(90, 'left-pad', '< 1.3.2', '1.3.2')], versions({'left-pad': ['1.3.0-rc.1']}), WORKSPACE, TODAY);

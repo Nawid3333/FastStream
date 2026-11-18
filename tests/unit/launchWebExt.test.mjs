@@ -6,7 +6,7 @@ import {nodeVersionNote, webExtSpawn} from '../../tools/rebuild.mjs';
 // How `pnpm run start:ff` and `start:ff:fresh` start web-ext. They joined pnpm and its
 // arguments into one string and spawned it with `shell: false` everywhere but Windows, so on
 // Linux and macOS Node looked for a program named "pnpm exec web-ext run ..." and the launch
-// died with spawn ENOENT after the whole rebuild (#165).
+// died with spawn ENOENT after the whole rebuild.
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 const winDir = ['V:', 'work', 'wt', 'build_firefox_github'].join(path.win32.sep);
@@ -37,7 +37,7 @@ describe('webExtSpawn', () => {
 
   it('quotes a Windows path that cmd.exe would split, a space or not', () => {
     // C:\dev\a&b: cmd ran `b\build_firefox_github ...` as a command of its own, and web-ext got
-    // C:\dev\a (glm's review, 2026-10-22).
+    // C:\dev\a.
     const dir = ['C:', 'dev', 'a&b', 'build_firefox_github'].join(path.win32.sep);
     expect(webExtSpawn(['run', '--source-dir', dir], 'win32').command)
         .toBe(`pnpm exec web-ext run --source-dir "${dir}"`);

@@ -4,7 +4,7 @@ import {describe, expect, it} from 'vitest';
 
 // tools/linux/setup.sh and verify.sh, which `pnpm run verify:linux` runs in WSL. They change
 // a distro, so no test runs them; these check what they are made of. Their pieces were run
-// by hand into /tmp (2026-10-03): both images' files came out digest-checked, zizmor passed
+// by hand into /tmp: both images' files came out digest-checked, zizmor passed
 // the tree, and Node 26's npm installed the pinned pnpm once libatomic1 was there.
 
 const root = path.resolve(import.meta.dirname, '..', '..');
@@ -35,7 +35,7 @@ describe('tools/linux/setup.sh', () => {
   it('installs Firefox only after Mozilla\'s signed SHA512SUMS vouches for it (#248)', () => {
     // verify_signed_sum itself: tests/workflows/linux-firefox-signature.test.sh.
     const setup = commands('tools/linux/setup.sh');
-    // Mozilla Software Releases <release@mozilla.com>, as read from its KEY files (2026-10-03).
+    // Mozilla Software Releases <release@mozilla.com>, as read from its KEY files.
     expect(setup).toMatch(/^mozilla_key=14F26682D0916CDD81E37B6D61B7B526D98F0353$/m);
     expect(setup).toContain('for f in SHA512SUMS SHA512SUMS.asc KEY; do curl -fsSL -o "$tmp/$f" "$release/$f"; done');
     const check = setup.indexOf('verify_signed_sum "$tmp" "linux-x86_64/en-US/firefox-$ff_want.tar.xz" "$tmp/firefox.tar.xz" "$mozilla_key"');

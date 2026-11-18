@@ -3,7 +3,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {soundRequired, withoutSound} from '../e2e/soundCheck.mjs';
 
 // The e2e specs that listen to the player skip where Firefox has no sound device, and
-// fail where the e2e setup gave it one: Linux CI (#265).
+// fail where the e2e setup gave it one: Linux CI.
 
 describe('soundRequired', () => {
   it('is Linux CI only', () => {

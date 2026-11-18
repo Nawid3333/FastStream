@@ -141,7 +141,7 @@ describe('Subtitle editing', function() {
 
   it('removes a track with the numpad\'s Delete over its row, as with Delete', async function() {
     // The row's keys went by position: NumLock off, the numpad's Delete is NumpadDecimal, and
-    // it did nothing (upstream #482). The press as Firefox sends it, on the row as the
+    // it did nothing. The press as Firefox sends it, on the row as the
     // Shift+Backspace case's (the menu is closed: the row takes no focus from WebDriver).
     await openPlayer();
     const tracks = await browser.execute(() => new Promise((done) => {

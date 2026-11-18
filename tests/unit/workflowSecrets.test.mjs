@@ -7,7 +7,7 @@ import {describe, expect, it} from 'vitest';
 // The AMO keys and the owner's UPDATE_PRS_TOKEN are secrets of GitHub Environments whose
 // deployment branch rules allow only main (and v* tags, for releases): a workflow file on any
 // other branch, run with this repository's token (a pull request's), cannot
-// read them (#163). A job reads an environment's secrets only when it names that environment,
+// read them. A job reads an environment's secrets only when it names that environment,
 // so each job that reads one must name its environment; this fails for one that does not.
 
 const dir = path.resolve(import.meta.dirname, '../../.github/workflows');
@@ -67,7 +67,7 @@ describe('secrets kept in environments', () => {
   it('keep the repository token away from installs and builds in the jobs that hold the AMO keys', () => {
     // A dependency's install script (geckodriver's, esbuild's: allowBuilds in
     // pnpm-workspace.yaml) and the build run in the jobs that sign; a token in the job's env
-    // reaches them. Each step that calls gh gets it itself (a review, 2026-11-13).
+    // reaches them. Each step that calls gh gets it itself.
     const token = /secrets\s*\.\s*GITHUB_TOKEN|github\s*\.\s*token/;
     const signers = jobs.filter(({job}) => environmentOf(job) === 'release');
     expect(signers.length).toBeGreaterThanOrEqual(2);

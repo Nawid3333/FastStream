@@ -84,7 +84,7 @@ describe('guessMediaInfo', () => {
     // Picture words anywhere.
     ['Top Gun: Maverick 2022 4K HDR x265', 'example.com', movie('Top Gun: Maverick', 2022)],
     // Small words at the start, when only small words stand before the title's own (review,
-    // 2026-10-09: these lost "In" and "For").
+    // These lost "In" and "For").
     ['In the Heat of the Night (1967) - Watch Online', 'example.com', movie('In the Heat of the Night', 1967)],
     ['For a Few Dollars More (1965) | Stream', 'example.com', movie('For a Few Dollars More', 1965)],
     ['Watch the free movie Oppenheimer', 'example.com', movie('Oppenheimer')],
@@ -93,7 +93,7 @@ describe('guessMediaInfo', () => {
     // A year before a word kept at the end.
     ['Oppenheimer 2023 Movie | Watch Online', 'example.com', movie('Oppenheimer', 2023)],
     // ... also in a part of its own after the title, which kept "2023 Movie" in the name and
-    // found no year (audit, 2026-10-09), but not as the title itself.
+    // found no year, but not as the title itself.
     ['Oppenheimer | 2023 Movie', 'example.com', movie('Oppenheimer', 2023)],
     ['Oppenheimer - 2023 Film', 'example.com', movie('Oppenheimer', 2023)],
     ['2012 Movie', 'example.com', movie('2012 Movie')],

@@ -7,7 +7,7 @@ import {afterEach, describe, expect, it} from 'vitest';
 // tools/cut-release.mjs (pnpm run release <version>) run for real in a scratch clone whose
 // origin is a local bare repository. It pushed the branch and then the tag; when the tag
 // push failed, main kept "chore: release X" without its tag: never built, skipped by
-// auto-release.yml as a release bump, and passed by the next build number (#171).
+// auto-release.yml as a release bump, and passed by the next build number.
 
 const script = path.resolve(import.meta.dirname, '../../tools/cut-release.mjs');
 let dir;

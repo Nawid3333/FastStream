@@ -1,7 +1,7 @@
 // The e2e mpv specs close the mpv windows they started, and only those
-// (tests/e2e/mpvTestProcesses.mjs). The thin helper (host 15) starts mpv with no stream on
+// (tests/e2e/mpvTestProcesses.mjs). The thin helper starts mpv with no stream on
 // its command line and loads the stream over mpv's IPC pipe, so the specs found none of
-// theirs and left their windows open (2026-10-14). Here a stand-in for mpv's IPC server
+// theirs and left their windows open. Here a stand-in for mpv's IPC server
 // answers as mpv does; no mpv is started.
 import net from 'node:net';
 import os from 'node:os';

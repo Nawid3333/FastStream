@@ -122,7 +122,7 @@ describe('VMPlayer.setSource', () => {
 
 // The embed page's config was cut at the first "}" with braces counted inside strings too:
 // a title like "Part {1}" ended the object early, JSON.parse failed and the video reported
-// "playerConfig not found" (audit, 2026-10-09).
+// "playerConfig not found".
 describe('VMPlayer.extractJsonConfig', () => {
   const extract = (html) => VMPlayer.prototype.extractJsonConfig.call({}, html, 'window.playerConfig =');
 

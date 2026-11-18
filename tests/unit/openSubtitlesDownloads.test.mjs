@@ -29,7 +29,7 @@ describe('the downloads of a subtitle', () => {
 describe('downloading a subtitle', () => {
   it('asks for a new link after the kept one expired', async () => {
     // OpenSubtitles' download links expire: the dead one was kept and tried again on every
-    // click (glm's second look, 2026-10-13).
+    // click.
     const item = {
       attributes: {files: [{file_id: 7}], url: 'https://www.opensubtitles.com/en/subtitles/x'},
       cached_download_link: 'https://www.opensubtitles.com/download/expired/sub.vtt',
@@ -48,7 +48,7 @@ describe('opening a result on OpenSubtitles', () => {
   // After a failed download or at the quota, the player offers to open the result's page.
   // Its address is the API's answer, which the download itself treats as hostile
   // (isOpenSubtitlesDownloadLink); it went to tabs.create unchecked, which opens any site,
-  // and an extension page of its own for a relative address (the review of 2026-11-13).
+  // and an extension page of its own for a relative address.
   const pages = ['/player/index.html#https://evil.example/stream.m3u8', 'https://evil.example/subtitles',
     'javascript:alert(1)', 'http://www.opensubtitles.com/en/subtitles/x', 'https://opensubtitles.com.evil.example/x'];
   const page = 'https://www.opensubtitles.com/en/subtitles/legacy/123';

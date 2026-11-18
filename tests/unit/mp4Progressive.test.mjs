@@ -79,7 +79,7 @@ describe('MP4Player.feedPiece', () => {
   it('takes nothing from an answer that is not this range from its start', () => {
     const p = player();
     const frag = range(2);
-    // A Content-Range that starts elsewhere would put its bytes at the wrong place (glm's review).
+    // A Content-Range that starts elsewhere would put its bytes at the wrong place.
     feed(p, frag, bytes(1, 2, 3), 0, answerFor(range(0)));
     feed(p, frag, bytes(4), 3);
     expect(p.fed).toEqual([]);

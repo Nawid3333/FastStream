@@ -9,7 +9,7 @@ import {PlayerModes} from '../../chrome/player/enums/PlayerModes.mjs';
 
 describe('withTimestamp', () => {
   // vidmoly's signature ends in '='; written anew as %3D (URLSearchParams), the server refused
-  // it: every segment after a player was built again at a time got a 403 (#592).
+  // it: every segment after a player was built again at a time got a 403.
   const signed = 'https://prx-1.vmget.online/hls2/v_,n,l,.urlset/master.m3u8?t=Ab+c/d=&s=1793113399&e=43200&v=';
 
   it('sets the time and leaves every other byte of the link as it was', () => {

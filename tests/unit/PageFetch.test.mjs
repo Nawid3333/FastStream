@@ -4,7 +4,7 @@ import {PageFetch, PageFetchChannel} from '../../chrome/player/network/PageFetch
 
 // The player's side of loading through the page (page-fetch.js answers in the page): a port to
 // the page's frame, a request's answer given back as a real Response whose body streams in as
-// the page reads it, and the hosts loaded that way from then on (#665).
+// the page reads it, and the hosts loaded that way from then on.
 
 /** A port like tabs.connect's: what the player posts, and the page's side to answer with. */
 function fakePort() {

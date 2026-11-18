@@ -55,7 +55,7 @@ function loopedManifest(seconds, run) {
   const fixture = fs.readFileSync(path.join(fixturesDir, 'dash-template', 'manifest.mpd'), 'utf8');
   const period = fixture.slice(fixture.indexOf('<Period'), fixture.indexOf('</Period>') + '</Period>'.length);
   // What it changes must be there as written: a changed fixture would otherwise give a wrong
-  // manifest without a word (a review).
+  // manifest without a word.
   for (const text of ['<Period id="0" start="PT0.0S">', 'mediaPresentationDuration="PT9.0S"',
     'initialization="init-stream', 'media="chunk-stream', '.m4s"']) {
     if (!period.includes(text) && !fixture.includes(text)) throw new Error(`looped.mpd: the dash-template fixture has no ${text}`);
@@ -90,7 +90,7 @@ const MIME = {
  *   of both builds meets the same line. On one clock for all, the ABBA order was to spread
  *   where each build's runs fell in the pattern, and did not: in 5 rounds main's HLS first
  *   frames came at 4.1 s three times and 6.2 and 7.7 s, the other build's at 6.7-7.7 s each time,
- *   the same requests on the same line, its slow half or not (2026-11-15).
+ *   the same requests on the same line, its slow half or not.
  * @param {number} [factor]
  * @return {(bytes: number, since?: number) => number} When (performance.now() ms) so many bytes
  *   are sent, if they are handed over now.

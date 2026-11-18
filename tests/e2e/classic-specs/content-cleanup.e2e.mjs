@@ -792,7 +792,7 @@ describe('content.js around an in-page player', function() {
   // "This Frame > Reload Frame" on the player loads its page again in the same frame. The
   // background had handed the page's video to the first load only, so the reloaded player
   // sat on its welcome screen; and the page's content script, linking the same iframe
-  // again, no longer knew how to give the page its element back (#288).
+  // again, no longer knew how to give the page its element back.
   it('keeps the video, and the page\'s element, over a reload of the player\'s frame', async function() {
     await openPage('/cleanup');
     await openPlayer();
@@ -848,7 +848,7 @@ describe('content.js around an in-page player', function() {
 
     // The page takes the player out itself. Nothing watched the iframe of a player that had
     // linked up, and the page's element stayed hidden, its video pausing itself on every
-    // play, until a navigation (final review, 2026-10-10).
+    // play, until a navigation.
     await inPage(() => window.playerIframe().remove());
     await browser.pause(500);
     expect(await inPage(() => ({
@@ -908,7 +908,7 @@ describe('content.js around an in-page player', function() {
   it('measures a hard-replaced element without putting it back into the page, and copes with a page that removes it', async function() {
     // Each update (a resize, the timers after opening) put the page's element back to
     // measure it: its observers and custom-element callbacks ran each time, and a <video
-    // autoplay> in it loaded again (#228). A stand-in is measured instead.
+    // autoplay> in it loaded again. A stand-in is measured instead.
     await openPage('/cleanup');
     await inPage(() => window.shrinkWhenReplaced());
     await openPlayer();
@@ -1059,8 +1059,8 @@ describe('content.js around an in-page player', function() {
 
   // An iframe in a closed shadow root, as an embed's can be (the frame links find it there):
   // the document's fullscreenElement is the root's host, the root's own is the iframe.
-  // Compared with the document's, the toggle entered fullscreen again instead of leaving it
-  // (a review, 2026-11-13). Firefox wants a click for fullscreen; this case lets it go without.
+  // Compared with the document's, the toggle entered fullscreen again instead of leaving it.
+  // Firefox wants a click for fullscreen; this case lets it go without.
   it('leaves fullscreen of an iframe in a closed shadow root on the toggle', async function() {
     await openPage('/cleanup');
     await inChrome((done) => {
@@ -1276,7 +1276,7 @@ describe('content.js around an in-page player', function() {
 
   it('keeps the player for a link to another page that the page handles itself', async function() {
     // A "Sign in" that opens a dialog, comments paged in place: the page cancels the click,
-    // and the player was taken down though the page stayed (a review, 2026-11-13).
+    // and the player was taken down though the page stayed.
     await openPage('/cleanup');
     await openPlayer();
     await inPage(() => {

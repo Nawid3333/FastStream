@@ -165,7 +165,7 @@ describe('srt2webvtt', () => {
 
   it('keeps a cue whose whole text is a number when no blank line comes after it', () => {
     // The number was taken for the next cue's sequence number: its cue lost its only line
-    // and was dropped (glm's second look, 2026-10-13).
+    // and was dropped.
     const srt = '1\n00:00:01,000 --> 00:00:02,000\n2000\n00:00:03,000 --> 00:00:04,000\nSecond';
     const vtt = SubtitleUtils.srt2webvtt(srt);
     expect(vtt).toContain('00:00:01.000 --> 00:00:02.000\n2000\n');
@@ -236,7 +236,7 @@ describe('translateXMLEntities', () => {
   it('translates decimal and hex numeric references', () => {
     expect(SubtitleUtils.translateXMLEntities('&#65;')).toBe('A');
     expect(SubtitleUtils.translateXMLEntities('&#x41;')).toBe('A');
-    // XML allows the X in either case (glm's second look, 2026-10-13).
+    // XML allows the X in either case.
     expect(SubtitleUtils.translateXMLEntities('&#X41;')).toBe('A');
   });
 
@@ -255,7 +255,7 @@ describe('convertSubtitleFormatting', () => {
     expect(SubtitleUtils.convertSubtitleFormatting('a\\hb')).toBe('a b');
   });
 
-  // It was shown as \n (review, 2026-10-09); \N is the hard break.
+  // It was shown as \n; \N is the hard break.
   it('reads an ASS soft line break as a space', () => {
     expect(SubtitleUtils.convertSubtitleFormatting('one\\ntwo')).toBe('one two');
     expect(SubtitleUtils.convertSubtitleFormatting('one\\Ntwo')).toBe('one\ntwo');
@@ -283,7 +283,7 @@ describe('convertSubtitleFormatting', () => {
 
   // SubRip files converted from a fansub's ASS keep its override blocks. Only {\b1}, {\b} and
   // the like were known: {\i0}, a block of several tags, positions, colours and fades were
-  // shown as text, and \N as "\N" (audit, 2026-10-09).
+  // shown as text, and \N as "\N".
   it('takes the switches of an ASS override block and drops the rest', () => {
     const format = (text) => SubtitleUtils.convertSubtitleFormatting(text);
     expect(format('{\\i1}a{\\i0} b')).toBe('<i>a</i> b');
@@ -360,7 +360,7 @@ describe('cuesAt', () => {
     expect(textsAt(cues, 3.5)).toEqual([]);
     expect(textsAt([], 1)).toEqual([]);
     // After a seek back, the same cues in the same order: it keeps nothing from the last
-    // time it was asked (#147).
+    // time it was asked.
     expect(textsAt(cues, 2)).toEqual(['a', 'b', 'c']);
     expect(textsAt(cues, 1.5)).toEqual(['a']);
   });
@@ -471,8 +471,8 @@ describe('hostile input: linear time', () => {
   });
 });
 
-// A bare 20 in the font size or the bottom margin was refused as CSS, and did nothing
-// (review, 2026-10-09).
+// A bare 20 in the font size or the bottom margin was refused as CSS, and did nothing.
+
 describe('withUnit', () => {
   it('reads a bare number as pixels, a decimal comma too', () => {
     expect(SubtitleUtils.withUnit('20')).toBe('20px');

@@ -5,7 +5,7 @@ import {EpisodeMessages as HostEpisodeMessages, HeartbeatMs as HostHeartbeatMs, 
 import {DecoderProperties, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {EpisodeMessages, HeartbeatMs, MaxNoticeSeconds, noticeSeconds, relayWatch} from '../../chrome/background/MpvRelayWatch.mjs';
 
-// MPV autoplay over the thin helper (host 15, 2026-10-13): the helper only relays mpv's lines
+// MPV autoplay over the thin helper: the helper only relays mpv's lines
 // and writes the allowlisted commands sent to it; what counts as a file's end is the
 // extension's now (MpvRelayWatch.mjs), so a better end detection needs no helper reinstall.
 // These are the helper's watchMpv cases (tests/unit/mpvWatch.test.mjs) over a fake port: mpv's
@@ -84,7 +84,7 @@ describe('the relay watch', () => {
   });
 
   it('keeps the helper\'s constants', () => {
-    // Plus Space's message, which only the relay (host 15) maps: a helper's own watch, before
+    // Plus Space's message, which only the relay maps: a helper's own watch, before
     // host 15, never had a countdown key, and adding it there would move the host's version.
     expect(EpisodeMessages).toEqual({...HostEpisodeMessages, 'faststream-pause': 'pause'});
     expect(HeartbeatMs).toBe(HostHeartbeatMs);
@@ -108,9 +108,9 @@ describe('the relay watch', () => {
       RELAY,
       {type: 'mpv', command: ['observe_property', 1, 'path']},
       {type: 'mpv', command: ['observe_property', 2, 'eof-reached']},
-      // Host 14: a pause at the end is an end too.
+      // A pause at the end is an end too.
       {type: 'mpv', command: ['observe_property', 3, 'pause']},
-      // Host 9: the mpv setup's episode buttons show while this holds.
+      // The mpv setup's episode buttons show while this holds.
       {type: 'mpv', command: ['set_property', 'user-data/faststream/connected', true]},
     ]);
     expect(events).toEqual([{type: 'watching'}]);
@@ -192,7 +192,7 @@ describe('the relay watch', () => {
   // mpv's default keep-open "no" lets the file go at its end, and the helper's mpv
   // (--idle=once) quits: its end-file eof came 5 ms before mpv closed, which stopped autoplay's
   // countdown (CI's mpv has no config; mpv-episodes.e2e.mjs, 2026-11-17). While autoplay is
-  // on, the file playing stays open (host 24), and mpv gives the next file the user's value.
+  // on, the file playing stays open, and mpv gives the next file the user's value.
   describe('keep-open while autoplay is on', () => {
     const keepOpenSent = (port) => commands(port).filter((m) => String(m.command[1]).includes('keep-open'));
     const asked = (port) => keepOpenSent(port).filter((m) => m.command[0] === 'get_property').map((m) => m.id);
@@ -266,7 +266,7 @@ describe('the relay watch', () => {
     });
   });
 
-  // Host 14: a skip past the end of an HLS stream with discontinuities stopped mpv at the
+  // A skip past the end of an HLS stream with discontinuities stopped mpv at the
   // end, paused (keep-open), with eof-reached never set (measured with the pinned mpv,
   // 2026-10-13). An end is also mpv at the last half second of its file when it pauses there
   // or a seek lands there.
@@ -535,7 +535,7 @@ describe('the backend\'s watch', () => {
     expect(events).toEqual([{type: 'watching'}, {type: 'path', path: 'https://cdn.test/a.m3u8'},
       {type: 'ended', path: 'https://cdn.test/a.m3u8'}, {type: 'request', action: 'next'}]);
     watch.state({autoplay: true});
-    // Then the file's keep-open, for autoplay to keep it open at its end (host 24).
+    // Then the file's keep-open, for autoplay to keep it open at its end.
     expect(ports[0].sent.slice(-2)).toEqual([{type: 'mpv', command: ['set_property', 'user-data/faststream/autoplay', true]},
       {type: 'mpv', command: ['get_property', 'keep-open'], id: expect.any(Number)}]);
     expect(backend.watcher).toBe(watch);

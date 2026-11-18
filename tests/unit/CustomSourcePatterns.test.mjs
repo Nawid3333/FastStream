@@ -54,7 +54,7 @@ describe('parseCustomSourcePatterns', () => {
 
   it('reports a type the player does not know, and takes the file extensions it does', () => {
     // "hls" or a typo matched URLs and gave sources of no mode: nothing played, nothing said
-    // why (final review, 2026-10-10). The type is the extension the URL would have had.
+    // why. The type is the extension the URL would have had.
     const {patterns, errors} = parseCustomSourcePatterns('hls /\\/live\\//\nhsl /a/\nm3u8 /b/\nmpd /c/\nvtt /d/\nsrt /e/');
     expect(patterns.map((p) => p.ext)).toEqual(['m3u8', 'mpd', 'vtt', 'srt']);
     expect(errors.map((e) => e.line)).toEqual([1, 2]);

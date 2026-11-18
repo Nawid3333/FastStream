@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import {describe, expect, it, vi} from 'vitest';
 import {FakeDocument} from './helpers/fakeDom.mjs';
 
-// Keys in the player's fields and menus, on stand-in elements (the review of 2026-11-13):
+// Keys in the player's fields and menus, on stand-in elements:
 // - Escape did nothing from a field. The loop menu, the subtitle settings, the subtitle
 //   search (its fields and its page number) and the sources browser's fields kept every key
 //   from the player, so the player's Escape (escapeAll: menus, windows, fullscreen) never

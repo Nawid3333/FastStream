@@ -362,7 +362,7 @@ describe('FSBlob storage backends', function() {
   // unbuilt in private windows.
   // The OPFS worker in Firefox, live and then silent: past its timeout it counts as crashed,
   // and the store moves to its next backend for the rest of the session. The unit tests
-  // run this against a stand-in worker; here the real one is set up first (#266).
+  // run this against a stand-in worker; here the real one is set up first.
   it('moves to the next backend when the OPFS worker stops answering mid-session', async function() {
     const result = await runInPage(async () => {
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
@@ -388,11 +388,11 @@ describe('FSBlob storage backends', function() {
 
         // From now on the worker takes no more messages, as one that wedged, and counts as
         // crashed after 500 ms. Shortened only now, as each wait reads it: shortened before
-        // the setup, the worker's start took longer than that on CI's Windows runner (#334).
+        // the setup, the worker's start took longer than that on CI's Windows runner.
         OPFSManager.CallTimeoutMs = 500;
         blobStore.opfsManager.worker.postMessage = () => {};
         // The monotonic clock: Date.now() follows the wall clock, which WSL's time sync set
-        // back mid-wait once, and the wait came out as -77 ms (2026-10-14).
+        // back mid-wait once, and the wait came out as -77 ms.
         const started = performance.now();
         const payload = new Uint8Array([4, 5, 6, 7]);
         const second = await blobStore.saveBlobAsync(new Blob([payload]));

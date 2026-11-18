@@ -66,7 +66,7 @@ describe('the mpv host\'s version', () => {
   });
 
   it('goes out with every answer', () => {
-    // Host 15: with the thin helper's messages it understands (play, ipc, relay).
+    // With the thin helper's messages it understands (play, ipc, relay).
     expect(withHostVersion({ok: true, mpv: false}))
         .toEqual({ok: true, mpv: false, hostVersion: HostVersion, capabilities: ['play', 'ipc', 'relay']});
     expect(withHostVersion({ok: false, error: 'unknown message'}))
@@ -113,7 +113,7 @@ describe('the mpv host\'s version', () => {
 
   // Node names the program by its real path: started through a link to its folder (a Linux
   // install linking the host somewhere of its own), the host took itself for an imported
-  // module and ended without an answer (audit, 2026-10-09). A junction on Windows, which
+  // module and ended without an answer. A junction on Windows, which
   // needs no rights there; a symlink elsewhere.
   it('answers when started through a link', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-host-link-'));

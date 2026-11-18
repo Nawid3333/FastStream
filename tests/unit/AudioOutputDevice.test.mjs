@@ -408,7 +408,7 @@ describe('AudioOutputDevice', () => {
     expect(isPolicyRefusal(null)).toBe(false);
   });
 
-  // glm's review of the module (2026-10-24): each of these failed on its first version.
+  // glm's review of the module: each of these failed on its first version.
 
   it('gives the next video the default output once the user went back to it', async () => {
     // The kept choice was read once and handed to every later video: back on the headphones.
@@ -531,7 +531,7 @@ describe('AudioOutputDevice', () => {
   });
 
   it('opens the chooser again with nothing picked when the device it was asked for is gone', async () => {
-    // A click on "play it on ..." after the device was unplugged did nothing (glm's review).
+    // A click on "play it on ..." after the device was unplugged did nothing.
     const t = makeTest();
     t.storage.set(STORAGE_KEY, JSON.stringify(PHONES));
     await t.device.loadChoice();

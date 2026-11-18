@@ -228,7 +228,7 @@ describe('FetchLoader', () => {
 
   it('lets a final error\'s unread body go at once', async () => {
     // A retry's teardown aborts its attempt; a final error left the body held until garbage
-    // collection, and its connection with it (glm's review, 2026-11-16).
+    // collection, and its connection with it.
     const cancel = vi.fn();
     const body = new ReadableStream({pull() {}, cancel});
     vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {status: 403, statusText: 'Forbidden'})));
@@ -634,7 +634,7 @@ describe('FetchLoader', () => {
 
   it('fails at once, without retrying, for a header fetch() cannot send', async () => {
     // A name with a space (a custom header) made a real fetch() reject with a TypeError,
-    // which was retried like a network error, six times over a minute (#150).
+    // which was retried like a network error, six times over a minute.
     const fetchMock = vi.fn(async (url, init) => {
       new Headers(init.headers);
       return new Response(new ArrayBuffer(0), {status: 200});
@@ -654,7 +654,7 @@ describe('FetchLoader', () => {
 
   describe('a server that ignores Range and sends the whole file (200)', () => {
     // It was taken for the range asked for: the file's first bytes, labelled as a range
-    // further in (#139).
+    // further in.
     const file = Uint8Array.from({length: 100}, (_, i) => i);
 
     /** The data a range of `file` came back as. */

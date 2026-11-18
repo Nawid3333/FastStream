@@ -98,7 +98,7 @@ describe('addedLines and checkAdded', () => {
     expect(checkAdded([], ['docs/my-secret.md'], ['secret'], false)).toEqual(['the file name (not shown): a private word']);
   });
 
-  // glm's review, 2026-11-16: an added line "++ ..." is the row "+++ ...", which was read as
+  // An added line "++ ..." is the row "+++ ...", which was read as
   // the next file's header, and never checked.
   it('checks an added line that starts with "++ "', () => {
     const tricky = [...diff.split('\n'), `+++ mail ${MAIL}`, '+after'].join('\n');
@@ -163,7 +163,7 @@ describe('the commit guard in a clone', () => {
     expect(result.err).toContain('the author is not a public identity');
   });
 
-  // glm's review, 2026-11-16: an annotated tag's message is in no commit, and was pushed
+  // An annotated tag's message is in no commit, and was pushed
   // unchecked.
   it('refuses to push an annotated tag whose message holds a private word', () => {
     const {dir, git} = clone();

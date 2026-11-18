@@ -129,7 +129,7 @@ const veilPage = (t) => `<!doctype html><title>veil</title>
 </script>`;
 
 // A site's own dialog, opened while the player is up: a backdrop over the whole page with
-// the dialog in it, the geometry of an ad layer. It stays (#226). The ad that opens with
+// the dialog in it, the geometry of an ad layer. It stays. The ad that opens with
 // it, over the player and above the dialog's layer, goes: that shows the guard looked
 // again after the dialog opened.
 const dialogPage = (t) => `<!doctype html><title>dialog</title>
@@ -457,7 +457,7 @@ describe('A site\'s overlays around an in-page player', function() {
   it('hides the bar a web-component player keeps in its shadow root, while the player is up', async function() {
     // The guard went through document.querySelectorAll('*'), which never sees a shadow
     // root, and the page's elementsFromPoint gives the shadow root's elements as their
-    // host: the web component's own bar stayed over FastStream's player (#233).
+    // host: the web component's own bar stayed over FastStream's player.
     await browser.switchToWindow(siteHandle);
     await browser.url(`${SITE}/shadow?t=${Date.now()}`);
     await browser.waitUntil(async () => inPage(() => window.shadowPart?.('main')?.readyState >= 2),
@@ -486,7 +486,7 @@ describe('A site\'s overlays around an in-page player', function() {
   it('hides the rest of a web-component player in windowed fullscreen, and gives it back', async function() {
     // Windowed fullscreen hides every element that does not hold the player, going through
     // document.querySelectorAll('*'): it expanded the custom element, but the bar beside
-    // the player in its shadow root stayed (#233).
+    // the player in its shadow root stayed.
     await browser.switchToWindow(siteHandle);
     await browser.url(`${SITE}/shadow?t=${Date.now()}`);
     await browser.waitUntil(async () => inPage(() => window.shadowPart?.('main')?.readyState >= 2),
@@ -620,7 +620,7 @@ describe('A site\'s overlays around an in-page player', function() {
   });
 
   it('gives the embedding page\'s bar back when the embed\'s own page goes elsewhere', async function() {
-    // A review (2026-11-13): the iframe stayed (same src) while its page went to one with no
+    // The iframe stayed (same src) while its page went to one with no
     // video, the player with it, and the bar over the embed stayed hidden for the page's life.
     await openPage('/embedding', true);
     await clickToolbar();
@@ -639,7 +639,7 @@ describe('A site\'s overlays around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // #392: in the player a site's page holds, the bar stayed up after fullscreen was left and
+  // In the player a site's page holds, the bar stayed up after fullscreen was left and
   // entered again with its button, until the video was paused and played again. The lost
   // mouseleave behind it comes and goes (player-controls.e2e.mjs forces it); this is the path.
   it('hides the player\'s bar after fullscreen was left and entered again with its button', async function() {

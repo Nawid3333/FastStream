@@ -335,7 +335,7 @@ describe('MP4 files of other shapes', function() {
     // must play on from about 60 s, not from where the element's clock ran on to. The stall
     // is Firefox's own: measured on 2026-09-29, the data appended and both SourceBuffers'
     // state were the same in the runs that stalled as in those that did not, and the element
-    // sat at readyState 2 with its clock running (#265). So this checks where playback goes
+    // sat at readyState 2 with its clock running. So this checks where playback goes
     // on from, and logs whether the watchdog had to act; StallWatchdog.test.mjs checks the
     // watchdog itself.
     const back = await seekAndPlay(60);
@@ -365,7 +365,7 @@ describe('MP4 files of other shapes', function() {
     expect(state.failed).toBe(false);
   });
 
-  // MP4Player played the first audio track, always (#665): a file whose first one Firefox
+  // MP4Player played the first audio track, always: a file whose first one Firefox
   // cannot decode failed outright, and a second language could not be chosen.
   it('plays an MP4 whose first audio track Firefox cannot decode, from the one it can', async function() {
     const state = await playFor(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/ac3-first.mp4`);

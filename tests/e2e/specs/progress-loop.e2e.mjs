@@ -5,7 +5,7 @@
 //
 // Counted against the frames the video really presented, not against a second of the clock:
 // some Linux CI runners present only 1 to 5 frames in the first second, where others show 23
-// to 28 and Windows 28, and a count per second failed there twice in a row (#641, #644).
+// to 28 and Windows 28, and a count per second failed there twice in a row.
 
 import {browser, expect} from '@wdio/globals';
 

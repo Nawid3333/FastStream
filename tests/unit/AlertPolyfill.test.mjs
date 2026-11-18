@@ -6,7 +6,7 @@ import {describe, expect, it} from 'vitest';
 import {errorReportURL, errorTitleText} from '../../chrome/player/utils/AlertPolyfill.mjs';
 
 // The player's dialogs and toasts (AlertPolyfill): Firefox's own <dialog> and popover since
-// sweetalert2 left (2026-10-09). What they show is opened and clicked in Firefox by
+// sweetalert2 left. What they show is opened and clicked in Firefox by
 // tests/e2e/specs/dialogs.e2e.mjs; this checks what does not need a page.
 
 const source = fs.readFileSync(new URL('../../chrome/player/utils/AlertPolyfill.mjs', import.meta.url), 'utf8');
@@ -14,7 +14,7 @@ const source = fs.readFileSync(new URL('../../chrome/player/utils/AlertPolyfill.
 describe('AlertPolyfill', () => {
   it('puts every text in as text, never as markup', () => {
     // The error dialog's title is the caught error's message, which can quote what the code
-    // failed on (a URL, a file's text): markup in it was rendered once, an <img> loaded (#186).
+    // failed on (a URL, a file's text): markup in it was rendered once, an <img> loaded.
     const writes = [];
     const walk = (node) => {
       if (!node || typeof node !== 'object') return;
@@ -99,8 +99,8 @@ describe('AlertPolyfill', () => {
     expect(url.searchParams.get('body')).toContain('No stack trace');
   });
 
-  // hls.js and dash.js report errors as plain objects: the report said "[object Object]"
-  // (audit, 2026-10-09).
+  // hls.js and dash.js report errors as plain objects: the report said "[object Object]".
+
   it('reports a plain object\'s fields, and copes with a cycle', () => {
     const url = new URL(errorReportURL({type: 'networkError', details: 'fragLoadError', fatal: true}, '1.0'));
     expect(url.searchParams.get('body')).toContain('## Error message:\n{"type":"networkError","details":"fragLoadError","fatal":true}\n');

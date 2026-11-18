@@ -52,7 +52,7 @@ describe('keyDisplayName', () => {
     expect(keyDisplayName('Shift+Backspace')).toBe('Shift+Backspace');
     expect(keyDisplayName('F5')).toBe('F5');
     expect(keyDisplayName('Numpad3')).toBe('Num 3');
-    // Names a binding can be saved under that showed as they are (review).
+    // Names a binding can be saved under that showed as they are.
     expect(keyDisplayName('MetaLeft')).toBe('Left Meta');
     expect(keyDisplayName('Control+NumpadAdd')).toBe('Ctrl+Num +');
     expect(keyDisplayName('NumpadEnter')).toBe('Num Enter');
@@ -195,7 +195,7 @@ describe('applySpeedPreset', () => {
   });
 
   it('plays 16x with the 16x key, silent, as the player passes Firefox\'s own limit', () => {
-    // His decision (2026-10-10): the key gave 8x, the same as the 8x key.
+    // His decision: the key gave 8x, the same as the 8x key.
     expect(SILENT_MAX_PLAYBACK_RATE).toBe(16);
     const p = player(1, SILENT_MAX_PLAYBACK_RATE);
     expect(p.press(16)).toBe(16);
@@ -671,7 +671,7 @@ describe('migrateKeybinds', () => {
 
   describe('version 5: numpad keys by what they do', () => {
     // A binding recorded on a numpad key with NumLock off was saved under its position
-    // (Numpad4); the same press is named ArrowLeft now (upstream #482).
+    // (Numpad4); the same press is named ArrowLeft now.
     it('keeps a binding on a numpad key, under the key\'s new name, modifiers too', () => {
       const stored = {keybindsVersion: 4, keybinds: {...DefaultKeybinds, Mute: 'Numpad5', Screenshot: 'Control+NumpadEnter',
         ZoomReset: 'NumpadDecimal'}};

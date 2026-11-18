@@ -6,7 +6,7 @@ import {splice, spliceAndCopy} from '../../tools/splicer.mjs';
 
 // build.mjs's SPLICER preprocessor (tools/splicer.mjs). A directive it misreads changes what
 // ships with no error: a misspelt one used to be kept as an ordinary line, and the text of
-// one anywhere in a line (a string, a template literal) was obeyed (#168).
+// one anywhere in a line (a string, a template literal) was obeyed.
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 
@@ -136,7 +136,7 @@ describe('spliceAndCopy', {timeout: 30000}, () => {
   });
 
   it('leaves out what the exclusion list names, by whole path segments', () => {
-    // As a plain prefix, 'background' also dropped a root-level backgroundAudio.mjs (#175).
+    // As a plain prefix, 'background' also dropped a root-level backgroundAudio.mjs.
     source({
       'background/worker.mjs': 'a();\n',
       'backgroundAudio.mjs': 'b();\n',
@@ -156,7 +156,7 @@ describe('spliceAndCopy', {timeout: 30000}, () => {
   });
 
   it('reads only the scripts as text, and copies everything else as bytes', () => {
-    // The wasm, the onnx model and the images were each decoded as UTF-8 and thrown away (#174).
+    // The wasm, the onnx model and the images were each decoded as UTF-8 and thrown away.
     const binary = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0xc3]);
     source({'a.mjs': 'a();\n', 'img/icon.png': binary, 'skip.wasm': binary});
     const reads = vi.spyOn(fs, 'readFileSync');

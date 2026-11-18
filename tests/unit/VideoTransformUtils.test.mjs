@@ -6,7 +6,7 @@ describe('VideoTransformUtils.getTransformString', () => {
   const options = (videoZoom, videoFlip = 0) => ({videoZoom, videoFlip, videoRotate: 0});
 
   // An emptied zoom field was saved as 0 by older versions, and the slider went down to 0 %:
-  // scale(0) hid the video (review).
+  // scale(0) hid the video.
   it('takes a zoom of 0, or none, as no zoom', () => {
     expect(VideoTransformUtils.getTransformString(options(0))).toBe('');
     expect(VideoTransformUtils.getTransformString(options(undefined))).toBe('');

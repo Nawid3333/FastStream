@@ -2,7 +2,7 @@ import {afterEach, describe, expect, it} from 'vitest';
 
 import {loadBackground} from './backgroundHarness.mjs';
 
-// The background's part of loading through the page (#665), through its real listeners: a player
+// The background's part of loading through the page, through its real listeners: a player
 // is told the page it may load through (PageFetch.mjs), and none when it is its tab's page itself.
 
 const PAGE = 'https://site.test/watch/1';

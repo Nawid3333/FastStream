@@ -155,7 +155,7 @@ describe('isPlayerOfGoneDocument', () => {
 // The player page is web-accessible: a page (or an ad's iframe in it) that frames it can
 // put any parent_frame_id in its URL. Taken on trust, the frame it named counted as
 // holding a player, so the background dropped that page's streams and opened no player
-// there until it navigated (#225). The page that opened a player names itself in the
+// there until it navigated. The page that opened a player names itself in the
 // player's URL, with a name only its content script knows.
 describe('playerParentProof', () => {
   /**
@@ -317,7 +317,7 @@ describe('gone pages', () => {
 
   it('keeps a page\'s streams when its frames over the limit all detected some too', () => {
     // The page was marked before its frames, so with no frame that detected nothing to go
-    // first, the oldest went: the page itself (glm's second look, 2026-10-13). Its frames
+    // first, the oldest went: the page itself. Its frames
     // are marked first now, and the page is the newest of them.
     const {tab, main} = tabWithEmbed();
     main.getSources().push({url: 'https://cdn.example.com/main.m3u8', mode: 'hls'});
@@ -533,7 +533,7 @@ describe('restoredFromCache', () => {
 
 // "Reload Frame" on the player loads it again in the same frame, and it asks for its
 // sources again; sendSources had taken them out of the page's frames, so it got none and
-// sat on the welcome screen (#288). The page's frame keeps what it handed the player.
+// sat on the welcome screen. The page's frame keeps what it handed the player.
 describe('handedTo', () => {
   /**
    * A page frame (1) whose player (frame 2) was handed a stream.
@@ -664,7 +664,7 @@ describe('what a frame keeps of its streams', () => {
 
   it('keeps a file that comes to a list full of manifests', () => {
     // It was the only file, and went at once: a live playlist whose address changes with each
-    // reload filled the list, and no file was taken in again (glm's review, 2026-10-13).
+    // reload filled the list, and no file was taken in again.
     const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
     for (let n = 0; n < 200; n++) {
       frame.addSource({url: `https://cdn.test/live.m3u8?token=${n}`, mode: 'accelerated_hls'});

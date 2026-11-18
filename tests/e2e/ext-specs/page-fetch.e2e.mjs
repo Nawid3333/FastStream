@@ -292,7 +292,7 @@ async function pageFrames() {
  * Starts a save as the user does: the Save button, then the name prompt, given a name.
  *
  * OK goes only once the player's document has its size (confirmPrompt): on CI it was clicked
- * before, and left the prompt open (#697).
+ * before, and left the prompt open.
  * @param {string} name - The file's name, without '.mp4'.
  */
 async function startSave(name) {

@@ -2,7 +2,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
-// Small defects of the background script (#144), each through its real listeners.
+// Small defects of the background script, each through its real listeners.
 
 const PAGE = 'https://site.test/watch/1';
 
@@ -213,7 +213,7 @@ describe('the toolbar\'s On with players for several frames', () => {
 
   it('opens them also when a frame never answers (its page holds the event loop)', async () => {
     // Content scripts share the page's event loop: the click waited for that frame's size
-    // and opened no player at all (glm's review, 2026-10-22).
+    // and opened no player at all.
     const sizes = {1: 100, 3: 300};
     bg = await loadBackground({
       tabs: [{id: 1, url: PAGE}],
@@ -251,7 +251,7 @@ describe('the toolbar\'s On with players for several frames', () => {
   it('opens none from a detected stream whose frame the tab dropped while its length was read', async () => {
     // The open a stream schedules (Options.replaceDelay) waits up to 2.5 s for the playlist's
     // length; the tab went on to another site meanwhile, and OPEN_PLAYER went by frame id to
-    // the page there (glm's second look, 2026-10-13).
+    // the page there.
     bg = await loadBackground({
       options: {autoEnableURLs: ['https://site.test/', 'https://other.test/']},
       tabs: [{id: 1, url: PAGE}],
@@ -313,7 +313,7 @@ describe('the "use the player for stream links" redirect', () => {
   it('keeps no rule for an option turned off while its rule was being added', async () => {
     // The rule waits for its address key (a storage read): a second options load, the option
     // off, removed the rule during that wait, and the first one's add came after it, the
-    // option off and its links still redirected (glm's review, 2026-10-22).
+    // option off and its links still redirected.
     bg = await loadBackground({options: {playMP4URLs: false}});
     bg.options = {playMP4URLs: true};
     const on = bg.message({type: 'LOAD_OPTIONS', time: 1}, {tabId: 99});
@@ -369,7 +369,7 @@ describe('the "use the player for stream links" redirect', () => {
 
 // The Auto-enable URLs list as the background turns a tab on by it (tabs.onUpdated). The
 // background had its own parser for the list, which dropped every `-domain` line and kept a
-// lone `~` as a regex matching every URL (upstream #241). UrlMatchList.test.mjs pins the
+// lone `~` as a regex matching every URL. UrlMatchList.test.mjs pins the
 // list line by line; these two were classic-specs/auto-enable-list.e2e.mjs's until
 // 2026-10-13, which still checks the -domain line against Firefox's own redirect rule. A
 // tab turned on by a list in Firefox is every spec's that puts its site on the list.
@@ -403,7 +403,7 @@ describe('the Auto-enable URLs list', () => {
 describe('messages only FastStream\'s own pages send', () => {
   // A send to mpv (with no MPV allowlist: it is the user's button), a header rule and a
   // download each did what the message named for any sender, a content script in any page
-  // included (#470). Only the player sends them.
+  // included. Only the player sends them.
   const PLAYER_PAGE = 'moz-extension://bg-test/player/index.html';
   const messages = [
     {type: 'MPV_OPEN', url: 'https://cdn.test/a.m3u8', headers: []},
@@ -470,7 +470,7 @@ describe('the permissions tab the player\'s VPN button opens', () => {
 describe('a web page a player in a page opens', () => {
   // EnvUtils.openExternalURL: the OpenSubtitles page of a subtitle, the error dialog's report.
   // A player framed in a page has no chrome.tabs (measured, PageFetchRelay.mjs), and both did
-  // nothing there; the background opens them for it (the review of 2026-11-13).
+  // nothing there; the background opens them for it.
   const PLAYER_FRAME = 'moz-extension://bg-test/player/index.html#https://site.test/video.mp4';
   const from = (url = PLAYER_FRAME) => ({tab: {id: 1, index: 0, url: PAGE}, frameId: 3, url});
 
@@ -515,7 +515,7 @@ describe('the toolbar button of a tab that closed', () => {
   it('leaves no rejected call unhandled', async () => {
     // Firefox rejects a toolbar call for a tab that is gone ("Invalid tab ID"): the "Off"
     // badge's second, a start that waited for its page. Each was an unhandled error in the
-    // background's console (a review, 2026-11-13). Each call's answer here records whether
+    // background's console. Each call's answer here records whether
     // anything took its rejection.
     const answers = [];
     const gone = () => {

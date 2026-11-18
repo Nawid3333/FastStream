@@ -119,7 +119,7 @@ describe('PreviewFrameExtractor after a load that failed', () => {
 
 describe('PreviewFrameExtractor, the tool closed and opened again while its player loads', () => {
   it('keeps only the second start\'s player, and destroys the first', async () => {
-    // The review of 2026-10-14: both loads passed the source check, and the first player
+    // Both loads passed the source check, and the first player
     // went on seeking and downloading with the tool closed.
     const client = makeClient(null);
     const extractor = new PreviewFrameExtractor(client);
@@ -472,7 +472,7 @@ describe('AudioAnalyzerNode, its volume loop while the sound is paused', () => {
   });
 });
 
-// glm's review, 2026-11-16: a video of 5 s or less counted as analysed at its first frame, and
+// A video of 5 s or less counted as analysed at its first frame, and
 // an analysis player's error left the analysis "running" for good.
 describe('the background analyses: when one is done', () => {
   it('takes a short video as done only once nearly all of it is, a long one as before', async () => {
@@ -606,7 +606,7 @@ describe('the background analyses: a player that fails', () => {
   });
 });
 
-// Claude's review of #715: an error once the analysis runs, one during a load that also fails,
+// An error once the analysis runs, one during a load that also fails,
 // and one after a stop. Each player is destroyed once (HLSPlayer's second destroy() throws).
 describe('the background analyses: a player that fails at another time', () => {
   /**

@@ -114,7 +114,7 @@ describe('resolveMpvPath with a path from the options page', () => {
   });
 
   // Windows runs a .bat or .cmd through cmd.exe, which reads mpv's arguments again: a
-  // header value or a title with & or %VAR% in it would be a command (#160).
+  // header value or a title with & or %VAR% in it would be a command.
   it('takes only a .exe or .com on Windows, any mpv name elsewhere', () => {
     for (const name of ['mpv.exe', 'MPV.EXE', 'mpv.com', 'mpv-x86_64.exe']) {
       expect(isMpvExecutableName(name, 'win32')).toBe(true);
@@ -129,7 +129,7 @@ describe('resolveMpvPath with a path from the options page', () => {
 
   // mpv.com is the console wrapper: it starts the mpv.exe beside it as its child, so WMI
   // reported the wrapper's process, which has no window, the focus helper found none, and
-  // mpv's window stayed behind the browser (2026-10-04).
+  // mpv's window stayed behind the browser.
   it('starts the GUI build beside a console wrapper on Windows', () => {
     const both = dirWith('both', ['mpv.com', 'mpv.exe', 'mpv-x86_64.com', 'mpv-x86_64.exe']);
     expect(resolveMpvPath(path.join(both, 'mpv.com'), 'win32')).toBe(path.join(both, 'mpv.exe'));
@@ -145,7 +145,7 @@ describe('resolveMpvPath with a path from the options page', () => {
   });
 
   // A folder was looked into for mpv.exe on every system: on Linux the options page's
-  // "/usr/local/bin" never found its mpv (audit, 2026-10-09).
+  // "/usr/local/bin" never found its mpv.
   it('finds mpv in a folder by the system\'s name for it', () => {
     const dir = dirWith('folder-linux', ['mpv']);
     expect(resolveMpvPath(dir, 'linux')).toBe(path.join(dir, 'mpv'));
@@ -165,7 +165,7 @@ describe('resolveMpvPath with a path from the options page', () => {
   });
 
   // WMI starts the command line in its own working directory, where a relative path
-  // names nothing (#160).
+  // names nothing.
   it('hands on an absolute path for a relative one', () => {
     const name = process.platform === 'win32' ? 'mpv-rel.exe' : 'mpv-rel';
     // Under the working directory, so the relative path exists (the temp folder can be

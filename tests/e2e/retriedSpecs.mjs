@@ -1,7 +1,7 @@
 // Records the spec files that failed and were run again (specFileRetries: 1 in every config).
 //
 // A spec file that fails once and passes on its retry leaves the run green and nothing to
-// show for it: one green CI run in five hid a flake that way, and a real race (#67) passed
+// show for it: one green CI run in five hid a flake that way, and a real race passed
 // for one more flake. So each config's onWorkerEnd is this hook: it keeps the driver logs as
 // before (driverLogs.mjs) and, for a spec file's retry, appends one line to
 // <outputDir>/retried.jsonl. ci.yml lists those lines in the run's summary, warns about each
@@ -66,7 +66,7 @@ export function recordRetriedSpecs(outputDir, suite) {
   return function onWorkerEnd(cid, exitCode, specs) {
     // The first worker of a run to end, before any retry of it is written: the suite's
     // lines from earlier runs go. A local run appended to every run before it, until
-    // logs/ was deleted (#266); the other suites' lines stay, so after `pnpm run verify`
+    // logs/ was deleted; the other suites' lines stay, so after `pnpm run verify`
     // the file holds each suite's last run. CI starts each job with no file.
     if (!forgotten) {
       forgotten = true;

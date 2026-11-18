@@ -5,7 +5,7 @@ import {loadBackground} from './backgroundHarness.mjs';
 // A frame that goes takes the frames inside it along (TabHolder.forgetFrame). A player inside
 // sends its own FRAME_REMOVED as well, and it can come after its page's: the background must
 // not take it for a player it lost while Firefox had unloaded it (restorePlayerFrame), make
-// its frames again and count it gone a second time (a review, 2026-11-13).
+// its frames again and count it gone a second time.
 
 const PAGE = 'https://site.test/watch/1';
 const EMBED = 'https://embed.test/e/1';

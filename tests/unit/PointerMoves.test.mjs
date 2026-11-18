@@ -13,7 +13,7 @@ describe('PointerMoves', () => {
   it('does not count a first move that did not move, and counts the next real one', () => {
     // The page's first mousemove can be Firefox's own, when F goes fullscreen under a pointer
     // that has not moved since the page came: with no place to compare it to, it brought back
-    // the bar F hid (glm's review, 2026-10-13). Firefox's own moves carry no movement.
+    // the bar F hid. Firefox's own moves carry no movement.
     const moves = new PointerMoves();
     expect(moves.moved({screenX: 10, screenY: 20, movementX: 0, movementY: 0})).toBe(false);
     expect(moves.moved({screenX: 11, screenY: 20, movementX: 1, movementY: 0})).toBe(true);

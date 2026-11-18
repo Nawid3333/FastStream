@@ -8,7 +8,7 @@ import {loadBackground} from './backgroundHarness.mjs';
 // FastStream's own pages only, or its content scripts too, which run in every page. Some
 // handlers checked their sender and others did not: LOAD_OPTIONS, MPV_TEST, CLEAR_SOURCES and
 // REQUEST_PLAYLIST_NAVIGATION, which only the options page or the player send, did what a
-// content script asked (glm's review, 2026-10-28). One list, read before any handler, is the
+// content script asked. One list, read before any handler, is the
 // check now, and a new message cannot be answered without saying who may send it.
 
 const chromeDir = path.resolve(import.meta.dirname, '../../chrome');

@@ -160,7 +160,7 @@ describe('the shortcut\'s MPV, a play before its stream', () => {
   });
 
   it('sends the video again when the user plays it after closing mpv, within the repeat window', async () => {
-    // The review of 2026-10-14: the repeat window (10 s) outlived mpv, and a play right
+    // The repeat window (10 s) outlived mpv, and a play right
     // after closing it only paused the page again.
     bg = await loadBackground({
       options: {mpvMode: true},
@@ -369,7 +369,7 @@ describe('a same-site link into an allowlisted or auto-enabled path', () => {
   it('still starts when only the part after # changes during the wait', async () => {
     // The page sets its own #t=... (or an anchor) right after it changed its address: still
     // the same page, which no new start takes up (the tab is on already), so the start
-    // waiting must not give up on it (a review, 2026-11-13).
+    // waiting must not give up on it.
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch']},
       tabs: [{id: 1, url: HOME}]});
     await bg.navigated(1, HOME);
@@ -486,8 +486,8 @@ describe('a failed hand-off', () => {
 
 // The host is not part of the extension: the copy a PC runs stays as it is through an
 // extension update and a `git pull`. Until 2026-10-04 an e-mail said to install it again;
-// now the button's tooltip does, where MPV mode is used. No "!" since the thin helper
-// (2026-10-13): an older helper still plays the stream, through the messages it knows.
+// now the button's tooltip does, where MPV mode is used. No "!" since the thin helper:
+// an older helper still plays the stream, through the messages it knows.
 describe('an outdated mpv host', () => {
   const OUTDATED = 'FastStream - MPV - the mpv helper on this computer is out of date: ' +
     'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)';
@@ -569,7 +569,7 @@ describe('an outdated mpv host', () => {
 });
 
 // A tab a tab in MPV opens - a site's player in a pop-up tab, an episode middle-clicked -
-// starts in MPV too, the MPV key's way: only a video the user starts there goes (#337).
+// starts in MPV too, the MPV key's way: only a video the user starts there goes.
 describe('a tab a tab in MPV opens', () => {
   const POPUP = 'https://embed.test/e/1';
 
@@ -1082,7 +1082,7 @@ describe('a message that wakes the background', () => {
   });
 
   it('answers a repeat click of the player\'s mpv button with the first one\'s answer, when it comes', async () => {
-    // glm's review (2026-10-12): the repeat got "sent" at once, so the player said so and
+    // The repeat got "sent" at once, so the player said so and
     // paused the page while the first send could still fail.
     let release;
     const pending = new Promise((resolve) => {
@@ -1601,10 +1601,10 @@ describe('the toolbar cycle on a page the MPV allowlist names by its path', () =
 });
 
 describe('a mode the user picked on a page an auto-enable list turned on', () => {
-  // His call (2026-10-10): what the user picks stays for the tab; what a list started ends
+  // His call: what the user picks stays for the tab; what a list started ends
   // when the tab leaves the list. The toolbar cycle's Off -> On kept to it; the MPV key and
   // the plain toggle's On still counted as the list's start, and the first page outside
-  // the lists turned them off (glm's review, 2026-10-13).
+  // the lists turned them off.
   const WATCH = 'https://site.test/watch/1';
   const NEWS = 'https://site.test/news';
 
@@ -1677,7 +1677,7 @@ describe('a mode the user picked on a page an auto-enable list turned on', () =>
 });
 
 describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next one', () => {
-  // His wish (2026-10-11): a series episode after episode in mpv, without the browser. The
+  // His wish: a series episode after episode in mpv, without the browser. The
   // host (7) follows the mpv it started over a port kept open, and says when the file ended
   // or a key asked for the next or the previous episode.
   const EP1 = 'https://site.test/watch/1';
@@ -1784,7 +1784,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
   });
 
   it('says the series ended at once, with no countdown, when the page says it is its last episode', async () => {
-    // The mpv setup's TODO (2026-10-11): at a series' last episode mpv said "next episode in
+    // The mpv setup's TODO: at a series' last episode mpv said "next episode in
     // 5 s" and only after it that autoplay stops. The page is asked first (PLAYLIST_POLL,
     // which clicks nothing), top frame first; its answer ends the asking.
     const port = await onEpisode1({autoplayCountdown: 5}, 'series_end', {next: false, previous: true, seriesEnd: true});
@@ -1814,7 +1814,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(notices(port)).toEqual(['next episode in 5 s (n: now, Space: stop)']);
     bg.unload();
 
-    // A frame that never answers costs a second, then the countdown as before (glm's review).
+    // A frame that never answers costs a second, then the countdown as before.
     port = await onEpisode1({autoplayCountdown: 5}, 'clicked', new Promise(() => {}));
     port.emit({type: 'ended', path: S1});
     await bg.wait(500);
@@ -1845,7 +1845,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
   });
 
   it('stops the countdown with Space, which keeps autoplay on for the next end', async () => {
-    // His wish (2026-10-17): Space, the easiest key, stops the countdown. mpv's input.conf
+    // His wish: Space, the easiest key, stops the countdown. mpv's input.conf
     // sends faststream-pause with Space and with a click on the video.
     const timed = (port) => port.sent.filter((m) => m.type === 'notify' || m.type === 'hide')
         .map((m) => m.type === 'hide' ? 'hide' : [m.detail, m.seconds]);
@@ -1983,7 +1983,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(bg.ports).toHaveLength(1);
   });
 
-  // an anime site, season 1 to 2 (his report, 2026-10-13): mpv showed the next episode's title on
+  // an anime site, season 1 to 2: mpv showed the next episode's title on
   // a black picture. The next page's player, started by this extension, may load an ad's
   // stream first; it went to mpv at once, and the episode's own, detected after, was dropped.
   it('sends the next page\'s longest stream, not an ad its player loaded first', async () => {
@@ -2015,7 +2015,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(bg.toMpv()).toEqual([S1, S2]);
   });
 
-  // a series site's VOE hoster (his report, 2026-10-23): the next episode played in mpv as
+  // a series site's VOE hoster: the next episode played in mpv as
   // sound only, every time. The page's player asks for the master, its variant and then the
   // German sound's own playlist (measured on the site), all as long as each other; of streams
   // that tie the newest goes, and the sound's playlist went to mpv as it was.
@@ -2063,7 +2063,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
 
   it('starts the player of a page gone on to before the last one\'s stream came', async () => {
     // Two quick next keys: the first next page's asking ran on when the second page's top
-    // frame came, and that page was never asked (final review, 2026-10-11).
+    // frame came, and that page was never asked.
     const port = await onEpisode1();
     port.emit({type: 'ended', path: S1});
     await bg.wait(100);
@@ -2212,7 +2212,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
   });
 
   it('gives up on a frame that never answers the next-episode request, and the keys still work', async () => {
-    // glm's review (2026-10-12): such a frame kept state.going set, and every later key,
+    // Such a frame kept state.going set, and every later key,
     // button and autoplay of the session returned at it.
     const port = await onEpisode1({}, new Promise(() => {}));
     port.emit({type: 'ended', path: S1});
@@ -2253,7 +2253,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
   });
 
   describe('with the episode\'s tab closed', () => {
-    // His wish (2026-10-27): the tab closed, autoplay goes on. The page's episode links are
+    // His wish: the tab closed, autoplay goes on. The page's episode links are
     // read at the hand-off (EPISODE_LINKS); the episode then opens in a tab not shown, which
     // closes again once its stream went to mpv.
     const EP0 = 'https://site.test/watch/0';
@@ -2279,7 +2279,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     }
 
     it('goes on the same way when the tab went on to another site, whose page it leaves alone', async () => {
-      // glm's review, 2026-11-16: the episode's end clicked that site's "next" link, the
+      // The episode's end clicked that site's "next" link, the
       // user's page went away under them, and its video replaced the series in mpv.
       for (const countdown of [0, 5]) {
         const port = await onEpisode1({autoplayCountdown: countdown}, 'clicked', {next: true},
@@ -2351,7 +2351,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     });
 
     it('says so when Firefox makes no tab, and closes one made after mpv was closed', async () => {
-      // glm's review (2026-10-27): neither case had a test.
+      // Neither case had a test.
       let port = await closedAfterEpisode1();
       bg.chrome.tabs.create = async () => {
         throw new Error('No window with id: 1.');
@@ -2455,7 +2455,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     });
 
     it('opens no link a frame gave, nor one that is no web address', async () => {
-      // glm's review (2026-10-27): a hoster's or an ad's frame chose the address of a tab the
+      // A hoster's or an ad's frame chose the address of a tab the
       // background opened by itself, in the tab's container.
       let port = await closedAfterEpisode1({}, {'1:5': linksTo('https://ads.test/win')});
       port.emit({type: 'ended', path: S1});
@@ -2482,7 +2482,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     });
 
     it('sends the episode, not an ad the page asked for first, on a page the MPV allowlist names', async () => {
-      // glm's review (2026-10-27): the allowlist's own start sent the first stream half a second
+      // The allowlist's own start sent the first stream half a second
       // after the address, beside the episode's pick, and the episode was dropped after it.
       const port = await closedAfterEpisode1();
       port.emit({type: 'ended', path: S1});
@@ -2498,7 +2498,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     });
 
     it('keeps no links of the page before when the tab is closed before its new page\'s are read', async () => {
-      // glm's review: the same tab on to episode 2 in the browser, its stream to mpv, the tab
+      // The same tab on to episode 2 in the browser, its stream to mpv, the tab
       // closed while its links were still asked for: episode 1's links took it back to 2.
       const links = {1: linksTo(EP2)};
       const port = await onEpisode1({}, 'clicked', undefined, links);
@@ -2568,7 +2568,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
 });
 
 describe('MPV mode and a page that offers its file in several qualities', () => {
-  // a film site's hoster (2026-10-12): a Playerjs with default_quality "360p" and 720p and
+  // a film site's hoster: a Playerjs with default_quality "360p" and 720p and
   // 1080p files beside it. The page's <video> asks for its default, which the hoster
   // redirects to its CDN, and MPV mode sent that: the lowest.
   const HOSTER = 'https://hoster.test/embed/1/';
@@ -2677,7 +2677,7 @@ describe('MPV mode and a page that offers its file in several qualities', () => 
 
   it('goes on at the end of a stream sent in another spelling than the one mpv plays', async () => {
     // The host gives mpv the URL as the URL parser writes it (mpvTargetUrl); the one sent was
-    // compared as it came, and an end of the very stream sent did not count (#470).
+    // compared as it came, and an end of the very stream sent did not count.
     const navigations = [];
     bg = await loadBackground({
       options: {mpvMode: true, mpvAllowlist: ['https://hoster.test/'], mpvAutoplayNext: true, autoplayCountdown: 0},
@@ -2779,7 +2779,7 @@ describe('the player\'s mpv button and a page that offers several qualities', ()
 });
 
 describe('MPV mode and an HLS stream whose master playlist offers several qualities', () => {
-  // A hoster's JW Player (his report, 2026-10-14): Auto, 1080p, 720p and 480p from one master
+  // A hoster's JW Player: Auto, 1080p, 720p and 480p from one master
   // playlist. The page loads the master, then the variant its "Auto" picks. The two run as
   // long as each other, of streams that tie the newest went, and mpv played that variant and
   // knew no other quality.
@@ -2863,7 +2863,7 @@ describe('MPV mode and an HLS stream whose master playlist offers several qualit
   it('waits for the master playlist\'s read when the toolbar sends a variant read before it', async () => {
     // The master's host is slow, the variant's CDN fast: the variant's length is known while
     // the master's read still runs, and the toolbar's MPV sends without waiting for the
-    // lengths (glm's review of #480).
+    // lengths.
     bg = await loadBackground({
       options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
       tabs: [{id: 1, url: PAGE}],
@@ -2925,7 +2925,7 @@ describe('a copy-protected stream (DRM)', () => {
 
   it('is not handed to mpv by the toolbar\'s On -> MPV, nor the page\'s next stream', async () => {
     // The toolbar's MPV sends from the streams the tab tracks (openMpvWithSources). Its
-    // refusal let the page's next stream go to mpv, as the allowlist's did before (#606): an
+    // refusal let the page's next stream go to mpv, as the allowlist's did before: an
     // ad went, the "!" was cleared, and the page was paused.
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
       fetch: playlists(network, 50)});
@@ -3028,7 +3028,7 @@ describe('a copy-protected stream (DRM)', () => {
 });
 
 describe('a file only its page loads', () => {
-  // abyss.to's player address (#665): only the page's service worker gives the video, and
+  // abyss.to's player address: only the page's service worker gives the video, and
   // anyone else gets a web page ("Video not found", measured 2026-11-12: 200 text/html).
   // mpv's window opened and closed at once. FastStream's own player loads it through the
   // page: the tab goes over to it, and it says why (MpvMode.playHereInstead).
@@ -3098,7 +3098,7 @@ describe('a file only its page loads', () => {
 
   it('turns the tab off at the toolbar\'s next click, as MPV -> Off', async () => {
     // As On -> MPV it reloaded the page, was refused again and came back On: Off was never
-    // reached (glm's review).
+    // reached.
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
       fetch: html()});
     await bg.navigated(1, PAGE);
@@ -3117,7 +3117,7 @@ describe('a file only its page loads', () => {
   });
 
   it('turns the tab off at the toolbar\'s next click after Firefox stopped the event page too', async () => {
-    // glm's review, 2026-11-16: which page the On stands in for MPV on was not kept, and a
+    // Which page the On stands in for MPV on was not kept, and a
     // woken background took the click for On -> MPV: one click late, and the page reloaded.
     const setup = {options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}], fetch: html()};
     bg = await loadBackground(setup);

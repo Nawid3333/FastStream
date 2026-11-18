@@ -19,7 +19,7 @@ const SEGMENTS = path.resolve(import.meta.dirname, '../fixtures/hls-ts');
 let server;
 
 // A page call that has not come back in this time is a finding of its own. On CI's Windows
-// runner (#456) one never came back: the test ran into mocha's 120 s cap with nothing said
+// runner one never came back: the test ran into mocha's 120 s cap with nothing said
 // about where it was, or whether the page or its video had stopped. Every call here has
 // this limit, and each wait stays well inside the cap (a test's this.timeout() does not lift
 // it, testTimeout.mjs), so the step that got stuck says so, with the state it saw last.
@@ -98,7 +98,7 @@ async function downloadAll(budget, playlist = '/long.m3u8', timeout = 60000, dis
 /**
  * Plays the stream from its start - on disk, or let go of long ago - and waits for it to run
  * past 2 s. Polled from here, a short call at a time: the loop that waited in the page was
- * the call that never came back (#456).
+ * the call that never came back.
  * @param {string} when - What is played, for the failure message.
  * @return {Promise<Object>} The video's state then: time, failed and more.
  */
@@ -136,7 +136,7 @@ async function playFromStart(when) {
 /**
  * Waits until what the player holds passes a check. The failure says what it held last: the
  * message these waits had was made before their first look, and said "undefined" whatever
- * the player held (#456).
+ * the player held.
  * @param {function(Object): boolean} check - On holdings().
  * @param {number} timeout - ms.
  * @param {string} failure - What did not happen, for the message.
@@ -250,7 +250,7 @@ describe('The RAM budget', function() {
   });
 
   it('with "Keep video on disk" off, lets go of what does not fit, writes none of it, and plays it again', async function() {
-    // The option (2026-10-10): as in a private window, what does not fit in the budget is let
+    // The option: as in a private window, what does not fit in the budget is let
     // go of and downloaded again when needed. All of it in first (it fits in 2 GB), then a
     // budget it does not fit in.
     await downloadAll(2e9, '/long.m3u8', 60000, false);
@@ -305,7 +305,7 @@ describe('The RAM budget', function() {
     // The next 10 s (MemoryBudget.KEEP_AT_LEAST), here 2-3 MB, beside what is on its way to disk:
     // a copy goes from RAM once its file is written, and the OPFS worker writes one file at a
     // time. On the Windows runner 2.4-7.5 MB of writes were still under way after 30 s, three
-    // times in the week to 2026-11-02 (#620), the rest the same 1.7 MB each time: the budget
+    // times in the week to 2026-11-02, the rest the same 1.7 MB each time: the budget
     // held, the disk was slow. So the budget as the client counts it (keepWithinMemoryBudget:
     // held - leaving), and the files written within 60 s, as the test above waits for them.
     const state = await holdingsUntil((held) => held.ram - held.leaving < 4e6 && held.files > 40, 60000,

@@ -99,7 +99,7 @@ describe('MediaKeys', () => {
   });
 });
 
-// The overlay showed only "FastStream" (his report, 2026-10-24): the video's name, a frame of
+// The overlay showed only "FastStream": the video's name, a frame of
 // it and its time line, and seek keys, are the Media Session's too.
 
 /** A Media Session with the overlay's parts: metadata, the time line, every action. */
@@ -183,7 +183,7 @@ describe('MediaKeys, the overlay', () => {
 
   it('shows no frame that came back after its video went, nor one older than the last asked for', async () => {
     // A frame of the last episode, read while the next one started, became the next one's
-    // picture (glm's review of #576).
+    // picture.
     vi.stubGlobal('URL', {createObjectURL: vi.fn((blob) => `blob:${blob.name}`), revokeObjectURL: vi.fn()});
     const session = fullSession();
     const keys = new MediaKeys(/** @type {*} */ (playingClient()), /** @type {*} */ (session), /** @type {*} */ (FakeMetadata));

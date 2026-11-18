@@ -1251,7 +1251,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
 
   // The player page is web-accessible, so a page (or an ad's iframe in it) can frame it
   // and name any frame of the tab as its parent. Taken on trust, the top frame counted as
-  // holding a player: its streams were dropped, and no player opened on it (#225).
+  // holding a player: its streams were dropped, and no player opened on it.
   it('takes the player page a page framed itself for no player of the page', async function() {
     await expectPagePlayerBesidePlanted('/framed');
   });
@@ -1333,7 +1333,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
         // once the helper answered, and the same stream played again before that goes
         // nowhere (the send under way answers for it). A helper that waited 30 s for an open
         // mpv window it did not find answered after this 10 s clip had ended, and the play
-        // after Back below sent nothing (2026-10-21).
+        // after Back below sent nothing.
         await browser.switchToWindow(siteHandle);
         if (await browser.execute(() => document.getElementById('main').ended)) {
           throw new Error('the page played the video mpv opened to its end: the hand-off was ' +

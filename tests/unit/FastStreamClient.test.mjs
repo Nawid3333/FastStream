@@ -457,7 +457,7 @@ describe('FastStreamClient, remembered times', () => {
     expect(client.interfaceController.setStatusMessage).not.toHaveBeenCalled();
   });
 
-  // #378: with predownload off the maximum size is not used, but a size smaller than the
+  // With predownload off the maximum size is not used, but a size smaller than the
   // video (10 MB) still warned "Video size exceeds limits" at the start of every video.
   it('warns about the maximum size only with predownload on, also once it is turned on', () => {
     const client = makeClient({downloadAll: false, maxVideoSize: 1e7});
@@ -999,8 +999,8 @@ describe('FastStreamClient, a video codec that failed to decode for good', () =>
 });
 
 // A limit of 0 is none, and an empty field (-1) no limit: 0 read as no limit (or as a
-// trickle) surprised the user who typed it to turn a thing off (2026-10-09).
-// "Keep video on disk" off (2026-10-10), as in a private window: nothing of the buffer goes
+// trickle) surprised the user who typed it to turn a thing off.
+// "Keep video on disk" off, as in a private window: nothing of the buffer goes
 // to disk, so what is kept has to fit in the RAM budget, below where it starts letting go
 // (MemoryBudget.LOW). Kept beyond it, the budget let go of the far end and the downloads
 // ahead fetched it again, round and round. Every budget has to work with it: his words.
@@ -1077,7 +1077,7 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
   });
 
   it('keeps to the budget, and says so once, when no disk backend works', () => {
-    // The review of 2026-10-14: with every disk backend failed, the buffer was planned for
+    // With every disk backend failed, the buffer was planned for
     // the disk's free space while everything stayed in RAM.
     const client = clientWithVideo({bufferToDisk: true, ramBudget: 500 * MB});
     client.downloadManager = {...client.downloadManager, blobStore: {diskGone: true}};
@@ -1353,7 +1353,7 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
 
     it('while the speed test runs, a seek as on a line the downloads share, and the test waits (holdTest)', () => {
       // A seek in the first seconds shared the line with every download of the test: an HLS seek
-      // on a 6 Mbit/s line took 3.1 s where alone it takes 1.2 s (2026-11-16).
+      // on a 6 Mbit/s line took 3.1 s where alone it takes 1.2 s.
       const held = [];
       expect(startedAt({sharesLine: false, testing: true, held})).toEqual(['video:10', 'audio:10']);
       expect(startedAt({sharesLine: false, testing: true, asked: true})).toEqual([]);
@@ -1379,7 +1379,7 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
 
     it('at a seek, cancels the downloads ahead running beside the fragments the playhead is in', () => {
       // Started before the seek, inside the new place's window: on a 3 Mbit/s line the next
-      // fragment kept half the line from the seek's own, an MP4 seek 3.6 -> 4.6 s (2026-11-16).
+      // fragment kept half the line from the seek's own, an MP4 seek 3.6 -> 4.6 s.
       const running = ['video:10', 'video:12', 'audio:10', 'audio:14', 'video:6'];
       const cancelled = [];
       startedAt({sharesLine: true, asked: true, running, cancelled});
@@ -1408,7 +1408,7 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
 
     it('before the video has played (the start), downloads ahead as before', () => {
       // Held back there on a local server, ram-budget.e2e's stream came in after its RAM budget
-      // held it, and never finished; the start was measured and left as it was (2026-11-06).
+      // held it, and never finished; the start was measured and left as it was.
       expect(startedAt({sharesLine: true, asked: true, video: {seeking: false, paused: false, readyState: 1, played: {length: 0}}})).toHaveLength(6);
     });
 
@@ -1585,7 +1585,7 @@ describe('FastStreamClient, the RAM budget while writes to disk are slow', () =>
 
   it('writes what was kept for good when the room ran out to disk, and deletes none of it', async () => {
     // updateHasDownloadSpace pins every downloaded fragment (GRANDFATHERED). The budget left
-    // them out, and those held in RAM never left it: full for good (glm's review, 2026-11-16).
+    // them out, and those held in RAM never left it: full for good.
     const {client, manager, fragments, finishWrites} = clientWithSlowDisk(40 * BYTES);
     for (const fragment of fragments) fragment.addReference(ReferenceTypes.GRANDFATHERED);
     client.keepWithinMemoryBudget();
@@ -1626,7 +1626,7 @@ describe('FastStreamClient, "Buffer behind" changed while a video plays', () => 
   });
 
   it('hands "Keep video on disk" to the download manager at once, on unless it is off', () => {
-    // Only the buffer: watch progress and saving keep their storage (2026-10-10).
+    // Only the buffer: watch progress and saving keep their storage.
     vi.stubGlobal('document', {body: {dataset: {}}, getElementById: () => null});
     vi.stubGlobal('localStorage', {setItem: () => {}, getItem: () => null});
     vi.stubGlobal('sessionStorage', {setItem: () => {}, getItem: () => null});
@@ -1779,7 +1779,7 @@ describe('FastStreamClient, the page\'s qualities with a query of their own', ()
 describe('FastStreamClient, the seek preview\'s player', () => {
   it('is destroyed when building it fails', async () => {
     // Nothing else held it: its video and its loader, which may go on fetching, lived on for
-    // the page's life, one for each failed build (glm's review, 2026-10-13).
+    // the page's life, one for each failed build.
     const client = makeClient({previewEnabled: true});
     const preview = {
       setup: vi.fn(async () => {}),
@@ -1848,7 +1848,7 @@ describe('FastStreamClient, the seek preview\'s player', () => {
   });
 
   it('lets go of its listeners when the preview is switched off', () => {
-    // The review of the fix (2026-11-15): switched on again, the next preview's context took
+    // The review of the fix: switched on again, the next preview's context took
     // the field over, and the old one was never destroyed.
     vi.stubGlobal('document', {body: {dataset: {}}, getElementById: () => null});
     vi.stubGlobal('localStorage', {setItem: () => {}, getItem: () => null});
@@ -2005,7 +2005,7 @@ describe('addSource', () => {
 
 describe('tryNextSource', () => {
   it('logs the next stream without its headers', () => {
-    // It logged the whole source, the page's Cookie in its headers (glm's review, 2026-10-22).
+    // It logged the whole source, the page's Cookie in its headers.
     const client = makeClient();
     client.sourcesBrowser = {updateSources() {}};
     client.setSource = vi.fn(async () => {});
@@ -2061,7 +2061,7 @@ describe('FastStreamClient, the media overlay\'s picture', () => {
   });
 
   it('takes the second halfway into a video shorter than 10 s', () => {
-    // A 3 s video never got its frame 5 s in: the black first one stayed (glm's review of #576).
+    // A 3 s video never got its frame 5 s in: the black first one stayed.
     const {at, setArtwork} = overlay(3);
     at(0);
     at(1.4);
@@ -2282,7 +2282,7 @@ describe('FastStreamClient, a link the server refuses', () => {
 
   it('gets the link anew from its page, and plays on with it at its time', async () => {
     // A hoster's link runs out (vidmoly: twelve hours), and Back gives the page its old one
-    // from Firefox's cache: the player sat at a spinner until the page was reloaded (#592).
+    // from Firefox's cache: the player sat at a spinner until the page was reloaded.
     const client = withRenewals(makeClient());
     client.downloadManager.keepStorageOnce = vi.fn();
     client.downloadManager.relink = vi.fn();
@@ -2355,7 +2355,7 @@ describe('FastStreamClient, a link the server refuses', () => {
 // resetPlayer tears it down. A failure it reported in between was taken for the new source's:
 // its hand-over to Firefox's own player played the old URL over the source the user had just
 // picked, its error showed the load error over it, and a refused link of the old source was
-// asked for anew and rebuilt over it (glm's review, 2026-10-28).
+// asked for anew and rebuilt over it.
 describe('FastStreamClient, the last source\'s player failing while the next source is on its way in', () => {
   const nextSourceAskedFor = (client) => {
     client.sourceRequests++;
@@ -2664,7 +2664,7 @@ describe('FastStreamClient, the seek preview shown', () => {
 // downloaded ahead of the parser have none (start and end -1). A player that keeps a window of
 // the video (a private window, "download all" off) took them for ranges long behind the
 // playhead once that was past 19 s: it started no download ahead any more, and let go of
-// every range it had downloaded ahead (a review, 2026-11-14).
+// every range it had downloaded ahead.
 describe('FastStreamClient, a fragmented MP4\'s ranges not parsed yet, in a download window', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -2776,7 +2776,7 @@ describe('FastStreamClient, what the other players hear (peerState)', () => {
   });
 });
 
-// The player-core audit (2026-11-18): each case failed before its fix.
+// The player-core audit: each case failed before its fix.
 describe('FastStreamClient, the player-core audit', () => {
   /**
    * Records what the client plays, and at which time of its player.

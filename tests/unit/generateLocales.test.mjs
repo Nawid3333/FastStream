@@ -8,7 +8,7 @@ import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 // generate-locales.mjs (pnpm run gen-locale), which translates combined-locales.json through
 // the OpenAI API. It only checked a --lang code's shape after every batch had been paid for,
 // its help named the wrong default model and thread count, and a request that never got an
-// answer waited forever (#246). Nothing here reaches the real API: there is no key, or the
+// answer waited forever. Nothing here reaches the real API: there is no key, or the
 // base URL points at a local server.
 
 const script = path.resolve(import.meta.dirname, '..', '..', 'generate-locales.mjs');

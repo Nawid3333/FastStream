@@ -66,7 +66,7 @@ describe('e2e ports', () => {
 
   it('are each given to one server only', () => {
     // Two specs on one port pass only while they never run at once (maxInstances: 1) and
-    // each closes its server: a worker killed at the mocha cap leaves it open (#261).
+    // each closes its server: a worker killed at the mocha cap leaves it open.
     const users = new Map();
     for (const {file, port} of e2ePorts()) {
       users.set(port, [...(users.get(port) || []), file]);

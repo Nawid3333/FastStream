@@ -7,7 +7,7 @@ import {describe, expect, it} from 'vitest';
 
 import {MP4_FIXTURE} from '../e2e/mp4Fixture.mjs';
 
-// How .github/actions/e2e-setup keeps sample.mp4 in the Actions cache (#256): restored
+// How .github/actions/e2e-setup keeps sample.mp4 in the Actions cache: restored
 // under the SHA-256 it is pinned to, checked (and fetched when the cache had none or
 // another file), and saved only after that check, only when the cache had no entry.
 // Its shell steps are tests/workflows/e2e-setup.test.sh's.

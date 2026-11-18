@@ -66,7 +66,7 @@ describe('DownloadEntry watchers', () => {
 
   it('tells every watcher when one gives another up while it hears', async () => {
     // abortWatcher from a callback took a watcher out of the list forEach was walking, and
-    // the one after it never heard (final review, 2026-10-10).
+    // the one after it never heard.
     const entry = runningEntry();
     const heard = [];
     const second = {callbacks: {onSuccess: () => heard.push('second')}};

@@ -33,7 +33,7 @@ function commands(file) {
 describe('gh in the workflows', () => {
   // gh pr list --head matches the branch name in any repository ("<owner>:<branch>" is not
   // supported), so a fork's pull request from a branch of the same name is listed too, and
-  // was taken for the workflow's own (#169): assigned, labelled, edited, closed, or read as
+  // was taken for the workflow's own: assigned, labelled, edited, closed, or read as
   // the owner's decision. Each such list asks whether a pull request is a fork's, and drops
   // it (the workflow tests check the dropping).
   it('asks for isCrossRepository wherever it lists pull requests by branch', () => {
@@ -45,7 +45,7 @@ describe('gh in the workflows', () => {
   // gh applies --jq with gojq, built in, whose test/match/capture/sub/scan/splits take Go's
   // RE2 regexes; tests/workflows applies it with jq 1.7, whose Oniguruma takes more. A
   // lookaround, a backreference or an atomic group passes every workflow test and fails on
-  // GitHub with a gojq compile error (#249). Named groups, (?<name>...), RE2 has.
+  // GitHub with a gojq compile error. Named groups, (?<name>...), RE2 has.
   it('uses no regex in a --jq filter that RE2 (gojq) lacks', () => {
     const RE2_LACKS = [
       ['lookahead or lookbehind', /\(\?<?[=!]/],

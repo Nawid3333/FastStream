@@ -3,7 +3,7 @@ import {beforeAll, describe, expect, it} from 'vitest';
 // Firefox reports a change of a tab's URL fragment (tabs.onUpdated) as it reports a new
 // page. The background took it for one: the allowlist's per-page mpv latch was reset, so
 // the page's next stream request opened a second mpv window, and the in-page player was
-// taken down by an anchor link or a #t= update (#236). Only the fragment changing to
+// taken down by an anchor link or a #t= update. Only the fragment changing to
 // another anchor is the same page; a hash route is a page of its own.
 
 let BackgroundUtils;

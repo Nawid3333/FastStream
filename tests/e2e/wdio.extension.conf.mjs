@@ -238,7 +238,7 @@ export const config = {
           // Byte ranges, as wdio.conf.mjs's server and any video host answer them. This
           // sent the whole file with 200 for every Range: on the 1 MB sample.mp4, which
           // fits MP4Player's first range, nothing showed that a second range would have
-          // got the file's start instead (#257).
+          // got the file's start instead.
           const range = byteRange(req.headers.range, size);
           if (range === 'unsatisfiable') {
             res.writeHead(416, {...headers, 'Content-Range': `bytes */${size}`});

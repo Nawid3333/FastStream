@@ -11,7 +11,7 @@ import {CommandLineEnv, ReusedWindowWaitSeconds, focusApiLines, focusOutcome, fo
 // process ("FOCUS=gone"), but that look comes right after Win32_Process.Create returns,
 // when mpv is still starting: it saw mpv, saw it go, and said "FOCUS=nowindow", which
 // counts as a launch that worked. Now a process that was seen and went before it had a
-// window says "FOCUS=quit", a failure like "gone" (2026-10-04).
+// window says "FOCUS=quit", a failure like "gone".
 
 const QuitError = 'mpv quit right after it started: check the mpv path, and mpv.conf for an option mpv refuses';
 
@@ -94,7 +94,7 @@ describe.runIf(process.platform === 'win32')('the WMI launch script, about an mp
 // The window of an mpv already open, which a stream sent to it raises: its pipe answered,
 // so its window came long ago, and one not there is not coming. It was given the 30 s a
 // cold start gets, and the host's answer waited that long: the page played on beside mpv
-// until it came, and the same stream sent again meanwhile went nowhere (2026-10-21).
+// until it came, and the same stream sent again meanwhile went nowhere.
 describe('the focus script for an mpv already open', () => {
   it('waits seconds for its window, a start the full WindowWaitSeconds', () => {
     expect(ReusedWindowWaitSeconds).toBeLessThanOrEqual(5);
@@ -119,8 +119,8 @@ describe('the focus script for an mpv already open', () => {
 // The show step, against a window of another process. runPowerShell starts PowerShell with
 // windowsHide, which puts SW_HIDE in its STARTUPINFO, and Windows applies that to the first
 // ShowWindow call the process makes, on any window: the focus script's ShowWindow(mpv,
-// SW_SHOW) hid mpv's window, and no stream sent after that found a window until mpv quit
-// (2026-10-21). ShowWindowAsync is carried out by the window's own thread, so it shows.
+// SW_SHOW) hid mpv's window, and no stream sent after that found a window until mpv quit.
+// ShowWindowAsync is carried out by the window's own thread, so it shows.
 describe.runIf(process.platform === 'win32')('the focus script\'s show step', () => {
   // The window's owner is a PowerShell started hidden too. Created WS_VISIBLE, the window is
   // up without a ShowWindow call of its own (the one its startup SW_HIDE would take); off

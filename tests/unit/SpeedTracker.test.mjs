@@ -44,7 +44,7 @@ describe('SpeedTracker', () => {
   });
 
   // The prune cases fill the buffer directly: update() prunes as it goes, so entries added
-  // through it are already pruned, and a prune() that did nothing passed (#251).
+  // through it are already pruned, and a prune() that did nothing passed.
   /** A tracker holding entries that ended at the given times. */
   function trackerWith(...ends) {
     const t = new SpeedTracker();
@@ -94,7 +94,7 @@ describe('SpeedTracker', () => {
   });
 
   // The two entries kept were counted over an ever longer time: after the last download the
-  // speed went down slowly, never to 0 (review, 2026-10-09).
+  // speed went down slowly, never to 0.
   it('reports 0 once nothing has come for the whole window', () => {
     const now = performance.now();
     const t = trackerWith(now - 17000, now - 15000);

@@ -304,7 +304,7 @@ describe('Subtitle search', function() {
 
   it('does not fetch a download link that is not on OpenSubtitles', async function() {
     // The link in the API's answer was fetched with the extension's host permissions,
-    // whatever its scheme or host (#189).
+    // whatever its scheme or host.
     await openSearch();
     await search('film');
     await answerSearch(0, answer('Film'));

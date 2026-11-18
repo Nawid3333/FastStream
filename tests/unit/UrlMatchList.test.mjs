@@ -304,7 +304,7 @@ describe('domainEntriesExclude (the Auto-enable URLs list)', () => {
 // Two lists share this syntax. background.mjs once had its own parser for the Auto-enable
 // URLs list, and it drifted: it dropped -domain lines and accepted a lone `~`. Both lists
 // now go through this class; this keeps a second parser from coming back.
-// The MPV allowlist went to MpvMode.mjs with the rest of MPV mode (2026-11-07).
+// The MPV allowlist went to MpvMode.mjs with the rest of MPV mode.
 describe('background.mjs and MpvMode.mjs', () => {
   const source = ['background.mjs', 'MpvMode.mjs'].map((name) =>
     fs.readFileSync(path.resolve(import.meta.dirname, '../../chrome/background/' + name), 'utf8')).join('\n');

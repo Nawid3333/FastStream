@@ -45,7 +45,7 @@ describe('the toolbar button in MPV mode', () => {
 
   // The stream went to mpv, but through a host older than this extension was released
   // with (MpvBackend's RequiredHostVersion): the copy on the PC wants installing again. No
-  // "!" since the thin helper (2026-10-13): an older one still plays it, and lacks only newer
+  // "!" since the thin helper: an older one still plays it, and lacks only newer
   // features; only an error shows "!".
   it('says what to run after a hand-off through an outdated host, with no "!"', () => {
     BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null, mpvHostOutdated: true});

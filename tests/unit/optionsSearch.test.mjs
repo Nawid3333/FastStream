@@ -6,7 +6,7 @@ import {loadPage} from './helpers/fakeDom.mjs';
 // on the page; a section with data-search-section is hidden when none of its items is
 // left. Five sections had no data-search-section: a search hid single rows inside the MPV
 // section but left its heading, text and allowlist, and never hid the other four, so
-// "zoom" showed the zoom row followed by four unrelated sections (#278).
+// "zoom" showed the zoom row followed by four unrelated sections.
 
 const doc = loadPage('chrome/player/options/index.html');
 const removes = doc.querySelectorAll('.search-target-remove');

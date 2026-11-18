@@ -24,7 +24,7 @@
 //    mirror-side behaviour; ext-specs/embed-page-query.e2e.mjs checks that the
 //    background's store is empty after the click.
 //
-// And (2026-11-13) the mode dropdown no longer takes the focus from the address field when
+// And the mode dropdown no longer takes the focus from the address field when
 // the pointer passes over it.
 
 import {browser, expect} from '@wdio/globals';
@@ -256,7 +256,7 @@ describe('Sources Browser (Quellen Browser) UI', function() {
   });
 
   it('keeps the typing in the address field while the pointer passes over the mode dropdown', async function() {
-    // The review of 2026-11-13: the dropdown took the focus when the pointer came over it.
+    // The dropdown took the focus when the pointer came over it.
     // The address field's change ran on half an address (in Auto, a mode picked from it and
     // "Auto" gone for good), and the next letters went to the player's shortcuts.
     await openPlayer();

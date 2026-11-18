@@ -7,7 +7,7 @@ import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 // localescript.mjs, which every build runs (with no arguments: it checks the locale files'
 // keys). It reads its paths from where it sits, so each test runs a copy in a temp tree.
 // Without combined-locales.json it threw "Cannot read properties of undefined (reading
-// 'get')", failing the build, and `--whitelist` as the last argument threw on .split (#178).
+// 'get')", failing the build, and `--whitelist` as the last argument threw on .split.
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 let tmp;

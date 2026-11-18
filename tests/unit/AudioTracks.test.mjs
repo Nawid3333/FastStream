@@ -3,7 +3,7 @@ import {audioTrackLabel, audioTrackMime, pickAudioTrack} from '../../chrome/play
 
 // MP4Player played an MP4's first audio track, always: a film whose first track is Dolby
 // (which Firefox does not decode) failed outright next to a playable AAC track, and no other
-// language could be chosen (#665). AudioTracks.mjs says which track to start with and what
+// language could be chosen. AudioTracks.mjs says which track to start with and what
 // each is called.
 
 /**

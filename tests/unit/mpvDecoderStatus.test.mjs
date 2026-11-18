@@ -142,7 +142,7 @@ describe('the extension asking the host', () => {
     delete globalThis.chrome;
   });
 
-  // A host from before the thin helper (host 15): it answers the ipc message "unknown
+  // A host from before the thin helper: it answers the ipc message "unknown
   // message", and is asked with its status message then.
   const host = (answer) => {
     const sent = [];
@@ -209,7 +209,7 @@ describe('the extension asking the host', () => {
   });
 });
 
-// The thin helper (host 15, 2026-10-13) has no status message of its own to change: the
+// The thin helper has no status message of its own to change: the
 // extension asks mpv's properties through its ipc primitive, and reads them as the host did.
 describe('the extension asking the thin helper', () => {
   const Thin = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']};

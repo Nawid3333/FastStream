@@ -183,7 +183,7 @@ describe('readMessage', () => {
   });
 
   it('refuses a message one byte over the limit', async () => {
-    // Read to its end and answered as too large, not parsed (#151).
+    // Read to its end and answered as too large, not parsed.
     const input = new PassThrough();
     const read = readMessage(input);
     const body = Buffer.from(JSON.stringify({url: urlForBody(MaxMessageBytes + 1)}), 'utf8');

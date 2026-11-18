@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {LevelManager} from '../../chrome/player/players/LevelManager.mjs';
 
-// DashPlayer's side of the codec fallback (#348): a MEDIA_ERR_DECODE on its <video> counts
+// DashPlayer's side of the codec fallback: a MEDIA_ERR_DECODE on its <video> counts
 // against the codec of the level playing, which LevelManager leaves out from the second one
 // (decodingAwareQuality.test.mjs). dash.js itself is not needed for that, and not loaded.
 vi.mock('../../chrome/player/modules/dash.mjs', () => ({MediaPlayer: () => ({create: () => ({})})}));
@@ -85,7 +85,7 @@ describe('DashPlayer, a decode error', () => {
   });
 
   it('ends dash.js\'s resets when the load again had no other codec and its decoder still cannot start', () => {
-    // A bilibili video whose levels all named HEVC (2026-11-15): the load again without it had
+    // A bilibili video whose levels all named HEVC: the load again without it had
     // nothing else to pick, and dash.js reset the video ~130 times a second for ever. The new
     // player has the failure carried over (restoreVideoDecodeFailures).
     const {player, levelManager} = playing(decodeError(INIT_IPDL));

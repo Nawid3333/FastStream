@@ -2,7 +2,7 @@ import {describe, expect, it, vi} from 'vitest';
 import {FakeDocument} from './helpers/fakeDom.mjs';
 
 // Work the player did on every time update, which is every animation frame for a video
-// shorter than five minutes (#191):
+// shorter than five minutes:
 // - checkTrackBounds read the subtitle container's computed style (a forced layout) with
 //   no subtitle track at all;
 // - the markers were rewritten, unchanged, each time.

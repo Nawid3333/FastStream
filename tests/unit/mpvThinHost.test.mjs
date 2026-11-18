@@ -454,7 +454,7 @@ describe('playMpv', () => {
   });
 
   // --idle=once keeps an mpv that never loaded a file open for good: an empty window after
-  // the error (glm's review of host 15).
+  // the error.
   it('ends the mpv it started when its pipe stays silent or it refuses the stream, and only that one', async () => {
     const silent = stand({pipeUpAfter: Infinity});
     expect((await playMpv('mpv.exe', play(), {ipcToken: token}, silent)).ok).toBe(false);
@@ -626,7 +626,7 @@ describe('runIpc', () => {
 
   // Firefox takes at most 1 MB in one message from a host, and one answer is one message: a
   // value past that (a stream's metadata is the page's) is told as too large, and the other
-  // replies still arrive (glm's review, 2026-11-16).
+  // replies still arrive.
   it('tells a reply too large for one message as such, and keeps the others', async () => {
     const big = 'x'.repeat(MaxRelayLineBytes);
     expect(await runIpc([['get_property', 'pid'], ['get_property', 'media-title'], ['get_property', 'duration']], {
@@ -639,8 +639,8 @@ describe('runIpc', () => {
 
 describe('stopMpv', () => {
   // Windows hands out a process id again: an mpv that quit by itself while the helper waited
-  // for its pipe left its id to whatever program came next, and the kill ended that program
-  // (glm's review, 2026-11-16).
+  // for its pipe left its id to whatever program came next, and the kill ended that program.
+
   it('ends the process only while its id is still an mpv\'s, on Windows', async () => {
     const killed = [];
     const kill = (pid) => killed.push(pid);

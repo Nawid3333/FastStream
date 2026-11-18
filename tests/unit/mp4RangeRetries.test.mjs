@@ -2,7 +2,7 @@ import {describe, expect, it, vi} from 'vitest';
 
 // A range that failed gets three retries (2, 4, 8 s apart). Their count outlived every seek
 // and reset: once a network blip had used them up, the range failed on sight for good, even
-// after the user seeked away and back (review, 2026-10-09).
+// after the user seeked away and back.
 
 const {default: MP4Player} = await import('../../chrome/player/players/mp4/MP4Player.mjs');
 
@@ -47,7 +47,7 @@ describe('MP4Player, a range whose retries were used up', () => {
 
 // A destroyed player gave its holds on the fragments back only through resetHLS: a seek preview
 // or a frame extractor destroyed while the main player played on kept them, and the memory
-// budget could never let those fragments go (Codex's review, 2026-11-07).
+// budget could never let those fragments go.
 describe('MP4Player.destroy', () => {
   it('gives back its own holds on the fragments, one each, and no other player\'s', async () => {
     const {Fragment} = await import('../../chrome/player/players/Fragment.mjs');

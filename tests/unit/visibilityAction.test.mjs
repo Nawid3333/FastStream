@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import {describe, expect, it} from 'vitest';
 
 // The visibility actions (a play the browser blocks, picture-in-picture with no click behind
-// it) rejected at every tab change with nothing to hear it (glm's review, 2026-10-22).
+// it) rejected at every tab change with nothing to hear it.
 // InterfaceController cannot be imported in Node (its UI touches the DOM at module scope),
 // so its source is read.
 const source = fs.readFileSync(new URL('../../chrome/player/ui/InterfaceController.mjs', import.meta.url), 'utf8');
@@ -18,7 +18,7 @@ describe('InterfaceController, the visibility action', () => {
 describe('InterfaceController.handleVisibilityChange', () => {
   // VisChangeActions has no PIP (it is commented out there), so the switch's PIP case was a
   // `case undefined:` - an action that was not set entered picture-in-picture whenever the
-  // page was hidden (the review of 2026-11-13). Each of the switch's cases must name an action
+  // page was hidden. Each of the switch's cases must name an action
   // the list declares.
   const start = source.indexOf('  async handleVisibilityChange(isVisible) {');
   const end = source.indexOf('\n  }\n', start);

@@ -130,7 +130,7 @@ describe('faithful save flow (UI + embedded iframe)', function() {
     await browser.waitUntil(
         async () => browser.execute(() => !!document.querySelector('.fs-dialog .fs-dialog-input')),
         {timeout: 15000, timeoutMsg: 'filename prompt never appeared'});
-    // OK once the player's document has its size, as a user can click it (#697).
+    // OK once the player's document has its size, as a user can click it.
     await confirmPrompt(null);
 
     // Now the save runs. SaveManager hides the banner when the save settles
@@ -165,7 +165,7 @@ describe('faithful save flow (UI + embedded iframe)', function() {
   });
 });
 
-// The harness served every fixture whole, with 200, whatever range was asked for (#257).
+// The harness served every fixture whole, with 200, whatever range was asked for.
 // sample.mp4 fits MP4Player's first 1 MB range, so the save above never asks for a second
 // one: a range answered with the file's start would have gone unseen. long-av.mp4 (17 MB,
 // 160 s) needs many, and a seek 100 s in starts far past the first.

@@ -6,7 +6,7 @@
 // Firefox lets a page cancel an extension's shortcut: a keydown the page calls
 // preventDefault() on never reaches the command. Sites do it by accident -
 // VOE's "no view-source" guard cancels every Ctrl+U, Shift or not, and
-// swallowed Ctrl+Shift+U (2026-09-27). content.js reports a cancelled press to
+// swallowed Ctrl+Shift+U. content.js reports a cancelled press to
 // the background, which runs the command bound to it. A press the page leaves
 // alone is Firefox's to run, so the shortcut must fire once, never twice.
 //

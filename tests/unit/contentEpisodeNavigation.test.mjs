@@ -3,7 +3,7 @@ import {loadContentScript} from './contentDom.mjs';
 
 // Going on to the next episode in the page (content.js handlePlaylistNavigation): which link
 // counts, and how it is followed. HTML matches target and rel keywords in any case, and a
-// page's <base target> says where its links open (final review, 2026-10-11).
+// page's <base target> says where its links open.
 
 /**
  * A page on site.example, its location.assign() and its links' clicks recorded.
@@ -287,7 +287,7 @@ describe('the next episode, within the series', () => {
 
   // Only a field document.activeElement named counted: typing in a web component's field
   // (activeElement is its host) or in a chat's iframe counted as not typing, and the next
-  // episode's player took the keyboard mid-word (a review, 2026-11-13).
+  // episode's player took the keyboard mid-word.
   it('counts a field in a shadow root as typing', async () => {
     const p = episodePage().p;
     p.document.visibilityState = 'visible';
@@ -389,7 +389,7 @@ describe('the episode links read for a tab closed later', () => {
 
 describe('the episode links read for a tab closed later, on another site', () => {
   it('give no address for a link off the page\'s own origin', async () => {
-    // glm's review (2026-10-27): the background opens it in a tab nobody looks at. The link
+    // The background opens it in a tab nobody looks at. The link
     // finder already passes over another site's links (also one with rel=next); readEpisodeLinks
     // checks the origin once more, as that tab goes unseen.
     const {p, link, assigned} = episodePage();

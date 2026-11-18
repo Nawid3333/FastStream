@@ -54,7 +54,7 @@ describe('Options page number fields', function() {
     expect(await setField('seekstepsize', '-3')).toBe('0.1');
     expect(await savedOption('seekStepSize')).toBe(0.1);
 
-    // A decimal comma, as French and German write it: "2,5" was 2 (review, 2026-10-09).
+    // A decimal comma, as French and German write it: "2,5" was 2.
     expect(await setField('seekstepsize', '2,5')).toBe('2.5');
     expect(await savedOption('seekStepSize')).toBe(2.5);
 
@@ -64,7 +64,7 @@ describe('Options page number fields', function() {
   });
 
   // 0 is the least that still downloads (1), and empty no limit, the most (6). 0 was read as
-  // the default 6, the most (2026-10-09).
+  // the default 6, the most.
   it('reads a downloader limit of 0 as the least, empty as the most, and caps it at 6', async function() {
     expect(await setField('maxdownloaders', '0')).toBe('1');
     expect(await setField('maxdownloaders', '')).toBe('6');
@@ -164,7 +164,7 @@ describe('Options page settings import', function() {
 
   it('keeps this computer\'s mpv path, whatever the file says', async function() {
     // The path is the one program FastStream's helper starts: a settings file from someone
-    // else could name a program they had put on this computer (a review, 2026-11-15). And a
+    // else could name a program they had put on this computer. And a
     // path is this computer's: a file without one emptied it.
     const MINE = 'C:\\Tools\\mpv\\mpv.exe';
     await browser.execute((path) => localStorage.setItem('options', JSON.stringify({mpvPath: path})), MINE);
@@ -207,7 +207,7 @@ describe('Options page search box', function() {
 
   it('hides every section the search does not match, and finds a section by its heading', async function() {
     // Five sections were never hidden: "zoom" showed the zoom row, then the MPV, URL
-    // list, pattern, import/export and help sections in full (#278).
+    // list, pattern, import/export and help sections in full.
     const shownSections = (query) => browser.execute((query) => {
       const bar = document.getElementById('searchbar');
       bar.value = query;
@@ -300,8 +300,8 @@ describe('Options page size fields, typed by hand', function() {
     await (await browser.$(`#${id}unit`)).selectByVisibleText(unit);
   }
 
-  // Typed as text, "10 MB", "10 Mb" and "10 Mo" left the reporter unsure what the field took
-  // (#378): a number, and the unit beside it.
+  // Typed as text, "10 MB", "10 Mb" and "10 Mo" left the reporter unsure what the field took:
+  // a number, and the unit beside it.
   it('shows each size as a number and a unit, the speed in Mbit/s', async function() {
     expect(await shown('maxsize')).toEqual(['5', 'GB']);
     expect(await shown('rambudget')).toEqual(['2', 'GB']);
@@ -418,7 +418,7 @@ describe('Options page size fields, typed by hand', function() {
     await savedAs('maxSpeed', -1);
   });
 
-  // 0 is none and an empty field no limit (2026-10-09): 0 read as no limit surprised the
+  // 0 is none and an empty field no limit: 0 read as no limit surprised the
   // user who typed it to turn a thing off. What each does shows under the field.
   it('takes 0 as none and an empty field as no limit, and says so under the field', async function() {
     await typeInto('maxspeed', '8');
@@ -458,7 +458,7 @@ describe('Options page size fields, typed by hand', function() {
     expect(await hint('rambudget')).toBe(await message('options_general_rambudget_none'));
   });
 
-  // "Keep video on disk when this RAM is full" (2026-10-10): off, a budget of 0 is no longer
+  // "Keep video on disk when this RAM is full": off, a budget of 0 is no longer
   // "straight to disk", and the hint under the field says what it is then.
   it('saves "Keep video on disk", and says what a RAM budget of 0 means without it', async function() {
     const toggle = () => browser.execute(() => document.getElementById('buffertodisk').click());
@@ -528,7 +528,7 @@ describe('Options page size fields, typed by hand', function() {
     expect(await shown('rambudget')).toEqual(['100', 'MB']);
   });
 
-  // A number field has no caret position: putting it back threw (review, 2026-10-09).
+  // A number field has no caret position: putting it back threw.
   it('saves a number field its handler corrects, without an error', async function() {
     await browser.execute(() => {
       window.pageErrors = [];

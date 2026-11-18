@@ -69,7 +69,7 @@ describe('MP4Player loading', function() {
         return res.end();
       }
       const file = new URL(req.url, ORIGIN).pathname.slice(1).replace('.mp4', '');
-      // The harness's range reading (serveFile.mjs), as every test server's (#266).
+      // The harness's range reading (serveFile.mjs), as every test server's.
       const range = byteRange(req.headers.range, bytes.length);
       if (range === 'unsatisfiable') {
         res.writeHead(416, {...cors, 'Content-Range': `bytes */${bytes.length}`});

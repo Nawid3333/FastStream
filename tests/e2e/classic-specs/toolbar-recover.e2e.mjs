@@ -160,7 +160,7 @@ describe('Switching FastStream on after the page loaded its video', function() {
 
   // The page's Resource Timing entries keep its first 250 requests, and a page laden with
   // ads makes that many before its player asks for the stream: the stream was never among
-  // them, and a suspended background found nothing to open (#231). content.js's observer
+  // them, and a suspended background found nothing to open. content.js's observer
   // is told of every request.
   it('opens the player on the stream of a page that made 300 requests before it, the background suspended since', async function() {
     const c = Date.now();

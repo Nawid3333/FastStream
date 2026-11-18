@@ -186,7 +186,7 @@ describe('Player controls', function() {
   });
 
   // Let go outside the player, a drag on the bar never ended: every later move seeked, and
-  // the next click played the video (review, 2026-10-09).
+  // the next click played the video.
   it('ends a drag on the bar on a move with no button held, and on a reset', async function() {
     await openEmptyPlayer();
     await addSource(mp4Url());
@@ -238,7 +238,7 @@ describe('Player controls', function() {
       }).catch((e) => done('failed: ' + e));
     }));
     expect(shown).toBe(true);
-    // Its "all buffered" said too (review): the next video, buffered from the start, said nothing.
+    // Its "all buffered" said too: the next video, buffered from the start, said nothing.
     await browser.execute(() => {
       window.fastStream.interfaceController.shownDownloadComplete = true;
     });
@@ -277,7 +277,7 @@ describe('Player controls', function() {
 
   it('can be used from the keyboard: the big play button, the volume slider', async function() {
     // Tab skipped the big play button, and the volume slider had no value for a screen
-    // reader (#270).
+    // reader.
     await openEmptyPlayer();
     const big = await browser.execute(() => {
       const circle = document.querySelector('.mainplayer .fluid_control_playpause_big_circle');
@@ -299,7 +299,7 @@ describe('Player controls', function() {
   });
 
   it('copies a link from the time readout without the login headers', async function() {
-    // The copied link held the page's Cookie and Authorization in its query (#185).
+    // The copied link held the page's Cookie and Authorization in its query.
     await openEmptyPlayer();
     const error = await browser.execute((url) => new Promise((done) => {
       Promise.all([import('/player/VideoSource.mjs'), import('/player/utils/URLUtils.mjs')])
@@ -359,7 +359,7 @@ describe('Player controls', function() {
   });
 
   it('counts down as long as the options say, and its cross stops autoplay for the tab', async function() {
-    // His choice (2026-10-11): a countdown before the next episode, which can be stopped.
+    // His choice: a countdown before the next episode, which can be stopped.
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
@@ -389,7 +389,7 @@ describe('Player controls', function() {
   });
 
   it('turns autoplay next on and off with its switch, which is always in the bar', async function() {
-    // His wish (2026-10-11): only a right click on the next button did it, and nobody found it.
+    // His wish: only a right click on the next button did it, and nobody found it.
     // Then the switch went with the next button, and so was never there where FastStream
     // found no next link on the page: now it is a tool of its own, like YouTube's.
     await openEmptyPlayer();
@@ -438,7 +438,7 @@ describe('Player controls', function() {
   });
 
   it('goes on to the next video when the stream gets stuck in its last seconds', async function() {
-    // His report (2026-10-11): "sometimes it seems to hang" at the end. A last fragment that
+    // "sometimes it seems to hang" at the end. A last fragment that
     // never comes (here a 404) left the video waiting 2 s before its end, which autoplay
     // waited for (FastStreamClient.watchEndStall).
     const dir = new URL('../fixtures/hls-ts/', import.meta.url);
@@ -470,7 +470,7 @@ describe('Player controls', function() {
   });
 
   it('shows the picture in the aspect ratio chosen, stretched, or as it is', async function() {
-    // Upstream #552, back on his word (2026-10-11): a 4:3 show without bars beside it.
+    // Upstream #552, back on his word: a 4:3 show without bars beside it.
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
@@ -621,7 +621,7 @@ describe('Player controls', function() {
   });
 
   it('pauses on a click at once, as the Space key does, and a double click plays on', async function() {
-    // His report (2026-10-11): a click paused 300 ms after it came, the time it waited to
+    // A click paused 300 ms after it came, the time it waited to
     // see whether a double click followed; Space paused at once (ClickSequence).
     await openEmptyPlayer();
     await addSource(mp4Url());
@@ -659,7 +659,7 @@ describe('Player controls', function() {
   });
 });
 
-// #383: "sometimes the progress bar stays visible for a long time or forever; pausing and
+// "sometimes the progress bar stays visible for a long time or forever; pausing and
 // playing a few times makes it go." The hide was decided once, when its timer fired, from
 // flags that can be stale.
 describe('Player controls, hiding by themselves', function() {
@@ -741,7 +741,7 @@ describe('Player controls, hiding by themselves', function() {
   // focus away. In the player a site's page holds, fullscreen moves the bar from under the
   // pointer and that mouseleave can be lost (measured in the classic suite: focus on the
   // fullscreen button, the bar not hovered, no mouseleave), and the bar stayed until a
-  // click on the video moved the focus (#392). Here the mouseleave is swallowed on purpose.
+  // click on the video moved the focus. Here the mouseleave is swallowed on purpose.
   it('hides the bar after a click on one of its buttons, when the pointer leaves unheard', async function() {
     await playerWithPointerAway();
     await browser.waitUntil(async () => !(await controlsVisible()),

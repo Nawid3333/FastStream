@@ -138,7 +138,7 @@ describe.runIf(process.platform === 'win32')('install.ps1 run again', () => {
   }, 60000);
 
   // A reinstall run by hand has no -MpvPath: the default came back over an mpv elsewhere,
-  // and "Send to mpv" failed (#241).
+  // and "Send to mpv" failed.
   it('keeps the configured mpv path when run without -MpvPath', async () => {
     const installDir = path.join(dir, 'FastStreamMpvHost');
     fs.mkdirSync(installDir, {recursive: true});
@@ -153,7 +153,7 @@ describe.runIf(process.platform === 'win32')('install.ps1 run again', () => {
     expect(config).toMatchObject({mpvPath: mpv, debug: true});
   }, 60000);
 
-  // The host names its pipe to mpv with it; pipe names are machine-wide (#156).
+  // The host names its pipe to mpv with it; pipe names are machine-wide.
   it('gives the host a random pipe token once, and keeps it', async () => {
     const installDir = path.join(dir, 'FastStreamMpvHost');
     const mpv = path.join(dir, 'mpv.exe');
@@ -190,7 +190,7 @@ describe.runIf(process.platform === 'win32')('install.ps1 run again', () => {
   }, 60000);
 
   // Saved as it was, a relative path was read from the folder Firefox starts the host in,
-  // and no mpv was found there (final review, 2026-10-10). A bare name stays for PATH.
+  // and no mpv was found there. A bare name stays for PATH.
   it('saves a relative mpv path as the full path, and a bare name as it is', async () => {
     const installDir = path.join(dir, 'FastStreamMpvHost');
     const mpv = path.join(dir, 'portable', 'mpv.exe');

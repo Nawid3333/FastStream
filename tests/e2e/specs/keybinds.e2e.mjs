@@ -185,7 +185,7 @@ describe('Keybinds', function() {
 
   it('never runs the video faster than options.maxPlaybackRate, whoever sets the rate', async function() {
     // Holding the mouse on the video doubles the rate: at 5x that asked for 10x, which only
-    // the speed menu clamped, and the video played it, silent (#184).
+    // the speed menu clamped, and the video played it, silent.
     const rates = await browser.execute(() => {
       window.fastStream.playbackRate = 5 * 2;
       return [window.fastStream.playbackRate, window.fastStream.player.getVideo().playbackRate];
@@ -313,7 +313,7 @@ describe('Keybinds', function() {
   }
 
   // AltGr types a character (@, €, { on a German keyboard), and Windows reports it as
-  // Ctrl+Alt: typed into a field, it fired Right Alt's "hide player" (review, 2026-10-09).
+  // Ctrl+Alt: typed into a field, it fired Right Alt's "hide player".
   it('does not hide the player for AltGr typed in a field, while Right Alt still does', async function() {
     const altGr = (target) => browser.execute((target) => {
       const element = target ? document.getElementById(target) : document.body;
@@ -371,7 +371,7 @@ describe('Keybinds saved before the layout changed', function() {
     expect(map.NextChapter).toBeUndefined();
     expect(map.PreviousVideo).toBe('Shift+KeyB');
     expect(map.RotateVideo).toBe('Shift+KeyR');
-    // the video filters' key went with them (2026-10-10): a saved binding of it is dropped
+    // the video filters' key went with them: a saved binding of it is dropped
     expect(map.ToggleVisualFilters).toBeUndefined();
     // A binding on something other than the old default is not moved.
     expect(map.FlipVideo).toBe('KeyV');
@@ -446,7 +446,7 @@ describe('mpv seek keys', function() {
 
   // The numpad with NumLock off, from the real keyboard (WebDriver's numpad keys): its 4 and 6
   // are ArrowLeft and ArrowRight with the codes Numpad4 and Numpad6. Named by position, no
-  // arrow binding fired (upstream #482).
+  // arrow binding fired.
   for (const [label, key, delta] of [['numpad ArrowLeft', '', -5], ['numpad ArrowRight', '', 5]]) {
     it(`the ${label} seeks ${delta > 0 ? '+' : ''}${delta} s as the main arrow does`, async function() {
       await seekTo(80);
@@ -501,7 +501,7 @@ describe('mpv seek keys', function() {
 
   // A jump from the end of the video back to 0, as reset() makes after the test below, was
   // once seen, about once in fifteen runs on one CPU core, to leave the player at 0 with
-  // nothing loading (#265). mp4-seek.e2e.mjs checks that jump on its own, eight times over
+  // nothing loading. mp4-seek.e2e.mjs checks that jump on its own, eight times over
   // on the same file, with the player's state in the failure; a three-jump copy of it here
   // went on 2026-10-13. The hop test further down starts from a freshly loaded video, so
   // that jump cannot touch it.
@@ -785,7 +785,7 @@ describe('The 16x key', function() {
   it('plays 16x with the 16x key, and says there is no sound', async function() {
     // That Firefox plays no sound above 8x is firefox.e2e.mjs's to pin.
     // It gave 8x, the same as the 8x key: 8 is where Firefox stops playing sound (measured,
-    // firefox.e2e.mjs). His decision (2026-10-10): 16x anyway, silent, as mpv's 16x is.
+    // firefox.e2e.mjs). His decision: 16x anyway, silent, as mpv's 16x is.
     // Everything else stops at the sound: the menu, the speed keys, holding the video.
     expect(await browser.execute(() => window.fastStream.options.maxPlaybackRate)).toBe(8);
     await reset();
@@ -797,8 +797,8 @@ describe('The 16x key', function() {
       const waitStart = performance.now();
       video.play().catch(() => {});
       // Measured once it plays: timed from play(), a slow runner's start took most of the
-      // 1.5 s, and the pace read 1.3x on a Linux runner where the run before read 4.5x
-      // (2026-10-10, #422). Stuck at 1x it gets there too, half a second later.
+      // 1.5 s, and the pace read 1.3x on a Linux runner where the run before read 4.5x.
+      // Stuck at 1x it gets there too, half a second later.
       const measure = () => {
         const from = video.currentTime;
         const start = performance.now();
@@ -821,7 +821,7 @@ describe('The 16x key', function() {
     expect(fast.osd).toBe(`16× · ${en.player_speed_nosound.message}`);
     // Well past 1x: a video taken by Web Audio without an audio track stays at 1x whatever
     // the rate (sample.mp4, above). How fast it really goes is the decoder's: 15.6x here, 4.5x
-    // on a Linux CI runner (2026-10-10).
+    // on a Linux CI runner.
     expect(fast.pace).toBeGreaterThan(2);
 
     // The speed-up key leaves it there (min() took it down to 8x).

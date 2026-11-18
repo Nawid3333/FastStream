@@ -4,7 +4,7 @@ import {AudioUtils} from '../../chrome/player/utils/AudioUtils.mjs';
 // The volume meters, the silence graph and the silence skipper read AudioUtils.getVolume.
 // It averaged the analyser's 127 bins' power instead of adding it, which put every level
 // 21 dB low, and read the bins as bytes, which stop at maxDecibels (-30): every tone louder
-// than about -16 dB of full scale read the same, and the meters filled no further (#202).
+// than about -16 dB of full scale read the same, and the meters filled no further.
 
 /**
  * An AnalyserNode as the Web Audio spec computes its frequency data, without smoothing (a

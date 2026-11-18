@@ -179,7 +179,7 @@ describe('SaveManager: the URL of a finished save', () => {
   });
 
   // Saved again after another quality or audio track was picked, it was the previous one's
-  // file under the new name (review, 2026-10-09).
+  // file under the new name.
   it('makes the file again once the quality has changed', async () => {
     let level = '1080p';
     const player = {
@@ -282,7 +282,7 @@ describe('SaveManager: a file whose length is not known yet', () => {
   });
 });
 
-// The player's mpv button. Since the thin helper (2026-10-13) an older helper still plays the
+// The player's mpv button. Since the thin helper an older helper still plays the
 // stream and lacks only newer features: the owner chose no warning here for it.
 describe('SaveManager.openInMpv', () => {
   afterEach(() => {
@@ -366,7 +366,7 @@ describe('SaveManager.openInMpv', () => {
 
 describe('SaveManager.hasPicture', () => {
   // A size from the metadata alone: drawImage draws nothing before a frame is decoded, and the
-  // screenshot was an empty file that said "saved" (review).
+  // screenshot was an empty file that said "saved".
   it('needs a decoded frame, not only the size', () => {
     expect(SaveManager.hasPicture({videoWidth: 640, videoHeight: 360, readyState: 2})).toBe(true);
     expect(SaveManager.hasPicture({videoWidth: 640, videoHeight: 360, readyState: 1})).toBe(false);

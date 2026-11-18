@@ -45,7 +45,7 @@ describe('newestNode', () => {
     expect(newestNode([{version: 'v28.0.0', date: daysAgo(1).slice(0, 10)}], 28, now)).toBe(null);
   });
 
-  // update-local.ps1 builds a URL and a file name from it (#243): an index that names
+  // update-local.ps1 builds a URL and a file name from it: an index that names
   // anything else is skipped, as if that release did not exist.
   it('skips a version of any other shape', () => {
     const odd = [
@@ -178,7 +178,7 @@ describe('update-local.ps1', () => {
 
   // Windows PowerShell started under PowerShell 7 by anything but PowerShell 7 itself
   // (update-local.cmd from a PowerShell 7 terminal, as VS Code's is; vitest started there)
-  // inherits 7's module folders first, and Get-Acl's module then failed to load (2026-10-04).
+  // inherits 7's module folders first, and Get-Acl's module then failed to load.
   it.runIf(process.platform === 'win32')('New-PrivateDirectory works with PowerShell 7\'s module folders first', (ctx) => {
     const pwsh = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', '$PSHOME'],
         {encoding: 'utf8', windowsHide: true});
@@ -315,7 +315,7 @@ describe('update-local.ps1', () => {
         // PowerShell's own modules only: with LOCALAPPDATA in a fresh folder its module
         // analysis cache is gone, and every lookup of a command that is not there
         // (Get-Command wsl.exe) scanned every installed module - hundreds on GitHub's runner,
-        // 25-45 s per run (2026-10-04), against about 1 s here.
+        // 25-45 s per run, against about 1 s here.
         const powershellDir = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0');
         // On PATH too, after the stand-ins (it holds no node, npm, pnpm, git or wsl), so the
         // command below is the literal powershell.exe: built from SystemRoot, it was a command
@@ -335,7 +335,7 @@ describe('update-local.ps1', () => {
 
     // GitHub's Windows runner takes about 20 s a run with the module path above (about 2 s
     // here), and its first run in a job more than 100 s on top, once: the first case timed
-    // out on main (2026-10-14) while the six after it took about 20 s each. A first run that
+    // out on main while the six after it took about 20 s each. A first run that
     // counts for nothing takes that once.
     beforeAll(() => {
       runCheck({}, false, 280000);
@@ -363,7 +363,7 @@ describe('update-local.ps1', () => {
     }, 120000);
   });
 
-  // The Node.js step's download folder goes however the step ends (#244): a declined admin
+  // The Node.js step's download folder goes however the step ends: a declined admin
   // prompt makes Start-Process throw, like the throw here.
   it.runIf(process.platform === 'win32').each([
     ['succeeds', '', 'done'],

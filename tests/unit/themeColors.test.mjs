@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import {describe, expect, it} from 'vitest';
 
 // The player's 12 themes are blocks of the same CSS variables in colors.css. Three colours
-// were written into the page and the CSS instead (#277): the muted-speaker icon and the big
+// were written into the page and the CSS instead: the muted-speaker icon and the big
 // play circle kept the dark themes' colours on the light ones, and the mixer's "configured"
 // colour had !important, which no theme could override.
 
@@ -61,7 +61,7 @@ describe('theme colours', () => {
   });
 
   it('keeps the OLED theme true black wherever there is a surface', () => {
-    // His request (2026-10-10): an OLED screen's pixels stay off behind the video, the bar's
+    // His request: an OLED screen's pixels stay off behind the video, the bar's
     // end, the menus and the windows.
     const oled = themes().get('oled');
     for (const name of ['--mainplayer-background-color', '--menu-background-color', '--popwindow-background-color',

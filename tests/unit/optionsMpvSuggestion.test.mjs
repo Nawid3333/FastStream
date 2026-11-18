@@ -200,7 +200,7 @@ describe('the offer to turn MPV mode on', () => {
     expect(page.banner().hidden).toBe(true);
   });
 
-  // Its "MPV mode is on" stayed up, untrue, until closed by hand (review, 2026-10-09).
+  // Its "MPV mode is on" stayed up, untrue, until closed by hand.
   it('goes once taken when MPV mode is turned off again', async () => {
     const page = await openOptionsPage();
     page.byId('mpvsuggestyes').fire('click');

@@ -93,7 +93,7 @@ describe('An MP4 whose first keyframe stretch runs past the first range', functi
     });
     // From the first range alone: everything after it is still held back.
     // A first range that held the next keyframe too would play without the fix as well: this
-    // spec would no longer tell (glm's review).
+    // spec would no longer tell.
     expect(firstRangeEnd).toBeGreaterThan(0);
     expect(firstRangeEnd).toBeLessThan(SECOND_KEYFRAME_BYTE);
     expect(laterRangesServed).toBe(0);
