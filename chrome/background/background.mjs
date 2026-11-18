@@ -392,9 +392,9 @@ async function openLinkIn(tabobj, linkUrl, mpv, linkText) {
   const youTube = mpv ? youTubeVideo(url) : null;
   if (youTube) {
     if (Logging) console.log('[MPV] YouTube link to mpv:', youTube.url);
-    // Not this page's subtitles or qualities: the video is another page's.
-    const result = await openInMpv(tabobj.id, youTube.url, null, undefined, resolveMpvContentType(null, youTube.url),
-        youTube.url, linkText, {startTime: youTube.start, subtitles: undefined, qualities: null});
+    // No tab: the video is not this page's, so neither its subtitles nor its next episode go with it.
+    const result = await openInMpv(-1, youTube.url, null, undefined, resolveMpvContentType(null, youTube.url),
+        youTube.url, linkText, {startTime: youTube.start, private: tabobj.incognito === true});
     const tab = typeof tabobj.id === 'number' ? Tabs.getTab(tabobj.id) : null;
     if (tab) {
       setMpvError(tab, result);

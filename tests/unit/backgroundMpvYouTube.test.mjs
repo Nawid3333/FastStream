@@ -137,6 +137,21 @@ describe('Open link in MPV on a YouTube link', () => {
     expect(bg.sent('PAUSE_MEDIA')).toEqual([]);
   });
 
+  it('ties mpv to no tab: the page it was in has no next episode of it', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAutoplayNext: true},
+      tabs: [{id: 1, url: 'https://site.test/watch/1'}]});
+    await bg.menuClick(MenuIds.LINK_MPV, 1, {linkUrl: VIDEO});
+    expect(bg.toMpv()).toEqual([VIDEO]);
+    expect(bg.ports).toEqual([]);
+  });
+
+  it('keeps a private window\'s video private (no resume position in mpv)', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, thinHost: true,
+      tabs: [{id: 1, url: 'https://site.test/page', incognito: true}]});
+    await bg.menuClick(MenuIds.LINK_MPV, 1, {linkUrl: VIDEO});
+    expect(JSON.stringify(bg.native.filter((m) => m.type === 'play'))).toContain('fs-private=1');
+  });
+
   it('opens any other link in a new tab in MPV, as before', async () => {
     bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: 'https://site.test/page'}]});
     await bg.menuClick(MenuIds.LINK_MPV, 1, {linkUrl: 'https://www.youtube.com/playlist?list=PL0123456789'});
