@@ -23,7 +23,8 @@ import {MpvSubtitles} from './MpvSubtitles.mjs';
 import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
 import {RuleManager} from './NetRequestRuleManager.mjs';
 import {StreamLengths} from './StreamLengths.mjs';
-import {classifyResponse, modeFromQuery, urlType} from './StreamDetection.mjs';
+import {sniffManifest} from './ManifestSniffer.mjs';
+import {classifyResponse, modeFromQuery, urlType, worthSniffing} from './StreamDetection.mjs';
 import {relayPageFetch} from './PageFetchRelay.mjs';
 import {TabTracker} from './TabTracker.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
@@ -3280,6 +3281,33 @@ chrome.webRequest.onHeadersReceived.addListener(
       urls: ['<all_urls>'],
     }, webRequestPerms2,
 );
+
+// A manifest whose address and Content-Type name no type (text/plain at /pl/7?token=...): told by its first bytes.
+// Registered before deleteHeaderCache, which forgets the request's headers.
+const filterResponseData = /** @type {*} */ (chrome.webRequest).filterResponseData;
+if (typeof filterResponseData === 'function') {
+  chrome.webRequest.onHeadersReceived.addListener(
+      (details) => {
+        if (isTablessRequest(details) || !worthSniffing(details)) return;
+        const tab = Tabs.getTabOrCreate(details.tabId);
+        const frame = tab.getFrameOrCreate(details.frameId);
+        if (frame.hasPlayer()) return;
+        if (classifyResponse(details, tab.redirectOrigin(details.requestId), CustomSourcePatternsMatcher).kind !== 'ignore') return;
+        const customHeaders = tab.requestHeaders.get(details.requestId);
+        const documentKey = frame.documentKey;
+        sniffManifest((requestId) => filterResponseData(requestId), details.requestId).then((mode) => {
+          if (!mode || !frame.isTracked() || frame.documentKey !== documentKey || frame.hasPlayer()) return;
+          VpnMirror.noteSource(details);
+          return onSourceRecieved({url: details.url, requestId: details.requestId, customHeaders}, frame, mode);
+        }).catch((e) => {
+          console.error('A manifest told by its first bytes was not taken', e);
+        });
+      }, {
+        urls: ['<all_urls>'],
+        types: ['xmlhttprequest', 'other'],
+      }, ['blocking', 'responseHeaders'],
+  );
+}
 
 chrome.webRequest.onHeadersReceived.addListener(deleteHeaderCache, {
   urls: ['<all_urls>'],

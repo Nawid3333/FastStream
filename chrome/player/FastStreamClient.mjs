@@ -39,6 +39,7 @@ import {describePlayerError, isNetworkFailure} from './utils/PlayerErrorUtils.mj
 import {isDecodeError, isSamePlace, pastBrokenMedia} from './utils/BrokenMedia.mjs';
 import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {PageFetch} from './network/PageFetch.mjs';
+import {StreamQuery} from './network/StreamQuery.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {besidePlayhead, downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate} from './network/PlayheadFirst.mjs';
 import {isTimed, untimedSpans} from './network/UntimedSpans.mjs';
@@ -1021,6 +1022,7 @@ export class FastStreamClient extends EventEmitter {
       // Loaded through the asking frame (else the player's page) when FastStream itself is refused.
       PageFetch.configure(this.page && source.url.startsWith('http') ?
         {tabId: this.page.tabId, frameId: source.pageFrameId ?? this.page.frameId} : null);
+      StreamQuery.configure(source.url.startsWith('http') ? source.url : null);
       // A start time the source came with is armed here, before the awaits: nothing plays before it is applied,
       // or a canplay meanwhile autoplays from 0 and the time jumps later.
       const startTime = timeFromURL || 0;

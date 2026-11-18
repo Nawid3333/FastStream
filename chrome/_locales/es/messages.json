@@ -1337,6 +1337,18 @@
     "perms_page_breakdown_perm10d": {
         "message": "Añade elementos de FastStream al menú contextual de las páginas web: reproducir el vídeo de la página en FastStream o MPV, o abrir un enlace en una pestaña nueva con FastStream o MPV activado. Firefox no muestra ninguna advertencia por esto."
     },
+    "perms_page_breakdown_perm11h": {
+        "message": "Acceder a la API de webRequest con bloqueo"
+    },
+    "perms_page_breakdown_perm11d": {
+        "message": "FastStream retiene la solicitud de un reproductor solo el momento necesario para empezar a leer sus primeros bytes (el siguiente permiso lo necesita)."
+    },
+    "perms_page_breakdown_perm12h": {
+        "message": "Leer los primeros bytes de las respuestas"
+    },
+    "perms_page_breakdown_perm12d": {
+        "message": "FastStream lee los primeros bytes de una solicitud de un reproductor cuya dirección y tipo no indican un stream, para reconocer una lista HLS o un manifiesto DASH. Los bytes llegan a la página sin cambios y el resto de la respuesta no se toca."
+    },
     "player_audio_output_label": {
         "message": "Salida de audio"
     },

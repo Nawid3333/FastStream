@@ -1337,6 +1337,18 @@
     "perms_page_breakdown_perm10d": {
         "message": "Menambahkan item FastStream ke menu klik kanan halaman web: putar video halaman di FastStream atau MPV, atau buka tautan di tab baru dengan FastStream atau MPV aktif. Firefox tidak menampilkan peringatan untuk hal ini."
     },
+    "perms_page_breakdown_perm11h": {
+        "message": "Akses API webRequest pemblokiran"
+    },
+    "perms_page_breakdown_perm11d": {
+        "message": "FastStream menahan permintaan pemutar sesaat agar dapat mulai membaca byte pertamanya (izin berikutnya memerlukannya)."
+    },
+    "perms_page_breakdown_perm12h": {
+        "message": "Membaca byte pertama dari respons"
+    },
+    "perms_page_breakdown_perm12d": {
+        "message": "FastStream membaca byte pertama dari permintaan pemutar yang alamat dan jenisnya tidak menyebut stream, untuk mengenali playlist HLS atau manifest DASH. Byte tersebut diteruskan ke halaman tanpa diubah, dan sisa respons tidak disentuh."
+    },
     "player_audio_output_label": {
         "message": "Output audio"
     },

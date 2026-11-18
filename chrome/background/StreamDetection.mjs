@@ -1,4 +1,5 @@
 // @ts-check
+import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {contentTypeOf, modeFromContentType, modeFromMediaType} from './ManifestTypes.mjs';
 
@@ -74,6 +75,49 @@ export function classifyResponse(details, first, matcher) {
     }
   }
   return {kind: 'source', mode};
+}
+
+// Types a server gives a manifest it does not name, and none at all.
+const UNNAMED_TYPES = ['', 'text/plain', 'application/octet-stream', 'binary/octet-stream', 'application/binary'];
+// Never a manifest, whatever their Content-Type says.
+const NOT_MANIFEST_EXTENSIONS = ['js', 'mjs', 'json', 'css', 'html', 'htm', 'svg', 'png', 'jpg', 'jpeg', 'gif', 'webp',
+  'avif', 'ico', 'woff', 'woff2', 'ttf', 'wasm', 'ts', 'm4s', 'mp4', 'aac', 'mp3'];
+export const SNIFF_BYTES = 1024;
+
+/**
+ * Whether a response classifyResponse ignored can still be a manifest only its first bytes tell:
+ * a player's 200 fetch of a type a server gives an unnamed playlist (text/plain, octet-stream).
+ * @param {{url: string, statusCode: number, method?: string, type?: string,
+ *   responseHeaders?: Array<{name: string, value?: string}>}} details
+ * @return {boolean}
+ */
+export function worthSniffing(details) {
+  if (details.statusCode !== 200 || (details.method && details.method !== 'GET')) return false;
+  if (details.type !== 'xmlhttprequest' && details.type !== 'other') return false;
+  if (!UNNAMED_TYPES.includes(contentTypeOf(details.responseHeaders))) return false;
+  return !NOT_MANIFEST_EXTENSIONS.includes(URLUtils.get_url_extension(details.url));
+}
+
+const HLS_START = '#EXTM3U';
+
+/**
+ * The player mode a manifest's first bytes name: HLS by #EXTM3U and an #EXT-X- tag (an IPTV or
+ * Winamp .m3u list has none), DASH by an <MPD> root.
+ * @param {string} text - The body's first SNIFF_BYTES or fewer.
+ * @param {boolean} complete - Whether text is the whole body.
+ * @return {string|null|undefined} The mode; null for none; undefined while more bytes may tell.
+ */
+export function modeFromBody(text, complete) {
+  const start = text.trimStart();
+  const undecided = complete || text.length >= SNIFF_BYTES ? null : undefined;
+  if (start.startsWith(HLS_START)) return start.includes('#EXT-X-') ? PlayerModes.ACCELERATED_HLS : undecided;
+  if (HLS_START.startsWith(start)) return undecided;
+  if (start[0] !== '<') return null;
+  const root = start.replace(/^<\?xml[^>]*\?>\s*/, '').replace(/^(<!--[\s\S]*?-->\s*)*/, '');
+  if (/^<MPD[\s>]/.test(root)) return PlayerModes.ACCELERATED_DASH;
+  // A prolog or comment not ended yet, or <MPD cut short.
+  if (/^<(\?|!--)/.test(root) || '<!--'.startsWith(root) || '<MPD'.startsWith(root)) return undecided;
+  return null;
 }
 
 /**

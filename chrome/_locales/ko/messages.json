@@ -1337,6 +1337,18 @@
     "perms_page_breakdown_perm10d": {
         "message": "웹 페이지의 우클릭 메뉴에 FastStream 항목을 추가합니다. 페이지의 영상을 FastStream 또는 MPV에서 재생하거나, FastStream 또는 MPV가 켜진 상태로 링크를 새 탭에서 열 수 있습니다. Firefox는 이에 대해 경고를 표시하지 않습니다."
     },
+    "perms_page_breakdown_perm11h": {
+        "message": "차단형 webRequest API 접근"
+    },
+    "perms_page_breakdown_perm11d": {
+        "message": "FastStream은 플레이어 요청의 첫 바이트를 읽기 시작할 때까지만 요청을 잠시 붙잡아 둡니다(다음 권한에 필요합니다)."
+    },
+    "perms_page_breakdown_perm12h": {
+        "message": "응답의 첫 바이트 읽기"
+    },
+    "perms_page_breakdown_perm12d": {
+        "message": "주소와 유형으로 스트림임을 알 수 없는 플레이어 요청에 대해 FastStream은 첫 바이트를 읽어 HLS 재생 목록이나 DASH 매니페스트인지 알아냅니다. 바이트는 변경 없이 페이지로 전달되며 응답의 나머지는 건드리지 않습니다."
+    },
     "player_audio_output_label": {
         "message": "오디오 출력"
     },

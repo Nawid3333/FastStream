@@ -1337,6 +1337,18 @@
     "perms_page_breakdown_perm10d": {
         "message": "Aggiunge elementi di FastStream al menu contestuale delle pagine web: riproduci il video della pagina in FastStream o MPV, oppure apri un link in una nuova scheda con FastStream o MPV attivo. Firefox non mostra alcun avviso per questa operazione."
     },
+    "perms_page_breakdown_perm11h": {
+        "message": "Accedere all'API webRequest bloccante"
+    },
+    "perms_page_breakdown_perm11d": {
+        "message": "FastStream trattiene la richiesta di un player solo il tempo necessario per iniziare a leggerne i primi byte (il permesso successivo ne ha bisogno)."
+    },
+    "perms_page_breakdown_perm12h": {
+        "message": "Leggere i primi byte delle risposte"
+    },
+    "perms_page_breakdown_perm12d": {
+        "message": "FastStream legge i primi byte di una richiesta di un player il cui indirizzo e tipo non indicano uno stream, per riconoscere una playlist HLS o un manifest DASH. I byte arrivano alla pagina invariati e il resto della risposta non viene toccato."
+    },
     "player_audio_output_label": {
         "message": "Uscita audio"
     },

@@ -672,3 +672,51 @@ describe('a frame\'s read <track> files', () => {
     expect(subtitles.map((s) => [s.label, s.data.length])).toEqual([['1', 5], ['2', 3]]);
   });
 });
+
+// A playlist at an address that names no type, which its server calls text/plain: told by its first
+// bytes, read through Firefox's StreamFilter as they pass on to the page (ManifestSniffer).
+describe('a manifest only its first bytes tell', () => {
+  /** StreamFilters by request id, each answering with the body it is given. */
+  function filters() {
+    const opened = new Map();
+    const open = (requestId) => {
+      const filter = {written: [], disconnected: false, write(d) {
+        this.written.push(d);
+      }, disconnect() {
+        this.disconnected = true;
+      }, close() {}};
+      opened.set(requestId, filter);
+      return filter;
+    };
+    return {open, opened};
+  }
+
+  const TEXT = {responseHeaders: [{name: 'Content-Type', value: 'text/plain; charset=utf-8'}]};
+
+  it('is a stream when its first bytes are an HLS playlist, with the request\'s headers', async () => {
+    const {open, opened} = filters();
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}], filterResponseData: open});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    const sent = await bg.request({tabId: 1, url: 'https://cdn.test/pl/7?token=a'}, TEXT);
+    const filter = opened.get(sent.requestId);
+    filter.ondata({data: new TextEncoder().encode('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n/pl/7/a\n').buffer});
+    await bg.wait(10);
+    expect(filter.disconnected).toBe(true);
+    const sources = await sourcesForPlayer();
+    expect(sources.map((s) => [s.url, s.mode])).toEqual([['https://cdn.test/pl/7?token=a', 'accelerated_hls']]);
+    expect(sources[0].headers).toEqual([{name: 'Referer', value: 'https://site.test/'}]);
+  });
+
+  it('is nothing when its first bytes are not, and nothing is read of a script or a named stream', async () => {
+    const {open, opened} = filters();
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}], filterResponseData: open});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    const api = await bg.request({tabId: 1, url: 'https://cdn.test/api/7'}, TEXT);
+    opened.get(api.requestId).ondata({data: new TextEncoder().encode('{"ok":true}').buffer});
+    await bg.request({tabId: 1, url: 'https://cdn.test/app.js'}, TEXT);
+    await bg.request({tabId: 1, url: 'https://cdn.test/v/master.m3u8'}, TEXT);
+    expect([...opened.keys()]).toEqual([api.requestId]);
+    await bg.wait(10);
+    expect((await sourcesForPlayer()).map((s) => s.url)).toEqual(['https://cdn.test/v/master.m3u8']);
+  });
+});

@@ -1,0 +1,72 @@
+// @ts-check
+
+// A stream's address can carry a key its server asks of every file (/pl/7?token=...) while its
+// playlists list the files without it: the site's own player adds it to each request. Once a file
+// from the stream's own server is refused for the lack of it, that file is asked again with it, and
+// every later file from that server gets it before it is asked for. Never to another server.
+
+/** @type {?URL} */
+let stream = null;
+let active = false;
+
+/**
+ * @param {string} url
+ * @return {?URL}
+ */
+function parse(url) {
+  try {
+    return new URL(url);
+  } catch (e) {
+    return null;
+  }
+}
+
+export const StreamQuery = {
+  /**
+   * The address of the stream now played; null for none.
+   * @param {?string} url
+   */
+  configure(url) {
+    const parsed = url ? parse(url) : null;
+    stream = parsed && parsed.search.length > 1 ? parsed : null;
+    active = false;
+  },
+
+  /**
+   * The url with the stream query's names it lacks; null when it lacks none or is another server's.
+   * @param {string} url
+   * @return {?string}
+   */
+  withQuery(url) {
+    const target = stream && parse(url);
+    if (!stream || !target || target.origin !== stream.origin) return null;
+    let added = false;
+    for (const [name, value] of stream.searchParams) {
+      if (!target.searchParams.has(name)) {
+        target.searchParams.append(name, value);
+        added = true;
+      }
+    }
+    return added ? target.href : null;
+  },
+
+  /**
+   * For a refused url: the address to ask again with; from then on apply() adds the query.
+   * @param {string} url
+   * @return {?string}
+   */
+  retryFor(url) {
+    const next = this.withQuery(url);
+    if (next) active = true;
+    return next;
+  },
+
+  /**
+   * The address to ask for a url by.
+   * @param {string} url
+   * @return {string}
+   */
+  apply(url) {
+    return (active && this.withQuery(url)) || url;
+  },
+};

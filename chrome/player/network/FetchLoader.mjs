@@ -3,6 +3,7 @@ import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {RequestUtils} from '../utils/RequestUtils.mjs';
 import {PageFetch} from './PageFetch.mjs';
+import {StreamQuery} from './StreamQuery.mjs';
 
 // fetch() with stall timeouts, retries and byte ranges, for everything the player loads.
 
@@ -33,6 +34,46 @@ export const STALL_TIMEOUT_MS = 30000;
 export function isRefusal(response, isArrayBuffer) {
   if (REFUSALS.has(response.status)) return true;
   return isArrayBuffer && response.ok && /^text\/html\b/i.test(response.headers.get('content-type') || '');
+}
+
+const PAGE_PEEK_BYTES = 1024;
+
+/**
+ * Whether a body's first byte after blanks and a byte order mark is '<': a page, where a segment
+ * a server calls text/html (page-0.html) starts with its media.
+ * @param {Response} response - Read through a clone; the response itself stays unread.
+ * @return {Promise<boolean>}
+ */
+export async function startsAsPage(response) {
+  const reader = response.clone().body?.getReader();
+  if (!reader) return true;
+  try {
+    for (let seen = 0; seen < PAGE_PEEK_BYTES;) {
+      const {value, done} = await reader.read();
+      if (done) return true;
+      for (const byte of value) {
+        if (byte === 0x20 || byte === 0x09 || byte === 0x0a || byte === 0x0d || byte === 0xef || byte === 0xbb || byte === 0xbf) continue;
+        return byte === 0x3c;
+      }
+      seen += value.length;
+    }
+    return true;
+  } catch (e) {
+    return true;
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+}
+
+/**
+ * isRefusal, by the answer's first bytes where only its Content-Type calls it a page.
+ * @param {Response} response
+ * @param {boolean} isArrayBuffer
+ * @return {Promise<boolean>}
+ */
+export async function refuses(response, isArrayBuffer) {
+  if (!isRefusal(response, isArrayBuffer)) return false;
+  return REFUSALS.has(response.status) || await startsAsPage(response);
 }
 
 /**
@@ -245,6 +286,7 @@ export class FetchLoader {
     if (!config) {
       return;
     }
+    request.url = StreamQuery.apply(request.url);
     const stats = this.stats;
     stats.loading.first = 0;
     stats.loaded = 0;
@@ -335,7 +377,20 @@ export class FetchLoader {
       return;
     }
 
-    if (viaPage && isRefusal(response, isArrayBuffer)) {
+    // A file of the stream's own server refused without the stream address's key: asked again with it (StreamQuery).
+    if (response.status === 401 || response.status === 403) {
+      const withKey = StreamQuery.retryFor(request.url);
+      if (withKey) {
+        response.body?.cancel().catch(() => {});
+        if (viaPage) PageFetch.unroute(request.url);
+        request.url = withKey;
+        this.loadInternal();
+        return;
+      }
+    }
+
+    if (viaPage && await refuses(response, isArrayBuffer)) {
+      if (isStale()) return;
       PageFetch.unroute(request.url);
       if (response.ok) {
         response.body?.cancel().catch(() => {});
@@ -345,11 +400,12 @@ export class FetchLoader {
     }
 
     // Tried once through the page, taken only when its answer is the file; only media routes the host.
-    if (!viaPage && PageFetch.available() && isRefusal(response, isArrayBuffer)) {
+    if (!viaPage && PageFetch.available() && await refuses(response, isArrayBuffer)) {
+      if (isStale()) return;
       try {
         const fromPage = await PageFetch.fetch(request.url, {headers: pageHeaders, signal: controller.signal, priority: fetchPriorityOf(config)});
         if (isStale()) return;
-        if (fromPage.ok && !isRefusal(fromPage, true)) {
+        if (fromPage.ok && !(await refuses(fromPage, true))) {
           if (isArrayBuffer) {
             console.log('Loading through the page from now on:', new URL(request.url).origin);
             PageFetch.route(request.url);
