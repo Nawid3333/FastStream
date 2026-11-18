@@ -1079,9 +1079,10 @@ export async function openInMpv(tabId, url, ...rest) {
   const tracked = tabId !== undefined && tabId >= 0 && Tabs.getTab(tabId) ?
     tabSources(Tabs.getTab(tabId)).find((source) => source.url === detected) : null;
   // An HLS stream mpv cannot open from its address alone: its playlists go with every address whole
-  // (MpvHlsPackage.mjs). Read meanwhile: the waits below are long enough to cover it.
+  // (MpvHlsPackage.mjs), read meanwhile and stopped when the stream does not go.
+  const stopPacking = new AbortController();
   const packing = tracked && tracked.mode === PlayerModes.ACCELERATED_HLS ?
-    Promise.resolve().then(() => hlsPackage({url, keyFrom: detected, io: hlsPackageIo(rest[1])})).catch((e) => {
+    Promise.resolve().then(() => hlsPackage({url, keyFrom: detected, io: hlsPackageIo(rest[1]), signal: stopPacking.signal})).catch((e) => {
       console.error('Reading the playlists of an HLS stream for mpv failed', e);
       return null;
     }) : Promise.resolve(null);
@@ -1090,6 +1091,7 @@ export async function openInMpv(tabId, url, ...rest) {
   }
   if (Lengths.isProtected(detected) || Lengths.isProtected(url)) {
     if (Logging) console.log('[MPV] not handed off, copy-protected:', url);
+    stopPacking.abort();
     return {
       ok: false,
       drm: true,
@@ -1100,6 +1102,7 @@ export async function openInMpv(tabId, url, ...rest) {
   // Answered with a web page from anywhere but its page: FastStream's player loads it through the page (playHereInstead).
   if (await webPage || (url !== detected && await Lengths.servesWebPage(url, 0))) {
     if (Logging) console.log('[MPV] not handed off, only its page loads it:', url);
+    stopPacking.abort();
     return {
       ok: false,
       pageOnly: true,
@@ -1109,6 +1112,7 @@ export async function openInMpv(tabId, url, ...rest) {
   }
   if (VpnMirror.throughBrowserVpn(detected, incognito) || VpnMirror.throughBrowserVpn(url, incognito)) {
     if (Logging) console.log('[MPV] not handed off, Firefox VPN carries it:', url);
+    stopPacking.abort();
     return Promise.resolve({
       ok: false,
       vpn: true,
@@ -1118,7 +1122,8 @@ export async function openInMpv(tabId, url, ...rest) {
   }
   const pack = await packing;
   if (pack) {
-    if (!await Mpv.knows(Capabilities.HLS)) {
+    // Unknown (no helper answered): it goes, and the answer says why it did not play.
+    if (await Mpv.knows(Capabilities.HLS) === false) {
       if (Logging) console.log('[MPV] not handed off, the helper is older than 27:', url);
       return {
         ok: false,

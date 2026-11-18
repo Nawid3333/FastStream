@@ -48,25 +48,40 @@ now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` b
 - *When:* a detected HLS stream whose address is not named `.m3u8`/`.m3u` and not typed HLS, or whose
   files need the address's key (StreamQuery's rule: a 401/403 without it, a 2xx with it; probed on the
   first media playlist and the first segment). A `.m3u8` address without a query costs no request.
-  Not for a live stream (no `#EXT-X-ENDLIST`): a file of its playlist goes stale.
+  Not for a live stream (no `#EXT-X-ENDLIST`): a file of its playlist goes stale. All playlists are read
+  (4 at a time, relative addresses against the address after redirects) before any is rewritten: a key
+  first needed by a later variant reaches every file. At most 10 s and 12 MB in all, counted while
+  reading; a hand-off that stops (copy protection, VPN, page-only) stops the reading. Past either, the
+  address goes as before.
 - *What:* the playlist mpv would get (the variant the quality setting picked, or the master with its
-  variants and renditions; I-frame playlists and session data left out), every address absolute and,
-  on the key's server only, keyed. Fetched with the page's Origin/Referer, never truncated (12 MB).
+  variants and renditions; every other tag with an address left out: I-frame playlists, session keys
+  and data, which the helper would refuse), every address absolute and, on the key's server only, keyed. Fetched with the page's Origin/Referer, never truncated (12 MB).
 - *Helper:* checks it (`checkHlsPackage`: a port of ffmpeg's attribute parser, `ff_parse_key_value`, so
   an unquoted `URI=file:...`, one after a space or right after a quote is seen as ffmpeg sees it; no
   backslash, no line with leading spaces; media playlists complete, addresses http(s) without
   credentials; a master names only the package's own playlists), writes it into a fresh
   `faststream-mpv-hls-*` temp folder with `target.txt` (the target with its fs-* tags, for mpv-config),
-  and loads the entry with `demuxer=lavf`, `demuxer-lavf-format=hls` and
-  `protocol_whitelist=[file,http,https,tcp,tls,crypto]` (never mpv's own playlist parser). Folders go
-  after two days, a private window's (fs-private) ten minutes on, at the next send. The playlists are
-  kept out of the debug log (their key). Messages to the helper may be 16 MB (1 MB before).
+  and loads the entry with `demuxer=lavf` (never mpv's own playlist parser, which opens each line as a
+  file) and `demuxer-lavf-o` `protocol_whitelist=[http,https,tcp,tls,crypto]` (`file` too for a master,
+  whose playlists lie beside it) plus `format_whitelist=[hls,mpegts,mov,aac,mp3,ac3,eac3,webvtt,srt]`.
+  First `demuxer-lavf-format=hls`: per file it applies to every lavf open of that file, and the page's
+  subtitles (`sub-files`, SRT) failed "Can not open external file" (measured, mpv 0.42). The format
+  whitelist bounds every open the same way and lets them in: measured, the package plays as `hls` at
+  score 100 with its subtitle track, an ffconcat file named `.m3u8` is refused "Format not on
+  whitelist", and a media package naming a local segment "Protocol 'file' not on whitelist". The HLS
+  probe needs `#EXTM3U` first (the helper's check) and a variant or target-duration tag. Folders go
+  after two days, a private window's (fs-private) ten minutes on, whenever a helper ends (each message;
+  a watch when mpv closes); a folder that cannot be removed is skipped. The playlists are kept out of
+  the debug log (their key). Messages to the helper may be 16 MB (1 MB before).
 - *Answer:* `local`, the entry's path: MPV autoplay knows mpv's `path` by it (`watchMpvFor`).
-- *Older helper:* `knows('hls')` asks it once; without the capability nothing goes and the user reads
-  `player_mpv_needs_hls_helper` (an older helper would ignore the field and play the address).
+- *Older helper:* `knows('hls')` asks it again until it has the capability (an update is noticed at
+  the next send); without it nothing goes and the user reads `player_mpv_needs_hls_helper` (an older
+  helper would ignore the field and play the address). No helper at all: it goes, and the answer says so.
 - *Quality list:* not sent for such a stream (its addresses lack the key).
 Measured on the live stream: the variant's package 357 KB, the master's 1.07 MB in 234 ms; mpv played
-1920x816 from both. Codex's design review (2026-11-18) shaped the parser port and the whitelist.
+1920x816 from both. Codex's design review (2026-11-18) shaped the parser port and the whitelist; the
+reviews of the change (Codex, glm, Claude) found the rest above (redirects, 401, later keys, the budget,
+the deadline, the subtitles, the cleanup).
 Still open: a keyed *live* stream (its playlist must be re-keyed at every reload).
 
 **Host 25 (2026-11-18, comments only; RequiredHostVersion stays 19).** The host's comments were

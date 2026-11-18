@@ -12,15 +12,19 @@ const HLS_TYPES = ['application/vnd.apple.mpegurl', 'application/x-mpegurl', 'ap
 // The helper's MaxHlsBytes and its 32 files.
 export const MAX_PACKAGE_BYTES = 12 * 1024 * 1024;
 const MAX_MEDIA_PLAYLISTS = 31;
+const PARALLEL_READS = 4;
+// Past it the stream goes as its address, as before helper 27.
+export const PACKAGE_TIMEOUT_MS = 10000;
 const URI_ATTRIBUTE = /(URI=")([^"]*)(")/g;
+const LINE_BREAK = /\r\n|\r|\n/;
 
-/** @typedef {{status: number, type: string, text: string}} Fetched */
+/** @typedef {{status: number, type: string, text: string, url: string}} Fetched - url: the answer's, after redirects. */
 /**
  * @typedef {{
- *   fetchText: (url: string) => Promise<?Fetched>,
- *   status: (url: string) => Promise<number>,
- * }} PackageIo - fetchText: a playlist with the page's headers, null when it could not be read; status: a file's
- *   answer status, its body not read.
+ *   fetchText: (url: string, limit: number, signal: AbortSignal) => Promise<?Fetched>,
+ *   status: (url: string, signal: AbortSignal) => Promise<number>,
+ * }} PackageIo - fetchText: a playlist with the page's headers, null when it could not be read or is over limit
+ *   bytes; status: a file's answer status, its body not read.
  */
 
 /**
@@ -47,14 +51,22 @@ function isUriLine(line) {
 }
 
 /**
+ * @param {?Fetched} fetched
+ * @return {boolean}
+ */
+function isOk(fetched) {
+  return !!fetched && fetched.status >= 200 && fetched.status < 300;
+}
+
+/**
  * The playlists of an HLS stream for mpv, when mpv cannot open its address alone; null when it can, or when
- * they cannot go as files (a live stream, too many or too large, one unreadable).
- * @param {{url: string, keyFrom: string, io: PackageIo}} stream - url: the playlist mpv would be given (a
- *   master, or the variant the quality setting picked); keyFrom: the detected address, whose query may be the
- *   key its server asks of every file.
+ * they cannot go as files (a live stream, too many or too large, one unreadable, not read in time).
+ * @param {{url: string, keyFrom: string, io: PackageIo, signal?: AbortSignal}} stream - url: the playlist mpv
+ *   would be given (a master, or the variant the quality setting picked); keyFrom: the detected address, whose
+ *   query may be the key its server asks of every file; signal: the hand-off no longer waits for it.
  * @return {Promise<?{files: Array<{name: string, text: string}>}>}
  */
-export async function hlsPackage({url, keyFrom, io}) {
+export async function hlsPackage({url, keyFrom, io, signal}) {
   let key;
   try {
     const parsed = new URL(keyFrom);
@@ -64,73 +76,113 @@ export async function hlsPackage({url, keyFrom, io}) {
   }
   // Named a playlist, with no query a key could come from: mpv opens it itself, and nothing is asked for.
   if (!key && namesHls(url, '')) return null;
-  // StreamQuery's rule: the key once a file refused without it was given with it, then for every file of its server.
+  const stop = AbortSignal.any([AbortSignal.timeout(PACKAGE_TIMEOUT_MS), ...(signal ? [signal] : [])]);
+  // StreamQuery's rule: the key once a file refused without it was given with it, then for every file of its
+  // server. Known only once every playlist was read, so they are rewritten after.
   let keyed = false;
   /** @param {string} address */
   const whole = (address) => (keyed && withKeyOf(key, address)) || address;
+  let budget = MAX_PACKAGE_BYTES;
 
   /**
    * @param {string} address
-   * @return {Promise<?{url: string, type: string, text: string}>}
+   * @return {Promise<?Fetched>}
+   */
+  const fetchText = async (address) => {
+    if (stop.aborted || budget < 0) return null;
+    const fetched = await io.fetchText(address, budget, stop).catch(() => null);
+    if (fetched && isOk(fetched)) budget -= new TextEncoder().encode(fetched.text).length;
+    return fetched && {...fetched, url: fetched.url || address};
+  };
+  /**
+   * @param {string} address
+   * @return {Promise<?Fetched>}
    */
   const read = async (address) => {
-    const first = await io.fetchText(whole(address));
-    if (first && first.status >= 200 && first.status < 300) return {url: whole(address), type: first.type, text: first.text};
-    const withKey = !keyed && first && (first.status === 401 || first.status === 403) ? withKeyOf(key, address) : null;
-    if (!withKey) return null;
-    const second = await io.fetchText(withKey);
-    if (!second || second.status < 200 || second.status >= 300) return null;
+    const first = await fetchText(whole(address));
+    if (first && isOk(first)) return first;
+    const withKey = first && (first.status === 401 || first.status === 403) ? withKeyOf(key, address) : null;
+    const second = withKey ? await fetchText(withKey) : null;
+    if (!second || !isOk(second)) return null;
     keyed = true;
-    return {url: withKey, type: second.type, text: second.text};
+    return second;
+  };
+  /** @type {Map<string, Promise<?Fetched>>} */
+  const reads = new Map();
+  /** @param {string} address */
+  const readOnce = (address) => {
+    if (!reads.has(address)) reads.set(address, read(address));
+    return /** @type {Promise<?Fetched>} */ (reads.get(address));
   };
 
   const root = await read(url);
   if (!root || !root.text.trimStart().startsWith('#EXTM3U')) return null;
-  const isMaster = root.text.includes('#EXT-X-STREAM-INF') || /#EXT-X-MEDIA:.*URI=/.test(root.text);
+  const isMaster = root.text.includes('#EXT-X-STREAM-INF');
+  const uris = isMaster ? mediaUris(root.text) : [];
+  if (isMaster && (uris.length === 0 || uris.length > MAX_MEDIA_PLAYLISTS)) return null;
+  /** @param {string} uri */
+  const addressOf = (uri) => new URL(uri, root.url).href;
   // The first file below the root: whether its server asks for the key too.
-  const firstMedia = mediaUris(root.text)[0];
-  const media = isMaster ? (firstMedia ? await read(new URL(firstMedia, root.url).href) : null) : root;
+  const media = isMaster ? await readOnce(addressOf(uris[0])) : root;
   if (!media) return null;
-  const firstSegment = new URL(media.text.split(/\r?\n/).map((l) => l.trim()).find(isUriLine) || media.url, media.url).href;
-  if (!keyed && await io.status(firstSegment).catch(() => 0) === 403) {
+  const firstSegment = new URL(media.text.split(LINE_BREAK).map((l) => l.trim()).find(isUriLine) || media.url, media.url).href;
+  if (!keyed && [401, 403].includes(await io.status(firstSegment, stop).catch(() => 0))) {
     const withKey = withKeyOf(key, firstSegment);
-    if (withKey && [200, 206].includes(await io.status(withKey).catch(() => 0))) keyed = true;
+    if (withKey && [200, 206].includes(await io.status(withKey, stop).catch(() => 0))) keyed = true;
   }
   if (!keyed && namesHls(url, root.type)) return null;
 
-  if (!isMaster) {
-    const text = vodText(root.text, root.url, whole);
-    return text === null ? null : sized([{name: '0.m3u8', text}]);
-  }
-  const uris = mediaUris(root.text);
-  if (uris.length === 0 || uris.length > MAX_MEDIA_PLAYLISTS) return null;
-  /** @type {Map<string, string>} */
-  const names = new Map();
-  /** @type {Array<{name: string, text: string}>} */
-  const files = [];
-  for (const [index, uri] of uris.entries()) {
-    const playlist = await read(new URL(uri, root.url).href);
-    const text = playlist && vodText(playlist.text, playlist.url, whole);
-    if (text === null || text === undefined) return null;
-    names.set(uri, `${index}.m3u8`);
-    files.push({name: `${index}.m3u8`, text});
-  }
-  return sized([{name: 'master.m3u8', text: masterText(root.text, root.url, names, whole)}, ...files]);
+  const playlists = isMaster ? await inParallel(uris, (uri) => readOnce(addressOf(uri))) : [root];
+  if (stop.aborted || playlists.some((playlist) => !playlist)) return null;
+  const texts = playlists.map((playlist) => vodText(/** @type {Fetched} */ (playlist).text,
+      /** @type {Fetched} */ (playlist).url, whole));
+  if (texts.some((text) => text === null)) return null;
+  const files = texts.map((text, index) => ({name: `${index}.m3u8`, text: /** @type {string} */ (text)}));
+  if (!isMaster) return sized(files);
+  const names = new Map(uris.map((uri, index) => [uri, `${index}.m3u8`]));
+  return sized([{name: 'master.m3u8', text: masterText(root.text, names)}, ...files]);
 }
 
 /**
- * The media playlists a master names: its variants' and its renditions'; not its I-frame playlists.
+ * At most PARALLEL_READS at a time; none started after one came back empty.
+ * @template T, R
+ * @param {Array<T>} items
+ * @param {(item: T) => Promise<?R>} work
+ * @return {Promise<Array<?R | undefined>>}
+ */
+async function inParallel(items, work) {
+  /** @type {Array<?R | undefined>} */
+  const results = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await work(items[index]);
+      if (!results[index]) next = items.length;
+    }
+  };
+  await Promise.all(Array.from({length: Math.min(PARALLEL_READS, items.length)}, worker));
+  return results;
+}
+
+/**
+ * The media playlists a master names, as ffmpeg reads them: its renditions', and the first address after each
+ * variant's tag; not its I-frame playlists.
  * @param {string} text
  * @return {Array<string>}
  */
 function mediaUris(text) {
   const uris = [];
-  const lines = text.split(/\r?\n/).map((line) => line.trim());
-  for (const [index, line] of lines.entries()) {
+  let variant = false;
+  for (const raw of text.split(LINE_BREAK)) {
+    const line = raw.trim();
     if (line.startsWith('#EXT-X-MEDIA:')) {
       for (const match of line.matchAll(URI_ATTRIBUTE)) uris.push(match[2]);
-    } else if (isUriLine(line) && lines.slice(0, index).reverse().find((l) => l.startsWith('#EXT'))?.startsWith('#EXT-X-STREAM-INF')) {
-      uris.push(line);
+    } else if (line.startsWith('#EXT-X-STREAM-INF')) {
+      variant = true;
+    } else if (isUriLine(line)) {
+      if (variant) uris.push(line);
+      variant = false;
     }
   }
   return [...new Set(uris)];
@@ -145,7 +197,7 @@ function mediaUris(text) {
  */
 function vodText(text, base, whole) {
   if (!text.trimStart().startsWith('#EXTM3U') || !text.includes('#EXT-X-ENDLIST')) return null;
-  return text.split(/\r?\n/).map((raw) => {
+  return text.split(LINE_BREAK).map((raw) => {
     const line = raw.trim();
     if (isUriLine(line)) return whole(new URL(line, base).href);
     return line.replace(URI_ATTRIBUTE, (_, open, uri, close) => open + whole(new URL(uri, base).href) + close);
@@ -153,22 +205,31 @@ function vodText(text, base, whole) {
 }
 
 /**
- * The master with its media playlists named by their files, and its other addresses whole; its I-frame
- * playlists and session data left out.
+ * The master naming only its media playlists, by their files: the helper takes no other address in it, so tags
+ * with one (I-frame playlists, session keys and data) are left out, as are addresses after no variant's tag,
+ * which ffmpeg skips.
  * @param {string} text
- * @param {string} base
  * @param {Map<string, string>} names
- * @param {(address: string) => string} whole
  * @return {string}
  */
-function masterText(text, base, names, whole) {
-  return text.split(/\r?\n/).map((raw) => raw.trim())
-      .filter((line) => !line.startsWith('#EXT-X-I-FRAME-STREAM-INF') && !line.startsWith('#EXT-X-SESSION-DATA'))
-      .map((line) => {
-        if (isUriLine(line)) return names.get(line) ?? whole(new URL(line, base).href);
-        return line.replace(URI_ATTRIBUTE, (_, open, uri, close) =>
-          open + (names.get(uri) ?? whole(new URL(uri, base).href)) + close);
-      }).join('\n');
+function masterText(text, names) {
+  const lines = [];
+  let variant = false;
+  for (const raw of text.split(LINE_BREAK)) {
+    const line = raw.trim();
+    if (isUriLine(line)) {
+      if (variant) lines.push(/** @type {string} */ (names.get(line)));
+      variant = false;
+    } else if (line.startsWith('#EXT-X-MEDIA:')) {
+      lines.push(line.replace(URI_ATTRIBUTE, (_, open, uri, close) => open + names.get(uri) + close));
+    } else if (line.startsWith('#EXT-X-STREAM-INF')) {
+      variant = true;
+      lines.push(line);
+    } else if (!line.includes('URI=')) {
+      lines.push(line);
+    }
+  }
+  return lines.join('\n');
 }
 
 /**
@@ -192,34 +253,33 @@ export function pageFetchIo({headers, fetch = (url, init) => globalThis.fetch(ur
     typeof header.value === 'string' && header.value)
       .map((header) => /** @type {FSHeaderCommand} */ ({operation: 'set', header: header.name.toLowerCase(), value: header.value}));
   /**
+   * The answer's body is dropped once used.
    * @param {string} url
+   * @param {AbortSignal} signal
    * @param {(response: Response) => Promise<*>} use
    * @return {Promise<*>}
    */
-  const get = async (url, use) => {
+  const get = async (url, signal, use) => {
     if (commands.length > 0) {
       await setHeaders(url, commands).catch((e) => console.warn('Header rule refused', e));
     }
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const done = new AbortController();
     try {
-      return await use(await fetch(url, {credentials: 'omit', cache: 'no-store', signal: controller.signal}));
+      return await use(await fetch(url, {credentials: 'omit', cache: 'no-store', signal: AbortSignal.any([done.signal, signal])}));
     } finally {
-      clearTimeout(timer);
-      controller.abort();
+      done.abort();
     }
   };
   return {
-    fetchText: (url) => get(url, async (response) => {
-      if (!response.ok) return {status: response.status, type: '', text: ''};
-      const text = await readWhole(response, MAX_PACKAGE_BYTES);
-      return text === null ? null : {status: response.status, type: response.headers.get('content-type') || '', text};
+    fetchText: (url, limit, signal) => get(url, signal, async (response) => {
+      const answered = response.url || url;
+      if (!response.ok) return {status: response.status, type: '', text: '', url: answered};
+      const text = await readWhole(response, limit);
+      return text === null ? null : {status: response.status, type: response.headers.get('content-type') || '', text, url: answered};
     }).catch(() => null),
-    status: (url) => get(url, async (response) => response.status),
+    status: (url, signal) => get(url, signal, async (response) => response.status),
   };
 }
-
-const FETCH_TIMEOUT_MS = 10000;
 
 /**
  * The body as text; null when it is over limit bytes: a playlist cut short would go to mpv as a whole one.

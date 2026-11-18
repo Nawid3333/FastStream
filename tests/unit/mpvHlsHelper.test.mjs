@@ -4,8 +4,8 @@ import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
 
 import {
-  HlsDirPrefix, checkHlsPackage, checkPlayMessage, ffmpegAttributes, hlsAddresses, loggedMessage, playMpv,
-  writeHlsPackage,
+  HlsDirPrefix, checkHlsPackage, checkPlayMessage, ffmpegAttributes, hlsAddresses, hlsPlayOptions, loggedMessage,
+  playMpv, removeOldHlsPackages, writeHlsPackage,
 } from '../../native-host/faststream-mpv-host.mjs';
 
 // Helper 27: an HLS stream mpv cannot open from its address goes as its playlists, every address whole, and mpv
@@ -131,6 +131,28 @@ describe('writing the playlists', () => {
     writeHlsPackage([{name: '0.m3u8', text: media()}], 'https://cdn.test/v', base);
     expect(fs.existsSync(path.dirname(entry))).toBe(false);
   });
+
+  it('removes old folders whenever asked, past one it cannot remove', () => {
+    const base = scratch();
+    const hours = (n) => Date.now() + n * 60 * 60 * 1000;
+    const blocked = path.join(base, HlsDirPrefix + 'a');
+    const old = path.join(base, HlsDirPrefix + 'b');
+    const other = path.join(base, HlsDirPrefix + 'c');
+    for (const dir of [blocked, old, other]) fs.mkdirSync(dir);
+    const realStat = fs.statSync;
+    fs.statSync = (file, ...rest) => {
+      if (file === blocked) throw Object.assign(new Error('EACCES'), {code: 'EACCES'});
+      return realStat(file, ...rest);
+    };
+    try {
+      removeOldHlsPackages(base, hours(47));
+      expect([fs.existsSync(blocked), fs.existsSync(old), fs.existsSync(other)]).toEqual([true, true, true]);
+      removeOldHlsPackages(base, hours(49));
+      expect([fs.existsSync(blocked), fs.existsSync(old), fs.existsSync(other)]).toEqual([true, false, false]);
+    } finally {
+      fs.statSync = realStat;
+    }
+  });
 });
 
 describe('playing them', () => {
@@ -153,7 +175,15 @@ describe('playing them', () => {
     const load = asks.flat().find((command) => !Array.isArray(command) && command.name === 'loadfile');
     expect(load.url).toBe(answer.local);
     expect(path.dirname(load.url).startsWith(base)).toBe(true);
-    expect(load.options).toMatchObject({'demuxer': 'lavf', 'demuxer-lavf-format': 'hls',
-      'demuxer-lavf-o': 'protocol_whitelist=[file,http,https,tcp,tls,crypto]'});
+    expect(load.options).toMatchObject({'demuxer': 'lavf',
+      'demuxer-lavf-o': 'protocol_whitelist=[http,https,tcp,tls,crypto],format_whitelist=[hls,mpegts,mov,aac,mp3,ac3,eac3,webvtt,srt]'});
+    expect(load.options['demuxer-lavf-format']).toBeUndefined();
+  });
+
+  it('lets ffmpeg open files for a master only, whose playlists lie beside it', () => {
+    expect(hlsPlayOptions(path.join('t', HlsDirPrefix + 'x', 'master.m3u8'))['demuxer-lavf-o'])
+        .toMatch(/^protocol_whitelist=\[file,http,https,tcp,tls,crypto\],format_whitelist=\[hls,/);
+    expect(hlsPlayOptions(path.join('t', HlsDirPrefix + 'x', '0.m3u8'))['demuxer-lavf-o'])
+        .toMatch(/^protocol_whitelist=\[http,https,tcp,tls,crypto\],/);
   });
 });

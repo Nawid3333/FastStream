@@ -991,18 +991,14 @@ export function writeSubtitleFiles(subtitles, base = os.tmpdir()) {
 // An HLS stream mpv cannot open from its address (docs/notes/mpv.md, "Streams mpv cannot open alone"): the
 // extension sends its playlists with every address made whole, and mpv plays them from files.
 export const HlsDirPrefix = 'faststream-mpv-hls-';
-// ffmpeg reads a stream's playlists once, when it opens it; older folders are removed. A private window's
-// (fs-private) go at the next send ten minutes on: its addresses are browsing history.
+// ffmpeg reads a stream's playlists once, when it opens it; older folders are removed whenever the helper ends.
+// A private window's (fs-private) ten minutes on: its addresses are browsing history.
 const HlsDirMaxAgeMs = 2 * 24 * 60 * 60 * 1000;
 const PrivateHlsDirPrefix = HlsDirPrefix + 'p-';
 const PrivateHlsDirMaxAgeMs = 10 * 60 * 1000;
-// Per file for the playlists' entry: read as HLS by ffmpeg, never as mpv's own playlist, which opens each line as
-// a file; ffmpeg opens files (the master's playlists) and the web only.
-const HlsPlayOptions = Object.freeze({
-  'demuxer': 'lavf',
-  'demuxer-lavf-format': 'hls',
-  'demuxer-lavf-o': 'protocol_whitelist=[file,http,https,tcp,tls,crypto]',
-});
+// Formats ffmpeg may read while the stream plays: none but HLS (checkHlsPackage) opens a file it names, and srt
+// for the page's subtitles (a forced hls format took them as playlists too).
+const HlsFormats = '[hls,mpegts,mov,aac,mp3,ac3,eac3,webvtt,srt]';
 const MaxHlsFiles = 32;
 export const MaxHlsBytes = 12 * 1024 * 1024;
 // The entry first: a master names the others by these names, which resolve to its own folder.
@@ -1142,27 +1138,50 @@ export function checkHlsPackage(hls) {
 }
 
 /**
- * Writes the playlists into a fresh mkdtemp folder, after removing such folders older than two
- * days, with target.txt: the stream as sent, for mpv's scripts (its fs-* tags).
+ * Per file for the playlists' entry: read by ffmpeg, never as mpv's own playlist, which opens each line as a file.
+ * Files only for a master's playlists, beside it.
+ * @param {string} entry
+ * @return {Object<string, string>}
+ */
+export function hlsPlayOptions(entry) {
+  const protocols = path.basename(entry) === 'master.m3u8' ? '[file,http,https,tcp,tls,crypto]' : '[http,https,tcp,tls,crypto]';
+  return {'demuxer': 'lavf', 'demuxer-lavf-o': `protocol_whitelist=${protocols},format_whitelist=${HlsFormats}`};
+}
+
+/**
+ * Removes the playlist folders past their age; one that cannot be removed (another user's) stays.
+ * @param {string} [base] - The folder they are in; the temp folder by default.
+ * @param {number} [now]
+ */
+export function removeOldHlsPackages(base = os.tmpdir(), now = Date.now()) {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(base, {withFileTypes: true});
+  } catch (e) {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith(HlsDirPrefix)) continue;
+    const dir = path.join(base, entry.name);
+    const maxAge = entry.name.startsWith(PrivateHlsDirPrefix) ? PrivateHlsDirMaxAgeMs : HlsDirMaxAgeMs;
+    try {
+      if (now - fs.statSync(dir).mtimeMs > maxAge) fs.rmSync(dir, {recursive: true, force: true});
+    } catch (e) {
+      // The next one still goes.
+    }
+  }
+}
+
+/**
+ * Writes the playlists into a fresh mkdtemp folder, after removing old ones, with target.txt: the stream as sent,
+ * for mpv's scripts (its fs-* tags).
  * @param {Array<{name: string, text: string}>} files - From checkHlsPackage, the entry first.
  * @param {string} target - The play message's target.
  * @param {string} [base] - The folder to write under; the temp folder by default.
  * @return {string} The entry's file.
  */
 export function writeHlsPackage(files, target, base = os.tmpdir()) {
-  try {
-    for (const entry of fs.readdirSync(base, {withFileTypes: true})) {
-      if (entry.isDirectory() && entry.name.startsWith(HlsDirPrefix)) {
-        const dir = path.join(base, entry.name);
-        const maxAge = entry.name.startsWith(PrivateHlsDirPrefix) ? PrivateHlsDirMaxAgeMs : HlsDirMaxAgeMs;
-        if (Date.now() - fs.statSync(dir).mtimeMs > maxAge) {
-          fs.rmSync(dir, {recursive: true, force: true});
-        }
-      }
-    }
-  } catch (e) {
-    // Cleaning up is a courtesy; writing the new ones is what matters.
-  }
+  removeOldHlsPackages(base);
   let isPrivate = false;
   try {
     isPrivate = new URL(target).hash.slice(1).split('&').includes('fs-private=1');
@@ -2424,7 +2443,7 @@ async function playEntry(mpvPath, play, config, io, entry) {
   }
   const options = perFileOptions(play.headerFields, play.title, {start: play.start, subFiles});
   if (entry !== play.target) {
-    Object.assign(options, HlsPlayOptions);
+    Object.assign(options, hlsPlayOptions(entry));
   }
   /**
    * @param {string} pipe
@@ -2943,6 +2962,7 @@ async function main() {
   // A browser gone before the answer makes the write fail: no crash for it.
   process.stdout.on('error', () => {});
   await handleMessage();
+  removeOldHlsPackages();
   process.exit(0);
 }
 

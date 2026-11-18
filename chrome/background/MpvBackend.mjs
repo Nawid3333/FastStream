@@ -232,16 +232,15 @@ export class MpvBackend {
   }
 
   /**
-   * Whether the helper said it has the capability; asked once when it has not answered yet. For one an older
-   * helper would ignore without a word.
+   * Whether the helper has the capability, for one an older helper would ignore without a word; asked again
+   * while it has not said so (updated meanwhile). null when no helper answered.
    * @param {string} capability
-   * @return {Promise<boolean>}
+   * @return {Promise<?boolean>}
    */
   async knows(capability) {
-    if (this.capabilities === null) {
-      await this.ask({type: 'ping'}).catch(() => {});
-    }
-    return !!this.capabilities?.includes(capability);
+    if (this.capabilities?.includes(capability)) return true;
+    const answer = await this.ask({type: 'ping'});
+    return answer.error ? null : !!this.capabilities?.includes(capability);
   }
 
   /**
