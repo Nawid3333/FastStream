@@ -5,7 +5,7 @@ import {afterEach, describe, expect, it} from 'vitest';
 
 import {
   HlsDirPrefix, checkHlsPackage, checkPlayMessage, ffmpegAttributes, hlsAddresses, hlsPlayOptions, loggedMessage,
-  playMpv, removeOldHlsPackages, writeHlsPackage,
+  playMpv, privatePackageWatch, removeOldHlsPackages, writeHlsPackage,
 } from '../../native-host/faststream-mpv-host.mjs';
 
 // Helper 27: an HLS stream mpv cannot open from its address goes as its playlists, every address whole, and mpv
@@ -122,14 +122,43 @@ describe('writing the playlists', () => {
     expect(fs.existsSync(old)).toBe(false);
   });
 
-  it('marks a private window\'s folder, which goes 15 s on', () => {
+  it('marks a private window\'s folder, which goes two minutes on', () => {
     const base = scratch();
     const entry = writeHlsPackage([{name: '0.m3u8', text: media()}], 'https://cdn.test/v#fs-id=ab&fs-private=1', base);
     expect(path.basename(path.dirname(entry)).startsWith(HlsDirPrefix + 'p-')).toBe(true);
-    removeOldHlsPackages(base, Date.now() + 10 * 1000);
+    removeOldHlsPackages(base, Date.now() + 110 * 1000);
     expect(fs.existsSync(path.dirname(entry))).toBe(true);
-    removeOldHlsPackages(base, Date.now() + 20 * 1000);
+    removeOldHlsPackages(base, Date.now() + 130 * 1000);
     expect(fs.existsSync(path.dirname(entry))).toBe(false);
+  });
+
+  it('removes a private window\'s folder once mpv moved on from it or closed, not when the extension let go', () => {
+    const base = scratch();
+    const write = (target) => writeHlsPackage([{name: '0.m3u8', text: media()}], target, base);
+    const first = write('https://cdn.test/v#fs-private=1');
+    const second = write('https://cdn.test/w#fs-private=1');
+    const kept = write('https://cdn.test/x');
+    const outside = path.join(scratch(), HlsDirPrefix + 'p-zzzzzz', '0.m3u8');
+    fs.mkdirSync(path.dirname(outside));
+    const path_ = (data) => ({type: 'mpv', data: {event: 'property-change', id: 1, name: 'path', data}});
+    const there = (entry) => fs.existsSync(path.dirname(entry));
+
+    const watch = privatePackageWatch(base);
+    watch.see(path_(first));
+    watch.see({type: 'mpv', data: {event: 'property-change', id: 2, name: 'time-pos', data: 3}});
+    expect(there(first)).toBe(true);
+    watch.see(path_(second));
+    expect([there(first), there(second)]).toEqual([false, true]);
+    watch.end('stopped');
+    expect(there(second)).toBe(true);
+
+    const next = privatePackageWatch(base);
+    next.see(path_(kept));
+    next.see(path_(outside));
+    next.see(path_(second));
+    expect([there(kept), there(outside), there(second)]).toEqual([true, true, true]);
+    next.end('mpv closed');
+    expect(there(second)).toBe(false);
   });
 
   it('removes old folders whenever asked, past one it cannot remove', () => {

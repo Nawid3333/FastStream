@@ -991,11 +991,12 @@ export function writeSubtitleFiles(subtitles, base = os.tmpdir()) {
 // An HLS stream mpv cannot open from its address (docs/notes/mpv.md, "Streams mpv cannot open alone"): the
 // extension sends its playlists with every address made whole, and mpv plays them from files.
 export const HlsDirPrefix = 'faststream-mpv-hls-';
-// ffmpeg reads a stream's playlists once, when it opens it; older folders are removed whenever the helper ends
-// (the watch's when mpv closes), a private window's (fs-private) 15 s on: its addresses are browsing history.
+// ffmpeg reads a stream's playlists once, when it opens it; older folders are removed whenever the helper ends.
+// A private window's (fs-private: its addresses are browsing history) once mpv moved on from it or closed
+// (privatePackageWatch), else two minutes on: longer than a play waits before mpv opens it (LaunchLockMs).
 const HlsDirMaxAgeMs = 2 * 24 * 60 * 60 * 1000;
 const PrivateHlsDirPrefix = HlsDirPrefix + 'p-';
-const PrivateHlsDirMaxAgeMs = 15 * 1000;
+const PrivateHlsDirMaxAgeMs = 2 * 60 * 1000;
 // Formats ffmpeg may read while the stream plays: none but HLS (checkHlsPackage) opens a file it names, and srt
 // for the page's subtitles (a forced hls format took them as playlists too).
 const HlsFormats = '[hls,mpegts,mov,aac,mp3,ac3,eac3,webvtt,srt]';
@@ -1170,6 +1171,40 @@ export function removeOldHlsPackages(base = os.tmpdir(), now = Date.now()) {
       // The next one still goes.
     }
   }
+}
+
+/**
+ * A private window's playlist folder goes once mpv no longer plays it: when its path, as the relay passes it on,
+ * moves to another file, or mpv closes. Not when the extension lets go: a new hand-off's package may not be open yet.
+ * @param {string} [base] - The folder the packages are in; the temp folder by default.
+ * @return {{see: (event: *) => void, end: (reason: string) => void}} see: each event the relay sends; end: its
+ *   reason for closing.
+ */
+export function privatePackageWatch(base = os.tmpdir()) {
+  /** @type {?string} */
+  let playing = null;
+  /** @param {string} entry */
+  const remove = (entry) => {
+    const dir = path.dirname(entry);
+    if (path.dirname(dir) !== path.resolve(base) || !path.basename(dir).startsWith(PrivateHlsDirPrefix)) return;
+    try {
+      fs.rmSync(dir, {recursive: true, force: true});
+    } catch (e) {
+      // Removed by age later.
+    }
+  };
+  return {
+    see(event) {
+      const data = event && event.type === 'mpv' ? event.data : null;
+      if (!data || data.event !== 'property-change' || data.name !== 'path') return;
+      const next = typeof data.data === 'string' ? data.data : null;
+      if (playing && playing !== next) remove(playing);
+      playing = next;
+    },
+    end(reason) {
+      if (reason === 'mpv closed' && playing) remove(playing);
+    },
+  };
 }
 
 /**
@@ -2927,7 +2962,9 @@ async function handleMessage() {
     }
     /** @type {Promise<void>} */
     let last = Promise.resolve();
+    const played = privatePackageWatch();
     const relay = relayMpv((event) => {
+      played.see(event);
       // mpv's own lines (time-pos many times a second) stay out of the log.
       if ((/** @type {{type: string}} */ (event)).type !== 'mpv' && (/** @type {{type: string}} */ (event)).type !== 'mpv-reply') debugLog(config, 'relay', event);
       last = sendMessage(event);
@@ -2935,9 +2972,10 @@ async function handleMessage() {
     // The browser went while mpv plays on: as when the extension lets go (the watch's reason).
     process.stdout.on('error', () => relay.stop());
     readMessages(process.stdin, (next) => relay.receive(next), () => relay.stop());
-    await relay.done;
+    const reason = await relay.done;
     // The last message ('closed') out before the host goes.
     await last;
+    played.end(reason);
     return;
   }
 
