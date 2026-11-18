@@ -1,16 +1,19 @@
 // @ts-check
 import {URLUtils} from '../player/utils/URLUtils.mjs';
-import {modeFromContentType, modeFromMediaType} from './ManifestTypes.mjs';
+import {contentTypeOf, modeFromContentType, modeFromMediaType} from './ManifestTypes.mjs';
 
 /** @typedef {import('./MultiRegexMatcher.mjs').MultiRegexMatcher} MultiRegexMatcher */
 /** @typedef {{kind: 'ignore'}|{kind: 'subtitles'}|{kind: 'source', mode: string}} ResponseKind */
+
+export const SUBTITLE_EXTENSIONS = ['vtt', 'srt', 'ttml', 'dfxp'];
+const TTML_TYPES = ['application/ttml+xml', 'application/ttaf+xml'];
 
 /**
  * @param {string} ext
  * @return {boolean}
  */
 export function isSubtitles(ext) {
-  return ext === 'vtt' || ext === 'srt';
+  return SUBTITLE_EXTENSIONS.includes(ext);
 }
 
 /** @type {ResponseKind} */
@@ -43,7 +46,9 @@ export function classifyResponse(details, first, matcher) {
   }
   const ext = redirectedType(first, details, urlType(url, matcher), matcher);
 
-  if (isSubtitles(ext)) {
+  // TTML is often served from an address that names no type; its media type is its own (DFXP's
+  // older one, application/ttaf+xml). Other XML is no subtitles by its type alone.
+  if (isSubtitles(ext) || TTML_TYPES.includes(contentTypeOf(details.responseHeaders))) {
     return {kind: 'subtitles'};
   }
 

@@ -422,6 +422,12 @@
     "player_subtitles_nocues": {
         "message": "Tidak ada subtitle yang ditemukan di berkas ini."
     },
+    "player_subtitles_ttml_unreadable": {
+        "message": "File subtitle TTML atau DFXP ini tidak dapat dibaca."
+    },
+    "player_subtitles_ttml_images": {
+        "message": "File TTML ini menyimpan subtitelnya sebagai gambar, yang tidak dapat ditampilkan FastStream."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Cari di OpenSubtitles"
     },

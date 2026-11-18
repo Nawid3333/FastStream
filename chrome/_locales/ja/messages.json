@@ -422,6 +422,12 @@
     "player_subtitles_nocues": {
         "message": "このファイルには字幕が見つかりませんでした。"
     },
+    "player_subtitles_ttml_unreadable": {
+        "message": "この TTML / DFXP 字幕ファイルを読み込めませんでした。"
+    },
+    "player_subtitles_ttml_images": {
+        "message": "この TTML ファイルの字幕は画像のため、FastStream では表示できません。"
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "OpenSubtitles を検索"
     },

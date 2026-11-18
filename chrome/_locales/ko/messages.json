@@ -422,6 +422,12 @@
     "player_subtitles_nocues": {
         "message": "이 파일에서 자막을 찾을 수 없습니다."
     },
+    "player_subtitles_ttml_unreadable": {
+        "message": "이 TTML 또는 DFXP 자막 파일을 읽을 수 없습니다."
+    },
+    "player_subtitles_ttml_images": {
+        "message": "이 TTML 파일의 자막은 이미지로 되어 있어 FastStream에서 표시할 수 없습니다."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "OpenSubtitles 검색"
     },

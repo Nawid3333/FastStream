@@ -314,7 +314,7 @@ export class SubtitlesManager extends EventEmitter {
     const filechooser = document.createElement('input');
     filechooser.type = 'file';
     filechooser.style.display = 'none';
-    filechooser.accept = '.vtt, .srt';
+    filechooser.accept = '.vtt, .srt, .ttml, .dfxp, .xml';
     filechooser.ariaHidden = /** @type {any} */ (true);
     filechooser.ariaLabel = Localize.getMessage('player_subtitlesmenu_uploadbtn');
 

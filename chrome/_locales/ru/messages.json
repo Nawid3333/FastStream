@@ -422,6 +422,12 @@
     "player_subtitles_nocues": {
         "message": "В этом файле субтитры не найдены."
     },
+    "player_subtitles_ttml_unreadable": {
+        "message": "Не удалось прочитать этот файл субтитров TTML или DFXP."
+    },
+    "player_subtitles_ttml_images": {
+        "message": "В этом файле TTML субтитры хранятся в виде изображений, которые FastStream не может показать."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Искать на OpenSubtitles"
     },

@@ -61,6 +61,28 @@ describe('decodeSubtitleBytes', () => {
     expect(decode('', windows1252(GERMAN))).toBe(GERMAN);
   });
 
+  it('reads an XML file that is no UTF-8 in the encoding its declaration names, unless a server named one', () => {
+    const russian = [0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2];
+    const xml = (encoding, body) => concat(utf8(`<?xml version="1.0" encoding="${encoding}"?><tt>`), body, utf8('</tt>'));
+    vi.stubGlobal('navigator', {language: 'de-DE'});
+    try {
+      expect(SubtitleUtils.decodeSubtitleBytes(xml('windows-1251', russian))).toBe('<?xml version="1.0" encoding="windows-1251"?><tt>Привет</tt>');
+      expect(SubtitleUtils.decodeSubtitleBytes(xml('ISO-8859-1', windows1252(GERMAN)))).toContain(GERMAN);
+      // A server's charset comes first.
+      expect(SubtitleUtils.decodeSubtitleBytes(xml('windows-1251', windows1252(GERMAN)), 'text/xml; charset=windows-1252')).toContain(GERMAN);
+      // UTF-8, a UTF-16 that reads as ASCII, or a name no browser knows: as before.
+      expect(SubtitleUtils.decodeSubtitleBytes(xml('UTF-8', utf8('Привет')))).toContain('Привет');
+      // Valid UTF-8 stays UTF-8, whatever the declaration says (a common mislabel).
+      expect(SubtitleUtils.decodeSubtitleBytes(xml('ISO-8859-1', utf8('café')))).toContain('café');
+      expect(SubtitleUtils.decodeSubtitleBytes(xml('UTF-16', utf8('Grüße')))).toContain('Grüße');
+      expect(SubtitleUtils.decodeSubtitleBytes(xml('x-made-up', windows1252(GERMAN)))).toContain(GERMAN);
+      // Not at the start: no declaration.
+      expect(SubtitleUtils.decodeSubtitleBytes(concat(utf8('1\n<?xml encoding="windows-1251"?>'), windows1252(GERMAN)))).toContain(GERMAN);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('leaves a valid UTF-8 file as it was', () => {
     const text = SRT + char(0x4e2d) + char(0x6587) + ' ' + String.fromCodePoint(0x1f600);
     expect(SubtitleUtils.decodeSubtitleBytes(utf8(text))).toBe(text);

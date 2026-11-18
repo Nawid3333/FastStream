@@ -236,7 +236,7 @@ describe('Subtitle editing', function() {
     // change event, so nothing happened.
     await openPlayer();
     const state = await browser.execute(() => new Promise((done) => {
-      const input = document.querySelector('.mainplayer input[type=file][accept=".vtt, .srt"]');
+      const input = document.querySelector('.mainplayer input[type=file][accept*=".srt"]');
       const dataTransfer = new DataTransfer();
       dataTransfer.items.add(new File(['1\n00:00:01,000 --> 00:00:03,000\nA line\n\n'], 'lines.srt'));
       input.files = dataTransfer.files;

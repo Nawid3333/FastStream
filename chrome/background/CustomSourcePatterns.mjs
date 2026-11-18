@@ -1,5 +1,6 @@
 // @ts-check
 import {URLUtils} from '../player/utils/URLUtils.mjs';
+import {SUBTITLE_EXTENSIONS} from './StreamDetection.mjs';
 
 /**
  * Parses the option: `<type> /<regex>/<flags>` per line; blank, `#`, `//` and `@` lines are skipped.
@@ -42,8 +43,8 @@ export function parseCustomSourcePatterns(text) {
       errors.push({line: i + 1, text: line, reason: 'invalid regex: ' + /** @type {Error} */ (e).message});
       continue;
     }
-    if (!URLUtils.getModeFromExtension(ext) && ext !== 'vtt' && ext !== 'srt') {
-      errors.push({line: i + 1, text: line, reason: `unknown source type "${ext}" (use the file extension: m3u8, mpd, mp4, webm, vtt, srt)`});
+    if (!URLUtils.getModeFromExtension(ext) && !SUBTITLE_EXTENSIONS.includes(ext)) {
+      errors.push({line: i + 1, text: line, reason: `unknown source type "${ext}" (use the file extension: m3u8, mpd, mp4, webm, vtt, srt, ttml, dfxp)`});
       continue;
     }
     patterns.push({ext, regex, flags});

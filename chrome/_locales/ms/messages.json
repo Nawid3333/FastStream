@@ -422,6 +422,12 @@
     "player_subtitles_nocues": {
         "message": "Tiada sarikata ditemui dalam fail ini."
     },
+    "player_subtitles_ttml_unreadable": {
+        "message": "Fail sari kata TTML atau DFXP ini tidak dapat dibaca."
+    },
+    "player_subtitles_ttml_images": {
+        "message": "Fail TTML ini menyimpan sari katanya sebagai imej, yang tidak dapat dipaparkan oleh FastStream."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Cari OpenSubtitles"
     },

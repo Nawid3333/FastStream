@@ -422,6 +422,12 @@
     "player_subtitles_nocues": {
         "message": "Nenhuma legenda encontrada neste arquivo."
     },
+    "player_subtitles_ttml_unreadable": {
+        "message": "Não foi possível ler este arquivo de legendas TTML ou DFXP."
+    },
+    "player_subtitles_ttml_images": {
+        "message": "Este arquivo TTML contém as legendas como imagens, que o FastStream não consegue exibir."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Pesquisar no OpenSubtitles"
     },
