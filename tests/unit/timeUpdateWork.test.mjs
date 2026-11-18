@@ -92,8 +92,7 @@ describe('updateNextVideoBanner', () => {
 });
 
 describe('updateMarkers', () => {
-  // The analyzers call it on every animation frame while they run (the preview frames' one
-  // by default); it rewrote the left and display of all four markers each time.
+  // The analyzers call it every animation frame: the four markers are not rewritten each time.
   it('writes a marker only when it moves, shows or hides', () => {
     const writes = [];
     const marker = (name) => ({style: new Proxy({}, {

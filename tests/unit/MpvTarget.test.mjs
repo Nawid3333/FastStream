@@ -308,7 +308,7 @@ describe('a play message and an open message for the same stream', () => {
             expect(field.endsWith(BACKSLASH)).toBe(false);
           }
         }
-        // Nothing the protocol does not name (mpvPath: the coordinator's refinement, 2026-10-13).
+        // nothing the protocol does not name (mpvPath)
         expect(Object.keys(play).filter((key) =>
           !['type', 'target', 'title', 'start', 'headers', 'subtitles', 'mpvPath', 'fullscreen', 'newWindow'].includes(key))).toEqual([]);
         if (settings.mpvPath) expect(play.mpvPath).toBe(settings.mpvPath);

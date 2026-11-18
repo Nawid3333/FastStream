@@ -2,9 +2,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {fragment, initSegment, videoTrack} from './helpers/fmp4.mjs';
 import {find, readDuration, readMp4} from './helpers/mp4boxes.mjs';
 
-// The merger (MP4Merger), which joins a DASH or fMP4 HLS stream's fragments into one MP4
-// with mp4box (the patched npm build: see vitest.config.mjs), and the file it writes read
-// back box by box.
+// MP4Merger joins a DASH or fMP4 HLS stream's fragments into one MP4 (patched mp4box), read back
+// box by box.
 
 // Every blob store made, to see which were closed.
 const stores = [];
@@ -67,9 +66,7 @@ async function merge(track, fragments, duration) {
 
 describe('MP4Merger: what it writes', () => {
   it('writes negative composition offsets into a signed (version 1) ctts', async () => {
-    // A CMAF stream with B pictures: trun version 1, the reordered pictures shown before
-    // they are decoded. The ctts was always version 0, which is unsigned: -3000 read as
-    // 4294964296, nearly 13 hours at 90 kHz.
+    // CMAF with B pictures: trun version 1, so the ctts is version 1 too (signed offsets).
     const track = videoTrack({timescale: 90000});
     const samples = [
       {duration: 3000, cts: 0, key: true},
@@ -98,10 +95,7 @@ describe('MP4Merger: what it writes', () => {
   });
 
   it('writes an edit longer than 2^32 ticks of the movie timescale in full', async () => {
-    // A 10 MHz video timescale (common in DASH made from Smooth Streaming) runs past 2^32
-    // after 7 minutes 9 s. The movie timescale is the video's, and the edit was 32-bit: an
-    // 8 minute save had an edit of 1 minute 10 s, and players that follow edit lists
-    // stopped there.
+    // A 10 MHz timescale passes 2^32 after 7 min 9 s: the edit is 64-bit.
     const timescale = 10000000;
     const track = videoTrack({timescale});
     const minute = 60 * timescale;
@@ -125,10 +119,7 @@ describe('MP4Merger: what it writes', () => {
 
 describe('MP4Merger: cancelling', () => {
   it('stops while it writes the file to OPFS', async () => {
-    // With OPFS, every fragment's media goes into one file (as it is read, since the media
-    // copied at the end after the progress reached 100 % could not be read any more); for
-    // a large video that takes a while. It did not look at the cancel, so a cancelled save
-    // still finished and downloaded.
+    // With OPFS every fragment's media goes into one file as it is read; a cancel stops that.
     let cancel;
     const opfs = {
       saveBegin: vi.fn(async () => {}),
@@ -157,9 +148,8 @@ describe('MP4Merger: cancelling', () => {
 
 describe('MP4Merger: the blob store of a save', () => {
   it('keeps the store the saved file reads from until release()', async () => {
-    // It closed two minutes after the save, and a closed OPFS session is deleted by the
-    // next player or save that starts: a longer download, or the same file saved again,
-    // lost it. SaveManager releases it once nothing will read the file.
+    // SaveManager releases the OPFS session once nothing will read the file (a closed one is
+    // deleted by the next start).
     vi.useFakeTimers();
     const track = videoTrack({timescale: 90000});
     const data = fragment(track, 1, 0, [{duration: 3000, cts: 0, key: true}]);
@@ -198,10 +188,8 @@ describe('MP4Merger: the blob store of a save', () => {
   });
 });
 
-// A save read a fragment from the store, converted it, and only then read the next: the
-// store's read and the conversion each waited for the other. The next one is read while this
-// one converts now; a read that fails still fails the save, in its turn, and nothing is left
-// unhandled.
+// The next fragment is read while this one converts; a failed read still fails the save, in its
+// turn.
 describe('MP4Merger: reading the next fragment while one converts', () => {
   /**
    * A merger whose reads and conversions are recorded, each held until let go.
@@ -254,13 +242,8 @@ describe('MP4Merger: reading the next fragment while one converts', () => {
   });
 });
 
-// The merger kept a slice of each fragment's own Blob (the player's store: in RAM, or a File
-// of its OPFS session) until the end, and wrote the file only then. The player lets go of a
-// fragment once the save has read it, and frees it when it no longer needs it (a quality
-// change, the buffer moving on): the slice of an OPFS File then read nothing, the copy
-// failed, and its fallback handed over a Blob of the same dead slices - "Save complete", and
-// the download failed. Slices of RAM Blobs kept the whole video in RAM past the budget. Each
-// fragment's media goes into the save's own file as it is read now, as the HLS save does.
+// Each fragment's media goes into the save's own file as it is read: the player may free its own
+// copy right after.
 describe('MP4Merger: a save written as it goes, holding nothing of the player\'s store', () => {
   const track = videoTrack({timescale: 90000});
   const fragments = () => [0, 1, 2, 3].map((i) => fragment(track, i + 1, i * 6000,
@@ -319,15 +302,14 @@ describe('MP4Merger: a save written as it goes, holding nothing of the player\'s
     globalThis.mergerOpfs = fakeOpfs({log});
     const saved = await bytesOf(await convert(fragments().map((data) => freedOnceRead(data, log))));
     expect(saved).toEqual(expected);
-    // The first fragment's media was on its way to the file before the last was read.
+    // the first fragment's media is on its way before the last is read
     expect(log.indexOf('append')).toBeLessThan(log.lastIndexOf('read'));
     expect(log.filter((step) => step === 'append')).toHaveLength(4);
     expect(log.at(-1)).toBe('end');
   });
 
   it('hands each fragment\'s own buffer to the disk, without copying its media out of it', async () => {
-    // The read is the save's own (getDataFromBlob: a new ArrayBuffer each time); a copy of its
-    // mdat was one more fragment-sized allocation per fragment, held until collected.
+    // the read is the save's own ArrayBuffer: no second copy of its mdat
     const reads = new Set();
     const ownRead = (data) => ({track: 0, getEntry: async () => ({getDataFromBlob: async () => {
       const buffer = await data.arrayBuffer();
@@ -387,9 +369,7 @@ describe('MP4Merger: a save written as it goes, holding nothing of the player\'s
   });
 });
 
-// A partial save (Alt-click: what is downloaded) wrote the whole stream's length into the
-// file's headers - the DASH period's, hls.js's total duration - and Firefox, which takes a
-// video's duration from the moov, said a 10 minute save of an hour-long stream lasted an hour.
+// A partial save writes its own duration, not the stream's (Firefox reads it from the moov).
 describe('MP4Merger: the length a partial save says it has', () => {
   it('is the length of the fragments saved, in mdhd, tkhd and mvhd', async () => {
     const track = videoTrack({timescale: 90000});

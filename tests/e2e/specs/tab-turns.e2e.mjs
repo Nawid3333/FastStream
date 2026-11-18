@@ -1,16 +1,11 @@
-// Players in several tabs share the line: the one the user looks at downloads first, the ones
-// in background tabs after it (PlayerTurns, PlayerPeers.shouldWait, DownloadManager.setWaiting).
+// Players in several tabs share the line: the one in front downloads first (PlayerTurns,
+// PlayerPeers.shouldWait).
 //
-// Before, a player in a background tab stepped aside only while the watched one was short of
-// video (under 10 s ahead). Past that, each took its share of the line: the video in front
-// buffered at a fraction of the line's speed for as long as the others had anything left to
-// download. Measured with tools/bench-ab.mjs (--scenarios tabs, three players in background
-// tabs, 8 Mbit/s): the one in front had its whole video after 66 s, and after 30 s with turns.
+// Without turns each background player took its share of the line for as long as it had anything
+// left.
 //
-// Here: one line of 6 Mbit/s for both videos (about 2.1 Mbit/s each, so nobody leaves room
-// for the other), each video on a host of its own - on one host Firefox itself serves the
-// active tab first, which tabs on different sites do not get. The server's log tells who
-// asked for a segment when.
+// One 6 Mbit/s line for both 2.1 Mbit/s videos, each on its own host (Firefox serves one host's
+// active tab first).
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -183,9 +178,8 @@ describe('Players in several tabs', function() {
           JSON.stringify(meanwhile.map((entry) => [entry.place, entry.at - frontFirst])));
       // It had not finished before (then there was nothing to wait with).
       expect(backBefore).toBeLessThan(segmentsOf(SECONDS.back) - 10);
-      // Its own next seconds it still gets (it is paused near its start, and its playback
-      // keeps 10 s ahead: the first six or seven segments), to play at once when the user
-      // comes back. Past those it starts nothing. (Without turns: segments 8 to 12 here.)
+      // Its own next seconds it still gets (to play at once when the user comes back); past those
+      // it starts nothing.
       const ahead = meanwhile.filter((entry) => entry.place > OWN_NEXT_PLACES);
       expect(ahead.map((entry) => entry.place)).toEqual([]);
 

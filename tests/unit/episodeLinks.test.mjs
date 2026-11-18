@@ -4,8 +4,8 @@ import fc from 'fast-check';
 // The script's text, as contentDom.mjs takes content.js's (?raw: CodeQL js/code-injection).
 import episodeLinksSource from '../../chrome/episode-links.js?raw';
 
-// chrome/episode-links.js, a classic content script before content.js: which link means the
-// next (or the previous) episode (his wish, 2026-10-11: autoplay on as many sites as possible).
+// chrome/episode-links.js, a classic content script before content.js: which link is the next (or
+// previous) episode.
 const context = vm.createContext({URL});
 vm.runInContext(episodeLinksSource, context, {filename: 'chrome/episode-links.js'});
 const EpisodeLinks = vm.runInContext('EpisodeLinks', context);
@@ -129,8 +129,7 @@ describe('EpisodeLinks with an episode word that is not ASCII (épisode, bölüm
   });
 });
 
-// His report (2026-10-11, an anime site): after a season's last episode, autoplay went on to
-// another series.
+// after a season's last episode autoplay does not go on to another series
 describe('EpisodeLinks.seriesOf / inSeries', () => {
   const SERIES_URL = 'https://anime-site.example/anime/stream/example-series';
   it.each([
@@ -141,7 +140,7 @@ describe('EpisodeLinks.seriesOf / inSeries', () => {
     ['https://a.test/tv/x/2x05', 'https://a.test/tv/x/'],
     ['https://a.test/anime/x/folge12.html', 'https://a.test/anime/x/'],
     ['https://a.test/watch/one-piece-episode-1000', 'https://a.test/watch/one-piece-'],
-    // A season and an episode in one segment (deepseek's review).
+    // a season and an episode in one segment
     ['https://a.test/show/x/staffel-3-episode-12', 'https://a.test/show/x/'],
     ['https://a.test/watch/my-show-season-2-episode-5', 'https://a.test/watch/my-show-'],
   ])('tells the series of %s: %s', (page, series) => {
@@ -164,7 +163,7 @@ describe('EpisodeLinks.seriesOf / inSeries', () => {
     const onePiece = EpisodeLinks.seriesOf('https://a.test/watch/one-piece-episode-1000');
     expect(EpisodeLinks.inSeries(onePiece, 'https://a.test/watch/one-piece-episode-1001')).toBe(true);
     expect(EpisodeLinks.inSeries(onePiece, 'https://a.test/watch/naruto-episode-1')).toBe(false);
-    // A sequel that only starts the same (deepseek's review).
+    // a sequel that only starts the same
     expect(EpisodeLinks.inSeries(onePiece, 'https://a.test/watch/one-piece-2/staffel-1/episode-1')).toBe(false);
     expect(EpisodeLinks.inSeries(onePiece, 'https://a.test/watch/one-piece-2-episode-1')).toBe(false);
     // A series that is a folder has its other parts in it; a sequel's folder not.
@@ -208,11 +207,8 @@ describe('EpisodeLinks.nextSeason', () => {
   });
 });
 
-// normalize stripped the marks at a text's end with a regex anchored there (`[…]+$`, global):
-// tried from each mark of a run, it read to the run's end each time, quadratic in its length.
-// A link whose text holds 60,000 dashes took a second, at every poll for the next episode,
-// once per same-site link (Claude API review, 2026-11-15). The marks are now taken off both
-// ends by a loop: the same text comes out.
+// normalize strips the marks at both ends by a loop: a regex anchored at the end was quadratic in a
+// run's length.
 describe('EpisodeLinks.normalize', () => {
   const OLD_MARKS = /^[\s«»‹›<>←→⟨⟩❮❯|·•…:\-–—]+|[\s«»‹›<>←→⟨⟩❮❯|·•…:\-–—]+$/g;
   const oldNormalize = (text) => String(text || '').replace(/\s+/g, ' ').replace(OLD_MARKS, '').trim().toLowerCase()

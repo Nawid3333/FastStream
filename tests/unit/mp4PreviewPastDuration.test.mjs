@@ -1,10 +1,8 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {playerOnFakeElement} from './helpers/fakeMediaElement.mjs';
 
-// The seek preview of a fragmented MP4 without its duration in the metadata (no mehd box, as
-// ffmpeg's frag_keyframe+empty_moov writes it): the preview knows only as much of the file as it
-// has read, and reads only up to its first frame - about 9 s of a 160 s file. A place past that
-// was clamped by the element to the 9 s it knew, and every place past 9 s showed the frame at 9 s.
+// A fragmented MP4 without mehd: the preview knows only what it read (to its first frame, ~9 s);
+// places past that are not clamped to 9 s.
 
 const {default: MP4Player} = await import('../../chrome/player/players/mp4/MP4Player.mjs');
 

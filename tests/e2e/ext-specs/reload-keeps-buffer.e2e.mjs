@@ -1,11 +1,8 @@
-// A reload of the page keeps what the player had buffered (BufferStash; his wish, 2026-10-28):
-// the player going away hands its downloads to the background, and the next player of the
-// same video on the same page takes them back - from RAM, and from the disk (OPFS). What
-// nobody takes back within 20 s is let go of, its files deleted.
+// A reload keeps what the player buffered (BufferStash): handed to the background, taken back from
+// RAM and OPFS within 20 s.
 //
-// The site signs its link anew at every load of its page, as vidmoly does (?sig=s<n>, n
-// counting the page's loads), and its segments carry the signature: the same file under the
-// new link has another address, and is found all the same (DownloadManager.adopt).
+// The link is signed anew at every load (?sig=s<n>, as vidmoly does): the same file under a new
+// address is found (DownloadManager.adopt).
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -132,9 +129,7 @@ const sessionsFromExtension = () => inExtensionPage(async (arg, done) => {
 }, null);
 
 /**
- * Waits until the reloaded player took back all it was handed (what it moves from the disk comes
- * a moment later), and then plays 4 s of it: from what it took back, read where it keeps it
- * now. What it asked for meanwhile under the new link is what it did not have.
+ * Waits until the reloaded player took back all it was handed, then plays 4 s of it.
  * @return {Promise<{taken: number, of: number}>}
  */
 async function tookBackAll() {
@@ -189,8 +184,7 @@ async function reloadPage() {
 }
 
 /**
- * The newest of the session directories: the player's that played last (fsblob-<time>-<n>). The
- * earlier tests' players' are there too, until the prune 60 s past their last heartbeat.
+ * The newest session directory (fsblob-<time>-<n>): the player's that played last.
  * @param {string[]} names
  * @return {string}
  */
@@ -322,9 +316,8 @@ describe('A reload of the page', function() {
     const first = await loadAndBuffer('/watch-slow', 8);
     const buffered = placesFor(first);
     await reloadPage();
-    // The case itself: 4 s on, the old page is still there, and its player, gone at
-    // beforeunload, has loaded again (main.mjs StayedMs, 3 s). Measured on 2026-11-15: it has
-    // no stream then, so it takes nothing back, and asks the old link for nothing.
+    // 4 s on, the old page's player (gone at beforeunload) has loaded again with no stream: it
+    // takes nothing back.
     await browser.pause(Math.max(0, slowAskedAt + 4000 - Date.now()));
     const old = await playerState();
     const oldAsked = [...manifests, ...segments].filter((s) => s.sig === first && s.at >= slowAskedAt + 3000).length;
@@ -344,8 +337,7 @@ describe('A reload of the page', function() {
   });
 
   it('keeps what was on the disk too, and deletes the old player\'s files', async function() {
-    // No RAM for the buffer: all but the next seconds goes to the disk (OPFS). With 2 MB it all
-    // stayed in RAM until the reload, and this tested RAM again.
+    // No RAM for the buffer: all but the next seconds goes to OPFS.
     await setOptions({autoEnableURLs: [SITE + '/'], ramBudget: 0, bufferToDisk: true});
     segments = [];
     const first = await loadAndBuffer('/watch-disk', 12);

@@ -5,9 +5,7 @@ import {OpenSubtitlesSearch} from '../../chrome/player/ui/subtitles/OpenSubtitle
 vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({DOMElements: {}}));
 vi.mock('../../chrome/player/modules/vtt.mjs', () => ({WebVTT: {}}));
 
-// The search took any "errors" field as a failure, an empty list too ([] is truthy): an
-// answer with results and "errors": [] showed an empty error instead of them (audit,
-// 2026-10-09).
+// An answer with results and "errors": [] shows the results ([] is truthy).
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -31,8 +29,7 @@ describe('OpenSubtitlesSearch.request', () => {
   });
 });
 
-// "S2" or "Season 2" was no number, and the search went on as one for a movie (review,
-// 2026-10-09). 0 is a season (specials), and stays one.
+// "S2" or "Season 2" is a season, and 0 (specials) stays one.
 describe('OpenSubtitlesSearch.readInputs', () => {
   const read = (season, episode, year = '') => OpenSubtitlesSearch.prototype.readInputs.call({subui: {
     search: {value: ' Dune '}, languageInput: {value: 'en'}, yearInput: {value: year},

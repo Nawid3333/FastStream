@@ -2,10 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 
-// A release page offers four files with no word on which one to take, and people took the
-// unsigned zip for the add-on and thought a special Firefox was needed (the owner,
-// 2026-11-17). release.yml puts .github/release-notes.md, how to install, above GitHub's
-// generated list of changes; the README's Installation section says the same at length.
+// release.yml puts .github/release-notes.md (which file to take, how to install) above GitHub's
+// generated changes.
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 const release = fs.readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8');

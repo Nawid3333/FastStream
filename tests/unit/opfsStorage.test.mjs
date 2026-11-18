@@ -1,20 +1,10 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-// Where downloaded fragments go instead of RAM: OPFS through a dedicated worker
-// (OPFSManager, opfs-worker.mjs), with the Cache API and IndexedDB behind it (FSBlob).
-// tests/e2e/specs/storage.e2e.mjs covers the real Firefox OPFS; this covers the failure
-// paths, on stand-ins:
-// - getFile read each stored fragment back through the worker into an ArrayBuffer and
-//   wrapped it in a Blob, so every "offloaded" fragment was in RAM too.
-// - A worker call that never got an answer held up setup and every save for good.
-// - A dead worker left OPFS "on" for the session, every later fragment kept in RAM.
-// - Two players starting together: one's prune deleted the other's brand-new session
-//   directory (made before its first heartbeat).
-// - clear() while an offload ran: the blob came back after the clear, and stayed.
-// - A fragment's identifier is its URL, and OPFS refuses a name with a '/': no fragment
-//   was ever stored, every one stayed in RAM.
-// - A backlog of writes longer than the call timeout counted as a crashed worker.
-// - A write the disk took only part of was taken for a whole one.
+// Where fragments go instead of RAM: OPFS through a worker, Cache API and IndexedDB behind it
+// (FSBlob). The failure paths:
+// - getFile gives the file on disk, not a copy in RAM.
+// - unanswered or dead workers, concurrent prunes, clear() during an offload, '/' in names, long
+// backlogs, partial writes.
 
 vi.mock('../../chrome/player/network/IndexedDBManager.mjs', () => ({
   IndexedDBManager: class {
@@ -255,9 +245,7 @@ describe('OPFSManager', () => {
   });
 
   it('keeps a working worker after a call that could not be sent', async () => {
-    // postMessage threw (a buffer given away already, data that cannot be copied) after the
-    // call was counted: it waited for an answer that could never come, and the watchdog
-    // took the healthy worker for crashed 30 s later.
+    // A postMessage that throws is not counted as waiting for an answer.
     vi.useFakeTimers();
     const manager = new OPFSManager();
     const worker = {
@@ -340,9 +328,7 @@ describe('opfs-worker: cleaning up other tabs\' sessions', () => {
 });
 
 describe('opfs-worker: a session whose directory another player deleted', () => {
-  // A live session with no heartbeat for a minute (the computer slept) is a dead one to the
-  // next player that starts (prune), which deletes its directory. Every write of the session
-  // failed from then on, for as long as its page lived.
+  // A live session pruned while the computer slept writes to a new directory.
   it('makes its directory again for the next fragment, and for the next save', async () => {
     const root = new FakeDir();
     const manager = await startManager(root);
@@ -413,10 +399,8 @@ describe('opfs-worker: writes', () => {
   });
 
   it('forces nothing to the disk: no fragment, no heartbeat, no save', async () => {
-    // A flushed write is a forced sync: 500 MB as 1.6 MB files, each flushed, made Windows
-    // write 800 MB, lazily 423 MB (measured), and the heartbeat was flushed every second for
-    // every open player. A save's flush at its end took about 0.5 s of a 458 MB HLS save. All
-    // three are only read back in this session.
+    // No flushed writes: a forced sync per fragment doubled what Windows wrote; all is read back in
+    // this session.
     const root = new FakeDir();
     const manager = await startManager(root);
     try {
@@ -439,8 +423,7 @@ describe('opfs-worker: writes', () => {
   });
 
   it('reads a spilled fragment into RAM only in its turn, one at a time', async () => {
-    // OPFSManager read every Blob before posting it: fragments a memory budget spilled
-    // together were all in RAM a second time before the first was on disk (Codex, 2026-11-07).
+    // Blobs are posted unread: fragments spilled together are not all in RAM a second time.
     const root = new FakeDir();
     const manager = await startManager(root);
     const writtenAtEachRead = [];
@@ -583,8 +566,7 @@ describe('FSBlob', () => {
   });
 
   it('keeps nothing in RAM for a blob the Cache API holds, and reads it from there', async () => {
-    // A private window's backend. Reading each fragment back at once (match().blob()) kept a
-    // copy of every one in RAM: Firefox keeps a private window's Response.blob() in memory.
+    // A private window's Response.blob() stays in memory: fragments are not read back at once.
     const {fsblob, cached} = withOpfs(null);
     let reads = 0;
     const cache = await window.caches.open('x');
@@ -607,8 +589,7 @@ describe('FSBlob', () => {
   });
 
   it('keeps a downloaded fragment in RAM until it is spilled to disk', async () => {
-    // Every fragment was written to OPFS at once (44 ms for 1.5 MB, measured); a video that
-    // fits in the RAM budget never needs it (FastStreamClient.enforceMemoryBudget).
+    // fragments go to disk only past the RAM budget (FastStreamClient.enforceMemoryBudget)
     const root = new FakeDir();
     const manager = await startManager(root);
     const {fsblob} = withOpfs(manager);
@@ -636,9 +617,7 @@ describe('FSBlob', () => {
   });
 
   it('does not let an old write replace a fragment saved again meanwhile', async () => {
-    // A fragment let go of and downloaded again while its first copy was still being
-    // written: the old write's answer put the old data back, and took the new one out of
-    // the RAM count.
+    // an old write's late answer does not put old data back over a re-download
     let release;
     const gate = new Promise((resolve) => {
       release = resolve;
@@ -664,9 +643,7 @@ describe('FSBlob', () => {
   });
 
   it('does not let a delete take away a fragment saved again while it waited', async () => {
-    // DeleteBlob waits for the blob's write to end, then cleared the
-    // identifier again - by then the fragment downloaded anew under it, which was lost and
-    // downloaded a third time.
+    // DeleteBlob does not clear the identifier of the fragment downloaded anew under it
     let release;
     const gate = new Promise((resolve) => {
       release = resolve;
@@ -821,9 +798,7 @@ describe('FSBlob', () => {
   });
 });
 
-// A worker whose init fails (the web build in a private window, where getDirectory throws):
-// FSBlob moves on to its next store and drops the manager, and the worker stayed running,
-// one more for every player that opened so.
+// a worker whose init fails is stopped when FSBlob moves on
 describe('OPFSManager.setup', () => {
   it('ends the worker when its init fails', async () => {
     const workers = [];
@@ -877,10 +852,7 @@ describe('OPFSManager.setup', () => {
   });
 });
 
-// A saved video's copy on disk stayed after its download until another FastStream player
-// started (a prune): days, for someone who saves and closes the tab. A save's store, once
-// nothing will read its file again (its download over, or the save failed), deletes its
-// session directory as it closes.
+// A save's store deletes its session directory as it closes, not at the next prune.
 describe('OPFSManager.close, a save\'s session', () => {
   /**
    * A manager whose session holds a finished save's file.

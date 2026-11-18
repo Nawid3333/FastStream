@@ -189,10 +189,8 @@ describe('the relay watch', () => {
     expect(ended(events)).toEqual([{type: 'ended', path: 'https://cdn.test/ep3.mp4'}]);
   });
 
-  // mpv's default keep-open "no" lets the file go at its end, and the helper's mpv
-  // (--idle=once) quits: its end-file eof came 5 ms before mpv closed, which stopped autoplay's
-  // countdown (CI's mpv has no config; mpv-episodes.e2e.mjs, 2026-11-17). While autoplay is
-  // on, the file playing stays open, and mpv gives the next file the user's value.
+  // While autoplay is on mpv keeps the file open at its end (keep-open), so --idle=once does not
+  // quit before the countdown.
   describe('keep-open while autoplay is on', () => {
     const keepOpenSent = (port) => commands(port).filter((m) => String(m.command[1]).includes('keep-open'));
     const asked = (port) => keepOpenSent(port).filter((m) => m.command[0] === 'get_property').map((m) => m.id);
@@ -266,10 +264,8 @@ describe('the relay watch', () => {
     });
   });
 
-  // A skip past the end of an HLS stream with discontinuities stopped mpv at the
-  // end, paused (keep-open), with eof-reached never set (measured with the pinned mpv,
-  // 2026-10-13). An end is also mpv at the last half second of its file when it pauses there
-  // or a seek lands there.
+  // An end is also mpv paused or landing in the last half second (an HLS skip past the end never
+  // sets eof-reached).
   describe('an end mpv does not mark (eof-reached unset)', () => {
     /** The last question for the time left: its id. */
     const timeLeftAsked = (port) => {

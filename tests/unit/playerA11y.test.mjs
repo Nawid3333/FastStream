@@ -2,18 +2,9 @@ import fs from 'node:fs';
 import {describe, expect, it, vi} from 'vitest';
 import {FakeDocument} from './helpers/fakeDom.mjs';
 
-// What a keyboard or screen reader user gets from the player's controls:
-// - the volume block is a role="slider" with no value a screen reader could read;
-// - Tab skipped the big play button;
-// - the toolbar buttons had no focus ring of their own.
-// And from #277: the pages did not say which language they are in, and the controls
-// faded in and out (and the buttons being rearranged shook) whatever the system said.
-// And from the review of 2026-11-13: Space did not press a control the keyboard went to, the
-// menu buttons did not say whether their menu was open, and the seek bar was no slider. And
-// from its second look: Space played or paused the video on the subtitles, quality and
-// language buttons, Enter could not open the quality or language list again once a click had
-// closed it, the audio list's Enter closed the list instead of choosing, and Space after a
-// click on the autoplay switch toggled it again.
+// What a keyboard or screen-reader user gets: readable sliders, Tab to every control, focus rings,
+// page languages, reduced motion, Space and Enter on the focused control, menu buttons' expanded
+// state.
 
 const doc = new FakeDocument('<html><body></body></html>');
 vi.stubGlobal('document', doc);
@@ -319,7 +310,7 @@ describe('the extension\'s pages', () => {
     const still = /\n\.fluid_video_wrapper\.fluid_player_layout_default \* \{([^}]*)\}/.exec(css);
     expect(still).not.toBe(null);
     expect(still[1]).toMatch(/transition-duration: 0s !important;\s*animation-duration: 0s !important;/);
-    // And no motion declared at all (2026-11-15: the declarations the net made no-ops are gone).
+    // and no motion declared at all
     expect(movingDeclarations(css)).toEqual([]);
     expect(css).not.toMatch(/@keyframes/);
   });

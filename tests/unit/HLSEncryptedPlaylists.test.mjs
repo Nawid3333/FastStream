@@ -177,9 +177,8 @@ describe('HLSFragmentRequester, an init segment under the playlist\'s key', () =
     const fragments = parse(AES_128);
     HLSFragmentRequester.takeOverDecryption(fragments);
     const fragment = new HLSFragment(fragments[0].initSegment, 0, 0);
-    // Fixed keys: with two random ones, about one run in 256 decrypted to bytes that end
-    // in valid padding (a last byte of 1), and the wrong key "worked" (CI on #334). This
-    // pair fails the padding check, as most wrong keys do.
+    // Fixed keys: random ones decrypt to valid padding about one run in 256. This pair fails the
+    // padding check.
     const cipher = createCipheriv('aes-128-cbc', Buffer.alloc(16, 0x11), Buffer.from(IV_HEX, 'hex'));
     const sent = Buffer.concat([cipher.update(Buffer.alloc(40, 7)), cipher.final()]);
 

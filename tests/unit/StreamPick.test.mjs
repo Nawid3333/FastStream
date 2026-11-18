@@ -221,8 +221,7 @@ describe('StreamPick.pick', () => {
   const MP4 = PlayerModes.ACCELERATED_MP4;
 
   it('keeps the file at the lowest depth over a deeper one, even a newer one', () => {
-    // The newest MP4 was taken from the other files alone: a deeper one replaced the pick
-    // (this review, 2026-10-13).
+    // the newest MP4 is taken from all files, a deeper one too
     const top = at('top.mp4', MP4, 0, 1);
     const deep = at('deep.mp4', MP4, 1, 2);
     expect(StreamPick.pick([top, deep])).toBe(top);
@@ -243,9 +242,7 @@ describe('StreamPick.pick', () => {
     expect(StreamPick.pick([hls, file])).toBe(hls);
   });
 
-  // The documented rule, and fallbacks()' order: depth first, a stream over a file only at
-  // one depth. A file at depth 0 and a stream deeper gave the stream in one detection order
-  // and the file in the other (glm, r5-04; decided 2026-10-14).
+  // Depth first, a stream over a file only at one depth, whatever the detection order.
   it('takes a file at a lower depth over a deeper stream, in either order', () => {
     const file = at('top.mp4', MP4, 0, 1);
     const hls = at('embed.m3u8', PlayerModes.ACCELERATED_HLS, 1, 2);

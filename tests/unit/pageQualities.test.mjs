@@ -46,8 +46,7 @@ function documentOf(videos, scripts = []) {
   };
 }
 
-// The hoster's page (film-hoster.example), as it was on 2026-10-12: four Playerjs set-ups,
-// one per kind of device, each with the same file string.
+// A hoster's page: four Playerjs set-ups, one per kind of device, each with the same file string.
 const HOSTER_FILE = '[360p]https://www.film-hoster.example/get_file/9/0b57/100000/100001/100001_360p.mp4/,' +
   '[720p]https://www.film-hoster.example/get_file/9/64bf/100000/100001/100001_720p.mp4/,' +
   '[1080p]https://www.film-hoster.example/get_file/9/48f1/100000/100001/100001.mp4/';

@@ -1,7 +1,5 @@
-// What a site lays over its own video stays off FastStream's player (overlay-guard.js):
-// its control bar and play button, in the frame of the video, and the bar of a page that
-// embeds its player in a full-page iframe from another site, as streaming sites do. Page
-// parts that only border the player stay, and everything comes back when the player goes.
+// What a site lays over its video stays off FastStream's player (overlay-guard.js); parts that only
+// border it stay.
 //
 // Every case also checks that content.js and overlay-guard.js threw nothing.
 
@@ -30,9 +28,8 @@ let servers = [];
 let extHandle;
 let siteHandle;
 
-// The site's own player: the video fills #media, and the bar and the play button lie on
-// it from outside #media, so FastStream replaces #media and they stay over the player. A
-// page header above it, and a fixed bar that only touches its top edge, are the page's.
+// The bar and play button lie on #media from outside: FastStream replaces #media; header and edge
+// bar are the page's.
 const barPage = (t) => `<!doctype html><title>bar</title>
 <style>
   body { margin: 0; }
@@ -54,9 +51,7 @@ const barPage = (t) => `<!doctype html><title>bar</title>
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
 </script>`;
 
-// The same player as a web component: the video, its bar and its play button are in the
-// custom element's shadow root, so FastStream's player goes in there too. The page's own
-// header and top bar are outside it.
+// The same player as a web component: FastStream's player goes into its shadow root.
 const shadowPage = (t) => `<!doctype html><title>shadow</title>
 <style>
   body { margin: 0; }
@@ -86,10 +81,8 @@ const shadowPage = (t) => `<!doctype html><title>shadow</title>
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
 </script>`;
 
-// A layout wrapper that holds the page's nav, a side column and an ad over the player,
-// but not the player: it covers the player's box, and it is painted under it. Only the ad
-// is the player's; hiding the wrapper would take the nav and the column with it. The
-// player's box is placed by a class, which the player takes over with the box.
+// A wrapper painted under the player covers its box: only its ad over the player goes, not the nav
+// or the column.
 const stagePage = (t) => `<!doctype html><title>stage</title>
 <style>
   body { margin: 0; }
@@ -110,9 +103,8 @@ const stagePage = (t) => `<!doctype html><title>stage</title>
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
 </script>`;
 
-// A see-through veil over the whole page, with a clickable ad in it over the player. The
-// veil lets clicks through (pointer-events: none), so the browser's hit test never finds
-// it; it covers the player, so it goes with the ad. The page's nav, under it, stays.
+// A see-through veil (pointer-events: none) with an ad over the player: both go; the nav under it
+// stays.
 const veilPage = (t) => `<!doctype html><title>veil</title>
 <style>
   body { margin: 0; }
@@ -128,10 +120,8 @@ const veilPage = (t) => `<!doctype html><title>veil</title>
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
 </script>`;
 
-// A site's own dialog, opened while the player is up: a backdrop over the whole page with
-// the dialog in it, the geometry of an ad layer. It stays. The ad that opens with
-// it, over the player and above the dialog's layer, goes: that shows the guard looked
-// again after the dialog opened.
+// A site's dialog opened while the player is up stays; the ad that opens with it over the player
+// goes.
 const dialogPage = (t) => `<!doctype html><title>dialog</title>
 <style>
   body { margin: 0; }
@@ -250,24 +240,10 @@ async function visibilities(ids) {
 }
 
 /**
- * Waits until content.js has done laying out the player's iframe, and the player inside is
- * laid out at the iframe's size.
- *
- * content.js measures the page's element again 8 times in the player's first 2 s, and after
- * every resize (leaving fullscreen is one), and hides the iframe while it measures. The
- * player inside then lays itself out at an iframe's default size, 300x150, for a moment. A
- * WebDriver click takes its point in the player's layout and dispatches it a moment later:
- * taken in that 300x150 layout, the fullscreen button's centre (274, 132) is the video's in
- * the 640x360 one, and a single click on the video pauses the player, which then rightly
- * keeps its bar up. All 13 failures of #501 had such a first click (each "started on click
- * 2", and Marionette's "TimedPromise timed out after 500 ms" from flushEventLoop: the click
- * never reached the button). Traced on CI (run 39473761807: 3 of 50 clicks on Linux, 1 of
- * 50 on Windows), every missed click came at (274, 132) and went to the VIDEO, and the
- * player gets a resize event at each of content.js's measurements (run 39476690456). Each
- * measurement rewrites the iframe's style attribute, watched here: quiet for twice
- * content.js's 250 ms step, with the player at the iframe's size, its layout is the one the
- * click lands in (25 rounds of this case on each runner, every click on the button: run
- * 39476690456).
+ * Waits until content.js is done laying out the player's iframe and the player is laid out at its
+ * size.
+ * content.js re-measures (and hides the iframe) 8 times in 2 s and on resizes; a WebDriver click
+ * taken in the 300x150 layout hits the video.
  * @param {WebdriverIO.Element} frame - The player's iframe (the session goes back into it).
  * @return {Promise<void>}
  */
@@ -295,12 +271,8 @@ async function playerAtRest(frame) {
 }
 
 /**
- * Enters fullscreen with the player's fullscreen button, in the player frame the session is
- * in, once content.js is done laying out the player (playerAtRest). A click that reached the
- * button and started nothing is clicked again (2026-10-10: seen on CI's runners, never
- * locally); one that went elsewhere fails at once and says where, and if fullscreen never
- * starts, the error says what the frames knew: focus, Firefox's fullscreenerror events, what
- * the iframe allows.
+ * Enters fullscreen with the player's button once the layout is at rest (playerAtRest).
+ * A click that started nothing is clicked again; one that went elsewhere fails and says where.
  * @param {WebdriverIO.Element} frame - The player's iframe.
  * @param {WebdriverIO.Element} button - The fullscreen button.
  * @param {string} what - For the error.
@@ -455,9 +427,7 @@ describe('A site\'s overlays around an in-page player', function() {
   });
 
   it('hides the bar a web-component player keeps in its shadow root, while the player is up', async function() {
-    // The guard went through document.querySelectorAll('*'), which never sees a shadow
-    // root, and the page's elementsFromPoint gives the shadow root's elements as their
-    // host: the web component's own bar stayed over FastStream's player.
+    // The guard sees into shadow roots: the web component's own bar does not stay over the player.
     await browser.switchToWindow(siteHandle);
     await browser.url(`${SITE}/shadow?t=${Date.now()}`);
     await browser.waitUntil(async () => inPage(() => window.shadowPart?.('main')?.readyState >= 2),
@@ -484,18 +454,14 @@ describe('A site\'s overlays around an in-page player', function() {
   });
 
   it('hides the rest of a web-component player in windowed fullscreen, and gives it back', async function() {
-    // Windowed fullscreen hides every element that does not hold the player, going through
-    // document.querySelectorAll('*'): it expanded the custom element, but the bar beside
-    // the player in its shadow root stayed.
+    // windowed fullscreen also hides the bar beside the player in its shadow root
     await browser.switchToWindow(siteHandle);
     await browser.url(`${SITE}/shadow?t=${Date.now()}`);
     await browser.waitUntil(async () => inPage(() => window.shadowPart?.('main')?.readyState >= 2),
         {timeout: 20000, timeoutMsg: 'the web component\'s video never loaded'});
     await browser.pause(500);
-    // The player's first message to the page: the background has linked the player to its
-    // iframe by then (content.js's listener runs before the page's). Windowed fullscreen
-    // needs that link. In Firefox 158 the player is ready a moment before it, and a toggle
-    // that soon was answered 'no_element' and did nothing (measured: Beta on Windows).
+    // The player's first message to the page: the background has linked it to its iframe, which
+    // windowed fullscreen needs.
     await inPage(() => {
       window.__playerAnnounced = false;
       window.addEventListener('message', (e) => {
@@ -531,9 +497,7 @@ describe('A site\'s overlays around an in-page player', function() {
       };
     });
 
-    // The toggle reaches the page's content script a message later: the fixed second above
-    // was now and then not enough (5 first attempts in a week, the page not yet hidden,
-    // #346). Waited for, then checked.
+    // the toggle reaches the content script a message later: waited for, then checked
     const settles = (display, msg) => browser.waitUntil(async () => (await state()).controls === display,
         {timeout: 15000, timeoutMsg: msg}).catch(() => {});
 
@@ -572,9 +536,7 @@ describe('A site\'s overlays around an in-page player', function() {
     await clickToolbar();
     await browser.waitUntil(async () => (await visibilities(['promo'])).promo === 'hidden',
         {timeout: 15000, timeoutMsg: 'the ad stayed over the player'}).catch(() => {});
-    // Found through the ad, the veil goes with it. The case above's ancestor stop at first
-    // took a veil missing from the hit test for one under the player: only the ad went, and
-    // the veil stayed, dimming the player.
+    // Found through the ad, the veil goes with it.
     expect(await visibilities(ids)).toEqual({veil: 'hidden', promo: 'hidden', nav: 'visible'});
 
     await inPage(() => window.leave());
@@ -639,9 +601,8 @@ describe('A site\'s overlays around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // In the player a site's page holds, the bar stayed up after fullscreen was left and
-  // entered again with its button, until the video was paused and played again. The lost
-  // mouseleave behind it comes and goes (player-controls.e2e.mjs forces it); this is the path.
+  // The bar hides after fullscreen is left and entered again with its button
+  // (player-controls.e2e.mjs forces the lost mouseleave).
   it('hides the player\'s bar after fullscreen was left and entered again with its button', async function() {
     await openPage('/bar');
     await clickToolbar();
@@ -652,19 +613,12 @@ describe('A site\'s overlays around an in-page player', function() {
       return frame.isExisting();
     }, {timeout: 15000, timeoutMsg: 'the player never came up'});
     await browser.switchFrame(frame);
-    // Its video loaded, not just the interface there: setting the source resets the player
-    // (big play button back, not playing), and that could come after the playing state set
-    // below, and the bar rightly stayed up (2026-10-10: main and #422 on CI, once in six runs
-    // locally; the case's report read bigPlay true, playing false).
+    // The video loaded, not only the interface: setting the source resets the player's state.
     await browser.waitUntil(() => browser.execute(() => !!window.fastStream?.source &&
         window.fastStream.player?.getVideo?.()?.readyState >= 1),
     {timeout: 15000, timeoutMsg: 'the player never loaded its video'});
-    // The real video stays paused through the case, while the player's state says it plays: a
-    // clip that started on its own would reach its end (10 s) within the case where fullscreen
-    // takes seconds, and its end pauses the player. The bar then rightly stayed up (main on
-    // CI's Linux runner, 2026-10-11: the report read playing false, bigPlay false; locally the
-    // clip sits paused at 0 s). It loops, so a start after this cannot end it either (the
-    // reviews). Every pause of the player from here on is noted for the report.
+    // The real video stays paused while the player's state says it plays, and loops: its end cannot
+    // pause the player.
     await browser.execute(() => {
       const ic = window.fastStream.interfaceController;
       const pause = ic.pause.bind(ic);
@@ -701,8 +655,7 @@ describe('A site\'s overlays around an in-page player', function() {
       const hidden = await browser.waitUntil(() => browser.execute(() => !window.fastStream.interfaceController.controlsVisible),
           {timeout: 4000}).then(() => true, () => false);
       if (!hidden) {
-        // What held the bar up (queueControlsHide's checks): it failed twice in a row once on
-        // CI's Windows runner (main, 2026-10-10) and passed on the two runs before it.
+        // what holds the bar up (queueControlsHide's checks), for the report
         const why = await browser.execute(() => {
           const ic = window.fastStream.interfaceController;
           const controls = document.querySelector('.mainplayer .fluid_controls_container');

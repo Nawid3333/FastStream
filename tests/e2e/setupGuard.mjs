@@ -38,12 +38,8 @@ export const rootHooks = {
     }
     bidiRootHooks.beforeEach();
   },
-  // A test that ended in a frame (a player's) could leave the next test's first browser.url()
-  // waiting in a frame the navigation removed, until the 120 s timeout: on CI's Linux runner,
-  // each hang came in a test after one that ended in the player's frame, before its first step
-  // (autoplay-next-episode, main and #449, 2026-10-11; not every such test hung - a race in the
-  // driver). framed-player.e2e.mjs did this itself. A window or a session already gone is no
-  // news; anything else is said, so a reset that stops working shows.
+  // A test that ended in a frame could leave the next test's browser.url() waiting in a removed
+  // frame: every test starts at the top frame.
   async afterEach() {
     try {
       await globalThis.browser?.switchFrame(null);

@@ -1,12 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 
-// A seek past the end of one of a file's tracks - its sound ends 2 s before its picture, say,
-// and the user presses End. mp4box's seek leaves a track that ends before the time where it
-// was (ISOFile.seek: `if (time > this.getTrackDuration(trak)) continue`), at a place whose
-// bytes the seek's reset threw away and nothing loads again: the track never finished, the
-// MediaSource never ended, and Firefox waited at the seek for good. These run MP4Player's own
-// segmentation and reset on the real mp4box (the npm build, vitest.config.mjs), reading a file
-// its writer makes: a picture of 20 one-second frames, a sound of 18.
+// A seek past the end of one track (End, sound 2 s shorter): mp4box skips that track, so MP4Player
+// must end it. On real mp4box, 20 s picture and 18 s sound.
 
 const {createFile} = await import('../../chrome/player/modules/mp4box/mp4box.all.mjs');
 const {default: MP4Player} = await import('../../chrome/player/players/mp4/MP4Player.mjs');

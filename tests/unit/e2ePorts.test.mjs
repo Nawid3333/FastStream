@@ -2,12 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 
-// The e2e servers listen on fixed ports. Linux hands ports 32768-60999 out to outgoing
-// connections, and one that gets a test's port makes that server's listen() fail with
-// EADDRINUSE - mpv-suspend's 41996 failed that way on CI (PR #40). The Linux CI jobs
-// reserve 41800-41999 so none is ever handed out; this keeps every port in that range,
-// and the reservation in every place that runs the e2e suites on Linux: the shared e2e
-// setup action, which every e2e job uses, and tools/linux/setup.sh.
+// The e2e servers' fixed ports lie in 41800-41999, which the Linux jobs reserve (outgoing
+// connections get 32768-60999): every port and every reservation is checked.
 
 const RESERVED = '41800-41999';
 const [LOW, HIGH] = RESERVED.split('-').map(Number);

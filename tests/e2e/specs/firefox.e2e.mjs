@@ -4,13 +4,8 @@
 // - The options page carries no review or feedback prompt (upstream's, for its own listing).
 // - Scrollbars. Firefox ignores ::-webkit-scrollbar, so the player and the options page
 //   style theirs with the standard scrollbar-width and scrollbar-color.
-// - The fastest playback rate with sound. The player caps the rate at 8
-//   (FastStreamClient's maxPlaybackRate) because Firefox mutes the audio of anything
-//   faster: measured on Firefox 156 the 440 Hz test tone is at full level at 8x and
-//   silent at 10x, while the picture keeps its pace (16x really plays 16 seconds a
-//   second). If this test starts to fail at 10x, Firefox now plays faster audio and the
-//   cap can move up. The 16x speed key goes past it anyway, silent (his decision,
-//   2026-10-10), as mpv's 16x does.
+// - The fastest rate with sound: Firefox mutes audio past 8x (the tone silent at 10x) while the
+// picture keeps pace; the 16x key goes past it, silent.
 
 import {browser, expect} from '@wdio/globals';
 
@@ -123,9 +118,6 @@ describe('Firefox audio at speed', function() {
     expect(fastest.moved).toBeGreaterThan(28);
   });
 
-  // That the player stops at 8 is pinned in the running player by keybinds.e2e.mjs ("never
-  // runs the video faster than options.maxPlaybackRate, whoever sets the rate": 10 asked, 8
-  // on the client and on the video), on every machine; the case above is skipped on one
-  // without sound. A case here that read options.maxPlaybackRate was a weaker copy of it
-  // (removed 2026-10-13).
+  // That the player stops at 8 is keybinds.e2e.mjs's ("never runs the video faster than
+  // options.maxPlaybackRate").
 });

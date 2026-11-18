@@ -246,9 +246,7 @@ describe('keys that type nothing go by what they do', () => {
 });
 
 describe('Control+Alt on a key that types a character', () => {
-  // Windows types with Control+Alt what AltGr types, and that is no shortcut. On Linux and
-  // macOS it is one of its own: Control+Alt+Comma came out as a plain Comma there (glm's
-  // review, 2026-10-22).
+  // Control+Alt is AltGr on Windows, no shortcut; on Linux and macOS it is one of its own.
   const press = {code: 'Comma', key: ',', shiftKey: false, ctrlKey: true, altKey: true, metaKey: false,
     getModifierState: () => false};
 

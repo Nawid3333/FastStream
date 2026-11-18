@@ -45,13 +45,9 @@ function midranks(values) {
 }
 
 /**
- * How likely runs this far apart are when A and B are the same: the Wilcoxon-Mann-Whitney
- * rank-sum test, its p the share of all ways to split the runs into two groups of these sizes
- * whose rank sums lie at least as far from the middle (exact, ties at their mean rank). Unlike
- * the MAD it assumes no single cluster: runs that fall into the same two modes on both builds
- * (a fast and a slow start, by the round) give a large p however the two medians happen to
- * land. Every split up to PERMUTATION_LIMIT of them; past that, as many random ones (seeded, so
- * a report renders the same each time).
+ * How likely runs this far apart are when A and B are the same: the exact Wilcoxon-Mann-Whitney
+ * rank-sum test (seeded sampling past PERMUTATION_LIMIT).
+ * It assumes no single cluster, so runs in the same two modes on both builds give a large p.
  * @param {number[]} a
  * @param {number[]} b
  * @return {number} From 0 to 1; NaN when a side has no run.
@@ -105,12 +101,8 @@ export function rankSumP(a, b) {
 }
 
 /**
- * Compares one measure of A and B.
- *
- * A difference counts only when it is larger than twice the larger noise (MAD) of the two and
- * than `floor` (a measure's resolution: a timer's tick, one frame), and the rank-sum test puts
- * it below SIGNIFICANCE (runs in the same two modes on both builds; 5 runs a side reach 0.008
- * at best, 3 only 0.1). A verdict from noise is worse than none.
+ * Compares one measure of A and B: a difference counts only past twice the larger MAD, past
+ * `floor`, and below SIGNIFICANCE.
  * @param {number[]} a
  * @param {number[]} b
  * @param {{lowerIsBetter?: boolean, floor?: number}} [how]

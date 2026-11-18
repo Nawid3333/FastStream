@@ -147,12 +147,8 @@ describe('SourceBufferWrapper', () => {
   });
 });
 
-// MP4Player's seek decides from `buffered` whether to load anew, and a removal still queued
-// is about to take away what `buffered` shows. A seek to 0 just after a jump to the end found
-// the start buffered (the jump's removal of everything waited behind the end's appends), did
-// not reload, and the removal then took the start away: the player sat at 0 with nothing
-// loading (#265, mp4-seek.e2e.mjs "loads the start again after jumping back to it from the end,
-// every time").
+// A removal still queued is about to take what `buffered` shows: a seek to 0 right after a jump to
+// the end reloads (mp4-seek.e2e.mjs).
 describe('a removal still to run', () => {
   beforeEach(() => {
     globalThis.MediaSource = {isTypeSupported: () => true};
@@ -261,11 +257,8 @@ describe('a removal still to run', () => {
   });
 });
 
-// A seek that loads afresh (MP4Player.resetHLS) queued its removal of everything behind the
-// media segments still waiting: Firefox parsed each of them, hundreds behind a fast download,
-// for the removal to take it away again before the new place's first segment (Codex's
-// review, 2026-11-07). They are dropped now; what runs, initialization segments and removals
-// stay.
+// A seek that loads afresh (MP4Player.resetHLS) drops the media segments still waiting; init
+// segments and removals stay.
 describe('a reset with media segments still queued', () => {
   beforeEach(() => {
     globalThis.MediaSource = {isTypeSupported: () => true};
@@ -336,9 +329,7 @@ describe('a reset with media segments still queued', () => {
   });
 
   it('keeps what mp4box\'s flush gives during the reset, behind the removal, and counts no refusal', async () => {
-    // glm's review of the change: dropped after the flush, a segment the flush gave was
-    // queued under the reset's own count, and its AbortError counted as a refusal - a reload
-    // more, and three quick seeks failed the video with "could not be buffered".
+    // A segment the flush gave is not queued under the reset's count: its AbortError is no refusal.
     const {default: MP4Player} = await import('../../chrome/player/players/mp4/MP4Player.mjs');
     const {SegmentAppender} = await import('../../chrome/player/players/mp4/SegmentAppender.mjs');
     const video = makeWrapper();

@@ -4,9 +4,8 @@ import {PressTracker} from '../../chrome/player/ui/PressTracker.mjs';
 
 // How a press ends (PressTracker), on a stand-in document and window: each listener is kept
 // with its phase, and an event is handed to the listeners of the target it is fired at.
-// The hold on the video ended only at the next click, so a window switched while the video
-// was held left it at twice the speed (measured in Firefox, 2026-10-28); every drag ended on
-// a mouseup of its own, with patches for the ones it never heard.
+// A hold on the video ends when the window switches, not at the next click; every drag ends the
+// same way.
 
 class Target {
   constructor() {

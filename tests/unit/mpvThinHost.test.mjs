@@ -775,8 +775,8 @@ describe('relayMpv', () => {
     expect(sent.filter((m) => m.type !== 'relaying')).toEqual([]);
     relay.stop();
     await relay.done;
-    // A beat written just before the stop could still be on its way (CI Windows,
-    // 2026-10-14): count once the fake mpv has read everything, then see none follow.
+    // a beat written just before the stop may still be on its way: counted once the fake mpv read
+    // everything
     await mpv.closed;
     const after = beats().length;
     await settle(150);

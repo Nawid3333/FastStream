@@ -1,15 +1,10 @@
 // FetchLoader's stall retry, against Firefox's own fetch().
 //
-// Every fragment, playlist and manifest goes through FetchLoader. When a request stalls, the
-// stall timer calls retry(), which aborts the attempt's AbortController and schedules the
-// next one. Firefox's fetch() then rejects the stalled attempt with an AbortError. That
-// rejection used to be counted as a second failure of the load: retry() ran again, so one
-// stall spent two of the load's retries, doubled the backoff twice and replaced the retry
-// already scheduled. With the default six retries a stalled fragment got two stall
-// retries instead of three before it was given up on.
+// A stall's retry aborts the attempt, and Firefox's fetch() then rejects it with an AbortError: one
+// stall is one retry, not two.
 //
-// tests/unit/FetchLoader.test.mjs covers the same with a stubbed fetch(); this checks that a
-// real one behaves the way the stub claims.
+// FetchLoader.test.mjs covers the same with a stubbed fetch(); this checks the real one behaves as
+// the stub claims.
 
 import http from 'node:http';
 

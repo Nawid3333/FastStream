@@ -266,10 +266,8 @@ describe('a domain entry written with a scheme', () => {
       });
 });
 
-// For the Auto-enable URLs list, `-domain` means "leave this site alone" (upstream #241:
-// "You can now exclude specific domains by prepending -"): it is not auto-enabled, and its
-// manifest links are not redirected into the player. Its old parser dropped every such
-// line, so the exclusion never worked.
+// For the Auto-enable URLs list, `-domain` leaves the site alone: not auto-enabled, its manifest
+// links not redirected.
 describe('domainEntriesExclude (the Auto-enable URLs list)', () => {
   it('makes a -domain entry an exclusion', () => {
     const list = new UrlMatchList({domainEntriesExclude: true});
@@ -363,9 +361,8 @@ describe('a page whose address has a user name', () => {
 
 describe('an entry that is only "www."', () => {
   it('matches no page, not every one', () => {
-    // A site begun and left at "www.": after its www. there was nothing, and the empty site
-    // matched every http(s) page - the whole web on the MPV allowlist (glm's review,
-    // 2026-10-22). A scheme alone still means every page of it.
+    // A site left at "www." matches nothing, not every page; a scheme alone still means every page
+    // of it.
     const list = new UrlMatchList();
     list.setEntries(['www.']);
     expect(list.matches('https://example.com/')).toBe(false);

@@ -213,8 +213,7 @@ describe.each(PLAYERS)('%s.saveVideo', (name, Player) => {
     await settle();
     cancel();
     await settle();
-    // Stopped at once. It used to go on downloading the fragment it was waiting for, and
-    // notice the cancel only after that.
+    // stopped at once, not after the fragment it was waiting for
     expect(network.running()).toEqual([]);
     network.requests.filter((r) => !r.settled).forEach((r) => r.succeed());
     await expect(saving).rejects.toThrow('Cancelled');

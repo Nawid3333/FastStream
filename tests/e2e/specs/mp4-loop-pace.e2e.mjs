@@ -1,11 +1,7 @@
 // How often an MP4 player wakes the page while there is nothing for it to do.
 //
-// MP4Player's main loop ran every 50 ms while paused - in each of its players: the seek preview
-// is a second one, always paused - and every 1 ms (4 in Firefox) once the video had ended, its
-// readyState below 3 with nothing ahead to load: about 40 and 250 timer rounds a second, for as
-// long as the tab stayed open (tools/bench-ab.mjs, 2026-11-13). Paused or ended it runs every
-// 250 ms now, and a seek or a play runs its next round at once: this spec counts the page's
-// timer and frame callbacks, and checks that a seek and a play still answer at once.
+// MP4Player's loop runs every 250 ms while paused or ended (each player, the seek preview too), and
+// a seek or play runs at once.
 
 import {browser, expect} from '@wdio/globals';
 
@@ -70,8 +66,7 @@ function videoState() {
   });
 }
 
-// Paused, the main player and the seek preview at 4 rounds a second and the client's own
-// one-second loop make about 9; before, about 41. Ended, before: about 250.
+// paused: about 9 rounds a second in all
 const MAX_IDLE_WAKE_UPS = 20;
 
 describe('An MP4 player with nothing to do', function() {
@@ -144,18 +139,13 @@ describe('An MP4 player with nothing to do', function() {
   });
 
   it('plays again after its end when it was never sought', async function() {
-    // The client sets the start right after setSource, before the
-    // element has data; no seek runs then and no seeked ever came, and that mark made the
-    // element's own seek to 0 at the replay look like the player's. The test above sought
-    // before its end, which hid it.
+    // The client's start mark before the element has data is no seek: the replay's own seek to 0 is
+    // the element's.
     const source = globalThis.__E2E_FIXTURES_ORIGIN__ + `/fixtures/long-av.mp4?unsought=${Date.now()}`;
     await browser.url(`/player/index.html?t=${Date.now()}#${source}`);
     await browser.waitUntil(async () => ((await videoState())?.readyState ?? 0) >= 2,
         {timeout: 20000, interval: 100, timeoutMsg: 'the video did not load'});
-    // Fast, to its end, without a seek. Through the client: set on the element alone, the rate
-    // went back to the client's 1x at the next canplay, which comes again after every stall
-    // (FastStreamClient's CANPLAY handler), and the 160 s clip could not end within the wait
-    // (CI, Windows, 2026-11-13).
+    // Through the client: a rate set on the element alone goes back to 1x at the next canplay.
     await browser.execute(() => {
       const client = /** @type {any} */ (window).fastStream;
       client.setPlaybackRate(8);
@@ -182,8 +172,7 @@ describe('An MP4 player with nothing to do', function() {
   });
 
   it('wakes the page rarely for an audio-only MP4, whose seek preview has nothing to show', async function() {
-    // The preview made no SourceBuffer for a file without a picture,
-    // its element stayed at HAVE_NOTHING, and its loop ran every 4 ms for the tab's life.
+    // A file without a picture: the preview's loop does not run every 4 ms.
     const source = globalThis.__E2E_FIXTURES_ORIGIN__ + `/fixtures/mp4-shapes/long-audio-only.mp4?pace=${Date.now()}`;
     await browser.url(`/player/index.html?t=${Date.now()}#${source}`);
     await browser.waitUntil(async () => ((await videoState())?.readyState ?? 0) >= 2,

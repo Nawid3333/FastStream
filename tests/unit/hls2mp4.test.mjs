@@ -6,9 +6,8 @@ import {
 } from './helpers/mpegts.mjs';
 import {find, readBoxes, readDuration, readMp4, readSampleEntry} from './helpers/mp4boxes.mjs';
 
-// The HLS save (HLS2MP4) on transport streams, through the real hls.js demuxer and remuxer
-// (the patched npm build: see vitest.config.mjs), with the file it writes read back box by
-// box. The streams are made by helpers/mpegts.mjs with the timestamps each test needs.
+// The HLS save (HLS2MP4) on transport streams through the real (patched) hls.js, read back box by
+// box.
 
 // Every blob store made, to see which were closed.
 const stores = [];
@@ -38,8 +37,7 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
   },
 }));
 
-// The transmuxer used to ask MSE what to produce. A browser that takes everything, bare MPEG
-// audio included, is the case that broke a save (the MP3 test below).
+// The transmuxer does not ask MSE what to produce (a browser taking bare MPEG audio broke a save).
 globalThis.MediaSource = {isTypeSupported: () => true};
 
 const {HLS2MP4, samplesFromMoof} = await import('../../chrome/player/modules/hls2mp4/hls2mp4.mjs');
@@ -139,10 +137,8 @@ describe('samplesFromMoof', () => {
 });
 
 describe('HLS2MP4: a level with a separate audio rendition', () => {
-  // The video is decoded from `videoDts` and shown one frame later (it has B pictures),
-  // each segment 2 s; the audio rendition starts where it starts. Each transmuxer used to
-  // count its stream from its own first timestamp, so the file lined both up at 0 whatever
-  // the stream said.
+  // The video decodes from `videoDts` and shows a frame later; the file keeps each stream's own
+  // timeline.
   const videoSegment = (videoDts) => muxSegment({video: {
     type: StreamTypes.H264,
     units: videoUnits({start: ticks(videoDts) + FRAME, count: 50, frame: FRAME, bFrames: true, picture: h264AccessUnit}),
@@ -240,9 +236,7 @@ describe('HLS2MP4: discontinuities', () => {
   });
 
   it('shows every piece when the timestamps start over at an EXT-X-DISCONTINUITY', async () => {
-    // Two 2 s pieces (a programme and an ad break, say), both stamped from 1.4 s, as two
-    // separately made streams are. The samples go into the file one after the other; the
-    // edit list was worked out from the raw timestamps and showed the first 2 s only.
+    // Two pieces both stamped from 1.4 s (programme and ad break): the edit list covers both.
     const {tracks} = await save([
       fragment(0, {sn: 0, cc: 0, start: 0}, muxed(1.4)),
       fragment(0, {sn: 1, cc: 1, start: 2}, muxed(1.4)),
@@ -256,9 +250,7 @@ describe('HLS2MP4: discontinuities', () => {
   });
 
   it('keeps the time of a segment that is missing from a partial save, as the DASH save does', async () => {
-    // Segment 1 was never downloaded. The samples after the hole were written straight after
-    // the ones before it: a 4 s file whose third second was the stream's fifth. The last
-    // sample before the hole now lasts over it.
+    // A segment never downloaded: the last sample before the hole lasts over it.
     const {tracks} = await save([
       fragment(0, {sn: 0, cc: 0, start: 0}, muxed(1.4)),
       fragment(0, {sn: 2, cc: 0, start: 4}, muxed(5.4)),
@@ -310,8 +302,7 @@ describe('HLS2MP4: discontinuities', () => {
   });
 
   it('does not pad across an EXT-X-DISCONTINUITY, where the clock starts over', async () => {
-    // A segment missing just before an ad break: the break's timestamps say nothing about
-    // how long the hole was.
+    // A hole just before an ad break: the break's timestamps say nothing of its length.
     const {tracks} = await save([
       fragment(0, {sn: 0, cc: 0, start: 0}, muxed(1.4)),
       fragment(0, {sn: 2, cc: 1, start: 4}, muxed(9.4)),
@@ -343,9 +334,7 @@ function decodedAt(track, index) {
 
 describe('HLS2MP4: damaged input', () => {
   it('saves a segment with a damaged packet, as hls.js plays it', async () => {
-    // hls.js reports a packet that does not start with 0x47 through the logger it was
-    // given, and carries on. The transmuxer gave TSDemuxer none, so the report threw a
-    // TypeError and the save failed.
+    // TSDemuxer gets a logger: hls.js reports a packet without 0x47 through it and carries on.
     const segment = muxSegment({
       video: {
         type: StreamTypes.H264,
@@ -362,8 +351,7 @@ describe('HLS2MP4: damaged input', () => {
   });
 
   it('names data no demuxer takes, rather than failing on a missing demuxer', async () => {
-    // The transmuxer's own error was dropped, and the save failed
-    // with "Cannot read properties of undefined (reading 'demux')".
+    // the transmuxer's own error is reported
     const junk = new Uint8Array(4096).fill(0x42);
     vi.spyOn(console, 'error').mockImplementation(() => {});
     await expect(save([fragment(0, {sn: 0, cc: 0, start: 0}, junk)])).rejects.toThrow('Failed to find demuxer by probing fragment data');
@@ -372,8 +360,8 @@ describe('HLS2MP4: damaged input', () => {
 
 describe('HLS2MP4: the blob store of a save', () => {
   it('keeps the store the saved file is made of until release()', async () => {
-    // It closed two minutes after the save, and a closed OPFS session is deleted by the
-    // next player or save that starts. SaveManager releases it once nothing reads the file.
+    // SaveManager releases the OPFS session once nothing reads the file (a closed one is deleted by
+    // the next player).
     vi.useFakeTimers();
     try {
       const segment = muxSegment({video: {
@@ -401,8 +389,7 @@ describe('HLS2MP4: a save that does not finish', () => {
   }});
 
   it('closes its blob store when a fragment fails', async () => {
-    // The fragments it kept (on disk, with OPFS) and the store's worker stayed until the tab
-    // closed; only a cancel closed the store.
+    // the kept fragments and the store's worker go with the save
     const failed = {
       track: 0,
       fragment: {sn: 1, cc: 0, start: 1},
@@ -473,9 +460,7 @@ describe('HLS2MP4: sample entries', () => {
   });
 
   it('writes MP3 audio as MP3 in MP4, whatever MSE in the browser takes', async () => {
-    // hls.js remuxes MP3 into bare MPEG audio when the browser's MSE takes 'audio/mpeg'.
-    // The transmuxer asked the browser, so in one that does the save got audio with no
-    // mdat around it and an entry that is not MP3's: the file's boxes did not add up.
+    // hls.js remuxes MP3 into bare MPEG audio when MSE takes it: the save asks for MP4 output.
     const frames = Array.from({length: 40}, (_, i) => ({
       pts: ticks(1.4) + Math.round(i * 1152 * TS_CLOCK / 44100),
       data: mp3Frame(),
@@ -530,8 +515,7 @@ describe('HLS2MP4: sample entries', () => {
     // 0b01 00110 001 010 0 01110 00000
     ['stereo at 44.1 kHz, 384 kbit/s', {fscod: 1, frmsizecod: 28, bsid: 6, bsmod: 1, acmod: 2, lfeon: 0}, 44100, [0x4c, 0x51, 0xc0]],
   ])('writes the dac3 of an AC-3 frame header (%s)', async (name, header, sampleRate, dac3) => {
-    // hls.js left AC-3 out of a transport stream unless told the output takes it, so the
-    // save had no sound; with it and no ac-3 entry, the audio was written as mp4a.
+    // hls.js keeps AC-3 out unless told the output takes it, and the entry is ac-3.
     const {type, entry} = await saveAc3(header, sampleRate);
 
     expect(type).toBe('ac-3');
@@ -613,9 +597,8 @@ describe('HLS2MP4: reading the next fragment while one converts', () => {
   });
 });
 
-// A long HLS save kept every converted piece as a Blob until it ended: the whole video in
-// RAM. With OPFS the pieces go into one file on disk as they are made, and the saved file is
-// that file behind the moov - the same bytes.
+// With OPFS the pieces go into one file as they are made: the saved file is that file behind the
+// moov.
 describe('HLS2MP4: a save written to disk as it goes', () => {
   const fragments = () => [0, 1, 2].map((sn) => fragment(0, {sn, cc: 0, start: sn}, muxSegment({video: {
     type: StreamTypes.H264,
@@ -715,9 +698,7 @@ describe('Transmuxer: the fragment it is given', () => {
   });
 });
 
-// A partial save (Alt-click: what is downloaded) wrote hls.js's total duration of the whole
-// stream into the file's headers: Firefox, which takes a video's duration from the moov,
-// said a 10 minute save of an hour-long stream lasted an hour.
+// A partial save writes its own duration, not the stream's (Firefox reads it from the moov).
 describe('HLS2MP4: the length a partial save says it has', () => {
   it('is the length of the fragments saved, in mdhd, tkhd and mvhd', async () => {
     // Three 1 s segments of a stream hls.js says lasts 10 s (save() gives it totalduration 10).

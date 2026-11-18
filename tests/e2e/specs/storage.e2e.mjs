@@ -1,13 +1,5 @@
-// FSBlob's OPFS backend (chrome/player/network/OPFSManager.mjs +
-// opfs-worker.mjs) can't be unit tested in Node - it touches
-// navigator.storage/Worker at module scope, which vitest.config.mjs
-// deliberately keeps out of the Node-based unit suite (see its own comment).
-// This is its real coverage: it proves OPFS is actually selected as the
-// backend on this browser (not silently falling back to memory), that bytes
-// round-trip correctly through a worker-owned FileSystemSyncAccessHandle,
-// and that several concurrent saves - which all funnel through one FIFO
-// queue inside the worker, since two sync access handles can't be open on
-// the same file at once - don't corrupt or swap each other's data.
+// FSBlob's OPFS backend in the real Firefox (vitest keeps it out): OPFS is chosen, bytes
+// round-trip, concurrent saves stay apart.
 
 import {browser, expect} from '@wdio/globals';
 
@@ -46,12 +38,8 @@ async function runInPage(fn, timeout = 30000) {
 }
 
 /**
- * Whether the rest of the page's storage answers, for a step that never settled. On the
- * Windows runner (CI runs 38493461496, 38500903567) the OPFS worker stopped answering its
- * writes for 28 s, and once the next test's Cache API write did not answer either, nor the
- * page itself for 3 s: whether all of Firefox's storage for the origin stood still, or only
- * the worker, the logs could not say. Each of OPFS from the page (not through the worker),
- * the Cache API and IndexedDB gets 3 s; the page itself 10 s.
+ * Whether the rest of the page's storage answers, for a step that never settled: OPFS from the
+ * page, Cache API, IndexedDB 3 s each, the page 10 s.
  * @return {Promise<Object>} Each one's milliseconds, or what became of it.
  */
 async function storageProbe() {
@@ -108,18 +96,15 @@ describe('FSBlob storage backends', function() {
 
       const blobStore = new FSBlob();
       const payload = new Uint8Array([10, 20, 30, 40, 50]);
-      // A name FSBlob makes up, and the identifier DownloadManager gives a downloaded
-      // fragment: its URL and range. OPFS refuses a name with a '/', and the second kind
-      // was never stored at all - every fragment stayed in RAM.
+      // FSBlob's made-up names and DownloadManager's identifiers (URL and range, with '/') are both
+      // stored.
       const identifiers = [
         await blobStore.saveBlobAsync(new Blob([payload])),
         await blobStore.saveBlobAsync(new Blob([payload]), 'https://cdn.example/v/seg-1.ts::0-100::arraybuffer'),
       ];
 
-      // FSBlob does not choose OPFS wherever the API merely exists: a
-      // private window claims it and then refuses. Check what it actually
-      // picked rather than OPFSManager.isSupported(), or this looks for a
-      // fsblob/ OPFS directory that was never created.
+      // what FSBlob actually picked, not OPFSManager.isSupported(): a private window claims it and
+      // refuses
       const usedOPFS = !!blobStore.opfsManager;
       const matches = (bytes) => bytes.length === payload.length && bytes.every((b, i) => b === payload[i]);
 
@@ -144,9 +129,7 @@ describe('FSBlob storage backends', function() {
           }
         }
 
-        // What the store hands back is the file on disk (a File with that name), not a
-        // copy in RAM: reading each fragment back through the worker into a new Blob kept
-        // every "offloaded" fragment in memory too.
+        // the store hands back the file on disk, not a copy in RAM
         const stored = blobStore.getBlob(identifier);
         results.push({
           sawOnDisk,
@@ -160,26 +143,18 @@ describe('FSBlob storage backends', function() {
     });
 
     console.log('      opfs backend:', JSON.stringify(result));
-    // sawOnDisk only means anything when OPFS was actually the backend - on
-    // a browser where FSBlob chose Cache/IndexedDB instead, it correctly
-    // stays false rather than being checked against a directory that was
-    // never supposed to exist.
+    // sawOnDisk counts only where OPFS was the backend
     for (const stored of result.results) {
       expect(stored.sawOnDisk).toBe(result.usedOPFS);
       expect(stored.diskBacked).toBe(result.usedOPFS);
       expect(stored.readBackMatches).toBe(true);
     }
-    // This suite's window is an ordinary one, where FSBlob picks OPFS (both CI jobs log
-    // usedOPFS true, 2026-10-02); a private window is the pbm suite's. Without this, a
-    // build that never chose OPFS passed here, and the fall-through case below passed
-    // without checking anything.
+    // An ordinary window, where FSBlob picks OPFS: a build that never chose it fails here.
     expect(result.usedOPFS).toBe(true);
   });
 
   it('gives two players starting together on a fresh profile the same salts', async function() {
-    // Each made its own salt when none was stored, and the second overwrote the first:
-    // the first tab's saved positions could never be found again. Real IndexedDB, a
-    // database of its own.
+    // Two tabs making the salt at once keep one: the first tab's saved positions stay findable.
     const result = await runInPage(async () => {
       const {SecureMemory} = await import('/player/modules/SecureMemory.mjs');
       const {IndexedDBManager} = await import('/player/network/IndexedDBManager.mjs');
@@ -187,8 +162,7 @@ describe('FSBlob storage backends', function() {
       const tabs = [new SecureMemory(name), new SecureMemory(name)];
       await Promise.all(tabs.map((tab) => tab.setup()));
       const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
-      // What the salts rest on, in real IndexedDB: of two adds of one key at once exactly
-      // one stores, and the other is told so, rather than failing (an aborted transaction).
+      // Of two adds of one key at once, exactly one stores and the other is told so.
       const db = tabs[0].indexedDbManager.getDatabase();
       const adds = await Promise.all([
         IndexedDBManager.addValue(db, 'metadata', 'race', 'first'),
@@ -211,8 +185,7 @@ describe('FSBlob storage backends', function() {
   });
 
   it('keeps an intact remembered time when reading it failed, and starts over a broken one', async function() {
-    // The player's own loadProgressData, on stand-in storage. A read that failed used to
-    // start the video at 0 and save over the intact record a second later.
+    // A read that fails does not start at 0 and save over the intact record.
     const result = await runInPage(async () => {
       const {FastStreamClient} = await import('/player/FastStreamClient.mjs');
       const load = async (failure) => {
@@ -271,8 +244,7 @@ describe('FSBlob storage backends', function() {
     const result = await runInPage(async () => {
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
       const blobStore = new FSBlob();
-      // On the Windows runner this case twice never settled (#52's CI run) without saying
-      // where. As in the next case: the step reached, and the calls still waiting.
+      // the step reached and the calls still waiting, if it never settles
       window.__diag = () => {
         const opfs = blobStore.opfsManager;
         return {
@@ -315,9 +287,7 @@ describe('FSBlob storage backends', function() {
     const result = await runInPage(async () => {
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
       const blobStore = new FSBlob();
-      // On Firefox 157 Beta on the Windows runner the first save once never returned.
-      // No sessionName means the worker's init never answered; pending names the calls
-      // that did not, with how long they have waited.
+      // No sessionName: the worker's init never answered; pending names the calls still waiting.
       window.__diag = () => {
         const opfs = blobStore.opfsManager;
         return {
@@ -352,17 +322,9 @@ describe('FSBlob storage backends', function() {
     expect(result.afterClear).toBe(true);
   });
 
-  // The private-window suite (tests/e2e/wdio.pbm.conf.mjs) covers the one
-  // case this actually happens in today, where getDirectory() throws
-  // SecurityError. This proves the same mechanism in an ordinary window, on
-  // whatever browser is running, by failing OPFS setup synthetically: any
-  // backend that claims support and then fails must cost one step down
-  // FSBlob's chain, not a drop to memory. The old code went straight to
-  // memory - and worse, clear() then rejected, which is what left the player
-  // unbuilt in private windows.
-  // The OPFS worker in Firefox, live and then silent: past its timeout it counts as crashed,
-  // and the store moves to its next backend for the rest of the session. The unit tests
-  // run this against a stand-in worker; here the real one is set up first.
+  // A backend that claims support and then fails costs one step down FSBlob's chain, not a drop to
+  // memory (as in a private window).
+  // A live OPFS worker that goes silent counts as crashed past its timeout, and the store moves on.
   it('moves to the next backend when the OPFS worker stops answering mid-session', async function() {
     const result = await runInPage(async () => {
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
@@ -386,13 +348,10 @@ describe('FSBlob storage backends', function() {
         const first = await blobStore.saveBlobAsync(new Blob([new Uint8Array([1, 2, 3])]));
         const firstOnDisk = blobStore.getBlob(first) instanceof File;
 
-        // From now on the worker takes no more messages, as one that wedged, and counts as
-        // crashed after 500 ms. Shortened only now, as each wait reads it: shortened before
-        // the setup, the worker's start took longer than that on CI's Windows runner.
+        // the timeout shortened only now: the worker's start can take longer on a slow runner
         OPFSManager.CallTimeoutMs = 500;
         blobStore.opfsManager.worker.postMessage = () => {};
-        // The monotonic clock: Date.now() follows the wall clock, which WSL's time sync set
-        // back mid-wait once, and the wait came out as -77 ms.
+        // the monotonic clock: the wall clock can be set back mid-wait
         const started = performance.now();
         const payload = new Uint8Array([4, 5, 6, 7]);
         const second = await blobStore.saveBlobAsync(new Blob([payload]));
@@ -431,8 +390,8 @@ describe('FSBlob storage backends', function() {
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
       const {OPFSManager} = await import('/player/network/OPFSManager.mjs');
 
-      // Nothing to prove where OPFS was never in FSBlob's chain to begin
-      // with. Ask an unstubbed instance what it picks.
+      // nothing to prove where OPFS was never in the chain: an unstubbed instance says what it
+      // picks
       const probe = new FSBlob();
       const opfsIsInChain = !!probe.opfsManager;
       probe.close();
@@ -457,8 +416,7 @@ describe('FSBlob storage backends', function() {
         const readBack = new Uint8Array(
             await (await blobStore.getBlob(identifier)).arrayBuffer());
 
-        // Both of these used to reject with the OPFS failure rather than
-        // absorbing it.
+        // both absorb the OPFS failure
         let teardownError = null;
         try {
           await blobStore.deleteBlob(identifier);

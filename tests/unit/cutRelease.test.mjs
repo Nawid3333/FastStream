@@ -51,8 +51,8 @@ const ref = (repoDir, name) => {
   return r.status === 0 ? r.stdout.trim() : null;
 };
 
-// Each test runs some fifteen git and node processes: 1-2.5 s on a Windows runner, once 6.9 s
-// (PR #351, 2026-10-06), past the 5 s default.
+// Each test runs some fifteen git and node processes, slow on a Windows runner: past the 5 s
+// default.
 describe('cut-release.mjs', {timeout: 30000}, () => {
   it('pushes the release commit and its tag', () => {
     const {work, origin} = repo();

@@ -120,11 +120,8 @@ describe('A video that fills an iframe without allowfullscreen', function() {
         return href.startsWith(ORIGIN + '/player/index.html');
       }, {timeout: 30000, interval: 250});
     } catch (e) {
-      // Once on the Windows runner (CI run 39081539517) the background found the frame's
-      // video and sent OPEN_PLAYER ("Opening player" in the driver log), and nothing came of
-      // it, with no word of why. content.js answers with no player when it sees no video
-      // (getVideo: by an IntersectionObserver's first report), and redirects only a video
-      // that fills its frame: what the frame showed then.
+      // content.js answers with no player when it sees no video, and redirects only a video that
+      // fills its frame: what the frame showed then.
       throw new Error(`the frame was never sent to the player: ${JSON.stringify(await frameState(frame, href))}`);
     }
 

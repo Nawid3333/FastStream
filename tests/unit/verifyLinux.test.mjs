@@ -11,7 +11,7 @@ const table = (...rows) => [
   ...rows,
 ].join('\n');
 
-// The table as it stood on 2026-09-25, Ubuntu rows only.
+// the table's Ubuntu rows
 const september2026 = [
   row('Ubuntu 26.04', 'x64', '`ubuntu-26.04`'),
   row('Ubuntu 26.04 Arm64', 'arm64', '`ubuntu-26.04-arm`'),

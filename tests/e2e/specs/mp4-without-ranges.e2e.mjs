@@ -168,8 +168,8 @@ describe('MP4 from a server without proper ranges', function() {
   });
 
   /**
-   * What MP4Player's end check (checkEndOfStream) looks at. Once (local, 2026-10-09) the 416
-   * case sat at 20.08 of 20.3 s with every range read: this tells which condition held it.
+   * What MP4Player's end check (checkEndOfStream) looks at, to tell which condition holds the video
+   * before its end.
    * @return {Promise<Object>}
    */
   const endState = () => browser.execute(() => {

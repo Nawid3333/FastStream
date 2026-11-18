@@ -1,18 +1,8 @@
-// Firefox VPN carries a page's requests and leaves FastStream's out: its channel filter
-// proxies only http(s) principals (IPPExceptionsManager.getPrincipalRule, Firefox 157), and
-// a site that ties its stream to the VPN's address then refuses FastStream's player - VOE,
-// on 2026-10-06: "Failed to load video!" while the site's own player played. FastStream now
-// sends its requests to such a stream's host the way the page's went (VpnProxyMirror.mjs),
-// once the user gave it the optional "proxy" permission from the player's button.
+// Firefox VPN proxies only http(s) principals, not FastStream's requests: with the "proxy"
+// permission FastStream sends them the page's way (VpnProxyMirror.mjs).
 //
-// Firefox VPN itself needs a Mozilla account, so a helper add-on plays its part: it sends
-// the page's requests to the stream's host through a local proxy, and leaves an extension's
-// own requests alone, as Firefox VPN does. The stream's host, cdn.faststream.test, is a name
-// no DNS answers: only the proxy serves it, so a request that goes direct fails, as one from
-// the wrong address does at VOE. The stand-in is a plain http proxy, without the VPN's
-// bearer token: Firefox sends a proxyAuthorizationHeader only to an https proxy (measured,
-// Firefox 157), and an https one here would need a certificate Firefox trusts. The token's
-// copy is VpnProxyMirror.test.mjs's.
+// A helper add-on plays Firefox VPN: a local plain http proxy serves cdn.faststream.test, which no
+// DNS answers (the token is VpnProxyMirror.test.mjs's).
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -195,8 +185,7 @@ describe('Firefox VPN', function() {
   it('plays once allowed, its requests going the page\'s way', async function() {
     proxied.length = 0;
     const videoTab = await browser.getWindowHandle();
-    // Into the player of the case before (its page stays): a test no longer starts in the frame
-    // the one before ended in (setupGuard.mjs's root afterEach, 2026-10-11).
+    // into the player of the case before: a test starts at the top frame (setupGuard.mjs)
     await enterPlayer();
     // A player in a page has no permissions API: its button opens the permissions page.
     await (await browser.$('.mainplayer .vpn_button')).click();

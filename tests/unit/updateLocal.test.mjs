@@ -6,12 +6,8 @@ import path from 'node:path';
 import {beforeAll, describe, expect, it} from 'vitest';
 import {isPinnedUrl, newestNode as newestNodeOf, newestPackage as newestPackageOf, newestWsl as newestWslOf} from '../../tools/newest-release.mjs';
 
-// tools/update-local.ps1 brings this PC to the versions CI's rule allows: the newest release
-// (MIN_AGE_DAYS in tools/check-toolchain.mjs, no wait since 2026-11-09). tools/newest-release.mjs
-// picks them.
-// No release waits for its age any more (MIN_AGE_DAYS is 0: the owner's call of 2026-11-09), but
-// every function here still takes a minimum age, and that filter has been wanted before. These
-// tests ask for one, WAIT days, unless they say otherwise.
+// tools/update-local.ps1 brings this PC to the newest releases (tools/newest-release.mjs).
+// MIN_AGE_DAYS is 0, but the tests still ask for WAIT days.
 const WAIT = 3;
 const newestNode = (index, major, now, minAge = WAIT) => newestNodeOf(index, major, now, minAge);
 const newestPackage = (doc, now, minAge = WAIT) => newestPackageOf(doc, now, minAge);
@@ -59,7 +55,7 @@ describe('newestNode', () => {
 });
 
 describe('isPinnedUrl', () => {
-  // getJson's guard (#167: a precedence slip made it pass every URL).
+  // getJson's guard
   it.each([
     ['https://nodejs.org/dist/index.json', true],
     ['https://registry.npmjs.org/pnpm', true],
@@ -101,9 +97,8 @@ describe('newestPackage', () => {
   });
 });
 
-// WSL on the owner's PC runs verify:linux, and nothing on GitHub can update it. Until
-// 2026-10-04 wsl-releases.yml opened an issue for each release; update-local.ps1 now
-// compares the PC's WSL with the latest release itself.
+// update-local.ps1 compares the PC's WSL with the latest release itself (nothing on GitHub can
+// update it).
 describe('newestWsl', () => {
   const release = (tag, days, more = {}) => ({tag_name: tag, published_at: daysAgo(days), ...more});
 
@@ -152,9 +147,8 @@ describe('update-local.ps1', () => {
     expect(r.stdout.trim()).toBe('0');
   }, 30000);
 
-  // The Node.js installer's staging folder. Run for real in Windows PowerShell 5.1, the one
-  // update-local.cmd starts: until 2026-10-03 this code had only been parsed, and it failed
-  // there twice over (a [void] cast piped on, and 'Administrators' by its English name).
+  // The Node.js installer's staging folder, run for real in Windows PowerShell 5.1, the one
+  // update-local.cmd starts.
   it.runIf(process.platform === 'win32')('New-PrivateDirectory admits only this user, Administrators and SYSTEM', () => {
     const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-private-dir-'));
     const dir = path.join(parent, 'staging');
@@ -176,9 +170,8 @@ describe('update-local.ps1', () => {
     ].sort());
   }, 30000);
 
-  // Windows PowerShell started under PowerShell 7 by anything but PowerShell 7 itself
-  // (update-local.cmd from a PowerShell 7 terminal, as VS Code's is; vitest started there)
-  // inherits 7's module folders first, and Get-Acl's module then failed to load.
+  // 5.1 started under PowerShell 7 inherits 7's module folders first: Get-Acl's module must still
+  // load.
   it.runIf(process.platform === 'win32')('New-PrivateDirectory works with PowerShell 7\'s module folders first', (ctx) => {
     const pwsh = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', '$PSHOME'],
         {encoding: 'utf8', windowsHide: true});
@@ -244,20 +237,16 @@ describe('update-local.ps1', () => {
     }
   }, 30000);
 
-  // The real check, in Windows PowerShell 5.1 as update-local.cmd starts it, against a fake
-  // repository, with nothing on PATH but stand-ins for node, npm, pnpm and git (no wsl.exe, so
-  // the WSL step only notes it is missing) and LOCALAPPDATA in a temporary folder (no mpv
-  // helper installed): nothing real is asked or changed. Its exit code is what the .cmd reads.
-  // Until 2026-10-04 a Node.js, npm or pnpm update exited 0, so the double-click never asked.
+  // The real check in Windows PowerShell 5.1 against a fake repository with stand-ins on PATH:
+  // nothing real asked or changed; its exit code is what the .cmd reads.
   describe.runIf(process.platform === 'win32')('the check\'s exit code', () => {
     const upToDate = {
       STUB_NODE: '22.23.3', STUB_NODE_NEWEST: '22.23.3',
       STUB_NPM: '11.9.0', STUB_NPM_NEWEST: '11.9.0',
       STUB_PNPM: '11.28.0', STUB_BEHIND: '0', STUB_BRANCH: 'main',
     };
-    // A stand-in: answers what update-local.ps1 asks (a tool's --version; node running
-    // newest-release.mjs, %2 being what it looks up; git's four questions), from the
-    // environment, and fails loudly on anything else, which fails the step and the exit code.
+    // A stand-in answering what update-local.ps1 asks, from the environment; anything else fails
+    // loudly.
     const stub = (lines) => `@echo off\r\n${lines.join('\r\n')}\r\necho stand-in: unexpected %* 1>&2\r\nexit /b 9\r\n`;
     const stubs = {
       'node.cmd': stub([
@@ -312,14 +301,11 @@ describe('update-local.ps1', () => {
           fs.writeFileSync(path.join(installed, 'com.faststream.mpv.bat'), '@"C:\\node\\node.exe" host.mjs %*\r\n');
           fs.writeFileSync(path.join(repo, 'native-host', 'faststream-mpv-host.mjs'), '// newer\n');
         }
-        // PowerShell's own modules only: with LOCALAPPDATA in a fresh folder its module
-        // analysis cache is gone, and every lookup of a command that is not there
-        // (Get-Command wsl.exe) scanned every installed module - hundreds on GitHub's runner,
-        // 25-45 s per run, against about 1 s here.
+        // PowerShell's own modules only: a fresh LOCALAPPDATA has no module analysis cache, and
+        // every lookup scans every module.
         const powershellDir = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0');
-        // On PATH too, after the stand-ins (it holds no node, npm, pnpm, git or wsl), so the
-        // command below is the literal powershell.exe: built from SystemRoot, it was a command
-        // line from an environment variable to CodeQL (js/command-line-injection, #163).
+        // on PATH too, so the command below is the literal powershell.exe (CodeQL
+        // js/command-line-injection)
         const env = {
           SystemRoot: process.env.SystemRoot, ComSpec: process.env.ComSpec, PATHEXT: '.COM;.EXE;.BAT;.CMD',
           PATH: [bin, powershellDir].join(';'), TEMP: temp, TMP: temp, LOCALAPPDATA: temp, APPDATA: temp,
@@ -333,10 +319,8 @@ describe('update-local.ps1', () => {
       }
     }
 
-    // GitHub's Windows runner takes about 20 s a run with the module path above (about 2 s
-    // here), and its first run in a job more than 100 s on top, once: the first case timed
-    // out on main while the six after it took about 20 s each. A first run that
-    // counts for nothing takes that once.
+    // GitHub's Windows runner's first run in a job is slow: a first run that counts for nothing
+    // takes that once.
     beforeAll(() => {
       runCheck({}, false, 280000);
     }, 300000);
@@ -406,19 +390,11 @@ describe('update-local.ps1', () => {
     }
   }, 30000);
 
-  // The elevated installer of the Node.js step: the UAC prompt goes to it, and
-  // msiexec runs inside it, after two checks that bind to its own copy of the staged MSI in
-  // a folder only Administrators and SYSTEM can write. Run from here it installs nothing: a
-  // file that fails a check ends it with its own exit code, before any msiexec. Without the
-  // fix there is no file at that path, so every test in this describe fails: the ASCII and
-  // parse lists hit a missing file, the runs answer with powershell.exe's script-not-found
-  // error instead of 51 and 52, and update-local.ps1 has no helper to name and starts
-  // msiexec with RunAs itself.
+  // The elevated installer: the UAC prompt goes to it, and msiexec runs inside it after two checks
+  // on its own copy of the MSI in an Administrators-only folder.
   describe('install-node-elevated.ps1', () => {
-    // Setting a folder's owner to Administrators and reading the folder back needs a token
-    // with Administrators enabled, as the agent's processes have it on GitHub's Windows
-    // runner; under the UAC-filtered token of an ordinary interactive shell the owner write
-    // is not allowed: from there the tests that need it skip, and they run on the runner.
+    // Setting the owner to Administrators needs an elevated token (GitHub's runner has one):
+    // skipped under a filtered shell.
     const skipUnlessElevatable = (ctx) => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-elevate-probe-'));
       try {
@@ -449,10 +425,8 @@ describe('update-local.ps1', () => {
       expect(fs.readFileSync(elevated, 'utf8')).not.toMatch(/-Verb RunAs/);
     });
 
-    // Run for real, in Windows PowerShell 5.1 as update-local.ps1 starts it: first against
-    // an SHA-256 the staged file cannot match (exit 51, before anything else), then with the
-    // matching one, so the signature check runs on the copy and refuses it (exit 52). The
-    // checks bind to the file msiexec is pointed at, not to the one in %ProgramData%.
+    // First a SHA-256 that cannot match (exit 51), then the matching one with a refused signature
+    // (exit 52), on the copy msiexec gets.
     it.runIf(process.platform === 'win32')('refuses its copy on the SHA-256, then on the OpenJS signature', (ctx) => {
       skipUnlessElevatable(ctx);
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-elevated-install-'));
@@ -471,9 +445,8 @@ describe('update-local.ps1', () => {
       }
     }, 30000);
 
-    // The folder the checks and msiexec share, read back by SID: no entry for the user's
-    // own SID, and an owner that is no longer the user, since the owner could otherwise
-    // rewrite the rules and grant itself back in.
+    // No entry for the user's SID, and an owner that is not the user (who could grant itself back
+    // in).
     it.runIf(process.platform === 'win32')('New-AdminOnlyDirectory admits only Administrators and SYSTEM, and is owned by Administrators', (ctx) => {
       skipUnlessElevatable(ctx);
       const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-admin-only-'));

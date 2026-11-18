@@ -385,10 +385,8 @@ describe('picking audio', () => {
   });
 });
 
-// A codec Firefox answers it decodes, but cannot: dash.js resets the MediaSource after each
-// MEDIA_ERR_DECODE and picks the track again, and the hardware-first ranking picked the same
-// one every time. A live DASH stream stalled for good on AV1 where Firefox could not create
-// its decoder (the real-streams check on Windows, 2026-10-05, #348).
+// A codec Firefox says it decodes but cannot: after a MEDIA_ERR_DECODE the ranking picks another
+// track, not the same one again.
 describe('a video codec that fails to decode', () => {
   beforeEach(() => {
     vi.stubGlobal('matchMedia', () => ({matches: false}));

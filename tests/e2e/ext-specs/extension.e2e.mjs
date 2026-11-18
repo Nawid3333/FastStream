@@ -36,10 +36,8 @@ describe('the installed extension', function() {
   });
 
   it('refuses WebAssembly under the extension CSP', async function() {
-    // The manifest allowed 'wasm-unsafe-eval' for ONNX Runtime, the speech detector's
-    // engine. Both went on 2026-10-10, and the extension pages' CSP is script-src 'self'
-    // only: nothing on them may compile WebAssembly any more. No http-based test can see
-    // this, because the CSP does not apply there. This tries the smallest valid module.
+    // The extension pages' CSP is script-src 'self' only: nothing compiles WebAssembly (no http
+    // test can see the CSP).
     await openExtensionPage('/player/index.html');
     const result = await runInPage(async () => {
       const empty = new Uint8Array([

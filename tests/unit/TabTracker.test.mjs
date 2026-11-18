@@ -1,8 +1,6 @@
 import {beforeAll, describe, expect, it} from 'vitest';
 
-// FRAME_REMOVED: the page took a frame out. The background forgets it and the frames
-// inside it, and gives back their player count. After Firefox unloaded the idle
-// background, the frame could be one it never knew, and the message handler threw on it.
+// FRAME_REMOVED forgets the frame and those inside it, also one an unloaded background never knew.
 
 let TabTracker;
 
@@ -75,9 +73,7 @@ describe('forgetFrame', () => {
   });
 });
 
-// A reset (a reload, a new site) drops every frame, and with them the frames that played:
-// a frame of the new page that came back with a playing player's id counted as playing, and
-// the page's own media stayed held paused (sendPageMediaHold).
+// A reset drops the frames that played: a new page's frame with an old player's id is not playing.
 describe('reset', () => {
   it('forgets the players that played with the frames', () => {
     const {tab, player} = tabWithFrames();
@@ -89,10 +85,7 @@ describe('reset', () => {
   });
 });
 
-// PLAYER_LOADED from a player whose page reloaded while it started: the MPV key with the
-// player just opened. It said it loaded after the new page's FRAME_ADDED, and the new page
-// then counted as holding a player: its streams were dropped, and no player opened on it.
-// The player's URL names the page that opened it, and each page names itself in FRAME_ADDED.
+// A late PLAYER_LOADED from a player whose page reloaded does not make the new page hold a player.
 describe('isPlayerOfGoneDocument', () => {
   /**
    * A page frame (1) that named itself 'page-a', and a player frame (2) in it.
@@ -129,8 +122,7 @@ describe('isPlayerOfGoneDocument', () => {
   });
 
   it('keeps a player whose frames never named a page', () => {
-    // The tab was reset for the reload and the new page has not said FRAME_ADDED yet, or
-    // the background started again after the page loaded: nothing to tell by.
+    // the tab reset and the new page not named yet: nothing to tell by
     const tab = new TabTracker().getTabOrCreate(7);
     const player = tab.getFrameOrCreate(2);
     expect(tab.isPlayerOfGoneDocument(player, 1, 'page-a')).toBe(false);
@@ -152,11 +144,8 @@ describe('isPlayerOfGoneDocument', () => {
   });
 });
 
-// The player page is web-accessible: a page (or an ad's iframe in it) that frames it can
-// put any parent_frame_id in its URL. Taken on trust, the frame it named counted as
-// holding a player, so the background dropped that page's streams and opened no player
-// there until it navigated. The page that opened a player names itself in the
-// player's URL, with a name only its content script knows.
+// The web-accessible player page framed by a page counts only when the named page opened it (a name
+// only its content script knows).
 describe('playerParentProof', () => {
   /**
    * A top frame (0) that named itself 'top', and a player frame (5) naming it.
@@ -231,9 +220,7 @@ function tabWithEmbed() {
   return {tab, main, embed};
 }
 
-// A page Back brings out of Firefox's back-forward cache keeps its content script, which
-// names it again; its leaving made the background forget its frame, and it fetches
-// nothing again. What it had detected is kept under its name for it.
+// A page Back brings from the bfcache names itself again and gets back what it had detected.
 describe('gone pages', () => {
   it('keeps what a removed page and the pages inside it had detected', () => {
     const {tab, main} = tabWithEmbed();
@@ -300,9 +287,8 @@ describe('gone pages', () => {
   });
 
   it('keeps a page\'s streams when it had more frames than the limit', () => {
-    // content.js names the page in every frame: an ad-heavy page's 20 frames pushed the page
-    // itself out, marked first, with the streams Back was to give back (glm's review,
-    // 2026-10-13). A page that detected nothing goes first.
+    // Of an ad-heavy page's 20 frames, the page itself is not the one pushed out: one that detected
+    // nothing goes first.
     const {tab, main} = tabWithEmbed();
     for (let i = 0; i < 20; i++) {
       const ad = tab.getFrameOrCreate(10 + i);
@@ -316,9 +302,7 @@ describe('gone pages', () => {
   });
 
   it('keeps a page\'s streams when its frames over the limit all detected some too', () => {
-    // The page was marked before its frames, so with no frame that detected nothing to go
-    // first, the oldest went: the page itself. Its frames
-    // are marked first now, and the page is the newest of them.
+    // the page's frames are marked first, the page is the newest of them
     const {tab, main} = tabWithEmbed();
     main.getSources().push({url: 'https://cdn.example.com/main.m3u8', mode: 'hls'});
     for (let i = 0; i < 20; i++) {
@@ -390,9 +374,7 @@ describe('noteDocumentReplaced', () => {
   });
 });
 
-// The MPV key, the player key's MPV exit or the toolbar's Off with a player still starting
-// in an iframe of an iframe: reset, reload, and the player's late PLAYER_LOADED makes its
-// frame and the frame above new ones, with no names on them.
+// A late PLAYER_LOADED in an iframe of an iframe after a reset makes unnamed frames.
 describe('resetForReload', () => {
   it('refuses a late player of a page the reload took', () => {
     const {tab} = tabWithEmbed();
@@ -415,9 +397,7 @@ describe('resetForReload', () => {
   });
 });
 
-// The reset on a new hostname (tabs.onUpdated) races the new page's own FRAME_ADDED. A page
-// Back brings out of the back-forward cache names itself again and gets its streams back;
-// when the reset came after that, it wiped them, and nothing gave them back.
+// The reset on a new hostname may come after a bfcache page named itself again: its streams stay.
 describe('resetForNewSite', () => {
   /**
    * A tab whose frame 0 shows a page of example.com that named itself, with an embed.
@@ -531,9 +511,7 @@ describe('restoredFromCache', () => {
   });
 });
 
-// "Reload Frame" on the player loads it again in the same frame, and it asks for its
-// sources again; sendSources had taken them out of the page's frames, so it got none and
-// sat on the welcome screen. The page's frame keeps what it handed the player.
+// "Reload Frame" on the player: the page's frame keeps what it handed the player, sent again.
 describe('handedTo', () => {
   /**
    * A page frame (1) whose player (frame 2) was handed a stream.
@@ -570,9 +548,8 @@ describe('handedTo', () => {
   });
 });
 
-// A request's headers wait for its response by request id, which is unique in the session:
-// on the tab, so the page's reset (FRAME_ADDED, a new site) does not lose those of a request
-// still in flight (backgroundDetection.test.mjs drives that through the background).
+// Headers wait for their response by request id, on the tab: a page reset does not lose a request
+// in flight.
 describe('request headers', () => {
   it('outlive the tab\'s resets', () => {
     const tab = new TabTracker().getTabOrCreate(7);
@@ -608,11 +585,8 @@ describe('request headers', () => {
   });
 });
 
-// A page that is never left kept every stream and subtitle file it asked for: an HLS or
-// DASH player's pieces are detected one by one, thousands in an evening, each with its
-// request's headers, sent again to each player tab, and read for their lengths when a
-// player opened. backgroundDetection.test.mjs checks the background keeps them through
-// these methods.
+// A page never left keeps a bounded list of streams and subtitle files (pieces arrive by the
+// thousand).
 describe('what a frame keeps of its streams', () => {
   const manifest = {url: 'https://cdn.test/v/master.m3u8', mode: 'accelerated_hls'};
   const piece = (n) => ({url: `https://cdn.test/v/seg-${n}.mp4`, mode: 'accelerated_mp4'});
@@ -663,8 +637,7 @@ describe('what a frame keeps of its streams', () => {
   });
 
   it('keeps a file that comes to a list full of manifests', () => {
-    // It was the only file, and went at once: a live playlist whose address changes with each
-    // reload filled the list, and no file was taken in again.
+    // a playlist whose address changes on every reload does not block new files
     const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
     for (let n = 0; n < 200; n++) {
       frame.addSource({url: `https://cdn.test/live.m3u8?token=${n}`, mode: 'accelerated_hls'});
@@ -765,8 +738,7 @@ describe('frames and players', () => {
 
 describe('saveTabState', () => {
   it('writes nothing for a tab closed meanwhile', async () => {
-    // A timer or an await of the tab's own (the MPV auto-open's wait) came back after the
-    // tab was closed: its state went back into session storage, where nothing removed it.
+    // a timer coming back after the tab closed does not save its state again
     const written = [];
     globalThis.chrome.storage = {session: {set: async (entry) => written.push(Object.keys(entry)[0]), remove: async () => {}}};
     try {
@@ -790,9 +762,7 @@ describe('saveTabState', () => {
 
 describe('restoreTabStates', () => {
   it('brings back only tabs that are still open, and forgets the closed ones\' states', async () => {
-    // The tabs.onRemoved that woke the page could remove a tab between the read of the saved
-    // states and their use, and the closed tab came back for the session (final review,
-    // 2026-10-10).
+    // a tabs.onRemoved that woke the page removes the tab for good
     const removedKeys = [];
     globalThis.chrome.storage = {session: {
       get: async () => ({'tabState:7': {isOn: true}, 'tabState:9': {isOn: true, isMpv: true}}),

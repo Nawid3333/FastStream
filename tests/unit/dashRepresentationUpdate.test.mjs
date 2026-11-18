@@ -3,16 +3,10 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 // run below was "user-provided" to CodeQL (js/code-injection).
 import DASH_SOURCE from '../../node_modules/dashjs/dist/modern/esm/dash.all.debug.js?raw';
 
-// patches/dashjs@5.2.1.patch makes dash.js update a representation (load its segment
-// index) only when it is needed: Representation.setUpdateCallback() arms it, and
-// checkForUpdate() runs the callback once. A callback re-armed while a check was on its way
-// (the patch's own "reset if error occurs" after a failed index request, or a live manifest
-// refresh) left the finished check's promise behind, and every later check returned it
-// without running the callback: that representation never got its segments, and playback of
-// it stalled with nothing said. (FastStream #293.)
+// patches/dashjs@5.2.1.patch updates a representation only when needed: a callback re-armed while a
+// check runs still runs at the next check.
 //
-// This runs the Representation class of the dash.js that pnpm installed with the patch,
-// which is the file tools/sync-vendor.mjs vendors as chrome/player/modules/dash.mjs.
+// The installed (patched) dash.js's Representation, the file tools/sync-vendor.mjs vendors.
 
 /**
  * The installed dash.js's Representation class.

@@ -1,22 +1,10 @@
-// The toggle_mpv keyboard shortcut (Alt+F; Ctrl+Shift+U until 2026-10-04) turns MPV
-// on and off for a tab by a real key press, on a site that is not on the MPV Allowlist, and
-// then hands over only a video the user starts: never one the page autoplays
-// (the muted preview here) or merely preloads (the main video, until its play
-// button is clicked). With the player key, the in-page player's own key, it
-// switches straight between MPV and the player. That command has no default key
-// since 2026-10-15: Firefox 159 took Ctrl+Shift+F, its key until then, for its own
-// Add-ons page. These tests give it SHORTCUTS.player, as a user would on about:addons.
-//
-// Firefox lets an extension's suggested key win over nothing: a combination
-// Firefox itself binds is refused on about:addons' shortcuts page ("already
-// used by Firefox"), and a default key a later Firefox takes runs Firefox's
-// command instead (159 and Ctrl+Shift+F). Ctrl+Shift+M, the obvious one for
-// MPV, is Responsive Design Mode. So the first test pins the MPV key, and the
-// one these tests give the player, against Firefox's own check, the one that
-// page uses, and fails if a later Firefox claims either.
-//
-// The mode switches need no mpv; the checks that mpv really fetched the
-// stream skip, not fail, when the native host is not installed.
+// The toggle_mpv shortcut (Alt+F) switches MPV for a tab by a real key press, handing over only a
+// video the user starts; the player key (none by default, SHORTCUTS.player here) switches straight
+// to the in-page player.
+// The first test checks both keys against Firefox's own check (about:addons'): a key Firefox binds
+// runs Firefox's command instead.
+// The mode switches need no mpv; the checks that mpv fetched the stream skip without the native
+// host.
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -70,23 +58,10 @@ const SHORTCUTS = {
 let playerKeyBound = false;
 
 /**
- * Presses the MPV key, Alt+F (or the player key, the in-page player's key, bound first
- * if it is not yet) with the site page focused, as a user would.
- *
- * browser.keys() is no good here: WebDriver synthesizes its key events inside
- * the page's content process, where Firefox's window-level shortcuts - the
- * extension's commands among them - never see them. A TextInputProcessor
- * started on the browser window feeds keys in at the widget, the way a
- * physical keyboard does, so they reach the page first and Firefox's
- * shortcuts after (the path Firefox's own shortcut tests use).
- *
- * Returns only once the extension's key has fired. The key goes through the
- * page's process before Firefox acts on it, and Firefox hands the command
- * whichever tab is active at that moment; with focus inside the player
- * iframe that round trip is slow enough for the next step here (switching to
- * the extension's tab to read the icon) to win the race, and the command then
- * lands on the wrong tab.
- *
+ * Presses the MPV key (or the player key, bound first if needed) with the site page focused.
+ * Through a TextInputProcessor on the window: browser.keys() stays in the page's process, where
+ * Firefox's shortcuts never see it.
+ * Returns once the extension's key has fired, or the command may land on the next active tab.
  * @param {'mpv'|'player'} [command] - Whose key.
  */
 async function pressShortcut(command = 'mpv') {
@@ -371,11 +346,7 @@ async function bindPlayerKey(bind) {
   playerKeyBound = bind;
 }
 
-/**
- * Puts a new tab in the site tab's place. A tab's mode, its MPV arm and its player belong
- * to the tab, so the new one starts Off with nothing pending, whatever a failed test left
- * in the old one.
- */
+/** Puts a new tab in the site tab's place: the new one starts Off with nothing pending. */
 async function replaceSiteTab() {
   const old = siteHandle;
   const handles = await browser.getWindowHandles();
@@ -449,9 +420,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
         return;
       }
       if (req.url.startsWith('/mse')) {
-        // An MSE player: its video plays a blob:, and it fetched the film's manifest,
-        // then an ad's - the newest of the page's streams, and the short one. Well after:
-        // two found within the same millisecond tie for the newest.
+        // An MSE player whose video plays a blob:, after the film's manifest and then a short ad's.
         res.end(`<!doctype html><title>mpv shortcut test, MSE</title>
           <video id="main" style="width: 640px; height: 360px"></video>
           <button id="play">Play</button>
@@ -552,11 +521,8 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
         return;
       }
       if (req.url.startsWith('/late') || req.url.startsWith('/framed')) {
-        // A player of a page that is gone: its URL names another page as its opener, as a
-        // player still starting when its page reloaded does. Or (/framed) the player page
-        // framed by the page itself, naming the top frame as its parent and no opener. The
-        // page's own video loads only when the test says so, once the player has said it
-        // loaded.
+        // A player of a gone page (/late: its URL names another opener), or (/framed) one the page
+        // framed itself.
         const query = req.url.startsWith('/late') ? 'parent_frame_id=0&opener=gone' : 'parent_frame_id=0';
         res.end(`<!doctype html><title>mpv shortcut test, a late player</title>
           <iframe id="late" src="${ORIGIN}/player/index.html?${query}"
@@ -572,10 +538,8 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
           </script>`);
         return;
       }
-      // A muted preview that autoplays, and the main video: preloaded, played
-      // only by its button. Both cache-busted: switching an in-page player to
-      // mpv reloads this page, and a cached response gives no webRequest
-      // event to redetect a stream by - see mpv-suspend.e2e.mjs.
+      // A muted autoplaying preview and the main video; cache-busted, as a cached response gives no
+      // webRequest event.
       res.end(`<!doctype html><title>mpv shortcut test</title>
         <video id="preview" muted loop crossorigin="anonymous"></video>
         <video id="main" preload="auto" crossorigin="anonymous"></video>
@@ -689,10 +653,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     testStart = Date.now();
   });
 
-  // A failed test left the tab in the mode it stopped in, and every test after it then
-  // failed at its first mode check, hiding which failure was real. Now the failed test's
-  // evidence is printed, what the CDN and the mpv host saw during it, and the next test
-  // gets a new tab.
+  // A failed test prints what the CDN and the mpv host saw, and the next test gets a new tab.
   afterEach(async function() {
     // eslint-disable-next-line no-invalid-this
     const test = this.currentTest;
@@ -754,11 +715,8 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     await expectMode('off', 'visiting a site that is not on the allowlist');
 
     await pressShortcut();
-    // The page starts its preview again a moment after the key, as a carousel or a hover
-    // preview does. Firefox counts the key press as an activation for 5 s, and such a play
-    // went to mpv as the user's (content.js playFollowsUserPress; the preview reached mpv on
-    // CI when its own start came after the key, runs 38454197759 and 39192185180). Right
-    // after the key, before anything else takes time: the check needs those 5 s still on.
+    // The page restarts its preview right after the key, inside Firefox's 5 s activation: it must
+    // not go to mpv.
     await browser.switchToWindow(siteHandle);
     expect(await browser.execute(() => {
       const preview = document.getElementById('preview');
@@ -821,10 +779,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     await expectMode('off', 'pressing Alt+F again');
   });
 
-  // The player key used to be the toolbar button (_execute_action), and a click on MPV
-  // goes to Off, so after the MPV key the key turned FastStream off and the player
-  // took a second press. Each key now has its own command; the player's has no key
-  // until the user gives it one.
+  // The player key has a command of its own, with no default key, not the toolbar button.
   it('gives the player a command of its own, with no key, not the toolbar button', async function() {
     await bindPlayerKey(false);
     await browser.switchToWindow(extHandle);
@@ -885,9 +840,8 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     });
   });
 
-  // A stream found while the player is on opens it after Options.replaceDelay. That
-  // timer only checked "on", and MPV is on too: switching to MPV inside the delay
-  // found no player to reload away, and the timer then opened one under MPV.
+  // A stream found while on opens the player after replaceDelay: switching to MPV inside it opens
+  // none.
   it('opens no in-page player under MPV that was due just before the switch', async function() {
     const mpvBefore = mpvCount();
     await setOptions({mpvMode: true, mpvAllowlist: [], replaceDelay: 8000});
@@ -916,9 +870,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
       await browser.pause(10000);
       expect(await hasOverlayPlayer()).toBe(false);
       await expectMode('mpv', 'the delay running out');
-      // Nor anything to mpv: the page's preview starts as the MPV key comes, and on CI it went
-      // to mpv when its start came after the key (playFollowsUserPress). The next test's
-      // check used to be the one to see it.
+      // nor anything to mpv: the preview started as the MPV key came
       if (mpvCount() !== mpvBefore) {
         throw new Error(`switching to MPV with the page's preview starting: mpv requested a video nobody started. Seen: ${seenRequests(testStart)}`);
       }
@@ -930,8 +882,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     }
   });
 
-  // The player page has no MPV mode. The player key on a blank tab opens it, and on a
-  // tab the MPV key had armed, the MPV icon used to stay on it.
+  // The player key on a tab the MPV key had armed opens the player page and drops the arm.
   it('drops the MPV arm when the player key opens the player page', async function() {
     await browser.switchToWindow(siteHandle);
     await browser.url('about:blank');
@@ -988,9 +939,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     await expectMode('off', 'pressing Alt+F on that page');
   });
 
-  // The Auto-enable URLs list turns the in-page player on for a site. A tab armed with the
-  // shortcut is the user's own choice for that tab, and outranks the list: it used to open
-  // the in-page player there and drop the arm.
+  // A tab armed by the shortcut outranks the Auto-enable URLs list.
   it('keeps the arm on a site on the Auto-enable URLs list', async function() {
     await setOptions({mpvMode: true, mpvAllowlist: [], autoEnableURLs: [SITE]});
     try {
@@ -1095,10 +1044,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     expect(requests.filter(isMpvRequest).slice(before).filter((r) => r.url.startsWith(unwanted))).toEqual([]);
   }
 
-  // The same click started a preroll ad in a video of its own, which plays a file found by
-  // its URL, and that file went to mpv: a 10-second ad beside the half-hour film the page's
-  // player had fetched. A video that short beside a stream that long is an ad, as
-  // StreamPick tells for a video it matches by length.
+  // The film goes to mpv, not a 10 s preroll ad the same click started (StreamPick by length).
   it('hands the film to mpv, not the preroll ad the same click started', async function() {
     await browser.switchToWindow(siteHandle);
     const since = requests.length;
@@ -1121,10 +1067,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     await expectMode('off', 'pressing Alt+F again');
   });
 
-  // An ad's manifest was the only stream the page had when the user pressed play, and the
-  // film's came a little later, after another ad's: the ad went to mpv, a 9-second stream
-  // for a half-hour video, or else the first stream after the play, the other ad. A stream
-  // plainly another length now waits for the next one.
+  // A stream plainly another length than the video waits for the next one.
   it('waits for the film\'s stream when the only one known is plainly another length', async function() {
     await browser.switchToWindow(siteHandle);
     const since = requests.length;
@@ -1145,8 +1088,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     await expectMode('off', 'pressing Alt+F again');
   });
 
-  // A play inside a shadow root never reached content.js's listener on the document
-  // (media events are not composed), and nothing went to mpv.
+  // Media events are not composed: a play inside a shadow root must still reach mpv.
   it('hands over a video the user starts inside a shadow root', async function() {
     await browser.switchToWindow(siteHandle);
     const since = requests.length;
@@ -1168,9 +1110,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     await expectMode('off', 'pressing Alt+F again');
   });
 
-  // The play waits up to 2.5 s for its frame's stream lengths. A page left meanwhile has
-  // other streams, yet the play went on: it found none of the page left (their frame
-  // forgot them) and waited for the next stream, which the next page's player asked for.
+  // A play waits up to 2.5 s for its frame's stream lengths: a page left meanwhile sends nothing.
   it('sends nothing for a play whose page was left while the lengths were read', async function() {
     await browser.switchToWindow(siteHandle);
     const since = requests.length;
@@ -1240,24 +1180,18 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     await expectMode('off', 'clicking the toolbar button again');
   }
 
-  // The MPV key with the player just opened reloads the page (startMpv). On Windows CI a
-  // player still starting then said it loaded after the new page had, and counted as the
-  // new page's: the page's streams were dropped as the player's own, and no player opened
-  // on it - mpv got nothing on a play, and the player key showed nothing. Here the late
-  // player is one that names a page never in this tab, the state that race left.
+  // A player still starting that names a page never in this tab must not count as the page's
+  // player.
   it('takes a player whose page is gone for no player of the page there now', async function() {
     await expectPagePlayerBesidePlanted('/late');
   });
 
-  // The player page is web-accessible, so a page (or an ad's iframe in it) can frame it
-  // and name any frame of the tab as its parent. Taken on trust, the top frame counted as
-  // holding a player: its streams were dropped, and no player opened on it.
+  // The web-accessible player page framed by a page counts as no player of that page.
   it('takes the player page a page framed itself for no player of the page', async function() {
     await expectPagePlayerBesidePlanted('/framed');
   });
 
-  // Back brings a page out of Firefox's back-forward cache without loading its video
-  // again, so the background detects nothing new on it. A play there still goes to mpv.
+  // Back from the bfcache detects nothing new: a play there still goes to mpv.
   describe('on a page Back brought back', function() {
     /**
      * Leaves the site page for another page of the site, and comes Back to it from
@@ -1317,10 +1251,8 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
         await expectMode('mpv', 'opening a site on the MPV allowlist');
         await expectNothingInMpv('the page opened, before any play');
 
-        // Started from a script, not a WebDriver click: that click leaves an unload listener
-        // on the page (Firefox's SHIPBFCache log: UNLOAD_LISTENER from the click on, until
-        // the page is left), which keeps it out of the back-forward cache. The allowlist
-        // sends the first stream it detects, played by a user or not.
+        // Started from a script: a WebDriver click leaves an unload listener that keeps the page
+        // out of the bfcache.
         let before = mpvCount();
         await browser.switchToWindow(siteHandle);
         await browser.execute(() => document.getElementById('play').click());
@@ -1329,11 +1261,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
           timeout: 15000,
           timeoutMsg: 'the page kept playing the video mpv opened',
         });
-        // Paused by the hand-off, not stopped at its own end: the extension pauses the page
-        // once the helper answered, and the same stream played again before that goes
-        // nowhere (the send under way answers for it). A helper that waited 30 s for an open
-        // mpv window it did not find answered after this 10 s clip had ended, and the play
-        // after Back below sent nothing.
+        // Paused by the hand-off once the helper answered, not by the clip's own end.
         await browser.switchToWindow(siteHandle);
         if (await browser.execute(() => document.getElementById('main').ended)) {
           throw new Error('the page played the video mpv opened to its end: the hand-off was ' +
@@ -1357,8 +1285,8 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     });
   });
 
-  // A pop-up the play button opens first consumed the click's activation, and the play was
-  // taken for an autoplay: the video played in the page and nothing went to mpv.
+  // A pop-up opened by the play button consumes the click's activation: the play is still the
+  // user's.
   it('sends the video a click started after the page opened a pop-up', async function() {
     await browser.switchToWindow(siteHandle);
     await browser.url(`${SITE}/popup`);
@@ -1392,9 +1320,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
     }
   });
 
-  // A site that plays its next episode in the same page: the URL change lets the page's MPV
-  // send again, and the user's play of the next episode is reported before its stream is
-  // detected, while the page still has the last one's. The next one goes, not the last again.
+  // A site's next episode in the same page goes to mpv, not the last one again.
   it('sends the next episode a site plays in the same page, not the last one again', async function() {
     if (!HAVE_HOST) {
       // eslint-disable-next-line no-invalid-this

@@ -2,14 +2,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {FetchLoader, fetchPriorityOf, isRefusal, retryAfterMs} from '../../chrome/player/network/FetchLoader.mjs';
 import {PageFetch} from '../../chrome/player/network/PageFetch.mjs';
 
-// FetchLoader is the single network primitive shared by HLS, DASH and MP4
-// fragment/playlist loading (via DownloadManager -> StandardDownloader). It
-// used to wrap XMLHttpRequest; this suite pins the fetch()-based rewrite's
-// retry/backoff/timeout/abort state machine, since it previously had zero
-// unit coverage and the whole thing is easy to get subtly wrong (a rejected
-// fetch() is a different failure shape than a bad XHR status, and an
-// aborted-for-retry attempt must not be confused with a genuinely aborted
-// load - see the stats.aborted latch bug this rewrite fixes below).
+// FetchLoader is the network primitive for HLS, DASH and MP4 loads: its retry, backoff, timeout and
+// abort state machine.
 
 /** Builds a config object matching StandardDownloader's defaults, small enough to keep tests fast. */
 function makeConfig(overrides) {
@@ -456,8 +450,7 @@ describe('FetchLoader', () => {
   });
 
   it('a stall retried once never reports an error before the retry succeeds', async () => {
-    // maxRetry 1: the stale AbortError used to find the retry budget spent and report
-    // onError, while the retry it had not cancelled went on to report onSuccess.
+    // maxRetry 1: the stale AbortError does not report onError beside the retry's onSuccess
     let call = 0;
     vi.stubGlobal('fetch', vi.fn((url, init) => {
       call++;
@@ -901,9 +894,8 @@ describe('FetchLoader and Retry-After', () => {
     expect(recorder.calls).toEqual([]);
   });
 
-  // A refused link (an expired signature: vidmoly's segments answer 403) is told at once, so
-  // the player can get it anew from its page (FastStreamClient.linkRefused, #592); the error
-  // still goes as before. Other failures are no refusal.
+  // A refused link (403) is told at once so the player can get it anew
+  // (FastStreamClient.linkRefused); the error still goes.
   it('tells a 401, 403 or 410 as a refused link, and no other failure', async () => {
     for (const [status, refused] of [[401, true], [403, true], [410, true], [404, false], [429, false], [500, false]]) {
       vi.stubGlobal('fetch', failing(status, 'No', null));
@@ -920,10 +912,8 @@ describe('FetchLoader and Retry-After', () => {
   });
 });
 
-// What FastStream is refused, the page may be given (PageFetch.mjs, page-fetch.js, #665): a
-// video only the page's service worker answers ("Video not found" from anywhere else), a link
-// that wants the page's cookies as they are now. Tried once more through the page, at once; a
-// host the page could load goes through it from then on.
+// What FastStream is refused is tried once more through the page (PageFetch.mjs), and a host the
+// page could load goes that way from then on.
 describe('FetchLoader through the page', () => {
   /**
    * A page that answers every request with these (each: [status, headers, body bytes]), in turn.

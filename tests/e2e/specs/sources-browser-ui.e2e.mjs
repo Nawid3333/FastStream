@@ -1,31 +1,6 @@
-// Regression tests for two Quellen-Browser (SourcesBrowser) UI bugs:
-//
-// 1. The close button ("close_button") sits inside a `.popwindow` that is
-//    repositioned (`bottom: 60px` -> `140px`, animated over 0.5s) whenever
-//    the control bar auto-hides/shows during playback. With the dialog open
-//    and the video still playing, the control bar auto-hid every ~2s of
-//    mouse idle and snapped back the instant the mouse moved - sliding the
-//    14x14px button out from under the cursor mid-click. Fixed by gating the
-//    auto-hide timer on InterfaceUtils.isAnyWindowOpen() in
-//    InterfaceController.mjs.
-//
-// 2. The "Quellen leeren" / clear button (`.linkui-clear-button`) appeared
-//    to do nothing. Hit-testing (elementFromPoint at the button's centre)
-//    showed the button itself receives the click - the earlier theory that
-//    `.linkui-sources-list` overlapped it did not reproduce at any measured
-//    viewport. The real mechanism: the player's list is only a MIRROR of the
-//    background script's per-frame source store. Clearing the mirror left
-//    the background's copy intact, and sendSourcesToMainFramePlayers
-//    re-pushed it to the player on the next detected media request - so in
-//    the extension the list visibly refilled within seconds of clearing,
-//    reading as "nothing happened". Fixed by adding a CLEAR_SOURCES message
-//    the button sends so the background clears its authoritative stores too.
-//    The web build has no background script, so this spec only pins the
-//    mirror-side behaviour; ext-specs/embed-page-query.e2e.mjs checks that the
-//    background's store is empty after the click.
-//
-// And the mode dropdown no longer takes the focus from the address field when
-// the pointer passes over it.
+// The sources browser: its close button stays put while the dialog is open (no control-bar
+// auto-hide), its clear button empties the list (the background's store too:
+// embed-page-query.e2e.mjs), and the mode dropdown leaves the address field's focus.
 
 import {browser, expect} from '@wdio/globals';
 
@@ -58,10 +33,8 @@ describe('Sources Browser (Quellen Browser) UI', function() {
     expect(rowsBefore.length).toBeGreaterThanOrEqual(3);
 
     const clearBtn = await browser.$('.linkui-clear-button');
-    // A real WebDriver click does its own hit-testing at the element's
-    // on-screen point and throws "element click intercepted" if a different
-    // element is actually on top - which is exactly how this bug surfaces,
-    // as opposed to a synthetic .click() call that bypasses hit-testing.
+    // A real WebDriver click hit-tests its point: a moved button shows as "element click
+    // intercepted".
     await clearBtn.click();
 
     await browser.waitUntil(
@@ -76,8 +49,7 @@ describe('Sources Browser (Quellen Browser) UI', function() {
   it('keeps the popwindow still (close button reachable) while it is open, even once the control bar would auto-hide', async function() {
     await openPlayer();
 
-    // Every focus change during the test, for the failure message: on Firefox 157 Beta
-    // on the Windows CI runner focusingControls stayed true with <body> focused.
+    // every focus change during the test, for the failure message
     await browser.execute(() => {
       const start = performance.now();
       const name = (el) => el ? (el.className || el.tagName || String(el)).toString().slice(0, 40) : null;
@@ -106,9 +78,8 @@ describe('Sources Browser (Quellen Browser) UI', function() {
             () => window.fastStream.sourcesBrowser.isOpen()),
         {timeout: 3000, timeoutMsg: 'sources browser never opened'});
 
-    // Force the same auto-hide path the 2s idle timer uses, with the dialog
-    // open. Before the fix this would remove 'controls_visible' and slide
-    // the popwindow (and its close button) down by 80px.
+    // the auto-hide path the 2 s idle timer uses, with the dialog open: the bar and the popwindow
+    // stay
     await browser.execute(() => {
       window.fastStream.interfaceController.queueControlsHide(20);
     });
@@ -127,15 +98,8 @@ describe('Sources Browser (Quellen Browser) UI', function() {
             () => !window.fastStream.sourcesBrowser.isOpen()),
         {timeout: 3000, timeoutMsg: 'close button did not close the dialog'});
 
-    // Sanity check the guard is scoped to "a window is open", not a
-    // blanket disable: with nothing open, idle auto-hide must still work.
-    // Re-queued on each poll: on a slow machine a mouse event arriving after
-    // the dialog closed (the pointer is left where the close button was)
-    // restarts the 2 s timer once, which a single 150 ms check read as failure.
-    // The pointer is still where the close button was, and once the dialog is gone that
-    // spot can be over the control bar (window size and platform decide) - where the bar
-    // rightly stays up. A user moves the mouse away; so does the test, to the top-left of
-    // the player (this spec loads no video), away from the controls at the bottom.
+    // With nothing open idle auto-hide still works; re-queued per poll, and the pointer moved off
+    // where the close button was.
     const player = await browser.$('.mainplayer');
     const {width, height} = await player.getSize();
     await browser.action('pointer')
@@ -169,10 +133,8 @@ describe('Sources Browser (Quellen Browser) UI', function() {
     expect(hiddenWhenClosed).toBe(true);
   });
 
-  // Firefox Beta on Windows once failed the test above with focusingControls still true
-  // while document.activeElement was <body>: focus had left the control bar without a
-  // focusout, which is what happens when the focused element is hidden. The flag then
-  // kept the bar up for good. This hides a focused control directly.
+  // A focused control that is hidden fires no focusout in some Firefox builds: the flag must not
+  // keep the bar up.
   it('auto-hides the control bar after the focused control disappears, even without a focusout', async function() {
     await openPlayer();
     const focusedIn = await browser.execute(() => {
@@ -199,9 +161,7 @@ describe('Sources Browser (Quellen Browser) UI', function() {
     // The setup itself: focus was in the bar, and hiding moved it to <body>.
     expect(focusedIn).toBe(true);
     expect(state.active).toBe('BODY');
-    // Whether this browser fired the focusout varies: on the Windows CI runner it sometimes
-    // did not ({"focusouts":0,"flag":true}), elsewhere it does. Where it did, the flag is put
-    // back as a missed focusout leaves it, so the check below always covers that case.
+    // whether this Firefox fired the focusout varies: put the flag back as a missed one leaves it
     await browser.execute(() => {
       window.fastStream.interfaceController.focusingControls = true;
     });
@@ -227,8 +187,7 @@ describe('Sources Browser (Quellen Browser) UI', function() {
     expect(hidden).toBe(true);
   });
   it('gives the Play button back when the source fails to load', async function() {
-    // A source whose setSource threw left its button on "Loading..." for good (final
-    // review, 2026-10-10).
+    // a source whose setSource threw leaves its button
     await openPlayer();
     await (await browser.$('.mainplayer .fluid_button_link')).click();
     const url = await browser.$('.linkui-source-url');
@@ -256,9 +215,8 @@ describe('Sources Browser (Quellen Browser) UI', function() {
   });
 
   it('keeps the typing in the address field while the pointer passes over the mode dropdown', async function() {
-    // The dropdown took the focus when the pointer came over it.
-    // The address field's change ran on half an address (in Auto, a mode picked from it and
-    // "Auto" gone for good), and the next letters went to the player's shortcuts.
+    // The dropdown must not take the focus on hover: the address field's change would run on half
+    // an address.
     await openPlayer();
     await (await browser.$('.mainplayer .fluid_button_link')).click();
     const url = await browser.$('.linkui-source-url');

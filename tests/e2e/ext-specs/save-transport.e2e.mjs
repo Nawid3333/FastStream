@@ -1,31 +1,12 @@
-// Diagnostic probe for the save/download transport on the real installed
-// extension (moz-extension:// origin).
+// Probes the save transport on the installed extension: the filename prompt, the streamSaver
+// writable, the DOWNLOAD handler.
 //
-// The web-build suite (specs/save-video.e2e.mjs) proves the player-side save
-// logic, but it bypasses everything that only exists under the extension
-// origin: SaveManager's real filename prompt, the streamSaver writable, and
-// the background DOWNLOAD handler. This spec probes exactly those, so a
-// "Save button freezes the player" report can be pinned to a layer instead
-// of guessed at.
+// 1. Environment: an extension page, a ServiceWorker container, a registration (streamSaver picks
+// its transport by these).
+//   2. streamSaver.createWriteStream: write and close, each raced against a timeout.
+//   3. The DOWNLOAD handler on a blob URL, the last step of a non-streamed save (Bugzilla 1917842).
 //
-// Probes:
-//   1. Environment: is the page an extension page, does a ServiceWorker
-//      container exist, does getRegistration('./') find anything. StreamSaver
-//      selects its service-worker transport vs blob fallback purely off
-//      `!EnvUtils.isExtension() || navigator.serviceWorker === undefined`, so
-//      a browser where the property exists but no SW can ever be registered
-//      on this origin would silently pick the transport that can never work.
-//   2. streamSaver.createWriteStream: write + close, each raced against a
-//      timeout, so a hung transport shows as {stage: 'write'|'close',
-//      timedOut: true} instead of a suite-wide timeout.
-//   3. The background DOWNLOAD handler: Utils.downloadURL on a blob URL,
-//      which is the exact final step of every non-streamed save (DASH muxes
-//      to a blob first). Firefox partitioned-iframe blob isolation is a known
-//      failure mode here (Bugzilla 1917842).
-//
-// NOTE: runInPage bodies are stringified with fn.toString() and evaluated in
-// the page, so they must be self-contained - they see nothing from this
-// module's scope. Timeouts inside them are therefore hardcoded.
+// runInPage bodies are stringified and run in the page: self-contained, timeouts hardcoded.
 
 import {browser, expect} from '@wdio/globals';
 import {pageState} from '../specs/diagnostics.mjs';
@@ -89,9 +70,7 @@ describe('save transport on the installed extension', function() {
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
       const {OPFSManager} = await import('/player/network/OPFSManager.mjs');
 
-      // What the save's own blob store did, and when each step settled: the write timed
-      // out twice on the Windows runner (main, 2026-09-30) with the player's store idle,
-      // which says nothing about the save's. Printed with the result.
+      // what the save's own blob store did and when, printed with the result
       const trace = [];
       const start = performance.now();
       const note = (what) => trace.push(`${Math.round(performance.now() - start)} ms ${what}`);
@@ -106,11 +85,8 @@ describe('save transport on the installed extension', function() {
         };
       }
 
-      // Raced against a timer so a hung transport becomes data instead of a suite-wide
-      // timeout. 20 s, not 6: the first write starts the save's OPFS worker, and in the
-      // Windows runner's fresh profile its init alone took 6.6-9.0 s (traces of the 5
-      // first attempts that "timed out" in the week to 2026-10-05, #346), after which every
-      // call answered within 0.3 s. A worker that never answers still fails here.
+      // Raced against a timer; 20 s, as the first write starts the save's OPFS worker, slow to init
+      // in a fresh profile.
       const raced = (p) => Promise.race([
         p.then((v) => ({settled: true, value: v === undefined ? null : v})),
         new Promise((r) => setTimeout(() => r({settled: false, timedOut: true}), 20000)),
@@ -175,16 +151,8 @@ describe('save transport on the installed extension', function() {
     }
   });
 
-  // The real-world embedding: content.js replaces a page's <video> with a
-  // moz-extension:// iframe inside the SITE'S page - a partitioned context.
-  // Firefox's blob-isolation bug (bugzilla 1917842) makes blob URLs created
-  // in such a frame inaccessible to chrome.downloads.download, with the
-  // error 'Cannot access blob URL ... with a different partition key'. The
-  // top-level probes above pass precisely because they are NOT partitioned.
-  //
-  // This probe is fully self-contained (no imports): it creates a blob URL
-  // inside the iframe and sends the raw DOWNLOAD message - exactly what
-  // Utils.downloadURL does for a non-streamed save.
+  // In a partitioned iframe blob URLs are refused to downloads.download (bugzilla 1917842): this
+  // probe sends the raw DOWNLOAD from one.
   it('downloads a blob URL created inside a partitioned player iframe', async function() {
     await openEmbeddedPlayer();
 
@@ -215,10 +183,5 @@ describe('save transport on the installed extension', function() {
     expect(result.downloadId).not.toBe(null);
   });
 
-  // NOTE: a "click the Save button in the iframe" probe would live here, but
-  // without a source loaded the player renders no Save control at all, and
-  // the faithful version of that flow - embedded iframe + real accelerated
-  // MP4 + real prompt + full save - is exactly what save-flow.e2e.mjs
-  // already drives end to end. Duplicating it with a fake source would test
-  // less and flake more.
+  // A Save-button probe is save-flow.e2e.mjs's: it drives the whole save end to end.
 });

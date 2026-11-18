@@ -1,15 +1,10 @@
 // The MP4 fixture every e2e suite serves, and the other fixtures are made from.
 //
-// Served locally rather than fetched from a public host: the obvious public test files send
-// no CORS headers, and FastStream's accelerated MP4 mode fetches the file itself to do its
-// own range-based buffering - which an extension may do via host permissions but a web
-// page may not. Serving it same-origin removes both the CORS problem and a network
-// dependency in CI. It is downloaded once and gitignored rather than committed, to keep a
-// binary out of the repository.
+// Served locally: public test files send no CORS, which the accelerated MP4 mode needs; downloaded
+// once, gitignored.
 //
-// A module of its own because both the web suite's config and the extension suite's make
-// sure it is there: `pnpm run test:ext` alone never runs the web config, and on a fresh
-// clone the extension specs' /fixtures/sample.mp4 was a 404.
+// Both the web and the extension configs make sure it is there: `pnpm run test:ext` alone never
+// runs the web config.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -20,11 +15,8 @@ const MP4_FIXTURE_URL =
 export const fixturesDir = path.join(import.meta.dirname, 'fixtures');
 export const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
 
-// The exact file the suites are written against: H.264 High, 640x360, 300 frames at
-// 30 fps, 250 of them B-frames, no audio (ffprobe, 2026-10-03). The specs count its
-// frames, and every fixture made from it inherits them; a host that re-encodes it would
-// move them all at once. A file that is not this one is refused, by name, rather than
-// tested against.
+// The pinned file: H.264 High, 640x360, 300 frames at 30 fps, 250 B-frames, no audio. Another file
+// is refused by name.
 export const MP4_FIXTURE_PIN = {
   size: 991017,
   sha256: '77145c94c11f3754207499158df22406e1fe7635553c1c86dc5e881dfeb32016',
@@ -45,9 +37,8 @@ export function mp4FixtureMismatch(data, pin = MP4_FIXTURE_PIN) {
 }
 
 /**
- * Moves a finished file into place. A fixture is trusted once its file exists, so it is
- * written under another name and renamed: a run killed half way leaves no half-written
- * fixture for the next run to trust, only a leftover the next run writes over.
+ * Moves a finished file into place: written under another name and renamed, so no half-written
+ * fixture is trusted.
  * @param {string} file - The fixture's path.
  * @param {function(string): (void|Promise<void>)} write - Writes the fixture to the path
  *   it is given.
@@ -65,10 +56,8 @@ export async function writeFixture(file, write) {
 }
 
 /**
- * Downloads the MP4 fixture unless the pinned one is already there. One that is another
- * file (fetched before the pin, cut short, or a bad cache entry on CI) is fetched again,
- * and the fixtures made from it are removed, for the suites to make again from the right
- * one.
+ * Downloads the MP4 fixture unless the pinned one is there; another file is fetched again and its
+ * derived fixtures removed.
  * @return {Promise<{action: string, reason?: string}>} 'kept' (the pinned file was there),
  *   'fetched' (none was), or 'replaced' (another file was, and reason says how it differed).
  */
@@ -92,9 +81,8 @@ export async function ensureMp4Fixture() {
         `after that the suite runs offline.`,
     );
   }
-  // Only bytes that are actually an MP4 (ftyp box, which starts every one of them)
-  // become the fixture: the download's content is checked before it is written
-  // (CodeQL js/http-to-file-access).
+  // only an MP4 (an ftyp box) becomes the fixture: checked before it is written (CodeQL
+  // js/http-to-file-access)
   const data = Buffer.from(await res.arrayBuffer());
   if (data.length < 12 || data.toString('latin1', 4, 8) !== 'ftyp') {
     throw new Error('the fetched MP4 fixture is not an MP4 (no ftyp box)');

@@ -1,12 +1,5 @@
-// Regression test for a bug where the save-filename dialog's overlay (then
-// sweetalert2's `.swal2-container`) got created under the real `document.body`
-// while every other lookup scoped to DOMElements.playerContainer
-// (`.mainplayer`) - so the popup inside it never became visible, and the
-// invisible full-size container sat on top of the page eating every click,
-// including WebDriver's own trusted click on its confirm button ("did not
-// become interactable"). The dialogs are Firefox's own <dialog> since
-// 2026-10-09 (AlertPolyfill), which leaves the page as it closes; this keeps
-// checking that nothing is left over the page after a real save.
+// Nothing of the save dialog is left over the page after a real save (an invisible full-size
+// overlay would eat every click).
 //
 // This drives the full real flow: click Save, confirm the prompt with a
 // trusted driver click, wait for the save to settle, then assert nothing
@@ -60,9 +53,7 @@ describe('save dialog regression', function() {
     await browser.waitUntil(
         async () => browser.execute(() => !!document.querySelector('.fs-dialog-input')),
         {timeout: 15000, timeoutMsg: 'filename prompt never appeared'});
-    // The real regression: this trusted click used to time out with
-    // "element did not become interactable" because an invisible
-    // .fs-dialog sat on top of the whole page.
+    // a trusted click on OK: an overlay over the page would make it "not interactable"
     const confirmBtn = await browser.$('.fs-dialog-confirm');
     await confirmBtn.waitForClickable({timeout: 10000});
     await confirmBtn.click();

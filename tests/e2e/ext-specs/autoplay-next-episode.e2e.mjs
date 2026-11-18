@@ -1,9 +1,5 @@
-// Autoplay next, on to an episode whose page waits for a click before its player loads
-// anything (his report, 2026-10-11, a series site: the next episode came, and he had to
-// click it). The hoster there is a JW Player, idle until played; another kind loads its
-// video on a click on it. After FastStream went to the next episode by itself, it starts the
-// page's player (content.js startPagePlayer, background.mjs startPagePlayers), takes the
-// stream, and its own player plays it, all without a click.
+// Autoplay next onto an episode whose page player waits for a click: FastStream starts the page's
+// player (content.js startPagePlayer), takes the stream and plays it, no click.
 import fs from 'node:fs';
 import http from 'node:http';
 
@@ -96,8 +92,7 @@ function pages(file) {
     video.play().catch(() => {});
   });
 </script>`,
-    // A series as an anime site has it (his report, 2026-10-11: after a season's last episode,
-    // autoplay went on to another series): its season, its episodes, then other series.
+    // A series as an anime site has it: its season, its episodes, then other series.
     [`${SERIES}/staffel-1/episode-1`]: seriesPage(file, 1),
     [`${SERIES}/staffel-1/episode-2`]: seriesPage(file, 2),
     '/anime/stream/other/staffel-1/episode-1': `<!doctype html><title>another series</title>
@@ -120,8 +115,7 @@ function seriesPage(file, episode) {
 }
 
 /**
- * A test's steps, logged with the seconds since it began: on CI's Linux runner these tests
- * once ran past their timeout with no word of where.
+ * A test's steps, logged with the seconds since it began, so a timeout says where.
  * @return {(what: string) => void}
  */
 function stepLog() {
@@ -141,14 +135,10 @@ async function intoPlayer(what) {
 }
 
 /**
- * Clicks the progress bar's last pixel (pressed and let go) once the player's frame has its size,
- * checked in the same task as the click: a click on the bar seeks only on a bar with a width
- * (ProgressBar). The player's frame is out of process and takes its size from the page
- * asynchronously; its video may play meanwhile at 0x0. Three CI runs in the week to 2026-11-02
- * clicked 46 ms after playing began, on a bar 0 wide; a wait for the bar's width before
- * the click (one round trip earlier) still lost it twice in one run (2026-11-16: the frame 0x0 at
- * the click). A user cannot click a bar that is not on the screen. The wait is told when it is
- * long; a frame that never gets its size fails with what the page shows.
+ * Clicks the progress bar's last pixel once the player's frame has its size, checked in the click's
+ * task.
+ * A bar 0 wide does not seek, and the out-of-process frame gets its size asynchronously; a long
+ * wait is logged.
  * @param {string} what - For the messages.
  * @param {boolean} pause - Pause the video first.
  * @return {Promise<{before: number, sought: number, time: number, duration: number, barWidth: number,
@@ -191,10 +181,8 @@ async function clickBarEnd(what, pause) {
 }
 
 /**
- * The page's player frames as the page lays them out, for a failure's message: the player's
- * frame read 0x0 just after it had its size (CI, 2026-11-16, twice in one run), and only the
- * page can tell whether its iframe was hidden, moved or made again. Leaves the context at the
- * page.
+ * The page's player frames as the page lays them out, for a failure's message. Leaves the context
+ * at the page.
  * @return {Promise<Object>}
  */
 async function pageFrames() {
@@ -293,8 +281,7 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
   });
 
   it('gives the next episode\'s player the keyboard: F goes fullscreen without a click', async function() {
-    // After autoplay went on, F (and Space) did nothing until a click
-    // in the player - the page had the keyboard (main.mjs: the player takes it then).
+    // after autoplay went on, F and Space work without a click in the player
     const step = stepLog();
     await browser.url('about:blank');
     await browser.url(`${SITE}/ep1`);
@@ -323,20 +310,15 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
   });
 
   it('keeps a fullscreen into the next episode, and Escape gives the window back', async function() {
-    // The next episode played windowed, because Firefox lets no page
-    // go fullscreen without a click. The browser window goes fullscreen instead
-    // (background.mjs setCarriedFullscreen) and the player fills the page. Firefox's
-    // window.fullScreen is the browser window in fullscreen mode (as F11), read in the page:
-    // WebDriver's scripts have no extension API in the player's frame.
-    // A blank page first: the test before ends with an episode playing in this tab.
+    // Firefox lets no page go fullscreen without a click: the browser window does
+    // (setCarriedFullscreen) and the player fills the page.
     await browser.url('about:blank');
     await browser.url(`${SITE}/ep1`);
     await intoPlayer('the first episode');
     await browser.waitUntil(() => browser.execute(() => (window.fastStream?.player?.getVideo?.()?.readyState || 0) >= 2),
         {timeout: 30000, timeoutMsg: 'the first episode never loaded'});
-    // Episode 1 in fullscreen, as the player knows it (a real one needs a click on its button,
-    // which WebDriver's element lookup in the player's frame cannot reach): what goes on to
-    // the next episode is the player's own state (getFullscreenState, in its continuation).
+    // Episode 1 in fullscreen as the player knows it: what goes on is the player's own state
+    // (getFullscreenState).
     await browser.execute(() => {
       window.fastStream.state.fullscreen = true;
     });
@@ -344,10 +326,8 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
 
     await onPage('/ep2');
     await intoPlayer('the next episode');
-    // Both halves: carryFullscreen sets carriedFullscreen when the window is fullscreen, and
-    // windowedFullscreen (the player filling the page) only when the background answers its
-    // second request. Read right after the first, the second was still false on a slow
-    // runner (CI runs 38255707770, 38463874992, 39000867338: fillsPage false, all else right).
+    // Both halves: carriedFullscreen at once, windowedFullscreen once the background answers the
+    // second request.
     let carried;
     await browser.waitUntil(async () => {
       carried = await browser.execute(() => ({
@@ -375,8 +355,7 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
         !window.fastStream.state.windowedFullscreen), {timeout: 10000, timeoutMsg: 'the player still fills the page'});
   });
 
-  // The countdown set in the options is the player's: it never reached it, which counted 5 s
-  // whatever was set, and 0 never turned the banner off (found while typing, 2026-10-22).
+  // the countdown set in the options is the player's; 0 turns the banner off
   it('counts down for as long as the options say', async function() {
     await setOptions({autoEnableURLs: [SITE], autoplayNext: true, autoplayCountdown: 12});
     try {
@@ -390,10 +369,8 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
     }
   });
 
-  // The system's media overlay (Windows' media flyout) named only
-  // "FastStream". The player's Media Session, which Firefox gives the overlay while the
-  // player's video plays, names the video, shows a frame of it and has a time line and seek
-  // keys (MediaKeys).
+  // The player's Media Session names the video, shows a frame and has a time line and seek keys
+  // (MediaKeys).
   it('gives the system\'s media overlay the video\'s name and a frame of it', async function() {
     await browser.url(`${SITE}/named`);
     await intoPlayer('the named episode');
@@ -443,9 +420,7 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
     {timeout: 20000, timeoutMsg: 'the picture was never taken again a few seconds in'});
   });
 
-  // A skip to the end sometimes did not go on. Measured: a paused video
-  // put 0.3 s before its end stayed there, and a click on the bar's last pixel put it there
-  // (a second short of a 24-minute episode's end), where a drag past the bar reached the end.
+  // A click on the bar's last pixel reaches the end, and the next episode follows.
   it('goes on to the next episode after a click on the bar\'s end, also paused', async function() {
     await browser.url(`${SITE}/ep1`);
     await intoPlayer('the first episode');
@@ -457,19 +432,15 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
     // Paused, then the bar's last pixel, pressed and let go as a click there.
     const at = await clickBarEnd('the first episode', true);
     console.log(`      clicked the bar's end: ${JSON.stringify(at)}`);
-    // A click that did not seek (#583: still at the time it was paused at, once in a week's
-    // runs) is said here, with that state, not after the 30 s wait for the next episode.
+    // a click that did not seek is said here, not after the 30 s wait
     if (!(at.time > at.duration - 0.25)) {
       throw new Error(`the click on the bar's end did not seek: ${JSON.stringify(at)}`);
     }
     await onPage('/ep2');
   });
 
-  // glm's review of #538 said a click on the bar's end of a PLAYING video, which
-  // puts it at exactly its end, started it again on letting go: HTML's play() starts media that
-  // has ended from the beginning. Measured: it does not, in either player - Firefox does not
-  // count a video sought to its end while paused as ended. This keeps it so. Autoplay off, so
-  // nothing else moves it.
+  // A click at the end of a playing video does not start it again (Firefox does not count it
+  // ended). Autoplay off.
   it('ends a playing video after a click on the bar\'s end, and does not start it again', async function() {
     await setOptions({autoEnableURLs: [SITE], autoplayNext: false});
     try {
@@ -486,8 +457,7 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
         await browser.pause(1500);
         const after = await browser.execute(() => ({player: window.fastStream.player.constructor.name,
           time: window.fastStream.currentTime, duration: window.fastStream.duration}));
-        // The click's own state with it: one at 1.5 s was a click that did not seek (a
-        // video playing on from where it was) or one started again (sought, then back at 0).
+        // the click's own state tells a click that did not seek from one started again
         console.log(`      ${page}, 1.5 s after the click: ${JSON.stringify({...after, click: at})}`);
         // Started again, it would be about 1.5 s in.
         expect(after.time).toBeGreaterThan(after.duration - 0.25);

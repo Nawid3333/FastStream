@@ -158,8 +158,7 @@ describe('KeybindManager wiring', () => {
   });
 
   it('keeps a speed set by key for the next video, as the speed menu keeps its own', () => {
-    // Only the menu saved its speed: a preset or Shift+arrow went at the next video (the
-    // owner's choice, 2026-10-22: as mpv remembers every speed).
+    // every speed is remembered for the next video, as in mpv, not only the menu's
     for (const action of ['IncreasePlaybackRate', 'DecreasePlaybackRate', 'ResetPlaybackRate']) {
       // (the handler's parameter may carry its JSDoc type: /** @param {KeyboardEvent} e */)
       const handler = source.match(new RegExp(`this\\.on\\('${action}', (?:/\\*\\*[^*]*\\*/ )?\\(e\\) => \\{([\\s\\S]*?)\\n    \\}\\);`));
@@ -248,10 +247,7 @@ describe('Utils.getOptionsFromStorage', () => {
     expect(await Utils.getOptionsFromStorage()).toEqual(options);
   });
 
-  // The three cases below were ext-specs/keybinds-storage.e2e.mjs's until 2026-10-13, with
-  // the same stored options: a few bindings saved at a version, not every one, as an
-  // imported or hand-edited file may hold them. That spec still reads options of an earlier
-  // layout through chrome.storage; what each step makes of them is the same function's.
+  // A few bindings saved at a version, as an imported or hand-edited file may hold them.
   it('migrates a few bindings saved at version 2 to the mpv seeks and a 5 s arrow step', async () => {
     store({keybindsVersion: 2, seekStepSize: 2, keybinds: {
       UndoSeek: 'KeyZ', Screenshot: 'KeyX', PlayPause: 'KeyK',

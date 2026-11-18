@@ -1,27 +1,10 @@
-// Drives the AMO build as an INSTALLED EXTENSION, not as a web page.
-//
-// Why this exists separately from wdio.conf.mjs
-// ---------------------------------------------
-// The playback and module suites load built/web over http. That is the right
-// harness for "does this library still work", but it cannot see anything that
-// only happens under an extension origin:
-//
-//   - the manifest's content_security_policy applies to extension pages only,
-//     so `script-src 'self'` is never enforced over http. (No WebAssembly any more:
-//     ONNX Runtime, its only user, went with the speech detector on 2026-10-10.)
-//   - the background script is not loaded at all over http, so nothing has
-//     ever confirmed it starts without throwing.
-//   - moz-extension:// is an opaque origin with different rules for workers,
-//     blob URLs and dynamic import than http://127.0.0.1.
-//
-// This config installs the built AMO zip into a throwaway profile and runs
-// against moz-extension://. It never touches the developer's own Firefox: the
-// same -no-remote / -new-instance guard as tools/launch-ff.mjs, and a profile
-// geckodriver creates and discards.
-//
-// Run with: pnpm run test:ext (the AMO build), or pnpm run test:ext:github
-// for the GitHub self-host build. FS_EXT_BUILD picks the package for this
-// config and for the classic and private-browsing configs built on it.
+// Drives the AMO build as an installed extension: what only happens under an extension origin
+// (the manifest's CSP, the background script, moz-extension:// rules for workers, blobs and
+// import).
+// A throwaway profile, never the developer's own Firefox (-no-remote / -new-instance, as
+// tools/launch-ff.mjs).
+// pnpm run test:ext (AMO) or test:ext:github; FS_EXT_BUILD picks the package, also for the classic
+// and pbm configs.
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -51,26 +34,22 @@ const FIXTURE_MIME = {
   '.webm': 'video/webm',
 };
 
-// Firefox assigns each installed extension a random moz-extension:// UUID, so
-// a test cannot guess its own pages' URLs. This pref pins it. The value has to
-// be a JSON *string*, keyed by the add-on id from build.mjs.
+// Pins the random moz-extension:// UUID (a JSON string keyed by the add-on id) so specs know their
+// pages' URLs.
 export const EXTENSION_ID = 'thanatus@Nawid';
 export const EXTENSION_UUID = 'f45ea7c1-3b2d-4a19-9c6e-8d5b0f2a7e34';
 
-// Which build to install: 'amo' (default) or 'github'. Both are shipped, and
-// they differ in more than the manifest - the GitHub build keeps the update
-// checker (NO_UPDATE_CHECKER only splices the AMO one) and asks for
-// contextualIdentities - so passing on one says nothing about the other.
-// BUILD is one of the two names, never the variable's own text: it goes into log file
-// names (CodeQL js/path-injection, local sources).
+// 'amo' (default) or 'github': the builds differ in more than the manifest (update checker,
+// contextualIdentities).
+// BUILD is one of the two names, never the variable's text: it goes into log file names (CodeQL
+// js/path-injection).
 const requestedBuild = process.env.FS_EXT_BUILD || 'amo';
 export const BUILD = ['amo', 'github'].find((build) => build === requestedBuild);
 if (!BUILD) {
   throw new Error(`FS_EXT_BUILD must be 'amo' or 'github', not '${requestedBuild}'`);
 }
 
-// Found rather than named, so a version bump does not silently stop this
-// suite from running against the package it is meant to test.
+// Found rather than named, so a version bump does not stop the suite testing its package.
 const builtDir = path.join(root, 'built');
 const packages = fs.existsSync(builtDir) ?
   fs.readdirSync(builtDir).filter(
@@ -86,20 +65,14 @@ if (packages.length !== 1) {
 
 export const XPI = path.join(builtDir, packages[0]);
 
-// geckodriver refuses WebDriver:Navigate to moz-extension:// - it treats the
-// extension origin as privileged. But `player/index.html` is declared in
-// web_accessible_resources for <all_urls>, so an ordinary web page is allowed
-// to open it. This server exists only to be that page.
+// geckodriver refuses to navigate to moz-extension://, but player/index.html is web-accessible:
+// this server is the page that opens it.
 export const PORT = 41991;
 export const OPENER_URL = `http://127.0.0.1:${PORT}/`;
 let server;
 
-// save-flow, save-dialog-regression and save-transport trigger real
-// downloads through the extension's DOWNLOAD handler. Without an explicit
-// download directory, Firefox uses its normal one - the developer's actual
-// Downloads folder - and every run leaves files behind there. Wiped both
-// before and after the run, so a crashed previous run can't leave stale
-// files either.
+// The save specs download for real: into this folder, not the developer's, wiped before and after
+// the run.
 const downloadDir = path.join(root, '.e2e-downloads');
 
 // Firefox's own log for the specs listed in mozLog.mjs, when E2E_MOZ_LOG=1 (CI's Windows
@@ -116,17 +89,10 @@ function resetDownloadDir() {
 
 export const config = {
   runner: 'local',
-  // Firefox runs -headless, so no X display is needed; without this the Linux runner starts
-  // every worker through xvfb-run, whose Ubuntu 26.04 version (xorg 21.1.22) closes fd 3 -
-  // the worker's IPC channel - and every worker dies with "write EINVAL"
-  // (webdriverio/webdriverio#15685, unfixed as of 9.32.0). ubuntu-latest moves to 26.04 between
-  // October 19 and November 19, 2026.
+  // Firefox runs -headless; xvfb-run on Ubuntu 26.04 closes the worker's IPC fd (workflows.md).
   autoXvfb: false,
-  // A spec file that fails is run once more, in a fresh browser (WebdriverIO's documented
-  // specFileRetries). The Windows CI runner occasionally runs out of a timing budget on a
-  // busy moment - a 6 s streamSaver write, a 30 s player start - with nothing stuck (the
-  // specs log their page and OPFS state on the first failure). A real bug fails twice
-  // and still fails the run, and so still holds back the release.
+  // A failing spec file runs once more in a fresh browser: a real bug fails twice and still fails
+  // the run.
   specFileRetries: 1,
   // All of them, or E2E_SHARD's group (shardSpecs.mjs).
   specs: shardSpecs(path.join(__dirname, 'ext-specs')),
@@ -134,11 +100,8 @@ export const config = {
 
   capabilities: [{
     'browserName': 'firefox',
-    // An extension page is a privileged browsing context, and both driver
-    // protocols guard it: classic WebDriver refuses executeScript there
-    // outright, and BiDi wants Firefox started with
-    // --remote-allow-system-access, which geckodriver will not accept through
-    // capabilities. Passing it to geckodriver itself is the way in.
+    // Extension pages are privileged: BiDi needs --remote-allow-system-access, which geckodriver
+    // takes only as its own arg.
     'wdio:geckodriverOptions': {
       allowSystemAccess: true,
     },
@@ -148,10 +111,8 @@ export const config = {
       args: ['-headless', '-no-remote', '-new-instance'],
       prefs: {
         'browser.shell.checkDefaultBrowser': false,
-        // Web pages' and the extension's console calls go to Firefox's stdout, which
-        // geckodriver writes into this spec's driver log (kept per spec and attempt,
-        // driverLogs.mjs): the background's debug lines, on for this temporary install,
-        // show what it did in a failed run. background-log.e2e.mjs checks both.
+        // Console calls go to stdout, so into the spec's driver log: the background's debug lines
+        // (background-log.e2e.mjs).
         'devtools.console.stdout.content': true,
         'media.autoplay.default': 0,
         'media.autoplay.blocking_policy': 0,
@@ -189,9 +150,8 @@ export const config = {
 
   onPrepare: async function() {
     resetDownloadDir();
-    // The specs' fixtures (sample.mp4, and long-av.mp4 and hls-ts for source-length):
-    // `pnpm run test:ext` alone, on a fresh clone, has no web suite run before it to make
-    // them. Made already, they cost a check of their recipes.
+    // `pnpm run test:ext` alone on a fresh clone has no web suite run before it to make the
+    // fixtures.
     await ensureMp4Fixture();
     await ensureFixtures();
     return new Promise((resolve) => {
@@ -203,13 +163,8 @@ export const config = {
           return;
         }
 
-        // /fixtures/<name> serves the shared binary fixtures so the
-        // embedded-player specs can load real media. CORS is required: the
-        // player runs in a moz-extension:// iframe (partitioned), and a
-        // partitioned frame's fetches do not get the extension's host-
-        // permission CORS bypass. The accelerated players fetch with a
-        // Range header, which is not CORS-safelisted, so preflight must be
-        // answered too or every fragment download fails before it starts.
+        // CORS with preflight: the partitioned player frame gets no host-permission bypass, and
+        // Range is not safelisted.
         if (pathname.startsWith('/fixtures/')) {
           if (req.method === 'OPTIONS') {
             res.writeHead(204, {
@@ -235,10 +190,7 @@ export const config = {
             'Access-Control-Expose-Headers': 'Content-Length, Content-Range',
             'Accept-Ranges': 'bytes',
           };
-          // Byte ranges, as wdio.conf.mjs's server and any video host answer them. This
-          // sent the whole file with 200 for every Range: on the 1 MB sample.mp4, which
-          // fits MP4Player's first range, nothing showed that a second range would have
-          // got the file's start instead.
+          // Byte ranges, as wdio.conf.mjs's server and any video host answer them.
           const range = byteRange(req.headers.range, size);
           if (range === 'unsatisfiable') {
             res.writeHead(416, {...headers, 'Content-Range': `bytes */${size}`});
@@ -259,10 +211,8 @@ export const config = {
           return;
         }
 
-        // /embed serves an ordinary web page that embeds the extension's
-        // player page in a cross-origin iframe - the partitioned context
-        // real sites put the player in, and the one Firefox's blob-isolation
-        // bug (bugzilla 1917842) breaks downloads from.
+        // A page with the player in a cross-origin iframe: the partitioned context of real sites
+        // (bugzilla 1917842).
         if (pathname === '/embed') {
           const extOrigin = `moz-extension://${EXTENSION_UUID}`;
           res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
@@ -306,22 +256,19 @@ export const config = {
   // a spec that checks the player does not open would pass.
   before: async function() {
     await guardSetup(async () => {
-      // Each spec file's attempt starts with no downloads: a retry's save otherwise went
-      // to "name(1).png" beside the first attempt's file, and the spec read that one.
+      // Each attempt starts with no downloads: a retry's save would go to "name(1).png" beside the
+      // first one.
       resetDownloadDir();
       // Before the add-on: a browser started again has none. (The classic and pbm suites
       // share this hook and ask for classic, which it leaves alone.)
       await ensureBidi();
       // switchFrame for BiDi sessions, which WebdriverIO 10 dropped (switchFrame.mjs).
       restoreSwitchFrame(browser);
-      // Temporary rather than permanent: the package is unsigned, and a
-      // temporary install is exactly how a reviewer or a developer loads it.
+      // Temporary: the package is unsigned, and that is how a reviewer or developer loads it.
       await browser.installAddOn(fs.readFileSync(XPI).toString('base64'), true);
-      // Specs navigate to the harness server for the embed page; the trailing
-      // slash matters (it makes 'embed?...' append correctly).
+      // the trailing slash makes 'embed?...' append correctly
       globalThis.__EXT_OPENER_URL__ = OPENER_URL.endsWith('/') ? OPENER_URL : OPENER_URL + '/';
-      // Specs load real media through the harness server; the MP4 fixture is
-      // what the accelerated-MP4 specs drive.
+      // the MP4 fixture the accelerated-MP4 specs drive
       globalThis.__EXT_FIXTURE_MP4__ = globalThis.__EXT_OPENER_URL__ + 'fixtures/sample.mp4';
     });
   },

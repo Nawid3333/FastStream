@@ -1,8 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {Utils} from '../../chrome/player/utils/Utils.mjs';
 
-// An archive's raw entries come back as Uint8Array views (LargeBuffer.read), and their size
-// counted as 0: only an ArrayBuffer itself was measured (found while typing, 2026-10-23).
+// An archive's raw entries are Uint8Array views (LargeBuffer.read): their size counts.
 describe('Utils.getDataByteSize', () => {
   it('measures a string, an ArrayBuffer, a view of one and a Blob', () => {
     expect(Utils.getDataByteSize('abc')).toBe(6);

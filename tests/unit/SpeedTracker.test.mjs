@@ -104,9 +104,8 @@ describe('SpeedTracker', () => {
   });
 
   it('measures the data after a lull over its own time, not the lull\'s', () => {
-    // The two entries kept from before a lull stayed: the first download after it was
-    // counted over the whole lull, minutes, and read as a few KB/s (glm's second look,
-    // 2026-10-13).
+    // Entries from before a lull do not count: the first download after it is not read over the
+    // whole lull.
     const now = performance.now();
     const t = new SpeedTracker();
     t.update(1e6, now - 300000, now - 299000);

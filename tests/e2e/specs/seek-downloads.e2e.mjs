@@ -1,12 +1,7 @@
 // After a seek, FastStream downloads from the new time, not from where the video was.
 //
-// The client downloads ahead from the player's current fragment (getNextToDownload). For HLS
-// that was hls.js's currentFrag, the fragment that plays, and after a seek it stays the old
-// one until the first fragment at the new time has loaded and plays. Meanwhile every
-// downloader that came free took the next fragment at the old place: measured on a 10-minute
-// stream, three segments there were fetched after a seek to 5:00 before the one it needed,
-// and with other FastStream tabs loading (Firefox's six connections to a host shared by all
-// of them) the seek took 21 s to play instead of 4-9 s.
+// The client downloads ahead from the player's current fragment, which for HLS stays the old one
+// after a seek: the new time is asked for first.
 //
 // Here every segment takes a while to arrive, as on a slow line, so the old place has time to
 // show up in the server's log if anything asks for it.
@@ -89,9 +84,7 @@ describe('Downloads after a seek', function() {
       return v.currentTime > to + 0.5;
     }, SEEK_TO), {timeout: 30000, interval: 250, timeoutMsg: 'it never played after the seek'});
 
-    // What was asked for after the seek. A request already on its way at the seek can arrive
-    // a moment after it: those within 100 ms are left out. So can the first two the seek
-    // asked for (on the Linux runner, PR #366): it downloads on, and three are waited for.
+    // After the seek: requests on their way within 100 ms are left out, and three are waited for.
     const askedAfter = () => requests.filter((request) => request.at > seekAt + 100).map((request) => request.place);
     await browser.waitUntil(async () => askedAfter().length > 2,
         {timeout: 20000, interval: 250, timeoutMsg: `too few requests after the seek: ${JSON.stringify(askedAfter())}`});

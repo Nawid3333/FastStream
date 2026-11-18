@@ -1,9 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-// The seek-preview frame extractor (PreviewFrameExtractor) plays the video again in a
-// hidden background player. One that could not load (a manifest that failed to load again,
-// a codec error) threw out of the caller, which nothing awaited, and the half-built player
-// was left as it was.
+// PreviewFrameExtractor plays the video again in a hidden player: one that cannot load is cleaned
+// up, not thrown.
 
 const {PreviewFrameExtractor} = await import('../../chrome/player/modules/analyzer/PreviewFrameExtractor.mjs');
 const {Fragment} = await import('../../chrome/player/players/Fragment.mjs');
@@ -84,11 +82,10 @@ describe('PreviewFrameExtractor, a background player that fails to load', () => 
   });
 });
 
-// glm's second look, 2026-10-13.
+// the retry after a failed load
 describe('PreviewFrameExtractor after a load that failed', () => {
   it('tries again at the next start, as the audio analyzer does', async () => {
-    // A failed load was final for the video: one dropped manifest request, and the timeline
-    // had no frames until the next video.
+    // a failed load is retried, not final for the video
     const client = makeClient(failingPlayer());
     const extractor = new PreviewFrameExtractor(client);
     await extractor.startBackgroundAnalyzer();
@@ -101,9 +98,7 @@ describe('PreviewFrameExtractor after a load that failed', () => {
   });
 
   it('keeps no player that ended before its load returned', async () => {
-    // Its video had no size: it ended while its source was still being set, when the check
-    // for "the running player" compared two unset values and passed, and the load's return
-    // then kept the dead player as the running one, which blocked every later start.
+    // A player ended while its source was set is not kept as the running one.
     const client = makeClient(null);
     const extractor = new PreviewFrameExtractor(client);
     const dead = {destroy: vi.fn()};
@@ -171,8 +166,7 @@ describe('a background analysis that failed', () => {
 
 describe('PreviewFrameExtractor, a stale background player', () => {
   it('leaves the running one in place when it ends', async () => {
-    // A started for source A, then for B; B loaded first and runs. A, loaded last, is
-    // destroyed as stale, and its end cleared B's place: nothing could stop B any more.
+    // A stale start destroyed after the newer one runs does not clear the newer one's place.
     const client = makeClient(null);
     let current = {mode: 'accelerated_hls', identifier: 'a'};
     client.player.getSource = () => current;
@@ -251,8 +245,8 @@ describe('PreviewFrameExtractor, taking the frames', () => {
   }
 
   it('takes a frame only once its seek has ended, never the picture before it', () => {
-    // Asked for the next place at once, the following animation frame drew the video before
-    // the seek ended: the old place's picture, kept as the new one's (Codex, 2026-11-07).
+    // The next place is asked for once the seek ended, so the old picture is not kept as the new
+    // one's.
     const run = harness();
     run.seeked();
     run.nextFrame();
@@ -280,9 +274,7 @@ describe('PreviewFrameExtractor, taking the frames', () => {
 });
 
 describe('AudioAnalyzer, a background player destroyed before its metadata came', () => {
-  // A stop (a new video, the tool closed) or a newer start while the player loaded: its
-  // audio context and volume loop were let go only once the analysis ran, which needs the
-  // metadata, and ran on for the rest of the session.
+  // A stop or newer start while loading lets go of the audio context and volume loop at once.
   it('closes its audio context and stops its volume loop', async () => {
     const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
     const {DefaultPlayerEvents} = await import('../../chrome/player/enums/DefaultPlayerEvents.mjs');
@@ -327,9 +319,7 @@ describe('AudioAnalyzer, a background player destroyed before its metadata came'
 });
 
 describe('AudioAnalyzer, an audio track switched after the analysis finished', () => {
-  // Finished, the background player was gone, and the switch changed nothing: the volumes
-  // were the old track's for the rest of the video, and nothing analysed the new one (glm's
-  // look at a noted edge case, 2026-10-13).
+  // a track switch after the end analyses the new track
   it('drops the old track\'s volumes and analyses the new one', async () => {
     const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
     const client = makeClient(null);
@@ -355,9 +345,7 @@ describe('AudioAnalyzer, an audio track switched after the analysis finished', (
     expect(analyzer.loadPlayer).toHaveBeenCalledTimes(2);
   });
 
-  // The switch reset the whole analyzer, and with it the main player's volume node, which
-  // only the start of a video makes (FastStreamClient.initiateWebAudio): the live volume
-  // stopped for the rest of the video once the silence skipper had run to its end.
+  // The switch keeps the main player's volume node (only a video's start makes it).
   it('keeps the main player\'s volume node', async () => {
     const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
     const client = makeClient(null);
@@ -401,10 +389,8 @@ describe('AudioAnalyzer, an audio track switched after the analysis finished', (
   });
 });
 
-// The volume loop measured every 64 ms divided by the playback rate even while the sound was
-// paused, when there is nothing to measure: the background analysis plays at 8x and waits
-// paused whenever it is far enough ahead, most of the time, and its loop woke the page 125
-// times a second for the whole video; the main player's 15 times a second while paused.
+// The volume loop does not run while the sound is paused (the background analysis waits paused most
+// of the time).
 describe('AudioAnalyzerNode, its volume loop while the sound is paused', () => {
   it('wakes the page a few times a second while paused, and measures again at once on play', async () => {
     const {AudioAnalyzerNode} = await import('../../chrome/player/modules/analyzer/AudioAnalyzerNode.mjs');
@@ -499,7 +485,7 @@ describe('the background analyses: when one is done', () => {
     client.isRegionBuffered = () => false;
     const extractor = new PreviewFrameExtractor(client);
     extractor.runAnalyzerInBackground(player, [], () => {});
-    // Frames at 0 and 2 s: not done yet. Before, it was done at the first.
+    // frames at 0 and 2 s: not done yet
     loop.shift()();
     expect(player.currentTime).toBe(2);
     loop.shift()();

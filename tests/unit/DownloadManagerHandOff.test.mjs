@@ -230,8 +230,8 @@ describe('DownloadManager.adopt', () => {
   /** @param {Object} entry - A DownloadEntry. @return {Promise<string>} Its data, as text. */
   const read = async (entry) => new TextDecoder().decode(await entry.getDataFromBlob('arraybuffer'));
 
-  // A request for a disk file before its turn downloaded it again: after a reload the player asks
-  // for the start, or where it resumes, at once (reload-keeps-buffer.e2e, #620).
+  // A request for a disk file before its turn does not download it again (a reload asks for the
+  // start at once).
   it('answers a request for a disk file before its turn from the file, moved then, once', async () => {
     const manager = new DownloadManager(null);
     manager.downloaders = [];

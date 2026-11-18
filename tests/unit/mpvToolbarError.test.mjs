@@ -1,8 +1,7 @@
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from 'vitest';
 
-// In MPV mode a failed hand-off used to leave the toolbar button purple ("Playing in
-// MPV") while the page played on in the browser, with nothing to say why. The button
-// now shows "!" and the reason in its tooltip until a hand-off works or the page changes.
+// A failed MPV hand-off shows "!" and the reason in the button's tooltip until a hand-off works or
+// the page changes.
 
 let BackgroundUtils;
 let calls;

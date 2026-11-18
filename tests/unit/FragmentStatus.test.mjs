@@ -4,9 +4,8 @@ import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
 import {Fragment} from '../../chrome/player/players/Fragment.mjs';
 import {fragmentDownloadCallbacks, markRequested} from '../../chrome/player/players/FragmentStatus.mjs';
 
-// The fragment status every player's fragment requester keeps (DASH, HLS, MP4: three copies
-// of it until 2026-11-15). The progress bar draws from it, and the players pick by it what to
-// download: a fragment left "downloading" after an abort was never asked for again.
+// The fragment status every player's requester keeps: the progress bar draws from it, and an
+// aborted fragment is asked for again.
 
 /** A player that records each FRAGMENT_UPDATE's status as it was told. */
 const player = () => {

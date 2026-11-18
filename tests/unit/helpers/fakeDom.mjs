@@ -410,9 +410,8 @@ export class FakeWindow {
   }
 }
 
-// The extension's pages, as their text: each a fixed file, which vitest includes when it
-// loads this module. Read at run time instead, a page's attribute names were "user-provided"
-// to CodeQL, and setAttribute's writes by them js/remote-property-injection.
+// The extension's pages as fixed files vitest includes: read at run time, their attribute names
+// were "user-provided" to CodeQL.
 const PAGES = import.meta.glob('../../../chrome/**/*.html', {query: '?raw', import: 'default', eager: true});
 
 /**

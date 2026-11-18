@@ -78,7 +78,7 @@ describe('matches', () => {
   it('matches a rebound shortcut', () => {
     expect(KeyShortcut.matches('Alt+Shift+U', press('U', 'KeyU', {altKey: true, shiftKey: true})))
         .toBe(true);
-    // The MPV key's default since 2026-10-04: Alt alone, not with Ctrl+Shift or Shift.
+    // the MPV key's default: Alt alone, not with Ctrl+Shift or Shift
     expect(KeyShortcut.matches('Alt+F', press('f', 'KeyF', {altKey: true}))).toBe(true);
     expect(KeyShortcut.matches('Alt+F', press('F', 'KeyF', ctrlShift))).toBe(false);
     expect(KeyShortcut.matches('Alt+F', press('F', 'KeyF', {altKey: true, shiftKey: true}))).toBe(false);

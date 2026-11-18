@@ -164,11 +164,8 @@ describe('watchMpv', () => {
     watch.stop();
   });
 
-  // A skip past the end of an HLS stream with discontinuities stopped mpv at the
-  // end, paused (keep-open), with eof-reached never set (measured with the pinned mpv,
-  // 2026-10-13): MPV autoplay never started, until the user went back and played the last
-  // seconds again. An end is also mpv at the last half second of
-  // its file when it pauses there or a seek lands there.
+  // An end is also mpv paused or landing in the last half second (an HLS skip past the end never
+  // sets eof-reached).
   describe('an end mpv does not mark (eof-reached unset)', () => {
     const pauseEvent = (data) => ({event: 'property-change', id: 3, name: 'pause', data});
     /** Answers the watch's question for the time left with this many seconds. */

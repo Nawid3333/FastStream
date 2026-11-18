@@ -2,10 +2,8 @@ import {afterEach, describe, expect, it} from 'vitest';
 
 import {loadBackground} from './backgroundHarness.mjs';
 
-// The frames above a player hide what their page lays over it (content.js IS_FULL,
-// overlay-guard.js). When the player's frame goes while the iframe holding it stays - the
-// embed's own page went elsewhere, or took the player out - the background tells them to let
-// go (a review, 2026-11-13: the page's own menu over the embed stayed hidden).
+// When the player's frame goes and its iframe stays, the background tells the frames above to let
+// go of what they hid.
 
 const PAGE = 'https://site.test/watch/1';
 const PLAYER = 'moz-extension://bg-test/player/index.html?opener=page-1';

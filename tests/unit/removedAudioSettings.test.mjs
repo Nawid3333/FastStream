@@ -1,7 +1,7 @@
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from 'vitest';
 
-// The audio settings window went on 2026-10-10. What it kept - its profiles in storage and
-// the impulse response files in IndexedDB - is forgotten once, when that update installs.
+// What the removed audio settings window kept (profiles, impulse responses in IndexedDB) is
+// forgotten once, on update.
 
 let BackgroundUtils;
 let removed;

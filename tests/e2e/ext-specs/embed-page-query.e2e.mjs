@@ -1,26 +1,14 @@
 // A page whose own URL names a stream in its query string is not the stream.
 //
-// Embed pages often carry the stream in their query string: embed.php?file=https://cdn/
-// .../index.m3u8. FastStream's detection looks through the query string of any request
-// whose URL has no stream extension of its own, which is right for a stream fetched through
-// a proxy (proxy?url=...m3u8, answered with the manifest itself) - but it did the same for
-// the page loads, so the embed page itself, HTML, went into the frame's sources as a
-// stream. With the site on the auto-enable list, a player opened before the page's own
-// player had asked for the real stream got only that source, and tried to play the page.
+// An embed page with the stream in its query (embed.php?file=...m3u8) is a page, not a stream; a
+// proxy fetch of one is.
 //
-// What makes a page load a page is its Content-Type, not its type alone: a proxy link
-// opened in a tab is a page load too, answered with the stream itself, and Firefox plays
-// it in that load with no request of its own. Skipping every page load lost it.
+// A page load is told by its Content-Type: a proxy link opened in a tab is a load answered with the
+// stream itself.
 //
-// Driven on the installed extension: a page with the fixture MP4 in its query string and a
-// <video> that plays it, the site on the auto-enable list, and the sources the player ends
-// up with.
+// Driven on the installed extension, the site on the auto-enable list.
 //
-// The same page also checks the sources browser's Clear button. The player's list is a
-// mirror of the background's per-frame store, which pushes its copy to the player again,
-// so the button also sends CLEAR_SOURCES and the background empties its store. Only the
-// extension has a background: the web suite's spec of the button could not check this,
-// and nothing failed with the message or its handler gone.
+// The sources browser's Clear also sends CLEAR_SOURCES, so the background's store is emptied too.
 
 import http from 'node:http';
 
@@ -32,9 +20,7 @@ const SITE_PORT = 41983;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
 
 let siteServer;
-// The file the site's page plays. The page's URL names it in its query string - the case
-// under test - but the page is built from this, never from the request, so the test
-// server echoes nothing it is sent.
+// The page names the file in its query, but is built from this, never from the request.
 let pageFile = null;
 
 /**
@@ -73,10 +59,8 @@ describe('A stream named in the page\'s own query string', function() {
     siteServer = http.createServer((req, res) => {
       const {pathname} = new URL(req.url, SITE);
       if (pathname === '/stream') {
-        // A proxy link: its query string names the stream, and it answers with the stream
-        // itself. It always serves the fixture MP4, never what the query names. The player
-        // fetches it from a partitioned moz-extension:// frame, so it needs CORS, preflight
-        // included (see the harness's /fixtures/).
+        // A proxy link answers with the fixture MP4 whatever its query names; CORS with preflight
+        // for the partitioned frame.
         const cors = {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -125,8 +109,7 @@ describe('A stream named in the page\'s own query string', function() {
       siteServer.listen(SITE_PORT, '127.0.0.1', resolve);
     });
 
-    // The site on the auto-enable list: the player opens by itself once a source is
-    // detected, the same path a user's own list takes.
+    // the site on the auto-enable list: the player opens by itself
     await inExtensionPage((site, done) => {
       chrome.storage.local.set({options: JSON.stringify({autoEnableURLs: [site + '/']})}, () => {
         chrome.runtime.sendMessage({type: 'LOAD_OPTIONS'}, () => {
@@ -183,9 +166,8 @@ describe('A stream named in the page\'s own query string', function() {
       });
       expect(cleared).toBe(0);
 
-      // Ask the background for the page's sources, as the player does when it loads, and
-      // wait for its answer. Asked again until it is empty: the clear is a message of its
-      // own, and a request overtaking it would get the old list once.
+      // Asked again until empty: the clear is a message of its own, which a request may overtake
+      // once.
       let sent = [];
       await browser.waitUntil(async () => {
         sent = await browser.execute(() => new Promise((done) => {

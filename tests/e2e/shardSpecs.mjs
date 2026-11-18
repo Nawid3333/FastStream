@@ -2,13 +2,8 @@
 // this run takes the i-th. CI runs each group in a job of its own, side by side (ci.yml's
 // e2e matrix); without E2E_SHARD a config runs all its spec files, as before.
 //
-// Why not WebdriverIO's own --shard: it cuts the list into slices of the same number of
-// files, and the long spec files sit together - on Windows one half of the extension suite
-// took 527 s and the other 402 s (CI run 37382065299). The groups here are made from each
-// file's running time on CI's Windows runner (specWeights.json, in seconds): the longest
-// first, each to the group with the least time so far. A spec file not in the list counts
-// as the median of the others; `node tools/e2e-spec-weights.mjs <CI run id>` writes the
-// list anew from a run's logs.
+// Not WebdriverIO's --shard (same file count per slice): groups by each file's CI running time
+// (specWeights.json, `node tools/e2e-spec-weights.mjs <run id>`), the longest first.
 //
 // The same files always give the same groups, so a job's spec files do not change from
 // one run to the next unless the files or their weights do.

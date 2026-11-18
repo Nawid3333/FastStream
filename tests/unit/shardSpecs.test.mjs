@@ -79,8 +79,8 @@ describe('shardSpecs', () => {
     });
 
     it('makes groups of about the same time, by the weights', () => {
-      // WebdriverIO's --shard, slices of the same number of files, gave 527 s and 402 s on
-      // Windows (CI run 37382065299); these stay within a fifth of each other.
+      // WebdriverIO's --shard (same file count) left the halves far apart; these stay within a
+      // fifth of each other.
       const time = (group) => group.reduce((sum, file) =>
         sum + (WEIGHTS[path.relative(e2e, file).replaceAll('\\', '/')] ?? 20), 0);
       const times = [1, 2, 3].map((i) => time(shardSpecs(path.join(e2e, suite), `${i}/3`)));

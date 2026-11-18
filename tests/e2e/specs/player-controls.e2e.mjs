@@ -1,8 +1,8 @@
 // The player's controls: the volume block's keys and its gain, a file dropped on the
 // player, and the messages the save controls show.
 //
-// Each case opens the web player with no source and hands it one the way main.mjs does,
-// with autoplay and remembered positions off, so that nothing but the case moves the video.
+// Each case hands the player its source as main.mjs does, with autoplay and remembered positions
+// off.
 import {browser, expect} from '@wdio/globals';
 import fs from 'node:fs';
 
@@ -120,9 +120,8 @@ describe('Player controls', function() {
   });
 
   it('sets the volume to 100% at once', async function() {
-    // The volume is a gain node, which goes 200 ms after the volume is back at 100%; until
-    // then it kept the old volume. (From audio-tools.e2e.mjs, which went with the audio
-    // settings window, 2026-10-10.)
+    // The gain node goes 200 ms after the volume is back at 100 %; until then it keeps the old
+    // volume.
     await openEmptyPlayer();
     const gains = await browser.execute(() => new Promise((done) => {
       (async () => {
@@ -224,7 +223,7 @@ describe('Player controls', function() {
   });
 
   it('does not carry the previous video\'s failed-fragments button over', async function() {
-    // It was hidden only by a video with fragments to count.
+    // hidden also without fragments to count
     await openEmptyPlayer();
     await addSource(hlsUrl());
     await waitForPicture();
@@ -251,8 +250,7 @@ describe('Player controls', function() {
   });
 
   it('shows the next video\'s time, not the previous one\'s', async function() {
-    // Nothing redrew the bar and the time until the next video sent a time update, and one
-    // that never loads never sends one.
+    // the bar and time redraw for a video that never loads
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
@@ -341,7 +339,7 @@ describe('Player controls', function() {
   });
 
   it('does not carry the previous video\'s next-video banner over', async function() {
-    // It was taken down only once the next video had a duration.
+    // taken down before the next video has a duration
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
@@ -389,9 +387,7 @@ describe('Player controls', function() {
   });
 
   it('turns autoplay next on and off with its switch, which is always in the bar', async function() {
-    // His wish: only a right click on the next button did it, and nobody found it.
-    // Then the switch went with the next button, and so was never there where FastStream
-    // found no next link on the page: now it is a tool of its own, like YouTube's.
+    // Autoplay's switch is a tool of its own, there also where no next link was found.
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
@@ -428,8 +424,8 @@ describe('Player controls', function() {
     expect(await read()).toEqual({shown: true, next: true, icon: 'play', checked: 'true', option: true,
       session: 'true', badge: ''});
 
-    // The keyboard's focus (focusVisible, as Tab gives it): Space presses a control only then,
-    // and is play/pause after a mouse click (WebUtils.setupKeyPress, the review of 2026-11-13).
+    // Space presses a control only with keyboard focus (focusVisible); after a mouse click it is
+    // play/pause.
     await browser.execute(() => /** @type {HTMLElement} */ (document.querySelector('.mainplayer .fluid_autoplay_switch'))
         .focus(/** @type {FocusOptions} */ ({focusVisible: true})));
     await browser.keys([' ']);
@@ -438,9 +434,8 @@ describe('Player controls', function() {
   });
 
   it('goes on to the next video when the stream gets stuck in its last seconds', async function() {
-    // "sometimes it seems to hang" at the end. A last fragment that
-    // never comes (here a 404) left the video waiting 2 s before its end, which autoplay
-    // waited for (FastStreamClient.watchEndStall).
+    // A last fragment that never comes (a 404) does not hold the video before its end
+    // (FastStreamClient.watchEndStall).
     const dir = new URL('../fixtures/hls-ts/', import.meta.url);
     const playlist = fs.readFileSync(new URL('index.m3u8', dir), 'utf8')
         .replace('#EXT-X-ENDLIST', '#EXTINF:2.000000,\nseg-missing.ts\n#EXT-X-ENDLIST');
@@ -470,7 +465,7 @@ describe('Player controls', function() {
   });
 
   it('shows the picture in the aspect ratio chosen, stretched, or as it is', async function() {
-    // Upstream #552, back on his word: a 4:3 show without bars beside it.
+    // a 4:3 show without bars beside it
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
@@ -530,12 +525,8 @@ describe('Player controls', function() {
   });
 
   it('loads a source set again whose manifest was asked for while the reset had no downloaders', async function() {
-    // The real-streams check, 2026-10-06 (1 run in 4): a live DASH stream reloaded without
-    // a codec that failed never loaded. The seek preview's build, still running, asked for
-    // the manifest in the reset's gap - no downloaders while it cleared storage - and the
-    // request sat in the queue: the reset added downloaders without starting it, and the new
-    // player's request for the same manifest joined it. Made to happen here: the same
-    // source set again, as reloadWithoutFailedCodec does, and that request in the gap.
+    // The same source set again (reloadWithoutFailedCodec) with a request in the reset's gap still
+    // loads.
     await openEmptyPlayer();
     await addSource(dashUrl());
     await waitForPicture();
@@ -565,12 +556,8 @@ describe('Player controls', function() {
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
-    // How often the player's time is updated in one second (the loop's rounds and the video's
-    // own timeupdate events, which call updateTime too), how many of those were timeupdates,
-    // and how many frames the video showed meanwhile: as many as the machine can, all 30 of
-    // this video's on a desktop, fewer on CI's headless Linux (9-11, and 4 on Firefox Beta's
-    // runner on 2026-11-09). So the frames are not counted against the clock, only against the
-    // loop's rounds: calls less timeupdates.
+    // Time updates per second against the loop's rounds, not the clock: CI's headless Linux shows
+    // far fewer frames.
     const perSecond = () => browser.execute(() => new Promise((done) => {
       const client = window.fastStream;
       const video = client.player.getVideo();
@@ -621,8 +608,7 @@ describe('Player controls', function() {
   });
 
   it('pauses on a click at once, as the Space key does, and a double click plays on', async function() {
-    // A click paused 300 ms after it came, the time it waited to
-    // see whether a double click followed; Space paused at once (ClickSequence).
+    // a click pauses after the double-click wait, Space at once (ClickSequence)
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
@@ -659,9 +645,7 @@ describe('Player controls', function() {
   });
 });
 
-// "sometimes the progress bar stays visible for a long time or forever; pausing and
-// playing a few times makes it go." The hide was decided once, when its timer fired, from
-// flags that can be stale.
+// The hide is decided again on each check, not from flags read once when its timer fired.
 describe('Player controls, hiding by themselves', function() {
   const controlsVisible = () => browser.execute(() =>
     document.querySelector('.mainplayer').classList.contains('controls_visible'));
@@ -689,9 +673,7 @@ describe('Player controls, hiding by themselves', function() {
     // The pointer move's own hide goes first.
     await browser.waitUntil(async () => !(await controlsVisible()),
         {timeout: 5000, timeoutMsg: 'the bar never hid at all'});
-    // The pointer came onto the bar, and the bar never heard it go (a mouseleave that did
-    // not come): it refused every hide after it, and with no mouse move over the video
-    // after that, nothing asked again.
+    // a lost mouseleave from the bar does not refuse every hide after it
     await browser.execute(() => window.fastStream.interfaceController.onControlsMouseEnter());
     expect(await controlsVisible()).toBe(true);
     await browser.waitUntil(async () => !(await controlsVisible()),
@@ -699,9 +681,7 @@ describe('Player controls, hiding by themselves', function() {
   });
 
   it('shows the bar at the first mouse move after the fullscreen key', async function() {
-    // Every mouse move was ignored for 2 s after F: in fullscreen the bar came only after a
-    // lot of moving (his report, 2026-10-13; measured: six moves over hundreds of pixels,
-    // half a second after F, showed nothing).
+    // mouse moves right after F show the bar in fullscreen
     await playerWithPointerAway();
     try {
       await browser.action('key').down('f').up('f').perform();
@@ -736,12 +716,8 @@ describe('Player controls, hiding by themselves', function() {
         {timeout: 5000, timeoutMsg: 'the bar the key showed stayed up'});
   });
 
-  // A click on one of the bar's buttons leaves the focus on it, and the bar stayed up while
-  // something in it had the focus: only the mouseleave of a pointer leaving the bar took the
-  // focus away. In the player a site's page holds, fullscreen moves the bar from under the
-  // pointer and that mouseleave can be lost (measured in the classic suite: focus on the
-  // fullscreen button, the bar not hovered, no mouseleave), and the bar stayed until a
-  // click on the video moved the focus. Here the mouseleave is swallowed on purpose.
+  // Focus left on a bar button does not keep the bar up when the mouseleave is lost (swallowed here
+  // on purpose).
   it('hides the bar after a click on one of its buttons, when the pointer leaves unheard', async function() {
     await playerWithPointerAway();
     await browser.waitUntil(async () => !(await controlsVisible()),
@@ -760,7 +736,7 @@ describe('Player controls, hiding by themselves', function() {
     await browser.action('pointer')
         .move({origin: player, x: -Math.floor(width / 2) + 10, y: -Math.floor(height / 2) + 10})
         .perform();
-    // Still focused, and the pointer gone from the bar: the state #392 left behind.
+    // still focused, the pointer gone from the bar
     expect(await browser.execute(() => ({
       focused: document.activeElement.classList.contains('fluid_control_duration'),
       hovered: document.querySelector('.mainplayer .fluid_controls_container').matches(':hover'),

@@ -1,16 +1,7 @@
-// A stream the page asks for through a redirect is the one at the end of it (upstream #585,
-// asked on #592).
+// A stream the page asks for through a redirect is the one at the end of it.
 //
-// A hoster's link (…/clip.mp4) answers with a redirect to its CDN, whose address names no
-// type. FastStream took the redirect's own response for the stream, by the .mp4 in the link:
-// - the player opened on the link, and the CDN, which wants the page's Referer, refused the
-//   player's request at the end of the redirect: the Referer was set for the link's address.
-// - a CDN slower than the player's opening delay was never seen: by its answer the frame had a
-//   player, and streams found then are dropped.
-// - a link that has run out, redirected to the hoster's "expired" page, opened a player on it.
-// The redirect's response is no stream; the request's final one is, by its own URL or
-// Content-Type, or by the type the link named - in a frame's load as well, where Firefox
-// shows the video itself.
+// The redirect's own response is no stream; the final response is, by its URL, Content-Type or the
+// type the link named (frame loads too).
 //
 // The same site checks a fetch with a header of its own, which Firefox precedes with a CORS
 // preflight (OPTIONS): the stream's headers are the fetch's, not the preflight's.

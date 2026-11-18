@@ -104,9 +104,7 @@ describe('Keybinding menu', function() {
       expect(shown).not.toMatch(/_|undefined/);
     }
     expect(new Set(labels.map((label) => label.shown)).size).toBe(labels.length);
-    // What keybindLabel reads out ("Seek to 10%", "Speed preset 2.5x", "Play Pause") is
-    // tests/unit/KeybindUtils.test.mjs's; a case here that read six rows' labels again went
-    // on 2026-10-13, since every row is compared with keybindLabel above.
+    // what keybindLabel reads out is KeybindUtils.test.mjs's
   });
 
   it('shows no clash for the defaults', async function() {
@@ -217,9 +215,8 @@ describe('Keybinding menu', function() {
     expect(state).toEqual({same: true, focused: true, key: 'KeyU', shown: 'U'});
   });
 
-  // One case since 2026-10-13 (it was two, on the same steps: a key set, saved, the page
-  // loaded again): the save carries the layout version, the choice shows again after a
-  // reload, and a choice that is an old default is not migrated again.
+  // The save carries the layout version, the choice shows after a reload, and an old default is not
+  // migrated again.
   it('saves the choice with the layout version, and does not migrate it again after a reload', async function() {
     // Old default, chosen on purpose, saved by a page that already knows the new layout.
     await assignKey('WindowedFullscreen', 'KeyW');

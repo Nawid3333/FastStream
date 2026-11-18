@@ -13,7 +13,7 @@ import {Capabilities, HostVersion} from '../../native-host/faststream-mpv-host.m
 // alone), then the host is pinged through the .bat, the way Firefox starts it.
 
 const root = path.resolve(import.meta.dirname, '../..');
-// "José 中文", from code points: the file tools used to write this suite mangle escapes.
+// "José 中文", from code points: escapes in this file could be mangled by the tools that write it
 const FOLDER = 'Jos' + String.fromCodePoint(0xE9) + ' ' + String.fromCodePoint(0x4E2D, 0x6587);
 // A host that never answers (an endless read loop, a real hang) would outlive the run: nothing
 // would stop it, and it would spin a core for good. A ping answers well within this.
@@ -121,8 +121,7 @@ describe.runIf(process.platform === 'win32')('install.ps1 under a folder name th
 });
 
 describe.runIf(process.platform === 'win32')('install.ps1 run again', () => {
-  // update-local.ps1 reinstalls the host on every update: it used to write config.json
-  // anew with mpvPath alone, which dropped "debug": true and with it the host's log.
+  // update-local.ps1 reinstalls the host on every update: config.json keeps "debug": true.
   it('keeps what else config.json holds and sets mpvPath', async () => {
     const installDir = path.join(dir, 'FastStreamMpvHost');
     fs.mkdirSync(installDir, {recursive: true});

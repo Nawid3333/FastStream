@@ -1,35 +1,13 @@
-// Regression coverage for saving fMP4 streams - the packaging that has an
-// out-of-band initialization segment (#EXT-X-MAP in HLS) instead of MPEG
-// transport streams - through HLS, and through DASH with separate tracks.
-//
-// Each saved file is decoded end to end with ffmpeg and its frames counted
-// against the source. What the page can see is the container, and a container
-// whose sample table points at the wrong bytes still loads and reports a
-// duration; only decoding shows the offsets and edit lists are right.
-//
-// save-video.e2e.mjs checks that a saved HLS or WebM file loads, not what it decodes to,
-// and saves no DASH. This file decodes what it saves: DASH with separate audio and video
-// tracks, and these HLS shapes:
-//
-// - fMP4 whose level carries its own audio. Each fragment is one moof holding a
-//   traf per track. HLSPlayer.saveVideo used to send this to HLS2MP4, a
-//   transport-stream demuxer, and MP4Merger threw "Unsupported trafs count!" on
-//   any fragment with more than one traf.
-// - fMP4 with a video track and no audio at all. Its init segment made
-//   HLSPlayer.saveVideo pass an audio-less level to a path that required both.
-//
-// And two things around the init segments: a save of an HLS level whose init segment is
-// not downloaded yet (a level just switched to), and a save that fails while getting one,
-// which must leave no fragment pinned.
-//
-// Both streams are cut from the MP4 fixture by ffmpeg, the same way the WebM
-// fixture is, so nothing large is committed. The fixtures directory is
-// gitignored and rebuilt when missing.
-//
-// DASH2MP4 answers a merger failure by copying the streams with the remuxer instead,
-// which would turn a broken merger into a pass: each save reports which of the two made
-// the file (the merger writes one mdat and no moof; the remuxer, a fragmented MP4), and a
-// case says which one it expects. A DASH stream in WebM is the remuxer's case.
+// Saving fMP4 streams (an init segment instead of MPEG-TS) through HLS, and DASH with separate
+// tracks.
+// Each saved file is decoded end to end with ffmpeg: a container with wrong sample offsets still
+// loads.
+// Shapes: fMP4 with its audio in every fragment (one traf per track), fMP4 video only, DASH, TS.
+// Also: a save of a level whose init segment is not downloaded yet, and a failed one, which leaves
+// nothing pinned.
+// The streams are cut from the MP4 fixture by ffmpeg into the gitignored fixtures directory.
+// DASH2MP4 falls back to the remuxer: each save reports which one made the file, and each case
+// expects one.
 
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -44,14 +22,8 @@ const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
 
 /**
  * Decodes a file's audio and reports what share of its energy sits at one frequency.
- *
- * A frame count and a duration both come out of the sample table, so a track whose
- * samples point at the wrong bytes still has them; and how loud it is does not
- * separate the tone from noise either (AAC-coded white noise measures within a dB of
- * this tone). What does is that the tone is one frequency: about 1 for the 440 Hz
- * sine the fixtures carry, near 0 for noise or silence. Goertzel, one bin, over the
- * span from 1 s to 9 s so the edges do not count.
- *
+ * Frame count and duration come from the sample table, and loudness does not tell tone from noise:
+ * one Goertzel bin over 1-9 s does.
  * @param {string} file - The file to measure.
  * @param {number} frequency - The frequency to look for, in Hz.
  * @return {number|null} The share from 0 to 1, or null if it could not be measured.
@@ -87,11 +59,6 @@ function toneShare(file, frequency) {
 
 /**
  * Decodes a saved file end to end with ffmpeg and counts what is in it.
- *
- * The page-side checks read the container and can be satisfied by a file whose
- * sample table points at the wrong bytes: it loads, reports a duration, and
- * decodes nothing. Only decoding every frame shows the offsets are right.
- *
  * @param {string} base64 - The saved file.
  * @return {Object} {decodeErrors, video, audio, audioToneShare}, video and audio
  *   being {frames, duration, start} or null when the file has no such stream, and the
@@ -129,9 +96,7 @@ function decodeWithFfmpeg(base64) {
 }
 
 /**
- * Counts the video frames in the MP4 fixture, which is what a full save of a
- * stream cut from it should contain.
- *
+ * Counts the video frames in the MP4 fixture: what a full save of a stream cut from it holds.
  * @return {number} The frame count.
  */
 function sourceFrameCount() {
@@ -183,8 +148,8 @@ const DASH_OUTPUT = [
   '-adaptation_sets', 'id=0,streams=v id=1,streams=a', 'manifest.mpd',
 ];
 
-// No -shortest: where it cut the video depended on the ffmpeg build (one from 2026-04 kept
-// 298 of the 300 frames), and the tests count the saved frames against sample.mp4's.
+// No -shortest: where it cut depends on the ffmpeg build, and the tests count frames against
+// sample.mp4.
 const TONE_INPUT = [
   '-i', MP4_FIXTURE, '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10',
   '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k',
@@ -201,9 +166,8 @@ const TONE_INPUT = [
  */
 function ensureFixture(name, indexFile, inputArgs, outputArgs) {
   const dir = path.join(fixturesDir, name);
-  // The playlist is written before the last segment is, so the index file alone says
-  // nothing about a run that was killed half way. The marker is written last, and holds
-  // the arguments, so that a fixture made with other arguments is made again.
+  // The marker is written last and holds the arguments: a killed run or other arguments rebuild the
+  // fixture.
   const done = path.join(dir, '.complete');
   const args = ['-y', '-v', 'error', ...inputArgs, ...outputArgs];
   const recipe = JSON.stringify(args);
@@ -235,13 +199,8 @@ async function openPlayer(source) {
 }
 
 /**
- * Plays long enough for fragments to land, saves what has downloaded, and
- * reports what came out: whether it decodes, and what its container holds.
- *
- * decodeOk and duration both come out of the moov, so they are content with a
- * file that has a valid header and no media in it. trakCount and mdatBytes are
- * read from the boxes themselves for that reason.
- *
+ * Plays until fragments land, saves what has downloaded, and reports what came out.
+ * decodeOk and duration come from the moov, so trakCount and mdatBytes are read from the boxes.
  * @param {Function} [prepare] - Run in the page once everything has downloaded, before
  *   the save.
  * @param {boolean} [remux] - Whether the remuxer, not MP4Merger, should make the file.
@@ -249,9 +208,8 @@ async function openPlayer(source) {
  *   trakCount, mdatBytes, moofs}; saveError also says when the other one made the file
  */
 async function saveAndInspect(prepare, remux = false) {
-  // Each phase is logged with its time, so a run that hits the test timeout shows which
-  // one it spent it in (a Windows CI run once did, with nothing else in the log), and a
-  // failure carries the video and OPFS state (pageState).
+  // Each phase is logged with its time, so a test timeout shows which one it spent; failures carry
+  // pageState.
   let result;
   try {
     result = await saveAndInspectPhases(phaseTimer(), prepare);
@@ -404,13 +362,8 @@ describe('Save video (locally generated fMP4)', function() {
     ], HLS_TS_OUTPUT);
   });
 
-  // HLS2MP4 handed hls.js's demuxer its flush flag where hls.js 1.7 takes isSampleAes, so
-  // the data left at the end of the last segment was never parsed: every save lost the
-  // video's last two frames and the audio's last packet. As MP4Merger did, it ended the
-  // edit list where the decode timeline ends. And it placed the audio by decode times in
-  // the wrong timescale, then shortened its edit by that delay: the tone fixture's audio
-  // began 44 ms late against the video and lost its last frame, and audio that starts after
-  // the video lost more.
+  // The saved file keeps the last segment's frames, the edit list's full length and the audio's
+  // start against the video.
   for (const [fixture, what] of [
     ['hls-ts-muxed', 'every frame of a transport stream, video and audio, in sync'],
     ['hls-ts-cut', 'a frame shown after the last one decoded, from a transport stream'],
@@ -454,10 +407,8 @@ describe('Save video (locally generated fMP4)', function() {
   });
 
   it('keeps a frame that is shown after the last one decoded', async function() {
-    // A stream cut in decode order, as a recording that stopped inside a group of pictures
-    // is: the last two frames decoded are gone, and a frame decoded before them is shown
-    // after the point where the decode timeline ends. The edit list ended at that point,
-    // so players left the frame out, and the saved file had 297 frames.
+    // A stream cut in decode order (as a recording stopped inside a GOP): the save keeps all 298
+    // frames.
     await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/hls-fmp4-cut/index.m3u8');
     const result = await saveAndInspect();
     const decoded = result.base64 ? decodeWithFfmpeg(result.base64) : null;
@@ -483,9 +434,8 @@ describe('Save video (locally generated fMP4)', function() {
     expect(result.mdatBytes).toBeGreaterThan(100000);
     expect(decoded.decodeErrors).toBe('');
     expect(decoded.video.frames).toBe(sourceFrameCount());
-    // The tone is ten seconds. The length comes from the sample table, so it shows the
-    // track was written, not that its samples point at the right bytes; the share of
-    // the audio that is the 440 Hz tone does.
+    // The audio's length comes from the sample table; the 440 Hz share shows its samples point at
+    // the right bytes.
     expect(decoded.audio.frames).toBeGreaterThan(0);
     expect(decoded.audio.duration).toBeGreaterThan(9.5);
     expect(decoded.audio.duration).toBeLessThan(10.6);
@@ -514,10 +464,8 @@ describe('Save video (locally generated fMP4)', function() {
   });
 
   it('saves a DASH stream in WebM (VP9 and Opus) by copying both into an MP4', async function() {
-    // MP4Merger cannot join WebM. The re-encoder that took it before decoded and encoded
-    // it again with WebCodecs, whose H.264 and AAC encoders Firefox has on no Windows: the
-    // save failed there. The remuxer copies the packets as they are. dash-webm is made by
-    // wdio.conf.mjs.
+    // MP4Merger cannot join WebM: the remuxer copies the packets (no WebCodecs encoders, absent on
+    // Windows).
     const source = fixtureStreams('dash-webm', 'manifest.mpd');
     await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/dash-webm/manifest.mpd');
     const result = await saveAndInspect(undefined, true);
@@ -539,8 +487,7 @@ describe('Save video (locally generated fMP4)', function() {
   });
 
   it('saves an fMP4 level whose init segment has not been downloaded', async function() {
-    // As on a level just switched to. HLSPlayer.saveVideo read the init segment's entry
-    // without downloading it, and there was none to read.
+    // as on a level just switched to: the init segment is downloaded first
     await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/hls-fmp4-video/index.m3u8');
     const result = await saveAndInspect(() => {
       const client = window.fastStream;
@@ -557,10 +504,7 @@ describe('Save video (locally generated fMP4)', function() {
     expect(decoded.video.frames).toBe(sourceFrameCount());
   });
 
-  // A save pins every fragment it will write, so that none is freed before it is read,
-  // and unpins each once read or when the save fails. A failure while fetching the init
-  // segments came before the part that unpins: every fragment stayed pinned, and was never
-  // freed again for as long as the player was open.
+  // A save pins each fragment it will write and unpins it once read or when the save fails.
   const PINNED = [
     ['HLS', '/fixtures/hls-fmp4-video/index.m3u8'],
     ['DASH', '/fixtures/dash-separate/manifest.mpd'],

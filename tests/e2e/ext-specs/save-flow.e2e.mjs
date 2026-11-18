@@ -1,19 +1,8 @@
-// Faithful end-to-end save reproduction on the installed extension.
+// End-to-end save as the user does it: the player in a site's partitioned iframe, an
+// accelerated-MP4 source, Save, the prompt, a full save.
 //
-// Every layer probed so far works in isolation: streamSaver's blob fallback,
-// the background DOWNLOAD handler, and blob downloads from inside the
-// partitioned player iframe (Firefox 155 fixed bugzilla 1917842). The web
-// suite proves the muxer paths with a fake WritableStream. What none of that
-// covers is the flow the user actually does: player embedded in a site's
-// page (partitioned iframe), a real accelerated-MP4 source, clicking the
-// real Save button, the real filename prompt, and the full (non-partial)
-// save path - which is the only one the Save button ever uses.
-//
-// This spec drives exactly that: embed -> wait for playable video -> click
-// #download -> accept the prompt -> wait for the save to settle, for at most
-// 75 s: inside mocha's 120 s cap on the test (testTimeout.mjs; a test's own
-// this.timeout() does not lift it under WebdriverIO), so a hang fails with the
-// page's state in the log instead of a bare timeout.
+// Each wait ends within 75 s, inside mocha's 120 s cap (testTimeout.mjs), so a hang fails with the
+// page's state.
 
 import {browser, expect} from '@wdio/globals';
 
@@ -43,10 +32,8 @@ async function openEmbeddedPlayer(mediaUrl) {
       async () => browser.execute(() => document.readyState === 'complete'),
       {timeout: 30000, timeoutMsg: 'player iframe never finished loading'});
 
-  // An embedded player (window.self !== window.top) holds fragment
-  // predownloading until the user interacts with it (needsUserInteraction).
-  // On a real site that interaction is a click on the player; here the
-  // driver provides one via a trusted click on the player surface.
+  // An embedded player holds predownloading until the user interacts (needsUserInteraction): a
+  // trusted click here.
   await browser.waitUntil(
       async () => browser.execute(() => !!window.fastStream),
       {timeout: 30000, timeoutMsg: 'window.fastStream never appeared'});
@@ -105,9 +92,7 @@ async function openEmbeddedPlayer(mediaUrl) {
 }
 
 describe('faithful save flow (UI + embedded iframe)', function() {
-  // Lazily: the config's before() hook sets the opener URL global, and a
-  // describe body runs BEFORE that hook - evaluating it here produced
-  // 'undefinedfixtures/sample.mp4' (a garbage URL) in every earlier run.
+  // lazily: the config's before() sets the opener URL after describe bodies run
   const mp4 = () => globalThis.__EXT_FIXTURE_MP4__;
 
   it('saves an accelerated MP4 through the real UI in the embedded iframe', async function() {
@@ -133,11 +118,8 @@ describe('faithful save flow (UI + embedded iframe)', function() {
     // OK once the player's document has its size, as a user can click it.
     await confirmPrompt(null);
 
-    // Now the save runs. SaveManager hides the banner when the save settles
-    // (success or failure) and sets a status message either way. Polled from
-    // here, once a second: a single executeAsync that waited in the page ran
-    // into WebDriver's 30 s script timeout, and its own 120 s budget into
-    // mocha's cap, so neither outcome below was ever logged.
+    // Polled once a second: one executeAsync waiting in the page ran into WebDriver's 30 s script
+    // timeout.
     const started = performance.now();
     let outcome;
     for (;;) {
@@ -165,10 +147,8 @@ describe('faithful save flow (UI + embedded iframe)', function() {
   });
 });
 
-// The harness served every fixture whole, with 200, whatever range was asked for.
-// sample.mp4 fits MP4Player's first 1 MB range, so the save above never asks for a second
-// one: a range answered with the file's start would have gone unseen. long-av.mp4 (17 MB,
-// 160 s) needs many, and a seek 100 s in starts far past the first.
+// long-av.mp4 needs many ranges, and a seek 100 s in starts far past the first: a range answered
+// with the file's start shows.
 describe('an accelerated MP4 of many ranges (embedded iframe)', function() {
   it('plays on after a seek far past its first range', async function() {
     // The test before ends inside the player's frame, and browser.url() navigates the frame

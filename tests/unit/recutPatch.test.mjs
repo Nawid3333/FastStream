@@ -265,8 +265,8 @@ describe('checkJavaScript', () => {
   });
 
   it('accepts what the current patch already did, but not more of it', async () => {
-    // Like dash.js's _getL3DBootstrapTracks: the patch removed the only caller of an
-    // upstream function on purpose, and that was reviewed when the patch was cut.
+    // like dash.js's _getL3DBootstrapTracks: the patch removes an upstream function's only caller
+    // on purpose
     const unusedBase = 'export function f() {\n  function helper() {\n    return 1;\n  }\n  return helper();\n}\n';
     const unusedOurs = 'export function f() {\n  function helper() {\n    return 1;\n  }\n  return 2;\n}\n';
     expect(await checkJavaScript(unusedOurs, unusedBase, 'u.mjs', unusedBase, unusedOurs)).toEqual([]);
@@ -325,10 +325,8 @@ describe('dropDependabotIgnores', () => {
 
 describe('recut-patch, run on a patch that changes nothing', () => {
   it('refuses it, instead of saying it merged cleanly and deleting it with --apply', () => {
-    // An empty patch (truncated by accident) passed every check over no file (glm's review,
-    // 2026-10-22). Refused before anything is downloaded.
-    // In the repository: the tool takes a patch as a path from it, with / and no drive, and
-    // the temp folder may be on another drive (Windows CI: D: and C:).
+    // An empty patch is refused before anything is downloaded; the patch path is
+    // repository-relative (the temp folder may be on another drive).
     const repo = path.join(import.meta.dirname, '..', '..');
     const dir = fs.mkdtempSync(path.join(repo, 'tests', '.recut-empty-'));
     try {

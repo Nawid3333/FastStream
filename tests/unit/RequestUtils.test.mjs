@@ -2,11 +2,8 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {RequestResult, RequestUtils} from '../../chrome/player/utils/RequestUtils.mjs';
 import {URLUtils} from '../../chrome/player/utils/URLUtils.mjs';
 
-// RequestUtils.request() made its requests with XMLHttpRequest and resolved with it, and its
-// callers (subtitles, OpenSubtitles, the update check, Vimeo, archives) read status,
-// response, responseText and headers off it. Since 2026-10-06 it uses fetch() and resolves
-// with a RequestResult holding the same: these pin what the callers read, failures
-// included - an XMLHttpRequest that failed resolved with status 0, and so does this.
+// RequestUtils.request() uses fetch() and resolves with a RequestResult holding what the callers
+// read; a failure has status 0.
 
 /** A fetch() stub answering every call with a real Response. */
 const answering = (body, init) => vi.fn(async () => new Response(body, init));

@@ -1,9 +1,7 @@
-// The player's dialogs and toasts (AlertPolyfill): Firefox's own <dialog> and popover since
-// 2026-10-09, in place of sweetalert2.
+// The player's dialogs and toasts (AlertPolyfill): Firefox's own <dialog> and popover.
 //
-// What they must do, each once a bug or a sweetalert2 behaviour the callers count on:
-// - leave the page the moment they close. A sweetalert2 popup whose hide animation never
-//   ended stayed over the page, invisible, and took every click (save-dialog-regression);
+// What they must do: - leave the page the moment they close (an invisible popup would take every
+// click);
 // - open in the top layer (over a fullscreen player), sized as before: wider than 32em for a
 //   long line, a toast narrower;
 // - show an error's message as text: it can quote the markup the code failed on;
@@ -19,9 +17,7 @@ async function openPlayer() {
   await browser.url('/player/index.html?t=' + Date.now());
   await browser.waitUntil(async () => browser.execute(() => !!window.fastStream),
       {timeout: 15000, timeoutMsg: 'window.fastStream never appeared'});
-  // main.mjs applies the stored options once the client exists (setOptions), the colour
-  // theme on <body> with them: landing after the theme test had set "arctic", they put the
-  // default back, and that dialog came out dark (CI runs 38202941296, 38736131763). It sets
+  // main.mjs applies stored options (the colour theme too) once the client exists; it sets
   // optionsApplied when it has.
   await browser.waitUntil(async () => browser.execute(() => !!window.fastStream.optionsApplied),
       {timeout: 15000, timeoutMsg: 'the player options never loaded'});

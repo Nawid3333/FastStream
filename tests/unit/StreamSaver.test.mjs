@@ -1,9 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-// A streamed save writes its file into its own blob store (an OPFS session), and the
-// download reads it from there. The store used to be closed two minutes after the save
-// ended, whatever the download was doing; a closed session is deleted by the next player
-// or save that starts, so a download longer than that lost its file midway.
+// A streamed save writes into its own OPFS session, which stays until the download has read it.
 
 const state = vi.hoisted(() => ({opfs: true, stores: []}));
 
@@ -32,8 +29,7 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
     getBlob(id) {
       return this.blobs.get(id);
     }
-    // The memory sink waits on this once the save PR (#222/#297) is in; nothing to wait
-    // for in a store that keeps everything in memory.
+    // nothing to wait for in a store that keeps everything in memory
     async whenStored() {}
     async clear() {
       this.blobs.clear();

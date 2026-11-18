@@ -470,8 +470,7 @@ describe('merging and folding findings', () => {
 
   it('folds the low ones whatever their text holds', () => {
     const review = /** @type {any} */ ({version: 161, date: '', complete: true, reason: '', wip: false, checked: 2, findings: []});
-    // A "<details>" in a title's code is no fold of the watcher's: counted as one, a stray
-    // "</details>" was added at the end.
+    // a "<details>" in a title's code is no fold of the watcher's
     const [part, ...more] = renderSection(review, [finding({priority: 'low', title: '`<details>` gets a name'}),
       finding({priority: 'low', title: 'another'})], {late: false, bcdVersion: ''});
     expect(more).toEqual([]);
@@ -489,8 +488,7 @@ describe('outside text in an issue', () => {
   it('can mention no one, link to nothing it chose, and reference none of our issues', () => {
     const out = md('Thanks @someone, see #12 and GH-3, <img src=x onerror=alert(1)> [click](javascript:alert(1)) ' +
       '![i](https://evil.example/x.png) https://evil.example www.evil.example deadbeef1234 <!-- ffw-item bug:1 -->');
-    // The zero-width space is written as the entity &#8203;, whose own "#8" GitHub never sees as
-    // text: entities are decoded before references are looked for.
+    // entities are decoded before references are looked for (&#8203;'s "#8" is no reference)
     expect(out).not.toMatch(/@[A-Za-z]/);
     expect(out).not.toMatch(/(?<!&)#\d/);
     expect(out).not.toMatch(/GH-\d/);

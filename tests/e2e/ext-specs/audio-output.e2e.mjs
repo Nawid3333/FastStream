@@ -1,8 +1,5 @@
-// The player's choice of audio output (his wish, 2026-10-24): the audio list's "Choose an
-// output..." opens Firefox's own chooser, the sound goes to the device picked, the next video
-// plays there too, and "Default output" takes it back. In a page's iframe, as FastStream's
-// player mostly is: Firefox refuses the choice there without allow="speaker-selection"
-// (measured on Firefox 158).
+// The player's audio output choice: Firefox's chooser, the sound on the picked device, kept for the
+// next video; in a page's iframe it needs allow="speaker-selection".
 //
 // The harness answers Firefox's chooser itself (media.navigator.permission.disabled: the
 // first device). What is checked is where the player sends the sound: the hidden element's
@@ -62,11 +59,8 @@ function outputState() {
 }
 
 /**
- * Clicks a row of the audio list the way a user does (WebDriver's click: a user activation,
- * which Firefox's chooser needs), with the list open. The output rows come once the player
- * has put its sound on an output (attachAudioOutputDevice, after the video plays), and are
- * drawn anew then: looked for until there, as a user waits for them (#583: "no row" in a run
- * of the flaky week, on Linux and Windows).
+ * Clicks a row of the audio list as a user does (a user activation, which Firefox's chooser needs);
+ * the output rows are waited for.
  * @param {string} text - The row's text, from its start.
  */
 async function clickRow(text) {

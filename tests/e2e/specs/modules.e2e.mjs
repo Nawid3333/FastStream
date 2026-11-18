@@ -1,19 +1,9 @@
-// Exercises vendored libraries that the playback suite never reaches.
-//
-// The playback specs cover hls.js, dash.js and mp4box because those sit on
-// the path a video takes. The encoding libraries do not: they run only when
-// someone exports a GIF or remuxes a download. That gap is not theoretical -
-// migrating mp4box on a "the diff only adds things" argument shipped a
-// regression that no test caught, and only a real end-to-end check found it.
-//
-// So each library migrated from npm gets a test that makes it do its actual
-// job and inspects the bytes it produces. Importing the module and finding
-// its exports present proves nothing; a wrong worker URL or a broken UMD
-// unwrap both import cleanly and then fail at run time.
-//
-// These load the modules straight from the served web build rather than
-// through the player UI, because the UI paths need a loaded video, a set loop
-// region and several seconds of playback to reach the same code.
+// Exercises vendored libraries the playback suite never reaches (GIF export, remuxing, the colour
+// picker, vtt).
+// Each makes the library do its job and inspects the bytes: a wrong worker URL or UMD unwrap still
+// imports cleanly.
+// The modules load straight from the served web build; the UI paths need a loaded video and seconds
+// of playback.
 
 import {spawnSync} from 'node:child_process';
 import {browser, expect} from '@wdio/globals';
@@ -27,14 +17,9 @@ import {withTempFile} from '../tempFile.mjs';
 const PTS_TOLERANCE = 0.0005;
 
 /**
- * Reads an MP4 back: its tracks and samples with mp4box, and every frame decoded with
- * ffmpeg, the way a player would.
- *
- * The times come from the file's own boxes: a sample's decode time plus its composition
- * offset, less the track's edit list if it has one. ffprobe's pts would not do: for the
- * negative composition offsets a B-frame stream gets (trun version 1), ffmpeg moves every
- * pts of the track later by the largest of them, and without an edit list to say so.
- *
+ * Reads an MP4 back: its tracks and samples with mp4box, and every frame decoded with ffmpeg.
+ * Times come from the file's own boxes: ffprobe shifts a track's pts by its largest negative
+ * composition offset.
  * @param {string} base64 the file
  * @return {Object} {decodeErrors, boxes, boxBytes, size, streams, width, height, sampleRate,
  *     channels, video, audio}: boxes the top-level box types and boxBytes their sizes
@@ -88,13 +73,8 @@ describe('vendored encoding libraries', function() {
   });
 
   it('gif.js encodes a real GIF through its worker', async function() {
-    // This is the test that matters for the gif.js migration. The npm build
-    // spawns its worker from `options.workerScript`, a bare filename resolved
-    // against the *document*, which in the extension is not this directory.
-    // sync-vendor.mjs rewrites that to resolve from `import.meta.url`. If the
-    // rewrite is wrong the worker 404s, no frame ever finishes, and render()
-    // hangs rather than throwing - so a timeout here is a real failure, not
-    // flakiness.
+    // gif.js's worker URL is rewritten to resolve from import.meta.url (sync-vendor.mjs): a wrong
+    // one hangs render(), so a timeout is a real failure.
     const result = await runInPage(async () => {
       const {GIF} = await import('/player/modules/gif/gif.mjs');
       const canvas = document.createElement('canvas');
@@ -106,9 +86,7 @@ describe('vendored encoding libraries', function() {
       for (const colour of ['#ff0000', '#0000ff']) {
         ctx.fillStyle = colour;
         ctx.fillRect(0, 0, 32, 32);
-        // The canvas element, not its context - matching LoopMenu.mjs. gif.js
-        // takes the frame size from the object it is handed, and a context
-        // has no width, so passing one leaves the encoder sizeless.
+        // the canvas element, not its context (as LoopMenu.mjs): gif.js takes the frame size from it
         gif.addFrame(canvas, {copy: true, delay: 100});
       }
 
@@ -133,11 +111,8 @@ describe('vendored encoding libraries', function() {
   });
 
   it('Mediabunny finishes a file with an empty video track, and one whose video never came', async function() {
-    // mp4-muxer 5.2.2 crashed finishing a file whose video track had no packets, which is
-    // why it was reverted; its successor Mediabunny replaced it. The remuxer's
-    // writer (mp4-writer.mjs) meets both shapes here. A video track that sends nothing
-    // leaves the audio held in TimestampRebaser until finalize() flushes it, so the second
-    // file checks the audio arrives, from 0: dash-list's segment 2, 2 s in.
+    // The remuxer's writer (mp4-writer.mjs) finishes a file whose video track has no packets, and
+    // flushes the held audio from 0.
     const result = await runInPage(async () => {
       const {MP4Writer} = await import('/player/modules/remux/mp4-writer.mjs');
       const {ALL_FORMATS, BlobSource, EncodedPacketSink, Input} = await import('/player/modules/remux/mediabunny.mjs');
@@ -204,17 +179,11 @@ describe('vendored encoding libraries', function() {
   });
 
   it('Mediabunny writes H.264 with B-frames and AAC from mid-stream into a file that starts at 0', async function() {
-    // The remuxer's writer (mp4-writer.mjs), fed packets as Mediabunny reads them. The
-    // video is fmp4-bframes' second segment, from its keyframe, B-frames and all; the audio
-    // is dash-list's segments 4 and 5. A save from the middle of a stream looks like this,
-    // and the file must start at 0 with the video as far after the audio as it played.
-    //
-    // All the video goes in before any audio. Nothing may reach the file before the
-    // audio's first packet says where 0 is (TimestampRebaser); moved by the video's own
-    // start, the audio would begin before 0.
-    //
-    // The writer keeps the file in 16 KB pieces here instead of 16 MB, so it runs its
-    // piece store the way a long save does: most pieces go to FSBlob and back.
+    // The remuxer's writer fed packets as Mediabunny reads them, from mid-stream with B-frames: the
+    // file starts at 0.
+    // All the video goes in before any audio: nothing reaches the file before the audio's first
+    // packet sets 0.
+    // 16 KB pieces instead of 16 MB, so the piece store runs as in a long save (FSBlob and back).
     const result = await runInPage(async () => {
       const {MP4Writer} = await import('/player/modules/remux/mp4-writer.mjs');
       const {ALL_FORMATS, BlobSource, EncodedPacketSink, Input} = await import('/player/modules/remux/mediabunny.mjs');
@@ -258,9 +227,8 @@ describe('vendored encoding libraries', function() {
       video.input.dispose();
       audio.input.dispose();
 
-      // And Firefox plays it: loads it, and has a frame after a seek to where both tracks
-      // play. Firefox reports a fragmented file's duration as its shortest track's end, so
-      // the duration is not what this checks.
+      // Firefox plays it: a frame after a seek (Firefox's fragmented duration is the shortest
+      // track's end).
       const element = document.createElement('video');
       element.muted = true;
       const url = URL.createObjectURL(file);
@@ -308,8 +276,8 @@ describe('vendored encoding libraries', function() {
     }));
 
     expect(file.decodeErrors).toBe('');
-    // Whole: the boxes fill the file exactly, up to the index at its end (ffmpeg and mp4box
-    // read a file that lost its last bytes without a word).
+    // Whole: the boxes fill the file exactly (ffmpeg and mp4box read a truncated file without a
+    // word).
     expect(file.boxes[0]).toBe('ftyp');
     expect(file.boxes.at(-1)).toBe('mfra');
     expect(file.boxBytes).toBe(file.size);
@@ -423,8 +391,7 @@ describe('the remuxer', function() {
   }
 
   it('copies VP9 and Opus from WebM segments into an MP4, packet for packet', async function() {
-    // The re-encoder this replaced decoded and re-encoded them to H.264 and AAC with
-    // WebCodecs encoders, which Firefox has on no Windows: every such save failed there.
+    // A copy, not a re-encode: Firefox has no WebCodecs H.264/AAC encoders on Windows.
     const result = await remuxDashWebm();
     expect(result.error).toBe(undefined);
     const file = probeMp4(result.bytes);
@@ -475,16 +442,8 @@ describe('the colour picker', function() {
   });
 
   it('coloris opens inside the player and sets a colour', async function() {
-    // coloris.mjs is generated from a git dependency the lockfile pins by
-    // commit, plus patches/Coloris@<version>.patch. Nothing else in the suite
-    // touches the picker, and what that patch does is scope it to a
-    // container element instead of the document - so this drives the page's
-    // own instance, the one InterfaceController creates with
-    // `parent: '.mainplayer'`, rather than standing up a second one.
-    //
-    // That matters for more than realism: coloris addresses its own UI by
-    // fixed element ids, so two pickers in one document would collide and a
-    // document-wide query would silently test the wrong one.
+    // coloris.mjs is patched (patches/Coloris@<version>.patch) to live in a container: this drives
+    // the page's own instance, as two pickers would collide on fixed ids.
     const result = await runInPage(async () => {
       const {Coloris} = await import('/player/modules/coloris.mjs');
 
@@ -507,23 +466,12 @@ describe('the colour picker', function() {
       // Captured now, before the hue-slider check below changes it further.
       const boundInputValue = input.value;
 
-      // InterfaceController's own Coloris({...}) call configures 6 fixed
-      // swatches. patches/Coloris@<version>.patch rewrote how these buttons get
-      // built (createElement/textContent instead of a joined innerHTML
-      // string, for addons-linter's UNSAFE_VAR_ASSIGNMENT), so this checks
-      // that rewrite actually renders the same buttons rather than nothing.
+      // the 6 swatches, built with createElement since the patch (addons-linter's
+      // UNSAFE_VAR_ASSIGNMENT)
       const swatchButtons = Array.from(picker.querySelectorAll('#clr-swatches button'));
 
-      // patches/Coloris@<version>.patch also rewrote the picker's own ~40-element
-      // skeleton (color area, hue/alpha sliders, the format radios, clear/
-      // close buttons, the two hidden a11y label spans) from one big
-      // innerHTML template into createElement calls. The rest of this test
-      // already exercises colorArea/colorMarker/hueSlider/alphaSlider/
-      // clearButton/closeButton/colorValue indirectly - init() would throw
-      // via getEl() returning null for any of those before this point ever
-      // ran - but nothing above touches the format radios or the hidden
-      // labels, so check those, plus a direct attribute/class spot-check on
-      // a few nodes, rather than trust the ids alone.
+      // The patch also rebuilt the picker's skeleton with createElement: the format radios and
+      // hidden labels are checked here.
       const formatRadios = Array.from(picker.querySelectorAll('#clr-format input[type=radio]'))
           .map((r) => ({id: r.id, value: r.value, label: picker.querySelector(`label[for="${r.id}"]`)?.textContent}));
       const openLabel = picker.querySelector('#clr-open-label');
@@ -531,10 +479,7 @@ describe('the colour picker', function() {
       const colorArea = picker.querySelector('#clr-color-area');
       const hueSlider = picker.querySelector('#clr-hue-slider');
 
-      // Dragging the hue slider isn't simulated anywhere else, so prove the
-      // rebuilt slider and its marker are actually wired into setHue() -
-      // not just present with the right attributes - by moving it and
-      // reading back the two things setHue() touches directly.
+      // the rebuilt hue slider is wired into setHue(): moved, and read back
       const hueMarker = picker.querySelector('#clr-hue-marker');
       hueSlider.value = '120';
       hueSlider.dispatchEvent(new Event('input', {bubbles: true}));
@@ -552,9 +497,7 @@ describe('the colour picker', function() {
         hueSliderAttrs: hueSlider && {
           type: hueSlider.type, min: hueSlider.min, max: hueSlider.max, step: hueSlider.step,
         },
-        // The patch renders the picker into the configured parent. Left
-        // unpatched it attaches to document.body, so this is the assertion
-        // that separates a working container rebinding from a broken one.
+        // the patch renders into the configured parent; unpatched it is document.body
         parent: picker.parentElement.className,
         open,
         value: boundInputValue,
@@ -587,21 +530,15 @@ describe('the colour picker', function() {
         'Saturation and brightness selector. Use up, down, left and right arrow keys to select.',
     );
     expect(result.hueSliderAttrs).toEqual({type: 'range', min: '0', max: '360', step: '1'});
-    // setHue() assigns the literal string 'hsl(120, 100%, 50%)', but the
-    // CSSOM serializes style.color back out in its canonical rgb() form -
-    // this is hue 120 (green), read back correctly.
+    // the CSSOM serializes hue 120 as rgb()
     expect(result.pickerColor).toBe('rgb(0, 255, 0)');
-    // Same CSSOM serialization behaviour as pickerColor above - the source
-    // assigns the raw '33.33333333333333%' but style.left reads back
-    // rounded.
+    // style.left reads back rounded
     expect(result.hueMarkerLeft).toBe('33.3333%');
   });
 
   it('vtt.js decodes a cue\'s character references as the textarea did, and makes no element of them', async function() {
-    // vtt.mjs decoded each text of a cue by writing it to a detached <textarea>'s innerHTML,
-    // the one write addons-linter warned of; it decodes with DOMParser now (verify-vtt.mjs).
-    // The old way is the reference here, in the same Firefox: the same text for each of these,
-    // and no element made of any of them.
+    // vtt.mjs decodes cue texts with DOMParser; the old <textarea> way is the reference: same text,
+    // no element made.
     const result = await runInPage(async () => {
       const {WebVTT} = await import('/player/modules/vtt.mjs');
       const reference = document.createElement('textarea');
@@ -630,9 +567,7 @@ describe('the colour picker', function() {
   });
 
   it('vtt.js decodes every text of a cue in one parse, each as the textarea did', async function() {
-    // The texts of a cue were decoded one parse each, and a cue of many short texts parsed a
-    // document for every one; they are decoded together now. Each
-    // text between the tags is the reference here, decoded alone by the old way.
+    // A cue's texts are decoded together; each text decoded alone the old way is the reference.
     const result = await runInPage(async () => {
       const {WebVTT} = await import('/player/modules/vtt.mjs');
       const reference = document.createElement('textarea');

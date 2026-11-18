@@ -3,9 +3,8 @@ import fs from 'node:fs';
 
 import {AudioOutputDevice, isPolicyRefusal} from '../../chrome/player/ui/audio/AudioOutputDevice.mjs';
 
-// Where the player's sound goes: the default output, or a device the user chose (his wish,
-// 2026-10-24). Firefox's parts stand in: an element for setSinkId, mediaDevices for
-// selectAudioOutput, an AudioContext for the stream detour. Drafted by glm-5.3-flash, checked.
+// Where the player's sound goes: the default output or a chosen device. setSinkId,
+// selectAudioOutput and an AudioContext stand in.
 
 const STORAGE_KEY = 'audioOutputDevice';
 
@@ -408,7 +407,7 @@ describe('AudioOutputDevice', () => {
     expect(isPolicyRefusal(null)).toBe(false);
   });
 
-  // glm's review of the module: each of these failed on its first version.
+  // each of these failed on the module's first version
 
   it('gives the next video the default output once the user went back to it', async () => {
     // The kept choice was read once and handed to every later video: back on the headphones.

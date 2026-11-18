@@ -1,15 +1,10 @@
 // An MP4 plays from what has come so far, not only once its next keyframe has come too.
 //
-// MP4Player has mp4box cut the file into segments for the SourceBuffer, one frame each - but
-// mp4box's default ended a video segment only at a keyframe (rapAlignement): the first frame
-// went alone, and every frame from there to the next keyframe waited until the last of them
-// was downloaded. The video showed its first frame and stood there for that whole stretch,
-// after a seek and a stall too: 2.0 s after the first frame on a shared 12 Mbit/s line, 3.3 s
-// at 4 Mbit/s per connection (measured 2026-11-06, long-av.mp4: keyframes 8.3 s apart).
+// MP4Player has mp4box cut one frame per segment without waiting for the next keyframe
+// (rapAlignement off), so frames play as they come.
 //
-// long-av.mp4's first keyframe stretch (0 - 8.3 s) ends past the first 1 MB range
-// (MP4Player's FRAGMENT_SIZE) - its next keyframe is at byte 1,027,012 - and the server here
-// holds back every range after the first. The video must play from the first range alone.
+// long-av.mp4's first keyframe stretch ends past the first 1 MB range, and every later range is
+// held back: it plays from the first alone.
 
 import fs from 'node:fs';
 import http from 'node:http';

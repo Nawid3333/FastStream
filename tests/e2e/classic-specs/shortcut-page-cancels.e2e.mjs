@@ -1,18 +1,10 @@
-// FastStream's shortcuts (Alt+F for MPV, Ctrl+Shift+U until 2026-10-04, and the in-page
-// player's, which has no default key since Firefox 159 took Ctrl+Shift+F for its Add-ons
-// page: these tests give it PLAYER_KEY, as a user would) still work on a page that
+// FastStream's shortcuts (Alt+F for MPV, PLAYER_KEY for the player) still work on a page that
 // cancels them.
 //
-// Firefox lets a page cancel an extension's shortcut: a keydown the page calls
-// preventDefault() on never reaches the command. Sites do it by accident -
-// VOE's "no view-source" guard cancels every Ctrl+U, Shift or not, and
-// swallowed Ctrl+Shift+U. content.js reports a cancelled press to
-// the background, which runs the command bound to it. A press the page leaves
-// alone is Firefox's to run, so the shortcut must fire once, never twice.
+// A keydown the page cancels never reaches the command (VOE's view-source guard cancels every
+// Ctrl+U): content.js reports it, the background runs the command, exactly once.
 //
-// Keys are pressed through a TextInputProcessor in chrome, the way a physical
-// keyboard feeds them in; see mpv-shortcut.e2e.mjs for why browser.keys()
-// cannot reach an extension's commands.
+// Keys go through a TextInputProcessor in chrome (mpv-shortcut.e2e.mjs says why).
 
 import http from 'node:http';
 
@@ -29,7 +21,7 @@ const FRAME_PORT = 41977;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
 const FRAME = `http://127.0.0.1:${FRAME_PORT}`;
 
-// VOE's handler as served on 2026-09-27, verbatim.
+// VOE's view-source guard, verbatim.
 const VOE_GUARD = `
     window.onload = function () {
         document.addEventListener("contextmenu", function (e) {
@@ -95,7 +87,7 @@ const KEYS = {
   ctrlShiftU: {ctrl: true, shift: true, key: 'U'},
   // PLAYER_KEY.
   player: {ctrl: true, shift: true, key: 'L'},
-  // The player's default until Firefox 159 took it.
+  // the player's old default key
   ctrlShiftF: {ctrl: true, shift: true, key: 'F'},
   altShiftU: {alt: true, shift: true, key: 'U'},
 };
@@ -117,12 +109,8 @@ function page(script) {
 }
 
 /**
- * Presses a key combination into whatever has focus, as a keyboard does.
- *
- * Reports whether Firefox itself ran the extension's command for it: a page
- * that cancels the key stops that, and the command then has to come from the
- * fallback under test. Waits long enough for the command's round trip
- * through the page either way.
+ * Presses a key combination into whatever has focus, as a keyboard does, and reports whether
+ * Firefox itself ran the command.
  *
  * @param {{key: string, ctrl?: boolean, shift?: boolean, alt?: boolean}} combo
  * @return {Promise<boolean>} Whether Firefox's own key element fired.
@@ -342,7 +330,7 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     if (frameServer) await new Promise((r) => frameServer.close(r));
   });
 
-  // The MPV key was Ctrl+Shift+U until 2026-10-04, and a user may still have it bound.
+  // the old MPV key, which a user may still have bound
   it('Ctrl+Shift+U, bound by the user, works past VOE\'s guard, which cancels every Ctrl+U', async function() {
     await rebind('toggle_mpv', 'Ctrl+Shift+U');
     try {
@@ -363,11 +351,7 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     }
   });
 
-  // One case since 2026-10-13, on one page that cancels every Ctrl and Alt key: it was
-  // three ("Alt+F works on a page that cancels every Alt key", "Ctrl+Shift+F works on a
-  // page that cancels every Ctrl key", "Ctrl+Shift+F switches from MPV to the player on a
-  // page that cancels it"), each loading the same page anew. Every press and mode check of
-  // the three is here, in the same order within each; the player key is PLAYER_KEY now.
+  // One page that cancels every Ctrl and Alt key, every press and mode check in order.
   it('Alt+F and the player key work on a page that cancels them, and the player key switches from MPV to the player there', async function() {
     await openPage(SITE + '/cancel-modified');
     await expectMode('off', 'on opening the page');
@@ -477,7 +461,7 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     await openPage(SITE + '/cancel-modified');
     await expectMode('off', 'on opening the page');
 
-    // The old key is no longer FastStream's, cancelled or not.
+    // the old key is not FastStream's, cancelled or not
     await focusPage();
     await press(KEYS.altF);
     await expectModeKept('off', 'after the old Alt+F');
@@ -493,11 +477,7 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     await rebind('toggle_mpv', null);
   });
 
-  // Ctrl+Shift+F was the player's default key until Firefox 159 took it for its Add-ons
-  // page, where Firefox's own key won and the player's never ran. Reset, the player's
-  // command has no key at all, so the fallback runs nothing for a press the page
-  // cancels, Ctrl+Shift+F included. (The page cancels it, so Firefox 159 opens no
-  // Add-ons page here either.)
+  // The player's command has no key: the fallback runs nothing for a cancelled Ctrl+Shift+F.
   it('runs nothing for Ctrl+Shift+F, or for any key, once the player key is reset', async function() {
     await rebind('toggle_player', null);
     try {

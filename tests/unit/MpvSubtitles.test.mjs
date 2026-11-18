@@ -99,9 +99,7 @@ describe('MpvSubtitles.toSrt', () => {
   });
 
   it('leaves out a <track> element\'s text larger than the host could take, unread', async () => {
-    // The page's own text came as it was, of any size (content.js reads the whole file), and
-    // was parsed in the background, which held up every tab's detection meanwhile (glm's
-    // second look, 2026-10-13). A fetched file was capped already.
+    // the page's own text is capped too, and not parsed in the background
     const cue = '00:00:01.000 --> 00:00:02.000\nA line of a subtitle that goes on for a while\n\n';
     const huge = 'WEBVTT\n\n' + cue.repeat(Math.ceil(MAX_FILE_BYTES / cue.length) + 1);
     const subs = new MpvSubtitles();

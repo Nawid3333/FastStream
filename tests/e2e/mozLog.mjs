@@ -1,26 +1,14 @@
 // Firefox's own network log (MOZ_LOG) for the specs that ask for one, kept only for an
 // attempt that failed.
 //
-// loader-retry.e2e.mjs "stalls before its body" failed twice on the Windows runner
-// (runs 36636900642 and 36669374448) with every retry stalled before it reached the
-// test server, and never locally. The lead is Firefox's HTTP cache: the stalled
-// response's cache entry is still being written when the retry for the same URL asks
-// for it. A passing run shows the entry doomed at the abort and the retry opening a
-// fresh one (cache2 and nsHttp at level 5); only a failing run's log can show whether
-// the retry waited on the old entry. That log is ~40 MB per run, so only the listed
-// specs write one, only when E2E_MOZ_LOG=1 (CI's Windows steps), and an attempt that
-// passes deletes its own.
+// loader-retry.e2e.mjs's "stalls before its body" log (cache2, nsHttp at 5) shows whether a retry
+// waits on the old cache entry; ~40 MB a run, so only listed specs, only with E2E_MOZ_LOG=1, kept
+// only on failure.
 //
-// player-peers-bfcache.e2e.mjs failed on the Windows runner in 4 of 4 attempts and passed
-// locally (PR #366): Back loaded the page again instead of taking it from the back-forward
-// cache. SHIPBFCache names what kept or took a page out of it.
+// player-peers-bfcache.e2e.mjs: SHIPBFCache names what kept a page out of the bfcache.
 //
-// The variables go into the worker's own environment: wdio starts geckodriver from the
-// worker, and geckodriver starts Firefox, each inheriting it. Every spec file, and
-// every retry, runs in a worker of its own, so no other spec gets them.
-// moz:firefoxOptions.env does not work here: with geckodriver 0.37.1 and Firefox 156
-// the session was created with it (requestedCapabilities showed it) and Firefox wrote
-// no log.
+// The variables go into the worker's own environment (inherited by geckodriver and Firefox);
+// moz:firefoxOptions.env wrote no log.
 
 import fs from 'node:fs';
 import path from 'node:path';

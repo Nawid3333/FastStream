@@ -3,13 +3,8 @@ import VMPlayer from '../../chrome/player/players/vm/VMPlayer.mjs';
 import {DefaultPlayerEvents} from '../../chrome/player/enums/DefaultPlayerEvents.mjs';
 import {RequestUtils} from '../../chrome/player/utils/RequestUtils.mjs';
 
-// The Vimeo player fetched whatever its source's URL was, with the source's headers. The
-// background gives it only player.vimeo.com addresses, but a source's mode can also come
-// from the player's address (faststream-mode=accelerated_vm) or the Sources browser, so it
-// could be pointed at any host (CodeQL js/client-side-request-forgery, 2026-10-06). It now
-// asks player.vimeo.com only, and there only a video's player page or config: an address
-// rebuilt from the video's number and the query, since a path of the source's choosing could
-// reach any other endpoint on Vimeo's host with those headers.
+// The Vimeo player asks player.vimeo.com only, an address rebuilt from the video's number and query
+// (CodeQL js/client-side-request-forgery).
 
 afterEach(() => {
   vi.restoreAllMocks();
