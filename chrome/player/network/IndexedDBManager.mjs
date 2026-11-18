@@ -42,16 +42,22 @@ export class IndexedDBManager {
       this.dbName = /** @type {string} */ (this.persistentName);
     }
 
-    this.db = await IndexedDBManager.requestDB(this.dbName, true);
-    closeQueue.push(this);
+    try {
+      this.db = await IndexedDBManager.requestDB(this.dbName, true);
+      closeQueue.push(this);
 
-    return IndexedDBManager.transact(this.db, 'metadata', 'readwrite', (transaction)=>{
-      const metaDataStore = transaction.objectStore('metadata');
-      metaDataStore.put(Date.now(), 'creation_time');
-      if (!this.isPersistent()) {
-        metaDataStore.put(Date.now(), 'updated_time');
-      }
-    });
+      return await IndexedDBManager.transact(this.db, 'metadata', 'readwrite', (transaction)=>{
+        const metaDataStore = transaction.objectStore('metadata');
+        metaDataStore.put(Date.now(), 'creation_time');
+        if (!this.isPersistent()) {
+          metaDataStore.put(Date.now(), 'updated_time');
+        }
+      });
+    } catch (e) {
+      // FSBlob goes on to its next backend and drops this one: its heartbeat stops here.
+      await this.close();
+      throw e;
+    }
   }
 
   async close() {
@@ -295,6 +301,8 @@ export class IndexedDBManager {
 
       try {
         result = callback(transaction);
+        // A failed request rejects the call (onerror); its own promise is awaited only on success.
+        if (result instanceof Promise) result.catch(() => {});
         transaction.commit();
       } catch (e) {
         // A request the callback could not make (put() of a value that cannot be stored):

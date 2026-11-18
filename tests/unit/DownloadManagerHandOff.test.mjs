@@ -23,6 +23,7 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
         return true;
       });
       this.dropSession = vi.fn();
+      this.spill = vi.fn(async (id) => this.inRam.delete(id));
       this.deleteBlob = vi.fn(async (id) => {
         this.blobStore.delete(id);
         this.inRam.delete(id);
@@ -33,6 +34,9 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
     }
     isInRam(id) {
       return this.inRam.has(id);
+    }
+    isSpilling() {
+      return false;
     }
     async saveBlobAsync(blob, id) {
       this.blobStore.set(id, blob);
@@ -172,6 +176,21 @@ describe('DownloadManager.adopt', () => {
     expect(manager.blobStore.deleteBlob).toHaveBeenCalledWith(manager.getIdentifier({url: seg(1), responseType: 'arraybuffer'}));
   });
 
+  it('counts a file found under the new link in its RAM, and spills it from there', async () => {
+    // Its data stays under the old link's key (blobId): looked up under the new one, the RAM
+    // budget saw none of it and could neither spill nor free it.
+    const manager = new DownloadManager(null);
+    manager.downloaders = [];
+    await manager.adopt(handOff, NEW).onDisk;
+    expect(ask(manager, seg(1, NEW_SIG)).stored).toBe(true);
+    const details = {url: seg(1, NEW_SIG), responseType: 'arraybuffer'};
+    expect(manager.ramBytesOf(details)).toBe(3);
+    expect(manager.isInRam(details)).toBe(true);
+    expect(await manager.spill(details)).toBe(true);
+    expect(manager.blobStore.spill).toHaveBeenCalledWith(manager.getIdentifier({url: seg(1), responseType: 'arraybuffer'}));
+    expect(manager.isInRam(details)).toBe(false);
+  });
+
   it('takes no other file for one: another segment, another range', async () => {
     const manager = new DownloadManager(null);
     manager.downloaders = [];
@@ -260,13 +279,22 @@ describe('DownloadManager.adopt', () => {
     expect(manager.blobStore.blobStore.has(id)).toBe(false);
   });
 
-  it('keeps no file moved after the next source\'s storage went', async () => {
+  it('moves no file after the next source\'s storage went, and lets the old session go', async () => {
+    // Each was moved and then deleted: thousands of disk moves for a long video, while the
+    // next source started.
+    const onDiskFiles = Array.from({length: 20}, (_, n) => ({url: seg(100 + n), responseType: 'arraybuffer',
+      dataSize: 5, file: 'f' + n}));
     const manager = new DownloadManager(null);
     manager.downloaders = [];
-    const {onDisk} = manager.adopt(handOff, OLD);
+    const {onDisk} = manager.adopt({...handOff, entries: onDiskFiles}, OLD);
+    // The first few are on their way at once.
+    const begun = manager.blobStore.adoptStoredFile.mock.calls.length;
+    expect(begun).toBeLessThan(onDiskFiles.length);
     await manager.clearStorage();
     expect(await onDisk).toBe(0);
-    const id = manager.getIdentifier({url: seg(3), responseType: 'arraybuffer'});
+    expect(manager.blobStore.adoptStoredFile).toHaveBeenCalledTimes(begun);
+    expect(manager.blobStore.dropSession).toHaveBeenCalledWith(handOff.session);
+    const id = manager.getIdentifier({url: seg(100), responseType: 'arraybuffer'});
     expect(manager.blobStore.deleteBlob).toHaveBeenCalledWith(id);
     expect(manager.blobStore.blobStore.has(id)).toBe(false);
   });
