@@ -1,14 +1,8 @@
 // @ts-check
-// Whether a change is comments only - JSDoc types, casts, notes - as a typing pass should be.
-// Each .js/.mjs file that differs from <base> is parsed as it was there and as it is now, and
-// the two programs are compared without positions, comments, parentheses (a JSDoc cast needs
-// them, acorn drops them) and a literal's raw text (its quotes). Lists every file whose code
-// differs, with the line where it first does; exits 1 when one does.
-//
+// Whether a change is comments only: each changed .js/.mjs file's program is compared with <base>'s,
+// without positions, comments, parentheses (acorn drops a JSDoc cast's) and literals' raw text.
 //   node tools/same-code.mjs <base commit> [path ...]     (paths default to chrome)
-//
-// Run from the repository's root. A file that is new (untracked ones too), or gone, counts as
-// differing.
+// Run from the repository root. A new or deleted file counts as differing.
 
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -16,7 +10,7 @@ import {parse} from './ast-compare.mjs';
 
 const [given, ...paths] = process.argv.slice(2);
 
-/** @param {string[]} args - quotePath off: a name with other than ASCII in it comes as it is. */
+/** @param {string[]} args */
 const git = (...args) => execFileSync('git', ['-c', 'core.quotePath=false', ...args], {
   encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'],
 });
@@ -48,11 +42,10 @@ function program(src) {
 const rawStart = (node) => (typeof node?.start === 'number' ? node.start : -1);
 
 /**
- * The first node of `b` that differs from `a`, with its start in the source.
  * @param {any} a
  * @param {any} b
- * @param {any} rawB the same node of `b` before program() dropped its positions
- * @return {number | null} the start of the differing node, -1 when no position is known
+ * @param {any} rawB
+ * @return {number | null} -1 when no position is known.
  */
 function firstDifference(a, b, rawB) {
   if (a === b) return null;
@@ -60,8 +53,7 @@ function firstDifference(a, b, rawB) {
     return rawStart(rawB);
   }
   const lists = Array.isArray(a);
-  // A list is compared over the part both have, before a missing element is looked at: that
-  // has no position of its own.
+  // A list is compared over the part both have first: a missing element has no position.
   const keys = lists ? Array.from({length: Math.min(a.length, b.length)}, (_, i) => i) :
     new Set([...Object.keys(a), ...Object.keys(b)]);
   for (const key of keys) {

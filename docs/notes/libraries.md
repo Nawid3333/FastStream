@@ -88,3 +88,9 @@ press opens (a real WebDriver press, held until the mode shows), and checks the 
   (main.mjs reaches ToolManager.mjs through FastStreamClient and InterfaceController), and
   every spec that opens it fails. Not caught: a break only in Firefox's own turning of mouse
   moves into drag events, or only in the dragovers of a long pointer path.
+
+## Tools: reasons moved out of the code comments (2026-11-18)
+
+### tools/sync-vendor.mjs
+
+- **toGifModule** - the UMD dispatcher becomes an assignment to a module-level `let GIF`, which LoopMenu.mjs imports: it is assigned when the factory runs, not where it is declared, so it cannot be `const`.

@@ -1,9 +1,7 @@
 // Runs the A/B benchmark of the player (tests/e2e/wdio.bench.conf.mjs) on two versions.
-//
 //   node tools/bench-ab.mjs --a main                 main against this checkout as it is
 //   node tools/bench-ab.mjs --a <ref> --b <ref>      two commits
 //   node tools/bench-ab.mjs --a-dir <web build> --b-dir <web build>   two builds made before
-//
 //   --rounds N          runs a build per scenario, besides the warm-up (default 5)
 //   --scenarios a,b     mp4, hls, dash, idle (default all four); tabs (several players in
 //                       several tabs; with --rate, as it measures who gets a slow line)
@@ -18,11 +16,8 @@
 //   --clean             removes the worktrees and builds made for earlier runs, and stops
 //   --render <report>   prints the report of an earlier run again from its .json in logs/bench
 //                       (its name; the verdicts as they are now)
-//
-// A git ref is checked out into a worktree of its own (outside this checkout, under the
-// system's temporary folder unless --trees names another) and built there with this
-// checkout's node_modules linked in, so both must have the same pnpm-lock.yaml. Its build is
-// made once per commit and reused. Without --b, B is this checkout, built afresh.
+// A git ref is built once per commit in a worktree of its own (under the temp folder, or --trees),
+// this checkout's node_modules linked in: both need the same pnpm-lock.yaml. Without --b, B is this checkout.
 // The numbers go to logs/bench/ab-<time>.md and .json (method: docs/notes/player.md).
 import {execFileSync, spawnSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -69,8 +64,7 @@ function git(gitArgs, cwd = root) {
 }
 
 /**
- * The build steps of `pnpm run build:keep`, run with node itself: pnpm in a worktree whose
- * node_modules is a link would install into it.
+ * The build:keep steps run with node: pnpm in a worktree whose node_modules is a link would install into it.
  * @param {string} dir
  */
 function build(dir) {
@@ -81,7 +75,6 @@ function build(dir) {
 }
 
 /**
- * Builds a commit in a worktree of its own, or finds its build from before.
  * @param {string} ref
  * @return {{dir: string, label: string}} Its web build.
  */
@@ -96,8 +89,7 @@ function buildRef(ref) {
   const tree = path.join(args.trees, sha);
   const web = path.join(tree, 'built', 'web');
   const stamp = path.join(tree, '.bench-built');
-  // The stamp names the commit its build was made from; a missing one or another commit's
-  // means build again.
+  // The stamp names the commit its build was made from.
   let stamped = '';
   try {
     stamped = fs.readFileSync(stamp, 'utf8').trim();
@@ -139,10 +131,7 @@ function side(side) {
   return {dir: path.join(root, 'built', 'web'), label: `this checkout (${head}${dirty})`};
 }
 
-/**
- * Removes the worktrees of earlier runs: the link to node_modules first, so that removing the
- * tree cannot reach into this checkout's node_modules.
- */
+/** The node_modules link goes first, so removing the tree cannot reach this checkout's node_modules. */
 function clean() {
   if (!fs.existsSync(args.trees)) return;
   for (const name of fs.readdirSync(args.trees)) {

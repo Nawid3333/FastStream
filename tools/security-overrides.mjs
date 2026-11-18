@@ -1,10 +1,7 @@
 // @ts-check
 
-// PLAN and VERIFY halves of the security-overrides branch kind: turn due Dependabot
-// alerts into override floors, edit pnpm-workspace.yaml with line surgery, and check
-// the resulting lockfiles. The GitHub Actions jobs, the gh/git calls and the install
-// live in the workflow; this module is pure string/data logic, so it imports nothing
-// and the tests can pin behavior byte for byte.
+// PLAN and VERIFY of security-overrides: due Dependabot alerts become pnpm-workspace.yaml override floors,
+// and the new lockfiles are checked. Pure string/data logic: the workflow does gh, git and the install.
 
 /** name -> set of distinct registry versions of one package in a lockfile.
  * @typedef {Map<string, Set<string>>} VersionMap */
@@ -45,8 +42,6 @@
 
 /** @typedef {{ start: number, end: number }} WorkspaceSection */
 
-// ---- version math -----------------------------------------------------------
-
 const XYZ_RE = /^(\d+)\.(\d+)\.(\d+)$/;
 const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 const CARET_RE = /^\^\d+\.\d+\.\d+$/;
@@ -84,8 +79,7 @@ function cmpTriples(a, b) {
 }
 
 /**
- * Semver precedence: numeric triple first, then prerelease identifiers (numeric lower
- * than alphanumeric, shorter list lower); a release outranks its own prerelease.
+ * Semver precedence: numeric triple first, then prerelease identifiers; a release outranks its own prerelease.
  * @param {string} a
  * @param {string} b
  * @returns {number}
@@ -120,10 +114,9 @@ function cmpVersions(a, b) {
 }
 
 /**
- * npm caret semantics for a concrete `^floorBase` (leftmost non-zero digit pinned);
- * an unparseable version never satisfies ÔÇö verification must fail closed, not silently pass.
+ * npm caret semantics for a concrete `^floorBase`; an unparseable version never satisfies (fail closed).
  * @param {string} version
- * @param {string} floorBase bare 'x.y.z', the '^' already stripped
+ * @param {string} floorBase - bare 'x.y.z', the '^' already stripped
  * @returns {boolean}
  */
 function satisfiesCaret(version, floorBase) {
@@ -136,10 +129,8 @@ function satisfiesCaret(version, floorBase) {
   return v.major === 0 && v.minor === 0 && v.patch === f.patch;
 }
 
-// ---- pnpm-workspace.yaml text -----------------------------------------------
-
 /**
- * Strip one matching pair of single or double quotes (YAML allows both).
+ * Strips one matching pair of single or double quotes (YAML allows both).
  * @param {string} s
  * @returns {string}
  */
@@ -149,8 +140,7 @@ function unquote(s) {
 }
 
 /**
- * The block from a column-0 `name:` line up to the next line starting with a
- * non-space, non-# character (a column-0 comment stays inside the block).
+ * The block from a column-0 `name:` line to the next line starting with a non-space, non-# character.
  * @param {string[]} lines
  * @param {string} name
  * @returns {WorkspaceSection | null}
@@ -165,9 +155,8 @@ function findSection(lines, name) {
 }
 
 /**
- * Entries of a flat block: exactly-2-space `key: value` lines, blank/comment lines
- * between them skipped. Any other shape is refused with its line number ÔÇö silently
- * skipping an entry could hide an override that governs the next run's decision.
+ * Entries of a flat block: exactly-2-space `key: value` lines. Any other shape throws with its line number:
+ * a skipped entry could hide an override that governs the next run's decision.
  * @param {string[]} lines
  * @param {WorkspaceSection} section
  * @returns {WorkspaceEntry[]}
@@ -199,17 +188,13 @@ function parseEntries(lines, section) {
 }
 
 /**
- * Generated keys/values are plain-safe (`name`, `name@m`, `^x.y.z`) except that a
- * leading `@` is a YAML reserved indicator ÔÇö scoped floors get the single quotes
- * pnpm itself writes.
+ * Generated keys are plain-safe YAML but for a leading `@`: scoped ones get the single quotes pnpm writes.
  * @param {string} selector
  * @returns {string}
  */
 function keyToText(selector) {
   return selector.startsWith('@') ? `'${selector}'` : selector;
 }
-
-// ---- lockfiles ---------------------------------------------------------------
 
 /** @param {VersionMap} map @param {string} name @param {string} version */
 function addVersion(map, name, version) {
@@ -219,9 +204,7 @@ function addVersion(map, name, version) {
 }
 
 /**
- * pnpm 12 writes a first YAML document (`---`, packageManagerDependencies) ahead of
- * the main one; only the main document has `packages:`. The last document with one
- * wins, so the bookkeeping document can never shadow the real one.
+ * pnpm 12 writes a bookkeeping YAML document before the main one: the last document with `packages:` wins.
  * @param {string} lockText
  * @returns {string[]}
  */
@@ -238,9 +221,8 @@ function selectLockDocument(lockText) {
 }
 
 /**
- * Raw keys of one lockfile section: 2-space `key:` lines until the next column-0 key;
- * deeper lines are an entry's body. Unreadable entry lines throw ÔÇö a dropped key would
- * hide a vulnerable version from every later check.
+ * Raw keys of one lockfile section: 2-space `key:` lines until the next column-0 key.
+ * An unreadable entry line throws: a dropped key would hide a vulnerable version.
  * @param {string[]} docLines
  * @param {string} header
  * @returns {string[]}
@@ -265,8 +247,7 @@ function lockSectionKeys(docLines, header) {
 
 /**
  * 'undici@7.30.1' / ''@babel/code-frame@7.29.7'' / 'pkg@1.0.0(peer@2)' -> {name, version}.
- * Alias-spec keys ('name@npm:...') and tarball/git keys return null: alerts never
- * range-match those and a caret floor cannot force them, so they stay out of the map.
+ * Alias, tarball and git keys return null: no alert range-matches them and no caret floor forces them.
  * @param {string} rawKey
  * @returns {{ name: string, version: string } | null}
  */
@@ -284,8 +265,7 @@ function packageKeyToNameVersion(rawKey) {
 }
 
 /**
- * Every key under `packages:` and `snapshots:` of the main document, name -> versions;
- * quoting and `(peer...)` suffixes stripped, the two sections collapse into one set.
+ * Every key under `packages:` and `snapshots:` of the main document, name -> versions, quoting and peers stripped.
  * @param {string} lockText
  * @returns {VersionMap}
  */
@@ -302,13 +282,9 @@ export function lockVersions(lockText) {
   return map;
 }
 
-// ---- ranges ------------------------------------------------------------------
-
 /**
- * Parse a GitHub advisory `vulnerable_version_range` ("< 1.2.3", ">= 7.18.0, < 7.30.1",
- * "<= 0.6.0", "= 1.0.0", ">= 2.0.0") into an AND of comparators over released x.y.z
- * versions; the compare is numeric, never lexical ("0.10.0" > "0.9.0"). Anything else
- * throws: exotic ranges are declined at routing time, so a throw here is a bug.
+ * Parses a GitHub advisory `vulnerable_version_range` ("< 1.2.3", ">= 7.18.0, < 7.30.1") into an AND of
+ * numeric comparators over released x.y.z versions. Anything else throws: exotic ranges are declined at routing.
  * @param {string} range
  * @returns {RangePredicate}
  */
@@ -335,16 +311,12 @@ export function parseRange(range) {
   };
 }
 
-// ---- planning ----------------------------------------------------------------
-
 /**
- * Turn due, already-routed alerts into override floors for the pnpm route
- * (manifest_path 'pnpm-lock.yaml'; anything else declines with a reason). The caller
- * supplies the current lockfile as name -> versions and the workspace file text.
+ * Turns due, routed alerts into override floors for the pnpm route; any other manifest is declined with a reason.
  * @param {Alert[]} alerts
  * @param {VersionMap} versions
  * @param {string} workspaceText
- * @param {string} today 'YYYY-MM-DD'; unused here ÔÇö applyFloors stamps it into the comments
+ * @param {string} today - 'YYYY-MM-DD'; unused here (applyFloors stamps it).
  * @returns {Plan}
  */
 export function planFloors(alerts, versions, workspaceText, today) {
@@ -395,9 +367,8 @@ export function planFloors(alerts, versions, workspaceText, today) {
     // Released x.y.z only: GitHub ranges cannot match prereleases either.
     const vulnerable = [...(versions.get(name) ?? [])].filter((v) => XYZ_RE.test(v) && inRange(v));
     if (vulnerable.length === 0) {
-      // Covers both "no vulnerable version" and "a floor already applied (GitHub lag)". A
-      // prerelease copy is not checked against the range, so it is named, not called fixed: the
-      // issue said "stale" while one was in the tree (glm's review, 2026-11-16).
+      // Covers both "no vulnerable version" and "a floor already applied (GitHub lag)".
+      // A prerelease copy is not checked against the range, so it is named, not called fixed.
       const unchecked = [...(versions.get(name) ?? [])].filter((v) => !XYZ_RE.test(v));
       declined.push({alert: number, reason: unchecked.length ?
         `no plain release in the lockfile is in '${rangeText}'; not checked: ${unchecked.join(', ')} (no plain release)` :
@@ -443,13 +414,9 @@ export function planFloors(alerts, versions, workspaceText, today) {
     const multiMajor = treeMajors.size >= 2;
     const plainSelector = multiMajor ? `${name}@${major}` : name;
 
-    // Relevant existing entries: selectorless by name, `name@m` by name + major, and a
-    // `name@n` whose value sends major n's requests into this major (`encoding-sniffer@0:
-    // ^1.0.2`), which is raised in place. The lockfile does not say which request brought a
-    // copy: one that came another way stays where it is, and verify names it. Other plain
-    // majors of the package are separate floors (one entry per major); path keys
-    // ("web-ext>@pkg", '-' removals) are human artifacts we never touch; a selector or a
-    // value we cannot model declines the group rather than being second-guessed.
+    // Relevant entries: selectorless by name, `name@m` by name and major, and a `name@n` whose value sends
+    // major n's requests here (`encoding-sniffer@0: ^1.0.2`), raised in place. Other majors are separate floors;
+    // path keys and '-' removals stay human; a selector or value we cannot model declines the group.
     /** @type {WorkspaceEntry | null} */
     let selectorless = null;
     /** @type {WorkspaceEntry | null} */
@@ -560,13 +527,10 @@ export function planFloors(alerts, versions, workspaceText, today) {
   return {floors, declined: once};
 }
 
-// ---- applying ----------------------------------------------------------------
-
 /**
- * Word-wrap to comment lines of at most `width` columns, each prefixed '  # '.
- * A token wider than the text width is cut at the boundary ÔÇö the spec says the
- * summary is cut to fit, so nothing may widen the block beyond 100 columns.
- * @param {string} text single-spaced, single-line text
+ * Word-wraps to comment lines of at most `width` columns, each prefixed '  # '; a too-wide token is cut,
+ * so nothing widens the block beyond 100 columns.
+ * @param {string} text
  * @param {number} width
  * @returns {string[]}
  */
@@ -596,8 +560,7 @@ function wrapComment(text, width) {
 }
 
 /**
- * The mechanical comment for one alert: automation cannot write the "why is this safe"
- * prose (humans extend the block by hand on the PR), it stamps only the traceable facts.
+ * The mechanical comment for one alert: only the traceable facts; people add the why on the PR.
  * @param {Alert} alert
  * @param {string} name
  * @param {string} today
@@ -614,14 +577,12 @@ function alertCommentLines(alert, name, today) {
 }
 
 /**
- * Apply the planned floors to pnpm-workspace.yaml by line surgery: a raise rewrites the
- * value in place and stamps a dated line directly above the entry; an add appends the
- * per-alert comment blocks plus the entry at the end of the overrides block, before the
- * next column-0 key. Every other byte is preserved so the explanatory comments survive.
+ * Applies the floors to pnpm-workspace.yaml by line surgery: a raise rewrites the value and stamps a dated line
+ * above it; an add appends comment blocks and the entry at the end of the overrides block. Every other byte stays.
  * @param {string} workspaceText
  * @param {Floor[]} floors
  * @param {Map<number, Alert> | Record<number, Alert>} alertsByNumber
- * @param {string} today 'YYYY-MM-DD', stamped into the generated comment lines
+ * @param {string} today - 'YYYY-MM-DD', stamped into the generated comment lines
  * @returns {string}
  */
 export function applyFloors(workspaceText, floors, alertsByNumber, today) {
@@ -685,15 +646,10 @@ export function applyFloors(workspaceText, floors, alertsByNumber, today) {
   return lines.join('\n');
 }
 
-// ---- verification --------------------------------------------------------------
-
 /**
- * What must hold before the run is allowed to push; one message per problem.
- * (a) any in-tree version of an alerted package still inside its range; (b) any floor
- * whose spec is not met by every in-tree version its selector covers ('name@m': the
- * versions with major m, 'name': all); (c) any package outside the floors whose version
- * set drifted between the old and new lockfiles. The caller passes one route's alerts
- * and the old/new maps of that route's lockfile.
+ * What must hold before the run may push, one message per problem: (a) no in-tree version of an alerted
+ * package in its range; (b) every floor met by the in-tree versions its selector covers ('name@m': major m,
+ * 'name': all); (c) no other package's version set changed between the old and new lockfiles.
  * @param {Alert[]} alerts
  * @param {VersionMap} oldVersions
  * @param {VersionMap} newVersions
@@ -784,8 +740,6 @@ export function verifyLock(alerts, oldVersions, newVersions, floors) {
   return problems;
 }
 
-// ---- the workflow's two steps ---------------------------------------------------
-
 /**
  * An alert as security-alerts.yml's fetch_alerts flattens it.
  * @typedef {{number: number, created_at?: string, package: string, manifest: string, severity?: string,
@@ -793,8 +747,7 @@ export function verifyLock(alerts, oldVersions, newVersions, floors) {
  */
 
 /**
- * An alert as security-alerts.yml's fetch_alerts flattens it, back in the REST shape the
- * functions above read.
+ * A FlatAlert back in the REST shape the functions above read.
  * @param {FlatAlert} flat
  * @return {Alert}
  */
@@ -811,9 +764,8 @@ export function fromFlat(flat) {
 }
 
 /**
- * The check job's plan: the floors for the flattened alerts, which of them the pull request
- * takes (handled), the declines, and the edited pnpm-workspace.yaml when a floor changes it.
- * versions: what the lockfile holds now of each floored package, verify's "before".
+ * The check job's plan: the floors, the alerts the pull request takes (handled), the declines, and the edited
+ * pnpm-workspace.yaml when a floor changes it. versions: the floored packages in the lockfile now, verify's "before".
  * @param {{alerts: FlatAlert[], lockText: string, workspaceText: string, today: string, baseSha: string}} input
  * @return {{plan: {lockfile: string, base_sha: string, handled: number[], floors: Floor[], declined: Decline[], alerts: FlatAlert[], versions: Object<string, string[]>}, routing: {handled: number[], declined: Decline[]}, workspace: string|null}}
  */
@@ -834,8 +786,7 @@ export function planBundle({alerts, lockText, workspaceText, today, baseSha}) {
 }
 
 /**
- * The install job's check of the lockfile pnpm wrote: the alerts the pull request takes are
- * fixed by it, its floors hold, and nothing else moved. Reads nothing else (no token there).
+ * The install job's check of pnpm's new lockfile: the handled alerts are fixed, the floors hold, nothing else moved.
  * @param {{handled: number[], floors: Floor[], alerts: FlatAlert[], versions: Object<string, string[]>}} plan
  * @param {string} lockText - The new pnpm-lock.yaml.
  * @return {{ok: boolean, problems: string[]}}
@@ -851,8 +802,7 @@ export function verifyBundle(plan, lockText) {
 }
 
 /**
- * Everything but the floored packages, name@version a line: the install job compares the
- * lockfile before and after with it, so a floor that moved anything else is caught.
+ * Everything but the floored packages, name@version a line, for the install job's before/after compare.
  * @param {string} lockText
  * @param {string[]} floored
  * @return {string}

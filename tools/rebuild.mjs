@@ -1,15 +1,6 @@
 // @ts-check
 // Shared rebuild step for the dev launchers, and how they start web-ext (webExtSpawn).
-//
-// This exists because the launchers must run the *same* steps as
-// `pnpm run build:keep`, and it is easy for them to drift out of sync. They
-// did: both launchers ran localescript.mjs and build.mjs directly but skipped
-// tools/sync-vendor.mjs. That was harmless while hls.mjs, hls.worker.js and
-// dash.mjs were tracked in git, but they are generated now, so a build
-// without the sync step silently produces an extension with no HLS or DASH
-// support - build.mjs simply copies whatever is on disk and reports success,
-// and the failure only shows up as a module-load error at playback time.
-//
+// The launchers run the same steps as build:keep: a build without sync-vendor has no HLS or DASH.
 // Keep this list in step with the "build:keep" script in package.json.
 
 import {spawn} from 'node:child_process';
@@ -21,15 +12,9 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
 
 /**
- * Picks which build target a launcher should run.
- *
- * Defaults to firefox-github, the daily driver. Pass `amo` (or `--amo`) to launch
- * firefox-amo instead - that is the AMO submission build. YouTube support
- * (yt.mjs/googlevideo.mjs, the userScripts permission) was removed from
- * every target, not just this one - see "YouTube removal" in docs/notes/history.md.
- *
- * @param {string[]} [argv] arguments to read, defaults to process.argv
- * @return {{name: string, dir: string}} the target's name and build directory
+ * firefox-github by default; amo (or --amo) for the AMO submission build.
+ * @param {string[]} [argv]
+ * @return {{name: string, dir: string}}
  */
 export function resolveTarget(argv = process.argv.slice(2)) {
   const wantsAmo = argv.some((a) => a === 'amo' || a === '--amo');
@@ -38,24 +23,15 @@ export function resolveTarget(argv = process.argv.slice(2)) {
 }
 
 /**
- * How a launcher spawns `pnpm exec web-ext <args>`.
- *
- * Windows runs pnpm through its .cmd shim, which needs a shell, and through a shell the
- * arguments go as one string, quoted where they have spaces. Everywhere else pnpm is spawned
- * directly with the arguments as they are: that joined string with `shell: false` was taken
- * as the name of a program, so `start:ff` rebuilt everything and then died with spawn ENOENT
- * on Linux and macOS (#165).
- *
- * @param {string[]} args web-ext's arguments, unquoted
- * @param {string} [platform] defaults to process.platform
- * @return {{command: string, args: string[], shell: boolean}} spawn's first two arguments,
- *   and its `shell` option
+ * Windows runs pnpm through its .cmd shim: a shell, and one quoted string. Elsewhere it is spawned directly.
+ * @param {string[]} args
+ * @param {string} [platform]
+ * @return {{command: string, args: string[], shell: boolean}}
  */
 export function webExtSpawn(args, platform = process.platform) {
   const pnpmArgs = ['exec', 'web-ext', ...args];
   if (platform === 'win32') {
-    // cmd.exe reads the line again: a path with & | < > ^ ( ) or % in it is quoted too (the
-    // set recut-patch's run() quotes), or `C:\dev\a&b` ran `b\...` as a command of its own.
+    // cmd.exe reads the line again: a path with & | < > ^ ( ) or % is quoted too.
     /** @type {(s: string) => string} */
     const quote = (s) => /[\s"&|<>^()%!]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     return {command: ['pnpm', ...pnpmArgs].map(quote).join(' '), args: [], shell: true};
@@ -64,13 +40,10 @@ export function webExtSpawn(args, platform = process.platform) {
 }
 
 /**
- * What to tell someone who starts web-ext on a newer Node than the project is made for
- * (.nvmrc): web-ext's connection to Firefox failed on Node 27 (10.8.0: the second try to
- * connect threw outside its error handling, ECONNREFUSED, and web-ext ended), and nothing
- * said why. The launchers print it before they start web-ext.
- * @param {string} [running] - This Node's version, as process.versions.node.
- * @param {string} [wanted] - The project's, as .nvmrc has it.
- * @return {?string} The note, or null on the project's Node or an older one.
+ * What to tell someone who starts web-ext on a newer Node than .nvmrc: its Firefox connection failed on Node 27.
+ * @param {string} [running]
+ * @param {string} [wanted]
+ * @return {?string} Null on the project's Node or an older one.
  */
 export function nodeVersionNote(running = process.versions.node, wanted = fs.readFileSync(path.join(root, '.nvmrc'), 'utf8')) {
   const major = (/** @type {string} */ version) => Number(/\d+/.exec(version)?.[0]);
@@ -80,10 +53,8 @@ export function nodeVersionNote(running = process.versions.node, wanted = fs.rea
 }
 
 /**
- * Runs a Node script from the project root and resolves when it exits 0.
- *
- * @param {string} script path to the script, relative to the project root
- * @param {string[]} [args] extra arguments
+ * @param {string} script
+ * @param {string[]} [args]
  * @return {Promise<void>}
  */
 function run(script, args = []) {
@@ -103,14 +74,11 @@ function run(script, args = []) {
 }
 
 /**
- * Rebuilds every target, keeping the unpacked build_* directories that
- * `web-ext run` needs as a source dir.
- *
+ * Rebuilds every target, keeping the unpacked build_* directories web-ext run needs.
  * @return {Promise<void>}
  */
 export async function rebuild() {
-  // Regenerate vendored libraries from node_modules + patches/ first, or the
-  // build ships without them.
+  // Vendored libraries first, or the build ships without them.
   await run('tools/sync-vendor.mjs');
   await run('localescript.mjs');
   await run('build.mjs', ['--keep']);

@@ -1,17 +1,8 @@
-#!/usr/bin/env node
 // @ts-check
 // Copies third-party libraries from node_modules into chrome/player/modules/,
 // where build.mjs and the browser's native ES module resolution expect them.
-//
-// Why this exists: AMO requires third-party code to come from official
-// releases. Previously chrome/player/modules/hls.mjs was a 1.3 MB file with
-// no recorded version and no provenance - Mozilla could not verify what it
-// was, which is the stated reason FastStream was refused. Now the file is
-// generated from a pinned npm release plus a reviewable patch in patches/,
-// so a reviewer can check the base by hash and read the diff in minutes.
-//
-// The generated files are gitignored. Run after `pnpm install`, or let
-// `pnpm run build` or `pnpm test` do it.
+// AMO wants third-party code from official releases: each file is a pinned npm release plus a patch in patches/.
+// The output is gitignored. Run after `pnpm install`; `pnpm run build` and `pnpm test` run it too.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,16 +13,6 @@ import {unappliedPatches} from './check-patched-updates.mjs';
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
 
-/**
- * Libraries copied verbatim out of node_modules.
- *
- * `patched` records whether a patch in patches/ applies on install. Any
- * entry marked true must have a corresponding patchedDependencies line in
- * pnpm-workspace.yaml, or the copied file silently loses FastStream's
- * changes and playback breaks in ways that look like a network fault. The
- * sync fails when one has none, or when its version is not the installed one
- * (unappliedPatches, #176).
- */
 /** The chunks mp4box's dist/mp4box.all.mjs imports; checked by checkMp4boxImports. */
 const MP4BOX_CHUNKS = ['styp-BV5G3FS-.mjs', 'rolldown-runtime-CNh9ExCG.mjs'];
 
@@ -43,8 +24,7 @@ const VENDOR = [
     patched: true,
   },
   {
-    // hls.js's own worker bundle, for HLSPlayer's workerPath; unpatched: the patch only
-    // widens hls.mjs's export list, for hls2mp4's main-thread Transmuxer.
+    // hls.js's own worker bundle, for HLSPlayer's workerPath; unpatched: the patch only widens hls.mjs's exports.
     name: 'hls.js',
     from: 'node_modules/hls.js/dist/hls.worker.js',
     to: 'chrome/player/modules/hls.worker.js',
@@ -58,36 +38,22 @@ const VENDOR = [
     transform: normaliseText,
   },
   {
-    // Stock build, no patch. The previously vendored copy differed only by
-    // "eslint --fix" output - 32 let->const, one var->const, one quote style
-    // (same string value) - plus an eslint-disable header. Verified by AST
-    // comparison; the exports are identical.
+    // Stock build: the old vendored copy differed only by eslint --fix output (AST-verified).
     name: 'fuse.js',
     from: 'node_modules/fuse.js/dist/fuse.mjs',
     to: 'chrome/player/modules/fuse.mjs',
     transform: normaliseText,
   },
   {
-    // The complete build already mounts AutoScroll, Remove/Revert, Swap and
-    // MultiDrag exactly as the vendored copy did; only the export shape
-    // differed. Everything else was "eslint --fix" output, including four
-    // combined var declarations split into ~62 separate let/const statements,
-    // which is what inflated the textual diff to 1613 lines.
+    // Stock complete build: the old vendored copy differed only by its export shape and eslint --fix output.
     name: 'sortablejs',
     from: 'node_modules/sortablejs/modular/sortable.complete.esm.js',
     to: 'chrome/player/modules/sortable.mjs',
     transform: addSortableNamedExport,
   },
   {
-    // mp4box 2.x is TypeScript that rolldown bundles into an ES module entry
-    // point importing two shared chunks. The browser resolves those imports
-    // itself, so the three files are copied as published, side by side, and
-    // nothing is bundled here. FastStream's changes are all in the chunk -
-    // patches/mp4box@<version>.patch, see docs/vendored-libraries.md.
-    //
-    // The chunk names carry a content hash and change with every release:
-    // checkMp4boxImports fails the sync if the entry point imports anything
-    // but the chunks listed here.
+    // Entry point and its two chunks copied as published, side by side; FastStream's changes are in the chunk's patch.
+    // The chunk names carry a content hash: checkMp4boxImports fails the sync on any other import.
     name: 'mp4box',
     from: 'node_modules/mp4box/dist/mp4box.all.mjs',
     to: 'chrome/player/modules/mp4box/mp4box.all.mjs',
@@ -100,19 +66,15 @@ const VENDOR = [
     patched: chunk.startsWith('styp-'),
   })),
   {
-    // mp4-muxer's successor, by the same author; mp4-muxer is deprecated and
-    // its last release (5.2.2) crashed where 4.3.3 did not (#25). The ES module
-    // bundle as published, with its MPL-2.0 header. Its four blob: Workers
-    // serve camera capture and alpha-channel video, which the remuxer never
-    // reaches.
+    // mp4-muxer's successor (its 5.2.2 crashed where 4.3.3 did not); the ES module bundle as published.
+    // Its four blob: Workers serve camera capture and alpha-channel video, which the remuxer never reaches.
     name: 'mediabunny',
     from: 'node_modules/mediabunny/dist/bundles/mediabunny.mjs',
     to: 'chrome/player/modules/remux/mediabunny.mjs',
     transform: normaliseText,
   },
   {
-    // Also AST-identical to the vendored copy; that one was only run through
-    // a beautifier, since gif.js publishes its dist on one line.
+    // AST-identical to the old vendored copy, which was only beautified.
     name: 'gif.js',
     from: 'node_modules/gif.js/dist/gif.worker.js',
     to: 'chrome/player/modules/gif/gif.worker.js',
@@ -126,11 +88,8 @@ const VENDOR = [
     transform: toGifModule,
   },
   {
-    // Pinned as a git dependency because mdbassit/Coloris is not on npm - the
-    // package literally named `coloris` is an unrelated project, and
-    // @melloware/coloris is a different fork. pnpm records the commit and a
-    // tarball integrity hash in the lockfile, which is the same thing a
-    // registry version gives a reviewer.
+    // A git dependency: mdbassit/Coloris is not on npm (`coloris` and @melloware/coloris are other projects);
+    // the lockfile pins the commit and a tarball hash.
     name: 'Coloris',
     from: 'node_modules/Coloris/dist/coloris.js',
     to: 'chrome/player/modules/coloris.mjs',
@@ -138,10 +97,7 @@ const VENDOR = [
     transform: toColorisModule,
   },
   {
-    // The picker's stylesheet, from the same commit as the script above, unminified so a
-    // reviewer can read it. Until 2026-10-03 the copy here was upstream FastStream's
-    // re-minified 0.21.x stylesheet (2023), which nothing regenerated; rule by rule it
-    // matched 0.25.0's but for the slider inputs' selector (input -> input[type=range]).
+    // The picker's stylesheet, from the same commit, unminified so a reviewer can read it.
     name: 'Coloris',
     from: 'node_modules/Coloris/dist/coloris.css',
     to: 'chrome/player/assets/coloris/css/coloris.css',
@@ -150,61 +106,19 @@ const VENDOR = [
 ];
 
 /**
- * Adds the named export FastStream imports.
- *
- * sortablejs's complete build ends in `export default Sortable`, but
- * ui/ToolManager.mjs does `import {Sortable} from '../modules/sortable.mjs'`.
- * The vendored copy achieved that by exporting the function declaration
- * directly; adding a named export alongside the default is equivalent and
- * leaves the npm file untouched.
- *
- * @param {string} src sortablejs's complete ESM build
- * @return {string} the same module with a named Sortable export
+ * Adds the named export ui/ToolManager.mjs imports; the npm file ends in `export default Sortable`.
+ * @param {string} src
+ * @return {string}
  */
 function addSortableNamedExport(src) {
   return normaliseText(src) + '\nexport {Sortable};\n';
 }
 
 /**
- * Turns gif.js's UMD build into an ES module that loads a real worker file.
- *
- * Two changes, both forced by the extension environment, and both matching
- * what the previously vendored copy did by hand:
- *
- * 1. The UMD dispatcher assigns the factory result to `window.GIF`.
- *    LoopMenu.mjs does `import {GIF}`, so the dispatcher is replaced by a
- *    direct assignment to a module binding. It has to be `let`, because the
- *    assignment happens when the factory is called, not at declaration.
- *
- * 2. gif.js defaults `options.workerScript` to a bare 'gif.worker.js', which
- *    the browser resolves against the *document*. In the extension the player
- *    page is not in this directory, so that 404s. Resolving against
- *    `import.meta.url` instead points at the worker we ship beside this file.
- *    (gif.js has no blob-worker path, so unlike hls.js this is the only
- *    reason a separate worker file is needed.)
- *
- * Both anchors are asserted rather than pattern-matched loosely: if a future
- * version of gif.js changes either, this throws instead of silently emitting
- * a module that exports nothing or spawns a worker from the wrong URL.
- *
- * The MIT notice is re-attached because gif.js ships no LICENSE file in its
- * npm package - it lives only in the repository - and the licence requires
- * the notice to travel with redistributed copies.
- *
- * @param {string} src contents of gif.js's UMD dist build
- * @return {string} an ES module exporting GIF
- */
-/**
- * Checks that mp4box's entry point, and the chunks it imports, import nothing
- * but the chunks in MP4BOX_CHUNKS.
- *
- * The chunk names are content hashes, so every mp4box release renames them.
- * Renamed chunks already fail the sync as MISSING; a release that adds one
- * would copy without complaint and fail in the browser instead, on an import
- * of a file that was never vendored. This makes that fail here too.
- *
- * @param {string} src the published dist/mp4box.all.mjs
- * @return {string} the same file, unchanged
+ * Checks that mp4box's entry point and its chunks import nothing but MP4BOX_CHUNKS:
+ * a release that adds a chunk would otherwise copy cleanly and fail in the browser.
+ * @param {string} src
+ * @return {string}
  */
 function checkMp4boxImports(src) {
   /** @type {(text: string) => string[]} */
@@ -227,8 +141,10 @@ function checkMp4boxImports(src) {
 }
 
 /**
- * @param {string} src gif.js's dist/gif.js
- * @return {string} the same code as an ES module that exports GIF
+ * Turns gif.js's UMD build into an ES module whose worker URL resolves from import.meta.url.
+ * Both anchors are asserted; the MIT notice is re-attached (gif.js's npm package has no LICENSE).
+ * @param {string} src
+ * @return {string}
  */
 function toGifModule(src) {
   const umdHead = '(function(f){if(typeof exports==="object"&&typeof ' +
@@ -293,19 +209,9 @@ function toGifModule(src) {
 }
 
 /**
- * Normalises line endings and guarantees a trailing newline.
- *
- * dash.js's published bundle embeds 428 stray CR characters inside a vendored
- * BSD licence comment, because one of its bundled dependencies ships CRLF
- * source. Diff and patch formats cannot represent a trailing-CR-only change
- * reliably, so the patch in patches/ cannot carry that difference and it has
- * to be normalised here instead. Without this the generated file differs from
- * the previously vendored one by exactly those 428 bytes plus a final
- * newline - a pure whitespace difference inside a comment, but one that would
- * break byte-for-byte verification against the baseline build.
- *
- * @param {string} src file contents
- * @return {string} contents with LF endings and a trailing newline
+ * Normalises line endings and guarantees a trailing newline: a patch cannot carry dash.js's stray CRs.
+ * @param {string} src
+ * @return {string}
  */
 function normaliseText(src) {
   const lf = src.replace(/\r\n/g, '\n').replace(/\r/g, '');
@@ -313,20 +219,10 @@ function normaliseText(src) {
 }
 
 /**
- * Turns Coloris's dist bundle into an ES module scoped to a container.
- *
- * Upstream wraps everything in `(function (window, document, Math) { ... })`
- * and assigns the result to `window.Coloris`. Removing the wrapper puts the
- * same declarations at module scope, which is what the vendored copy did and
- * what lets `bindElement` be exported alongside `Coloris`.
- *
- * The behavioural changes - the container rebinding, `bindElement`, and the
- * slider keyboard handlers - are not here. They are in
- * patches/Coloris@<version>.patch, so a reviewer reads them as a diff against a
- * commit the lockfile pins by hash.
- *
- * @param {string} src Coloris's dist/coloris.js
- * @return {string} the same code as an ES module
+ * Turns Coloris's dist bundle into an ES module: the wrapper goes, its declarations at module scope.
+ * The behavioural changes are in patches/Coloris@<version>.patch.
+ * @param {string} src
+ * @return {string}
  */
 function toColorisModule(src) {
   const head = '(function (window, document, Math, undefined) {\n';
@@ -348,9 +244,7 @@ function toColorisModule(src) {
  * applied or a source is missing.
  */
 function main() {
-  // The libraries marked patched must have their patch applied, at the version it is cut
-  // against: otherwise the copies below are the stock libraries, and nothing else says so
-  // (#176). Checked before anything is copied over the tree's files.
+  // A library marked patched must have its patch applied at its version, checked before anything is copied.
   const unapplied = unappliedPatches(VENDOR, fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'), (name) => {
     try {
       return JSON.parse(fs.readFileSync(path.join(root, 'node_modules', name, 'package.json'), 'utf8')).version;
@@ -366,9 +260,7 @@ function main() {
   let failed = false;
 
   for (const lib of VENDOR) {
-    // `from` may be a list, for a vendored file made by concatenating several published
-    // sources rather than copying one. The order is load-bearing, so it is recorded in the
-    // entry rather than inferred here.
+    // `from` may be a list, concatenated in that recorded order.
     const sources = Array.isArray(lib.from) ? lib.from : [lib.from];
     const src = path.join(root, sources[0]);
     const dst = path.join(root, lib.to);
@@ -391,9 +283,7 @@ function main() {
               sources[0]))),
           'utf8') :
       fs.readFileSync(src);
-    // Bytes may be large; a string read of them would mangle binary content. Read the
-    // existing copy without a preceding existsSync: gone-in-between means "updated"
-    // either way, which a failed read then reports (CodeQL js/file-system-race).
+    // Bytes are compared as bytes. No existsSync first: a failed read means "updated" (CodeQL js/file-system-race).
     const unchanged = (() => {
       try {
         return Buffer.compare(fs.readFileSync(dst), data) === 0;

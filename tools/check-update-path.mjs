@@ -1,21 +1,11 @@
-#!/usr/bin/env node
 // @ts-check
 // Checks a release's self-update path the way Firefox walks it.
-//
-// The AMO build's update_url (build.mjs) is .../releases/latest/download/updates.json.
-// Firefox fetches it, looks up the installed add-on's id, and installs the xpi at
-// update_link if its version is newer - after checking the file against update_hash, and
-// only if Mozilla signed it. Each of those links can break without anything else failing:
-// a release without updates.json (v1.3.82.37, for ten minutes), an entry for the wrong
-// version, a hash of another file, an unsigned xpi, a changed add-on id. Firefox then just
-// finds no update, silently. This follows every link and names the first that does not hold.
-//
+// Follows update_url, the entry, update_hash, the signatures and the id as Firefox does: it fails silently.
 // Usage: node tools/check-update-path.mjs <owner/repo> <tag>
 // Exits with:
 //   0  every link holds
 //   1  a link is broken - printed, one line each
-//   2  the check could not be made (the network, or GitHub answering 5xx or 429 three
-//      times): nothing is known to be wrong
+//   2  the check could not be made (the network, or 5xx/429 three times): nothing known wrong
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -26,11 +16,9 @@ import zlib from 'node:zlib';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * The files of a zip archive. An xpi is one; this reads the central directory and inflates
- * entries on demand, which is all an xpi needs (no ZIP64, no encryption).
- * @param {Buffer} buffer - The archive.
- * @return {Map<string, () => Buffer>} Each file's name, and a function returning its
- *   contents.
+ * The files of a zip (an xpi): the central directory, entries inflated on demand; no ZIP64, no encryption.
+ * @param {Buffer} buffer
+ * @return {Map<string, () => Buffer>} Each file's name, and a function returning its contents.
  */
 export function readZip(buffer) {
   // The end-of-central-directory record: 22 bytes, then a comment of up to 64 KiB.
@@ -71,16 +59,15 @@ export function readZip(buffer) {
 }
 
 /**
- * What is wrong with a release's updates.json.
  * @typedef {{version: string, update_link: string, update_hash: string, applications?: {gecko?: {strict_min_version?: string}}}} UpdateEntry
  * @typedef {{addons?: Object<string, {updates: UpdateEntry[]}>}} UpdatesJson
- * @param {UpdatesJson} json - updates.json as fetched through update_url.
+ * @param {UpdatesJson} json
  * @param {Object} release
- * @param {string} release.id - The add-on id Firefox looks up.
- * @param {string} release.version - The release's version.
- * @param {string} release.repo - owner/repo.
- * @param {string} release.tag - The release's tag.
- * @return {{problems: string[], entry?: UpdateEntry|undefined}} No problems when it is right.
+ * @param {string} release.id
+ * @param {string} release.version
+ * @param {string} release.repo
+ * @param {string} release.tag
+ * @return {{problems: string[], entry?: UpdateEntry|undefined}}
  */
 export function checkUpdatesJson(json, {id, version, repo, tag}) {
   const updates = json?.addons?.[id]?.updates;
@@ -104,14 +91,13 @@ export function checkUpdatesJson(json, {id, version, repo, tag}) {
 }
 
 /**
- * What is wrong with the xpi an updates.json entry points at.
- * @param {Buffer} xpi - The downloaded file.
+ * @param {Buffer} xpi
  * @param {Object} expected
- * @param {string} expected.id - The add-on id.
- * @param {string} expected.version - The release's version.
- * @param {string} expected.hash - update_hash, `sha256:<hex>`.
- * @param {string} [expected.minVersion] - updates.json's strict_min_version, if it has one.
- * @return {string[]} No problems when it is right.
+ * @param {string} expected.id
+ * @param {string} expected.version
+ * @param {string} expected.hash
+ * @param {string} [expected.minVersion]
+ * @return {string[]}
  */
 export function checkXpi(xpi, {id, version, hash, minVersion}) {
   const problems = [];
@@ -151,9 +137,8 @@ export function checkXpi(xpi, {id, version, hash, minVersion}) {
 }
 
 /**
- * The add-on id the AMO build gives itself (build.mjs, browser_specific_settings.gecko.id).
- * @param {string} source - build.mjs.
- * @return {string} The id.
+ * @param {string} source
+ * @return {string}
  */
 export function geckoIdFromBuild(source) {
   const ids = [...source.matchAll(/gecko:\s*\{\s*id:\s*'([^']+)'/g)].map((m) => m[1]);
@@ -167,9 +152,7 @@ export function geckoIdFromBuild(source) {
 export class Unreachable extends Error {}
 
 /**
- * Whether an HTTP status is GitHub having trouble rather than an answer about the file: a
- * server error (a 502 from the download redirect's CDN) or a rate limit. Asked again, then
- * counted as the network, as a broken link it is not.
+ * GitHub's trouble (a 5xx, a rate limit), not an answer about the file: asked again, then counted as the network.
  * @param {number} status
  * @return {boolean}
  */
@@ -178,16 +161,12 @@ export function isPassingTrouble(status) {
 }
 
 /**
- * Downloads a link of the update path. A network failure, a server error or a rate limit is
- * tried again, three times in all, then thrown as Unreachable; any other answer is returned.
- * Until 2026-10-04 a 5xx came back as an answer, and a CDN hiccup opened "Update path
- * broken" for a path that held.
+ * Network failures, server errors and rate limits are tried three times in all, then thrown as Unreachable.
  * @param {string} url
  * @param {Object} [options]
- * @param {(url: string, options: Object) => Promise<Response>} [options.get] - fetch.
+ * @param {(url: string, options: Object) => Promise<Response>} [options.get]
  * @param {(ms: number) => Promise<void>} [options.sleep]
- * @return {Promise<{status: number, body?: Buffer}>} status 200 with the body, or the
- *   status of an answer that says the file is not there (a 404, say).
+ * @return {Promise<{status: number, body?: Buffer}>} Status 200 with the body, or the status of an answer that the file is not there.
  */
 export async function download(url, {
   get = fetch,
@@ -219,8 +198,7 @@ async function main() {
   if (!repo || !tag) {
     throw new Error('usage: node tools/check-update-path.mjs <owner/repo> <tag>');
   }
-  // Strict shapes for both CLI values, and the download host pinned to
-  // github.com, so the URL cannot leave it (CodeQL js/request-forgery).
+  // Strict shapes for both CLI values, and the host pinned to github.com (CodeQL js/request-forgery).
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`${repo}: not an owner/repo pair`);
   if (!/^[\w.-]+$/.test(tag)) throw new Error(`${tag}: not a tag`);
   const id = geckoIdFromBuild(fs.readFileSync(path.join(root, 'build.mjs'), 'utf8'));

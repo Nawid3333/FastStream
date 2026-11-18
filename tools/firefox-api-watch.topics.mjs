@@ -1,18 +1,7 @@
-// What the Firefox API watch (firefox-api-watch.mjs) counts as relevant to FastStream: topics
-// with their keywords, BCD paths and modules, the Bugzilla filter, identifiers too common to
-// count, and text that is never relevant. Patterns are RegExp literals, not strings: nothing
-// read at run time becomes a regular expression.
-//
-// What tools/firefox-api-watch.mjs counts as relevant to FastStream in a Firefox release. keywords:
-// regular expressions (case-insensitive) tried on a release-note bullet, a Bugzilla summary or a
-// blog title. bcd: browser-compat-data path prefixes; a feature under one whose Firefox support
-// starts or ends in the release is reported. WebExtensions are matched by what the extension uses
-// (its chrome.*/browser.* namespaces and manifest keys), not listed here. priority: how much a
-// match matters before the code check; a match whose API the code uses ranks higher. kind: the
-// default kind of a new feature in this area (a removal is always a compatibility risk). modules:
-// where FastStream's code for the area lives, named when no identifier of the change is found in
-// the code. excludeText: changes in platform areas FastStream does not use, dropped whatever topic
-// they match (tried on the change's text, not its section).
+// What firefox-api-watch.mjs counts as relevant to FastStream. Patterns are RegExp literals, never strings.
+// keywords: case-insensitive regexes tried on a release-note bullet, a Bugzilla summary or a blog title.
+// bcd: BCD path prefixes; priority: before the code check; kind: a new feature's default kind.
+// modules: where the code lives; excludeText: platform areas FastStream does not use, always dropped.
 
 /** @type {import('./firefox-api-watch.mjs').Config} */
 export default {
@@ -501,9 +490,7 @@ export default {
     },
   ],
   bugzilla: {
-    // WebExtensions bugs are all read (a handful a release) and matched by the namespaces the code
-    // uses; Core media bugs only with a documentation/compatibility keyword or a summary naming a
-    // high-priority media term, and never the Android-only ones.
+    // WebExtensions bugs are all read; Core media bugs only with a docs or compat keyword or a high-priority term.
     coreComponents: [
       'Audio/Video',
       'Audio/Video: Playback',

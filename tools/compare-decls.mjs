@@ -1,31 +1,10 @@
-#!/usr/bin/env node
 // @ts-check
 // Compares two JavaScript files declaration by declaration.
-//
-// Whole-file comparison answers "is this the same program?" and stops being
-// useful the moment the answer is no. The files this project has to account
-// for are concatenations and adapted forks, so the question that actually
-// matters is *which parts* match: when 35 of 35 top-level declarations are
-// identical to the published sources, the file is those sources, and the
-// remainder is the change list to document.
-//
-// This is how webm.mjs was settled - 30 of 35 declarations were already
-// byte-for-byte jswebm's, which turned an unverifiable 104 KB blob into a
-// published tarball plus five named changes.
-//
+// Which declarations match, not only whether the files do: what matches is the published source.
 // Usage:
 //   node tools/compare-decls.mjs <fileA> <fileB> [name]
-//
-// With a name, prints where that one declaration first diverges instead of
-// the summary, which is what you want once the summary has narrowed it down.
-// A name may be a declaration or an assignment path like
-// `ISOFile.prototype.getSample`.
-//
-// Both sections matter. A prototype-based library declares almost nothing and
-// then hangs everything off assignments: mp4box has 12 declarations and 339
-// assignments, and reading only the first section reported "2 differing" while
-// missing four changed prototype methods and three that exist in one file and
-// not the other.
+// With a name (a declaration, or an assignment path like ISOFile.prototype.getSample): where it first diverges.
+// Both declarations and assignments: a prototype-based library declares almost nothing.
 
 import fs from 'node:fs';
 

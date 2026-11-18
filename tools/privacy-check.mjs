@@ -1,28 +1,15 @@
-#!/usr/bin/env node
 // @ts-check
-// Keeps personal information out of this repository, which is public: its files, its history,
-// its branch names and its Actions logs. Nothing personal may go in: no user folder path
-// (C:\Users\<name>), no private claude.ai link, no e-mail address but a noreply or a public
-// one, no word from the private list (real name, user and PC names, private paths, titles of
-// what the owner watches and the sites he watches them on), and every commit's author and
-// committer a public identity (a GitHub noreply address whose name is its login, or Claude).
-//
+// Keeps personal information out of this public repository (files, history, branch names, Actions logs):
+// user folder paths, private claude.ai links, non-public e-mail, private words, non-public commit identities.
 //   node tools/privacy-check.mjs staged
-//       the commit guard (.githooks/pre-commit): the added lines and file names, the
-//       identities, and no file .gitignore keeps out forced in.
+//       the commit guard (pre-commit): added lines, file names, identities, force-added ignored files.
 //   node tools/privacy-check.mjs push <remote>
-//       the push guard (.githooks/pre-push; git's ref lines on stdin): every commit the push
-//       sends, its message too, and the name each ref gets on the remote.
+//       the push guard (pre-push, ref lines on stdin): every commit sent, its message, the remote ref names.
 //   node tools/privacy-check.mjs ci <base> <head> [branch]
-//       privacy.yml: every tracked file, the commits base..head and the branch name. Its
-//       findings name the place and the rule only: an Actions log is public too.
+//       privacy.yml: tracked files, commits base..head, the branch; findings name only place and rule.
 //   node tools/privacy-check.mjs hooks
-//       turns the guards on in this clone (core.hooksPath .githooks); package.json's prepare
-//       runs it on every pnpm install, outside CI.
-//
-// The private words come from the clone's own .git/info/private-words (hooks) or the
-// PRIVATE_WORDS secret (CI): one per line, compared case-insensitively, a line starting with #
-// a comment. Neither is ever committed. A deliberate exception: git commit/push --no-verify.
+//       turns the guards on (core.hooksPath .githooks); package.json's prepare runs it outside CI.
+// Private words: .git/info/private-words (hooks) or the PRIVATE_WORDS secret (CI), one per line, # comments.
 
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -43,14 +30,11 @@ const FILE_ENDINGS = new Set(['patch', 'mjs', 'cjs', 'js', 'ts', 'json', 'yaml',
 const RESERVED_DOMAIN = /(?:^|\.)(?:example|test|invalid|localhost)$|(?:^|\.)example\.(?:com|net|org)$/i;
 const NOREPLY = /^(?:noreply@anthropic\.com|noreply@github\.com|support@github\.com|[^@\s]+@users\.noreply\.github\.com)$/i;
 /**
- * Public addresses: an add-on's ID, Mozilla's release signing key, and the original FastStream
- * author's published contact (the license, the code of conduct, the welcome page).
+ * Public addresses: an add-on's ID, Mozilla's release signing key, the original author's published contact.
  */
 const PUBLIC_ADDRESSES = new Set(['ublock0@raymondhill.net', 'release@mozilla.com', 'andrews54757@gmail.com']);
 
-/**
- * @typedef {{line: number, rule: string, text: string}} Finding
- */
+/** @typedef {{line: number, rule: string, text: string}} Finding */
 
 /**
  * The private words of a list: trimmed, without blank lines and # comments.
@@ -64,7 +48,7 @@ export function parseWords(text) {
 /**
  * What in a text would publish something personal, line by line.
  * @param {string} text
- * @param {string[]} words - The private words.
+ * @param {string[]} words
  * @return {Finding[]}
  */
 export function findings(text, words) {
@@ -134,9 +118,7 @@ export function addedLines(diff) {
   const out = [];
   let file = '';
   let line = 0;
-  // A file's header runs from its "diff " row to its first hunk. An added line whose text starts
-  // with "++ " is the row "+++ ..." too: read as a header, it went unchecked (glm's review,
-  // 2026-11-16).
+  // A header is a `+++` row between a "diff " row and its first hunk: an added "++ " line is not one.
   let header = false;
   for (const row of diff.split('\n')) {
     if (row.startsWith('diff ')) {
@@ -158,7 +140,7 @@ export function addedLines(diff) {
 /**
  * Checks added lines and file names; each finding a message.
  * @param {Array<{file: string, line: number, text: string}>} lines
- * @param {string[]} names - File names added or changed.
+ * @param {string[]} names
  * @param {string[]} words
  * @param {boolean} quote - Whether a message may quote what it found.
  * @return {string[]}
@@ -260,12 +242,9 @@ function push(remote, refs) {
     const [, local, remoteRef, remoteSha] = row.split(' ');
     if (!local || zero.test(local)) continue; // a deletion
     for (const found of findings(remoteRef, words)) out.push(`a pushed branch or tag: its name holds ${found.rule}`);
-    // An annotated tag is an object of its own: its message and tagger are in no commit, and
-    // went out unchecked (glm's review, 2026-11-16).
+    // An annotated tag is an object of its own: its message and tagger are in no commit.
     if (git(['cat-file', '-t', local]).trim() === 'tag') out.push(...checkTag(local, words));
-    // A branch new to the remote (remote sha all zeros), or one whose remote commit is not
-    // here: every commit not on the remote yet. Asked before git is, which printed "fatal: Not
-    // a valid object name" for the zeros on every first push of a branch.
+    // A branch new to the remote (zeros, never handed to git) or whose remote commit is not here: all it lacks.
     let range = null;
     if (!zero.test(remoteSha)) {
       try {
@@ -345,8 +324,7 @@ function hooks() {
 }
 
 /**
- * The modes, by name: how many arguments each takes at most, what it runs, and how a refusal
- * starts.
+ * The modes, by name: their most arguments, what each runs, and how a refusal starts.
  * @type {Map<string, {max: number, run: (args: string[]) => string[]|void, refused: string}>}
  */
 const MODES = new Map([

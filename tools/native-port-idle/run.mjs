@@ -1,7 +1,5 @@
-// probe.ps1's driver: a headless Firefox with a throwaway profile, the idle timeout given, and the probe
-// add-on, waits, and prints what the probe host logged: when the event page's port closed.
+// probe.ps1's driver: a headless Firefox with the probe add-on; prints when the event page's port closed.
 //   node run.mjs <mode> <timeoutMs> <waitMs>
-// The add-on and the host's log are in the probe's work folder (probe.ps1 makes it).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

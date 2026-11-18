@@ -1,26 +1,10 @@
-#!/usr/bin/env node
 // @ts-check
-// Generates the self-hosted update manifest (updates.json) that
-// browser_specific_settings.gecko.update_url in the AMO build points at
-// (see build.mjs's buildFirefoxAmo). Firefox polls that URL -- both on its
-// own schedule and when the user clicks "Check for Updates" in
-// about:addons -- to learn whether a newer signed xpi exists. Format:
-// https://extensionworkshop.com/documentation/manage/updating-your-extension/
-//
+// Writes web-ext-artifacts/updates.json, the self-hosted update manifest the AMO build's update_url names.
 // Run after signing, from the repo root:
 //   node tools/gen-update-manifest.mjs <owner/repo> <tag>
 // e.g. node tools/gen-update-manifest.mjs Nawid3333/FastStream v1.3.80.0
-//
-// Reads the extension id and version from the just-built
-// build_firefox_amo/manifest.json (build:keep leaves it on disk) and finds
-// the signed xpi in web-ext-artifacts/, so this can never drift out of sync
-// with what was actually signed. Writes web-ext-artifacts/updates.json.
-//
-// Only the just-signed version is listed, not a history of older ones --
-// good enough as long as every release stays compatible with the previous
-// strict_min_version. If a future release raises strict_min_version high
-// enough to strand users on old Firefox versions, they'd need a second
-// entry here to fall back to; not needed today.
+// Id and version come from build_firefox_amo/manifest.json, the xpi from web-ext-artifacts/.
+// Only the just-signed version is listed: enough while no release strands users on an older Firefox.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -52,10 +36,7 @@ if (xpiFiles.length !== 1) {
   process.exit(1);
 }
 const xpiName = xpiFiles[0];
-// web-ext-artifacts/ keeps what earlier runs left: one stale xpi passed the count above, and
-// updates.json advertised this version with the old file's link and hash - consistent, so
-// Firefox installed the old version and offered this one again for good. A signed xpi is
-// named <id>-<version>.xpi.
+// web-ext-artifacts/ keeps earlier runs' files: only <id>-<version>.xpi is this version's.
 if (!xpiName.endsWith(`-${manifest.version}.xpi`)) {
   console.error(`${xpiName} is not the xpi of version ${manifest.version} (its name must end in -${manifest.version}.xpi): remove stale .xpi files from ${artifactsDir} and sign again`);
   process.exit(1);
@@ -73,11 +54,7 @@ if (gecko.strict_min_version) {
   updateEntry.applications = {gecko: {strict_min_version: gecko.strict_min_version}};
 }
 
-// The id keys the addons map. The manifest it is read from is a build artifact, which
-// CodeQL counts as user-provided data, and no comparison on the value cuts that: the
-// write goes onto a Map instead of an object, so no member can ever be overwritten
-// (CodeQL js/remote-property-injection); JSON.stringify makes it "id" again, in a
-// shape Firefox's updater reads.
+// A Map, not an object, for an id read from a build artifact (CodeQL js/remote-property-injection).
 if (id.includes('"') || id.includes('\\')) {
   console.error(`Unexpected gecko id in ${manifestPath}: ${id}`);
   process.exit(1);

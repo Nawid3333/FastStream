@@ -1,20 +1,10 @@
-#!/usr/bin/env node
 // @ts-check
 // Runs CI's Linux checks here, before pushing:
 //   pnpm run verify:linux [all|verify|workflows] [--distro <WSL distro>]...
-//
-// CI runs on Ubuntu with libx264 in its ffmpeg, where a Windows machine may have neither;
-// PR #20 passed `pnpm run verify` here and failed on CI for exactly that. This runs CI's
-// verify job (`pnpm run verify` with the current stable Firefox) and its workflows job
-// (actionlint with shellcheck, zizmor, and the run: scripts' tests) on Linux, in WSL: tools/linux/setup.sh first brings the
-// distro up to date (apt upgrade, the newest Node of .nvmrc's major, and Firefox) and provisions it like
-// the runner, then tools/linux/verify.sh runs on a copy of the working tree.
-//
-// It runs on the newest Ubuntu release GitHub offers, read from the list runner-images.yml
-// reads: the one ubuntu-latest moves to next, or has moved to already. The one ubuntu-latest
-// gives until then is CI's own on every push, so it is not kept here as a second distro (the
-// owner, 2026-10-24); --distro names the distros to use instead, that one included. A release
-// WSL does not have yet is installed. On Linux itself it runs verify.sh on the machine as it is.
+// CI's Ubuntu ffmpeg has libx264, which Windows may lack: this runs CI's verify and workflows jobs in WSL,
+// after tools/linux/setup.sh provisions the distro like the runner; verify.sh runs on a copy of the tree.
+// On the newest Ubuntu release GitHub offers (runner-images.yml's list); a release WSL lacks is installed.
+// ubuntu-latest is not repeated: CI runs it on every push. --distro names the distros. On Linux: verify.sh as is.
 
 import {spawnSync} from 'node:child_process';
 import path from 'node:path';
@@ -23,8 +13,7 @@ import * as url from 'node:url';
 const root = path.resolve(url.fileURLToPath(new URL('.', import.meta.url)), '..');
 const RUNNER_IMAGES = 'https://raw.githubusercontent.com/actions/runner-images/main/README.md';
 
-// The Ubuntu releases in GitHub's runner image table, read as runner-images.yml reads them:
-// of the x64 images that are generally available, the one ubuntu-latest gives and the newest.
+// The x64 GA images' Ubuntu releases in GitHub's runner table: ubuntu-latest's and the newest.
 /** @param {string} readme */
 function ubuntuReleases(readme) {
   const rows = readme.split('\n').filter((row) =>/^\|.*\| x64 \|/.test(row) && !/preview|beta|deprecated/i.test(row));
@@ -41,8 +30,7 @@ function ubuntuReleases(readme) {
 /**
  * @param {string} cmd
  * @param {string[]} args
- * @return {number} Its exit code; 1 for one that had none (it could not be started, or a
- *   signal ended it): given on as it was (null), the script ended with 0, "passed".
+ * @return {number} Its exit code; 1 when it had none (not started, or ended by a signal).
  */
 const run = (cmd, args) => spawnSync(cmd, args, {stdio: 'inherit'}).status ?? 1;
 
@@ -96,9 +84,7 @@ async function main() {
         continue;
       }
     }
-    // -e runs the command itself; `--` hands it to the distro's shell, which strips the
-    // backslashes of a Windows path that has no space to make Node quote it
-    // (C:\Users\... arrived as C:Users...), so the tree could not be mapped.
+    // -e, not `--`: the distro's shell strips the backslashes of a Windows path.
     const wslPath = spawnSync('wsl.exe', ['-d', name, '-e', 'wslpath', '-a', root], {encoding: 'utf8'}).stdout.trim();
     if (!wslPath.startsWith('/')) {
       results.push(`${name}: could not map ${root} into it`);

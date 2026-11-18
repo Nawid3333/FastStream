@@ -1,41 +1,14 @@
-#!/usr/bin/env node
 // @ts-check
 // Finds which upstream release or commit a vendored file was built from.
-//
-// Why this exists
-// ---------------
-// Every wrong provenance answer in this tree came from the same mistake:
-// ranking candidate versions by how many *lines* differ. A line-count search
-// picked mp4-muxer 5.0.0 when the real base was 4.3.3, and picked
-// videojs/vtt.js 0.13.0 for a file that came from dash.js and was never in
-// that repository at all. Line counts move with formatting, and every
-// vendored file here was reformatted by the project's eslint before landing.
-//
-// This ranks by the parsed program instead, using tools/ast-compare.mjs. An
-// exact hit is reported as EXACT and is proof. A near miss is reported with
-// the size of the two normalised ASTs, which is the search key that works:
-// it is insensitive to formatting and moves monotonically with real change.
-//
-// Two things to keep in mind when reading a near miss:
-//   - The nearest candidate is not the base. If nothing is EXACT the base may
-//     simply not be in the set - that is exactly how the vtt.js answer went
-//     wrong - so widen the search before believing the top row.
-//   - The vendored file usually has real modifications, so a small non-zero
-//     distance is the expected outcome even for the correct base. Read the
-//     diff to decide; this tool narrows the field, it does not conclude.
-//
-// Usage
-// -----
+// Ranks candidates by the parsed program (ast-compare.mjs), not by lines: line counts move with formatting.
+// EXACT is proof; a near miss shows the two normalised ASTs' sizes, which move only with real change.
+// The nearest candidate is not the base, and a small distance is expected: this narrows, it does not conclude.
 //   node tools/find-base.mjs <local-file> <url>...
 //   node tools/find-base.mjs <local-file> --repo owner/name --path src/x.js --tags
 //   node tools/find-base.mjs <local-file> --repo owner/name --path src/x.js --commits
-//
 // --tags    ranks the file at every tag in the repository
 // --commits ranks it at every commit that touched that path
-//
-// GitHub's API allows 60 unauthenticated requests an hour. Set GITHUB_TOKEN
-// (or run `gh auth token`) to raise that; only the listing call needs it, the
-// raw file fetches are not rate limited the same way.
+// GitHub allows 60 unauthenticated requests an hour: set GITHUB_TOKEN for the listing call.
 
 import fs from 'node:fs';
 
@@ -46,8 +19,7 @@ const args = process.argv.slice(2);
 const positional = [];
 /** @type {Object<string, string>} */
 const opts = {};
-// Two fixed option names only: anything else falls through to the positional list, so
-// an argv value never becomes an object key (CodeQL js/remote-property-injection).
+// Two fixed option names: an argv value never becomes an object key (CodeQL js/remote-property-injection).
 const optionNames = new Set(['repo', 'path']);
 for (let i = 0; i < args.length; i++) {
   const opt = /^--([a-z]+)$/.exec(args[i] || '');
@@ -68,10 +40,8 @@ if (!localPath) {
 }
 
 /**
- * Calls the GitHub API, using a token when one is available.
- *
- * @param {string} url the API endpoint
- * @return {Promise<any>} the parsed response
+ * @param {string} url
+ * @return {Promise<any>}
  */
 async function api(url) {
   /** @type {Object<string, string>} */
@@ -86,11 +56,7 @@ async function api(url) {
   return res.json();
 }
 
-/**
- * Builds the list of candidate raw-file URLs to compare against.
- *
- * @return {Promise<Array<{label: string, url: string}>>} the candidates
- */
+/** @return {Promise<Array<{label: string, url: string}>>} */
 async function candidates() {
   if (!opts.mode) {
     return positional.map((url) => ({label: url, url}));
@@ -98,8 +64,7 @@ async function candidates() {
   if (!opts.repo || !opts.path) {
     throw new Error('--tags and --commits both need --repo and --path');
   }
-  // The CLI values get a strict shape and the two hosts below stay pinned, so
-  // --repo/--path cannot send the request anywhere else (CodeQL js/request-forgery).
+  // Strict shapes for the CLI values, and the hosts pinned (CodeQL js/request-forgery).
   if (!/^[\w.-]+\/[\w.-]+$/.test(opts.repo)) throw new Error(`${opts.repo}: not an owner/repo pair`);
   if (!/^[\w./-]+\.[a-z]+$/.test(opts.path)) throw new Error(`${opts.path}: not a file path`);
   /** @param {string} ref */
@@ -168,8 +133,7 @@ for (const c of list) {
   });
 }
 
-// Smallest AST-size difference first; a tie breaks on how far the two agree
-// before diverging, which separates candidates of coincidentally equal size.
+// Smallest AST-size difference first; a tie breaks on how far the two agree before diverging.
 rows.sort((a, b) => {
   if (a.note) return 1;
   if (b.note) return -1;

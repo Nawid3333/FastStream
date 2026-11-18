@@ -1,21 +1,9 @@
-#!/usr/bin/env node
 // @ts-check
-// Builds a persistent Firefox profile for `web-ext run` with uBlock Origin
-// pre-installed.
-//
-// Why: `web-ext run` creates a throwaway profile with only FastStream in it.
-// Real streaming sites are heavy with ads and overlay players, which makes it
-// hard to tell "FastStream failed to replace the player" from "an ad iframe
-// got in the way". Testing with a blocker matches how the extension is
-// actually used.
-//
-// FastStream itself is NOT installed here — `web-ext run` loads it straight
-// from build_firefox_github/ on every launch, so source changes are reflected
-// as soon as you rebuild.
-//
+// Builds a persistent Firefox profile for web-ext run with uBlock Origin pre-installed.
+// Real streaming sites are full of ads and overlays: testing with a blocker matches real use.
+// FastStream itself is not installed: web-ext run loads it from build_firefox_github/ at each launch.
 //   node tools/setup-dev-profile.mjs      # download + install into .dev-profile
 //   pnpm run start:ff                     # build + launch separate Firefox
-//
 // The profile is gitignored. Delete .dev-profile/ to start clean.
 
 import {createHash} from 'node:crypto';
@@ -25,13 +13,8 @@ import {pipeline} from 'node:stream/promises';
 import {fileURLToPath} from 'node:url';
 
 /**
- * Extensions to preinstall, keyed by their Firefox add-on ID.
- *
- * Each is a release pinned by version and SHA-256, as .github/mpv-build.json pins mpv: the
- * `latest` URL this used put whatever AMO served that day into the profile, unchecked (#177).
- * web-ext turns add-on updates off in the profiles it runs, so the version stays as installed.
- * To move it: https://addons.mozilla.org/api/v5/addons/addon/ublock-origin/ gives
- * current_version.version, .file.url and .file.hash; hash the downloaded file yourself too.
+ * Pinned by version and SHA-256 (web-ext turns add-on updates off).
+ * To move one: AMO's /api/v5/addons/addon/<slug>/ gives current_version's file url and hash; hash the file yourself too.
  */
 export const ADDONS = [
   {
@@ -43,41 +26,29 @@ export const ADDONS = [
   },
 ];
 
-// The repository's, as the launchers use it (tools/launch-ff.mjs): from another folder the
-// profile was made there, and the launchers started a fresh one without the ad blocker.
+// The repository's, as the launchers use it.
 const PROFILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.dev-profile');
 const EXT_DIR = path.join(PROFILE, 'extensions');
 
 /**
- * Prefs that let a sideloaded add-on actually run in a fresh profile.
- * autoDisableScopes=0 is the important one: by default Firefox installs
- * profile-directory add-ons but leaves them disabled pending user approval,
- * which never comes in an automated run.
+ * autoDisableScopes=0: Firefox otherwise leaves profile add-ons disabled pending an approval that never comes.
  */
 const PREFS = [
   ['extensions.autoDisableScopes', 0],
   ['extensions.enabledScopes', 15],
-  // Aggressively prevent the dev browser from claiming to be the default
-  // browser or writing itself into Windows default-app associations.
-  // Without this, a separate Firefox process can steal http/https from the
-  // user's normal Firefox, so VS Code links open in the wrong browser.
+  // The dev browser must never claim http/https from the user's Firefox.
   ['browser.shell.checkDefaultBrowser', false],
   ['browser.shell.skipDefaultBrowserCheckOnFirstRun', true],
   ['browser.shell.didSkipDefaultBrowserCheck', true],
   ['browser.shell.setDefaultBrowserUserChoice', false],
   ['browser.shell.setDefaultAlwaysAsk', false],
   ['browser.startup.homepage_override.mstone', 'ignore'],
-  // Keep the bookmarks toolbar on screen. Firefox 89+ defaults this to
-  // 'newtab', which hides the imported test links as soon as a page loads.
+  // Firefox 89+ hides the bookmarks toolbar ('newtab'), and the test links with it.
   ['browser.toolbars.bookmarks.visibility', 'always'],
   ['datareporting.policy.dataSubmissionEnabled', false],
   ['browser.aboutwelcome.enabled', false],
 ];
 
-/**
- * Default test bookmarks for FastStream playback validation. Firefox will
- * import these automatically when a fresh profile first starts.
- */
 const BOOKMARKS = [
   {
     name: 'DASH test',
@@ -94,13 +65,11 @@ const BOOKMARKS = [
 ];
 
 /**
- * Downloads a URL to a file, following redirects, and keeps the file only when its SHA-256 is
- * the one expected. Anything else is deleted, so the next run downloads it again instead of
- * taking it for "already present".
- * @param {string} url Source URL.
- * @param {string} dest Destination path.
- * @param {string} sha256 The file's expected SHA-256, in hex.
- * @return {Promise<number>} Bytes written.
+ * Keeps the file only when its SHA-256 matches: anything else is deleted, not taken for present next time.
+ * @param {string} url
+ * @param {string} dest
+ * @param {string} sha256
+ * @return {Promise<number>}
  */
 export async function download(url, dest, sha256) {
   const res = await fetch(url, {redirect: 'follow'});
@@ -134,20 +103,13 @@ async function main() {
     console.log(`${(bytes / 1e6).toFixed(1)} MB, SHA-256 checked -> ${path.relative(process.cwd(), dest)}`);
   }
 
-  // user.js is copied into prefs.js on every start, so these survive the
-  // profile changes web-ext writes back.
+  // user.js is copied into prefs.js on every start: these survive what web-ext writes back.
   const userJs = PREFS
       .map(([k, v]) => `user_pref(${JSON.stringify(k)}, ${JSON.stringify(v)});`)
       .join('\n');
   fs.writeFileSync(path.join(PROFILE, 'user.js'), userJs + '\n');
 
-  // Write a bookmarks file that Firefox imports automatically on first run.
-  // The Netscape bookmark format is the simplest portable format that
-  // Firefox still recognises at startup.
-  // PERSONAL_TOOLBAR_FOLDER="true" is what tells Firefox's importer that this
-  // folder is the Bookmarks Toolbar rather than the Bookmarks Menu. Without it
-  // the links import correctly but land in the menu, where they are two clicks
-  // away instead of visible on every new tab.
+  // A Netscape bookmarks file Firefox imports at first start; PERSONAL_TOOLBAR_FOLDER puts it on the toolbar.
   const bookmarkLinks = BOOKMARKS
       .map((b) => `        <DT><A HREF="${escapeHtml(b.url)}" ADD_DATE="0">${escapeHtml(b.name)}</A>`)
       .join('\n');
@@ -170,9 +132,8 @@ ${bookmarkLinks}
 }
 
 /**
- * Minimal HTML escaping for the bookmark file.
- * @param {string} text Raw text.
- * @return {string} Escaped text.
+ * @param {string} text
+ * @return {string}
  */
 function escapeHtml(text) {
   return text

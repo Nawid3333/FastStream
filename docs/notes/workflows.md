@@ -967,3 +967,10 @@ went out unchecked; they are checked. Tests: `privacyCheck.test.mjs`.
 lockfile" when the lockfile held only a prerelease of the package, which it never checks
 against the range; the issue then read as if the alert were fixed. It now names the
 prerelease as not checked. Test: `securityOverrides.test.mjs`.
+
+## Tools: reasons moved out of the code comments (2026-11-18)
+
+### tools/e2e-spec-weights.mjs
+
+- **timesFromLog** - a spec file's time runs from the line before its "PASSED in firefox" (the previous spec's line, or WebdriverIO's "Execution of N workers started at"), never from the step's first line, which gh may label "UNKNOWN STEP".
+- **mergeWeights** - a spec that needed its retry, or that the run did not reach, keeps its old weight; a spec no longer in the suites is dropped.
