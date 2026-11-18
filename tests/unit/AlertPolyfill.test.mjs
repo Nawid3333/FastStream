@@ -47,7 +47,7 @@ describe('AlertPolyfill', () => {
   });
 
   it('clips a deep stack, so the issue\'s address stays within what GitHub takes, and names no install', () => {
-    // glm's review, 2026-11-16: the stack went in whole, and GitHub refused the address (414).
+    // The stack went in whole, and GitHub refused the address (414).
     const error = new Error('Deep');
     error.stack = Array.from({length: 400}, (_, i) =>
       `    at step${i} (moz-extension://0a1b2c3d-1111-2222-3333-444455556666/player/FastStreamClient.mjs:${i}:2)`).join('\n');
@@ -57,8 +57,17 @@ describe('AlertPolyfill', () => {
     expect(new URL(url).searchParams.get('body')).toContain('at step0 (moz-extension://.../player/FastStreamClient.mjs:0:2)');
   });
 
-  // Claude's review of #714: a cut through an emoji, or a lone surrogate in what was thrown,
-  // made encodeURIComponent throw; and 3000 characters of non-Latin text were 27 kB of address.
+  it('names no install in the message either', () => {
+    // Firefox's message for a module that failed to load holds the module's address.
+    const error = new TypeError('error loading dynamically imported module: moz-extension://0a1b2c3d-1111-2222-3333-444455556666/player/x.mjs');
+    error.stack = '';
+    const body = new URL(errorReportURL(error, '1.0')).searchParams.get('body');
+    expect(body).not.toContain('0a1b2c3d');
+    expect(body).toContain('module: moz-extension://.../player/x.mjs');
+  });
+
+  // A cut through an emoji, or a lone surrogate in what was thrown, made encodeURIComponent
+  // throw; and 3000 characters of non-Latin text were 27 kB of address.
   it('reports any text, cut or not, in an address GitHub takes', () => {
     const emoji = new Error('bad \uD83D');
     emoji.stack = 'x'.repeat(2999) + '🎬'.repeat(2000);

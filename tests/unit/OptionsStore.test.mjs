@@ -1,16 +1,21 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
-// OptionsStore.init(): a second call while the first still read the storage got null, and
-// one after a save got the options as first loaded, not as saved since.
-
+// The storage as a stand-in: a read before anything was stored waits for resolveLoad, one
+// after answers what is stored.
 let resolveLoad;
+let stored = null;
 vi.mock('../../chrome/player/utils/Utils.mjs', () => ({
   Utils: {
-    getOptionsFromStorage: vi.fn(() => new Promise((resolve) => {
-      resolveLoad = resolve;
+    getOptionsFromStorage: vi.fn(() => stored ? Promise.resolve(structuredClone(stored)) : new Promise((resolve) => {
+      resolveLoad = (value) => {
+        stored = value;
+        resolve(structuredClone(value));
+      };
     })),
     mergeOptions: (defaults, options) => ({...defaults, ...options}),
-    setConfig: vi.fn(async () => {}),
+    setConfig: vi.fn(async (key, value) => {
+      stored = JSON.parse(value);
+    }),
   },
 }));
 
@@ -18,9 +23,17 @@ let OptionsStore;
 
 beforeEach(async () => {
   vi.resetModules();
+  stored = null;
   vi.stubGlobal('window', {addEventListener: () => {}, postMessage: () => {}, location: {origin: 'https://x'}});
   ({OptionsStore} = await import('../../chrome/player/options/OptionsStore.mjs'));
 });
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('OptionsStore.init', () => {
   it('gives every caller the options, also one that asks while the first load runs', async () => {
@@ -51,15 +64,57 @@ describe('OptionsStore.init', () => {
   });
 });
 
+describe('OptionsStore.replace', () => {
+  beforeEach(async () => {
+    const loaded = OptionsStore.init();
+    resolveLoad({maxSpeed: 5, autoplayNext: true});
+    await loaded;
+  });
+
+  it('keeps a save made elsewhere since the page read the options, and shows it', async () => {
+    // A player's settings, or the background (the mpv switches), saved after this page read
+    // the options: the page wrote its whole copy, and put that save back.
+    stored = {...stored, autoplayNext: false};
+    const listener = vi.fn();
+    OptionsStore.subscribe(listener);
+    await OptionsStore.replace({...OptionsStore.get(), maxSpeed: 7});
+    expect(stored).toMatchObject({maxSpeed: 7, autoplayNext: false});
+    expect(OptionsStore.get()).toMatchObject({maxSpeed: 7, autoplayNext: false});
+    expect(listener.mock.calls[0][0]).toMatchObject({autoplayNext: false});
+  });
+
+  it('writes a change of the page\'s own made in place, as the options page makes them', async () => {
+    const options = OptionsStore.get();
+    options.maxSpeed = 8;
+    await OptionsStore.replace(options);
+    expect(stored.maxSpeed).toBe(8);
+  });
+
+  it('writes two saves one after the other: the second keeps the first', async () => {
+    const first = OptionsStore.replace({...OptionsStore.get(), maxSpeed: 7});
+    const second = OptionsStore.replace({...OptionsStore.get(), autoplayNext: false});
+    await Promise.all([first, second]);
+    expect(stored).toMatchObject({maxSpeed: 7, autoplayNext: false});
+  });
+
+  it('tells its listeners of its own save with the object it gave out, so the page is not redrawn', async () => {
+    const listener = vi.fn();
+    OptionsStore.subscribe(listener);
+    const saving = OptionsStore.replace({...OptionsStore.get(), maxSpeed: 7});
+    const own = OptionsStore.get();
+    await saving;
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener.mock.calls[0][0]).toBe(own);
+  });
+});
+
 // In the extension a save goes to the background (LOAD_OPTIONS), which tells every tab
 // (UPDATE_OPTIONS) with the save's time, the page that saved included; a dragged slider saves
-// once a frame. Only the echo of the latest save was known as the page's own: an earlier one
-// that came after the next save was taken for a change made elsewhere, and the page redrew
-// every keybind row and the search, and put the slider back mid-drag.
+// once a frame. An echo of the page's own save taken for a change made elsewhere redrew every
+// keybind row and the search, and put the slider back mid-drag.
 describe('OptionsStore in the extension', () => {
   let heard;
   let sent;
-  let Utils;
 
   beforeEach(async () => {
     heard = [];
@@ -68,16 +123,9 @@ describe('OptionsStore in the extension', () => {
       extension: {},
       runtime: {sendMessage: (message) => sent.push(message), onMessage: {addListener: (fn) => heard.push(fn)}},
     });
-    ({Utils} = await import('../../chrome/player/utils/Utils.mjs'));
     const loaded = OptionsStore.init();
     resolveLoad({maxSpeed: 5});
     await loaded;
-    Utils.getOptionsFromStorage.mockClear();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
   });
 
   const hear = (time) => heard.forEach((fn) => fn({type: 'UPDATE_OPTIONS', time}));
@@ -95,8 +143,7 @@ describe('OptionsStore in the extension', () => {
 
     hear(1000);
     hear(1016);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(Utils.getOptionsFromStorage).not.toHaveBeenCalled();
+    await settle();
     expect(listener).not.toHaveBeenCalled();
     expect(OptionsStore.get().maxSpeed).toBe(7);
   });
@@ -104,10 +151,32 @@ describe('OptionsStore in the extension', () => {
   it('knows the echoes of two saves in the same millisecond', async () => {
     await saveAt(2000, {maxSpeed: 6});
     await saveAt(2000, {maxSpeed: 7});
+    const listener = vi.fn();
+    OptionsStore.subscribe(listener);
     hear(2000);
     hear(2000);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(Utils.getOptionsFromStorage).not.toHaveBeenCalled();
+    await settle();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('reads a change made elsewhere only after its own save is written', async () => {
+    // Read before the write, it showed the value the page had just replaced.
+    const {Utils} = await import('../../chrome/player/utils/Utils.mjs');
+    let finishWrite;
+    Utils.setConfig.mockImplementationOnce((key, value) => new Promise((resolve) => {
+      finishWrite = () => {
+        stored = JSON.parse(value);
+        resolve();
+      };
+    }));
+    const saving = OptionsStore.replace({...OptionsStore.get(), maxSpeed: 7});
+    await settle();
+    hear(9999);
+    await settle();
+    finishWrite();
+    await saving;
+    await settle();
+    expect(OptionsStore.get().maxSpeed).toBe(7);
   });
 
   it('still shows a change made elsewhere, also one between its own saves and their echoes', async () => {
@@ -115,12 +184,11 @@ describe('OptionsStore in the extension', () => {
     const listener = vi.fn();
     OptionsStore.subscribe(listener);
 
+    stored = {...stored, maxSpeed: 9};
     hear(3050);
     hear(3000);
-    expect(Utils.getOptionsFromStorage).toHaveBeenCalledTimes(1);
-    resolveLoad({maxSpeed: 9});
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(listener).toHaveBeenCalled();
+    await settle();
+    expect(listener).toHaveBeenCalledTimes(1);
     expect(OptionsStore.get().maxSpeed).toBe(9);
   });
 });

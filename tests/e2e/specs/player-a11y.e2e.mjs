@@ -145,13 +145,22 @@ describe('the player\'s controls, for the keyboard and a screen reader', functio
   });
 
   it('leaves Space to the options page\'s fields: a box ticked once, a space typed', async function() {
-    // Its fields are set up as the player's controls are (WebUtils.setupTabIndex).
+    // Enter presses them as it presses the player's controls (WebUtils.setupKeyPress).
     await browser.url('/player/options/index.html?t=' + Date.now());
     await browser.waitUntil(async () => browser.execute(() => document.querySelectorAll('.keybind-container').length > 0),
         {timeout: 30000, timeoutMsg: 'the options page never rendered'});
+    // Announced as what they are: a "button" role hid whether a box is ticked.
+    expect(await browser.execute(() => ['downloadall', 'maxspeed'].map((id) => document.getElementById(id).getAttribute('role'))))
+        .toEqual([null, null]);
     const checked = () => browser.execute(() => /** @type {HTMLInputElement} */ (document.getElementById('downloadall')).checked);
     const before = await checked();
     expect(await tabTo('#downloadall')).toBe(true);
+    await browser.keys('Enter');
+    await browser.pause(200);
+    expect(await checked()).toBe(!before);
+    await browser.keys('Enter');
+    await browser.pause(200);
+    expect(await checked()).toBe(before);
     await browser.keys(' ');
     await browser.pause(200);
     expect(await checked()).toBe(!before);

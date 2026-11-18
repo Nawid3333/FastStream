@@ -88,7 +88,8 @@ export class SubtitleTrack {
   }
 
   /**
-   * Reads a subtitle file's text (WebVTT, SubRip or TTML) into the track's cues.
+   * Reads a subtitle file's text into the track's cues: WebVTT, SubRip, or timed-text XML
+   * (`<text start dur>` cues; not TTML).
    * @param {string} text
    */
   loadText(text) {

@@ -324,7 +324,8 @@ export class StreamLength {
       }
       pos += size;
     }
-    return {next: offset + pos};
+    // A file that ended with no movie header holds none further on.
+    return ended ? null : {next: offset + pos};
   }
 
   /**

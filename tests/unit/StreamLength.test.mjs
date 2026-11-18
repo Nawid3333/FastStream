@@ -142,6 +142,12 @@ describe('StreamLength.fromMp4', () => {
     expect(StreamLength.fromMp4(box('moov', mvhd(0, 600, 600 * 1500)), next)).toEqual({duration: 1500});
   });
 
+  it('points nowhere past the end of a file that ended without a movie header', () => {
+    // A read past the end was one more request for nothing.
+    expect(StreamLength.fromMp4(concat(ftyp, box('free', new Uint8Array(100))), 0, true)).toBeNull();
+    expect(StreamLength.fromMp4(concat(ftyp, boxHeader('mdat', 1000000)), 0, true)).toBeNull();
+  });
+
   it('points past media data of a 64-bit size', () => {
     const start = concat(ftyp, boxHeader64('mdat', 5 * 2 ** 32));
     expect(StreamLength.fromMp4(start)).toEqual({next: ftyp.length + 5 * 2 ** 32});
