@@ -1,7 +1,7 @@
 // A segment whose answer is cut part-way costs a retry, not the video.
 //
 // The first answer for the 4-6 s segment is cut after half its body and the connection reset: the
-// player asks again and plays on.
+// player asks again and plays on. From a server that offers ranges it asks for the rest only.
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -34,6 +34,8 @@ const CASES = [
   // segments the store has no place for were fetched with no retry (DashLoader.request,
   // maxRetry 0), and dash.js did not ask for the failed one again.
   {stream: 'dash-template', manifest: TWO_PERIODS, start: 11, cut: 'chunk-stream1-00002.m4s?p=1', end: 13},
+  // A server that offers ranges: the second request asks from the byte the cut stopped at.
+  {stream: 'hls-fmp4', cut: 'seg-002.m4s', resumable: true},
 ];
 
 /**
@@ -55,6 +57,8 @@ function twoPeriods() {
 }
 /** @type {string} The answer the running case cuts. */
 let cutting = '';
+// Whether the server of the running case answers ranges (Accept-Ranges, 206).
+let resumable = false;
 const CUT_END = 6;
 const TYPES = {'.mpd': 'application/dash+xml', '.m3u8': 'application/vnd.apple.mpegurl'};
 
@@ -62,6 +66,8 @@ describe('An answer cut part-way', function() {
   let server;
   /** @type {Map<string, number>} Requests per path, this test's. */
   const asked = new Map();
+  /** @type {Map<string, Array<?string>>} Each request's Range header, per path. */
+  const rangesAsked = new Map();
 
   before(async function() {
     server = http.createServer((req, res) => {
@@ -82,8 +88,23 @@ describe('An answer cut part-way', function() {
       }
       const count = (asked.get(pathname) || 0) + 1;
       asked.set(pathname, count);
+      rangesAsked.set(pathname, [...(rangesAsked.get(pathname) || []), req.headers.range || null]);
       const data = fs.readFileSync(file);
-      res.writeHead(200, {...headers, 'Content-Type': TYPES[path.extname(name)] || 'video/mp4', 'Content-Length': data.length});
+      const type = TYPES[path.extname(name)] || 'video/mp4';
+      const range = resumable && /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
+      if (resumable) {
+        headers['Accept-Ranges'] = 'bytes';
+        headers['Access-Control-Expose-Headers'] = 'Accept-Ranges, Content-Range';
+      }
+      if (range) {
+        const from = Number(range[1]);
+        const to = range[2] ? Math.min(Number(range[2]), data.length - 1) : data.length - 1;
+        res.writeHead(206, {...headers, 'Content-Type': type, 'Content-Length': to - from + 1,
+          'Content-Range': `bytes ${from}-${to}/${data.length}`});
+        res.end(data.subarray(from, to + 1));
+        return;
+      }
+      res.writeHead(200, {...headers, 'Content-Type': type, 'Content-Length': data.length});
       if (pathname === cutting && count === 1) {
         // Half of it, then the connection goes.
         res.write(data.subarray(0, data.length >> 1), () => res.destroy());
@@ -102,10 +123,12 @@ describe('An answer cut part-way', function() {
     await new Promise((resolve) => server.close(resolve));
   });
 
-  for (const {stream, manifest = STREAMS[stream].manifest, start, cut, end = CUT_END} of CASES) {
-    it(`is asked for again, and the video plays on past it (${manifest}${start ? ` from ${start} s` : ''}, ${cut})`, async function() {
+  for (const {stream, manifest = STREAMS[stream].manifest, start, cut, end = CUT_END, resumable: ranges = false} of CASES) {
+    it(`is asked for again, and the video plays on past it (${manifest}${start ? ` from ${start} s` : ''}, ${cut}${ranges ? ', the rest only' : ''})`, async function() {
       asked.clear();
+      rangesAsked.clear();
       cutting = `/${stream}/${cut}`;
+      resumable = ranges;
       const at = start ? `?faststream-timestamp=${start}` : '';
       await browser.url(`/player/index.html?t=${Date.now()}#${ORIGIN}/${stream}/${manifest}${at}`);
       let state = {time: 0, failed: false};
@@ -129,6 +152,10 @@ describe('An answer cut part-way', function() {
       expect(state.failed).toBe(false);
       expect(state.time).toBeGreaterThan(end + 0.5);
       expect(asked.get(`/${stream}/${cut}`)).toBeGreaterThanOrEqual(2);
+      if (ranges) {
+        const length = fs.statSync(path.join(FIXTURES, stream, cut)).size;
+        expect(rangesAsked.get(`/${stream}/${cut}`)).toEqual([null, `bytes=${length >> 1}-${length - 1}`]);
+      }
     });
   }
 });
