@@ -4,8 +4,7 @@ import {MP4Merger} from './mp4merger.mjs';
 
 export class DASH2MP4 extends EventEmitter {
   /**
-   * @param {(cancel: () => void) => void} [registerCancel] - Called with the function that
-   *   cancels the save.
+   * @param {(cancel: () => void) => void} [registerCancel] - Gets what cancels the save.
    */
   constructor(registerCancel) {
     super();
@@ -15,12 +14,11 @@ export class DASH2MP4 extends EventEmitter {
 
 
   /**
-   * Joins the streams into one MP4 with MP4Merger, or copies them with the remuxer where the
-   * merger gives up.
-   * @param {string|null|undefined} videoMimeType - Passed on to the remuxer, which does not need it.
+   * MP4Merger, else the remuxer where the merger gives up.
+   * @param {string|null|undefined} videoMimeType
    * @param {number} videoDuration - Seconds; 0 without video.
    * @param {?ArrayBufferLike} videoInitSegment - Its init segment; null without one.
-   * @param {string|null|undefined} audioMimeType - As videoMimeType.
+   * @param {string|null|undefined} audioMimeType
    * @param {number} audioDuration - Seconds; 0 without a separate audio track.
    * @param {?ArrayBufferLike} audioInitSegment - Its init segment; null without one.
    * @param {Array<import('./mp4merger.mjs').ZippedFragment>} zippedFragments - The fragments of both tracks, by time.
@@ -34,7 +32,6 @@ export class DASH2MP4 extends EventEmitter {
         mergerProgress = progress;
         this.emit('progress', progress);
       });
-      // Downloaded, the init segments are plain ArrayBuffers.
       return await this.converter.convert(videoDuration, /** @type {?ArrayBuffer} */ (videoInitSegment), audioDuration, /** @type {?ArrayBuffer} */ (audioInitSegment), zippedFragments);
     } catch (e) {
       const mergerErrors = [
@@ -51,12 +48,9 @@ export class DASH2MP4 extends EventEmitter {
         throw e;
       }
 
-      // What the merger cannot join, Mediabunny copies as it is: see remuxer.mjs.
       const {Remuxer} = await import('../remux/remuxer.mjs');
       this.converter = new Remuxer(this.registerCancel);
-      // The remuxer starts again from the first fragment. Its progress fills what is left
-      // after the merger's, so the shown progress does not go back: a merger that gave up
-      // at fragment 200 of 300 showed 66 % and then 0 %.
+      // The remuxer starts again: its progress fills what is left, so progress never goes back.
       this.converter.on('progress', (/** @type {number} */ progress) => {
         this.emit('progress', mergerProgress + (1 - mergerProgress) * progress);
       });
@@ -65,7 +59,7 @@ export class DASH2MP4 extends EventEmitter {
   }
 
   /**
-   * Closes the blob store the saved file reads from: see MP4Merger.release().
+   * See MP4Merger.release().
    * @param {boolean} [removeFiles] - Its files on disk go too.
    */
   release(removeFiles = false) {

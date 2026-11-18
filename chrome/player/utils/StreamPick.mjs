@@ -4,35 +4,27 @@ import {STILLS_LENGTH, StreamLength} from './StreamLength.mjs';
 
 const STREAMING_MODES = [PlayerModes.ACCELERATED_HLS, PlayerModes.ACCELERATED_DASH];
 
-// A video's length and a stream's match within this many seconds, or this share of the
-// length when that is more. Both come from the same manifest or movie header: an MSE player
-// (hls.js, Shaka, dash.js) sets its video's length from the manifest's total, and the media
-// it appends may run a little past it. Another episode is seconds shorter or longer.
+// The media an MSE player appends may run a little past the manifest's total; another
+// episode is seconds shorter or longer.
 const MATCH_S = 3;
 const MATCH_SHARE = 0.0025;
 
-// When a stream this many times as long as the page's video plays, or any longer one while
-// the video runs less than SHORT_S, the video is as likely as not an ad, a trailer or a
-// preview (they run a few minutes at most), and the longest decides, as it did before.
+// Beside a stream this many times as long, or a short video beside any longer one, the video
+// is as likely an ad or a trailer: the longest decides.
 const DWARF_RATIO = 5;
 export const SHORT_S = 180;
 
 /**
- * Which of a page's streams its video plays: the one FastStream replaced, or the one the
- * user started. The player plays that stream, not the page's longest, when it can tell: a
- * page may load the next episode, or another stream as long, beside the video the user
- * watches. Never over a far longer stream, nor a short video over any longer one: then
- * the longest plays, as it did before.
+ * Which of a page's streams its video plays: a page may load the next episode, or another
+ * stream as long, beside the video the user watches.
  */
 export class StreamPick {
   /**
-   * The streams the page's video plays.
    * @template {{url: string, duration?: number|null}} T
-   * @param {T[]} sources - Detected sources, each with its length in seconds, when known.
-   * @param {?{src?: string, duration?: number|null}|undefined} video - What the video plays: its URL,
-   *   for a file it plays itself (not a blob:), and its length in seconds (content.js).
-   * @return {T[]|null} Those of the sources, or null when the video tells none of them:
-   *   then the longest play, as StreamLength.longest tells them.
+   * @param {T[]} sources - Each with its length in seconds, when known.
+   * @param {?{src?: string, duration?: number|null}|undefined} video - Its URL (not a blob:)
+   *   and its length in seconds (content.js).
+   * @return {T[]|null} Null when the video tells none of them: then the longest play.
    */
   static played(sources, video) {
     if (!video) {
@@ -43,7 +35,6 @@ export class StreamPick {
     let length = StreamPick.lengthOf(video.duration);
     let played = src ? sources.filter((source) => source.url === src) : [];
     if (played.length > 0) {
-      // Its file: the length read from it, when there is one.
       length = StreamPick.lengthOf(played[0].duration) ?? length;
     } else if (length !== null) {
       played = sources.filter((source) => StreamPick.sameLength(source.duration, /** @type {number} */ (length)));
@@ -53,7 +44,7 @@ export class StreamPick {
     }
 
     if (length === null) {
-      // How long it runs is not known: it decides only among the longest.
+      // Length unknown: it decides only among the longest.
       const longest = StreamLength.longest(sources);
       played = played.filter((source) => longest.includes(source));
       return played.length > 0 ? played : null;
@@ -63,15 +54,12 @@ export class StreamPick {
   }
 
   /**
-   * Whether a video of this length is as likely as not an ad, a trailer or a preview beside
-   * the sources: one of them runs DWARF_RATIO times as long, or the video is short and one
-   * runs plainly longer. Then the longest decides.
-   * @param {Array<{duration?: number|null}>} sources - Detected sources, with their lengths.
+   * Whether a video of this length is as likely an ad or a trailer beside the sources.
+   * @param {Array<{duration?: number|null}>} sources
    * @param {number|null} length - The video's length in seconds; null when not known.
    * @return {boolean}
    */
   static outrun(sources, length) {
-    // Nothing runs longer than a live stream; an unknown length tells nothing.
     if (length === null || length === Infinity) {
       return false;
     }
@@ -83,8 +71,7 @@ export class StreamPick {
   }
 
   /**
-   * Whether a stream is plainly another video than the one played: both lengths known and
-   * finite, and apart by more than sameLength allows. A live or unread length tells nothing.
+   * Whether a stream is plainly another video: both lengths known, finite and apart.
    * @param {?{duration?: number|null}} video - What the video plays (content.js).
    * @param {number|null|undefined} length - The stream's length in seconds, when read.
    * @return {boolean}
@@ -99,26 +86,20 @@ export class StreamPick {
   }
 
   /**
-   * The stream to play among the candidates (played, else longest): the one at the lowest
-   * depth, a streaming one (HLS, DASH) over a file there, else the first the page loaded;
-   * an MP4 file is the newest MP4 at the lowest depth. That newest was taken from the other
-   * files alone, so a deeper one replaced a pick at the lowest depth (this review,
-   * 2026-10-13; moved here from main.mjs to be tested).
+   * The one at the lowest depth, a streaming one over a file there, else the first the page
+   * loaded; an MP4 file is the newest MP4 at the lowest depth.
    * @template {{mode: string, depth?: number, time?: number}} T
    * @param {T[]} candidates - Not empty.
    * @return {T}
    */
   static pick(candidates) {
     let picked = candidates.reduce((result, curr) => {
-      // Lower depth first, either way round: a file at depth 0 and a deeper stream gave the
-      // stream in one detection order and the file in the other (glm, r5-04; 2026-10-14).
       if (/** @type {number} */ (result.depth) > /** @type {number} */ (curr.depth)) {
         return curr;
       }
       if (/** @type {number} */ (result.depth) < /** @type {number} */ (curr.depth)) {
         return result;
       }
-      // Then a streaming one over a file, at one depth.
       if (!STREAMING_MODES.includes(result.mode) && STREAMING_MODES.includes(curr.mode)) {
         return curr;
       }
@@ -128,11 +109,9 @@ export class StreamPick {
     if (picked && picked.mode === PlayerModes.ACCELERATED_MP4) {
       const files = candidates.filter((item) => item.mode === PlayerModes.ACCELERATED_MP4);
       files.sort((a, b) => {
-        // Lower depth is better.
         if (a.depth !== b.depth) {
           return /** @type {number} */ (a.depth) - /** @type {number} */ (b.depth);
         }
-        // Newer is better.
         return /** @type {number} */ (b.time) - /** @type {number} */ (a.time);
       });
       picked = files[0];
@@ -141,15 +120,12 @@ export class StreamPick {
   }
 
   /**
-   * The streams to try in turn should the one picked fail to load: the others it was
-   * picked from, never a playlist of stills; at the lowest depth first, then a streaming
-   * one (HLS, DASH) before a file, else in the order the page loaded them. Only those: a
-   * shorter stream is likelier an ad than the video, and failing shows the list to pick
-   * from by hand.
+   * The streams to try should the pick fail: only the others it was picked from (a shorter
+   * one is likelier an ad), never stills; lowest depth, then streaming ones, first.
    * @template {{mode: string, depth?: number, duration?: number|null}} T
    * @param {T[]} candidates - The streams the pick chose among (played, else longest).
-   * @param {T} picked - The one it chose.
-   * @return {T[]} The others, in the order to try them.
+   * @param {T} picked
+   * @return {T[]}
    */
   static fallbacks(candidates, picked) {
     /** @type {(source: T) => number} */
@@ -160,10 +136,9 @@ export class StreamPick {
   }
 
   /**
-   * Whether a stream's length is a video's.
    * @param {number|null|undefined} duration - The stream's length in seconds, when known.
    * @param {number} length - The video's (a number over 0, or Infinity when live).
-   * @return {boolean} Whether they match.
+   * @return {boolean}
    */
   static sameLength(duration, length) {
     if (StreamPick.lengthOf(duration) === null) {
@@ -176,7 +151,6 @@ export class StreamPick {
   }
 
   /**
-   * A length, when it is one.
    * @param {*} value - Seconds, maybe.
    * @return {number|null} The seconds (a number over 0, or Infinity), or null.
    */

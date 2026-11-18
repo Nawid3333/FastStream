@@ -19,10 +19,8 @@ export const SpecialHeaders = [
 ];
 
 /**
- * What RequestUtils.request() resolves with: the parts of an XMLHttpRequest its callers
- * read, filled from a fetch(). status is 0 when
- * the request failed outright - a network error, a refused request, a body cut off - as an
- * XMLHttpRequest's was.
+ * The parts of an XMLHttpRequest the callers read, filled from a fetch(). status is 0 when the
+ * request failed outright (network error, refused, body cut off), as an XMLHttpRequest's was.
  */
 export class RequestResult {
   /** @param {string} responseType - '' or 'text', 'json', 'arraybuffer' or 'blob'. */
@@ -38,8 +36,7 @@ export class RequestResult {
   }
 
   /**
-   * The body as text, for a text response; like XMLHttpRequest's, it throws for any other
-   * responseType.
+   * Throws for a responseType other than text, like XMLHttpRequest's.
    * @return {string}
    */
   get responseText() {
@@ -51,7 +48,7 @@ export class RequestResult {
 
   /**
    * @param {string} name
-   * @return {?string} The header's value, null when there is none.
+   * @return {?string}
    */
   getResponseHeader(name) {
     return this.headers ? this.headers.get(name) : null;
@@ -69,7 +66,6 @@ export class RequestResult {
 }
 
 /**
- * Reads a response's body piece by piece, telling onProgress how far it got.
  * @param {Response} response
  * @param {(progress: {loaded: number, total: number, lengthComputable: boolean}) => void} onProgress
  * @return {Promise<Response>} The whole body, readable as text, ArrayBuffer or Blob again.
@@ -90,13 +86,9 @@ async function readWithProgress(response, onProgress) {
   return new Response(new Blob(chunks), {headers: response.headers});
 }
 
-/**
- * Utility functions for HTTP requests and header manipulation.
- */
 export class RequestUtils {
   /**
-   * Splits headers into special and regular headers for custom handling.
-   * @param {Object<string, (string|boolean)>} headers - The headers object.
+   * @param {Object<string, (string|boolean)>} headers
    * @return {{customHeaderCommands: FSHeaderCommand[], regularHeaders: Object<string, (string|boolean)>}} The
    *   special headers as commands for a header rule, and the rest.
    */
@@ -112,7 +104,6 @@ export class RequestUtils {
         if (headers[header] === false) {
           customHeaderCommands.push({operation: 'remove', header});
         } else {
-          // false removes a header; any other is its text.
           customHeaderCommands.push({operation: 'set', header, value: /** @type {string} */ (headers[header])});
         }
       } else {
@@ -122,23 +113,20 @@ export class RequestUtils {
     return {customHeaderCommands, regularHeaders};
   }
   /**
-   * Makes an HTTP request with fetch() and various options.
-   * @param {Object} options - Request options.
-   * @param {string} options.url - The request URL.
-   * @param {string} [options.method] - HTTP method (GET, POST, etc.).
+   * @param {Object} options
+   * @param {string} options.url
+   * @param {string} [options.method]
    * @param {string} [options.type] - Alias for method.
-   * @param {Object<string, string>} [options.headers] - Headers to set.
-   * @param {QueryParams} [options.query] - Query parameters.
-   * @param {string} [options.responseType] - Response type: '' or 'text', 'json',
-   *   'arraybuffer' or 'blob'.
-   * @param {{start: number, end: number}} [options.range] - Byte range for partial requests.
-   * @param {(progress: {loaded: number, total: number, lengthComputable: boolean}) => void} [options.onProgress] - Progress callback, with {loaded, total,
-   *   lengthComputable} for each piece of the body.
-   * @param {boolean} [options.usePlusForSpaces] - Use plus for spaces in query.
-   * @param {any} [options.data] - Data to send in the request body.
+   * @param {Object<string, string>} [options.headers]
+   * @param {QueryParams} [options.query]
+   * @param {string} [options.responseType] - '' or 'text', 'json', 'arraybuffer' or 'blob'.
+   * @param {{start: number, end: number}} [options.range]
+   * @param {(progress: {loaded: number, total: number, lengthComputable: boolean}) => void} [options.onProgress]
+   * @param {boolean} [options.usePlusForSpaces]
+   * @param {any} [options.data]
    * @param {any} [options.body] - Alias for data.
-   * @param {Array<Object>} [options.header_commands] - Custom header commands for extension.
-   * @return {Promise<RequestResult>} Resolves with what the request got, failed or not.
+   * @param {Array<Object>} [options.header_commands]
+   * @return {Promise<RequestResult>} Resolves failed or not.
    */
   static async request(options) {
     const responseType = options.responseType || '';
@@ -169,7 +157,6 @@ export class RequestUtils {
     }
 
     if (options.header_commands && EnvUtils.isExtension()) {
-      // A refusal rejects request(), as it did.
       await chrome.runtime.sendMessage({
         type: MessageTypes.SET_HEADERS,
         url: options.url,
@@ -183,7 +170,7 @@ export class RequestUtils {
       const response = await fetch(options.url + query, {
         method,
         headers,
-        // XMLHttpRequest dropped a body for GET and HEAD; fetch() refuses one.
+        // fetch() refuses a body for GET and HEAD.
         body: /^(GET|HEAD)$/i.test(method) ? undefined : (options.data || options.body),
       });
       result.status = response.status;
@@ -198,7 +185,6 @@ export class RequestUtils {
       } else {
         const text = await body.text();
         if (responseType === 'json') {
-          // As XMLHttpRequest's: null for a body that is not JSON.
           try {
             result.response = JSON.parse(text);
           } catch (e) {
@@ -209,20 +195,15 @@ export class RequestUtils {
         }
       }
     } catch (e) {
-      // A network error, a refused request or a body cut off: what XMLHttpRequest gave, a
-      // status of 0 and no response, for the caller to check like any other status.
       result.status = 0;
       result.response = null;
     }
     return result;
   }
   /**
-   * Makes a simple HTTP request and returns what it got.
    * @param {{url: string, method?: string, type?: string, headers?: Object<string, string>, query?: QueryParams, responseType?: string, range?: {start: number, end: number}, onProgress?: (progress: {loaded: number, total: number, lengthComputable: boolean}) => void, usePlusForSpaces?: boolean, data?: *, body?: *, header_commands?: Array<Object>}|string} details - Request details or URL string.
-   * @param {Function} [callback] - Optional callback(error, xhr, body): body is the
-   *   responseText, or with a details.responseType other than text, the response.
-   * @return {Promise<RequestResult|undefined>} Resolves with request()'s result, undefined when
-   *   request() threw.
+   * @param {Function} [callback] - callback(error, xhr, body).
+   * @return {Promise<RequestResult|undefined>} Undefined when request() threw.
    */
   static async requestSimple(details, callback) {
     if (typeof details === 'string') {
@@ -230,7 +211,6 @@ export class RequestUtils {
         url: details,
       };
     }
-    // use request()
     let xhr;
     try {
       xhr = await this.request(details);
@@ -240,7 +220,6 @@ export class RequestUtils {
       return xhr;
     }
 
-    // check error
     if (xhr.status !== 200 && xhr.status !== 206) {
       if (callback) {
         callback(new Error(`Bad status code: ${xhr.status}`), xhr, false);
@@ -248,7 +227,6 @@ export class RequestUtils {
       return xhr;
     }
 
-    // success (responseText throws for any responseType but text)
     if (callback) {
       callback(undefined, xhr, xhr.responseType === '' || xhr.responseType === 'text' ? xhr.responseText : xhr.response);
     }

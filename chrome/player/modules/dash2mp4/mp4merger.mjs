@@ -10,26 +10,20 @@ import {SaveFile} from '../SaveFile.mjs';
 /** @typedef {import('../mp4box/mp4box.all.mjs').MP4BoxBuffer} MP4BoxBuffer */
 
 /**
- * mp4box's trak box, which it does not export by name.
  * @typedef {ISOFile['moov']['traks'][number]} TrakBox
  */
 
 /**
- * A sample as MP4Generator writes it (createMp4Sample).
  * @typedef {ReturnType<typeof createMp4Sample>} OutputSample
  */
 
 /**
- * One fragment's part of a track (pushFragment): its samples, where its mdat goes in the
- * file, and its times in the track's timescale.
+ * One fragment's part of a track; times in the track's timescale.
  * @typedef {{id: number, samples: Array<OutputSample>, samplesDuration: number, offset: number,
  *   originalOffset: number, startPTS: number, endPTS: number, baseDecodeTime: number}} MergerChunk
  */
 
 /**
- * A track of the file (makeVideoTrack, makeAudioTrack), as MP4Generator writes it: the
- * source's track ID, timescale, trex boxes and sample entry, the chunks the fragments add,
- * and what finalize() works out from them.
  * @typedef {{type: 'video'|'audio', id: number, sourceTrackId: number, timescale: number,
  *   duration: number, samples: Array<OutputSample>, chunks: Array<MergerChunk>,
  *   presentedDuration?: number,
@@ -40,8 +34,7 @@ import {SaveFile} from '../SaveFile.mjs';
  */
 
 /**
- * A fragment to save, in time order (DashPlayer.saveVideo): its track (0 the video, 1 the
- * audio), and what reads its data.
+ * track: 0 the video, 1 the audio.
  * @typedef {{track: number, fragment: import('../../players/dash/DashFragment.mjs').DashFragment,
  *   getEntry: (options?: {keepPinned?: boolean}) => ReturnType<typeof import('../../players/SaveFragmentFetcher.mjs').savedEntry>}} ZippedFragment
  */
@@ -51,19 +44,12 @@ const AudioCodecs = ['mp4a', 'ac-3', 'ac-4', 'ec-3', 'Opus', 'mha1', 'mha2', 'mh
 
 export class MP4Merger extends EventEmitter {
   /**
-   * @param {(cancel: () => void) => void} [registerCancel] - Hands over what cancels the save.
+   * @param {(cancel: () => void) => void} [registerCancel]
    */
   constructor(registerCancel) {
     super();
     this.blobManager = new FSBlob();
-    // Each fragment's media goes into one file on disk as it is read (OPFS), as an HLS
-    // save's does, and the saved file is that one behind the moov; staged in this blob store
-    // where there is no OPFS (SaveFile). It kept a slice of each fragment's own Blob (the
-    // player's store) until the end and wrote the file only then: the player lets go of a
-    // fragment once the save read it, and a slice of a File it freed meanwhile (a quality
-    // change, the buffer moving on) read nothing - the copy failed, and its fallback handed
-    // the download a Blob of the same dead slices behind a "Save complete". Slices of Blobs
-    // in RAM kept the whole video there, past the RAM budget.
+    // Each fragment's media goes to disk as it is read: the player may free its own copy meanwhile.
     this.file = new SaveFile(this.blobManager, 'merge');
     if (registerCancel) {
       registerCancel(() => {
@@ -77,12 +63,8 @@ export class MP4Merger extends EventEmitter {
   }
 
   /**
-   * Picks the track a set of samples belongs to.
-   *
-   * Track IDs only mean anything within the initialization segment that declared them,
-   * so two separately-delivered tracks may well share one. They are therefore only
-   * trusted to tell tracks apart when a single fragment carries more than one.
-   *
+   * Track IDs are trusted only within one fragment carrying several tracks: separately
+   * delivered tracks may share one.
    * @param {number} trackId - The track ID the fragment names.
    * @param {number} trackCount - How many tracks the fragment carries.
    * @param {MergerTrack} defaultTrack - The track the fragment was queued against.
@@ -99,21 +81,18 @@ export class MP4Merger extends EventEmitter {
   }
 
   /**
-   * A fragment's data, from the store.
    * @param {ZippedFragment} fragData
    * @return {Promise<*>} Its bytes (an ArrayBuffer of its own).
    */
   async readFragment(fragData) {
     const entry = await fragData.getEntry();
-    // getDataFromBlob, not getData and BlobManager: it tells the store a read of data it
-    // lost, and the save downloads the fragment again (savedEntry).
+    // getDataFromBlob tells the store of data it lost, and the save downloads it again.
     return entry.getDataFromBlob('arraybuffer');
   }
 
   /**
-   * Adds a fragment's samples to its track, and its mdat to the file's data.
    * @param {MergerTrack} defaultTrack - The track the fragment was queued against.
-   * @param {ZippedFragment} fragData - The fragment.
+   * @param {ZippedFragment} fragData
    * @param {*} data - Its bytes (readFragment).
    * @return {Promise<void>}
    */
@@ -134,9 +113,7 @@ export class MP4Merger extends EventEmitter {
 
     const moof = mp4boxfile.moofs[0];
     const mdat = mdats[0];
-    // A muxed fragment describes one track per traf and indexes each of them
-    // separately, both keyed by the track ID.
-    // A sidx box's fields (mp4box's sidxBox, which it does not export by name).
+    // A muxed fragment has one traf and one sidx per track, keyed by track ID.
     const sidxs = /** @type {Array<import('../mp4box/mp4box.all.mjs').Box & {reference_ID: number, earliest_presentation_time: number}>} */ (mp4boxfile.boxes.filter((box) => box.type === 'sidx'));
     const sampleLists = mp4boxfile.getSampleList(moof, defaultTrack.trexs);
 
@@ -148,10 +125,8 @@ export class MP4Merger extends EventEmitter {
 
       const traf = moof.trafs.find((candidate) => candidate.tfhd.track_id === samplesList.track_id);
       const baseDecodeTime = traf?.tfdt?.baseMediaDecodeTime || 0;
-      // A sidx says which track it indexes and counts in that track's timescale. Only a
-      // fragment with a single track can lend its lone sidx to that track unchecked; in a
-      // muxed one it would give the other track a start time in the wrong timescale, so
-      // that track falls back to its own decode time.
+      // A sidx counts in its own track's timescale: only a single-track fragment lends its
+      // lone sidx unchecked.
       const sidx = sidxs.length > 1 || sampleLists.length > 1 ?
         sidxs.find((box) => box.reference_ID === samplesList.track_id) :
         sidxs[0];
@@ -175,9 +150,7 @@ export class MP4Merger extends EventEmitter {
         throw new Error('Sample duration is zero!');
       }
 
-      // The mdat is copied whole, so each track's samples keep their distance into it.
-      // In a muxed fragment one track's samples follow the other's rather than starting
-      // right after the box header, which is why this is measured and not assumed.
+      // Measured, not assumed: in a muxed mdat one track's samples follow the other's.
       const offset = /** @type {number} */ (this.datasOffset) + (samplesList.samples[0].offset - /** @type {number} */ (mdat.start));
 
       track.chunks.push({
@@ -193,19 +166,15 @@ export class MP4Merger extends EventEmitter {
     });
 
     /** @type {number} */ (this.datasOffset) += mdat.size;
-    // The whole mdat box, from this save's own copy of the fragment: nothing of the player's
-    // store is kept (SaveFile). subarray, as the Blob slice before it, stops at the data's end.
-    // The buffer is the save's alone (readFragment) and nothing here reads it after this: it
-    // goes to the disk as it is, not copied (ownsBuffer).
+    // The buffer is the save's own (readFragment): it goes to disk as it is, not copied.
     const start = /** @type {number} */ (mdat.start);
     await this.file.add(new Uint8Array(/** @type {ArrayBuffer} */ (data)).subarray(start, start + mdat.size), true);
   }
 
   /**
-   * Builds the video track an initialization segment describes.
    * @param {ISOFile} file - The parsed initialization segment.
-   * @param {number} duration - The track's duration, in seconds.
-   * @return {?MergerTrack} The track, or null if the segment has no usable video.
+   * @param {number} duration - Seconds.
+   * @return {?MergerTrack} Null if the segment has no usable video.
    */
   makeVideoTrack(file, duration) {
     const found = findTrack(file, VideoCodecs);
@@ -236,10 +205,9 @@ export class MP4Merger extends EventEmitter {
   }
 
   /**
-   * Builds the audio track an initialization segment describes.
    * @param {ISOFile} file - The parsed initialization segment.
-   * @param {number} duration - The track's duration, in seconds.
-   * @return {?MergerTrack} The track, or null if the segment has no usable audio.
+   * @param {number} duration - Seconds.
+   * @return {?MergerTrack} Null if the segment has no usable audio.
    */
   makeAudioTrack(file, duration) {
     const found = findTrack(file, AudioCodecs);
@@ -266,8 +234,6 @@ export class MP4Merger extends EventEmitter {
   }
 
   /**
-   * Makes the tracks the init segments describe: a video track for a video duration, an
-   * audio track for an audio one (or from the video's segment, when that muxes both).
    * @param {number} videoDuration - Seconds; 0 without video.
    * @param {?ArrayBuffer} videoInitSegment - Its init segment; null without one.
    * @param {number} audioDuration - Seconds; 0 without a separate audio track.
@@ -286,8 +252,7 @@ export class MP4Merger extends EventEmitter {
         throw new Error('Video codec not supported!');
       }
 
-      // With no separate audio rendition the video may be muxed, in which case the one
-      // initialization segment describes both tracks and every fragment carries both.
+      // No separate audio: the video may be muxed.
       if (!audioDuration) {
         this.audioTrack = this.makeAudioTrack(file, videoDuration);
       }
@@ -302,7 +267,6 @@ export class MP4Merger extends EventEmitter {
       }
     }
 
-    // Where the next mdat goes, after the init segment.
     this.datasOffset = 0;
   }
 
@@ -322,8 +286,7 @@ export class MP4Merger extends EventEmitter {
     }
     const len = tracks[0].chunks.length;
 
-    // Tracks need not start together, and each keeps its own timescale, so the shared
-    // starting point has to be found in seconds rather than in raw timestamps.
+    // In seconds: each track keeps its own timescale.
     let minStart = Infinity;
 
     for (let i = 0; i < tracks.length; i++) {
@@ -340,13 +303,10 @@ export class MP4Merger extends EventEmitter {
 
       const start = track.chunks[0].startPTS / track.timescale;
       const end = track.chunks[track.chunks.length - 1].endPTS / track.timescale;
-      // Rounded before it is tested, so that tracks which start together but count in
-      // different timescales are not given an edit that lasts no time at all.
+      // Rounded first: no zero-length edit for tracks that start together.
       const delay = Math.round((start - minStart) * movieTimescale);
 
-      // Samples are written starting at media time zero, so a track that begins later
-      // than the others is held back by an empty edit. Expressing the delay as a
-      // media_time instead would skip into the media rather than postpone it.
+      // An empty edit delays a later track; a media_time would skip into it instead.
       if (delay > 0) {
         track.elst.push({
           media_time: -1,
@@ -354,28 +314,19 @@ export class MP4Merger extends EventEmitter {
         });
       }
 
-      // Samples are written from decode time zero, so a track that composes out of
-      // decode order presents its first frame a little after that. Starting the edit
-      // any earlier points it at a frame that is not there and the first one is lost.
-      // Media times are counted in the track's own timescale.
+      // Out of decode order, the first frame presents a little after decode time zero.
       const firstPresented = firstPresentedTime(track.chunks[0]);
-      // The chunks' ends are decode times. A stream cut in decode order (a recording that
-      // stopped inside a group of pictures) can show a frame after that: the edit stopped
-      // short of it, and players left the frame out.
+      // A stream cut inside a group of pictures shows a frame after the last decode time.
       const presented = (lastPresentedEnd(track.chunks) - firstPresented) / track.timescale;
       track.elst.push({
         media_time: firstPresented,
         segment_duration: Math.round(Math.max(end - start, presented) * movieTimescale),
       });
 
-      // flatMap, not push(...samples): a spread of a very long chunk's samples can pass the
-      // engine's argument limit and throw a RangeError.
+      // Not push(...samples): a long spread passes the engine's argument limit.
       track.samples = track.chunks.flatMap((chunk) => chunk.samples);
 
-      // The track's own length (mdhd): its samples one after the other, the holes of a
-      // partial save padded (pushFragment). What its edits present goes in the tkhd, the
-      // longest in the mvhd. The period's length was written in all three, and Firefox, which
-      // takes the duration from the moov, said a 10 minute save of an hour lasted an hour.
+      // mdhd: the samples' sum; tkhd: what the edits present; mvhd: the longest.
       track.duration = track.samples.reduce((sum, sample) => sum + sample.duration, 0) / track.timescale;
       track.presentedDuration = track.elst.reduce((sum, edit) => sum + edit.segment_duration, 0) / movieTimescale;
     });
@@ -409,29 +360,23 @@ export class MP4Merger extends EventEmitter {
       initSeg = MP4.initSegment(tracks);
     }
 
-    // The moov in front of the media, which is on disk already (or staged where there is
-    // no OPFS: a private window). It stays until release(), with the blob store.
     return this.file.finish(initSeg);
   }
   /**
    * @param {number} videoDuration - Seconds; 0 without video.
-   * @param {?ArrayBuffer} videoInitSegment - Its init segment; null without one.
+   * @param {?ArrayBuffer} videoInitSegment
    * @param {number} audioDuration - Seconds; 0 without a separate audio track.
-   * @param {?ArrayBuffer} audioInitSegment - Its init segment; null without one.
+   * @param {?ArrayBuffer} audioInitSegment
    * @param {Array<ZippedFragment>} zippedFragments - The fragments of both tracks, by time.
-   * @return {Promise<Blob>} The MP4 file: the moov in front of its media (SaveFile.finish).
+   * @return {Promise<Blob>}
    */
   async convert(videoDuration, videoInitSegment, audioDuration, audioInitSegment, zippedFragments) {
     try {
-      // Inside the try: setup() throws for a codec or packaging this merger cannot
-      // handle, which is what sends the caller to the remux fallback, and the
-      // OPFS save the constructor began has to be closed on that path as well.
+      // Inside the try: the save the constructor began must close when setup() throws too.
       this.setup(videoDuration, videoInitSegment, audioDuration, audioInitSegment);
 
       let lastProgress = 0;
-      // The next fragment is read from the store (RAM, or OPFS through its worker) while this
-      // one converts: one after the other, each waited for the other. One fragment more held.
-      // A read that fails meanwhile is the next round's error, not an unhandled rejection.
+      // The next fragment is read while this one converts; its failure is the next round's error.
       let next = zippedFragments.length ? this.readFragment(zippedFragments[0]) : null;
       for (let i = 0; i < zippedFragments.length; i++) {
         if (this.cancelled) {
@@ -440,8 +385,6 @@ export class MP4Merger extends EventEmitter {
         const read = await next;
         next = i + 1 < zippedFragments.length ? this.readFragment(zippedFragments[i + 1]) : null;
         next?.catch(() => {});
-        // setup made the track of each duration given: a track's fragments come with its
-        // duration (DashPlayer.saveVideo).
         if (zippedFragments[i].track === 0) {
           await this.pushFragment(/** @type {MergerTrack} */ (this.videoTrack), zippedFragments[i], read);
         } else {
@@ -458,12 +401,7 @@ export class MP4Merger extends EventEmitter {
       this.destroy();
       return blob;
     } catch (e) {
-      // A cancellation or a mux failure (bad fragment, mp4box parse error)
-      // both leave a live OPFS-backed blobManager behind if nothing closes
-      // it - unlike the success path, there's no result that still needs
-      // to read from it, so close it right away rather than deferring. The
-      // file on disk goes first, as an HLS save's does: only the store was
-      // closed, and the file stayed until the session was pruned.
+      // Nothing will read the result: close the store at once, its file on disk first.
       await this.file.abort();
       this.destroy(/* immediate */ true);
       throw e;
@@ -471,8 +409,7 @@ export class MP4Merger extends EventEmitter {
   }
 
   /**
-   * @param {boolean} [immediate] - Closes the blob store too (a save that failed): nothing
-   *   will read from it.
+   * @param {boolean} [immediate] - Closes the blob store too (a save that failed).
    */
   destroy(immediate) {
     if (this.destroyed) return;
@@ -482,33 +419,25 @@ export class MP4Merger extends EventEmitter {
     this.audioTrack = null;
     this.datasOffset = 0;
 
-    // After a save that worked, the file convert() returned reads from the blob store:
-    // it stays until release().
     if (immediate) {
       this.release(/* removeFiles */ true);
     }
   }
 
   /**
-   * Closes the blob store the saved file reads from, once nothing will read the file
-   * again (SaveManager: its URL dropped and the download of it over). It was closed two
-   * minutes after the save, and a closed OPFS session is deleted by the next player or
-   * save that starts: a longer download, or the same file saved again, lost it.
-   * @param {boolean} [removeFiles] - Its files on disk go too: Firefox said every download of
-   *   the file is over, or the save failed. Otherwise they stay for the next prune.
+   * Closes the blob store the saved file reads from, once nothing will read it again.
+   * @param {boolean} [removeFiles] - Its files on disk go too; else they stay for the next prune.
    */
   release(removeFiles = false) {
     const blobManager = this.blobManager;
-    // The last use of it: nothing reads the store once it is released.
     this.blobManager = /** @type {any} */ (null);
     blobManager?.close(removeFiles);
   }
 }
 
 /**
- * The earliest time a chunk presents anything, counted from its own first decode time.
- * @param {MergerChunk} chunk - A chunk of samples.
- * @return {number} The composition time of its first presented sample.
+ * @param {MergerChunk} chunk
+ * @return {number} The composition time of its first presented sample, from its first decode time.
  */
 function firstPresentedTime(chunk) {
   let decodeTime = 0;
@@ -526,9 +455,8 @@ function firstPresentedTime(chunk) {
 }
 
 /**
- * When a track's last shown frame ends, counted as firstPresentedTime() counts: from decode
- * time zero, in the track's timescale, over all its chunks.
- * @param {Array<MergerChunk>} chunks - The track's chunks, in order.
+ * When the last shown frame ends, from decode time zero, in the track's timescale.
+ * @param {Array<MergerChunk>} chunks - In order.
  * @return {number}
  */
 function lastPresentedEnd(chunks) {
@@ -546,15 +474,12 @@ function lastPresentedEnd(chunks) {
 }
 
 /**
- * Parses an initialization segment.
- * @param {?ArrayBuffer} buffer - The segment (setup's); a null one throws a TypeError here,
- *   not one of the merger's errors that send the save to the remuxer.
+ * @param {?ArrayBuffer} buffer - A null one throws a TypeError, not a merger error (no remux fallback).
  * @param {string} what - 'Video' or 'Audio', for the error a caller may recover from.
- * @return {ISOFile} The parsed file.
+ * @return {ISOFile}
  */
 function parseInitSegment(buffer, what) {
   const file = createFile(false);
-  // An MP4BoxBuffer from here on: mp4box reads it from fileStart.
   /** @type {MP4BoxBuffer} */ (buffer).fileStart = 0;
   file.appendBuffer(/** @type {MP4BoxBuffer} */ (buffer));
   file.flush();
@@ -567,14 +492,10 @@ function parseInitSegment(buffer, what) {
 }
 
 /**
- * Finds the track whose sample description names one of the given codecs.
- *
- * Which track an initialization segment lists first is up to whatever muxed it, so a
- * segment describing both audio and video has to be searched rather than indexed.
- *
+ * Searched, not indexed: the muxer decides which track comes first.
  * @param {ISOFile} file - A parsed initialization segment.
  * @param {string[]} codecs - Sample entry types to accept.
- * @return {{trak: TrakBox, entry: SampleEntry}|null} The track and its sample entry.
+ * @return {{trak: TrakBox, entry: SampleEntry}|null}
  */
 function findTrack(file, codecs) {
   for (const trak of file.moov.traks) {
@@ -591,9 +512,8 @@ function findTrack(file, codecs) {
 }
 
 /**
- * Serializes a sample description entry, so the output carries the same codec setup.
- * @param {SampleEntry} entry - The sample description entry.
- * @return {ArrayBuffer} The written box.
+ * @param {SampleEntry} entry
+ * @return {ArrayBuffer}
  */
 function writeSampleEntry(entry) {
   const stream = new DataStream();

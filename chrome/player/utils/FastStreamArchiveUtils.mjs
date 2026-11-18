@@ -5,20 +5,15 @@ import {LargeBuffer} from '../modules/LargeBuffer.mjs';
 import {Utils} from './Utils.mjs';
 import {withoutCredentials} from '../VideoSource.mjs';
 
-/**
- * Utility functions for working with FastStream archive files and streams.
- */
 export class FastStreamArchiveUtils {
-  // Bytes per read of a local archive file (parseFSAFile). A test lowers it, so that a
-  // small archive spans many chunks the way a large one does.
+  // Bytes per read in parseFSAFile; a test lowers it.
   static fileChunkSize = 1e9 / 4;
 
   /**
-   * Writes FastStream archive data to a stream.
-   * @param {WritableStream} filestream - The writable stream.
-   * @param {import('../FastStreamClient.mjs').Player|null} player - The player instance, if any.
-   * @param {Array<DownloadEntry>} entries - The download entries.
-   * @param {Function} [progressCallback] - Optional progress callback.
+   * @param {WritableStream} filestream
+   * @param {import('../FastStreamClient.mjs').Player|null} player
+   * @param {Array<DownloadEntry>} entries
+   * @param {Function} [progressCallback]
    * @return {Promise<void>} Resolves once the stream has finished the file.
    * @throws {Error} If an entry is not complete, or the stream fails.
    */
@@ -26,23 +21,18 @@ export class FastStreamArchiveUtils {
     const writer = filestream.getWriter();
     try {
       await this.writeFSA(writer, player, entries, progressCallback);
-      // Awaited: the save is over only once the stream has finished it (a streamed save
-      // hands its file to the download here), and a failure there is the save's. It was
-      // reported as saved before that, and such a failure was an unhandled rejection.
+      // A streamed save hands its file to the download here: its failure is the save's.
       await writer.close();
     } catch (e) {
-      // Ends the stream's save (its open file and blob store) rather than leaving it
-      // open until the tab closes.
       await writer.abort(e).catch(() => {});
       throw e;
     }
   }
 
   /**
-   * Writes the archive: the header, then each entry's header and data.
+   * The header, then each entry's header and data.
    * @param {WritableStreamDefaultWriter} writer
-   * @param {import('../FastStreamClient.mjs').Player|null} player - The player whose source and levels go in,
-   *   if any.
+   * @param {import('../FastStreamClient.mjs').Player|null} player
    * @param {Array<DownloadEntry>} entries
    * @param {Function} [progressCallback]
    * @return {Promise<void>}
@@ -50,13 +40,11 @@ export class FastStreamArchiveUtils {
   static async writeFSA(writer, player, entries, progressCallback) {
     const sourceObj = {};
     if (player) {
-      // A player saved has its source.
       const source = /** @type {import('../VideoSource.mjs').VideoSource} */ (player.getSource());
       sourceObj.url = source.url;
       sourceObj.identifier = source.identifier;
       sourceObj.mode = source.mode;
-      // Without the login headers (Cookie, Authorization): an archive is a file the user may
-      // pass on, and it carried the session along (review), as a copied link did (#185).
+      // An archive may be passed on: no Cookie or Authorization.
       sourceObj.headers = withoutCredentials(source.headers || {});
     }
     const header = new TextEncoder().encode(JSON.stringify({
@@ -80,7 +68,6 @@ export class FastStreamArchiveUtils {
         throw new Error('Entry is not complete!');
       }
 
-      // An ArrayBuffer by the end: a raw entry's string is encoded into one.
       /** @type {*} */
       let data = null;
       if (entry.storeRaw) {
@@ -131,11 +118,8 @@ export class FastStreamArchiveUtils {
   }
 
   /**
-   * Reads an archive from a local file, such as one dropped on the player: a chunk at a time
-   * (fileChunkSize), each read from the file as parseFSA gets to it, the next one ahead.
-   * Until 2026-11-15 the chunks were fetched from an object URL of the file with Range
-   * requests (RequestUtils.httpGetLarge, its only use), which held the URL for the whole read.
-   * @param {File|Blob} file - The .fsa file.
+   * Reads a local .fsa file a chunk at a time, the next one ahead of parseFSA.
+   * @param {File|Blob} file
    * @param {(share: number) => void} [progressCallback] - Called with the share of entries read.
    * @param {import('../network/DownloadManager.mjs').DownloadManager} [downloadManager] - Receives the entries' data.
    * @return {Promise<Object>} What parseFSA returns.
@@ -155,7 +139,6 @@ export class FastStreamArchiveUtils {
   }
 
   /**
-   * Reads an archive: its header, then each entry.
    * @param {import('../modules/LargeBuffer.mjs').LargeBuffer} largeBuffer - The archive's bytes.
    * @param {(share: number) => void} [progressCallback] - Called with the share of entries read.
    * @param {import('../network/DownloadManager.mjs').DownloadManager} [downloadManager] - Receives the entries' data.
@@ -199,7 +182,6 @@ export class FastStreamArchiveUtils {
       entry.dataSize = Utils.getDataByteSize(entry.data);
 
       if (downloadManager) {
-        // Awaited: a store that failed was a rejection no one caught.
         await downloadManager.archiveEntryData(entry);
       }
 

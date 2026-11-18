@@ -18,23 +18,20 @@ export const DefaultOptions = {
   mpvFullscreen: false,
   mpvPausePage: true,
   mpvSingleInstance: true,
-  // MPV autoplay (2026-10-11, his choice): its own setting, also switched by mpv's autoplay
-  // button; the browser player's is autoplayNext.
+  // Apart from the player's autoplayNext; also switched by mpv's autoplay button.
   mpvAutoplayNext: true,
   downloadAll: true,
   blockPopupsWhilePlaying: true,
   previewEnabled: true,
-  // Among versions of the chosen resolution, prefer the one Firefox decodes in hardware,
-  // then smooth, higher frame rate and the more efficient codec; playable audio first.
+  // Among versions of the chosen resolution, prefer hardware-decoded, smooth, efficient ones.
   decodingAwareQuality: true,
-  // A version this computer drops a fifth of the frames of is stepped down, and the player
-  // says so each time.
+  // Step down a version that drops a fifth of its frames.
   lowerOnDroppedFrames: true,
   autoEnableBestSubtitles: false,
   cycleSubtitles: false,
   storeProgress: true,
   autoplayNext: false,
-  // Seconds between an episode's end and the next one, in the player and in mpv; 0: none.
+  // Seconds before the next episode, in the player and in mpv; 0: none.
   autoplayCountdown: 5,
   defaultQuality: `Auto`,
   colorTheme: ColorThemes.DEFAULT,
@@ -43,19 +40,17 @@ export const DefaultOptions = {
   // Action to key string; saved ones may name actions DefaultKeybinds no longer has.
   keybinds: /** @type {Object<string, string>} */ (DefaultKeybinds),
   keybindsVersion: KEYBINDS_VERSION,
-  // Saved with the options: those saved before carry none, and their maximum size may be a
-  // bare number read as bytes (Utils.migrateSizes).
+  // Utils.migrateSizes.
   sizesVersion: 1,
-  // Likewise: those saved before may hold the click defaults of 2023-12 to 2024-09, "hide
-  // controls" on a click (Utils.migrateClickActions).
+  // Utils.migrateClickActions.
   clickActionsVersion: 1,
   videoZoom: 1,
   videoAspectRatio: AspectRatios.AUTO,
   maxSpeed: -1,
-  maxVideoSize: 5000000000, // 5GB max size
-  ramBudget: 2000000000, // downloaded video kept in RAM, all players together; beyond it: disk (private windows: let go)
-  bufferToDisk: true, // beyond the RAM budget: on disk; false: let go, downloaded again when needed (as in private windows)
-  bufferAhead: 300, // seconds to keep buffered ahead of playback when predownloading is off/unavailable
+  maxVideoSize: 5000000000,
+  ramBudget: 2000000000, // all players together; beyond it: disk (private windows: let go)
+  bufferToDisk: true, // false: beyond the RAM budget let go, downloaded again when needed
+  bufferAhead: 300, // seconds, when predownloading is off or unavailable
   bufferBehind: 20, // seconds to keep buffered behind playback before trimming
   seekStepSize: DEFAULT_SEEK_STEP_SIZE,
   singleClickAction: ClickActions.PLAY_PAUSE,

@@ -2,63 +2,31 @@
 import {DefaultKeybinds, KeybindsWithModifiers} from './defaults/DefaultKeybinds.mjs';
 
 /**
- * The properties of the saved options that the keybinds migration touches, as they are
- * held in storage or merged over the defaults.
  * @typedef {{keybinds?: Object<string, string>, keybindsVersion?: number, seekStepSize?: number}} SavedOptions
  */
-// Everything about keybinds that needs no DOM, so it can be tested in Node and shared by
-// the player (KeybindManager), the options page and the code that loads saved options.
+// No DOM here, so it can be tested in Node.
 
 /**
- * The layout version of the keybinds, saved with the options as `keybindsVersion`.
- *
- * mergeOptions() only fills keys that are missing, so a default that moves never reaches
- * options that already hold the old one, and nothing in the saved options says which
- * layout they were written for. The version says it, so a migration runs exactly once and
- * whatever the user chooses afterwards, including a choice that equals an old default,
- * stays put.
- *
- * 1: the layout before the percent seeks and speed presets (no version saved at all).
- * 2: percent seeks on Digit1-9, speed presets on R G B Q W A Y E H, and the six actions
- *    that used those letters moved to Shift+<letter>.
- * 3: mpv's seeks: J/K 10 s, Z/X 60 s and the arrows 5 s (seekStepSize 2 -> 5); undo seek
- *    moved to Shift+Backspace (mpv's revert-seek), the screenshot to Shift+S (mpv's
- *    video-only screenshot), and the frame step from Shift+Left/Right to `,`/`.`, which
- *    held SeekForwardLarge/SeekBackwardLarge (10 s, what J/K do now; both actions are gone).
- * 4: the speed steps to S and D (MOVED_IN_VERSION_4).
- * 5: keys that type nothing are named by what they do, no longer by position
- *    (WebUtils.getKeyString): a binding saved on a numpad key under its position is renamed
- *    (RENAMED_IN_VERSION_5).
+ * Saved as `keybindsVersion`: mergeOptions() only fills missing keys, so a moved default needs
+ * a migration that runs exactly once. 1: none saved; 2: percent seeks and speed presets;
+ * 3: mpv's seeks; 4: speed steps on S and D; 5: numpad keys renamed by what they do.
  */
 export const KEYBINDS_VERSION = 5;
 
-/**
- * Seconds the skip buttons seek. They were 5 x seekStepSize, which was 10 s at the old
- * default of 2; fixed so the arrows' step could move to 5 without taking them to 25.
- */
 export const SKIP_BUTTON_SECONDS = 10;
 
-/** Seconds the arrow keys seek by default (the seekStepSize option). */
 export const DEFAULT_SEEK_STEP_SIZE = 5;
 
-/** The seekStepSize default before version 3; a saved value equal to it is moved to the new one. */
 export const OLD_SEEK_STEP_SIZE = 2;
 
-/** Percentages the Digit1-Digit9 keys jump to. */
 export const SEEK_PERCENTS = [10, 20, 30, 40, 50, 60, 70, 80, 90];
 
-/** Speeds the preset keys set. */
 export const SPEED_PRESETS = [1, 2, 2.5, 3, 3.5, 4, 5, 8, 16];
 
-// The fastest a speed preset plays: Firefox's own limit for a media element. Above the
-// player's maxPlaybackRate (8) Firefox plays no sound, measured; the 16x key plays 16x
-// anyway, silent, as mpv's does.
+// Firefox's limit for a media element; above 8x it plays no sound.
 export const SILENT_MAX_PLAYBACK_RATE = 16;
 
-/**
- * The plain-letter defaults that version 2 moved out of the way, by action.
- * A saved binding that still equals the old default is moved to the new one.
- */
+/** By action, the old default a saved binding still equal to it is moved from. */
 export const MOVED_IN_VERSION_2 = {
   'WindowedFullscreen': 'KeyW',
   'PreviousVideo': 'KeyB',
@@ -82,13 +50,11 @@ export function speedPresetAction(speed) {
   return `SpeedPreset${String(speed).replace('.', '_')}`;
 }
 
-/** Actions that only exist since version 2, so no saved options can hold a choice for them. */
 export const ADDED_IN_VERSION_2 = [
   ...SEEK_PERCENTS.map(seekPercentAction),
   ...SPEED_PRESETS.map(speedPresetAction),
 ];
 
-/** The defaults version 3 moved, by action, with the key they had. */
 export const MOVED_IN_VERSION_3 = {
   'UndoSeek': 'KeyZ',
   'Screenshot': 'KeyX',
@@ -96,7 +62,6 @@ export const MOVED_IN_VERSION_3 = {
   'SeekBackwardFrame': 'Shift+ArrowLeft',
 };
 
-/** The fixed seeks, in seconds, by action; negative is backward. */
 export const FIXED_SEEKS = {
   'SeekBackward10s': -10,
   'SeekForward10s': 10,
@@ -104,36 +69,23 @@ export const FIXED_SEEKS = {
   'SeekForward60s': 60,
 };
 
-/** Actions that only exist since version 3. */
 export const ADDED_IN_VERSION_3 = Object.keys(FIXED_SEEKS);
 
-/**
- * The defaults version 4 moved, by action, with the key they had: the speed
- * steps to S and D, as in mpv, and Save video off D to Shift+D. Save video first, so D is
- * free when the speed-up comes to it.
- */
+// Save video first, so D is free when the speed-up comes to it.
 export const MOVED_IN_VERSION_4 = {
   'SaveVideo': 'KeyD',
   'IncreasePlaybackRate': 'Shift+ArrowUp',
   'DecreasePlaybackRate': 'Shift+ArrowDown',
 };
 
-/**
- * The keys version 5 renamed: numpad keys that type nothing, NumLock off, went by
- * position, so a binding recorded on one was saved under that name. They go by what they do
- * now, as the main keys do (upstream #482). With NumLock on, a numpad digit was a digit already.
- */
+// Numpad keys with NumLock off, once named by position.
 export const RENAMED_IN_VERSION_5 = {
   'Numpad0': 'Insert', 'Numpad1': 'End', 'Numpad2': 'ArrowDown', 'Numpad3': 'PageDown',
   'Numpad4': 'ArrowLeft', 'Numpad5': 'Clear', 'Numpad6': 'ArrowRight', 'Numpad7': 'Home',
   'Numpad8': 'ArrowUp', 'Numpad9': 'PageUp', 'NumpadDecimal': 'Delete', 'NumpadEnter': 'Enter',
 };
 
-/**
- * The layout changes, oldest first. `moved` maps an action to the old default a saved
- * binding is moved away from; `added` lists the actions that version introduced; `renamed`
- * maps a key name to the one the same key has from that version on, in every saved binding.
- */
+// Oldest first. renamed applies to every saved binding.
 const MIGRATIONS = [
   {version: 2, moved: MOVED_IN_VERSION_2, added: ADDED_IN_VERSION_2, renamed: {}},
   {version: 3, moved: MOVED_IN_VERSION_3, added: ADDED_IN_VERSION_3, renamed: {}},
@@ -142,12 +94,9 @@ const MIGRATIONS = [
 ];
 
 /**
- * The time a percent seek jumps to.
- * A live stream reports an infinite duration and a stream that has not loaded reports NaN;
- * neither is a place to seek to, and the currentTime setter throws on a non-finite value.
- * @param {number} duration - The duration in seconds.
- * @param {number} percent - The percentage, 0 to 100.
- * @return {number|null} The time in seconds, or null when there is nowhere to seek to.
+ * @param {number} duration - Seconds.
+ * @param {number} percent - 0 to 100.
+ * @return {number|null} Null for a live or unloaded stream: currentTime throws on non-finite.
  */
 export function seekPercentTarget(duration, percent) {
   if (!Number.isFinite(duration) || duration <= 0) {
@@ -159,28 +108,18 @@ export function seekPercentTarget(duration, percent) {
 const RATE_EPSILON = 0.0001;
 
 /**
- * Works out what pressing a speed preset does.
- *
- * Pressing a preset sets its speed. Pressing the same key again reverts to the speed that
- * was active just before that key took effect, remembered per key, falling back to 1x when
- * the preset was already active on its first press (a rate restored from an earlier
- * session, say). The speed is clamped to the largest rate given: SILENT_MAX_PLAYBACK_RATE,
- * so the 16x key plays 16x, without sound in Firefox (above 8x).
- *
- * @param {number} preset - The preset's speed.
- * @param {number} currentRate - The current playback rate.
+ * A press sets the preset; the same key again reverts to the speed before it (per key, else 1x).
+ * @param {number} preset
+ * @param {number} currentRate
  * @param {number} maxRate - The largest rate a preset may set.
  * @param {number|undefined} remembered - What this key remembered, if it has yet.
- * @return {{rate: number, remembered: (number|undefined)}} The rate to set, and what the key
- *   remembers from now on.
+ * @return {{rate: number, remembered: (number|undefined)}}
  */
 export function applySpeedPreset(preset, currentRate, maxRate, remembered) {
   const target = Number.isFinite(maxRate) ? Math.min(preset, maxRate) : preset;
 
   if (Math.abs(currentRate - target) < RATE_EPSILON) {
-    // A remembered speed that is the preset itself (the rate was put back to it by hand
-    // after a revert) is nowhere to go back to, and taking it would leave the key doing
-    // nothing; 1x is what a key with no memory falls back to as well.
+    // A remembered speed equal to the preset would leave the key doing nothing.
     const usable = remembered !== undefined && Math.abs(remembered - target) >= RATE_EPSILON;
     const previous = usable ? remembered : 1;
     if (Math.abs(currentRate - previous) >= RATE_EPSILON) {
@@ -193,9 +132,7 @@ export function applySpeedPreset(preset, currentRate, maxRate, remembered) {
 }
 
 /**
- * A key string's modifiers and its key. The modifiers lead, each with its '+', since the key
- * itself may be a typed '+' ('+', 'Control++'): split at every '+', those named no key. The
- * s flag lets the key hold any character, so every string matches.
+ * The key itself may be a typed '+' ('Control++'). The s flag makes every string match.
  * @param {string} keyString - As WebUtils.getKeyString builds it, e.g. 'Shift+KeyW'.
  * @return {{modifiers: string[], key: string}} key is '' when the string names none ('Shift+').
  */
@@ -205,10 +142,7 @@ function splitKeyString(keyString) {
 }
 
 /**
- * Whether a saved binding can be a key string. The longest WebUtils.getKeyString builds is
- * four modifiers (23 characters) and a key's name (25 at most, 'TVAudioDescriptionMixDown');
- * a key names no control character. An imported binding with a line break in it broke the
- * options page, and one of many kilobytes froze it.
+ * The longest key string is 48 characters; none holds a control character.
  * @param {*} value - A saved binding.
  * @return {boolean}
  */
@@ -217,8 +151,7 @@ export function isKeyString(value) {
 }
 
 /**
- * Finds the actions a key string triggers.
- * An action listed in KeybindsWithModifiers also fires when extra modifiers are held.
+ * An action in KeybindsWithModifiers also fires when extra modifiers are held.
  * @param {string} keyString - As WebUtils.getKeyString builds it, e.g. 'Shift+KeyW'.
  * @param {Map<string, string>|Array<[string, string]>|Object<string, string>} keybinds - Action to
  *   key string, as a map, a list of entries or a plain object.
@@ -235,8 +168,7 @@ export function actionsForKey(keyString, keybinds, withModifiers = KeybindsWithM
     entries = Object.entries(keybinds);
   }
   const {modifiers, key: baseKey} = splitKeyString(keyString);
-  // A press with no key code (some virtual keyboards, unmapped keys, synthetic events)
-  // names no key. A binding recorded from one was '' and fired on every such press.
+  // A press with no key code names no key.
   if (!baseKey) {
     return [];
   }
@@ -256,9 +188,8 @@ export function actionsForKey(keyString, keybinds, withModifiers = KeybindsWithM
 }
 
 /**
- * Finds keys that would trigger more than one action, which a press would then all fire.
  * @param {Object<string, string>} keybinds - Action to key string.
- * @return {Array<{key: string, actions: string[]}>} One entry per clash.
+ * @return {Array<{key: string, actions: string[]}>} One entry per key that fires several actions.
  */
 export function findKeybindConflicts(keybinds) {
   const bound = Object.entries(keybinds || {}).filter(([, key]) => {
@@ -276,7 +207,6 @@ export function findKeybindConflicts(keybinds) {
 }
 
 /**
- * For each action that shares its key, the other actions it shares it with.
  * @param {Object<string, string>} keybinds - Action to key string.
  * @return {Map<string, string[]>} Only actions that clash appear.
  */
@@ -290,7 +220,6 @@ export function conflictPartners(keybinds) {
   return partners;
 }
 
-// How a key a binding names is shown: the character it types, or the key's own name.
 /** @type {Object<string, string>} */
 const KeyDisplayNames = {
   ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
@@ -306,8 +235,7 @@ const KeyDisplayNames = {
 };
 
 /**
- * A binding as the options page shows it: the keys as they are pressed ("Shift+W", "[",
- * "↑"), where it showed the names it is saved under ("Shift+KeyW", "BracketLeft", "ArrowUp").
+ * As pressed ("Shift+W", "[", "↑"), not as saved ("Shift+KeyW", "BracketLeft", "ArrowUp").
  * @param {string} keyString - The binding (WebUtils.getKeyString), or 'None'.
  * @param {string} [noneText] - What 'None' is shown as.
  * @return {string}
@@ -316,9 +244,6 @@ export function keyDisplayName(keyString, noneText = 'None') {
   if (!keyString || keyString === 'None') {
     return noneText;
   }
-  // The modifiers lead, each with its '+': the key itself may be a typed '+'. splitKeyString
-  // matches every string; the pattern here matched no line break, and reading the match of an
-  // imported "Space\n" threw, which left the options page half drawn.
   const split = splitKeyString(keyString);
   const modifiers = split.modifiers.map((m) => (m === 'Control' ? 'Ctrl' : m));
   const key = split.key;
@@ -328,9 +253,8 @@ export function keyDisplayName(keyString, noneText = 'None') {
 }
 
 /**
- * The name the options page shows for an action.
- * @param {string} action - The keybind action name.
- * @return {string} The label.
+ * @param {string} action
+ * @return {string}
  */
 export function keybindLabel(action) {
   const percent = /^SeekPercent(\d+)$/.exec(action);
@@ -349,11 +273,8 @@ export function keybindLabel(action) {
 }
 
 /**
- * Whether typing here should not trigger a keybind: a text field, a text area, a select or
- * anything editable. Keys that open a menu or change a value belong to the field then;
- * digits typed into a number box must not jump the video.
  * @param {*} target - An event's target.
- * @return {boolean} True for an element the user types into.
+ * @return {boolean} True for an element the user types into: keys belong to it then.
  */
 export function isTextEntryTarget(target) {
   if (!target || typeof target !== 'object') {
@@ -374,21 +295,8 @@ export function isTextEntryTarget(target) {
 }
 
 /**
- * Migrates saved keybinds to the current layout.
- *
- * Runs once per saved options: it is skipped when the options carry a keybindsVersion that
- * is current, and options that were never saved need nothing. Each version newer than the
- * saved one is applied in turn. A binding the user chose is never overridden, and a
- * migration never leaves one press firing two actions:
- * - a binding that still holds a default that version moved is given the new one, unless
- *   another action already uses that, in which case it is left unbound;
- * - an action new in that version takes its default key only when no other action already
- *   uses it, otherwise it is left unbound;
- * - a binding on a key that version renamed keeps the key under its new name, unless another
- *   action already uses that name, in which case it is left unbound.
- * Version 3 also moves a saved seekStepSize that still holds the old default of 2 to the
- * new default, since the arrows are what it sets.
- *
+ * Applies each newer version in turn. A binding the user chose is never overridden, and one
+ * press never fires two actions: a moved, added or renamed key already taken leaves it unbound.
  * @param {SavedOptions} options - The saved options merged over the defaults; changed in place.
  * @param {SavedOptions|null} stored - The options as they were saved, before the defaults were
  *   filled in, or null when nothing was saved.
@@ -404,12 +312,10 @@ export function migrateKeybinds(options, stored) {
     const saved = stored.keybinds && typeof stored.keybinds === 'object' ? stored.keybinds : /** @type {Object<string, string>} */ ({});
     const keybinds = options.keybinds;
 
-    // Gives an action a key only if no press would then fire it and another action: the
-    // key itself taken, or, for an action that ignores extra modifiers (Save video on
-    // Shift+D), another's Ctrl+Shift+D.
     /**
-     * @param {string} action - The keybind action name.
-     * @param {string} key - The key string to try to bind it to.
+     * Only if no press would then fire it and another action (extra modifiers included).
+     * @param {string} action
+     * @param {string} key
      */
     const assign = (action, key) => {
       keybinds[action] = key;
@@ -423,8 +329,6 @@ export function migrateKeybinds(options, stored) {
       if (storedVersion >= version) {
         continue;
       }
-      // The user's choice, under the name its key has now; not taking a key another action
-      // has (the numpad's arrow on the main arrow's action).
       for (const [action, key] of Object.entries(keybinds)) {
         const match = /^((?:(?:Meta|Control|Alt|Shift)\+)*)(.+)$/.exec(key);
         const newName = match && Object.hasOwn(renamed, match[2]) ? /** @type {Object<string, string>} */ (renamed)[match[2]] : null;
@@ -455,9 +359,8 @@ export function migrateKeybinds(options, stored) {
 }
 
 /**
- * A playback rate as the on-screen indicator shows it: "2×", "2.5×", "1.1×". A rate the
- * 0.1 steps left as 1.2000000000000002 shows as "1.2×".
- * @param {number} rate - The playback rate.
+ * "2×", "2.5×"; 1.2000000000000002 shows as "1.2×".
+ * @param {number} rate
  * @return {string}
  */
 export function formatPlaybackRate(rate) {
@@ -465,8 +368,8 @@ export function formatPlaybackRate(rate) {
 }
 
 /**
- * What the on-screen indicator shows for a rate: above the rate with sound, it says so.
- * @param {number} rate - The playback rate.
+ * Above the rate with sound, it says so.
+ * @param {number} rate
  * @param {number} soundMax - The fastest rate with sound (options.maxPlaybackRate).
  * @param {string} noSound - The localized "no sound".
  * @return {string}

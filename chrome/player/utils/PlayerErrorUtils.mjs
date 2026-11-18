@@ -1,10 +1,7 @@
 // @ts-check
 
-// What a player's error says, for the load error the user sees. Each player emits its own
-// kind with DefaultPlayerEvents.ERROR: MP4Player a sentence, the <video> element its 'error'
-// event, hls.js its error data, dash.js an event carrying an error. The client's handler read
-// a second argument nobody passes, so every failure showed only "Failed to load video!" and
-// a user's report could not say which of a dozen causes it was.
+// Each player emits its own kind of reason with DefaultPlayerEvents.ERROR: MP4Player a string,
+// the <video> element its 'error' event, hls.js its error data, dash.js an event with an error.
 
 const MAX_LENGTH = 160;
 
@@ -14,8 +11,7 @@ const MAX_LENGTH = 160;
  * @return {string}
  */
 export function describePlayerError(reason) {
-  // The client calls failedToLoad() with what this returns: a throw here (a getter that
-  // throws, a Symbol where a string was expected) would leave the player spinning instead.
+  // A throw here would leave the player spinning instead of showing the load error.
   try {
     return clip(describe(reason));
   } catch (e) {
@@ -23,16 +19,12 @@ export function describePlayerError(reason) {
   }
 }
 
-// dash.js's download errors (MediaPlayer.errors): the manifest's loading, then a manifest, an
-// index, a segment, an init segment, an xlink that ran out of retries.
+// dash.js's download errors (MediaPlayer.errors).
 const DASH_NETWORK_ERRORS = new Set([11, 25, 26, 27, 28, 29]);
 
 /**
- * Whether a player error is the network's: a fragment the server keeps refusing. A player
- * built again for it asks the same server for the same fragment, so building it again only
- * delays the error (FastStreamClient.recoverPlayer): mp4-loading.e2e.mjs waited for an error
- * that came after three rebuilds, a minute later. Anything else - a decoder that failed, a
- * playback stuck, a SourceBuffer that refused - a new player can get past.
+ * Whether a player error is the network's: a rebuilt player would ask the same server for the
+ * same fragment, so recoverPlayer does not rebuild for it.
  * @param {*} reason - What the player emitted with DefaultPlayerEvents.ERROR.
  * @return {boolean}
  */
@@ -43,9 +35,7 @@ export function isNetworkFailure(reason) {
         reason === 'Failed first fragment' || reason === 'No content range';
     }
     if (!reason || typeof reason !== 'object') return false;
-    // dash.js's error event.
     if (reason.type === 'error' && DASH_NETWORK_ERRORS.has(reason.error?.code)) return true;
-    // hls.js's error data.
     return reason.type === 'networkError';
   } catch (e) {
     return false;

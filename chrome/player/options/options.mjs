@@ -23,8 +23,7 @@ import {MpvSuggestion} from './MpvSuggestion.mjs';
 import {holdImportedNumbers, importedForMigration, settingsForExport} from './SettingsFile.mjs';
 import {WebStorage} from '../utils/WebStorage.mjs';
 
-// Empty until the saved options are read (loadOptions): the select menus below are built
-// before, and read none.
+// Empty until loadOptions: the select menus below are built before it.
 let Options = /** @type {typeof DefaultOptions} */ ({});
 const playStreamURLs = /** @type {HTMLInputElement} */ (document.getElementById('playstreamurls'));
 const playMP4URLs = /** @type {HTMLInputElement} */ (document.getElementById('playmp4urls'));
@@ -96,14 +95,9 @@ customSourcePatterns.setAttribute('autocorrect', 'off');
 customSourcePatterns.setAttribute('spellcheck', /** @type {any} */ (false));
 customSourcePatterns.placeholder = '# This is a comment. Use the following format.\n[file extension] /[regex]/[flags]';
 
-// Initialize store and then load page controls
-// Until the saved options are read, OptionsStore.get() gives the defaults. Showing those, even
-// for a moment, would let a change made then save the defaults over the user's options.
+// Until then OptionsStore.get() gives the defaults: a change made then would save them over the user's.
 let optionsLoaded = false;
-// The offer to turn MPV mode on (MpvSuggestion.mjs): extension only, outside the update
-// banner's SPLICER block so the AMO build has it too. The host is asked once the saved
-// options are read (MPV mode may be on) and the page was seen (the options page is an
-// iframe in every player too, and most of those are never opened).
+// Outside the update banner's SPLICER block, so the AMO build has it too.
 const mpvSuggestion = EnvUtils.isExtension() ? new MpvSuggestion({
   box: /** @type {HTMLElement} */ (document.getElementById('mpvsuggestbox')),
   text: /** @type {HTMLElement} */ (document.getElementById('mpvsuggesttext')),
@@ -116,7 +110,7 @@ const mpvSuggestion = EnvUtils.isExtension() ? new MpvSuggestion({
   },
 }) : null;
 let pageSeen = false;
-// Firefox's word for the system, for the mpv helper's steps (EnvUtils.isWindows).
+// For EnvUtils.isWindows.
 EnvUtils.os();
 const offerMpvWhenReady = () => {
   if (mpvSuggestion && optionsLoaded && pageSeen) {
@@ -127,7 +121,7 @@ OptionsStore.init().then(() => {
   optionsLoaded = true;
   loadOptions(OptionsStore.get());
   offerMpvWhenReady();
-  // Lets the e2e specs wait for the saved options instead of guessing when they arrived.
+  // For the e2e specs.
   document.documentElement.dataset.optionsLoaded = 'true';
 }).catch((e) => console.error('Loading the saved options failed', e));
 
@@ -153,9 +147,7 @@ if (!EnvUtils.isExtension()) {
 }
 
 /**
- * Shows the options on the page.
- * @param {Object} newOptions - The saved options merged over DefaultOptions (OptionsStore and
- *     Utils, which call them an Object).
+ * @param {Object} newOptions - The saved options merged over DefaultOptions.
  */
 async function loadOptions(newOptions) {
   newOptions = newOptions || OptionsStore.get();
@@ -175,13 +167,11 @@ async function loadOptions(newOptions) {
   mpvSingleInstanceToggle.checked = !!Options.mpvSingleInstance;
   mpvAutoplayNextToggle.checked = !!Options.mpvAutoplayNext;
   previewEnabled.checked = !!Options.previewEnabled;
-  // On unless turned off: options saved before it existed have no value for it.
   decodingAwareQuality.checked = Options.decodingAwareQuality !== false;
   lowerOnDroppedFrames.checked = Options.lowerOnDroppedFrames !== false;
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   cycleSubs.checked = !!Options.cycleSubtitles;
   autoplayNext.checked = !!Options.autoplayNext;
-  // A number: the field's value takes it as text.
   autoplayCountdown.value = /** @type {string} */ (/** @type {unknown} */ (Options.autoplayCountdown));
   blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
   showSpeed(Options.maxSpeed);
@@ -192,7 +182,7 @@ async function loadOptions(newOptions) {
   showSeconds(bufferBehind, Options.bufferBehind);
   seekStepSize.value = /** @type {any} */ (Math.round(Options.seekStepSize * 100) / 100);
   customSourcePatterns.value = Options.customSourcePatterns || '';
-  // A part of the player, shown in percent: 0.25 left users typing 25, which was 100%.
+  // A share of the player, shown in percent.
   miniSize.value = /** @type {any} */ (Math.round(Options.miniSize * 1000) / 10);
   storeProgress.checked = !!Options.storeProgress;
   replaceDelay.value = /** @type {string} */ (/** @type {unknown} */ (Options.replaceDelay));
@@ -224,7 +214,6 @@ async function loadOptions(newOptions) {
     const rangeInput = /** @type {HTMLInputElement & {value: any}} */ (option.querySelector('input.range'));
     const unit = option.dataset.unit || '%';
     const unitMultiplier = parseInt(/** @type {string} */ (option.dataset.multiplier || 100));
-    // The two .video-option rows of options.html.
     const optionKey = /** @type {'videoZoom'|'videoDelay'} */ (option.dataset.option);
     const val = Math.round(Options[optionKey] * unitMultiplier);
     rangeInput.value = val;
@@ -236,12 +225,11 @@ async function loadOptions(newOptions) {
   if (Options.dev) {
     /** @type {HTMLElement} */ (document.getElementById('dev')).style.display = '';
   }
-  // MPV mode turned on another way ends the offer.
   if (mpvSuggestion) {
     mpvSuggestion.optionsChanged();
   }
   initsearch();
-  // initsearch() shows every row again; a query still in the box applies again.
+  // initsearch() shows every row again.
   if (optionsSearchBar.value) {
     searchWithQuery(optionsSearchBar.value);
   }
@@ -250,8 +238,7 @@ async function loadOptions(newOptions) {
 /**
  * @param {HTMLElement} container - The menu's place, which names it (data-i18n-label).
  * @param {string[]} options - The values to choose from.
- * @param {string|undefined} selected - The value chosen. Undefined from the calls below, which run
- *     before the options are read: loadOptions chooses then (setSelectMenuValue).
+ * @param {string|undefined} selected - Undefined before the options are read: loadOptions chooses then.
  * @param {?string} localPrefix - The locale messages' prefix for the values; null shows them
  *     as they are.
  * @param {(e: Event & {target: HTMLSelectElement}) => void} callback - On a change.
@@ -260,8 +247,7 @@ async function loadOptions(newOptions) {
 function createSelectMenu(container, options, selected, localPrefix, callback, labelOf = null) {
   container.replaceChildren();
   const select = document.createElement('select');
-  // The wrapper carries the label (data-i18n-label), but a screen reader names the select:
-  // the eight menus were read as a bare "combo box".
+  // A screen reader names the select, not the labelled wrapper.
   if (container.dataset.i18nLabel) {
     select.setAttribute('aria-label', Localize.getMessage(container.dataset.i18nLabel));
   }
@@ -322,7 +308,6 @@ createSelectMenu(colorTheme, Object.values(ColorThemes), Options.colorTheme, 'op
   optionChanged();
 });
 
-// The ratios as they are written; auto and stretch in words (upstream #552).
 createSelectMenu(videoAspectRatio, Object.values(AspectRatios), Options.videoAspectRatio, null, (e) => {
   Options.videoAspectRatio = e.target.value;
   optionChanged();
@@ -371,24 +356,19 @@ document.querySelectorAll('.option').forEach((option) => {
   const unit = option.dataset.unit || '%';
   const unitMultiplier = parseInt(/** @type {string} */ (option.dataset.multiplier || 100));
 
-  // The two .video-option rows of options.html.
   const optionKey = /** @type {'videoZoom'|'videoDelay'} */ (option.dataset.option);
 
   function numberInputChanged() {
     const text = numberInput.value.replace(unit, '').trim();
     const value = parseInt(text);
-    // An emptied field is no value: clearing it to type a new one saved 0 at once, an
-    // invisible (zoom) or black (brightness) video until the next key. Left so, the field
-    // shows the value set again (the change handler).
+    // An emptied field is no value: 0 would hide the video while the user types.
     if (text === '' || !Number.isFinite(value)) return;
     rangeInput.value = value;
     Options[optionKey] = (option.dataset.nolimits ? value : parseInt(rangeInput.value)) / unitMultiplier;
     optionChanged();
   }
 
-  // A drag saves once a frame: it saved at every value the slider passed, and each save
-  // writes the storage and makes every player read the options again (review of
-  // 2026-10-14). The video still follows the drag; letting go saves at once.
+  // A drag saves once a frame: each save makes every player read the options again.
   let pendingSave = 0;
   /**
    * @param {Event} e - The slider's change or input.
@@ -438,9 +418,7 @@ function renderKeybinds() {
 }
 
 /**
- * Marks every action whose key another action shares, and says which. A press fires all
- * of them, which is never what anyone meant; nothing stops the choice, since the user may
- * be halfway through rearranging.
+ * Warns but does not refuse: the user may be halfway through rearranging.
  */
 function refreshKeybindConflicts() {
   const partners = conflictPartners(Options.keybinds);
@@ -475,7 +453,6 @@ function createKeybindElement(keybind) {
   keybindInput.tabIndex = 0;
   keybindInput.title = keybindName;
   keybindInput.role = 'button';
-  // Shown as pressed ("Shift+W"); the saved name ("Shift+KeyW") is in data-key.
   const showKey = () => {
     keybindInput.dataset.key = Options.keybinds[keybind];
     keybindInput.textContent = keyDisplayName(Options.keybinds[keybind], Localize.getMessage('options_keybinds_none') || 'None');
@@ -495,8 +472,7 @@ function createKeybindElement(keybind) {
     }
     e.stopPropagation();
     e.preventDefault();
-    // A press with no key code (some virtual keyboards, unmapped keys) names no key: it was
-    // saved as '', and every such press in the player fired the action.
+    // A press with no key code names no key.
     if (!e.code && e.key !== ' ') {
       return;
     }
@@ -533,7 +509,7 @@ function createKeybindElement(keybind) {
 if (EnvUtils.isExtension()) {
   /** @type {HTMLAnchorElement} */ (document.getElementById('welcome')).href = chrome.runtime.getURL('welcome.html');
 } else {
-  // The web build has no welcome page (build.mjs leaves it out): the link was a 404.
+  // The web build has no welcome page.
   /** @type {HTMLElement} */ (document.getElementById('welcomeitem')).style.display = 'none';
 }
 
@@ -606,16 +582,13 @@ mpvAutoplayNextToggle.addEventListener('change', () => {
 });
 
 /**
- * Whether the mpv path typed on this page names the mpv the host found: the same file,
- * or the folder it is in (the host accepts both), whatever the case and slashes.
- * @param {string} typed - The path typed above.
- * @param {string} found - The mpv.exe the host found.
- * @return {boolean} True when they are the same mpv.
+ * The same file, or the folder it is in (the host accepts both), whatever the case and slashes.
+ * @param {string} typed
+ * @param {string} found - The mpv the host found.
+ * @return {boolean}
  */
 function samePath(typed, found) {
   const norm = /** @param {string} p */ (p) => p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
-  // A folder: mpv.exe in it on Windows, mpv on Linux (/usr/bin for /usr/bin/mpv said "found
-  // at another path").
   return norm(typed) === norm(found) || norm(typed) + '\\mpv.exe' === norm(found) ||
     norm(typed) + '\\mpv' === norm(found);
 }
@@ -629,9 +602,7 @@ mpvTestButton.addEventListener('click', () => {
         return;
       }
       if (response.ok && response.mpv && typeof response.path === 'string') {
-        // Which mpv the host found: a path set above that does not exist falls back to
-        // the host's config.json and the usual install folders, and "mpv found" alone
-        // hid that.
+        // A path set here that does not exist falls back to other places: say which mpv.
         const typed = mpvPathInput.value.trim();
         mpvTestResult.textContent = !typed || samePath(typed, response.path) ?
           /** @type {any} */ (window).getI18nMessage('options_mpv_test_ok_at', [response.path]) :
@@ -643,16 +614,11 @@ mpvTestButton.addEventListener('click', () => {
       } else {
         mpvTestResult.textContent = /** @type {any} */ (window).getI18nMessage('options_mpv_test_fail');
       }
-      // The host answered as an older version than this extension was released with
-      // (MpvBackend's RequiredHostVersion): the copy on this PC was not installed again
-      // after the host changed.
       if (response.ok && response.hostOutdated) {
-        // The steps differ: Windows has a Start menu entry, Linux and macOS a manifest.
         mpvTestResult.textContent += ' ' + /** @type {any} */ (window).getI18nMessage(EnvUtils.isWindows() ?
           'options_mpv_test_outdated' : 'options_mpv_test_outdated_unix');
       }
-      // An mpv the host started is open: which decoder it plays with, as mpv says. On the
-      // processor, only a hint: mpv.conf is the user's, and FastStream never overrides it.
+      // Only a hint: mpv.conf is the user's, and FastStream never overrides it.
       if (response.ok && response.decoder && typeof response.decoderText === 'string') {
         const key = response.decoder.hardware ? 'options_mpv_test_decoder_hw' : 'options_mpv_test_decoder_sw';
         const what = response.decoderText || String(response.decoder.api || '');
@@ -660,13 +626,11 @@ mpvTestButton.addEventListener('click', () => {
       }
     });
   };
-  // No permission to ask for: nativeMessaging is one the manifest requires.
   sendTest();
 });
 
 downloadAll.addEventListener('change', () => {
   Options.downloadAll = downloadAll.checked;
-  // The size limit applies to predownloading only; without it "Buffer ahead" decides (#378).
   maxSize.disabled = !downloadAll.checked;
   maxSizeUnit.disabled = !downloadAll.checked;
   optionChanged();
@@ -699,8 +663,7 @@ autoplayNext.addEventListener('change', () => {
 });
 
 /**
- * Sites where autoplay got stuck (ProblemLog.mjs, his wish 2026-10-11): what, where, how
- * often, and a button that opens the GitHub issue for the user to check and submit.
+ * Sites where autoplay got stuck (ProblemLog.mjs).
  */
 async function renderProblems() {
   if (!EnvUtils.isExtension()) {
@@ -727,7 +690,7 @@ async function renderProblems() {
     const report = document.createElement('button');
     report.textContent = Localize.getMessage('options_problems_report');
     report.addEventListener('click', () => {
-      // Not window.open: this page is an iframe in the player (EnvUtils.openExternalURL).
+      // Not window.open: this page is an iframe in the player.
       EnvUtils.openExternalURL(issueUrl(entry, about));
     });
     item.append(text, report);
@@ -746,14 +709,12 @@ if (EnvUtils.isExtension()) {
 }
 renderProblems().catch((e) => console.error(e));
 
-// The number fields' limits, by option, in the unit it is saved in: a field holds what is typed
-// in it to them (readNumberField), and an imported file is held to them too (holdToFields).
+// In the unit each option is saved in; an imported file is held to them too (holdToFields).
 /** @type {Object<string, {min: number, max: number, whole: boolean}>} */
 const NUMBER_LIMITS = {
   autoplayCountdown: {min: 0, max: 30, whole: true},
   seekStepSize: {min: 0.1, max: 3600, whole: false},
   replaceDelay: {min: 0, max: 60000, whole: true},
-  // A part of the player; its field shows it in percent, 1 to 100.
   miniSize: {min: 0.01, max: 1, whole: false},
   maximumDownloaders: {min: 1, max: 6, whole: true},
 };
@@ -768,17 +729,12 @@ blockPopupsWhilePlaying.addEventListener('change', () => {
   optionChanged();
 });
 
-// The speed and the two sizes are a number with a unit beside it: typed as text, "10 Mb",
-// "10 Mo" and "10" left users unsure what the field took (#378). The values are kept as
-// before: bytes per second, bytes, -1 for no limit. An empty field is no limit, and 0 is
-// none: 0 Mbit/s downloads nothing ahead, 0 MB predownloads nothing, 0 MB of RAM keeps
-// nothing ahead in RAM. 0 read as "no limit" surprised the user who typed it to turn a
-// thing off.
+// Saved as bytes a second and bytes; an empty field is no limit (-1), 0 is none.
 const BYTES_PER_MBIT_PER_S = 1000000 / 8;
 const GB = 1000 ** 3;
 
 /**
- * Shows the maximum speed in Mbit/s, as speed tests give it; nothing (no limit) for -1.
+ * In Mbit/s, as speed tests give it.
  * @param {number} bytesPerSecond
  */
 function showSpeed(bytesPerSecond) {
@@ -786,8 +742,6 @@ function showSpeed(bytesPerSecond) {
   showLimitHint(maxSpeed, bytesPerSecond);
 }
 
-// What a limit of 0, or no limit, does, under the field: both are easy to set without
-// meaning to, and their effect is not visible on the page.
 /** @type {Object<string, {zero: string, none?: string}>} By the field's id. */
 const LIMIT_HINTS = {
   maxspeed: {zero: 'options_general_targetspeed_zero'},
@@ -798,14 +752,13 @@ const LIMIT_HINTS = {
 };
 
 /**
- * Shows, under a limit's field, what 0 or no limit means for it; nothing for other values.
+ * 0 and no limit are easy to set without meaning to: say what they do.
  * @param {HTMLInputElement} input
  * @param {number} value - The limit as saved: -1 for none.
  */
 function showLimitHint(input, value) {
   const hint = document.getElementById(input.id + 'hint');
   let key = value === 0 ? LIMIT_HINTS[input.id].zero : value < 0 ? LIMIT_HINTS[input.id].none : null;
-  // A RAM budget of 0 is "straight to disk" only where video may go to disk.
   if (input === ramBudget && value === 0 && !bufferToDisk.checked) key = 'options_general_rambudget_zero_nodisk';
   if (!hint) return;
   hint.textContent = key ? Localize.getMessage(key) : '';
@@ -813,30 +766,22 @@ function showLimitHint(input, value) {
 }
 
 /**
- * Shows a size in its number field and MB/GB picker, to three decimals; nothing (∞) for no
- * limit. Loaded, in GB from 1 GB up (in whole MB) and in MB below; after a change, in the unit the user
- * has picked: switched under them, "3000" typed in MB became "3 GB" when the field was left,
- * and picking GB after it changed nothing.
+ * To three decimals. Loaded, in GB when that holds it exactly, else MB; after a change, in the
+ * unit the user picked.
  * @param {HTMLInputElement} input
  * @param {HTMLSelectElement} unit
  * @param {number} bytes
  * @param {boolean} [keepUnit] - Whether the unit picked stays.
  */
 function showSize(input, unit, bytes, keepUnit = false) {
-  // GB only when its three decimals hold the size: 1234.4 MB came back as 1.234 GB.
   if (!keepUnit) unit.value = String(!(bytes >= 0) || (bytes >= GB && bytes % (GB / 1000) === 0) ? GB : GB / 1000);
   input.value = bytes >= 0 ? String(Math.round(bytes / Number(unit.value) * 1000) / 1000) : '';
   showLimitHint(input, bytes);
 }
 
 /**
- * The limit a field holds, times its unit: -1 (no limit) for an empty field, the amount for
- * a number from 0 up, and null for anything else (letters, a negative number, one too big to
- * save: 1e308 GB was saved as Infinity, which JSON keeps as null), which leaves the limit as
- * it was. A comma is a decimal point ("1,5", as French and German write it): a number field
- * would have taken only the page language's, and "1,5" was cut to 1. Read to the three
- * decimals the field shows (showSpeed, showSize), so what is saved is what it says: 0.0001 MB
- * was saved as 100 bytes and shown as 0, which is none.
+ * -1 for an empty field, null for no number from 0 up (the limit stays). A comma is a decimal
+ * point; read to the three decimals the field shows, so what is saved is what it says.
  * @param {HTMLInputElement} input
  * @param {number} multiplier
  * @return {?number}
@@ -844,15 +789,13 @@ function showSize(input, unit, bytes, keepUnit = false) {
 function readLimit(input, multiplier) {
   const text = input.value.trim().replace(',', '.');
   if (text === '') return -1;
-  // Number() rather than parseFloat(): "10 MB" or "5x" is no number, not 10 or 5.
+  // Number(), not parseFloat(): "10 MB" is no number.
   const shown = Math.round(Number(text) * 1000) / 1000;
   const amount = Math.round(shown * multiplier);
   return Number.isFinite(amount) && amount >= 0 ? amount : null;
 }
 
-// Written back (in the unit picked: showSize) when the field is left or a unit picked - a
-// trusted change - not on a save while typing, where it fought the keys being typed. A field
-// that holds no limit shows the one saved again then.
+// Written back only on a trusted change, not on a save while typing.
 maxSpeed.addEventListener('change', (e) => {
   const value = readLimit(maxSpeed, BYTES_PER_MBIT_PER_S);
   if (value !== null) Options.maxSpeed = value;
@@ -867,13 +810,8 @@ const onMaxSizeChange = /** @param {Event} e */ (e) => {
   if (value !== null) optionChanged();
 };
 maxSize.addEventListener('change', onMaxSizeChange);
-// Another unit, the same number: "2" from MB to GB is 2 GB.
 maxSizeUnit.addEventListener('change', onMaxSizeChange);
 
-// The RAM all players keep downloaded video in (MemoryBudget); beyond it, it goes to disk
-// (a private window, or "Keep video on disk" off, lets it go). Empty: no limit, all of it
-// in RAM. 0: none in RAM: straight to disk, or, where nothing goes to disk, nothing is
-// downloaded ahead of playback.
 const onRamBudgetChange = /** @param {Event} e */ (e) => {
   const value = readLimit(ramBudget, Number(ramBudgetUnit.value));
   if (value !== null) Options.ramBudget = value;
@@ -883,28 +821,22 @@ const onRamBudgetChange = /** @param {Event} e */ (e) => {
 ramBudget.addEventListener('change', onRamBudgetChange);
 ramBudgetUnit.addEventListener('change', onRamBudgetChange);
 
-// Off: what does not fit in the RAM budget is let go of and downloaded again when needed,
-// as in a private window - nothing of the buffer is written to disk. Watch progress and
-// saved videos are not the buffer: they keep their storage.
 bufferToDisk.addEventListener('change', () => {
   Options.bufferToDisk = bufferToDisk.checked;
-  // What the field says now: a number typed is saved only 400 ms later (saveWhileTyping).
+  // What the field says now: a number typed is saved only 400 ms later.
   showLimitHint(ramBudget, readLimit(ramBudget, Number(ramBudgetUnit.value)) ?? Options.ramBudget);
   optionChanged();
 });
 
 /**
- * A number field's value within its limits, or the default when it holds no number, shown
- * back in the field. An emptied "Seek step size" or "Replace delay" was saved as NaN, and a
- * negative one as it was.
- * @param {HTMLInputElement} input - The field.
+ * Within its limits, or the default when it holds no number, shown back in the field.
+ * @param {HTMLInputElement} input
  * @param {number} fallback - The value for an empty or unreadable field, as the field shows it.
  * @param {{min: number, max: number, whole: boolean}} limits - The option's (NUMBER_LIMITS).
  * @param {number} [scale] - The field's units in one of the option's: 100 for a percent.
  * @return {number} As the field shows it.
  */
 function readNumberField(input, fallback, {min, max, whole}, scale = 1) {
-  // A decimal comma, as in the size fields (readLimit): "2,5" seconds was 2.
   const text = String(input.value).trim().replace(',', '.');
   const value = whole ? parseInt(text) : parseFloat(text);
   const result = Number.isFinite(value) ? Math.min(Math.max(value, min * scale), max * scale) : fallback;
@@ -913,7 +845,6 @@ function readNumberField(input, fallback, {min, max, whole}, scale = 1) {
 }
 
 /**
- * Shows seconds of Buffer ahead or behind; nothing ("No limit") for none.
  * @param {HTMLInputElement} input
  * @param {number} seconds - As saved: -1 for no limit.
  */
@@ -922,8 +853,7 @@ function showSeconds(input, seconds) {
   showLimitHint(input, seconds);
 }
 
-// Whole seconds; an empty field is no limit (-1), and anything else that is no number keeps
-// the value saved (an empty field read as 0 kept nothing buffered).
+// An empty field is no limit; anything else that is no number keeps the value saved.
 for (const [input, option] of /** @type {[HTMLInputElement, 'bufferAhead'|'bufferBehind'][]} */ ([[bufferAhead, 'bufferAhead'], [bufferBehind, 'bufferBehind']])) {
   input.addEventListener('change', (e) => {
     const text = input.value.trim().replace(',', '.');
@@ -951,33 +881,25 @@ miniSize.addEventListener('change', () => {
   optionChanged();
 });
 
-// 1 to 6, the browser's limit per server; 0 or less is the default, as the downloader reads
-// it. 0 meant "never add one" to the downloader and "no limit" to the add-downloader key.
-// Empty is no limit, the most a browser opens to one server (6, the default); 0 is the least
-// that still downloads, 1. 0 was read as the default 6, the most.
+// 1 to 6, the browser's limit per server.
 maxdownloaders.addEventListener('change', () => {
   Options.maximumDownloaders = readNumberField(maxdownloaders, DefaultOptions.maximumDownloaders, NUMBER_LIMITS.maximumDownloaders);
   optionChanged();
 });
 
 /**
- * Saves a text field while it is typed in, not only when it is left. Its change event came only
- * on leaving the field (Tab, a click elsewhere), so a size typed and the settings closed with the
- * cursor still in it was lost, and the field showed the old value again ("stuck at 5 GB", #378).
- * The field's own change handler reads, clamps and saves the value; what is being typed stays in
- * the field as typed. An emptied field is saved when it or the page is left, not while typing.
+ * Change comes only on leaving the field: a value typed and the settings closed was lost. What
+ * is typed stays as typed; an emptied field is saved when it or the page is left.
  * @param {HTMLInputElement|HTMLTextAreaElement} input
  */
 function saveWhileTyping(input) {
   /** @type {any} */ let timer = null;
-  // Typed and not saved yet: an emptied field waits for the field or the page to be left.
   let unsaved = false;
   const save = (leaving = false) => {
     clearTimeout(timer);
     timer = null;
-    // A number field half typed ("1.", "-") reads as empty: taken for "no limit", it is lost.
+    // Half typed ("1.", "-") reads as empty, which would be "no limit".
     if (input.validity?.badInput) return;
-    // Emptied while typing is no value yet; emptied when the page goes, it is the user's.
     if (!leaving && !input.value.trim()) return;
     const typed = input.value;
     const {selectionStart, selectionEnd} = input;
@@ -993,14 +915,11 @@ function saveWhileTyping(input) {
     clearTimeout(timer);
     timer = setTimeout(save, 400);
   });
-  // Left: its change event saves it, and shows it as kept.
   input.addEventListener('change', () => {
     unsaved = false;
     clearTimeout(timer);
     timer = null;
   });
-  // The page goes (the tab closed, the player with the settings in it closed) before the wait,
-  // or with the field emptied: an emptied field was not saved at all.
   window.addEventListener('pagehide', () => {
     if (unsaved) save(true);
   });
@@ -1010,9 +929,7 @@ function saveWhileTyping(input) {
   mpvPathInput, autoplayCountdown].forEach(saveWhileTyping);
 
 /**
- * Saves a list field when the page goes with it changed, as it does when it is left: half a
- * line saved while typing would be a list entry of its own ("https://" in the sites FastStream
- * opens on by itself would be every site).
+ * Not while typing: half a line would be an entry of its own ("https://" matches every site).
  * @param {HTMLTextAreaElement} input
  */
 function saveOnLeavingPage(input) {
@@ -1031,8 +948,6 @@ function saveOnLeavingPage(input) {
 optionsSearchBar.placeholder = Localize.getMessage('options_search_placeholder');
 
 
-// Once per change of the text, pasted or dropped too. keydown and keyup searched twice per
-// key, keydown for the text before the key.
 optionsSearchBar.addEventListener('input', () => {
   if (optionsSearchBar.value === '') {
     resetSearch();
@@ -1067,8 +982,7 @@ customSourcePatterns.addEventListener('change', (e) => {
 
 [mpvAllowlistInput, autoEnableURLSInput, customSourcePatterns].forEach(saveOnLeavingPage);
 
-// The menus' choices, by option. Not the aspect ratio's and the default quality's: the player
-// takes any ratio and any height (VideoTransformUtils, LevelManager), beyond what they list.
+// Not the aspect ratio and quality: the player takes any ratio and any height.
 /** @type {Object<string, Object<string, string>>} */
 const MENU_CHOICES = {
   singleClickAction: ClickActions, doubleClickAction: ClickActions, tripleClickAction: ClickActions,
@@ -1076,10 +990,7 @@ const MENU_CHOICES = {
 };
 
 /**
- * Holds an imported file's numbers to what their fields take (NUMBER_LIMITS), and a menu's
- * value to the menu's choices: a seek step of -5 seeked forward on the left arrow, a mini
- * player of 50 was 50 times the player, and a value no menu has showed as a blank menu. A
- * value within them stays as it is.
+ * Holds an imported file's numbers to NUMBER_LIMITS, and a menu's value to its choices.
  * @param {Object<string, *>} options - Merged over DefaultOptions; changed in place.
  */
 function holdToFields(options) {
@@ -1109,8 +1020,6 @@ importButton.addEventListener('click', () => {
     } catch (err) {
       newOptionsObj = null;
     }
-    // Valid JSON that is no settings object (null, a list, a number) threw further down,
-    // and the import failed without a word.
     if (!newOptionsObj || typeof newOptionsObj !== 'object' || Array.isArray(newOptionsObj)) {
       alert(Localize.getMessage('options_import_invalid'));
       return;
@@ -1118,9 +1027,7 @@ importButton.addEventListener('click', () => {
     newOptionsObj = importedForMigration(newOptionsObj);
     const newOptions = Utils.migrateClickActions(Utils.migrateSizes(Utils.migrateKeybinds(
         Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj), newOptionsObj), newOptionsObj);
-    // The mpv path is this computer's, and the one program the helper starts: a file from
-    // someone else could name a program they had put here, and a file without it emptied it.
-    // The user sets it on this page.
+    // Never imported: a shared file could name a program planted on this computer.
     /** @type {Object<string, *>} */ (newOptions).mpvPath = typeof Options.mpvPath === 'string' ? Options.mpvPath : '';
     holdToFields(newOptions);
     holdImportedNumbers(newOptions);
@@ -1148,20 +1055,15 @@ exportButton.addEventListener('click', async () => {
   URL.revokeObjectURL(url);
 });
 
-// The options this page last saved. The store tells its listeners about the page's own
-// saves too, and redrawing the page then rebuilt every keybind row (the box a key was
-// just pressed in lost focus), rewrote a number field after each key typed (the caret
-// jumped to the end) and undid a search; the page already shows what it saved.
+// The store tells listeners about this page's own saves too: no redraw for those.
 /** @type {object|null} */
 let ownSave = null;
 
 function optionChanged() {
-  // Before the saved options are read, Options holds only what was just changed, and
-  // saving it would put the defaults over everything else the user had set.
+  // Before then, saving would put the defaults over everything else the user had set.
   if (!optionsLoaded) {
     return;
   }
-  // Centralized save/broadcast. replace() takes the options before it saves them.
   OptionsStore.replace(Options);
   ownSave = OptionsStore.get();
 }
@@ -1169,12 +1071,10 @@ function optionChanged() {
 const versionDiv = /** @type {HTMLElement} */ (document.getElementById('version'));
 versionDiv.textContent = `FastStream v${EnvUtils.getVersion()}`;
 
-// if in iframe, add the frame class to body
 if (parent !== window) {
   document.body.classList.add('frame');
 }
 
-// React to external changes via OptionsStore
 OptionsStore.subscribe((options) => {
   if (options !== ownSave) {
     loadOptions(options);
@@ -1182,7 +1082,6 @@ OptionsStore.subscribe((options) => {
 });
 
 if (EnvUtils.isExtension()) {
-  // Also refresh when becoming visible to catch recent changes
   const o = new IntersectionObserver(([entry]) => {
     if (entry.isIntersecting && optionsLoaded) loadOptions(OptionsStore.get());
     if (entry.isIntersecting) {
@@ -1202,7 +1101,6 @@ if (EnvUtils.isExtension()) {
   }, async (result) => {
     const stored = result?.updateData ? JSON.parse(/** @type {string} */ (result.updateData)) : {};
     const checked = await UpdateChecker.refreshUpdateData(stored, Date.now());
-    // Stored only after a check: each write tells every open options page (storage.onChanged).
     if (checked) {
       chrome.storage.local.set({
         updateData: JSON.stringify(checked),
@@ -1218,7 +1116,6 @@ if (EnvUtils.isExtension()) {
       updatebox.style.display = 'block';
       if (updatenotif) {
         updatenotif.style.display = 'block';
-        // A bare "!" on the settings button said nothing of what it is about.
         updatenotif.title = /** @type {any} */ (window).getI18nMessage('options_update_header');
       }
     }

@@ -12,15 +12,13 @@ export const DefaultKeybinds = {
   'Mute': 'KeyM',
   'SeekForward': 'ArrowRight',
   'SeekBackward': 'ArrowLeft',
-  // mpv-style fixed hops (the user's input.conf): j/k 10 s, z/x 60 s.
+  // As in mpv's input.conf.
   'SeekBackward10s': 'KeyJ',
   'SeekForward10s': 'KeyK',
   'SeekBackward60s': 'KeyZ',
   'SeekForward60s': 'KeyX',
-  // mpv's frame-step: pause, then exactly one frame.
   'SeekForwardFrame': 'Period',
   'SeekBackwardFrame': 'Comma',
-  // As in mpv: s slower, d faster, by 0.1 (2026-10-10; Shift+ArrowUp/Down before).
   'IncreasePlaybackRate': 'KeyD',
   'DecreasePlaybackRate': 'KeyS',
   'ResetPlaybackRate': 'None',
@@ -53,8 +51,7 @@ export const DefaultKeybinds = {
   'ZoomOutVideo': 'None',
   'ZoomReset': 'None',
   'CycleAspectRatio': 'None',
-  // mpv-style speed presets (user's speed-presets.lua): key sets its speed,
-  // pressing the SAME key again reverts to the previously active speed.
+  // The same key again reverts to the speed before (applySpeedPreset).
   'SpeedPreset1': 'KeyR',
   'SpeedPreset2': 'KeyG',
   'SpeedPreset2_5': 'KeyB',

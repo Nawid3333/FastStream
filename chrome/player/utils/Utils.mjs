@@ -6,12 +6,8 @@ import {isKeyString, migrateKeybinds} from '../options/KeybindUtils.mjs';
 import {DefaultSubtitlesSettings} from '../options/defaults/DefaultSubtitlesSettings.mjs';
 import {EnvUtils} from './EnvUtils.mjs';
 
-/**
- * General utility functions for FastStream player.
- */
 export class Utils {
   /**
-   * Loads player options from storage.
    * @return {Promise<typeof DefaultOptions>} The saved options over the defaults: the defaults' keys,
    *   each of its default's type (mergeOptions).
    */
@@ -22,12 +18,7 @@ export class Utils {
   }
 
   /**
-   * A maximum size below 1 MB in options saved before #378 was a bare number read as bytes:
-   * "10" was 10 bytes where 10 MB was meant, and nothing could be predownloaded. Read as
-   * megabytes. Only once (sizesVersion), from the value as saved: a size below 1 MB chosen
-   * since, in the MB/GB picker (0.5 MB), is meant. A size or speed limit of 0 saved before
-   * becomes no limit, as 1.3.82.75 made it for everyone who updated through it: the size was
-   * read as none, and the speed still read ahead in bursts. 0 is none now, for a 0 chosen since.
+   * Old saved sizes below 1 MB were megabytes, and an old 0 meant no limit. Once (sizesVersion).
    * @param {Object<string, *>} options - Saved options merged over the defaults; changed in place.
    * @param {Object<string, *>|null} stored - The options as saved, before the defaults were filled in.
    * @return {Object<string, *>} The same options, with sizesVersion set.
@@ -45,12 +36,7 @@ export class Utils {
   }
 
   /**
-   * The click defaults were "hide controls" on a click, play/pause on a double click and
-   * fullscreen on a triple from 2023-12 until upstream's 2024-09-14 "click to play", and
-   * options saved in that time keep them: a pause then took a double click, after the triple
-   * click's wait (the owner's "the click to pause reacts late", 2026-10-13). All three still
-   * as they were then move to today's defaults, once (clickActionsVersion); a set the user
-   * changed in any part is theirs and stays.
+   * The old click defaults, all three unchanged, move to today's, once (clickActionsVersion).
    * @param {Object<string, *>} options - Saved options merged over the defaults; changed in place.
    * @param {Object<string, *>|null} stored - The options as saved, before the defaults were filled in.
    * @return {Object} The same options, with clickActionsVersion set.
@@ -69,8 +55,7 @@ export class Utils {
   }
 
   /**
-   * Brings saved keybinds up to the current layout, once per saved options. See
-   * KeybindUtils.migrateKeybinds for the rules.
+   * See KeybindUtils.migrateKeybinds.
    * @param {Object} options - Saved options merged over the defaults; changed in place.
    * @param {Object|null} stored - The options as saved, before the defaults were filled in.
    * @return {Object<string, *>} The same options.
@@ -80,18 +65,16 @@ export class Utils {
   }
 
   /**
-   * Loads subtitle settings from storage.
-   * @return {Object} The loaded subtitle settings object.
+   * @return {Object}
    */
   static getSubtitlesSettingsFromStorage() {
     return Utils.loadAndParseOptions('subtitlesSettings', DefaultSubtitlesSettings);
   }
 
   /**
-   * Merges default options with new options.
-   * @param {Object<string, *>} defaultOptions - The default options.
-   * @param {Object<string, *>} newOptions - The new options to merge.
-   * @return {Object} The merged options object.
+   * @param {Object<string, *>} defaultOptions
+   * @param {Object<string, *>} newOptions
+   * @return {Object}
    */
   static mergeOptions(defaultOptions, newOptions) {
     /** @type {Object<string, *>} */
@@ -100,17 +83,11 @@ export class Utils {
       if (Object.hasOwn(defaultOptions, prop)) {
         const opt = defaultOptions[prop];
         if (Array.isArray(opt)) {
-          // A list takes only a list, of text lines (autoEnableURLs and mpvAllowlist are the
-          // lists in the defaults). typeof null and of {} is 'object' too: an imported
-          // `"autoEnableURLs": null` was kept, saved, and broke the options page for good.
-          // A copy of the default's list: handed out itself, an options object that changed
-          // its list in place (push, splice) changed the defaults for every later merge.
+          // Only a list of strings; else a copy, so no caller changes the defaults in place.
           options[prop] = Object.hasOwn(newOptions, prop) && Array.isArray(newOptions[prop]) ?
             newOptions[prop].filter((item) => typeof item === 'string') : opt.slice();
         } else if (typeof opt === 'object') {
           options[prop] = this.mergeOptions(opt, newOptions[prop] || {});
-          // A binding that can be no key (a line break in it, a page of text) is the default's,
-          // as one that is no text: imported, it broke or froze the options page, for good.
           if (opt === DefaultOptions.keybinds) {
             for (const [action, key] of Object.entries(options[prop])) {
               if (!isKeyString(key)) options[prop][action] = opt[action];
@@ -125,11 +102,10 @@ export class Utils {
   }
 
   /**
-   * Performs a binary search on an array.
    * @template T
-   * @param {Array<T>} array - The array to search.
-   * @param {*} el - The element to search for.
-   * @param {Function} compareFn - Comparison function.
+   * @param {Array<T>} array
+   * @param {*} el
+   * @param {Function} compareFn
    * @return {number} The index of a matching element; when there is none, -(the index it
    *   would go in) - 1, a negative number.
    */
@@ -151,35 +127,31 @@ export class Utils {
   }
 
   /**
-   * Clamps a value between a minimum and maximum.
-   * @param {number} value - The value to clamp.
-   * @param {number} min - Minimum value.
-   * @param {number} max - Maximum value.
-   * @return {number} The clamped value.
+   * @param {number} value
+   * @param {number} min
+   * @param {number} max
+   * @return {number}
    */
   static clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
   }
 
   /**
-   * Gets the byte size of a string, an ArrayBuffer or a view of one, or a Blob.
-   * @param {string|ArrayBuffer|Uint8Array|Blob} data - The data to measure.
-   * @return {number} The byte size.
+   * @param {string|ArrayBuffer|Uint8Array|Blob} data
+   * @return {number}
    */
   static getDataByteSize(data) {
     if (typeof data === 'string') return data.length * 2;
     if (data instanceof ArrayBuffer) return data.byteLength;
-    // An archive's raw entry is a view (LargeBuffer.read): it counted 0.
     if (ArrayBuffer.isView(data)) return data.byteLength;
     if (data instanceof Blob) return data.size;
     return 0;
   }
 
   /**
-   * Zips timed fragments from multiple tracks into a sorted array.
-   * @param {Map<*, Array<{start: number}>>|Array<Array<{start: number}>>} tracks - Each track's
-   *   fragments: a Map by track, or an array (the track is then its index).
-   * @return {Array<*>} Sorted array of zipped fragments.
+   * @param {Map<*, Array<{start: number}>>|Array<Array<{start: number}>>} tracks - By track, or
+   *   an array (the track is then its index).
+   * @return {Array<*>} Sorted by start.
    */
   static zipTimedFragments(tracks) {
     /** @type {{track: *, fragment: {start: number}}[]} */
@@ -201,12 +173,8 @@ export class Utils {
   }
 
   /**
-   * The bitrate the downloaded fragments show, or null while it cannot be told: fewer than
-   * five downloaded, or no time between them. An MP4's ranges start on whole seconds, so
-   * on a high-bitrate one the first few share a second and last 0 s; that gave Infinity, a
-   * false "not enough storage" warning, and every downloaded fragment kept for the session.
-   * @param {Array<{dataSize: number|null, duration: number}|null>} fragments - Fragments with dataSize (null until downloaded)
-   *     and duration.
+   * Null before five are downloaded: an MP4's first ranges can share a second and last 0 s.
+   * @param {Array<{dataSize: number|null, duration: number}|null>} fragments - dataSize null until downloaded.
    * @return {?number} Bits per second.
    */
   static measuredBitrate(fragments) {
@@ -225,19 +193,18 @@ export class Utils {
   }
 
   /**
-   * Loads and parses options from storage, merging with defaults.
-   * @param {string} key - Storage key.
-   * @param {Object<string, *>} defaultOptions - Default options object.
-   * @return {Promise<Object>} Merged options object.
+   * @param {string} key
+   * @param {Object<string, *>} defaultOptions
+   * @return {Promise<Object>}
    */
   static async loadAndParseOptions(key, defaultOptions) {
     return Utils.mergeOptions(defaultOptions, (await Utils.readStoredConfig(key)) || {});
   }
 
   /**
-   * Reads a saved config as it was saved, before any defaults are filled in.
-   * @param {string} key - Storage key.
-   * @return {Promise<Object<string, *>|null>} The saved object, or null when nothing usable was saved.
+   * As it was saved, before any defaults are filled in.
+   * @param {string} key
+   * @return {Promise<Object<string, *>|null>} Null when nothing usable was saved.
    */
   static async readStoredConfig(key) {
     const settingsStr = await Utils.getConfig(key);
@@ -255,16 +222,14 @@ export class Utils {
   }
 
   /**
-   * Gets a config value from extension or localStorage.
-   * @param {string} key - Config key.
-   * @return {Promise<string|null>} The config value or null.
+   * @param {string} key
+   * @return {Promise<string|null>}
    */
   static getConfig(key) {
     return new Promise((resolve, reject)=> {
       if (EnvUtils.isExtension()) {
         chrome.storage.local.get(key, (result) => {
-          // A read that failed answers nothing (runtime.lastError): result[key] threw in the
-          // callback, and this never settled. Unset, as for a key never saved.
+          // A failed read passes no result.
           resolve(/** @type {string|null} */ (result?.[key]));
         });
       } else {
@@ -274,16 +239,14 @@ export class Utils {
   }
 
   /**
-   * Sets a config value in extension or localStorage.
-   * @param {string} key - Config key.
-   * @param {string} value - Value to set.
-   * @return {Promise<void>} Resolves when set.
+   * @param {string} key
+   * @param {string} value
+   * @return {Promise<void>}
    */
   static setConfig(key, value) {
     return new Promise((resolve, reject)=> {
       if (EnvUtils.isExtension()) {
         chrome.storage.local.set({[key]: value}, () => {
-          // Said, not thrown: few callers wait for a save, and a failed one went by unseen.
           if (chrome.runtime?.lastError) console.error('Saving ' + key + ' failed', chrome.runtime.lastError);
           resolve();
         });
@@ -295,8 +258,7 @@ export class Utils {
   }
 
   /**
-   * Prints a welcome message to the console.
-   * @param {string} version - FastStream version string.
+   * @param {string} version
    */
   static printWelcome(version) {
     console.log('\n %c %c FastStream -%c ' + version + ' %c By Andrews54757 \n',
@@ -309,11 +271,10 @@ export class Utils {
   }
 
   /**
-   * Resolves when an event occurs or a timeout is reached.
-   * @param {import('../modules/eventemitter.mjs').EventEmitter} context - What emits the event (a player).
-   * @param {string} event - Event name.
-   * @param {number} timeout - Timeout in ms.
-   * @return {Promise<boolean>} True if event occurred, false if timed out.
+   * @param {import('../modules/eventemitter.mjs').EventEmitter} context
+   * @param {string} event
+   * @param {number} timeout - ms.
+   * @return {Promise<boolean>} False if timed out.
    */
   static timeoutableEvent(context, event, timeout) {
     /** @type {(() => void)|undefined} */
@@ -342,9 +303,8 @@ export class Utils {
   }
 
   /**
-   * Returns a promise that resolves after a timeout.
-   * @param {number} timeout - Timeout in ms.
-   * @return {Promise<void>} Resolves after timeout.
+   * @param {number} timeout - ms.
+   * @return {Promise<void>}
    */
   static asyncTimeout(timeout) {
     return new Promise((resolve, reject) => {
@@ -355,8 +315,6 @@ export class Utils {
   }
 
   /**
-   * Saves a blob as a file the way every save goes (downloadURL), its URL let go once the
-   * download is over (revokeWhenDownloaded).
    * @param {Blob} blob
    * @param {string} filename
    * @return {Promise<void>} Once the download was handed to the browser.
@@ -368,32 +326,21 @@ export class Utils {
   }
 
   /**
-   * Revokes a download's blob: URL once the download no longer needs it.
-   *
-   * downloads.download() resolves before Firefox has read a blob: URL: revoked at once, 8
-   * of 60 small downloads failed (interrupted, CRASH) and no file came, with no message -
-   * a subtitle saved from the menu, the end of a save. So the URL stays until Firefox says
-   * the download is over. A link click reads the blob at once (40 of 40 survived a revoke
-   * right after it); with no download to ask about (a link click, the web build), it
-   * stays a minute.
+   * downloads.download() resolves before Firefox has read a blob: URL, so it stays until the
+   * download is over (a minute without a download id).
    * @param {string} url - The blob: URL.
    * @param {*} download - What downloadURL resolved with: the download's id, or not.
-   * @return {Promise<boolean>} Settles once the URL is revoked: whatever else the download
-   *     reads from (a save's OPFS session) can be let go then too. True when Firefox said
-   *     the download is over (whenDownloaded).
+   * @return {Promise<boolean>} Settles once revoked; true when Firefox said the download is over.
    */
   static revokeWhenDownloaded(url, download) {
     return Utils.whenDownloaded(download, () => URL.revokeObjectURL(url));
   }
 
   /**
-   * Waits until a download no longer reads its URL (revokeWhenDownloaded): Firefox says it
-   * is over, or a minute after a link click, or 30 minutes at most.
+   * Firefox says it is over, or a minute after a link click, or 30 minutes at most.
    * @param {*} download - What downloadURL resolved with: the download's id, or not.
-   * @param {() => void} [atOver] - Run at that moment, before the promise settles.
-   * @return {Promise<boolean>} Whether Firefox said the download is over (complete,
-   *     interrupted, or no longer in its list); false when this stopped waiting without
-   *     knowing (a link click, one still running after half an hour, perhaps paused).
+   * @param {() => void} [atOver] - Run before the promise settles.
+   * @return {Promise<boolean>} False when it stopped waiting without knowing.
    */
   static whenDownloaded(download, atOver = () => {}) {
     /** @type {PromiseWithResolvers<boolean>} */
@@ -426,7 +373,6 @@ export class Utils {
     // A download that never ends keeps its data no longer than this.
     const timer = setTimeout(() => finish(false), 30 * 60 * 1000);
     downloads.onChanged.addListener(changed);
-    // It may have ended before the listener was there.
     downloads.search({id: download}).then(([item]) => {
       if (!item || item.state !== 'in_progress') finish(true);
     }).catch(() => finish(false));
@@ -434,15 +380,13 @@ export class Utils {
   }
 
   /**
-   * Downloads a file from a URL, using extension APIs if available.
-   * @param {string} url - The file URL.
-   * @param {string} filename - The filename to save as.
-   * @param {boolean} [forceDirect=false] - Force direct download (bypass extension).
-   * @return {Promise<boolean|void>} Resolves when download starts.
+   * @param {string} url
+   * @param {string} filename
+   * @param {boolean} [forceDirect=false] - A link click, not the background's downloads API.
+   * @return {Promise<boolean|void>} Resolves when the download starts.
    */
   static async downloadURL(url, filename, forceDirect = false) {
-    // Firefox has a bug where it doesn't download filed from sandboxed iframes
-    // Caused by bloburl partitioning issues. See gecko's dom/file/uri/BlobURLProtocolHandler.cpp#L775C1-L786C6
+    // Firefox does not download a blob: URL clicked in a sandboxed iframe (blob URL partitioning).
     if (EnvUtils.isExtension() && !forceDirect) {
       return new Promise((resolve, reject) => {
         chrome.runtime.sendMessage({

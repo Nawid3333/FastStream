@@ -1,14 +1,10 @@
 // @ts-check
 import {DefaultPlayerEvents} from '../enums/DefaultPlayerEvents.mjs';
 
-/**
- * Utility functions for video element event handling and manipulation.
- */
 export class VideoUtils {
   /**
-   * Adds passthrough event listeners to a video element and emits events via the emitter.
-   * @param {HTMLVideoElement} video - The video element.
-   * @param {{emit: (event: string, ...args: *[]) => *}} emitter - What it emits on (an EventEmitter, an EmitterRelay).
+   * @param {HTMLVideoElement} video
+   * @param {{emit: (event: string, ...args: *[]) => *}} emitter - An EventEmitter or an EmitterRelay.
    */
   static addPassthroughEventListenersToVideo(video, emitter) {
     video.addEventListener(DefaultPlayerEvents.ABORT, (event) => {
@@ -116,8 +112,7 @@ export class VideoUtils {
   }
 
   /**
-   * Destroys a video element and releases resources.
-   * @param {HTMLVideoElement} video - The video element to destroy.
+   * @param {HTMLVideoElement} video
    */
   static destroyVideo(video) {
     try {
@@ -130,10 +125,9 @@ export class VideoUtils {
   }
 
   /**
-   * Checks if a specific time is buffered in a video.
-   * @param {TimeRanges} buffered - The buffered time ranges.
-   * @param {number} time - The time to check (in seconds).
-   * @return {boolean} True if time is buffered, false otherwise.
+   * @param {TimeRanges} buffered
+   * @param {number} time - Seconds.
+   * @return {boolean}
    */
   static isBuffered(buffered, time) {
     if (buffered.length === 0) return false;

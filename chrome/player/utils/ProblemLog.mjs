@@ -1,21 +1,16 @@
 // @ts-check
-// Sites where autoplay could not go on: kept per site and kind, newest
-// first, for the options page to list and report as a GitHub issue the user reviews. Only the
-// page's host and path are kept - a query often carries a session token.
+// Sites where autoplay could not go on, for the options page to list and report.
+// Only host and path are kept: a query often carries a session token.
 
 const StorageKey = 'siteProblems';
 const MaxEntries = 50;
 
-/** What went wrong, as the options page names it. */
 export const ProblemKinds = Object.freeze({
-  // No next episode found in the page: the last one, or a site FastStream cannot read yet.
   NO_NEXT: 'no_next',
-  // Went on to the next episode's page, and no video came from it within a minute.
   NO_STREAM: 'no_stream',
 });
 
 /**
- * A site's problem of one kind, as the list keeps it.
  * @typedef {Object} ProblemEntry
  * @property {string} id - Its host and kind.
  * @property {string} [protocol] - Not in an entry noted before it was kept.
@@ -24,27 +19,23 @@ export const ProblemKinds = Object.freeze({
  * @property {string} kind - One of ProblemKinds.
  * @property {'player'|'mpv'} mode
  * @property {number} count
- * @property {number} first - When it was first noted (ms since 1970).
- * @property {number} last - When it was last noted.
+ * @property {number} first - Epoch ms.
+ * @property {number} last
  */
 
 /**
- * The list as stored.
  * @return {Promise<Array<ProblemEntry>>}
  */
 export async function readProblems() {
-  // The callback form: every page that reads it has it (the options page's tests too).
   const stored = await new Promise((resolve) => chrome.storage.local.get(StorageKey, resolve));
   const list = stored?.[StorageKey];
   return Array.isArray(list) ? list : [];
 }
 
-// The changes to the list, one after the other: two notes at once (two tabs, the player's and
-// mpv's) read the same list, and the second write lost the first.
+// Serialized: two notes at once read the same list, and the second write lost the first.
 let changes = Promise.resolve();
 
 /**
- * Runs a change of the list after the ones before it.
  * @param {() => Promise<void>} change
  * @return {Promise<void>}
  */
@@ -55,7 +46,7 @@ function queued(change) {
 }
 
 /**
- * Notes a problem on a page: a second one of the same kind on the same site counts up.
+ * A second problem of the same kind on the same site counts up.
  * @param {{url: string, kind: string, mode: 'player'|'mpv'}} problem
  * @param {number} [now]
  * @return {Promise<void>}
@@ -65,7 +56,6 @@ export function recordProblem(problem, now = Date.now()) {
 }
 
 /**
- * recordProblem's change.
  * @param {{url: string, kind: string, mode: 'player'|'mpv'}} problem
  * @param {number} now
  * @return {Promise<void>}
@@ -96,7 +86,7 @@ async function note({url, kind, mode}, now) {
 }
 
 /**
- * Empties the list (after a note still being made, which would bring it back).
+ * After a note still being made, which would bring it back.
  * @return {Promise<void>}
  */
 export function clearProblems() {
@@ -104,7 +94,6 @@ export function clearProblems() {
 }
 
 /**
- * Writes the list.
  * @param {Array<ProblemEntry>} list
  * @return {Promise<void>}
  */
@@ -113,9 +102,8 @@ function store(list) {
 }
 
 /**
- * The GitHub issue a report opens, for the user to check and submit: the site, what went
- * wrong, the versions. English, for the repository.
- * @param {ProblemEntry} entry - One of the list.
+ * The new-issue address; the user checks and submits it. English, for the repository.
+ * @param {ProblemEntry} entry
  * @param {{version: string, browser: string}} about
  * @return {string} The new-issue address.
  */

@@ -1,20 +1,12 @@
 // @ts-check
-// A SubRip timestamp line: `00:00:01,000 --> 00:00:02,000`, also with '.' before the
-// milliseconds, short or missing milliseconds, and one-digit minutes and seconds. It is only
-// tried where a run of digits starts: from inside a long line of digits, (\d+): failed again
-// for every digit of it (quadratic), and can match nothing the run's start does not.
+// Also '.' before short or missing milliseconds, one-digit minutes and seconds. The lookbehind
+// tries it only where a run of digits starts: from inside a long run it is quadratic.
 const SRT_TIMESTAMP = /(?<!\d)(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?\s*--?>\s*(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?/;
-// The same at the start of a line, which is where a cue's timestamp is.
 const SRT_CUE_START = new RegExp('^\\s*' + SRT_TIMESTAMP.source);
 
-/**
- * Utility functions for subtitle parsing and conversion.
- */
 export class SubtitleUtils {
   /**
-   * A subtitle size setting as CSS: a bare number ("20", or "1,5" with a decimal comma) is
-   * pixels, as the outline width already read it. The font size and the bottom margin took
-   * only CSS ("3vw", "40px"): a bare 20 was refused, and the setting did nothing.
+   * A bare number ("20", "1,5") is pixels; anything else is CSS as given.
    * @param {string} value
    * @return {string}
    */
@@ -24,9 +16,7 @@ export class SubtitleUtils {
   }
 
   /**
-   * The subtitle outline's width in pixels, from its text field: a decimal comma too, as in
-   * the size fields ("1,5" was 1), and at most 64: "Infinity" (or 1e999) passed, and the
-   * outline's loop never ended - the player hung. 0 for none, or for what is no number.
+   * Pixels, at most 64: the outline's loop would never end for Infinity. 0 for no number.
    * @param {*} value
    * @return {number}
    */
@@ -36,10 +26,7 @@ export class SubtitleUtils {
   }
 
   /**
-   * A subtitle track's file name to save it under, before ".srt" is added: what Windows (and
-   * Firefox's downloads) refuse replaced, and an extension of its own taken off - a track
-   * loaded from movie.srt was saved as movie.srt.srt, and one typed as movie.vtt as
-   * movie.vtt.srt (the file is SubRip whatever it was loaded as).
+   * The name before ".srt" is added: characters Windows refuses replaced, an own extension taken off.
    * @param {string} name
    * @return {string}
    */
@@ -48,15 +35,11 @@ export class SubtitleUtils {
   }
 
   /**
-   * Reads a subtitle file's bytes as text, as the browser did (a byte order mark first, then
-   * a charset the server declared), except that bytes that are no UTF-8 are read as
-   * Windows-1252: most older SubRip files from Western Europe are, and read as UTF-8 every
-   * accented letter in them showed as U+FFFD. Every place that reads a subtitle file's bytes
-   * uses this; content.js, which cannot import it, carries a copy a test keeps the same.
-   * Outside Western Europe the older encoding is another: the browser's language picks it.
-   * @param {ArrayBuffer|ArrayBufferView} data - The file's bytes.
+   * As the browser reads it (BOM, then a declared charset), but bytes that are no UTF-8 are read
+   * in the legacy encoding of the browser's language. content.js carries a copy a test keeps the same.
+   * @param {ArrayBuffer|ArrayBufferView} data
    * @param {?string} [contentType] - The Content-Type it came with over HTTP, if any.
-   * @return {string} The file's text.
+   * @return {string}
    */
   static decodeSubtitleBytes(data, contentType) {
     const bytes = ArrayBuffer.isView(data) ?
@@ -102,9 +85,8 @@ export class SubtitleUtils {
   }
 
   /**
-   * Translates XML entities in a string to their corresponding characters.
-   * @param {string} str - The input string.
-   * @return {string} The translated string.
+   * @param {string} str
+   * @return {string}
    */
   static translateXMLEntities(str) {
     /** @type {Object<string, string>} */
@@ -117,7 +99,7 @@ export class SubtitleUtils {
     };
 
     const entitySplit = str.split(/(&[#a-zA-Z0-9]+;)/);
-    if (entitySplit.length <= 1) { // No entities. Skip the rest of the function.
+    if (entitySplit.length <= 1) {
       return str;
     }
 
@@ -125,15 +107,13 @@ export class SubtitleUtils {
       const reference = entitySplit[i];
       if (reference.charAt(1) === '#') {
         let code;
-        if (reference.charAt(2) === 'x' || reference.charAt(2) === 'X') { // Hexadecimal
+        if (reference.charAt(2) === 'x' || reference.charAt(2) === 'X') {
           code = parseInt(reference.substring(3, reference.length - 1), 16);
-        } else { // Decimal
+        } else {
           code = parseInt(reference.substring(2, reference.length - 1), 10);
         }
 
-        // Translate into string according to ISO/IEC 10646. A surrogate code point is no
-        // character: U+FFFD, as in HTML. Left a lone surrogate, it made the WebVTT parser
-        // throw "URI malformed" and the whole track failed.
+        // A surrogate is U+FFFD, as in HTML: a lone one makes the WebVTT parser throw.
         if (!isNaN(code) && code >= 0 && code <= 0x10FFFF) {
           entitySplit[i] = code >= 0xD800 && code <= 0xDFFF ? String.fromCharCode(0xFFFD) : String.fromCodePoint(code);
         }
@@ -146,21 +126,15 @@ export class SubtitleUtils {
   }
 
   /**
-   * Converts SRT subtitle format to WebVTT format.
-   * @param {string} data - SRT subtitle data.
-   * @return {string} WebVTT subtitle data.
+   * @param {string} data - SRT.
+   * @return {string} WebVTT.
    */
   static srt2webvtt(data) {
-    // remove dos newlines; in a file with no line feed at all (a classic Mac one) the
-    // carriage returns are the line ends, and removing them left no cue
+    // With no line feed at all (classic Mac), the carriage returns are the line ends.
     let srt = data.includes('\n') ? data.replace(/\r+/g, '') : data.replace(/\r/g, '\n');
-    // trim white space start and end (/^\s+|\s+$/g, which trims the same, was quadratic in
-    // a long run of spaces inside the file)
     srt = srt.trim();
-    // get cues: a cue ends at a blank line, however many follow it, and a cue also starts
-    // at its own timestamp when no blank line comes before it. So a line of spaces ends
-    // the cue before a timestamp, and inside a cue it is text, as ffmpeg and VLC read it:
-    // splitting at it too lost the text below it.
+    // A cue ends at a blank line, and also starts at its own timestamp; a line of spaces
+    // inside a cue is text, as ffmpeg and VLC read it.
     const cuelist = srt.split(/\n\n+/).flatMap((block) => this.splitAtCueStarts(block));
     let result = '';
     if (cuelist.length > 0) {
@@ -173,25 +147,20 @@ export class SubtitleUtils {
   }
 
   /**
-   * Converts XML subtitle data to WebVTT format.
-   * @param {string} data - XML subtitle data.
-   * @return {string} WebVTT subtitle data.
+   * @param {string} data - XML.
+   * @return {string} WebVTT.
    */
   static xml2vtt(data) {
     const parser = new DOMParser();
     const xml = parser.parseFromString(data, 'text/xml');
     const cues = xml.getElementsByTagName('text');
     const result = ['WEBVTT'];
-    // A cue without a start is left out, and one without a duration lasts until the next
-    // one starts (2 s for the last): either wrote NaN:NaN:NaN.NaN, and the whole track was
-    // refused.
+    // No start: left out; no duration: until the next one starts (2 s for the last).
     const starts = Array.from(cues, (cue) => parseFloat(/** @type {string} */ (cue.getAttribute('start'))));
     for (let i = 0; i < cues.length; i++) {
       const start = starts[i];
       if (!Number.isFinite(start)) continue;
       const dur = parseFloat(/** @type {string} */ (cues[i].getAttribute('dur')));
-      // Looked for only when needed, and without copying the rest of the list: copied for
-      // every cue, a file of 100,000 cues took seconds.
       let next;
       if (!Number.isFinite(dur)) {
         for (let j = i + 1; j < starts.length; j++) {
@@ -209,12 +178,10 @@ export class SubtitleUtils {
   }
 
   /**
-   * Formats a time in seconds as HH:MM:SS plus milliseconds, rounded to the nearest
-   * millisecond. Flooring instead turned float error such as 1.2999999999999998 (a cue
-   * shifted by 0.1 s three times) into 1.299.
-   * @param {number} sec - Time in seconds; a negative time is written as zero.
-   * @param {string} separator - What goes between the seconds and the milliseconds.
-   * @return {string} The time string.
+   * HH:MM:SS plus milliseconds, rounded: flooring turns 1.2999999999999998 into 1.299.
+   * @param {number} sec - A negative time is written as zero.
+   * @param {string} separator - Between the seconds and the milliseconds.
+   * @return {string}
    */
   static formatTimestamp(sec, separator) {
     const total = Math.max(0, Math.round(sec * 1000));
@@ -226,27 +193,24 @@ export class SubtitleUtils {
   }
 
   /**
-   * Formats a time value in seconds to WebVTT time format.
-   * @param {number} sec - Time in seconds.
-   * @return {string} WebVTT time string (HH:MM:SS.mmm).
+   * @param {number} sec
+   * @return {string} HH:MM:SS.mmm
    */
   static vttTimeFormat(sec) {
     return this.formatTimestamp(sec, '.');
   }
 
   /**
-   * Formats a time value in seconds to SRT time format.
-   * @param {number} sec - Time in seconds.
-   * @return {string} SRT time string (HH:MM:SS,mmm).
+   * @param {number} sec
+   * @return {string} HH:MM:SS,mmm
    */
   static srtTimeFormat(sec) {
     return this.formatTimestamp(sec, ',');
   }
 
   /**
-   * Converts an array of cues to SRT subtitle format.
-   * @param {Array<{startTime: number, endTime: number, text: string}>} cues - Array of cues.
-   * @return {string} SRT subtitle data.
+   * @param {Array<{startTime: number, endTime: number, text: string}>} cues
+   * @return {string} SRT.
    */
   static cuesToSrt(cues) {
     const result = [];
@@ -261,17 +225,12 @@ export class SubtitleUtils {
   }
 
   /**
-   * The cues on screen at a time. A track's cues are sorted by start time only, so a long
-   * cue (a sign, a song) stays on screen behind later, shorter ones; looking back from the
-   * last cue that started only as far as the first one already over lost it. Every cue is
-   * checked, which also holds when an edit or shift left the track out of order. It runs
-   * on each time update (a few times a second); measured in Node, 1,500 cues (a film) take
-   * about 0.002 ms, 10,000 about 0.01 ms.
+   * Every cue is checked: a long cue stays on screen behind later, shorter ones, and an edit
+   * can leave the track out of order. 10,000 cues take about 0.01 ms.
    * @template {{startTime: number, endTime: number}} T
-   * @param {Array<T>} cues - The track's cues.
-   * @param {number} time - The time, in seconds.
-   * @return {Array<T>} The cues that start at or before the time and end at or after it, in
-   *   the track's order.
+   * @param {Array<T>} cues
+   * @param {number} time - Seconds.
+   * @return {Array<T>} In the track's order.
    */
   static cuesAt(cues, time) {
     const onScreen = [];
@@ -284,10 +243,7 @@ export class SubtitleUtils {
   }
 
   /**
-   * Whether a download link from the OpenSubtitles API may be fetched. The player fetches
-   * it with the extension's host permissions, so only an https link on OpenSubtitles' own
-   * hosts is (they look like https://www.opensubtitles.com/download/.../subfile/name.srt),
-   * not whatever a hostile or intercepted answer names.
+   * Only https on OpenSubtitles' own hosts: it is fetched with the extension's host permissions.
    * @param {*} link - The link from the API's answer.
    * @return {boolean}
    */
@@ -302,15 +258,13 @@ export class SubtitleUtils {
   }
 
   /**
-   * Converts one SubRip timestamp to WebVTT's HH:MM:SS.mmm, which is all the WebVTT parser
-   * accepts. SubRip files write the milliseconds after a comma or a full stop, sometimes
-   * with fewer than three digits (read as a number of milliseconds, as ffmpeg and VLC read
-   * them) and sometimes not at all.
-   * @param {string} hours - The hours, as written.
-   * @param {string} minutes - The minutes, as written.
-   * @param {string} seconds - The seconds, as written.
-   * @param {string} [millis] - The milliseconds, as written, if any.
-   * @return {string} The WebVTT timestamp.
+   * To HH:MM:SS.mmm, all the WebVTT parser accepts. Short milliseconds are a number of
+   * milliseconds, as ffmpeg and VLC read them.
+   * @param {string} hours
+   * @param {string} minutes
+   * @param {string} seconds
+   * @param {string} [millis]
+   * @return {string}
    */
   static srtTimestampToVtt(hours, minutes, seconds, millis) {
     let ms = millis || '0';
@@ -319,12 +273,8 @@ export class SubtitleUtils {
   }
 
   /**
-   * Splits a block of SubRip text at every cue that starts inside it. A cue starts at its
-   * timestamp line, or at the sequence number just before it, and ffmpeg (so mpv) starts a
-   * new cue there even with no blank line before it. Files that leave the blank line out, or
-   * write a non-breaking space on it, lost the next cue: its timestamp became a line of the
-   * previous cue's text. A line of invisible whitespace left at the end of a cue by such a
-   * separator is dropped; inside a cue it is kept, as ffmpeg keeps it.
+   * A cue starts at its timestamp line, or the sequence number before it, even with no blank
+   * line before it, as in ffmpeg. Trailing whitespace lines are dropped; inner ones kept.
    * @param {string} block - SubRip text with no blank line in it.
    * @return {string[]} One block per cue, in order.
    */
@@ -344,16 +294,12 @@ export class SubtitleUtils {
     };
 
     let start = 0;
-    // The last cue's timestamp line.
     let lastCueTime = -1;
     for (let i = 0; i < lines.length; i++) {
       if (!SRT_CUE_START.test(lines[i])) {
         continue;
       }
-      // The number before a timestamp is that cue's sequence number, unless it is the only
-      // line after the last cue's timestamp: then it is that cue's text (a score, a year).
-      // Taken for the next cue's number, it left its cue empty, which was dropped (glm's
-      // second look, 2026-10-13).
+      // A number that is the only line after the last timestamp is that cue's text (a score, a year).
       const onlyText = lastCueTime >= 0 && lastCueTime === i - 2;
       const cueStart = i > start && !onlyText && /^\d+$/.test(lines[i - 1].trim()) ? i - 1 : i;
       if (cueStart > start) {
@@ -367,26 +313,19 @@ export class SubtitleUtils {
   }
 
   /**
-   * Converts a single SRT caption to a formatted string.
-   * @param {string} caption - One SRT cue's text: its number, timestamp and text lines.
-   * @return {string} Formatted caption string.
+   * @param {string} caption - One SRT cue: its number, timestamp and text lines.
+   * @return {string}
    */
   static convertSrtCue(caption) {
-    // remove all html tags for security reasons
-    // srt = srt.replace(/<[a-zA-Z\/][^>]*>/g, '');
     const lines = caption.split(/\n/);
     if (lines.length < 2) {
-      // file format error or comment lines
       return '';
     }
 
-    // The timestamp line comes first, or second after a sequence-number line.
     const timestamp = SRT_TIMESTAMP;
     let line = 0;
     let cue = '';
     if (!timestamp.test(lines[0]) && timestamp.test(lines[1])) {
-      // A WebVTT cue identifier is optional, so a sequence line with nothing usable in it
-      // is left out rather than written as the word "null".
       const identifier = lines[0].match(/\w+/);
       if (identifier) {
         cue += identifier[0] + '\n';
@@ -396,17 +335,14 @@ export class SubtitleUtils {
 
     const m = lines[line].match(timestamp);
     if (!m) {
-      // file format error or comment lines
       return '';
     }
     cue += this.srtTimestampToVtt(m[1], m[2], m[3], m[4]) + ' --> ' +
       this.srtTimestampToVtt(m[5], m[6], m[7], m[8]) + '\n';
 
-    // Everything after the timestamp is the cue text, however many lines it has.
     const cueText = lines.slice(line + 1).join('\n');
     if (cueText) {
-      // A <br> tag ends at a '>', so the text after the last '>' holds none. Searching it
-      // too ran [^>]* to the end of the text from every "<br" there: quadratic.
+      // Not after the last '>': [^>]* from every "<br" there would be quadratic.
       const end = cueText.lastIndexOf('>') + 1;
       cue += cueText.substring(0, end).replace(/<\s*\/?\s*br\b[^>]*>/gi, '\n') + cueText.substring(end);
     }
@@ -414,9 +350,9 @@ export class SubtitleUtils {
   }
 
   /**
-   * Converts subtitle formatting tags to a supported format.
-   * @param {string} text - Subtitle text.
-   * @return {string} Formatted subtitle text.
+   * ASS and SubRip tags to WebVTT.
+   * @param {string} text
+   * @return {string}
    */
   static convertSubtitleFormatting(text) {
     /** @type {Object<string, string>} */
@@ -432,14 +368,11 @@ export class SubtitleUtils {
       9: 'line:5% position:100% align:end',
     };
 
-    // An alignment tag at the start of a cue's first line, right after its timing line,
-    // becomes the cue's settings. One on a later line is stripped below: its settings went
-    // onto whatever line came before it, and were shown as text.
+    // Only an alignment tag at the start of a cue's first line becomes the cue's settings.
     const lines = text.split('\n');
     const written = lines.slice();
     for (let i = 1; i < lines.length; i++) {
-      // The alignment can share its block with other tags ({\an8\i1}): those stay, in a
-      // block of their own, for the override blocks below.
+      // Other tags in its block ({\an8\i1}) stay for the override blocks below.
       const tag = /^\{\\?an(\d)((?:\\[^{}\n]*)?)\}/i.exec(lines[i]);
       if (!tag || !lines[i - 1].includes('-->')) {
         continue;
@@ -449,28 +382,19 @@ export class SubtitleUtils {
       lines[i - 1] = settings ? `${timing} ${settings}` : timing;
       lines[i] = (tag[2] ? `{${tag[2]}}` : '') + lines[i].substring(tag[0].length);
     }
-    // Line by line: every tag below ends on its line.
+    // Line by line: a stray "{\" must not swallow later cues.
     const converted = [];
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
-          // An ASS override block ({\i1}, {\b0}, {\i1\fad(200,0)}, {\pos(400,570)\c&HFFFFFF&}):
-          // its italic, bold and underline switches become tags; the rest (position, colour,
-          // fades, fonts, a later alignment) has no WebVTT form and goes. Only {\b1} and the
-          // like were known, and every other block was shown as text (audit, 2026-10-09).
-          // \b700 is a bold weight, so on; \b, \b0 off. \bord, \blur, \be, \iclip are other
-          // tags (a letter follows). A block ends on its line: a stray "{\" took everything up
-          // to a "}" in a later cue, timing lines too. Switches are not toggled ASS-style:
-          // {\i1}a{\b1}b{\i0}c becomes <i>a<b>b</i>c, and WebVTT ignores that </i> while <b>
-          // is open, so c stays italic and bold.
+          // An ASS override block: i, b, u switches become tags (\b700 is on; \bord, \blur are
+          // other tags); everything else has no WebVTT form and goes.
           .replace(/\{(\\[^{}\n]*)\}/g, (block, overrides) =>
             Array.from(overrides.matchAll(/\\([ibu])(\d*)(?![a-z])/gi), ([, tag, value]) =>
               value === '' || value === '0' ? `</${tag.toLowerCase()}>` : `<${tag.toLowerCase()}>`).join(''))
-          .replace(/\{([ibu])\}/gi, '<$1>') // convert {b}, {i}, {u} to <b>, <i>, <u>
-          .replace(/\{\/([ibu])\}/gi, '</$1>') // convert {/b}, {/i}, {/u} to </b>, </i>, </u>
-          .replace(/\{an\d\}/gi, ''); // strip any remaining alignment tags without a backslash
-      // A line that held only tags with no WebVTT form ({\an8} on a line of its own, made
-      // the cue's settings above; {\pos(400,570)}) was left empty, and an empty line ends
-      // the cue: the text after it was lost. It goes; a line that was empty stays.
+          .replace(/\{([ibu])\}/gi, '<$1>')
+          .replace(/\{\/([ibu])\}/gi, '</$1>')
+          .replace(/\{an\d\}/gi, '');
+      // A line emptied of its tags goes: an empty line would end the cue.
       if (line.trim() === '' && written[i].trim() !== '') {
         continue;
       }
@@ -478,11 +402,10 @@ export class SubtitleUtils {
     }
 
     return converted.join('\n')
-        // An ASS hard line break. Several in a row, with or without a real line break after
-        // each, make one: an empty line would end the cue.
+        // ASS hard breaks in a row make one: an empty line would end the cue.
         .replace(/(?:\\N(?:\r?\n)?)+/g, '\n')
-        // An ASS soft line break: a space where the line need not break. It was shown as \n.
+        // ASS soft line break.
         .replace(/\\n/g, ' ')
-        .replace(/\\h/gi, ' '); // convert hard spaces to regular spaces
+        .replace(/\\h/gi, ' ');
   }
 }

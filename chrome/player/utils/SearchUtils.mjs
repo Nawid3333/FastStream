@@ -2,7 +2,6 @@
 import Fuse from '../modules/fuse.mjs';
 import {Localize} from '../modules/Localize.mjs';
 
-// Primary Singleton/Adapter class to pass values into Fuse
 class Search {
   /** @type {Search|null} */
   static SearchInstance = null;
@@ -41,22 +40,15 @@ class Search {
   }
 }
 
-// Initializer function to make sure that keybinds are loaded properly after being generated
 export function initsearch() {
-  // The new instance takes each row's display as its own. Built while a query hides rows,
-  // it took their hiding for it, and no later search showed them again: the options page
-  // rebuilds the search whenever it reloads its options (an IntersectionObserver, a change
-  // from another tab), and on the Windows CI runner that came during a search
-  // (options-mpv.e2e.mjs, 2026-10-03 and 05). The page goes back to unsearched first.
+  // The new instance takes each row's current display as its own: unhide rows first.
   if (Search.SearchInstance) {
     resetSearch();
   }
   Search.SearchInstance = new Search();
-  // Forces a style recompute due to CSS issues
   resetSearch();
 }
 
-// Resets the research candidates. Used probably a bit more than I'd like, but it's functional
 export function resetSearch() {
   const instance = Search.get_search_instance();
   const removalEls = [...instance.baseSearchEls, ...instance.keybindSearchEls];
@@ -76,7 +68,6 @@ export function resetSearch() {
   renderSectionCounts(instance, '');
 }
 
-// Searches with a given string query, returns the list of indexes from the search dictionary that hit
 /** @param {string} query */
 export function searchWithQuery(query) {
   resetSearch();
@@ -86,14 +77,13 @@ export function searchWithQuery(query) {
   const instance = Search.get_search_instance();
   const rez = new Set(Array.from(instance.Fuse.search(query), (value) => value.refIndex));
   let i = 0;
-  // Same case as above for repeated singleton method calls
   instance.baseSearchEls.forEach((el) => {
     if (!rez.has(i)) {
       el.style.display = 'none';
     }
     ++i;
   });
-  // To account for keybind weirdness...
+  // Each keybind row has two search texts.
   const offset = instance.baseSearchEls.length;
   const keyElsLength = instance.keybindSearchEls.length;
   for (let i1 = 0; i1 < keyElsLength; ++i1) {

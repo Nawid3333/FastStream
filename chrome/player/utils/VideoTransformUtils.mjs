@@ -1,19 +1,14 @@
 // @ts-check
 import {AspectRatios} from '../options/defaults/AspectRatios.mjs';
 
-/**
- * The CSS transform for the video's zoom, flip and rotation, and its aspect ratio.
- */
 export class VideoTransformUtils {
   /**
-   * Generates a CSS transform string based on video options.
-   * @param {{videoZoom: number, videoFlip: number, videoRotate: number}} options - Video transform options.
-   * @return {string} The CSS transform string.
+   * @param {{videoZoom: number, videoFlip: number, videoRotate: number}} options
+   * @return {string}
    */
   static getTransformString(options) {
     const transforms = [];
-    // A zoom of 0 (or none at all) is no zoom: scale(0) hid the video. An emptied zoom field
-    // was saved as 0 by older versions, and the slider went down to 0 % (review).
+    // Older versions could save a zoom of 0, and scale(0) hides the video.
     const zoom = options.videoZoom > 0 ? options.videoZoom : 1;
 
     if (options.videoFlip !== 0) {
@@ -30,10 +25,9 @@ export class VideoTransformUtils {
   }
 
   /**
-   * The styles for the picture's aspect ratio (upstream #552 and its fix): a ratio gives the
-   * video a box of that shape, as large as fits the player, and stretches the picture to it;
-   * stretch fills the player. Auto (or an unknown value) leaves the video's own.
-   * @param {{videoAspectRatio: string}} options - The player's options (videoAspectRatio).
+   * A ratio gives the video a box of that shape and stretches the picture to it; stretch fills
+   * the player; Auto (or an unknown value) leaves the video's own.
+   * @param {{videoAspectRatio: string}} options
    * @return {{objectFit: string, aspectRatio: string}} aspectRatio as CSS ("16/9"), or ''.
    */
   static getAspectRatioStyles(options) {
