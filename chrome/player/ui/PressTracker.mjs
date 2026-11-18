@@ -5,14 +5,8 @@
  * volume, the timeline, the subtitles' position, the subtitle syncer's track, the silence
  * threshold line, a tool's long press (reordering) and the video's hold (twice the speed).
  *
- * Each of them ended on a mouseup of its own: in the player; then in the document too (the
- * frame a press began in hears its mouseup wherever the button is let go, over the page or
- * outside the window); then at a move with the button up, for a mouseup that never came -
- * each added where one was missed, one drag at a time. The hold had none of them: with the
- * window switched while the video was held, its mouseup went to the other window, and the
- * video played on at twice the speed until the next click (measured, 2026-10-28; the tool's
- * long press the same: reordering began after the button was let go). A press ends here, for
- * all of them:
+ * A mouseup may never come (the window switched during the press sends it to the other
+ * window), so a press ends here, for all of them:
  * - at its release, anywhere in the document, heard before any element can stop it (the
  *   subtitles menu and its rows stop mouseup);
  * - without one, end(null), the moment there can be none: the window lost the focus (another

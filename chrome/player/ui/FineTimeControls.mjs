@@ -65,8 +65,7 @@ export class FineTimeControls extends EventEmitter {
     }
 
     if (index === this.stateStack.length - 1) {
-      // At once: the last one (precise seek, the silence skipper, the subtitle syncer)
-      // closed a second later (review of 2026-10-14, his "no delays" wish).
+      // At once, with no closing delay (precise seek, the silence skipper, the subtitle syncer).
       this.stateStack[index].onClose();
       this.stateStack.pop();
       if (this.stateStack.length > 0) {
@@ -167,8 +166,7 @@ export class FineTimeControls extends EventEmitter {
       const delta = /** @type {MouseEvent} */ (e).clientX - grabStart;
       const time = grabStartTime - (delta / this.ui.timelineTicks.clientWidth * video.duration);
       // Off again for each move: a key's seek in the middle of the grab turns saving on
-      // around itself, and the moves after it were saved one by one (glm's review,
-      // 2026-10-13).
+      // around itself.
       this.client.setSeekSave(false);
       this.client.currentTime = time;
       this.client.updateTime(time);

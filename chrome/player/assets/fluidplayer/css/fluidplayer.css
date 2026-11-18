@@ -721,7 +721,7 @@ body {
     background-color: var(--nextvideo-badge-background-color);
 }
 
-/* Autoplay next (his wish, 2026-10-11): a tool of its own, always in the bar, like YouTube's
+/* Autoplay next: a tool of its own, always in the bar, like YouTube's
    switch - this tab's setting; the options page's is where a new tab starts. The knob shows
    play when on, pause when off; on, it sits right and the track takes the badge color. */
 .fluid_button.fluid_autoplay_switch {
@@ -1152,7 +1152,7 @@ body {
     bottom: 130px;
 }
 
-/* Beside the countdown: stops autoplay for this tab (his choice, 2026-10-11). */
+/* Beside the countdown: stops autoplay for this tab. */
 .next_video_cancel {
     color: var(--popbutton-text-color);
     position: absolute;
@@ -2170,13 +2170,9 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
     opacity: 0.5;
 }
 
-/* Everything at once, for everyone (his wish, 2026-10-13: "I do not want delays or
-   animations"): the controls and menus appear and disappear at once, and the buttons being
-   rearranged do not shake. It was only for those who asked their system for less motion;
-   for everyone else the controls faded in over half a second, nearly invisible at first, on
-   a dark video above all. The transitions and the shaking this made no-ops were taken out on
-   2026-11-15; it stays, for any added later and for the libraries' own styles. The loading
-   spinner is an animated SVG image, which this leaves turning. */
+/* Everything at once, for everyone: no transition or animation, including any added later
+   and the libraries' own styles. The loading spinner is an animated SVG image, which this
+   leaves turning. */
 .fluid_video_wrapper.fluid_player_layout_default * {
     transition-duration: 0s !important;
     animation-duration: 0s !important;

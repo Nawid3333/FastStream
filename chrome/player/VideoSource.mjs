@@ -27,17 +27,13 @@ const headerBlacklist = [
   'access-control-request-headers',
 ];
 
-// Login headers a link must not carry. A copied stream link (the time readout,
-// the Sources browser) put the session's Cookie or Authorization in the clipboard, for
-// whoever the link was pasted to; and a crafted link (a page can open the player on one)
-// could have the player send credentials of its choosing. The player still sends the ones
-// it captured from the page, and ones typed into the Sources browser's header box.
+// Login headers a copied or crafted link must not carry.
 const credentialHeaders = ['cookie', 'authorization', 'proxy-authorization'];
 
 /**
  * The headers without the login ones, whatever their case.
- * @param {Object<string, string>} headers - Header name to value.
- * @return {Object<string, string>} A new object.
+ * @param {Object<string, string>} headers
+ * @return {Object<string, string>}
  */
 export function withoutCredentials(headers) {
   /** @type {Object<string, string>} */
@@ -51,19 +47,17 @@ export function withoutCredentials(headers) {
 }
 
 
-// Second-level labels under a two-letter country code that are public (co.uk, com.au, ne.jp):
-// a site there is one label longer. Firefox's public suffix list is not open to extensions.
+// Public second levels under a country code (co.uk); Firefox's public suffix list is not open to extensions.
 const PublicSecondLevel = /^(ac|co|com|edu|gov|go|ne|net|or|org)$/;
 
 /**
- * The site a host belongs to, as near as can be told without the public suffix list: its last
- * two labels (three under a public second level), an IP address or a one-label host as it is.
- * @param {string} host - A URL's hostname.
+ * The site a host belongs to, without the public suffix list: its last two labels (three under a public
+ * second level); an IP address or a one-label host as it is.
+ * @param {string} host
  * @return {string}
  */
 export function siteOfHost(host) {
-  // A host's trailing dot (the root) names the same host: kept, every "x.com." was the
-  // site "com.".
+  // A trailing dot (the root) names the same host.
   host = host.replace(/\.$/, '');
   const labels = host.toLowerCase().split('.');
   if (labels.length <= 2 || /^\d+$/.test(labels[labels.length - 1]) || host.includes(':')) return host.toLowerCase();
@@ -94,7 +88,7 @@ function sameSite(a, b) {
 /**
  * VideoSource.headersFor, for any source with a url and headers.
  * @param {{url: string, headers?: Object<string, string>}} source
- * @param {string} url - The request's address.
+ * @param {string} url
  * @return {Object<string, string>}
  */
 export function sourceHeadersFor(source, url) {
@@ -104,10 +98,9 @@ export function sourceHeadersFor(source, url) {
 
 export class VideoSource {
   /**
-   * @param {string|File} source - The stream's URL, or a file the user opened.
-   * @param {Object<string, string>|Array<{name: string, value?: string}>|null|undefined} headers - The
-   *   request's headers: by name, or as the browser listed them (name and value).
-   * @param {string} [mode] - A PlayerModes value; DIRECT when none is given.
+   * @param {string|File} source
+   * @param {Object<string, string>|Array<{name: string, value?: string}>|null|undefined} headers
+   * @param {string} [mode]
    */
   constructor(source, headers, mode) {
     if (source instanceof File) {
@@ -115,7 +108,6 @@ export class VideoSource {
     } else {
       /** @type {string} */
       this.url = source;
-      // Set either way: here or by fromFile.
       /** @type {string} */
       this.identifier = URLUtils.mediaIdentifier(this.url);
     }
@@ -138,24 +130,17 @@ export class VideoSource {
     /** @type {?{level?: string|number, audioLevel?: string|number}} */
     this.defaultLevelInfo = null;
     this.loadedFromArchive = false;
-    // The qualities the page's own player offers this file in, as files of their own
-    // ([{url, label, height}], page-qualities.js), or null (setQualities).
+    // The page player's own qualities as separate files ([{url, label, height}], page-qualities.js), or null.
     this.qualities = null;
-    // The frame of the page that asked for it (the background's frameId), or null: where it can
-    // be loaded through when FastStream itself is refused (PageFetch.mjs).
+    // The asking page's frame, or null: what loads it when FastStream itself is refused (PageFetch.mjs).
     /** @type {?number} */
     this.pageFrameId = null;
   }
 
   /**
-   * The headers a request of this source's sends (a playlist's, a segment's, a key's): all of
-   * them to an address of the source's own site, and without the login ones (withoutCredentials)
-   * to another site. The source's are what the page's request sent to the source's host, its
-   * Cookie included, and a header rule sets them on each request: a playlist that named another
-   * host for a segment or a key had the source site's session cookie sent there, which the
-   * browser itself never does. Referer and Origin go everywhere: a
-   * CDN checks them, and the browser sends them across sites too.
-   * @param {string} url - The request's address.
+   * The headers a request of this source's sends: all of them to the source's own site, without the login
+   * ones to another site, as the browser does with cookies. Referer and Origin go everywhere: CDNs check them.
+   * @param {string} url
    * @return {Object<string, string>}
    */
   headersFor(url) {
@@ -163,12 +148,9 @@ export class VideoSource {
   }
 
   /**
-   * Gives the source the qualities its page's player offers it in. They are one video: the
-   * remembered time goes by the list's first file, whichever is played (it went by the URL
-   * played, and a hoster's redirect target, the same for every film on its CDN node, shared
-   * one remembered time between them).
-   * @param {?Array<{url: string, label: string, height: number}>|undefined} qualities - None
-   *     when the page offered none.
+   * Gives the source the qualities its page's player offers. They are one video: the remembered time goes by
+   * the list's first file.
+   * @param {?Array<{url: string, label: string, height: number}>|undefined} qualities
    */
   setQualities(qualities) {
     if (!Array.isArray(qualities) || qualities.length < 2) {
@@ -181,8 +163,7 @@ export class VideoSource {
 
   /**
    * Takes the headers and the mode a link carries in its query (toCopyURL) off its URL.
-   * @param {boolean} [apply=true] - Whether to use them as well: only for a trusted source.
-   *   An untrusted one plays its URL without them.
+   * @param {boolean} [apply=true] - Whether to use them too: only for a trusted source.
    */
   parseHeadersParam(apply = true) {
     try {
@@ -217,9 +198,7 @@ export class VideoSource {
   }
 
   /**
-   * The source as a link to copy: its URL with its headers, minus the login ones, and its
-   * mode in the query, which parseHeadersParam reads back when the link is pasted into
-   * the Sources browser or opened.
+   * The source as a link to copy: its URL with its non-login headers and its mode in the query (parseHeadersParam).
    * @return {URL} Throws when the source's URL does not parse.
    */
   toCopyURL() {
@@ -243,15 +222,14 @@ export class VideoSource {
   destroy() {
     if (this.shouldRevoke) {
       URL.revokeObjectURL(this.url);
-      // Gone: a destroyed source is not used again (the client destroys the one it replaced).
       /** @type {{url: ?string}} */ (this).url = null;
     }
   }
 
   /**
    * The headers without those the browser sets itself, names in lower case.
-   * @param {Object<string, string>} headers - Header name to value.
-   * @return {Object<string, string>} A new object.
+   * @param {Object<string, string>} headers
+   * @return {Object<string, string>}
    */
   filterHeaders(headers) {
     /** @type {Object<string, string>} */

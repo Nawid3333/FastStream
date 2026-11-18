@@ -396,9 +396,8 @@ export class LoopMenu extends EventEmitter {
           this.lastTimeRecorded = currentTime;
         } catch (e) {
           // A video that taints the canvas (another site's, played by the element itself)
-          // cannot be read back (a SecurityError, as MediaKeys' frame): the frames stopped
-          // with the throw, and the video played on at 4x, over and over (glm's review,
-          // 2026-11-16). The GIF is dropped, and says so.
+          // cannot be read back (a SecurityError, as MediaKeys' frame). The GIF is dropped,
+          // and says so, or the video plays on at 4x.
           console.warn('The GIF cannot be recorded from this video', e);
           this.stopGifRecording(true);
           this.endGifLoop();
@@ -491,8 +490,8 @@ export class LoopMenu extends EventEmitter {
     }
 
     // Paused, the time moves only by a seek, which the video's timeupdate keeps within the
-    // loop: the check asked for every frame of the screen, 60 to 144 a second for nothing (as
-    // the progress loop did until 2026-10-06). Playing starts it again (InterfaceController's
+    // loop: the check would ask for every frame of the screen, 60 to 144 a second, for
+    // nothing. Playing starts it again (InterfaceController's
     // play). A GIF being recorded keeps it.
     if (this.client.paused && !this.gifLoopRunning) {
       this.loopLoopRunning = false;

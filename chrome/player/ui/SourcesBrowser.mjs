@@ -188,8 +188,7 @@ export class SourcesBrowser {
       try {
         await this.client.setSource(source);
       } catch (e) {
-        // A source that failed left the button on "Loading..." for good (final review,
-        // 2026-10-10): the list is drawn again either way.
+        // The list is drawn again either way, or the button stays on "Loading...".
         console.warn('Could not play the source', e);
         source.loading = false;
         this.updateSources();

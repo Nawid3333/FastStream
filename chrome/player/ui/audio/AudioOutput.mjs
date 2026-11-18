@@ -10,9 +10,7 @@ const RECOUNTED = 'Channel counter node changed';
 
 /**
  * The player's audio output: the volume (above 100 % as well) and as many output channels
- * as the video has, so 5.1 stays 5.1 where the output device takes it. What is left of the
- * audio settings window (mixer, equalizer, compressor, crosstalk, convolver), which went on
- * 2026-10-10.
+ * as the video has, so 5.1 stays 5.1 where the output device takes it.
  */
 export class AudioOutput extends AbstractAudioModule {
   constructor() {
