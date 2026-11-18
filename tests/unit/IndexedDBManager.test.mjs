@@ -82,9 +82,49 @@ describe('IndexedDBManager.transact', () => {
     expect(await outcome(done)).toBe('rejected: QuotaExceededError');
   });
 
+  it('leaves no failed request\'s promise unhandled: the call itself fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const unhandled = [];
+    const onUnhandled = (reason) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    const db = fakeDb();
+    const real = db.transaction;
+    db.transaction = (...args) => {
+      const transaction = real(...args);
+      transaction.commit = () => {
+        transaction.finished = true;
+        setTimeout(() => transaction.onerror?.(new Error('the put failed')));
+      };
+      return transaction;
+    };
+    const done = IndexedDBManager.transact(db, 'files', 'readwrite', () => Promise.reject(new Error('the put failed')));
+    expect(await outcome(done)).toMatch(/^rejected/);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    process.off('unhandledRejection', onUnhandled);
+    expect(unhandled).toEqual([]);
+  });
+
   it('answers with what the callback gave once the transaction is complete', async () => {
     const done = IndexedDBManager.transact(fakeDb(), 'files', 'readwrite', () => Promise.resolve('stored'));
     expect(await outcome(done)).toBe('resolved: stored');
+  });
+});
+
+describe('IndexedDBManager.setup', () => {
+  it('stops its heartbeat when its database does not open', async () => {
+    // FSBlob goes on to its next backend and drops this one; its heartbeat ran on for the page.
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(IndexedDBManager.prototype, 'prune').mockImplementation(() => {});
+      vi.spyOn(IndexedDBManager, 'requestDB').mockRejectedValue(new Error('no IndexedDB here'));
+      vi.spyOn(IndexedDBManager, 'deleteDB').mockResolvedValue(undefined);
+      const keepAlive = vi.spyOn(IndexedDBManager.prototype, 'keepAlive').mockImplementation(() => {});
+      await expect(new IndexedDBManager().setup()).rejects.toThrow('no IndexedDB here');
+      vi.advanceTimersByTime(20000);
+      expect(keepAlive).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

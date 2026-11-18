@@ -443,6 +443,8 @@ export class DownloadManager {
    */
   adoptOne(item) {
     item.moved ??= (async () => {
+      // Its downloads went meanwhile (a new source): the old session's files go with it (dropSession).
+      if (this.storageGeneration !== item.generation) return false;
       const store = this.blobStore;
       let moved = false;
       try {
@@ -1089,7 +1091,18 @@ export class DownloadManager {
    * @return {number} Bytes of its downloaded data held in RAM.
    */
   ramBytesOf(details) {
-    return this.blobStore?.inRam.get(this.getIdentifier(details)) || 0;
+    return this.blobStore?.inRam.get(this.blobKey(details)) || 0;
+  }
+
+  /**
+   * The key its data is stored under: a download taken over under a new link (stored) keeps
+   * its data under the old key (blobId).
+   * @param {DownloadRequest} details
+   * @return {string}
+   */
+  blobKey(details) {
+    const key = this.getIdentifier(details);
+    return this.storage?.get(key)?.blobId ?? key;
   }
 
   /**
@@ -1105,7 +1118,7 @@ export class DownloadManager {
    * @return {boolean} Whether its downloaded data is being written to disk now (spill).
    */
   isSpilling(details) {
-    return !!this.blobStore?.isSpilling(this.getIdentifier(details));
+    return !!this.blobStore?.isSpilling(this.blobKey(details));
   }
 
   /**
@@ -1113,7 +1126,7 @@ export class DownloadManager {
    * @return {boolean} Whether its downloaded data is held in RAM.
    */
   isInRam(details) {
-    return !!this.blobStore?.isInRam(this.getIdentifier(details));
+    return !!this.blobStore?.isInRam(this.blobKey(details));
   }
 
   /**
@@ -1122,7 +1135,7 @@ export class DownloadManager {
    * @return {Promise<boolean>}
    */
   spill(details) {
-    return this.blobStore?.spill(this.getIdentifier(details)) ?? Promise.resolve(false);
+    return this.blobStore?.spill(this.blobKey(details)) ?? Promise.resolve(false);
   }
 
   /**
@@ -1196,7 +1209,12 @@ export class DownloadManager {
       // never came back: three failures in a long video left three downloaders of six for
       // the rest of it. Once downloads succeed again, each success brings one back.
       this.droppedDownloaders--;
-      this.downloaders.push(new StandardDownloader(this));
+      // The speed test may have filled the limit meanwhile, or the option lowered it.
+      if (this.downloaders.length < this.downloaderLimit()) {
+        this.downloaders.push(new StandardDownloader(this));
+      } else {
+        this.droppedDownloaders = 0;
+      }
     }
 
     // After a slow-down the player stays careful; once the calm period is over, a successful

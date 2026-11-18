@@ -177,6 +177,25 @@ describe('DownloadManager', () => {
     vi.restoreAllMocks();
   });
 
+  it('gives none back past the most downloaders allowed', () => {
+    // The speed test went on adding up to the limit after the failure, and the one given back
+    // made one more than the option allows.
+    vi.stubGlobal('navigator', {onLine: true});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const manager = new DownloadManager({resetFailed: vi.fn(), predownloadFragments: vi.fn(), options: {maximumDownloaders: 2}});
+    manager.testing = false;
+    const [failed, other] = [idleDownloader(), idleDownloader()];
+    manager.downloaders = [failed, other];
+    manager.onDownloaderFinished(failed, {status: DownloadStatus.DOWNLOAD_FAILED});
+    manager.downloaders.push(idleDownloader());
+    vi.advanceTimersByTime(DownloadManager.FailureRecoveryMs * 2);
+    manager.onDownloaderFinished(other, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+    expect(manager.downloaders).toHaveLength(2);
+    expect(manager.droppedDownloaders).toBe(0);
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   it('raises the priority of a download playback starts waiting for while it runs', () => {
     // A download ahead (priority 0) that the player now needs (1000): a retry of it must
     // go out first in Firefox's queue (StandardDownloader asks entry.priority each attempt).

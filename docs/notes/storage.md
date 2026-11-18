@@ -472,3 +472,37 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   not let a delete take away a fragment saved again while it waited".
 - **IndexedDB at unload:** the beforeunload loop closed the databases over the list `close()`
   splices, and skipped every second one. It runs over a copy. Test: `IndexedDBUnload.test.mjs`.
+
+## The network-layer audit (2026-11-18)
+
+A Claude API review of `chrome/player/network/`, each claim checked against the code.
+
+Fixed, each with a test that fails without it:
+
+- **RAM budget and a file under a new link:** a download taken over under a new link (`stored`,
+  after a hand-off or FreshLink) keeps its data under the old key (`blobId`). `ramBytesOf`,
+  `isInRam`, `isSpilling` and `spill` looked under the new key, found nothing, and the budget
+  could neither spill nor free those bytes. They go through `blobKey` now.
+  Test: `DownloadManagerHandOff.test.mjs`, "counts a file found under the new link in its RAM".
+- **A downloader given back past the limit:** after a failure took one away, the speed test went
+  on adding up to `downloaderLimit()`, and the one given back on a later success made one more
+  than the option allows. Test: `DownloadManager.test.mjs`, "gives none back past the most
+  downloaders allowed".
+- **Hand-off moves after a new source:** `adoptOne` checked the storage generation only after
+  the move, so every disk file of a long video was moved and then deleted while the next source
+  started. It returns at once now, and `dropSession` takes the old session's files.
+- **IndexedDB:** a `setup()` whose database did not open left its 5 s heartbeat running for the
+  page (FSBlob drops the manager and goes on), and a failed request's own promise in `transact`
+  was an unhandled rejection (the call itself rejects through `onerror`).
+
+Rejected:
+
+- A joining request replacing a running download's processors: every caller of one key goes
+  through the same fragment requester, with the same processors.
+- Archiving racing a removal: `saveBlobAsync` with `deferred` keeps the Blob synchronously.
+- `record.blob instanceof Blob` across realms: BufferStash's hand-off is structured-cloned into
+  the player's realm (`takeBackBuffer`).
+- Stripping a signature parameter only for the link's own values (two files told apart by a
+  parameter of the same name): after a FreshLink renewal the hand-off's link is the latest issue,
+  and files under the earlier issue carry other values, so they were no longer found. No host
+  is known whose files are told apart by a parameter of a name the link's signature changes.
