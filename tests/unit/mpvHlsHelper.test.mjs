@@ -122,13 +122,13 @@ describe('writing the playlists', () => {
     expect(fs.existsSync(old)).toBe(false);
   });
 
-  it('marks a private window\'s folder, which goes a minute on', () => {
+  it('marks a private window\'s folder, which goes 15 s on', () => {
     const base = scratch();
     const entry = writeHlsPackage([{name: '0.m3u8', text: media()}], 'https://cdn.test/v#fs-id=ab&fs-private=1', base);
     expect(path.basename(path.dirname(entry)).startsWith(HlsDirPrefix + 'p-')).toBe(true);
-    removeOldHlsPackages(base, Date.now() + 50 * 1000);
+    removeOldHlsPackages(base, Date.now() + 10 * 1000);
     expect(fs.existsSync(path.dirname(entry))).toBe(true);
-    removeOldHlsPackages(base, Date.now() + 70 * 1000);
+    removeOldHlsPackages(base, Date.now() + 20 * 1000);
     expect(fs.existsSync(path.dirname(entry))).toBe(false);
   });
 

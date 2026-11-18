@@ -991,11 +991,11 @@ export function writeSubtitleFiles(subtitles, base = os.tmpdir()) {
 // An HLS stream mpv cannot open from its address (docs/notes/mpv.md, "Streams mpv cannot open alone"): the
 // extension sends its playlists with every address made whole, and mpv plays them from files.
 export const HlsDirPrefix = 'faststream-mpv-hls-';
-// ffmpeg reads a stream's playlists once, when it opens it; older folders are removed whenever the helper ends,
-// a private window's (fs-private) a minute on: its addresses are browsing history.
+// ffmpeg reads a stream's playlists once, when it opens it; older folders are removed whenever the helper ends
+// (the watch's when mpv closes), a private window's (fs-private) 15 s on: its addresses are browsing history.
 const HlsDirMaxAgeMs = 2 * 24 * 60 * 60 * 1000;
 const PrivateHlsDirPrefix = HlsDirPrefix + 'p-';
-const PrivateHlsDirMaxAgeMs = 60 * 1000;
+const PrivateHlsDirMaxAgeMs = 15 * 1000;
 // Formats ffmpeg may read while the stream plays: none but HLS (checkHlsPackage) opens a file it names, and srt
 // for the page's subtitles (a forced hls format took them as playlists too).
 const HlsFormats = '[hls,mpegts,mov,aac,mp3,ac3,eac3,webvtt,srt]';

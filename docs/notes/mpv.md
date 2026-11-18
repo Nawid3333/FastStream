@@ -74,9 +74,10 @@ now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` b
   score 100 with its subtitle track, an ffconcat file named `.m3u8` is refused "Format not on
   whitelist", and a media package naming a local segment "Protocol 'file' not on whitelist". The HLS
   probe needs `#EXTM3U` first (the helper's check) and a variant or target-duration tag. Folders go
-  after two days, a private window's (fs-private) a minute on (ffmpeg read them at the open; going
-  back to such an episode in mpv's playlist then fails), whenever a helper ends (each message; a
-  watch when mpv closes), and at once when the play failed; a folder that cannot be removed is skipped. The playlists are kept out of
+  after two days, a private window's (fs-private) 15 s on (ffmpeg read them at the open; going back
+  to such an episode in mpv's playlist then fails), whenever a helper ends (each message; a watch
+  when mpv closes, so a private session's go at its end), and at once when the play failed; a folder
+  that cannot be removed is skipped. Left until a later helper: a private session closed within 15 s. The playlists are kept out of
   the debug log (their key). Messages to the helper may be 16 MB (1 MB before).
 - *Answer:* `local`, the entry's path: MPV autoplay knows mpv's `path` by it (`watchMpvFor`).
 - *Older helper:* `knows('hls')` asks it again until it has the capability (an update is noticed at
