@@ -47,8 +47,9 @@ audit of 2026-11-19 and measured with the real helper code against a headless mp
   playlist alone (whole http(s) addresses) plays there. `hlsMasterIn` now writes a master's playlists as
   whole paths with forward slashes in such a folder, and only there; it reads the result back as ffmpeg
   would (`hlsAddresses`). Measured: the same package plays, a master with an audio rendition
-  (`URI="..."`) too. Spaces, umlauts, `%`, `&`, `+`, `=`, `;`, `,`, quotes and brackets in the path needed
-  nothing (measured). Not measured on Linux or macOS.
+  (`URI="..."`) too. Spaces, umlauts, `%`, `&`, `+`, `=`, `;`, `,`, `'` and brackets in the path needed
+  nothing (measured; Windows allows no `"` in a name, and a path with one and a `#` is refused where a
+  `URI="..."` would need it). Not measured on Linux or macOS.
 - *A master that cannot be named whole there is refused* ("Could not write the playlists of the stream for
   mpv: ..."; nothing is written, mpv is not asked): an unquoted `URI=`, which the extension never writes, or a
   line the whole path makes longer than ffmpeg reads. Written as sent, such a master did not only fail: ffmpeg
@@ -93,9 +94,15 @@ audit of 2026-11-19 and measured with the real helper code against a headless mp
   ffmpeg would not read it. Its price: such a line is refused also where ffmpeg plays the stream (Codex built
   one: a tag ffmpeg does not know, cut at byte 4095 inside its `https` address). It follows that "named by its
   master" means named in that list. A playlist named only where ffmpeg does not read (behind `uri=`, as the
-  first of two `URI`s, on a bare line) is written and never opened, and the stream plays without it; under a
-  path with a `#` such a master is refused instead, unless the name stands in `URI="..."`, the only form a
-  whole path is written into. The extension's `masterText` writes a name only behind a variant's tag and in a
+  first of two `URI`s, on a bare line) is written and never opened, and the stream plays without it. Under a
+  path with a `#` every line that is a name and every `URI="..."` gets the whole path, read by ffmpeg or not;
+  a name behind `uri=` or `URI =` cannot be written whole, and such a master is refused there (Claude's
+  review, 2026-11-19: an earlier form of this note called the bare line and the first of two `URI`s refused;
+  run, they are written whole and accepted). The check reads a line as far as ffmpeg does, so what stands
+  behind byte 4095 is not checked: that rests on ffmpeg's 4096-byte line buffer, measured with the program
+  named below, and a build that read longer lines would open what the helper never saw. Listing the whole
+  line as well was tried and taken back: it refused cut lines ffmpeg plays, which the tests pin as accepted.
+  The extension's `masterText` writes a name only behind a variant's tag and in a
   rendition's `URI="..."`. One form of host 28 refused such keys and two `URI`s in one tag instead. Codex's
   fourth pass showed the cost: a playlist ffmpeg plays was refused for a comment like
   `# source:uri=https://...`. That form was taken back before any merge.

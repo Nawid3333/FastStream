@@ -99,7 +99,7 @@ describe('a tag\'s attributes, as ffmpeg reads them', () => {
         .toBe(master(['#EXT-X-STREAM-INF:BANDWIDTH=1', 'D:/Temp/a#b/faststream-mpv-hls-abc123/0.m3u8']));
 
     // A cut inside a character refuses nothing by itself: an address ffmpeg reads whole stays that address, and
-    // one it reads cut is checked as far as it reads it.
+    // one it reads cut is the address up to the cut.
     const cutInside = (/** @type {string} */ lineStart) => `${lineStart}${'a'.repeat(4094 - Buffer.byteLength(lineStart))}é"`;
     const key = 'https://k.test/key';
     expect(hlsAddresses(cutInside(`#EXT-X-KEY:METHOD=AES-128,URI="${key}",X="`))).toEqual([{address: key, tag: '#EXT-X-KEY'}]);
@@ -273,11 +273,20 @@ describe('writing the playlists', () => {
     const dir = path.dirname(entry).split(path.sep).join('/');
     expect(fs.readFileSync(entry, 'utf8')).toBe(master([`#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="x",URI="${dir}/1.m3u8"`,
       '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="a"', `${dir}/0.m3u8`]));
-    // As ffmpeg reads the written master: its two playlists and nothing else.
+    // What the written master names: its two playlists and nothing else.
     expect(hlsAddresses(fs.readFileSync(entry, 'utf8')).map(({address}) => address)).toEqual([`${dir}/1.m3u8`, `${dir}/0.m3u8`]);
     expect(fs.readFileSync(path.join(path.dirname(entry), '0.m3u8'), 'utf8')).toBe(media());
     // A media playlist alone names whole web addresses: as sent there too.
     expect(fs.readFileSync(writeHlsPackage([{name: '0.m3u8', text: media()}], 'https://cdn.test/pl/7?token=k', base), 'utf8')).toBe(media());
+
+    // Every line that is a name and every URI="..." is written whole, also where ffmpeg reads neither.
+    expect(hlsMasterIn(master(['#EXT-X-STREAM-INF:BANDWIDTH=1', '0.m3u8', '1.m3u8']), 'D:\\Temp\\a#b\\x', path.win32))
+        .toBe(master(['#EXT-X-STREAM-INF:BANDWIDTH=1', 'D:/Temp/a#b/x/0.m3u8', 'D:/Temp/a#b/x/1.m3u8']));
+    expect(hlsMasterIn(master(['#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="x",URI="1.m3u8",URI="2.m3u8"']), 'D:\\Temp\\a#b\\x', path.win32))
+        .toBe(master(['#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="x",URI="D:/Temp/a#b/x/1.m3u8",URI="D:/Temp/a#b/x/2.m3u8"']));
+    for (const key of ['uri="1.m3u8"', 'URI = "1.m3u8"']) {
+      expect(hlsMasterIn(master([`#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="x",${key}`]), 'D:\\Temp\\a#b\\x', path.win32)).toBeNull();
+    }
 
     // Any other folder: the names as sent, which resolve to the master's own folder.
     expect(hlsMasterIn(text, 'D:\\Temp\\faststream-mpv-hls-abc123', path.win32)).toBe(text);
