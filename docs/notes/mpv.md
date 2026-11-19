@@ -55,7 +55,9 @@ audit of 2026-11-19 and measured with the real helper code against a headless mp
   opened what lay beside the folder the `#` cuts the path at. Measured with the ffmpeg program (N-124093,
   2026-04; no mpv could be started, the owner's was playing): two playlists put there were read and their
   segments asked for. The helper's rule is that ffmpeg opens the package's own files and http(s) addresses and
-  nothing else; before host 28 it did not hold for a master under such a path.
+  nothing else; before host 28 it did not hold for a master under such a path. Refused as well: a temp
+  folder that is no whole path itself (a relative `TEMP`). ffmpeg resolved the names written for it against
+  the master's folder once more (measured: "Opening 'work\work/user#1/.../1.m3u8'", no such file).
 - *ffmpeg reads a playlist's line up to 4095 bytes and drops the rest* (`ff_get_line` into `char
   line[MAX_URL_SIZE]`, the same code in mpv's ffmpeg; measured: an address of 5000 bytes was asked for up to
   its 4095th byte, an address behind 4095 bytes of the same line never). `hlsAddresses` reads a line that far
@@ -65,6 +67,24 @@ audit of 2026-11-19 and measured with the real helper code against a headless mp
   playlist put at that name, whose segment was asked for). Both are now refused. From a line's end ffmpeg
   removes the spaces of ASCII and no others (`av_isspace`), and `hlsAddresses` does the same: a master naming
   `0.m3u8` with a no-break space behind it passed the check, and was another, missing file to ffmpeg (Codex).
+- *A tag's key, the first line and a cut inside a character, read as ffmpeg reads them* (Codex's third pass;
+  each measured with the ffmpeg program). ffmpeg takes a key for a URI only when it is `URI=` exactly
+  (`strncmp(key, "URI=", key_len)`); `hlsAddresses` took it trimmed and in any letters. A rendition named
+  behind a no-break space, as `uri=` or with a space before the `=` counted as named by its master, and
+  under a `#` path as written whole, while ffmpeg opened no such playlist. Such a key is now refused ("a
+  line ffmpeg could read otherwise"), and so are two `URI`s in one tag: ffmpeg opened the last one's
+  playlist only. The first line must be `#EXTM3U` alone, after the cut and without the ASCII spaces
+  (`strcmp(line, "#EXTM3U")`): `#EXTM3Ux` and `#EXTM3U` with a no-break space behind it passed by their
+  start, and are "Invalid data" to ffmpeg. An address whose 4095th byte lies inside a character is refused:
+  ffmpeg keeps that character's first byte (it asked for `...%C3`), which the check's text cannot hold; a
+  tag that names no address may be cut there. All of this narrows what the helper takes: nothing refused
+  before is taken now.
+- *The check lists more than ffmpeg opens, on purpose*: every line that is no tag, and the `URI` of every
+  tag. ffmpeg opens a name only behind a variant's or a segment's tag (measured: a bare `4.m3u8` in a
+  master was not opened) and reads the `URI` of the tags it knows. For the helper's rule (ffmpeg opens the
+  package's own files and http(s) addresses, nothing else) the longer list is the safe side, and "named by
+  its master" means named in that list: a playlist ffmpeg then leaves unread is written and never opened.
+  The extension's `masterText` writes a name only behind a variant's tag.
 - *A busy mpv.* When mpv did not answer within 6 s, `playMpv` removed the playlists like those of any play
   that failed. The load is in mpv's pipe by then: mpv held for 7 s ran it afterwards, stopped the video it
   was playing and failed on the missing file ("Cannot open file"). The folder now stays when the answer is

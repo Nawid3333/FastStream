@@ -1012,17 +1012,31 @@ const FfmpegLineBytes = 4095;
  * A playlist's line as ffmpeg reads it: its first 4095 bytes, without the spaces of ASCII at their end. Any other
  * space (a no-break space) stays part of an address.
  * @param {string} line
- * @return {string}
+ * @return {{line: string, torn: boolean}} torn: the 4095 bytes end inside a character. ffmpeg keeps that
+ *   character's first bytes, which no text holds: the line here ends in a replacement character instead.
  */
 function ffmpegLine(line) {
   let read = line;
+  let torn = false;
   if (line.length * 3 > FfmpegLineBytes) {
     const bytes = Buffer.from(line, 'utf8');
-    if (bytes.length > FfmpegLineBytes) read = bytes.subarray(0, FfmpegLineBytes).toString('utf8');
+    if (bytes.length > FfmpegLineBytes) {
+      read = bytes.subarray(0, FfmpegLineBytes).toString('utf8');
+      torn = (bytes[FfmpegLineBytes] & 0xc0) === 0x80;
+    }
   }
   let end = read.length;
   while (end > 0 && ' \t\n\v\f\r'.includes(read[end - 1])) end--;
-  return read.slice(0, end);
+  return {line: read.slice(0, end), torn};
+}
+
+/**
+ * @param {string} text
+ * @return {boolean} Whether ffmpeg takes the text for a playlist: its first line is #EXTM3U and nothing more.
+ */
+function startsAsPlaylist(text) {
+  const end = text.search(/[\r\n]/);
+  return ffmpegLine(end < 0 ? text : text.slice(0, end)).line === '#EXTM3U';
 }
 
 /**
@@ -1064,26 +1078,31 @@ export function ffmpegAttributes(text) {
 }
 
 /**
- * Every address of a playlist, as ffmpeg would open it: its lines that are no tag, and its tags' URI attributes.
+ * Every address of a playlist ffmpeg could open, as it reads them: its lines that are no tag, and its tags' URI
+ * attributes. ffmpeg opens fewer (no line that follows neither a segment's nor a variant's tag).
  * @param {string} text
  * @return {?Array<{address: string, tag: ?string}>} tag: the tag of a URI attribute, null for a line that is no
- *   tag; null for a playlist with a backslash or a line ffmpeg and this would read differently (leading spaces).
+ *   tag; null for a playlist with a backslash or a line ffmpeg and this would read differently: leading spaces,
+ *   a key that is nearly URI (uri, a space around it), two URIs in one tag, an address cut inside a character.
  */
 export function hlsAddresses(text) {
   const addresses = [];
   for (const written of text.split(/\r\n|\r|\n/)) {
     if (!written) continue;
     if (written !== written.trimStart() || written.includes('\\')) return null;
-    const line = ffmpegLine(written);
+    const {line, torn} = ffmpegLine(written);
+    const known = addresses.length;
+    const colon = line.indexOf(':');
     if (!line.startsWith('#')) {
       addresses.push({address: line, tag: null});
-      continue;
+    } else if (colon >= 0) {
+      for (const {key, value} of ffmpegAttributes(line.slice(colon + 1))) {
+        if (key === 'URI') addresses.push({address: value, tag: line.slice(0, colon)});
+        else if (key.trim().toUpperCase() === 'URI') return null;
+      }
     }
-    const colon = line.indexOf(':');
-    if (colon < 0) continue;
-    for (const {key, value} of ffmpegAttributes(line.slice(colon + 1))) {
-      if (key.trim().toUpperCase() === 'URI') addresses.push({address: value, tag: line.slice(0, colon)});
-    }
+    const found = addresses.length - known;
+    if (found > 1 || (torn && found > 0)) return null;
   }
   return addresses;
 }
@@ -1122,7 +1141,7 @@ export function checkHlsPackage(hls) {
     if (bytes > MaxHlsBytes) {
       return refuse('the HLS playlists are too large');
     }
-    if (!file.text.startsWith('#EXTM3U') || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(file.text)) {
+    if (!startsAsPlaylist(file.text) || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(file.text)) {
       return refuse('an HLS playlist is no playlist text');
     }
   }
@@ -1236,19 +1255,23 @@ export function privatePackageWatch(base = os.tmpdir()) {
  * the path was cut at: there they become whole paths, which ffmpeg opens as written.
  * @param {string} text - The master, naming its playlists by their file names (checkHlsPackage).
  * @param {string} dir - The folder.
- * @param {{join: (...parts: Array<string>) => string, sep: string}} [paths] - A stand-in for tests; this
- *   system's by default.
+ * @param {{join: (...parts: Array<string>) => string, sep: string, isAbsolute: (dir: string) => boolean}} [paths] -
+ *   A stand-in for tests; this system's by default.
  * @return {?string} null when the result would not read, to ffmpeg, as exactly those paths: an unquoted URI, a
- *   line longer than ffmpeg reads, a path that cannot stand in a quoted value.
+ *   line longer than ffmpeg reads, a path that cannot stand in a quoted value, a folder that is no whole path.
  */
 export function hlsMasterIn(text, dir, paths = path) {
   if (!/[#?]/.test(dir)) return text;
+  if (!paths.isAbsolute(dir)) return null;
   const whole = (/** @type {string} */ name) => paths.join(dir, name).split(paths.sep).join('/');
   const named = hlsAddresses(text);
   const written = text.split(/(\r\n|\r|\n)/).map((line, index) => {
     if (index % 2 === 1 || !line) return line;
-    if (!line.startsWith('#')) return HlsFileName.test(ffmpegLine(line)) ? whole(ffmpegLine(line)) : line;
-    return line.replace(/(URI=")(\d{1,2}\.m3u8)(")/g, (_, open, name, close) => open + whole(name) + close);
+    if (line.startsWith('#')) {
+      return line.replace(/(URI=")(\d{1,2}\.m3u8)(")/g, (_, open, name, close) => open + whole(name) + close);
+    }
+    const name = ffmpegLine(line).line;
+    return HlsFileName.test(name) ? whole(name) : line;
   }).join('');
   const read = hlsAddresses(written);
   return named && read && read.length === named.length &&
