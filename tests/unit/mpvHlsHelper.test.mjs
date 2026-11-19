@@ -4,8 +4,8 @@ import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
 
 import {
-  HlsDirPrefix, checkHlsPackage, checkPlayMessage, ffmpegAttributes, hlsAddresses, hlsPlayOptions, loggedMessage,
-  playMpv, privatePackageWatch, removeOldHlsPackages, writeHlsPackage,
+  HlsDirPrefix, checkHlsPackage, checkPlayMessage, ffmpegAttributes, hlsAddresses, hlsMasterIn, hlsPlayOptions,
+  launchLockFile, loggedMessage, playMpv, privatePackageWatch, removeOldHlsPackages, takeLaunchLock, writeHlsPackage,
 } from '../../native-host/faststream-mpv-host.mjs';
 
 // Helper 27: an HLS stream mpv cannot open from its address goes as its playlists, every address whole, and mpv
@@ -156,6 +156,19 @@ describe('writing the playlists', () => {
     expect(fs.readFileSync(writeHlsPackage(files, 'https://cdn.test/pl/7?token=k', base), 'utf8')).toBe(text);
   });
 
+  it('writes the whole paths by each system\'s own rules, whichever one runs this test', () => {
+    const text = (/** @type {string} */ dir, end = '\n') => ['#EXTM3U', `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="x",URI="${dir}1.m3u8"`,
+      '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="a"', `${dir}0.m3u8`, ''].join(end);
+    expect(hlsMasterIn(text(''), 'D:\\Temp\\a#b\\faststream-mpv-hls-abc123', path.win32))
+        .toBe(text('D:/Temp/a#b/faststream-mpv-hls-abc123/'));
+    expect(hlsMasterIn(text('', '\r\n'), 'D:\\Temp\\a#b\\faststream-mpv-hls-abc123', path.win32))
+        .toBe(text('D:/Temp/a#b/faststream-mpv-hls-abc123/', '\r\n'));
+    expect(hlsMasterIn(text(''), '/tmp/a?b/faststream-mpv-hls-abc123', path.posix)).toBe(text('/tmp/a?b/faststream-mpv-hls-abc123/'));
+    expect(hlsMasterIn(text(''), 'D:\\Temp\\faststream-mpv-hls-abc123', path.win32)).toBe(text(''));
+    // A folder name no quoted value can hold: as sent.
+    expect(hlsMasterIn(text(''), '/tmp/a"#b/faststream-mpv-hls-abc123', path.posix)).toBe(text(''));
+  });
+
   it('marks a private window\'s folder, which goes two minutes on', () => {
     const base = scratch();
     const entry = writeHlsPackage([{name: '0.m3u8', text: media()}], 'https://cdn.test/v#fs-id=ab&fs-private=1', base);
@@ -292,6 +305,78 @@ describe('playing them', () => {
     expect(folders).toHaveLength(1);
     expect(fs.readdirSync(path.join(base, folders[0])).sort()).toEqual(['0.m3u8', 'target.txt']);
     expect(started).toBe(0);
+  });
+
+  it('keeps them for a new mpv that took the load into its pipe and did not answer it', async () => {
+    const play = /** @type {*} */ (checkPlayMessage({type: 'play', target: 'https://cdn.test/pl/7?token=k#fs-id=ab', title: 'T',
+      newWindow: true, hls: {files: [{name: '0.m3u8', text: media()}]}})).play;
+    // Its pipe answers; the load after it gets no answer in time, or only the answer of the command behind it.
+    for (const loadAnswer of [{ok: false, busy: true, error: 'mpv did not answer'}, {ok: true, replies: [{request_id: 2, data: 77}]}]) {
+      const base = scratch();
+      const stopped = [];
+      const answer = await playMpv('mpv', play, {ipcToken: 'x'}, {
+        hlsBase: base,
+        ipcRequest: async (commands) => commands.length === 1 ? {ok: true, replies: [{request_id: 1, error: 'success', data: 77}]} : loadAnswer,
+        focus: async () => 'True',
+        platform: 'linux',
+        start: async () => ({ok: true, pid: 77}),
+        stop: (pid) => stopped.push(pid),
+        randomHex: () => '0a1b2c',
+      });
+      expect(answer).toEqual({ok: false, error: 'the new mpv did not take the stream: try again in a moment'});
+      // The mpv runs on, with the load in its pipe.
+      expect(stopped).toEqual([]);
+      expect(fs.readdirSync(base)).toHaveLength(1);
+    }
+  });
+
+  it('keeps them when the mpv another helper was starting is busy after the wait', async () => {
+    const base = scratch();
+    const lockFile = launchLockFile({ipcToken: 'x'}, scratch());
+    const other = takeLaunchLock(lockFile);
+    expect(other.taken).toBe(true);
+    let slept = 0;
+    let started = 0;
+    const checked = checkPlayMessage({type: 'play', target: 'https://cdn.test/pl/7?token=k#fs-id=ab', title: 'T',
+      hls: {files: [{name: '0.m3u8', text: media()}]}});
+    const answer = await playMpv('mpv', /** @type {*} */ (checked).play, {ipcToken: 'x'}, {
+      hlsBase: base,
+      lockFile,
+      // No mpv at first; the other helper's is up after a second, opening its own stream.
+      ipcRequest: async () => slept >= 1000 ? {ok: false, busy: true, error: 'mpv did not answer'} : {ok: false, error: 'no mpv ipc'},
+      focus: async () => 'True',
+      platform: 'linux',
+      sleep: async (ms) => {
+        slept += ms;
+        if (slept >= 1000) other.release();
+      },
+      now: () => slept,
+      start: async () => {
+        started++;
+        return {ok: false, error: 'not here'};
+      },
+    });
+    expect(answer).toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
+    expect(slept).toBe(1000);
+    expect(started).toBe(0);
+    expect(fs.readdirSync(base)).toHaveLength(1);
+  });
+
+  // Nothing may be left to remove it later (no helper runs again until the next hand-off), and its addresses are
+  // browsing history: as before host 28.
+  it('removes a private window\'s playlists at once all the same when mpv was only busy', async () => {
+    const base = scratch();
+    const checked = checkPlayMessage({type: 'play', target: 'https://cdn.test/pl/7?token=k#fs-id=ab&fs-private=1', title: 'T',
+      hls: {files: [{name: '0.m3u8', text: media()}]}});
+    const answer = await playMpv('mpv', /** @type {*} */ (checked).play, {ipcToken: 'x'}, {
+      hlsBase: base,
+      ipcRequest: async () => ({ok: false, busy: true, error: 'mpv did not answer'}),
+      focus: async () => 'True',
+      platform: 'linux',
+      start: async () => ({ok: false, error: 'not here'}),
+    });
+    expect(answer).toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
+    expect(fs.readdirSync(base)).toEqual([]);
   });
 
   it('lets ffmpeg open files for a master only, whose playlists lie beside it', () => {

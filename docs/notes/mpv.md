@@ -54,7 +54,12 @@ audit of 2026-11-19 and measured with the real helper code against a headless mp
   that failed. The load is in mpv's pipe by then: mpv held for 7 s ran it afterwards, stopped the video it
   was playing and failed on the missing file ("Cannot open file"). The folder now stays when the answer is
   "busy" (it goes by its age), and mpv plays the stream once it runs on, as it does a stream sent by its
-  address. The answer to the extension is unchanged.
+  address. The answer to the extension is unchanged. All three busy answers keep it: the open mpv's, the
+  one after the wait for another helper's start, and a new mpv's that took the load into its pipe and did
+  not answer it (the last one was missed at first; glm and the Claude reviewer both found it). A private
+  window's folder still goes at once, as before host 28: after a play that failed no helper may run again
+  to remove it, and its addresses are browsing history. There the fault stays as it was (the load in the
+  pipe fails once mpv runs on).
 
 **Host 27 (2026-11-18): streams mpv cannot open alone; RequiredHostVersion stays 19.** The owner's
 report: MPV opened on 123moviesfree.net (vidsrc chain) and showed "something HTML". Measured with
@@ -100,7 +105,8 @@ now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` b
   whitelist", and a media package naming a local segment "Protocol 'file' not on whitelist". The HLS
   probe needs `#EXTM3U` first (the helper's check) and a variant or target-duration tag. Folders go
   after two days, whenever a helper ends (each message; a watch when mpv closes), and at once when
-  the play failed (not when mpv was only busy, host 28); a folder that cannot be removed is skipped. A private window's (fs-private) goes
+  the play failed (not when mpv was only busy, unless it is a private window's: host 28); a folder that
+  cannot be removed is skipped. A private window's (fs-private) goes
   once mpv moved on from it or closed (the relay sees mpv's `path`: `privatePackageWatch`; not
   when the extension lets go, as a new hand-off's may not be open yet), else two minutes on: a play
   waits up to 35 s before mpv opens its package (`LaunchLockMs`, `PipeWaitMs`), so a shorter age

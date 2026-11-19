@@ -1215,11 +1215,13 @@ export function privatePackageWatch(base = os.tmpdir()) {
  * exactly those paths (an unquoted URI, a path that cannot stand in a quoted one).
  * @param {string} text - The master, naming its playlists by their file names (checkHlsPackage).
  * @param {string} dir - The folder.
+ * @param {{join: (...parts: Array<string>) => string, sep: string}} [paths] - A stand-in for tests; this
+ *   system's by default.
  * @return {string}
  */
-export function hlsMasterIn(text, dir) {
+export function hlsMasterIn(text, dir, paths = path) {
   if (!/[#?]/.test(dir)) return text;
-  const whole = (/** @type {string} */ name) => path.join(dir, name).split(path.sep).join('/');
+  const whole = (/** @type {string} */ name) => paths.join(dir, name).split(paths.sep).join('/');
   const named = hlsAddresses(text);
   const written = text.split(/(\r\n|\r|\n)/).map((line, index) => {
     if (index % 2 === 1 || !line) return line;
@@ -2477,8 +2479,9 @@ export async function playMpv(mpvPath, play, config, io = {}) {
   const {busy, ...answer} = await playEntry(mpvPath, play, config, io, entry);
   if (!play.hls) return answer;
   if (answer.ok) return {...answer, local: entry};
-  // Busy: the load is in mpv's pipe, and mpv may still run it. The folder goes by its age.
-  if (!busy) {
+  // Busy: the load is in mpv's pipe, and mpv may still run it. The folder goes by its age; a private window's
+  // at once all the same, as nothing may be left to remove it later.
+  if (!busy || path.basename(path.dirname(entry)).startsWith(PrivateHlsDirPrefix)) {
     try {
       fs.rmSync(path.dirname(entry), {recursive: true, force: true});
     } catch (e) {
@@ -2572,7 +2575,7 @@ async function playEntry(mpvPath, play, config, io, entry) {
 
   /**
    * Starts an mpv on the pipe and loads the stream into it.
-   * @return {Promise<{ok: boolean, error?: string, focus?: string, foreground?: string}>}
+   * @return {Promise<{ok: boolean, busy?: boolean, error?: string, focus?: string, foreground?: string}>}
    */
   async function startAndLoad() {
     if (!mpvPath) {
@@ -2612,7 +2615,7 @@ async function playEntry(mpvPath, play, config, io, entry) {
       if (loaded.refused) {
         await end();
       }
-      return {ok: false, error: loaded.refused ?
+      return {ok: false, ...(loaded.busy ? {busy: true} : {}), error: loaded.refused ?
         `the new mpv refused the stream (${loaded.error})` :
         'the new mpv did not take the stream: try again in a moment'};
     }
