@@ -14,10 +14,13 @@ permissions:
 jobs:
   delete-branch:
     name: Delete mpv-update
+    # mpv-updates.yml's own pull request only, from this repository's branch.
     if: >-
       github.event.pull_request.merged == false &&
       github.event.pull_request.head.ref == 'mpv-update' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -28,18 +31,21 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          # Only the commit the pull request offered: a newer build pushed there meanwhile stays.
-          if ! now=$(gh api "repos/$GH_REPO/git/ref/heads/mpv-update" --jq .object.sha 2> "$RUNNER_TEMP/err"); then
-            if grep -qF '(HTTP 404)' "$RUNNER_TEMP/err"; then
-              echo 'mpv-update is gone already.'
-              exit 0
-            fi
-            cat "$RUNNER_TEMP/err" >&2
-            exit 1
-          fi
-          if [ "$now" != "$SHA" ]; then
-            echo "mpv-update moved on to $now: kept."
+          # Only the commit the pull request offered: a newer build mpv-updates.yml pushed there
+          # meanwhile stays. The lease makes check and delete one step on GitHub's side, which
+          # the REST API's delete cannot. No checkout: the push needs a repository, not files.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git init -q "$RUNNER_TEMP/repo"
+          cd "$RUNNER_TEMP/repo"
+          if git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push -q \
+            --force-with-lease="refs/heads/mpv-update:$SHA" "https://github.com/$GH_REPO.git" \
+            :refs/heads/mpv-update 2> "$RUNNER_TEMP/err"; then
+            echo "Deleted mpv-update ($SHA)."
             exit 0
           fi
-          gh api -X DELETE "repos/$GH_REPO/git/refs/heads/mpv-update"
-          echo "Deleted mpv-update ($SHA)."
+          if grep -qE 'stale info|remote ref does not exist' "$RUNNER_TEMP/err"; then
+            echo 'mpv-update was gone already, or holds a newer build now: kept.'
+            exit 0
+          fi
+          cat "$RUNNER_TEMP/err" >&2
+          exit 1

@@ -164,15 +164,25 @@ jobs:
           # gh's --head matches the branch name in any repository: never a fork's pull request.
           pr=$(gh pr list --state open --head "$PR_BRANCH" --base main --json number,isCrossRepository \
             --jq '[.[] | select(.isCrossRepository | not)][0].number // ""')
-          # Waiting there already: the latest build, or a newer one.
+          # Waiting there already, on an open pull request: the latest build, or a newer one.
+          # The branch without one (its pull request closed, or never opened) offers nothing.
           waiting=0
-          if [[ $offered =~ ^[0-9]{8}$ ]] && [ "$offered" -ge "$latest" ]; then waiting=1; fi
-          # Closed by the owner without merging: that build is not offered again, only a newer
-          # one. The closed pull request is the record; mpv-update-closed.yml deletes its branch.
-          # Only this workflow's own, from this repository. $latest is 8 digits, checked above.
-          declined=$(gh pr list --state closed --head "$PR_BRANCH" --base main --limit 100 \
-            --json number,title,mergedAt,isCrossRepository,author \
-            --jq "[.[] | select((.isCrossRepository | not) and .mergedAt == null and .author.login == \"app/github-actions\" and (.title | endswith(\"mpv $latest (shinchiro)\")))][0].number // \"\"")
+          if [ -n "$pr" ] && [[ $offered =~ ^[0-9]{8}$ ]] && [ "$offered" -ge "$latest" ]; then waiting=1; fi
+          # Closed by the owner without merging: that build is rejected, and so is any build not
+          # newer than it (shinchiro taking releases down can make an older one the latest).
+          # The closed pull request is the record; mpv-update-closed.yml deletes its branch.
+          # This workflow's own only, from this repository's branch: head=<owner>:<branch> leaves
+          # forks out on GitHub's side, and every page is read, so no number of closed pull
+          # requests hides one. "<release> <number>" of the newest rejected release, or empty.
+          # shellcheck disable=SC2016 # $release is jq's
+          rejected=$(gh api --paginate "repos/$GH_REPO/pulls?state=closed&base=main&head=${GH_REPO%%/*}:$PR_BRANCH&per_page=100" \
+            --jq '.[] | select(.merged_at == null and .user.login == "github-actions[bot]")
+              | (.title | capture("mpv (?<release>[0-9]{8}) [(]shinchiro[)]$").release) as $release
+              | "\($release) \(.number)"' | sort -r | sed -n 1p)
+          declined=''
+          if [ -n "$rejected" ] && [ "$latest" -le "${rejected%% *}" ]; then
+            declined=${rejected##* }
+          fi
 
           # --- The open failure issue. The whole list, filtered exactly: the search index can
           # lag behind an issue opened minutes ago. This workflow's own only: the repository is
@@ -188,7 +198,7 @@ jobs:
             elif [ "$waiting" = 1 ]; then
               echo "Would do nothing: $PR_BRANCH offers $offered already${pr:+ (#$pr)}, for the owner to merge."
             elif [ -n "$declined" ]; then
-              echo "Would do nothing: #$declined offered $latest and was closed unmerged; only a newer build is offered."
+              echo "Would do nothing: #$declined offered ${rejected%% *} and was closed unmerged, and $latest is not newer."
             elif [ "$tried" = 1 ]; then
               echo "Would do nothing: branch $branch exists, so $latest failed before."
             else
@@ -246,15 +256,17 @@ jobs:
             if [ -n "$issue" ] && [ "$gone" = 0 ]; then
               gh issue close "$issue" --comment "main pins $pinned, and shinchiro has no newer build. Closing."
             fi
-            # Pinned there by hand meanwhile: the offer has nothing left to merge.
+            # Pinned there by hand meanwhile: the offer has nothing left to merge. Retitled first,
+            # so this close is not taken for the owner rejecting its build.
             if [ -n "$pr" ]; then
+              gh pr edit "$pr" --title "ci: mpv offer closed, main pins $pinned" > /dev/null
               gh pr close "$pr" --delete-branch --comment "main pins $pinned already, this build or a newer one: nothing left to merge here."
               pr=''
             fi
           elif [ "$waiting" = 1 ]; then
             echo "$PR_BRANCH offers $offered already${pr:+ (#$pr)}: it waits for the owner's merge."
           elif [ -n "$declined" ]; then
-            echo "#$declined offered $latest and was closed unmerged: skipped until a newer build."
+            echo "#$declined offered ${rejected%% *} and was closed unmerged: $latest is not newer, so it is skipped."
           elif [ "$tried" = 1 ]; then
             echo "Branch $branch exists: $latest failed before, so it is not tried again."
           else
@@ -303,6 +315,12 @@ jobs:
             fi
 
             if [ "$conclusion" = success ]; then
+              # Closed while CI ran: retitled, that closed pull request would record this build
+              # as rejected instead of the one the owner rejected. A new one offers this build.
+              if [ -n "$pr" ]; then
+                state=$(gh pr view "$pr" --json state --jq .state)
+                if [ "$state" != OPEN ]; then pr=''; fi
+              fi
               # Offered on the one pull request: its branch is the commit CI just passed.
               authgit push -q -f origin "$commit:refs/heads/$PR_BRANCH"
               title="ci: mpv $latest (shinchiro)"
