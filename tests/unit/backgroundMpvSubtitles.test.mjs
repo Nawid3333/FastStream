@@ -69,6 +69,21 @@ describe('MPV mode and the page\'s subtitles', () => {
     expect(opens()[0]).toMatchObject({url: EPISODE, subtitles: [{label: 'Deutsch', srt: SRT}]});
   });
 
+  it('sends a subtitle file the page asked for while the hand-off still read the stream', async () => {
+    await allowlistedPage({fetch: (url) => {
+      if (url === SUB) return response(VTT);
+      if (url === EPISODE) return new Promise((resolve) => setTimeout(() => resolve(response(hlsPlaylist(1400))), 800));
+      return response('', 404);
+    }});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(300);
+    expect(opens()).toHaveLength(0);
+    await bg.request({tabId: 1, url: SUB});
+    await bg.wait(1500);
+    expect(opens()).toHaveLength(1);
+    expect(opens()[0]).toMatchObject({url: EPISODE, subtitles: [{label: 'episode-en', srt: SRT}]});
+  });
+
   it('sends a stream whose page has no subtitles as before', async () => {
     await allowlistedPage();
     await bg.request({tabId: 1, url: EPISODE});

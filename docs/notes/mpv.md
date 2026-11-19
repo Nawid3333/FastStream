@@ -60,7 +60,8 @@ now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` b
   all, one budget the reads at once share, counted as bytes arrive; a hand-off that stops (copy
   protection, VPN, page-only) or whose page or MPV goes meanwhile (`wanted()`, checked every 250 ms)
   stops the reading. Past either, the address goes as before. The page's subtitles are read from the
-  start of `openInMpv`, beside these waits, not after them.
+  start of `openInMpv`, beside these waits, not after them; a subtitle file the page asks for meanwhile
+  is read when they are done and goes too.
 - *What:* the playlist mpv would get (the variant the quality setting picked, or the master with its
   variants and renditions; every other tag with an address left out: I-frame playlists, session keys
   and data, which the helper would refuse), every address absolute and, on the key's server only, keyed. Fetched with the page's Origin/Referer, never truncated (12 MB).
