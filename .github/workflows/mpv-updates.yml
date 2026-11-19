@@ -161,10 +161,11 @@ jobs:
             2) ;;
             *) echo "git ls-remote failed with $status." >&2; exit 1 ;;
           esac
-          # gh's --head matches the branch name in any repository: never a fork's pull request,
-          # and this workflow's own only, the one its rejection record and cleanup know.
-          pr=$(gh pr list --state open --head "$PR_BRANCH" --base main --json number,isCrossRepository,author \
-            --jq '[.[] | select((.isCrossRepository | not) and .author.login == "app/github-actions")][0].number // ""')
+          # This repository's branch (head=<owner>:<branch> leaves forks out on GitHub's side,
+          # and GitHub keeps one open pull request per head and base), and this workflow's own
+          # only, the one its rejection record and cleanup know.
+          pr=$(gh api "repos/$GH_REPO/pulls?state=open&base=main&head=${GH_REPO%%/*}:$PR_BRANCH" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]")][0].number // ""')
           # Waiting there already, on an open pull request: the latest build, or a newer one.
           # The branch without one (its pull request closed, or never opened) offers nothing.
           waiting=0

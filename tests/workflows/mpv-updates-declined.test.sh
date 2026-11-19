@@ -43,7 +43,7 @@ case "$*" in
   "api --paginate repos/$GH_REPO/pulls?state=closed&base=main&head=Nawid3333:mpv-update&per_page=100 "*)
     for page in "$FIX"/closed-*.json; do jq -r "$jqf" "$page"; done ;;
   'pr view 768 --json state '*) jq -r "$jqf" "$FIX/state.json" ;;
-  'pr list --state open --head mpv-update --base main '*) jq -r "$jqf" "$FIX/open.json" ;;
+  "api repos/$GH_REPO/pulls?state=open&base=main&head=Nawid3333:mpv-update "*) jq -r "$jqf" "$FIX/open.json" ;;
   *) echo "stub gh: unexpected call: $*" >&2; exit 2 ;;
 esac
 EOF
@@ -109,12 +109,11 @@ b=$(git -C "$here/src" rev-parse HEAD)
 branch_at() { [ "$(git -C "$REMOTE" rev-parse -q --verify refs/heads/mpv-update)" = "$1" ]; }
 
 git -C "$here/src" push -q -f "$REMOTE" "$a:refs/heads/mpv-update"
-echo '[{"number": 770, "isCrossRepository": false, "author": {"login": "app/github-actions"}}]' > "$FIX/open.json"
+echo '[{"number": 770, "user": {"login": "github-actions[bot]"}}]' > "$FIX/open.json"
 SHA=$a run "$here/closed.sh"
 check 'a new offer from the branch keeps it' branch_at "$a"
 check 'and says so' contains "$here/out" '#770 offers mpv-update now: kept.'
-echo '[{"number": 771, "isCrossRepository": true, "author": {"login": "app/github-actions"}},
-  {"number": 772, "isCrossRepository": false, "author": {"login": "someone"}}]' > "$FIX/open.json"
+echo '[{"number": 772, "user": {"login": "someone"}}]' > "$FIX/open.json"
 SHA=$a run "$here/closed.sh"
 check 'the closed pull request'"'"'s branch is deleted' branch_at ''
 check 'and says so' contains "$here/out" "Deleted mpv-update ($a)."

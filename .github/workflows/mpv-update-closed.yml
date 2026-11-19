@@ -34,8 +34,9 @@ jobs:
           set -euo pipefail
           # A newer build offered on a new pull request from it meanwhile (the owner closed this
           # one while mpv-updates.yml published that build): kept.
-          open=$(gh pr list --state open --head mpv-update --base main --json number,isCrossRepository,author \
-            --jq '[.[] | select((.isCrossRepository | not) and .author.login == "app/github-actions")][0].number // ""')
+          # head=<owner>:<branch> leaves forks out on GitHub's side.
+          open=$(gh api "repos/$GH_REPO/pulls?state=open&base=main&head=${GH_REPO%%/*}:mpv-update" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]")][0].number // ""')
           if [ -n "$open" ]; then
             echo "#$open offers mpv-update now: kept."
             exit 0
