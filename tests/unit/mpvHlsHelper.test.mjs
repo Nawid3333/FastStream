@@ -44,6 +44,8 @@ describe('a tag\'s attributes, as ffmpeg reads them', () => {
     expect(hlsAddresses(media(['#EXTINF:6,', ` ${SEG}`]))).toBeNull();
     expect(hlsAddresses(media(['#EXTINF:6,', '  #EXT-X-KEY:URI="https://k.test/k"']))).toBeNull();
     expect(hlsAddresses(media(['#EXT-X-KEY:URI="https:\\/\\/k.test"']))).toBeNull();
+    // ffmpeg removes the spaces of ASCII from a line's end, and no others.
+    expect(hlsAddresses(`${SEG} \t\n${SEG}\u00a0\n${SEG}\u2028`).map(({address}) => address)).toEqual([SEG, `${SEG}\u00a0`, `${SEG}\u2028`]);
   });
 
   // Measured with the ffmpeg program (N-124093, 2026-04): an address of 5000 bytes was asked for up to its 4095th
@@ -95,6 +97,8 @@ describe('the playlists the helper takes', () => {
     ['a master naming a playlist on the web, unchecked', [
       {name: 'master.m3u8', text: master(['#EXT-X-STREAM-INF:BANDWIDTH=1', 'https://evil.test/a.m3u8', '#EXT-X-STREAM-INF:BANDWIDTH=2', '0.m3u8'])},
       {name: '0.m3u8', text: media()}]],
+    ['a master naming a playlist with a no-break space behind its name, which ffmpeg keeps', [
+      {name: 'master.m3u8', text: master(['#EXT-X-STREAM-INF:BANDWIDTH=1', '0.m3u8\u00a0'])}, {name: '0.m3u8', text: media()}]],
     ['a master naming itself', [{name: 'master.m3u8', text: master(['#EXT-X-STREAM-INF:BANDWIDTH=1', 'master.m3u8'])}]],
     ['a master naming a playlist in an I-frame tag', [
       {name: 'master.m3u8', text: master(['#EXT-X-I-FRAME-STREAM-INF:URI="0.m3u8"', '#EXT-X-STREAM-INF:BANDWIDTH=1', '0.m3u8'])},
@@ -160,6 +164,7 @@ describe('writing the playlists', () => {
     expect(fs.readFileSync(path.join(path.dirname(entry), '0.m3u8'), 'utf8')).toBe(media());
 
     // Any other folder: the names as sent, which resolve to the master's own folder.
+    expect(hlsMasterIn(text, 'D:\\Temp\\faststream-mpv-hls-abc123', path.win32)).toBe(text);
     const plainBase = scratch();
     if (!/[#?]/.test(plainBase)) {
       expect(fs.readFileSync(writeHlsPackage(files, 'https://cdn.test/pl/7?token=k', plainBase), 'utf8')).toBe(text);
@@ -184,6 +189,7 @@ describe('writing the playlists', () => {
       expect(() => writeHlsPackage(files, 'https://cdn.test/pl/7?token=k', base)).toThrow(/a '#' or '\?'/);
       expect(fs.readdirSync(base)).toEqual([]);
       // Any other folder: as sent.
+      expect(hlsMasterIn(files[0].text, 'D:\\Temp\\faststream-mpv-hls-abc123', path.win32)).toBe(files[0].text);
       const plain = scratch();
       if (!/[#?]/.test(plain)) expect(fs.readFileSync(writeHlsPackage(files, 'https://cdn.test/pl/7?token=k', plain), 'utf8')).toBe(files[0].text);
     }
@@ -373,59 +379,66 @@ describe('playing them', () => {
     expect(started).toBe(0);
   });
 
+  // A private window's folder goes on each of the busy answers (the test after these says why).
+  /** @type {Array<[string, number]>} */
+  const KEPT = [['https://cdn.test/pl/7?token=k#fs-id=ab', 1], ['https://cdn.test/pl/7?token=k#fs-id=ab&fs-private=1', 0]];
+
   it('keeps them for a new mpv that took the load into its pipe and did not answer it', async () => {
-    const play = /** @type {*} */ (checkPlayMessage({type: 'play', target: 'https://cdn.test/pl/7?token=k#fs-id=ab', title: 'T',
-      newWindow: true, hls: {files: [{name: '0.m3u8', text: media()}]}})).play;
-    // Its pipe answers; the load after it gets no answer in time, or only the answer of the command behind it.
-    for (const loadAnswer of [{ok: false, busy: true, error: 'mpv did not answer'}, {ok: true, replies: [{request_id: 2, data: 77}]}]) {
-      const base = scratch();
-      const stopped = [];
-      const answer = await playMpv('mpv', play, {ipcToken: 'x'}, {
-        hlsBase: base,
-        ipcRequest: async (commands) => commands.length === 1 ? {ok: true, replies: [{request_id: 1, error: 'success', data: 77}]} : loadAnswer,
-        focus: async () => 'True',
-        platform: 'linux',
-        start: async () => ({ok: true, pid: 77}),
-        stop: (pid) => stopped.push(pid),
-        randomHex: () => '0a1b2c',
-      });
-      expect(answer).toEqual({ok: false, error: 'the new mpv did not take the stream: try again in a moment'});
-      // The mpv runs on, with the load in its pipe.
-      expect(stopped).toEqual([]);
-      expect(fs.readdirSync(base)).toHaveLength(1);
+    for (const [target, kept] of KEPT) {
+      const play = /** @type {*} */ (checkPlayMessage({type: 'play', target, title: 'T', newWindow: true,
+        hls: {files: [{name: '0.m3u8', text: media()}]}})).play;
+      // Its pipe answers; the load after it gets no answer in time, or only the answer of the command behind it.
+      for (const loadAnswer of [{ok: false, busy: true, error: 'mpv did not answer'}, {ok: true, replies: [{request_id: 2, data: 77}]}]) {
+        const base = scratch();
+        const stopped = [];
+        const answer = await playMpv('mpv', play, {ipcToken: 'x'}, {
+          hlsBase: base,
+          ipcRequest: async (commands) => commands.length === 1 ? {ok: true, replies: [{request_id: 1, error: 'success', data: 77}]} : loadAnswer,
+          focus: async () => 'True',
+          platform: 'linux',
+          start: async () => ({ok: true, pid: 77}),
+          stop: (pid) => stopped.push(pid),
+          randomHex: () => '0a1b2c',
+        });
+        expect(answer).toEqual({ok: false, error: 'the new mpv did not take the stream: try again in a moment'});
+        // The mpv runs on, with the load in its pipe.
+        expect(stopped).toEqual([]);
+        expect(fs.readdirSync(base)).toHaveLength(kept);
+      }
     }
   });
 
   it('keeps them when the mpv another helper was starting is busy after the wait', async () => {
-    const base = scratch();
-    const lockFile = launchLockFile({ipcToken: 'x'}, scratch());
-    const other = takeLaunchLock(lockFile);
-    expect(other.taken).toBe(true);
-    let slept = 0;
-    let started = 0;
-    const checked = checkPlayMessage({type: 'play', target: 'https://cdn.test/pl/7?token=k#fs-id=ab', title: 'T',
-      hls: {files: [{name: '0.m3u8', text: media()}]}});
-    const answer = await playMpv('mpv', /** @type {*} */ (checked).play, {ipcToken: 'x'}, {
-      hlsBase: base,
-      lockFile,
-      // No mpv at first; the other helper's is up after a second, opening its own stream.
-      ipcRequest: async () => slept >= 1000 ? {ok: false, busy: true, error: 'mpv did not answer'} : {ok: false, error: 'no mpv ipc'},
-      focus: async () => 'True',
-      platform: 'linux',
-      sleep: async (ms) => {
-        slept += ms;
-        if (slept >= 1000) other.release();
-      },
-      now: () => slept,
-      start: async () => {
-        started++;
-        return {ok: false, error: 'not here'};
-      },
-    });
-    expect(answer).toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
-    expect(slept).toBe(1000);
-    expect(started).toBe(0);
-    expect(fs.readdirSync(base)).toHaveLength(1);
+    for (const [target, kept] of KEPT) {
+      const base = scratch();
+      const lockFile = launchLockFile({ipcToken: 'x'}, scratch());
+      const other = takeLaunchLock(lockFile);
+      expect(other.taken).toBe(true);
+      let slept = 0;
+      let started = 0;
+      const checked = checkPlayMessage({type: 'play', target, title: 'T', hls: {files: [{name: '0.m3u8', text: media()}]}});
+      const answer = await playMpv('mpv', /** @type {*} */ (checked).play, {ipcToken: 'x'}, {
+        hlsBase: base,
+        lockFile,
+        // No mpv at first; the other helper's is up after a second, opening its own stream.
+        ipcRequest: async () => slept >= 1000 ? {ok: false, busy: true, error: 'mpv did not answer'} : {ok: false, error: 'no mpv ipc'},
+        focus: async () => 'True',
+        platform: 'linux',
+        sleep: async (ms) => {
+          slept += ms;
+          if (slept >= 1000) other.release();
+        },
+        now: () => slept,
+        start: async () => {
+          started++;
+          return {ok: false, error: 'not here'};
+        },
+      });
+      expect(answer).toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
+      expect(slept).toBe(1000);
+      expect(started).toBe(0);
+      expect(fs.readdirSync(base)).toHaveLength(kept);
+    }
   });
 
   // Nothing may be left to remove it later (no helper runs again until the next hand-off), and its addresses are

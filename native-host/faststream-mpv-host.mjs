@@ -1009,14 +1009,20 @@ const HlsFileName = /^(?:master|\d{1,2})\.m3u8$/;
 const FfmpegLineBytes = 4095;
 
 /**
- * A playlist's line as far as ffmpeg reads it.
+ * A playlist's line as ffmpeg reads it: its first 4095 bytes, without the spaces of ASCII at their end. Any other
+ * space (a no-break space) stays part of an address.
  * @param {string} line
  * @return {string}
  */
 function ffmpegLine(line) {
-  if (line.length * 3 <= FfmpegLineBytes) return line;
-  const bytes = Buffer.from(line, 'utf8');
-  return bytes.length > FfmpegLineBytes ? bytes.subarray(0, FfmpegLineBytes).toString('utf8') : line;
+  let read = line;
+  if (line.length * 3 > FfmpegLineBytes) {
+    const bytes = Buffer.from(line, 'utf8');
+    if (bytes.length > FfmpegLineBytes) read = bytes.subarray(0, FfmpegLineBytes).toString('utf8');
+  }
+  let end = read.length;
+  while (end > 0 && ' \t\n\v\f\r'.includes(read[end - 1])) end--;
+  return read.slice(0, end);
 }
 
 /**
@@ -1070,7 +1076,7 @@ export function hlsAddresses(text) {
     if (written !== written.trimStart() || written.includes('\\')) return null;
     const line = ffmpegLine(written);
     if (!line.startsWith('#')) {
-      addresses.push({address: line.trimEnd(), tag: null});
+      addresses.push({address: line, tag: null});
       continue;
     }
     const colon = line.indexOf(':');
@@ -1241,7 +1247,7 @@ export function hlsMasterIn(text, dir, paths = path) {
   const named = hlsAddresses(text);
   const written = text.split(/(\r\n|\r|\n)/).map((line, index) => {
     if (index % 2 === 1 || !line) return line;
-    if (!line.startsWith('#')) return HlsFileName.test(line.trimEnd()) ? whole(line.trimEnd()) : line;
+    if (!line.startsWith('#')) return HlsFileName.test(ffmpegLine(line)) ? whole(ffmpegLine(line)) : line;
     return line.replace(/(URI=")(\d{1,2}\.m3u8)(")/g, (_, open, name, close) => open + whole(name) + close);
   }).join('');
   const read = hlsAddresses(written);

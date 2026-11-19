@@ -62,7 +62,9 @@ audit of 2026-11-19 and measured with the real helper code against a headless mp
   too, for every package: before, a `URI` cut short was checked whole, and a key address cut to `http` is a
   file beside the playlist to ffmpeg. The first form of host 28 wrote a line the whole path had made longer,
   and ffmpeg read the start of the path, the whole name of another file (Codex found it; measured with a
-  playlist put at that name, whose segment was asked for). Both are now refused.
+  playlist put at that name, whose segment was asked for). Both are now refused. From a line's end ffmpeg
+  removes the spaces of ASCII and no others (`av_isspace`), and `hlsAddresses` does the same: a master naming
+  `0.m3u8` with a no-break space behind it passed the check, and was another, missing file to ffmpeg (Codex).
 - *A busy mpv.* When mpv did not answer within 6 s, `playMpv` removed the playlists like those of any play
   that failed. The load is in mpv's pipe by then: mpv held for 7 s ran it afterwards, stopped the video it
   was playing and failed on the missing file ("Cannot open file"). The folder now stays when the answer is
