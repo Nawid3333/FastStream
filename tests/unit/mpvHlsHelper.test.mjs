@@ -45,6 +45,26 @@ describe('a tag\'s attributes, as ffmpeg reads them', () => {
     expect(hlsAddresses(media(['#EXTINF:6,', '  #EXT-X-KEY:URI="https://k.test/k"']))).toBeNull();
     expect(hlsAddresses(media(['#EXT-X-KEY:URI="https:\\/\\/k.test"']))).toBeNull();
   });
+
+  // Measured with the ffmpeg program (N-124093, 2026-04): an address of 5000 bytes was asked for up to its 4095th
+  // byte, and an address behind 4095 bytes of the same line was never asked for.
+  it('reads a line as far as ffmpeg does, 4095 bytes', () => {
+    const head = '#EXT-X-KEY:METHOD=AES-128,X="';
+    const key = 'https://k.test/key';
+    const keyLine = (/** @type {number} */ cut) => `${head}${'x'.repeat(4095 - head.length - 7 - key.length + cut)}",URI="${key}"`;
+    expect(hlsAddresses(keyLine(0))).toEqual([{address: key, tag: '#EXT-X-KEY'}]);
+    expect(hlsAddresses(keyLine(key.length - 4))).toEqual([{address: 'http', tag: '#EXT-X-KEY'}]);
+    expect(hlsAddresses(keyLine(key.length + 7))).toEqual([]);
+    expect(hlsAddresses(`https://cdn.test/${'a'.repeat(5000)}`)).toEqual([{address: `https://cdn.test/${'a'.repeat(4095 - 17)}`, tag: null}]);
+    // Bytes, not characters.
+    expect(hlsAddresses('é'.repeat(3000))?.[0].address.startsWith('é'.repeat(2047))).toBe(true);
+    expect(hlsAddresses('é'.repeat(3000))?.[0].address.length).toBe(2048);
+
+    // A key's address cut to a name is a file beside the playlist to ffmpeg.
+    expect(checkHlsPackage({files: [{name: '0.m3u8', text: media([keyLine(0), '#EXTINF:6,', SEG])}]})).toMatchObject({ok: true});
+    expect(checkHlsPackage({files: [{name: '0.m3u8', text: media([keyLine(key.length - 4), '#EXTINF:6,', SEG])}]}))
+        .toEqual({ok: false, error: 'an HLS playlist names something that is not an http(s) address'});
+  });
 });
 
 describe('the playlists the helper takes', () => {
@@ -146,14 +166,27 @@ describe('writing the playlists', () => {
     }
   });
 
-  it('leaves a master as sent when its playlists cannot be named whole as ffmpeg reads them', () => {
-    // An unquoted URI is one to ffmpeg and to the helper's check; only the quoted form the extension writes is rewritten.
+  // Measured with the ffmpeg program: written as sent under such a path, a master's names were opened beside the
+  // folder the '#' cuts the path at, and a rewritten line longer than ffmpeg reads at the path its cut left.
+  it('writes no master it cannot name whole in such a folder, and leaves nothing of it', () => {
     const base = path.join(scratch(), 'user#1');
     fs.mkdirSync(base);
-    const text = master(['#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="x",URI=1.m3u8', '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="a"', '0.m3u8']);
-    const files = [{name: 'master.m3u8', text}, {name: '0.m3u8', text: media()}, {name: '1.m3u8', text: media()}];
-    expect(checkHlsPackage({files})).toMatchObject({ok: true});
-    expect(fs.readFileSync(writeHlsPackage(files, 'https://cdn.test/pl/7?token=k', base), 'utf8')).toBe(text);
+    const packageOf = (/** @type {string} */ mediaLine) => [{name: 'master.m3u8', text: master([mediaLine, '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="a"', '0.m3u8'])},
+      {name: '0.m3u8', text: media()}, {name: '1.m3u8', text: media()}];
+    const head = '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="';
+    for (const files of [
+      // An unquoted URI: one to ffmpeg and to the helper's check, and not what the extension writes.
+      packageOf('#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="x",URI=1.m3u8'),
+      // A line ffmpeg reads whole as sent, and not with a whole path in it.
+      packageOf(`${head}${'x'.repeat(4095 - head.length - 30)}",URI="1.m3u8"`),
+    ]) {
+      expect(checkHlsPackage({files})).toMatchObject({ok: true});
+      expect(() => writeHlsPackage(files, 'https://cdn.test/pl/7?token=k', base)).toThrow(/a '#' or '\?'/);
+      expect(fs.readdirSync(base)).toEqual([]);
+      // Any other folder: as sent.
+      const plain = scratch();
+      if (!/[#?]/.test(plain)) expect(fs.readFileSync(writeHlsPackage(files, 'https://cdn.test/pl/7?token=k', plain), 'utf8')).toBe(files[0].text);
+    }
   });
 
   it('writes the whole paths by each system\'s own rules, whichever one runs this test', () => {
@@ -165,8 +198,17 @@ describe('writing the playlists', () => {
         .toBe(text('D:/Temp/a#b/faststream-mpv-hls-abc123/', '\r\n'));
     expect(hlsMasterIn(text(''), '/tmp/a?b/faststream-mpv-hls-abc123', path.posix)).toBe(text('/tmp/a?b/faststream-mpv-hls-abc123/'));
     expect(hlsMasterIn(text(''), 'D:\\Temp\\faststream-mpv-hls-abc123', path.win32)).toBe(text(''));
-    // A folder name no quoted value can hold: as sent.
-    expect(hlsMasterIn(text(''), '/tmp/a"#b/faststream-mpv-hls-abc123', path.posix)).toBe(text(''));
+    // A folder name no quoted value can hold.
+    expect(hlsMasterIn(text(''), '/tmp/a"#b/faststream-mpv-hls-abc123', path.posix)).toBeNull();
+    // A line cut right behind "D:/Temp/a": the start of the folder's path, and another file's whole one.
+    const head = '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="';
+    const cutAt = (/** @type {number} */ bytes) => ['#EXTM3U', `${head}${'x'.repeat(4095 - head.length - 7 - bytes)}",URI="1.m3u8"`,
+      '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="a"', '0.m3u8', ''].join('\n');
+    expect(hlsMasterIn(cutAt('D:/Temp/a'.length), 'D:\\Temp\\a#b\\faststream-mpv-hls-abc123', path.win32)).toBeNull();
+    // The whole path fits, to its last byte.
+    const whole = 'D:/Temp/a#b/faststream-mpv-hls-abc123/1.m3u8';
+    expect(hlsMasterIn(cutAt(whole.length), 'D:\\Temp\\a#b\\faststream-mpv-hls-abc123', path.win32)?.split('\n')[1].endsWith(`",URI="${whole}"`)).toBe(true);
+    expect(hlsMasterIn(cutAt(whole.length - 1), 'D:\\Temp\\a#b\\faststream-mpv-hls-abc123', path.win32)).toBeNull();
   });
 
   it('marks a private window\'s folder, which goes two minutes on', () => {
@@ -257,6 +299,30 @@ describe('playing them', () => {
     expect(load.options).toMatchObject({'demuxer': 'lavf',
       'demuxer-lavf-o': 'protocol_whitelist=[http,https,tcp,tls,crypto],format_whitelist=[hls,mpegts,mov,aac,mp3,ac3,eac3,webvtt,srt]'});
     expect(load.options['demuxer-lavf-format']).toBeUndefined();
+  });
+
+  it('says so when the playlists cannot be written, and asks mpv for nothing', async () => {
+    const base = path.join(scratch(), 'user#1');
+    fs.mkdirSync(base);
+    let asked = 0;
+    const checked = checkPlayMessage({type: 'play', target: 'https://cdn.test/pl/7?token=k#fs-id=ab', title: 'T', hls: {files: [
+      {name: 'master.m3u8', text: master(['#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="x",URI=1.m3u8', '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="a"', '0.m3u8'])},
+      {name: '0.m3u8', text: media()}, {name: '1.m3u8', text: media()}]}});
+    expect(checked.ok).toBe(true);
+    const answer = await playMpv('mpv', /** @type {*} */ (checked).play, {ipcToken: 'x'}, {
+      hlsBase: base,
+      ipcRequest: async () => {
+        asked++;
+        return {ok: false, error: 'no mpv ipc'};
+      },
+      focus: async () => 'True',
+      platform: 'linux',
+      start: async () => ({ok: false, error: 'not here'}),
+    });
+    expect(answer.ok).toBe(false);
+    expect(answer.error).toMatch(/^Could not write the playlists of the stream for mpv: .*a '#' or '\?'/);
+    expect(asked).toBe(0);
+    expect(fs.readdirSync(base)).toEqual([]);
   });
 
   it('removes the playlists of a stream that did not go', async () => {

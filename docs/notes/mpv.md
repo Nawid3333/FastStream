@@ -46,10 +46,23 @@ audit of 2026-11-19 and measured with the real helper code against a headless mp
   recognize file format"), the video mpv was playing was gone, and the helper had answered ok. A media
   playlist alone (whole http(s) addresses) plays there. `hlsMasterIn` now writes a master's playlists as
   whole paths with forward slashes in such a folder, and only there; it reads the result back as ffmpeg
-  would (`hlsAddresses`) and writes the master as sent when that is not exactly those paths (an unquoted
-  `URI=`, which the extension never writes). Measured: the same package plays, a master with an audio
-  rendition (`URI="..."`) too. Spaces, umlauts, `%`, `&`, `+`, `=`, `;`, `,`, quotes and brackets in the
-  path needed nothing (measured). Not measured on Linux or macOS.
+  would (`hlsAddresses`). Measured: the same package plays, a master with an audio rendition
+  (`URI="..."`) too. Spaces, umlauts, `%`, `&`, `+`, `=`, `;`, `,`, quotes and brackets in the path needed
+  nothing (measured). Not measured on Linux or macOS.
+- *A master that cannot be named whole there is refused* ("Could not write the playlists of the stream for
+  mpv: ..."; nothing is written, mpv is not asked): an unquoted `URI=`, which the extension never writes, or a
+  line the whole path makes longer than ffmpeg reads. Written as sent, such a master did not only fail: ffmpeg
+  opened what lay beside the folder the `#` cuts the path at. Measured with the ffmpeg program (N-124093,
+  2026-04; no mpv could be started, the owner's was playing): two playlists put there were read and their
+  segments asked for. The helper's rule is that ffmpeg opens the package's own files and http(s) addresses and
+  nothing else; before host 28 it did not hold for a master under such a path.
+- *ffmpeg reads a playlist's line up to 4095 bytes and drops the rest* (`ff_get_line` into `char
+  line[MAX_URL_SIZE]`, the same code in mpv's ffmpeg; measured: an address of 5000 bytes was asked for up to
+  its 4095th byte, an address behind 4095 bytes of the same line never). `hlsAddresses` reads a line that far
+  too, for every package: before, a `URI` cut short was checked whole, and a key address cut to `http` is a
+  file beside the playlist to ffmpeg. The first form of host 28 wrote a line the whole path had made longer,
+  and ffmpeg read the start of the path, the whole name of another file (Codex found it; measured with a
+  playlist put at that name, whose segment was asked for). Both are now refused.
 - *A busy mpv.* When mpv did not answer within 6 s, `playMpv` removed the playlists like those of any play
   that failed. The load is in mpv's pipe by then: mpv held for 7 s ran it afterwards, stopped the video it
   was playing and failed on the missing file ("Cannot open file"). The folder now stays when the answer is

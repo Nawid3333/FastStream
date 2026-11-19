@@ -1004,6 +1004,21 @@ const MaxHlsFiles = 32;
 export const MaxHlsBytes = 12 * 1024 * 1024;
 // The entry first: a master names the others by these names, which resolve to its own folder.
 const HlsFileName = /^(?:master|\d{1,2})\.m3u8$/;
+// ffmpeg reads a playlist's line into 4096 bytes and drops what is past them, up to the line's end (measured:
+// docs/notes/mpv.md, host 28).
+const FfmpegLineBytes = 4095;
+
+/**
+ * A playlist's line as far as ffmpeg reads it.
+ * @param {string} line
+ * @return {string}
+ */
+function ffmpegLine(line) {
+  if (line.length * 3 <= FfmpegLineBytes) return line;
+  const bytes = Buffer.from(line, 'utf8');
+  return bytes.length > FfmpegLineBytes ? bytes.subarray(0, FfmpegLineBytes).toString('utf8') : line;
+}
+
 /**
  * A tag's attributes as ffmpeg reads them (ff_parse_key_value): a key after spaces or commas, up to its '=';
  * its value quoted, a backslash keeping the character after it, or up to a space or comma.
@@ -1050,9 +1065,10 @@ export function ffmpegAttributes(text) {
  */
 export function hlsAddresses(text) {
   const addresses = [];
-  for (const line of text.split(/\r\n|\r|\n/)) {
-    if (!line) continue;
-    if (line !== line.trimStart() || line.includes('\\')) return null;
+  for (const written of text.split(/\r\n|\r|\n/)) {
+    if (!written) continue;
+    if (written !== written.trimStart() || written.includes('\\')) return null;
+    const line = ffmpegLine(written);
     if (!line.startsWith('#')) {
       addresses.push({address: line.trimEnd(), tag: null});
       continue;
@@ -1210,14 +1226,14 @@ export function privatePackageWatch(base = os.tmpdir()) {
 
 /**
  * A master for the folder it is written into. ffmpeg resolves a playlist's name against the master's own address
- * up to a '#' or '?', so with one in the folder's path (a Windows account's name) the names led nowhere: there
- * they become whole paths, which ffmpeg opens as written. As sent when the result does not read, to ffmpeg, as
- * exactly those paths (an unquoted URI, a path that cannot stand in a quoted one).
+ * up to a '#' or '?', so with one in the folder's path (a Windows account's name) the names led beside the folder
+ * the path was cut at: there they become whole paths, which ffmpeg opens as written.
  * @param {string} text - The master, naming its playlists by their file names (checkHlsPackage).
  * @param {string} dir - The folder.
  * @param {{join: (...parts: Array<string>) => string, sep: string}} [paths] - A stand-in for tests; this
  *   system's by default.
- * @return {string}
+ * @return {?string} null when the result would not read, to ffmpeg, as exactly those paths: an unquoted URI, a
+ *   line longer than ffmpeg reads, a path that cannot stand in a quoted value.
  */
 export function hlsMasterIn(text, dir, paths = path) {
   if (!/[#?]/.test(dir)) return text;
@@ -1230,7 +1246,7 @@ export function hlsMasterIn(text, dir, paths = path) {
   }).join('');
   const read = hlsAddresses(written);
   return named && read && read.length === named.length &&
-    read.every(({address}, index) => address === whole(named[index].address)) ? written : text;
+    read.every(({address}, index) => address === whole(named[index].address)) ? written : null;
 }
 
 /**
@@ -1240,6 +1256,7 @@ export function hlsMasterIn(text, dir, paths = path) {
  * @param {string} target - The play message's target.
  * @param {string} [base] - The folder to write under; the temp folder by default.
  * @return {string} The entry's file.
+ * @throws {Error} When a file cannot be written, or the master not for this folder (hlsMasterIn); nothing is left.
  */
 export function writeHlsPackage(files, target, base = os.tmpdir()) {
   removeOldHlsPackages(base);
@@ -1250,10 +1267,23 @@ export function writeHlsPackage(files, target, base = os.tmpdir()) {
     // checkPlayMessage took it for a URL.
   }
   const dir = fs.mkdtempSync(path.join(base, isPrivate ? PrivateHlsDirPrefix : HlsDirPrefix));
-  for (const file of files) {
-    fs.writeFileSync(path.join(dir, file.name), file.name === 'master.m3u8' ? hlsMasterIn(file.text, dir) : file.text, 'utf8');
+  try {
+    for (const file of files) {
+      const text = file.name === 'master.m3u8' ? hlsMasterIn(file.text, dir) : file.text;
+      if (text === null) {
+        throw new Error('the temp folder\'s path has a \'#\' or \'?\', and this master playlist cannot be written for such a path');
+      }
+      fs.writeFileSync(path.join(dir, file.name), text, 'utf8');
+    }
+    fs.writeFileSync(path.join(dir, 'target.txt'), target, 'utf8');
+  } catch (e) {
+    try {
+      fs.rmSync(dir, {recursive: true, force: true});
+    } catch (e2) {
+      // It goes by its age.
+    }
+    throw e;
   }
-  fs.writeFileSync(path.join(dir, 'target.txt'), target, 'utf8');
   return path.join(dir, files[0].name);
 }
 
