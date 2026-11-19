@@ -522,6 +522,17 @@
   the bar. A wait over a second is logged; a document that never gets its size fails with the
   page's frames. `tests/unit/e2eConfirmPrompt.test.mjs` fails on an ext, classic or private-window
   spec that clicks OK from a script (`querySelector(...fs-dialog-confirm...)`) instead.
+- **Where the player is, said by the look that found it (hidden-streams, 2026-11-19).** The spec's
+  second test (the HLS stream called text/html) failed its first try in 11 of 30 CI jobs since it
+  came with #766, and its retry too in 4 of those; only `state.linked` was false. The player was
+  not at fault: it had entered windowed fullscreen each time. `playerShowing` looks for the player
+  in the page, then for any iframe to look inside. A player whose iframe came between the two
+  looks was entered as the page's frame, and `nested` stayed set: the spec then looked for the
+  player inside the player for 5 s. A tab that is already on opens its player at once, right
+  between the first round's two looks on a CI machine; the first test's player comes after the
+  500 ms settle, between two rounds. Made to happen (an iframe waited for between the looks):
+  `nested` true and `linked` false on both pages, 6.4 s each; with `nested` set by the look that
+  finds the player, as `live-specs/liveSite.mjs` (`enterPlayer`) does, false and true in 1.3 s.
 - **e2e config, 2026-09-25:** `autoXvfb: false` - Firefox runs `-headless`, and WebdriverIO
   otherwise spawns workers through `xvfb-run`, whose Ubuntu 26.04 version closes fd 3, the
   worker IPC channel: every worker died with `write EINVAL` (webdriverio#15685, unfixed in
