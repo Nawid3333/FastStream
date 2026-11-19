@@ -93,10 +93,16 @@ function addSubtitles(message, subtitles) {
   if (!Array.isArray(subtitles)) {
     return;
   }
+  /** @param {string} label */
+  const leftOut = (label) => console.warn(`A subtitle track (${label || 'no label'}) is too large to send to mpv, left out`);
   const candidates = subtitles
-      .filter((s) => s && typeof s.srt === 'string' && s.srt.trim() && s.srt.length <= MaxSubtitleChars)
-      .slice(0, 8)
-      .map((s) => ({label: typeof s.label === 'string' ? cutText(s.label, 100) : '', srt: s.srt}));
+      .filter((s) => s && typeof s.srt === 'string' && s.srt.trim())
+      .map((s) => ({label: typeof s.label === 'string' ? cutText(s.label, 100) : '', srt: s.srt}))
+      .filter((s) => {
+        if (s.srt.length > MaxSubtitleChars) leftOut(s.label);
+        return s.srt.length <= MaxSubtitleChars;
+      })
+      .slice(0, 8);
   /** @type {Array<{label: string, srt: string}>} */
   const fitting = [];
   message.subtitles = fitting;
@@ -104,7 +110,7 @@ function addSubtitles(message, subtitles) {
     fitting.push(subtitle);
     if (messageBytes(message) > ('hls' in message && message.hls ? HlsHostMaxMessageBytes : HostMaxMessageBytes)) {
       fitting.pop();
-      console.warn(`A subtitle track (${subtitle.label || 'no label'}) is too large to send to mpv, left out`);
+      leftOut(subtitle.label);
     }
   }
   if (fitting.length === 0) {

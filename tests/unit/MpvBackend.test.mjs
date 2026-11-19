@@ -572,6 +572,7 @@ describe('the thin helper', () => {
         {hls, subtitles: [{label: 'too long', srt: longest + 'x'}, {label: 'longest', srt: longest}, {label: 'English', srt: SRT}]});
     expect(sent[0].hls).toEqual(hls);
     expect(sent[0].subtitles.map((s) => s.label)).toEqual(['longest', 'English']);
+    expect(console.warn).toHaveBeenCalledWith('A subtitle track (too long) is too large to send to mpv, left out');
     // The helper's own check of what was sent.
     expect(checkPlayMessage(sent[0])).toMatchObject({ok: true});
   });
