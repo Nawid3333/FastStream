@@ -25,13 +25,18 @@ export const DEFAULT_TTML_RATES = Object.freeze({frameRate: 30, subFrameRate: 1,
 
 const OFFSET_UNITS = {h: 3600, m: 60, s: 1, ms: 0.001};
 
+// A paragraph is rendered once for every stretch its spans' times cut it into: what one document may cost
+// (docs/notes/player.md, "TTML subtitles").
+const MAX_PIECE_LOOKS = 8000000;
+const MAX_CUE_TEXT = 16 * 1024 * 1024;
+
 /**
- * Why a document gives no cues: not well-formed XML (or no tt root), entity declarations, or
- * subtitles that are images.
+ * Why a document gives no cues: not well-formed XML (or no tt root), entity declarations,
+ * subtitles that are images, or more timed pieces or cue text than are read.
  */
 export class TtmlError extends Error {
   /**
-   * @param {'malformed'|'entities'|'images'} reason
+   * @param {'malformed'|'entities'|'images'|'large'} reason
    * @param {string} [detail]
    */
   constructor(reason, detail = '') {
@@ -332,6 +337,8 @@ export function ttmlCues(doc) {
   const plain = {};
   let unreadTimes = 0;
   let neverShown = 0;
+  let pieceLooks = 0;
+  let cueTextLength = 0;
 
   /**
    * @param {Element} element
@@ -414,6 +421,8 @@ export function ttmlCues(doc) {
       if (cueText(paragraph, resolve, style, region, preserve, () => true)) neverShown++;
       return;
     }
+    pieceLooks += (bounds.length - 1) * (paragraph.getElementsByTagName('*').length + 1);
+    if (pieceLooks > MAX_PIECE_LOOKS) throw new TtmlError('large', 'its paragraphs are cut into more timed pieces than are read');
     /** @type {?TtmlCue} */
     let previous = null;
     for (let i = 0; i + 1 < bounds.length; i++) {
@@ -423,6 +432,8 @@ export function ttmlCues(doc) {
         return times[0] <= from && times[1] >= to && times[0] < times[1];
       });
       if (!text) continue;
+      cueTextLength += text.length;
+      if (cueTextLength > MAX_CUE_TEXT) throw new TtmlError('large', 'its cues hold more text than is read');
       // A stretch that shows what the one before it showed goes on with it.
       if (previous && previous.end === from && previous.text === text) {
         previous.end = to;

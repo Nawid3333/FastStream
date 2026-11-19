@@ -1882,6 +1882,18 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
     never reaches the parser), and one holding only images. The parser loads nothing a document
     names (an external DTD, a style sheet, XHTML elements); text is escaped into the cue, and
     elements other than span and br (metadata, foreign ones) are left out.
+  - Also refused: a document that costs more than a subtitle file does (2026-11-19, found by glm
+    and Codex reading the code). A paragraph is rendered once for every stretch its spans' times
+    cut it into, each time over all its elements, and every stretch that shows text writes the
+    paragraph's whole text again. Measured in Firefox 160, one paragraph of N one-second spans:
+    1 000 in 0.17 s, 4 000 in 1.9 s, 16 000 (0.9 MB of file) in 31 s, in the player's page or,
+    for subtitles handed to mpv, in the background page; with 2 000 characters before the spans,
+    16 000 gave 32 MB of cues. The reader now counts stretches times elements over the whole
+    document (`MAX_PIECE_LOOKS`, 8 million: about a second here) and the cue text it writes
+    (`MAX_CUE_TEXT`, 16 MB) and refuses past either, before the paragraph that passes the first
+    is rendered. For scale: a film of 2 000 paragraphs with 60 timed words each is 7.3 million;
+    20 000 paragraphs of one span are 40 000. Not done: rendering each span once and joining per
+    stretch, which would make the first limit unnecessary but changes how every cue is built.
   - A non-UTF-8 file is read in the encoding its XML declaration names (`decodeSubtitleBytes`,
     after a BOM and a server's charset).
   - On pages, `.ttml`, `.dfxp`, `application/ttml+xml` and DFXP's `application/ttaf+xml` count

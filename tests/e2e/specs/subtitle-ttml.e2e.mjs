@@ -351,6 +351,28 @@ then</p>
     expect(result.ms).toBeLessThan(5000);
   });
 
+  it('refuses a paragraph cut into more timed pieces, or cues of more text, than it reads', async function() {
+    /**
+     * @param {number} spans
+     * @param {number} [lead] - Characters of text before the spans, shown the whole time.
+     * @return {Promise<number|string>} How many cues, or the error's message.
+     */
+    const read = (spans, lead = 0) => browser.execute((spans, lead) => new Promise((done) => {
+      import('/player/SubtitleTrack.mjs').then(({SubtitleTrack}) => {
+        const text = `<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="0s" end="${spans}s">${'x'.repeat(lead)}` +
+          Array.from({length: spans}, (_, i) => `<span begin="${i}s" end="${i + 1}s">w${i}</span>`).join('') + '</p></div></body></tt>';
+        const track = new SubtitleTrack('t', 'en');
+        track.loadText(text);
+        done(track.cues.length);
+      }).catch((e) => done(String(e)));
+    }), spans, lead);
+    const unreadable = 'Error: This TTML or DFXP subtitle file could not be read.';
+
+    expect(await read(1000)).toBe(1000);
+    expect(await read(4000)).toBe(`${unreadable} (its paragraphs are cut into more timed pieces than are read)`);
+    expect(await read(1000, 20000)).toBe(`${unreadable} (its cues hold more text than is read)`);
+  });
+
   it('adds a .ttml, .dfxp or TTML .xml file from disk, and refuses other XML', async function() {
     expect(await addFile('episode.en.ttml', IMSC)).toEqual({label: 'episode.en.ttml', cues: 4});
     expect(await addFile('episode.de.dfxp', DFXP)).toEqual({label: 'episode.de.dfxp', cues: 4});
