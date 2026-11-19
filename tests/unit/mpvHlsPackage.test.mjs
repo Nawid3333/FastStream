@@ -232,4 +232,25 @@ describe('the playlists that go to mpv with a stream', () => {
     const pack = await hlsPackage({url: `${ORIGIN}/pl/7`, keyFrom: `${ORIGIN}/pl/7?token=k`, io});
     expect(pack.files[0].text).toContain('https://other.test/content/a/page-1.html\n');
   });
+
+  it('refuses a package its whole addresses make too large while it writes them, not after', async () => {
+    const folder = `/${'d'.repeat(1957)}`;
+    const playlist = (/** @type {number} */ segments) => `#EXTM3U\n${'#EXTINF:6,\na.ts\n'.repeat(segments)}#EXT-X-ENDLIST\n`;
+    const pack = (/** @type {number} */ segments) => hlsPackage({url: `${ORIGIN}${folder}/pl`, keyFrom: `${ORIGIN}${folder}/pl`,
+      io: server({[`${folder}/pl`]: {text: playlist(segments)}}).io});
+    expect((await pack(100)).files[0].text.length).toBeGreaterThan(100 * 1957);
+
+    const encoded = [0];
+    const encode = TextEncoder.prototype.encode;
+    TextEncoder.prototype.encode = function(text = '') {
+      encoded.push(text.length);
+      return encode.call(this, text);
+    };
+    try {
+      expect(await pack(20000)).toBeNull();
+    } finally {
+      TextEncoder.prototype.encode = encode;
+    }
+    expect(Math.max(...encoded)).toBeLessThan(1024 * 1024);
+  });
 });
