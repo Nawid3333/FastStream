@@ -776,6 +776,31 @@ function requestMiniplayer(page) {
 // The miniplayer shrinks the player's iframe, or the outermost wrapper with its box, to a
 // corner, with a placeholder in its place.
 describe('TOGGLE_MINIPLAYER', () => {
+  it('lifts only the iframe inside display: contents wrappers', async () => {
+    const {page, wrap, video} = pageWithVideo();
+    const [outer] = addElements(page, 1);
+    outer.appendChild(wrap);
+    for (const element of [outer, wrap]) {
+      element.computed = {display: 'contents'};
+      element.rect = {x: 0, y: 0, width: 0, height: 0};
+    }
+    const other = page.document.createElement('button');
+    outer.appendChild(other);
+    const {iframe} = await openPlayer(page);
+    iframe.rect = video.rect;
+    await linkPlayer(page, iframe, 5);
+    expect(await requestMiniplayer(page)).toBe('enter');
+    expect(iframe.style.position).toBe('fixed');
+    expect(wrap.style.position).not.toBe('fixed');
+    expect(outer.style.position).not.toBe('fixed');
+    expect(other.parentNode).toBe(outer);
+    const siblings = wrap.children;
+    const placeholder = siblings[siblings.indexOf(iframe) - 1];
+    expect(placeholder.tagName).toBe('DIV');
+    expect(placeholder.style.width).toBe('640px');
+    expect(placeholder.style.height).toBe('360px');
+  });
+
   it('answers, and changes nothing, when the page took the player\'s iframe out', async () => {
     // no throw on the missing parent
     const {page, iframe} = await pageWithPlayer();
@@ -1411,6 +1436,42 @@ describe('a player over the whole page', () => {
 
 // The player follows a box that keeps changing to its last size.
 describe('a player whose box keeps changing', () => {
+  it('watches the nearest box above display: contents wrappers and follows its resize', async () => {
+    const {page, wrap, video} = pageWithVideo();
+    const [box, outer] = addElements(page, 2);
+    box.rect = {x: 0, y: 0, width: 640, height: 420};
+    box.appendChild(outer);
+    outer.appendChild(wrap);
+    for (const element of [outer, wrap]) {
+      element.computed = {display: 'contents'};
+      element.rect = {x: 0, y: 0, width: 0, height: 0};
+    }
+    const observers = new Map();
+    page.window.ResizeObserver = class {
+      constructor(callback) {
+        this.callback = callback;
+      }
+      observe(target) {
+        observers.set(target, this.callback);
+      }
+      disconnect() {}
+    };
+    const {answer, iframe} = await openPlayer(page);
+    expect(answer).toBe('replace');
+    expect(iframe.parentNode).toBe(wrap);
+    expect([...observers.keys()]).toEqual([box]);
+    await linkPlayer(page, iframe, 5);
+    page.advance(2000);
+    expect(iframe.style.width).toBe('640px');
+
+    box.rect = {x: 0, y: 0, width: 800, height: 500};
+    video.rect = {x: 0, y: 0, width: 800, height: 450};
+    observers.get(box)();
+    page.advance(150);
+    expect(iframe.style.width).toBe('800px');
+    expect(iframe.style.height).toBe('450px');
+  });
+
   it('takes the box\'s last size', async () => {
     const {page, wrap} = pageWithVideo();
     let resized = null;

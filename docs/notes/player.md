@@ -70,10 +70,17 @@ What each review and audit found, fixed and rejected is in
   nothing); that the player is sized from such a wrapper's empty box is as it was and was
   not looked at. `boxless-wrapper.e2e.mjs` has the shape: before, the player came out 0 by 0 and
   not shown; now 640 by 360 where the page's player stood. Measured on that site too: 894 by
-  503 at the player's place, before 0 by 0. The two other users of the climb are unchanged:
-  "does the player fill the body" must count a body without a height, and the miniplayer's
-  choice of what to lift was not run on such a page (by the code, its stand-in would measure
-  such a wrapper as 100 px too).
+  503 at the player's place, before 0 by 0. With the player now inside such wrappers, two more places had to know them (Codex's review;
+  its patch, with the two unit tests in `contentScript.test.mjs` that failed before it): the
+  ResizeObserver watched the player's parent, and a parent without a box never reports a
+  resize, so it now watches the nearest parent that makes one; and the miniplayer lifted the
+  outermost wrapper (on that site it also holds other parts of the page) with a 100 px
+  stand-in, and now takes `highestWithBox` too, the iframe itself there. "Does the player
+  fill the body" is unchanged: it must count a body without a height. Left as they are, with
+  no page known that has them: a `display: contents` shadow host whose video sits in a named
+  slot (the player's iframe gets no `slot` and would not be shown), and media or controls
+  that are siblings of the player's box inside such a wrapper (they are neither paused nor
+  hidden; a wrapper without a box says nothing about what belongs to the player).
 
 - **Measured and changed (2026-10-06).**
   - A video under five minutes is redrawn every animation frame (`progressLoop`); the loop

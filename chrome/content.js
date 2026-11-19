@@ -630,7 +630,12 @@
 
         pobj.resizeObserver = new ResizeObserver(updateReplacedPlayersSoon);
         // An element: a ResizeObserver refuses a shadow root, the parent of a video straight in one.
-        pobj.resizeObserver.observe(iframe.parentElement || /** @type {ShadowRoot} */ (iframe.parentNode).host);
+        let resizeTarget = getParentElement(iframe);
+        while (resizeTarget && resizeTarget.tagName !== 'BODY' &&
+            window.getComputedStyle(resizeTarget).display === 'contents') {
+          resizeTarget = getParentElement(resizeTarget);
+        }
+        if (resizeTarget) pobj.resizeObserver.observe(resizeTarget);
       }
     }).catch((e) => {
       // The background must hear back, or it keeps the frame's player opening.
@@ -1033,9 +1038,9 @@
     miniplayerState.active = true;
 
     // Not the body itself: a wrapper filling it made the body the miniplayer.
-    const parentElementsWithSameBounds = getParentElementsWithSameBounds(iframeObj.iframe)
+    const parentsWithoutBody = getParentElementsWithSameBounds(iframeObj.iframe)
         .filter((parent) => parent.tagName !== 'BODY');
-    const element = parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : iframeObj.iframe;
+    const element = /** @type {*} */ (highestWithBox(parentsWithoutBody, iframeObj.iframe));
     // Never a new iframe or a custom element: either started a second player.
     const placeholder = document.createElement(element.tagName === 'IFRAME' || element.tagName.includes('-') ? 'div' : element.tagName);
 
