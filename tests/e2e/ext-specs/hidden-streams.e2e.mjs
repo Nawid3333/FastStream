@@ -181,12 +181,15 @@ describe('Streams a page hides', function() {
     let nested = false;
     await browser.waitUntil(async () => {
       await browser.switchFrame(null);
-      if (await browser.$(selector).isExisting()) return true;
+      if (await browser.$(selector).isExisting()) {
+        nested = false;
+        return true;
+      }
       const frame = await browser.$('iframe');
       if (!await frame.isExisting()) return false;
       await browser.switchFrame(frame);
-      nested = true;
-      return browser.$(selector).isExisting();
+      nested = await browser.$(selector).isExisting();
+      return nested;
     }, {timeout: 30000, interval: 500, timeoutMsg: `FastStream's player never took over ${what}`});
     await browser.switchFrame(await browser.$(selector));
     let state;
