@@ -230,10 +230,15 @@ export function pageSubtitlesForMpv(tab) {
   });
   return async () => {
     const {read, tracks} = await early;
-    await Promise.all([...tab.getFrames()].filter((frame) => !silent.has(frame))
-        .map((frame) => scrape(frame, CaptionRescrapeWaitMs)));
-    const late = subtitlesOf().filter((sub) => !read.has(keyOf(sub)));
-    return [...tracks, ...(late.length > 0 ? await PageSubtitles.toSrt(late) : [])].slice(0, MAX_TRACKS);
+    try {
+      await Promise.all([...tab.getFrames()].filter((frame) => !silent.has(frame))
+          .map((frame) => scrape(frame, CaptionRescrapeWaitMs)));
+      const late = subtitlesOf().filter((sub) => !read.has(keyOf(sub)));
+      return [...tracks, ...(late.length > 0 ? await PageSubtitles.toSrt(late) : [])].slice(0, MAX_TRACKS);
+    } catch (e) {
+      console.error('Reading the subtitles the page added for mpv failed', e);
+      return tracks;
+    }
   };
 }
 

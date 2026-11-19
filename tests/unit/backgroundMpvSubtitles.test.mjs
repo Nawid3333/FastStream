@@ -100,6 +100,23 @@ describe('MPV mode and the page\'s subtitles', () => {
     expect(opens()[0]).toMatchObject({url: EPISODE, subtitles: [{label: 'Deutsch', srt: SRT}]});
   });
 
+  it('sends the stream with the subtitles it had when asking the frames again fails', async () => {
+    let asked = 0;
+    await allowlistedPage({
+      fetch: (url) => url === EPISODE ?
+        new Promise((resolve) => setTimeout(() => resolve(response(hlsPlaylist(1400))), 800)) : response('', 404),
+      onTabMessage: ({message}) => message.type === 'SCRAPE_CAPTIONS' ?
+        (++asked === 1 ? [{data: VTT, source: 'https://site.test/subs/de.vtt', label: 'Deutsch', language: 'de'}] : [null]) :
+        undefined,
+    });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1800);
+    expect(asked).toBe(2);
+    expect(opens()).toHaveLength(1);
+    expect(opens()[0]).toMatchObject({url: EPISODE, subtitles: [{label: 'Deutsch', srt: SRT}]});
+  });
+
   it('sends a stream whose page has no subtitles as before', async () => {
     await allowlistedPage();
     await bg.request({tabId: 1, url: EPISODE});
