@@ -27,6 +27,7 @@
     POPUP_GUARD_ARM: 'POPUP_GUARD_ARM',
     MPV_USER_PLAY: 'MPV_USER_PLAY',
     MPV_REPORT_PLAYING: 'MPV_REPORT_PLAYING',
+    LAST_PRESS: 'LAST_PRESS',
     SCRAPE_CAPTIONS: 'SCRAPE_CAPTIONS',
     SHORTCUT_CANCELLED: 'SHORTCUT_CANCELLED',
     HAS_PLAYER: 'HAS_PLAYER',
@@ -136,6 +137,9 @@
     } else if (request.type === MessageTypes.MPV_REPORT_PLAYING) {
       // any is for the YouTube page itself, not a frame in it.
       sendResponse(reportPlayingUserVideo(request.any === true && window === window.top));
+    } else if (request.type === MessageTypes.LAST_PRESS) {
+      // When, on the clock every frame shares (Date.now's).
+      sendResponse(lastUserGestureAt === -Infinity ? null : performance.timeOrigin + lastUserGestureAt);
     } else if (request.type === MessageTypes.GET_VIDEO_SIZE) {
       getVideo().then((video) => {
         sendResponse(video ? video.size : 0);
@@ -2745,8 +2749,9 @@
   /**
    * The video the user just started: report it to the background for mpv.
    * @param {HTMLVideoElement} video - The video.
+   * @param {boolean} [pressedHere] - false: no press of this frame's behind it; the background asks the frames above.
    */
-  function reportUserPlay(video) {
+  function reportUserPlay(video, pressedHere = true) {
     try {
       chrome.runtime.sendMessage({
         type: MessageTypes.MPV_USER_PLAY,
@@ -2754,6 +2759,9 @@
         video: playedVideo(video),
         // Now: a site like YouTube moves to the next video without a load.
         page: location.href,
+        pressedHere,
+        // When it played and when this frame's page began: a press above counts only before both.
+        ...(pressedHere ? {} : {playedAt: performance.timeOrigin + performance.now(), documentStart: performance.timeOrigin}),
       }, () => {
         void chrome.runtime.lastError;
       });
@@ -2771,9 +2779,13 @@
     if (!e.isTrusted) return;
     const video = /** @type {HTMLVideoElement|null} */ (e.target);
     if (!video || video.tagName !== 'VIDEO') return;
-    if (!playFollowsUserPress()) return;
-    userStartedVideos.add(video);
-    reportUserPlay(video);
+    if (playFollowsUserPress()) {
+      userStartedVideos.add(video);
+      reportUserPlay(video);
+    } else if (window !== window.top) {
+      // A player frame the click above created has no press and no activation of its own (docs/notes/mpv.md).
+      reportUserPlay(video, false);
+    }
   }
 
   PageListeners.add(document, 'play', onPlay, true);

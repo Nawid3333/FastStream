@@ -69,6 +69,54 @@ describe('MPV mode and the page\'s subtitles', () => {
     expect(opens()[0]).toMatchObject({url: EPISODE, subtitles: [{label: 'Deutsch', srt: SRT}]});
   });
 
+  it('sends a subtitle file the page asked for while the hand-off still read the stream', async () => {
+    await allowlistedPage({fetch: (url) => {
+      if (url === SUB) return response(VTT);
+      if (url === EPISODE) return new Promise((resolve) => setTimeout(() => resolve(response(hlsPlaylist(1400))), 800));
+      return response('', 404);
+    }});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(300);
+    expect(opens()).toHaveLength(0);
+    await bg.request({tabId: 1, url: SUB});
+    await bg.wait(1500);
+    expect(opens()).toHaveLength(1);
+    expect(opens()[0]).toMatchObject({url: EPISODE, subtitles: [{label: 'episode-en', srt: SRT}]});
+  });
+
+  it('sends a <track> element the page added while the hand-off still read the stream', async () => {
+    let added = false;
+    await allowlistedPage({
+      fetch: (url) => url === EPISODE ?
+        new Promise((resolve) => setTimeout(() => resolve(response(hlsPlaylist(1400))), 800)) : response('', 404),
+      onTabMessage: ({message}) => message.type === 'SCRAPE_CAPTIONS' ?
+        (added ? [{data: VTT, source: 'https://site.test/subs/de.vtt', label: 'Deutsch', language: 'de'}] : []) :
+        undefined,
+    });
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(300);
+    added = true;
+    await bg.wait(1500);
+    expect(opens()[0]).toMatchObject({url: EPISODE, subtitles: [{label: 'Deutsch', srt: SRT}]});
+  });
+
+  it('sends the stream with the subtitles it had when asking the frames again fails', async () => {
+    let asked = 0;
+    await allowlistedPage({
+      fetch: (url) => url === EPISODE ?
+        new Promise((resolve) => setTimeout(() => resolve(response(hlsPlaylist(1400))), 800)) : response('', 404),
+      onTabMessage: ({message}) => message.type === 'SCRAPE_CAPTIONS' ?
+        (++asked === 1 ? [{data: VTT, source: 'https://site.test/subs/de.vtt', label: 'Deutsch', language: 'de'}] : [null]) :
+        undefined,
+    });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1800);
+    expect(asked).toBe(2);
+    expect(opens()).toHaveLength(1);
+    expect(opens()[0]).toMatchObject({url: EPISODE, subtitles: [{label: 'Deutsch', srt: SRT}]});
+  });
+
   it('sends a stream whose page has no subtitles as before', async () => {
     await allowlistedPage();
     await bg.request({tabId: 1, url: EPISODE});

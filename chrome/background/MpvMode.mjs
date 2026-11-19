@@ -7,12 +7,14 @@ import {SHORT_S} from '../player/utils/StreamPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {Capabilities, MpvBackend} from './MpvBackend.mjs';
 import {hlsPackage} from './MpvHlsPackage.mjs';
+import {MAX_TRACKS} from './MpvSubtitles.mjs';
 import {isMpvContentType} from './MpvTarget.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {youTubeVideo} from './YouTubeVideo.mjs';
 import {AutoEnableList, CaptionScrapeWaitMs, HlsQualitiesWaitMs, Lengths, Logging, Options, PageSubtitles, SourceLengthWaitMs, Tabs, VpnMirror, askFrame, closeReopenedTab, ensureOptions, hlsPackageIo, hlsQualityChoice, isSentStream, isTabOpen, newestOfLongest, noteProblem, notifySeriesEnd, openPlayersWithSources, pageQualityChoice, pauseTabMedia, saveOption, scrapeCaptionsTags, startPagePlayers, tabHasPlayer, tabTitle, takeScrapedCaptions, userTurnedOff} from './background.mjs';
 
 /** @typedef {import('./TabTracker.mjs').TabHolder} TabHolder */
+/** @typedef {import('./TabTracker.mjs').FrameHolder} FrameHolder */
 /** @typedef {import('./TabTracker.mjs').TrackedSource} TrackedSource */
 /** @typedef {import('./background.mjs').TabExtras} TabExtras */
 /** @typedef {import('./background.mjs').Continuation} Continuation */
@@ -31,6 +33,9 @@ export const MpvPlayRepeatMs = 10000;
 export const MpvPlayKnownAfterMs = 1000;
 
 const PackingWantedCheckMs = 250;
+
+// The <track> elements a page added while the hand-off waited: asked again of the frames that answered.
+const CaptionRescrapeWaitMs = 250;
 
 /**
  * Movie is the fallback: an untagged site still gets `movie`, not mpv's folder-name guess.
@@ -190,24 +195,51 @@ export function watchNextEpisodeArrives(tab, continuation, mode) {
 }
 
 /**
- * A frame that does not tell its <track> elements within CaptionScrapeWaitMs keeps those it had.
+ * Read beside the hand-off's other waits; what the page added meanwhile is read when they are done. A frame
+ * that does not tell its <track> elements within CaptionScrapeWaitMs keeps those it had.
  * @param {TabHolder} tab
- * @return {Promise<Array<{label: string, srt: string}>>}
+ * @return {() => Promise<Array<{label: string, srt: string}>>} The subtitles once the hand-off goes.
  */
-export async function pageSubtitlesForMpv(tab) {
-  const frames = [...tab.getFrames()];
-  await Promise.all(frames.map(async (frame) => {
+export function pageSubtitlesForMpv(tab) {
+  const subtitlesOf = () => [...tab.getFrames()].flatMap((frame) => frame.getSubtitles());
+  const keyOf = (/** @type {{source?: string, data?: string}} */ sub) => sub && (sub.source || sub.data);
+  const silent = new Set();
+  /**
+   * @param {FrameHolder} frame
+   * @param {number} waitMs
+   * @return {Promise<void>}
+   */
+  const scrape = async (frame, waitMs) => {
     let timer;
     const subs = await Promise.race([
       scrapeCaptionsTags(frame),
       new Promise((resolve) => {
-        timer = setTimeout(() => resolve(null), CaptionScrapeWaitMs);
+        timer = setTimeout(() => resolve(null), waitMs);
       }),
     ]);
     clearTimeout(timer);
+    if (subs === null) silent.add(frame);
     takeScrapedCaptions(frame, subs);
-  }));
-  return PageSubtitles.toSrt(frames.flatMap((frame) => frame.getSubtitles()));
+  };
+  const early = Promise.all([...tab.getFrames()].map((frame) => scrape(frame, CaptionScrapeWaitMs))).then(async () => {
+    const subs = subtitlesOf();
+    return {read: new Set(subs.map(keyOf)), tracks: await PageSubtitles.toSrt(subs)};
+  }).catch((e) => {
+    console.error('Reading the subtitles of the page for mpv failed', e);
+    return {read: new Set(), tracks: []};
+  });
+  return async () => {
+    const {read, tracks} = await early;
+    try {
+      await Promise.all([...tab.getFrames()].filter((frame) => !silent.has(frame))
+          .map((frame) => scrape(frame, CaptionRescrapeWaitMs)));
+      const late = subtitlesOf().filter((sub) => !read.has(keyOf(sub)));
+      return [...tracks, ...(late.length > 0 ? await PageSubtitles.toSrt(late) : [])].slice(0, MAX_TRACKS);
+    } catch (e) {
+      console.error('Reading the subtitles the page added for mpv failed', e);
+      return tracks;
+    }
+  };
 }
 
 /**
@@ -1051,6 +1083,9 @@ export async function openInMpv(tabId, url, ...rest) {
   }
   // VPN is known by the detected stream's host: a quality file taken in its place may be on another host.
   const detected = url;
+  // The page's subtitles go with its stream; the player's button sends its own. Read beside the other waits.
+  const subtitlesTab = tabId !== undefined && tabId >= 0 && !(rest[5] && 'subtitles' in rest[5]) ? Tabs.getTab(tabId) : null;
+  const pageSubtitles = subtitlesTab ? pageSubtitlesForMpv(subtitlesTab) : async () => [];
   // A file only its page gives (servesWebPage): told by its length read's first answer.
   const file = tabId !== undefined && tabId >= 0 && Tabs.getTab(tabId) ?
     tabSources(Tabs.getTab(tabId)).find((source) => source.url === detected &&
@@ -1089,7 +1124,7 @@ export async function openInMpv(tabId, url, ...rest) {
       const watching = stillWanted ? setInterval(() => {
         if (!stillWanted()) stopPacking.abort();
       }, PackingWantedCheckMs) : undefined;
-      return hlsPackage({url, keyFrom: detected, io: hlsPackageIo(rest[1]), signal: stopPacking.signal})
+      return hlsPackage({url, keyFrom: detected, typed: tracked.typed === true, io: hlsPackageIo(rest[1]), signal: stopPacking.signal})
           .finally(() => clearInterval(watching));
     }).catch((e) => {
       console.error('Reading the playlists of an HLS stream for mpv failed', e);
@@ -1145,19 +1180,12 @@ export async function openInMpv(tabId, url, ...rest) {
     // Its quality list's addresses lack the key the files are given here.
     rest[5] = {...(rest[5] || {}), hls: pack, qualities: undefined};
   }
-  // The page's subtitles go with its stream; the player's button sends its own.
   const tabHolder = rest[0];
-  const extras = rest[5];
-  if (tabId !== undefined && tabId >= 0 && !(extras && 'subtitles' in extras) &&
-      !tabHolder?.mpvSentUrls?.has(url)) {
-    const tab = Tabs.getTab(tabId);
-    const subtitles = tab ? await pageSubtitlesForMpv(tab).catch((e) => {
-      console.error('Reading the subtitles of the page for mpv failed', e);
-      return [];
-    }) : [];
+  if (subtitlesTab && !tabHolder?.mpvSentUrls?.has(url)) {
+    const subtitles = await pageSubtitles();
     if (subtitles.length > 0) {
       if (Logging) console.log('[MPV] subtitles of the page go along:', subtitles.map((s) => s.label));
-      rest[5] = {...(extras || {}), subtitles};
+      rest[5] = {...(rest[5] || {}), subtitles};
     }
   }
   if (incognito) {

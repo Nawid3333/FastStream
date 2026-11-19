@@ -62,12 +62,13 @@ function isOk(fetched) {
 /**
  * The playlists of an HLS stream for mpv, when mpv cannot open its address alone; null when it can, or when
  * they cannot go as files (a live stream, too many or too large, one unreadable, not read in time).
- * @param {{url: string, keyFrom: string, io: PackageIo, signal?: AbortSignal}} stream - url: the playlist mpv
+ * @param {{url: string, keyFrom: string, typed?: boolean, io: PackageIo, signal?: AbortSignal}} stream - url: the playlist mpv
  *   would be given (a master, or the variant the quality setting picked); keyFrom: the detected address, whose
- *   query may be the key its server asks of every file; signal: the hand-off no longer waits for it.
+ *   query may be the key its server asks of every file; typed: the detected stream was served as HLS;
+ *   signal: the hand-off no longer waits for it.
  * @return {Promise<?{files: Array<{name: string, text: string}>}>}
  */
-export async function hlsPackage({url, keyFrom, io, signal}) {
+export async function hlsPackage({url, keyFrom, typed = false, io, signal}) {
   let key;
   try {
     const parsed = new URL(keyFrom);
@@ -75,24 +76,25 @@ export async function hlsPackage({url, keyFrom, io, signal}) {
   } catch (e) {
     key = null;
   }
-  // Named a playlist, with no query a key could come from: mpv opens it itself, and nothing is asked for.
-  if (!key && namesHls(url, '')) return null;
+  // Named a playlist, as the stream found was: mpv opens it itself, and the hand-off waits for no read (docs/notes/mpv.md).
+  if ((typed && url === keyFrom) || (namesHls(url, '') && namesHls(keyFrom, ''))) return null;
   const stop = AbortSignal.any([AbortSignal.timeout(PACKAGE_TIMEOUT_MS), ...(signal ? [signal] : [])]);
   if (stop.aborted) return null;
   // Whatever it still waits for (a fetch, a header rule).
   const stopped = new Promise((resolve) => stop.addEventListener('abort', () => resolve(null), {once: true}));
-  return Promise.race([collect(url, key, io, stop), /** @type {Promise<null>} */ (stopped)]);
+  return Promise.race([collect(url, key, url === keyFrom, io, stop), /** @type {Promise<null>} */ (stopped)]);
 }
 
 /**
  * hlsPackage's reading.
  * @param {string} url
  * @param {?URL} key
+ * @param {boolean} asFound - The stream as found; else a variant the quality setting picked from it.
  * @param {PackageIo} io
  * @param {AbortSignal} stop
  * @return {Promise<?{files: Array<{name: string, text: string}>}>}
  */
-async function collect(url, key, io, stop) {
+async function collect(url, key, asFound, io, stop) {
   // StreamQuery's rule: the key once a file refused without it was given with it, then for every file of its
   // server. Known only once every playlist was read, so they are rewritten after.
   let keyed = false;
@@ -132,7 +134,7 @@ async function collect(url, key, io, stop) {
   };
 
   const root = await read(url);
-  if (!root || !root.text.trimStart().startsWith('#EXTM3U')) return null;
+  if (!root || !root.text.trimStart().startsWith('#EXTM3U') || (asFound && !keyed && namesHls(url, root.type))) return null;
   const isMaster = root.text.includes('#EXT-X-STREAM-INF');
   const uris = isMaster ? mediaUris(root.text) : [];
   if (isMaster && (uris.length === 0 || uris.length > MAX_MEDIA_PLAYLISTS)) return null;
@@ -147,7 +149,6 @@ async function collect(url, key, io, stop) {
     if (withKey && [200, 206].includes(await io.status(withKey, stop).catch(() => 0))) keyed = true;
   }
   if (!keyed && namesHls(url, root.type)) return null;
-
   const playlists = isMaster ? await inParallel(uris, (uri) => readOnce(addressOf(uri))) : [root];
   if (stop.aborted || budget.left < 0 || playlists.some((playlist) => !playlist)) return null;
   const texts = playlists.map((playlist) => vodText(/** @type {Fetched} */ (playlist).text,

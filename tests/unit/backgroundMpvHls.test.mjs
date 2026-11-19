@@ -36,7 +36,7 @@ function hoster(url) {
 }
 
 /**
- * MPV on the site, the stream found by its type, and the helper's capabilities.
+ * MPV on the site, the stream found by its first bytes, and the helper's capabilities.
  * @param {Array<string>} capabilities
  * @param {{fetch?: (url: string, init?: Object) => Promise<Object>, meanwhile?: () => Promise<void>}} [how] -
  *   fetch: the hoster's answers; meanwhile: what happens while the hand-off runs.
@@ -44,20 +44,27 @@ function hoster(url) {
  */
 async function handOff(capabilities, how = {}) {
   const helper = {hostVersion: RequiredHostVersion, capabilities};
+  const filtered = new Map();
   bg = await loadBackground({
     options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvSingleInstance: true, mpvAutoplayNext: true,
       autoplayCountdown: 5},
     tabs: [{id: 1, url: EP1, title: 'Show - Episode 1'}],
     fetch: how.fetch || (async (url) => hoster(url)),
     thinHost: true,
+    filterResponseData: (requestId) => {
+      const filter = {write() {}, disconnect() {}, close() {}};
+      filtered.set(requestId, filter);
+      return filter;
+    },
     onNative: (message) => (message.type === 'play' && message.hls ? {ok: true, ...helper, local: LOCAL} : {ok: true, ...helper}),
     onTabMessage: ({frameId, message}) => (message.type === 'GET_VIDEO_SIZE' ? (frameId === 0 ? 640 * 360 : 0) :
       message.type === 'PLAYLIST_NAVIGATION' ? 'clicked' : undefined),
   });
   await bg.navigated(1, EP1);
   await bg.frameAdded(1, 0, EP1, 'ep1');
-  await bg.request({tabId: 1, url: STREAM, type: 'xmlhttprequest'},
-      {responseHeaders: [{name: 'Content-Type', value: 'application/vnd.apple.mpegurl'}]});
+  const sent = await bg.request({tabId: 1, url: STREAM, type: 'xmlhttprequest'},
+      {responseHeaders: [{name: 'Content-Type', value: 'text/plain; charset=utf-8'}]});
+  filtered.get(sent.requestId).ondata({data: new TextEncoder().encode(MEDIA).buffer});
   await how.meanwhile?.();
   await bg.wait(1500);
   return bg.ports.at(-1);
