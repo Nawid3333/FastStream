@@ -17,8 +17,9 @@ name: mpv updates
 #     offers the build. Nothing merges itself (the owner's choice,
 #     2026-10-02): he merges it when he likes. It keeps up: a newer build that passes moves
 #     the same branch and retitles the same pull request, so a build a day is not an email
-#     a day. Closing it skips that build; the next one that passes opens a new pull
-#     request. Merged (GitHub deletes the branch), or main pinned to it or past it by hand
+#     a day. Closing it unmerged rejects that build for good: the closed pull request is
+#     the record (mpv-update-closed.yml deletes its branch), and only a newer build that
+#     passes opens a new pull request. Merged (GitHub deletes the branch), or main pinned to it or past it by hand
 #     (then it is closed here), it is done. The pin ships nothing, so his merge releases
 #     nothing either (auto-release.yml). Every mpv/* branch is deleted, and the failure
 #     issue, if open, is closed. Until 2026-10-02 the pin commit went onto main directly.
@@ -160,12 +161,30 @@ jobs:
             2) ;;
             *) echo "git ls-remote failed with $status." >&2; exit 1 ;;
           esac
-          # gh's --head matches the branch name in any repository: never a fork's pull request.
-          pr=$(gh pr list --state open --head "$PR_BRANCH" --base main --json number,isCrossRepository \
-            --jq '[.[] | select(.isCrossRepository | not)][0].number // ""')
-          # Waiting there already: the latest build, or a newer one.
+          # This repository's branch (head=<owner>:<branch> leaves forks out on GitHub's side,
+          # and GitHub keeps one open pull request per head and base), and this workflow's own
+          # only, the one its rejection record and cleanup know.
+          pr=$(gh api "repos/$GH_REPO/pulls?state=open&base=main&head=${GH_REPO%%/*}:$PR_BRANCH" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]")][0].number // ""')
+          # Waiting there already, on an open pull request: the latest build, or a newer one.
+          # The branch without one (its pull request closed, or never opened) offers nothing.
           waiting=0
-          if [[ $offered =~ ^[0-9]{8}$ ]] && [ "$offered" -ge "$latest" ]; then waiting=1; fi
+          if [ -n "$pr" ] && [[ $offered =~ ^[0-9]{8}$ ]] && [ "$offered" -ge "$latest" ]; then waiting=1; fi
+          # Closed by the owner without merging: that build is rejected, and so is any build not
+          # newer than it (shinchiro taking releases down can make an older one the latest).
+          # The closed pull request is the record; mpv-update-closed.yml deletes its branch.
+          # This workflow's own only, from this repository's branch: head=<owner>:<branch> leaves
+          # forks out on GitHub's side, and every page is read, so no number of closed pull
+          # requests hides one. "<release> <number>" of the newest rejected release, or empty.
+          # shellcheck disable=SC2016 # $release is jq's
+          rejected=$(gh api --paginate "repos/$GH_REPO/pulls?state=closed&base=main&head=${GH_REPO%%/*}:$PR_BRANCH&per_page=100" \
+            --jq '.[] | select(.merged_at == null and .user.login == "github-actions[bot]")
+              | (.title | capture("mpv (?<release>[0-9]{8}) [(]shinchiro[)]$").release) as $release
+              | "\($release) \(.number)"' | sort -r | sed -n 1p)
+          declined=''
+          if [ -n "$rejected" ] && [ "$latest" -le "${rejected%% *}" ]; then
+            declined=${rejected##* }
+          fi
 
           # --- The open failure issue. The whole list, filtered exactly: the search index can
           # lag behind an issue opened minutes ago. This workflow's own only: the repository is
@@ -180,6 +199,8 @@ jobs:
               if [ -n "$pr" ]; then echo "Would close #$pr: main pins its build already."; fi
             elif [ "$waiting" = 1 ]; then
               echo "Would do nothing: $PR_BRANCH offers $offered already${pr:+ (#$pr)}, for the owner to merge."
+            elif [ -n "$declined" ]; then
+              echo "Would do nothing: #$declined offered ${rejected%% *} and was closed unmerged, and $latest is not newer."
             elif [ "$tried" = 1 ]; then
               echo "Would do nothing: branch $branch exists, so $latest failed before."
             else
@@ -237,13 +258,17 @@ jobs:
             if [ -n "$issue" ] && [ "$gone" = 0 ]; then
               gh issue close "$issue" --comment "main pins $pinned, and shinchiro has no newer build. Closing."
             fi
-            # Pinned there by hand meanwhile: the offer has nothing left to merge.
+            # Pinned there by hand meanwhile: the offer has nothing left to merge. Retitled first,
+            # so this close is not taken for the owner rejecting its build.
             if [ -n "$pr" ]; then
+              gh pr edit "$pr" --title "ci: mpv offer closed, main pins $pinned" > /dev/null
               gh pr close "$pr" --delete-branch --comment "main pins $pinned already, this build or a newer one: nothing left to merge here."
               pr=''
             fi
           elif [ "$waiting" = 1 ]; then
             echo "$PR_BRANCH offers $offered already${pr:+ (#$pr)}: it waits for the owner's merge."
+          elif [ -n "$declined" ]; then
+            echo "#$declined offered ${rejected%% *} and was closed unmerged: $latest is not newer, so it is skipped."
           elif [ "$tried" = 1 ]; then
             echo "Branch $branch exists: $latest failed before, so it is not tried again."
           else
@@ -301,8 +326,16 @@ jobs:
                 printf -- '- Release: https://github.com/%s/releases/tag/%s\n' "$UPSTREAM" "$latest"
                 printf -- '- The change: `.github/mpv-build.json` pins %s instead of %s, and nothing else.\n' "$latest" "$pinned"
                 printf -- '- Merging it releases nothing: only CI installs this mpv.\n\n'
-                printf 'This pull request keeps up: a newer build that passes CI moves here, and the title says which. Closing it skips this build; the next one that passes opens a new pull request.\n'
+                printf 'This pull request keeps up: a newer build that passes CI moves here, and the title says which. Closing it unmerged rejects this build: it is not offered again, and only a newer one that passes opens a new pull request.\n'
               } > "$RUNNER_TEMP/pr.md"
+              # Closed while CI ran: retitled, that closed pull request would record this build
+              # as rejected instead of the one the owner rejected. A new one offers this build.
+              # Read last thing before the edit; a close in the second between still loses no
+              # rejection, as any build not newer than a rejected one is skipped.
+              if [ -n "$pr" ]; then
+                state=$(gh pr view "$pr" --json state --jq .state)
+                if [ "$state" != OPEN ]; then pr=''; fi
+              fi
               if [ -n "$pr" ]; then
                 gh pr edit "$pr" --title "$title" --body-file "$RUNNER_TEMP/pr.md" > /dev/null
                 echo "#$pr offers $latest now."

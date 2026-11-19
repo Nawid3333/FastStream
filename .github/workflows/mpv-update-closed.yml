@@ -1,0 +1,61 @@
+name: mpv-update closed
+
+# The pull request that offers an mpv build, closed without merging, leaves branch mpv-update
+# behind: GitHub deletes it only on a merge. mpv-updates.yml does not offer that build again
+# either way, because the closed pull request is its record, not the branch.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write # delete the branch
+  pull-requests: read # a newer offer from it
+
+jobs:
+  delete-branch:
+    name: Delete mpv-update
+    # mpv-updates.yml's own pull request only, from this repository's branch.
+    if: >-
+      github.event.pull_request.merged == false &&
+      github.event.pull_request.head.ref == 'mpv-update' &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete mpv-update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # A newer build offered on a new pull request from it meanwhile (the owner closed this
+          # one while mpv-updates.yml published that build): kept.
+          # head=<owner>:<branch> leaves forks out on GitHub's side.
+          open=$(gh api "repos/$GH_REPO/pulls?state=open&base=main&head=${GH_REPO%%/*}:mpv-update" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]")][0].number // ""')
+          if [ -n "$open" ]; then
+            echo "#$open offers mpv-update now: kept."
+            exit 0
+          fi
+          # Only the commit the pull request offered: a newer build mpv-updates.yml pushed there
+          # meanwhile stays. The lease makes check and delete one step on GitHub's side, which
+          # the REST API's delete cannot. No checkout: the push needs a repository, not files.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git init -q "$RUNNER_TEMP/repo"
+          cd "$RUNNER_TEMP/repo"
+          if git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push -q \
+            --force-with-lease="refs/heads/mpv-update:$SHA" "https://github.com/$GH_REPO.git" \
+            :refs/heads/mpv-update 2> "$RUNNER_TEMP/err"; then
+            echo "Deleted mpv-update ($SHA)."
+            exit 0
+          fi
+          if grep -qE 'stale info|remote ref does not exist' "$RUNNER_TEMP/err"; then
+            echo 'mpv-update was gone already, or holds a newer build now: kept.'
+            exit 0
+          fi
+          cat "$RUNNER_TEMP/err" >&2
+          exit 1
