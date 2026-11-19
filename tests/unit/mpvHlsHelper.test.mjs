@@ -122,6 +122,40 @@ describe('writing the playlists', () => {
     expect(fs.existsSync(old)).toBe(false);
   });
 
+  // ffmpeg resolves a name against the master's own address up to a '#' or '?' (measured with mpv 0.42: "hls:
+  // Opening '<the path up to the #>\0.m3u8'", "Failed to recognize file format"): the temp folder of a Windows
+  // account whose name has a '#'. A whole path it opens as written.
+  it('names a master\'s playlists by their whole paths in a folder whose path ffmpeg would cut', () => {
+    const base = path.join(scratch(), 'user#1');
+    fs.mkdirSync(base);
+    const text = master(['#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="x",URI="1.m3u8"', '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="a"', '0.m3u8']);
+    const files = [{name: 'master.m3u8', text}, {name: '0.m3u8', text: media()}, {name: '1.m3u8', text: media()}];
+    expect(checkHlsPackage({files})).toMatchObject({ok: true});
+    const entry = writeHlsPackage(files, 'https://cdn.test/pl/7?token=k', base);
+    const dir = path.dirname(entry).split(path.sep).join('/');
+    expect(fs.readFileSync(entry, 'utf8')).toBe(master([`#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="x",URI="${dir}/1.m3u8"`,
+      '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="a"', `${dir}/0.m3u8`]));
+    // As ffmpeg reads the written master: its two playlists and nothing else.
+    expect(hlsAddresses(fs.readFileSync(entry, 'utf8')).map(({address}) => address)).toEqual([`${dir}/1.m3u8`, `${dir}/0.m3u8`]);
+    expect(fs.readFileSync(path.join(path.dirname(entry), '0.m3u8'), 'utf8')).toBe(media());
+
+    // Any other folder: the names as sent, which resolve to the master's own folder.
+    const plainBase = scratch();
+    if (!/[#?]/.test(plainBase)) {
+      expect(fs.readFileSync(writeHlsPackage(files, 'https://cdn.test/pl/7?token=k', plainBase), 'utf8')).toBe(text);
+    }
+  });
+
+  it('leaves a master as sent when its playlists cannot be named whole as ffmpeg reads them', () => {
+    // An unquoted URI is one to ffmpeg and to the helper's check; only the quoted form the extension writes is rewritten.
+    const base = path.join(scratch(), 'user#1');
+    fs.mkdirSync(base);
+    const text = master(['#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="x",URI=1.m3u8', '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="a"', '0.m3u8']);
+    const files = [{name: 'master.m3u8', text}, {name: '0.m3u8', text: media()}, {name: '1.m3u8', text: media()}];
+    expect(checkHlsPackage({files})).toMatchObject({ok: true});
+    expect(fs.readFileSync(writeHlsPackage(files, 'https://cdn.test/pl/7?token=k', base), 'utf8')).toBe(text);
+  });
+
   it('marks a private window\'s folder, which goes two minutes on', () => {
     const base = scratch();
     const entry = writeHlsPackage([{name: '0.m3u8', text: media()}], 'https://cdn.test/v#fs-id=ab&fs-private=1', base);
@@ -231,6 +265,32 @@ describe('playing them', () => {
     const answer = await playMpv('mpv', /** @type {*} */ (checked).play, {ipcToken: 'x'}, io);
     expect(answer).toEqual({ok: false, error: 'the open mpv refused the stream (invalid parameter): close it and send again'});
     expect(fs.readdirSync(base)).toEqual([]);
+    expect(started).toBe(0);
+  });
+
+  // Measured with a real mpv held for longer than the helper waits (6 s): once it ran on, it took the load out
+  // of its pipe, stopped the video it was playing and failed on the folder the helper had removed.
+  it('keeps the playlists when mpv was only busy: the load is in its pipe, and mpv may still run it', async () => {
+    const base = scratch();
+    let started = 0;
+    const io = {
+      hlsBase: base,
+      ipcRequest: async () => ({ok: false, busy: true, error: 'mpv did not answer'}),
+      focus: async () => 'True',
+      platform: 'linux',
+      start: async () => {
+        started++;
+        return {ok: false, error: 'not here'};
+      },
+    };
+    const checked = checkPlayMessage({type: 'play', target: 'https://cdn.test/pl/7?token=k#fs-id=ab', title: 'T',
+      hls: {files: [{name: '0.m3u8', text: media()}]}});
+    const answer = await playMpv('mpv', /** @type {*} */ (checked).play, {ipcToken: 'x'}, io);
+    // The answer as before, for the extension.
+    expect(answer).toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
+    const folders = fs.readdirSync(base);
+    expect(folders).toHaveLength(1);
+    expect(fs.readdirSync(path.join(base, folders[0])).sort()).toEqual(['0.m3u8', 'target.txt']);
     expect(started).toBe(0);
   });
 

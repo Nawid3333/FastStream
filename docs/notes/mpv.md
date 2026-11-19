@@ -37,6 +37,25 @@ extension changes with it, so such a push releases, Firefox updates the extensio
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run.
 
+**Host 28 (2026-11-19, two faults of the playlist files; RequiredHostVersion stays 19).** Found by the
+audit of 2026-11-19 and measured with the real helper code against a headless mpv 0.42 of its own
+(`--no-config --vo=null`, a pipe and temp folder of its own):
+- *A `#` in the temp folder's path* (a Windows account whose name has one). ffmpeg resolves a playlist's
+  name against the master's own address up to a `#` or `?`: for `...\user#1\...\master.m3u8` it opened
+  `...\0.m3u8` beside the folder `user` ("parse_playlist error No such file or directory", "Failed to
+  recognize file format"), the video mpv was playing was gone, and the helper had answered ok. A media
+  playlist alone (whole http(s) addresses) plays there. `hlsMasterIn` now writes a master's playlists as
+  whole paths with forward slashes in such a folder, and only there; it reads the result back as ffmpeg
+  would (`hlsAddresses`) and writes the master as sent when that is not exactly those paths (an unquoted
+  `URI=`, which the extension never writes). Measured: the same package plays, a master with an audio
+  rendition (`URI="..."`) too. Spaces, umlauts, `%`, `&`, `+`, `=`, `;`, `,`, quotes and brackets in the
+  path needed nothing (measured). Not measured on Linux or macOS.
+- *A busy mpv.* When mpv did not answer within 6 s, `playMpv` removed the playlists like those of any play
+  that failed. The load is in mpv's pipe by then: mpv held for 7 s ran it afterwards, stopped the video it
+  was playing and failed on the missing file ("Cannot open file"). The folder now stays when the answer is
+  "busy" (it goes by its age), and mpv plays the stream once it runs on, as it does a stream sent by its
+  address. The answer to the extension is unchanged.
+
 **Host 27 (2026-11-18): streams mpv cannot open alone; RequiredHostVersion stays 19.** The owner's
 report: MPV opened on 123moviesfree.net (vidsrc chain) and showed "something HTML". Measured with
 `mpv.com --no-config --vo=null` on the live playlist: ffmpeg refuses it ("Not detecting m3u8/hls with
@@ -81,7 +100,7 @@ now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` b
   whitelist", and a media package naming a local segment "Protocol 'file' not on whitelist". The HLS
   probe needs `#EXTM3U` first (the helper's check) and a variant or target-duration tag. Folders go
   after two days, whenever a helper ends (each message; a watch when mpv closes), and at once when
-  the play failed; a folder that cannot be removed is skipped. A private window's (fs-private) goes
+  the play failed (not when mpv was only busy, host 28); a folder that cannot be removed is skipped. A private window's (fs-private) goes
   once mpv moved on from it or closed (the relay sees mpv's `path`: `privatePackageWatch`; not
   when the extension lets go, as a new hand-off's may not be open yet), else two minutes on: a play
   waits up to 35 s before mpv opens its package (`LaunchLockMs`, `PipeWaitMs`), so a shorter age
