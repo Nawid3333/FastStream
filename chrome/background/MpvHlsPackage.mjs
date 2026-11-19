@@ -64,7 +64,8 @@ function isOk(fetched) {
  * they cannot go as files (a live stream, too many or too large, one unreadable, not read in time).
  * @param {{url: string, keyFrom: string, typed?: boolean, io: PackageIo, signal?: AbortSignal}} stream - url: the playlist mpv
  *   would be given (a master, or the variant the quality setting picked); keyFrom: the detected address, whose
- *   query may be the key its server asks of every file; signal: the hand-off no longer waits for it.
+ *   query may be the key its server asks of every file; typed: the detected stream was served as HLS;
+ *   signal: the hand-off no longer waits for it.
  * @return {Promise<?{files: Array<{name: string, text: string}>}>}
  */
 export async function hlsPackage({url, keyFrom, typed = false, io, signal}) {
@@ -76,7 +77,7 @@ export async function hlsPackage({url, keyFrom, typed = false, io, signal}) {
     key = null;
   }
   // Named a playlist, as the stream found was: mpv opens it itself, and the hand-off waits for no read (docs/notes/mpv.md).
-  if (typed || (namesHls(url, '') && namesHls(keyFrom, ''))) return null;
+  if ((typed && url === keyFrom) || (namesHls(url, '') && namesHls(keyFrom, ''))) return null;
   const stop = AbortSignal.any([AbortSignal.timeout(PACKAGE_TIMEOUT_MS), ...(signal ? [signal] : [])]);
   if (stop.aborted) return null;
   // Whatever it still waits for (a fetch, a header rule).

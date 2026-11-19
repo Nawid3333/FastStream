@@ -132,6 +132,16 @@ describe('the playlists that go to mpv with a stream', () => {
     expect(asked).toEqual([]);
   });
 
+  it('keys a variant the quality setting picked from a master its server types HLS', async () => {
+    const {io} = server({
+      '/pl/7': {text: MASTER, type: 'application/vnd.apple.mpegurl', keyed: true},
+      '/pl/7/hi': {text: MEDIA, keyed: true},
+      '/content/a/page-0.html': {text: 'TS', keyed: true},
+    });
+    const pack = await hlsPackage({url: `${ORIGIN}/pl/7/hi`, keyFrom: `${ORIGIN}/pl/7?token=k`, typed: true, io});
+    expect(pack.files[0].text).toContain(`${ORIGIN}/content/a/page-0.html?token=k`);
+  });
+
   it('sends nothing for a stream its server types HLS, after reading only its playlist', async () => {
     const {io, asked} = server({'/v/pl': {text: MEDIA, type: 'application/vnd.apple.mpegurl'}, '/content/a/page-0.html': {text: 'TS'}});
     expect(await hlsPackage({url: `${ORIGIN}/v/pl?sig=1`, keyFrom: `${ORIGIN}/v/pl?sig=1`, io})).toBeNull();

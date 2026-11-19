@@ -14,6 +14,7 @@ import {youTubeVideo} from './YouTubeVideo.mjs';
 import {AutoEnableList, CaptionScrapeWaitMs, HlsQualitiesWaitMs, Lengths, Logging, Options, PageSubtitles, SourceLengthWaitMs, Tabs, VpnMirror, askFrame, closeReopenedTab, ensureOptions, hlsPackageIo, hlsQualityChoice, isSentStream, isTabOpen, newestOfLongest, noteProblem, notifySeriesEnd, openPlayersWithSources, pageQualityChoice, pauseTabMedia, saveOption, scrapeCaptionsTags, startPagePlayers, tabHasPlayer, tabTitle, takeScrapedCaptions, userTurnedOff} from './background.mjs';
 
 /** @typedef {import('./TabTracker.mjs').TabHolder} TabHolder */
+/** @typedef {import('./TabTracker.mjs').FrameHolder} FrameHolder */
 /** @typedef {import('./TabTracker.mjs').TrackedSource} TrackedSource */
 /** @typedef {import('./background.mjs').TabExtras} TabExtras */
 /** @typedef {import('./background.mjs').Continuation} Continuation */
@@ -32,6 +33,9 @@ export const MpvPlayRepeatMs = 10000;
 export const MpvPlayKnownAfterMs = 1000;
 
 const PackingWantedCheckMs = 250;
+
+// The <track> elements a page added while the hand-off waited: asked again of the frames that answered.
+const CaptionRescrapeWaitMs = 250;
 
 /**
  * Movie is the fallback: an untagged site still gets `movie`, not mpv's folder-name guess.
@@ -191,7 +195,7 @@ export function watchNextEpisodeArrives(tab, continuation, mode) {
 }
 
 /**
- * Read beside the hand-off's other waits; what the page loads meanwhile is read when they are done. A frame
+ * Read beside the hand-off's other waits; what the page added meanwhile is read when they are done. A frame
  * that does not tell its <track> elements within CaptionScrapeWaitMs keeps those it had.
  * @param {TabHolder} tab
  * @return {() => Promise<Array<{label: string, srt: string}>>} The subtitles once the hand-off goes.
@@ -199,17 +203,25 @@ export function watchNextEpisodeArrives(tab, continuation, mode) {
 export function pageSubtitlesForMpv(tab) {
   const subtitlesOf = () => [...tab.getFrames()].flatMap((frame) => frame.getSubtitles());
   const keyOf = (/** @type {{source?: string, data?: string}} */ sub) => sub && (sub.source || sub.data);
-  const early = Promise.all([...tab.getFrames()].map(async (frame) => {
+  const silent = new Set();
+  /**
+   * @param {FrameHolder} frame
+   * @param {number} waitMs
+   * @return {Promise<void>}
+   */
+  const scrape = async (frame, waitMs) => {
     let timer;
     const subs = await Promise.race([
       scrapeCaptionsTags(frame),
       new Promise((resolve) => {
-        timer = setTimeout(() => resolve(null), CaptionScrapeWaitMs);
+        timer = setTimeout(() => resolve(null), waitMs);
       }),
     ]);
     clearTimeout(timer);
+    if (subs === null) silent.add(frame);
     takeScrapedCaptions(frame, subs);
-  })).then(async () => {
+  };
+  const early = Promise.all([...tab.getFrames()].map((frame) => scrape(frame, CaptionScrapeWaitMs))).then(async () => {
     const subs = subtitlesOf();
     return {read: new Set(subs.map(keyOf)), tracks: await PageSubtitles.toSrt(subs)};
   }).catch((e) => {
@@ -218,6 +230,8 @@ export function pageSubtitlesForMpv(tab) {
   });
   return async () => {
     const {read, tracks} = await early;
+    await Promise.all([...tab.getFrames()].filter((frame) => !silent.has(frame))
+        .map((frame) => scrape(frame, CaptionRescrapeWaitMs)));
     const late = subtitlesOf().filter((sub) => !read.has(keyOf(sub)));
     return [...tracks, ...(late.length > 0 ? await PageSubtitles.toSrt(late) : [])].slice(0, MAX_TRACKS);
   };
