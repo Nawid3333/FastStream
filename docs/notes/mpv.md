@@ -67,24 +67,31 @@ audit of 2026-11-19 and measured with the real helper code against a headless mp
   playlist put at that name, whose segment was asked for). Both are now refused. From a line's end ffmpeg
   removes the spaces of ASCII and no others (`av_isspace`), and `hlsAddresses` does the same: a master naming
   `0.m3u8` with a no-break space behind it passed the check, and was another, missing file to ffmpeg (Codex).
-- *A tag's key, the first line and a cut inside a character, read as ffmpeg reads them* (Codex's third pass;
-  each measured with the ffmpeg program). ffmpeg takes a key for a URI only when it is `URI=` exactly
-  (`strncmp(key, "URI=", key_len)`); `hlsAddresses` took it trimmed and in any letters. A rendition named
-  behind a no-break space, as `uri=` or with a space before the `=` counted as named by its master, and
-  under a `#` path as written whole, while ffmpeg opened no such playlist. Such a key is now refused ("a
-  line ffmpeg could read otherwise"), and so are two `URI`s in one tag: ffmpeg opened the last one's
-  playlist only. The first line must be `#EXTM3U` alone, after the cut and without the ASCII spaces
-  (`strcmp(line, "#EXTM3U")`): `#EXTM3Ux` and `#EXTM3U` with a no-break space behind it passed by their
-  start, and are "Invalid data" to ffmpeg. An address whose 4095th byte lies inside a character is refused:
-  ffmpeg keeps that character's first byte (it asked for `...%C3`), which the check's text cannot hold; a
-  tag that names no address may be cut there. All of this narrows what the helper takes: nothing refused
-  before is taken now.
-- *The check lists more than ffmpeg opens, on purpose*: every line that is no tag, and the `URI` of every
-  tag. ffmpeg opens a name only behind a variant's or a segment's tag (measured: a bare `4.m3u8` in a
-  master was not opened) and reads the `URI` of the tags it knows. For the helper's rule (ffmpeg opens the
-  package's own files and http(s) addresses, nothing else) the longer list is the safe side, and "named by
-  its master" means named in that list: a playlist ffmpeg then leaves unread is written and never opened.
-  The extension's `masterText` writes a name only behind a variant's tag.
+- *The first line as ffmpeg reads it* (Codex's third pass; measured with the ffmpeg program). The check asked
+  only that a file starts with `#EXTM3U`. ffmpeg compares the first line with it (`strcmp(line, "#EXTM3U")`,
+  after the cut at 4095 bytes and without the ASCII spaces at its end): `#EXTM3Ux` and `#EXTM3U` with a
+  no-break space behind it are "Invalid data", and the helper had answered ok for a file mpv could not open.
+  Such a file is refused now ("no playlist text"). `#EXTM3U` with spaces behind it, also past 4095 bytes,
+  and line ends of a carriage return alone are read by ffmpeg, and taken as before.
+- *The check lists more than ffmpeg reads, on purpose.* Measured with the ffmpeg program: it takes a key for
+  a URI only as `URI=` exactly (`strncmp(key, "URI=", key_len)`); a rendition's playlist was not opened
+  behind a no-break space, as `uri=` or with a space before the `=`. Of two `URI`s in one tag it reads the
+  last (the key was asked from the second address). It reads no `URI` of a comment or of a tag it does not
+  know, and opens a name only behind a variant's or a segment's tag (a bare `4.m3u8` in a master was not
+  opened). `hlsAddresses` lists all of these: a `URI` in any spelling and of any tag, and every line that is
+  no tag. The helper's rule is about what ffmpeg could open, so the longer list is the safe side: a local
+  address behind `uri=` or in a comment is refused although this ffmpeg would not read it. It follows that
+  "named by its master" means named in that list. A playlist named only where ffmpeg does not read (behind
+  `uri=`, as the first of two `URI`s, on a bare line) is written and never opened, and the stream plays
+  without it; the extension's `masterText` writes a name only behind a variant's tag and a rendition's
+  `URI="..."`. One form of host 28 refused such keys and two `URI`s in one tag instead. Codex's fourth pass
+  showed the cost: a playlist ffmpeg plays was refused for a comment like `# source:uri=https://...`. That
+  form was taken back before any merge.
+- *A line cut inside a character.* ffmpeg cuts by bytes: when the 4095th byte is the first of a two-byte
+  character, it keeps that byte (it asked for `...%C3`). No text holds it, and `hlsAddresses` has a
+  replacement character there. Every check comes out the same with it: a web address stays one, and no
+  playlist's name or whole path ends in it. So nothing is refused for it. (The same form of host 28 refused
+  every address on such a line, also one ffmpeg reads whole in front of the cut; taken back as well.)
 - *A busy mpv.* When mpv did not answer within 6 s, `playMpv` removed the playlists like those of any play
   that failed. The load is in mpv's pipe by then: mpv held for 7 s ran it afterwards, stopped the video it
   was playing and failed on the missing file ("Cannot open file"). The folder now stays when the answer is

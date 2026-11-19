@@ -69,45 +69,74 @@ describe('a tag\'s attributes, as ffmpeg reads them', () => {
 
   // Measured with the ffmpeg program: a variant's name, spaces up to the 4095th byte and a no-break space behind
   // them opened the name's file; an address whose 4095th byte is the first of a two-byte character was asked for
-  // with that one byte at its end (%C3).
-  it('cuts a line before it takes the spaces off its end, and refuses an address cut inside a character', () => {
+  // with that one byte at its end (%C3). No text holds such a byte: the address here ends in a replacement
+  // character instead, which no check takes otherwise (a web address stays one, a playlist's name is never one).
+  it('cuts a line by its bytes, before it takes the spaces off its end', () => {
+    const addressOf = (/** @type {string} */ line) => hlsAddresses(line)?.[0]?.address;
     const named = (/** @type {number} */ spaces) => `0.m3u8${' '.repeat(spaces)}\u00a0`;
-    expect(hlsAddresses(named(4095 - 6))).toEqual([{address: '0.m3u8', tag: null}]);
-    expect(hlsAddresses(named(4095 - 7))).toBeNull();
-    expect(hlsAddresses(named(4095 - 8))).toEqual([{address: named(4095 - 8), tag: null}]);
+    expect(addressOf(named(4095 - 6))).toBe('0.m3u8');
+    expect(addressOf(named(4095 - 7))).toBe(`0.m3u8${' '.repeat(4095 - 7)}\ufffd`);
+    expect(addressOf(named(4095 - 8))).toBe(named(4095 - 8));
 
-    const torn = (/** @type {string} */ start) => `${start}${'a'.repeat(4094 - Buffer.byteLength(start))}é`;
-    expect(hlsAddresses(torn('https://cdn.test/'))).toBeNull();
-    expect(hlsAddresses(torn('#EXT-X-KEY:METHOD=AES-128,URI="https://k.test/key",X="'))).toBeNull();
-    // A tag naming no address reads the same either way.
-    expect(hlsAddresses(torn('#EXT-X-SESSION-DATA:DATA-ID="x",VALUE="'))).toEqual([]);
-    // The character whole behind the cut: nothing of it is read.
-    expect(hlsAddresses(`https://cdn.test/${'a'.repeat(4095 - 17)}é`)).toEqual([{address: `https://cdn.test/${'a'.repeat(4095 - 17)}`, tag: null}]);
+    // Characters of two, three and four bytes, with none, some and all of their bytes before the cut.
+    const start = 'https://cdn.test/';
+    for (const [character, bytes] of /** @type {Array<[string, number]>} */ ([['é', 2], ['€', 3], ['😀', 4]])) {
+      expect(Buffer.byteLength(character)).toBe(bytes);
+      for (let kept = 0; kept <= bytes; kept++) {
+        const whole = `${start}${'a'.repeat(4095 - start.length - kept)}`;
+        expect(addressOf(`${whole}${character}tail`)).toBe(whole + (kept === 0 ? '' : kept === bytes ? character : '\ufffd'));
+      }
+    }
 
-    const otherwise = {ok: false, error: 'an HLS playlist has a line ffmpeg could read otherwise'};
     const masterOf = (/** @type {number} */ spaces) => [{name: 'master.m3u8', text: master(['#EXT-X-STREAM-INF:BANDWIDTH=1', named(spaces)])},
       {name: '0.m3u8', text: media()}];
     expect(checkHlsPackage({files: masterOf(4095 - 6)})).toMatchObject({ok: true});
-    expect(checkHlsPackage({files: masterOf(4095 - 7)})).toEqual(otherwise);
-    expect(checkHlsPackage({files: masterOf(4095 - 8)})).toEqual({ok: false, error: 'an HLS master names something that is not one of its playlists'});
-    expect(checkHlsPackage({files: [{name: '0.m3u8', text: media(['#EXTINF:6,', torn('https://cdn.test/')])}]})).toEqual(otherwise);
-    expect(checkHlsPackage({files: [{name: '0.m3u8', text: media([torn('#EXT-X-SESSION-DATA:DATA-ID="x",VALUE="'), '#EXTINF:6,', SEG])}]}))
-        .toMatchObject({ok: true});
+    for (const spaces of [4095 - 7, 4095 - 8]) {
+      expect(checkHlsPackage({files: masterOf(spaces)})).toEqual({ok: false, error: 'an HLS master names something that is not one of its playlists'});
+    }
     // In a folder whose path ffmpeg would cut, the name alone becomes the whole path.
     expect(hlsMasterIn(masterOf(4095 - 6)[0].text, 'D:\\Temp\\a#b\\faststream-mpv-hls-abc123', path.win32))
         .toBe(master(['#EXT-X-STREAM-INF:BANDWIDTH=1', 'D:/Temp/a#b/faststream-mpv-hls-abc123/0.m3u8']));
+
+    // A cut inside a character refuses nothing by itself: an address ffmpeg reads whole stays that address, and
+    // one it reads cut is checked as far as it reads it.
+    const cutInside = (/** @type {string} */ lineStart) => `${lineStart}${'a'.repeat(4094 - Buffer.byteLength(lineStart))}é"`;
+    const key = 'https://k.test/key';
+    expect(hlsAddresses(cutInside(`#EXT-X-KEY:METHOD=AES-128,URI="${key}",X="`))).toEqual([{address: key, tag: '#EXT-X-KEY'}]);
+    expect(checkHlsPackage({files: [{name: '0.m3u8', text: media([cutInside(`#EXT-X-KEY:METHOD=AES-128,URI="${key}",X="`), '#EXTINF:6,', SEG])}]}))
+        .toMatchObject({ok: true});
+    const keyStart = '#EXT-X-KEY:METHOD=AES-128,URI="https://k.test/';
+    const cutKey = cutInside(keyStart);
+    expect(addressOf(cutKey)).toBe(`https://k.test/${'a'.repeat(4094 - keyStart.length)}\ufffd`);
+    expect(checkHlsPackage({files: [{name: '0.m3u8', text: media([cutKey, '#EXTINF:6,', SEG])}]})).toMatchObject({ok: true});
+    expect(checkHlsPackage({files: [{name: '0.m3u8', text: media([cutInside('#EXT-X-KEY:METHOD=AES-128,URI="file:///C:/'), '#EXTINF:6,', SEG])}]}))
+        .toEqual({ok: false, error: 'an HLS playlist names something that is not an http(s) address'});
   });
 
-  // Measured with the ffmpeg program: a rendition's playlist was opened for URI="..." alone, not behind a no-break
-  // space, not as uri= and not with a space before the '='; of two URIs in one tag, the last one's only.
-  it('takes for a tag\'s address what ffmpeg does, and refuses a tag that could be read otherwise', () => {
+  // Measured with the ffmpeg program: it takes a key for a URI only as URI=... (a rendition's playlist was not
+  // opened behind a no-break space, as uri= or with a space before the '='), reads the last of two URIs of one tag
+  // (the key was asked from the second address), and no URI of a comment or of a tag it does not know. The check
+  // lists them all: what ffmpeg could open has to be of the allowed kind, whether or not this ffmpeg opens it.
+  it('lists a URI in every spelling and of every tag, which is more than ffmpeg reads', () => {
+    const listed = (/** @type {string} */ line) => hlsAddresses(line)?.map(({address}) => address);
     const tag = (/** @type {string} */ attributes) => `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="x",${attributes}`;
-    expect(hlsAddresses(tag('URI="1.m3u8"'))).toEqual([{address: '1.m3u8', tag: '#EXT-X-MEDIA'}]);
-    expect(hlsAddresses(tag(' URI="1.m3u8"'))).toEqual([{address: '1.m3u8', tag: '#EXT-X-MEDIA'}]);
-    expect(hlsAddresses(tag('X-URI="1.m3u8"'))).toEqual([]);
-    for (const attributes of ['\u00a0URI="1.m3u8"', 'uri="1.m3u8"', 'URI ="1.m3u8"', 'URI="1.m3u8",URI="2.m3u8"']) {
-      expect(hlsAddresses(tag(attributes))).toBeNull();
+    for (const attributes of ['URI="1.m3u8"', ' URI="1.m3u8"', '\u00a0URI="1.m3u8"', 'uri="1.m3u8"', 'URI ="1.m3u8"']) {
+      expect(listed(tag(attributes))).toEqual(['1.m3u8']);
     }
+    expect(listed(tag('URI="1.m3u8",URI="2.m3u8"'))).toEqual(['1.m3u8', '2.m3u8']);
+    expect(listed(tag('X-URI="1.m3u8"'))).toEqual([]);
+    expect(listed('# source:uri=https://cdn.test/original.m3u8')).toEqual(['https://cdn.test/original.m3u8']);
+
+    const withLine = (/** @type {string} */ line) => ({files: [{name: '0.m3u8', text: media([line, '#EXTINF:6,', SEG])}]});
+    const local = {ok: false, error: 'an HLS playlist names something that is not an http(s) address'};
+    // A playlist ffmpeg plays is not refused for a line ffmpeg does not read ...
+    expect(checkHlsPackage(withLine('# source:uri=https://cdn.test/original.m3u8'))).toMatchObject({ok: true});
+    expect(checkHlsPackage(withLine('#EXT-X-KEY:METHOD=NONE,uri="https://k.test/key"'))).toMatchObject({ok: true});
+    expect(checkHlsPackage(withLine('#EXT-X-KEY:METHOD=AES-128,URI="https://k.test/a",URI="https://k.test/b"'))).toMatchObject({ok: true});
+    // ... and none passes with a local address in such a line.
+    expect(checkHlsPackage(withLine('# source:uri=file:///C:/x'))).toEqual(local);
+    expect(checkHlsPackage(withLine('#EXT-X-KEY:METHOD=AES-128,uri="file:///C:/k"'))).toEqual(local);
+    expect(checkHlsPackage(withLine('#EXT-X-KEY:METHOD=AES-128,URI="file:///C:/k",URI="https://k.test/b"'))).toEqual(local);
   });
 });
 
@@ -123,15 +152,24 @@ describe('the playlists the helper takes', () => {
       '#EXTINF:6,', SEG])}]],
     ['spaces of ASCII behind #EXTM3U, which ffmpeg takes off', [{name: '0.m3u8', text: `#EXTM3U \t${media().slice(7)}`}]],
     ['the line ends of Windows', [{name: '0.m3u8', text: media().split('\n').join('\r\n')}]],
+    ['line ends of a carriage return alone', [{name: '0.m3u8', text: media().split('\n').join('\r')}]],
+    ['#EXTM3U, spaces past the 4095 bytes ffmpeg reads of a line, and more behind them', [
+      {name: '0.m3u8', text: `#EXTM3U${' '.repeat(4200)}x${media().slice(7)}`}]],
+    // ffmpeg does not read this rendition, so its playlist is written and never opened (docs/notes/mpv.md, host 28).
+    ['a master naming a playlist behind a key ffmpeg does not take for a URI', [
+      {name: 'master.m3u8', text: master(['#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="en",\u00a0URI="1.m3u8"',
+        '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="a"', '0.m3u8'])},
+      {name: '0.m3u8', text: media()}, {name: '1.m3u8', text: media()}]],
   ])('%s', (_, files) => {
     expect(checkHlsPackage({files})).toEqual({ok: true, files});
   });
 
-  // Measured with the ffmpeg program: "Invalid data found when processing input" for both first lines.
+  // Measured with the ffmpeg program: "Invalid data found when processing input" for each of these first lines.
   it.each([
     ['more than #EXTM3U', '#EXTM3Ux'],
     ['a no-break space behind #EXTM3U', '#EXTM3U\u00a0'],
     ['#EXTM3U after an empty line', '\n#EXTM3U'],
+    ['more than #EXTM3U, past the 4095 bytes ffmpeg reads of a line', `#EXTM3U${'x'.repeat(5000)}`],
   ])('refuses a first line ffmpeg takes for no playlist: %s', (_, first) => {
     expect(checkHlsPackage({files: [{name: '0.m3u8', text: `${first}${media().slice(7)}`}]}))
         .toEqual({ok: false, error: 'an HLS playlist is no playlist text'});
@@ -155,10 +193,6 @@ describe('the playlists the helper takes', () => {
       {name: '0.m3u8', text: media()}]],
     ['a master naming a playlist with a no-break space behind its name, which ffmpeg keeps', [
       {name: 'master.m3u8', text: master(['#EXT-X-STREAM-INF:BANDWIDTH=1', '0.m3u8\u00a0'])}, {name: '0.m3u8', text: media()}]],
-    ['a master naming a playlist behind a key ffmpeg does not take for a URI', [
-      {name: 'master.m3u8', text: master(['#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="en",\u00a0URI="1.m3u8"',
-        '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="a"', '0.m3u8'])},
-      {name: '0.m3u8', text: media()}, {name: '1.m3u8', text: media()}]],
     ['a master naming itself', [{name: 'master.m3u8', text: master(['#EXT-X-STREAM-INF:BANDWIDTH=1', 'master.m3u8'])}]],
     ['a master naming a playlist in an I-frame tag', [
       {name: 'master.m3u8', text: master(['#EXT-X-I-FRAME-STREAM-INF:URI="0.m3u8"', '#EXT-X-STREAM-INF:BANDWIDTH=1', '0.m3u8'])},
@@ -272,8 +306,9 @@ describe('writing the playlists', () => {
     expect(hlsMasterIn(text(''), 'Temp\\faststream-mpv-hls-abc123', path.win32)).toBe(text(''));
     // A folder name no quoted value can hold.
     expect(hlsMasterIn(text(''), '/tmp/a"#b/faststream-mpv-hls-abc123', path.posix)).toBeNull();
-    // A key ffmpeg does not take for a URI names nothing to write whole.
-    expect(hlsMasterIn(text('').replace('URI=', '\u00a0URI='), 'D:\\Temp\\a#b\\faststream-mpv-hls-abc123', path.win32)).toBeNull();
+    // A key ffmpeg does not take for a URI is written whole like one it takes: the check lists both.
+    expect(hlsMasterIn(text('').replace('URI=', '\u00a0URI='), 'D:\\Temp\\a#b\\faststream-mpv-hls-abc123', path.win32))
+        .toBe(text('D:/Temp/a#b/faststream-mpv-hls-abc123/').replace('URI=', '\u00a0URI='));
     // A line cut right behind "D:/Temp/a": the start of the folder's path, and another file's whole one.
     const head = '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="';
     const cutAt = (/** @type {number} */ bytes) => ['#EXTM3U', `${head}${'x'.repeat(4095 - head.length - 7 - bytes)}",URI="1.m3u8"`,
