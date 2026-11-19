@@ -380,7 +380,8 @@ then</p>
     expect(await read(5000)).toMatch(tooMuchOrTooLong);
     expect(await read(2500, ' '.repeat(1900000))).toBe(tooMuchWork);
     expect(await read(2000, '<!---->'.repeat(200000))).toBe(tooMuchWork);
-    expect(await read(1000, '<span style="all">a</span>'.repeat(1000), `<head><styling>${many(1000, (i) => `<style xml:id="s${i}" tts:color="red"/>`)}` +
+    // 200 stretches of 400 spans are 0.2 million without the styles: it is their work that ends this one.
+    expect(await read(200, '<span style="all">a</span>'.repeat(200), `<head><styling>${many(1000, (i) => `<style xml:id="s${i}" tts:color="red"/>`)}` +
       `<style xml:id="all" style="${many(1000, (i) => `s${i} `)}"/></styling></head>`)).toMatch(tooMuchOrTooLong);
     expect(await read(1000, '', '', ` style="${many(200000, (i) => `x${i} `)}"`)).toBe(tooMuchWork);
     expect(await read(300, `<span ${many(2000, (i) => `a${i}="" `)}>a</span>`.repeat(100))).toMatch(tooMuchOrTooLong);
