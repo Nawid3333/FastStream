@@ -29,7 +29,7 @@ const installerFile = path.join(root, 'native-host/install.ps1');
 // the new values here (a failure prints the hashes).
 const RECORDED = {
   version: 28,
-  host: 'a90bdacfe5b5f0277ea3176f7bb9b54879b086d68b054e66b1f596cb9e1d404c',
+  host: '6d2325ef12f238349fdc7c2d4c7ba728cf273aeb33fcc654edc08cff6a6fe8e5',
   installer: 'db3b8027b508556b8af66eb4b8188460c2a5a6e1feb32d32b490f2e234b29b3a',
 };
 

@@ -125,6 +125,10 @@ describe('a tag\'s attributes, as ffmpeg reads them', () => {
     }
     expect(listed(tag('URI="1.m3u8",URI="2.m3u8"'))).toEqual(['1.m3u8', '2.m3u8']);
     expect(listed(tag('X-URI="1.m3u8"'))).toEqual([]);
+    // A start of the key is none (measured: ffmpeg opened no playlist for U=, UR= or an empty key either).
+    for (const attributes of ['U="1.m3u8"', 'UR="1.m3u8"', '="1.m3u8"']) {
+      expect(listed(tag(attributes))).toEqual([]);
+    }
     expect(listed('# source:uri=https://cdn.test/original.m3u8')).toEqual(['https://cdn.test/original.m3u8']);
 
     const withLine = (/** @type {string} */ line) => ({files: [{name: '0.m3u8', text: media([line, '#EXTINF:6,', SEG])}]});
@@ -137,6 +141,11 @@ describe('a tag\'s attributes, as ffmpeg reads them', () => {
     expect(checkHlsPackage(withLine('# source:uri=file:///C:/x'))).toEqual(local);
     expect(checkHlsPackage(withLine('#EXT-X-KEY:METHOD=AES-128,uri="file:///C:/k"'))).toEqual(local);
     expect(checkHlsPackage(withLine('#EXT-X-KEY:METHOD=AES-128,URI="file:///C:/k",URI="https://k.test/b"'))).toEqual(local);
+    expect(checkHlsPackage(withLine('#EXT-X-KEY:METHOD=AES-128,URI="https://k.test/a",URI="file:///C:/k"'))).toEqual(local);
+    // The price of the longer list: a tag ffmpeg does not read is checked as far as ffmpeg would read its line,
+    // here up to the "http" of its address.
+    const head = '#EXT-X-FOO:X="';
+    expect(checkHlsPackage(withLine(`${head}${'x'.repeat(4095 - head.length - 7 - 4)}",URI="https://k.test/key"`))).toEqual(local);
   });
 });
 
@@ -147,9 +156,14 @@ describe('the playlists the helper takes', () => {
       {name: 'master.m3u8', text: master(['#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="de",URI="2.m3u8"',
         '#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="a"', '0.m3u8', '#EXT-X-STREAM-INF:BANDWIDTH=2,AUDIO="a"', '1.m3u8'])},
       {name: '0.m3u8', text: media()}, {name: '1.m3u8', text: media()}, {name: '2.m3u8', text: media()}]],
+    ['a master of variants alone', [
+      {name: 'master.m3u8', text: master(['#EXT-X-STREAM-INF:BANDWIDTH=1', '0.m3u8', '#EXT-X-STREAM-INF:BANDWIDTH=2', '1.m3u8'])},
+      {name: '0.m3u8', text: media()}, {name: '1.m3u8', text: media()}]],
     ['a key and an init section on the web', [{name: '0.m3u8', text: media([
       '#EXT-X-KEY:METHOD=AES-128,URI="https://k.test/key?token=k"', '#EXT-X-MAP:URI="https://cdn.test/init.mp4"',
       '#EXTINF:6,', SEG])}]],
+    // Measured: ffmpeg then reads the key from the playlist's own address, a file of the package.
+    ['a key tag without a URI', [{name: '0.m3u8', text: media(['#EXT-X-KEY:METHOD=AES-128', '#EXTINF:6,', SEG])}]],
     ['spaces of ASCII behind #EXTM3U, which ffmpeg takes off', [{name: '0.m3u8', text: `#EXTM3U \t${media().slice(7)}`}]],
     ['the line ends of Windows', [{name: '0.m3u8', text: media().split('\n').join('\r\n')}]],
     ['line ends of a carriage return alone', [{name: '0.m3u8', text: media().split('\n').join('\r')}]],
@@ -175,6 +189,12 @@ describe('the playlists the helper takes', () => {
         .toEqual({ok: false, error: 'an HLS playlist is no playlist text'});
     expect(checkHlsPackage({files: [{name: 'master.m3u8', text: `${first}${master(['#EXT-X-STREAM-INF:BANDWIDTH=1', '0.m3u8']).slice(7)}`},
       {name: '0.m3u8', text: media()}]})).toEqual({ok: false, error: 'an HLS playlist is no playlist text'});
+    // Every file of a package. Measured: beside a variant it can read ffmpeg skips one it cannot, and with no other
+    // it fails; the helper takes a package whole or not at all, as it does for a playlist without an end.
+    expect(checkHlsPackage({files: [
+      {name: 'master.m3u8', text: master(['#EXT-X-STREAM-INF:BANDWIDTH=1', '0.m3u8', '#EXT-X-STREAM-INF:BANDWIDTH=2', '1.m3u8'])},
+      {name: '0.m3u8', text: media()}, {name: '1.m3u8', text: `${first}${media().slice(7)}`}]}))
+        .toEqual({ok: false, error: 'an HLS playlist is no playlist text'});
   });
 
   it.each([
@@ -256,6 +276,8 @@ describe('writing the playlists', () => {
     // As ffmpeg reads the written master: its two playlists and nothing else.
     expect(hlsAddresses(fs.readFileSync(entry, 'utf8')).map(({address}) => address)).toEqual([`${dir}/1.m3u8`, `${dir}/0.m3u8`]);
     expect(fs.readFileSync(path.join(path.dirname(entry), '0.m3u8'), 'utf8')).toBe(media());
+    // A media playlist alone names whole web addresses: as sent there too.
+    expect(fs.readFileSync(writeHlsPackage([{name: '0.m3u8', text: media()}], 'https://cdn.test/pl/7?token=k', base), 'utf8')).toBe(media());
 
     // Any other folder: the names as sent, which resolve to the master's own folder.
     expect(hlsMasterIn(text, 'D:\\Temp\\faststream-mpv-hls-abc123', path.win32)).toBe(text);
@@ -309,6 +331,12 @@ describe('writing the playlists', () => {
     // A key ffmpeg does not take for a URI is written whole like one it takes: the check lists both.
     expect(hlsMasterIn(text('').replace('URI=', '\u00a0URI='), 'D:\\Temp\\a#b\\faststream-mpv-hls-abc123', path.win32))
         .toBe(text('D:/Temp/a#b/faststream-mpv-hls-abc123/').replace('URI=', '\u00a0URI='));
+    // Whole paths go into URI="..." alone, as the extension writes it: a master naming a playlist in another
+    // spelling of the key is none to write for such a folder.
+    for (const spelling of ['uri=', 'URI =']) {
+      expect(hlsMasterIn(text('').replace('URI=', spelling), 'D:\\Temp\\a#b\\faststream-mpv-hls-abc123', path.win32)).toBeNull();
+      expect(hlsMasterIn(text('').replace('URI=', spelling), 'D:\\Temp\\faststream-mpv-hls-abc123', path.win32)).toBe(text('').replace('URI=', spelling));
+    }
     // A line cut right behind "D:/Temp/a": the start of the folder's path, and another file's whole one.
     const head = '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="';
     const cutAt = (/** @type {number} */ bytes) => ['#EXTM3U', `${head}${'x'.repeat(4095 - head.length - 7 - bytes)}",URI="1.m3u8"`,

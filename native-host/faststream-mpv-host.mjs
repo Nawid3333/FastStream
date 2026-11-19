@@ -1074,8 +1074,9 @@ export function ffmpegAttributes(text) {
 }
 
 /**
- * Every address of a playlist that ffmpeg could open: its lines that are no tag, and every tag's URI attribute, in
- * any spelling of that key. ffmpeg reads fewer of them (docs/notes/mpv.md, host 28); the check is of what it could.
+ * Every address a playlist names that ffmpeg could open: its lines that are no tag, and every tag's URI attribute,
+ * also with the key in small letters or with spaces around it. ffmpeg reads fewer of them (docs/notes/mpv.md, host
+ * 28); the check is of what it could.
  * @param {string} text
  * @return {?Array<{address: string, tag: ?string}>} tag: the tag of a URI attribute, null for a line that is no
  *   tag; null for a playlist with a backslash or a line ffmpeg and this would read differently (leading spaces).

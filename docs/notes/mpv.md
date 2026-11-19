@@ -55,9 +55,12 @@ audit of 2026-11-19 and measured with the real helper code against a headless mp
   opened what lay beside the folder the `#` cuts the path at. Measured with the ffmpeg program (N-124093,
   2026-04; no mpv could be started, the owner's was playing): two playlists put there were read and their
   segments asked for. The helper's rule is that ffmpeg opens the package's own files and http(s) addresses and
-  nothing else; before host 28 it did not hold for a master under such a path. Refused as well: a temp
+  nothing else; before host 28 it did not hold for a master under such a path. Refused there as well: a temp
   folder that is no whole path itself (a relative `TEMP`). ffmpeg resolved the names written for it against
-  the master's folder once more (measured: "Opening 'work\work/user#1/.../1.m3u8'", no such file).
+  the master's folder once more (measured: "Opening 'work\work/user#1/.../1.m3u8'", no such file). Without a
+  `#` nothing is rewritten for a relative `TEMP`, and the entry goes to mpv as a relative path like every
+  temp file of the helper (its subtitles too): that works only while mpv's working folder is the helper's.
+  Not handled; no setup with a relative `TEMP` is known.
 - *ffmpeg reads a playlist's line up to 4095 bytes and drops the rest* (`ff_get_line` into `char
   line[MAX_URL_SIZE]`, the same code in mpv's ffmpeg; measured: an address of 5000 bytes was asked for up to
   its 4095th byte, an address behind 4095 bytes of the same line never). `hlsAddresses` reads a line that far
@@ -72,21 +75,30 @@ audit of 2026-11-19 and measured with the real helper code against a headless mp
   after the cut at 4095 bytes and without the ASCII spaces at its end): `#EXTM3Ux` and `#EXTM3U` with a
   no-break space behind it are "Invalid data", and the helper had answered ok for a file mpv could not open.
   Such a file is refused now ("no playlist text"). `#EXTM3U` with spaces behind it, also past 4095 bytes,
-  and line ends of a carriage return alone are read by ffmpeg, and taken as before.
+  and line ends of a carriage return alone are read by ffmpeg, and taken as before. The rule is for every file
+  of a package. Beside a variant it can read ffmpeg skips one it cannot (measured: it played the other), and
+  with no other it fails; the helper takes a package whole or not at all, as it does for a playlist without
+  an end. So a package with one such file among good ones is refused although ffmpeg would play the rest
+  (Codex's fifth pass); none is known.
 - *The check lists more than ffmpeg reads, on purpose.* Measured with the ffmpeg program: it takes a key for
-  a URI only as `URI=` exactly (`strncmp(key, "URI=", key_len)`); a rendition's playlist was not opened
-  behind a no-break space, as `uri=` or with a space before the `=`. Of two `URI`s in one tag it reads the
-  last (the key was asked from the second address). It reads no `URI` of a comment or of a tag it does not
-  know, and opens a name only behind a variant's or a segment's tag (a bare `4.m3u8` in a master was not
-  opened). `hlsAddresses` lists all of these: a `URI` in any spelling and of any tag, and every line that is
-  no tag. The helper's rule is about what ffmpeg could open, so the longer list is the safe side: a local
-  address behind `uri=` or in a comment is refused although this ffmpeg would not read it. It follows that
-  "named by its master" means named in that list. A playlist named only where ffmpeg does not read (behind
-  `uri=`, as the first of two `URI`s, on a bare line) is written and never opened, and the stream plays
-  without it; the extension's `masterText` writes a name only behind a variant's tag and a rendition's
-  `URI="..."`. One form of host 28 refused such keys and two `URI`s in one tag instead. Codex's fourth pass
-  showed the cost: a playlist ffmpeg plays was refused for a comment like `# source:uri=https://...`. That
-  form was taken back before any merge.
+  a URI only as `URI=` exactly (`strncmp(key, "URI=", key_len)`, the `=` counted in). A rendition's playlist
+  was not opened behind a no-break space, as `uri=`, with a space before the `=`, nor as `U=`, `UR=` or
+  with an empty key (glm had read the comparison as taking those three). Of two `URI`s in one tag it reads
+  the last (the key was asked from the second address). It reads no `URI` of a comment or of a tag it does
+  not know, and opens a name only behind a variant's or a segment's tag (a bare `4.m3u8` in a master was not
+  opened). A key tag without a `URI` makes it read the key from the playlist's own address, a file of the
+  package. `hlsAddresses` lists every address a playlist names: a `URI` of any tag, also as `uri` or with
+  spaces around the key, and every line that is no tag. The helper's rule is about what ffmpeg could open, so
+  the longer list is the safe side: a local address behind `uri=` or in a comment is refused although this
+  ffmpeg would not read it. Its price: such a line is refused also where ffmpeg plays the stream (Codex built
+  one: a tag ffmpeg does not know, cut at byte 4095 inside its `https` address). It follows that "named by its
+  master" means named in that list. A playlist named only where ffmpeg does not read (behind `uri=`, as the
+  first of two `URI`s, on a bare line) is written and never opened, and the stream plays without it; under a
+  path with a `#` such a master is refused instead, unless the name stands in `URI="..."`, the only form a
+  whole path is written into. The extension's `masterText` writes a name only behind a variant's tag and in a
+  rendition's `URI="..."`. One form of host 28 refused such keys and two `URI`s in one tag instead. Codex's
+  fourth pass showed the cost: a playlist ffmpeg plays was refused for a comment like
+  `# source:uri=https://...`. That form was taken back before any merge.
 - *A line cut inside a character.* ffmpeg cuts by bytes: when the 4095th byte is the first of a two-byte
   character, it keeps that byte (it asked for `...%C3`). No text holds it, and `hlsAddresses` has a
   replacement character there. Every check comes out the same with it: a web address stays one, and no
