@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write # delete the branch
+  pull-requests: read # a newer offer from it
 
 jobs:
   delete-branch:
@@ -31,6 +32,14 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          # A newer build offered on a new pull request from it meanwhile (the owner closed this
+          # one while mpv-updates.yml published that build): kept.
+          open=$(gh pr list --state open --head mpv-update --base main --json number,isCrossRepository,author \
+            --jq '[.[] | select((.isCrossRepository | not) and .author.login == "app/github-actions")][0].number // ""')
+          if [ -n "$open" ]; then
+            echo "#$open offers mpv-update now: kept."
+            exit 0
+          fi
           # Only the commit the pull request offered: a newer build mpv-updates.yml pushed there
           # meanwhile stays. The lease makes check and delete one step on GitHub's side, which
           # the REST API's delete cannot. No checkout: the push needs a repository, not files.
