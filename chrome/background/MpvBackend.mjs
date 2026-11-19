@@ -18,6 +18,7 @@ export const HlsHostMaxMessageBytes = 16 * 1024 * 1024;
 // Past these (UTF-16 units) the thin helper refuses the whole play message.
 export const MaxPlayTargetChars = 512 * 1024;
 export const MaxPlayTitleChars = 1000;
+const MaxSubtitleChars = 1024 * 1024;
 // The start a play message may name: seconds, to the millisecond.
 const PlayStart = /^\d{1,7}(\.\d{1,3})?$/;
 
@@ -93,7 +94,7 @@ function addSubtitles(message, subtitles) {
     return;
   }
   const candidates = subtitles
-      .filter((s) => s && typeof s.srt === 'string' && s.srt.trim())
+      .filter((s) => s && typeof s.srt === 'string' && s.srt.trim() && s.srt.length <= MaxSubtitleChars)
       .slice(0, 8)
       .map((s) => ({label: typeof s.label === 'string' ? cutText(s.label, 100) : '', srt: s.srt}));
   /** @type {Array<{label: string, srt: string}>} */
