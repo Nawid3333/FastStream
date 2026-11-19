@@ -55,6 +55,22 @@ What each review and audit found, fixed and rejected is in
   again and takes out what it put in, and returns null, which the soft-to-hard check does not
   read as a collapsed element (`contentScript.test.mjs`, "a player whose box keeps changing").
 
+- **The element the player takes the place of has a box (2026-11-20).** `getVideo` climbs from
+  the video through the parents "with the same bounds" and took the highest. A parent whose
+  box is empty counts as one (a zero-height wrapper around an absolute player), and so did
+  wrappers that have no box at all: `display: contents`, which component frameworks write
+  around what they render (a custom element and a `div` of that kind, on a site the owner
+  named). The highest was then such a wrapper: measured as 0 by 0, so the player got the 100 px
+  minimum and the wrapper's class, and stood as a small box above the page's hidden player (a
+  soft replace shows it as a block) or not at all (an iframe with `display: contents` is not
+  rendered). `highestWithBox` now takes the highest parent that measures as something, else
+  the video. `boxless-wrapper.e2e.mjs` has the shape: before, the player came out 0 by 0 and
+  not shown; now 640 by 360 where the page's player stood. Measured on that site too: 894 by
+  503 at the player's place, before 0 by 0. The two other users of the climb are unchanged:
+  "does the player fill the body" must count a body without a height, and the miniplayer's
+  choice of what to lift was not run on such a page (by the code, its stand-in would measure
+  such a wrapper as 100 px too).
+
 - **Measured and changed (2026-10-06).**
   - A video under five minutes is redrawn every animation frame (`progressLoop`); the loop
     ran on while the video was paused, 144 times a second on a 144 Hz screen. It stops

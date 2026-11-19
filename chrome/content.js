@@ -1998,6 +1998,23 @@
     return elements;
   }
 
+  /**
+   * @param {Element[]} sameBounds - From getParentElementsWithSameBounds.
+   * @param {Element} element - The element they are the parents of.
+   * @return {Element} The highest of them with a box of its own, else the element. A parent without one
+   *   (display: contents, as component frameworks write wrappers) counts as having the same bounds, but
+   *   measures as nothing and cannot be stood in for.
+   */
+  function highestWithBox(sameBounds, element) {
+    for (let i = sameBounds.length - 1; i >= 0; i--) {
+      const rect = sameBounds[i].getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        return sameBounds[i];
+      }
+    }
+    return element;
+  }
+
   async function getVideo() {
     const videos = /** @type {HTMLVideoElement[]} */ (Array.from(querySelectorAllIncludingShadows('video')));
 
@@ -2020,11 +2037,10 @@
       return null;
     }
 
-    const parentElementsWithSameBounds = getParentElementsWithSameBounds(largestVideo.video);
     return {
       video: largestVideo.video,
       size: largestVideo.visibleArea,
-      highest: /** @type {HTMLElement} */ (parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : largestVideo.video),
+      highest: /** @type {HTMLElement} */ (highestWithBox(getParentElementsWithSameBounds(largestVideo.video), largestVideo.video)),
     };
   }
 
