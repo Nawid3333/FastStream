@@ -1892,7 +1892,10 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
     `MAX_WORK` (16 million, about two seconds on this PC), and counts the cue text it writes
     (`MAX_CUE_TEXT`, 16 MB). The costs are measured ones: a node looked at is 1 (0.12 µs for a
     span, 0.03 µs for a comment), a style applied 10 (1.1 µs: a span that names a style naming
-    300 others applies 301), 64 characters of text 1 (0.8 ns each for white space). A first form
+    300 others applies 301), 64 characters of text 1 (0.8 ns each for white space); each name in
+    a style attribute and each attribute of an element whose style is applied or that is shown
+    is 1 as well (glm's second review: 200 000 names in a p's own style attribute beside 1 000
+    spans went through in about 13 s before they were charged). A first form
     estimated the work as stretches times elements; glm and Codex showed what that misses, and
     measured, a 32 KB file of chained styles took 29 s through it (1.8 s to its refusal now),
     200 000 comments beside 500 spans 3.2 s (0.6 s). For scale: a three-hour film of 1 800

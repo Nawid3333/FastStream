@@ -199,8 +199,9 @@ function styleResolver(doc, spend) {
    * @param {Set<string>} seen - Style ids on the way here: a reference loop ends.
    */
   const apply = (element, style, seen) => {
-    spend(STYLE_WORK);
-    for (const id of (attribute(element, 'style') || '').split(/\s+/)) {
+    const named = (attribute(element, 'style') || '').split(/\s+/);
+    spend(STYLE_WORK + named.length + element.attributes.length);
+    for (const id of named) {
       const referenced = styles.get(id);
       if (!id || !referenced || seen.has(id)) continue;
       seen.add(id);
@@ -303,6 +304,7 @@ function cueText(paragraph, resolve, inherited, region, preserve, shown, spend) 
         if (inner.localName === 'br') {
           out += '\n';
         } else if (inner.localName === 'span' && shown(inner)) {
+          spend(inner.attributes.length);
           // TTML2 ruby: its container and text as WebVTT's; the delimiters are for players without ruby.
           const ruby = attribute(inner, 'ruby');
           if (ruby === 'delimiter') continue;

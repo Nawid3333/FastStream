@@ -356,26 +356,30 @@ then</p>
      * @param {number} stretches - One p of that many seconds, with a one-second span for each.
      * @param {string} [before] - What stands in the p before those spans, shown the whole time.
      * @param {string} [head]
+     * @param {string} [ofP] - More attributes of the p.
      * @return {Promise<number|string>} How many cues, or the error's message.
      */
-    const read = (stretches, before = '', head = '') => browser.execute((text) => new Promise((done) => {
+    const read = (stretches, before = '', head = '', ofP = '') => browser.execute((text) => new Promise((done) => {
       import('/player/SubtitleTrack.mjs').then(({SubtitleTrack}) => {
         const track = new SubtitleTrack('t', 'en');
         track.loadText(text);
         done(track.cues.length);
       }).catch((e) => done(String(e)));
-    }), `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:tts="http://www.w3.org/ns/ttml#styling">${head}<body><div><p begin="0s" end="${stretches}s">${before}` +
+    }), `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:tts="http://www.w3.org/ns/ttml#styling">${head}<body><div><p begin="0s" end="${stretches}s"${ofP}>${before}` +
       Array.from({length: stretches}, (_, i) => `<span begin="${i}s" end="${i + 1}s">w${i}</span>`).join('') + '</p></div></body></tt>');
     const tooMuchWork = 'Error: This TTML or DFXP subtitle file could not be read. (reading it is more work than a subtitle file is)';
     const many = (/** @type {number} */ length, /** @type {(i: number) => string} */ each) => Array.from({length}, (_, i) => each(i)).join('');
 
     expect(await read(1000)).toBe(1000);
-    // The p is read again for every stretch: its spans, its white space, its comments, the styles its spans name.
+    // The p is read again for every stretch: its spans, its white space, its comments, the styles its spans name,
+    // the names in its own style attribute, the attributes of the spans it shows.
     expect(await read(5000)).toBe(tooMuchWork);
     expect(await read(2500, ' '.repeat(1900000))).toBe(tooMuchWork);
     expect(await read(2000, '<!---->'.repeat(200000))).toBe(tooMuchWork);
     expect(await read(1000, '<span style="all">a</span>'.repeat(1000), `<head><styling>${many(1000, (i) => `<style xml:id="s${i}" tts:color="red"/>`)}` +
       `<style xml:id="all" style="${many(1000, (i) => `s${i} `)}"/></styling></head>`)).toBe(tooMuchWork);
+    expect(await read(1000, '', '', ` style="${many(200000, (i) => `x${i} `)}"`)).toBe(tooMuchWork);
+    expect(await read(300, `<span ${many(2000, (i) => `a${i}="" `)}>a</span>`.repeat(100))).toBe(tooMuchWork);
     expect(await read(1000, 'x'.repeat(20000)))
         .toBe('Error: This TTML or DFXP subtitle file could not be read. (its cues hold more text than is read)');
   });
