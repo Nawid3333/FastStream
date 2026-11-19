@@ -25,14 +25,17 @@ export const DEFAULT_TTML_RATES = Object.freeze({frameRate: 30, subFrameRate: 1,
 
 const OFFSET_UNITS = {h: 3600, m: 60, s: 1, ms: 0.001};
 
-// A paragraph is rendered once for every stretch its spans' times cut it into: what one document may cost
-// (docs/notes/player.md, "TTML subtitles").
-const MAX_PIECE_LOOKS = 8000000;
+// A paragraph is rendered once for every stretch its spans' times cut it into: what reading one document may
+// cost, counted where the work is done (docs/notes/player.md, "TTML and DFXP subtitles").
+const MAX_WORK = 16000000;
+const NODE_WORK = 1;
+const STYLE_WORK = 10;
+const TEXT_PER_WORK = 64;
 const MAX_CUE_TEXT = 16 * 1024 * 1024;
 
 /**
  * Why a document gives no cues: not well-formed XML (or no tt root), entity declarations,
- * subtitles that are images, or more timed pieces or cue text than are read.
+ * subtitles that are images, or more work or cue text than a subtitle file is.
  */
 export class TtmlError extends Error {
   /**
@@ -171,9 +174,10 @@ function escapeCueText(text) {
  * elements and its own tts: attributes, each over the one before. A region's style is TTML's
  * root of inheritance for what is shown in it: it fills only what the content left unspecified.
  * @param {Document} doc
+ * @param {(work: number) => void} spend
  * @return {{resolve: (element: Element, inherited: TtmlStyle) => TtmlStyle, regionStyle: (id: ?string) => TtmlStyle}}
  */
-function styleResolver(doc) {
+function styleResolver(doc, spend) {
   /**
    * @param {string} name
    * @return {Map<string, Element>} The elements of that name, by xml:id.
@@ -195,6 +199,7 @@ function styleResolver(doc) {
    * @param {Set<string>} seen - Style ids on the way here: a reference loop ends.
    */
   const apply = (element, style, seen) => {
+    spend(STYLE_WORK);
     for (const id of (attribute(element, 'style') || '').split(/\s+/)) {
       const referenced = styles.get(id);
       if (!id || !referenced || seen.has(id)) continue;
@@ -260,9 +265,10 @@ function preservesSpace(element, inherited) {
  * @param {TtmlStyle} region - The style of the region the p is shown in.
  * @param {boolean} preserve - Whether the p's ancestors keep white space.
  * @param {(span: Element) => boolean} shown - Whether a span is on screen in this cue.
+ * @param {(work: number) => void} spend
  * @return {string} Empty when the p holds no text.
  */
-function cueText(paragraph, resolve, inherited, region, preserve, shown) {
+function cueText(paragraph, resolve, inherited, region, preserve, shown, spend) {
   /**
    * @param {string} text
    * @param {TtmlStyle} style
@@ -286,8 +292,10 @@ function cueText(paragraph, resolve, inherited, region, preserve, shown) {
   const render = (element, style, keep) => {
     let out = '';
     for (const child of Array.from(element.childNodes)) {
+      spend(NODE_WORK);
       if (child.nodeType === 3 || child.nodeType === 4) {
         const raw = child.nodeValue || '';
+        spend(raw.length / TEXT_PER_WORK);
         const lines = keep ? raw.split(/\r?\n/) : [raw.replace(XML_SPACE, ' ')];
         out += lines.map((line) => (/\S/.test(line) ? wrap(escapeCueText(line), style) : line)).join('\n');
       } else if (child.nodeType === 1) {
@@ -330,15 +338,20 @@ export function ttmlCues(doc) {
   const root = doc.documentElement;
   if (!root || root.localName !== 'tt') return [];
   const rates = ttmlRates((name) => attribute(root, name));
-  const {resolve, regionStyle} = styleResolver(doc);
+  let work = 0;
+  let cueTextLength = 0;
+  /** @param {number} units */
+  const spend = (units) => {
+    work += units;
+    if (work > MAX_WORK) throw new TtmlError('large', 'reading it is more work than a subtitle file is');
+  };
+  const {resolve, regionStyle} = styleResolver(doc, spend);
   /** @type {TtmlCue[]} */
   const cues = [];
   /** @type {TtmlStyle} */
   const plain = {};
   let unreadTimes = 0;
   let neverShown = 0;
-  let pieceLooks = 0;
-  let cueTextLength = 0;
 
   /**
    * @param {Element} element
@@ -418,11 +431,9 @@ export function ttmlCues(doc) {
 
     const bounds = Array.from(points).sort((a, b) => a - b);
     if (stop <= start) {
-      if (cueText(paragraph, resolve, style, region, preserve, () => true)) neverShown++;
+      if (cueText(paragraph, resolve, style, region, preserve, () => true, spend)) neverShown++;
       return;
     }
-    pieceLooks += (bounds.length - 1) * (paragraph.getElementsByTagName('*').length + 1);
-    if (pieceLooks > MAX_PIECE_LOOKS) throw new TtmlError('large', 'its paragraphs are cut into more timed pieces than are read');
     /** @type {?TtmlCue} */
     let previous = null;
     for (let i = 0; i + 1 < bounds.length; i++) {
@@ -430,7 +441,7 @@ export function ttmlCues(doc) {
       const text = cueText(paragraph, resolve, style, region, preserve, (span) => {
         const times = /** @type {[number, number]} */ (spanTimes.get(span));
         return times[0] <= from && times[1] >= to && times[0] < times[1];
-      });
+      }, spend);
       if (!text) continue;
       cueTextLength += text.length;
       if (cueTextLength > MAX_CUE_TEXT) throw new TtmlError('large', 'its cues hold more text than is read');

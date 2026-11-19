@@ -1888,12 +1888,20 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
     paragraph's whole text again. Measured in Firefox 160, one paragraph of N one-second spans:
     1 000 in 0.17 s, 4 000 in 1.9 s, 16 000 (0.9 MB of file) in 31 s, in the player's page or,
     for subtitles handed to mpv, in the background page; with 2 000 characters before the spans,
-    16 000 gave 32 MB of cues. The reader now counts stretches times elements over the whole
-    document (`MAX_PIECE_LOOKS`, 8 million: about a second here) and the cue text it writes
-    (`MAX_CUE_TEXT`, 16 MB) and refuses past either, before the paragraph that passes the first
-    is rendered. For scale: a film of 2 000 paragraphs with 60 timed words each is 7.3 million;
-    20 000 paragraphs of one span are 40 000. Not done: rendering each span once and joining per
-    stretch, which would make the first limit unnecessary but changes how every cue is built.
+    16 000 gave 32 MB of cues. The reader now counts its work where it is done and refuses past
+    `MAX_WORK` (16 million, about two seconds on this PC), and counts the cue text it writes
+    (`MAX_CUE_TEXT`, 16 MB). The costs are measured ones: a node looked at is 1 (0.12 µs for a
+    span, 0.03 µs for a comment), a style applied 10 (1.1 µs: a span that names a style naming
+    300 others applies 301), 64 characters of text 1 (0.8 ns each for white space). A first form
+    estimated the work as stretches times elements; glm and Codex showed what that misses, and
+    measured, a 32 KB file of chained styles took 29 s through it (1.8 s to its refusal now),
+    200 000 comments beside 500 spans 3.2 s (0.6 s). For scale: a three-hour film of 1 800
+    paragraphs with 18 timed words each is 1.5 million; 20 000 paragraphs of one span are
+    0.3 million. Cue text is counted before a stretch joins the one before it, and one paragraph
+    is written whole before it is counted (at most about 19 times the file: a styled line per
+    two characters). Not done: rendering each span once and joining per stretch, which would
+    make the work limit unnecessary but changes how every cue is built; a paragraph nested
+    thousands of spans deep still ends in the browser's own "too much recursion".
   - A non-UTF-8 file is read in the encoding its XML declaration names (`decodeSubtitleBytes`,
     after a BOM and a server's charset).
   - On pages, `.ttml`, `.dfxp`, `application/ttml+xml` and DFXP's `application/ttaf+xml` count
