@@ -107,6 +107,25 @@ describe('the playlists that go to mpv with a stream', () => {
     expect(pack.files[0].text).toContain(`${ORIGIN}/content/a/page-0.html?token=k`);
   });
 
+  it('keys a named variant from a disguised master when only its segments want the key', async () => {
+    const {io} = server({
+      '/pl/7': {text: MASTER.replace('/pl/7/hi', '/pl/7/hi.m3u8'), keyed: true},
+      '/pl/7/hi.m3u8': {text: MEDIA},
+      '/content/a/page-0.html': {text: 'TS', keyed: true},
+    });
+    const pack = await hlsPackage({url: `${ORIGIN}/pl/7/hi.m3u8`, keyFrom: `${ORIGIN}/pl/7?token=k`, io});
+    expect(pack.files[0].text).toContain(`${ORIGIN}/content/a/page-0.html?token=k`);
+  });
+
+  it('sends nothing for a named variant from a disguised master that wants no key', async () => {
+    const {io} = server({
+      '/pl/7': {text: MASTER.replace('/pl/7/hi', '/pl/7/hi.m3u8'), keyed: true},
+      '/pl/7/hi.m3u8': {text: MEDIA},
+      '/content/a/page-0.html': {text: 'TS'},
+    });
+    expect(await hlsPackage({url: `${ORIGIN}/pl/7/hi.m3u8`, keyFrom: `${ORIGIN}/pl/7?token=k`, io})).toBeNull();
+  });
+
   it('asks nothing for a stream found served as HLS (its detection saw the type)', async () => {
     const {io, asked} = server({'/v/pl': {text: MEDIA, type: 'application/vnd.apple.mpegurl'}});
     expect(await hlsPackage({url: `${ORIGIN}/v/pl?sig=1`, keyFrom: `${ORIGIN}/v/pl?sig=1`, typed: true, io})).toBeNull();

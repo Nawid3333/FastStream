@@ -47,7 +47,8 @@ ffmpeg never adds. FastStream's own player handles both (sniffing; `StreamQuery.
 now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` beside its other waits):
 - *When:* a detected HLS stream whose address is not named `.m3u8`/`.m3u`, nor found served as HLS (the
   source's `typed`, from its detection's Content-Type), and, unless the playlist read wants the key, not
-  typed HLS either; a variant named `.m3u8` the quality setting picked from a disguised master still goes; its files get the address's key where they need it (StreamQuery's rule:
+  typed HLS either. A variant named `.m3u8` the quality setting picked from a disguised master goes when
+  it or its first segment wants the master's key. Its files get the address's key where they need it (StreamQuery's rule:
   a 401/403 without it, a 2xx with it; probed on the first media playlist and the first segment). A
   `.m3u8` address costs no request, query or not: mpv opens it itself. Until 2026-11-19 a `.m3u8` with a
   query was probed too (its master, first variant and first segment) and every such hand-off waited for

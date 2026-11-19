@@ -81,18 +81,19 @@ export async function hlsPackage({url, keyFrom, typed = false, io, signal}) {
   if (stop.aborted) return null;
   // Whatever it still waits for (a fetch, a header rule).
   const stopped = new Promise((resolve) => stop.addEventListener('abort', () => resolve(null), {once: true}));
-  return Promise.race([collect(url, key, io, stop), /** @type {Promise<null>} */ (stopped)]);
+  return Promise.race([collect(url, key, url === keyFrom, io, stop), /** @type {Promise<null>} */ (stopped)]);
 }
 
 /**
  * hlsPackage's reading.
  * @param {string} url
  * @param {?URL} key
+ * @param {boolean} asFound - The stream as found; else a variant the quality setting picked from it.
  * @param {PackageIo} io
  * @param {AbortSignal} stop
  * @return {Promise<?{files: Array<{name: string, text: string}>}>}
  */
-async function collect(url, key, io, stop) {
+async function collect(url, key, asFound, io, stop) {
   // StreamQuery's rule: the key once a file refused without it was given with it, then for every file of its
   // server. Known only once every playlist was read, so they are rewritten after.
   let keyed = false;
@@ -132,7 +133,7 @@ async function collect(url, key, io, stop) {
   };
 
   const root = await read(url);
-  if (!root || !root.text.trimStart().startsWith('#EXTM3U') || (!keyed && namesHls(url, root.type))) return null;
+  if (!root || !root.text.trimStart().startsWith('#EXTM3U') || (asFound && !keyed && namesHls(url, root.type))) return null;
   const isMaster = root.text.includes('#EXT-X-STREAM-INF');
   const uris = isMaster ? mediaUris(root.text) : [];
   if (isMaster && (uris.length === 0 || uris.length > MAX_MEDIA_PLAYLISTS)) return null;
@@ -146,6 +147,7 @@ async function collect(url, key, io, stop) {
     const withKey = withKeyOf(key, firstSegment);
     if (withKey && [200, 206].includes(await io.status(withKey, stop).catch(() => 0))) keyed = true;
   }
+  if (!keyed && namesHls(url, root.type)) return null;
   const playlists = isMaster ? await inParallel(uris, (uri) => readOnce(addressOf(uri))) : [root];
   if (stop.aborted || budget.left < 0 || playlists.some((playlist) => !playlist)) return null;
   const texts = playlists.map((playlist) => vodText(/** @type {Fetched} */ (playlist).text,
