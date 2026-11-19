@@ -76,11 +76,8 @@ describe('A player inside wrappers without a box', function() {
 
   it('gets FastStream\'s player where the page\'s player stood, as large as it was', async function() {
     await browser.url(`${SITE}/watch`);
-    const stage = await browser.execute(() => {
-      const box = document.getElementById('stage').getBoundingClientRect();
-      return {x: box.x, y: box.y, width: box.width, height: box.height};
-    });
-    expect(stage).toEqual({x: 0, y: 0, width: 640, height: 360});
+    // The page's player, by the page's own styles. Not measured: FastStream may have taken it over already.
+    const stage = {x: 0, y: 0, width: 640, height: 360};
 
     await browser.waitUntil(() => browser.$(PLAYER).isExisting(), {timeout: 20000, interval: 200, timeoutMsg: 'the player never opened'});
     /** @type {{x: number, y: number, width: number, height: number, shown: boolean, below: number}} */
