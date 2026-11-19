@@ -382,6 +382,9 @@ then</p>
     expect(await read(300, `<span ${many(2000, (i) => `a${i}="" `)}>a</span>`.repeat(100))).toBe(tooMuchWork);
     expect(await read(1000, 'x'.repeat(20000)))
         .toBe('Error: This TTML or DFXP subtitle file could not be read. (its cues hold more text than is read)');
+    // Work the count does not know (a style's 400 000 children, looked through for every stretch) ends by the clock.
+    expect(await read(3000, '', `<head><styling><style xml:id="s">${'<x/>'.repeat(400000)}</style></styling></head>`, ' style="s"'))
+        .toBe('Error: This TTML or DFXP subtitle file could not be read. (reading it takes longer than a subtitle file does)');
   });
 
   it('adds a .ttml, .dfxp or TTML .xml file from disk, and refuses other XML', async function() {

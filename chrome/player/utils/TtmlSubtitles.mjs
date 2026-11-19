@@ -31,6 +31,9 @@ const MAX_WORK = 16000000;
 const NODE_WORK = 1;
 const STYLE_WORK = 10;
 const TEXT_PER_WORK = 64;
+// For the work the count does not know: no read takes longer than this, whatever it is made of.
+const MAX_READ_MS = 5000;
+const SPENDS_PER_LOOK_AT_THE_CLOCK = 64;
 const MAX_CUE_TEXT = 16 * 1024 * 1024;
 
 /**
@@ -341,11 +344,16 @@ export function ttmlCues(doc) {
   if (!root || root.localName !== 'tt') return [];
   const rates = ttmlRates((name) => attribute(root, name));
   let work = 0;
+  let spends = 0;
   let cueTextLength = 0;
+  const started = performance.now();
   /** @param {number} units */
   const spend = (units) => {
     work += units;
     if (work > MAX_WORK) throw new TtmlError('large', 'reading it is more work than a subtitle file is');
+    if (++spends % SPENDS_PER_LOOK_AT_THE_CLOCK === 0 && performance.now() - started > MAX_READ_MS) {
+      throw new TtmlError('large', 'reading it takes longer than a subtitle file does');
+    }
   };
   const {resolve, regionStyle} = styleResolver(doc, spend);
   /** @type {TtmlCue[]} */

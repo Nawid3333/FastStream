@@ -1898,7 +1898,13 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
     spans went through in about 13 s before they were charged). A first form
     estimated the work as stretches times elements; glm and Codex showed what that misses, and
     measured, a 32 KB file of chained styles took 29 s through it (1.8 s to its refusal now),
-    200 000 comments beside 500 spans 3.2 s (0.6 s). For scale: a three-hour film of 1 800
+    200 000 comments beside 500 spans 3.2 s (0.6 s). Every review found work the count did not
+    know (a style's children looked through at each use, kept line breaks, long attribute
+    values), so the count has a clock behind it: `MAX_READ_MS`, 5 s, looked at every 64th
+    charge. Between two looks stands at most one pass over something of the file's size. A
+    style with 400 000 children used by a p of 3 000 stretches ran past 30 s before and ends
+    after 5 s. The clock makes that one refusal depend on the machine; the count does not, and
+    it is the count that real files are measured against. For scale: a three-hour film of 1 800
     paragraphs with 18 timed words each is 1.5 million; 20 000 paragraphs of one span are
     0.3 million. Cue text is counted before a stretch joins the one before it, and one paragraph
     is written whole before it is counted (at most about 19 times the file: a styled line per
