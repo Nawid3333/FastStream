@@ -138,7 +138,8 @@
       // any is for the YouTube page itself, not a frame in it.
       sendResponse(reportPlayingUserVideo(request.any === true && window === window.top));
     } else if (request.type === MessageTypes.LAST_PRESS) {
-      sendResponse(lastUserGestureAt === -Infinity ? null : performance.now() - lastUserGestureAt);
+      // When, on the clock every frame shares (Date.now's).
+      sendResponse(lastUserGestureAt === -Infinity ? null : performance.timeOrigin + lastUserGestureAt);
     } else if (request.type === MessageTypes.GET_VIDEO_SIZE) {
       getVideo().then((video) => {
         sendResponse(video ? video.size : 0);
@@ -2759,6 +2760,8 @@
         // Now: a site like YouTube moves to the next video without a load.
         page: location.href,
         pressedHere,
+        // When it played and when this frame's page began: a press above counts only before both.
+        ...(pressedHere ? {} : {playedAt: performance.timeOrigin + performance.now(), documentStart: performance.timeOrigin}),
       }, () => {
         void chrome.runtime.lastError;
       });

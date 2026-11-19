@@ -3073,20 +3073,26 @@ describe('a file only its page loads', () => {
 
 describe('the shortcut\'s MPV, a play in a frame that saw no press', () => {
   /**
-   * The episode's player frame (5) below the frame with the play button (4), which saw the click pressAgoMs ago.
-   * @param {?number} pressAgoMs
+   * The episode's player frame (5) below the frame with the play button (4).
+   * @param {?number} pressBeforeMs - How long before the play the frame that answers saw the click; null: none.
+   * @param {{documentAgeMs?: number, pressedIn?: number, parentKnown?: boolean}} [options] - How long the player
+   *   frame's page had been there at the play; the frame that saw the click; whether frame 5's parent is known.
    * @return {Promise<void>}
    */
-  async function playBelowClick(pressAgoMs) {
+  async function playBelowClick(pressBeforeMs, {documentAgeMs = 300, pressedIn = 4, parentKnown = true} = {}) {
+    let playedAt = 0;
     bg = await loadBackground({
       options: {mpvMode: true},
       tabs: [{id: 1, url: PAGE}],
       fetch: playlists({[EPISODE]: 1400}),
-      onTabMessage: ({frameId, message}) => (message.type === 'LAST_PRESS' && frameId === 4 ? pressAgoMs : undefined),
+      onTabMessage: ({frameId, message}) => (message.type === 'LAST_PRESS' && frameId === pressedIn ?
+        (pressBeforeMs === null ? null : playedAt - pressBeforeMs) : undefined),
     });
     await bg.command('toggle_mpv', 1);
-    await bg.request({tabId: 1, frameId: 5, parentFrameId: 4, url: EPISODE});
+    await bg.request({tabId: 1, frameId: 5, parentFrameId: parentKnown ? 4 : -1, url: EPISODE});
+    playedAt = Date.now();
     await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', pressedHere: false,
+      playedAt, documentStart: playedAt - documentAgeMs,
       video: {src: 'blob:https://site.test/1', duration: 1400}}, {tabId: 1, frameId: 5});
     await bg.wait(3000);
   }
@@ -3096,11 +3102,22 @@ describe('the shortcut\'s MPV, a play in a frame that saw no press', () => {
     expect(bg.toMpv()).toEqual([EPISODE]);
   });
 
-  it('sends nothing when the frame above saw no click, or one past Firefox\'s activation time', async () => {
-    await playBelowClick(null);
-    expect(bg.toMpv()).toEqual([]);
-    bg.unload();
-    await playBelowClick(5200);
+  it('asks the page itself when the frames between are not known (a woken background)', async () => {
+    await playBelowClick(800, {pressedIn: 0, parentKnown: false});
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
+  it('sends nothing for no click above, one past Firefox\'s activation time, or one after the play', async () => {
+    for (const before of [null, 5200, -300]) {
+      await playBelowClick(before);
+      expect(bg.toMpv(), String(before)).toEqual([]);
+      bg.unload();
+    }
+    bg = null;
+  });
+
+  it('sends nothing from a frame that was there before the click (an ad that autoplays after it)', async () => {
+    await playBelowClick(800, {documentAgeMs: 30000});
     expect(bg.toMpv()).toEqual([]);
   });
 });

@@ -37,7 +37,7 @@ function isFileSource(source) {
   return source.mode === PlayerModes.ACCELERATED_MP4 || source.mode === PlayerModes.DIRECT;
 }
 
-/** @typedef {{url: string, mode: string, headers: *, time: number, requestedUrl?: string}} TrackedSource */
+/** @typedef {{url: string, mode: string, headers: *, time: number, requestedUrl?: string, typed?: boolean}} TrackedSource */
 
 /**
  * @typedef {{source: string, label: string, headers: *, time: number}|

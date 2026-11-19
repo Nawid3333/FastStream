@@ -62,12 +62,12 @@ function isOk(fetched) {
 /**
  * The playlists of an HLS stream for mpv, when mpv cannot open its address alone; null when it can, or when
  * they cannot go as files (a live stream, too many or too large, one unreadable, not read in time).
- * @param {{url: string, keyFrom: string, io: PackageIo, signal?: AbortSignal}} stream - url: the playlist mpv
+ * @param {{url: string, keyFrom: string, typed?: boolean, io: PackageIo, signal?: AbortSignal}} stream - url: the playlist mpv
  *   would be given (a master, or the variant the quality setting picked); keyFrom: the detected address, whose
  *   query may be the key its server asks of every file; signal: the hand-off no longer waits for it.
  * @return {Promise<?{files: Array<{name: string, text: string}>}>}
  */
-export async function hlsPackage({url, keyFrom, io, signal}) {
+export async function hlsPackage({url, keyFrom, typed = false, io, signal}) {
   let key;
   try {
     const parsed = new URL(keyFrom);
@@ -75,8 +75,8 @@ export async function hlsPackage({url, keyFrom, io, signal}) {
   } catch (e) {
     key = null;
   }
-  // Named a playlist: mpv opens it itself, and the hand-off waits for no read (docs/notes/mpv.md).
-  if (namesHls(url, '')) return null;
+  // Named a playlist, as the stream found was: mpv opens it itself, and the hand-off waits for no read (docs/notes/mpv.md).
+  if (typed || (namesHls(url, '') && namesHls(keyFrom, ''))) return null;
   const stop = AbortSignal.any([AbortSignal.timeout(PACKAGE_TIMEOUT_MS), ...(signal ? [signal] : [])]);
   if (stop.aborted) return null;
   // Whatever it still waits for (a fetch, a header rule).

@@ -1095,7 +1095,7 @@ export async function openInMpv(tabId, url, ...rest) {
       const watching = stillWanted ? setInterval(() => {
         if (!stillWanted()) stopPacking.abort();
       }, PackingWantedCheckMs) : undefined;
-      return hlsPackage({url, keyFrom: detected, io: hlsPackageIo(rest[1]), signal: stopPacking.signal})
+      return hlsPackage({url, keyFrom: detected, typed: tracked.typed === true, io: hlsPackageIo(rest[1]), signal: stopPacking.signal})
           .finally(() => clearInterval(watching));
     }).catch((e) => {
       console.error('Reading the playlists of an HLS stream for mpv failed', e);

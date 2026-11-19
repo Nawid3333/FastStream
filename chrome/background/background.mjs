@@ -25,6 +25,7 @@ import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
 import {RuleManager} from './NetRequestRuleManager.mjs';
 import {StreamLengths} from './StreamLengths.mjs';
 import {sniffManifest} from './ManifestSniffer.mjs';
+import {modeFromContentType} from './ManifestTypes.mjs';
 import {classifyResponse, modeFromQuery, urlType, worthSniffing} from './StreamDetection.mjs';
 import {relayPageFetch} from './PageFetchRelay.mjs';
 import {TabTracker} from './TabTracker.mjs';
@@ -822,7 +823,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const play = () => onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '', msg.video || null,
         typeof msg.page === 'string' ? msg.page : '');
     if (msg.pressedHere === false) {
-      pressedAbove(sender).then((pressed) => {
+      pressedAbove(sender, msg.playedAt, msg.documentStart).then((pressed) => {
         if (pressed) play();
       }).catch((e) => console.error('Asking the frames above for a press failed', e));
       return;
@@ -1875,10 +1876,11 @@ function getSourceFromURL(frame, url) {
  * @param {number} [time]
  * @param {?string} [requestedUrl]
  */
-function addSource(frame, url, mode, headers, time = Date.now(), requestedUrl = null) {
+function addSource(frame, url, mode, headers, time = Date.now(), requestedUrl = null, typed = false) {
   frame.addSource({
     url, mode, headers, time,
     ...(requestedUrl && requestedUrl !== url ? {requestedUrl} : {}),
+    ...(typed ? {typed: true} : {}),
   });
 }
 
@@ -2692,7 +2694,8 @@ async function sendSourcesToMainFramePlayers(frame) {
 }
 
 /**
- * @param {{url: string, requestId: string|number, customHeaders?: *, time?: number}} details
+ * @param {{url: string, requestId: string|number, customHeaders?: *, time?: number,
+ *   responseHeaders?: Array<{name: string, value?: string}>}} details
  * @param {FrameHolder & FrameExtras} frame
  * @param {string} mode
  */
@@ -2710,8 +2713,10 @@ async function onSourceRecieved(details, frame, mode) {
   }
 
   // A recovered stream keeps when the page asked for it; a redirected one, its first address.
+  // Served as the type it is: mpv opens it by its address (MpvHlsPackage).
+  const typed = !!details.responseHeaders && modeFromContentType(details.responseHeaders) === mode;
   addSource(frame, url, mode, customHeaders, details.time,
-      details.requestId !== undefined ? frame.tab.redirectOrigin(details.requestId) : null);
+      details.requestId !== undefined ? frame.tab.redirectOrigin(details.requestId) : null, typed);
 
   await ensureOptions();
   // Not for a known piece: a page's own player fetches thousands in an evening, each a read and a header rule.
@@ -2967,29 +2972,41 @@ function autoOpenKnownLater(tab, frameId, src, video) {
 const PressCountsMs = 5000;
 // A frame answers within milliseconds unless its page keeps it busy.
 const PressAnswerWaitMs = 500;
+// Within this of the press, a frame made by it counts: the click's handler can run after the frame began.
+const PressOrderSlackMs = 100;
 
 /**
- * A play in a frame that saw no press is the user's when a frame above it saw one within PressCountsMs: a play
- * button that loads its player into a new frame below gives that frame no activation (docs/notes/mpv.md).
- * Only for a tab whose MPV takes the user's plays.
+ * A play in a frame that saw no press is the user's when a frame above it saw one within PressCountsMs before the
+ * play and before the frame's page began: a play button that loads its player into a new frame below gives that
+ * frame no activation (docs/notes/mpv.md). An ad frame that was there before the click does not count. Only for a
+ * tab whose MPV takes the user's plays. Times are Date.now()'s, which every frame's performance.timeOrigin shares.
  * @param {chrome.runtime.MessageSender} sender
+ * @param {*} playedAt - When the video played.
+ * @param {*} documentStart - When the playing frame's page began.
  * @return {Promise<boolean>}
  */
-async function pressedAbove(sender) {
-  const received = Date.now();
+async function pressedAbove(sender, playedAt, documentStart) {
+  const now = Date.now();
+  if (typeof playedAt !== 'number' || typeof documentStart !== 'number' || !(playedAt <= now + 1000) ||
+      !(now - playedAt <= PressCountsMs) || !(documentStart <= playedAt)) {
+    return false;
+  }
   await ensureOptions();
   const tab = sender.tab?.id !== undefined ? Tabs.getTab(sender.tab.id) : null;
-  if (!Options.mpvMode || !tab || !tab.isOn || !tab.isMpv || !tab.mpvOnPlay || typeof sender.frameId !== 'number') {
+  if (!Options.mpvMode || !tab || !tab.isOn || !tab.isMpv || !tab.mpvOnPlay || typeof sender.frameId !== 'number' ||
+      sender.frameId === 0) {
     return false;
   }
   const above = [];
   for (let frame = tab.getFrame(sender.frameId)?.parent; frame; frame = frame.parent) {
     above.push(frame.frameId);
   }
-  const ages = await Promise.all(above.map((frameId) =>
+  // The frames' parents are known from their requests: a woken background lost those of frames already there.
+  if (!above.includes(0)) above.push(0);
+  const pressedAt = await Promise.all(above.map((frameId) =>
     askFrame(tab.tabId, {type: MessageTypes.LAST_PRESS}, {frameId}, 'last_press', PressAnswerWaitMs)));
-  const waited = Date.now() - received;
-  return ages.some((age) => typeof age === 'number' && age >= 0 && age - waited <= PressCountsMs);
+  return pressedAt.some((at) => typeof at === 'number' && at <= playedAt && playedAt - at <= PressCountsMs &&
+    documentStart >= at - PressOrderSlackMs);
 }
 
 /**

@@ -45,8 +45,9 @@ it as its own plain playlist and opens its lines `/pl/<id>/<hash>` as local path
 `--demuxer-lavf-format=hls` the variants are refused 403: every file wants the master's `?token=`, which
 ffmpeg never adds. FastStream's own player handles both (sniffing; `StreamQuery.mjs`). So the hand-off
 now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` beside its other waits):
-- *When:* a detected HLS stream whose address is not named `.m3u8`/`.m3u` and, unless the playlist itself
-  wants the key, not typed HLS; its files get the address's key where they need it (StreamQuery's rule:
+- *When:* a detected HLS stream whose address is not named `.m3u8`/`.m3u`, nor found served as HLS (the
+  source's `typed`, from its detection's Content-Type), and, unless the playlist read wants the key, not
+  typed HLS either; a variant named `.m3u8` the quality setting picked from a disguised master still goes; its files get the address's key where they need it (StreamQuery's rule:
   a 401/403 without it, a 2xx with it; probed on the first media playlist and the first segment). A
   `.m3u8` address costs no request, query or not: mpv opens it itself. Until 2026-11-19 a `.m3u8` with a
   query was probed too (its master, first variant and first segment) and every such hand-off waited for
@@ -593,9 +594,13 @@ below it, where the video plays. That new frame saw no press and has no activati
 give a click's activation to a frame made after it), so the play was no user's and nothing went
 (measured in his test window: `counted: false`, no press, `isActive` false; the same in every release
 since 2026-10-29). Now a child frame's play without a press of its own goes as `MPV_USER_PLAY` with
-`pressedHere: false`; the background (`pressedAbove`), only for a tab in the shortcut's MPV, asks the
-frames above it (`LAST_PRESS`: how long ago their last trusted press was, shortcut keys not counted)
-and takes the play when one saw a press within 5 s. Only content scripts send these, so a page
+`pressedHere: false`, when it played and when the frame's page began (`performance.timeOrigin`-based, the
+clock every frame shares); the background (`pressedAbove`), only for a tab in the shortcut's MPV, asks the
+frames above it, and the page itself when the chain of known parents stops short of it (parents are
+learnt from requests, so a woken background lacks those of frames already there) (`LAST_PRESS`: when
+their last trusted press was, shortcut keys not counted), and takes the play when one saw a press at
+most 5 s before it and before the frame's page began (100 ms slack): an ad frame that was already there
+when the user clicked does not count (Claude's review; Codex's for the shared clock and the woken background). Only content scripts send these, so a page
 cannot make one up; a top page's play without a press still sends nothing. Measured on the live page:
 the play button's click to the helper's message in 1.15 s. Tests: contentUserPlay.test.mjs ("a play
 in a frame that saw no press", LAST_PRESS) and backgroundMpv.test.mjs ("a play in a frame that saw no press").

@@ -152,6 +152,7 @@ describe('a play in a frame that saw no press', () => {
     const {p, video, plays} = page({inFrame: true});
     p.dispatchDocument('play', {target: video});
     expect(plays().map((m) => m.pressedHere)).toEqual([false]);
+    expect(plays()[0]).toMatchObject({playedAt: 1000 + p.window.performance.now(), documentStart: 1000});
   });
 
   it('is marked pressed when this frame saw the press', () => {
@@ -169,12 +170,14 @@ describe('a play in a frame that saw no press', () => {
 });
 
 describe('the last press a frame saw (LAST_PRESS)', () => {
-  it('is how long ago it was, or null for none', async () => {
+  it('is when it was, on the clock frames share, or null for none', async () => {
     const {p} = page();
     expect(await p.send({type: 'LAST_PRESS'})).toBeNull();
+    p.advance(300);
+    const at = p.window.performance.now();
     p.dispatchWindow('pointerdown');
     p.advance(1200);
-    expect(await p.send({type: 'LAST_PRESS'})).toBe(1200);
+    expect(await p.send({type: 'LAST_PRESS'})).toBe(1000 + at);
   });
 
   it('counts no shortcut key and no press the page made up', async () => {
