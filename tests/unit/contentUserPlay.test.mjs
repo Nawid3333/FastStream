@@ -12,8 +12,8 @@ import {loadContentScript} from './contentDom.mjs';
  * A page with a video, the user's activation as Firefox would report it.
  * @return {Object} The page, its video, and what it reported as user plays.
  */
-function page() {
-  const p = loadContentScript();
+function page(options = {}) {
+  const p = loadContentScript(options);
   const video = p.document.createElement('video');
   video.currentSrc = 'https://cdn.example/episode.mp4';
   video.duration = 1400;
@@ -30,7 +30,7 @@ describe('a play the user started', () => {
     p.dispatchDocument('play', {target: video});
     expect(plays()).toEqual([{type: 'MPV_USER_PLAY', src: 'https://cdn.example/episode.mp4',
       video: {src: 'https://cdn.example/episode.mp4', duration: 1400, playing: 'https://cdn.example/episode.mp4', time: 0},
-      page: 'https://site.example/page'}]);
+      page: 'https://site.example/page', pressedHere: true}]);
   });
 
   it('is reported when the click opened a pop-up first, which used up the activation', () => {
@@ -144,5 +144,43 @@ describe('a play nobody started', () => {
       p.dispatchDocument('play', {target: video});
       expect(plays(), JSON.stringify(key)).toEqual([]);
     }
+  });
+});
+
+describe('a play in a frame that saw no press', () => {
+  it('goes to the background marked so: a press in a frame above may have started it', () => {
+    const {p, video, plays} = page({inFrame: true});
+    p.dispatchDocument('play', {target: video});
+    expect(plays().map((m) => m.pressedHere)).toEqual([false]);
+  });
+
+  it('is marked pressed when this frame saw the press', () => {
+    const {p, video, plays} = page({inFrame: true});
+    p.dispatchWindow('pointerdown');
+    p.dispatchDocument('play', {target: video});
+    expect(plays().map((m) => m.pressedHere)).toEqual([true]);
+  });
+
+  it('is not sent from the page itself: nothing is above it', () => {
+    const {p, video, plays} = page();
+    p.dispatchDocument('play', {target: video});
+    expect(plays()).toEqual([]);
+  });
+});
+
+describe('the last press a frame saw (LAST_PRESS)', () => {
+  it('is how long ago it was, or null for none', async () => {
+    const {p} = page();
+    expect(await p.send({type: 'LAST_PRESS'})).toBeNull();
+    p.dispatchWindow('pointerdown');
+    p.advance(1200);
+    expect(await p.send({type: 'LAST_PRESS'})).toBe(1200);
+  });
+
+  it('counts no shortcut key and no press the page made up', async () => {
+    const {p} = page();
+    p.dispatchWindow('keydown', {key: 'f', altKey: true});
+    p.dispatchWindow('pointerdown', {isTrusted: false});
+    expect(await p.send({type: 'LAST_PRESS'})).toBeNull();
   });
 });

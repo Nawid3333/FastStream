@@ -3070,3 +3070,37 @@ describe('a file only its page loads', () => {
     expect(bg.sent('OPEN_PLAYER')).toEqual([]);
   });
 });
+
+describe('the shortcut\'s MPV, a play in a frame that saw no press', () => {
+  /**
+   * The episode's player frame (5) below the frame with the play button (4), which saw the click pressAgoMs ago.
+   * @param {?number} pressAgoMs
+   * @return {Promise<void>}
+   */
+  async function playBelowClick(pressAgoMs) {
+    bg = await loadBackground({
+      options: {mpvMode: true},
+      tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}),
+      onTabMessage: ({frameId, message}) => (message.type === 'LAST_PRESS' && frameId === 4 ? pressAgoMs : undefined),
+    });
+    await bg.command('toggle_mpv', 1);
+    await bg.request({tabId: 1, frameId: 5, parentFrameId: 4, url: EPISODE});
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', pressedHere: false,
+      video: {src: 'blob:https://site.test/1', duration: 1400}}, {tabId: 1, frameId: 5});
+    await bg.wait(3000);
+  }
+
+  it('sends it when the frame above saw the click (a play button that loads its player below)', async () => {
+    await playBelowClick(800);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
+  it('sends nothing when the frame above saw no click, or one past Firefox\'s activation time', async () => {
+    await playBelowClick(null);
+    expect(bg.toMpv()).toEqual([]);
+    bg.unload();
+    await playBelowClick(5200);
+    expect(bg.toMpv()).toEqual([]);
+  });
+});

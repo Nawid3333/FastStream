@@ -85,17 +85,22 @@ describe('the playlists that go to mpv with a stream', () => {
   });
 
   it('keys the segments when only they ask for it', async () => {
-    const {io} = server({'/v/index.m3u8': {text: MEDIA}, '/content/a/page-0.html': {text: 'TS', keyed: true}});
-    const pack = await hlsPackage({url: `${ORIGIN}/v/index.m3u8?token=k`, keyFrom: `${ORIGIN}/v/index.m3u8?token=k`, io});
+    const {io} = server({'/v/pl': {text: MEDIA}, '/content/a/page-0.html': {text: 'TS', keyed: true}});
+    const pack = await hlsPackage({url: `${ORIGIN}/v/pl?token=k`, keyFrom: `${ORIGIN}/v/pl?token=k`, io});
     expect(pack.files[0].text).toContain(`${ORIGIN}/content/a/page-0.html?token=k`);
   });
 
-  it('sends nothing for a stream mpv opens itself: named .m3u8, no key asked', async () => {
+  it('asks nothing for a stream named .m3u8, whatever its query: mpv opens it at once', async () => {
     const {io, asked} = server({'/v/index.m3u8': {text: MASTER.replaceAll('/pl/7/', '/v/')},
-      '/v/lo': {text: MEDIA}, '/v/hi': {text: MEDIA}, '/content/a/page-0.html': {text: 'TS'}});
-    expect(await hlsPackage({url: `${ORIGIN}/v/index.m3u8?sig=1`, keyFrom: `${ORIGIN}/v/index.m3u8?sig=1`, io})).toBeNull();
-    // The master, its first variant, its first segment: no more.
-    expect(asked.length).toBe(3);
+      '/v/lo': {text: MEDIA}, '/v/hi': {text: MEDIA}, '/content/a/page-0.html': {text: 'TS', keyed: true}});
+    expect(await hlsPackage({url: `${ORIGIN}/v/index.m3u8?token=k`, keyFrom: `${ORIGIN}/v/index.m3u8?token=k`, io})).toBeNull();
+    expect(asked).toEqual([]);
+  });
+
+  it('sends nothing for a stream its server types HLS, after reading only its playlist', async () => {
+    const {io, asked} = server({'/v/pl': {text: MEDIA, type: 'application/vnd.apple.mpegurl'}, '/content/a/page-0.html': {text: 'TS'}});
+    expect(await hlsPackage({url: `${ORIGIN}/v/pl?sig=1`, keyFrom: `${ORIGIN}/v/pl?sig=1`, io})).toBeNull();
+    expect(asked).toEqual([`${ORIGIN}/v/pl?sig=1`]);
   });
 
   it('sends nothing for a live stream: a file of its playlist goes stale', async () => {
@@ -120,8 +125,8 @@ describe('the playlists that go to mpv with a stream', () => {
   });
 
   it('keys the segments when they refuse 401 without the key', async () => {
-    const {io} = server({'/v/index.m3u8': {text: MEDIA}, '/content/a/page-0.html': {text: 'TS', keyed: true, refuse: 401}});
-    const pack = await hlsPackage({url: `${ORIGIN}/v/index.m3u8?token=k`, keyFrom: `${ORIGIN}/v/index.m3u8?token=k`, io});
+    const {io} = server({'/v/pl': {text: MEDIA}, '/content/a/page-0.html': {text: 'TS', keyed: true, refuse: 401}});
+    const pack = await hlsPackage({url: `${ORIGIN}/v/pl?token=k`, keyFrom: `${ORIGIN}/v/pl?token=k`, io});
     expect(pack.files[0].text).toContain(`${ORIGIN}/content/a/page-0.html?token=k`);
   });
 

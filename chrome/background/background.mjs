@@ -819,8 +819,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     return;
   } else if (msg.type === MessageTypes.MPV_USER_PLAY) {
-    onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '', msg.video || null,
+    const play = () => onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '', msg.video || null,
         typeof msg.page === 'string' ? msg.page : '');
+    if (msg.pressedHere === false) {
+      pressedAbove(sender).then((pressed) => {
+        if (pressed) play();
+      }).catch((e) => console.error('Asking the frames above for a press failed', e));
+      return;
+    }
+    play();
     reopenOnUserPlay(sender);
     return;
   } else if (msg.type === MessageTypes.SHORTCUT_CANCELLED) {
@@ -2954,6 +2961,35 @@ function autoOpenKnownLater(tab, frameId, src, video) {
       autoOpenInMpv(tab, source.url, source.headers);
     }
   }, MpvPlayKnownAfterMs);
+}
+
+// Firefox's transient activation (dom.user_activation.transient.timeout), as content.js counts a press.
+const PressCountsMs = 5000;
+// A frame answers within milliseconds unless its page keeps it busy.
+const PressAnswerWaitMs = 500;
+
+/**
+ * A play in a frame that saw no press is the user's when a frame above it saw one within PressCountsMs: a play
+ * button that loads its player into a new frame below gives that frame no activation (docs/notes/mpv.md).
+ * Only for a tab whose MPV takes the user's plays.
+ * @param {chrome.runtime.MessageSender} sender
+ * @return {Promise<boolean>}
+ */
+async function pressedAbove(sender) {
+  const received = Date.now();
+  await ensureOptions();
+  const tab = sender.tab?.id !== undefined ? Tabs.getTab(sender.tab.id) : null;
+  if (!Options.mpvMode || !tab || !tab.isOn || !tab.isMpv || !tab.mpvOnPlay || typeof sender.frameId !== 'number') {
+    return false;
+  }
+  const above = [];
+  for (let frame = tab.getFrame(sender.frameId)?.parent; frame; frame = frame.parent) {
+    above.push(frame.frameId);
+  }
+  const ages = await Promise.all(above.map((frameId) =>
+    askFrame(tab.tabId, {type: MessageTypes.LAST_PRESS}, {frameId}, 'last_press', PressAnswerWaitMs)));
+  const waited = Date.now() - received;
+  return ages.some((age) => typeof age === 'number' && age >= 0 && age - waited <= PressCountsMs);
 }
 
 /**

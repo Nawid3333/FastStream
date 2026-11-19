@@ -1051,6 +1051,12 @@ export async function openInMpv(tabId, url, ...rest) {
   }
   // VPN is known by the detected stream's host: a quality file taken in its place may be on another host.
   const detected = url;
+  // The page's subtitles go with its stream; the player's button sends its own. Read beside the other waits.
+  const subtitlesTab = tabId !== undefined && tabId >= 0 && !(rest[5] && 'subtitles' in rest[5]) ? Tabs.getTab(tabId) : null;
+  const pageSubtitles = subtitlesTab ? pageSubtitlesForMpv(subtitlesTab).catch((e) => {
+    console.error('Reading the subtitles of the page for mpv failed', e);
+    return [];
+  }) : Promise.resolve([]);
   // A file only its page gives (servesWebPage): told by its length read's first answer.
   const file = tabId !== undefined && tabId >= 0 && Tabs.getTab(tabId) ?
     tabSources(Tabs.getTab(tabId)).find((source) => source.url === detected &&
@@ -1145,19 +1151,12 @@ export async function openInMpv(tabId, url, ...rest) {
     // Its quality list's addresses lack the key the files are given here.
     rest[5] = {...(rest[5] || {}), hls: pack, qualities: undefined};
   }
-  // The page's subtitles go with its stream; the player's button sends its own.
   const tabHolder = rest[0];
-  const extras = rest[5];
-  if (tabId !== undefined && tabId >= 0 && !(extras && 'subtitles' in extras) &&
-      !tabHolder?.mpvSentUrls?.has(url)) {
-    const tab = Tabs.getTab(tabId);
-    const subtitles = tab ? await pageSubtitlesForMpv(tab).catch((e) => {
-      console.error('Reading the subtitles of the page for mpv failed', e);
-      return [];
-    }) : [];
+  if (subtitlesTab && !tabHolder?.mpvSentUrls?.has(url)) {
+    const subtitles = await pageSubtitles;
     if (subtitles.length > 0) {
       if (Logging) console.log('[MPV] subtitles of the page go along:', subtitles.map((s) => s.label));
-      rest[5] = {...(extras || {}), subtitles};
+      rest[5] = {...(rest[5] || {}), subtitles};
     }
   }
   if (incognito) {

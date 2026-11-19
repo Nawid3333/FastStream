@@ -45,18 +45,20 @@ it as its own plain playlist and opens its lines `/pl/<id>/<hash>` as local path
 `--demuxer-lavf-format=hls` the variants are refused 403: every file wants the master's `?token=`, which
 ffmpeg never adds. FastStream's own player handles both (sniffing; `StreamQuery.mjs`). So the hand-off
 now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` beside its other waits):
-- *When:* a detected HLS stream whose address is not named `.m3u8`/`.m3u` and not typed HLS, or whose
-  files need the address's key (StreamQuery's rule: a 401/403 without it, a 2xx with it; probed on the
-  first media playlist and the first segment). A `.m3u8` address without a query costs no request.
-  Not for a live stream (no `#EXT-X-ENDLIST`): a file of its playlist goes stale. All playlists are read
+- *When:* a detected HLS stream whose address is not named `.m3u8`/`.m3u` and, unless the playlist itself
+  wants the key, not typed HLS; its files get the address's key where they need it (StreamQuery's rule:
+  a 401/403 without it, a 2xx with it; probed on the first media playlist and the first segment). A
+  `.m3u8` address costs no request, query or not: mpv opens it itself. Until 2026-11-19 a `.m3u8` with a
+  query was probed too (its master, first variant and first segment) and every such hand-off waited for
+  it: measured on a CDN answering in 800 ms, 6.6 s from the click to the helper instead of 2.6 s, up to the
+  10 s cap on a slow hoster (the owner's "mpv opens 5-10 s late"); no site that needs it is known, so a
+  `.m3u8` whose files want its key fails in mpv, as it did before helper 27. Not for a live stream (no `#EXT-X-ENDLIST`): a file of its playlist goes stale. All playlists are read
   (4 at a time, relative addresses against the address after redirects) before any is rewritten: a key
   first needed by a later variant reaches every file. At most 10 s (header rules included) and 12 MB in
   all, one budget the reads at once share, counted as bytes arrive; a hand-off that stops (copy
   protection, VPN, page-only) or whose page or MPV goes meanwhile (`wanted()`, checked every 250 ms)
-  stops the reading. Past either, the address goes as before. Not done: a `.m3u8` master with a query
-  is judged by its first variant and first segment, as before; one whose later variants alone want
-  the key would need every variant read before every such hand-off (Codex, 2026-11-18; such servers
-  ask the same of all their files).
+  stops the reading. Past either, the address goes as before. The page's subtitles are read from the
+  start of `openInMpv`, beside these waits, not after them.
 - *What:* the playlist mpv would get (the variant the quality setting picked, or the master with its
   variants and renditions; every other tag with an address left out: I-frame playlists, session keys
   and data, which the helper would refuse), every address absolute and, on the key's server only, keyed. Fetched with the page's Origin/Referer, never truncated (12 MB).
@@ -583,6 +585,20 @@ play in its parent once the pop-up consumed the activation (Firefox propagates a
 the tree; this records presses per frame). Tests: `tests/unit/contentUserPlay.test.mjs` (3 of
 9 fail without the fix, the rest guard the autoplay cases) and mpv-shortcut's `/popup` page,
 whose mpv half runs where the host is installed (CI's Windows e2e jobs).
+
+**A play in a frame the click created (2026-11-19).** The owner's report: on 123moviesfree (vidsrc
+chain) MPV by the shortcut never opened, though FastStream's player played the stream. The play
+button is in stellarconductornexus.com's `/embed/movie/` frame; its click creates `/embed/player/movie/`
+below it, where the video plays. That new frame saw no press and has no activation (Firefox does not
+give a click's activation to a frame made after it), so the play was no user's and nothing went
+(measured in his test window: `counted: false`, no press, `isActive` false; the same in every release
+since 2026-10-29). Now a child frame's play without a press of its own goes as `MPV_USER_PLAY` with
+`pressedHere: false`; the background (`pressedAbove`), only for a tab in the shortcut's MPV, asks the
+frames above it (`LAST_PRESS`: how long ago their last trusted press was, shortcut keys not counted)
+and takes the play when one saw a press within 5 s. Only content scripts send these, so a page
+cannot make one up; a top page's play without a press still sends nothing. Measured on the live page:
+the play button's click to the helper's message in 1.15 s. Tests: contentUserPlay.test.mjs ("a play
+in a frame that saw no press", LAST_PRESS) and backgroundMpv.test.mjs ("a play in a frame that saw no press").
 
 **The shortcut's own activation (2026-10-20).** Firefox activates the page for a key with a
 modifier too: after Alt+F, `navigator.userActivation.isActive` is true for 5 s (traced on
