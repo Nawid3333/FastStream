@@ -17,8 +17,9 @@ name: mpv updates
 #     offers the build. Nothing merges itself (the owner's choice,
 #     2026-10-02): he merges it when he likes. It keeps up: a newer build that passes moves
 #     the same branch and retitles the same pull request, so a build a day is not an email
-#     a day. Closing it skips that build; the next one that passes opens a new pull
-#     request. Merged (GitHub deletes the branch), or main pinned to it or past it by hand
+#     a day. Closing it unmerged rejects that build for good: the closed pull request is
+#     the record (mpv-update-closed.yml deletes its branch), and only a newer build that
+#     passes opens a new pull request. Merged (GitHub deletes the branch), or main pinned to it or past it by hand
 #     (then it is closed here), it is done. The pin ships nothing, so his merge releases
 #     nothing either (auto-release.yml). Every mpv/* branch is deleted, and the failure
 #     issue, if open, is closed. Until 2026-10-02 the pin commit went onto main directly.
@@ -166,6 +167,12 @@ jobs:
           # Waiting there already: the latest build, or a newer one.
           waiting=0
           if [[ $offered =~ ^[0-9]{8}$ ]] && [ "$offered" -ge "$latest" ]; then waiting=1; fi
+          # Closed by the owner without merging: that build is not offered again, only a newer
+          # one. The closed pull request is the record; mpv-update-closed.yml deletes its branch.
+          # Only this workflow's own, from this repository. $latest is 8 digits, checked above.
+          declined=$(gh pr list --state closed --head "$PR_BRANCH" --base main --limit 100 \
+            --json number,title,mergedAt,isCrossRepository,author \
+            --jq "[.[] | select((.isCrossRepository | not) and .mergedAt == null and .author.login == \"app/github-actions\" and (.title | endswith(\"mpv $latest (shinchiro)\")))][0].number // \"\"")
 
           # --- The open failure issue. The whole list, filtered exactly: the search index can
           # lag behind an issue opened minutes ago. This workflow's own only: the repository is
@@ -180,6 +187,8 @@ jobs:
               if [ -n "$pr" ]; then echo "Would close #$pr: main pins its build already."; fi
             elif [ "$waiting" = 1 ]; then
               echo "Would do nothing: $PR_BRANCH offers $offered already${pr:+ (#$pr)}, for the owner to merge."
+            elif [ -n "$declined" ]; then
+              echo "Would do nothing: #$declined offered $latest and was closed unmerged; only a newer build is offered."
             elif [ "$tried" = 1 ]; then
               echo "Would do nothing: branch $branch exists, so $latest failed before."
             else
@@ -244,6 +253,8 @@ jobs:
             fi
           elif [ "$waiting" = 1 ]; then
             echo "$PR_BRANCH offers $offered already${pr:+ (#$pr)}: it waits for the owner's merge."
+          elif [ -n "$declined" ]; then
+            echo "#$declined offered $latest and was closed unmerged: skipped until a newer build."
           elif [ "$tried" = 1 ]; then
             echo "Branch $branch exists: $latest failed before, so it is not tried again."
           else
@@ -301,7 +312,7 @@ jobs:
                 printf -- '- Release: https://github.com/%s/releases/tag/%s\n' "$UPSTREAM" "$latest"
                 printf -- '- The change: `.github/mpv-build.json` pins %s instead of %s, and nothing else.\n' "$latest" "$pinned"
                 printf -- '- Merging it releases nothing: only CI installs this mpv.\n\n'
-                printf 'This pull request keeps up: a newer build that passes CI moves here, and the title says which. Closing it skips this build; the next one that passes opens a new pull request.\n'
+                printf 'This pull request keeps up: a newer build that passes CI moves here, and the title says which. Closing it unmerged rejects this build: it is not offered again, and only a newer one that passes opens a new pull request.\n'
               } > "$RUNNER_TEMP/pr.md"
               if [ -n "$pr" ]; then
                 gh pr edit "$pr" --title "$title" --body-file "$RUNNER_TEMP/pr.md" > /dev/null
