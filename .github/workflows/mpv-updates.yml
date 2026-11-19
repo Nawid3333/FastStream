@@ -161,9 +161,10 @@ jobs:
             2) ;;
             *) echo "git ls-remote failed with $status." >&2; exit 1 ;;
           esac
-          # gh's --head matches the branch name in any repository: never a fork's pull request.
-          pr=$(gh pr list --state open --head "$PR_BRANCH" --base main --json number,isCrossRepository \
-            --jq '[.[] | select(.isCrossRepository | not)][0].number // ""')
+          # gh's --head matches the branch name in any repository: never a fork's pull request,
+          # and this workflow's own only, the one its rejection record and cleanup know.
+          pr=$(gh pr list --state open --head "$PR_BRANCH" --base main --json number,isCrossRepository,author \
+            --jq '[.[] | select((.isCrossRepository | not) and .author.login == "app/github-actions")][0].number // ""')
           # Waiting there already, on an open pull request: the latest build, or a newer one.
           # The branch without one (its pull request closed, or never opened) offers nothing.
           waiting=0
@@ -315,12 +316,6 @@ jobs:
             fi
 
             if [ "$conclusion" = success ]; then
-              # Closed while CI ran: retitled, that closed pull request would record this build
-              # as rejected instead of the one the owner rejected. A new one offers this build.
-              if [ -n "$pr" ]; then
-                state=$(gh pr view "$pr" --json state --jq .state)
-                if [ "$state" != OPEN ]; then pr=''; fi
-              fi
               # Offered on the one pull request: its branch is the commit CI just passed.
               authgit push -q -f origin "$commit:refs/heads/$PR_BRANCH"
               title="ci: mpv $latest (shinchiro)"
@@ -332,6 +327,14 @@ jobs:
                 printf -- '- Merging it releases nothing: only CI installs this mpv.\n\n'
                 printf 'This pull request keeps up: a newer build that passes CI moves here, and the title says which. Closing it unmerged rejects this build: it is not offered again, and only a newer one that passes opens a new pull request.\n'
               } > "$RUNNER_TEMP/pr.md"
+              # Closed while CI ran: retitled, that closed pull request would record this build
+              # as rejected instead of the one the owner rejected. A new one offers this build.
+              # Read last thing before the edit; a close in the second between still loses no
+              # rejection, as any build not newer than a rejected one is skipped.
+              if [ -n "$pr" ]; then
+                state=$(gh pr view "$pr" --json state --jq .state)
+                if [ "$state" != OPEN ]; then pr=''; fi
+              fi
               if [ -n "$pr" ]; then
                 gh pr edit "$pr" --title "$title" --body-file "$RUNNER_TEMP/pr.md" > /dev/null
                 echo "#$pr offers $latest now."
