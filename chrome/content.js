@@ -2001,14 +2001,13 @@
   /**
    * @param {Element[]} sameBounds - From getParentElementsWithSameBounds.
    * @param {Element} element - The element they are the parents of.
-   * @return {Element} The highest of them with a box of its own, else the element. A parent without one
+   * @return {Element} The highest of them that makes a box, else the element. A parent that makes none
    *   (display: contents, as component frameworks write wrappers) counts as having the same bounds, but
-   *   measures as nothing and cannot be stood in for.
+   *   has no size or place and cannot be stood in for.
    */
   function highestWithBox(sameBounds, element) {
     for (let i = sameBounds.length - 1; i >= 0; i--) {
-      const rect = sameBounds[i].getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
+      if (window.getComputedStyle(sameBounds[i]).display !== 'contents') {
         return sameBounds[i];
       }
     }

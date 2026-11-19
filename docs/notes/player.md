@@ -63,8 +63,12 @@ What each review and audit found, fixed and rejected is in
   named). The highest was then such a wrapper: measured as 0 by 0, so the player got the 100 px
   minimum and the wrapper's class, and stood as a small box above the page's hidden player (a
   soft replace shows it as a block) or not at all (an iframe with `display: contents` is not
-  rendered). `highestWithBox` now takes the highest parent that measures as something, else
-  the video. `boxless-wrapper.e2e.mjs` has the shape: before, the player came out 0 by 0 and
+  rendered). `highestWithBox` now takes the highest parent that makes a box (whose `display` is
+  not `contents`), else the video. A zero-height wrapper is still taken, as before: it hides
+  the page's controls and pauses the videos inside it, which the video alone would not (the
+  Claude reviewer's point against a first form that skipped every parent measuring as
+  nothing); that the player is sized from such a wrapper's empty box is as it was and was
+  not looked at. `boxless-wrapper.e2e.mjs` has the shape: before, the player came out 0 by 0 and
   not shown; now 640 by 360 where the page's player stood. Measured on that site too: 894 by
   503 at the player's place, before 0 by 0. The two other users of the climb are unchanged:
   "does the player fill the body" must count a body without a height, and the miniplayer's
