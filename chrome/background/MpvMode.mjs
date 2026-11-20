@@ -425,10 +425,11 @@ export const MpvNextEpisodeWaitMs = 60000;
  * @param {string} url
  * @param {Array<*>} rest - openInMpv's: the tab sent for (openStream's), headers, type, page, its title, extras.
  * @param {(() => boolean)|undefined} wanted
+ * @param {(() => void)|undefined} [whileAsked] - Runs as mpv starts asking (the player's button: pausePlayerWhileAsked).
  * @return {Promise<{extras?: {window?: string, newWindow?: boolean, paused?: boolean}, declined?: boolean,
  *   dropped?: boolean}>}
  */
-export async function placeStream(tab, url, rest, wanted) {
+export async function placeStream(tab, url, rest, wanted, whileAsked) {
   const sentFrom = rest[0];
   if (!Mpv.singleInstance || !Mpv.capabilities?.includes(Capabilities.WINDOWS) ||
       sentFrom?.mpvSentUrls?.has(url) || sentFrom?.mpvSending?.has(url)) {
@@ -453,6 +454,7 @@ export async function placeStream(tab, url, rest, wanted) {
   Mpv.raise(target.window).catch((e) => console.warn('Raising the mpv window failed', e));
   // As after a hand-off: mpv has the user's eyes now, whatever the answer.
   if (tab && tab.isOn && tab.isMpv) pauseTabMedia(tab.tabId);
+  whileAsked?.();
   const choice = await asked;
   if (Logging) console.log('[MPV] mpv\'s answer to the offer:', choice, url);
   if (wanted && !wanted()) return {dropped: true};
@@ -460,6 +462,25 @@ export async function placeStream(tab, url, rest, wanted) {
   if (choice === 'window') return {extras: {newWindow: true, paused: true}};
   // none, its time over, or the window closed: nothing goes.
   return {declined: true};
+}
+
+/**
+ * The player whose MPV button sent the stream pauses while mpv asks, as a page does: pauseTabMedia does not reach it.
+ * @param {chrome.runtime.MessageSender} sender
+ * @return {() => void}
+ */
+export function pausePlayerWhileAsked(sender) {
+  return () => {
+    const tabId = sender.tab?.id;
+    if (typeof tabId !== 'number' || tabId < 0) return;
+    try {
+      chrome.tabs.sendMessage(tabId, {type: MessageTypes.MPV_ASKING}, {frameId: sender.frameId ?? 0}, () => {
+        BackgroundUtils.checkMessageError('mpv_asking');
+      });
+    } catch (e) {
+      if (Logging) console.log('[MPV] telling the player mpv asks failed:', e);
+    }
+  };
 }
 
 export const MpvNextPickGraceMs = 5000;
@@ -1098,7 +1119,8 @@ export function sendPlayedToMpv(tab, source, video = null, pageUrl = tab.url) {
   }
   const now = Date.now();
   const last = tab.mpvLastPlaySend;
-  if (last && last.url === source.url && now - last.time < MpvPlayRepeatMs) {
+  // Also while unanswered: mpv may ask for up to 19 s (MpvOffer.mjs).
+  if (last && last.url === source.url && (now - last.time < MpvPlayRepeatMs || PlaySendsUnanswered.has(last))) {
     // Unanswered yet: its answer pauses the page if mpv has it, and a failure leaves it playing.
     if (!PlaySendsUnanswered.has(last)) {
       pauseTabMedia(tab.tabId);
@@ -1124,7 +1146,12 @@ export function sendPlayedToMpv(tab, source, video = null, pageUrl = tab.url) {
       tab.mpvLastPlaySend = null;
       Tabs.saveTabState(tab);
     }
-    // Declined in mpv: mpvLastPlaySend stays, so the page player's own repeated play does not ask again.
+    // Declined in mpv: mpvLastPlaySend stays, from the answer on, so the page player's own repeated play does not
+    // ask again.
+    if ('declined' in result && tab.mpvLastPlaySend === sent && isTabOpen(tab)) {
+      sent.time = Date.now();
+      Tabs.saveTabState(tab);
+    }
     if (!isHandOffPage(tab, page) || 'dropped' in result || 'declined' in result || playHereInstead(tab, result)) {
       return;
     }
@@ -1298,10 +1325,12 @@ export async function openInMpv(tabId, url, ...rest) {
   }
   const wanted = rest[5]?.wanted;
   const episode = rest[5]?.episode === true;
-  if (rest[5] && ('wanted' in rest[5] || 'episode' in rest[5])) {
+  const whileAsked = rest[5]?.whileAsked;
+  if (rest[5] && ('wanted' in rest[5] || 'episode' in rest[5] || 'whileAsked' in rest[5])) {
     rest[5] = {...rest[5]};
     delete rest[5].wanted;
     delete rest[5].episode;
+    delete rest[5].whileAsked;
   }
   // The waits above take seconds on a slow CDN.
   if (wanted && !wanted()) {
@@ -1309,7 +1338,7 @@ export async function openInMpv(tabId, url, ...rest) {
     return {ok: false, dropped: true};
   }
   const placed = episode ? {} : await placeStream(tabId !== undefined && tabId >= 0 ? Tabs.getTab(tabId) : null, url,
-      rest, wanted);
+      rest, wanted, whileAsked);
   if (placed.dropped) {
     if (Logging) console.log('[MPV] not handed off, its page or MPV went while mpv asked:', url);
     return {ok: false, dropped: true};

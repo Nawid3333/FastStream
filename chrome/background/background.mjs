@@ -32,7 +32,7 @@ import {TabTracker} from './TabTracker.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {VpnProxyMirror} from './VpnProxyMirror.mjs';
 import {youTubeVideo} from './YouTubeVideo.mjs';
-import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPendingMs, autoOpenInMpv, inheritMpv, leaveMpvWhenOff, noteMpvTabClosed, onToggleMpv, openInMpv, openMpvWithSources, pickNextEpisodeForMpv, resolveMpvContentType, sendPlayedToMpv, setMpvError, startMpv, stopMpv, syncAllMpvAutoplay, watchNextEpisodeArrives} from './MpvMode.mjs';
+import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPendingMs, autoOpenInMpv, inheritMpv, leaveMpvWhenOff, noteMpvTabClosed, onToggleMpv, openInMpv, openMpvWithSources, pausePlayerWhileAsked, pickNextEpisodeForMpv, resolveMpvContentType, sendPlayedToMpv, setMpvError, startMpv, stopMpv, syncAllMpvAutoplay, watchNextEpisodeArrives} from './MpvMode.mjs';
 
 /** @typedef {typeof import('../player/options/defaults/DefaultOptions.mjs').DefaultOptions} PlayerOptions */
 
@@ -802,6 +802,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           startTime: msg.startTime, subtitles: msg.subtitles,
           // Given either way, so openInMpv sends the one the player plays.
           qualities: Array.isArray(msg.qualities) ? msg.qualities : null,
+          whileAsked: pausePlayerWhileAsked(sender),
         })).then((result) => {
       if (Logging) console.log('[MPV] MPV_OPEN result:', JSON.stringify(result));
       if (!result.ok) {

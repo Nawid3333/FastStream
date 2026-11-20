@@ -60,6 +60,8 @@ if (EnvUtils.isExtension()) {
           return true;
         } else if (request.type === MessageTypes.VPN_ALLOWED && window.fastStream) {
           window.fastStream.vpnPrompt.onAllowed();
+        } else if (request.type === MessageTypes.MPV_ASKING && window.fastStream) {
+          window.fastStream.interfaceController?.saveManager?.whileMpvAsks();
         } else if (request.type === MessageTypes.EXIT_CARRIED_FULLSCREEN && window.fastStream) {
           // false: this player has no carried fullscreen, and the background ends it.
           sendResponse(window.fastStream.interfaceController.exitCarriedFullscreen());

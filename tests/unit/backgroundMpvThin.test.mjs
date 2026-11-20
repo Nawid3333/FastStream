@@ -432,6 +432,63 @@ describe('several mpv windows (helper 30)', () => {
       expect(bg.ports).toHaveLength(1);
     });
 
+    it('changes nothing for a second, late or unknown answer', async () => {
+      const port = await secondStream();
+      const id = offerCommands(port)[0][2];
+      choose(port, 'other-1', 'here');
+      choose(port, 'here', 'other-1');
+      await bg.wait(100);
+      expect(plays()).toHaveLength(1);
+      choose(port, 'here', id);
+      await bg.wait(100);
+      expect(plays()).toHaveLength(2);
+      for (const choice of ['here', 'window', 'none']) choose(port, choice, id);
+      await bg.wait(18000);
+      expect(plays()).toHaveLength(2);
+      expect(bg.ports).toHaveLength(1);
+      expect(bg.badges.get(2)).not.toBe('!');
+      expect((await tabState(2)).mpvError).toBeFalsy();
+    });
+
+    it('plays there when mpv-config answers "here" itself, as what played reached its end', async () => {
+      const port = await secondStream();
+      // What mpv-config does then: the end, and the answer for the banners still up.
+      ends(port, playOf(S1).target);
+      choose(port, 'here');
+      await bg.wait(100);
+      expect(playOf(SX1)).toMatchObject({window: WindowB});
+      expect((await tabState(2)).mpvWindow).toBe(WindowB);
+      // Tab 1's countdown for that end stopped: the window plays tab 2's stream now.
+      await bg.wait(6000);
+      expect(navigations).toEqual([]);
+    });
+
+    it('does not ask again for the same video while mpv asks, nor right after it was declined', async () => {
+      const port = await secondStream();
+      choose(port, 'none');
+      await bg.wait(100);
+      await bg.navigated(4, PLAIN);
+      await bg.frameAdded(4, 0, PLAIN, 'plain');
+      await bg.command('toggle_mpv', 4);
+      const play = () => bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://plain.test/1',
+        video: {src: 'blob:https://plain.test/1', duration: 1400}}, {tabId: 4, frameId: 0});
+      await play();
+      await bg.request({tabId: 4, url: SP1});
+      await bg.wait(1000);
+      expect(offerCommands(port)).toHaveLength(2);
+      // Past MpvPlayRepeatMs from the send, the question still up.
+      await bg.wait(11000);
+      await play();
+      await bg.wait(1000);
+      expect(offerCommands(port)).toHaveLength(2);
+      // No answer: declined at 17 s; the page player plays once more a few seconds on.
+      await bg.wait(5000);
+      await play();
+      await bg.wait(1000);
+      expect(offerCommands(port)).toHaveLength(2);
+      expect(plays()).toHaveLength(1);
+    });
+
     it('"new window" starts one that waits paused, which the tab follows; the window before plays on', async () => {
       const port = await secondStream();
       choose(port, 'window');
@@ -578,12 +635,15 @@ describe('several mpv windows (helper 30)', () => {
       const port = await secondStream();
       choose(port, 'none');
       await bg.wait(100);
+      expect(bg.sent('MPV_ASKING')).toEqual([]);
       let answer;
-      bg.message({type: 'MPV_OPEN', url: SX2, headers: []}, {tabId: 2, onAnswer: (value) => {
+      bg.message({type: 'MPV_OPEN', url: SX2, headers: []}, {tabId: 2, frameId: 5, onAnswer: (value) => {
         answer = value;
       }});
       await bg.wait(500);
       expect(offerCommands(port)).toHaveLength(2);
+      // The player that sent it pauses at once, as the page did: pauseTabMedia does not reach it.
+      expect(bg.sent('MPV_ASKING').map(({tabId, frameId}) => ({tabId, frameId}))).toEqual([{tabId: 2, frameId: 5}]);
       choose(port, 'none');
       await bg.wait(100);
       expect(answer).toEqual({ok: false, declined: true});

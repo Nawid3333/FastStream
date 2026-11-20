@@ -309,7 +309,15 @@ describe('SaveManager.openInMpv', () => {
     }
   });
 
-  it('says "not sent" with no error when it was declined in mpv, and leaves the player playing', async () => {
+  it('pauses the player while mpv asks, as the page is paused', async () => {
+    for (const mpvPausePage of [true, false]) {
+      const client = {...makeClient({}), options: {mpvPausePage}, pause: vi.fn(async () => {})};
+      new SaveManager(client).whileMpvAsks();
+      expect(client.pause).toHaveBeenCalledTimes(mpvPausePage ? 1 : 0);
+    }
+  });
+
+  it('says "not sent" with no error when it was declined in mpv, and starts nothing again', async () => {
     const statuses = [];
     const client = {
       ...makeClient({}),
@@ -374,8 +382,8 @@ describe('SaveManager.openInMpv', () => {
       expect(sent).toBe(2);
       await manager.openInMpv();
       expect(sent).toBe(2);
-      // Not within mpv's 17 s question to a window that plays.
-      vi.advanceTimersByTime(19999);
+      // Not within the waits before a send and mpv's 2 + 17 s question to a window that plays.
+      vi.advanceTimersByTime(29999);
       await manager.openInMpv();
       expect(sent).toBe(2);
       vi.advanceTimersByTime(1);

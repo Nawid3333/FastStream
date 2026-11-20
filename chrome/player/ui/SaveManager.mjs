@@ -16,9 +16,9 @@ import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {StatusTypes} from './StatusManager.mjs';
 
-// How long an mpv request may go unanswered before the button sends again: past mpv's 17 s question to a window
-// that plays (MpvOffer.mjs).
-const MPV_ANSWER_WAIT_MS = 20000;
+// How long an mpv request may go unanswered before the button sends again: past the waits before it and mpv's
+// question to a window that plays (2 s to ask the window, 17 s for the answer, MpvOffer.mjs).
+const MPV_ANSWER_WAIT_MS = 30000;
 
 /**
  * streamSaver as it is called here: StreamSaver.mjs's JSDoc lists options and size as
@@ -137,6 +137,13 @@ export class SaveManager {
       answered();
       console.warn('Sending to mpv failed', e);
       this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_fail'), 'error', 3000);
+    }
+  }
+
+  /** mpv asks whether to play the stream here or in a new window: the player waits paused, as a page does. */
+  whileMpvAsks() {
+    if (/** @type {{mpvPausePage?: boolean}} */ (this.client.options).mpvPausePage) {
+      this.client.pause().catch(() => {});
     }
   }
 
