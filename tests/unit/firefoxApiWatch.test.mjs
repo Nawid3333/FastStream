@@ -322,7 +322,7 @@ describe('MDN notes', () => {
 
   it('keeps the topics\' patterns as RegExp literals, without the g flag', () => {
     const patterns = [...Topics.topics.flatMap((t) => t.keywords), Topics.bugzilla.coreSummary, Topics.bugzilla.excludeSummary,
-      Topics.bugzilla.android, Topics.excludeText, Topics.androidText];
+      Topics.bugzilla.android, Topics.excludeText, Topics.androidText, Topics.desktopText];
     expect(patterns.length).toBeGreaterThan(100);
     for (const pattern of patterns) {
       expect(pattern).toBeInstanceOf(RegExp);
@@ -540,12 +540,53 @@ slug: Mozilla/Firefox/Releases/161
     // A removal of an API the code uses would be high on the desktop; on Android it is one level lower.
     expect(byTitle('`windows.create` removed on Android')).toMatchObject({android: true, kind: 'Compatibility risk', priority: 'medium'});
     // The same change on the desktop and Android is one desktop finding.
-    expect(byTitle('canConstructInDedicatedWorker')?.android).toBeUndefined();
+    const worker = byTitle('canConstructInDedicatedWorker');
+    expect(worker).toBeDefined();
+    expect(worker?.android).toBeUndefined();
     // A desktop note that names Android among other platforms stays a desktop finding.
-    expect(byTitle('HEVC on Windows and Android')?.android).toBeUndefined();
+    const hevc = byTitle('HEVC on Windows and Android');
+    expect(hevc).toBeDefined();
+    expect(hevc?.android).toBeUndefined();
     // Android's web platform changes are not reported, nor its Core bugs.
     const titles = findings.map((f) => f.title).join('\n');
     for (const gone of ['VideoDecoder', 'created in a worker', 'stutters']) expect(titles).not.toContain(gone);
+  });
+
+  it('keeps a note or bug that names the desktop too a desktop finding, at the desktop\'s priority', () => {
+    const mixed = `## Changes for add-on developers
+
+- {{WebExtAPIRef("tabs.query()")}} now rejects an unknown \`windowType\` in Firefox desktop and Firefox for Android. ([Firefox bug 161040](https://bugzil.la/161040))
+- {{WebExtAPIRef("windows.create()")}} now opens a tab in Firefox for Android. ([Firefox bug 161041](https://bugzil.la/161041))
+`;
+    const bugsOfBoth = [
+      {id: 161042, summary: 'tabs.sendMessage drops replies on Windows and Android', product: 'WebExtensions', component: 'General', keywords: []},
+    ];
+    const items = bugzillaItems({bugs: bugsOfBoth}, config.bugzilla, code.namespaces);
+    expect(items.map((i) => [i.bugs[0], i.android])).toEqual([[161042, undefined]]);
+    const withKnown = {...code, known: {namespaces: new Set(['tabs', 'windows']), manifestKeys: new Set()}};
+    const findings = relevantFindings([...parseMdnNotes(mixed, 161).items, ...items], config, withKnown);
+    const both = findings.find((f) => f.title.includes('unknown'));
+    expect(both).toMatchObject({kind: 'Compatibility risk', priority: 'high'});
+    expect(both?.android).toBeUndefined();
+    expect(findings.find((f) => f.aliases.includes('bug:161042'))?.android).toBeUndefined();
+    // `windows.create` names the API, not the desktop platform.
+    expect(findings.find((f) => f.title.includes('opens a tab'))).toMatchObject({android: true});
+  });
+
+  it('shows Android\'s change merged with the desktop\'s of the same API, without its weight', () => {
+    const bcd = {webextensions: {api: {tabs: {query: {__compat: {support: {
+      firefox: {version_added: '45'}, firefox_android: {version_added: '120', version_removed: '161'}}}}}}}};
+    const note = '## Changes for add-on developers\n\n- {{WebExtAPIRef("tabs.query()")}} accepts a new `groupId` option. ([Firefox bug 161050](https://bugzil.la/161050))\n';
+    const withKnown = {...code, known: {namespaces: new Set(['tabs']), manifestKeys: new Set()}};
+    const findings = relevantFindings([...parseMdnNotes(note, 161).items, ...bcdChanges(bcd, 161, all)], config, withKnown);
+    expect(findings).toHaveLength(1);
+    const desktopAlone = relevantFindings(parseMdnNotes(note, 161).items, config, withKnown)[0];
+    expect(findings[0]).toMatchObject({title: desktopAlone.title, kind: desktopAlone.kind, priority: desktopAlone.priority,
+      confidence: desktopAlone.confidence});
+    expect(desktopAlone.kind).not.toBe('Compatibility risk');
+    expect(findings[0].android).toBeUndefined();
+    expect(findings[0].detail).toContain('`tabs.query` removed on Android');
+    expect(findings[0].aliases.filter((a) => a.startsWith('bcd:'))).toHaveLength(1);
   });
 
   it('asks Bugzilla for Android\'s WebExtensions bugs and labels their findings in the issue', async () => {

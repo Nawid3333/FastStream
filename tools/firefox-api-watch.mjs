@@ -87,7 +87,8 @@ export const GitHubOwners = new Set(['mdn', 'mozilla', 'mozilla-firefox', 'w3c',
  *   that were reported. A note reworded under the same bug is not.
  * @typedef {{id: string, area: string, priority: Level, kind: Kind, keywords: RegExp[], bcd: string[], modules: string[]}} Topic
  * @typedef {{topics: Topic[], bugzilla: {coreComponents: string[], coreKeywords: string[], coreSummary: RegExp,
- *   excludeSummary: RegExp, android: RegExp}, excludeText: RegExp, androidText: RegExp, stopIdentifiers: string[]}} Config
+ *   excludeSummary: RegExp, android: RegExp, desktop: RegExp}, excludeText: RegExp, androidText: RegExp, desktopText: RegExp,
+ *   stopIdentifiers: string[]}} Config
  *   The patterns are RegExp literals (firefox-api-watch.topics.mjs), without the g flag: test()
  *   keeps no state between calls.
  * @typedef {{version: number, date: string, complete: boolean, reason: string, wip: boolean, checked: number,
@@ -570,9 +571,11 @@ export function bugzillaItems(json, config, namespaces) {
     const keywords = Array.isArray(bug?.keywords) ? bug.keywords.map(String) : [];
     const flagged = keywords.some((k) => config.coreKeywords.includes(k));
     const webext = isWebExtensionsBug(`${product}: ${component}`);
-    const android = config.android.test(summary) || component === 'Android' || product === AndroidBugs.product;
+    const namesAndroid = config.android.test(summary);
     // Firefox for Android is a bonus platform: of its bugs only the WebExtensions ones are read.
-    if (android && !webext) continue;
+    if (namesAndroid && !webext) continue;
+    // Android's alone: filed for it, or naming it and no desktop platform.
+    const android = component === 'Android' || product === AndroidBugs.product || (namesAndroid && !config.desktop.test(summary));
     if (!webext && !flagged && !coreSummary.test(summary)) continue;
     const identifiers = namesIn(summary);
     const ns = identifiers.map((n) => n.split('.')[0]).filter((n) => namespaces.has(n));
@@ -785,9 +788,11 @@ export function relevantFindings(items, config, index) {
     let matched = topics.filter((t) => t.patterns.some((p) => p.test(text)) || item.bcd.some((b) => t.bcd.some((pre) => underPrefix(b, pre))));
     const webext = webExtensionUse(item, index);
     if (webext === 'unused') continue;
-    // Firefox for Android is a bonus platform: of its changes only the WebExtensions ones are reported.
-    const android = item.android === true || config.androidText.test(text);
-    if (android && webext === 'none') continue;
+    // Firefox for Android is a bonus platform: of its changes only the WebExtensions ones are reported, and a note
+    // naming a desktop platform too is the desktop's.
+    const namesAndroid = config.androidText.test(text);
+    if (webext === 'none' && (item.android === true || namesAndroid)) continue;
+    const android = item.android === true || (namesAndroid && !config.desktopText.test(text));
     if (webext !== 'none' && webextTopic && !matched.includes(webextTopic)) matched.push(webextTopic);
     // A Core bug or a web API's BCD entry that merely says "extension" is not a WebExtensions change.
     if (webext === 'none') matched = matched.filter((t) => t !== webextTopic || item.source === 'mdn' || item.source === 'blog');
@@ -904,7 +909,9 @@ export function mergeFindings(findings) {
   });
   const sourceRank = ['mdn', 'blog', 'bcd', 'bugzilla'];
   return [...groups.values()].map((group) => {
-    const lead = [...group].sort((a, b) => sourceRank.indexOf(a.sources[0]) - sourceRank.indexOf(b.sources[0]))[0];
+    // Android's own change merged with the desktop's of the same API is shown, but weighs nothing.
+    const ranked = group.some((f) => !f.android) ? group.filter((f) => !f.android) : group;
+    const lead = [...ranked].sort((a, b) => sourceRank.indexOf(a.sources[0]) - sourceRank.indexOf(b.sources[0]))[0];
     /** @type {Map<string, Link>} */
     const links = new Map();
     for (const f of group) for (const l of f.links) links.set(l.url, l);
@@ -931,9 +938,9 @@ export function mergeFindings(findings) {
       mergeKeys: [...new Set(group.flatMap((f) => f.mergeKeys))],
       aliases: [...new Set(group.flatMap((f) => f.aliases))].sort(),
       areas: [...new Set(group.flatMap((f) => f.areas))],
-      kind: group.map((f) => f.kind).sort((a, b) => KindOrder.indexOf(b) - KindOrder.indexOf(a))[0],
-      priority: group.map((f) => f.priority).sort((a, b) => Levels.indexOf(b) - Levels.indexOf(a))[0],
-      confidence: group.map((f) => f.confidence).sort((a, b) => Levels.indexOf(b) - Levels.indexOf(a))[0],
+      kind: ranked.map((f) => f.kind).sort((a, b) => KindOrder.indexOf(b) - KindOrder.indexOf(a))[0],
+      priority: ranked.map((f) => f.priority).sort((a, b) => Levels.indexOf(b) - Levels.indexOf(a))[0],
+      confidence: ranked.map((f) => f.confidence).sort((a, b) => Levels.indexOf(b) - Levels.indexOf(a))[0],
       files: [...new Set(group.flatMap((f) => f.files))].sort(),
       used: [...new Set(group.flatMap((f) => f.used))].sort(),
       modules: [...new Set(group.flatMap((f) => f.modules))],
