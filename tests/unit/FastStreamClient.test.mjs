@@ -1170,6 +1170,26 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
     expect(said).toEqual(['player_buffer_incognito_warning']);
   });
 
+  it('fits the video and its separate audio track together', () => {
+    // 14 000 s of 800 kbit/s video fit 1.5 GB alone; with 256 kbit/s audio beside it, 1.85 GB, they did not, and the
+    // budget let go of what predownload fetched again, round and round.
+    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(true);
+    const withAudio = (audio) => {
+      const client = clientWithVideo({ramBudget: 2 * GB});
+      client.player.duration = 14000;
+      client.player.getVideoLevels = () => new Map([['video-1', {bitrate: 8e5}]]);
+      if (audio) {
+        client.player.audioLevel = 'audio-1';
+        client.player.getAudioLevels = () => new Map([['audio-1', {bitrate: 2.56e5}]]);
+        client.fragmentsStore['audio-1'] = [];
+      }
+      client.updateHasDownloadSpace();
+      return client;
+    };
+    expect(withAudio(true).hasDownloadSpace).toBe(false);
+    expect(withAudio(false).hasDownloadSpace).toBe(true);
+  });
+
   it('gives a private window\'s buffer back when its share grows again, and takes a new "Buffer ahead"', () => {
     // the fit to a share rises again, not only lowers
     vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(true);

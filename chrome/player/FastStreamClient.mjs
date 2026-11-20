@@ -720,6 +720,14 @@ export class FastStreamClient extends EventEmitter {
     if (fragments) {
       bitrate = Utils.measuredBitrate(fragments) ?? bitrate;
     }
+    // A separate audio track (DASH, HLS with its own audio) is held beside the video: fitted on the video alone, the
+    // two outgrew the RAM budget, which let go of what predownload fetched again, round and round.
+    const audioLevelID = this.getCurrentAudioLevelID();
+    const audioFragments = this.audioFragments;
+    if (bitrate && audioFragments && audioLevelID !== currentVideoLevelID) {
+      const audioLevel = this.getAudioLevels().get(/** @type {string} */ (audioLevelID));
+      bitrate += Utils.measuredBitrate(audioFragments) ?? audioLevel?.bitrate ?? 0;
+    }
     // With nothing on disk (a private window, "Keep video on disk" off, or no disk backend: FSBlob.diskGone),
     // what is kept must fit in this player's RAM share below MemoryBudget.LOW, or it is fetched again and again.
     const diskGone = this.downloadManager?.blobStore?.diskGone === true;
