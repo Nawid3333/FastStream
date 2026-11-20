@@ -1233,5 +1233,9 @@ share too, and a private window predownloads what fits in its RAM share. Codex t
 a room that moves with the share can end mid-video and pin fragments a full disk cannot take:
 RAM stayed "full" for the rest of the video. A fragment pinned only for good that the disk
 refuses is now let go of (`FastStreamClient.test.mjs`, "lets go of what was kept for good when
-the disk is full"). Rejected from the Claude API reviewer: repeated pinning (`addReference` adds
+the disk is full"). Its second round: the fit counted the video's bitrate alone, while RAM holds a
+separate audio track too, so a DASH stream "fitted" and the budget let go of what predownload
+fetched again, round and round (5.97 GB moved for a 1.85 GB stream); older for "Keep video on
+disk" off, reached by private windows now. The audio level's bitrate counts too ("fits the
+video and its separate audio track together"). Rejected from the Claude API reviewer: repeated pinning (`addReference` adds
 an id once) and an unset `bufferBehind` in a private window (it is only ever the option).
