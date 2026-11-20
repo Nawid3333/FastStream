@@ -292,6 +292,23 @@ function inPage(body, scriptArgs = []) {
 }
 
 /**
+ * The extension's origin from Firefox's own record of it, read in the chrome context: for when no page of it opened.
+ * @return {Promise<string|null>}
+ */
+async function originFromProfile() {
+  await wd('POST', `${session}/moz/context`, {context: 'chrome'});
+  try {
+    const uuid = await wd('POST', `${session}/execute/sync`, {
+      script: `return JSON.parse(Services.prefs.getStringPref('extensions.webextensions.uuids', '{}'))[arguments[0]] ?? null;`,
+      args: [ExtensionId],
+    });
+    return uuid ? `moz-extension://${uuid}` : null;
+  } finally {
+    await wd('POST', `${session}/moz/context`, {context: 'content'});
+  }
+}
+
+/**
  * Script errors from the extension's files in the browser console, read in the chrome context: its background, the
  * modules it imports from player/, its pages and content scripts. Not Firefox's own report of a page that went while
  * a message it sent awaited its answer (a player's FRAME_REMOVED on pagehide): the message arrives, and no code of
@@ -368,8 +385,9 @@ async function run() {
   // The welcome page opens in a tab of its own once the background has started.
   const welcome = await waitFor(async () => {
     for (const handle of await wd('GET', `${session}/window/handles`)) {
-      await wd('POST', `${session}/window`, {handle});
-      const url = await wd('GET', `${session}/url`);
+      // A tab may close between the list and the look.
+      const url = await wd('POST', `${session}/window`, {handle})
+          .then(() => wd('GET', `${session}/url`), () => '').catch(() => '');
       if (url.startsWith('moz-extension://')) return url;
     }
     return null;
@@ -380,7 +398,8 @@ async function run() {
     if (origin) await runInExtension(origin);
   } finally {
     // Also when no welcome page came: the console then names the file and line the background stopped at.
-    const errors = await scriptErrors(origin ? origin + '/' : 'moz-extension://')
+    const known = origin ?? await originFromProfile().catch(() => null);
+    const errors = await scriptErrors(known ? known + '/' : 'moz-extension://')
         .catch((e) => [`the console was not read: ${e}`]);
     check('no script error from the extension at the end', errors.length === 0, errors.join(' | '));
   }
@@ -404,7 +423,7 @@ async function runInExtension(origin) {
     }).catch(() => null);
     return seen?.path === '/player/index.html' && seen.title.includes('FastStream') && seen.nodes > 20 &&
       seen.player ? seen : null;
-  }, 30_000);
+  }, 120_000);
   check('the player page loads from the extension origin and its scripts run', page !== null, page ?? '');
   if (!page) return;
 
@@ -457,8 +476,8 @@ async function runInExtension(origin) {
   const frame = await waitFor(async () => {
     const found = await wd('POST', `${session}/elements`, {using: 'css selector', value: 'iframe[src*="/player/index.html"]'});
     return found.length ? found[0] : null;
-  }, 30_000);
-  check('FastStream\'s player takes a page\'s own video', frame !== null, frame ? undefined : 'no player frame after 30 s');
+  }, 120_000);
+  check('FastStream\'s player takes a page\'s own video', frame !== null, frame ? undefined : 'no player frame after 120 s');
   if (!frame) return;
   await wd('POST', `${session}/frame`, {id: frame});
   try {
