@@ -1008,7 +1008,10 @@
         "message": "La copia en la nube llega a tus otros ordenadores solo si Firefox tiene la sesión iniciada en una cuenta de Mozilla con «Complementos» marcado en los ajustes de Sync de Firefox. Firefox sincroniza cada 10 minutos aproximadamente; «Sincronizar ahora» es más rápido."
     },
     "options_cloud_confirm": {
-        "message": "¿Reemplazar tu configuración por la copia en la nube guardada el $1 en $2?"
+        "message": "¿Reemplazar tu configuración por la copia en la nube guardada el $1 ($2)?"
+    },
+    "options_cloud_replace": {
+        "message": "Reemplazar"
     },
     "options_cloud_none": {
         "message": "Aún no hay copia en la nube. Exporta primero desde otro ordenador; si acabas de hacerlo, usa «Sincronizar ahora» en Firefox y vuelve a intentarlo."

@@ -1008,7 +1008,10 @@
         "message": "只有當 Firefox 已登入 Mozilla 帳號，並在 Firefox 的同步設定中勾選「附加元件」時，雲端副本才會傳到您的其他電腦。Firefox 大約每 10 分鐘同步一次；按「立即同步」會更快。"
     },
     "options_cloud_confirm": {
-        "message": "要用 $1 於 $2 儲存的雲端副本取代您的設定嗎？"
+        "message": "要用儲存於 $1（$2）的雲端副本取代您的設定嗎？"
+    },
+    "options_cloud_replace": {
+        "message": "取代"
     },
     "options_cloud_none": {
         "message": "尚無雲端副本。請先在另一台電腦上匯出；如果剛剛匯出過，請在 Firefox 中按「立即同步」後再試一次。"

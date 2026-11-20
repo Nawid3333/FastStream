@@ -1008,7 +1008,10 @@
         "message": "Bulut kopyası diğer bilgisayarlarınıza yalnızca Firefox bir Mozilla hesabıyla oturum açmışsa ve Firefox'un eşitleme ayarlarında \"Eklentiler\" işaretliyse ulaşır. Firefox yaklaşık 10 dakikada bir eşitler; \"Şimdi eşitle\" daha hızlıdır."
     },
     "options_cloud_confirm": {
-        "message": "Ayarlarınız, $1 tarihinde $2 üzerinde kaydedilen bulut kopyasıyla değiştirilsin mi?"
+        "message": "Ayarlarınız, $1 tarihinde kaydedilen bulut kopyasıyla ($2) değiştirilsin mi?"
+    },
+    "options_cloud_replace": {
+        "message": "Değiştir"
     },
     "options_cloud_none": {
         "message": "Henüz bulut kopyası yok. Önce başka bir bilgisayardan dışa aktarın; az önce yaptıysanız Firefox'ta \"Şimdi eşitle\"yi kullanıp yeniden deneyin."

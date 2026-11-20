@@ -1008,7 +1008,10 @@
         "message": "De cloudkopie bereikt je andere computers alleen als Firefox is aangemeld bij een Mozilla-account met ‘Add-ons’ aangevinkt in de Sync-instellingen van Firefox. Firefox synchroniseert ongeveer elke 10 minuten; ‘Nu synchroniseren’ is sneller."
     },
     "options_cloud_confirm": {
-        "message": "Je instellingen vervangen door de cloudkopie die op $1 vanaf $2 is opgeslagen?"
+        "message": "Je instellingen vervangen door de cloudkopie van $1 ($2)?"
+    },
+    "options_cloud_replace": {
+        "message": "Vervangen"
     },
     "options_cloud_none": {
         "message": "Nog geen cloudkopie. Exporteer eerst vanaf een andere computer; als je dat net hebt gedaan, gebruik dan ‘Nu synchroniseren’ in Firefox en probeer het opnieuw."

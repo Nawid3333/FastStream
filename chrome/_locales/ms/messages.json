@@ -1008,7 +1008,10 @@
         "message": "Salinan awan hanya sampai ke komputer anda yang lain apabila Firefox log masuk ke akaun Mozilla dengan \"Add-on\" ditanda dalam tetapan Sync Firefox. Firefox menyegerak kira-kira setiap 10 minit; \"Sync Sekarang\" lebih pantas."
     },
     "options_cloud_confirm": {
-        "message": "Gantikan tetapan anda dengan salinan awan yang disimpan $1 pada $2?"
+        "message": "Gantikan tetapan anda dengan salinan awan yang disimpan $1 ($2)?"
+    },
+    "options_cloud_replace": {
+        "message": "Gantikan"
     },
     "options_cloud_none": {
         "message": "Belum ada salinan awan. Eksport dari komputer lain dahulu; jika anda baru melakukannya, gunakan \"Sync Sekarang\" dalam Firefox dan cuba lagi."

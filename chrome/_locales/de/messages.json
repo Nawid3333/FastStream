@@ -1008,7 +1008,10 @@
         "message": "Die Cloud-Kopie erreicht deine anderen Computer nur, wenn Firefox mit einem Mozilla-Konto angemeldet ist und in den Sync-Einstellungen von Firefox „Add-ons“ angehakt ist. Firefox synchronisiert etwa alle 10 Minuten; „Jetzt synchronisieren“ geht schneller."
     },
     "options_cloud_confirm": {
-        "message": "Deine Einstellungen durch die Cloud-Kopie ersetzen, die am $1 unter $2 gespeichert wurde?"
+        "message": "Deine Einstellungen durch die Cloud-Kopie vom $1 ($2) ersetzen?"
+    },
+    "options_cloud_replace": {
+        "message": "Ersetzen"
     },
     "options_cloud_none": {
         "message": "Noch keine Cloud-Kopie. Exportiere zuerst auf einem anderen Computer; wenn du das gerade getan hast, nutze „Jetzt synchronisieren“ in Firefox und versuche es erneut."

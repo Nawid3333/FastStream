@@ -1008,7 +1008,10 @@
         "message": "La copia nel cloud raggiunge gli altri tuoi computer solo se Firefox ha effettuato l'accesso a un account Mozilla con \"Componenti aggiuntivi\" selezionato nelle impostazioni di sincronizzazione di Firefox. Firefox sincronizza circa ogni 10 minuti; \"Sincronizza adesso\" è più rapido."
     },
     "options_cloud_confirm": {
-        "message": "Sostituire le tue impostazioni con la copia nel cloud salvata il $1 su $2?"
+        "message": "Sostituire le tue impostazioni con la copia nel cloud salvata il $1 ($2)?"
+    },
+    "options_cloud_replace": {
+        "message": "Sostituisci"
     },
     "options_cloud_none": {
         "message": "Ancora nessuna copia nel cloud. Esporta prima da un altro computer; se l'hai appena fatto, usa \"Sincronizza adesso\" in Firefox e riprova."

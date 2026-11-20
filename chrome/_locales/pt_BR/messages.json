@@ -1008,7 +1008,10 @@
         "message": "A cópia na nuvem só chega aos seus outros computadores quando o Firefox está conectado a uma conta Mozilla com \"Extensões\" marcado nas configurações de sincronização do Firefox. O Firefox sincroniza mais ou menos a cada 10 minutos; \"Sincronizar agora\" é mais rápido."
     },
     "options_cloud_confirm": {
-        "message": "Substituir suas configurações pela cópia na nuvem salva em $1 no $2?"
+        "message": "Substituir suas configurações pela cópia na nuvem salva em $1 ($2)?"
+    },
+    "options_cloud_replace": {
+        "message": "Substituir"
     },
     "options_cloud_none": {
         "message": "Ainda não há cópia na nuvem. Exporte primeiro em outro computador; se acabou de fazer isso, use \"Sincronizar agora\" no Firefox e tente de novo."

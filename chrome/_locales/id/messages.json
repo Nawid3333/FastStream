@@ -1008,7 +1008,10 @@
         "message": "Salinan cloud hanya sampai ke komputer Anda yang lain jika Firefox masuk ke akun Mozilla dengan \"Pengaya\" dicentang di pengaturan Sync Firefox. Firefox menyinkronkan sekitar setiap 10 menit; \"Sinkronkan Sekarang\" lebih cepat."
     },
     "options_cloud_confirm": {
-        "message": "Ganti pengaturan Anda dengan salinan cloud yang disimpan $1 di $2?"
+        "message": "Ganti pengaturan Anda dengan salinan cloud yang disimpan $1 ($2)?"
+    },
+    "options_cloud_replace": {
+        "message": "Ganti"
     },
     "options_cloud_none": {
         "message": "Belum ada salinan cloud. Ekspor dari komputer lain terlebih dahulu; jika baru saja melakukannya, gunakan \"Sinkronkan Sekarang\" di Firefox lalu coba lagi."

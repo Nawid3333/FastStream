@@ -1008,7 +1008,10 @@
         "message": "클라우드 사본은 Firefox가 Mozilla 계정에 로그인되어 있고 Firefox 동기화 설정에서 '부가 기능'이 선택된 경우에만 다른 컴퓨터로 전달됩니다. Firefox는 약 10분마다 동기화하며, '지금 동기화'를 누르면 더 빠릅니다."
     },
     "options_cloud_confirm": {
-        "message": "$1에 $2에서 저장된 클라우드 사본으로 설정을 바꿀까요?"
+        "message": "$1($2)에 저장된 클라우드 사본으로 설정을 바꿀까요?"
+    },
+    "options_cloud_replace": {
+        "message": "바꾸기"
     },
     "options_cloud_none": {
         "message": "아직 클라우드 사본이 없습니다. 먼저 다른 컴퓨터에서 내보내세요. 방금 내보냈다면 Firefox에서 '지금 동기화'를 누른 뒤 다시 시도하세요."

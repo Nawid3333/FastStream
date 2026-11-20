@@ -1008,7 +1008,10 @@
         "message": "Kopia w chmurze dociera na inne komputery tylko wtedy, gdy Firefox jest zalogowany na konto Mozilli, a w ustawieniach synchronizacji Firefoksa zaznaczono „Dodatki”. Firefox synchronizuje mniej więcej co 10 minut; „Synchronizuj teraz” działa szybciej."
     },
     "options_cloud_confirm": {
-        "message": "Zastąpić ustawienia kopią z chmury zapisaną $1 w systemie $2?"
+        "message": "Zastąpić ustawienia kopią z chmury zapisaną $1 ($2)?"
+    },
+    "options_cloud_replace": {
+        "message": "Zastąp"
     },
     "options_cloud_none": {
         "message": "Nie ma jeszcze kopii w chmurze. Najpierw wyeksportuj ustawienia z innego komputera; jeśli eksport był przed chwilą, użyj „Synchronizuj teraz” w Firefoksie i spróbuj ponownie."

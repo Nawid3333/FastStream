@@ -215,38 +215,52 @@ function errorMessage(error) {
   }
 }
 
-/** The options page's "Export to cloud" and "Import from cloud", and the copy's status. */
+/**
+ * The options page's "Export to cloud" and "Import from cloud", and the copy's status. The import
+ * asks on the page, not with window.confirm: the page is embedded in about:addons and framed in
+ * the player inside web pages, where a dialog is not known to work.
+ */
 export class CloudSettings {
   /**
    * @param {Object} parts
-   * @param {HTMLElement} parts.box - The buttons, the status, the result and the hint.
+   * @param {HTMLElement} parts.box - The buttons, the question, the status, the result and the hint.
    * @param {HTMLButtonElement} parts.exportButton
    * @param {HTMLButtonElement} parts.importButton
+   * @param {HTMLElement} parts.question - Whether to replace the settings; hidden until asked.
+   * @param {HTMLElement} parts.questionText
+   * @param {HTMLButtonElement} parts.replaceButton
+   * @param {HTMLButtonElement} parts.cancelButton
    * @param {HTMLElement} parts.status - When the copy was saved, or that there is none.
    * @param {HTMLElement} parts.result - What the last click did.
    * @param {SyncArea|undefined} parts.area - storage.sync; none in the web build.
    * @param {() => Promise<Object>} parts.settings - The object the file export writes.
    * @param {(settings: Object<string, *>) => void} parts.apply - The file import's way in.
-   * @param {(text: string) => boolean} parts.confirm
    * @param {() => Promise<string>} parts.os
    * @param {() => boolean} parts.isAndroid
    */
-  constructor({box, exportButton, importButton, status, result, area, settings, apply, confirm, os, isAndroid}) {
+  constructor({box, exportButton, importButton, question, questionText, replaceButton, cancelButton, status, result,
+    area, settings, apply, os, isAndroid}) {
     this.box = box;
     this.exportButton = exportButton;
     this.importButton = importButton;
+    this.question = question;
+    this.questionText = questionText;
+    this.replaceButton = replaceButton;
     this.status = status;
     this.result = result;
     this.area = area;
     this.settings = settings;
     this.apply = apply;
-    this.confirm = confirm;
     this.os = os;
     this.isAndroid = isAndroid;
     this.seen = false;
+    /** @type {?Object<string, *>} The copy the open question is about. */
+    this.asked = null;
 
     exportButton.addEventListener('click', () => this.exportCopy());
     importButton.addEventListener('click', () => this.importCopy());
+    replaceButton.addEventListener('click', () => this.replace());
+    cancelButton.addEventListener('click', () => this.closeQuestion(true));
     area?.onChanged?.addListener((changes) => {
       if (Object.keys(changes).some(isCloudKey)) this.refresh();
     });
@@ -285,20 +299,51 @@ export class CloudSettings {
 
   /** @return {Promise<void>} */
   async exportCopy() {
+    this.closeQuestion();
     await this.#busy(async (area) => {
       await saveCloudCopy(area, await this.settings(), await this.os());
       this.result.textContent = Localize.getMessage('options_cloud_export_done');
     });
   }
 
-  /** @return {Promise<void>} */
+  /**
+   * Reads the copy and asks whether to replace the settings with it; a question already open
+   * goes, unanswered.
+   * @return {Promise<void>}
+   */
   async importCopy() {
+    this.closeQuestion();
     await this.#busy(async (area) => {
       const {meta, settings} = await readCloudCopy(area);
-      if (!this.confirm(Localize.getMessage('options_cloud_confirm', savedOn(meta)))) return;
+      this.asked = settings;
+      this.questionText.textContent = Localize.getMessage('options_cloud_confirm', savedOn(meta));
+      this.question.hidden = false;
+      this.replaceButton.focus();
+    });
+  }
+
+  /** The answer "Replace": the copy the question was about goes in. */
+  replace() {
+    const settings = this.asked;
+    this.closeQuestion(true);
+    if (!settings) return;
+    try {
       this.apply(settings);
       this.result.textContent = Localize.getMessage('options_cloud_import_done');
-    });
+    } catch (e) {
+      this.result.textContent = errorMessage(e);
+    }
+  }
+
+  /**
+   * Takes the question down, with no change.
+   * @param {boolean} [answered] - From one of its buttons: the focus goes back to "Import from cloud".
+   */
+  closeQuestion(answered = false) {
+    const open = !this.question.hidden;
+    this.asked = null;
+    this.question.hidden = true;
+    if (answered && open) this.importButton.focus();
   }
 
   /**

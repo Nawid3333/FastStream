@@ -2008,8 +2008,15 @@ the buttons is always shown.
 - **The same object as the file, the same way in.** The copy is what the file export writes
   (`settingsToExport` in options.mjs: the mpv path left out), and an import goes through the
   file import's code (`applyImportedSettings`: the migrations, numbers and menus held to the
-  fields, the mpv path kept from this computer), after a `window.confirm` that names when and
-  on which system the copy was saved. The options page had no confirm dialog of its own.
+  fields, the mpv path kept from this computer), and only after "Replace".
+- **Asked on the page, not with `window.confirm`.** The options page is embedded in about:addons
+  (`open_in_tab: false`) and is a frame in the player, which sits in web pages; whether a
+  dialog shows there is not known, and a `confirm()` that returned false at once would make the
+  import never work. "Import from cloud" reads the copy, then shows "Replace your settings with
+  the cloud copy saved <date> (<system>)?" under the buttons with "Replace" and "Cancel" (real
+  buttons; the focus goes to "Replace"). The question holds the copy it names: "Cancel", or a
+  click on either cloud button, takes it down unanswered, so a Replace after a newer export
+  brings no stale copy in; another import asks about the copy there then.
 - **Layout.** `fsCloudMeta` = `{v: 1, savedAt, os, chunks, length, sha256}` (the system from
   `runtime.getPlatformInfo`; no device name), and `fsCloud0`.. the compact JSON cut into
   strings, each item (key and the slice's JSON, in UTF-8) at most 8000 bytes: `"` and `\` count
@@ -2045,9 +2052,10 @@ the buttons is always shown.
   the defaults and of 300-entry lists; leftover chunks; the quota leaving the copy as it was;
   no copy, a missing chunk, two copies mixed with the same length, a broken meta; another
   computer's cut), `optionsCloud.test.mjs` (the page: same object as the file, the file import's
-  checks, the confirm, the messages, one click at a time, Android and no `storage.sync`),
-  `optionsPage.test.mjs` (hidden in the web build), and `cloud-settings.e2e.mjs` (export, the
-  items in Firefox's `storage.sync`, a cancelled and an accepted import, and the quota steps).
+  checks, the question and its focus, Cancel, a question taken down by an export or another
+  import, the messages, one click at a time, Android and no `storage.sync`),
+  `optionsPage.test.mjs` (hidden in the web build), and `cloud-settings.e2e.mjs` (no copy, export,
+  the items in Firefox's `storage.sync`, a cancelled and a replaced import, and the quota steps).
 
 ## Measuring two builds: tools/bench-ab.mjs
 

@@ -1008,7 +1008,10 @@
         "message": "The cloud copy reaches your other computers only when Firefox is signed in to a Mozilla account with \"Add-ons\" checked in Firefox's Sync settings. Firefox syncs about every 10 minutes; \"Sync Now\" is faster."
     },
     "options_cloud_confirm": {
-        "message": "Replace your settings with the cloud copy saved $1 on $2?"
+        "message": "Replace your settings with the cloud copy saved $1 ($2)?"
+    },
+    "options_cloud_replace": {
+        "message": "Replace"
     },
     "options_cloud_none": {
         "message": "No cloud copy yet. Export from another computer first; if you just did, use Sync Now in Firefox and try again."

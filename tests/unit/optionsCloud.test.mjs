@@ -79,6 +79,7 @@ async function openOptionsPage({options = {}, sync = fakeStorageSync(), os = 'wi
   };
   if (userAgent) vi.stubGlobal('navigator', {userAgent, platform: 'Win32'});
   let observed = null;
+  // Never asked: the page asks on itself (CloudSettings.mjs says why).
   const confirm = vi.fn(() => true);
   const win = {opener: null, location: {origin: 'moz-extension://test'}, addEventListener() {}, confirm};
   win.parent = win;
@@ -112,6 +113,9 @@ async function openOptionsPage({options = {}, sync = fakeStorageSync(), os = 'wi
     box: () => byId('cloudsettings'),
     status: () => byId('cloudstatus').textContent,
     result: () => byId('cloudresult').textContent,
+    // The question's text while it is shown, null while it is not.
+    question: () => byId('cloudquestion').hidden ? null : byId('cloudquestiontext').textContent,
+    focused: () => doc.activeElement.id,
     savedOptions: () => JSON.parse(local.options),
     click: async (id) => {
       byId(id).fire('click');
@@ -145,6 +149,13 @@ describe('the cloud buttons', () => {
     expect(english.options_cloud_import.message).toBe('Import from cloud');
     expect(page.byId('cloudhint').dataset.i18n).toBe('options_cloud_hint');
     expect(page.byId('cloudhint').hidden).toBe(false);
+    // The question: hidden until asked, its answers real buttons.
+    expect(page.question()).toBe(null);
+    expect(page.byId('cloudquestion').parentNode).toBe(page.box());
+    expect(page.byId('cloudreplace').tagName).toBe('BUTTON');
+    expect(page.byId('cloudcancel').tagName).toBe('BUTTON');
+    expect(english[page.byId('cloudreplace').dataset.i18n].message).toBe('Replace');
+    expect(english[page.byId('cloudcancel').dataset.i18n].message).toBe('Cancel');
   });
 
   it('say there is no cloud copy yet, and read storage.sync only once the page is seen', async () => {
@@ -178,38 +189,85 @@ describe('the cloud buttons', () => {
     page.byId('cloudimport').fire('click');
     await settle();
     expect(page.sync.calls.filter(([call]) => call === 'set')).toHaveLength(1);
-    expect(page.confirm).not.toHaveBeenCalled();
+    expect(page.question()).toBe(null);
     expect(page.byId('cloudexport').disabled).toBe(false);
   });
 
-  it('import the cloud copy after asking, through the file import\'s checks', async () => {
+  /**
+   * A page with another computer's copy in the cloud: numbers out of their fields' limits and
+   * an mpv path, against the page's own seek step 7 and mpv path.
+   */
+  async function pageWithCloudCopy() {
     const sync = fakeStorageSync();
-    // Another computer's copy, with numbers out of their fields' limits and an mpv path.
     const settings = {...DefaultOptions, seekStepSize: -5, autoEnableURLs: ['https://cloud.example'],
       mpvPath: 'C:\\planted\\mpv.exe', subtitlesSettings: {}, toolSettings: {}};
     await saveCloudCopy(sync, settings, 'linux', NOW);
-    const page = await openOptionsPage({sync, options: {seekStepSize: 7, mpvPath: 'C:\\mine\\mpv.exe'}});
+    return openOptionsPage({sync, options: {seekStepSize: 7, mpvPath: 'C:\\mine\\mpv.exe'}});
+  }
+
+  it('import the cloud copy only on Replace, through the file import\'s checks', async () => {
+    const page = await pageWithCloudCopy();
     expect(page.status()).toBe(`Cloud copy: saved ${shown(NOW)} (Linux)`);
 
-    page.confirm.mockReturnValueOnce(false);
     await page.click('cloudimport');
-    expect(page.confirm).toHaveBeenCalledWith(`Replace your settings with the cloud copy saved ${shown(NOW)} on Linux?`);
+    expect(page.question()).toBe(`Replace your settings with the cloud copy saved ${shown(NOW)} (Linux)?`);
+    expect(page.focused()).toBe('cloudreplace');
+    expect(page.savedOptions().seekStepSize).toBe(7);
+
+    await page.click('cloudcancel');
+    expect(page.question()).toBe(null);
+    expect(page.focused()).toBe('cloudimport');
     expect(page.savedOptions().seekStepSize).toBe(7);
     expect(page.result()).toBe('');
 
     await page.click('cloudimport');
-    expect(page.confirm).toHaveBeenCalledTimes(2);
+    await page.click('cloudreplace');
+    expect(page.question()).toBe(null);
+    expect(page.focused()).toBe('cloudimport');
     expect(page.result()).toBe('Settings imported from the cloud.');
     expect(page.byId('autoEnableURLs').value).toBe('https://cloud.example');
     expect(page.savedOptions().autoEnableURLs).toEqual(['https://cloud.example']);
     expect(page.savedOptions().seekStepSize).toBe(0.1);
     expect(page.savedOptions().mpvPath).toBe('C:\\mine\\mpv.exe');
+    expect(page.confirm).not.toHaveBeenCalled();
+  });
+
+  it('take the question down, unanswered, on an export', async () => {
+    const page = await pageWithCloudCopy();
+    await page.click('cloudimport');
+    expect(page.question()).not.toBe(null);
+    await page.click('cloudexport');
+    expect(page.question()).toBe(null);
+    // A Replace that still comes (a click on its way) brings no stale copy in.
+    await page.click('cloudreplace');
+    expect(page.savedOptions().seekStepSize).toBe(7);
+    expect(page.result()).toBe('Settings exported to the cloud.');
+  });
+
+  it('take the question down, unanswered, on another import, and ask about the copy there now', async () => {
+    const page = await pageWithCloudCopy();
+    await page.click('cloudimport');
+    // The copy goes from the cloud: the next import finds none, and asks nothing.
+    page.sync.arrive(Object.fromEntries(Object.keys(page.sync.data).map((key) => [key, undefined])));
+    await page.click('cloudimport');
+    expect(page.result()).toBe(english.options_cloud_none.message);
+    expect(page.question()).toBe(null);
+    await page.click('cloudreplace');
+    expect(page.savedOptions().seekStepSize).toBe(7);
+    // Another computer's copy comes: the question is about that one.
+    const other = fakeStorageSync();
+    await saveCloudCopy(other, {...DefaultOptions, seekStepSize: 9, subtitlesSettings: {}, toolSettings: {}}, 'mac', NOW + 60000);
+    page.sync.arrive(other.data);
+    await page.click('cloudimport');
+    expect(page.question()).toBe(`Replace your settings with the cloud copy saved ${shown(NOW + 60000)} (macOS)?`);
+    await page.click('cloudreplace');
+    expect(page.savedOptions().seekStepSize).toBe(9);
   });
 
   it('say so when there is no cloud copy, without asking', async () => {
     const page = await openOptionsPage();
     await page.click('cloudimport');
-    expect(page.confirm).not.toHaveBeenCalled();
+    expect(page.question()).toBe(null);
     expect(page.result()).toBe(english.options_cloud_none.message);
     expect(page.result()).toBe('No cloud copy yet. Export from another computer first; if you just did, use Sync Now in Firefox and try again.');
   });
@@ -220,7 +278,7 @@ describe('the cloud buttons', () => {
     delete sync.data[chunkKey(0)];
     const page = await openOptionsPage({sync});
     await page.click('cloudimport');
-    expect(page.confirm).not.toHaveBeenCalled();
+    expect(page.question()).toBe(null);
     expect(page.result()).toBe('The cloud copy is incomplete; it may still be syncing. Try again in a few minutes.');
   });
 

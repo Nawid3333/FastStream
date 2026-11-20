@@ -45,30 +45,38 @@ async function setSeekStep(seconds) {
 }
 
 /**
- * Clicks a cloud button, answers its confirm (window.confirm, through WebDriver's alert
- * commands), and waits for its result line.
+ * Clicks a cloud button and waits until its work is done.
  * @param {string} id
- * @param {boolean} [accept] - The answer to the confirm; none expected without it.
- * @return {Promise<string|{asked: string, result: string}>} The result line, and what was asked.
+ * @return {Promise<{result: string, question: ?string}>} The result line, and the question
+ *     shown (null for none).
  */
-async function clickCloud(id, accept) {
-  // The click's work starts by reading storage: the confirm comes after this returns.
+async function clickCloud(id) {
   await browser.execute((id) => {
     document.getElementById('cloudresult').textContent = '';
     document.getElementById(id).click();
   }, id);
-  let asked = null;
-  if (accept !== undefined) {
-    await browser.waitUntil(async () => {
-      asked = await browser.getAlertText().catch(() => null);
-      return asked !== null;
-    }, {timeout: 10000, timeoutMsg: `${id} asked nothing`});
-    await (accept ? browser.acceptAlert() : browser.dismissAlert());
-  }
   await browser.waitUntil(async () => browser.execute(() => !document.getElementById('cloudexport').disabled &&
     !document.getElementById('cloudimport').disabled), {timeout: 10000, timeoutMsg: `${id} never finished`});
-  const result = await text('cloudresult');
-  return accept === undefined ? result : {asked, result};
+  return browser.execute(() => ({
+    result: document.getElementById('cloudresult').textContent,
+    question: document.getElementById('cloudquestion').hidden ? null : document.getElementById('cloudquestiontext').textContent,
+  }));
+}
+
+/**
+ * Asks to import, and answers the question on the page.
+ * @param {'cloudreplace'|'cloudcancel'} answer
+ * @return {Promise<{asked: ?string, focused: string, result: string, open: boolean}>} The
+ *     question, what had the focus while it was shown, and the page after the answer.
+ */
+async function importAnswering(answer) {
+  const {question: asked} = await clickCloud('cloudimport');
+  const focused = await browser.execute(() => document.activeElement?.id ?? '');
+  await browser.execute((id) => document.getElementById(id).click(), answer);
+  return {asked, focused, ...await browser.execute(() => ({
+    result: document.getElementById('cloudresult').textContent,
+    open: !document.getElementById('cloudquestion').hidden,
+  }))};
 }
 
 describe('the options page\'s cloud copy', function() {
@@ -92,9 +100,11 @@ describe('the options page\'s cloud copy', function() {
     await browser.waitUntil(async () => await text('cloudstatus') === await message('options_cloud_status_none'),
         {timeout: 10000, timeoutMsg: 'the status never said there is no cloud copy'});
     expect(await browser.execute(() => document.getElementById('cloudsettings').hidden)).toBe(false);
+    // No copy: said so, nothing asked.
+    expect(await clickCloud('cloudimport')).toEqual({result: await message('options_cloud_none'), question: null});
 
     await setSeekStep(7);
-    expect(await clickCloud('cloudexport')).toBe(await message('options_cloud_export_done'));
+    expect(await clickCloud('cloudexport')).toEqual({result: await message('options_cloud_export_done'), question: null});
 
     const items = await syncItems();
     const meta = items.fsCloudMeta;
@@ -118,12 +128,13 @@ describe('the options page\'s cloud copy', function() {
     expect(status).toContain(`(${osName})`);
 
     await setSeekStep(3);
+    const asked = expect.stringContaining(`(${osName})?`);
     // Cancel: nothing changes.
-    expect(await clickCloud('cloudimport', false)).toEqual({asked: expect.stringContaining(`${osName}?`), result: ''});
+    expect(await importAnswering('cloudcancel')).toEqual({asked, focused: 'cloudreplace', result: '', open: false});
     expect(await savedSeekStep()).toBe(3);
 
-    expect(await clickCloud('cloudimport', true)).toEqual({
-      asked: expect.stringContaining(`${osName}?`), result: await message('options_cloud_import_done'),
+    expect(await importAnswering('cloudreplace')).toEqual({
+      asked, focused: 'cloudreplace', result: await message('options_cloud_import_done'), open: false,
     });
     await browser.waitUntil(async () => await savedSeekStep() === 7,
         {timeout: 10000, timeoutMsg: 'the imported seek step was never saved'});

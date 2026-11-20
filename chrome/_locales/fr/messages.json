@@ -1008,7 +1008,10 @@
         "message": "La copie dans le cloud n'atteint vos autres ordinateurs que si Firefox est connecté à un compte Mozilla avec « Modules complémentaires » coché dans les paramètres de synchronisation de Firefox. Firefox synchronise environ toutes les 10 minutes ; « Synchroniser maintenant » est plus rapide."
     },
     "options_cloud_confirm": {
-        "message": "Remplacer vos paramètres par la copie du cloud enregistrée le $1 sous $2 ?"
+        "message": "Remplacer vos paramètres par la copie du cloud enregistrée le $1 ($2) ?"
+    },
+    "options_cloud_replace": {
+        "message": "Remplacer"
     },
     "options_cloud_none": {
         "message": "Aucune copie dans le cloud pour l'instant. Exportez d'abord depuis un autre ordinateur ; si vous venez de le faire, utilisez « Synchroniser maintenant » dans Firefox et réessayez."
