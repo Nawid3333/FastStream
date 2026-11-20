@@ -292,6 +292,16 @@ describe('playMpv', () => {
     expect(files.map((file) => path.basename(file))).toEqual(['1 English.srt', '2 .. .. evil.srt']);
     for (const file of files) expect(path.dirname(file).startsWith(base)).toBe(true);
     expect(files.map((file) => fs.readFileSync(file, 'utf8'))).toEqual(['one', 'two']);
+    expect(path.basename(path.dirname(files[0]))).toMatch(/^faststream-mpv-subs-\w{6}$/);
+  });
+
+  it('writes a private window\'s subtitles into a folder marked for mpv to remove (faststream-private.lua)', async () => {
+    const base = scratch('fs-thin-subs-');
+    const io = stand({running: [basePipe]});
+    await playMpv('mpv.exe', play({target: `${target}&fs-private=1`, subtitles: [{label: 'English', srt: 'one'}]}),
+        {ipcToken: token}, {...io, subtitleBase: base});
+    const files = loadfiles(io.record)[0].command.options['sub-files'].split(path.delimiter);
+    expect(files.map((file) => path.basename(path.dirname(file)))).toEqual([expect.stringMatching(/^faststream-mpv-subs-p-\w{6}$/)]);
   });
 
   it('starts no second mpv when the one on the pipe is busy or refuses the stream', async () => {

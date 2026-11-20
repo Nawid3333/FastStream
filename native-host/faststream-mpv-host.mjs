@@ -42,7 +42,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
 // The extension compares it with RequiredHostVersion (chrome/background/MpvBackend.mjs). Raise it
 // with every change to this file or install.ps1, with tests/unit/mpvHostVersion.test.mjs.
-export const HostVersion = 28;
+export const HostVersion = 29;
 
 // The messages the extension may send; a host without this list gets the older ones.
 export const Capabilities = Object.freeze(['play', 'ipc', 'relay', 'hls']);
@@ -928,8 +928,23 @@ const MaxSubtitles = 8;
 const MaxSubtitleChars = 1024 * 1024;
 // The folders the subtitles are written into, one per send, in the user's temp folder.
 export const SubtitleDirPrefix = 'faststream-mpv-subs-';
+// A private window's: mpv-config's faststream-private.lua removes its files once mpv moved on from the stream.
+export const PrivateSubtitleDirPrefix = SubtitleDirPrefix + 'p-';
 // mpv reads a subtitle file when it loads the stream; older folders are removed.
 const SubtitleDirMaxAgeMs = 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a play message's target comes from a private window (its fs-private tag).
+ * @param {string} target - checkPlayMessage took it for a URL.
+ * @return {boolean}
+ */
+function isPrivateTarget(target) {
+  try {
+    return new URL(target).hash.slice(1).split('&').includes('fs-private=1');
+  } catch (e) {
+    return false;
+  }
+}
 
 /**
  * The position to start the stream at, when the message names a usable one.
@@ -961,9 +976,10 @@ export function subtitlesOf(message) {
  * day. The file name is what mpv's track list shows.
  * @param {Array<{srt: string, label: string}>} subtitles - From subtitlesOf.
  * @param {string} [base] - The folder to write under; the temp folder by default.
+ * @param {boolean} [isPrivate] - A private window's: the folder is named for mpv to remove (PrivateSubtitleDirPrefix).
  * @return {Array<string>} The files, in order.
  */
-export function writeSubtitleFiles(subtitles, base = os.tmpdir()) {
+export function writeSubtitleFiles(subtitles, base = os.tmpdir(), isPrivate = false) {
   if (subtitles.length === 0) {
     return [];
   }
@@ -979,7 +995,7 @@ export function writeSubtitleFiles(subtitles, base = os.tmpdir()) {
   } catch (e) {
     // Cleaning up is a courtesy; writing the new ones is what matters.
   }
-  const dir = fs.mkdtempSync(path.join(base, SubtitleDirPrefix));
+  const dir = fs.mkdtempSync(path.join(base, isPrivate ? PrivateSubtitleDirPrefix : SubtitleDirPrefix));
   return subtitles.map((s, i) => {
     const label = s.label.replace(/[^\p{L}\p{N} ._-]+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
     const file = path.join(dir, `${i + 1}${label ? ' ' + label : ''}.srt`);
@@ -993,7 +1009,8 @@ export function writeSubtitleFiles(subtitles, base = os.tmpdir()) {
 export const HlsDirPrefix = 'faststream-mpv-hls-';
 // ffmpeg reads a stream's playlists once, when it opens it; older folders are removed whenever the helper ends.
 // A private window's (fs-private: its addresses are browsing history) once mpv moved on from it or closed
-// (privatePackageWatch), else two minutes on: longer than a play waits before mpv opens it (LaunchLockMs).
+// (privatePackageWatch here, mpv-config's faststream-private.lua there), else two minutes on: longer than a play
+// waits before mpv opens it (LaunchLockMs).
 const HlsDirMaxAgeMs = 2 * 24 * 60 * 60 * 1000;
 const PrivateHlsDirPrefix = HlsDirPrefix + 'p-';
 const PrivateHlsDirMaxAgeMs = 2 * 60 * 1000;
@@ -1279,13 +1296,7 @@ export function hlsMasterIn(text, dir, paths = path) {
  */
 export function writeHlsPackage(files, target, base = os.tmpdir()) {
   removeOldHlsPackages(base);
-  let isPrivate = false;
-  try {
-    isPrivate = new URL(target).hash.slice(1).split('&').includes('fs-private=1');
-  } catch (e) {
-    // checkPlayMessage took it for a URL.
-  }
-  const dir = fs.mkdtempSync(path.join(base, isPrivate ? PrivateHlsDirPrefix : HlsDirPrefix));
+  const dir = fs.mkdtempSync(path.join(base, isPrivateTarget(target) ? PrivateHlsDirPrefix : HlsDirPrefix));
   try {
     for (const file of files) {
       const text = file.name === 'master.m3u8' ? hlsMasterIn(file.text, dir) : file.text;
@@ -2528,9 +2539,9 @@ export async function playMpv(mpvPath, play, config, io = {}) {
   const {busy, ...answer} = await playEntry(mpvPath, play, config, io, entry);
   if (!play.hls) return answer;
   if (answer.ok) return {...answer, local: entry};
-  // Busy: the load is in mpv's pipe, and mpv may still run it. The folder goes by its age; a private window's
-  // at once all the same, as nothing may be left to remove it later.
-  if (!busy || path.basename(path.dirname(entry)).startsWith(PrivateHlsDirPrefix)) {
+  // Busy: the load is in mpv's pipe, and mpv may still run it. The folder stays: mpv removes a private window's once
+  // it moved on from it (faststream-private.lua), and the next helper to end any by its age.
+  if (!busy) {
     try {
       fs.rmSync(path.dirname(entry), {recursive: true, force: true});
     } catch (e) {
@@ -2558,7 +2569,7 @@ async function playEntry(mpvPath, play, config, io, entry) {
   /** @type {Array<string>} */
   let subFiles = [];
   try {
-    subFiles = writeSubtitleFiles(play.subtitles, io.subtitleBase);
+    subFiles = writeSubtitleFiles(play.subtitles, io.subtitleBase, isPrivateTarget(play.target));
   } catch (e) {
     // The stream still plays without them.
     debugLog(config, 'subtitles-failed', {error: String(e)});
