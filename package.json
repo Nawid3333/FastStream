@@ -53,7 +53,7 @@
   },
   "homepage": "https://github.com/Nawid3333/FastStream#readme",
   "devDependencies": {
-    "@stylistic/eslint-plugin": "^6.0.0",
+    "@stylistic/eslint-plugin": "^6.0.1",
     "@types/chrome": "^0.3.7",
     "@types/node": "^26.6.6",
     "@vitest/coverage-v8": "^5.1.0",
