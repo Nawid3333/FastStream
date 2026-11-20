@@ -172,7 +172,7 @@ describe('the offer to turn MPV mode on', () => {
     expect(page.banner().hidden).toBe(true);
   });
 
-  it('is not made on Firefox for Android, which runs no helper, and MPV mode and its section are hidden', async () => {
+  it('is not offered on Firefox for Android, which runs no helper, and MPV mode and its section are hidden', async () => {
     const desktop = await openOptionsPage({os: 'win'});
     expect(desktop.byId('mpvmoderow').hidden).toBe(false);
     expect(desktop.byId('mpvsection').hidden).toBe(false);
@@ -186,8 +186,17 @@ describe('the offer to turn MPV mode on', () => {
 
   it('hides MPV mode once Firefox says Android, when the user agent is a desktop site\'s', async () => {
     const page = await openOptionsPage({os: 'android', userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0'});
+    expect(page.hostAsked()).toBe(0);
     expect(page.byId('mpvmoderow').hidden).toBe(true);
     expect(page.byId('mpvsection').hidden).toBe(true);
+  });
+
+  it('shows MPV mode and offers it once Firefox says Windows, when the user agent is set to Android\'s', async () => {
+    const page = await openOptionsPage({os: 'win', userAgent: 'Mozilla/5.0 (Android 15; Mobile; rv:153.0) Gecko/153.0 Firefox/153.0'});
+    expect(page.byId('mpvmoderow').hidden).toBe(false);
+    expect(page.byId('mpvsection').hidden).toBe(false);
+    expect(page.hostAsked()).toBe(1);
+    expect(page.banner().hidden).toBe(false);
   });
 
   it('stays hidden when the background does not answer', async () => {

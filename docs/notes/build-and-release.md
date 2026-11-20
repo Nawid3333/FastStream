@@ -228,11 +228,14 @@ Android's API set: no message listener and none of the `webRequest` listeners.
 `setCarriedFullscreen` answers `exit` without `chrome.windows`, so the next episode plays in
 the page. MPV: `loadOptions` turns `mpvMode` off in the background when
 `runtime.connectNative` is missing (settings brought from a desktop); the options page hides
-the MPV toggle and the MPV section, and makes no `MpvSuggestion`, and the player hides its MPV
+the MPV toggle and the MPV section, and offers no MPV suggestion, and the player hides its MPV
 button, both by `EnvUtils.isAndroid()`. The player and the options page are frames in pages,
 where Firefox gives an extension fewer APIs, so they ask for the platform
-(`runtime.getPlatformInfo`, the user agent until it answers) instead of testing for
-`connectNative`; the background has every API and tests the features themselves.
+(`runtime.getPlatformInfo`) instead of testing for `connectNative`; the background has every
+API and tests the features themselves. Until Firefox answers, `isAndroid()` guesses from the
+user agent, which a user agent override (a desktop that says Android) or Android's desktop-site
+mode makes wrong, so both pages decide again once the answer is there, either way, and the
+suggestion waits for it.
 
 **What keeps it working:** `tests/unit/firefoxAndroid.test.mjs` loads the background with
 Android's API set and expects every listener the desktop has but those of what Android

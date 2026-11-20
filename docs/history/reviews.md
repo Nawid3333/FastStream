@@ -1084,3 +1084,23 @@ Rejected:
   parameter of the same name): after a FreshLink renewal the hand-off's link is the latest issue,
   and files under the earlier issue carry other values, so they were no longer found. No host
   is known whose files are told apart by a parameter of a name the link's signature changes.
+
+## Firefox for Android, step 1 (2026-11-20)
+
+Codex reviewed the change that lets the same build run on Firefox for Android ("Firefox for
+Android" in `docs/notes/build-and-release.md`). It found no API Android lacks still used
+unguarded in the background's start, the manifest's content scripts or the options page, and
+nothing in `gecko_android` that signing or `updates.json` would trip over. Fixed:
+
+- The options page hid MPV mode, and made no MPV suggestion, by the user agent alone: a desktop
+  whose user agent says Android lost them for good, though Firefox answers `win`. Both pages
+  now decide again once `runtime.getPlatformInfo` answers, either way, and the suggestion waits
+  for it (`optionsMpvSuggestion.test.mjs`, "shows MPV mode and offers it once Firefox says
+  Windows").
+- The player never asked Firefox for the platform, so in Android's desktop-site mode, with MPV
+  mode from a desktop's settings, it showed an MPV button that only fails. `ToolManager` asks
+  and redraws (not covered by a test: the fake DOM cannot hold the player page).
+- Two test assertions proved nothing: no helper message could be recorded once Android's API
+  set had removed `sendNativeMessage`, and a message without an answer is `undefined` anyway.
+  The tests now record each look for `sendNativeMessage` and each unhandled rejection; each
+  fails without its guard.

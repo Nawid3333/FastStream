@@ -22,6 +22,9 @@ export class ToolManager {
 
   setupUI() {
     this.updateToolVisibility();
+    // Firefox's answer for EnvUtils.isAndroid (the MPV button), over the user agent's guess.
+    EnvUtils.os().then(() => this.updateToolVisibility())
+        .catch((e) => console.error('Reading the platform failed', e));
     DOMElements.playerContainer.addEventListener('click', (e) => {
       this.stopReorderUI();
       DOMElements.extraTools.classList.remove('visible');

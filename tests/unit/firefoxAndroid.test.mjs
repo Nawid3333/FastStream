@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
-import {afterEach, describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {loadBackground} from './backgroundHarness.mjs';
 
@@ -88,17 +88,37 @@ describe('the background page on Firefox for Android', () => {
     expect(bg.toMpv()).toEqual([STREAM]);
     bg.unload();
 
-    await pageWithStream({beforeImport: asOnAndroid});
-    expect(bg.native).toEqual([]);
+    // The helper is asked through sendNativeMessage, which Android lacks: each time the code looks
+    // for it is a hand-off tried.
+    const looks = [];
+    await pageWithStream({beforeImport: (chrome) => {
+      asOnAndroid(chrome);
+      Object.defineProperty(chrome.runtime, 'sendNativeMessage', {configurable: true, get: () => {
+        looks.push('sendNativeMessage');
+        return undefined;
+      }});
+    }});
+    expect(looks).toEqual([]);
     await bg.click(1);
     expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
   });
 
   it('lets a key the page cancelled go, with no shortcuts to match it against', async () => {
-    bg = await loadBackground({tabs: [{id: 1, url: PAGE}], beforeImport: asOnAndroid});
-    const press = {type: 'SHORTCUT_CANCELLED', key: 'u', code: 'KeyU', ctrlKey: true, altKey: false, shiftKey: true, metaKey: false};
-    expect(await bg.message(press, {tabId: 1, url: PAGE})).toBe(undefined);
-    await bg.wait(100);
+    const rejections = [];
+    const onRejection = (/** @type {*} */ reason) => rejections.push(String(reason));
+    process.on('unhandledRejection', onRejection);
+    try {
+      bg = await loadBackground({tabs: [{id: 1, url: PAGE}], beforeImport: asOnAndroid});
+      const press = {type: 'SHORTCUT_CANCELLED', key: 'u', code: 'KeyU', ctrlKey: true, altKey: false, shiftKey: true, metaKey: false};
+      await bg.message(press, {tabId: 1, url: PAGE});
+      await bg.wait(100);
+      // Node reports an unhandled rejection after a turn of its event loop: a real one.
+      vi.useRealTimers();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    } finally {
+      process.off('unhandledRejection', onRejection);
+    }
+    expect(rejections).toEqual([]);
     expect(bg.sentToTabs).toEqual([]);
   });
 

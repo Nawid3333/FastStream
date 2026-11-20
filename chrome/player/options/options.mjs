@@ -98,7 +98,7 @@ customSourcePatterns.placeholder = '# This is a comment. Use the following forma
 // Until then OptionsStore.get() gives the defaults: a change made then would save them over the user's.
 let optionsLoaded = false;
 // Outside the update banner's SPLICER block, so the AMO build has it too.
-const mpvSuggestion = EnvUtils.isExtension() && !EnvUtils.isAndroid() ? new MpvSuggestion({
+const mpvSuggestion = EnvUtils.isExtension() ? new MpvSuggestion({
   box: /** @type {HTMLElement} */ (document.getElementById('mpvsuggestbox')),
   text: /** @type {HTMLElement} */ (document.getElementById('mpvsuggesttext')),
   enableButton: /** @type {HTMLElement} */ (document.getElementById('mpvsuggestyes')),
@@ -110,21 +110,27 @@ const mpvSuggestion = EnvUtils.isExtension() && !EnvUtils.isAndroid() ? new MpvS
   },
 }) : null;
 let pageSeen = false;
+// Firefox's answer to EnvUtils.os(); the user agent's guess until it comes, which a user
+// agent override or Android's desktop-site mode makes wrong.
+let platformKnown = false;
 // Firefox for Android runs no mpv helper: its options are not shown there.
-const hideMpvOptions = () => {
-  /** @type {HTMLElement} */ (document.getElementById('mpvmoderow')).hidden = true;
-  /** @type {HTMLElement} */ (document.getElementById('mpvsection')).hidden = true;
+const showMpvOptions = () => {
+  const hidden = EnvUtils.isAndroid();
+  /** @type {HTMLElement} */ (document.getElementById('mpvmoderow')).hidden = hidden;
+  /** @type {HTMLElement} */ (document.getElementById('mpvsection')).hidden = hidden;
 };
-if (EnvUtils.isAndroid()) hideMpvOptions();
-// For EnvUtils.isWindows and isAndroid.
-EnvUtils.os().then((os) => {
-  if (os === 'android') hideMpvOptions();
-}).catch((e) => console.error('Hiding the MPV options failed', e));
+showMpvOptions();
 const offerMpvWhenReady = () => {
-  if (mpvSuggestion && optionsLoaded && pageSeen) {
+  if (mpvSuggestion && optionsLoaded && pageSeen && platformKnown && !EnvUtils.isAndroid()) {
     mpvSuggestion.check().catch((e) => console.error('Asking the mpv host failed', e));
   }
 };
+// Also for EnvUtils.isWindows.
+EnvUtils.os().then(() => {
+  platformKnown = true;
+  showMpvOptions();
+  offerMpvWhenReady();
+}).catch((e) => console.error('Reading the platform failed', e));
 OptionsStore.init().then(() => {
   optionsLoaded = true;
   loadOptions(OptionsStore.get());
