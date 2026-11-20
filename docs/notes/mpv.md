@@ -37,6 +37,91 @@ extension changes with it, so such a push releases, Firefox updates the extensio
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run.
 
+**Host 28 (2026-11-19, two faults of the playlist files; RequiredHostVersion stays 19).** Found by the
+audit of 2026-11-19 and measured with the real helper code against a headless mpv 0.42 of its own
+(`--no-config --vo=null`, a pipe and temp folder of its own):
+- *A `#` in the temp folder's path* (a Windows account whose name has one). ffmpeg resolves a playlist's
+  name against the master's own address up to a `#` or `?`: for `...\user#1\...\master.m3u8` it opened
+  `...\0.m3u8` beside the folder `user` ("parse_playlist error No such file or directory", "Failed to
+  recognize file format"), the video mpv was playing was gone, and the helper had answered ok. A media
+  playlist alone (whole http(s) addresses) plays there. `hlsMasterIn` now writes a master's playlists as
+  whole paths with forward slashes in such a folder, and only there; it reads the result back as ffmpeg
+  would (`hlsAddresses`). Measured: the same package plays, a master with an audio rendition
+  (`URI="..."`) too. Spaces, umlauts, `%`, `&`, `+`, `=`, `;`, `,`, `'` and brackets in the path needed
+  nothing (measured; Windows allows no `"` in a name, and a path with one and a `#` is refused where a
+  `URI="..."` would need it). Not measured on Linux or macOS.
+- *A master that cannot be named whole there is refused* ("Could not write the playlists of the stream for
+  mpv: ..."; nothing is written, mpv is not asked): an unquoted `URI=`, which the extension never writes, or a
+  line the whole path makes longer than ffmpeg reads. Written as sent, such a master did not only fail: ffmpeg
+  opened what lay beside the folder the `#` cuts the path at. Measured with the ffmpeg program (N-124093,
+  2026-04; no mpv could be started, the owner's was playing): two playlists put there were read and their
+  segments asked for. The helper's rule is that ffmpeg opens the package's own files and http(s) addresses and
+  nothing else; before host 28 it did not hold for a master under such a path. Refused there as well: a temp
+  folder that is no whole path itself (a relative `TEMP`). ffmpeg resolved the names written for it against
+  the master's folder once more (measured: "Opening 'work\work/user#1/.../1.m3u8'", no such file). Without a
+  `#` nothing is rewritten for a relative `TEMP`, and the entry goes to mpv as a relative path like every
+  temp file of the helper (its subtitles too): that works only while mpv's working folder is the helper's.
+  Not handled; no setup with a relative `TEMP` is known.
+- *ffmpeg reads a playlist's line up to 4095 bytes and drops the rest* (`ff_get_line` into `char
+  line[MAX_URL_SIZE]`, the same code in mpv's ffmpeg; measured: an address of 5000 bytes was asked for up to
+  its 4095th byte, an address behind 4095 bytes of the same line never). `hlsAddresses` reads a line that far
+  too, for every package: before, a `URI` cut short was checked whole, and a key address cut to `http` is a
+  file beside the playlist to ffmpeg. The first form of host 28 wrote a line the whole path had made longer,
+  and ffmpeg read the start of the path, the whole name of another file (Codex found it; measured with a
+  playlist put at that name, whose segment was asked for). Both are now refused. From a line's end ffmpeg
+  removes the spaces of ASCII and no others (`av_isspace`), and `hlsAddresses` does the same: a master naming
+  `0.m3u8` with a no-break space behind it passed the check, and was another, missing file to ffmpeg (Codex).
+- *The first line as ffmpeg reads it* (Codex's third pass; measured with the ffmpeg program). The check asked
+  only that a file starts with `#EXTM3U`. ffmpeg compares the first line with it (`strcmp(line, "#EXTM3U")`,
+  after the cut at 4095 bytes and without the ASCII spaces at its end): `#EXTM3Ux` and `#EXTM3U` with a
+  no-break space behind it are "Invalid data", and the helper had answered ok for a file mpv could not open.
+  Such a file is refused now ("no playlist text"). `#EXTM3U` with spaces behind it, also past 4095 bytes,
+  and line ends of a carriage return alone are read by ffmpeg, and taken as before. The rule is for every file
+  of a package. Beside a variant it can read ffmpeg skips one it cannot (measured: it played the other), and
+  with no other it fails; the helper takes a package whole or not at all, as it does for a playlist without
+  an end. So a package with one such file among good ones is refused although ffmpeg would play the rest
+  (Codex's fifth pass); none is known.
+- *The check lists more than ffmpeg reads, on purpose.* Measured with the ffmpeg program: it takes a key for
+  a URI only as `URI=` exactly (`strncmp(key, "URI=", key_len)`, the `=` counted in). A rendition's playlist
+  was not opened behind a no-break space, as `uri=`, with a space before the `=`, nor as `U=`, `UR=` or
+  with an empty key (glm had read the comparison as taking those three). Of two `URI`s in one tag it reads
+  the last (the key was asked from the second address). It reads no `URI` of a comment or of a tag it does
+  not know, and opens a name only behind a variant's or a segment's tag (a bare `4.m3u8` in a master was not
+  opened). A key tag without a `URI` makes it read the key from the playlist's own address, a file of the
+  package. `hlsAddresses` lists every address a playlist names: a `URI` of any tag, also as `uri` or with
+  spaces around the key, and every line that is no tag. The helper's rule is about what ffmpeg could open, so
+  the longer list is the safe side: a local address behind `uri=` or in a comment is refused although this
+  ffmpeg would not read it. Its price: such a line is refused also where ffmpeg plays the stream (Codex built
+  one: a tag ffmpeg does not know, cut at byte 4095 inside its `https` address). It follows that "named by its
+  master" means named in that list. A playlist named only where ffmpeg does not read (behind `uri=`, as the
+  first of two `URI`s, on a bare line) is written and never opened, and the stream plays without it. Under a
+  path with a `#` every line that is a name and every `URI="..."` gets the whole path, read by ffmpeg or not;
+  a name behind `uri=` or `URI =` cannot be written whole, and such a master is refused there (Claude's
+  review, 2026-11-19: an earlier form of this note called the bare line and the first of two `URI`s refused;
+  run, they are written whole and accepted). The check reads a line as far as ffmpeg does, so what stands
+  behind byte 4095 is not checked: that rests on ffmpeg's 4096-byte line buffer, measured with the program
+  named below, and a build that read longer lines would open what the helper never saw. Listing the whole
+  line as well was tried and taken back: it refused cut lines ffmpeg plays, which the tests pin as accepted.
+  The extension's `masterText` writes a name only behind a variant's tag and in a
+  rendition's `URI="..."`. One form of host 28 refused such keys and two `URI`s in one tag instead. Codex's
+  fourth pass showed the cost: a playlist ffmpeg plays was refused for a comment like
+  `# source:uri=https://...`. That form was taken back before any merge.
+- *A line cut inside a character.* ffmpeg cuts by bytes: when the 4095th byte is the first of a two-byte
+  character, it keeps that byte (it asked for `...%C3`). No text holds it, and `hlsAddresses` has a
+  replacement character there. Every check comes out the same with it: a web address stays one, and no
+  playlist's name or whole path ends in it. So nothing is refused for it. (The same form of host 28 refused
+  every address on such a line, also one ffmpeg reads whole in front of the cut; taken back as well.)
+- *A busy mpv.* When mpv did not answer within 6 s, `playMpv` removed the playlists like those of any play
+  that failed. The load is in mpv's pipe by then: mpv held for 7 s ran it afterwards, stopped the video it
+  was playing and failed on the missing file ("Cannot open file"). The folder now stays when the answer is
+  "busy" (it goes by its age), and mpv plays the stream once it runs on, as it does a stream sent by its
+  address. The answer to the extension is unchanged. All three busy answers keep it: the open mpv's, the
+  one after the wait for another helper's start, and a new mpv's that took the load into its pipe and did
+  not answer it (the last one was missed at first; glm and the Claude reviewer both found it). A private
+  window's folder still goes at once, as before host 28: after a play that failed no helper may run again
+  to remove it, and its addresses are browsing history. There the fault stays as it was (the load in the
+  pipe fails once mpv runs on).
+
 **Host 27 (2026-11-18): streams mpv cannot open alone; RequiredHostVersion stays 19.** The owner's
 report: MPV opened on 123moviesfree.net (vidsrc chain) and showed "something HTML". Measured with
 `mpv.com --no-config --vo=null` on the live playlist: ffmpeg refuses it ("Not detecting m3u8/hls with
@@ -81,7 +166,8 @@ now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` b
   whitelist", and a media package naming a local segment "Protocol 'file' not on whitelist". The HLS
   probe needs `#EXTM3U` first (the helper's check) and a variant or target-duration tag. Folders go
   after two days, whenever a helper ends (each message; a watch when mpv closes), and at once when
-  the play failed; a folder that cannot be removed is skipped. A private window's (fs-private) goes
+  the play failed (not when mpv was only busy, unless it is a private window's: host 28); a folder that
+  cannot be removed is skipped. A private window's (fs-private) goes
   once mpv moved on from it or closed (the relay sees mpv's `path`: `privatePackageWatch`; not
   when the extension lets go, as a new hand-off's may not be open yet), else two minutes on: a play
   waits up to 35 s before mpv opens its package (`LaunchLockMs`, `PipeWaitMs`), so a shorter age
