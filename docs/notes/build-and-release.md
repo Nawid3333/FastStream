@@ -243,7 +243,9 @@ lacks, and the toolbar button, a cancelled key, a carried fullscreen and MPV mod
 settings to work there. It also reads Mozilla's data (through web-ext's addons-linter, no
 package of its own) for every API the code uses: a new one Android lacks fails it until it is
 guarded and listed. Mozilla's linter does not catch these: `web-ext lint --self-hosted` on
-the AMO build with `gecko_android` gives 0 errors, 0 warnings, 0 notices.
+the AMO build with `gecko_android` gives 0 errors, 0 warnings, 0 notices. Between Dependabot's
+updates, the Firefox API watch reports what each release changes for Android's WebExtensions
+(`workflows.md`, "Firefox API watch").
 
 **Installing it on a phone:** AMO's listed channel, where Android users normally find
 add-ons, is closed to this fork until the licence question in `CLAUDE.md` is settled. The

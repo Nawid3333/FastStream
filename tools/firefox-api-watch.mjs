@@ -43,6 +43,16 @@ export const LinkHosts = new Set(['developer.mozilla.org', 'bugzilla.mozilla.org
   'www.mozilla.org', 'www.firefox.com', 'github.com', 'whattrainisitnow.com', 'firefox-source-docs.mozilla.org']);
 /** The most bugs asked of Bugzilla per query; an answer this long fails the run (cut short). */
 export const BugzillaLimit = 1000;
+/** Where Bugzilla files Firefox for Android's own WebExtensions bugs (1-2 a release, 2026-11-20). */
+export const AndroidBugs = {product: 'Firefox for Android', component: 'WebExtensions'};
+
+/**
+ * A Bugzilla bug about WebExtensions, by its "product: component".
+ * @param {string} section
+ */
+function isWebExtensionsBug(section) {
+  return section.startsWith('WebExtensions') || section === `${AndroidBugs.product}: ${AndroidBugs.component}`;
+}
 /** The only owners a github.com link may point to. */
 export const GitHubOwners = new Set(['mdn', 'mozilla', 'mozilla-firefox', 'w3c', 'whatwg', 'tc39', 'webassembly']);
 
@@ -63,19 +73,22 @@ export const GitHubOwners = new Set(['mdn', 'mozilla', 'mozilla-firefox', 'w3c',
  *   experimental: boolean,
  *   removal: boolean,
  *   flagged: boolean,
+ *   android?: boolean,
  * }} RawItem
  *   title/detail are plain text with `code` spans (unsafe until md() renders them).
+ *   android: about Firefox for Android only (its BCD column, a bug filed or named for it).
  * @typedef {{
  *   title: string, detail: string, sources: string[], aliases: string[], mergeKeys: string[], areas: string[],
  *   kind: Kind, priority: Level, confidence: Level, files: string[], used: string[], modules: string[],
- *   links: Link[], experimental: boolean, members: string[][],
+ *   links: Link[], experimental: boolean, members: string[][], android?: boolean,
  * }} Finding
  *   members: each merged item's own keys (its bugs and BCD change, else its text's): a finding
  *   with an item that has a key not reported before is news, even when it merged with items
  *   that were reported. A note reworded under the same bug is not.
  * @typedef {{id: string, area: string, priority: Level, kind: Kind, keywords: RegExp[], bcd: string[], modules: string[]}} Topic
  * @typedef {{topics: Topic[], bugzilla: {coreComponents: string[], coreKeywords: string[], coreSummary: RegExp,
- *   excludeSummary: RegExp}, excludeText: RegExp, stopIdentifiers: string[]}} Config
+ *   excludeSummary: RegExp, android: RegExp, desktop: RegExp}, excludeText: RegExp, androidText: RegExp, desktopText: RegExp,
+ *   stopIdentifiers: string[]}} Config
  *   The patterns are RegExp literals (firefox-api-watch.topics.mjs), without the g flag: test()
  *   keeps no state between calls.
  * @typedef {{version: number, date: string, complete: boolean, reason: string, wip: boolean, checked: number,
@@ -430,14 +443,40 @@ export function hash(text) {
 }
 
 /**
+ * One browser's change in the release, from its BCD support statements; null when it has none.
+ * @param {any} support - support.firefox or support.firefox_android.
+ * @param {number} version
+ * @param {string} name
+ * @return {{title: string, removal: boolean, bugs: number[]} | null}
+ */
+function supportChange(support, version, name) {
+  const v = String(version);
+  const statements = (Array.isArray(support) ? support : [support]).filter(
+      (s) => s && typeof s === 'object' && !s.prefix && !s.alternative_name);
+  const plain = statements.filter((s) => !s.flags);
+  const added = plain.find((s) => s.version_added === v);
+  const earlier = plain.some((s) => s !== added && typeof s.version_added === 'string' &&
+    /^\d+(\.\d+)?$/.test(s.version_added) && Number(s.version_added) < version && !s.version_removed);
+  const removed = plain.find((s) => s.version_removed === v);
+  if (!added && !removed) return null;
+  const bugs = statements.flatMap((s) => [s.impl_url].flat())
+      .map((u) => /(?:bugzil\.la\/|show_bug\.cgi\?id=)(\d{1,8})/.exec(String(u ?? '')))
+      .filter((m) => m !== null).map((m) => Number(/** @type {RegExpExecArray} */ (m)[1]));
+  const partial = added?.partial_implementation ? ' (partly)' : '';
+  const title = removed && !added ? `\`${name}\` removed` :
+    earlier ? `\`${name}\` support changed${partial}` : `\`${name}\` supported${partial}`;
+  return {title, removal: !!removed && !added, bugs: [...new Set(bugs)]};
+}
+
+/**
  * Features whose Firefox support starts (without a preference) or ends in the release, under the wanted paths.
+ * Firefox for Android's column gives an item of its own only where it differs from the desktop's.
  * @param {any} data - BCD's data.json.
  * @param {number} version
  * @param {(path: string) => boolean} wanted - Whether a feature path is worth reporting.
  * @return {RawItem[]}
  */
 export function bcdChanges(data, version, wanted) {
-  const v = String(version);
   /** @type {RawItem[]} */
   const items = [];
   /**
@@ -449,29 +488,20 @@ export function bcdChanges(data, version, wanted) {
     for (const [key, child] of Object.entries(node)) {
       if (key === '__compat') {
         if (!wanted(at)) continue;
-        const support = /** @type {any} */ (child)?.support?.firefox;
-        const statements = (Array.isArray(support) ? support : [support]).filter(
-            (s) => s && typeof s === 'object' && !s.prefix && !s.alternative_name);
-        const plain = statements.filter((s) => !s.flags);
-        const added = plain.find((s) => s.version_added === v);
-        const earlier = plain.some((s) => s !== added && typeof s.version_added === 'string' &&
-          /^\d+(\.\d+)?$/.test(s.version_added) && Number(s.version_added) < version && !s.version_removed);
-        const removed = plain.find((s) => s.version_removed === v);
-        if (!added && !removed) continue;
-        const bugs = statements.flatMap((s) => [s.impl_url].flat())
-            .map((u) => /(?:bugzil\.la\/|show_bug\.cgi\?id=)(\d{1,8})/.exec(String(u ?? '')))
-            .filter((m) => m !== null).map((m) => Number(/** @type {RegExpExecArray} */ (m)[1]));
+        const compat = /** @type {any} */ (child);
         const name = at.replace(/^(api|webextensions\.api|webextensions\.manifest|javascript\.builtins)\./, '');
-        const mdnUrl = safeUrl(String(/** @type {any} */ (child)?.mdn_url ?? ''));
-        const partial = added?.partial_implementation ? ' (partly)' : '';
-        const title = removed && !added ? `\`${name}\` removed` :
-          earlier ? `\`${name}\` support changed${partial}` : `\`${name}\` supported${partial}`;
-        items.push({
-          source: 'bcd', title, detail: '', section: at.split('.')[0], bugs: [...new Set(bugs)], bcd: [at],
-          links: mdnUrl ? [{label: 'MDN', url: mdnUrl}] : [], identifiers: identifiersOfPath(at),
-          textKey: `bcd:${hash(`${at}|${version}|${removed && !added ? 'removed' : 'added'}`)}`,
-          experimental: false, removal: !!removed && !added, flagged: false,
-        });
+        const desktop = supportChange(compat?.support?.firefox, version, name);
+        const android = supportChange(compat?.support?.firefox_android, version, name);
+        const mdnUrl = safeUrl(String(compat?.mdn_url ?? ''));
+        for (const [change, onAndroid] of /** @type {const} */ ([[desktop, false], [android?.title === desktop?.title ? null : android, true]])) {
+          if (!change) continue;
+          items.push({
+            source: 'bcd', title: onAndroid ? `${change.title} on Android` : change.title, detail: '', section: at.split('.')[0],
+            bugs: change.bugs, bcd: [at], links: mdnUrl ? [{label: 'MDN', url: mdnUrl}] : [], identifiers: identifiersOfPath(at),
+            textKey: `bcd:${hash(`${at}|${version}|${change.removal ? 'removed' : 'added'}${onAndroid ? '|android' : ''}`)}`,
+            experimental: false, removal: change.removal, flagged: false, ...(onAndroid ? {android: true} : {}),
+          });
+        }
       } else if (!key.startsWith('__')) {
         walk(child, at ? `${at}.${key}` : key);
       }
@@ -540,13 +570,20 @@ export function bugzillaItems(json, config, namespaces) {
     /** @type {string[]} */
     const keywords = Array.isArray(bug?.keywords) ? bug.keywords.map(String) : [];
     const flagged = keywords.some((k) => config.coreKeywords.includes(k));
-    if (product !== 'WebExtensions' && !flagged && !coreSummary.test(summary)) continue;
+    const webext = isWebExtensionsBug(`${product}: ${component}`);
+    const namesAndroid = config.android.test(summary);
+    // Firefox for Android is a bonus platform: of its bugs only the WebExtensions ones are read.
+    if (namesAndroid && !webext) continue;
+    // Android's alone: filed for it, or naming it and no desktop platform.
+    const android = component === 'Android' || product === AndroidBugs.product || (namesAndroid && !config.desktop.test(summary));
+    if (!webext && !flagged && !coreSummary.test(summary)) continue;
     const identifiers = namesIn(summary);
     const ns = identifiers.map((n) => n.split('.')[0]).filter((n) => namespaces.has(n));
     items.push({
       source: 'bugzilla', title: `Bug ${id}: ${summary}`, detail: '', section: `${product}: ${component}`, bugs: [id],
       bcd: [], links: [], identifiers, textKey: '', experimental: false,
       removal: /^(remove|drop|deprecate)\b/i.test(summary), flagged: flagged || ns.length > 0,
+      ...(android ? {android: true} : {}),
     });
   }
   return items;
@@ -607,7 +644,8 @@ export function codeIndex({files} = {}) {
   /** @type {Set<string>} */
   const namespaces = new Set();
   for (const text of files.values()) {
-    for (const m of text.matchAll(/\b(?:chrome|browser)\.([a-zA-Z]+)\./g)) namespaces.add(m[1]);
+    // `chrome.windows?.create`: an API Firefox for Android lacks is called behind optional chaining.
+    for (const m of text.matchAll(/\b(?:chrome|browser)\.([a-zA-Z]+)\??\./g)) namespaces.add(m[1]);
   }
   /** @type {Set<string>} */
   let manifestKeys = new Set();
@@ -694,8 +732,9 @@ export function findUses(identifiers, files, stop, namespaces = new Set()) {
       names.set(member, {iface: parts[0], strong: true});
     }
   }
+  // A dotted name matches with optional chaining too (`windows?.create`).
   const word = (/** @type {string} */ id, /** @type {string} */ flags = '') =>
-    new RegExp(`(?<![\\w$])${escapeRegExp(id)}(?![\\w$])`, flags);
+    new RegExp(`(?<![\\w$])${escapeRegExp(id).replace(/\\\./g, '\\??\\.')}(?![\\w$])`, flags);
   for (const [id, how] of names) {
     if (!/^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*$/.test(id) || stop.has(id)) continue;
     const pattern = word(id);
@@ -749,6 +788,11 @@ export function relevantFindings(items, config, index) {
     let matched = topics.filter((t) => t.patterns.some((p) => p.test(text)) || item.bcd.some((b) => t.bcd.some((pre) => underPrefix(b, pre))));
     const webext = webExtensionUse(item, index);
     if (webext === 'unused') continue;
+    // Firefox for Android is a bonus platform: of its changes only the WebExtensions ones are reported, and a note
+    // naming a desktop platform too is the desktop's.
+    const namesAndroid = config.androidText.test(text);
+    if (webext === 'none' && (item.android === true || namesAndroid)) continue;
+    const android = item.android === true || (namesAndroid && !config.desktopText.test(text));
     if (webext !== 'none' && webextTopic && !matched.includes(webextTopic)) matched.push(webextTopic);
     // A Core bug or a web API's BCD entry that merely says "extension" is not a WebExtensions change.
     if (webext === 'none') matched = matched.filter((t) => t !== webextTopic || item.source === 'mdn' || item.source === 'blog');
@@ -775,6 +819,7 @@ export function relevantFindings(items, config, index) {
     // extension; MDN's curated notes keep their weight.
     else if (webext === 'general' && item.source === 'bugzilla') finalPriority = 'low';
     else if (confidence === 'low' || item.experimental) finalPriority = shift(priority, -1);
+    if (android) finalPriority = shift(finalPriority, -1);
     // A BCD entry's key is its change, so a later change to a reported feature is reported again.
     const aliases = [...item.bugs.map((b) => `bug:${b}`), ...(item.textKey ? [item.textKey] : [])];
     const own = aliases.filter((a) => a.startsWith('bug:') || a.startsWith('bcd:'));
@@ -790,7 +835,7 @@ export function relevantFindings(items, config, index) {
       title: item.title, detail: item.detail, sources: [item.source], aliases, mergeKeys, areas: matched.map((t) => t.area),
       kind, priority: finalPriority, confidence, files: uses.files, used: uses.used,
       modules: [...new Set(matched.flatMap((t) => t.modules))], links: [...item.links, ...item.bugs.map((b) => ({label: `Bug ${b}`, url: `https://bugzil.la/${b}`}))],
-      experimental: item.experimental, members: [own.length > 0 ? own : aliases],
+      experimental: item.experimental, members: [own.length > 0 ? own : aliases], ...(android ? {android: true} : {}),
     });
   }
   return mergeFindings(findings);
@@ -818,7 +863,7 @@ export function webExtensionUse(item, index) {
     return 'unused';
   }
   const addOnSection = item.source === 'mdn' && /add-on/i.test(item.section);
-  const product = item.source === 'bugzilla' && item.section.startsWith('WebExtensions');
+  const product = item.source === 'bugzilla' && isWebExtensionsBug(item.section);
   if (!addOnSection && !product) return 'none';
   const text = `${item.title} ${item.detail}`;
   const firsts = [...item.identifiers.map((id) => id.split('.')[0]), ...[...text.matchAll(/\b([a-z][A-Za-z]+)\.[a-zA-Z]+/g)].map((m) => m[1])];
@@ -864,7 +909,9 @@ export function mergeFindings(findings) {
   });
   const sourceRank = ['mdn', 'blog', 'bcd', 'bugzilla'];
   return [...groups.values()].map((group) => {
-    const lead = [...group].sort((a, b) => sourceRank.indexOf(a.sources[0]) - sourceRank.indexOf(b.sources[0]))[0];
+    // Android's own change merged with the desktop's of the same API is shown, but weighs nothing.
+    const ranked = group.some((f) => !f.android) ? group.filter((f) => !f.android) : group;
+    const lead = [...ranked].sort((a, b) => sourceRank.indexOf(a.sources[0]) - sourceRank.indexOf(b.sources[0]))[0];
     /** @type {Map<string, Link>} */
     const links = new Map();
     for (const f of group) for (const l of f.links) links.set(l.url, l);
@@ -891,15 +938,16 @@ export function mergeFindings(findings) {
       mergeKeys: [...new Set(group.flatMap((f) => f.mergeKeys))],
       aliases: [...new Set(group.flatMap((f) => f.aliases))].sort(),
       areas: [...new Set(group.flatMap((f) => f.areas))],
-      kind: group.map((f) => f.kind).sort((a, b) => KindOrder.indexOf(b) - KindOrder.indexOf(a))[0],
-      priority: group.map((f) => f.priority).sort((a, b) => Levels.indexOf(b) - Levels.indexOf(a))[0],
-      confidence: group.map((f) => f.confidence).sort((a, b) => Levels.indexOf(b) - Levels.indexOf(a))[0],
+      kind: ranked.map((f) => f.kind).sort((a, b) => KindOrder.indexOf(b) - KindOrder.indexOf(a))[0],
+      priority: ranked.map((f) => f.priority).sort((a, b) => Levels.indexOf(b) - Levels.indexOf(a))[0],
+      confidence: ranked.map((f) => f.confidence).sort((a, b) => Levels.indexOf(b) - Levels.indexOf(a))[0],
       files: [...new Set(group.flatMap((f) => f.files))].sort(),
       used: [...new Set(group.flatMap((f) => f.used))].sort(),
       modules: [...new Set(group.flatMap((f) => f.modules))],
       links: [...links.values()],
       experimental: group.every((f) => f.experimental),
       members: group.flatMap((f) => f.members),
+      android: group.every((f) => f.android === true) || undefined,
     };
   }).sort((a, b) => Levels.indexOf(b.priority) - Levels.indexOf(a.priority) ||
     KindOrder.indexOf(b.kind) - KindOrder.indexOf(a.kind) || a.title.localeCompare(b.title));
@@ -972,6 +1020,10 @@ const Actions = /** @type {Record<Kind, string>} */ ({
   'Bug fix': 'Check whether FastStream works around this bug; if it does, test without the workaround.',
 });
 
+/** For a finding about Firefox for Android only, whatever its kind. */
+const AndroidAction = 'Check the code\'s checks for what Android lacks (`AndroidLacks` in tests/unit/firefoxAndroid.test.mjs, ' +
+  'docs/notes/build-and-release.md "Firefox for Android"), then try it on Firefox for Android.';
+
 /**
  * One finding as a checklist item, its key in a hidden marker after the title.
  * @param {Finding} f
@@ -985,14 +1037,15 @@ export function renderFinding(f) {
     f.links.slice(0, 6).map((l) => `[${md(l.label, 60)}](${l.url})`).join(', ') : 'Mozilla release data (no link)';
   const lines = [
     `- [ ] **${f.kind}: ${md(f.title, 200)}** <!-- ffw-item ${f.aliases.join(' ')} -->`,
-    `  - Area: ${f.areas.map((a) => md(a, 80)).join(', ')}${f.experimental ? ' (experimental, behind a preference)' : ''}`,
+    `  - Area: ${f.areas.map((a) => md(a, 80)).join(', ')}${f.experimental ? ' (experimental, behind a preference)' : ''}` +
+      `${f.android ? ' · Firefox for Android only' : ''}`,
   ];
   if (f.detail) lines.push(`  - Change: ${md(f.detail, 1000)}`);
   lines.push(
       `  - FastStream: ${where}`,
       `  - Priority: ${f.priority} · Confidence: ${f.confidence} · Sources: ${f.sources.join(', ')}`,
       `  - Evidence: ${evidence}`,
-      `  - Action: ${Actions[f.kind]}`,
+      `  - Action: ${f.android ? AndroidAction : Actions[f.kind]}`,
   );
   return lines.join('\n');
 }
@@ -1344,9 +1397,10 @@ async function bugzillaFor(version, config, namespaces, fetchOptions) {
     `&include_fields=id,summary,product,component,keywords&limit=${BugzillaLimit}`;
   const webext = `${Urls.bugzilla}?product=WebExtensions&${common}`;
   const core = `${Urls.bugzilla}?product=Core&${config.bugzilla.coreComponents.map((c) => `component=${encodeURIComponent(c)}`).join('&')}&${common}`;
+  const android = `${Urls.bugzilla}?product=${encodeURIComponent(AndroidBugs.product)}&component=${encodeURIComponent(AndroidBugs.component)}&${common}`;
   /** @type {RawItem[]} */
   const items = [];
-  for (const url of [webext, core]) {
+  for (const url of [webext, core, android]) {
     const json = await getJson(url, fetchOptions);
     if (json?.error) throw new SourceError(`${url.split('?')[0]}: ${String(json.message ?? 'error').slice(0, 120)}`, false);
     // As many as asked for: the list may have been cut, and what is missing would go unseen.
@@ -1435,7 +1489,8 @@ export function tempPath(dir, env = process.env) {
 
 /**
  * Mozilla's sources from files, for the workflow test (FFW_FIXTURES): versions.json, majors.json, <version>.md,
- * webextensions-<version>.json, core-<version>.json, feed.xml, bcd.json; anything else answers 404.
+ * webextensions-<version>.json, core-<version>.json, android-<version>.json, feed.xml, bcd.json; anything else
+ * answers 404.
  * @param {string} dir - From tempPath.
  * @return {typeof fetch}
  */
@@ -1452,8 +1507,8 @@ export function fixtureFetch(dir) {
     if (url === Urls.feed) return file('feed.xml');
     const notes = /\/releases\/(\d{2,4})\/index\.md$/.exec(url);
     if (notes) return file(`${notes[1]}.md`);
-    const bugs = /^https:\/\/bugzilla\.mozilla\.org\/rest\/bug\?product=(WebExtensions|Core)&.*cf_status_firefox(\d{2,4})&/.exec(url);
-    if (bugs) return file(`${bugs[1] === 'Core' ? 'core' : 'webextensions'}-${bugs[2]}.json`);
+    const bugs = /^https:\/\/bugzilla\.mozilla\.org\/rest\/bug\?product=(WebExtensions|Core|Firefox%20for%20Android)&.*cf_status_firefox(\d{2,4})&/.exec(url);
+    if (bugs) return file(`${{'Core': 'core', 'WebExtensions': 'webextensions'}[bugs[1]] ?? 'android'}-${bugs[2]}.json`);
     return new Response('', {status: 404});
   });
 }

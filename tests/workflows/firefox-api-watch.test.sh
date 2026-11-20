@@ -69,6 +69,7 @@ fixtures() {
   echo '{"__meta": {"version": "9.9.9"}, "browsers": {}, "webextensions": {"api": {"tabs": {}}}}' > "$FIX/src/bcd.json"
   echo '{"bugs": []}' > "$FIX/src/webextensions-161.json"
   echo '{"bugs": []}' > "$FIX/src/core-161.json"
+  echo '{"bugs": []}' > "$FIX/src/android-161.json"
   echo '<rss><channel></channel></rss>' > "$FIX/src/feed.xml"
   export FFW_FIXTURES="$FIX/src"
   unset DRY_RUN FROM
@@ -82,11 +83,14 @@ review() {
 }
 
 fixtures
-review 'r1 first run, a release with a finding -> one issue, the memo saved'
+echo '{"bugs": [{"id": 161013, "summary": "chrome.tabs.query({windowType}) returns no tabs", "product": "Firefox for Android", "component": "WebExtensions", "keywords": []}]}' > "$FIX/src/android-161.json"
+review 'r1 first run, a release with a finding and one of Firefox for Android -> one issue, the memo saved'
 check 'succeeds' test "$status" -eq 0
 check 'opens one issue' test "$(grep -c '^POST repos/owner/FastStream/issues$' "$LOG")" -eq 1
 check 'titled for the release' contains "$LOG" '"title":"Firefox API Watch: starting with Firefox 161"'
 check 'the finding, as a box to tick' contains "$LOG" '- [ ] **Compatibility risk: '
+check 'Android'"'"'s WebExtensions bug, labelled' contains "$LOG" 'Bug 161013: chrome.tabs.query'
+check '... as Android'"'"'s alone' contains "$LOG" 'Firefox for Android only'
 check 'mentions no one' lacks "$LOG" '@someone'
 check 'references none of our issues' lacks "$LOG" ' #12'
 check 'never edits anything' bash -c '! grep -qE "PATCH|issue edit|ISSUE_EDIT" "$0" "$1"' "$LOG" "$FIX/gh.log"
@@ -94,7 +98,7 @@ check 'asks no one' lacks "$FIX/gh.log" 'assignee'
 check 'memo: the reviewed version' contains "$GITHUB_OUTPUT" 'memo=161'
 check 'memo: saved' contains "$GITHUB_OUTPUT" 'memo_changed=true'
 check 'the memo file' test "$(cat "$RUNNER_TEMP/firefox-api-watch/reviewed")" = 161
-check 'the summary says where' contains "$GITHUB_STEP_SUMMARY" 'Firefox 161: 1 finding(s) posted to #42.'
+check 'the summary says where' contains "$GITHUB_STEP_SUMMARY" 'Firefox 161: 2 finding(s) posted to #42.'
 
 fixtures
 mkdir -p "$RUNNER_TEMP/firefox-api-watch"
