@@ -29,6 +29,12 @@ function asOnAndroid(chrome) {
       delete chrome[ns];
     }
   }
+  // Nor does it take tabs.onUpdated's filter: Firefox for Android 160 throws, as browser-compat-data has it.
+  const add = chrome.tabs.onUpdated.addListener;
+  chrome.tabs.onUpdated.addListener = (/** @type {Function} */ fn, /** @type {*} */ filter) => {
+    if (filter !== undefined) throw new Error('Incorrect argument types for tabs.onUpdated.');
+    add(fn);
+  };
 }
 
 /**
@@ -58,11 +64,29 @@ describe('the background page on Firefox for Android', () => {
   it('loads, and listens to all it listens to on a desktop but what Android lacks', async () => {
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
     const desktop = listenerCounts(bg.chrome);
+    // The desktop keeps Firefox's own filter: one it refused, a misspelt property, would also go without it.
+    expect([...bg.chrome.tabs.onUpdated.filters.values()]).toEqual([{properties: ['url', 'status']}]);
     bg.unload();
     bg = await loadBackground({tabs: [{id: 1, url: PAGE}], beforeImport: asOnAndroid});
     const android = listenerCounts(bg.chrome);
     expect(desktop['runtime.onMessage']).toBe(1);
     expect(android).toEqual(Object.fromEntries(Object.entries(desktop).filter(([name]) => !lacked(name))));
+  });
+
+  it('hears a new address and a reload without tabs.onUpdated\'s filter, and still no title or sound', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}], beforeImport: asOnAndroid});
+    await bg.navigated(1, PAGE);
+    expect(bg.titles.has(1)).toBe(true);
+    bg.titles.clear();
+    bg.badges.clear();
+    await bg.tabChanged(1, {title: 'Episode 1 - 12:03'});
+    await bg.tabChanged(1, {favIconUrl: 'https://site.test/favicon.ico'});
+    await bg.tabChanged(1, {audible: true});
+    expect([...bg.titles.keys(), ...bg.badges.keys()]).toEqual([]);
+    await bg.tabChanged(1, {status: 'loading'});
+    expect(bg.titles.has(1)).toBe(true);
+    await bg.navigated(1, 'moz-extension://bg-test/player/index.html');
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true});
   });
 
   it('turns the player on and off with the toolbar button', async () => {
@@ -170,6 +194,8 @@ describe('what Firefox for Android lacks', () => {
     expect(missingOnAndroid(bcd.webextensions.api.commands)).toBe(true);
     expect(missingOnAndroid(bcd.webextensions.api.runtime.connectNative)).toBe(true);
     expect(missingOnAndroid(bcd.webextensions.api.tabs)).toBe(false);
+    // asOnAndroid's refused filter.
+    expect(missingOnAndroid(bcd.webextensions.api.tabs.onUpdated.filter)).toBe(true);
   });
 
   it('lists every API the code uses that Firefox for Android does not have', () => {

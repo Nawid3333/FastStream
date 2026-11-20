@@ -11,16 +11,22 @@ const UnknownMessage = Object.freeze({ok: false, error: 'unknown message', hostV
 // Each load is a fresh background (vi.resetModules) with fake timers: a test moves time itself
 // (bg.wait).
 
+// What tabs.onUpdated's filter may name on the desktop (Firefox's tabs.json, UpdatePropertyName).
+const TabUpdateProperties = ['attention', 'audible', 'autoDiscardable', 'discarded', 'favIconUrl', 'groupId', 'hidden',
+  'isArticle', 'mutedInfo', 'pinned', 'sharingState', 'splitViewId', 'status', 'title', 'url'];
+
 /**
  * An event a listener can be added to.
+ * @param {function(*): void} [checkFilter] - Throws for a filter Firefox refuses.
  * @return {{addListener: function(Function): void, listeners: Array<Function>}}
  */
-function event() {
+function event(checkFilter) {
   const listeners = [];
   // Firefox's filter, by listener (tabs.onUpdated's {properties}).
   const filters = new Map();
   return {
     addListener: (fn, filter) => {
+      if (filter !== undefined) checkFilter?.(filter);
       listeners.push(fn);
       if (filter) filters.set(fn, filter);
     },
@@ -159,7 +165,10 @@ export async function loadBackground({
   const tabEvents = {
     onRemoved: event(),
     onCreated: event(),
-    onUpdated: event(),
+    onUpdated: event((filter) => {
+      const unknown = (filter.properties ?? []).filter((name) => !TabUpdateProperties.includes(name));
+      if (unknown.length) throw new Error(`Type error for parameter filter (Invalid enumeration value "${unknown[0]}") for tabs.onUpdated.`);
+    }),
   };
 
   /**

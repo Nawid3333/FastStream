@@ -361,6 +361,10 @@
   tests). A failure opens one issue per version; a green run closes it. Read release dates
   from that file rather than computing them - it said 157 is due 2026-10-09, not the
   2026-09-29 two-week arithmetic from 155 suggested.
+- **`android.yml`** (2026-11-20; every pull request and push to `main`, beside CI): FastStream
+  on Firefox for Android in an emulator - it installs, its background starts and answers, its
+  player plays an mp4, also in a page's place (`tests/android/smoke.mjs`; `build-and-release.md`, "Firefox for Android"). Not part
+  of CI and no release gate: a failure shows on the pull request, and auto-release reads CI only.
 - **`runner-images.yml`** (daily, 2026-09-25; the same file is in every repo of the owner
   except mpv and KytyPS5): reads the actions/runner-images README for the image behind
   `ubuntu-latest`/`windows-latest` and the newest GA one, and calls `ci.yml` (which takes
