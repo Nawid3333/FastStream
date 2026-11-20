@@ -1104,3 +1104,134 @@ nothing in `gecko_android` that signing or `updates.json` would trip over. Fixed
   set had removed `sendNativeMessage`, and a message without an answer is `undefined` anyway.
   The tests now record each look for `sendNativeMessage` and each unhandled rejection; each
   fails without its guard.
+
+## The cross-repository audit, FastStream and mpv-config (2026-11-19/20)
+
+Both repositories as one system, from FastStream `bcff3dec` (1.3.82.218, helper 27) and
+mpv-config `032984d`, mostly the path that hands a stream to mpv: the background's detection,
+the play message, the helper's HLS package in `faststream-mpv-hls-XXXXXX` (`-p-` for a private
+window), mpv-config's scripts reading `target.txt` and the `#fs-...` tags. Reviewed by
+glm-5.3-flash (every change), Codex (gpt-6.1-sol) and the Claude API reviewer; each claim was
+measured or read in the code before it was acted on. Merged as FastStream #772-#777 and
+mpv-config #49 (2026-11-20), and the owner's decisions D1-D4 as FastStream #783 (helper 29)
+and mpv-config #50, #51. Baseline: eslint 0, tsc 0, 4402 unit tests; mpv-config 216 static
+and 1216 headless.
+
+Fixed, each with a test that fails without it:
+- **X1** A subtitle track over the helper's 1,048,576 UTF-16 units refused the whole stream
+  (a 16 MB message since helper 27 has room for one): it is left out, with a warning (#772).
+- **X3** A busy mpv (no answer within 6 s) had the helper remove the package while mpv's load
+  of it waited: mpv lost the new stream and the one it played. The folder now stays, removed by
+  its age, on the three paths that report busy (#773; private windows by D1, #783).
+- **X4, X7** ffmpeg cuts a playlist's own address at `#` before resolving names relative to it:
+  under a temp folder like `user#1` every master playlist failed after the helper had answered
+  ok, and ffmpeg opened playlists planted beside the cut folder. Such a master is written with
+  whole paths and read back as ffmpeg reads it, or refused (#773).
+- **X5, X8, X10** The playlist check read lines unlike ffmpeg (measured with the ffmpeg
+  program): whole lines where ffmpeg reads 4095 bytes, every kind of space trimmed where ffmpeg
+  trims ASCII spaces only, any first line starting `#EXTM3U` accepted (#773).
+- **X6, X12, X13** Faults in the audit's own fixes, found before any merge: a rewritten line
+  past 4095 bytes, a relative temp folder resolved twice, and refusals of URI spellings and of a
+  line cut inside a character that refused playlists ffmpeg plays (Codex; taken back, #773).
+- **N1** The TTML reader rendered a paragraph once per time range its parts cut it into, with
+  no limit: 16 000 spans (0.9 MB) took 31 s in Firefox, a 32 KB file of chained styles 29 s,
+  0.9 MB became 32 MB of cue text. A work count (16 million units, about 2 s), a 5 s clock and
+  16 MB of cue text bound it (#775; `subtitle-ttml` e2e). A file near the limit may be refused
+  on a machine three times slower: the trade was accepted.
+- **N2** An HLS package's size was checked after its whole text was built (one grew to 39.8 MB
+  before the 12 MB refusal): it is counted while written, inside a line too (#776).
+- **N4** The mpv notes described two refusals of master playlists the code does not make;
+  corrected, with three assertions (#773).
+- **T-1** `hidden-streams.e2e` took a player frame inserted between its two looks for the
+  page's frame (11 of 30 CI jobs failed their first try); not a product fault (#774).
+- **S-1, S-2** On a site whose player sits in `display: contents` wrappers (no box, 0 x 0), the
+  player took the highest same-size parent and showed in a 100 px box or not at all. It takes
+  the highest parent with a box (a test page 0 x 0 -> 640 x 360, a page of that site 0 x 0 ->
+  894 x 503); the resize watch follows the nearest parent with a box, and the miniplayer lifts
+  the player alone (unit tests only) (#777).
+- **M1, M2** (mpv-config #49) A stream from the helper's package was buffered as a local file
+  (at most 150 MB ahead, no predownload), and with `#` in the temp path its tags were not read
+  (no resume, episodes or Auto upscale). After: `storage: ram`, `mode: predownload` in real mpv.
+- **M3, M8, D1** A private window's package and subtitles could stay on disk with no time
+  limit: mpv-config's `faststream-private.lua` removes them when mpv moves on or closes, the
+  age rule as the fallback (helper 29, #783; mpv-config #51).
+- **M4-M7, D2-D4** (mpv-config #50) Package streams draw the buffer and fetch no thumbnails
+  (thumbfast fetched the stream three times without the page's Referer); the source menu shows
+  "Stream URL", not "Local file"; the episode keys say FastStream is not connected to this
+  window instead of the wrong reason.
+
+Disproved, do not raise again: a quality switch losing the tags (no quality list goes with a
+package); tags injected through a quality address (`MpvTarget` strips the fragment); a control
+character in a title refused (cleaned first); non-ASCII temp paths breaking playback (measured:
+spaces, umlauts, CJK, `%&+=;,`, quotes and brackets play); the rest of an overlong line read as
+a new line (ffmpeg drops it; measured and read in its source); `RequiredHostVersion` 19 against
+`HostVersion` 27 (intended); the response filter stalling a request 10 s (glm; measured: same
+timing and contents without it); a late player frame address (`content.js` sets it first);
+re-sent chunks corrupting consumers (glm C-F4: already-had bytes are skipped); an http segment
+served as a playlist opening local files (ffmpeg's `nested_io_open` refuses it; read, not
+measured).
+
+Measured and left as is: the response listener for streams that hide their type adds about
+0.3-0.45 ms per request at the median and under 1 ms at p95 (headless Firefox 160, three
+rounds), +15 ms once on the request that wakes the background; while a stream plays, about
++0.4 ms median and +1-2 ms at p99. Recommendation: leave it.
+
+Still open, by decision or for want of a case:
+- **N5** Bytes of a playlist line after 4095 are not checked: ffmpeg drops them, and checking
+  them refused lines ffmpeg plays (two tests pin those as accepted).
+- **X9, X11** The check lists more addresses than ffmpeg reads and requires all of them
+  allowed: a master that names a playlist only where ffmpeg does not read plays without it. No
+  real stream of that shape is known.
+- **X2** (suspected) Playlists the extension can send and the helper refuses: a backslash, an
+  unquoted `URI=`, a `data:` key, blank lines before `#EXTM3U`. None seen in a real stream.
+- **S-3** (suspected, older than #777) A zero-height wrapper around an absolutely positioned
+  player is still taken: the player gets 100 px. Changing it left the page's controls above
+  the player (the Claude reviewer, from the code): only with a page that shows it.
+- **S-4** A boxless shadow host whose video sits in a named slot would hide the player frame;
+  media beside the player in a boxless wrapper is neither paused nor hidden. No such page known.
+- **N3** A resumed download (206) is joined without a strong ETag or Last-Modified: the
+  recorded design in `docs/notes/storage.md`.
+- **O-1** The wait for a stream's qualities before the hand-off (up to 1.5 s) might stop once
+  the needed stream's qualities are known: analysed, not measured.
+- Two mpv windows writing the resume file at once can lose a position (heals within 5 s).
+- glm's C-F2 (a TTML `seq` child without `end`) was not settled against the standard.
+- Test gaps: no test runs a real helper package through real mpv (G-1; every helper finding
+  above sat there), the 4095-byte contract with ffmpeg is measured but not in CI, no e2e
+  checks that a body passes the response filter unchanged (G-3), and the DASH case of
+  `hidden-streams` does not check that the player was linked.
+
+## MPV mode: several mpv windows and the offer (2026-11-20)
+
+Helper 30 (#785) gives each mpv window an id; #786 follows several windows and asks in the
+window ("Play here" / "Play in a new window", mpv-config #55's `faststream-offer.lua`) before a
+stream replaces what it plays (`docs/notes/mpv.md`, "Several mpv windows in the extension", "The
+offer"). Fixed from the reviews, each with a test that fails without it
+(`backgroundMpvThin.test.mjs` unless named):
+- The Claude API reviewer: a send the tab had sent already answered with no window, which moved
+  the tab to the default window and took that one from its tab; a closed episode window left
+  the tab's 60 s episode wait on, so its next video was dropped unsent; every end of a relay
+  counted as the window's mpv gone, though only "mpv closed" and "no mpv" mean that.
+- Codex: a page gone during the window's 2 s answer still sent its stream (`wanted()` is now
+  checked on every path); two tabs asking one idle window at once both played, the second
+  replacing the first unasked (one question per window at a time, a chain on its watch). Its
+  second round: a stream queued behind another, whose window closed while MPV was turned off,
+  started over, found no window and was sent, opening mpv; `wanted()` is now checked first after
+  every wait in the queue.
+- Kept: mpv closed during the ask makes the play answer `closed` and a fresh window plays it,
+  as a hand-off with no mpv running does.
+- mpv-config #55: Codex found a double click whose second press landed on the other script's
+  banner (one guard for every script's banners, `user-data/banner-click/until`); the Claude API
+  reviewer found a click meant for an offer that a newer one replaced taking the new one's
+  choice (`hold()` on a replaced offer, in both scripts).
+
+## Firefox for Android: the room to predownload (2026-11-20)
+
+The owner's phone played but kept only a few minutes buffered, with the storage warning. The
+emulator measured why (`docs/notes/storage.md`, "The room to predownload"): Firefox's quota is a
+tenth of the device's storage, and the room counted the disk's part alone. #787 counts the RAM
+share too, and a private window predownloads what fits in its RAM share. Codex then found that
+a room that moves with the share can end mid-video and pin fragments a full disk cannot take:
+RAM stayed "full" for the rest of the video. A fragment pinned only for good that the disk
+refuses is now let go of (`FastStreamClient.test.mjs`, "lets go of what was kept for good when
+the disk is full"). Rejected from the Claude API reviewer: repeated pinning (`addReference` adds
+an id once) and an unset `bufferBehind` in a private window (it is only ever the option).
