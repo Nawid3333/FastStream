@@ -80,9 +80,12 @@ jobs:
             "https://archive.mozilla.org/pub/fenix/releases/$version/android/fenix-$version-android-x86_64/fenix-$version.multi.android-x86_64.apk"
           echo "Firefox for Android $version, SHA-256 $(sha256sum "$RUNNER_TEMP/fenix.apk" | cut -d' ' -f1)"
           apksigner=$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner | sort -V | tail -n 1)
-          signer=$("$apksigner" verify --print-certs "$RUNNER_TEMP/fenix.apk" | grep 'certificate SHA-256 digest')
-          if [ "$signer" != "Signer #1 certificate SHA-256 digest: $FENIX_CERT_SHA256" ]; then
-            echo "::error::Firefox for Android is not signed by Mozilla's release key: $signer"
+          # Every signer's certificate, whatever apksigner's version calls the line ("Signer #1", "V2 Signer"): Mozilla's
+          # alone.
+          signers=$("$apksigner" verify --print-certs "$RUNNER_TEMP/fenix.apk" |
+            sed -n 's/^.*certificate SHA-256 digest: \([0-9a-f]*\)$/\1/p' | sort -u)
+          if [ "$signers" != "$FENIX_CERT_SHA256" ]; then
+            echo "::error::Firefox for Android is not signed by Mozilla's release key alone: ${signers:-no certificate}"
             exit 1
           fi
           curl -sSfL -o "$RUNNER_TEMP/geckodriver.tar.gz" \
