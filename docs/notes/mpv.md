@@ -40,6 +40,21 @@ extension changes with it, so such a push releases, Firefox updates the extensio
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run.
 
+**Host 29 (2026-11-20, a private window's temp files; RequiredHostVersion stays 19).** The owner's
+decision D1 of the 2026-11-19 audit: mpv removes a private window's temp files itself.
+- A private window's subtitles go into `faststream-mpv-subs-p-<6>` (`PrivateSubtitleDirPrefix`), its
+  playlists into `faststream-mpv-hls-p-<6>` as before. mpv-config's `faststream-private.lua` removes the
+  files the helper wrote there (the playlists, `target.txt`, the stream's subtitle files) once mpv has
+  moved on from the stream or closes; a folder of any other name is never touched, and the empty folder
+  goes by its age. Before, they stayed whenever no helper ran again to remove them: Firefox closed while
+  mpv played, "Reuse one mpv window" off (no relay watches mpv then), a relay that stopped early; a
+  private window's subtitles stayed a day in any case.
+- A busy mpv keeps a private window's playlists too now (host 28 kept everyone else's): removing them lost
+  the stream mpv still had in its pipe, and with it the one it played (X3 in host 28 below). If mpv never
+  runs that load (killed), the next helper to end removes them by their age (two minutes).
+- With an mpv-config older than the script, a private window's files stay as before host 29, and a busy
+  private play's playlists go by their age instead of at once.
+
 **Host 28 (2026-11-19, two faults of the playlist files; RequiredHostVersion stays 19).** Found by the
 audit of 2026-11-19 and measured with the real helper code against a headless mpv 0.42 of its own
 (`--no-config --vo=null`, a pipe and temp folder of its own):
@@ -121,9 +136,9 @@ audit of 2026-11-19 and measured with the real helper code against a headless mp
   address. The answer to the extension is unchanged. All three busy answers keep it: the open mpv's, the
   one after the wait for another helper's start, and a new mpv's that took the load into its pipe and did
   not answer it (the last one was missed at first; glm and the Claude reviewer both found it). A private
-  window's folder still goes at once, as before host 28: after a play that failed no helper may run again
-  to remove it, and its addresses are browsing history. There the fault stays as it was (the load in the
-  pipe fails once mpv runs on).
+  window's folder still went at once in host 28: after a play that failed no helper may run again
+  to remove it, and its addresses are browsing history. There the fault stayed as it was (the load in the
+  pipe failed once mpv ran on) until host 29, whose private folders mpv removes itself.
 
 **Host 27 (2026-11-18): streams mpv cannot open alone; RequiredHostVersion stays 19.** The owner's
 report: MPV opened on 123moviesfree.net (vidsrc chain) and showed "something HTML". Measured with
@@ -172,9 +187,10 @@ now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` b
   whitelist", and a media package naming a local segment "Protocol 'file' not on whitelist". The HLS
   probe needs `#EXTM3U` first (the helper's check) and a variant or target-duration tag. Folders go
   after two days, whenever a helper ends (each message; a watch when mpv closes), and at once when
-  the play failed (not when mpv was only busy, unless it is a private window's: host 28); a folder that
+  the play failed (not when mpv was only busy: host 28, a private window's too since host 29); a folder that
   cannot be removed is skipped. A private window's (fs-private) goes
-  once mpv moved on from it or closed (the relay sees mpv's `path`: `privatePackageWatch`; not
+  once mpv moved on from it or closed (the relay sees mpv's `path`: `privatePackageWatch`; mpv itself,
+  host 29 with mpv-config's `faststream-private.lua`; not
   when the extension lets go, as a new hand-off's may not be open yet), else two minutes on: a play
   waits up to 35 s before mpv opens its package (`LaunchLockMs`, `PipeWaitMs`), so a shorter age
   (15 s, briefly) let another helper remove a package before mpv opened it (Codex). ffmpeg reads the

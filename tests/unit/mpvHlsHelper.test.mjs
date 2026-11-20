@@ -519,9 +519,9 @@ describe('playing them', () => {
     expect(started).toBe(0);
   });
 
-  // A private window's folder goes on each of the busy answers (the test after these says why).
+  // A private window's folder stays too since host 29 (the test after these says why).
   /** @type {Array<[string, number]>} */
-  const KEPT = [['https://cdn.test/pl/7?token=k#fs-id=ab', 1], ['https://cdn.test/pl/7?token=k#fs-id=ab&fs-private=1', 0]];
+  const KEPT = [['https://cdn.test/pl/7?token=k#fs-id=ab', 1], ['https://cdn.test/pl/7?token=k#fs-id=ab&fs-private=1', 1]];
 
   it('keeps them for a new mpv that took the load into its pipe and did not answer it', async () => {
     for (const [target, kept] of KEPT) {
@@ -581,9 +581,10 @@ describe('playing them', () => {
     }
   });
 
-  // Nothing may be left to remove it later (no helper runs again until the next hand-off), and its addresses are
-  // browsing history: as before host 28.
-  it('removes a private window\'s playlists at once all the same when mpv was only busy', async () => {
+  // mpv removes a private window's files once it moved on from them or closes (mpv-config's
+  // faststream-private.lua), else the next helper by their age (two minutes): removing them at once lost the
+  // stream mpv still had in its pipe, and with it the one it played (X3).
+  it('keeps a private window\'s playlists too when mpv was only busy', async () => {
     const base = scratch();
     const checked = checkPlayMessage({type: 'play', target: 'https://cdn.test/pl/7?token=k#fs-id=ab&fs-private=1', title: 'T',
       hls: {files: [{name: '0.m3u8', text: media()}]}});
@@ -595,7 +596,10 @@ describe('playing them', () => {
       start: async () => ({ok: false, error: 'not here'}),
     });
     expect(answer).toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
-    expect(fs.readdirSync(base)).toEqual([]);
+    const folders = fs.readdirSync(base);
+    expect(folders).toHaveLength(1);
+    expect(folders[0].startsWith(HlsDirPrefix + 'p-')).toBe(true);
+    expect(fs.readdirSync(path.join(base, folders[0])).sort()).toEqual(['0.m3u8', 'target.txt']);
   });
 
   it('lets ffmpeg open files for a master only, whose playlists lie beside it', () => {

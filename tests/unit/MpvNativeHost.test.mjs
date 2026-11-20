@@ -3,7 +3,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import {afterAll, afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {MaxLogBytes, SubtitleDirPrefix, debugFromEnvironment, debugLog, ipcPipeFor, launchDirect, launchMpv, takeLaunchLock, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, qualityFragmentFor, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
+import {MaxLogBytes, PrivateSubtitleDirPrefix, SubtitleDirPrefix, debugFromEnvironment, debugLog, ipcPipeFor, launchDirect, launchMpv, takeLaunchLock, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, qualityFragmentFor, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides from mpvIpcRequest's replies whether reusing our window worked; injected
 // (no pipes on Linux CI).
@@ -455,7 +455,16 @@ describe('start and subtitles from the player', () => {
     expect(files.map((f) => path.basename(f))).toEqual(['1 English CC.srt', '2.srt']);
     expect(path.dirname(files[0]).startsWith(path.join(base, SubtitleDirPrefix))).toBe(true);
     expect(fs.readFileSync(files[0], 'utf8')).toBe('one');
+    expect(path.basename(path.dirname(files[0])).startsWith(PrivateSubtitleDirPrefix)).toBe(false);
     expect(writeSubtitleFiles([], base)).toEqual([]);
+  });
+
+  // mpv-config's faststream-private.lua removes the subtitles of a folder so named once mpv moved on.
+  it('marks a private window\'s folder by its name', () => {
+    const base = scratch();
+    const files = writeSubtitleFiles([{srt: 'one', label: 'English'}], base, true);
+    expect(path.basename(path.dirname(files[0]))).toMatch(/^faststream-mpv-subs-p-\w{6}$/);
+    expect(PrivateSubtitleDirPrefix.startsWith(SubtitleDirPrefix)).toBe(true);
   });
 
   it('removes its folders older than a day, and only those', () => {
