@@ -435,6 +435,10 @@ const PowerShellTimeoutMs = (WindowWaitSeconds + 15) * 1000;
 // only delays the answer the extension pauses the page on.
 export const ReusedWindowWaitSeconds = 5;
 
+// The connect did not finish in time: on Windows a pipe whose mpv takes no connection (its one instance in use)
+// keeps a connect waiting. The helper's own window then gets a fresh mpv; another window is busy, not closed.
+const StalledError = 'mpv ipc timeout';
+
 /**
  * Sends commands to the mpv instance listening on our pipe.
  * @param {Array<Object>} commands - mpv JSON IPC commands, in order.
@@ -477,7 +481,7 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
       } else if (connected) {
         finish({ok: false, busy: true, error: 'mpv did not answer'});
       } else {
-        finish({ok: false, error: 'mpv ipc timeout'});
+        finish({ok: false, error: StalledError});
       }
     };
     let timer = setTimeout(giveUp, timeoutMs);
@@ -1412,8 +1416,8 @@ export async function loadIntoExisting(message, headerFields, title, ipcRequest 
  * @param {boolean} fullscreen - Whether to make the window fullscreen first.
  * @param {(commands: Array<Object>) => ReturnType<typeof mpvIpcRequest>} ipcRequest - The
  *   transport, bound to its pipe.
- * @return {Promise<{ok: boolean, pid?: number, busy?: boolean, refused?: boolean, error?: string}>}
- *   As loadIntoExisting.
+ * @return {Promise<{ok: boolean, pid?: number, busy?: boolean, stalled?: boolean, refused?: boolean,
+ *   error?: string}>} As loadIntoExisting.
  */
 export async function loadInto(target, options, fullscreen, ipcRequest) {
   /** @type {Array<{command: *}>} */
@@ -1433,7 +1437,8 @@ export async function loadInto(target, options, fullscreen, ipcRequest) {
 
   const result = await ipcRequest(commands);
   if (!result.ok) {
-    return result.busy ? {ok: false, busy: true} : {ok: false};
+    // stalled: nothing was written (StalledError).
+    return result.busy ? {ok: false, busy: true} : {ok: false, ...(result.error === StalledError ? {stalled: true} : {})};
   }
 
   // The loadfile reply decides: mpvIpcRequest's timeout resolves ok with any reply in. Without it
@@ -2665,6 +2670,17 @@ async function playWindow(mpvPath, play, config, io, entry, window) {
     const answer = await answerOfOpenMpv(loaded, focus, config, platform);
     if (answer) return loaded.busy ? {...answer, busy: true} : answer;
     if (window) {
+      // Nothing was written to that window, so no mpv will play them or remove them (a private window's).
+      if (subFiles.length) {
+        try {
+          fs.rmSync(path.dirname(subFiles[0]), {recursive: true, force: true});
+        } catch (e) {
+          // The next helper to end removes it by its age.
+        }
+      }
+      if (loaded.stalled) {
+        return {ok: false, error: 'mpv is busy and did not answer: try again in a moment'};
+      }
       debugLog(config, 'window-closed', {window});
       return {ok: false, closed: true, error: 'that mpv window was closed'};
     }
@@ -2820,7 +2836,8 @@ export async function raiseMpv(window, config, io = {}) {
   const result = await (io.ipcRequest || mpvIpcRequest)([{command: ['get_property', 'pid']}], undefined, undefined,
       ipcPipeFor(config, platform, undefined, window));
   if (!result.ok) {
-    return result.busy ? {ok: false, busy: true, error: 'mpv is busy and did not answer: try again in a moment'} :
+    return result.busy || result.error === StalledError ?
+      {ok: false, busy: true, error: 'mpv is busy and did not answer: try again in a moment'} :
       {ok: false, closed: true, error: 'that mpv window was closed'};
   }
   const reply = /** @type {Array<{request_id: number, data?: *}>} */ (result.replies || [])

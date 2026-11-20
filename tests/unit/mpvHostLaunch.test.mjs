@@ -95,8 +95,14 @@ describe.runIf(process.platform === 'win32')('the WMI launch script, about an mp
     const out = await runPowerShell([created, withWindow, ...wmiLaunchLines(false)], 60000, {[CommandLineEnv]: '"x"'});
     expect(out).toContain('FOCUS=kept');
     expect(wmiLaunchResult(out)).toMatchObject({ok: true, pid: 424242, focus: 'kept'});
-    const quit = await runPowerShell([created, 'function Get-Process { param($Id, $ErrorAction) $null }',
+    const gone = await runPowerShell([created, 'function Get-Process { param($Id, $ErrorAction) $null }',
       ...wmiLaunchLines(false)], 60000, {[CommandLineEnv]: '"x"'});
+    expect(wmiLaunchResult(gone)).toEqual({ok: false, error: QuitError});
+    const quit = await runPowerShell([created, '$global:looks = 0',
+      'function Get-Process { param($Id, $ErrorAction) $global:looks++; ' +
+        'if ($global:looks -le 1) { [pscustomobject]@{MainWindowHandle = [IntPtr]::Zero} } else { $null } }',
+      ...wmiLaunchLines(false)], 60000, {[CommandLineEnv]: '"x"'});
+    expect(quit).toContain('FOCUS=quit');
     expect(wmiLaunchResult(quit)).toEqual({ok: false, error: QuitError});
   }, 60000);
 });

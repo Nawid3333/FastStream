@@ -1172,7 +1172,9 @@ plays, the helper addresses more than one window (capability `windows`):
 - `play` answers `window`, the window it played in: `''` for the one on the helper's pipe, or newWindow's id
   (16 hex digits, the suffix of its pipe, `WindowId`). `play` with `window: <id>` loads into that open window
   only and raises it; one that is gone answers `{ok: false, closed: true}` and starts nothing, not on the
-  helper's own pipe either. `window` with newWindow is refused.
+  helper's own pipe either, and the subtitles written for it are removed (no mpv will). A pipe that takes no
+  connection within the connect wait (on Windows a connect waits while mpv's one pipe instance is in use) is
+  busy, not closed: the extension keeps its link to that window. `window` with newWindow is refused.
 - `paused` (only with newWindow, not with fullscreen): the new mpv starts with `--pause --window-minimized=yes
   --script-opts-append=auto_start-start_paused=yes` (mpv-config's auto-start.lua then keeps its first file
   paused, as for a local file's "Play in a new window"), and the WMI script only waits for its window

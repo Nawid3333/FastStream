@@ -547,17 +547,34 @@ describe('playMpv', () => {
 
   it('answers closed for a window that is gone, and starts none (not on the helper\'s pipe either)', async () => {
     const id = '0a1b2c3d4e5f6a7b';
-    const io = stand({running: [basePipe]});
-    expect(await playMpv('mpv.exe', play({window: id}), {ipcToken: token}, io))
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
+    dirs.push(dir);
+    // Another helper's start holds the launch lock: a play that went near it would wait.
+    const lockFile = launchLockFile({ipcToken: token}, dir);
+    const other = takeLaunchLock(lockFile);
+    const base = scratch('fs-thin-subs-');
+    const io = {...stand({running: [basePipe]}), lockFile, subtitleBase: base};
+    expect(await playMpv('mpv.exe', play({window: id, target: `${target}&fs-private=1`,
+      subtitles: [{label: 'English', srt: 'one'}]}), {ipcToken: token}, io))
         .toStrictEqual({ok: false, window: id, closed: true, error: 'that mpv window was closed'});
     expect(io.record.asks.map((ask) => ask.pipe)).toEqual([`${basePipe}-${id}`]);
     expect(io.record.started).toEqual([]);
+    expect(io.record.slept).toBe(0);
+    // No mpv will play the subtitles written for it, so none would remove them.
+    expect(fs.readdirSync(base)).toEqual([]);
+    other.release();
 
     const busy = stand({running: [`${basePipe}-${id}`],
       answer: () => ({ok: false, busy: true, error: 'mpv did not answer'})});
     expect(await playMpv('mpv.exe', play({window: id}), {ipcToken: token}, busy))
         .toEqual({ok: false, window: id, error: 'mpv is busy and did not answer: try again in a moment'});
     expect(busy.record.started).toEqual([]);
+
+    // A pipe that takes no connection in time (mpvIpcRequest's timeout before the connect): there, so busy, not closed.
+    const stalled = stand({running: [`${basePipe}-${id}`], answer: () => ({ok: false, error: 'mpv ipc timeout'})});
+    expect(await playMpv('mpv.exe', play({window: id}), {ipcToken: token}, stalled))
+        .toStrictEqual({ok: false, window: id, error: 'mpv is busy and did not answer: try again in a moment'});
+    expect(stalled.record.started).toEqual([]);
   });
 
   // The same flow over real pipes: mpvIpcRequest and a fake mpv the stand-in launch puts on
@@ -724,6 +741,8 @@ describe('raiseMpv', () => {
             .toEqual({ok: false, closed: true, error: 'that mpv window was closed'});
         expect(await raiseMpv('', {}, {platform: 'win32', focus,
           ipcRequest: async () => ({ok: false, busy: true, error: 'mpv did not answer'})}))
+            .toEqual({ok: false, busy: true, error: 'mpv is busy and did not answer: try again in a moment'});
+        expect(await raiseMpv(id, {}, {platform: 'win32', focus, ipcRequest: async () => ({ok: false, error: 'mpv ipc timeout'})}))
             .toEqual({ok: false, busy: true, error: 'mpv is busy and did not answer: try again in a moment'});
         expect(await raiseMpv(id, {}, {platform: 'linux', focus,
           ipcRequest: async () => ({ok: true, replies: [{request_id: 1, error: 'success', data: 4242}]})}))
