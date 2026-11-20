@@ -17,7 +17,7 @@ export function windowOf(window) {
   return typeof window === 'string' && WindowId.test(window) ? window : null;
 }
 
-/** @template {{window: string}} W */
+/** @template {{window: string, usedAt: number}} W - usedAt: when the window last got a stream. */
 export class MpvWindows {
   constructor() {
     /** @type {Map<string, W>} */
@@ -56,5 +56,20 @@ export class MpvWindows {
   /** @return {Array<W>} */
   all() {
     return [...this.windows.values()];
+  }
+
+  /**
+   * The one a stream goes to: the tab's own window while it is open, else the one that got the last stream.
+   * @param {?string|undefined} own - The tab's window.
+   * @return {W|undefined}
+   */
+  targetFor(own) {
+    const mine = this.get(own);
+    if (mine) return mine;
+    let recent;
+    for (const entry of this.windows.values()) {
+      if (!recent || entry.usedAt > recent.usedAt) recent = entry;
+    }
+    return recent;
   }
 }

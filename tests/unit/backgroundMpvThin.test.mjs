@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
+import {MenuIds} from '../../chrome/background/ContextMenu.mjs';
 import {RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
@@ -151,6 +152,7 @@ describe('MPV mode with the thin helper', () => {
 
 describe('several mpv windows (helper 30)', () => {
   const WindowB = '0123456789abcdef';
+  const WindowC = 'fedcba9876543210';
   const Helper30 = {hostVersion: 30, capabilities: ['play', 'ipc', 'relay', 'windows']};
   const EP2 = 'https://site.test/watch/2';
   const S2 = 'https://cdn.test/two/master.m3u8';
@@ -158,13 +160,20 @@ describe('several mpv windows (helper 30)', () => {
   const SX1 = 'https://cdn.test/other-one/master.m3u8';
   const OTHER2 = 'https://site.test/other/2';
   const SX2 = 'https://cdn.test/other-two/master.m3u8';
+  const THIRD = 'https://site.test/third/1';
+  const ST1 = 'https://cdn.test/third-one/master.m3u8';
+  // Not on the MPV allowlist: the shortcut's MPV sends what the page plays.
+  const PLAIN = 'https://plain.test/watch/1';
+  const SP1 = 'https://cdn.test/plain-one/master.m3u8';
   let navigations;
   let inWindowB;
   let gone;
+  // Whether each mpv runs mpv-config's faststream-offer.lua.
+  let offers;
 
   /**
    * Helper 30: a play without a window plays in the one on its own pipe, unless the test put its stream in window B
-   * (what PR D's "new window" answer gives); a play into a window it no longer has answers closed.
+   * (as a "here" into B would); newWindow's is window C; a play into a window it no longer has answers closed.
    * @param {Object} message
    * @return {Object}
    */
@@ -173,8 +182,34 @@ describe('several mpv windows (helper 30)', () => {
     if (message.window && gone.has(message.window)) {
       return {ok: false, closed: true, error: 'the window was closed', ...Helper30};
     }
+    if (message.newWindow) return {ok: true, ...Helper30, window: WindowC};
     const stream = message.target.split('#')[0];
     return {ok: true, ...Helper30, window: message.window ?? (inWindowB.has(stream) ? WindowB : '')};
+  }
+
+  /**
+   * The mpv behind a relay port: it plays (port.mpv says what), answers what it is asked, and passes script messages
+   * back as mpv gives them to every client.
+   * @param {Object} message
+   * @param {Object} port
+   * @return {Object|undefined}
+   */
+  function mpvAnswers(message, port) {
+    if (message.type === 'relay') return {type: 'relaying', ...Helper30};
+    if (message.type !== 'mpv') return undefined;
+    const [name, ...args] = message.command;
+    if (name === 'get_property' && message.id !== undefined) {
+      const properties = {'idle-active': false, 'eof-reached': false, 'path': 'https://cdn.test/playing.m3u8#fs-content=movie',
+        'media-title': 'Show - Episode 1', ...(offers ? {'user-data/faststream/offer': 1} : {}), ...port.mpv};
+      const reply = properties[args[0]] === undefined ? {type: 'mpv-reply', id: message.id, error: 'property unavailable'} :
+        {type: 'mpv-reply', id: message.id, error: 'success', data: properties[args[0]]};
+      // A busy mpv: its reply comes later.
+      if (!port.slowMs) return reply;
+      setTimeout(() => port.emit(reply), port.slowMs);
+      return undefined;
+    }
+    if (name === 'script-message') return {type: 'mpv', data: {event: 'client-message', args}};
+    return undefined;
   }
 
   /** An episode page loads in a tab and asks for its stream. */
@@ -186,22 +221,24 @@ describe('several mpv windows (helper 30)', () => {
   }
 
   /**
-   * Tab 1's stream plays in the window on the helper's own pipe, tab 2's in window B.
-   * @param {Array<string>} [streamsInB]
-   * @return {Promise<{first: Object, second: Object}>} The ports of the two windows' watches.
+   * @param {Array<string>} streamsInB
+   * @param {boolean} withOffer - Whether mpv runs faststream-offer.lua.
    */
-  async function twoWindows(streamsInB = [SX1]) {
+  async function load(streamsInB, withOffer) {
     navigations = [];
     inWindowB = new Set(streamsInB);
     gone = new Set();
+    offers = withOffer;
     bg = await loadBackground({
       options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvSingleInstance: true, mpvAutoplayNext: true,
         autoplayCountdown: 5},
-      tabs: [{id: 1, url: EP1, title: 'Show - Episode 1'}, {id: 2, url: OTHER1, title: 'Other - Episode 1'}],
+      tabs: [{id: 1, url: EP1, title: 'Show - Episode 1'}, {id: 2, url: OTHER1, title: 'Other - Episode 1'},
+        {id: 3, url: THIRD, title: 'Third - Episode 1'}, {id: 4, url: PLAIN, title: 'Plain - Episode 1'}],
       fetch: (url) => new Promise((resolve) => setTimeout(() =>
         resolve(url.startsWith('https://cdn.test/') ? response(hlsPlaylist(1400)) : response('', 404)), 300)),
       thinHost: true,
       onNative: helper30,
+      onPortMessage: mpvAnswers,
       onTabMessage: ({tabId, frameId, message}) => {
         if (message.type === 'GET_VIDEO_SIZE') return frameId === 0 ? 640 * 360 : 0;
         if (message.type !== 'PLAYLIST_NAVIGATION') return undefined;
@@ -209,13 +246,19 @@ describe('several mpv windows (helper 30)', () => {
         return frameId === 0 ? 'clicked' : 'no_button';
       },
     });
+  }
+
+  /**
+   * Tab 1's stream plays in the window on the helper's own pipe, tab 2's in window B (an mpv setup without the offer).
+   * @param {Array<string>} [streamsInB]
+   * @return {Promise<{first: Object, second: Object}>} The ports of the two windows' watches.
+   */
+  async function twoWindows(streamsInB = [SX1]) {
+    await load(streamsInB, false);
     await pageLoads(1, EP1, S1);
     await pageLoads(2, OTHER1, SX1);
     expect(bg.ports).toHaveLength(2);
     const [first, second] = bg.ports;
-    first.emit({type: 'relaying', ...Helper30});
-    second.emit({type: 'relaying', ...Helper30});
-    await bg.wait(50);
     return {first, second};
   }
 
@@ -227,7 +270,8 @@ describe('several mpv windows (helper 30)', () => {
 
   const commands = (port) => port.sent.filter((m) => m.type === 'mpv').map((m) => m.command);
   const notices = (port) => commands(port).filter((c) => c[0] === 'script-message-to' && c[2] === 'show').map((c) => c[5]);
-  const playOf = (stream) => bg.native.find((m) => m.type === 'play' && m.target.startsWith(stream + '#'));
+  const plays = () => bg.native.filter((m) => m.type === 'play');
+  const playOf = (stream) => plays().find((m) => m.target.startsWith(stream + '#'));
   const key = (port, name) => port.emit({type: 'mpv', data: {event: 'client-message', args: [`faststream-${name}`]}});
   const ends = (port, target) => {
     for (const [name, data] of [['path', target], ['eof-reached', false], ['eof-reached', true]]) {
@@ -293,9 +337,9 @@ describe('several mpv windows (helper 30)', () => {
     key(second, 'next');
     await bg.wait(100);
     gone.add(WindowB);
-    const playsBefore = bg.native.filter((m) => m.type === 'play').length;
+    const playsBefore = plays().length;
     await pageLoads(2, OTHER2, SX2);
-    expect(bg.native.filter((m) => m.type === 'play')).toHaveLength(playsBefore + 1);
+    expect(plays()).toHaveLength(playsBefore + 1);
     expect(playOf(SX2)).toMatchObject({window: WindowB});
     expect((await tabState(2)).mpvError).toBeFalsy();
     expect(bg.badges.get(2)).not.toBe('!');
@@ -344,5 +388,257 @@ describe('several mpv windows (helper 30)', () => {
     key(second, 'next');
     await bg.wait(100);
     expect(navigations).toEqual([{tabId: 1, direction: 'next'}]);
+  });
+
+  describe('the offer (mpv-config\'s faststream-offer.lua)', () => {
+    const offerCommands = (port) => commands(port).filter((c) => c[0] === 'script-message' && c[1] === 'faststream-offer');
+    const choose = (port, choice, id = offerCommands(port).at(-1)[2]) =>
+      port.emit({type: 'mpv', data: {event: 'client-message', args: ['faststream-choice', id, choice]}});
+    const paused = (tabId) => bg.sent('PAUSE_MEDIA').filter((m) => m.tabId === tabId).length;
+
+    /**
+     * Tab 1's stream plays in window B; tab 2's page then brings a stream of its own.
+     * @param {Object} [mpv] - What window B's mpv says, over its default (playing, with the offer).
+     * @return {Promise<Object>} Window B's port.
+     */
+    async function secondStream(mpv = {}) {
+      await load([S1], true);
+      await pageLoads(1, EP1, S1);
+      expect(bg.ports).toHaveLength(1);
+      const port = bg.ports[0];
+      port.mpv = mpv;
+      await pageLoads(2, OTHER1, SX1);
+      return port;
+    }
+
+    it('asks a window that plays, raises it and pauses the page; "here" plays the stream there', async () => {
+      const port = await secondStream();
+      expect(offerCommands(port)).toEqual([['script-message', 'faststream-offer', expect.stringMatching(/^[0-9a-f]{8}-\d+$/),
+        '15', 'Play here', 'Other - Episode 1, in place of Show - Episode 1', 'Play in a new window',
+        'it waits there paused; Show - Episode 1 plays on']]);
+      expect(bg.native.filter((m) => m.type === 'raise')).toEqual([{type: 'raise', window: WindowB}]);
+      expect(paused(2)).toBe(1);
+      expect(playOf(SX1)).toBeUndefined();
+      // FastStream's own offer comes back from mpv as every script message does: not an answer.
+      await bg.wait(100);
+      expect(playOf(SX1)).toBeUndefined();
+
+      choose(port, 'here');
+      await bg.wait(100);
+      expect(playOf(SX1)).toMatchObject({window: WindowB});
+      expect(playOf(SX1)).not.toHaveProperty('newWindow');
+      expect((await tabState(2)).mpvWindow).toBe(WindowB);
+      expect((await tabState(1)).mpvWindow).toBe(null);
+      expect(bg.ports).toHaveLength(1);
+    });
+
+    it('"new window" starts one that waits paused, which the tab follows; the window before plays on', async () => {
+      const port = await secondStream();
+      choose(port, 'window');
+      await bg.wait(100);
+      expect(playOf(SX1)).toMatchObject({newWindow: true, paused: true});
+      expect(playOf(SX1)).not.toHaveProperty('window');
+      expect(bg.ports).toHaveLength(2);
+      expect(bg.ports[1].sent[0]).toMatchObject({type: 'relay', window: WindowC});
+      expect((await tabState(2)).mpvWindow).toBe(WindowC);
+      expect((await tabState(1)).mpvWindow).toBe(WindowB);
+      expect(port.disconnected).toBe(false);
+
+      // Tab 1's next stream asks its own window, not the newest.
+      await pageLoads(1, EP2, S2);
+      expect(offerCommands(port)).toHaveLength(2);
+      expect(offerCommands(bg.ports[1])).toEqual([]);
+      choose(port, 'here');
+      await bg.wait(100);
+      expect(playOf(S2)).toMatchObject({window: WindowB});
+      // A link, which no tab follows, asks the window that got the last stream.
+      await bg.menuClick(MenuIds.LINK_MPV, 2, {linkUrl: 'https://www.youtube.com/watch?v=abcdefghijk'});
+      await bg.wait(500);
+      expect(offerCommands(port)).toHaveLength(3);
+      expect(offerCommands(bg.ports[1])).toEqual([]);
+    });
+
+    it('sends nothing when declined or not answered: the page stays paused, with no error, and is not asked again', async () => {
+      let port = await secondStream();
+      choose(port, 'none');
+      await bg.wait(100);
+      expect(playOf(SX1)).toBeUndefined();
+      expect(paused(2)).toBe(1);
+      expect(bg.badges.get(2)).not.toBe('!');
+      expect((await tabState(2)).mpvError).toBeFalsy();
+      // The page's next stream is not handed off by itself either (the allowlist's once per page).
+      await bg.request({tabId: 2, url: SX2});
+      await bg.wait(1000);
+      expect(offerCommands(port)).toHaveLength(1);
+      expect(plays()).toHaveLength(1);
+      bg.unload();
+
+      port = await secondStream();
+      await bg.wait(16000);
+      expect(commands(port).filter((c) => c[1] === 'faststream-offer-cancel')).toEqual([]);
+      await bg.wait(1000);
+      const id = offerCommands(port)[0][2];
+      expect(commands(port).filter((c) => c[1] === 'faststream-offer-cancel')).toEqual([['script-message',
+        'faststream-offer-cancel', id]]);
+      // An answer after the wait counts no more.
+      choose(port, 'here', id);
+      await bg.wait(100);
+      expect(playOf(SX1)).toBeUndefined();
+      expect(bg.badges.get(2)).not.toBe('!');
+    });
+
+    it('plays at once, with no question, in a window that is idle or at its end, plays this stream, or has no offer', async () => {
+      for (const mpv of [{'idle-active': true}, {'eof-reached': true}, {'path': undefined},
+        {'path': `${SX1}#fs-content=movie`}, {'user-data/faststream/offer': undefined}]) {
+        const port = await secondStream(mpv);
+        expect(offerCommands(port)).toEqual([]);
+        expect(bg.native.filter((m) => m.type === 'raise')).toEqual([]);
+        expect(playOf(SX1)).toMatchObject({window: WindowB});
+        bg.unload();
+      }
+    });
+
+    it('never asks for MPV autoplay\'s next episode: it goes to its window', async () => {
+      const port = await secondStream();
+      choose(port, 'none');
+      await bg.wait(100);
+      key(port, 'next');
+      await bg.wait(100);
+      expect(navigations).toEqual([{tabId: 1, direction: 'next'}]);
+      await pageLoads(1, EP2, S2);
+      expect(offerCommands(port)).toHaveLength(1);
+      expect(playOf(S2)).toMatchObject({window: WindowB});
+    });
+
+    it('answers an offer a newer stream replaced with none, and ignores a choice for it', async () => {
+      const port = await secondStream();
+      const first = offerCommands(port)[0][2];
+      await pageLoads(3, THIRD, ST1);
+      expect(offerCommands(port)).toHaveLength(2);
+      const second = offerCommands(port)[1][2];
+      expect(second).not.toBe(first);
+      choose(port, 'here', first);
+      await bg.wait(100);
+      expect(plays()).toHaveLength(1);
+      choose(port, 'here', second);
+      await bg.wait(100);
+      expect(playOf(ST1)).toMatchObject({window: WindowB});
+      expect(playOf(SX1)).toBeUndefined();
+    });
+
+    it('sends nothing when the window closes while it asks, and a fresh window when it went after "here"', async () => {
+      let port = await secondStream();
+      // The player's button in tab 3: its offer replaces tab 2's.
+      let answer;
+      bg.message({type: 'MPV_OPEN', url: ST1, headers: []}, {tabId: 3, onAnswer: (value) => {
+        answer = value;
+      }});
+      await bg.wait(500);
+      expect(offerCommands(port)).toHaveLength(2);
+      port.emit({type: 'closed', reason: 'mpv closed'});
+      await bg.wait(100);
+      expect(answer).toEqual({ok: false, declined: true});
+      expect(plays()).toHaveLength(1);
+      expect(bg.badges.get(2)).not.toBe('!');
+      bg.unload();
+
+      port = await secondStream();
+      gone.add(WindowB);
+      choose(port, 'here');
+      await bg.wait(100);
+      expect(plays().slice(1).map(({window, newWindow, paused}) => ({window, newWindow, paused}))).toEqual([
+        {window: WindowB, newWindow: undefined, paused: undefined},
+        {window: undefined, newWindow: true, paused: undefined}]);
+      expect((await tabState(2)).mpvWindow).toBe(WindowC);
+      expect(bg.badges.get(2)).not.toBe('!');
+    });
+
+    it('shows no offer for a page gone while the window was asked what it plays', async () => {
+      await load([S1], true);
+      await pageLoads(1, EP1, S1);
+      const port = bg.ports[0];
+      port.slowMs = 1500;
+      await pageLoads(2, OTHER1, SX1);
+      await bg.navigated(2, 'https://elsewhere.test/');
+      await bg.wait(2000);
+      expect(offerCommands(port)).toEqual([]);
+      expect(bg.native.filter((m) => m.type === 'raise')).toEqual([]);
+      expect(playOf(SX1)).toBeUndefined();
+    });
+
+    it('sends nothing once the page went while mpv asked', async () => {
+      const port = await secondStream();
+      await bg.navigated(2, 'https://elsewhere.test/');
+      choose(port, 'here');
+      await bg.wait(100);
+      expect(playOf(SX1)).toBeUndefined();
+    });
+
+    it('asks for the player\'s button and a YouTube link too, which say "declined" without an error', async () => {
+      const port = await secondStream();
+      choose(port, 'none');
+      await bg.wait(100);
+      let answer;
+      bg.message({type: 'MPV_OPEN', url: SX2, headers: []}, {tabId: 2, onAnswer: (value) => {
+        answer = value;
+      }});
+      await bg.wait(500);
+      expect(offerCommands(port)).toHaveLength(2);
+      choose(port, 'none');
+      await bg.wait(100);
+      expect(answer).toEqual({ok: false, declined: true});
+
+      await bg.menuClick(MenuIds.LINK_MPV, 2, {linkUrl: 'https://www.youtube.com/watch?v=abcdefghijk'});
+      await bg.wait(500);
+      expect(offerCommands(port)).toHaveLength(3);
+      choose(port, 'none');
+      await bg.wait(100);
+      expect(plays()).toHaveLength(1);
+      expect((await tabState(2)).mpvError).toBeFalsy();
+      expect(bg.badges.get(2)).not.toBe('!');
+    });
+
+    it('does not ask again for a page player\'s own repeated play once declined', async () => {
+      const port = await secondStream();
+      choose(port, 'none');
+      await bg.wait(100);
+      await bg.navigated(4, PLAIN);
+      await bg.frameAdded(4, 0, PLAIN, 'plain');
+      await bg.command('toggle_mpv', 4);
+      const play = () => bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://plain.test/1',
+        video: {src: 'blob:https://plain.test/1', duration: 1400}}, {tabId: 4, frameId: 0});
+      await play();
+      await bg.request({tabId: 4, url: SP1});
+      await bg.wait(1000);
+      expect(offerCommands(port)).toHaveLength(2);
+      choose(port, 'none');
+      await bg.wait(100);
+      expect(plays()).toHaveLength(1);
+      expect(bg.badges.get(4)).not.toBe('!');
+      expect((await tabState(4)).mpvError).toBeFalsy();
+      await play();
+      await bg.wait(1000);
+      expect(offerCommands(port)).toHaveLength(2);
+      expect(plays()).toHaveLength(1);
+    });
+
+    it('asks nothing with a helper before 30', async () => {
+      navigations = [];
+      bg = await loadBackground({
+        options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvSingleInstance: true},
+        tabs: [{id: 1, url: EP1, title: 'Show - Episode 1'}, {id: 2, url: OTHER1, title: 'Other - Episode 1'}],
+        fetch: (url) => new Promise((resolve) => setTimeout(() =>
+          resolve(url.startsWith('https://cdn.test/') ? response(hlsPlaylist(1400)) : response('', 404)), 300)),
+        thinHost: true,
+        onNative: thinHelper,
+        onPortMessage: (message) => message.type === 'relay' ? {type: 'relaying', ...Thin} : undefined,
+      });
+      await pageLoads(1, EP1, S1);
+      await pageLoads(2, OTHER1, SX1);
+      expect(plays().map((m) => m.target.split('#')[0])).toEqual([S1, SX1]);
+      expect(plays().filter((m) => 'window' in m || 'newWindow' in m)).toEqual([]);
+      expect(commands(bg.ports[0]).filter((c) => c[0] === 'get_property' || c[0] === 'script-message')).toEqual([]);
+      expect(bg.native.filter((m) => m.type === 'raise')).toEqual([]);
+    });
   });
 });

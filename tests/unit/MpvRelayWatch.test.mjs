@@ -1,4 +1,4 @@
-import {afterEach, describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {EpisodeMessages as HostEpisodeMessages, HeartbeatMs as HostHeartbeatMs, MaxNoticeSeconds as HostMaxNoticeSeconds,
   ReadableProperties, checkRelayMessage, ipcCommandRefusal, noticeSeconds as hostNoticeSeconds} from '../../native-host/faststream-mpv-host.mjs';
@@ -356,6 +356,61 @@ describe('the relay watch', () => {
       {type: 'request', action: 'next'}, {type: 'request', action: 'previous'}, {type: 'request', action: 'autoplay'},
       {type: 'request', action: 'pause'},
     ]);
+  });
+
+  it('passes on mpv-config\'s answer to an offer, and nothing for another script\'s message or its own offer', () => {
+    const {events, mpv} = relaying();
+    mpv({event: 'client-message', args: ['faststream-offer', 'a1-1', '15', 'Play here', 'x', 'Play in a new window', 'y']});
+    mpv({event: 'client-message', args: ['faststream-choice', 'a1-1', 'here']});
+    mpv({event: 'client-message', args: ['faststream-choice', 'a1-2', 'window']});
+    mpv({event: 'client-message', args: ['faststream-choice', 'a1-3', 'none']});
+    mpv({event: 'client-message', args: ['faststream-choice', 'a1-4', 'elsewhere']});
+    mpv({event: 'client-message', args: ['faststream-choice', '', 'here']});
+    mpv({event: 'client-message', args: ['faststream-choice', 5, 'here']});
+    mpv({event: 'client-message', args: ['faststream-choice', 'a1-5']});
+    expect(events.filter((e) => e.type !== 'watching')).toEqual([
+      {type: 'choice', id: 'a1-1', choice: 'here'}, {type: 'choice', id: 'a1-2', choice: 'window'},
+      {type: 'choice', id: 'a1-3', choice: 'none'},
+    ]);
+  });
+
+  it('asks mpv over the relay and gives its replies in order; a refused one, none in time or the end are errors', async () => {
+    vi.useFakeTimers();
+    try {
+      const {port, watch, reply} = relaying();
+      const before = commands(port).length;
+      const asked = watch.ask([['get_property', 'idle-active'], ['get_property', 'media-title'],
+        ['get_property', 'user-data/faststream/offer'], ['get_property', 'path']], 2000);
+      const sent = commands(port).slice(before);
+      expect(sent.map((m) => m.command)).toEqual([['get_property', 'idle-active'], ['get_property', 'media-title'],
+        ['get_property', 'user-data/faststream/offer'], ['get_property', 'path']]);
+      expect(new Set(sent.map((m) => m.id)).size).toBe(4);
+      expect(sent.every((m) => ipcCommandRefusal(m.command) === null)).toBe(true);
+      reply(sent[1].id, 'success', 'Show - Episode 1');
+      reply(sent[0].id, 'success', false);
+      port.emit({type: 'mpv-refused', id: sent[2].id, reason: 'get_property: property not allowed'});
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(await asked).toEqual([{error: 'success', data: false}, {error: 'success', data: 'Show - Episode 1'},
+        {error: 'get_property: property not allowed'}, {error: 'no reply in time'}]);
+      // A reply that came too late answers nothing.
+      reply(sent[3].id, 'success', 'late');
+
+      const pending = watch.ask([['get_property', 'path']], 2000);
+      port.emit({type: 'closed', reason: 'mpv closed'});
+      expect(await pending).toEqual([{error: 'the watch ended'}]);
+      expect(await watch.ask([['get_property', 'path']], 2000)).toEqual([{error: 'the watch ended'}]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sends a command without an id, held until the helper relays', () => {
+    const port = fakePort();
+    const watch = relayWatch(port, () => {});
+    watch.command(['script-message', 'faststream-offer-cancel', 'a1-1']);
+    expect(commands(port)).toEqual([]);
+    port.emit({type: 'relaying', hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']});
+    expect(commands(port).at(-1)).toEqual({type: 'mpv', command: ['script-message', 'faststream-offer-cancel', 'a1-1']});
   });
 
   it('shows a notice through notify.lua, or mpv\'s own text when this mpv has none', () => {

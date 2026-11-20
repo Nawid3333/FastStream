@@ -37,6 +37,10 @@ export const EpisodeMessages = {
   'faststream-pause': 'pause',
 };
 
+// mpv-config's faststream-offer.lua answers an offer with faststream-choice <id> <choice>.
+const ChoiceMessage = 'faststream-choice';
+const Choices = new Set(['here', 'window', 'none']);
+
 const PathId = 1;
 const EofId = 2;
 const PauseId = 3;
@@ -65,9 +69,15 @@ function noticeText(text) {
   return cutToLength(oneLine, MaxNoticeChars);
 }
 
+/** @typedef {{error: string, data?: *}} MpvReply */
+
 /**
+ * ask: mpv's replies in order; every one an error when the helper refused it, none came in time, or the watch ended.
+ * command: sent without a reply.
  * @typedef {{notify: (title: string, detail?: string, seconds?: number) => void,
- *   hide: () => void, state: (state: {autoplay: boolean}) => void, stop: () => void}} MpvWatcher
+ *   hide: () => void, state: (state: {autoplay: boolean}) => void, stop: () => void,
+ *   ask: (commands: Array<Array<*>>, timeoutMs: number) => Promise<Array<MpvReply>>,
+ *   command: (command: Array<*>) => void}} MpvWatcher
  */
 
 /** @typedef {{type: 'mpv', command: Array<*>, id?: number}} MpvCommand */
@@ -111,6 +121,8 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], win
   let keepOpen = null;
   /** @type {Map<number, {user: *, asked: boolean, kept: boolean}>} */
   const keepOpenChecks = new Map();
+  /** @type {Map<number, (reply: MpvReply) => void>} */
+  const asked = new Map();
 
   /** @param {ToHelperMessage} message */
   const post = (message) => {
@@ -142,6 +154,8 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], win
   const end = (reason) => {
     if (ended) return false;
     ended = true;
+    for (const answer of asked.values()) answer({error: 'the watch ended'});
+    asked.clear();
     if (reason) onEvent({type: 'closed', reason});
     return true;
   };
@@ -186,7 +200,11 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], win
    * @param {*} data
    */
   const onReply = (id, error, data) => {
-    if (endChecks.has(id)) {
+    if (asked.has(id)) {
+      const answer = asked.get(id);
+      asked.delete(id);
+      answer?.(error === 'success' ? {error, data} : {error: typeof error === 'string' && error ? error : 'refused'});
+    } else if (endChecks.has(id)) {
       endChecks.delete(id);
       if (error === 'success' && typeof data === 'number' && data <= EndSlackSeconds) fileEnded();
     } else if (keepOpenChecks.has(id)) {
@@ -226,8 +244,14 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], win
     } else if (event.event === 'playback-restart') {
       endCheck();
     } else if (event.event === 'client-message' && Array.isArray(event.args)) {
-      const action = Object.hasOwn(EpisodeMessages, event.args[0]) ? EpisodeMessages[event.args[0]] : undefined;
-      if (action) onEvent({type: 'request', action});
+      // Others' (FastStream's own faststream-offer comes back too) are not this watch's.
+      const [name, id, choice] = event.args;
+      const action = Object.hasOwn(EpisodeMessages, name) ? EpisodeMessages[name] : undefined;
+      if (action) {
+        onEvent({type: 'request', action});
+      } else if (name === ChoiceMessage && typeof id === 'string' && id && Choices.has(choice)) {
+        onEvent({type: 'choice', id, choice});
+      }
     } else if (event.event === 'property-change' && decoderProperties.includes(event.name)) {
       // No data: unavailable (no video decoder loaded, between two files).
       decoderValues[event.name] = event.data;
@@ -329,6 +353,27 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], win
       } catch (e) {
         // Gone already.
       }
+    },
+    ask(commands, timeoutMs) {
+      return Promise.all(commands.map((command) => new Promise((resolve) => {
+        if (ended) {
+          resolve({error: 'the watch ended'});
+          return;
+        }
+        const id = 1000 + ++requests;
+        const timer = setTimeout(() => {
+          asked.delete(id);
+          resolve({error: 'no reply in time'});
+        }, timeoutMs);
+        asked.set(id, (reply) => {
+          clearTimeout(timer);
+          resolve(reply);
+        });
+        send(command, id);
+      })));
+    },
+    command(command) {
+      send(command);
     },
   };
 }

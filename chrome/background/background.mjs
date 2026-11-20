@@ -407,7 +407,8 @@ async function openLinkIn(tabobj, linkUrl, mpv, linkText) {
     const result = await openInMpv(-1, youTube.url, null, undefined, resolveMpvContentType(null, youTube.url),
         youTube.url, linkText, {startTime: youTube.start, private: tabobj.incognito === true});
     const tab = typeof tabobj.id === 'number' ? Tabs.getTab(tabobj.id) : null;
-    if (tab) {
+    // Declined in mpv: no error to show.
+    if (tab && !('declined' in result)) {
       setMpvError(tab, result);
     }
     return;
@@ -2002,7 +2003,7 @@ async function attachPageQualities(tab, sources) {
 /**
  * @typedef {Awaited<ReturnType<MpvBackend['openStream']>>|{ok: false, vpn: true, error: string}|
  *   {ok: false, drm: true, error: string}|{ok: false, pageOnly: true, error: string}|
- *   {ok: false, dropped: true}} MpvHandOff
+ *   {ok: false, dropped: true}|{ok: false, declined: true}} MpvHandOff
  */
 
 /**

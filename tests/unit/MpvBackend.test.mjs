@@ -557,6 +557,48 @@ describe('the thin helper', () => {
     expect(await backend.openStream('https://cdn.test/f.mp4')).toEqual({ok: true});
   });
 
+  it('starts a new window that waits paused, not fullscreen, only for a helper that has windows (30)', async () => {
+    const Windows = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay', 'windows']};
+    let sent = helper(() => ({ok: true, ...Windows, window: 'fedcba9876543210'}));
+    const backend = new MpvBackend();
+    backend.capabilities = Windows.capabilities;
+    backend.fullscreen = true;
+    expect(await backend.openStream('https://cdn.test/a.mp4', undefined, undefined, undefined, undefined, undefined,
+        {newWindow: true, paused: true})).toEqual({ok: true, window: 'fedcba9876543210'});
+    expect(sent[0]).toMatchObject({newWindow: true, paused: true});
+    expect(sent[0]).not.toHaveProperty('fullscreen');
+    expect(checkPlayMessage(sent[0])).toMatchObject({ok: true, play: {newWindow: true, paused: true, fullscreen: false}});
+    // Not paused: as the option asks.
+    sent = helper(() => ({ok: true, ...Windows, window: 'fedcba9876543210'}));
+    await backend.openStream('https://cdn.test/b.mp4', undefined, undefined, undefined, undefined, undefined,
+        {newWindow: true});
+    expect(sent[0]).toMatchObject({newWindow: true, fullscreen: true});
+    expect(sent[0]).not.toHaveProperty('paused');
+    expect(checkPlayMessage(sent[0]).ok).toBe(true);
+    // An older helper: the one window it has.
+    sent = helper();
+    const older = new MpvBackend();
+    older.capabilities = Thin.capabilities;
+    await older.openStream('https://cdn.test/c.mp4', undefined, undefined, undefined, undefined, undefined,
+        {newWindow: true, paused: true});
+    expect(sent[0]).not.toHaveProperty('newWindow');
+    expect(sent[0]).not.toHaveProperty('paused');
+  });
+
+  it('raises a window only with a helper that has windows (30)', async () => {
+    const Windows = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay', 'windows']};
+    let sent = helper(() => ({ok: true, ...Windows}));
+    const backend = new MpvBackend();
+    backend.capabilities = Windows.capabilities;
+    await backend.raise('0123456789abcdef');
+    await backend.raise('');
+    expect(sent).toEqual([{type: 'raise', window: '0123456789abcdef'}, {type: 'raise'}]);
+    sent = helper();
+    backend.capabilities = Thin.capabilities;
+    await backend.raise('');
+    expect(sent).toEqual([]);
+  });
+
   it('leaves out what the helper would refuse the whole message for', async () => {
     const sent = helper();
     const backend = new MpvBackend();

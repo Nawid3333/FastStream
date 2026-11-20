@@ -1209,6 +1209,33 @@ gone one closed).
 **Tests.** `backgroundMpvThin.test.mjs` ("several mpv windows"), `MpvBackend.test.mjs` (the window in play
 only for a helper with `windows`), `MpvRelayWatch.test.mjs` (a watch per window).
 
+### The offer
+
+A stream for a window that plays no longer replaces what it plays unasked (`placeStream` in `MpvMode.mjs`,
+`MpvOffer.mjs`, mpv-config's `faststream-offer.lua`):
+- The window is the tab's own while it is followed, else the one that got the last stream (`targetFor`; the helper
+  does not let the extension read mpv's `focused`). It is asked over its relay: `idle-active`, `eof-reached`, `path`,
+  `media-title` and `user-data/faststream/offer`, which faststream-offer.lua sets. Idle, at its end, playing this
+  stream, without the script (an older mpv setup) or with no reply within 2 s, it takes the stream at once, as before.
+- Else `script-message faststream-offer <id> 15 <here title> <here detail> <window title> <window detail>` (texts one
+  line, titles cut to 60), a `raise`, and the page is paused at once, as after a hand-off. The answer is the
+  broadcast `faststream-choice <id> here|window|none`; FastStream's own offer comes back as a client-message too,
+  and is no answer. 17 s without one is none (`faststream-offer-cancel <id>` takes the banners down); a newer
+  stream's offer replaces the one up, whose answer is then none.
+- here: `play` into that window; one closed meanwhile gets a fresh window, never the helper's own pipe's, where
+  another window may play. window: `play` with `newWindow` and `paused` (minimized, not fullscreen), which the tab
+  follows from then on; the window before lets go of the tab. none, no answer, or the window closed while it
+  asked: nothing goes, as `{ok: false, declined: true}`. The page stays paused with no error; the allowlist's
+  once-per-page latch and the page player's `mpvLastPlaySend` stay, so its own repeated play does not ask again. The
+  player's button says so (`player_mpv_declined`) and waits 20 s for an answer.
+- Not asked: MPV autoplay's next episode (its own window), "Reuse one mpv window" off, a helper before 30, a URL the
+  tab sent or is sending, and a window FastStream does not follow (no relay to hear the answer). The page or MPV
+  gone while it asked sends nothing.
+
+**Tests.** `MpvOffer.test.mjs` (texts and questions against the helper's allowlist, which answer counts),
+`MpvRelayWatch.test.mjs` (ask, command, the choice event), `MpvBackend.test.mjs` (newWindow with paused, raise),
+`backgroundMpvThin.test.mjs` ("the offer"), `SaveManager.test.mjs` (declined, the 20 s wait).
+
 ## Background: reasons behind the code
 
 - **`MpvSubtitles.mjs`** - A track's file is read only up to twice the host's message cap

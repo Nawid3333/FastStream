@@ -16,8 +16,9 @@ import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {StatusTypes} from './StatusManager.mjs';
 
-// How long an mpv request may go unanswered before the button sends again.
-const MPV_ANSWER_WAIT_MS = 15000;
+// How long an mpv request may go unanswered before the button sends again: past mpv's 17 s question to a window
+// that plays (MpvOffer.mjs).
+const MPV_ANSWER_WAIT_MS = 20000;
 
 /**
  * streamSaver as it is called here: StreamSaver.mjs's JSDoc lists options and size as
@@ -168,6 +169,11 @@ export class SaveManager {
         response.error : '';
       if (response && response.vpn) {
         this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_vpn'), 'warning', 12000);
+        return;
+      }
+      // Answered no in mpv, or not at all: nothing failed.
+      if (response && response.declined) {
+        this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_declined'), 'info', 3000);
         return;
       }
       if (response && response.ok) {

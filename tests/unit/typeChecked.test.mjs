@@ -23,6 +23,7 @@ const CHECKED = [
   'chrome/background/MpvBackend.mjs',
   'chrome/background/MpvHlsPackage.mjs',
   'chrome/background/MpvMode.mjs',
+  'chrome/background/MpvOffer.mjs',
   'chrome/background/MpvRelayWatch.mjs',
   'chrome/background/MpvSubtitles.mjs',
   'chrome/background/MpvTarget.mjs',

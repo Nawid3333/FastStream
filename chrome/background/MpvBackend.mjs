@@ -45,13 +45,15 @@ const PrivateNeedsNewerHostError = 'a private window\'s stream needs mpv helper 
  */
 
 /**
+ * choice: mpv-config's answer to an offer (MpvOffer.mjs).
  * @typedef {{type: 'watching'}|{type: 'path'|'ended', path: *}|{type: 'request', action: *}|
- *   {type: 'closed', reason: *}|{type: 'decoder', decoder: ?MpvDecoder}} MpvWatchEvent
+ *   {type: 'closed', reason: *}|{type: 'decoder', decoder: ?MpvDecoder}|{type: 'choice', id: string, choice: string}} MpvWatchEvent
  */
 
 /**
  * @typedef {{type: 'watching'}|{type: 'path'|'ended', path: string}|{type: 'request', action: string}|
- *   {type: 'closed', reason: string}|{type: 'decoder-replies', replies: Array<{error: string, data?: *}>}} RelayEvent
+ *   {type: 'closed', reason: string}|{type: 'decoder-replies', replies: Array<{error: string, data?: *}>}|
+ *   {type: 'choice', id: string, choice: string}} RelayEvent
  */
 
 const FormatNames = new Map([
@@ -81,7 +83,7 @@ function messageBytes(message) {
 
 /**
  * @typedef {{type: 'play', target: string, title: string, start?: string, headers?: Array<string>,
- *   mpvPath?: string, fullscreen?: boolean, newWindow?: boolean, window?: string,
+ *   mpvPath?: string, fullscreen?: boolean, newWindow?: boolean, paused?: boolean, window?: string,
  *   subtitles?: Array<{label: string, srt: string}>, hls?: {files: Array<{name: string, text: string}>}}} PlayMessage
  */
 
@@ -175,6 +177,9 @@ function legacyWatch(port, onEvent) {
     hide: () => post({type: 'hide'}),
     // What mpv's autoplay button shows ({autoplay: boolean}).
     state: (state) => post({type: 'state', ...state}),
+    // A host before 15 passes no mpv commands.
+    ask: async (commands) => commands.map(() => ({error: 'the mpv host passes no commands'})),
+    command: () => {},
     stop: () => {
       if (!end(null)) return;
       try {
@@ -191,7 +196,8 @@ function legacyWatch(port, onEvent) {
  *   pageUrl?: string, pageTitle?: string, extras: {startTime?: number, private?: boolean,
  *   subtitles?: Array<{label: string, srt: string}>,
  *   qualities?: Array<{url: string, label: string, height: number}>,
- *   hls?: {files: Array<{name: string, text: string}>}, window?: string}}} MpvStream
+ *   hls?: {files: Array<{name: string, text: string}>}, window?: string, newWindow?: boolean,
+ *   paused?: boolean}}} MpvStream
  */
 
 /**
@@ -637,9 +643,17 @@ export class MpvBackend {
       message.fullscreen = true;
     }
 
+    const windows = this.capabilities?.includes(Capabilities.WINDOWS);
     if (!this.singleInstance) {
       message.newWindow = true;
-    } else if (extras.window && this.capabilities?.includes(Capabilities.WINDOWS)) {
+    } else if (extras.newWindow && windows) {
+      message.newWindow = true;
+      if (extras.paused) {
+        // It waits minimized: the helper refuses a paused fullscreen one.
+        message.paused = true;
+        delete message.fullscreen;
+      }
+    } else if (extras.window && windows) {
       message.window = extras.window;
     }
 
@@ -652,6 +666,16 @@ export class MpvBackend {
 
     return messageBytes(message) > (message.hls ? HlsHostMaxMessageBytes : HostMaxMessageBytes) ?
       {error: TooLongError} : {message};
+  }
+
+  /**
+   * Brings an open mpv window to the front; an older helper has no raise.
+   * @param {string} window - The helper's id of the window (helper 30), '' for the one on its own pipe.
+   * @return {Promise<void>}
+   */
+  async raise(window) {
+    if (!this.capabilities?.includes(Capabilities.WINDOWS)) return;
+    await this.ask(window ? {type: 'raise', window} : {type: 'raise'});
   }
 
   /**
@@ -673,6 +697,9 @@ export class MpvBackend {
       notify: (title, detail = '', seconds) => current?.notify(title, detail, seconds),
       hide: () => current?.hide(),
       state: (state) => current?.state(state),
+      ask: (commands, timeoutMs) => current ? current.ask(commands, timeoutMs) :
+        Promise.resolve(commands.map(() => ({error: 'no watch'}))),
+      command: (command) => current?.command(command),
       stop: () => {
         stopped = true;
         forget();
