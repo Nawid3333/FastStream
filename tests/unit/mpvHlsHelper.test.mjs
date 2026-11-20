@@ -488,7 +488,7 @@ describe('playing them', () => {
     const checked = checkPlayMessage({type: 'play', target: 'https://cdn.test/pl/7?token=k#fs-id=ab', title: 'T',
       hls: {files: [{name: '0.m3u8', text: media()}]}});
     const answer = await playMpv('mpv', /** @type {*} */ (checked).play, {ipcToken: 'x'}, io);
-    expect(answer).toEqual({ok: false, error: 'the open mpv refused the stream (invalid parameter): close it and send again'});
+    expect(answer).toEqual({ok: false, window: '', error: 'the open mpv refused the stream (invalid parameter): close it and send again'});
     expect(fs.readdirSync(base)).toEqual([]);
     expect(started).toBe(0);
   });
@@ -512,7 +512,7 @@ describe('playing them', () => {
       hls: {files: [{name: '0.m3u8', text: media()}]}});
     const answer = await playMpv('mpv', /** @type {*} */ (checked).play, {ipcToken: 'x'}, io);
     // The answer as before, for the extension.
-    expect(answer).toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
+    expect(answer).toEqual({ok: false, window: '', error: 'mpv is busy and did not answer: try again in a moment'});
     const folders = fs.readdirSync(base);
     expect(folders).toHaveLength(1);
     expect(fs.readdirSync(path.join(base, folders[0])).sort()).toEqual(['0.m3u8', 'target.txt']);
@@ -538,9 +538,9 @@ describe('playing them', () => {
           platform: 'linux',
           start: async () => ({ok: true, pid: 77}),
           stop: (pid) => stopped.push(pid),
-          randomHex: () => '0a1b2c',
+          randomHex: () => '0a1b2c3d4e5f6a7b',
         });
-        expect(answer).toEqual({ok: false, error: 'the new mpv did not take the stream: try again in a moment'});
+        expect(answer).toEqual({ok: false, window: '0a1b2c3d4e5f6a7b', error: 'the new mpv did not take the stream: try again in a moment'});
         // The mpv runs on, with the load in its pipe.
         expect(stopped).toEqual([]);
         expect(fs.readdirSync(base)).toHaveLength(kept);
@@ -574,7 +574,7 @@ describe('playing them', () => {
           return {ok: false, error: 'not here'};
         },
       });
-      expect(answer).toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
+      expect(answer).toEqual({ok: false, window: '', error: 'mpv is busy and did not answer: try again in a moment'});
       expect(slept).toBe(1000);
       expect(started).toBe(0);
       expect(fs.readdirSync(base)).toHaveLength(kept);
@@ -595,7 +595,7 @@ describe('playing them', () => {
       platform: 'linux',
       start: async () => ({ok: false, error: 'not here'}),
     });
-    expect(answer).toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
+    expect(answer).toEqual({ok: false, window: '', error: 'mpv is busy and did not answer: try again in a moment'});
     const folders = fs.readdirSync(base);
     expect(folders).toHaveLength(1);
     expect(folders[0].startsWith(HlsDirPrefix + 'p-')).toBe(true);

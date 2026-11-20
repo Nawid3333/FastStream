@@ -375,18 +375,20 @@ describe('checkPlayMessage', () => {
     })).toEqual({ok: true, play: {
       target, title: 'Show - Episode 3', start: '754.123',
       headerFields: ['Referer: https://site.test/a?b=1,2', 'Origin: https://site.test', 'User-Agent: UA (x, y)'],
-      subtitles, fullscreen: true, newWindow: true,
+      subtitles, fullscreen: true, newWindow: true, paused: false, window: '',
     }});
   });
 
   it('fills in what is missing: the host name as the title, no start, headers or subtitles, one window', () => {
     expect(checkPlayMessage({type: 'play', target})).toEqual({ok: true, play: {
       target, title: 'cdn.test', start: undefined, headerFields: [], subtitles: [], fullscreen: false, newWindow: false,
+      paused: false, window: '',
     }});
     for (const title of [undefined, null, '']) {
       expect(checkPlayMessage({target, title}).play.title).toBe('cdn.test');
     }
-    expect(checkPlayMessage({target, start: null, headers: null, subtitles: null, fullscreen: null, newWindow: null}).ok)
+    expect(checkPlayMessage({target, start: null, headers: null, subtitles: null, fullscreen: null, newWindow: null,
+      paused: null, window: null}).ok)
         .toBe(true);
   });
 
@@ -394,7 +396,8 @@ describe('checkPlayMessage', () => {
     const checked = checkPlayMessage({target, url: 'file:///x', extra: 1});
     expect(checked.ok).toBe(true);
     expect(Object.keys(checked.play).sort())
-        .toEqual(['fullscreen', 'headerFields', 'hls', 'mpvPath', 'newWindow', 'start', 'subtitles', 'target', 'title']);
+        .toEqual(['fullscreen', 'headerFields', 'hls', 'mpvPath', 'newWindow', 'paused', 'start', 'subtitles', 'target',
+          'title', 'window']);
     expect(JSON.stringify(checked)).not.toContain('file:');
   });
 
@@ -521,22 +524,51 @@ describe('checkPlayMessage', () => {
     });
   });
 
-  it('takes fullscreen and newWindow as a yes or no only', () => {
+  it('takes fullscreen, newWindow and paused as a yes or no only', () => {
+    const error = {ok: false, error: 'fullscreen, newWindow and paused are a yes or no'};
     for (const value of ['yes', 1, 0, 'true', {}, []]) {
-      expect(checkPlayMessage({target, fullscreen: value})).toEqual({ok: false, error: 'fullscreen and newWindow are a yes or no'});
-      expect(checkPlayMessage({target, newWindow: value})).toEqual({ok: false, error: 'fullscreen and newWindow are a yes or no'});
+      expect(checkPlayMessage({target, fullscreen: value})).toEqual(error);
+      expect(checkPlayMessage({target, newWindow: value})).toEqual(error);
+      expect(checkPlayMessage({target, newWindow: true, paused: value})).toEqual(error);
     }
+  });
+
+  it('starts only a new window paused, and not fullscreen', () => {
+    expect(checkPlayMessage({target, newWindow: true, paused: true}).play).toMatchObject({newWindow: true, paused: true});
+    const error = {ok: false, error: 'only a new window that is not fullscreen starts paused'};
+    expect(checkPlayMessage({target, paused: true})).toEqual(error);
+    expect(checkPlayMessage({target, newWindow: true, paused: true, fullscreen: true})).toEqual(error);
+    expect(checkPlayMessage({target, window: '0123456789abcdef', paused: true})).toEqual(error);
+  });
+
+  it('takes a window only as one of the helper\'s ids, and not with newWindow', () => {
+    expect(checkPlayMessage({target, window: '0123456789abcdef'}).play.window).toBe('0123456789abcdef');
+    for (const window of ['0123456789ABCDEF', '0123456789abcde', '0123456789abcdef0', '../../pipe/x', '0123456789abcdeg',
+      ' 0123456789abcdef', 12, true, {}, ['0123456789abcdef']]) {
+      expect(checkPlayMessage({target, window}), JSON.stringify(window))
+          .toEqual({ok: false, error: 'the window is not one of the helper\'s'});
+    }
+    expect(checkPlayMessage({target, window: '0123456789abcdef', newWindow: true}))
+        .toEqual({ok: false, error: 'a new window is not one that is open'});
   });
 });
 
 describe('checkRelayMessage', () => {
   it('takes no options, a heartbeat and onStop commands', () => {
-    expect(checkRelayMessage({type: 'relay'})).toEqual({ok: true, heartbeat: null, onStop: []});
+    expect(checkRelayMessage({type: 'relay'})).toEqual({ok: true, heartbeat: null, onStop: [], window: ''});
     const onStop = [['set_property', 'user-data/faststream/connected', false], ['script-message-to', 'notify', 'hide', 'faststream']];
     expect(checkRelayMessage({type: 'relay', heartbeat: {property: 'user-data/faststream/heartbeat', everyMs: 30000}, onStop}))
-        .toEqual({ok: true, heartbeat: {property: 'user-data/faststream/heartbeat', everyMs: 30000}, onStop});
+        .toEqual({ok: true, heartbeat: {property: 'user-data/faststream/heartbeat', everyMs: 30000}, onStop, window: ''});
     expect(checkRelayMessage({heartbeat: {property: 'user-data/faststream/a/b', everyMs: MinHeartbeatMs}}).ok).toBe(true);
     expect(checkRelayMessage({onStop: Array(8).fill(['set_property', 'pause', true])}).ok).toBe(true);
+  });
+
+  it('takes a window only as one of the helper\'s ids', () => {
+    expect(checkRelayMessage({window: '0123456789abcdef'})).toMatchObject({ok: true, window: '0123456789abcdef'});
+    for (const window of ['0123456789ABCDEF', '..\\x', 'abc', 5]) {
+      expect(checkRelayMessage({window}), String(window))
+          .toEqual({ok: false, error: 'the window is not one of the helper\'s'});
+    }
   });
 
   it('refuses a heartbeat on any other property, more often than every 5 s, or past what a timer can wait', () => {

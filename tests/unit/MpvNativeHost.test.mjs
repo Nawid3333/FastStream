@@ -701,6 +701,19 @@ describe('ipcPipeFor', () => {
     expect(ipcPipeFor({ipcToken: token}, 'darwin', {TMPDIR: '/tmp/x'}).startsWith('/tmp/x/')).toBe(true);
   });
 
+  it('names another of the helper\'s windows by its id after the pipe\'s name, and nothing else', () => {
+    const id = '0123456789abcdef';
+    expect(ipcPipeFor({ipcToken: token}, 'win32', {}, id)).toBe(`\\\\.\\pipe\\faststream-mpv-${token}-${id}`);
+    expect(ipcPipeFor({ipcToken: token}, 'linux', {XDG_RUNTIME_DIR: '/run/user/1000'}, id))
+        .toMatch(new RegExp(`^/run/user/1000/faststream-mpv-\\d+-${token}-${id}\\.sock$`));
+    expect(ipcPipeFor({ipcToken: token}, 'win32', {}, '')).toBe(ipcPipeFor({ipcToken: token}, 'win32'));
+    const macTemp = '/var/folders/zz/zyxvpxvq6csfxvn_n0000000000000gn/T/';
+    expect(Buffer.byteLength(ipcPipeFor({ipcToken: token}, 'darwin', {TMPDIR: macTemp}, id))).toBeLessThanOrEqual(103);
+    for (const window of ['..\\x', '0123456789ABCDEF', 'abc', '0123456789abcdef0', '/tmp/x']) {
+      expect(() => ipcPipeFor({ipcToken: token}, 'win32', {}, window), window).toThrow('not a window id');
+    }
+  });
+
   it('carries the token elsewhere too when there is one: the temp folder can be shared (glm\'s review)', () => {
     expect(ipcPipeFor({ipcToken: token}, 'linux', {})).toMatch(new RegExp(`/faststream-mpv-\\d+-${token}\\.sock$`));
     expect(ipcPipeFor({ipcToken: 'short'}, 'linux', {XDG_RUNTIME_DIR: '/run/user/1000'})).toMatch(/^\/run\/user\/1000\/faststream-mpv-\d+\.sock$/);

@@ -28,8 +28,8 @@ const installerFile = path.join(root, 'native-host/install.ps1');
 // chrome/background/MpvBackend.mjs with it when the extension needs the new host; then put
 // the new values here (a failure prints the hashes).
 const RECORDED = {
-  version: 29,
-  host: '42da59151546bd1caec801a2dfddfefc3187a930bf2713541dd08e7cf75171d7',
+  version: 30,
+  host: '06b3ca44fb9b85ee0a312246676abf8880dde03198eba39af4ecaeffe6a05f44',
   installer: 'db3b8027b508556b8af66eb4b8188460c2a5a6e1feb32d32b490f2e234b29b3a',
 };
 
@@ -63,7 +63,7 @@ describe('the mpv host\'s version', () => {
   it('goes out with every answer', () => {
     // With the thin helper's messages it understands (play, ipc, relay).
     expect(withHostVersion({ok: true, mpv: false}))
-        .toEqual({ok: true, mpv: false, hostVersion: HostVersion, capabilities: ['play', 'ipc', 'relay', 'hls']});
+        .toEqual({ok: true, mpv: false, hostVersion: HostVersion, capabilities: ['play', 'ipc', 'relay', 'hls', 'windows']});
     expect(withHostVersion({ok: false, error: 'unknown message'}))
         .toEqual({ok: false, error: 'unknown message', hostVersion: HostVersion, capabilities: [...Capabilities]});
   });
@@ -105,6 +105,23 @@ describe('the mpv host\'s version', () => {
     expect(await askHost({type: 'nonsense'}))
         .toEqual({ok: false, error: 'unknown message', hostVersion: HostVersion, capabilities: [...Capabilities]});
   }, 30000);
+
+  // The window reaches the pipe's name: anything but one of the helper's ids is refused before a pipe is asked.
+  it('refuses a window that is not one of the helper\'s ids in ipc, relay, raise and play, and finds a gone one closed',
+      async () => {
+        const bad = '../faststream-mpv';
+        const refused = {error: 'the window is not one of the helper\'s', hostVersion: HostVersion};
+        expect(await askHost({type: 'ipc', window: bad, commands: [['get_property', 'pid']]}))
+            .toMatchObject({ok: false, error: 'refused', reason: refused.error});
+        expect(await askHost({type: 'relay', window: bad})).toMatchObject({type: 'closed', reason: 'refused', ...refused});
+        expect(await askHost({type: 'raise', window: bad})).toMatchObject({ok: false, ...refused});
+        expect(await askHost({type: 'play', target: 'https://cdn.test/v.m3u8', window: bad})).toMatchObject({ok: false, ...refused});
+        // An id no mpv has (randomly drawn): the window is gone, and nothing on the helper's own pipe is asked.
+        const gone = crypto.randomBytes(8).toString('hex');
+        expect(await askHost({type: 'raise', window: gone})).toMatchObject({ok: false, closed: true});
+        expect(await askHost({type: 'ipc', window: gone, commands: [['get_property', 'pid']]}))
+            .toMatchObject({ok: false, error: 'no mpv ipc'});
+      }, 60000);
 
   // Node names the program by its real path: started through a link to its folder (a Linux
   // install linking the host somewhere of its own), the host took itself for an imported
