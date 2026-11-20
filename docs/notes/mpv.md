@@ -6,6 +6,9 @@
 
 ## MPV mode and the native host
 
+Desktop only: Firefox for Android has no native messaging, so MPV mode is off and hidden
+there ("Firefox for Android" in `build-and-release.md`).
+
 Feature branch `Mpv-feature`. Allowlisted sites hand their detected stream to
 mpv on the user's machine instead of the in-page player, over native
 messaging to `com.faststream.mpv`.

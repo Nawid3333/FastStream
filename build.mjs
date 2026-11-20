@@ -71,6 +71,10 @@ async function buildFirefoxGithub() {
         required: ['none'],
       },
     },
+    // As the AMO build.
+    gecko_android: {
+      strict_min_version: '153.0',
+    },
   };
 
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
@@ -112,6 +116,11 @@ async function buildFirefoxAmo() {
       // releases - release.yml regenerates and re-uploads updates.json
       // (and the xpi it points at) every time it cuts one.
       update_url: 'https://github.com/Nawid3333/FastStream/releases/latest/download/updates.json',
+    },
+    // The same signed file installs on Firefox for Android, with the desktop-only parts off
+    // there (docs/notes/build-and-release.md, "Firefox for Android").
+    gecko_android: {
+      strict_min_version: '153.0',
     },
   };
 

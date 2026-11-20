@@ -39,7 +39,7 @@ describe('manifest commands', () => {
   });
 
   it('runs every command on both paths', () => {
-    const onCommand = block('chrome.commands.onCommand.addListener(');
+    const onCommand = block('chrome.commands?.onCommand.addListener(');
     const onCancelled = block('async function onCancelledShortcut(');
     expect(names.filter((name) => !onCommand.includes(`command === '${name}'`))).toEqual([]);
     expect(names.filter((name) => !onCancelled.includes(`command.name === '${name}'`))).toEqual([]);

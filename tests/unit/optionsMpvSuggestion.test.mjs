@@ -39,9 +39,11 @@ const settle = async () => {
  * @param {Object} [setup.stored] - Other storage.local keys.
  * @param {*} [setup.answer] - The background's MPV_TEST answer; 'lastError' for none.
  * @param {boolean} [setup.seen] - Whether the page is seen as soon as it loads.
+ * @param {string} [setup.os] - Firefox's runtime.getPlatformInfo().os.
+ * @param {string} [setup.userAgent] - navigator.userAgent.
  * @return {Promise<Object>} The page, what it sent, what it stored, and a way to show it.
  */
-async function openOptionsPage({options = {}, stored = {}, answer = {ok: true, mpv: true}, seen = true} = {}) {
+async function openOptionsPage({options = {}, stored = {}, answer = {ok: true, mpv: true}, seen = true, os, userAgent} = {}) {
   vi.resetModules();
   const doc = loadPage('chrome/player/options/index.html');
   const local = {options: JSON.stringify(options), ...stored};
@@ -90,6 +92,8 @@ async function openOptionsPage({options = {}, stored = {}, answer = {ok: true, m
     },
     tabs: {create: vi.fn()},
   };
+  if (os) chrome.runtime.getPlatformInfo = async () => ({os});
+  if (userAgent) vi.stubGlobal('navigator', {userAgent, platform: 'Linux aarch64'});
   let observed = null;
   const win = {opener: null, location: {origin: 'moz-extension://test'}, addEventListener() {}};
   win.parent = win;
@@ -166,6 +170,33 @@ describe('the offer to turn MPV mode on', () => {
     const page = await openOptionsPage({answer: {ok: false, error: 'No such native application com.faststream.mpv'}});
     expect(page.hostAsked()).toBe(1);
     expect(page.banner().hidden).toBe(true);
+  });
+
+  it('is not offered on Firefox for Android, which runs no helper, and MPV mode and its section are hidden', async () => {
+    const desktop = await openOptionsPage({os: 'win'});
+    expect(desktop.byId('mpvmoderow').hidden).toBe(false);
+    expect(desktop.byId('mpvsection').hidden).toBe(false);
+
+    const page = await openOptionsPage({os: 'android', userAgent: 'Mozilla/5.0 (Android 15; Mobile; rv:153.0) Gecko/153.0 Firefox/153.0'});
+    expect(page.hostAsked()).toBe(0);
+    expect(page.banner().hidden).toBe(true);
+    expect(page.byId('mpvmoderow').hidden).toBe(true);
+    expect(page.byId('mpvsection').hidden).toBe(true);
+  });
+
+  it('hides MPV mode once Firefox says Android, when the user agent is a desktop site\'s', async () => {
+    const page = await openOptionsPage({os: 'android', userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0'});
+    expect(page.hostAsked()).toBe(0);
+    expect(page.byId('mpvmoderow').hidden).toBe(true);
+    expect(page.byId('mpvsection').hidden).toBe(true);
+  });
+
+  it('shows MPV mode and offers it once Firefox says Windows, when the user agent is set to Android\'s', async () => {
+    const page = await openOptionsPage({os: 'win', userAgent: 'Mozilla/5.0 (Android 15; Mobile; rv:153.0) Gecko/153.0 Firefox/153.0'});
+    expect(page.byId('mpvmoderow').hidden).toBe(false);
+    expect(page.byId('mpvsection').hidden).toBe(false);
+    expect(page.hostAsked()).toBe(1);
+    expect(page.banner().hidden).toBe(false);
   });
 
   it('stays hidden when the background does not answer', async () => {

@@ -71,8 +71,18 @@ export class EnvUtils {
     } catch (e) {
       // No answer: what the page is told.
     }
+    if (/Android/i.test(String(globalThis.navigator?.userAgent || ''))) return 'android';
     const platform = String(globalThis.navigator?.platform || '');
     return platform.startsWith('Win') ? 'win' : platform.startsWith('Mac') ? 'mac' : 'linux';
+  }
+
+  /**
+   * Firefox for Android: no mpv helper there. Firefox's answer once os() has it, the user agent until then.
+   * @return {boolean}
+   */
+  static isAndroid() {
+    if (EnvUtils.knownOs) return EnvUtils.knownOs === 'android';
+    return /Android/i.test(String(globalThis.navigator?.userAgent || ''));
   }
 
   /**

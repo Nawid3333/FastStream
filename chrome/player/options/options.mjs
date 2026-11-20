@@ -110,13 +110,27 @@ const mpvSuggestion = EnvUtils.isExtension() ? new MpvSuggestion({
   },
 }) : null;
 let pageSeen = false;
-// For EnvUtils.isWindows.
-EnvUtils.os();
+// Firefox's answer to EnvUtils.os(); the user agent's guess until it comes, which a user
+// agent override or Android's desktop-site mode makes wrong.
+let platformKnown = false;
+// Firefox for Android runs no mpv helper: its options are not shown there.
+const showMpvOptions = () => {
+  const hidden = EnvUtils.isAndroid();
+  /** @type {HTMLElement} */ (document.getElementById('mpvmoderow')).hidden = hidden;
+  /** @type {HTMLElement} */ (document.getElementById('mpvsection')).hidden = hidden;
+};
+showMpvOptions();
 const offerMpvWhenReady = () => {
-  if (mpvSuggestion && optionsLoaded && pageSeen) {
+  if (mpvSuggestion && optionsLoaded && pageSeen && platformKnown && !EnvUtils.isAndroid()) {
     mpvSuggestion.check().catch((e) => console.error('Asking the mpv host failed', e));
   }
 };
+// Also for EnvUtils.isWindows.
+EnvUtils.os().then(() => {
+  platformKnown = true;
+  showMpvOptions();
+  offerMpvWhenReady();
+}).catch((e) => console.error('Reading the platform failed', e));
 OptionsStore.init().then(() => {
   optionsLoaded = true;
   loadOptions(OptionsStore.get());
