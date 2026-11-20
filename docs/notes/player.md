@@ -1909,6 +1909,35 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
     never reaches the parser), and one holding only images. The parser loads nothing a document
     names (an external DTD, a style sheet, XHTML elements); text is escaped into the cue, and
     elements other than span and br (metadata, foreign ones) are left out.
+  - Also refused: a document that costs more than a subtitle file does (2026-11-19, found by glm
+    and Codex reading the code). A paragraph is rendered once for every stretch its spans' times
+    cut it into, each time over all its elements, and every stretch that shows text writes the
+    paragraph's whole text again. Measured in Firefox 160, one paragraph of N one-second spans:
+    1 000 in 0.17 s, 4 000 in 1.9 s, 16 000 (0.9 MB of file) in 31 s, in the player's page or,
+    for subtitles handed to mpv, in the background page; with 2 000 characters before the spans,
+    16 000 gave 32 MB of cues. The reader now counts its work where it is done and refuses past
+    `MAX_WORK` (16 million, about two seconds on this PC), and counts the cue text it writes
+    (`MAX_CUE_TEXT`, 16 MB). The costs are measured ones: a node looked at is 1 (0.12 µs for a
+    span, 0.03 µs for a comment), a style applied 10 (1.1 µs: a span that names a style naming
+    300 others applies 301), 64 characters of text 1 (0.8 ns each for white space); each name in
+    a style attribute and each attribute of an element whose style is applied or that is shown
+    is 1 as well (glm's second review: 200 000 names in a p's own style attribute beside 1 000
+    spans went through in about 13 s before they were charged). A first form
+    estimated the work as stretches times elements; glm and Codex showed what that misses, and
+    measured, a 32 KB file of chained styles took 29 s through it (1.8 s to its refusal now),
+    200 000 comments beside 500 spans 3.2 s (0.6 s). Every review found work the count did not
+    know (a style's children looked through at each use, kept line breaks, long attribute
+    values), so the count has a clock behind it: `MAX_READ_MS`, 5 s, looked at every 64th
+    charge. Between two looks stands at most one pass over something of the file's size. A
+    style with 400 000 children used by a p of 3 000 stretches ran past 30 s before and ends
+    after 5 s. The clock makes that one refusal depend on the machine; the count does not, and
+    it is the count that real files are measured against. For scale: a three-hour film of 1 800
+    paragraphs with 18 timed words each is 1.5 million; 20 000 paragraphs of one span are
+    0.3 million. Cue text is counted before a stretch joins the one before it, and one paragraph
+    is written whole before it is counted (at most about 19 times the file: a styled line per
+    two characters). Not done: rendering each span once and joining per stretch, which would
+    make the work limit unnecessary but changes how every cue is built; a paragraph nested
+    thousands of spans deep still ends in the browser's own "too much recursion".
   - A non-UTF-8 file is read in the encoding its XML declaration names (`decodeSubtitleBytes`,
     after a BOM and a server's charset).
   - On pages, `.ttml`, `.dfxp`, `application/ttml+xml` and DFXP's `application/ttaf+xml` count
