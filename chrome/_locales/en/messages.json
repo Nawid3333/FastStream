@@ -1304,6 +1304,21 @@
     "mpv_autoplay_off": {
         "message": "off"
     },
+    "mpv_offer_here_title": {
+        "message": "Play here"
+    },
+    "mpv_offer_here_detail": {
+        "message": "$1, in place of $2"
+    },
+    "mpv_offer_window_title": {
+        "message": "Play in a new window"
+    },
+    "mpv_offer_window_detail": {
+        "message": "it waits there paused; $1 plays on"
+    },
+    "player_mpv_declined": {
+        "message": "Not sent: mpv keeps playing what it had"
+    },
     "mpv_episode_nostream": {
         "message": "the page brought no stream within a minute; open it in the browser to see why"
     },

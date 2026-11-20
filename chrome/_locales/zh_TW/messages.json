@@ -1304,6 +1304,21 @@
     "mpv_autoplay_off": {
         "message": "關閉"
     },
+    "mpv_offer_here_title": {
+        "message": "在此播放"
+    },
+    "mpv_offer_here_detail": {
+        "message": "$1，取代 $2"
+    },
+    "mpv_offer_window_title": {
+        "message": "在新視窗中播放"
+    },
+    "mpv_offer_window_detail": {
+        "message": "它在那裡暫停等待；$1 繼續播放"
+    },
+    "player_mpv_declined": {
+        "message": "未傳送：mpv 繼續播放原本的內容"
+    },
     "mpv_episode_nostream": {
         "message": "頁面在一分鐘內未提供串流媒體；請在瀏覽器中打開以查看原因"
     },

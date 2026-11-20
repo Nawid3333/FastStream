@@ -32,7 +32,7 @@ import {TabTracker} from './TabTracker.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {VpnProxyMirror} from './VpnProxyMirror.mjs';
 import {youTubeVideo} from './YouTubeVideo.mjs';
-import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPendingMs, autoOpenInMpv, inheritMpv, leaveMpvWhenOff, mpvWatch, noteMpvTabClosed, onToggleMpv, openInMpv, openMpvWithSources, pickNextEpisodeForMpv, resolveMpvContentType, sendPlayedToMpv, setMpvError, startMpv, stopMpv, syncMpvAutoplay, watchNextEpisodeArrives} from './MpvMode.mjs';
+import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPendingMs, autoOpenInMpv, inheritMpv, leaveMpvWhenOff, noteMpvTabClosed, onToggleMpv, openInMpv, openMpvWithSources, pausePlayerWhileAsked, pickNextEpisodeForMpv, resolveMpvContentType, sendPlayedToMpv, setMpvError, startMpv, stopMpv, syncAllMpvAutoplay, watchNextEpisodeArrives} from './MpvMode.mjs';
 
 /** @typedef {typeof import('../player/options/defaults/DefaultOptions.mjs').DefaultOptions} PlayerOptions */
 
@@ -407,7 +407,8 @@ async function openLinkIn(tabobj, linkUrl, mpv, linkText) {
     const result = await openInMpv(-1, youTube.url, null, undefined, resolveMpvContentType(null, youTube.url),
         youTube.url, linkText, {startTime: youTube.start, private: tabobj.incognito === true});
     const tab = typeof tabobj.id === 'number' ? Tabs.getTab(tabobj.id) : null;
-    if (tab) {
+    // Declined in mpv: no error to show.
+    if (tab && !('declined' in result)) {
       setMpvError(tab, result);
     }
     return;
@@ -754,7 +755,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       leaveMpvWhenOff();
       forgetOffsForNewEntries(allowlistBefore);
       // mpv's autoplay switch shows the setting the options page just changed.
-      syncMpvAutoplay(mpvWatch);
+      syncAllMpvAutoplay();
     }).catch((e) => console.error('Loading the new options failed', e))
         // Answered once in effect: a page the sender opened at once was checked against the old allowlist.
         .finally(() => sendResponse(true));
@@ -801,6 +802,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           startTime: msg.startTime, subtitles: msg.subtitles,
           // Given either way, so openInMpv sends the one the player plays.
           qualities: Array.isArray(msg.qualities) ? msg.qualities : null,
+          whileAsked: pausePlayerWhileAsked(sender),
         })).then((result) => {
       if (Logging) console.log('[MPV] MPV_OPEN result:', JSON.stringify(result));
       if (!result.ok) {
@@ -2002,7 +2004,7 @@ async function attachPageQualities(tab, sources) {
 /**
  * @typedef {Awaited<ReturnType<MpvBackend['openStream']>>|{ok: false, vpn: true, error: string}|
  *   {ok: false, drm: true, error: string}|{ok: false, pageOnly: true, error: string}|
- *   {ok: false, dropped: true}} MpvHandOff
+ *   {ok: false, dropped: true}|{ok: false, declined: true}} MpvHandOff
  */
 
 /**

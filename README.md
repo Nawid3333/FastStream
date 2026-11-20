@@ -60,7 +60,7 @@ The options page exports all settings to a file and imports them again (Options 
 
 ## Browser compatibility
 
-FastStream is built for Firefox on the desktop. Chrome and other Chromium browsers are not supported and are not tested, and there are no plans for mobile.
+FastStream is built for Firefox on the desktop. It also runs in Firefox for Android: see [Firefox for Android](#firefox-for-android). Chrome and other Chromium browsers are not supported and are not tested.
 
 ## Installation
 
@@ -73,6 +73,19 @@ FastStream installs in your normal Firefox (version 153 or newer). You do not ne
 **Updates** come like those of any other add-on: Firefox checks for them by itself, and installs a new version when there is one. To check right away, open `about:addons`, click the gear icon and choose **Check for Updates**. (The add-on tells Firefox where to look: each release publishes an `updates.json`.)
 
 You do not need the other files on the release page. The `firefox-github-*.zip` is an unsigned build for developers: a normal Firefox loads it only as a temporary add-on, which is gone after a restart and never updates.
+
+### Firefox for Android
+
+The same signed `.xpi` installs in Firefox for Android (version 153 or newer). Firefox for Android installs an add-on file only from a menu that is hidden at first:
+
+1. On your phone, open the [latest release](https://github.com/Nawid3333/FastStream/releases/latest) in Firefox and download the file whose name ends in **`.xpi`**.
+2. In Firefox, open **Settings > About Firefox** and tap the Firefox logo five times, until Firefox says the debug menu is enabled.
+3. Go back to **Settings** and tap **Install extension from file**, then pick the `.xpi` you downloaded.
+4. Tap **Add** when Firefox asks.
+
+Updates come by themselves here too.
+
+On a phone, FastStream has no MPV mode (Android has no helper programs for add-ons), no keyboard shortcuts and no right-click menu. The player and its settings are the same as on the desktop, and its controls were made for a mouse and a keyboard, not yet for a touch screen.
 
 ## Build Instructions
 

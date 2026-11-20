@@ -1304,6 +1304,21 @@
     "mpv_autoplay_off": {
         "message": "オフ"
     },
+    "mpv_offer_here_title": {
+        "message": "ここで再生"
+    },
+    "mpv_offer_here_detail": {
+        "message": "$2 の代わりに $1"
+    },
+    "mpv_offer_window_title": {
+        "message": "新しいウィンドウで再生"
+    },
+    "mpv_offer_window_detail": {
+        "message": "そこで一時停止して待機します。$1 は再生を続けます"
+    },
+    "player_mpv_declined": {
+        "message": "送信しませんでした: mpv は再生中のものを続けます"
+    },
     "mpv_episode_nostream": {
         "message": "ページで1分以内にストリームが見つかりませんでした。ブラウザで開いて理由を確認してください"
     },
