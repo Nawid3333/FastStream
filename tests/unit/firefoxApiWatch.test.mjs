@@ -557,6 +557,7 @@ slug: Mozilla/Firefox/Releases/161
 
 - {{WebExtAPIRef("tabs.query()")}} now rejects an unknown \`windowType\` in Firefox desktop and Firefox for Android. ([Firefox bug 161040](https://bugzil.la/161040))
 - {{WebExtAPIRef("windows.create()")}} now opens a tab in Firefox for Android. ([Firefox bug 161041](https://bugzil.la/161041))
+- {{WebExtAPIRef("tabs.sendMessage()")}} now rejects an unknown \`frameId\` in Firefox for Android and Windows. ([Firefox bug 161043](https://bugzil.la/161043))
 `;
     const bugsOfBoth = [
       {id: 161042, summary: 'tabs.sendMessage drops replies on Windows and Android', product: 'WebExtensions', component: 'General', keywords: []},
@@ -565,10 +566,15 @@ slug: Mozilla/Firefox/Releases/161
     expect(items.map((i) => [i.bugs[0], i.android])).toEqual([[161042, undefined]]);
     const withKnown = {...code, known: {namespaces: new Set(['tabs', 'windows']), manifestKeys: new Set()}};
     const findings = relevantFindings([...parseMdnNotes(mixed, 161).items, ...items], config, withKnown);
-    const both = findings.find((f) => f.title.includes('unknown'));
-    expect(both).toMatchObject({kind: 'Compatibility risk', priority: 'high'});
-    expect(both?.android).toBeUndefined();
-    expect(findings.find((f) => f.aliases.includes('bug:161042'))?.android).toBeUndefined();
+    // "Windows" at a sentence's end is the platform too.
+    for (const part of ['unknown `windowType`', 'unknown `frameId`']) {
+      const both = findings.find((f) => f.title.includes(part));
+      expect(both).toMatchObject({kind: 'Compatibility risk', priority: 'high'});
+      expect(both?.android).toBeUndefined();
+    }
+    const bug = findings.find((f) => f.aliases.includes('bug:161042'));
+    expect(bug).toBeDefined();
+    expect(bug?.android).toBeUndefined();
     // `windows.create` names the API, not the desktop platform.
     expect(findings.find((f) => f.title.includes('opens a tab'))).toMatchObject({android: true});
   });

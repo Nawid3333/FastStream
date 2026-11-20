@@ -6,7 +6,7 @@
 // desktopText (bugzilla.desktop): what makes such a text the desktop's too.
 
 // A note or bug that names a desktop platform too is not Android's alone (`windows.create` is no platform).
-const desktopText = /\b(desktop|macOS|Linux)\b|(?<![`.])\bWindows\b(?![`.?(])/i;
+const desktopText = /\b(desktop|macOS|Linux)\b|(?<![`.])\bWindows\b(?![`(]|\??\.\w)/i;
 
 /** @type {import('./firefox-api-watch.mjs').Config} */
 export default {
