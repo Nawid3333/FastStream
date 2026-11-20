@@ -348,7 +348,11 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   quota 622 811 545 bytes on a 6 082 144 KiB `/data`, exactly 10 %), so on a small phone a
   long video "did not fit" (`player_buffer_storage_warning`, 5:20 kept) though the 2 GB RAM
   budget held it, and an empty RAM field (no limit) did not help either. On the desktop the
-  quota is 10 GB (the group limit), which hid it.
+  quota is 10 GB (the group limit), which hid it. The room now moves with the share: another
+  player taking RAM can end it mid-video, which pins what was downloaded (GRANDFATHERED) to
+  keep it on disk. A pinned fragment the disk cannot take (full) is let go of like any other
+  (`keepWithinMemoryBudget`); kept pinned in RAM, it held RAM "full" and nothing more was
+  downloaded ahead for the rest of the video.
 - **The Cache API backend** (a normal window without OPFS, the save converters) checks what it
   stored without reading it back (`match()`, body cancelled) and reads it when asked
   (`getBlob` then answers a promise; every caller awaits it).

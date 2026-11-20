@@ -1458,12 +1458,16 @@ export class FastStreamClient extends EventEmitter {
     const keep = toDisk ? KEEP_ON_DISK_WINDOW : KEEP_IN_RAM_ONLY_WINDOW;
     for (const {fragment} of chooseToRelease(candidates, time, keep, held - leaving - share * LOW)) {
       if (toDisk) {
-        // One that cannot go to disk (the disk full) is let go of instead of staying in RAM.
+        // One that cannot go to disk (the disk full) is let go of instead of staying in RAM; kept for good is kept on
+        // disk, so with the disk full that goes too, or RAM stays full for the rest of the video.
         manager.spill(fragment.getContext()).then((stored) => {
-          if (!stored && fragment.status === DownloadStatus.DOWNLOAD_COMPLETE && fragment.canFree() &&
-              manager.ramBytesOf(fragment.getContext()) > 0) {
-            this.freeFragment(fragment);
+          if (stored || fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE || !(manager.ramBytesOf(fragment.getContext()) > 0)) {
+            return;
           }
+          if (fragment.references.length && fragment.references.every((type) => type === ReferenceTypes.GRANDFATHERED)) {
+            fragment.removeReference(ReferenceTypes.GRANDFATHERED);
+          }
+          if (fragment.canFree()) this.freeFragment(fragment);
         }).catch((e) => console.warn('Could not write a fragment to disk', e));
       } else {
         this.freeFragment(fragment);

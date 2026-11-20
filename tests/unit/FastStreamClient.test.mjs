@@ -1599,6 +1599,31 @@ describe('FastStreamClient, the RAM budget while writes to disk are slow', () =>
     expect(fragments.every((fragment) => !fragment.canFree())).toBe(true);
   });
 
+  it('lets go of what was kept for good when the disk is full, or RAM stays full for good', async () => {
+    // A RAM share that shrank, beside a small disk quota, ends the room mid-video (updateHasDownloadSpace): every
+    // downloaded fragment is pinned, and the disk takes none of them.
+    const {client, manager, fragments} = clientWithSlowDisk(40 * BYTES);
+    for (const fragment of fragments) fragment.addReference(ReferenceTypes.GRANDFATHERED);
+    manager.spill = vi.fn(() => Promise.resolve(false));
+    client.keepWithinMemoryBudget();
+    expect(manager.memoryFull).toBe(true);
+    await settle();
+    expect(manager.removeFile).toHaveBeenCalledTimes(10);
+    client.keepWithinMemoryBudget();
+    expect(manager.memoryFull).toBe(false);
+
+    // A save's hold stays, disk full or not.
+    const saved = clientWithSlowDisk(40 * BYTES);
+    for (const fragment of saved.fragments) {
+      fragment.addReference(ReferenceTypes.GRANDFATHERED);
+      fragment.addReference(ReferenceTypes.SAVER);
+    }
+    saved.manager.spill = vi.fn(() => Promise.resolve(false));
+    saved.client.keepWithinMemoryBudget();
+    await settle();
+    expect(saved.manager.removeFile).not.toHaveBeenCalled();
+  });
+
   it('control: keeps a fragment a save holds in RAM', () => {
     const {client, manager, fragments} = clientWithSlowDisk(40 * BYTES);
     for (const fragment of fragments) fragment.addReference(ReferenceTypes.SAVER);
