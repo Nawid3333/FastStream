@@ -260,14 +260,12 @@ given — so both the video and screenshot saves silently used the page title
 instead of asking. Both now always ask (they skipped it only for
 `isChrome() && isIncognito()` until Chrome was dropped).
 
-Deliberately left alone: `FastStreamClient.updateHasDownloadSpace()` still
-refuses to predownload a whole video in a private session
-(`player_buffer_incognito_warning`) and caps buffering to the configured
-window. With a disk-backed Cache backend the original RAM rationale is
-weaker, but not writing an entire video to disk during a private session is
-a defensible privacy stance, and changing it is a behaviour change rather
-than a fix. (2026-10-09: a private window now keeps nothing on disk at all, and its
-buffering is bounded by the RAM budget as well as by this window.)
+A private window predownloads as a normal window with "Keep video on disk" off does
+(2026-11-20): what fits in its RAM share is downloaded whole, in RAM, and nothing goes to
+the disk. Until then `updateHasDownloadSpace()` refused any predownload there and kept only
+"Buffer behind" + "Buffer ahead" (5:20 by default), saying "Not enough room" also when the
+RAM budget held the video; that refusal dated from a disk-backed private store, gone since
+2026-10-09. `player_buffer_incognito_warning` now says only that a video does not fit.
 
 **The background is no private window and in no container** (2026-11-13, a review): what
 it fetches for such a tab goes with the normal window's cookies, cache and proxy. Two of
@@ -342,6 +340,15 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   in a small budget; they get the same cap. (ram-budget.e2e: with the switch off and a 2 MB
   budget, 64 fragments let go, 2.9 MB in RAM, 0 files, and the start downloaded again and
   played.)
+- **The room to predownload, with the disk on** (2026-11-20), is the player's RAM share below
+  `LOW` plus 60 % of the disk's free quota (`navigator.storage.estimate()`, quota less usage):
+  RAM is filled first, and the disk takes only what goes beyond it. The disk's part alone was
+  counted before, which a small quota made visible: Firefox gives an origin a tenth of the
+  device's storage in best-effort mode (measured on Firefox for Android 160 in the emulator:
+  quota 622 811 545 bytes on a 6 082 144 KiB `/data`, exactly 10 %), so on a small phone a
+  long video "did not fit" (`player_buffer_storage_warning`, 5:20 kept) though the 2 GB RAM
+  budget held it, and an empty RAM field (no limit) did not help either. On the desktop the
+  quota is 10 GB (the group limit), which hid it.
 - **The Cache API backend** (a normal window without OPFS, the save converters) checks what it
   stored without reading it back (`match()`, body cancelled) and reads it when asked
   (`getBlob` then answers a promise; every caller awaits it).

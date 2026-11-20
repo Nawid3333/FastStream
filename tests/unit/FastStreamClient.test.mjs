@@ -1102,6 +1102,28 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
     expect(alone.hasDownloadSpace).toBe(true);
   });
 
+  it('counts the RAM budget as room beside a small disk quota, as Firefox for Android gives one', () => {
+    // An emulator's 6.2 GB of storage: its quota is a tenth, 623 MB; 60 % of it held no 875 MB video.
+    const client = clientWithVideo({bufferToDisk: true, ramBudget: 2 * GB});
+    client.storageAvailable = 623 * MB;
+    client.updateHasDownloadSpace();
+    expect(client.hasDownloadSpace).toBe(true);
+    expect(client.interfaceController.setStatusMessage).not.toHaveBeenCalled();
+
+    const unlimited = clientWithVideo({bufferToDisk: true, ramBudget: -1});
+    unlimited.storageAvailable = 10 * MB;
+    unlimited.updateHasDownloadSpace();
+    expect(unlimited.hasDownloadSpace).toBe(true);
+
+    // Neither holds it, nor both together: what fits in both, and the warning.
+    const small = clientWithVideo({bufferToDisk: true, ramBudget: 500 * MB});
+    small.storageAvailable = 300 * MB;
+    small.updateHasDownloadSpace();
+    expect(small.hasDownloadSpace).toBe(false);
+    expect(small.state.bufferAhead).toBe(Math.floor((500 * MB * 0.75 + 300 * MB * 0.6) * 8 / 5e6 / 1.1) - 20);
+    expect(small.interfaceController.setStatusMessage.mock.calls.map((call) => call[1])).toEqual(['player_buffer_storage_warning']);
+  });
+
   it('does not let the disk\'s free space limit what is kept in RAM', () => {
     const client = clientWithVideo({bufferToDisk: false, ramBudget: 2 * GB});
     client.storageAvailable = 100 * MB;
@@ -1132,10 +1154,26 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
     expect(client.state.bufferAhead).toBe(fits(100 * MB));
   });
 
+  it('predownloads in a private window what fits in its share, as with the disk off, and says so when it does not', () => {
+    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(true);
+    const fits875 = clientWithVideo({bufferToDisk: true, ramBudget: 2 * GB});
+    fits875.updateHasDownloadSpace();
+    expect(fits875.hasDownloadSpace).toBe(true);
+    expect(fits875.interfaceController.setStatusMessage).not.toHaveBeenCalled();
+
+    const client = clientWithVideo({bufferToDisk: true, ramBudget: 500 * MB});
+    client.updateHasDownloadSpace();
+    client.updateHasDownloadSpace();
+    expect(client.hasDownloadSpace).toBe(false);
+    expect(client.state.bufferAhead).toBe(fits(500 * MB) - 20);
+    const said = client.interfaceController.setStatusMessage.mock.calls.map((call) => call[1]);
+    expect(said).toEqual(['player_buffer_incognito_warning']);
+  });
+
   it('gives a private window\'s buffer back when its share grows again, and takes a new "Buffer ahead"', () => {
     // the fit to a share rises again, not only lowers
     vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(true);
-    const client = clientWithVideo({ramBudget: 2 * GB, bufferAhead: 1200});
+    const client = clientWithVideo({ramBudget: 2 * GB, bufferAhead: 1200, downloadAll: false});
     client.state.playing = true;
     client.peers = {visible: () => true, livePeers: () => [{ramBytes: 1.9 * GB, visible: true, playing: true}]};
     client.updateHasDownloadSpace();

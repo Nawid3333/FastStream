@@ -727,69 +727,60 @@ export class FastStreamClient extends EventEmitter {
       this.diskGoneSaid = true;
       this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_outofstorage'), 'warning', 10000);
     }
-    const ramOnly = EnvUtils.isIncognito() || this.options.bufferToDisk === false || diskGone;
-    const ramRoom = ramOnly ? this.memoryShare().share * 8 * LOW : Infinity;
+    const incognito = EnvUtils.isIncognito();
+    const ramOnly = incognito || this.options.bufferToDisk === false || diskGone;
+    // Bits: RAM is filled first, and the disk takes only what goes beyond this player's share.
+    const ramShare = this.memoryShare().share * 8 * LOW;
+    const ramRoom = ramOnly ? ramShare : Infinity;
 
     // "Buffer ahead" decides on every tick where the room does not; the RAM fit only lowers it.
-    if (EnvUtils.isIncognito()) {
+    if (this.isLive()) {
+      // A live stream has no size to fit, and is freed behind playback.
       this.state.bufferAhead = this.options.bufferAhead;
-      // Only for a predownload asked for.
-      if (this.hasDownloadSpace && this.options.downloadAll) {
-        this.state.bufferBehind = this.options.bufferBehind;
-        // Without a limit on either, the whole video is buffered all the same: nothing to say.
-        const windowSeconds = this.state.bufferBehind + this.state.bufferAhead;
-        if (Number.isFinite(windowSeconds)) {
-          this.interfaceController.setStatusMessage('info', Localize.getMessage('player_buffer_incognito_warning', [StringUtils.formatDuration(windowSeconds)]), 'warning', 5000);
-        }
-        this.hasDownloadSpace = false;
+      this.hasDownloadSpace = false;
+    } else if (bitrate && this.duration) {
+      // The RAM share, and with a disk 60 % of its free quota too: a small quota (Firefox's is a tenth of the
+      // device's storage) left no room for a video the RAM budget holds.
+      let storageAvailable = ramOnly ? ramShare : ramShare + (/** @type {number} */ (this.storageAvailable) * 8) * 0.6;
+      // 0 is a limit too: nothing predownloaded (an empty field, -1, is none).
+      if (this.options.maxVideoSize >= 0 && this.options.maxVideoSize * 8 < storageAvailable) {
+        storageAvailable = this.options.maxVideoSize * 8;
       }
-    } else {
-      if (this.isLive()) {
-        // A live stream has no size to fit, and is freed behind playback.
+
+      const canBufferTime = storageAvailable / bitrate / 1.1;
+      let bufferAhead = Math.max(Math.floor(canBufferTime - this.state.bufferBehind), 0);
+
+      if (bufferAhead < this.options.bufferAhead || !this.options.downloadAll) {
         this.state.bufferAhead = this.options.bufferAhead;
-        this.hasDownloadSpace = false;
-      } else if (bitrate && this.duration) {
-        // With nothing on disk, the room is RAM: the disk's free space does not count.
-        let storageAvailable = ramOnly ? ramRoom : (/** @type {number} */ (this.storageAvailable) * 8) * 0.6;
-        // 0 is a limit too: nothing predownloaded (an empty field, -1, is none).
-        if (this.options.maxVideoSize >= 0 && this.options.maxVideoSize * 8 < storageAvailable) {
-          storageAvailable = this.options.maxVideoSize * 8;
-        }
+        bufferAhead = 0;
+      } else if (bufferAhead > 0 && Math.abs(this.state.bufferAhead - bufferAhead) > 30) {
+        this.state.bufferAhead = Math.max(bufferAhead, this.options.bufferAhead);
+      }
 
-        const canBufferTime = storageAvailable / bitrate / 1.1;
-        let bufferAhead = Math.max(Math.floor(canBufferTime - this.state.bufferBehind), 0);
-
-        if (bufferAhead < this.options.bufferAhead || !this.options.downloadAll) {
-          this.state.bufferAhead = this.options.bufferAhead;
-          bufferAhead = 0;
-        } else if (bufferAhead > 0 && Math.abs(this.state.bufferAhead - bufferAhead) > 30) {
-          this.state.bufferAhead = Math.max(bufferAhead, this.options.bufferAhead);
-        }
-
-        const newHasDownloadSpace = (bitrate * this.duration) * (this.hasDownloadSpace ? 1 : 1.1) < storageAvailable;
-        // Only with predownload on: without it the maximum size is not used.
-        if (!newHasDownloadSpace && this.hasDownloadSpace && this.options.downloadAll) {
-          // Storage ran out mid-session: what is downloaded is grandfathered, so the window only holds back new downloads.
-          // With nothing on disk, nothing is pinned: the RAM budget could not let go of it.
-          /** @param {Fragment} frag */
-          const grandfather = (frag) => {
-            if (frag && frag.status === DownloadStatus.DOWNLOAD_COMPLETE) {
-              frag.addReference(ReferenceTypes.GRANDFATHERED);
-            }
-          };
-          // The quality on now may have no fragments yet (just switched to)
-          if (fragments && !ramOnly) fragments.forEach(grandfather);
-          if (this.audioFragments && !ramOnly) this.audioFragments.forEach(grandfather);
-          const windowSeconds = this.state.bufferBehind + Math.min(this.state.bufferAhead, this.ramAheadSeconds(ramRoom, bitrate));
-          if (Number.isFinite(windowSeconds)) {
-            this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_buffer_storage_warning', [StringUtils.formatDuration(windowSeconds)]), 'warning', 5000);
+      const newHasDownloadSpace = (bitrate * this.duration) * (this.hasDownloadSpace ? 1 : 1.1) < storageAvailable;
+      // Only with predownload on: without it the maximum size is not used.
+      if (!newHasDownloadSpace && this.hasDownloadSpace && this.options.downloadAll) {
+        // Storage ran out mid-session: what is downloaded is grandfathered, so the window only holds back new downloads.
+        // With nothing on disk, nothing is pinned: the RAM budget could not let go of it.
+        /** @param {Fragment} frag */
+        const grandfather = (frag) => {
+          if (frag && frag.status === DownloadStatus.DOWNLOAD_COMPLETE) {
+            frag.addReference(ReferenceTypes.GRANDFATHERED);
           }
+        };
+        // The quality on now may have no fragments yet (just switched to)
+        if (fragments && !ramOnly) fragments.forEach(grandfather);
+        if (this.audioFragments && !ramOnly) this.audioFragments.forEach(grandfather);
+        const windowSeconds = this.state.bufferBehind + Math.min(this.state.bufferAhead, this.ramAheadSeconds(ramRoom, bitrate));
+        if (Number.isFinite(windowSeconds)) {
+          const warning = incognito ? 'player_buffer_incognito_warning' : 'player_buffer_storage_warning';
+          this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage(warning, [StringUtils.formatDuration(windowSeconds)]), 'warning', 5000);
         }
-        this.hasDownloadSpace = newHasDownloadSpace || !this.options.downloadAll;
-      } else {
-        this.state.bufferAhead = this.options.bufferAhead;
-        this.hasDownloadSpace = true;
       }
+      this.hasDownloadSpace = newHasDownloadSpace || !this.options.downloadAll;
+    } else {
+      this.state.bufferAhead = this.options.bufferAhead;
+      this.hasDownloadSpace = true;
     }
 
     // Ahead, too, only what fits in RAM.
