@@ -1265,6 +1265,21 @@
     "mpv_autoplay_off": {
         "message": "nonaktif"
     },
+    "mpv_offer_here_title": {
+        "message": "Main di sini"
+    },
+    "mpv_offer_here_detail": {
+        "message": "$1, menggantikan $2"
+    },
+    "mpv_offer_window_title": {
+        "message": "Main dalam tetingkap baharu"
+    },
+    "mpv_offer_window_detail": {
+        "message": "ia menunggu di sana dalam keadaan dijeda; $1 terus dimainkan"
+    },
+    "player_mpv_declined": {
+        "message": "Tidak dihantar: mpv terus memainkan yang sebelumnya"
+    },
     "mpv_episode_nostream": {
         "message": "halaman tidak memberikan strim dalam masa satu minit; buka dalam pelayar untuk melihat sebabnya"
     },

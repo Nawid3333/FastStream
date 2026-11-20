@@ -1265,6 +1265,21 @@
     "mpv_autoplay_off": {
         "message": "disattivo"
     },
+    "mpv_offer_here_title": {
+        "message": "Riproduci qui"
+    },
+    "mpv_offer_here_detail": {
+        "message": "$1, al posto di $2"
+    },
+    "mpv_offer_window_title": {
+        "message": "Riproduci in una nuova finestra"
+    },
+    "mpv_offer_window_detail": {
+        "message": "lì attende in pausa; $1 continua"
+    },
+    "player_mpv_declined": {
+        "message": "Non inviato: mpv continua a riprodurre ciò che aveva"
+    },
     "mpv_episode_nostream": {
         "message": "la pagina non ha fornito alcun stream entro un minuto; aprila nel browser per capirne il motivo"
     },

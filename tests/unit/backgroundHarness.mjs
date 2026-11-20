@@ -3,7 +3,7 @@ import {vi} from 'vitest';
 import {RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 
 // The thin helper's primitives: a helper before it answers each of them so.
-const ThinMessages = new Set(['play', 'ipc', 'relay']);
+const ThinMessages = new Set(['play', 'ipc', 'relay', 'raise']);
 const UnknownMessage = Object.freeze({ok: false, error: 'unknown message', hostVersion: 14});
 
 // Runs background.mjs in Node against a stand-in for the WebExtension API: the order of events
@@ -89,6 +89,8 @@ let requestCounter = 0;
  * @param {function(Object): *} [setup.onNative] - The mpv host's answer; a current host's
  *   {ok: true} by default.
  * @param {boolean} [setup.thinHost] - The mpv host is the thin helper (else an older one, which answers "unknown message").
+ * @param {function(Object, Object): (Object|Array<Object>|undefined)} [setup.onPortMessage] - What mpv answers over a
+ *   port the background opened (relay), to a message it posted there: emitted back a moment later.
  * @param {string} [setup.os] - What runtime.getPlatformInfo says ('win', 'linux', 'mac'):
  *   Windows, whatever the system the tests run on.
  * @param {function(): void} [setup.beforeImport] - Runs once the stand-in is in place,
@@ -106,6 +108,7 @@ export async function loadBackground({
   onTabMessage = () => undefined,
   onNative = () => ({ok: true, hostVersion: RequiredHostVersion}),
   thinHost = false,
+  onPortMessage = () => undefined,
   os = 'win',
   beforeImport = () => {},
   sessionReady = Promise.resolve(),
@@ -210,7 +213,11 @@ export async function loadBackground({
       connectNative: () => {
         const port = {
           sent: [], disconnected: false, onMessage: event(), onDisconnect: event(),
-          postMessage: (message) => port.sent.push(message),
+          postMessage: (message) => {
+            port.sent.push(message);
+            const reply = onPortMessage(message, port);
+            if (reply) Promise.resolve().then(() => [reply].flat().forEach((m) => port.emit(m)));
+          },
           disconnect: () => {
             port.disconnected = true;
           },
