@@ -617,7 +617,9 @@ describe('playMpv', () => {
       const result = await playMpv('mpv', play({newWindow: true}), config,
           {platform: process.platform, start: launch(record), focus: async () => 'FOCUS=True'});
       expect(result.ok).toBe(true);
-      expect(record.args[0]).toMatch(/-[0-9a-f]{16}$/);
+      expect(result.window).toMatch(/^[0-9a-f]{16}$/);
+      // The pipe the answer names (on Windows its suffix, elsewhere before .sock).
+      expect(record.args[0]).toBe(`--input-ipc-server=${ipcPipeFor(config, process.platform, process.env, result.window)}`);
       expect(record.args[0]).not.toBe(`--input-ipc-server=${ipcPipeFor(config)}`);
       expect(record.mpv.requests.filter((r) => r.command.name === 'loadfile')).toHaveLength(1);
     });
