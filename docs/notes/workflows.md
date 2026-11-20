@@ -894,6 +894,16 @@ relevant is `tools/firefox-api-watch.topics.mjs`.
   run over 153-160 (2026-11-13) gave 96 findings for the eight releases: 6 high, 43 medium,
   47 low. The six high ones were real: decodingInfo() never resolving on Windows, range
   requests through a service worker, storage.local auto-reset, PiP events, two WebCodecs fixes.
+- **Firefox for Android** (2026-11-20; a bonus platform, `build-and-release.md`): only its
+  WebExtensions changes count. BCD's `firefox_android` column gives an item of its own where it
+  differs from the desktop's (a key of its own, so the same change on the desktop later is still
+  news); Bugzilla's "Firefox for Android: WebExtensions" is read too (1-2 bugs a release), and
+  WebExtensions bugs naming Android, GeckoView or Fenix are kept; a Core bug naming them, a web
+  API's Android column and a note "for Android" outside the add-on section are dropped, as
+  before. Such a finding says "Firefox for Android only", sits one priority lower and points at
+  `firefoxAndroid.test.mjs`. A dry run over 150-152 added five, all low: among them
+  `tabs.query({windowType})` broken on Android, which `TabTracker.mjs` calls. The code index
+  sees `chrome.windows?.create` too: what Android lacks is called behind optional chaining.
 - **The issue is write-once.** The bot opens "Firefox API Watch: starting with Firefox N" with the
   first release in its body and adds every later release as a comment, in version order. It
   never edits or deletes what it posted: upstream-watch rewrites its issue body each time, which

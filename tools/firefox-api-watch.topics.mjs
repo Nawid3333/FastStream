@@ -2,6 +2,7 @@
 // keywords: case-insensitive regexes tried on a release-note bullet, a Bugzilla summary or a blog title.
 // bcd: BCD path prefixes; priority: before the code check; kind: a new feature's default kind.
 // modules: where the code lives; excludeText: platform areas FastStream does not use, always dropped.
+// android, androidText: Firefox for Android, a bonus platform: only its WebExtensions changes count.
 
 /** @type {import('./firefox-api-watch.mjs').Config} */
 export default {
@@ -508,7 +509,9 @@ export default {
       'addon-compat',
     ],
     coreSummary: /\b(MediaSource|SourceBuffer|MSE|fMP4|HLS|DASH|seek(ing)?|WMF|Media Foundation|hardware[- ]decod\w*|VideoDecoder|AudioDecoder|WebCodecs|MediaCapabilities|decodingInfo|HEVC|AV1|OPFS|SyncAccessHandle|createWritable|Range requests?|partial content)\b/i,
-    excludeSummary: /\b(Android|GeckoView|Fenix|iOS|macOS|V4L2|VA-?API|test(s|ing)? only|intermittent|xpcshell|mochitest|wpt-sync|Sync PR|crashtest|reftest|Perma|tier \d|metrics expiring|Remove or update metrics|Assertion failure|Crash in|moz-src|about:newtab|accesskey|telemetry|Glean|lint|eslint|refactor|rename|clean ?up)\b|\.(html|js) fails\b|^Skip |\btest_\w+|\bbrowser_\w+\.js\b|\[tier|\w::\w|\b(tests?|testing|subtests?|submanifests?)\b|\.(cpp|h|cc|rs)\b|\b(Wayland|X11|GTK|logging|benchmark|unused)\b/i,
+    // A bug about Firefox for Android: read only when it is a WebExtensions bug, then marked Android.
+    android: /\b(Android|GeckoView|Fenix)\b/i,
+    excludeSummary: /\b(iOS|macOS|V4L2|VA-?API|test(s|ing)? only|intermittent|xpcshell|mochitest|wpt-sync|Sync PR|crashtest|reftest|Perma|tier \d|metrics expiring|Remove or update metrics|Assertion failure|Crash in|moz-src|about:newtab|accesskey|telemetry|Glean|lint|eslint|refactor|rename|clean ?up)\b|\.(html|js) fails\b|^Skip |\btest_\w+|\bbrowser_\w+\.js\b|\[tier|\w::\w|\b(tests?|testing|subtests?|submanifests?)\b|\.(cpp|h|cc|rs)\b|\b(Wayland|X11|GTK|logging|benchmark|unused)\b/i,
   },
   stopIdentifiers: [
     'type',
@@ -576,5 +579,7 @@ export default {
     'Firefox',
     'Nightly',
   ],
-  excludeText: /\b(WebRTC|RTCPeerConnection|RTCRtp\w*|getUserMedia|WebTransport\w*|Web Speech|speech (recognition|synthesis)|WebXR|WebGPU|WebAuthn|Credential Management|Notifications? API|showNotification|Notification\(\)|Gamepad|Web ?MIDI|WebHID|WebUSB|Web Serial|Web Bluetooth|JPEG XL|image\/jxl|AVIF|MathML|Payment Request|WebAssembly)\b|\b(Firefox )?for Android\b/i,
+  excludeText: /\b(WebRTC|RTCPeerConnection|RTCRtp\w*|getUserMedia|WebTransport\w*|Web Speech|speech (recognition|synthesis)|WebXR|WebGPU|WebAuthn|Credential Management|Notifications? API|showNotification|Notification\(\)|Gamepad|Web ?MIDI|WebHID|WebUSB|Web Serial|Web Bluetooth|JPEG XL|image\/jxl|AVIF|MathML|Payment Request|WebAssembly)\b/i,
+  // A note about Firefox for Android: kept only when it is about WebExtensions, then marked Android.
+  androidText: /\b(Firefox )?for Android\b/i,
 };

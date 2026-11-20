@@ -161,6 +161,7 @@ function sources({current = 161, mdn = {161: notes(161)}, status = {}, log = [],
     if (url === tarballUrl) return new Response(tar, {status: 200});
     if (url.startsWith(Urls.bugzilla)) {
       const v = Number(/cf_status_firefox(\d+)/.exec(url)?.[1]);
+      if (url.includes('product=Firefox%20for%20Android&component=WebExtensions&')) return json(bugzilla(v).android ?? {bugs: []});
       return json(url.includes('product=WebExtensions') ? bugzilla(v).webext : bugzilla(v).core);
     }
     if (url === Urls.feed) return new Response(feed, {status: 200});
@@ -321,7 +322,7 @@ describe('MDN notes', () => {
 
   it('keeps the topics\' patterns as RegExp literals, without the g flag', () => {
     const patterns = [...Topics.topics.flatMap((t) => t.keywords), Topics.bugzilla.coreSummary, Topics.bugzilla.excludeSummary,
-      Topics.excludeText];
+      Topics.bugzilla.android, Topics.excludeText, Topics.androidText];
     expect(patterns.length).toBeGreaterThan(100);
     for (const pattern of patterns) {
       expect(pattern).toBeInstanceOf(RegExp);
@@ -416,6 +417,13 @@ describe('what is relevant', () => {
     expect(findUses(['runtime.getVersion'], own.files, stop, own.namespaces).used).toEqual([]);
   });
 
+  it('sees an API called behind optional chaining, as the code calls what Firefox for Android lacks', () => {
+    const own = codeIndex({files: new Map([['chrome/a.mjs', 'chrome.windows?.create({});\nchrome.commands?.onCommand.addListener(f);']])});
+    expect([...own.namespaces].sort()).toEqual(['commands', 'windows']);
+    expect(findUses(['windows.create', 'commands.onCommand'], own.files, new Set(), own.namespaces))
+        .toMatchObject({used: ['commands.onCommand', 'windows.create'], strong: true});
+  });
+
   it('keeps the changes to what the extension uses, merges the same change from several sources, drops the rest', () => {
     const v = 161;
     const items = [
@@ -447,6 +455,113 @@ describe('what is relevant', () => {
     }
     // The blog post is kept.
     expect(titles).toContain('Add-ons blog: Firefox 161 WebExtensions API updates');
+  });
+});
+
+describe('Firefox for Android', () => {
+  const all = () => true;
+  /** BCD with Android's own column: the same change as the desktop's, and changes of Android's own. */
+  const androidBcd = {
+    browsers: {},
+    api: {
+      MediaSource: {canConstructInDedicatedWorker_static: {__compat: {support: {firefox: {version_added: '161'}, firefox_android: {version_added: '161'}}}}},
+      VideoDecoder: {__compat: {support: {firefox: {version_added: '130'}, firefox_android: {version_added: '161'}}}},
+    },
+    webextensions: {api: {
+      tabs: {query: {__compat: {support: {firefox: {version_added: '45'}, firefox_android: {version_added: '161', impl_url: 'https://bugzil.la/161020'}}}}},
+      windows: {create: {__compat: {support: {firefox: {version_added: '45'}, firefox_android: {version_added: '120', version_removed: '161'}}}}},
+    }},
+  };
+  const androidBugs = [
+    {id: 161012, summary: 'Clarify supported properties in tabs.Tab implementation on Android', product: 'WebExtensions', component: 'Android', keywords: []},
+    {id: 161013, summary: 'Firefox Android chrome.tabs.query({windowType: \'normal\'}) broken', product: 'Firefox for Android', component: 'WebExtensions', keywords: []},
+    {id: 161014, summary: 'Hardware decoding of HEVC stutters on Android', product: 'Core', component: 'Audio/Video: Playback', keywords: ['dev-doc-needed']},
+    {id: 161015, summary: 'GeckoView: tabs.sendMessage fails for a closed frame', product: 'WebExtensions', component: 'General', keywords: []},
+  ];
+  const androidNotes = `---
+title: Firefox 161 release notes for developers (Stable)
+slug: Mozilla/Firefox/Releases/161
+---
+
+## Changes for web developers
+
+### APIs
+
+- {{domxref("MediaSource.isTypeSupported_static", "isTypeSupported()")}} now reports HEVC on Windows and Android. ([Firefox bug 161030](https://bugzil.la/161030)).
+- {{domxref("MediaSource")}} can now be created in a worker in Firefox for Android. ([Firefox bug 161031](https://bugzil.la/161031)).
+
+## Changes for add-on developers
+
+- {{WebExtAPIRef("tabs.query()")}} now supports \`windowType\` in Firefox for Android. ([Firefox bug 161032](https://bugzil.la/161032))
+`;
+  const code = codeIndex({files: new Map([
+    ['chrome/manifest.json', JSON.stringify({manifest_version: 3, permissions: ['tabs'], background: {}, content_scripts: []})],
+    ['chrome/background/background.mjs', 'chrome.tabs.query({});\nchrome.tabs.sendMessage(1, {});\nchrome.windows?.create({});'],
+    ['chrome/player/players/Mse.mjs', 'const ms = new MediaSource();\nMediaSource.isTypeSupported(type);'],
+  ])});
+
+  it('reads Android\'s compatibility column: an item of its own only where it differs from the desktop\'s', () => {
+    const items = bcdChanges(androidBcd, 161, all);
+    expect(items.map((i) => i.title).sort()).toEqual([
+      '`MediaSource.canConstructInDedicatedWorker_static` supported',
+      '`VideoDecoder` supported on Android',
+      '`tabs.query` supported on Android',
+      '`windows.create` removed on Android',
+    ]);
+    expect(items.filter((i) => i.android).map((i) => i.bcd[0]).sort()).toEqual(['api.VideoDecoder', 'webextensions.api.tabs.query', 'webextensions.api.windows.create']);
+    const query = items.find((i) => i.bcd[0] === 'webextensions.api.tabs.query');
+    expect(query).toMatchObject({bugs: [161020], removal: false});
+    expect(items.find((i) => i.bcd[0] === 'webextensions.api.windows.create')).toMatchObject({removal: true});
+    // Android's change has a key of its own: the same change on the desktop later is still news.
+    const desktopForm = bcdChanges({webextensions: {api: {tabs: {query: {__compat: {support: {firefox: {version_added: '161'}}}}}}}}, 161, all);
+    expect(desktopForm[0].textKey).not.toBe(query?.textKey);
+    expect(desktopForm[0].android).toBeUndefined();
+  });
+
+  it('reads Android\'s WebExtensions bugs, marked, and still drops its other bugs', () => {
+    const items = bugzillaItems({bugs: androidBugs}, config.bugzilla, code.namespaces);
+    expect(items.map((i) => [i.bugs[0], i.android])).toEqual([[161012, true], [161013, true], [161015, true]]);
+    expect(items[1].identifiers).toContain('tabs.query');
+  });
+
+  it('reports Android\'s WebExtensions changes one level lower, marked; drops its other changes', () => {
+    const items = [
+      ...parseMdnNotes(androidNotes, 161).items,
+      ...bcdChanges(androidBcd, 161, all),
+      ...bugzillaItems({bugs: androidBugs}, config.bugzilla, code.namespaces),
+    ];
+    const withKnown = {...code, known: {namespaces: new Set(['tabs', 'windows']), manifestKeys: new Set(['permissions'])}};
+    const findings = relevantFindings(items, config, withKnown);
+    const byTitle = (/** @type {string} */ part) => findings.find((f) => f.title.includes(part));
+    // Android-only, about APIs the code uses: kept and marked.
+    expect(byTitle('windowType')).toMatchObject({android: true});
+    expect(byTitle('broken')).toMatchObject({android: true});
+    expect(byTitle('tabs.Tab')).toMatchObject({android: true});
+    // A removal of an API the code uses would be high on the desktop; on Android it is one level lower.
+    expect(byTitle('`windows.create` removed on Android')).toMatchObject({android: true, kind: 'Compatibility risk', priority: 'medium'});
+    // The same change on the desktop and Android is one desktop finding.
+    expect(byTitle('canConstructInDedicatedWorker')?.android).toBeUndefined();
+    // A desktop note that names Android among other platforms stays a desktop finding.
+    expect(byTitle('HEVC on Windows and Android')?.android).toBeUndefined();
+    // Android's web platform changes are not reported, nor its Core bugs.
+    const titles = findings.map((f) => f.title).join('\n');
+    for (const gone of ['VideoDecoder', 'created in a worker', 'stutters']) expect(titles).not.toContain(gone);
+  });
+
+  it('asks Bugzilla for Android\'s WebExtensions bugs and labels their findings in the issue', async () => {
+    const gh = fakeGitHub();
+    /** @type {string[]} */
+    const log = [];
+    const bugzilla = (/** @type {number} */ v) => ({...bugs(v), android: {bugs: [androidBugs[1]]}});
+    const result = await runWith({github: gh.api, fetchImpl: sources({bugzilla, log}), index: code});
+    expect(result.failures).toEqual([]);
+    expect(log.filter((u) => u.includes('product=Firefox%20for%20Android&component=WebExtensions&'))).toHaveLength(1);
+    const body = gh.writes[0][2];
+    const item = body.split('\n- [ ] ').find((part) => part.includes('<!-- ffw-item bug:161013 -->'));
+    expect(item).toContain('Firefox for Android only');
+    expect(item).toContain('AndroidLacks');
+    // A desktop finding keeps its desktop action.
+    expect(body.split('\n- [ ] ').find((part) => part.includes('bug:161003'))).not.toContain('Firefox for Android only');
   });
 });
 

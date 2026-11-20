@@ -69,6 +69,7 @@ fixtures() {
   echo '{"__meta": {"version": "9.9.9"}, "browsers": {}, "webextensions": {"api": {"tabs": {}}}}' > "$FIX/src/bcd.json"
   echo '{"bugs": []}' > "$FIX/src/webextensions-161.json"
   echo '{"bugs": []}' > "$FIX/src/core-161.json"
+  echo '{"bugs": []}' > "$FIX/src/android-161.json"
   echo '<rss><channel></channel></rss>' > "$FIX/src/feed.xml"
   export FFW_FIXTURES="$FIX/src"
   unset DRY_RUN FROM
