@@ -34,7 +34,7 @@ Observações:
 
 ## Compatibilidade com navegadores
 
-O FastStream é construído para o Firefox no desktop. Chrome e outros navegadores baseados em Chromium não são suportados nem testados, e não há planos para dispositivos móveis.
+O FastStream é construído para o Firefox no desktop. Ele também funciona no Firefox para Android: veja [Firefox para Android](#firefox-para-android). Chrome e outros navegadores baseados em Chromium não são suportados nem testados.
 
 ## Instalação
 
@@ -47,6 +47,19 @@ O FastStream é instalado no seu Firefox normal (versão 153 ou mais nova). Voc�
 **As atualizações** chegam como as de qualquer outra extensão: o Firefox as procura sozinho e instala uma nova versão quando houver. Para procurar agora, abra `about:addons`, clique no ícone de engrenagem e escolha a opção de procurar atualizações (*Check for Updates* no Firefox em inglês). (A extensão diz ao Firefox onde procurar: cada versão publica um `updates.json`.)
 
 Você não precisa dos outros arquivos da página. O `firefox-github-*.zip` é um build não assinado para desenvolvedores: um Firefox normal só o carrega como extensão temporária, que some ao reiniciar e nunca é atualizada.
+
+### Firefox para Android
+
+O mesmo `.xpi` assinado é instalado no Firefox para Android (versão 153 ou mais nova). O Firefox para Android só instala uma extensão a partir de um arquivo por um menu que no início fica escondido:
+
+1. No celular, abra a [versão mais recente](https://github.com/Nawid3333/FastStream/releases/latest) no Firefox e baixe o arquivo cujo nome termina em **`.xpi`**.
+2. No Firefox, abra **Configurações > Sobre o Firefox** e toque cinco vezes no logotipo do Firefox, até o Firefox dizer que o menu de depuração foi ativado.
+3. Volte para **Configurações** e toque em **Instalar extensão a partir de arquivo** (*Install extension from file* no Firefox em inglês), e selecione o `.xpi` baixado.
+4. Toque em **Adicionar** quando o Firefox perguntar.
+
+As atualizações também chegam sozinhas.
+
+No celular, o FastStream não tem o modo MPV (o Android não tem programas auxiliares para extensões), nem atalhos de teclado, nem menu de clique direito. O player e as configurações são os mesmos do desktop, e os controles do player foram feitos para mouse e teclado, ainda não para tela de toque.
 
 ## Instruções de Build (criar pacotes)
 Para criar os pacotes do Firefox, você precisa compilar o FastStream seguindo estes passos:
