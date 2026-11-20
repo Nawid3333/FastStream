@@ -992,6 +992,42 @@
     "options_export": {
         "message": "Exportiere Einstellungen in eine Datei"
     },
+    "options_cloud_export": {
+        "message": "In die Cloud exportieren"
+    },
+    "options_cloud_import": {
+        "message": "Aus der Cloud importieren"
+    },
+    "options_cloud_status_saved": {
+        "message": "Cloud-Kopie: gespeichert am $1 ($2)"
+    },
+    "options_cloud_status_none": {
+        "message": "Noch keine Cloud-Kopie"
+    },
+    "options_cloud_hint": {
+        "message": "Die Cloud-Kopie erreicht deine anderen Computer nur, wenn Firefox mit einem Mozilla-Konto angemeldet ist und in den Sync-Einstellungen von Firefox „Add-ons“ angehakt ist. Firefox synchronisiert etwa alle 10 Minuten; „Jetzt synchronisieren“ geht schneller."
+    },
+    "options_cloud_confirm": {
+        "message": "Deine Einstellungen durch die Cloud-Kopie ersetzen, die am $1 unter $2 gespeichert wurde?"
+    },
+    "options_cloud_none": {
+        "message": "Noch keine Cloud-Kopie. Exportiere zuerst auf einem anderen Computer; wenn du das gerade getan hast, nutze „Jetzt synchronisieren“ in Firefox und versuche es erneut."
+    },
+    "options_cloud_quota": {
+        "message": "Zu groß für den 100-KB-Sync-Speicher von Firefox. Kürze die URL-Listen oder nutze den Export in eine Datei."
+    },
+    "options_cloud_incomplete": {
+        "message": "Die Cloud-Kopie ist unvollständig; vielleicht wird sie noch synchronisiert. Versuche es in ein paar Minuten erneut."
+    },
+    "options_cloud_export_done": {
+        "message": "Einstellungen in die Cloud exportiert."
+    },
+    "options_cloud_import_done": {
+        "message": "Einstellungen aus der Cloud importiert."
+    },
+    "options_cloud_failed": {
+        "message": "Der Sync-Speicher von Firefox meldet einen Fehler: $1"
+    },
     "options_keybinds_header": {
         "message": "Tastenbelegungen"
     },

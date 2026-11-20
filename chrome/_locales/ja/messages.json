@@ -992,6 +992,42 @@
     "options_export": {
         "message": "設定をファイルにエクスポート"
     },
+    "options_cloud_export": {
+        "message": "クラウドにエクスポート"
+    },
+    "options_cloud_import": {
+        "message": "クラウドからインポート"
+    },
+    "options_cloud_status_saved": {
+        "message": "クラウドのコピー: $1 に保存 ($2)"
+    },
+    "options_cloud_status_none": {
+        "message": "クラウドのコピーはまだありません"
+    },
+    "options_cloud_hint": {
+        "message": "クラウドのコピーがほかのコンピューターに届くのは、Firefox が Mozilla アカウントにログインしていて、Firefox の Sync 設定で「アドオン」にチェックが入っている場合だけです。Firefox は約 10 分ごとに同期します。「今すぐ同期」を使うと速くなります。"
+    },
+    "options_cloud_confirm": {
+        "message": "$1 に $2 で保存されたクラウドのコピーで設定を置き換えますか？"
+    },
+    "options_cloud_none": {
+        "message": "クラウドのコピーはまだありません。まずほかのコンピューターからエクスポートしてください。エクスポートした直後なら、Firefox で「今すぐ同期」を使ってからもう一度お試しください。"
+    },
+    "options_cloud_quota": {
+        "message": "Firefox の同期ストレージ (100 KB) には大きすぎます。URL のリストを短くするか、ファイルへのエクスポートを使ってください。"
+    },
+    "options_cloud_incomplete": {
+        "message": "クラウドのコピーが不完全です。まだ同期中の可能性があります。数分後にもう一度お試しください。"
+    },
+    "options_cloud_export_done": {
+        "message": "設定をクラウドにエクスポートしました。"
+    },
+    "options_cloud_import_done": {
+        "message": "設定をクラウドからインポートしました。"
+    },
+    "options_cloud_failed": {
+        "message": "Firefox の同期ストレージでエラーが発生しました: $1"
+    },
     "options_keybinds_header": {
         "message": "キーボードショートカット"
     },

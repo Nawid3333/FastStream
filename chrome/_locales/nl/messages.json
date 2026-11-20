@@ -992,6 +992,42 @@
     "options_export": {
         "message": "Instellingen exporteren naar bestand"
     },
+    "options_cloud_export": {
+        "message": "Exporteren naar de cloud"
+    },
+    "options_cloud_import": {
+        "message": "Importeren uit de cloud"
+    },
+    "options_cloud_status_saved": {
+        "message": "Cloudkopie: opgeslagen op $1 ($2)"
+    },
+    "options_cloud_status_none": {
+        "message": "Nog geen cloudkopie"
+    },
+    "options_cloud_hint": {
+        "message": "De cloudkopie bereikt je andere computers alleen als Firefox is aangemeld bij een Mozilla-account met ‘Add-ons’ aangevinkt in de Sync-instellingen van Firefox. Firefox synchroniseert ongeveer elke 10 minuten; ‘Nu synchroniseren’ is sneller."
+    },
+    "options_cloud_confirm": {
+        "message": "Je instellingen vervangen door de cloudkopie die op $1 vanaf $2 is opgeslagen?"
+    },
+    "options_cloud_none": {
+        "message": "Nog geen cloudkopie. Exporteer eerst vanaf een andere computer; als je dat net hebt gedaan, gebruik dan ‘Nu synchroniseren’ in Firefox en probeer het opnieuw."
+    },
+    "options_cloud_quota": {
+        "message": "Te groot voor de synchronisatieopslag van 100 KB van Firefox. Maak de URL-lijsten korter, of gebruik de export naar een bestand."
+    },
+    "options_cloud_incomplete": {
+        "message": "De cloudkopie is onvolledig; misschien wordt hij nog gesynchroniseerd. Probeer het over een paar minuten opnieuw."
+    },
+    "options_cloud_export_done": {
+        "message": "Instellingen geëxporteerd naar de cloud."
+    },
+    "options_cloud_import_done": {
+        "message": "Instellingen geïmporteerd uit de cloud."
+    },
+    "options_cloud_failed": {
+        "message": "De synchronisatieopslag van Firefox gaf een fout: $1"
+    },
     "options_keybinds_header": {
         "message": "Sneltoetsen"
     },

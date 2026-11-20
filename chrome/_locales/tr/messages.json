@@ -992,6 +992,42 @@
     "options_export": {
         "message": "Ayarları Dosyaya Dışa Aktar"
     },
+    "options_cloud_export": {
+        "message": "Buluta Dışa Aktar"
+    },
+    "options_cloud_import": {
+        "message": "Buluttan İçe Aktar"
+    },
+    "options_cloud_status_saved": {
+        "message": "Bulut kopyası: $1 tarihinde kaydedildi ($2)"
+    },
+    "options_cloud_status_none": {
+        "message": "Henüz bulut kopyası yok"
+    },
+    "options_cloud_hint": {
+        "message": "Bulut kopyası diğer bilgisayarlarınıza yalnızca Firefox bir Mozilla hesabıyla oturum açmışsa ve Firefox'un eşitleme ayarlarında \"Eklentiler\" işaretliyse ulaşır. Firefox yaklaşık 10 dakikada bir eşitler; \"Şimdi eşitle\" daha hızlıdır."
+    },
+    "options_cloud_confirm": {
+        "message": "Ayarlarınız, $1 tarihinde $2 üzerinde kaydedilen bulut kopyasıyla değiştirilsin mi?"
+    },
+    "options_cloud_none": {
+        "message": "Henüz bulut kopyası yok. Önce başka bir bilgisayardan dışa aktarın; az önce yaptıysanız Firefox'ta \"Şimdi eşitle\"yi kullanıp yeniden deneyin."
+    },
+    "options_cloud_quota": {
+        "message": "Firefox'un 100 KB'lık eşitleme depolaması için çok büyük. URL listelerini kısaltın veya dosyaya dışa aktarmayı kullanın."
+    },
+    "options_cloud_incomplete": {
+        "message": "Bulut kopyası eksik; hâlâ eşitleniyor olabilir. Birkaç dakika sonra yeniden deneyin."
+    },
+    "options_cloud_export_done": {
+        "message": "Ayarlar buluta dışa aktarıldı."
+    },
+    "options_cloud_import_done": {
+        "message": "Ayarlar buluttan içe aktarıldı."
+    },
+    "options_cloud_failed": {
+        "message": "Firefox'un eşitleme depolaması başarısız oldu: $1"
+    },
     "options_keybinds_header": {
         "message": "Klavye Kısayolları"
     },

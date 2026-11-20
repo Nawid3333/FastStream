@@ -992,6 +992,42 @@
     "options_export": {
         "message": "匯出設定為檔案"
     },
+    "options_cloud_export": {
+        "message": "匯出到雲端"
+    },
+    "options_cloud_import": {
+        "message": "從雲端匯入"
+    },
+    "options_cloud_status_saved": {
+        "message": "雲端副本：儲存於 $1（$2）"
+    },
+    "options_cloud_status_none": {
+        "message": "尚無雲端副本"
+    },
+    "options_cloud_hint": {
+        "message": "只有當 Firefox 已登入 Mozilla 帳號，並在 Firefox 的同步設定中勾選「附加元件」時，雲端副本才會傳到您的其他電腦。Firefox 大約每 10 分鐘同步一次；按「立即同步」會更快。"
+    },
+    "options_cloud_confirm": {
+        "message": "要用 $1 於 $2 儲存的雲端副本取代您的設定嗎？"
+    },
+    "options_cloud_none": {
+        "message": "尚無雲端副本。請先在另一台電腦上匯出；如果剛剛匯出過，請在 Firefox 中按「立即同步」後再試一次。"
+    },
+    "options_cloud_quota": {
+        "message": "超過 Firefox 100 KB 的同步儲存空間。請縮短網址清單，或改用匯出為檔案。"
+    },
+    "options_cloud_incomplete": {
+        "message": "雲端副本不完整，可能仍在同步中。請過幾分鐘再試一次。"
+    },
+    "options_cloud_export_done": {
+        "message": "設定已匯出到雲端。"
+    },
+    "options_cloud_import_done": {
+        "message": "設定已從雲端匯入。"
+    },
+    "options_cloud_failed": {
+        "message": "Firefox 同步儲存空間發生錯誤：$1"
+    },
     "options_keybinds_header": {
         "message": "快捷鍵"
     },

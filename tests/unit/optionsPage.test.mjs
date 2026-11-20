@@ -233,6 +233,10 @@ describe('the options page\'s controls', () => {
     expect(byId('welcomeitem').style.display).toBe('none');
     expect(byId('welcomeitem').querySelector('#welcome')).not.toBe(null);
   });
+
+  it('hides the cloud buttons in the web build, which has no storage.sync', () => {
+    expect(byId('cloudsettings').hidden).toBe(true);
+  });
 });
 
 describe('importing a settings file', () => {

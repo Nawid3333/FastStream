@@ -992,6 +992,42 @@
     "options_export": {
         "message": "Exportar configurações para arquivo"
     },
+    "options_cloud_export": {
+        "message": "Exportar para a nuvem"
+    },
+    "options_cloud_import": {
+        "message": "Importar da nuvem"
+    },
+    "options_cloud_status_saved": {
+        "message": "Cópia na nuvem: salva em $1 ($2)"
+    },
+    "options_cloud_status_none": {
+        "message": "Ainda não há cópia na nuvem"
+    },
+    "options_cloud_hint": {
+        "message": "A cópia na nuvem só chega aos seus outros computadores quando o Firefox está conectado a uma conta Mozilla com \"Extensões\" marcado nas configurações de sincronização do Firefox. O Firefox sincroniza mais ou menos a cada 10 minutos; \"Sincronizar agora\" é mais rápido."
+    },
+    "options_cloud_confirm": {
+        "message": "Substituir suas configurações pela cópia na nuvem salva em $1 no $2?"
+    },
+    "options_cloud_none": {
+        "message": "Ainda não há cópia na nuvem. Exporte primeiro em outro computador; se acabou de fazer isso, use \"Sincronizar agora\" no Firefox e tente de novo."
+    },
+    "options_cloud_quota": {
+        "message": "Grande demais para os 100 KB do armazenamento de sincronização do Firefox. Encurte as listas de URLs ou use a exportação para arquivo."
+    },
+    "options_cloud_incomplete": {
+        "message": "A cópia na nuvem está incompleta; talvez ainda esteja sincronizando. Tente de novo em alguns minutos."
+    },
+    "options_cloud_export_done": {
+        "message": "Configurações exportadas para a nuvem."
+    },
+    "options_cloud_import_done": {
+        "message": "Configurações importadas da nuvem."
+    },
+    "options_cloud_failed": {
+        "message": "O armazenamento de sincronização do Firefox falhou: $1"
+    },
     "options_keybinds_header": {
         "message": "Atalhos de teclado"
     },

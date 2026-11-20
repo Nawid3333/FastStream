@@ -235,7 +235,8 @@ where Firefox gives an extension fewer APIs, so they ask for the platform
 API and tests the features themselves. Until Firefox answers, `isAndroid()` guesses from the
 user agent, which a user agent override (a desktop that says Android) or Android's desktop-site
 mode makes wrong, so both pages decide again once the answer is there, either way, and the
-suggestion waits for it.
+suggestion waits for it. The options page's cloud buttons are hidden the same way: there
+`storage.sync` exists but stays on the phone (`player.md`, "Settings in the cloud").
 
 **What keeps it working:** `tests/unit/firefoxAndroid.test.mjs` loads the background with
 Android's API set and expects every listener the desktop has but those of what Android

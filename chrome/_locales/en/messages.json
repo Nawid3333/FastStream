@@ -992,6 +992,42 @@
     "options_export": {
         "message": "Export Settings To File"
     },
+    "options_cloud_export": {
+        "message": "Export to cloud"
+    },
+    "options_cloud_import": {
+        "message": "Import from cloud"
+    },
+    "options_cloud_status_saved": {
+        "message": "Cloud copy: saved $1 ($2)"
+    },
+    "options_cloud_status_none": {
+        "message": "No cloud copy yet"
+    },
+    "options_cloud_hint": {
+        "message": "The cloud copy reaches your other computers only when Firefox is signed in to a Mozilla account with \"Add-ons\" checked in Firefox's Sync settings. Firefox syncs about every 10 minutes; \"Sync Now\" is faster."
+    },
+    "options_cloud_confirm": {
+        "message": "Replace your settings with the cloud copy saved $1 on $2?"
+    },
+    "options_cloud_none": {
+        "message": "No cloud copy yet. Export from another computer first; if you just did, use Sync Now in Firefox and try again."
+    },
+    "options_cloud_quota": {
+        "message": "Too large for Firefox's 100 KB sync storage. Shorten the URL lists, or use the file export."
+    },
+    "options_cloud_incomplete": {
+        "message": "The cloud copy is incomplete; it may still be syncing. Try again in a few minutes."
+    },
+    "options_cloud_export_done": {
+        "message": "Settings exported to the cloud."
+    },
+    "options_cloud_import_done": {
+        "message": "Settings imported from the cloud."
+    },
+    "options_cloud_failed": {
+        "message": "Firefox's sync storage failed: $1"
+    },
     "options_keybinds_header": {
         "message": "Keyboard Shortcuts"
     },

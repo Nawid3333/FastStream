@@ -32,6 +32,10 @@ Observações:
 - Para sua privacidade, esta extensão **não coleta dados de telemetria** e não tem servidor próprio. Além dos sites cujos vídeos você reproduz, ela só se conecta ao OpenSubtitles quando você procura legendas e ao GitHub para atualizações. Tudo o que ela executa vem dentro do complemento. Os detalhes, permissão por permissão, estão em [docs/privacy-policy.md](docs/privacy-policy.md) (em inglês).
 - O tamanho máximo padrão para pré-carregamento é de 5 GB. Isso pode ser alterado na página de configurações (0 = não pré-carregar nada, vazio = sem limite). Onde o vídeo baixado fica guardado, na RAM ou no disco, também é sua escolha: duas configurações decidem isso, explicadas em [RAM and disk](README.md#ram-and-disk) (em inglês).
 
+## Suas configurações em vários computadores
+
+A página de opções exporta todas as configurações para um arquivo e as importa de novo (Opções > Configurações de importação/exportação). Abaixo desses botões, **Exportar para a nuvem** e **Importar da nuvem** fazem o mesmo pelo Firefox Sync: a cópia só chega aos seus outros computadores quando o Firefox está conectado a uma conta Mozilla com "Extensões" marcado nas configurações de sincronização do Firefox (o Firefox sincroniza mais ou menos a cada 10 minutos; "Sincronizar agora" é mais rápido). O Firefox dá 100 KB às extensões ali; listas de URLs muito longas precisam do arquivo. Isso vale só para o Firefox no desktop: o Firefox para Android guarda o armazenamento das extensões no próprio celular, então os botões da nuvem não aparecem lá. Quem leva a cópia é o Firefox Sync, como faz com seus favoritos; o FastStream continua sem se conectar a nenhum servidor próprio.
+
 ## Compatibilidade com navegadores
 
 O FastStream é construído para o Firefox no desktop. Chrome e outros navegadores baseados em Chromium não são suportados nem testados, e não há planos para dispositivos móveis.
