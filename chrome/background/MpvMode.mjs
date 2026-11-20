@@ -289,6 +289,15 @@ export function playHereInstead(tab, result) {
 }
 
 /**
+ * The episode was not sent, its window gone: the tab's next page is an ordinary hand-off.
+ * @param {TabHolder} tab
+ */
+function endEpisodeWait(tab) {
+  tab.mpvNextEpisodeUntil = 0;
+  if (tab.continuationOptions?.mpvNext) tab.continuationOptions = null;
+}
+
+/**
  * Once per page (tab.mpvAutoOpened); the toolbar's MPV and a start by address share the latch.
  * @param {TabHolder} tab
  * @param {string} url
@@ -304,8 +313,9 @@ export function autoOpenInMpv(tab, url, headers) {
   // MPV autoplay's next episode goes to the window it came from, never to another: a closed one's autoplay ended.
   const episode = tab.mpvNextEpisodeUntil > Date.now();
   const window = episode ? tab.mpvEpisodeWindow : '';
-  if (window && !mpvWindows.get(window)?.alive) {
+  if (window && mpvWindows.hasQuit(window)) {
     if (Logging) console.log('[MPV autoplay] not sent, its mpv window was closed:', url);
+    endEpisodeWait(tab);
     return;
   }
   const page = tab.mpvPage;
@@ -321,6 +331,7 @@ export function autoOpenInMpv(tab, url, headers) {
     }
     if (window && 'closed' in result && result.closed) {
       if (Logging) console.log('[MPV autoplay] not sent, its mpv window closed meanwhile:', url);
+      endEpisodeWait(tab);
       return;
     }
     setMpvError(tab, result);
@@ -661,7 +672,8 @@ export function onMpvWatchEvent(state, event) {
     state.stalled = null;
     endOffer(state, 'closed');
     if (mpvWindows.has(state)) {
-      mpvWindows.remove(state);
+      // Only these say mpv quit; the helper going (or refusing) ends the watch while mpv may play on.
+      mpvWindows.remove(state, event.reason === 'mpv closed' || event.reason === 'no mpv');
       for (const other of Tabs.tabs.values()) {
         if (other.mpvWindow === state.window) other.mpvWindow = null;
       }
@@ -1357,8 +1369,14 @@ export async function openInMpv(tabId, url, ...rest) {
   }
   // By the tab's id: the player's button and the MPV key's play pass no tab.
   if (result && result.ok && tabId !== undefined && tabId >= 0) {
-    watchMpvFor(Tabs.getTab(tabId), url, rest[5]?.qualities || null, typeof result.local === 'string' ? result.local : null,
-        result.window || '');
+    const tab = Tabs.getTab(tabId);
+    // A helper with windows names the one it played in; openStream's answer for a stream the tab sent already names
+    // none, and the tab keeps the window it follows.
+    const window = typeof result.window === 'string' ? result.window :
+      Mpv.capabilities?.includes(Capabilities.WINDOWS) ? tab?.mpvWindow : '';
+    if (typeof window === 'string') {
+      watchMpvFor(tab, url, rest[5]?.qualities || null, typeof result.local === 'string' ? result.local : null, window);
+    }
   }
   return result;
 }

@@ -22,6 +22,9 @@ export class MpvWindows {
   constructor() {
     /** @type {Map<string, W>} */
     this.windows = new Map();
+    // Ids of windows whose mpv quit: an id is never made again (the helper's newWindow).
+    /** @type {Set<string>} */
+    this.closed = new Set();
   }
 
   /**
@@ -40,9 +43,20 @@ export class MpvWindows {
   /**
    * Only that entry: a later one for the same window stays.
    * @param {W} entry
+   * @param {boolean} [quit] - Its mpv quit; else only its watch ended (the helper went), and mpv may play on.
    */
-  remove(entry) {
-    if (this.windows.get(entry.window) === entry) this.windows.delete(entry.window);
+  remove(entry, quit = false) {
+    if (this.windows.get(entry.window) !== entry) return;
+    this.windows.delete(entry.window);
+    if (quit && entry.window) this.closed.add(entry.window);
+  }
+
+  /**
+   * @param {string} window
+   * @return {boolean} Whether its mpv is known to have quit.
+   */
+  hasQuit(window) {
+    return this.closed.has(window);
   }
 
   /**

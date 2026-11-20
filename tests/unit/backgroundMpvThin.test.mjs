@@ -160,6 +160,8 @@ describe('several mpv windows (helper 30)', () => {
   const SX1 = 'https://cdn.test/other-one/master.m3u8';
   const OTHER2 = 'https://site.test/other/2';
   const SX2 = 'https://cdn.test/other-two/master.m3u8';
+  const ELSEWHERE = 'https://site.test/elsewhere/1';
+  const SE1 = 'https://cdn.test/elsewhere-one/master.m3u8';
   const THIRD = 'https://site.test/third/1';
   const ST1 = 'https://cdn.test/third-one/master.m3u8';
   // Not on the MPV allowlist: the shortcut's MPV sends what the page plays.
@@ -330,6 +332,53 @@ describe('several mpv windows (helper 30)', () => {
     key(first, 'next');
     await bg.wait(100);
     expect(navigations.at(-1)).toEqual({tabId: 1, direction: 'next'});
+
+    // The episode's wait ended with it: another video in the tab within the minute goes as any hand-off.
+    await pageLoads(2, ELSEWHERE, SE1);
+    expect(playOf(SE1)).toBeDefined();
+    expect(playOf(SE1)).not.toHaveProperty('window');
+  });
+
+  it('still sends the next episode to a window whose watch only ended (the helper went), which may play on', async () => {
+    let {second} = await twoWindows();
+    key(second, 'next');
+    await bg.wait(100);
+    second.emit({type: 'closed', reason: 'the mpv host went'});
+    await bg.wait(100);
+    await pageLoads(2, OTHER2, SX2);
+    expect(playOf(SX2)).toMatchObject({window: WindowB});
+    // Followed again, over a relay of its own.
+    expect(bg.ports).toHaveLength(3);
+    expect(bg.ports[2].sent[0]).toMatchObject({type: 'relay', window: WindowB});
+    expect((await tabState(2)).mpvWindow).toBe(WindowB);
+    bg.unload();
+
+    // Gone after all: the helper says so, nothing shows, and the tab's next video is an ordinary hand-off.
+    ({second} = await twoWindows());
+    key(second, 'next');
+    await bg.wait(100);
+    second.emit({type: 'closed', reason: 'refused (the relay is busy)'});
+    gone.add(WindowB);
+    await bg.wait(100);
+    await pageLoads(2, OTHER2, SX2);
+    expect(playOf(SX2)).toMatchObject({window: WindowB});
+    expect(bg.badges.get(2)).not.toBe('!');
+    await pageLoads(2, ELSEWHERE, SE1);
+    expect(playOf(SE1)).not.toHaveProperty('window');
+  });
+
+  it('keeps the window a tab follows when its stream is sent again (openStream\'s answer names none)', async () => {
+    await twoWindows();
+    const {openInMpv} = await import('../../chrome/background/MpvMode.mjs');
+    const tab = await tabState(2);
+    const playsBefore = plays().length;
+    const result = await openInMpv(2, SX1, tab, [], undefined, OTHER1, 'Other - Episode 1', {});
+    expect(result).toMatchObject({ok: true});
+    expect(result).not.toHaveProperty('window');
+    expect(plays()).toHaveLength(playsBefore);
+    expect(tab.mpvWindow).toBe(WindowB);
+    expect((await tabState(1)).mpvWindow).toBe('');
+    expect(bg.ports.filter((port) => !port.disconnected)).toHaveLength(2);
   });
 
   it('shows no error when the helper says the episode\'s window has just closed', async () => {

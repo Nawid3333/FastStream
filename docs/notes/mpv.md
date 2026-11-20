@@ -1197,13 +1197,16 @@ gone one closed).
 - `MpvMode.mjs` keeps one `MpvWatch` per window followed (`mpvWindows`, by the helper's id, `''` for the one on its
   pipe); `MpvBackend.watch` keeps one relay port per window, and `relay` names only a window other than `''`, so a
   helper before 30 sees the same messages as before. The window comes from `play`'s answer; an older helper's
-  answer has none, which is `''`.
+  answer has none, which is `''`. openStream's answer for a stream the tab sent already names none either: the tab
+  keeps the window it follows.
 - A tab's stream follows one window (`tab.mpvWindow`). Its next stream going to another window lets the one before
   go (`letGoOfTab`): that window plays on, and its end and keys say "unavailable" at once, with no countdown.
 - MPV autoplay's next episode goes to the window it came from (`tab.mpvEpisodeWindow`, set when the page was
-  asked for it). A window other than `''` that closed ends its autoplay: the episode is not sent (no new window,
-  not `''`), and a `closed` answer to the play shows no error. The window on the helper's pipe keeps the old way:
-  its episode still opens a new mpv there.
+  asked for it). A window other than `''` whose mpv quit (the relay's `mpv closed` or `no mpv`) ends its
+  autoplay: the episode is not sent (no new window, not `''`), a `closed` answer to the play shows no error, and
+  the wait ends, so the tab's next video is an ordinary hand-off. A watch that ended otherwise (the helper went, a
+  refusal) leaves mpv perhaps playing: the episode still goes to that window, and the helper answers `closed` if it
+  is gone. The window on the helper's pipe keeps the old way: its episode still opens a new mpv there.
 - The autoplay setting is one: a change in the options or by a window's key shows in every window's switch.
 
 **Tests.** `backgroundMpvThin.test.mjs` ("several mpv windows"), `MpvBackend.test.mjs` (the window in play
