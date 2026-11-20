@@ -249,15 +249,7 @@ try {
   console.log(`Firefox for Android ${capabilities.browserVersion}, session ${sessionId}`);
   await run();
 } finally {
-  if (session) {
-    try {
-      const png = await wd('GET', `${session}/screenshot`);
-      fs.writeFileSync(path.join(args.out, 'last-page.png'), Buffer.from(png, 'base64'));
-    } catch (e) {
-      console.log(`(no screenshot: ${e})`);
-    }
-  }
-  // What the screen shows: WebDriver's screenshot leaves out video frames.
+  // What the screen shows, from the device: WebDriver's screenshot leaves out video frames.
   try {
     fs.writeFileSync(path.join(args.out, 'screen.png'), adb('exec-out', 'screencap', '-p'));
   } catch (e) {
