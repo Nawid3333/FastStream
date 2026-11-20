@@ -1082,8 +1082,9 @@ and a host before 15 answers those types "unknown message" without it.
   mpv starts with helper-fixed arguments only (`freshMpvArgs`: `--input-ipc-server=<pipe>
   --idle=once --force-window=immediate --no-terminal [--fullscreen]`), the helper waits up to
   15 s for its pipe (`waitForPipe`, `get_property pid` every 200 ms), then sends the same
-  `loadfile`. newWindow's pipe is the helper's plus `-` and 16 random hex digits, used for that
-  one load: the window on the helper's pipe stays the one later sends, `ipc` and `relay` reach.
+  `loadfile`. newWindow's pipe is the helper's plus `-` and 16 random hex digits: the window on
+  the helper's pipe stays the one later sends, `ipc` and `relay` reach without a window (host 30
+  names the new one, below).
   `play` takes the options page's `mpvPath` as the legacy `open` does: resolveMpvPath accepts
   only an mpv executable or its folder (no network or device path), so it names no program but
   mpv; without one, config.json's `mpvPath`, the usual folders and the PATH count, and a missing
@@ -1163,6 +1164,33 @@ cap...) each failed these tests.
 **Risks left.** An mpv that never answers on its pipe within 15 s
 is reported, not killed (the helper never kills a process it cannot identify as idle and its
 own).
+
+## Host 30: several mpv windows
+
+So a new stream need not replace what an mpv window plays, and a second window can buffer while the first
+plays, the helper addresses more than one window (capability `windows`):
+- `play` answers `window`, the window it played in: `''` for the one on the helper's pipe, or newWindow's id
+  (16 hex digits, the suffix of its pipe, `WindowId`). `play` with `window: <id>` loads into that open window
+  only and raises it; one that is gone answers `{ok: false, closed: true}` and starts nothing, not on the
+  helper's own pipe either, and the subtitles written for it are removed (no mpv will). A pipe that takes no
+  connection within the connect wait (on Windows a connect waits while mpv's one pipe instance is in use) is
+  busy, not closed: the extension keeps its link to that window. `window` with newWindow is refused.
+- `paused` (only with newWindow, not with fullscreen): the new mpv starts with `--pause --window-minimized=yes
+  --script-opts-append=auto_start-start_paused=yes` (mpv-config's auto-start.lua then keeps its first file
+  paused, as for a local file's "Play in a new window"), and the WMI script only waits for its window
+  (`FOCUS=kept`): no `AllowSetForegroundWindow`, no raise.
+- `ipc`, `relay` and the new `raise` (`raiseMpv`: the window's pid over its pipe, then the focus script) take
+  `window`. `checkWindow` refuses anything but `''` or a WindowId before a pipe name is made, and `ipcPipeFor`
+  throws on one, so a window can only ever be a hex suffix of the helper's own pipe name (token included).
+- An older helper answers no `window` and has no `windows` capability: the extension keeps one window then.
+
+**Tests.** `mpvAllowlist.test.mjs` (window and paused checks in play and relay), `mpvThinHost.test.mjs`
+(play into an open window, a closed one, a busy one; the paused arguments and no raise; raiseMpv; a copy of the
+host process with a config of its own and fake mpvs on its own pipe and on a window's: ipc, relay and raise reach
+only the window's), `MpvNativeHost.test.mjs`
+(the pipe names), `mpvHostLaunch.test.mjs` (the WMI script with and without the raise, run in PowerShell) and
+`mpvHostVersion.test.mjs` (the host process refusing a bad window in ipc, relay, raise and play, and finding a
+gone one closed).
 
 ## Background: reasons behind the code
 

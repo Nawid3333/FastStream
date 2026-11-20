@@ -22,6 +22,7 @@ import {
   mpvNotFoundError,
   playMpv,
   processImageName,
+  raiseMpv,
   relayMpv,
   runIpc,
   stopMpv,
@@ -120,6 +121,8 @@ describe('freshMpvArgs', () => {
     expect(freshMpvArgs('P', false)).toEqual(['--input-ipc-server=P', '--idle=once', '--force-window=immediate', '--no-terminal']);
     expect(freshMpvArgs('P', true)).toEqual(['--input-ipc-server=P', '--idle=once', '--force-window=immediate', '--no-terminal',
       '--fullscreen']);
+    expect(freshMpvArgs('P', false, true)).toEqual(['--input-ipc-server=P', '--idle=once', '--force-window=immediate',
+      '--no-terminal', '--pause', '--window-minimized=yes', '--script-opts-append=auto_start-start_paused=yes']);
   });
 });
 
@@ -197,7 +200,7 @@ describe('playMpv', () => {
    */
   const stand = (setup = {}) => {
     const running = new Set(setup.running || []);
-    const record = {asks: [], focused: [], started: [], stopped: [], slept: 0};
+    const record = {asks: [], focused: [], started: [], raised: [], stopped: [], slept: 0};
     let pipeUpIn = Infinity;
     let pendingPipe = null;
     return {
@@ -220,8 +223,9 @@ describe('playMpv', () => {
         record.focused.push(pid);
         return 'FOCUS=True FGOK=True';
       },
-      start: async (mpvPath, args) => {
+      start: async (mpvPath, args, raise) => {
         record.started.push({mpvPath, args});
+        record.raised.push(raise);
         pendingPipe = args[0].slice('--input-ipc-server='.length);
         pipeUpIn = setup.pipeUpAfter || 1;
         return setup.start || {ok: true, pid: 77, focus: 'True', foreground: 'True', tries: 1};
@@ -248,7 +252,7 @@ describe('playMpv', () => {
   it('loads the stream into the mpv on the helper\'s pipe and raises its window, starting none', async () => {
     const io = stand({running: [basePipe]});
     expect(await playMpv('mpv.exe', play(), {ipcToken: token}, io))
-        .toStrictEqual({ok: true, reused: true, focus: 'True', foreground: 'True'});
+        .toStrictEqual({ok: true, window: '', reused: true, focus: 'True', foreground: 'True'});
     expect(io.record.started).toEqual([]);
     expect(io.record.focused).toEqual([4242]);
     expect(loadfiles(io.record)).toEqual([{pipe: basePipe, command: {
@@ -307,13 +311,13 @@ describe('playMpv', () => {
   it('starts no second mpv when the one on the pipe is busy or refuses the stream', async () => {
     const busy = stand({running: [basePipe], answer: () => ({ok: false, busy: true, error: 'mpv did not answer'})});
     expect(await playMpv('mpv.exe', play(), {ipcToken: token}, busy))
-        .toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
+        .toEqual({ok: false, window: '', error: 'mpv is busy and did not answer: try again in a moment'});
     expect(busy.record.started).toEqual([]);
 
     const refusing = stand({running: [basePipe], answer: (commands) => ({ok: true, replies: [
       {request_id: commands.length - 1, error: 'invalid parameter'}, {request_id: commands.length, data: 1}]})});
     expect(await playMpv('mpv.exe', play(), {ipcToken: token}, refusing))
-        .toEqual({ok: false, error: 'the open mpv refused the stream (invalid parameter): close it and send again'});
+        .toEqual({ok: false, window: '', error: 'the open mpv refused the stream (invalid parameter): close it and send again'});
     expect(refusing.record.started).toEqual([]);
   });
 
@@ -322,7 +326,7 @@ describe('playMpv', () => {
     const message = play({start: '12', headers: ['Referer: https://site.test/'], fullscreen: false,
       subtitles: [{label: 'English', srt: 'one'}]});
     expect(await playMpv('C:/mpv/mpv.exe', message, {ipcToken: token}, {...io, subtitleBase: scratch('fs-thin-subs-')}))
-        .toStrictEqual({ok: true, focus: 'True', foreground: 'True'});
+        .toStrictEqual({ok: true, window: '', focus: 'True', foreground: 'True'});
     expect(io.record.started).toEqual([{mpvPath: 'C:/mpv/mpv.exe',
       args: [`--input-ipc-server=${basePipe}`, '--idle=once', '--force-window=immediate', '--no-terminal']}]);
     // Nothing the extension sent is on the command line (the pipe is the helper's own).
@@ -391,7 +395,7 @@ describe('playMpv', () => {
         Promise.resolve({ok: false, busy: true, error: 'mpv did not answer in time'}) :
         ipcRequest(commands, timeoutMs, replyTimeoutMs, pipe);
       const result = await playMpv('mpv.exe', play(), {ipcToken: token}, io);
-      expect(result).toEqual({ok: false, error: 'mpv is busy and did not answer: try again in a moment'});
+      expect(result).toEqual({ok: false, window: '', error: 'mpv is busy and did not answer: try again in a moment'});
       expect(io.record.started).toEqual([]);
     } finally {
       fs.rmSync(dir, {recursive: true, force: true});
@@ -429,19 +433,20 @@ describe('playMpv', () => {
 
     const silent = stand({pipeUpAfter: Infinity});
     expect(await playMpv('mpv.exe', play(), {ipcToken: token}, silent))
-        .toEqual({ok: false, error: 'mpv started, but did not answer on its pipe within 15 s'});
+        .toEqual({ok: false, window: '', error: 'mpv started, but did not answer on its pipe within 15 s'});
     expect(silent.record.slept).toBeLessThanOrEqual(PipeWaitMs);
     expect(silent.record.slept).toBeGreaterThan(PipeWaitMs - 1000);
     // The stream never went anywhere.
     expect(loadfiles(silent.record)).toHaveLength(1);
   });
 
-  it('gives a new window a pipe of its own, and never asks the helper\'s pipe', async () => {
+  it('gives a new window a pipe of its own, named by the id it answers, and never asks the helper\'s pipe', async () => {
+    const id = '0a1b2c3d4e5f6a7b';
     const io = stand({running: [basePipe]});
-    expect(await playMpv('mpv.exe', play({newWindow: true}), {ipcToken: token}, {...io, randomHex: () => '0a1b2c'}))
-        .toStrictEqual({ok: true, focus: 'True', foreground: 'True'});
-    expect(io.record.started[0].args[0]).toBe(`--input-ipc-server=${basePipe}-0a1b2c`);
-    expect(io.record.asks.every((ask) => ask.pipe === `${basePipe}-0a1b2c`)).toBe(true);
+    expect(await playMpv('mpv.exe', play({newWindow: true}), {ipcToken: token}, {...io, randomHex: () => id}))
+        .toStrictEqual({ok: true, window: id, focus: 'True', foreground: 'True'});
+    expect(io.record.started[0].args[0]).toBe(`--input-ipc-server=${basePipe}-${id}`);
+    expect(io.record.asks.every((ask) => ask.pipe === `${basePipe}-${id}`)).toBe(true);
     expect(loadfiles(io.record)).toHaveLength(1);
 
     const random = stand();
@@ -453,14 +458,14 @@ describe('playMpv', () => {
   it('reports a new mpv that did not start, and one that refuses the stream', async () => {
     const failing = stand({start: {ok: false, error: 'mpv quit right after it started: check the mpv path'}});
     expect(await playMpv('mpv.exe', play(), {}, failing))
-        .toEqual({ok: false, error: 'Could not start mpv: mpv quit right after it started: check the mpv path'});
+        .toEqual({ok: false, window: '', error: 'Could not start mpv: mpv quit right after it started: check the mpv path'});
     expect(await playMpv('/usr/bin/mpv', play(), {}, {...failing, platform: 'linux'}))
-        .toEqual({ok: false, error: 'mpv quit right after it started: check the mpv path'});
+        .toEqual({ok: false, window: '', error: 'mpv quit right after it started: check the mpv path'});
 
     const refusing = stand({answer: (commands) => commands.some((c) => c.command.name === 'loadfile') ?
       {ok: true, replies: [{request_id: 1, error: 'unknown command'}, {request_id: 2, data: 1}]} : null});
     expect(await playMpv('mpv.exe', play(), {}, refusing))
-        .toEqual({ok: false, error: 'the new mpv refused the stream (unknown command)'});
+        .toEqual({ok: false, window: '', error: 'the new mpv refused the stream (unknown command)'});
   });
 
   // --idle=once keeps an mpv that never loaded a file open for good: an empty window after
@@ -479,7 +484,7 @@ describe('playMpv', () => {
     const slow = stand({answer: (commands) => commands.some((c) => c.command.name === 'loadfile') ?
       {ok: true, replies: [{request_id: 2, data: 77}]} : null});
     expect(await playMpv('mpv.exe', play(), {ipcToken: token}, slow))
-        .toEqual({ok: false, error: 'the new mpv did not take the stream: try again in a moment'});
+        .toEqual({ok: false, window: '', error: 'the new mpv did not take the stream: try again in a moment'});
     expect(slow.record.stopped).toEqual([]);
 
     // Nothing to end without a pid, and never the window on the pipe it found.
@@ -498,19 +503,78 @@ describe('playMpv', () => {
     expect((await playMpv(null, play(), {ipcToken: token}, stand({running: [basePipe]}))).reused).toBe(true);
     const io = stand();
     // The legacy open's words: play takes the options page's path too.
-    expect(await playMpv(null, play(), {ipcToken: token}, io)).toEqual({ok: false, error: mpvNotFoundError(undefined)});
+    expect(await playMpv(null, play(), {ipcToken: token}, io)).toEqual({ok: false, window: '', error: mpvNotFoundError(undefined)});
     expect(await playMpv(null, {...play(), mpvPath: 'D:/Tools/mpv.exe'}, {ipcToken: token}, stand()))
-        .toEqual({ok: false, error: mpvNotFoundError('D:/Tools/mpv.exe')});
+        .toEqual({ok: false, window: '', error: mpvNotFoundError('D:/Tools/mpv.exe')});
     expect(io.record.started).toEqual([]);
   });
 
   it('raises no window off Windows', async () => {
     const reuse = stand({running: [ipcPipeFor({ipcToken: token}, 'linux')]});
     expect(await playMpv('/usr/bin/mpv', play(), {ipcToken: token}, {...reuse, platform: 'linux'}))
-        .toStrictEqual({ok: true, reused: true});
+        .toStrictEqual({ok: true, window: '', reused: true});
     expect(reuse.record.focused).toEqual([]);
     const fresh = stand({start: {ok: true}});
-    expect(await playMpv('/usr/bin/mpv', play(), {ipcToken: token}, {...fresh, platform: 'linux'})).toStrictEqual({ok: true});
+    expect(await playMpv('/usr/bin/mpv', play(), {ipcToken: token}, {...fresh, platform: 'linux'}))
+        .toStrictEqual({ok: true, window: ''});
+  });
+
+  it('starts a waiting new window paused and minimized, the rest of its arguments as any new window\'s', async () => {
+    const id = '0a1b2c3d4e5f6a7b';
+    const io = stand();
+    expect((await playMpv('mpv.exe', play({newWindow: true, paused: true}), {ipcToken: token},
+        {...io, randomHex: () => id})).window).toBe(id);
+    expect(io.record.started[0].args).toEqual([`--input-ipc-server=${basePipe}-${id}`, '--idle=once',
+      '--force-window=immediate', '--no-terminal', '--pause', '--window-minimized=yes',
+      '--script-opts-append=auto_start-start_paused=yes']);
+    // Started without raising it (launchViaWmi's raise): it waits in the taskbar.
+    expect(io.record.raised).toEqual([false]);
+    const plain = stand();
+    await playMpv('mpv.exe', play({newWindow: true}), {ipcToken: token}, plain);
+    expect(plain.record.started[0].args.some((arg) => /pause|minimized/.test(arg))).toBe(false);
+    expect(plain.record.raised).toEqual([true]);
+  });
+
+  it('plays into an open window by its id: its pipe only, raised, never a start', async () => {
+    const id = '0a1b2c3d4e5f6a7b';
+    const io = stand({running: [basePipe, `${basePipe}-${id}`]});
+    expect(await playMpv('mpv.exe', play({window: id}), {ipcToken: token}, io))
+        .toStrictEqual({ok: true, window: id, reused: true, focus: 'True', foreground: 'True'});
+    expect(io.record.asks.map((ask) => ask.pipe)).toEqual([`${basePipe}-${id}`]);
+    expect(io.record.focused).toEqual([4242]);
+    expect(io.record.started).toEqual([]);
+  });
+
+  it('answers closed for a window that is gone, and starts none (not on the helper\'s pipe either)', async () => {
+    const id = '0a1b2c3d4e5f6a7b';
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-launch-'));
+    dirs.push(dir);
+    // Another helper's start holds the launch lock: a play that went near it would wait.
+    const lockFile = launchLockFile({ipcToken: token}, dir);
+    const other = takeLaunchLock(lockFile);
+    const base = scratch('fs-thin-subs-');
+    const io = {...stand({running: [basePipe]}), lockFile, subtitleBase: base};
+    expect(await playMpv('mpv.exe', play({window: id, target: `${target}&fs-private=1`,
+      subtitles: [{label: 'English', srt: 'one'}]}), {ipcToken: token}, io))
+        .toStrictEqual({ok: false, window: id, closed: true, error: 'that mpv window was closed'});
+    expect(io.record.asks.map((ask) => ask.pipe)).toEqual([`${basePipe}-${id}`]);
+    expect(io.record.started).toEqual([]);
+    expect(io.record.slept).toBe(0);
+    // No mpv will play the subtitles written for it, so none would remove them.
+    expect(fs.readdirSync(base)).toEqual([]);
+    other.release();
+
+    const busy = stand({running: [`${basePipe}-${id}`],
+      answer: () => ({ok: false, busy: true, error: 'mpv did not answer'})});
+    expect(await playMpv('mpv.exe', play({window: id}), {ipcToken: token}, busy))
+        .toEqual({ok: false, window: id, error: 'mpv is busy and did not answer: try again in a moment'});
+    expect(busy.record.started).toEqual([]);
+
+    // A pipe that takes no connection in time (mpvIpcRequest's timeout before the connect): there, so busy, not closed.
+    const stalled = stand({running: [`${basePipe}-${id}`], answer: () => ({ok: false, error: 'mpv ipc timeout'})});
+    expect(await playMpv('mpv.exe', play({window: id}), {ipcToken: token}, stalled))
+        .toStrictEqual({ok: false, window: id, error: 'mpv is busy and did not answer: try again in a moment'});
+    expect(stalled.record.started).toEqual([]);
   });
 
   // The same flow over real pipes: mpvIpcRequest and a fake mpv the stand-in launch puts on
@@ -553,7 +617,9 @@ describe('playMpv', () => {
       const result = await playMpv('mpv', play({newWindow: true}), config,
           {platform: process.platform, start: launch(record), focus: async () => 'FOCUS=True'});
       expect(result.ok).toBe(true);
-      expect(record.args[0]).toMatch(/-[0-9a-f]{16}$/);
+      expect(result.window).toMatch(/^[0-9a-f]{16}$/);
+      // The pipe the answer names (on Windows its suffix, elsewhere before .sock).
+      expect(record.args[0]).toBe(`--input-ipc-server=${ipcPipeFor(config, process.platform, process.env, result.window)}`);
       expect(record.args[0]).not.toBe(`--input-ipc-server=${ipcPipeFor(config)}`);
       expect(record.mpv.requests.filter((r) => r.command.name === 'loadfile')).toHaveLength(1);
     });
@@ -645,6 +711,45 @@ describe('runIpc', () => {
     })).toEqual({ok: true, replies: [{error: 'success', data: 5}, {error: 'reply too large', data: undefined},
       {error: 'success', data: 60}]});
   });
+});
+
+describe('raiseMpv', () => {
+  const token = 'fedcba9876543210fedcba9876543210';
+  const id = '0123456789abcdef';
+
+  it('raises the window by its pid, asking only that window\'s pipe', async () => {
+    const asked = [];
+    const focused = [];
+    const result = await raiseMpv(id, {ipcToken: token}, {platform: 'win32',
+      ipcRequest: async (commands, timeoutMs, replyTimeoutMs, pipe) => {
+        asked.push({pipe, commands});
+        return {ok: true, replies: [{request_id: 1, error: 'success', data: 4242}]};
+      },
+      focus: async (pid) => {
+        focused.push(pid);
+        return 'FOCUS=True FGOK=True';
+      }});
+    expect(result).toEqual({ok: true, focus: 'True', foreground: 'True'});
+    expect(asked).toEqual([{pipe: ipcPipeFor({ipcToken: token}, 'win32', {}, id), commands: [{command: ['get_property', 'pid']}]}]);
+    expect(focused).toEqual([4242]);
+  });
+
+  it('answers closed for a window that is gone, busy for one that does not answer, and raises nothing off Windows',
+      async () => {
+        const focus = async () => {
+          throw new Error('raised');
+        };
+        expect(await raiseMpv(id, {}, {platform: 'win32', focus, ipcRequest: async () => ({ok: false, error: 'no mpv ipc'})}))
+            .toEqual({ok: false, closed: true, error: 'that mpv window was closed'});
+        expect(await raiseMpv('', {}, {platform: 'win32', focus,
+          ipcRequest: async () => ({ok: false, busy: true, error: 'mpv did not answer'})}))
+            .toEqual({ok: false, busy: true, error: 'mpv is busy and did not answer: try again in a moment'});
+        expect(await raiseMpv(id, {}, {platform: 'win32', focus, ipcRequest: async () => ({ok: false, error: 'mpv ipc timeout'})}))
+            .toEqual({ok: false, busy: true, error: 'mpv is busy and did not answer: try again in a moment'});
+        expect(await raiseMpv(id, {}, {platform: 'linux', focus,
+          ipcRequest: async () => ({ok: true, replies: [{request_id: 1, error: 'success', data: 4242}]})}))
+            .toEqual({ok: true});
+      });
 });
 
 describe('stopMpv', () => {
@@ -936,6 +1041,89 @@ describe('the host process (host 15)', () => {
     expect(await askHost({type: 'relay', onStop: [['load-script', 'x.lua']]}))
         .toEqual({type: 'closed', reason: 'refused', error: 'onStop command 0 refused: command not allowed: load-script', ...versioned});
   }, 30000);
+});
+
+// Host 30's windows end to end: a copy of the host with a config.json of the test's own (so its pipes are the test's,
+// never a running mpv's), a fake mpv on its own pipe and one on a window's.
+describe('the host process with windows (host 30)', () => {
+  const hostFile = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '../../native-host/faststream-mpv-host.mjs');
+  const token = crypto.randomBytes(16).toString('hex');
+  const id = crypto.randomBytes(8).toString('hex');
+  // No process has it: the focus script finds no window to raise.
+  const nobody = 2 ** 31 - 4;
+  let hostCopy;
+  beforeEach(() => {
+    if (process.platform !== 'win32') vi.stubEnv('XDG_RUNTIME_DIR', scratch('fs-thin-run-'));
+    const dir = scratch('fs-thin-host-');
+    hostCopy = path.join(dir, path.basename(hostFile));
+    fs.copyFileSync(hostFile, hostCopy);
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ipcToken: token}));
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  /**
+   * Runs the host with one message; its framed answers, in order, once it ends.
+   * @param {Object} message
+   * @param {function(Object, import('node:child_process').ChildProcess): void} [onAnswer] - Each answer as it comes;
+   *   by default the port is let go after the first.
+   * @return {Promise<Array<Object>>}
+   */
+  function runHost(message, onAnswer = (answer, child) => child.stdin.end()) {
+    return new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [hostCopy], {stdio: ['pipe', 'pipe', 'inherit']});
+      const timer = setTimeout(() => child.kill(), 30000);
+      const answers = [];
+      let buffer = Buffer.alloc(0);
+      child.stdout.on('data', (chunk) => {
+        buffer = Buffer.concat([buffer, chunk]);
+        while (buffer.length >= 4 && buffer.length >= 4 + buffer.readUInt32LE(0)) {
+          const answer = JSON.parse(buffer.subarray(4, 4 + buffer.readUInt32LE(0)).toString('utf8'));
+          buffer = buffer.subarray(4 + buffer.readUInt32LE(0));
+          answers.push(answer);
+          onAnswer(answer, child);
+        }
+      });
+      child.on('error', (e) => {
+        clearTimeout(timer);
+        reject(e);
+      });
+      child.on('close', () => {
+        clearTimeout(timer);
+        resolve(answers);
+      });
+      const payload = Buffer.from(JSON.stringify(message), 'utf8');
+      const header = Buffer.alloc(4);
+      header.writeUInt32LE(payload.length, 0);
+      child.stdin.write(Buffer.concat([header, payload]));
+    });
+  }
+
+  it('takes ipc, relay and raise to the window named, never to the helper\'s own pipe', async () => {
+    const config = {ipcToken: token};
+    const base = await fakeMpv(ipcPipeFor(config), mpvAnswers);
+    const window = await fakeMpv(ipcPipeFor(config, process.platform, process.env, id),
+        () => ({error: 'success', data: nobody}));
+
+    const [ipc] = await runHost({type: 'ipc', window: id, commands: [['get_property', 'pid']]});
+    expect(ipc).toMatchObject({ok: true, replies: [{error: 'success', data: nobody}]});
+
+    const relay = await runHost({type: 'relay', window: id, onStop: [['set_property', 'pause', true]]},
+        (answer, child) => answer.type === 'relaying' && child.stdin.end());
+    expect(relay.map((answer) => answer.type)).toEqual(['relaying', 'closed']);
+    await vi.waitFor(() => expect(window.requests.map((request) => request.command))
+        .toContainEqual(['set_property', 'pause', true]));
+
+    const [raised] = await runHost({type: 'raise', window: id});
+    expect(raised.ok).toBe(true);
+    if (process.platform === 'win32') expect(raised.focus).toBe('gone');
+
+    expect(base.requests).toEqual([]);
+    // And without a window, the helper's own pipe: the same test sees both.
+    const [own] = await runHost({type: 'ipc', commands: [['get_property', 'pid']]});
+    expect(own).toMatchObject({ok: true, replies: [{error: 'success', data: 4242}]});
+  }, 90000);
 });
 
 describe('the launch lock', () => {

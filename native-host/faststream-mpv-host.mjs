@@ -5,14 +5,18 @@
 // capabilities.
 //
 // Messages:
-//   {type: 'play', target, title?, start?, headers?, subtitles?, fullscreen?, newWindow?, mpvPath?}
-//     -> {ok, error?, reused?, focus?, foreground?} (checkPlayMessage, playMpv)
-//   {type: 'ipc', commands (at most MaxIpcCommands)} -> {ok: true, replies: [{error, data}, ...]}
+//   {type: 'play', target, title?, start?, headers?, subtitles?, fullscreen?, newWindow?, paused?, window?,
+//     mpvPath?} -> {ok, window, error?, reused?, closed?, focus?, foreground?} (checkPlayMessage, playMpv)
+//   {type: 'ipc', commands (at most MaxIpcCommands), window?} -> {ok: true, replies: [{error, data}, ...]}
 //     | {ok: false, error, busy?} | {ok: false, error: 'refused', index, reason} (runIpc)
-//   {type: 'relay', heartbeat?: {property, everyMs}, onStop?: [commands]} on a port the extension
+//   {type: 'relay', heartbeat?: {property, everyMs}, onStop?: [commands], window?} on a port the extension
 //     keeps open -> {type: 'relaying'}, then {type: 'mpv', data} for each line of mpv's; the
 //     extension sends {type: 'mpv', command, id?} -> {type: 'mpv-reply', id, error, data} |
 //     {type: 'mpv-refused', id, reason}; {type: 'closed', reason} last (relayMpv)
+//   {type: 'raise', window?} -> {ok, closed?, busy?, error?, focus?, foreground?} (raiseMpv)
+// window (host 30): which of the helper's mpv windows, by the id play's answer named; none or '' is the one on
+//   the helper's own pipe. newWindow starts one with an id of its own (paused: it waits, paused and minimized,
+//   not raised); play into a window that is gone answers closed and starts none.
 // Older messages, still answered:
 //   {type: 'ping', mpvPath?} -> {ok, mpv, path}
 //   {type: 'open', url, headers?, mpvPath?, fullscreen?, singleInstance?, contentType?, pageUrl?,
@@ -42,10 +46,11 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
 // The extension compares it with RequiredHostVersion (chrome/background/MpvBackend.mjs). Raise it
 // with every change to this file or install.ps1, with tests/unit/mpvHostVersion.test.mjs.
-export const HostVersion = 29;
+export const HostVersion = 30;
 
-// The messages the extension may send; a host without this list gets the older ones.
-export const Capabilities = Object.freeze(['play', 'ipc', 'relay', 'hls']);
+// The messages the extension may send; a host without this list gets the older ones. windows: play, ipc and
+// relay take a window, play newWindow and paused, and raise is there (host 30).
+export const Capabilities = Object.freeze(['play', 'ipc', 'relay', 'hls', 'windows']);
 
 // No mpv path from the environment: an unchecked path would reach statSync (path injection).
 const DefaultMpvPaths = [
@@ -372,22 +377,28 @@ export function readMessage(input = process.stdin) {
  * Windows has one pipe namespace per machine: another account that made the pipe first would get
  * every URL and header and could fake success, so the name carries config.json's random ipcToken.
  * Elsewhere the socket goes in $XDG_RUNTIME_DIR, else the temp folder.
+ * A window of the helper's other than the first (newWindow) has the same name and its id after it.
  * @param {{ipcToken?: string}} config - The parsed config.json.
  * @param {string} [platform] - process.platform, or a stand-in.
  * @param {Object<string, string|undefined>} [env] - The environment.
+ * @param {string} [window] - The window's id (WindowId), or '' for the helper's own pipe.
  * @return {string} The pipe or socket.
  */
-export function ipcPipeFor(config, platform = process.platform, env = process.env) {
+export function ipcPipeFor(config, platform = process.platform, env = process.env, window = '') {
+  if (window !== '' && !WindowId.test(window)) {
+    throw new Error('not a window id');
+  }
+  const suffix = window ? '-' + window : '';
   if (platform === 'win32') {
     const token = config && typeof config.ipcToken === 'string' && /^[0-9a-f]{32}$/.test(config.ipcToken) ?
       '-' + config.ipcToken : '';
-    return '\\\\.\\pipe\\faststream-mpv' + token;
+    return '\\\\.\\pipe\\faststream-mpv' + token + suffix;
   }
   const user = typeof process.getuid === 'function' ? process.getuid() : 0;
   // The token here too: without $XDG_RUNTIME_DIR the socket is in a shared temp folder.
   const token = config && typeof config.ipcToken === 'string' && /^[0-9a-f]{32}$/.test(config.ipcToken) ?
     '-' + config.ipcToken : '';
-  const name = `faststream-mpv-${user}${token}.sock`;
+  const name = `faststream-mpv-${user}${token}${suffix}.sock`;
   const socket = path.posix.join(env.XDG_RUNTIME_DIR || env.TMPDIR || os.tmpdir(), name);
   // In macOS's temp folder the path came to about 106 bytes, too long for a socket: /tmp then,
   // where the token keeps the name unguessable.
@@ -396,6 +407,23 @@ export function ipcPipeFor(config, platform = process.platform, env = process.en
 
 // The longest Unix socket path (sockaddr_un's sun_path: 104 bytes on macOS, its NUL included).
 export const MaxSocketPathBytes = 103;
+
+// A window's id: the helper makes it (newWindow), the extension only names it back. Hex only, so it is never
+// more than a suffix of the helper's own pipe name.
+export const WindowId = /^[0-9a-f]{16}$/;
+
+/**
+ * A message's window, checked: '' for none (the helper's own pipe), else a WindowId.
+ * @param {*} value - The message's window field.
+ * @return {{ok: true, window: string}|{ok: false, error: string}}
+ */
+export function checkWindow(value) {
+  if (value === undefined || value === null || value === '') {
+    return {ok: true, window: ''};
+  }
+  return typeof value === 'string' && WindowId.test(value) ? {ok: true, window: value} :
+    {ok: false, error: 'the window is not one of the helper\'s'};
+}
 
 // How long the focus script waits for a new mpv's window: half of mpv's 60 s --network-timeout.
 const WindowWaitSeconds = 30;
@@ -406,6 +434,10 @@ const PowerShellTimeoutMs = (WindowWaitSeconds + 15) * 1000;
 // An open mpv's window exists already; one not found within seconds stays so, and a longer wait
 // only delays the answer the extension pauses the page on.
 export const ReusedWindowWaitSeconds = 5;
+
+// The connect did not finish in time: on Windows a pipe whose mpv takes no connection (its one instance in use)
+// keeps a connect waiting. The helper's own window then gets a fresh mpv; another window is busy, not closed.
+const StalledError = 'mpv ipc timeout';
 
 /**
  * Sends commands to the mpv instance listening on our pipe.
@@ -449,7 +481,7 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
       } else if (connected) {
         finish({ok: false, busy: true, error: 'mpv did not answer'});
       } else {
-        finish({ok: false, error: 'mpv ipc timeout'});
+        finish({ok: false, error: StalledError});
       }
     };
     let timer = setTimeout(giveUp, timeoutMs);
@@ -1384,8 +1416,8 @@ export async function loadIntoExisting(message, headerFields, title, ipcRequest 
  * @param {boolean} fullscreen - Whether to make the window fullscreen first.
  * @param {(commands: Array<Object>) => ReturnType<typeof mpvIpcRequest>} ipcRequest - The
  *   transport, bound to its pipe.
- * @return {Promise<{ok: boolean, pid?: number, busy?: boolean, refused?: boolean, error?: string}>}
- *   As loadIntoExisting.
+ * @return {Promise<{ok: boolean, pid?: number, busy?: boolean, stalled?: boolean, refused?: boolean,
+ *   error?: string}>} As loadIntoExisting.
  */
 export async function loadInto(target, options, fullscreen, ipcRequest) {
   /** @type {Array<{command: *}>} */
@@ -1405,7 +1437,8 @@ export async function loadInto(target, options, fullscreen, ipcRequest) {
 
   const result = await ipcRequest(commands);
   if (!result.ok) {
-    return result.busy ? {ok: false, busy: true} : {ok: false};
+    // stalled: nothing was written (StalledError).
+    return result.busy ? {ok: false, busy: true} : {ok: false, ...(result.error === StalledError ? {stalled: true} : {})};
   }
 
   // The loadfile reply decides: mpvIpcRequest's timeout resolves ok with any reply in. Without it
@@ -1552,29 +1585,12 @@ export function showWindowLines(hwndExpr) {
  * @param {string} pidExpr - PowerShell expression holding the process id.
  * @param {number} waitSeconds - How long to wait for the window: WindowWaitSeconds for an
  *   mpv just started, ReusedWindowWaitSeconds for one already open.
+ * @param {boolean} [raise] - false: only waits for the window (a quit still shows), and leaves it where mpv put
+ *   it: FOCUS=kept (a paused new window, which waits minimized).
  * @return {Array<string>} Script lines.
  */
-function focusWindowLines(pidExpr, waitSeconds) {
-  return [
-    '  try {',
-    '    $deadline = (Get-Date).AddSeconds(' + Number(waitSeconds) + ')',
-    '    $h = [IntPtr]::Zero',
-    '    $seen = $false',
-    '    $quit = $false',
-    '    $misses = 0',
-    '    while ((Get-Date) -lt $deadline) {',
-    '      $p = Get-Process -Id ' + pidExpr + ' -ErrorAction SilentlyContinue',
-    '      if ($p) { $seen = $true } else { $misses++ }',
-    '      if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) ' +
-      '{ $h = $p.MainWindowHandle; break }',
-    // Seen, then gone before it had a window: mpv quit at once. The first look almost always
-    // finds it still starting, so "never seen" alone misses such quits.
-    '      if ($seen -and -not $p) { $quit = $true; break }',
-    // Never seen: it quit before the first look. Stop after about 2 s.
-    '      if (-not $seen -and $misses -ge 20) { break }',
-    '      Start-Sleep -Milliseconds 100',
-    '    }',
-    '    if ($h -ne [IntPtr]::Zero) {',
+function focusWindowLines(pidExpr, waitSeconds, raise = true) {
+  const pull = raise ? [
     '      $null = [FSFg]::AllowSetForegroundWindow([int]' + pidExpr + ')',
     // Retried: the foreground owner can change between AttachThreadInput and SetForegroundWindow.
     '      $tries = 0',
@@ -1596,6 +1612,30 @@ function focusWindowLines(pidExpr, waitSeconds) {
     '      }',
     '      Write-Output ("FOCUS=" + $ok + " FGOK=" + $fgok + ' +
       '" TRIES=" + $tries)',
+  ] : [
+    '      Write-Output "FOCUS=kept"',
+  ];
+  return [
+    '  try {',
+    '    $deadline = (Get-Date).AddSeconds(' + Number(waitSeconds) + ')',
+    '    $h = [IntPtr]::Zero',
+    '    $seen = $false',
+    '    $quit = $false',
+    '    $misses = 0',
+    '    while ((Get-Date) -lt $deadline) {',
+    '      $p = Get-Process -Id ' + pidExpr + ' -ErrorAction SilentlyContinue',
+    '      if ($p) { $seen = $true } else { $misses++ }',
+    '      if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) ' +
+      '{ $h = $p.MainWindowHandle; break }',
+    // Seen, then gone before it had a window: mpv quit at once. The first look almost always
+    // finds it still starting, so "never seen" alone misses such quits.
+    '      if ($seen -and -not $p) { $quit = $true; break }',
+    // Never seen: it quit before the first look. Stop after about 2 s.
+    '      if (-not $seen -and $misses -ge 20) { break }',
+    '      Start-Sleep -Milliseconds 100',
+    '    }',
+    '    if ($h -ne [IntPtr]::Zero) {',
+    ...pull,
     '    } elseif (-not $seen) { Write-Output "FOCUS=gone" }',
     '    elseif ($quit) { Write-Output "FOCUS=quit" }',
     '    else { Write-Output "FOCUS=nowindow" }',
@@ -1645,19 +1685,20 @@ function windowsCommandLine(mpvPath, args) {
 }
 
 /**
- * The PowerShell that starts mpv through WMI and focuses its window. Fixed text: the
- * command line is read from the environment (CommandLineEnv).
+ * The PowerShell that starts mpv through WMI and focuses its window (or, raise false, only waits for it). Fixed
+ * text: the command line is read from the environment (CommandLineEnv).
+ * @param {boolean} [raise] - focusWindowLines'.
  * @return {Array<string>} Script lines.
  */
-export function wmiLaunchLines() {
+export function wmiLaunchLines(raise = true) {
   return [
     ...focusApiLines(),
-    'try { $null = [FSFg]::AllowSetForegroundWindow(-1) } catch {}',
+    ...(raise ? ['try { $null = [FSFg]::AllowSetForegroundWindow(-1) } catch {}'] : []),
     '$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create ' +
       '-Arguments @{CommandLine=$env:' + CommandLineEnv + '}',
     'Write-Output ("RC=" + $r.ReturnValue + " PID=" + $r.ProcessId)',
     'if ($r.ReturnValue -eq 0) {',
-    ...focusWindowLines('$r.ProcessId', WindowWaitSeconds),
+    ...focusWindowLines('$r.ProcessId', WindowWaitSeconds, raise),
     '}',
   ];
 }
@@ -1784,16 +1825,18 @@ export function wmiLaunchResult(text) {
  * (detached and unref() too). An mpv the WMI service creates is WmiPrvSE's child and survives.
  * @param {string} mpvPath - Path to the mpv executable.
  * @param {Array<string>} args - Arguments to pass to mpv.
+ * @param {boolean} [raise] - false: its window is not brought to the front (wmiLaunchLines).
  * @return {Promise<{ok: boolean, pid?: number, error?: string, focus?: string, foreground?: string,
  *   tries?: number}>} wmiLaunchResult's reading of the script's output.
  */
-function launchViaWmi(mpvPath, args) {
+function launchViaWmi(mpvPath, args, raise = true) {
   const commandLine = windowsCommandLine(mpvPath, args);
   if (commandLine.length >= MaxCommandLineChars) {
     return Promise.resolve({ok: false, error: 'the stream URL is too long for mpv\'s command line'});
   }
 
-  return runPowerShell(wmiLaunchLines(), PowerShellTimeoutMs, {[CommandLineEnv]: commandLine}).then(wmiLaunchResult);
+  return runPowerShell(wmiLaunchLines(raise), PowerShellTimeoutMs, {[CommandLineEnv]: commandLine})
+      .then(wmiLaunchResult);
 }
 
 
@@ -2229,6 +2272,8 @@ const PlayHeader = /^(referer|origin|user-agent): [ -~]{1,4096}$/i;
  * @property {Array<{srt: string, label: string}>} subtitles - subtitlesOf's.
  * @property {boolean} fullscreen
  * @property {boolean} newWindow - A window of its own, not the one on the helper's pipe.
+ * @property {boolean} paused - newWindow's waits, paused and minimized, not raised.
+ * @property {string} window - The window to play in (WindowId), '' for the one on the helper's pipe.
  * @property {string|undefined} mpvPath - The options page's mpv path: resolveMpvPath accepts
  *   only an mpv executable or its folder, so it names no program but mpv.
  * @property {Array<{name: string, text: string}>|undefined} hls - The stream's playlists, played from files
@@ -2293,8 +2338,19 @@ export function checkPlayMessage(message) {
 
   const fullscreen = message.fullscreen ?? false;
   const newWindow = message.newWindow ?? false;
-  if (typeof fullscreen !== 'boolean' || typeof newWindow !== 'boolean') {
-    return refuse('fullscreen and newWindow are a yes or no');
+  const paused = message.paused ?? false;
+  if (typeof fullscreen !== 'boolean' || typeof newWindow !== 'boolean' || typeof paused !== 'boolean') {
+    return refuse('fullscreen, newWindow and paused are a yes or no');
+  }
+  if (paused && (!newWindow || fullscreen)) {
+    return refuse('only a new window that is not fullscreen starts paused');
+  }
+  const window = checkWindow(message.window);
+  if (!window.ok) {
+    return refuse(window.error);
+  }
+  if (window.window && newWindow) {
+    return refuse('a new window is not one that is open');
   }
 
   const mpvPath = isPlainText(message.mpvPath, 4096) ? message.mpvPath : undefined;
@@ -2311,7 +2367,7 @@ export function checkPlayMessage(message) {
   return {
     ok: true,
     play: {target, title, start, headerFields: [...headers], subtitles: subtitlesOf({subtitles}), fullscreen, newWindow,
-      mpvPath, hls},
+      paused, window: window.window, mpvPath, hls},
   };
 }
 
@@ -2431,12 +2487,17 @@ export function takeLaunchLock(file, io = {}) {
  * --idle=once keeps mpv open until its first file has come and gone.
  * @param {string} pipe - The pipe mpv listens on.
  * @param {boolean} fullscreen - Whether mpv starts fullscreen.
+ * @param {boolean} [paused] - A window that waits: paused and minimized; the mpv setup's auto-start.lua keeps
+ *   its first file paused (start_paused), as for a local file's new window.
  * @return {Array<string>}
  */
-export function freshMpvArgs(pipe, fullscreen) {
+export function freshMpvArgs(pipe, fullscreen, paused = false) {
   const args = [`--input-ipc-server=${pipe}`, '--idle=once', '--force-window=immediate', '--no-terminal'];
   if (fullscreen) {
     args.push('--fullscreen');
+  }
+  if (paused) {
+    args.push('--pause', '--window-minimized=yes', '--script-opts-append=auto_start-start_paused=yes');
   }
   return args;
 }
@@ -2509,22 +2570,23 @@ export async function stopMpv(pid, io = {}) {
 /**
  * Plays a checked play message: into the mpv on the helper's pipe when one runs (busy or refusing
  * is an error, never a second mpv on that pipe); otherwise, and for newWindow, a new mpv with
- * freshMpvArgs, then the stream over its pipe. newWindow gets a pipe of its own for this one load,
- * so later sends, ipc and relay still reach the window on the helper's pipe.
+ * freshMpvArgs, then the stream over its pipe. newWindow gets a pipe of its own, named by the window id
+ * the answer carries: play, ipc, relay and raise reach it by that id. window plays only in that open window.
  * @param {?string} mpvPath - The mpv executable (resolveMpvPath), or null when none was found:
  *   then only an mpv already open can play.
  * @param {PlaySpec} play - checkPlayMessage's.
  * @param {Object} config - The parsed config.json.
  * @param {{ipcRequest?: typeof mpvIpcRequest, focus?: typeof focusPid,
- *   start?: (mpvPath: string, args: Array<string>) => Promise<{ok: boolean, error?: string,
+ *   start?: (mpvPath: string, args: Array<string>, raise: boolean) => Promise<{ok: boolean, error?: string,
  *     pid?: number, focus?: string, foreground?: string}>,
  *   platform?: string, sleep?: (ms: number) => Promise<void>, now?: () => number,
  *   randomHex?: () => string, subtitleBase?: string, hlsBase?: string, stop?: (pid: number) => void,
  *   lockFile?: string, lock?: {now?: () => number, alive?: (pid: number) => boolean}}} [io] -
  *   Stand-ins for tests; the real ones by default.
- * @return {Promise<{ok: boolean, error?: string, reused?: boolean, focus?: string,
- *   foreground?: string, local?: string}>} The answer for the extension, as the legacy open's; local: the
- *   playlist file mpv plays for hls, its path in mpv's watch.
+ * @return {Promise<{ok: boolean, window?: string, error?: string, reused?: boolean, closed?: boolean,
+ *   focus?: string, foreground?: string, local?: string}>} The answer for the extension, as the legacy open's;
+ *   window: the one it played in or tried to (none when the playlists could not be written); closed: play.window
+ *   is gone; local: the playlist file mpv plays for hls, its path in mpv's watch.
  */
 export async function playMpv(mpvPath, play, config, io = {}) {
   let entry = play.target;
@@ -2552,7 +2614,7 @@ export async function playMpv(mpvPath, play, config, io = {}) {
 }
 
 /**
- * playMpv's work, for the file or URL mpv loads.
+ * playMpv's work, for the file or URL mpv loads; every answer names the window it is about.
  * @param {?string} mpvPath
  * @param {PlaySpec} play
  * @param {Object} config
@@ -2562,6 +2624,23 @@ export async function playMpv(mpvPath, play, config, io = {}) {
  *   answer in time, with the load already written to it.
  */
 async function playEntry(mpvPath, play, config, io, entry) {
+  const window = play.newWindow ? (io.randomHex ? io.randomHex() : crypto.randomBytes(8).toString('hex')) :
+    play.window;
+  return {...await playWindow(mpvPath, play, config, io, entry, window), window};
+}
+
+/**
+ * playEntry's, for one window: the one on the helper's pipe (''), an open one by its id (never a start: closed when
+ * it is gone), or newWindow's.
+ * @param {?string} mpvPath
+ * @param {PlaySpec} play
+ * @param {Object} config
+ * @param {NonNullable<Parameters<typeof playMpv>[3]>} io
+ * @param {string} entry
+ * @param {string} window - Its id (WindowId), or ''.
+ * @return {Promise<Awaited<ReturnType<typeof playMpv>> & {busy?: boolean, closed?: boolean}>}
+ */
+async function playWindow(mpvPath, play, config, io, entry, window) {
   const platform = io.platform || process.platform;
   const ipcRequest = io.ipcRequest || mpvIpcRequest;
   const focus = io.focus || focusPid;
@@ -2587,9 +2666,24 @@ async function playEntry(mpvPath, play, config, io, entry) {
       (commands) => ipcRequest(commands, undefined, undefined, pipe));
 
   if (!play.newWindow) {
-    const loaded = await load(basePipe, play.fullscreen);
+    const loaded = await load(window ? ipcPipeFor(config, platform, undefined, window) : basePipe, play.fullscreen);
     const answer = await answerOfOpenMpv(loaded, focus, config, platform);
     if (answer) return loaded.busy ? {...answer, busy: true} : answer;
+    if (window) {
+      // Nothing was written to that window, so no mpv will play them or remove them (a private window's).
+      if (subFiles.length) {
+        try {
+          fs.rmSync(path.dirname(subFiles[0]), {recursive: true, force: true});
+        } catch (e) {
+          // The next helper to end removes it by its age.
+        }
+      }
+      if (loaded.stalled) {
+        return {ok: false, error: 'mpv is busy and did not answer: try again in a moment'};
+      }
+      debugLog(config, 'window-closed', {window});
+      return {ok: false, closed: true, error: 'that mpv window was closed'};
+    }
   }
 
   // Another helper is starting an mpv on this pipe: wait, then load into that mpv (loaded before
@@ -2641,13 +2735,13 @@ async function playEntry(mpvPath, play, config, io, entry) {
     if (!mpvPath) {
       return {ok: false, error: mpvNotFoundError(play.mpvPath)};
     }
-    const pipe = play.newWindow ?
-      basePipe + '-' + (io.randomHex ? io.randomHex() : crypto.randomBytes(8).toString('hex')) : basePipe;
-    const args = freshMpvArgs(pipe, play.fullscreen);
+    const pipe = ipcPipeFor(config, platform, undefined, window);
+    const args = freshMpvArgs(pipe, play.fullscreen, play.paused);
     debugLog(config, 'spawn', {mpvPath, args});
     // Windows: outside the host's job object (launchViaWmi), no direct spawn as a fallback.
     /** @type {{ok: boolean, error?: string, pid?: number, focus?: string, foreground?: string}} */
-    const started = await (io.start || (platform === 'win32' ? launchViaWmi : launchDirect))(mpvPath, args);
+    const started = await (io.start || (platform === 'win32' ? launchViaWmi : launchDirect))(mpvPath, args,
+        !play.paused);
     if (!started.ok) {
       debugLog(config, 'start-failed', started);
       return {ok: false, error: platform === 'win32' ? 'Could not start mpv: ' + started.error : String(started.error)};
@@ -2729,6 +2823,32 @@ export async function runIpc(commands, io = {}) {
   };
 }
 
+/**
+ * Brings one of the helper's mpv windows to the front (Windows; elsewhere it only answers whether it is open).
+ * @param {string} window - Its id (WindowId), or '' for the one on the helper's pipe.
+ * @param {Object} config - The parsed config.json.
+ * @param {{ipcRequest?: typeof mpvIpcRequest, focus?: typeof focusPid, platform?: string}} [io] - Stand-ins.
+ * @return {Promise<{ok: boolean, closed?: boolean, busy?: boolean, error?: string, focus?: string,
+ *   foreground?: string}>}
+ */
+export async function raiseMpv(window, config, io = {}) {
+  const platform = io.platform || process.platform;
+  const result = await (io.ipcRequest || mpvIpcRequest)([{command: ['get_property', 'pid']}], undefined, undefined,
+      ipcPipeFor(config, platform, undefined, window));
+  if (!result.ok) {
+    return result.busy || result.error === StalledError ?
+      {ok: false, busy: true, error: 'mpv is busy and did not answer: try again in a moment'} :
+      {ok: false, closed: true, error: 'that mpv window was closed'};
+  }
+  const reply = /** @type {Array<{request_id: number, data?: *}>} */ (result.replies || [])
+      .find((r) => r.request_id === 1);
+  const pid = reply && typeof reply.data === 'number' ? reply.data : undefined;
+  if (!pid || platform !== 'win32') {
+    return {ok: true};
+  }
+  return {ok: true, ...focusOutcome(await (io.focus || focusPid)(pid))};
+}
+
 // A relay's heartbeat: at least this often apart, and no further than setInterval can wait
 // (past it, Node runs the interval every millisecond).
 export const MinHeartbeatMs = 5000;
@@ -2736,12 +2856,16 @@ const MaxTimerMs = 2147483647;
 
 /**
  * A relay message's options, checked: heartbeat a FastStream user-data property and an
- * interval of MinHeartbeatMs or more; onStop at most MaxOnStopCommands allowlisted commands.
+ * interval of MinHeartbeatMs or more; onStop at most MaxOnStopCommands allowlisted commands; window checkWindow's.
  * @param {*} message - The first message on the port.
- * @return {{ok: true, heartbeat: ?{property: string, everyMs: number}, onStop: Array<Array<*>>}|
+ * @return {{ok: true, heartbeat: ?{property: string, everyMs: number}, onStop: Array<Array<*>>, window: string}|
  *   {ok: false, error: string}}
  */
 export function checkRelayMessage(message) {
+  const window = checkWindow(message.window);
+  if (!window.ok) {
+    return window;
+  }
   /** @type {?{property: string, everyMs: number}} */
   let heartbeat = null;
   if (message.heartbeat !== undefined && message.heartbeat !== null) {
@@ -2762,7 +2886,7 @@ export function checkRelayMessage(message) {
       return {ok: false, error: `onStop command ${index} refused: ${reason}`};
     }
   }
-  return {ok: true, heartbeat, onStop};
+  return {ok: true, heartbeat, onStop, window: window.window};
 }
 
 // A native message to the extension may be 1 MB, with room for the message around the line.
@@ -3039,8 +3163,20 @@ async function handleMessage() {
   }
 
   if ((/** @type {{type: string}} */ (message)).type === 'ipc') {
-    const result = await runIpc((/** @type {{commands?: *}} */ (message)).commands, {pipe: ipcPipeFor(config)});
+    const window = checkWindow((/** @type {{window?: *}} */ (message)).window);
+    const result = window.ok ?
+      await runIpc((/** @type {{commands?: *}} */ (message)).commands,
+          {pipe: ipcPipeFor(config, undefined, undefined, window.window)}) :
+      {ok: false, error: 'refused', reason: window.error};
     debugLog(config, 'ipc', {ok: result.ok, error: result.error, index: result.index, reason: result.reason});
+    await sendMessage(result);
+    return;
+  }
+
+  if ((/** @type {{type: string}} */ (message)).type === 'raise') {
+    const window = checkWindow((/** @type {{window?: *}} */ (message)).window);
+    const result = window.ok ? await raiseMpv(window.window, config) : {ok: false, error: window.error};
+    debugLog(config, 'raise', result);
     await sendMessage(result);
     return;
   }
@@ -3060,7 +3196,7 @@ async function handleMessage() {
       // mpv's own lines (time-pos many times a second) stay out of the log.
       if ((/** @type {{type: string}} */ (event)).type !== 'mpv' && (/** @type {{type: string}} */ (event)).type !== 'mpv-reply') debugLog(config, 'relay', event);
       last = sendMessage(event);
-    }, checked, {pipe: ipcPipeFor(config)});
+    }, checked, {pipe: ipcPipeFor(config, undefined, undefined, checked.window)});
     // The browser went while mpv plays on: as when the extension lets go (the watch's reason).
     process.stdout.on('error', () => relay.stop());
     readMessages(process.stdin, (next) => relay.receive(next), () => relay.stop());

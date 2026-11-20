@@ -85,6 +85,26 @@ describe.runIf(process.platform === 'win32')('the WMI launch script, about an mp
     expect(out).toContain('FOCUS=gone');
     expect(result).toEqual({ok: false, error: QuitError});
   }, 60000);
+
+  // A window that waits (play's paused): started, its window waited for, and left where mpv put it.
+  it('leaves a waiting window where it is, and still reports one that quit', async () => {
+    const script = wmiLaunchLines(false).join('\n');
+    expect(script).not.toMatch(/\[FSFg\]::((Allow)?SetForegroundWindow|ShowWindowAsync|BringWindowToTop)/);
+    expect(wmiLaunchLines(true).join('\n')).toMatch(/\[FSFg\]::SetForegroundWindow/);
+    const withWindow = 'function Get-Process { param($Id, $ErrorAction) [pscustomobject]@{MainWindowHandle = [IntPtr]42} }';
+    const out = await runPowerShell([created, withWindow, ...wmiLaunchLines(false)], 60000, {[CommandLineEnv]: '"x"'});
+    expect(out).toContain('FOCUS=kept');
+    expect(wmiLaunchResult(out)).toMatchObject({ok: true, pid: 424242, focus: 'kept'});
+    const gone = await runPowerShell([created, 'function Get-Process { param($Id, $ErrorAction) $null }',
+      ...wmiLaunchLines(false)], 60000, {[CommandLineEnv]: '"x"'});
+    expect(wmiLaunchResult(gone)).toEqual({ok: false, error: QuitError});
+    const quit = await runPowerShell([created, '$global:looks = 0',
+      'function Get-Process { param($Id, $ErrorAction) $global:looks++; ' +
+        'if ($global:looks -le 1) { [pscustomobject]@{MainWindowHandle = [IntPtr]::Zero} } else { $null } }',
+      ...wmiLaunchLines(false)], 60000, {[CommandLineEnv]: '"x"'});
+    expect(quit).toContain('FOCUS=quit');
+    expect(wmiLaunchResult(quit)).toEqual({ok: false, error: QuitError});
+  }, 60000);
 });
 
 // The window of an mpv already open, which a stream sent to it raises: its pipe answered,
