@@ -416,7 +416,7 @@ export function tabSources(tab) {
  * One mpv window's: window is the helper's id for it ('' for the one on its own pipe); tabId is NoTab once the tab's
  * stream went to another window; usedAt when it last got a stream; offer the one up in it (MpvOffer.mjs).
  * @typedef {{window: string, tabId: number, url: string, qualities: ?Array<{url: string}>, local: ?string,
- *   usedAt: number, offer: ?import('./MpvOffer.mjs').PendingOffer,
+ *   usedAt: number, offer: ?import('./MpvOffer.mjs').PendingOffer, placing: Promise<void>,
  *   alive: boolean, going: boolean, countdown: ?ReturnType<typeof setTimeout>, countdownAsks: number,
  *   stalled: ?ReturnType<typeof setTimeout>,
  *   links: ?EpisodeLinksOfTab, closedTab: ?{links: EpisodeLinksOfTab, windowId: number, windowClosing: boolean},
@@ -438,7 +438,7 @@ export const MpvNextEpisodeWaitMs = 60000;
  * @param {(() => boolean)|undefined} wanted
  * @param {(() => void)|undefined} [whileAsked] - Runs as mpv starts asking (the player's button: pausePlayerWhileAsked).
  * @return {Promise<{extras?: {window?: string, newWindow?: boolean, paused?: boolean}, declined?: boolean,
- *   dropped?: boolean}>}
+ *   dropped?: boolean, release?: () => void}>} release: the caller's once its stream went, or did not.
  */
 export async function placeStream(tab, url, rest, wanted, whileAsked) {
   const sentFrom = rest[0];
@@ -448,12 +448,58 @@ export async function placeStream(tab, url, rest, wanted, whileAsked) {
   }
   const target = mpvWindows.targetFor(tab?.mpvWindow);
   if (!target?.alive || !target.watcher) return {};
+  // One at a time per window: the next is asked once this one's stream went, and finds the window busy then. A
+  // question up gives way at once: the newer stream wins, the older one is declined.
+  endOffer(target, 'none');
+  const release = await placementTurn(target);
+  if (!target.alive || !mpvWindows.has(target)) {
+    release();
+    return placeStream(tab, url, rest, wanted, whileAsked);
+  }
+  try {
+    return {...await askWindow(target, tab, url, rest, wanted, whileAsked), release};
+  } catch (e) {
+    release();
+    throw e;
+  }
+}
+
+/**
+ * Waits for the window's placements before this one.
+ * @param {MpvWatch} state
+ * @return {Promise<() => void>} Ends this one.
+ */
+function placementTurn(state) {
+  const before = state.placing;
+  /** @type {() => void} */
+  let release = () => {};
+  /** @type {Promise<void>} */
+  const done = new Promise((resolve) => {
+    release = () => resolve();
+  });
+  state.placing = before.then(() => done);
+  return before.then(() => release);
+}
+
+/**
+ * placeStream's question to its window.
+ * @param {MpvWatch} target
+ * @param {?TabHolder} tab
+ * @param {string} url
+ * @param {Array<*>} rest
+ * @param {(() => boolean)|undefined} wanted
+ * @param {(() => void)|undefined} whileAsked
+ * @return {Promise<{extras?: {window?: string, newWindow?: boolean, paused?: boolean}, declined?: boolean,
+ *   dropped?: boolean}>}
+ */
+async function askWindow(target, tab, url, rest, wanted, whileAsked) {
+  if (!target.watcher) return {};
   const into = target.window ? {extras: {window: target.window}} : {};
   const now = readWindow(await target.watcher.ask(WindowQuestions.map((command) => [...command]), WindowAskMs));
+  // The page or MPV went while the window was asked: nothing goes.
+  if (wanted && !wanted()) return {dropped: true};
   // No answer or no faststream-offer.lua (an older mpv setup): it plays there, as before.
   if (!now || now.free || !now.offers || isSentStream(now.path, url, rest[5]?.qualities || null)) return into;
-  // The page or MPV went while the window was asked: no question for it.
-  if (wanted && !wanted()) return {dropped: true};
   const fresh = offerText(streamTitle({url, title: MpvBackend.sentTitle(rest[4])}), MaxTitleChars);
   const old = offerText(now.title || now.path, MaxTitleChars);
   const asked = offerStream(target, target.watcher, {
@@ -578,9 +624,9 @@ export function watchMpvFor(tab, url, qualities = null, local = null, window = '
     return;
   }
   /** @type {MpvWatch} */
-  const state = {window, tabId: tab.tabId, url, qualities, local, usedAt: Date.now(), offer: null, alive: true,
-    going: false, countdown: null, countdownAsks: 0, stalled: null, links: null, closedTab: null, site: siteOf(tab.url),
-    watcher: null};
+  const state = {window, tabId: tab.tabId, url, qualities, local, usedAt: Date.now(), offer: null,
+    placing: Promise.resolve(), alive: true, going: false, countdown: null, countdownAsks: 0, stalled: null, links: null,
+    closedTab: null, site: siteOf(tab.url), watcher: null};
   mpvWindows.add(state);
   state.watcher = Mpv.watch((event) => onMpvWatchEvent(state, event), window);
   rememberEpisodeLinks(state, tab);
@@ -1351,32 +1397,38 @@ export async function openInMpv(tabId, url, ...rest) {
   }
   const placed = episode ? {} : await placeStream(tabId !== undefined && tabId >= 0 ? Tabs.getTab(tabId) : null, url,
       rest, wanted, whileAsked);
-  if (placed.dropped) {
-    if (Logging) console.log('[MPV] not handed off, its page or MPV went while mpv asked:', url);
-    return {ok: false, dropped: true};
-  }
-  if (placed.declined) {
-    if (Logging) console.log('[MPV] not handed off, declined in mpv:', url);
-    return {ok: false, declined: true};
-  }
-  if (placed.extras) rest[5] = {...(rest[5] || {}), ...placed.extras};
-  let result = await Mpv.openStream(url, ...rest);
-  if (placed.extras?.window && !result.ok && 'closed' in result && result.closed) {
-    // The window went meanwhile: a fresh one, not the helper's own pipe's, where another window may play.
-    rest[5] = {...rest[5], newWindow: true};
-    delete rest[5].window;
-    result = await Mpv.openStream(url, ...rest);
-  }
-  // By the tab's id: the player's button and the MPV key's play pass no tab.
-  if (result && result.ok && tabId !== undefined && tabId >= 0) {
-    const tab = Tabs.getTab(tabId);
-    // A helper with windows names the one it played in; openStream's answer for a stream the tab sent already names
-    // none, and the tab keeps the window it follows.
-    const window = typeof result.window === 'string' ? result.window :
-      Mpv.capabilities?.includes(Capabilities.WINDOWS) ? tab?.mpvWindow : '';
-    if (typeof window === 'string') {
-      watchMpvFor(tab, url, rest[5]?.qualities || null, typeof result.local === 'string' ? result.local : null, window);
+  try {
+    if (placed.dropped) {
+      if (Logging) console.log('[MPV] not handed off, its page or MPV went while mpv asked:', url);
+      return {ok: false, dropped: true};
     }
+    if (placed.declined) {
+      if (Logging) console.log('[MPV] not handed off, declined in mpv:', url);
+      return {ok: false, declined: true};
+    }
+    if (placed.extras) rest[5] = {...(rest[5] || {}), ...placed.extras};
+    let result = await Mpv.openStream(url, ...rest);
+    if (placed.extras?.window && !result.ok && 'closed' in result && result.closed) {
+      // The window went meanwhile: a fresh one, not the helper's own pipe's, where another window may play.
+      rest[5] = {...rest[5], newWindow: true};
+      delete rest[5].window;
+      result = await Mpv.openStream(url, ...rest);
+    }
+    // By the tab's id: the player's button and the MPV key's play pass no tab.
+    if (result && result.ok && tabId !== undefined && tabId >= 0) {
+      const tab = Tabs.getTab(tabId);
+      // A helper with windows names the one it played in; openStream's answer for a stream the tab sent already
+      // names none, and the tab keeps the window it follows.
+      const window = typeof result.window === 'string' ? result.window :
+        Mpv.capabilities?.includes(Capabilities.WINDOWS) ? tab?.mpvWindow : '';
+      if (typeof window === 'string') {
+        watchMpvFor(tab, url, rest[5]?.qualities || null, typeof result.local === 'string' ? result.local : null,
+            window);
+      }
+    }
+    return result;
+  } finally {
+    // The window's next placement asks now, and finds this stream there.
+    placed.release?.();
   }
-  return result;
 }

@@ -1227,6 +1227,11 @@ A stream for a window that plays no longer replaces what it plays unasked (`plac
   and is no answer. 17 s without one is none (`faststream-offer-cancel <id>` takes the banners down); a newer
   stream's offer replaces the one up, whose answer is then none. mpv-config answers here by itself when what played
   ends while the banners are up: the same path as a click.
+- A window is asked about one stream at a time (`placementTurn`, a chain on its `MpvWatch`, gone with it): the next
+  asks once the stream before went or did not, so of two at once the second finds the first playing. A question up
+  gives way to a newer stream at once. The page or MPV gone during the ask sends nothing, on every path. A window
+  that closes during the ask answers nothing; the play into it answers `closed` and the stream goes to a fresh
+  window, as a hand-off with no mpv running.
 - here: `play` into that window; one closed meanwhile gets a fresh window, never the helper's own pipe's, where
   another window may play. window: `play` with `newWindow` and `paused` (minimized, not fullscreen), which the tab
   follows from then on; the window before lets go of the tab. none, no answer, or the window closed while it

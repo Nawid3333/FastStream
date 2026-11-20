@@ -172,6 +172,8 @@ describe('several mpv windows (helper 30)', () => {
   let gone;
   // Whether each mpv runs mpv-config's faststream-offer.lua.
   let offers;
+  // What a play does to the stand-in mpv windows.
+  let onPlay;
 
   /**
    * Helper 30: a play without a window plays in the one on its own pipe, unless the test put its stream in window B
@@ -181,6 +183,9 @@ describe('several mpv windows (helper 30)', () => {
    */
   function helper30(message) {
     if (message.type !== 'play') return {ok: true, ...Helper30};
+    // A test's own answer, or none.
+    const answered = onPlay?.(message);
+    if (answered) return answered;
     if (message.window && gone.has(message.window)) {
       return {ok: false, closed: true, error: 'the window was closed', ...Helper30};
     }
@@ -231,6 +236,7 @@ describe('several mpv windows (helper 30)', () => {
     inWindowB = new Set(streamsInB);
     gone = new Set();
     offers = withOffer;
+    onPlay = undefined;
     bg = await loadBackground({
       options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvSingleInstance: true, mpvAutoplayNext: true,
         autoplayCountdown: 5},
@@ -670,6 +676,86 @@ describe('several mpv windows (helper 30)', () => {
       expect(offerCommands(port)).toEqual([]);
       expect(bg.native.filter((m) => m.type === 'raise')).toEqual([]);
       expect(playOf(SX1)).toBeUndefined();
+    });
+
+    it('sends nothing for a page gone while an idle or silent window was asked', async () => {
+      // Idle: the answer in 1.5 s; silent: none within the 2 s.
+      for (const [mpv, slowMs] of [[{'idle-active': true}, 1500], [{}, 3000]]) {
+        await load([S1], true);
+        await pageLoads(1, EP1, S1);
+        const port = bg.ports[0];
+        port.mpv = mpv;
+        port.slowMs = slowMs;
+        await pageLoads(2, OTHER1, SX1);
+        await bg.navigated(2, 'https://elsewhere.test/');
+        await bg.wait(3500);
+        expect(offerCommands(port)).toEqual([]);
+        expect(playOf(SX1)).toBeUndefined();
+        bg.unload();
+      }
+    });
+
+    it('asks a window about one stream at a time: of two at once, the second finds the first there', async () => {
+      await load([S1], true);
+      await pageLoads(1, EP1, S1);
+      const port = bg.ports[0];
+      port.mpv = {'idle-active': true};
+      // Both questions under way at once.
+      port.slowMs = 500;
+      // The window plays what it got.
+      onPlay = (message) => {
+        if (message.window === WindowB) port.mpv = {};
+      };
+      for (const [tabId, url] of [[2, OTHER1], [3, THIRD]]) {
+        await bg.navigated(tabId, url);
+        await bg.frameAdded(tabId, 0, url, `page-${url}`);
+      }
+      await bg.request({tabId: 2, url: SX1});
+      await bg.request({tabId: 3, url: ST1});
+      await bg.wait(3000);
+      expect(plays().slice(1).map((m) => m.window)).toEqual([WindowB]);
+      expect(offerCommands(port)).toHaveLength(1);
+    });
+
+    it('places the next stream afresh when the window it waited for closed', async () => {
+      await load([S1], true);
+      await pageLoads(1, EP1, S1);
+      const port = bg.ports[0];
+      port.mpv = {'idle-active': true};
+      // Tab 2's play into B takes a while, and B's mpv quits meanwhile: it goes to a fresh window (C).
+      onPlay = (message) => message.window === WindowB ? new Promise((resolve) => setTimeout(() =>
+        resolve({ok: false, closed: true, error: 'the window was closed', ...Helper30}), 2000)) : undefined;
+      for (const [tabId, url] of [[2, OTHER1], [3, THIRD]]) {
+        await bg.navigated(tabId, url);
+        await bg.frameAdded(tabId, 0, url, `page-${url}`);
+      }
+      await bg.request({tabId: 2, url: SX1});
+      await bg.request({tabId: 3, url: ST1});
+      await bg.wait(1000);
+      port.emit({type: 'closed', reason: 'mpv closed'});
+      await bg.wait(2000);
+      expect(plays().slice(1).map(({target, window, newWindow}) => [target.split('#')[0], window, newWindow])).toEqual([
+        [SX1, WindowB, undefined], [SX1, undefined, true]]);
+      // Tab 3 asks the window that is there now.
+      expect(offerCommands(bg.ports[1])).toHaveLength(1);
+    });
+
+    it('holds no other window\'s question for one up in a window', async () => {
+      const port = await secondStream();
+      choose(port, 'window');
+      await bg.wait(100);
+      const windowC = bg.ports[1];
+      // Tab 1's stream asks its window B; tab 2's, meanwhile, its window C.
+      await pageLoads(1, EP2, S2);
+      expect(offerCommands(port)).toHaveLength(2);
+      await pageLoads(2, OTHER2, SX2);
+      expect(offerCommands(windowC)).toHaveLength(1);
+      // Both still up.
+      choose(windowC, 'here');
+      choose(port, 'here');
+      await bg.wait(100);
+      expect(playOf(SX2)).toMatchObject({window: WindowC});
+      expect(playOf(S2)).toMatchObject({window: WindowB});
     });
 
     it('sends nothing once the page went while mpv asked', async () => {
