@@ -203,6 +203,58 @@ warnings (tried on a one-file extension with an `innerHTML` write: exit 0, and 1
 flag), so CI let a new warning in unseen while the count the owner asked for is 0
 (`docs/amo-linter-warnings.md`). A dependency update that brings one now turns its PR red.
 
+## Firefox for Android (2026-11-20)
+
+The owner's decision (issue #771): Android is supported as a bonus, tested by hand on his
+phone; the desktop on Windows 11 stays the focus. One code base and one signed file for both:
+both Firefox builds declare `gecko_android` with the desktop's floor, and the parts Android
+lacks switch themselves off there. No Android branch, build or release.
+
+**What Firefox for Android lacks, of what FastStream uses** (Mozilla's browser-compat-data
+8.1.4, every `chrome.*`/`browser.*` member in `chrome/` outside `modules/`): `commands`
+(keyboard shortcuts), `menus` (the right-click menu), `windows`, and
+`runtime.connectNative`/`sendNativeMessage` (no helper, so no MPV mode, and with it no
+upscaling, which is mpv's). `tabs.query` may return only some tabs there. Firefox for Android
+has no WebGPU either (not used since ONNX Runtime left, `libraries.md`).
+
+**What it did before the guards:** `chrome.commands.onCommand.addListener` at the top of
+`background.mjs` threw, so nothing after it was registered: no `runtime.onMessage`, no
+`webRequest` listener; the toolbar button's listener came before it. The reporter's
+"toggling does nothing" (Nightly for Android); reproduced in the background harness with
+Android's API set: no message listener and none of the `webRequest` listeners.
+
+**How each is switched off:** shortcuts: the listener and `onCancelledShortcut` only when
+`chrome.commands` exists. The menu was already behind `if (menus)`. Window fullscreen:
+`setCarriedFullscreen` answers `exit` without `chrome.windows`, so the next episode plays in
+the page. MPV: `loadOptions` turns `mpvMode` off in the background when
+`runtime.connectNative` is missing (settings brought from a desktop); the options page hides
+the MPV toggle and the MPV section, and makes no `MpvSuggestion`, and the player hides its MPV
+button, both by `EnvUtils.isAndroid()`. The player and the options page are frames in pages,
+where Firefox gives an extension fewer APIs, so they ask for the platform
+(`runtime.getPlatformInfo`, the user agent until it answers) instead of testing for
+`connectNative`; the background has every API and tests the features themselves.
+
+**What keeps it working:** `tests/unit/firefoxAndroid.test.mjs` loads the background with
+Android's API set and expects every listener the desktop has but those of what Android
+lacks, and the toolbar button, a cancelled key, a carried fullscreen and MPV mode from saved
+settings to work there. It also reads Mozilla's data (through web-ext's addons-linter, no
+package of its own) for every API the code uses: a new one Android lacks fails it until it is
+guarded and listed. Mozilla's linter does not catch these: `web-ext lint --self-hosted` on
+the AMO build with `gecko_android` gives 0 errors, 0 warnings, 0 notices.
+
+**Installing it on a phone:** AMO's listed channel, where Android users normally find
+add-ons, is closed to this fork until the licence question in `CLAUDE.md` is settled. The
+signed xpi of a release installs on Firefox for Android through a hidden menu: Settings,
+About Firefox, tap the logo five times, then Settings, "Install extension from file" (Mozilla
+staff on Discourse, June 2025; one report says Android 10 or later). A link to the xpi only
+downloads it there. Not established: whether Firefox for Android updates it from `update_url`
+by itself. GeckoView's documentation says its update call uses `update_url`; to be checked
+on the owner's phone with the next release.
+
+**Not done yet:** the player and the options page on a touchscreen (bigger controls, taps,
+a narrow layout), and memory defaults for a phone. Built from what the owner finds on his
+phone.
+
 ## Baseline verification
 
 Any change claiming to be output-neutral must reproduce the upstream build

@@ -7,7 +7,7 @@ about to change before changing it, and add to it afterwards.
 
 | File | Area | Sections |
 |---|---|---|
-| [build-and-release.md](build-and-release.md) | Building and releasing | The SPLICER preprocessor; Build targets; Releasing (auto-release.yml); AMO lint (firefox-amo, current: 0 errors / 0 warnings, needs `--self-hosted`); Baseline verification |
+| [build-and-release.md](build-and-release.md) | Building and releasing | The SPLICER preprocessor; Build targets; Releasing (auto-release.yml); AMO lint (firefox-amo, current: 0 errors / 0 warnings, needs `--self-hosted`); Firefox for Android (2026-11-20); Baseline verification |
 | [history.md](history.md) | What was removed, and upstream bugs fixed here | YouTube removal; Known upstream bugs fixed here |
 | [keybinds.md](keybinds.md) | Keybinds | Keybinds |
 | [libraries.md](libraries.md) | Vendored libraries | Vendored libraries; The binary blobs are identifiable published artifacts; sortablejs: what checks it; Tools: reasons behind the code |

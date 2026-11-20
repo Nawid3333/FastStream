@@ -53,6 +53,35 @@ describe('EnvUtils', () => {
   });
 });
 
+describe('EnvUtils on Firefox for Android', () => {
+  const ANDROID = 'Mozilla/5.0 (Android 15; Mobile; rv:153.0) Gecko/153.0 Firefox/153.0';
+  const DESKTOP_SITE = 'Mozilla/5.0 (X11; Linux x86_64; rv:153.0) Gecko/20100101 Firefox/153.0';
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    EnvUtils.knownOs = null;
+  });
+
+  it('takes Firefox\'s answer over the user agent, which a desktop site changes', async () => {
+    vi.stubGlobal('navigator', {userAgent: DESKTOP_SITE, platform: 'Linux aarch64'});
+    vi.stubGlobal('chrome', {runtime: {getPlatformInfo: async () => ({os: 'android'})}});
+    expect(EnvUtils.isAndroid()).toBe(false);
+    expect(await EnvUtils.os()).toBe('android');
+    expect(EnvUtils.isAndroid()).toBe(true);
+  });
+
+  it('reads the user agent until Firefox answers, and without a runtime', async () => {
+    vi.stubGlobal('navigator', {userAgent: ANDROID, platform: 'Linux aarch64'});
+    vi.stubGlobal('chrome', undefined);
+    expect(EnvUtils.isAndroid()).toBe(true);
+    expect(await EnvUtils.os()).toBe('android');
+
+    vi.stubGlobal('navigator', {userAgent: DESKTOP_SITE, platform: 'Linux x86_64'});
+    expect(EnvUtils.isAndroid()).toBe(false);
+    expect(await EnvUtils.os()).toBe('linux');
+  });
+});
+
 describe('EnvUtils.openExternalURL', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

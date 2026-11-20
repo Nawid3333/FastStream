@@ -98,7 +98,7 @@ customSourcePatterns.placeholder = '# This is a comment. Use the following forma
 // Until then OptionsStore.get() gives the defaults: a change made then would save them over the user's.
 let optionsLoaded = false;
 // Outside the update banner's SPLICER block, so the AMO build has it too.
-const mpvSuggestion = EnvUtils.isExtension() ? new MpvSuggestion({
+const mpvSuggestion = EnvUtils.isExtension() && !EnvUtils.isAndroid() ? new MpvSuggestion({
   box: /** @type {HTMLElement} */ (document.getElementById('mpvsuggestbox')),
   text: /** @type {HTMLElement} */ (document.getElementById('mpvsuggesttext')),
   enableButton: /** @type {HTMLElement} */ (document.getElementById('mpvsuggestyes')),
@@ -110,8 +110,16 @@ const mpvSuggestion = EnvUtils.isExtension() ? new MpvSuggestion({
   },
 }) : null;
 let pageSeen = false;
-// For EnvUtils.isWindows.
-EnvUtils.os();
+// Firefox for Android runs no mpv helper: its options are not shown there.
+const hideMpvOptions = () => {
+  /** @type {HTMLElement} */ (document.getElementById('mpvmoderow')).hidden = true;
+  /** @type {HTMLElement} */ (document.getElementById('mpvsection')).hidden = true;
+};
+if (EnvUtils.isAndroid()) hideMpvOptions();
+// For EnvUtils.isWindows and isAndroid.
+EnvUtils.os().then((os) => {
+  if (os === 'android') hideMpvOptions();
+}).catch((e) => console.error('Hiding the MPV options failed', e));
 const offerMpvWhenReady = () => {
   if (mpvSuggestion && optionsLoaded && pageSeen) {
     mpvSuggestion.check().catch((e) => console.error('Asking the mpv host failed', e));

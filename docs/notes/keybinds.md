@@ -6,6 +6,10 @@
 
 ## Keybinds
 
+Firefox for Android has no `commands`: the toolbar shortcuts (and the cancelled-key fallback
+that matches them) are off there; the player's own keys still work with a keyboard
+("Firefox for Android" in `build-and-release.md`).
+
 The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node can test it);
 `KeybindManager.mjs` and the options page use it.
 

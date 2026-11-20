@@ -128,7 +128,8 @@ export class ToolManager {
 
     // MPV button: only meaningful when the extension can talk to the native
     // host (extension context, MPV mode enabled) and a source is playing.
-    if (this.client.player && this.client.source && EnvUtils.isExtension() && this.client.options.mpvMode) {
+    if (this.client.player && this.client.source && EnvUtils.isExtension() && this.client.options.mpvMode &&
+        !EnvUtils.isAndroid()) {
       DOMElements.mpv.classList.remove('hidden');
     } else {
       DOMElements.mpv.classList.add('hidden');

@@ -340,7 +340,8 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
 // Not onClicked itself: the click's OnClickData would land in its second parameter.
 chrome.action.onClicked.addListener((tabobj) => onClicked(tabobj));
 
-chrome.commands.onCommand.addListener((command, tabobj) => {
+// Firefox for Android has no commands (docs/notes/build-and-release.md, "Firefox for Android").
+chrome.commands?.onCommand.addListener((command, tabobj) => {
   if (!tabobj) {
     return;
   }
@@ -444,6 +445,7 @@ async function openLinkIn(tabobj, linkUrl, mpv, linkText) {
  * @param {chrome.tabs.Tab} tabobj
  */
 async function onCancelledShortcut(press, tabobj) {
+  if (!chrome.commands) return;
   const commands = await chrome.commands.getAll();
   // Firefox's word: navigator.platform says "Win32" with privacy.resistFingerprinting on.
   const isMac = (await EnvUtils.os()) === 'mac';
@@ -1308,6 +1310,8 @@ function handleFullscreenRequest(frame, msg, sendResponse) {
  * @return {Promise<string>}
  */
 async function setCarriedFullscreen(frame, on) {
+  // Firefox for Android has no windows: the next episode plays in the page.
+  if (!chrome.windows) return 'exit';
   const tab = frame.tab;
   const {windowId} = await chrome.tabs.get(tab.tabId);
   const win = await chrome.windows.get(windowId);
@@ -1705,6 +1709,8 @@ function getMediaInfoFromTab(tab) {
 async function loadOptions(newOptions) {
   newOptions = newOptions || await Utils.getOptionsFromStorage();
   Options = /** @type {PlayerOptions} */ (newOptions);
+  // Firefox for Android runs no helper: MPV mode brought from a desktop's settings stays off.
+  if (typeof chrome.runtime.connectNative !== 'function') Options.mpvMode = false;
 
   AutoEnableList.setEntries(Options.autoEnableURLs);
 

@@ -174,6 +174,11 @@ mpv host's installed copy, WSL): `docs/notes/local-pc.md`.
   own beside them, imported by them (a content script: a classic script of its own, listed
   in the manifest before `content.js`, as `overlay-guard.js` is). Each is thousands of lines
   already.
+- **The same build runs on Firefox for Android** (the owner, 2026-11-20; a bonus, tested by
+  hand on his phone): an API Android lacks (`commands`, `menus`, `windows`, native messaging)
+  is used only behind a check that it exists. `tests/unit/firefoxAndroid.test.mjs` loads the
+  background with Android's API set and reads Mozilla's data for every API the code uses; it
+  fails on a new unguarded one. `docs/notes/build-and-release.md`, "Firefox for Android".
 - **Workflows:** every action is pinned to a commit SHA; no `schedule:` in `ci.yml` (GitHub
   disables the whole file after 60 quiet days); a workflow's `run:` scripts are tested in
   `tests/workflows`; a job that reads a secret names its environment.
