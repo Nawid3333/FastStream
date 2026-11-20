@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {HlsHostMaxMessageBytes, HostMaxMessageBytes, MaxPlayTargetChars, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
-import {MaxMessageBytes} from '../../native-host/faststream-mpv-host.mjs';
+import {MaxMessageBytes, checkPlayMessage} from '../../native-host/faststream-mpv-host.mjs';
 
 // The header filter decides which request headers are relayed to mpv.
 // Deliberately narrow: only Referer/Origin (CDN checks use those) and
@@ -558,6 +558,23 @@ describe('the thin helper', () => {
     ]});
     expect(sent[0].subtitles.map((s) => s.label)).toEqual(['one', 'two', 'four']);
     expect(new TextEncoder().encode(JSON.stringify(sent[0])).length).toBeLessThanOrEqual(HostMaxMessageBytes);
+  });
+
+  // A message with a stream's playlists may be 16 MB, a track still 1,048,576 units: the helper refused the
+  // whole play for a longer one, where the 1 MB of any other message never had room for it.
+  it('leaves out a subtitle track longer than the helper takes, where the message has room for it', async () => {
+    const sent = helper();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const hls = {files: [{name: '0.m3u8', text: '#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nhttps://cdn.test/s0.ts\n#EXT-X-ENDLIST\n'}]};
+    const cue = '1\n00:00:01,000 --> 00:00:02,000\n';
+    const longest = cue + 'x'.repeat(1024 * 1024 - cue.length);
+    await new MpvBackend().openStream('https://cdn.test/pl/7?token=k', undefined, undefined, undefined, PAGE, 'Title',
+        {hls, subtitles: [{label: 'too long', srt: longest + 'x'}, {label: 'longest', srt: longest}, {label: 'English', srt: SRT}]});
+    expect(sent[0].hls).toEqual(hls);
+    expect(sent[0].subtitles.map((s) => s.label)).toEqual(['longest', 'English']);
+    expect(console.warn).toHaveBeenCalledWith('A subtitle track (too long) is too large to send to mpv, left out');
+    // The helper's own check of what was sent.
+    expect(checkPlayMessage(sent[0])).toMatchObject({ok: true});
   });
 
   it('sends an older helper\'s answer of "unknown message" the open message, and that from then on', async () => {

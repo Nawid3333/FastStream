@@ -18,6 +18,7 @@ export const HlsHostMaxMessageBytes = 16 * 1024 * 1024;
 // Past these (UTF-16 units) the thin helper refuses the whole play message.
 export const MaxPlayTargetChars = 512 * 1024;
 export const MaxPlayTitleChars = 1000;
+const MaxSubtitleChars = 1024 * 1024;
 // The start a play message may name: seconds, to the millisecond.
 const PlayStart = /^\d{1,7}(\.\d{1,3})?$/;
 
@@ -92,10 +93,16 @@ function addSubtitles(message, subtitles) {
   if (!Array.isArray(subtitles)) {
     return;
   }
+  /** @param {string} label */
+  const leftOut = (label) => console.warn(`A subtitle track (${label || 'no label'}) is too large to send to mpv, left out`);
   const candidates = subtitles
       .filter((s) => s && typeof s.srt === 'string' && s.srt.trim())
-      .slice(0, 8)
-      .map((s) => ({label: typeof s.label === 'string' ? cutText(s.label, 100) : '', srt: s.srt}));
+      .map((s) => ({label: typeof s.label === 'string' ? cutText(s.label, 100) : '', srt: s.srt}))
+      .filter((s) => {
+        if (s.srt.length > MaxSubtitleChars) leftOut(s.label);
+        return s.srt.length <= MaxSubtitleChars;
+      })
+      .slice(0, 8);
   /** @type {Array<{label: string, srt: string}>} */
   const fitting = [];
   message.subtitles = fitting;
@@ -103,7 +110,7 @@ function addSubtitles(message, subtitles) {
     fitting.push(subtitle);
     if (messageBytes(message) > ('hls' in message && message.hls ? HlsHostMaxMessageBytes : HostMaxMessageBytes)) {
       fitting.pop();
-      console.warn(`A subtitle track (${subtitle.label || 'no label'}) is too large to send to mpv, left out`);
+      leftOut(subtitle.label);
     }
   }
   if (fitting.length === 0) {

@@ -1062,6 +1062,11 @@ own).
   (`HostMaxMessageBytes`, 1 MB): a larger one could not be sent anyway, and parsing it would
   hold up the background and every tab's detection. The parser is imported when first needed,
   because vtt.js takes its window from the global scope when it loads.
+- **`MpvBackend.addSubtitles`** - A track over the helper's 1,048,576 UTF-16 units
+  (`MaxSubtitleChars` there and here) is left out: the helper refuses the whole play message for
+  one. A message with a stream's playlists may be 16 MB and has room for such a track, where the
+  1 MB of any other message never had; the stream then failed with "the subtitles are not at most
+  8 SubRip texts with labels" instead of playing without that track.
 - **`MpvRelayWatch.relayWatch`** - mpv's JSON IPC as measured with the pinned mpv (headless,
   keep-open): `observe_property` sends the current value at once, so the first eof-reached and
   pause values are mpv's state when the watch began, not events; at a file's end eof-reached
