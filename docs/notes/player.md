@@ -55,6 +55,33 @@ What each review and audit found, fixed and rejected is in
   again and takes out what it put in, and returns null, which the soft-to-hard check does not
   read as a collapsed element (`contentScript.test.mjs`, "a player whose box keeps changing").
 
+- **The element the player takes the place of has a box (2026-11-20).** `getVideo` climbs from
+  the video through the parents "with the same bounds" and took the highest. A parent whose
+  box is empty counts as one (a zero-height wrapper around an absolute player), and so did
+  wrappers that have no box at all: `display: contents`, which component frameworks write
+  around what they render (a custom element and a `div` of that kind, on a site the owner
+  named). The highest was then such a wrapper: measured as 0 by 0, so the player got the 100 px
+  minimum and the wrapper's class, and stood as a small box above the page's hidden player (a
+  soft replace shows it as a block) or not at all (an iframe with `display: contents` is not
+  rendered). `highestWithBox` now takes the highest parent that makes a box (whose `display` is
+  not `contents`), else the video. A zero-height wrapper is still taken, as before: it hides
+  the page's controls and pauses the videos inside it, which the video alone would not (the
+  Claude reviewer's point against a first form that skipped every parent measuring as
+  nothing); that the player is sized from such a wrapper's empty box is as it was and was
+  not looked at. `boxless-wrapper.e2e.mjs` has the shape: before, the player came out 0 by 0 and
+  not shown; now 640 by 360 where the page's player stood. Measured on that site too: 894 by
+  503 at the player's place, before 0 by 0. With the player now inside such wrappers, two more places had to know them (Codex's review;
+  its patch, with the two unit tests in `contentScript.test.mjs` that failed before it): the
+  ResizeObserver watched the player's parent, and a parent without a box never reports a
+  resize, so it now watches the nearest parent that makes one; and the miniplayer lifted the
+  outermost wrapper (on that site it also holds other parts of the page) with a 100 px
+  stand-in, and now takes `highestWithBox` too, the iframe itself there. "Does the player
+  fill the body" is unchanged: it must count a body without a height. Left as they are, with
+  no page known that has them: a `display: contents` shadow host whose video sits in a named
+  slot (the player's iframe gets no `slot` and would not be shown), and media or controls
+  that are siblings of the player's box inside such a wrapper (they are neither paused nor
+  hidden; a wrapper without a box says nothing about what belongs to the player).
+
 - **Measured and changed (2026-10-06).**
   - A video under five minutes is redrawn every animation frame (`progressLoop`); the loop
     ran on while the video was paused, 144 times a second on a 144 Hz screen. It stops

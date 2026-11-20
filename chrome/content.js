@@ -630,7 +630,12 @@
 
         pobj.resizeObserver = new ResizeObserver(updateReplacedPlayersSoon);
         // An element: a ResizeObserver refuses a shadow root, the parent of a video straight in one.
-        pobj.resizeObserver.observe(iframe.parentElement || /** @type {ShadowRoot} */ (iframe.parentNode).host);
+        let resizeTarget = getParentElement(iframe);
+        while (resizeTarget && resizeTarget.tagName !== 'BODY' &&
+            window.getComputedStyle(resizeTarget).display === 'contents') {
+          resizeTarget = getParentElement(resizeTarget);
+        }
+        if (resizeTarget) pobj.resizeObserver.observe(resizeTarget);
       }
     }).catch((e) => {
       // The background must hear back, or it keeps the frame's player opening.
@@ -1033,9 +1038,9 @@
     miniplayerState.active = true;
 
     // Not the body itself: a wrapper filling it made the body the miniplayer.
-    const parentElementsWithSameBounds = getParentElementsWithSameBounds(iframeObj.iframe)
+    const parentsWithoutBody = getParentElementsWithSameBounds(iframeObj.iframe)
         .filter((parent) => parent.tagName !== 'BODY');
-    const element = parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : iframeObj.iframe;
+    const element = /** @type {*} */ (highestWithBox(parentsWithoutBody, iframeObj.iframe));
     // Never a new iframe or a custom element: either started a second player.
     const placeholder = document.createElement(element.tagName === 'IFRAME' || element.tagName.includes('-') ? 'div' : element.tagName);
 
@@ -1998,6 +2003,22 @@
     return elements;
   }
 
+  /**
+   * @param {Element[]} sameBounds - From getParentElementsWithSameBounds.
+   * @param {Element} element - The element they are the parents of.
+   * @return {Element} The highest of them that makes a box, else the element. A parent that makes none
+   *   (display: contents, as component frameworks write wrappers) counts as having the same bounds, but
+   *   has no size or place and cannot be stood in for.
+   */
+  function highestWithBox(sameBounds, element) {
+    for (let i = sameBounds.length - 1; i >= 0; i--) {
+      if (window.getComputedStyle(sameBounds[i]).display !== 'contents') {
+        return sameBounds[i];
+      }
+    }
+    return element;
+  }
+
   async function getVideo() {
     const videos = /** @type {HTMLVideoElement[]} */ (Array.from(querySelectorAllIncludingShadows('video')));
 
@@ -2020,11 +2041,10 @@
       return null;
     }
 
-    const parentElementsWithSameBounds = getParentElementsWithSameBounds(largestVideo.video);
     return {
       video: largestVideo.video,
       size: largestVideo.visibleArea,
-      highest: /** @type {HTMLElement} */ (parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : largestVideo.video),
+      highest: /** @type {HTMLElement} */ (highestWithBox(getParentElementsWithSameBounds(largestVideo.video), largestVideo.video)),
     };
   }
 
