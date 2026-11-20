@@ -1245,7 +1245,7 @@ A stream for a window that plays no longer replaces what it plays unasked (`plac
 
 **Tests.** `MpvOffer.test.mjs` (texts and questions against the helper's allowlist, which answer counts),
 `MpvRelayWatch.test.mjs` (ask, command, the choice event), `MpvBackend.test.mjs` (newWindow with paused, raise),
-`backgroundMpvThin.test.mjs` ("the offer"), `SaveManager.test.mjs` (declined, the 20 s wait).
+`backgroundMpvThin.test.mjs` ("the offer"), `SaveManager.test.mjs` (declined, the 30 s wait).
 
 ## Background: reasons behind the code
 
