@@ -1,7 +1,7 @@
-import {afterEach, describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {EpisodeMessages as HostEpisodeMessages, HeartbeatMs as HostHeartbeatMs, MaxNoticeSeconds as HostMaxNoticeSeconds,
-  ReadableProperties, ipcCommandRefusal, noticeSeconds as hostNoticeSeconds} from '../../native-host/faststream-mpv-host.mjs';
+  ReadableProperties, checkRelayMessage, ipcCommandRefusal, noticeSeconds as hostNoticeSeconds} from '../../native-host/faststream-mpv-host.mjs';
 import {DecoderProperties, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {EpisodeMessages, HeartbeatMs, MaxNoticeSeconds, noticeSeconds, relayWatch} from '../../chrome/background/MpvRelayWatch.mjs';
 
@@ -44,6 +44,9 @@ function fakePort() {
   };
   return port;
 }
+
+// A window the helper names by its id (helper 30): newWindow's, beside the one on its own pipe ('').
+const WindowB = '0123456789abcdef';
 
 const RELAY = {
   type: 'relay',
@@ -100,6 +103,18 @@ describe('the relay watch', () => {
     relayWatch(port, (event) => events.push(event));
     expect(port.sent).toEqual([RELAY]);
     expect(events).toEqual([]);
+  });
+
+  it('names the mpv window it follows (helper 30), and none for the one on the helper\'s own pipe', () => {
+    const port = fakePort();
+    relayWatch(port, () => {}, {window: WindowB});
+    expect(port.sent).toEqual([{...RELAY, window: WindowB}]);
+    const own = fakePort();
+    relayWatch(own, () => {}, {window: ''});
+    expect(own.sent).toEqual([RELAY]);
+    // The helper takes both.
+    expect(checkRelayMessage(port.sent[0])).toMatchObject({ok: true, window: WindowB});
+    expect(checkRelayMessage(own.sent[0])).toMatchObject({ok: true, window: ''});
   });
 
   it('asks mpv for its file and its end, marks the window followed, and says it watches', () => {
@@ -343,6 +358,61 @@ describe('the relay watch', () => {
     ]);
   });
 
+  it('passes on mpv-config\'s answer to an offer, and nothing for another script\'s message or its own offer', () => {
+    const {events, mpv} = relaying();
+    mpv({event: 'client-message', args: ['faststream-offer', 'a1-1', '15', 'Play here', 'x', 'Play in a new window', 'y']});
+    mpv({event: 'client-message', args: ['faststream-choice', 'a1-1', 'here']});
+    mpv({event: 'client-message', args: ['faststream-choice', 'a1-2', 'window']});
+    mpv({event: 'client-message', args: ['faststream-choice', 'a1-3', 'none']});
+    mpv({event: 'client-message', args: ['faststream-choice', 'a1-4', 'elsewhere']});
+    mpv({event: 'client-message', args: ['faststream-choice', '', 'here']});
+    mpv({event: 'client-message', args: ['faststream-choice', 5, 'here']});
+    mpv({event: 'client-message', args: ['faststream-choice', 'a1-5']});
+    expect(events.filter((e) => e.type !== 'watching')).toEqual([
+      {type: 'choice', id: 'a1-1', choice: 'here'}, {type: 'choice', id: 'a1-2', choice: 'window'},
+      {type: 'choice', id: 'a1-3', choice: 'none'},
+    ]);
+  });
+
+  it('asks mpv over the relay and gives its replies in order; a refused one, none in time or the end are errors', async () => {
+    vi.useFakeTimers();
+    try {
+      const {port, watch, reply} = relaying();
+      const before = commands(port).length;
+      const asked = watch.ask([['get_property', 'idle-active'], ['get_property', 'media-title'],
+        ['get_property', 'user-data/faststream/offer'], ['get_property', 'path']], 2000);
+      const sent = commands(port).slice(before);
+      expect(sent.map((m) => m.command)).toEqual([['get_property', 'idle-active'], ['get_property', 'media-title'],
+        ['get_property', 'user-data/faststream/offer'], ['get_property', 'path']]);
+      expect(new Set(sent.map((m) => m.id)).size).toBe(4);
+      expect(sent.every((m) => ipcCommandRefusal(m.command) === null)).toBe(true);
+      reply(sent[1].id, 'success', 'Show - Episode 1');
+      reply(sent[0].id, 'success', false);
+      port.emit({type: 'mpv-refused', id: sent[2].id, reason: 'get_property: property not allowed'});
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(await asked).toEqual([{error: 'success', data: false}, {error: 'success', data: 'Show - Episode 1'},
+        {error: 'get_property: property not allowed'}, {error: 'no reply in time'}]);
+      // A reply that came too late answers nothing.
+      reply(sent[3].id, 'success', 'late');
+
+      const pending = watch.ask([['get_property', 'path']], 2000);
+      port.emit({type: 'closed', reason: 'mpv closed'});
+      expect(await pending).toEqual([{error: 'the watch ended'}]);
+      expect(await watch.ask([['get_property', 'path']], 2000)).toEqual([{error: 'the watch ended'}]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sends a command without an id, held until the helper relays', () => {
+    const port = fakePort();
+    const watch = relayWatch(port, () => {});
+    watch.command(['script-message', 'faststream-offer-cancel', 'a1-1']);
+    expect(commands(port)).toEqual([]);
+    port.emit({type: 'relaying', hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay']});
+    expect(commands(port).at(-1)).toEqual({type: 'mpv', command: ['script-message', 'faststream-offer-cancel', 'a1-1']});
+  });
+
   it('shows a notice through notify.lua, or mpv\'s own text when this mpv has none', () => {
     const {port, watch, reply} = relaying();
     watch.notify('Next episode', 'loading');
@@ -534,10 +604,10 @@ describe('the backend\'s watch', () => {
     // Then the file's keep-open, for autoplay to keep it open at its end.
     expect(ports[0].sent.slice(-2)).toEqual([{type: 'mpv', command: ['set_property', 'user-data/faststream/autoplay', true]},
       {type: 'mpv', command: ['get_property', 'keep-open'], id: expect.any(Number)}]);
-    expect(backend.watcher).toBe(watch);
+    expect(backend.watchers.get('')).toBe(watch);
     ports[0].emit({type: 'closed', reason: 'mpv closed'});
     expect(events.at(-1)).toEqual({type: 'closed', reason: 'mpv closed'});
-    expect(backend.watcher).toBe(null);
+    expect(backend.watchers.get('')).toBe(undefined);
   });
 
   it('follows it with the watch message for a helper before host 15', () => {
@@ -580,7 +650,7 @@ describe('the backend\'s watch', () => {
     expect(events).toEqual([{type: 'watching'}]);
     watch.stop();
     expect(ports[1].disconnected).toBe(true);
-    expect(backend.watcher).toBe(null);
+    expect(backend.watchers.get('')).toBe(undefined);
     // And the next watch goes the old way at once.
     backend.watch(() => {});
     expect(ports).toHaveLength(3);
@@ -597,16 +667,27 @@ describe('the backend\'s watch', () => {
     expect(ports).toHaveLength(1);
   });
 
-  it('follows one mpv at a time: a second watch ends the first', () => {
+  it('follows each mpv window once: a second watch of a window ends its first, not another window\'s', () => {
     stubBrowser();
     const backend = new MpvBackend();
-    backend.capabilities = ['relay'];
+    backend.capabilities = ['relay', 'windows'];
     const first = [];
     backend.watch((event) => first.push(event));
+    const other = [];
+    const otherWatch = backend.watch((event) => other.push(event), WindowB);
+    expect(ports[1].sent).toEqual([{...RELAY, window: WindowB}]);
     const second = backend.watch(() => {});
     expect(ports[0].disconnected).toBe(true);
+    expect(ports[1].disconnected).toBe(false);
     expect(first).toEqual([]);
-    expect(backend.watcher).toBe(second);
+    expect(backend.watchers.get('')).toBe(second);
+    expect(backend.watchers.get(WindowB)).toBe(otherWatch);
+    // The window's own events, and its end forgets only it.
+    ports[1].emit({type: 'relaying'});
+    ports[1].emit({type: 'closed', reason: 'mpv closed'});
+    expect(other).toEqual([{type: 'watching'}, {type: 'closed', reason: 'mpv closed'}]);
+    expect(backend.watchers.get(WindowB)).toBe(undefined);
+    expect(backend.watchers.get('')).toBe(second);
   });
 
   it('says why when the port cannot be opened', () => {
@@ -615,7 +696,7 @@ describe('the backend\'s watch', () => {
     const events = [];
     const watch = backend.watch((event) => events.push(event));
     expect(events).toEqual([{type: 'closed', reason: 'Error: nativeMessaging permission missing'}]);
-    expect(backend.watcher).toBe(null);
+    expect(backend.watchers.get('')).toBe(undefined);
     // Its handle does nothing.
     watch.notify('x');
     watch.stop();

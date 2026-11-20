@@ -75,6 +75,19 @@ afterEach(() => {
   vi.doUnmock('../../chrome/player/utils/Utils.mjs');
 });
 
+describe('the player page and the background', () => {
+  it('pauses while mpv asks about the stream its MPV button sent', async () => {
+    const {client} = await loadPlayerPage(10);
+    const whileMpvAsks = vi.fn();
+    client.interfaceController = {saveManager: {whileMpvAsks}};
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0];
+    const sendResponse = vi.fn();
+    listener({type: 'MPV_ASKING'}, {}, sendResponse);
+    expect(whileMpvAsks).toHaveBeenCalledTimes(1);
+    expect(sendResponse).toHaveBeenCalledWith('ok');
+  });
+});
+
 describe('the player page at beforeunload', () => {
   it('loads again at its second when the page stayed (a download link)', async () => {
     const {fire, client, replace} = await loadPlayerPage(1234.6);

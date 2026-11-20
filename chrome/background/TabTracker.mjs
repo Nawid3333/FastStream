@@ -229,6 +229,12 @@ export class TabHolder {
     this.mpvNextPick = null;
     /** @type {ReturnType<typeof setTimeout>|undefined} */
     this.mpvNextPickTimer = undefined;
+    // The mpv window MPV autoplay went on from, which gets that next episode (the helper's id, '' for its own pipe's).
+    this.mpvEpisodeWindow = '';
+    // The mpv window the tab's last stream went to, while FastStream follows it. Not persisted: neither are the
+    // windows followed (MpvMode.mjs, mpvWindows).
+    /** @type {?string} */
+    this.mpvWindow = null;
     // A tab MPV autoplay opened for the next episode: it closes again once its stream went to mpv.
     this.mpvReopened = false;
     /** @type {chrome.windows.Window['state']|null} */

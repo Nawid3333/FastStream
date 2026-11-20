@@ -1265,6 +1265,21 @@
     "mpv_autoplay_off": {
         "message": "끔"
     },
+    "mpv_offer_here_title": {
+        "message": "여기에서 재생"
+    },
+    "mpv_offer_here_detail": {
+        "message": "$2 대신 $1"
+    },
+    "mpv_offer_window_title": {
+        "message": "새 창에서 재생"
+    },
+    "mpv_offer_window_detail": {
+        "message": "그곳에서 일시 정지된 채 기다립니다. $1은(는) 계속 재생됩니다"
+    },
+    "player_mpv_declined": {
+        "message": "보내지 않음: mpv는 재생하던 것을 계속 재생합니다"
+    },
     "mpv_episode_nostream": {
         "message": "페이지에서 1분 이내에 스트림을 찾을 수 없습니다. 브라우저에서 열어 이유를 확인하세요"
     },

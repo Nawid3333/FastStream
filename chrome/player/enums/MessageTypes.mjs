@@ -67,5 +67,7 @@ export const MessageTypes = {
   // A framed player has no chrome.tabs (EnvUtils.openExternalURL).
   OPEN_EXTERNAL_URL: 'OPEN_EXTERNAL_URL',
   VPN_ALLOWED: 'VPN_ALLOWED',
+  // To the player whose MPV button sent a stream mpv asks about first (MpvOffer.mjs): it pauses meanwhile.
+  MPV_ASKING: 'MPV_ASKING',
   REQUEST_FRESH_LINK: 'REQUEST_FRESH_LINK',
 };
