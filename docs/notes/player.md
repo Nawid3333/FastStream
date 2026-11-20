@@ -2034,10 +2034,11 @@ the buttons is always shown.
   rejects with a plain `Error`, "QuotaExceededError: storage.sync API call exceeded its quota
   limitations.", and writes nothing of the call: a failed export leaves the copy there as it was.
 - **Room.** The default settings are 3.8 KB of JSON, one chunk; the rest of the 100 KB is for the
-  URL lists and patterns. Too much, and the export says so and points to the file export. Not
-  handled: a new copy shorter than the one there, while that one is within a few dozen bytes of
-  102400 - `set()` still counts the old copy's chunks past the new count, removed only after it -
-  is refused as too large.
+  URL lists and patterns. Too much, and the export says so and points to the file export. Firefox
+  counts the total over what is stored, so the chunks of an older, longer copy past the new count
+  are emptied in the same `set()` and removed after it: kept whole beside the new chunks, they
+  could push a copy that fits over 102400 (glm). A failed removal is only logged: the copy is
+  written, and import reads only the chunks its meta names.
 - **Firefox for Android** keeps `storage.sync` on the phone (browser-compat-data: "Data isn't
   synchronized with the user's Mozilla account"; nor are the quotas enforced there), so the
   buttons, the status and the hint are hidden there, decided as MPV mode is (`EnvUtils.isAndroid()`,

@@ -142,14 +142,22 @@ export async function saveCloudCopy(area, settings, os, now = Date.now()) {
   slices.forEach((slice, i) => {
     items[chunkKey(i)] = slice;
   });
+  // The chunks of an older, longer copy are emptied in the same set(): Firefox counts the total over
+  // what is stored, and kept whole beside the new chunks they could push a copy that fits over it.
+  const stale = () => area.get(null).then((all) => Object.keys(all).filter((key) => chunkIndex(key) >= slices.length));
+  for (const key of await stale()) items[key] = '';
   try {
     await area.set(items);
   } catch (e) {
     throw String(/** @type {*} */ (e)?.message ?? e).includes('QuotaExceededError') ? new CloudCopyError('quota') : e;
   }
-  // The chunks of an older, longer copy.
-  const stale = Object.keys(await area.get(null)).filter((key) => chunkIndex(key) >= slices.length);
-  if (stale.length) await area.remove(stale);
+  // The copy is written: what is left over is only tidied away.
+  try {
+    const left = await stale();
+    if (left.length) await area.remove(left);
+  } catch (e) {
+    console.warn('The cloud copy\'s old chunks were not removed', e);
+  }
   return meta;
 }
 

@@ -123,6 +123,28 @@ describe('the cloud copy', () => {
     expect((await readCloudCopy(area)).settings).toEqual(settings);
   });
 
+  it('writes a copy that fits over an older one whose extra chunks would not fit beside it', async () => {
+    // Small first chunks and full later ones, as a mixed sync can leave them: kept whole beside
+    // the new chunks, the extra ones put the total over 102400.
+    const initial = {[META_KEY]: {v: 1, savedAt: 1, os: 'win', chunks: 13, length: 0, sha256: '0'.repeat(64)},
+      [chunkKey(0)]: '', [chunkKey(1)]: ''};
+    for (let i = 2; i <= 12; i++) initial[chunkKey(i)] = 'x'.repeat(7990);
+    const area = fakeStorageSync(initial);
+    const settings = {list: 'a'.repeat(23000)};
+    const meta = await saveCloudCopy(area, settings, 'win', NOW);
+    expect((await readCloudCopy(area)).settings).toEqual(settings);
+    expect(chunkKeys(area)).toEqual(Array.from({length: meta.chunks}, (_, i) => chunkKey(i)).sort());
+  });
+
+  it('says the copy is written when only tidying the old chunks away fails', async () => {
+    const area = fakeStorageSync();
+    await saveCloudCopy(area, large(300), 'win', NOW);
+    area.remove = () => Promise.reject(new Error('remove failed'));
+    const settings = defaults();
+    await expect(saveCloudCopy(area, settings, 'win', NOW + 1000)).resolves.toMatchObject({savedAt: NOW + 1000});
+    expect((await readCloudCopy(area)).settings).toEqual(settings);
+  });
+
   it('says a copy too large for Firefox does not fit, and leaves the copy there as it was', async () => {
     const area = fakeStorageSync();
     const before = defaults();
