@@ -232,4 +232,34 @@ describe('the playlists that go to mpv with a stream', () => {
     const pack = await hlsPackage({url: `${ORIGIN}/pl/7`, keyFrom: `${ORIGIN}/pl/7?token=k`, io});
     expect(pack.files[0].text).toContain('https://other.test/content/a/page-1.html\n');
   });
+
+  it('refuses a package its whole addresses make too large while it writes them, not after', async () => {
+    const folder = `/${'d'.repeat(1957)}`;
+    const pack = (/** @type {string} */ text) => hlsPackage({url: `${ORIGIN}${folder}/pl`, keyFrom: `${ORIGIN}${folder}/pl`,
+      io: server({[`${folder}/pl`]: {text}}).io});
+    const lines = (/** @type {number} */ segments) => `#EXTM3U\n${'#EXTINF:6,\na.ts\n'.repeat(segments)}#EXT-X-ENDLIST\n`;
+    const oneLine = (/** @type {number} */ keys) => `#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,${'URI="a",'.repeat(keys)}\n#EXTINF:6,\na.ts\n#EXT-X-ENDLIST\n`;
+    expect((await pack(lines(100))).files[0].text.length).toBeGreaterThan(100 * 1957);
+    expect((await pack(oneLine(100))).files[0].text.length).toBeGreaterThan(100 * 1957);
+
+    const RealURL = globalThis.URL;
+    let made = 0;
+    globalThis.URL = class extends RealURL {
+      /** @param {ConstructorParameters<typeof URL>} args */
+      constructor(...args) {
+        super(...args);
+        made++;
+      }
+    };
+    try {
+      // 12 MB hold about 6 350 of these addresses: the 20 000 are not all written first.
+      for (const text of [lines(20000), oneLine(20000)]) {
+        made = 0;
+        expect(await pack(text)).toBeNull();
+        expect(made).toBeLessThan(8000);
+      }
+    } finally {
+      globalThis.URL = RealURL;
+    }
+  });
 });

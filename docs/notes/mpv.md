@@ -142,7 +142,10 @@ now carries what the player knows (`MpvHlsPackage.mjs`, started by `openInMpv` b
   `.m3u8` whose files want its key fails in mpv, as it did before helper 27. Not for a live stream (no `#EXT-X-ENDLIST`): a file of its playlist goes stale. All playlists are read
   (4 at a time, relative addresses against the address after redirects) before any is rewritten: a key
   first needed by a later variant reaches every file. At most 10 s (header rules included) and 12 MB in
-  all, one budget the reads at once share, counted as bytes arrive; a hand-off that stops (copy
+  all, one budget the reads at once share, counted as bytes arrive. The 12 MB hold for what is written
+  too, and are counted while it is written (2026-11-19, Codex's review): every short name becomes its whole
+  address, so 20 000 lines of `a.ts` (0.3 MB) under a 2 000-character address were built as 40 MB of text
+  before the size was looked at, and nothing bounded that growth. A hand-off that stops (copy
   protection, VPN, page-only) or whose page or MPV goes meanwhile (`wanted()`, checked every 250 ms)
   stops the reading. Past either, the address goes as before. The page's subtitles are read from the
   start of `openInMpv`, beside these waits, not after them; when they are done, a subtitle file the page

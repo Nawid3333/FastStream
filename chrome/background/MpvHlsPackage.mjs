@@ -151,10 +151,13 @@ async function collect(url, key, asFound, io, stop) {
   if (!keyed && namesHls(url, root.type)) return null;
   const playlists = isMaster ? await inParallel(uris, (uri) => readOnce(addressOf(uri))) : [root];
   if (stop.aborted || budget.left < 0 || playlists.some((playlist) => !playlist)) return null;
-  const texts = playlists.map((playlist) => vodText(/** @type {Fetched} */ (playlist).text,
-      /** @type {Fetched} */ (playlist).url, whole));
-  if (texts.some((text) => text === null)) return null;
-  const files = texts.map((text, index) => ({name: `${index}.m3u8`, text: /** @type {string} */ (text)}));
+  const written = {characters: 0};
+  const files = [];
+  for (const playlist of /** @type {Fetched[]} */ (playlists)) {
+    const text = vodText(playlist.text, playlist.url, whole, written);
+    if (text === null) return null;
+    files.push({name: `${files.length}.m3u8`, text});
+  }
   if (!isMaster) return sized(files);
   const names = new Map(uris.map((uri, index) => [uri, `${index}.m3u8`]));
   return sized([{name: 'master.m3u8', text: masterText(root.text, names)}, ...files]);
@@ -206,19 +209,32 @@ function mediaUris(text) {
 }
 
 /**
- * A media playlist with every address whole; null when it is no complete one (a live stream's goes stale as a file).
+ * A media playlist with every address whole; null when it is no complete one (a live stream's goes stale as a file),
+ * or once the package's playlists hold more characters than it may have bytes: a short name under a long address
+ * grows by that address on every line.
  * @param {string} text
  * @param {string} base
  * @param {(address: string) => string} whole
+ * @param {{characters: number}} written - Of the package's playlists so far; counted on here.
  * @return {?string}
  */
-function vodText(text, base, whole) {
+function vodText(text, base, whole, written) {
   if (!text.trimStart().startsWith('#EXTM3U') || !text.includes('#EXT-X-ENDLIST')) return null;
-  return text.split(LINE_BREAK).map((raw) => {
+  const lines = [];
+  for (const raw of text.split(LINE_BREAK)) {
     const line = raw.trim();
-    if (isUriLine(line)) return whole(new URL(line, base).href);
-    return line.replace(URI_ATTRIBUTE, (_, open, uri, close) => open + whole(new URL(uri, base).href) + close);
-  }).join('\n');
+    let addresses = 0;
+    const rewritten = isUriLine(line) ? whole(new URL(line, base).href) : line.replace(URI_ATTRIBUTE, (match, open, uri, close) => {
+      if (written.characters + addresses > MAX_PACKAGE_BYTES) return match;
+      const address = whole(new URL(uri, base).href);
+      addresses += address.length;
+      return open + address + close;
+    });
+    written.characters += rewritten.length + (lines.length > 0 ? 1 : 0);
+    if (written.characters > MAX_PACKAGE_BYTES) return null;
+    lines.push(rewritten);
+  }
+  return lines.join('\n');
 }
 
 /**
