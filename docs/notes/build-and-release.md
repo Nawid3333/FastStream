@@ -247,6 +247,52 @@ the AMO build with `gecko_android` gives 0 errors, 0 warnings, 0 notices. Betwee
 updates, the Firefox API watch reports what each release changes for Android's WebExtensions
 (`workflows.md`, "Firefox API watch").
 
+**In an emulator (2026-11-20):** `.github/workflows/android.yml` runs `tests/android/smoke.mjs`
+on every pull request and push to `main`, beside CI and not a release gate: Firefox for
+Android's current release (product-details) on an API 35 x86_64 emulator with software
+rendering, driven by geckodriver 0.37.1, the first that drives a release build (it has Firefox
+read its configuration through `am set-debug-app`; no USB debugging). The APK must carry
+Mozilla's release signing certificate (`apksigner`, pinned digest). The GitHub build installs
+as a temporary add-on, its welcome page opens, its background answers the player page, the
+player plays the pinned `sample.mp4`, served from the runner through `adb reverse`; with "Use
+player to play MP4 videos" on, a direct `.mp4` link opens in the player and plays, and with the
+test site in "Auto-enable URLs", FastStream's player takes the place of a page's own `<video>`
+and plays it. The browser console (read in the chrome context) must hold no script error from
+the extension's files, after its start and at the end. What the script relies on, measured on
+Firefox for Android 160.0.1:
+- `nativeMessaging` makes it refuse a temporary add-on ("Extension is invalid"; bisected, every
+  other permission passes). The signed xpi with it installs normally, as on the owner's phone.
+  The test package leaves it out: there is no mpv on Android.
+- Extension pages are privileged for WebDriver: geckodriver runs scripts there only with
+  `--allow-system-access`, and navigates to no `moz-extension://` address; the welcome tab, on
+  that origin, navigates itself.
+- Firefox 153+ waits at its first-run screens under automation unless started with
+  `--ez automationtest true` (the session's `androidIntentArguments`).
+- WebDriver's screenshot leaves the video out (black); the device's own capture shows it.
+- Without a GPU the emulator is slow: the player can take longer than WebDriver's 30 s script
+  limit, and its page is there before `window.fastStream` is.
+- A direct `.mp4` link stays in Firefox's own viewer by default, as on the desktop ("Use player
+  to play MP4 videos" is off).
+- `tabs.onUpdated` takes no filter there (browser-compat-data agrees): `addListener(fn,
+  {properties})` throws "Incorrect argument types". Until `BackgroundUtils.onTabUpdated`, which
+  then adds the listener without it and passes on the same changes, that stopped the background
+  before `runtime.onMessage`: the welcome page still opened, but options, the player's messages
+  and the `.mp4` redirect rule never reached it. The unit tests' Android stand-in refuses the
+  filter the same way (`tests/unit/firefoxAndroid.test.mjs`).
+- A player page that goes while a message it sent awaits its answer (`FRAME_REMOVED` on
+  pagehide) leaves Firefox's own "Promise rejected after context unloaded: Actor 'Conduits'
+  destroyed before query 'RuntimeMessage' was resolved" in the console, under the player's file.
+  The message arrives; no code of the page can catch that report, so the console check leaves
+  out that one reason (any other rejection after unload still counts).
+
+Locally, after `pnpm run build:keep`: an x86_64 AVD (API 35, default image) with Firefox for
+Android's x86_64 APK, `geckodriver --allow-system-access`, then `node tests/android/smoke.mjs
+--build build_firefox_github --media tests/e2e/fixtures/sample.mp4 --geckodriver
+http://127.0.0.1:4444 --device <serial> --adb <adb>`. On Windows the emulator needs the Windows
+Hypervisor Platform feature; in WSL 2 it runs on KVM (`/dev/kvm`, nested virtualisation). With
+WSL's mirrored networking Windows and WSL share ports: one emulator and one adb server at a
+time, or another `-port`.
+
 **Installing it on a phone:** AMO's listed channel, where Android users normally find
 add-ons, is closed to this fork until the licence question in `CLAUDE.md` is settled. The
 signed xpi of a release installs on Firefox for Android through a hidden menu: Settings,

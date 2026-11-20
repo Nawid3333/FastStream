@@ -495,8 +495,8 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
   inheritMpv(openerTab, /** @type {number} */ (newTab.id));
 });
 
-// Address and status changes only (filter below): title and favicon changes kept the event page awake; Firefox resets the button per document.
-/** @type {chrome.tabs.FirefoxUpdatedEvent} */ (chrome.tabs.onUpdated).addListener(async (tabid, changeInfo, tabobj) => {
+// Address and status changes only: title and favicon changes kept the event page awake; Firefox resets the button per document.
+BackgroundUtils.onTabUpdated(async (tabid, changeInfo, tabobj) => {
   await ensureOptions();
 
   const tab = Tabs.getTabOrCreate(tabid);
@@ -622,7 +622,7 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
   }
 
   BackgroundUtils.updateTabIcon(tab, true);
-}, {properties: ['url', 'status']});
+}, ['url', 'status']);
 
 const UrlStartSettleMs = 500;
 

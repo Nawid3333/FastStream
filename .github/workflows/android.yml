@@ -1,0 +1,126 @@
+name: Android
+
+# FastStream on Firefox for Android, in an emulator (docs/notes/build-and-release.md, "Firefox for Android"): the
+# GitHub build installs, its background starts, its player plays an mp4, also in a page's place. On every pull
+# request and push to main, beside CI; not a release gate (auto-release.yml reads CI only).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  # The first geckodriver that drives a release build of Firefox for Android (docs/notes/build-and-release.md).
+  GECKODRIVER_VERSION: '0.37.1'
+  GECKODRIVER_SHA256: e815130ea95983e162ae91843b48d3a3ce991735635fce83a647afde21e09f7e
+  # Mozilla's release key for Firefox for Android (CN=Release Engineering, O=Mozilla Corporation).
+  FENIX_CERT_SHA256: a78b62a5165b4494b2fead9e76a280d22d937fee6251aece599446b2ea319b04
+
+jobs:
+  smoke:
+    name: Firefox for Android (emulator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build:keep
+
+      # The pinned sample.mp4, as the e2e jobs get it (.github/actions/e2e-setup).
+      - name: Read the MP4 fixture's pin
+        id: mp4-pin
+        run: |
+          sha256=$(node tests/e2e/mp4FixtureCli.mjs pin)
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the MP4 fixture from the cache
+        id: mp4-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: tests/e2e/fixtures/sample.mp4
+          key: e2e-sample-mp4-${{ steps.mp4-pin.outputs.sha256 }}
+
+      - name: Check the MP4 fixture, or fetch it
+        run: node tests/e2e/mp4FixtureCli.mjs ensure
+
+      # The release users have (Mozilla's product-details), x86_64 for the emulator.
+      - name: Firefox for Android and geckodriver
+        run: |
+          set -euo pipefail
+          version=$(curl -sSf https://product-details.mozilla.org/1.0/mobile_versions.json | jq -r .version)
+          if ! [[ $version =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::product-details names no Firefox for Android version: '$version'"
+            exit 1
+          fi
+          curl -sSfL -o "$RUNNER_TEMP/fenix.apk" \
+            "https://archive.mozilla.org/pub/fenix/releases/$version/android/fenix-$version-android-x86_64/fenix-$version.multi.android-x86_64.apk"
+          echo "Firefox for Android $version, SHA-256 $(sha256sum "$RUNNER_TEMP/fenix.apk" | cut -d' ' -f1)"
+          apksigner=$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner | sort -V | tail -n 1)
+          # Every signer's certificate, whatever apksigner's version calls the line ("Signer #1", "V2 Signer"): Mozilla's
+          # alone.
+          signers=$("$apksigner" verify --print-certs "$RUNNER_TEMP/fenix.apk" |
+            sed -n 's/^.*certificate SHA-256 digest: \([0-9a-f]*\)$/\1/p' | sort -u)
+          if [ "$signers" != "$FENIX_CERT_SHA256" ]; then
+            echo "::error::Firefox for Android is not signed by Mozilla's release key alone: ${signers:-no certificate}"
+            exit 1
+          fi
+          curl -sSfL -o "$RUNNER_TEMP/geckodriver.tar.gz" \
+            "https://github.com/mozilla/geckodriver/releases/download/v$GECKODRIVER_VERSION/geckodriver-v$GECKODRIVER_VERSION-linux64.tar.gz"
+          echo "$GECKODRIVER_SHA256  $RUNNER_TEMP/geckodriver.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/geckodriver.tar.gz" -C "$RUNNER_TEMP"
+
+      # The emulator needs /dev/kvm, which the runner's user may not open (android-emulator-runner's README).
+      - name: Let the emulator use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Software rendering: the runner has no GPU, and swiftshader_indirect is deprecated since emulator 36.4.9.
+      - name: Smoke test in the emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          ram-size: 4096M
+          disk-size: 6G
+          emulator-options: -no-window -gpu software -no-audio -no-boot-anim -no-snapshot -no-metrics
+          disable-animations: true
+          script: bash tests/android/ci.sh "$RUNNER_TEMP/fenix.apk" "$RUNNER_TEMP/geckodriver" android-smoke
+
+      - name: Upload the screens and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-smoke
+          path: |
+            android-smoke/*.png
+            android-smoke/*.log
+            android-smoke/*.txt
+          if-no-files-found: ignore
+          retention-days: 7

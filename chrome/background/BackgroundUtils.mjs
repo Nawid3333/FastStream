@@ -198,6 +198,22 @@ export class BackgroundUtils {
     }
   }
 
+  /**
+   * tabs.onUpdated for a change of these properties only. Firefox for Android refuses the filter (the call throws),
+   * so there the listener is added without it and hears the same changes.
+   * @param {(tabId: number, changeInfo: chrome.tabs.OnUpdatedInfo, tab: chrome.tabs.Tab) => void} listener
+   * @param {string[]} properties
+   */
+  static onTabUpdated(listener, properties) {
+    try {
+      /** @type {chrome.tabs.FirefoxUpdatedEvent} */ (chrome.tabs.onUpdated).addListener(listener, {properties});
+    } catch {
+      chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+        if (properties.some((name) => name in changeInfo)) listener(tabId, changeInfo, tab);
+      });
+    }
+  }
+
   static queryTabs() {
     return new Promise((resolve, reject) => {
       chrome.tabs.query({}, (tabs) => {
