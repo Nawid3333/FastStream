@@ -452,6 +452,11 @@ export async function placeStream(tab, url, rest, wanted, whileAsked) {
   // question up gives way at once: the newer stream wins, the older one is declined.
   endOffer(target, 'none');
   const release = await placementTurn(target);
+  // The wait may have been long: the page or MPV gone meanwhile sends nothing, whatever the window.
+  if (wanted && !wanted()) {
+    release();
+    return {dropped: true};
+  }
   if (!target.alive || !mpvWindows.has(target)) {
     release();
     return placeStream(tab, url, rest, wanted, whileAsked);

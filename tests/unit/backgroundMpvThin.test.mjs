@@ -740,6 +740,29 @@ describe('several mpv windows (helper 30)', () => {
       expect(offerCommands(bg.ports[1])).toHaveLength(1);
     });
 
+    it('sends nothing for a stream queued behind another once MPV was turned off and the window closed', async () => {
+      await load([S1], true);
+      await pageLoads(1, EP1, S1);
+      const port = bg.ports[0];
+      port.mpv = {'idle-active': true};
+      port.slowMs = 1500;
+      for (const [tabId, url] of [[2, OTHER1], [3, THIRD]]) {
+        await bg.navigated(tabId, url);
+        await bg.frameAdded(tabId, 0, url, `page-${url}`);
+      }
+      // Tab 2's stream asks the window, tab 3's waits behind it.
+      await bg.request({tabId: 2, url: SX1});
+      await bg.request({tabId: 3, url: ST1});
+      await bg.wait(1000);
+      bg.options = {...bg.options, mpvMode: false};
+      await bg.message({type: 'LOAD_OPTIONS'});
+      port.emit({type: 'closed', reason: 'mpv closed'});
+      await bg.wait(3000);
+      expect(plays()).toHaveLength(1);
+      expect(playOf(SX1)).toBeUndefined();
+      expect(playOf(ST1)).toBeUndefined();
+    });
+
     it('holds no other window\'s question for one up in a window', async () => {
       const port = await secondStream();
       choose(port, 'window');
