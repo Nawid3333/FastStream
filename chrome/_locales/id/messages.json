@@ -1265,6 +1265,21 @@
     "mpv_autoplay_off": {
         "message": "nonaktif"
     },
+    "mpv_offer_here_title": {
+        "message": "Putar di sini"
+    },
+    "mpv_offer_here_detail": {
+        "message": "$1, menggantikan $2"
+    },
+    "mpv_offer_window_title": {
+        "message": "Putar di jendela baru"
+    },
+    "mpv_offer_window_detail": {
+        "message": "menunggu di sana dalam keadaan dijeda; $1 terus diputar"
+    },
+    "player_mpv_declined": {
+        "message": "Tidak dikirim: mpv terus memutar yang sebelumnya"
+    },
     "mpv_episode_nostream": {
         "message": "halaman tidak memberikan stream dalam satu menit; buka di browser untuk melihat alasannya"
     },

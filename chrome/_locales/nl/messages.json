@@ -1265,6 +1265,21 @@
     "mpv_autoplay_off": {
         "message": "uit"
     },
+    "mpv_offer_here_title": {
+        "message": "Hier afspelen"
+    },
+    "mpv_offer_here_detail": {
+        "message": "$1, in plaats van $2"
+    },
+    "mpv_offer_window_title": {
+        "message": "Afspelen in een nieuw venster"
+    },
+    "mpv_offer_window_detail": {
+        "message": "het wacht daar gepauzeerd; $1 speelt verder"
+    },
+    "player_mpv_declined": {
+        "message": "Niet verzonden: mpv speelt verder wat het had"
+    },
     "mpv_episode_nostream": {
         "message": "de pagina leverde binnen een minuut geen stream op; open deze in de browser om te zien waarom"
     },

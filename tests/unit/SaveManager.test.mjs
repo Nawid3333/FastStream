@@ -309,6 +309,34 @@ describe('SaveManager.openInMpv', () => {
     }
   });
 
+  it('pauses the player while mpv asks, as the page is paused', async () => {
+    for (const mpvPausePage of [true, false]) {
+      const client = {...makeClient({}), options: {mpvPausePage}, pause: vi.fn(async () => {})};
+      new SaveManager(client).whileMpvAsks();
+      expect(client.pause).toHaveBeenCalledTimes(mpvPausePage ? 1 : 0);
+    }
+  });
+
+  it('says "not sent" with no error when it was declined in mpv, and starts nothing again', async () => {
+    const statuses = [];
+    const client = {
+      ...makeClient({}),
+      source: {url: 'https://cdn.test/a.m3u8', headers: {}},
+      currentTime: 0,
+      options: {mpvPausePage: true},
+      pause: vi.fn(async () => {}),
+      interfaceController: {
+        setStatusMessage: (key, message, type) => statuses.push({message, type}),
+        subtitlesManager: {activeTracks: []},
+      },
+    };
+    globalThis.chrome = {runtime: {lastError: undefined,
+      sendMessage: (message, callback) => callback({ok: false, declined: true})}};
+    await new SaveManager(client).openInMpv();
+    expect(statuses.at(-1)).toEqual({message: 'player_mpv_declined', type: 'info'});
+    expect(client.pause).not.toHaveBeenCalled();
+  });
+
   it('sends the stream once for a second click while the first is on its way', async () => {
     const callbacks = [];
     globalThis.chrome = {runtime: {lastError: undefined, sendMessage: (message, callback) => callbacks.push(callback)}};
@@ -354,7 +382,11 @@ describe('SaveManager.openInMpv', () => {
       expect(sent).toBe(2);
       await manager.openInMpv();
       expect(sent).toBe(2);
-      vi.advanceTimersByTime(15000);
+      // Not within the waits before a send and mpv's 2 + 17 s question to a window that plays.
+      vi.advanceTimersByTime(29999);
+      await manager.openInMpv();
+      expect(sent).toBe(2);
+      vi.advanceTimersByTime(1);
       await manager.openInMpv();
       expect(sent).toBe(3);
     } finally {

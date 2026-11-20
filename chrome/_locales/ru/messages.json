@@ -1265,6 +1265,21 @@
     "mpv_autoplay_off": {
         "message": "выкл"
     },
+    "mpv_offer_here_title": {
+        "message": "Воспроизвести здесь"
+    },
+    "mpv_offer_here_detail": {
+        "message": "$1 вместо $2"
+    },
+    "mpv_offer_window_title": {
+        "message": "Воспроизвести в новом окне"
+    },
+    "mpv_offer_window_detail": {
+        "message": "оно ждёт там на паузе; $1 продолжает играть"
+    },
+    "player_mpv_declined": {
+        "message": "Не отправлено: mpv продолжает воспроизводить прежнее"
+    },
     "mpv_episode_nostream": {
         "message": "на странице не удалось найти поток в течение минуты; откройте её в браузере, чтобы узнать причину"
     },
