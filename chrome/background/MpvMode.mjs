@@ -9,6 +9,7 @@ import {Capabilities, MpvBackend} from './MpvBackend.mjs';
 import {hlsPackage} from './MpvHlsPackage.mjs';
 import {MAX_TRACKS} from './MpvSubtitles.mjs';
 import {isMpvContentType} from './MpvTarget.mjs';
+import {MpvWindows} from './MpvWindows.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {youTubeVideo} from './YouTubeVideo.mjs';
 import {AutoEnableList, CaptionScrapeWaitMs, HlsQualitiesWaitMs, Lengths, Logging, Options, PageSubtitles, SourceLengthWaitMs, Tabs, VpnMirror, askFrame, closeReopenedTab, ensureOptions, hlsPackageIo, hlsQualityChoice, isSentStream, isTabOpen, newestOfLongest, noteProblem, notifySeriesEnd, openPlayersWithSources, pageQualityChoice, pauseTabMedia, saveOption, scrapeCaptionsTags, startPagePlayers, tabHasPlayer, tabTitle, takeScrapedCaptions, userTurnedOff} from './background.mjs';
@@ -299,14 +300,24 @@ export function autoOpenInMpv(tab, url, headers) {
   }
   tab.mpvAutoOpened = true;
   Tabs.saveTabState(tab);
+  // MPV autoplay's next episode goes to the window it came from, never to another: a closed one's autoplay ended.
+  const window = tab.mpvNextEpisodeUntil > Date.now() ? tab.mpvEpisodeWindow : '';
+  if (window && !mpvWindows.get(window)?.alive) {
+    if (Logging) console.log('[MPV autoplay] not sent, its mpv window was closed:', url);
+    return;
+  }
   const page = tab.mpvPage;
   const wanted = handOffStillWanted(tab);
   if (Logging) console.log('[MPV] forwarding detected stream to mpv:', url);
   tabTitle(tab.tabId).then((title) =>
     openInMpv(tab.tabId, url, tab, headers, resolveMpvContentType(null, tab.url), tab.url, title,
-        {wanted})).then((result) => {
+        {wanted, ...(window ? {window} : {})})).then((result) => {
     if (Logging) console.log('[MPV] forward result:', url, JSON.stringify(result));
     if (!isHandOffPage(tab, page) || 'dropped' in result || playHereInstead(tab, result)) {
+      return;
+    }
+    if (window && 'closed' in result && result.closed) {
+      if (Logging) console.log('[MPV autoplay] not sent, its mpv window closed meanwhile:', url);
       return;
     }
     setMpvError(tab, result);
@@ -388,14 +399,18 @@ export function tabSources(tab) {
  *   cookieStoreId: ?string}} EpisodeLinksOfTab
  */
 /**
- * @typedef {{tabId: number, url: string, qualities: ?Array<{url: string}>, local: ?string, alive: boolean, going: boolean,
- *   countdown: ?ReturnType<typeof setTimeout>, countdownAsks: number,
+ * One mpv window's: window is the helper's id for it ('' for the one on its own pipe); tabId is NoTab once the tab's
+ * stream went to another window.
+ * @typedef {{window: string, tabId: number, url: string, qualities: ?Array<{url: string}>, local: ?string,
+ *   alive: boolean, going: boolean, countdown: ?ReturnType<typeof setTimeout>, countdownAsks: number,
  *   stalled: ?ReturnType<typeof setTimeout>,
  *   links: ?EpisodeLinksOfTab, closedTab: ?{links: EpisodeLinksOfTab, windowId: number, windowClosing: boolean},
  *   site: string, watcher: ?{notify: Function, hide: Function, state: Function, stop: Function}}} MpvWatch
  */
-/** @type {?MpvWatch} */
-export let mpvWatch = null;
+/** @type {MpvWindows<MpvWatch>} */
+export const mpvWindows = new MpvWindows();
+
+const NoTab = -1;
 
 export const MpvNextEpisodeWaitMs = 60000;
 
@@ -429,14 +444,20 @@ export function syncMpvAutoplay(state) {
   state.watcher?.state({autoplay: !!Options.mpvAutoplayNext});
 }
 
+/** Every window's switch shows the setting. */
+export function syncAllMpvAutoplay() {
+  for (const state of mpvWindows.all()) syncMpvAutoplay(state);
+}
+
 /**
- * Only a single mpv window, which the host can follow: a window per stream has no pipe.
+ * Only mpv windows of the single-instance use: with a window per stream none is followed.
  * @param {TabHolder} tab
  * @param {string} url
  * @param {?Array<{url: string}>} [qualities]
  * @param {?string} [local] - The playlist file mpv plays the stream from (helper 27's hls), its path in mpv.
+ * @param {string} [window] - The helper's id of the window it plays in (helper 30), '' for the one on its own pipe.
  */
-export function watchMpvFor(tab, url, qualities = null, local = null) {
+export function watchMpvFor(tab, url, qualities = null, local = null, window = '') {
   if (!tab || typeof tab.tabId !== 'number' || !isTabOpen(tab) || !Mpv.singleInstance) {
     return;
   }
@@ -444,36 +465,56 @@ export function watchMpvFor(tab, url, qualities = null, local = null) {
     tab.continuationOptions = null;
   }
   tab.mpvNextEpisodeUntil = 0;
+  const current = mpvWindows.get(window);
+  // The tab's stream left another window: that one plays on, its end and keys no longer the tab's.
+  for (const other of mpvWindows.all()) {
+    if (other !== current && other.tabId === tab.tabId) letGoOfTab(other);
+  }
   // Another tab's stream took the window: that tab's episode no longer goes to mpv by itself.
-  const before = mpvWatch && mpvWatch.tabId !== tab.tabId ? Tabs.getTab(mpvWatch.tabId) : null;
+  const before = current && current.tabId !== tab.tabId ? Tabs.getTab(current.tabId) : null;
   if (before) {
     before.mpvNextEpisodeUntil = 0;
     if (before.continuationOptions?.mpvNext) {
       before.continuationOptions = null;
     }
+    if (before.mpvWindow === window) before.mpvWindow = null;
     closeReopenedTab(before);
   }
-  if (mpvWatch?.alive) {
-    if (mpvWatch.stalled) clearTimeout(mpvWatch.stalled);
-    mpvWatch.stalled = null;
-    cancelMpvCountdown(mpvWatch);
-    mpvWatch.tabId = tab.tabId;
-    mpvWatch.url = url;
-    mpvWatch.qualities = qualities;
-    mpvWatch.local = local;
+  tab.mpvWindow = window;
+  if (current?.alive) {
+    if (current.stalled) clearTimeout(current.stalled);
+    current.stalled = null;
+    cancelMpvCountdown(current);
+    current.tabId = tab.tabId;
+    current.url = url;
+    current.qualities = qualities;
+    current.local = local;
     // The links of the tab's page before are not this one's.
-    mpvWatch.closedTab = null;
-    mpvWatch.links = null;
-    mpvWatch.site = siteOf(tab.url);
-    rememberEpisodeLinks(mpvWatch, tab);
+    current.closedTab = null;
+    current.links = null;
+    current.site = siteOf(tab.url);
+    rememberEpisodeLinks(current, tab);
     return;
   }
   /** @type {MpvWatch} */
-  const state = {tabId: tab.tabId, url, qualities, local, alive: true, going: false, countdown: null, countdownAsks: 0,
-    stalled: null, links: null, closedTab: null, site: siteOf(tab.url), watcher: null};
-  mpvWatch = state;
-  state.watcher = Mpv.watch((event) => onMpvWatchEvent(state, event));
+  const state = {window, tabId: tab.tabId, url, qualities, local, alive: true, going: false, countdown: null,
+    countdownAsks: 0, stalled: null, links: null, closedTab: null, site: siteOf(tab.url), watcher: null};
+  mpvWindows.add(state);
+  state.watcher = Mpv.watch((event) => onMpvWatchEvent(state, event), window);
   rememberEpisodeLinks(state, tab);
+}
+
+/**
+ * The window plays on what a page the tab has left sent: its end and keys say the episode is unavailable.
+ * @param {MpvWatch} state
+ */
+function letGoOfTab(state) {
+  if (state.stalled) clearTimeout(state.stalled);
+  state.stalled = null;
+  cancelMpvCountdown(state);
+  state.tabId = NoTab;
+  state.links = null;
+  state.closedTab = null;
 }
 
 export const EpisodeLinksAgainMs = 10000;
@@ -486,7 +527,7 @@ export const EpisodeLinksAgainMs = 10000;
  */
 export async function rememberEpisodeLinks(state, tab) {
   const page = tab.mpvPage;
-  const stillThePage = () => state.alive && mpvWatch === state && state.tabId === tab.tabId && isTabOpen(tab) &&
+  const stillThePage = () => state.alive && mpvWindows.has(state) && state.tabId === tab.tabId && isTabOpen(tab) &&
     tab.mpvPage === page;
   let links = await readEpisodeLinks(tab);
   if (!stillThePage()) return;
@@ -530,10 +571,11 @@ export async function readEpisodeLinks(tab) {
  * @param {{windowId: number, isWindowClosing: boolean}} removed
  */
 export function noteMpvTabClosed(tabId, removed) {
-  const state = mpvWatch;
-  if (!state?.alive || state.tabId !== tabId || state.links?.tabId !== tabId) return;
-  state.closedTab = {links: state.links, windowId: removed.windowId, windowClosing: !!removed.isWindowClosing};
-  if (Logging) console.log('[MPV autoplay] its tab was closed; the episodes go on in a new one:', state.links);
+  for (const state of mpvWindows.all()) {
+    if (!state.alive || state.tabId !== tabId || state.links?.tabId !== tabId) continue;
+    state.closedTab = {links: state.links, windowId: removed.windowId, windowClosing: !!removed.isWindowClosing};
+    if (Logging) console.log('[MPV autoplay] its tab was closed; the episodes go on in a new one:', state.links);
+  }
 }
 
 /**
@@ -546,7 +588,12 @@ export function onMpvWatchEvent(state, event) {
     cancelMpvCountdown(state);
     if (state.stalled) clearTimeout(state.stalled);
     state.stalled = null;
-    if (mpvWatch === state) mpvWatch = null;
+    if (mpvWindows.has(state)) {
+      mpvWindows.remove(state);
+      for (const other of Tabs.tabs.values()) {
+        if (other.mpvWindow === state.window) other.mpvWindow = null;
+      }
+    }
     // mpv is gone: the page's next play is the user's, not the player repeating itself.
     const tab = event.reason === 'mpv closed' || event.reason === 'no mpv' ? Tabs.getTab(state.tabId) : null;
     if (tab?.mpvLastPlaySend) {
@@ -622,7 +669,8 @@ export async function nextEpisodeInPage(tab) {
 export async function startMpvCountdown(state) {
   if (state.countdown) return;
   const seconds = autoplayCountdownSeconds();
-  if (seconds === 0) {
+  // A window the tab's stream left counts down to nothing: goToEpisode says so at once.
+  if (seconds === 0 || state.tabId === NoTab) {
     goToEpisode(state, 'next');
     return;
   }
@@ -662,7 +710,8 @@ export function toggleMpvAutoplay(state) {
       console.error('Saving MPV autoplay failed', e);
       return;
     }
-    syncMpvAutoplay(state);
+    // One setting: every window's switch shows it.
+    syncAllMpvAutoplay();
     state.watcher?.notify(chrome.i18n.getMessage('mpv_autoplay_title') || 'Autoplay',
         chrome.i18n.getMessage(on ? 'mpv_autoplay_on' : 'mpv_autoplay_off') || (on ? 'on' : 'off'));
   });
@@ -792,7 +841,7 @@ export async function goToEpisodeInNewTab(state, direction, title) {
     return;
   }
   // mpv closed, or another tab's stream took it, while the tab was made.
-  if (!state.alive || mpvWatch !== state || state.closedTab !== closed) {
+  if (!state.alive || !mpvWindows.has(state) || state.closedTab !== closed) {
     chrome.tabs.remove(created.id).catch(() => {});
     return;
   }
@@ -856,7 +905,7 @@ async function goToEpisodeFromSiteLeft(state, tab, direction, title) {
   } catch (e) {
     // Closed meanwhile: noteMpvTabClosed keeps its links, and the next end goes on from them.
   }
-  if (typeof windowId !== 'number' || !state.alive || mpvWatch !== state || state.links !== links) {
+  if (typeof windowId !== 'number' || !state.alive || !mpvWindows.has(state) || state.links !== links) {
     if (typeof windowId !== 'number') notifyEpisodeUnavailable(state, title);
     return;
   }
@@ -874,6 +923,7 @@ async function goToEpisodeFromSiteLeft(state, tab, direction, title) {
 export function awaitEpisodeStream(state, tab, title) {
   tab.continuationOptions = {autoPlay: true, mpvNext: true};
   tab.mpvNextEpisodeUntil = Date.now() + MpvNextEpisodeWaitMs;
+  tab.mpvEpisodeWindow = state.window;
   // Not for a tab closed meanwhile: its state would go back into storage.
   if (isTabOpen(tab)) Tabs.saveTabState(tab);
   state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_loading') || 'loading in mpv',
@@ -882,7 +932,7 @@ export function awaitEpisodeStream(state, tab, title) {
   if (state.stalled) clearTimeout(state.stalled);
   state.stalled = setTimeout(() => {
     state.stalled = null;
-    if (!state.alive || mpvWatch !== state || state.tabId !== tab.tabId) return;
+    if (!state.alive || !mpvWindows.has(state) || state.tabId !== tab.tabId) return;
     noteProblem(tab.tabId, {url: tab.url, kind: ProblemKinds.NO_STREAM, mode: 'mpv'}).catch((e) => console.error(e));
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_nostream') ||
       'the page brought no stream within a minute; open it in the browser to see why', MpvNoticeSeconds);
@@ -1205,7 +1255,8 @@ export async function openInMpv(tabId, url, ...rest) {
   const result = await Mpv.openStream(url, ...rest);
   // By the tab's id: the player's button and the MPV key's play pass no tab.
   if (result && result.ok && tabId !== undefined && tabId >= 0) {
-    watchMpvFor(Tabs.getTab(tabId), url, rest[5]?.qualities || null, typeof result.local === 'string' ? result.local : null);
+    watchMpvFor(Tabs.getTab(tabId), url, rest[5]?.qualities || null, typeof result.local === 'string' ? result.local : null,
+        result.window || '');
   }
   return result;
 }

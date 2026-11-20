@@ -2,6 +2,7 @@
 
 import {relayWatch} from './MpvRelayWatch.mjs';
 import {cutText, cutToLength, isMpvContentType, isStreamUrl, mpvTargetUrl, relayHeaderFields, startOf, streamTitle} from './MpvTarget.mjs';
+import {windowOf} from './MpvWindows.mjs';
 
 /** Native messaging client for the mpv helper; its messages: the top of native-host/faststream-mpv-host.mjs. */
 
@@ -22,7 +23,7 @@ const MaxSubtitleChars = 1024 * 1024;
 // The start a play message may name: seconds, to the millisecond.
 const PlayStart = /^\d{1,7}(\.\d{1,3})?$/;
 
-export const Capabilities = Object.freeze({PLAY: 'play', IPC: 'ipc', RELAY: 'relay', HLS: 'hls'});
+export const Capabilities = Object.freeze({PLAY: 'play', IPC: 'ipc', RELAY: 'relay', HLS: 'hls', WINDOWS: 'windows'});
 
 // The host's MaxStatusWaitMs, and how often a decoder question asks meanwhile.
 export const MaxStatusWaitMs = 30000;
@@ -80,7 +81,7 @@ function messageBytes(message) {
 
 /**
  * @typedef {{type: 'play', target: string, title: string, start?: string, headers?: Array<string>,
- *   mpvPath?: string, fullscreen?: boolean, newWindow?: boolean,
+ *   mpvPath?: string, fullscreen?: boolean, newWindow?: boolean, window?: string,
  *   subtitles?: Array<{label: string, srt: string}>, hls?: {files: Array<{name: string, text: string}>}}} PlayMessage
  */
 
@@ -190,7 +191,14 @@ function legacyWatch(port, onEvent) {
  *   pageUrl?: string, pageTitle?: string, extras: {startTime?: number, private?: boolean,
  *   subtitles?: Array<{label: string, srt: string}>,
  *   qualities?: Array<{url: string, label: string, height: number}>,
- *   hls?: {files: Array<{name: string, text: string}>}}}} MpvStream
+ *   hls?: {files: Array<{name: string, text: string}>}, window?: string}}} MpvStream
+ */
+
+/**
+ * window: the helper's id of the mpv it played in ('' for its own pipe's; none from a helper before 30); closed: the
+ * window named was gone, and nothing was started.
+ * @typedef {{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean, focus?: string,
+ *   foreground?: string, reused?: boolean, local?: string, window?: string, closed?: boolean}} StreamResult
  */
 
 /** @typedef {{response?: *, error?: string, noHost?: boolean}} HostAnswer */
@@ -213,8 +221,9 @@ export class MpvBackend {
     this.capabilities = null;
     /** @type {Promise<*>} */
     this.lastSend = Promise.resolve();
-    /** @type {?import('./MpvRelayWatch.mjs').MpvWatcher} */
-    this.watcher = null;
+    // One per mpv window, by the helper's id ('' for the one on its own pipe).
+    /** @type {Map<string, import('./MpvRelayWatch.mjs').MpvWatcher>} */
+    this.watchers = new Map();
   }
 
   /**
@@ -416,10 +425,8 @@ export class MpvBackend {
    * @param {string} [contentType]
    * @param {string} [pageUrl]
    * @param {string} [pageTitle]
-   * @param {{startTime?: number, private?: boolean, subtitles?: Array<{label: string, srt: string}>,
-   *   qualities?: Array<{url: string, label: string, height: number}>, hls?: {files: Array<{name: string, text: string}>}}} [extras]
-   * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean,
-   *   focus?: string, foreground?: string, reused?: boolean, local?: string}>}
+   * @param {MpvStream['extras']} [extras] - window: the helper's id of the open mpv to play in (helper 30).
+   * @return {Promise<StreamResult>}
    */
   openStream(url, tab, headers, contentType, pageUrl, pageTitle, extras = {}) {
     if (!MpvBackend.isStreamUrl(url)) {
@@ -461,8 +468,7 @@ export class MpvBackend {
   /**
    * One at a time: two at once with no mpv running each started an mpv on the same pipe name.
    * @param {MpvStream} stream
-   * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean,
-   *   focus?: string, foreground?: string, reused?: boolean, local?: string}>}
+   * @return {Promise<StreamResult>}
    */
   sendStream(stream) {
     const mine = this.lastSend.then(() => this.sendStreamNow(stream));
@@ -472,8 +478,7 @@ export class MpvBackend {
 
   /**
    * @param {MpvStream} stream
-   * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean,
-   *   focus?: string, foreground?: string, reused?: boolean, local?: string}>}
+   * @return {Promise<StreamResult>}
    */
   async sendStreamNow(stream) {
     if (this.mayUse(Capabilities.PLAY)) {
@@ -500,8 +505,7 @@ export class MpvBackend {
 
   /**
    * @param {HostAnswer} answer
-   * @return {{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean,
-   *   focus?: string, foreground?: string, reused?: boolean}}
+   * @return {StreamResult}
    */
   streamResult(answer) {
     if (answer.noHost) {
@@ -517,11 +521,15 @@ export class MpvBackend {
     }
     const response = answer.response;
     if (response && response.ok === false) {
-      return this.withHostState({ok: false, error: response.error || 'mpv host error'});
+      return this.withHostState({ok: false, error: response.error || 'mpv host error',
+        ...(response.closed === true ? {closed: true} : {})});
     }
     // The playlist file a stream's playlists were written to (helper 27): mpv's path for it.
     const local = response && typeof response.local === 'string' ? {local: response.local} : {};
-    return this.withHostState({ok: true, ...MpvBackend.focusOf(response), ...local});
+    // Only as a helper names it (30): an older one's is the window on its pipe.
+    const window = response && typeof response === 'object' && 'window' in response ? windowOf(response.window) : null;
+    return this.withHostState({ok: true, ...MpvBackend.focusOf(response), ...local,
+      ...(window !== null ? {window} : {})});
   }
 
   /**
@@ -631,6 +639,8 @@ export class MpvBackend {
 
     if (!this.singleInstance) {
       message.newWindow = true;
+    } else if (extras.window && this.capabilities?.includes(Capabilities.WINDOWS)) {
+      message.window = extras.window;
     }
 
     // Only for a helper that said it reads them (openInMpv): an older one would play the address without a word.
@@ -645,15 +655,19 @@ export class MpvBackend {
   }
 
   /**
-   * One at a time; while its port is open Firefox keeps the background running (docs/notes/mpv.md).
+   * One per mpv window; while its port is open Firefox keeps the background running (docs/notes/mpv.md).
    * @param {(message: MpvWatchEvent) => void} onEvent
+   * @param {string} [window] - The helper's id of the window (helper 30), '' for the one on its own pipe.
    * @return {import('./MpvRelayWatch.mjs').MpvWatcher}
    */
-  watch(onEvent) {
-    this.watcher?.stop();
+  watch(onEvent, window = '') {
+    this.watchers.get(window)?.stop();
     /** @type {?import('./MpvRelayWatch.mjs').MpvWatcher} */
     let current = null;
     let stopped = false;
+    const forget = () => {
+      if (this.watchers.get(window) === handle) this.watchers.delete(window);
+    };
     /** @type {import('./MpvRelayWatch.mjs').MpvWatcher} */
     const handle = {
       notify: (title, detail = '', seconds) => current?.notify(title, detail, seconds),
@@ -661,13 +675,13 @@ export class MpvBackend {
       state: (state) => current?.state(state),
       stop: () => {
         stopped = true;
-        if (this.watcher === handle) this.watcher = null;
+        forget();
         current?.stop();
       },
     };
     /** @param {MpvWatchEvent} event */
     const emit = (event) => {
-      if (event.type === 'closed' && this.watcher === handle) this.watcher = null;
+      if (event.type === 'closed') forget();
       onEvent(event);
     };
     /** @param {boolean} relay */
@@ -694,9 +708,10 @@ export class MpvBackend {
           if (!stopped) start(false);
         },
         decoderProperties: DecoderProperties,
+        window,
       }) : legacyWatch(port, emit);
     };
-    this.watcher = handle;
+    this.watchers.set(window, handle);
     start(this.mayUse(Capabilities.RELAY));
     return handle;
   }

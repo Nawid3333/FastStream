@@ -1192,6 +1192,23 @@ only the window's), `MpvNativeHost.test.mjs`
 `mpvHostVersion.test.mjs` (the host process refusing a bad window in ipc, relay, raise and play, and finding a
 gone one closed).
 
+### Several mpv windows in the extension
+
+- `MpvMode.mjs` keeps one `MpvWatch` per window followed (`mpvWindows`, by the helper's id, `''` for the one on its
+  pipe); `MpvBackend.watch` keeps one relay port per window, and `relay` names only a window other than `''`, so a
+  helper before 30 sees the same messages as before. The window comes from `play`'s answer; an older helper's
+  answer has none, which is `''`.
+- A tab's stream follows one window (`tab.mpvWindow`). Its next stream going to another window lets the one before
+  go (`letGoOfTab`): that window plays on, and its end and keys say "unavailable" at once, with no countdown.
+- MPV autoplay's next episode goes to the window it came from (`tab.mpvEpisodeWindow`, set when the page was
+  asked for it). A window other than `''` that closed ends its autoplay: the episode is not sent (no new window,
+  not `''`), and a `closed` answer to the play shows no error. The window on the helper's pipe keeps the old way:
+  its episode still opens a new mpv there.
+- The autoplay setting is one: a change in the options or by a window's key shows in every window's switch.
+
+**Tests.** `backgroundMpvThin.test.mjs` ("several mpv windows"), `MpvBackend.test.mjs` (the window in play
+only for a helper with `windows`), `MpvRelayWatch.test.mjs` (a watch per window).
+
 ## Background: reasons behind the code
 
 - **`MpvSubtitles.mjs`** - A track's file is read only up to twice the host's message cap

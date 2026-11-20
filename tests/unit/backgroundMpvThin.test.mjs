@@ -117,6 +117,9 @@ describe('MPV mode with the thin helper', () => {
   it('follows mpv over the relay: the end of the episode counts down to the next one', async () => {
     const port = await onEpisode1();
     expect(port.sent[0]).toMatchObject({type: 'relay', heartbeat: {property: 'user-data/faststream/heartbeat', everyMs: 30000}});
+    // A helper before 30 is told no window.
+    expect(port.sent[0]).not.toHaveProperty('window');
+    expect(plays()[0]).not.toHaveProperty('window');
     port.emit({type: 'relaying', ...Thin});
     await bg.wait(50);
     // mpv's autoplay switch shows the setting once the watch began.
@@ -144,4 +147,202 @@ describe('MPV mode with the thin helper', () => {
 
   /** The play messages sent. */
   const plays = () => bg.native.filter((m) => m.type === 'play');
+});
+
+describe('several mpv windows (helper 30)', () => {
+  const WindowB = '0123456789abcdef';
+  const Helper30 = {hostVersion: 30, capabilities: ['play', 'ipc', 'relay', 'windows']};
+  const EP2 = 'https://site.test/watch/2';
+  const S2 = 'https://cdn.test/two/master.m3u8';
+  const OTHER1 = 'https://site.test/other/1';
+  const SX1 = 'https://cdn.test/other-one/master.m3u8';
+  const OTHER2 = 'https://site.test/other/2';
+  const SX2 = 'https://cdn.test/other-two/master.m3u8';
+  let navigations;
+  let inWindowB;
+  let gone;
+
+  /**
+   * Helper 30: a play without a window plays in the one on its own pipe, unless the test put its stream in window B
+   * (what PR D's "new window" answer gives); a play into a window it no longer has answers closed.
+   * @param {Object} message
+   * @return {Object}
+   */
+  function helper30(message) {
+    if (message.type !== 'play') return {ok: true, ...Helper30};
+    if (message.window && gone.has(message.window)) {
+      return {ok: false, closed: true, error: 'the window was closed', ...Helper30};
+    }
+    const stream = message.target.split('#')[0];
+    return {ok: true, ...Helper30, window: message.window ?? (inWindowB.has(stream) ? WindowB : '')};
+  }
+
+  /** An episode page loads in a tab and asks for its stream. */
+  async function pageLoads(tabId, url, stream) {
+    await bg.navigated(tabId, url);
+    await bg.frameAdded(tabId, 0, url, `page-${url}`);
+    await bg.request({tabId, url: stream});
+    await bg.wait(500);
+  }
+
+  /**
+   * Tab 1's stream plays in the window on the helper's own pipe, tab 2's in window B.
+   * @param {Array<string>} [streamsInB]
+   * @return {Promise<{first: Object, second: Object}>} The ports of the two windows' watches.
+   */
+  async function twoWindows(streamsInB = [SX1]) {
+    navigations = [];
+    inWindowB = new Set(streamsInB);
+    gone = new Set();
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvSingleInstance: true, mpvAutoplayNext: true,
+        autoplayCountdown: 5},
+      tabs: [{id: 1, url: EP1, title: 'Show - Episode 1'}, {id: 2, url: OTHER1, title: 'Other - Episode 1'}],
+      fetch: (url) => new Promise((resolve) => setTimeout(() =>
+        resolve(url.startsWith('https://cdn.test/') ? response(hlsPlaylist(1400)) : response('', 404)), 300)),
+      thinHost: true,
+      onNative: helper30,
+      onTabMessage: ({tabId, frameId, message}) => {
+        if (message.type === 'GET_VIDEO_SIZE') return frameId === 0 ? 640 * 360 : 0;
+        if (message.type !== 'PLAYLIST_NAVIGATION') return undefined;
+        navigations.push({tabId, direction: message.direction});
+        return frameId === 0 ? 'clicked' : 'no_button';
+      },
+    });
+    await pageLoads(1, EP1, S1);
+    await pageLoads(2, OTHER1, SX1);
+    expect(bg.ports).toHaveLength(2);
+    const [first, second] = bg.ports;
+    first.emit({type: 'relaying', ...Helper30});
+    second.emit({type: 'relaying', ...Helper30});
+    await bg.wait(50);
+    return {first, second};
+  }
+
+  /** The tab's state, as the background keeps it. */
+  async function tabState(tabId) {
+    const {Tabs} = await import('../../chrome/background/background.mjs');
+    return Tabs.getTab(tabId);
+  }
+
+  const commands = (port) => port.sent.filter((m) => m.type === 'mpv').map((m) => m.command);
+  const notices = (port) => commands(port).filter((c) => c[0] === 'script-message-to' && c[2] === 'show').map((c) => c[5]);
+  const playOf = (stream) => bg.native.find((m) => m.type === 'play' && m.target.startsWith(stream + '#'));
+  const key = (port, name) => port.emit({type: 'mpv', data: {event: 'client-message', args: [`faststream-${name}`]}});
+  const ends = (port, target) => {
+    for (const [name, data] of [['path', target], ['eof-reached', false], ['eof-reached', true]]) {
+      port.emit({type: 'mpv', data: {event: 'property-change', id: 1, name, data}});
+    }
+  };
+
+  it('follows each window by itself: its end counts down in it and goes on in its own tab', async () => {
+    const {first, second} = await twoWindows();
+    expect(first.sent[0].type).toBe('relay');
+    expect(first.sent[0]).not.toHaveProperty('window');
+    expect(second.sent[0]).toMatchObject({type: 'relay', window: WindowB});
+    expect((await tabState(1)).mpvWindow).toBe('');
+    expect((await tabState(2)).mpvWindow).toBe(WindowB);
+
+    ends(second, playOf(SX1).target);
+    await bg.wait(1500);
+    expect(notices(second)).toEqual(['next episode in 5 s (n: now, Space: stop)']);
+    expect(notices(first)).toEqual([]);
+    await bg.wait(5000);
+    expect(navigations).toEqual([{tabId: 2, direction: 'next'}]);
+
+    key(first, 'next');
+    await bg.wait(100);
+    expect(navigations).toEqual([{tabId: 2, direction: 'next'}, {tabId: 1, direction: 'next'}]);
+  });
+
+  it('sends the next episode to the window it came from, and to the one on the helper\'s own pipe without a window', async () => {
+    const {first, second} = await twoWindows();
+    key(second, 'next');
+    key(first, 'next');
+    await bg.wait(100);
+    await pageLoads(2, OTHER2, SX2);
+    await pageLoads(1, EP2, S2);
+    expect(playOf(SX2)).toMatchObject({window: WindowB});
+    expect(playOf(S2)).not.toHaveProperty('window');
+    // Each window's watch goes on with its tab's episode.
+    expect(bg.ports).toHaveLength(2);
+    ends(second, playOf(SX2).target);
+    await bg.wait(1500);
+    expect(notices(second).at(-1)).toBe('next episode in 5 s (n: now, Space: stop)');
+    expect(notices(first).at(-1)).toBe('loading in mpv');
+  });
+
+  it('sends no next episode for a window closed meanwhile, and the other window plays on', async () => {
+    const {first, second} = await twoWindows();
+    key(second, 'next');
+    await bg.wait(100);
+    second.emit({type: 'closed', reason: 'mpv closed'});
+    await bg.wait(100);
+    expect((await tabState(2)).mpvWindow).toBe(null);
+    await pageLoads(2, OTHER2, SX2);
+    expect(playOf(SX2)).toBeUndefined();
+    expect(bg.badges.get(2)).not.toBe('!');
+
+    key(first, 'next');
+    await bg.wait(100);
+    expect(navigations.at(-1)).toEqual({tabId: 1, direction: 'next'});
+  });
+
+  it('shows no error when the helper says the episode\'s window has just closed', async () => {
+    const {second} = await twoWindows();
+    key(second, 'next');
+    await bg.wait(100);
+    gone.add(WindowB);
+    const playsBefore = bg.native.filter((m) => m.type === 'play').length;
+    await pageLoads(2, OTHER2, SX2);
+    expect(bg.native.filter((m) => m.type === 'play')).toHaveLength(playsBefore + 1);
+    expect(playOf(SX2)).toMatchObject({window: WindowB});
+    expect((await tabState(2)).mpvError).toBeFalsy();
+    expect(bg.badges.get(2)).not.toBe('!');
+  });
+
+  it('still sends the next episode of the window on the helper\'s own pipe once it closed, as before', async () => {
+    const {first} = await twoWindows();
+    key(first, 'next');
+    await bg.wait(100);
+    first.emit({type: 'closed', reason: 'mpv closed'});
+    await bg.wait(100);
+    await pageLoads(1, EP2, S2);
+    expect(playOf(S2)).toBeDefined();
+    expect(playOf(S2)).not.toHaveProperty('window');
+  });
+
+  it('shows the autoplay setting in every window, changed in the options or by a window\'s key', async () => {
+    const {first, second} = await twoWindows();
+    const switches = (port) => commands(port).filter((c) => c[0] === 'set_property' && c[1] === 'user-data/faststream/autoplay')
+        .map((c) => c[2]);
+    key(second, 'autoplay');
+    await bg.wait(100);
+    expect(switches(first).at(-1)).toBe(false);
+    expect(switches(second).at(-1)).toBe(false);
+    bg.options = {...bg.options, mpvAutoplayNext: true};
+    await bg.message({type: 'LOAD_OPTIONS'});
+    await bg.wait(100);
+    expect(switches(first).at(-1)).toBe(true);
+    expect(switches(second).at(-1)).toBe(true);
+  });
+
+  it('lets the window before go once the tab\'s stream went to another: its end and keys say the episode is unavailable', async () => {
+    const {first, second} = await twoWindows([SX1, S2]);
+    // Tab 1's next page plays in window B; the window on the helper's own pipe plays on.
+    await pageLoads(1, EP2, S2);
+    expect((await tabState(1)).mpvWindow).toBe(WindowB);
+    expect((await tabState(2)).mpvWindow).toBe(null);
+    ends(first, playOf(S1).target);
+    await bg.wait(100);
+    expect(notices(first)).toEqual(['its tab is closed, or not in MPV mode']);
+    key(first, 'next');
+    await bg.wait(100);
+    expect(notices(first)).toEqual(['its tab is closed, or not in MPV mode', 'its tab is closed, or not in MPV mode']);
+    expect(navigations).toEqual([]);
+
+    key(second, 'next');
+    await bg.wait(100);
+    expect(navigations).toEqual([{tabId: 1, direction: 'next'}]);
+  });
 });

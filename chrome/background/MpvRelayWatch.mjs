@@ -71,16 +71,20 @@ function noticeText(text) {
  */
 
 /** @typedef {{type: 'mpv', command: Array<*>, id?: number}} MpvCommand */
-/** @typedef {MpvCommand|{type: 'relay', heartbeat: {property: string, everyMs: number}, onStop: Array<Array<*>>}} ToHelperMessage */
+/**
+ * @typedef {MpvCommand|{type: 'relay', heartbeat: {property: string, everyMs: number}, onStop: Array<Array<*>>,
+ *   window?: string}} ToHelperMessage
+ */
 
 /**
  * Follows mpv's file, its end and its episode keys. An end: eof-reached false -> true, an end-file "eof", or a pause or seek in the last EndSlackSeconds.
  * @param {*} port
  * @param {(event: import('./MpvBackend.mjs').RelayEvent) => void} onEvent
- * @param {{onLegacy?: () => void, decoderProperties?: Array<string>}} [options]
+ * @param {{onLegacy?: () => void, decoderProperties?: Array<string>, window?: string}} [options] - window: the
+ *   helper's id of the mpv to follow (helper 30), '' for the one on its own pipe.
  * @return {MpvWatcher}
  */
-export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {}) {
+export function relayWatch(port, onEvent, {onLegacy, decoderProperties = [], window = ''} = {}) {
   let ended = false;
   let relaying = false;
   /** @type {Array<MpvCommand>} */
@@ -289,6 +293,8 @@ export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {
     heartbeat: {property: HeartbeatProperty, everyMs: HeartbeatMs},
     // On the port's close, not mpv's: mpv runs on, and its episode buttons would send to no one.
     onStop: [['set_property', ConnectedProperty, false]],
+    // Only another window's: the one on the helper's own pipe needs none, as before helper 30.
+    ...(window ? {window} : {}),
   });
 
   return {

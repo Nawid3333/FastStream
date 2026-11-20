@@ -32,7 +32,7 @@ import {TabTracker} from './TabTracker.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 import {VpnProxyMirror} from './VpnProxyMirror.mjs';
 import {youTubeVideo} from './YouTubeVideo.mjs';
-import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPendingMs, autoOpenInMpv, inheritMpv, leaveMpvWhenOff, mpvWatch, noteMpvTabClosed, onToggleMpv, openInMpv, openMpvWithSources, pickNextEpisodeForMpv, resolveMpvContentType, sendPlayedToMpv, setMpvError, startMpv, stopMpv, syncMpvAutoplay, watchNextEpisodeArrives} from './MpvMode.mjs';
+import {Mpv, MpvAllowlist, MpvNoticeSeconds, MpvPlayKnownAfterMs, MpvPlayPendingMs, autoOpenInMpv, inheritMpv, leaveMpvWhenOff, noteMpvTabClosed, onToggleMpv, openInMpv, openMpvWithSources, pickNextEpisodeForMpv, resolveMpvContentType, sendPlayedToMpv, setMpvError, startMpv, stopMpv, syncAllMpvAutoplay, watchNextEpisodeArrives} from './MpvMode.mjs';
 
 /** @typedef {typeof import('../player/options/defaults/DefaultOptions.mjs').DefaultOptions} PlayerOptions */
 
@@ -754,7 +754,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       leaveMpvWhenOff();
       forgetOffsForNewEntries(allowlistBefore);
       // mpv's autoplay switch shows the setting the options page just changed.
-      syncMpvAutoplay(mpvWatch);
+      syncAllMpvAutoplay();
     }).catch((e) => console.error('Loading the new options failed', e))
         // Answered once in effect: a page the sender opened at once was checked against the old allowlist.
         .finally(() => sendResponse(true));

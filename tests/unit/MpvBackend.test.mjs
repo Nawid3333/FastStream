@@ -519,6 +519,44 @@ describe('the thin helper', () => {
     expect(sent).toStrictEqual([{type: 'play', target: 'https://cdn.test/a.mp4', title: 'cdn.test', fullscreen: true, newWindow: true}]);
   });
 
+  it('plays in the mpv window named only with a helper that has windows (30), and passes on the one it played in', async () => {
+    const Window = '0123456789abcdef';
+    const Windows = {hostVersion: RequiredHostVersion, capabilities: ['play', 'ipc', 'relay', 'windows']};
+    let sent = helper(() => ({ok: true, ...Windows, window: Window}));
+    const backend = new MpvBackend();
+    backend.capabilities = Windows.capabilities;
+    expect(await backend.openStream('https://cdn.test/a.mp4', undefined, undefined, undefined, undefined, undefined,
+        {window: Window})).toEqual({ok: true, window: Window});
+    expect(sent[0].window).toBe(Window);
+    expect(checkPlayMessage(sent[0])).toMatchObject({ok: true, play: {window: Window}});
+    // The one on its own pipe needs no name.
+    sent = helper(() => ({ok: true, ...Windows, window: ''}));
+    expect(await backend.openStream('https://cdn.test/b.mp4', undefined, undefined, undefined, undefined, undefined,
+        {window: ''})).toEqual({ok: true, window: ''});
+    expect(sent[0]).not.toHaveProperty('window');
+    // Gone: the helper started nothing.
+    helper(() => ({ok: false, closed: true, error: 'that mpv window was closed', ...Windows}));
+    expect(await backend.openStream('https://cdn.test/c.mp4', undefined, undefined, undefined, undefined, undefined,
+        {window: Window})).toEqual({ok: false, closed: true, error: 'that mpv window was closed'});
+    // An older helper is never sent one, and its answer names none.
+    sent = helper();
+    const older = new MpvBackend();
+    older.capabilities = Thin.capabilities;
+    expect(await older.openStream('https://cdn.test/d.mp4', undefined, undefined, undefined, undefined, undefined,
+        {window: Window})).toEqual({ok: true});
+    expect(sent[0]).not.toHaveProperty('window');
+    // A window per stream (the option) asks for a new one, never a named one.
+    sent = helper(() => ({ok: true, ...Windows, window: 'fedcba9876543210'}));
+    backend.singleInstance = false;
+    expect(await backend.openStream('https://cdn.test/e.mp4', undefined, undefined, undefined, undefined, undefined,
+        {window: Window})).toEqual({ok: true, window: 'fedcba9876543210'});
+    expect(sent[0]).toMatchObject({newWindow: true});
+    expect(sent[0]).not.toHaveProperty('window');
+    // An answer no helper gives names none.
+    helper(() => ({ok: true, ...Windows, window: '../other-pipe'}));
+    expect(await backend.openStream('https://cdn.test/f.mp4')).toEqual({ok: true});
+  });
+
   it('leaves out what the helper would refuse the whole message for', async () => {
     const sent = helper();
     const backend = new MpvBackend();

@@ -26,6 +26,7 @@ const CHECKED = [
   'chrome/background/MpvRelayWatch.mjs',
   'chrome/background/MpvSubtitles.mjs',
   'chrome/background/MpvTarget.mjs',
+  'chrome/background/MpvWindows.mjs',
   'chrome/background/MultiRegexMatcher.mjs',
   'chrome/background/NetRequestRuleManager.mjs',
   'chrome/background/PageFetchRelay.mjs',
