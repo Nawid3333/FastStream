@@ -992,6 +992,45 @@
     "options_export": {
         "message": "Eksportuj ustawienia do pliku"
     },
+    "options_cloud_export": {
+        "message": "Eksportuj do chmury"
+    },
+    "options_cloud_import": {
+        "message": "Importuj z chmury"
+    },
+    "options_cloud_status_saved": {
+        "message": "Kopia w chmurze: zapisana $1 ($2)"
+    },
+    "options_cloud_status_none": {
+        "message": "Nie ma jeszcze kopii w chmurze"
+    },
+    "options_cloud_hint": {
+        "message": "Kopia w chmurze dociera na inne komputery tylko wtedy, gdy Firefox jest zalogowany na konto Mozilli, a w ustawieniach synchronizacji Firefoksa zaznaczono „Dodatki”. Firefox synchronizuje mniej więcej co 10 minut; „Synchronizuj teraz” działa szybciej."
+    },
+    "options_cloud_confirm": {
+        "message": "Zastąpić ustawienia kopią z chmury zapisaną $1 ($2)?"
+    },
+    "options_cloud_replace": {
+        "message": "Zastąp"
+    },
+    "options_cloud_none": {
+        "message": "Nie ma jeszcze kopii w chmurze. Najpierw wyeksportuj ustawienia z innego komputera; jeśli eksport był przed chwilą, użyj „Synchronizuj teraz” w Firefoksie i spróbuj ponownie."
+    },
+    "options_cloud_quota": {
+        "message": "Za duże na 100 KB pamięci synchronizacji Firefoksa. Skróć listy adresów URL albo użyj eksportu do pliku."
+    },
+    "options_cloud_incomplete": {
+        "message": "Kopia w chmurze jest niekompletna; być może wciąż trwa synchronizacja. Spróbuj ponownie za kilka minut."
+    },
+    "options_cloud_export_done": {
+        "message": "Wyeksportowano ustawienia do chmury."
+    },
+    "options_cloud_import_done": {
+        "message": "Zaimportowano ustawienia z chmury."
+    },
+    "options_cloud_failed": {
+        "message": "Błąd pamięci synchronizacji Firefoksa: $1"
+    },
     "options_keybinds_header": {
         "message": "Skróty klawiszowe"
     },

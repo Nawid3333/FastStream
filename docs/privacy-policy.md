@@ -1,7 +1,7 @@
 # Privacy Policy
 
 **FastStream Video Player (Firefox)**
-Last updated: 2026-11-17
+Last updated: 2026-11-20
 
 ## Summary
 
@@ -10,9 +10,10 @@ sites whose videos you play, it contacts only OpenSubtitles, when you search
 for subtitles yourself (see "Subtitle search" below), and GitHub, for updates
 (see "Network requests").
 
-Everything it stores stays in your browser profile on your own machine. There
-is no account, no analytics, no crash reporting, no usage counter, and nothing
-is sent about you or what you watch.
+Everything it stores stays in your browser profile on your own machine, unless
+you click "Export to cloud" (see below). There is no account, no analytics, no
+crash reporting, no usage counter, and nothing is sent about you or what you
+watch.
 
 The add-on's manifest declares this to Firefox as
 `data_collection_permissions: {"required": ["none"]}`.
@@ -26,8 +27,16 @@ add-on's own pages, the audio tools' settings, remembered playback positions
 itself), and temporary video data for buffering and saving (the Cache API
 and the origin-private file system).
 
-It is **not** `browser.storage.sync`, so nothing is ever uploaded to a
-Mozilla account or copied to your other devices.
+Only when you click "Export to cloud" on the options page does the add-on
+write a copy of your settings to `browser.storage.sync`: the same settings an
+exported settings file holds (without the mpv path), which include your
+auto-enable and MPV allowlist sites, plus the time of the export and your
+operating system's name (such as "win"), no device name. If Firefox is signed
+in to a Mozilla account with "Add-ons" ticked in its Sync settings, Firefox
+Sync uploads that copy to your account, encrypted as Firefox Sync encrypts
+your other data, and takes it to your other computers; otherwise it stays on
+this computer. "Import from cloud" reads it back. The add-on itself sends it
+nowhere.
 
 What lives there is your own configuration: playback preferences, subtitle
 and audio settings, keybindings, and similar options you set yourself. You
@@ -124,7 +133,7 @@ log on (`README-MPV.md`).
 
 | Permission | Why |
 |---|---|
-| `storage` | Saves your settings locally (see above). |
+| `storage` | Saves your settings locally, and in `storage.sync` only when you click "Export to cloud" (see above). |
 | `tabs` | Lets the player know which tab a video belongs to, so it can attach to the right one. |
 | `webRequest`, `declarativeNetRequest` | Reads and adjusts request headers for the video streams you play. Some hosts serve media only with particular `Referer`/`Origin` headers, or with the headers of the page's own request; without this the video will not load. Cookies go only to the site they were sent to (see "Network requests"). |
 | `downloads` | Saves a video or subtitle file when *you* click download. Nothing is downloaded without your action. |

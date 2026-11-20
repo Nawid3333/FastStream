@@ -992,6 +992,45 @@
     "options_export": {
         "message": "Exporter les paramètres vers un fichier"
     },
+    "options_cloud_export": {
+        "message": "Exporter vers le cloud"
+    },
+    "options_cloud_import": {
+        "message": "Importer depuis le cloud"
+    },
+    "options_cloud_status_saved": {
+        "message": "Copie dans le cloud : enregistrée le $1 ($2)"
+    },
+    "options_cloud_status_none": {
+        "message": "Aucune copie dans le cloud pour l'instant"
+    },
+    "options_cloud_hint": {
+        "message": "La copie dans le cloud n'atteint vos autres ordinateurs que si Firefox est connecté à un compte Mozilla avec « Modules complémentaires » coché dans les paramètres de synchronisation de Firefox. Firefox synchronise environ toutes les 10 minutes ; « Synchroniser maintenant » est plus rapide."
+    },
+    "options_cloud_confirm": {
+        "message": "Remplacer vos paramètres par la copie du cloud enregistrée le $1 ($2) ?"
+    },
+    "options_cloud_replace": {
+        "message": "Remplacer"
+    },
+    "options_cloud_none": {
+        "message": "Aucune copie dans le cloud pour l'instant. Exportez d'abord depuis un autre ordinateur ; si vous venez de le faire, utilisez « Synchroniser maintenant » dans Firefox et réessayez."
+    },
+    "options_cloud_quota": {
+        "message": "Trop volumineux pour les 100 Ko de stockage de synchronisation de Firefox. Raccourcissez les listes d'URL, ou utilisez l'exportation vers un fichier."
+    },
+    "options_cloud_incomplete": {
+        "message": "La copie dans le cloud est incomplète ; elle est peut-être encore en cours de synchronisation. Réessayez dans quelques minutes."
+    },
+    "options_cloud_export_done": {
+        "message": "Paramètres exportés vers le cloud."
+    },
+    "options_cloud_import_done": {
+        "message": "Paramètres importés depuis le cloud."
+    },
+    "options_cloud_failed": {
+        "message": "Le stockage de synchronisation de Firefox a échoué : $1"
+    },
     "options_keybinds_header": {
         "message": "Raccourcis clavier"
     },

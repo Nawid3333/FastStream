@@ -380,6 +380,35 @@ button:focus-visible {
   margin: 0;
 }
 
+/* CloudSettings.mjs: hidden on Firefox for Android and in the web build. */
+#cloudsettings {
+  margin-top: var(--space-3);
+}
+
+#cloudsettings[hidden],
+#cloudquestion[hidden] {
+  display: none;
+}
+
+#cloudquestion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+#cloudstatus,
+#cloudresult:not(:empty) {
+  margin-top: var(--space-2);
+}
+
+#cloudhint {
+  margin-top: var(--space-2);
+  font-size: 0.9em;
+  opacity: 0.8;
+}
+
 .searchcontainer {
   top: var(--space-2);
   z-index: 10;

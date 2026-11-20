@@ -54,6 +54,10 @@ A video that fits in the RAM you gave it is never written to the disk. With the 
 
 Reloading the page doesn't throw the buffer away. FastStream keeps what it had downloaded, in RAM and on the disk, for 20 seconds, and the player of the reloaded page plays on with it, also when the site gives the video a new signed link at every load. Whatever no player takes back within those 20 seconds is let go of, and its files are deleted.
 
+## Your settings on several computers
+
+The options page exports all settings to a file and imports them again (Options > Import/Export Settings). Below those buttons, **Export to cloud** and **Import from cloud** do the same through Firefox Sync: the copy reaches your other computers only when Firefox is signed in to a Mozilla account with "Add-ons" checked in Firefox's Sync settings (Firefox syncs about every 10 minutes; "Sync Now" is faster). Firefox gives add-ons 100 KB there; very long URL lists need the file instead. This is for Firefox on the desktop only: Firefox for Android keeps add-on storage on the phone, so the cloud buttons are not shown there. Firefox Sync carries the copy, as it does your bookmarks; FastStream itself still contacts no server of its own.
+
 ## Browser compatibility
 
 FastStream is built for Firefox on the desktop. It also runs in Firefox for Android: see [Firefox for Android](#firefox-for-android). Chrome and other Chromium browsers are not supported and are not tested.

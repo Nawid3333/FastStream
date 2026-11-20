@@ -992,6 +992,45 @@
     "options_export": {
         "message": "导出设置到文件"
     },
+    "options_cloud_export": {
+        "message": "导出到云端"
+    },
+    "options_cloud_import": {
+        "message": "从云端导入"
+    },
+    "options_cloud_status_saved": {
+        "message": "云端副本：保存于 $1（$2）"
+    },
+    "options_cloud_status_none": {
+        "message": "尚无云端副本"
+    },
+    "options_cloud_hint": {
+        "message": "只有当 Firefox 已登录 Mozilla 账号，并在 Firefox 的同步设置中勾选了“附加组件”时，云端副本才会到达你的其他电脑。Firefox 大约每 10 分钟同步一次；点“立即同步”会更快。"
+    },
+    "options_cloud_confirm": {
+        "message": "要用保存于 $1（$2）的云端副本替换你的设置吗？"
+    },
+    "options_cloud_replace": {
+        "message": "替换"
+    },
+    "options_cloud_none": {
+        "message": "尚无云端副本。请先在另一台电脑上导出；如果刚刚导出过，请在 Firefox 中点“立即同步”后重试。"
+    },
+    "options_cloud_quota": {
+        "message": "超出 Firefox 100 KB 的同步存储空间。请缩短网址列表，或改用导出到文件。"
+    },
+    "options_cloud_incomplete": {
+        "message": "云端副本不完整，可能仍在同步中。请几分钟后重试。"
+    },
+    "options_cloud_export_done": {
+        "message": "设置已导出到云端。"
+    },
+    "options_cloud_import_done": {
+        "message": "设置已从云端导入。"
+    },
+    "options_cloud_failed": {
+        "message": "Firefox 同步存储出错：$1"
+    },
     "options_keybinds_header": {
         "message": "键盘快捷键"
     },

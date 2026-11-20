@@ -992,6 +992,45 @@
     "options_export": {
         "message": "Ekspor Pengaturan ke Berkas"
     },
+    "options_cloud_export": {
+        "message": "Ekspor ke Cloud"
+    },
+    "options_cloud_import": {
+        "message": "Impor dari Cloud"
+    },
+    "options_cloud_status_saved": {
+        "message": "Salinan cloud: disimpan $1 ($2)"
+    },
+    "options_cloud_status_none": {
+        "message": "Belum ada salinan cloud"
+    },
+    "options_cloud_hint": {
+        "message": "Salinan cloud hanya sampai ke komputer Anda yang lain jika Firefox masuk ke akun Mozilla dengan \"Pengaya\" dicentang di pengaturan Sync Firefox. Firefox menyinkronkan sekitar setiap 10 menit; \"Sinkronkan Sekarang\" lebih cepat."
+    },
+    "options_cloud_confirm": {
+        "message": "Ganti pengaturan Anda dengan salinan cloud yang disimpan $1 ($2)?"
+    },
+    "options_cloud_replace": {
+        "message": "Ganti"
+    },
+    "options_cloud_none": {
+        "message": "Belum ada salinan cloud. Ekspor dari komputer lain terlebih dahulu; jika baru saja melakukannya, gunakan \"Sinkronkan Sekarang\" di Firefox lalu coba lagi."
+    },
+    "options_cloud_quota": {
+        "message": "Terlalu besar untuk penyimpanan sinkronisasi Firefox yang 100 KB. Persingkat daftar URL, atau gunakan ekspor ke berkas."
+    },
+    "options_cloud_incomplete": {
+        "message": "Salinan cloud belum lengkap; mungkin masih disinkronkan. Coba lagi dalam beberapa menit."
+    },
+    "options_cloud_export_done": {
+        "message": "Pengaturan diekspor ke cloud."
+    },
+    "options_cloud_import_done": {
+        "message": "Pengaturan diimpor dari cloud."
+    },
+    "options_cloud_failed": {
+        "message": "Penyimpanan sinkronisasi Firefox gagal: $1"
+    },
     "options_keybinds_header": {
         "message": "Pintasan Keyboard"
     },

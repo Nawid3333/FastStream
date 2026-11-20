@@ -100,6 +100,7 @@ const CHECKED = [
   'chrome/player/network/StreamQuery.mjs',
   'chrome/player/network/UntimedSpans.mjs',
   'chrome/player/network/opfs-worker.mjs',
+  'chrome/player/options/CloudSettings.mjs',
   'chrome/player/options/KeybindUtils.mjs',
   'chrome/player/options/SettingsFile.mjs',
   'chrome/player/options/MpvSuggestion.mjs',

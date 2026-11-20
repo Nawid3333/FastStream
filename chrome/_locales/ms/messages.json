@@ -992,6 +992,45 @@
     "options_export": {
         "message": "Eksport Tetapan ke Fail"
     },
+    "options_cloud_export": {
+        "message": "Eksport ke Awan"
+    },
+    "options_cloud_import": {
+        "message": "Import Daripada Awan"
+    },
+    "options_cloud_status_saved": {
+        "message": "Salinan awan: disimpan $1 ($2)"
+    },
+    "options_cloud_status_none": {
+        "message": "Belum ada salinan awan"
+    },
+    "options_cloud_hint": {
+        "message": "Salinan awan hanya sampai ke komputer anda yang lain apabila Firefox log masuk ke akaun Mozilla dengan \"Add-on\" ditanda dalam tetapan Sync Firefox. Firefox menyegerak kira-kira setiap 10 minit; \"Sync Sekarang\" lebih pantas."
+    },
+    "options_cloud_confirm": {
+        "message": "Gantikan tetapan anda dengan salinan awan yang disimpan $1 ($2)?"
+    },
+    "options_cloud_replace": {
+        "message": "Gantikan"
+    },
+    "options_cloud_none": {
+        "message": "Belum ada salinan awan. Eksport dari komputer lain dahulu; jika anda baru melakukannya, gunakan \"Sync Sekarang\" dalam Firefox dan cuba lagi."
+    },
+    "options_cloud_quota": {
+        "message": "Terlalu besar untuk storan penyegerakan Firefox sebanyak 100 KB. Pendekkan senarai URL, atau gunakan eksport ke fail."
+    },
+    "options_cloud_incomplete": {
+        "message": "Salinan awan tidak lengkap; ia mungkin masih disegerakkan. Cuba lagi dalam beberapa minit."
+    },
+    "options_cloud_export_done": {
+        "message": "Tetapan dieksport ke awan."
+    },
+    "options_cloud_import_done": {
+        "message": "Tetapan diimport daripada awan."
+    },
+    "options_cloud_failed": {
+        "message": "Storan penyegerakan Firefox gagal: $1"
+    },
     "options_keybinds_header": {
         "message": "Pintasan Papan Kekunci"
     },

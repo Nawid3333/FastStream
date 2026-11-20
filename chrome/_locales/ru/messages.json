@@ -992,6 +992,45 @@
     "options_export": {
         "message": "Экспорт настроек в файл"
     },
+    "options_cloud_export": {
+        "message": "Экспорт в облако"
+    },
+    "options_cloud_import": {
+        "message": "Импорт из облака"
+    },
+    "options_cloud_status_saved": {
+        "message": "Копия в облаке: сохранена $1 ($2)"
+    },
+    "options_cloud_status_none": {
+        "message": "Копии в облаке пока нет"
+    },
+    "options_cloud_hint": {
+        "message": "Копия в облаке попадает на ваши другие компьютеры, только если в Firefox выполнен вход в аккаунт Mozilla и в настройках синхронизации Firefox отмечены «Дополнения». Firefox синхронизируется примерно раз в 10 минут; «Синхронизировать» работает быстрее."
+    },
+    "options_cloud_confirm": {
+        "message": "Заменить ваши настройки копией из облака, сохранённой $1 ($2)?"
+    },
+    "options_cloud_replace": {
+        "message": "Заменить"
+    },
+    "options_cloud_none": {
+        "message": "Копии в облаке пока нет. Сначала выполните экспорт на другом компьютере; если вы только что это сделали, нажмите «Синхронизировать» в Firefox и попробуйте снова."
+    },
+    "options_cloud_quota": {
+        "message": "Слишком большой объём для хранилища синхронизации Firefox в 100 КБ. Сократите списки URL или используйте экспорт в файл."
+    },
+    "options_cloud_incomplete": {
+        "message": "Копия в облаке неполная; возможно, синхронизация ещё не завершена. Попробуйте снова через несколько минут."
+    },
+    "options_cloud_export_done": {
+        "message": "Настройки экспортированы в облако."
+    },
+    "options_cloud_import_done": {
+        "message": "Настройки импортированы из облака."
+    },
+    "options_cloud_failed": {
+        "message": "Ошибка хранилища синхронизации Firefox: $1"
+    },
     "options_keybinds_header": {
         "message": "Сочетания клавиш"
     },

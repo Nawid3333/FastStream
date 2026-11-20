@@ -21,6 +21,7 @@ import {AspectRatios} from './defaults/AspectRatios.mjs';
 import {ColorThemes} from './defaults/ColorThemes.mjs';
 import {MpvSuggestion} from './MpvSuggestion.mjs';
 import {holdImportedNumbers, importedForMigration, settingsForExport} from './SettingsFile.mjs';
+import {CloudSettings} from './CloudSettings.mjs';
 import {WebStorage} from '../utils/WebStorage.mjs';
 
 // Empty until loadOptions: the select menus below are built before it.
@@ -120,6 +121,22 @@ const showMpvOptions = () => {
   /** @type {HTMLElement} */ (document.getElementById('mpvsection')).hidden = hidden;
 };
 showMpvOptions();
+const cloudSettings = new CloudSettings({
+  box: /** @type {HTMLElement} */ (document.getElementById('cloudsettings')),
+  exportButton: /** @type {HTMLButtonElement} */ (document.getElementById('cloudexport')),
+  importButton: /** @type {HTMLButtonElement} */ (document.getElementById('cloudimport')),
+  question: /** @type {HTMLElement} */ (document.getElementById('cloudquestion')),
+  questionText: /** @type {HTMLElement} */ (document.getElementById('cloudquestiontext')),
+  replaceButton: /** @type {HTMLButtonElement} */ (document.getElementById('cloudreplace')),
+  cancelButton: /** @type {HTMLButtonElement} */ (document.getElementById('cloudcancel')),
+  status: /** @type {HTMLElement} */ (document.getElementById('cloudstatus')),
+  result: /** @type {HTMLElement} */ (document.getElementById('cloudresult')),
+  area: EnvUtils.isExtension() ? chrome.storage?.sync : undefined,
+  settings: settingsToExport,
+  apply: applyImportedSettings,
+  os: () => EnvUtils.os(),
+  isAndroid: () => EnvUtils.isAndroid(),
+});
 const offerMpvWhenReady = () => {
   if (mpvSuggestion && optionsLoaded && pageSeen && platformKnown && !EnvUtils.isAndroid()) {
     mpvSuggestion.check().catch((e) => console.error('Asking the mpv host failed', e));
@@ -129,6 +146,7 @@ const offerMpvWhenReady = () => {
 EnvUtils.os().then(() => {
   platformKnown = true;
   showMpvOptions();
+  cloudSettings.showWhereItWorks();
   offerMpvWhenReady();
 }).catch((e) => console.error('Reading the platform failed', e));
 OptionsStore.init().then(() => {
@@ -1040,32 +1058,48 @@ importButton.addEventListener('click', () => {
       alert(Localize.getMessage('options_import_invalid'));
       return;
     }
-    newOptionsObj = importedForMigration(newOptionsObj);
-    const newOptions = Utils.migrateClickActions(Utils.migrateSizes(Utils.migrateKeybinds(
-        Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj), newOptionsObj), newOptionsObj);
-    // Never imported: a shared file could name a program planted on this computer.
-    /** @type {Object<string, *>} */ (newOptions).mpvPath = typeof Options.mpvPath === 'string' ? Options.mpvPath : '';
-    holdToFields(newOptions);
-    holdImportedNumbers(newOptions);
-    const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
-    const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
-    loadOptions(newOptions);
-    optionChanged();
-
-    Utils.setConfig('subtitlesSettings', JSON.stringify(subtitlesSettings));
-    Utils.setConfig('toolSettings', JSON.stringify(toolSettings));
+    applyImportedSettings(newOptionsObj);
   });
   document.body.appendChild(picker);
   picker.click();
   picker.remove();
 });
 
-exportButton.addEventListener('click', async () => {
-  const blob = new Blob([JSON.stringify({
+/**
+ * Takes imported settings (a file's, the cloud copy's) as the page's own and saves them.
+ * @param {Object<string, *>} newOptionsObj - What settingsToExport wrote.
+ */
+function applyImportedSettings(newOptionsObj) {
+  newOptionsObj = importedForMigration(newOptionsObj);
+  const newOptions = Utils.migrateClickActions(Utils.migrateSizes(Utils.migrateKeybinds(
+      Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj), newOptionsObj), newOptionsObj);
+  // Never imported: a shared file could name a program planted on this computer.
+  /** @type {Object<string, *>} */ (newOptions).mpvPath = typeof Options.mpvPath === 'string' ? Options.mpvPath : '';
+  holdToFields(newOptions);
+  holdImportedNumbers(newOptions);
+  const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
+  const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
+  loadOptions(newOptions);
+  optionChanged();
+
+  Utils.setConfig('subtitlesSettings', JSON.stringify(subtitlesSettings));
+  Utils.setConfig('toolSettings', JSON.stringify(toolSettings));
+}
+
+/**
+ * What the settings file and the cloud copy hold.
+ * @return {Promise<Object<string, *>>}
+ */
+async function settingsToExport() {
+  return {
     ...settingsForExport(await Utils.getOptionsFromStorage()),
     subtitlesSettings: await Utils.getSubtitlesSettingsFromStorage(),
     toolSettings: await Utils.loadAndParseOptions('toolSettings', DefaultToolSettings),
-  }, null, 2)], {type: 'application/json'});
+  };
+}
+
+exportButton.addEventListener('click', async () => {
+  const blob = new Blob([JSON.stringify(await settingsToExport(), null, 2)], {type: 'application/json'});
   const url = URL.createObjectURL(blob);
   Utils.downloadURL(url, 'faststream-options.json', true);
   URL.revokeObjectURL(url);
@@ -1103,6 +1137,7 @@ if (EnvUtils.isExtension()) {
     if (entry.isIntersecting) {
       pageSeen = true;
       offerMpvWhenReady();
+      cloudSettings.pageSeen();
     }
   });
   o.observe(document.body);

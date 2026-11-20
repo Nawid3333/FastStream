@@ -1996,6 +1996,68 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
   redraw then would rebuild the keybind rows (the box a key was just pressed in loses focus), move
   a number field's caret and undo a search, so the page skips the options it saved last.
 
+## Settings in the cloud
+
+"Export to cloud" and "Import from cloud" on the options page, below the file buttons
+(`CloudSettings.mjs`, 2026-11-20), keep a copy of the settings in `storage.sync`, which Firefox
+Sync takes to the user's other computers when Firefox is signed in to a Mozilla account with
+"Add-ons" ticked in its Sync settings (about every 10 minutes; "Sync Now" at once). An add-on can
+tell neither: a write succeeds without an account and stays on the computer, so the hint under
+the buttons is always shown.
+
+- **The same object as the file, the same way in.** The copy is what the file export writes
+  (`settingsToExport` in options.mjs: the mpv path left out), and an import goes through the
+  file import's code (`applyImportedSettings`: the migrations, numbers and menus held to the
+  fields, the mpv path kept from this computer), and only after "Replace".
+- **Asked on the page, not with `window.confirm`.** The options page is embedded in about:addons
+  (`open_in_tab: false`) and is a frame in the player, which sits in web pages; whether a
+  dialog shows there is not known, and a `confirm()` that returned false at once would make the
+  import never work. "Import from cloud" reads the copy, then shows "Replace your settings with
+  the cloud copy saved <date> (<system>)?" under the buttons with "Replace" and "Cancel" (real
+  buttons; the focus goes to "Replace"). The question holds the copy it names: "Cancel", or a
+  click on either cloud button, takes it down unanswered, so a Replace after a newer export
+  brings no stale copy in; another import asks about the copy there then.
+- **Layout.** `fsCloudMeta` = `{v: 1, savedAt, os, chunks, length, sha256}` (the system from
+  `runtime.getPlatformInfo`; no device name), and `fsCloud0`.. the compact JSON cut into
+  strings, each item (key and the slice's JSON, in UTF-8) at most 8000 bytes: `"` and `\` count
+  2, a control character 2 or 6, a lone surrogate 6 (`\uXXXX`), and a surrogate pair is never
+  cut. Export is one `set()` of the meta and all chunks, then a `remove()` of the chunks past
+  the new count. Import reads everything in one `get(null)` and checks the joined text's length
+  and SHA-256 before it parses it: a copy that came in part, or chunks of two copies, is
+  "incomplete" (a missing chunk needs no check of its own: it fails the length or the hash).
+- **Firefox's quotas, measured on Firefox 160.0.1** (`cloud-settings.e2e.mjs` runs
+  `QUOTA_STEPS` from `tests/unit/helpers/fakeStorageSync.mjs` in Firefox; the unit tests' stand-in
+  keeps the same rules): an item's key and its value's JSON at most 8192 UTF-8 bytes; the JSON of
+  all items together, braces, quotes, colons and commas included, at most 102400 (12 items of
+  7875 bytes and a 13th of 7847 fill it exactly; the items alone are then 102347); at most 512
+  items (the 513th is refused, one of the 512 can still be replaced). Over any of them `set()`
+  rejects with a plain `Error`, "QuotaExceededError: storage.sync API call exceeded its quota
+  limitations.", and writes nothing of the call: a failed export leaves the copy there as it was.
+- **Room.** The default settings are 3.8 KB of JSON, one chunk; the rest of the 100 KB is for the
+  URL lists and patterns. Too much, and the export says so and points to the file export. Firefox
+  counts the total over what is stored, so the chunks of an older, longer copy past the new count
+  are emptied in the same `set()` and removed after it: kept whole beside the new chunks, they
+  could push a copy that fits over 102400 (glm). A failed removal is only logged: the copy is
+  written, and import reads only the chunks its meta names.
+- **Firefox for Android** keeps `storage.sync` on the phone (browser-compat-data: "Data isn't
+  synchronized with the user's Mozilla account"; nor are the quotas enforced there), so the
+  buttons, the status and the hint are hidden there, decided as MPV mode is (`EnvUtils.isAndroid()`,
+  again once `runtime.getPlatformInfo` answers; `build-and-release.md`, "Firefox for Android"),
+  and in the web build, which has no `storage.sync`.
+- **Read when seen.** The page is an iframe in every player: the status line reads `fsCloudMeta`
+  only once the page is seen, then again on `storage.sync.onChanged` for the copy's own keys.
+- **Removing the add-on.** From Firefox's code, not checked live: removing it may clear its
+  `storage.sync`, and the removal may sync to the other computers too. UNINSTALL.md says to
+  export to a file first.
+- Tests: `CloudSettings.test.mjs` (the cut, by fast-check over awkward characters; round trips of
+  the defaults and of 300-entry lists; leftover chunks; the quota leaving the copy as it was;
+  no copy, a missing chunk, two copies mixed with the same length, a broken meta; another
+  computer's cut), `optionsCloud.test.mjs` (the page: same object as the file, the file import's
+  checks, the question and its focus, Cancel, a question taken down by an export or another
+  import, the messages, one click at a time, Android and no `storage.sync`),
+  `optionsPage.test.mjs` (hidden in the web build), and `cloud-settings.e2e.mjs` (no copy, export,
+  the items in Firefox's `storage.sync`, a cancelled and a replaced import, and the quota steps).
+
 ## Measuring two builds: tools/bench-ab.mjs
 
 The by-turns comparisons above were each made with a harness thrown away afterwards. This one
