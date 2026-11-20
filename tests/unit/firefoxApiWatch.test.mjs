@@ -322,12 +322,16 @@ describe('MDN notes', () => {
 
   it('keeps the topics\' patterns as RegExp literals, without the g flag', () => {
     const patterns = [...Topics.topics.flatMap((t) => t.keywords), Topics.bugzilla.coreSummary, Topics.bugzilla.excludeSummary,
-      Topics.bugzilla.android, Topics.excludeText, Topics.androidText, Topics.desktopText];
+      Topics.bugzilla.android, Topics.excludeText, Topics.androidText];
     expect(patterns.length).toBeGreaterThan(100);
     for (const pattern of patterns) {
       expect(pattern).toBeInstanceOf(RegExp);
       expect(pattern.flags).toBe('i');
     }
+    // Case matters for the platform: "Windows", not the word "windows".
+    expect(Topics.desktopText).toBeInstanceOf(RegExp);
+    expect(Topics.desktopText.flags).toBe('');
+    expect(Topics.bugzilla.desktop).toBe(Topics.desktopText);
   });
 
   it('turns macros, links and code into plain text with code spans', () => {
@@ -558,6 +562,7 @@ slug: Mozilla/Firefox/Releases/161
 - {{WebExtAPIRef("tabs.query()")}} now rejects an unknown \`windowType\` in Firefox desktop and Firefox for Android. ([Firefox bug 161040](https://bugzil.la/161040))
 - {{WebExtAPIRef("windows.create()")}} now opens a tab in Firefox for Android. ([Firefox bug 161041](https://bugzil.la/161041))
 - {{WebExtAPIRef("tabs.sendMessage()")}} now rejects an unknown \`frameId\` in Firefox for Android and Windows. ([Firefox bug 161043](https://bugzil.la/161043))
+- {{WebExtAPIRef("tabs.onDetached")}} now fires for tabs moved between windows in Firefox for Android. ([Firefox bug 161044](https://bugzil.la/161044))
 `;
     const bugsOfBoth = [
       {id: 161042, summary: 'tabs.sendMessage drops replies on Windows and Android', product: 'WebExtensions', component: 'General', keywords: []},
@@ -575,8 +580,16 @@ slug: Mozilla/Firefox/Releases/161
     const bug = findings.find((f) => f.aliases.includes('bug:161042'));
     expect(bug).toBeDefined();
     expect(bug?.android).toBeUndefined();
-    // `windows.create` names the API, not the desktop platform.
+    // `windows.create` names the API, not the desktop platform, and "windows" the word neither.
     expect(findings.find((f) => f.title.includes('opens a tab'))).toMatchObject({android: true});
+    expect(findings.find((f) => f.title.includes('between windows'))).toMatchObject({android: true});
+    // The desktop platforms as notes and bugs write them.
+    for (const desktop of ['in Firefox desktop', 'on Windows.', 'on Windows 11', 'on macOS', 'on Linux']) {
+      expect(config.desktopText.test(`fails ${desktop} and on Android`)).toBe(true);
+    }
+    for (const api of ['`windows`', '`windows.create`', 'chrome.windows?.create', 'windows.getAll', 'between windows']) {
+      expect(config.desktopText.test(`fails for ${api} in Firefox for Android`)).toBe(false);
+    }
   });
 
   it('shows Android\'s change merged with the desktop\'s of the same API, without its weight', () => {

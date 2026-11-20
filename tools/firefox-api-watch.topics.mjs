@@ -5,8 +5,9 @@
 // android, androidText: Firefox for Android, a bonus platform: only its WebExtensions changes count;
 // desktopText (bugzilla.desktop): what makes such a text the desktop's too.
 
-// A note or bug that names a desktop platform too is not Android's alone (`windows.create` is no platform).
-const desktopText = /\b(desktop|macOS|Linux)\b|(?<![`.])\bWindows\b(?![`(]|\??\.\w)/i;
+// A note or bug that names a desktop platform too is not Android's alone. The one pattern without the i flag:
+// the platform is "Windows", while "windows" is a word or the API (`windows.create`, `windows?.create`).
+const desktopText = /\b([Dd]esktop|mac[Oo][Ss]|[Ll]inux)\b|(?<![`.])\bWindows\b(?![`(]|\??\.\w)/;
 
 /** @type {import('./firefox-api-watch.mjs').Config} */
 export default {

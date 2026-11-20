@@ -902,8 +902,8 @@ relevant is `tools/firefox-api-watch.topics.mjs`.
   API's Android column and a note "for Android" outside the add-on section are dropped, as
   before. Such a finding says "Firefox for Android only", sits one priority lower and points at
   `firefoxAndroid.test.mjs`. A WebExtensions note or bug naming a desktop platform too
-  (`desktopText`: desktop, Windows, macOS, Linux; `windows.create` is no platform) is the
-  desktop's. Merged with the desktop's change of the same API, Android's is listed in the
+  (`desktopText`: desktop, Windows, macOS, Linux; "Windows" with its capital, as the word
+  "windows" and the API `windows.create` are no platform) is the desktop's. Merged with the desktop's change of the same API, Android's is listed in the
   finding but sets neither its kind nor its priority (a removal on Android does not make a
   desktop feature a compatibility risk). A dry run over 150-152 added five, all low: among them
   `tabs.query({windowType})` broken on Android, which `TabTracker.mjs` calls. The code index
