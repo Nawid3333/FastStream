@@ -1329,7 +1329,10 @@ Firefox), which leaves only a file shorter than the keep-open answer's round tri
 
 Fixed (#803): **a queued send's check was the first asker's only.** The page after a navigation
 asking for the same stream got the pending send back, and when the old page's check said no,
-both were dropped. A queued send now goes while any asker still wants it.
+both were dropped. A first fix let the send go while any asker wanted it; Codex's next pass found
+that this sends the old page's payload, placed in an mpv window the user may have filled since
+(no offer). Now a page given a send dropped as another page's, and still wanting it, hands the
+stream off itself (`openInMpv` again): placed anew, with its own page.
 
 Rejected (#802): **the Shift+A test mocks the on-screen display it checks.** The test checks what
 the key asks the display to show; showing it is the display's own job, shared by every key.

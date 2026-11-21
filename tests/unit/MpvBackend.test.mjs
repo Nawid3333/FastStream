@@ -261,36 +261,6 @@ describe.each([['an older helper', false], ['the thin helper', true]])('openStre
     expect(tab.mpvSentUrls.has('https://cdn/b.m3u8')).toBe(false);
   });
 
-  it('sends a queued stream the page after a navigation asks for again, though the old page is gone', async () => {
-    let answer;
-    const streams = [];
-    globalThis.chrome = {
-      runtime: {
-        lastError: undefined,
-        sendNativeMessage(name, message, callback) {
-          streams.push(message);
-          answer = (response) => callback({...Thin, ...response});
-        },
-      },
-    };
-    const backend = new MpvBackend();
-    const tab = {mpvSentUrls: new Set()};
-    let page = 1;
-    const first = backend.openStream('https://cdn/a.m3u8', tab);
-    const old = backend.openStream('https://cdn/b.m3u8', tab, undefined, undefined, undefined, undefined, {},
-        () => page === 1);
-    page = 2;
-    const again = backend.openStream('https://cdn/b.m3u8', tab, undefined, undefined, undefined, undefined, {},
-        () => page === 2);
-    await vi.waitFor(() => expect(answer).toBeTypeOf('function'));
-    answer({ok: true, hostVersion: RequiredHostVersion});
-    expect(await first).toEqual({ok: true});
-    await vi.waitFor(() => expect(streams).toHaveLength(2));
-    answer({ok: true, hostVersion: RequiredHostVersion});
-    expect(await again).toEqual({ok: true});
-    expect(await old).toEqual({ok: true});
-  });
-
   it('lets the same URL be retried when the host is not installed', async () => {
     const host = stubNativeHostOfKind(undefined, {message: 'no such native application'});
     const backend = new MpvBackend();

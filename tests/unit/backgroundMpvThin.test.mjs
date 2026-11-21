@@ -69,6 +69,40 @@ describe('MPV mode with the thin helper', () => {
     return bg.ports.at(-1);
   }
 
+  it('hands the stream off for the page after a navigation that asked for it while the page before still waited',
+      async () => {
+        // Another tab's play takes 2 s, and tab 1's stream waits behind it. Tab 1 goes to the next page of the site
+        // meanwhile, which finds the same stream: it got the waiting send's answer, dropped as the old page's.
+        const OTHER = 'https://site.test/watch/9';
+        const S9 = 'https://cdn.test/nine/master.m3u8';
+        const NEXT = EP1 + '?layout=full';
+        bg = await loadBackground({
+          options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvSingleInstance: true},
+          tabs: [{id: 1, url: EP1, title: 'Show - Episode 1'}, {id: 2, url: OTHER, title: 'Other'}],
+          fetch: () => Promise.resolve(response(hlsPlaylist(1400))),
+          thinHost: true,
+          onNative: (message) => message.type === 'play' && message.target.startsWith(S9) ?
+            new Promise((resolve) => setTimeout(() => resolve(thinHelper(message)), 2000)) : thinHelper(message),
+        });
+        await bg.navigated(2, OTHER);
+        await bg.frameAdded(2, 0, OTHER, 'other');
+        await bg.request({tabId: 2, url: S9});
+        await bg.wait(500);
+        await bg.navigated(1, EP1);
+        await bg.frameAdded(1, 0, EP1, 'ep1');
+        await bg.request({tabId: 1, url: S1});
+        await bg.wait(500);
+        await bg.navigated(1, NEXT);
+        await bg.frameAdded(1, 0, NEXT, 'next');
+        await bg.request({tabId: 1, url: S1});
+        await bg.wait(4000);
+        const plays = bg.native.filter((m) => m.type === 'play');
+        // Once, as the new page's.
+        const sent = plays.filter((m) => m.target.startsWith(S1));
+        expect(sent).toHaveLength(1);
+        expect(new URL(sent[0].target).hash).toContain('fs-page=' + encodeURIComponent(NEXT));
+      });
+
   // The owner's pick: mpv keeps no resume position for a private window's
   // stream (stream-resume.lua reads fs-private). The resume key stays: mpv's episode buttons
   // know a FastStream stream by it.
