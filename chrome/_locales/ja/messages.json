@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "字幕なし"
     },
+    "player_resumed_key": {
+        "message": "前回の続き（$1）から再生しています：$2 を押すと最初から再生します"
+    },
+    "player_resumed": {
+        "message": "前回の続き（$1）から再生しています"
+    },
+    "player_subtitles_available_key": {
+        "message": "字幕があります（$1）：$2 を押すとオンになります。字幕メニューから選ぶこともできます"
+    },
+    "player_subtitles_available": {
+        "message": "字幕があります（$1）：字幕メニューから選んでください"
+    },
     "player_subtitles_new_cue": {
         "message": "新しい字幕"
     },
@@ -547,6 +559,21 @@
     },
     "player_download_paused": {
         "message": "ダウンロードが一時停止されました"
+    },
+    "player_download_paused_key": {
+        "message": "ダウンロードが一時停止されました：$1 を押すと再開します"
+    },
+    "player_wait_speed_zero": {
+        "message": "「プリダウンローダーのターゲット速度」が 0 のため、動画はデータを待っています。先読みのダウンロードは行われません。制限をなくすには、この設定を空欄にしてください。"
+    },
+    "player_wait_speed_low": {
+        "message": "「プリダウンローダーのターゲット速度」（$1 Mbit/s）がこの動画に必要な速度（約 $2 Mbit/s）を下回っているため、動画はデータを待っています。先読みはわずかしか行われません。この設定を上げるか、空欄にして制限をなくしてください。"
+    },
+    "player_wait_ahead_zero": {
+        "message": "「再生位置より先をバッファーに保持する秒数」が 0 のため、動画はデータを待っています。先の分は何も保持されません。この設定を上げるか、空欄にして制限をなくしてください。"
+    },
+    "player_wait_ram_zero": {
+        "message": "「バッファした動画に使うRAM」が 0 で、ここではディスクにも何も保持されないため、動画はデータを待っています。先読みのダウンロードは行われません。この設定を上げるか、空欄にして制限をなくしてください。"
     },
     "player_fragment_failed_singular": {
         "message": "動画の部分が $1 個ダウンロードに失敗しました。クリックして再試行してください。"

@@ -6,7 +6,7 @@ import {Localize} from '../modules/Localize.mjs';
 import {ClickActions} from '../options/defaults/ClickActions.mjs';
 import {MiniplayerPositions} from '../options/defaults/MiniplayerPositions.mjs';
 import {VisChangeActions} from '../options/defaults/VisChangeActions.mjs';
-import {SKIP_BUTTON_SECONDS} from '../options/KeybindUtils.mjs';
+import {SKIP_BUTTON_SECONDS, keyDisplayName} from '../options/KeybindUtils.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {InterfaceUtils} from '../utils/InterfaceUtils.mjs';
 import {StringUtils} from '../utils/StringUtils.mjs';
@@ -32,6 +32,7 @@ import {isPolicyRefusal} from './audio/AudioOutputDevice.mjs';
 import {SubtitlesManager} from './subtitles/SubtitlesManager.mjs';
 import {ToolManager} from './ToolManager.mjs';
 import {VolumeControls} from './VolumeControls.mjs';
+import {WaitNotice} from './WaitNotice.mjs';
 import {WebStorage} from '../utils/WebStorage.mjs';
 
 let MiniplayerCooldown = Date.now() + 500;
@@ -155,6 +156,7 @@ export class InterfaceController {
     this.volumeControls.setupUI();
 
     this.statusManager = new StatusManager();
+    this.waitNotice = new WaitNotice(this.client);
     this.optionsWindow = new OptionsWindow();
 
     this.setupDOM();
@@ -219,6 +221,7 @@ export class InterfaceController {
     if (this.client.player) {
       this.updateFragmentsLoaded();
       this.checkBuffering();
+      this.waitNotice.check();
     }
 
     this.statusManager.updateStatusMessage();
@@ -253,6 +256,10 @@ export class InterfaceController {
     this.setStatusMessage('error', null, 'error');
     // The last video's download line stayed up over a next video that never loaded.
     this.setStatusMessage('download', null, 'success');
+    // Its notices are not the next one's ("Resumed at 0:30" over a video that starts at 0).
+    this.setStatusMessage(StatusTypes.RESUMED, null, 'info');
+    this.setStatusMessage(StatusTypes.WAIT, null, 'info');
+    this.setStatusMessage(StatusTypes.SUBTITLES_HINT, null, 'info');
     // And its "all buffered" was the next one's: one buffered from the start never said so.
     this.shownDownloadComplete = false;
     // The next video may never have fragments to count, and then nothing else hides it.
@@ -338,7 +345,11 @@ export class InterfaceController {
   updateDownloadStatus() {
     if (this.client.downloadManager.paused) {
       this.shownDownloadComplete = false;
-      this.setStatusMessage('download', Localize.getMessage('player_download_paused'), 'warning');
+      // Playback's requests wait too: the video stops once its buffer runs out, so the way back is named.
+      const key = this.client.keybindManager?.keybindMap.get('PauseDownloaders');
+      this.setStatusMessage('download', key && key !== 'None' ?
+        Localize.getMessage('player_download_paused_key', [keyDisplayName(key)]) :
+        Localize.getMessage('player_download_paused'), 'warning');
       return;
     }
 

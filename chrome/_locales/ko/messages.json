@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "자막 없음"
     },
+    "player_resumed_key": {
+        "message": "지난번에 멈춘 $1부터 이어서 재생합니다: 처음부터 보려면 $2 키를 누르세요"
+    },
+    "player_resumed": {
+        "message": "지난번에 멈춘 $1부터 이어서 재생합니다"
+    },
+    "player_subtitles_available_key": {
+        "message": "자막이 있습니다($1): $2 키를 눌러 켜거나 자막 메뉴에서 선택하세요"
+    },
+    "player_subtitles_available": {
+        "message": "자막이 있습니다($1): 자막 메뉴에서 선택하세요"
+    },
     "player_subtitles_new_cue": {
         "message": "새 자막"
     },
@@ -547,6 +559,21 @@
     },
     "player_download_paused": {
         "message": "다운로드 일시 중지됨"
+    },
+    "player_download_paused_key": {
+        "message": "다운로드 일시 중지됨: $1 키를 누르면 다시 시작합니다"
+    },
+    "player_wait_speed_zero": {
+        "message": "\"사전 다운로드의 목표 속도\"가 0이어서 동영상이 데이터를 기다리고 있습니다. 미리 다운로드되는 것이 없습니다. 제한을 없애려면 이 설정을 비워 두세요."
+    },
+    "player_wait_speed_low": {
+        "message": "\"사전 다운로드의 목표 속도\"($1 Mbit/s)가 이 동영상에 필요한 속도(약 $2 Mbit/s)보다 낮아서 동영상이 데이터를 기다리고 있습니다. 미리 다운로드되는 양이 적습니다. 이 설정을 높이거나 비워 두어 제한을 없애세요."
+    },
+    "player_wait_ahead_zero": {
+        "message": "\"재생 지점 이후 구간을 버퍼에 유지할 초 수\"가 0이어서 동영상이 데이터를 기다리고 있습니다. 앞부분이 전혀 유지되지 않습니다. 이 설정을 높이거나 비워 두어 제한을 없애세요."
+    },
+    "player_wait_ram_zero": {
+        "message": "\"버퍼링된 동영상에 쓰는 RAM\"이 0이고 여기서는 디스크에도 아무것도 보관하지 않아서 동영상이 데이터를 기다리고 있습니다. 미리 다운로드되는 것이 없습니다. 이 설정을 높이거나 비워 두어 제한을 없애세요."
     },
     "player_fragment_failed_singular": {
         "message": "비디오 조각 $1개의 다운로드에 실패했습니다. 다시 시도하려면 클릭하세요."

@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "Aucun sous-titre"
     },
+    "player_resumed_key": {
+        "message": "Reprise à $1, là où vous vous étiez arrêté : appuyez sur $2 pour recommencer depuis le début"
+    },
+    "player_resumed": {
+        "message": "Reprise à $1, là où vous vous étiez arrêté"
+    },
+    "player_subtitles_available_key": {
+        "message": "Sous-titres disponibles ($1) : appuyez sur $2 pour les activer, ou choisissez-en un dans le menu des sous-titres"
+    },
+    "player_subtitles_available": {
+        "message": "Sous-titres disponibles ($1) : choisissez-en un dans le menu des sous-titres"
+    },
     "player_subtitles_new_cue": {
         "message": "Nouveau sous-titre"
     },
@@ -547,6 +559,21 @@
     },
     "player_download_paused": {
         "message": "Téléchargement en pause"
+    },
+    "player_download_paused_key": {
+        "message": "Téléchargement en pause : appuyez sur $1 pour reprendre"
+    },
+    "player_wait_speed_zero": {
+        "message": "La vidéo attend des données, car « Vitesse de téléchargement cible du préchargeur » est à 0 : rien n'est téléchargé à l'avance. Laissez ce réglage vide pour ne fixer aucune limite."
+    },
+    "player_wait_speed_low": {
+        "message": "La vidéo attend des données, car « Vitesse de téléchargement cible du préchargeur » ($1 Mbit/s) est inférieure à ce dont cette vidéo a besoin (environ $2 Mbit/s) : peu de données sont téléchargées à l'avance. Augmentez ce réglage ou laissez-le vide pour ne fixer aucune limite."
+    },
+    "player_wait_ahead_zero": {
+        "message": "La vidéo attend des données, car « Secondes à conserver en mémoire tampon devant la lecture » est à 0 : rien n'est conservé à l'avance. Augmentez ce réglage ou laissez-le vide pour ne fixer aucune limite."
+    },
+    "player_wait_ram_zero": {
+        "message": "La vidéo attend des données, car « Mémoire vive pour la vidéo en mémoire tampon » est à 0 et rien n'est conservé sur le disque ici : rien n'est téléchargé à l'avance. Augmentez ce réglage ou laissez-le vide pour ne fixer aucune limite."
     },
     "player_fragment_failed_singular": {
         "message": "$1 partie de la vidéo n'a pas pu être téléchargée. Cliquez pour réessayer."

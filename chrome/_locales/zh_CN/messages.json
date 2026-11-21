@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "无字幕"
     },
+    "player_resumed_key": {
+        "message": "已从上次停止的位置 $1 继续播放：按 $2 从头开始"
+    },
+    "player_resumed": {
+        "message": "已从上次停止的位置 $1 继续播放"
+    },
+    "player_subtitles_available_key": {
+        "message": "有可用字幕（$1）：按 $2 开启，或在字幕菜单中选择"
+    },
+    "player_subtitles_available": {
+        "message": "有可用字幕（$1）：请在字幕菜单中选择"
+    },
     "player_subtitles_new_cue": {
         "message": "新建字幕"
     },
@@ -547,6 +559,21 @@
     },
     "player_download_paused": {
         "message": "下载已暂停"
+    },
+    "player_download_paused_key": {
+        "message": "下载已暂停：按 $1 继续"
+    },
+    "player_wait_speed_zero": {
+        "message": "视频正在等待数据，因为“预下载器的目标下载速度”为 0：不会预先下载任何内容。将该设置留空即可不设限制。"
+    },
+    "player_wait_speed_low": {
+        "message": "视频正在等待数据，因为“预下载器的目标下载速度”（$1 Mbit/s）低于该视频所需（约 $2 Mbit/s）：预先下载的内容很少。请调高该设置，或将其留空以不设限制。"
+    },
+    "player_wait_ahead_zero": {
+        "message": "视频正在等待数据，因为“在播放位置前方保留缓冲的秒数”为 0：前方不保留任何内容。请调高该设置，或将其留空以不设限制。"
+    },
+    "player_wait_ram_zero": {
+        "message": "视频正在等待数据，因为“缓冲视频所用内存”为 0，且此处不会在磁盘上保留任何内容：不会预先下载任何内容。请调高该设置，或将其留空以不设限制。"
     },
     "player_fragment_failed_singular": {
         "message": "$1 个视频分片下载失败。点击重试。"

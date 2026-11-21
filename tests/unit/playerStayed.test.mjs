@@ -179,11 +179,16 @@ describe('the player page\'s messages', () => {
       carryFullscreen: vi.fn(),
       pipToggle: vi.fn(),
       toggleWindowedFullscreen: vi.fn(),
+      subtitlesManager: {activeTracks: []},
     };
     client.addSource = vi.fn(async (s) => s);
     client.clearSubtitles = vi.fn();
     client.setAutoPlay = vi.fn();
-    client.loadSubtitleTrack = vi.fn();
+    // As SubtitlesManager.loadTrackAndActivateBest: the track the player has already for one it has.
+    const tracks = [];
+    // SubtitlesManager.loadSubtitleTrack's own test: SubtitleTrack.equals.
+    client.loadSubtitleTrack = vi.fn((track) => tracks.find((t) => t.equals(track)) ??
+      (tracks.push(track), track));
     return {listener, client};
   }
 
@@ -196,7 +201,7 @@ describe('the player page\'s messages', () => {
 
   it('carries the fullscreen and answers when the language of the subtitles cannot be told', async () => {
     const {listener, client} = await withListener();
-    chrome.i18n = {detectLanguage: (text, callback) => callback(undefined)};
+    chrome.i18n = {detectLanguage: (text, callback) => callback(undefined), getMessage: (key) => key};
     const sendResponse = vi.fn();
     listener({
       type: 'SOURCES',
@@ -208,6 +213,20 @@ describe('the player page\'s messages', () => {
     await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith('sources_recieved'));
     expect(client.interfaceController.carryFullscreen).toHaveBeenCalledTimes(1);
     expect(client.loadSubtitleTrack).toHaveBeenCalledTimes(1);
+    // Loaded and none turned on: the player says they are there, once.
+    const said = () => client.interfaceController.setStatusMessage.mock.calls.filter((call) => call[0] === 'subtitles-hint');
+    expect(said()).toHaveLength(1);
+    expect(said()[0][3]).toBe(8000);
+    // The frame's list sent again with another stream: no new track, nothing said again.
+    listener({
+      type: 'SOURCES',
+      sources: [{url: 'https://cdn.test/ep3.m3u8', mode: 'hls', headers: {}, duration: 1400}],
+      autoSetSource: false,
+      subtitles: [{label: 'English', language: null, data: 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello'}],
+    }, {}, vi.fn());
+    // The notice is decided in the same step as the loads.
+    await vi.waitFor(() => expect(client.loadSubtitleTrack).toHaveBeenCalledTimes(2));
+    expect(said()).toHaveLength(1);
   });
 
   it('carries the fullscreen before the subtitles are fetched', async () => {

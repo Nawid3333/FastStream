@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "Sin subtítulos"
     },
+    "player_resumed_key": {
+        "message": "Reanudado en $1, donde lo dejaste: pulsa $2 para empezar desde el principio"
+    },
+    "player_resumed": {
+        "message": "Reanudado en $1, donde lo dejaste"
+    },
+    "player_subtitles_available_key": {
+        "message": "Subtítulos disponibles ($1): pulsa $2 para activarlos o elige uno en el menú de subtítulos"
+    },
+    "player_subtitles_available": {
+        "message": "Subtítulos disponibles ($1): elige uno en el menú de subtítulos"
+    },
     "player_subtitles_new_cue": {
         "message": "Nuevo subtítulo"
     },
@@ -547,6 +559,21 @@
     },
     "player_download_paused": {
         "message": "Descarga pausada"
+    },
+    "player_download_paused_key": {
+        "message": "Descarga pausada: pulsa $1 para reanudar"
+    },
+    "player_wait_speed_zero": {
+        "message": "El vídeo espera datos porque «Velocidad de descarga objetivo del predescargador» está en 0: no se descarga nada por adelantado. Deja ese ajuste vacío para no poner límite."
+    },
+    "player_wait_speed_low": {
+        "message": "El vídeo espera datos porque «Velocidad de descarga objetivo del predescargador» ($1 Mbit/s) es menor de lo que necesita este vídeo (unos $2 Mbit/s): se descarga poco por adelantado. Sube ese ajuste o déjalo vacío para no poner límite."
+    },
+    "player_wait_ahead_zero": {
+        "message": "El vídeo espera datos porque «Segundos de video que se mantienen en el búfer por delante» está en 0: no se guarda nada por adelantado. Sube ese ajuste o déjalo vacío para no poner límite."
+    },
+    "player_wait_ram_zero": {
+        "message": "El vídeo espera datos porque «RAM para el vídeo en búfer» está en 0 y aquí no se guarda nada en el disco: no se descarga nada por adelantado. Sube ese ajuste o déjalo vacío para no poner límite."
     },
     "player_fragment_failed_singular": {
         "message": "$1 parte del video no se pudo descargar. Haz clic para intentarlo de nuevo."

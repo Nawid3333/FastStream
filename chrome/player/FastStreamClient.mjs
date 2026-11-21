@@ -44,6 +44,7 @@ import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {besidePlayhead, downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate} from './network/PlayheadFirst.mjs';
 import {isTimed, untimedSpans} from './network/UntimedSpans.mjs';
 import {SILENT_MAX_PLAYBACK_RATE} from './options/KeybindUtils.mjs';
+import {resumedMessage} from './ui/PlaybackNotices.mjs';
 import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
 import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
 import {VideoLevel} from './players/Levels.mjs';
@@ -1175,6 +1176,8 @@ export class FastStreamClient extends EventEmitter {
               this.setSeekSave(false);
               this.currentTime = lastTime;
               this.setSeekSave(true);
+              this.interfaceController.setStatusMessage(StatusTypes.RESUMED, resumedMessage(lastTime,
+                  this.keybindManager?.keybindMap), 'info', 5000);
             }
           };
           if (this.progressData) {

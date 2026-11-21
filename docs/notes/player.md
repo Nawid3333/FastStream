@@ -1892,6 +1892,15 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
   Session, next and previous did nothing and the overlay showed only "FastStream".
 - **A GIF from a video that taints the canvas** (another site's, played by the element) cannot
   be read back; recording stops and says so, or the loop played on at 4x.
+- **Two things the player did without a word** (2026-11-21, `ui/PlaybackNotices.mjs`; the owner chose both).
+  A video that starts where it was left ("Play videos from last watched position", on by default) says so for 5 s
+  with the key that goes to the start (`player_resumed_key`): the silent jump read as a bug, and Undo seek cannot
+  take it back. The page's subtitle tracks, loaded with none turned on (auto-enable is off by default), are named for
+  8 s with the subtitles key (`player_subtitles_available_key`). `PlaybackNotices.test.mjs`, `playerStayed.test.mjs`.
+  Each notice has a status level of its own (`StatusTypes.WAIT`, `SUBTITLES_HINT`, `RESUMED`, over the download line
+  and under the rest): on the shared `info` level one ended another's time. `InterfaceController.reset` takes the
+  resume and wait notices down with their video, and only tracks the player did not have yet count for the
+  subtitles notice (the frame's list comes again with each new stream).
 - **TTML and DFXP subtitles** (`utils/TtmlSubtitles.mjs`, called by `SubtitleTrack.loadText`):
   one reader for both. A document whose root is `tt` (found by content, whatever the file is
   called: any namespace or prefix, so TTML1/2, IMSC text, EBU-TT, the 2006 DFXP namespaces and
@@ -1957,6 +1966,16 @@ Tests: `backgroundReloadTakeover.test.mjs` (fourteen cases), and in Firefox
     are not read at all: hls.js's subtitles are off and dash.js's text is not used.
   - `subtitle-ttml.e2e.mjs` runs the reader in Firefox (the unit tests have no DOM):
     `TtmlSubtitles.test.mjs` covers times, rates, detection and colours.
+
+- **A wait a setting causes is named** (2026-11-21, `ui/WaitNotice.mjs`). With "Target download
+  speed" 0 or below the video's rate, "Seconds to keep buffered ahead" 0 (and none kept ahead), or
+  "RAM for buffered video" 0 where nothing goes to disk, the client downloads nothing ahead; only
+  the players' own 10-30 s are buffered, and a short slowdown of the line stops the video. After
+  2 s of waiting while playing, once per video, an info for 12 s names the setting
+  (`player_wait_*`). Nothing for a live stream, with no such limit (a slow line), or while the
+  downloads are paused (that message names the key). The speed limit is named only while the
+  downloads reach 80% of it: the gate stops them only above it, so on a line slower than the limit
+  the line is the cause. `WaitNotice.test.mjs`.
 
 ## Utils, options, enums, dash2mp4: reasons behind the code
 

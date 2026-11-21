@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "Nessun sottotitolo"
     },
+    "player_resumed_key": {
+        "message": "Ripreso da $1, dove ti eri fermato: premi $2 per ricominciare dall'inizio"
+    },
+    "player_resumed": {
+        "message": "Ripreso da $1, dove ti eri fermato"
+    },
+    "player_subtitles_available_key": {
+        "message": "Sottotitoli disponibili ($1): premi $2 per attivarli o scegline uno nel menu dei sottotitoli"
+    },
+    "player_subtitles_available": {
+        "message": "Sottotitoli disponibili ($1): scegline uno nel menu dei sottotitoli"
+    },
     "player_subtitles_new_cue": {
         "message": "Nuovo sottotitolo"
     },
@@ -547,6 +559,21 @@
     },
     "player_download_paused": {
         "message": "Download in pausa"
+    },
+    "player_download_paused_key": {
+        "message": "Download in pausa: premi $1 per riprendere"
+    },
+    "player_wait_speed_zero": {
+        "message": "Il video attende dati perché «Velocità di download obiettivo del predownloader» è 0: non viene scaricato nulla in anticipo. Lascia vuota questa impostazione per non avere limiti."
+    },
+    "player_wait_speed_low": {
+        "message": "Il video attende dati perché «Velocità di download obiettivo del predownloader» ($1 Mbit/s) è inferiore a quanto serve a questo video (circa $2 Mbit/s): viene scaricato poco in anticipo. Aumenta questa impostazione o lasciala vuota per non avere limiti."
+    },
+    "player_wait_ahead_zero": {
+        "message": "Il video attende dati perché «Secondi da mantenere nel buffer davanti alla riproduzione» è 0: non viene tenuto nulla in anticipo. Aumenta questa impostazione o lasciala vuota per non avere limiti."
+    },
+    "player_wait_ram_zero": {
+        "message": "Il video attende dati perché «RAM per il video nel buffer» è 0 e qui non viene tenuto nulla su disco: non viene scaricato nulla in anticipo. Aumenta questa impostazione o lasciala vuota per non avere limiti."
     },
     "player_fragment_failed_singular": {
         "message": "$1 parte del video non è stata scaricata correttamente. Fai clic per riprovare."

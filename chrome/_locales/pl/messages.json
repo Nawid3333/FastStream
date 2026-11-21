@@ -395,6 +395,18 @@
     "player_subtitles_osd_none": {
         "message": "Brak napisów"
     },
+    "player_resumed_key": {
+        "message": "Wznowiono od $1, gdzie skończyłeś ostatnio: naciśnij $2, aby zacząć od początku"
+    },
+    "player_resumed": {
+        "message": "Wznowiono od $1, gdzie skończyłeś ostatnio"
+    },
+    "player_subtitles_available_key": {
+        "message": "Dostępne napisy ($1): naciśnij $2, aby je włączyć, lub wybierz je w menu napisów"
+    },
+    "player_subtitles_available": {
+        "message": "Dostępne napisy ($1): wybierz je w menu napisów"
+    },
     "player_subtitles_new_cue": {
         "message": "Nowy napis"
     },
@@ -547,6 +559,21 @@
     },
     "player_download_paused": {
         "message": "Pobieranie wstrzymane"
+    },
+    "player_download_paused_key": {
+        "message": "Pobieranie wstrzymane: naciśnij $1, aby wznowić"
+    },
+    "player_wait_speed_zero": {
+        "message": "Wideo czeka na dane, ponieważ „Docelowa prędkość wstępnego pobierania” wynosi 0: nic nie jest pobierane z wyprzedzeniem. Zostaw to ustawienie puste, aby nie było limitu."
+    },
+    "player_wait_speed_low": {
+        "message": "Wideo czeka na dane, ponieważ „Docelowa prędkość wstępnego pobierania” ($1 Mbit/s) jest niższa niż potrzeby tego wideo (około $2 Mbit/s): z wyprzedzeniem pobiera się niewiele. Zwiększ to ustawienie lub zostaw je puste, aby nie było limitu."
+    },
+    "player_wait_ahead_zero": {
+        "message": "Wideo czeka na dane, ponieważ „Sekundy jeszcze nieodtworzonego wideo trzymane w buforze” wynoszą 0: nic nie jest trzymane z wyprzedzeniem. Zwiększ to ustawienie lub zostaw je puste, aby nie było limitu."
+    },
+    "player_wait_ram_zero": {
+        "message": "Wideo czeka na dane, ponieważ „RAM na buforowane wideo” wynosi 0, a tutaj nic nie jest trzymane na dysku: nic nie jest pobierane z wyprzedzeniem. Zwiększ to ustawienie lub zostaw je puste, aby nie było limitu."
     },
     "player_fragment_failed_singular": {
         "message": "$1 fragment wideo nie został pobrany. Kliknij, aby spróbować ponownie."

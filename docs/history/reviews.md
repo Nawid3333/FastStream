@@ -1356,3 +1356,30 @@ Rejected:
   write fails only on a broken or full profile.
 - **An imported regex can hang the URL lists** (`autoEnableURLs`, custom source patterns): the cloud
   copy is the user's own, from their own Mozilla account, as if typed into the options.
+
+## Codex's review of #801 (2026-11-21)
+
+Fixed:
+
+- **The speed-limit notice blamed the limit on a line slower than it.** The gate holds downloads only
+  while their measured speed is above the limit, so the notice now names the limit only while the
+  downloads reach 80% of it (`WaitNotice.LimitReachedShare`).
+- **The notice replaced the download-pause message**, which names the key that resumes. It now stays
+  quiet while the downloads are paused.
+- **A lone AltGr never fired where a window stops keys from bubbling** (sources, options, subtitle
+  search), and a held AltGr fired after `@` was typed into such a window's field. The release, the
+  keys typed meanwhile and clicks are now listened for in the capture phase.
+
+Rejected: **the five new strings are missing.** They are in all 16 locales; the review saw a cut diff.
+
+Codex's next pass, with #804 (the resume and subtitles notices) folded in, found three notices on one
+status level: each set ended another's time, the wait notice still covered the pause message when
+the pause came after it, and "Resumed at 0:30" stayed over the next video. Each has its own level
+now; the wait notice goes when the downloads are paused, and `reset()` takes the resume and wait
+notices down. The subtitles notice came again each time the frame's list came with a new stream:
+only tracks the player did not have count now.
+
+glm-5.3-flash's pass over that (2026-11-21): the subtitles notice was the one `reset()` left up, so
+the last video's "subtitles available" stood over the next for up to 8 s; it goes with the others
+now (the next video's own notice comes later, with its subtitles). Its test harness matched tracks
+by label; it uses `SubtitleTrack.equals`, as the player does.
