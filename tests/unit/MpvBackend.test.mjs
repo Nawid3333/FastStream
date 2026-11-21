@@ -227,6 +227,40 @@ describe.each([['an older helper', false], ['the thin helper', true]])('openStre
     expect(streams).toHaveLength(2);
   });
 
+  it('drops a send that waited behind another when its page or MPV went meanwhile', async () => {
+    // The user left the tab or turned MPV off while the first stream was still starting mpv: the second one opened in
+    // mpv all the same.
+    let answer;
+    const streams = [];
+    globalThis.chrome = {
+      runtime: {
+        lastError: undefined,
+        sendNativeMessage(name, message, callback) {
+          if (!thin && message.type === 'play') {
+            callback({...Unknown});
+            return;
+          }
+          streams.push(message);
+          answer = (response) => callback(thin ? {...Thin, ...response} : response);
+        },
+      },
+    };
+    const backend = new MpvBackend();
+    const tab = {mpvSentUrls: new Set()};
+    let stillWanted = true;
+    const first = backend.openStream('https://cdn/a.m3u8', tab);
+    const second = backend.openStream('https://cdn/b.m3u8', tab, undefined, undefined, undefined, undefined, {},
+        () => stillWanted);
+    await vi.waitFor(() => expect(answer).toBeTypeOf('function'));
+    stillWanted = false;
+    answer({ok: true, hostVersion: RequiredHostVersion});
+    expect(await first).toEqual({ok: true});
+    expect(await second).toEqual({ok: false, dropped: true});
+    expect(streams).toHaveLength(1);
+    // Not recorded as sent: the same stream can go later.
+    expect(tab.mpvSentUrls.has('https://cdn/b.m3u8')).toBe(false);
+  });
+
   it('lets the same URL be retried when the host is not installed', async () => {
     const host = stubNativeHostOfKind(undefined, {message: 'no such native application'});
     const backend = new MpvBackend();

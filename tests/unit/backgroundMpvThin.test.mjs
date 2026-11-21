@@ -69,6 +69,45 @@ describe('MPV mode with the thin helper', () => {
     return bg.ports.at(-1);
   }
 
+  const Master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=8000000,RESOLUTION=1920x1080\n1080.m3u8\n' +
+    '#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1280x720\n720.m3u8\n';
+  it.each([['a media playlist', false], ['a master playlist, from the detected master', true]])(
+      'hands the stream off for the page after a navigation that asked for it while the page before still waited: %s',
+      async (name, master) => {
+        // Another tab's play takes 2 s, and tab 1's stream waits behind it. Tab 1 goes to the next page of the site
+        // meanwhile, which finds the same stream: it got the waiting send's answer, dropped as the old page's.
+        const OTHER = 'https://site.test/watch/9';
+        const S9 = 'https://cdn.test/nine/master.m3u8';
+        const NEXT = EP1 + '?layout=full';
+        bg = await loadBackground({
+          options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvSingleInstance: true},
+          tabs: [{id: 1, url: EP1, title: 'Show - Episode 1'}, {id: 2, url: OTHER, title: 'Other'}],
+          fetch: (url) => Promise.resolve(response(master && url === S1 ? Master : hlsPlaylist(1400))),
+          thinHost: true,
+          onNative: (message) => message.type === 'play' && message.target.startsWith(S9) ?
+            new Promise((resolve) => setTimeout(() => resolve(thinHelper(message)), 2000)) : thinHelper(message),
+        });
+        await bg.navigated(2, OTHER);
+        await bg.frameAdded(2, 0, OTHER, 'other');
+        await bg.request({tabId: 2, url: S9});
+        await bg.wait(500);
+        await bg.navigated(1, EP1);
+        await bg.frameAdded(1, 0, EP1, 'ep1');
+        await bg.request({tabId: 1, url: S1});
+        await bg.wait(500);
+        await bg.navigated(1, NEXT);
+        await bg.frameAdded(1, 0, NEXT, 'next');
+        await bg.request({tabId: 1, url: S1});
+        await bg.wait(4000);
+        const plays = bg.native.filter((m) => m.type === 'play');
+        // Once, as the new page's.
+        const sent = plays.filter((m) => m.target.startsWith('https://cdn.test/one/'));
+        expect(sent).toHaveLength(1);
+        expect(new URL(sent[0].target).hash).toContain('fs-page=' + encodeURIComponent(NEXT));
+        // With the master's qualities, as the first try had them.
+        expect(new URL(sent[0].target).hash.includes('fs-quality=')).toBe(master);
+      });
+
   // The owner's pick: mpv keeps no resume position for a private window's
   // stream (stream-resume.lua reads fs-private). The resume key stays: mpv's episode buttons
   // know a FastStream stream by it.
@@ -142,6 +181,31 @@ describe('MPV mode with the thin helper', () => {
     await bg.wait(5000);
     expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
   });
+
+  it('stops the countdown when the user opens another file in that mpv, and the next episode does not replace it',
+      async () => {
+        const port = await onEpisode1();
+        port.emit({type: 'relaying', ...Thin});
+        await bg.wait(50);
+        const sent = plays().at(-1).target;
+        port.emit({type: 'mpv', data: {event: 'property-change', id: 1, name: 'path', data: sent}});
+        port.emit({type: 'mpv', data: {event: 'property-change', id: 2, name: 'eof-reached', data: false}});
+        port.emit({type: 'mpv', data: {event: 'property-change', id: 2, name: 'eof-reached', data: true}});
+        for (const m of port.sent.filter((m) => m.type === 'mpv' && m.command[0] === 'get_property')) {
+          const data = {'time-remaining': 0.04, 'duration': 1440}[m.command[1]];
+          if (data !== undefined) port.emit({type: 'mpv-reply', id: m.id, error: 'success', data});
+        }
+        await bg.wait(1500);
+        expect(commands(port).some((m) => m.command[0] === 'script-message-to' && m.command[2] === 'show')).toBe(true);
+        // A file dropped into the window (loadfile replace): the old path goes, the new one comes.
+        port.emit({type: 'mpv', data: {event: 'end-file', reason: 'stop'}});
+        port.emit({type: 'mpv', data: {event: 'property-change', id: 1, name: 'path'}});
+        port.emit({type: 'mpv', data: {event: 'property-change', id: 1, name: 'path', data: 'C:\\Videos\\holiday.mkv'}});
+        await bg.wait(5000);
+        expect(navigations).toEqual([]);
+        // Its notice went with it.
+        expect(commands(port).map((m) => m.command)).toContainEqual(['script-message-to', 'notify', 'hide', 'faststream']);
+      });
 
   it('goes to the next episode on mpv\'s key, at once', async () => {
     const port = await onEpisode1();

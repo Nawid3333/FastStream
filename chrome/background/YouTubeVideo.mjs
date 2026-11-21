@@ -42,14 +42,16 @@ export function youTubeVideo(address) {
     return null;
   }
   let id = null;
+  // A link may end in a slash (youtu.be/<id>/, /watch/?v=): the same video.
+  const path = url.pathname.replace(/\/$/, '');
   if (url.hostname === 'youtu.be') {
-    id = url.pathname.slice(1);
+    id = path.slice(1);
   } else if (WatchHosts.includes(url.hostname)) {
-    if (url.pathname === '/watch') {
+    if (path === '/watch') {
       id = url.searchParams.get('v');
     } else {
-      const prefix = PathIdPrefixes.find((p) => url.pathname.startsWith(p));
-      id = prefix ? url.pathname.slice(prefix.length).replace(/\/$/, '') : null;
+      const prefix = PathIdPrefixes.find((p) => path.startsWith(p));
+      id = prefix ? path.slice(prefix.length) : null;
     }
   }
   if (!id || !VideoId.test(id)) {

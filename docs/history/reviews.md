@@ -1307,6 +1307,40 @@ Changed:
   before the first frame). Test: "does not seek to it over a seek the user made while the player got
   ready".
 
+## Area reviews of MPV mode, the background modules, and #800 (2026-11-21)
+
+Codex read MPV mode and the background modules, deepseek-v4.1-flash tried to refute each finding from the code, and
+the confirmed ones were fixed with a test each that fails without the fix:
+
+- **A countdown went on after the user opened another file in that mpv.** `onMpvWatchEvent` had no branch for the
+  `path` event: 5 s later the next episode replaced the file the user had just opened. A path that is not the tab's
+  stream now cancels it.
+- **A stream queued behind another went to mpv after its page or MPV went.** `openInMpv` checked `wanted` before
+  the backend's queue, not at its turn. The backend now asks again when the send's turn comes.
+- **youtu.be/<id>/ and /watch/?v= were no YouTube video.** A trailing slash, as some pages write links, made
+  `youTubeVideo` return null, and the link opened as a tab instead of going to mpv.
+
+DeepSeek's review of #800 (no autoplay where a stream broke off): an end-file "eof" is still an end, so an mpv that
+does not keep the file open (a helper before 24 cannot keep it open) still told an end at the break. Not fixed
+there: helpers before the current one are no longer supported (the owner, 2026-11-21: only the latest helper and
+Firefox), which leaves only a file shorter than the keep-open answer's round trip.
+
+## Codex's reviews of #802 and #803 (2026-11-21)
+
+Fixed (#803): **a queued send's check was the first asker's only.** The page after a navigation
+asking for the same stream got the pending send back, and when the old page's check said no,
+both were dropped. A first fix let the send go while any asker wanted it; Codex's next pass found
+that this sends the old page's payload, placed in an mpv window the user may have filled since
+(no offer). Now a page given a send dropped as another page's, and still wanting it, hands the
+stream off itself (`openInMpv` again): placed anew, with its own page. Codex's third pass: the
+retry started from `url`, by then the quality the first try picked, and a disguised stream's keyed
+playlist package is built only from the detected address, so mpv got the bare quality address and a
+403. It starts from `detected` now (Codex reproduced it in the background harness; the unit test
+covers the retry from a master playlist, whose qualities still go along).
+
+Rejected (#802): **the Shift+A test mocks the on-screen display it checks.** The test checks what
+the key asks the display to show; showing it is the display's own job, shared by every key.
+
 ## DeepSeek's review of #797 (2026-11-21)
 
 deepseek-v4.1-flash read the diff against main. Two of its three points were real and are fixed in
