@@ -1272,7 +1272,7 @@
         "message": "Questo video si carica solo tramite la sua pagina e mpv non può aprirlo: FastStream lo riproduce qui."
     },
     "player_mpv_needs_hls_helper": {
-        "message": "mpv può riprodurre questo stream solo con l'helper mpv più recente: esegui update-local.cmd nella cartella mpv di FastStream, poi invialo di nuovo."
+        "message": "mpv può riprodurre questo stream solo con la versione più recente del programma di supporto mpv: esegui update-local.cmd nella cartella mpv di FastStream, poi invialo di nuovo."
     },
     "mpv_episode_loading": {
         "message": "caricamento in mpv"

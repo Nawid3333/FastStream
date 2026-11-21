@@ -1272,7 +1272,7 @@
         "message": "Deze video laadt alleen via zijn pagina, en mpv kan hem niet openen: FastStream speelt hem hier af."
     },
     "player_mpv_needs_hls_helper": {
-        "message": "mpv kan deze stream alleen afspelen met de nieuwere mpv-helper: voer update-local.cmd uit in de mpv-map van FastStream en stuur hem daarna opnieuw."
+        "message": "mpv kan deze stream alleen afspelen met het nieuwere mpv-hulpje: voer update-local.cmd uit in de mpv-map van FastStream en stuur hem daarna opnieuw."
     },
     "mpv_episode_loading": {
         "message": "laden in mpv"

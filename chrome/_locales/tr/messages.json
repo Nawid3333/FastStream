@@ -1272,7 +1272,7 @@
         "message": "Bu video yalnızca kendi sayfası üzerinden yüklenir ve mpv onu açamaz: FastStream burada oynatıyor."
     },
     "player_mpv_needs_hls_helper": {
-        "message": "mpv bu akışı yalnızca yeni mpv yardımcısıyla oynatabilir: FastStream'in mpv klasöründe update-local.cmd dosyasını çalıştırın, ardından yeniden gönderin."
+        "message": "mpv bu akışı yalnızca daha yeni mpv yardımcısıyla oynatabilir: FastStream'in mpv klasöründe update-local.cmd dosyasını çalıştırın, ardından yeniden gönderin."
     },
     "mpv_episode_loading": {
         "message": "mpv'de yükleniyor"
@@ -1317,7 +1317,7 @@
         "message": "orada duraklatılmış olarak bekler; $1 oynamaya devam eder"
     },
     "player_mpv_declined": {
-        "message": "Gönderilmedi: mpv oynattığını oynatmaya devam ediyor"
+        "message": "Gönderilmedi: mpv mevcut içeriği oynatmaya devam ediyor"
     },
     "mpv_episode_nostream": {
         "message": "sayfa bir dakika içinde herhangi bir yayın sağlamadı; nedenini görmek için tarayıcıda açın"

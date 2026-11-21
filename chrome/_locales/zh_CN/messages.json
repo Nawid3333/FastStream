@@ -1086,7 +1086,7 @@
         "message": "MPV 允许列表"
     },
     "options_mpv_allowlist_hint": {
-        "message": "此列表中的网站会在 mpv 中打开检测到的视频流。每行一个 URL，以该 URL 开头的页面也会匹配（可省略 https:// 和 www.：crunchyroll.com @anime）。~ 表示正则表达式，! 表示排除。未加标记的网站在 mpv 的着色器选择中默认按电影处理；动漫网站请在该行末尾添加 @anime。若想明确写出，也可以使用 @movie。播放器的 mpv 按钮可针对单个视频覆盖此设置。使用 @native 时，mpv 将不使用任何放大器播放该网站的视频。"
+        "message": "此列表中的网站会在 mpv 中打开检测到的视频流。每行一个 URL，以该 URL 开头的页面也会匹配（可省略 https:// 和 www.：crunchyroll.com @anime）。~ 表示正则表达式，! 表示排除。未加标记的网站在 mpv 的着色器选择中默认按电影处理；动漫网站请在该行末尾添加 @anime。若想明确写出，也可以使用 @movie。播放器的 mpv 按钮可针对单个视频覆盖此设置。使用 @native 时，mpv 将不使用任何放大算法播放该网站的视频。"
     },
     "options_mpv_path": {
         "message": "mpv 路径（可选：仅当 mpv 辅助程序自己找不到 mpv 时才填写）"
@@ -1188,7 +1188,7 @@
         "message": "在 mpv 中打开此视频流（内容类型：电影——右键点击可更改）"
     },
     "player_mpv_content_native": {
-        "message": "在 mpv 中打开此视频流（内容类型：原生，不使用放大器——右键点击可更改）"
+        "message": "在 mpv 中打开此视频流（内容类型：原生，不使用放大算法——右键点击可更改）"
     },
     "options_help_header": {
         "message": "帮助"
@@ -1272,7 +1272,7 @@
         "message": "此视频只能通过其页面加载，mpv 无法打开：FastStream 将在此处播放。"
     },
     "player_mpv_needs_hls_helper": {
-        "message": "mpv 只有使用较新的 mpv 助手才能播放此流：请在 FastStream 的 mpv 文件夹中运行 update-local.cmd，然后重新发送。"
+        "message": "mpv 只有使用较新的 mpv 辅助程序才能播放此流：请在 FastStream 的 mpv 文件夹中运行 update-local.cmd，然后重新发送。"
     },
     "mpv_episode_loading": {
         "message": "正在 mpv 中加载"

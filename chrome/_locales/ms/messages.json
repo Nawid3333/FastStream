@@ -99,7 +99,7 @@
         "message": "- Hidupkan/matikan sarikata"
     },
     "welcome_page_keybinds_content27": {
-        "message": "- Buka/tutup alat segerakkan semula sarikata"
+        "message": "- Buka/tutup alat penyegerakan semula sarikata"
     },
     "welcome_page_keybinds_content19": {
         "message": "- Gambar dalam gambar"
@@ -387,13 +387,13 @@
         "message": "Trek $1"
     },
     "player_subtitles_osd_off": {
-        "message": "Sari kata dimatikan"
+        "message": "Sarikata dimatikan"
     },
     "player_subtitles_osd_on": {
-        "message": "Sari kata: $1"
+        "message": "Sarikata: $1"
     },
     "player_subtitles_osd_none": {
-        "message": "Tiada sari kata"
+        "message": "Tiada sarikata"
     },
     "player_subtitles_new_cue": {
         "message": "Sarikata baharu"
@@ -423,10 +423,10 @@
         "message": "Tiada sarikata ditemui dalam fail ini."
     },
     "player_subtitles_ttml_unreadable": {
-        "message": "Fail sari kata TTML atau DFXP ini tidak dapat dibaca."
+        "message": "Fail sarikata TTML atau DFXP ini tidak dapat dibaca."
     },
     "player_subtitles_ttml_images": {
-        "message": "Fail TTML ini menyimpan sari katanya sebagai imej, yang tidak dapat dipaparkan oleh FastStream."
+        "message": "Fail TTML ini menyimpan sarikatanya sebagai imej, yang tidak dapat dipaparkan oleh FastStream."
     },
     "player_subtitlesmenu_searchbtn": {
         "message": "Cari OpenSubtitles"
@@ -855,10 +855,10 @@
         "message": "Main video dari kedudukan tontonan terakhir"
     },
     "options_general_autosub": {
-        "message": "Aktifkan trek sari kata terbaik yang ditemui secara automatik\n(Tukar bahasa lalai dalam tetapan sari kata)"
+        "message": "Aktifkan trek sarikata terbaik yang ditemui secara automatik\n(Tukar bahasa lalai dalam tetapan sarikata)"
     },
     "options_general_cyclesubs": {
-        "message": "Kekunci sari kata bertukar ke setiap trek satu demi satu, kemudian dimatikan\n(Tidak ditanda: menghidupkan dan mematikan sari kata)"
+        "message": "Kekunci sarikata beralih ke setiap trek satu demi satu, kemudian mematikan sarikata\n(Tidak ditanda: menghidupkan dan mematikan sarikata)"
     },
     "options_general_stream": {
         "message": "Gunakan pemain untuk memainkan strim HLS/DASH apabila membuka URL senarai main (.m3u8/.mpd)"
@@ -1404,7 +1404,7 @@
         "message": "Membaca bait pertama respons"
     },
     "perms_page_breakdown_perm12d": {
-        "message": "FastStream membaca bait pertama permintaan pemain yang alamat dan jenisnya tidak menyatakan strim, untuk mengenal pasti senarai main HLS atau manifest DASH. Bait itu diteruskan ke halaman tanpa diubah, dan selebihnya respons tidak disentuh."
+        "message": "FastStream membaca bait pertama permintaan pemain yang alamat dan jenisnya tidak menunjukkan strim, untuk mengenal pasti senarai main HLS atau manifest DASH. Bait itu diteruskan ke halaman tanpa diubah, dan selebihnya respons tidak disentuh."
     },
     "player_audio_output_label": {
         "message": "Output audio"
