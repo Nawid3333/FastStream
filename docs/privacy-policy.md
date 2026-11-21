@@ -134,6 +134,7 @@ log on (`README-MPV.md`).
 | Permission | Why |
 |---|---|
 | `storage` | Saves your settings locally, and in `storage.sync` only when you click "Export to cloud" (see above). |
+| `unlimitedStorage` | Lets the add-on keep a long video on your disk while you watch it (predownload), up to the size you set in its settings; without it Firefox allows an add-on 10 GB. The video is deleted when the player closes. Firefox shows no prompt for this permission. |
 | `tabs` | Lets the player know which tab a video belongs to, so it can attach to the right one. |
 | `webRequest`, `declarativeNetRequest` | Reads and adjusts request headers for the video streams you play. Some hosts serve media only with particular `Referer`/`Origin` headers, or with the headers of the page's own request; without this the video will not load. Cookies go only to the site they were sent to (see "Network requests"). |
 | `downloads` | Saves a video or subtitle file when *you* click download. Nothing is downloaded without your action. |

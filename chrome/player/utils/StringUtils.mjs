@@ -135,6 +135,18 @@ export class StringUtils {
   }
 
   /**
+   * In the settings' units (1000-based MB and GB), in the browser's language.
+   * @param {number} bytes
+   * @return {string} E.g. "6.8 GB", "750 MB".
+   */
+  static formatSize(bytes) {
+    const gb = bytes >= 1e9;
+    return new Intl.NumberFormat(undefined, {
+      style: 'unit', unit: gb ? 'gigabyte' : 'megabyte', unitDisplay: 'short', maximumFractionDigits: gb ? 1 : 0,
+    }).format(gb ? bytes / 1e9 : bytes / 1e6);
+  }
+
+  /**
    * @param {string} range - An HTTP Range header.
    * @return {[number, number] | [undefined, undefined]} Its first and last byte (NaN for an
    *   open end); both undefined when it does not parse.
