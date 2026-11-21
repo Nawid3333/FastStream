@@ -1224,6 +1224,12 @@ gone one closed).
   keeps the window it follows.
 - A tab's stream follows one window (`tab.mpvWindow`). Its next stream going to another window lets the one before
   go (`letGoOfTab`): that window plays on, and its end and keys say "unavailable" at once, with no countdown.
+- Another file opened in a followed window (dropped in, from mpv's own playlist) stops a countdown running there
+  (`onMpvWatchEvent`, the `path` event): the next episode would have replaced it. A path that is the tab's stream or
+  one of its qualities leaves it running.
+- Streams go to the helper one at a time (`MpvBackend.sendStream`); one that waited behind another is asked again
+  when its turn comes (`wanted`, passed by `openInMpv`) and dropped if its page or MPV went meanwhile. The checks
+  before the queue could not see a turn-off during the first send's seconds of starting mpv.
 - MPV autoplay's next episode goes to the window it came from (`tab.mpvEpisodeWindow`, set when the page was
   asked for it). A window other than `''` whose mpv quit (the relay's `mpv closed` or `no mpv`) ends its
   autoplay: the episode is not sent (no new window, not `''`), a `closed` answer to the play shows no error, and

@@ -203,8 +203,9 @@ function legacyWatch(port, onEvent) {
 /**
  * window: the helper's id of the mpv it played in ('' for its own pipe's; none from a helper before 30); closed: the
  * window named was gone, and nothing was started.
+ * dropped: not sent, no longer wanted when its turn came.
  * @typedef {{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean, focus?: string,
- *   foreground?: string, reused?: boolean, local?: string, window?: string, closed?: boolean}} StreamResult
+ *   foreground?: string, reused?: boolean, local?: string, window?: string, closed?: boolean, dropped?: boolean}} StreamResult
  */
 
 /** @typedef {{response?: *, error?: string, noHost?: boolean}} HostAnswer */
@@ -432,9 +433,10 @@ export class MpvBackend {
    * @param {string} [pageUrl]
    * @param {string} [pageTitle]
    * @param {MpvStream['extras']} [extras] - window: the helper's id of the open mpv to play in (helper 30).
+   * @param {?(() => boolean)} [wanted] - Asked again when its turn comes: false drops it (its page or MPV went).
    * @return {Promise<StreamResult>}
    */
-  openStream(url, tab, headers, contentType, pageUrl, pageTitle, extras = {}) {
+  openStream(url, tab, headers, contentType, pageUrl, pageTitle, extras = {}, wanted = null) {
     if (!MpvBackend.isStreamUrl(url)) {
       return Promise.resolve({ok: false, error: 'mpv is only given http(s) streams'});
     }
@@ -454,7 +456,7 @@ export class MpvBackend {
     /** @type {MpvStream} */
     const stream = {url, headers, contentType, pageUrl, pageTitle, extras: extras || {}};
     // Never a rejection: a throw while the message was built is a send that did not go.
-    const sent = this.sendStream(stream).catch((e) => ({ok: false, error: String(e)})).then((result) => {
+    const sent = this.sendStream(stream, wanted).catch((e) => ({ok: false, error: String(e)})).then((result) => {
       // Not sent, or mpv never started: forget the URL so the user can retry it.
       if (!result.ok && tab && tab.mpvSentUrls) {
         tab.mpvSentUrls.delete(url);
@@ -472,12 +474,15 @@ export class MpvBackend {
   }
 
   /**
-   * One at a time: two at once with no mpv running each started an mpv on the same pipe name.
+   * One at a time: two at once with no mpv running each started an mpv on the same pipe name. One that waited behind
+   * another is dropped when it is no longer wanted.
    * @param {MpvStream} stream
+   * @param {?(() => boolean)} [wanted]
    * @return {Promise<StreamResult>}
    */
-  sendStream(stream) {
-    const mine = this.lastSend.then(() => this.sendStreamNow(stream));
+  sendStream(stream, wanted = null) {
+    const mine = this.lastSend.then(() => (wanted && !wanted() ?
+      /** @type {StreamResult} */ ({ok: false, dropped: true}) : this.sendStreamNow(stream)));
     this.lastSend = mine.catch(() => {});
     return mine;
   }

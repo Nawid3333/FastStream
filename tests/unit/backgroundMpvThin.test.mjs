@@ -143,6 +143,31 @@ describe('MPV mode with the thin helper', () => {
     expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
   });
 
+  it('stops the countdown when the user opens another file in that mpv, and the next episode does not replace it',
+      async () => {
+        const port = await onEpisode1();
+        port.emit({type: 'relaying', ...Thin});
+        await bg.wait(50);
+        const sent = plays().at(-1).target;
+        port.emit({type: 'mpv', data: {event: 'property-change', id: 1, name: 'path', data: sent}});
+        port.emit({type: 'mpv', data: {event: 'property-change', id: 2, name: 'eof-reached', data: false}});
+        port.emit({type: 'mpv', data: {event: 'property-change', id: 2, name: 'eof-reached', data: true}});
+        for (const m of port.sent.filter((m) => m.type === 'mpv' && m.command[0] === 'get_property')) {
+          const data = {'time-remaining': 0.04, 'duration': 1440}[m.command[1]];
+          if (data !== undefined) port.emit({type: 'mpv-reply', id: m.id, error: 'success', data});
+        }
+        await bg.wait(1500);
+        expect(commands(port).some((m) => m.command[0] === 'script-message-to' && m.command[2] === 'show')).toBe(true);
+        // A file dropped into the window (loadfile replace): the old path goes, the new one comes.
+        port.emit({type: 'mpv', data: {event: 'end-file', reason: 'stop'}});
+        port.emit({type: 'mpv', data: {event: 'property-change', id: 1, name: 'path'}});
+        port.emit({type: 'mpv', data: {event: 'property-change', id: 1, name: 'path', data: 'C:\\Videos\\holiday.mkv'}});
+        await bg.wait(5000);
+        expect(navigations).toEqual([]);
+        // Its notice went with it.
+        expect(commands(port).map((m) => m.command)).toContainEqual(['script-message-to', 'notify', 'hide', 'faststream']);
+      });
+
   it('goes to the next episode on mpv\'s key, at once', async () => {
     const port = await onEpisode1();
     port.emit({type: 'relaying', ...Thin});

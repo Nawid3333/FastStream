@@ -1307,6 +1307,24 @@ Changed:
   before the first frame). Test: "does not seek to it over a seek the user made while the player got
   ready".
 
+## Area reviews of MPV mode, the background modules, and #800 (2026-11-21)
+
+Codex read MPV mode and the background modules, deepseek-v4.1-flash tried to refute each finding from the code, and
+the confirmed ones were fixed with a test each that fails without the fix:
+
+- **A countdown went on after the user opened another file in that mpv.** `onMpvWatchEvent` had no branch for the
+  `path` event: 5 s later the next episode replaced the file the user had just opened. A path that is not the tab's
+  stream now cancels it.
+- **A stream queued behind another went to mpv after its page or MPV went.** `openInMpv` checked `wanted` before
+  the backend's queue, not at its turn. The backend now asks again when the send's turn comes.
+- **youtu.be/<id>/ and /watch/?v= were no YouTube video.** A trailing slash, as some pages write links, made
+  `youTubeVideo` return null, and the link opened as a tab instead of going to mpv.
+
+DeepSeek's review of #800 (no autoplay where a stream broke off): an end-file "eof" is still an end, so an mpv that
+does not keep the file open (a helper before 24 cannot keep it open) still told an end at the break. Not fixed
+there: helpers before the current one are no longer supported (the owner, 2026-11-21: only the latest helper and
+Firefox), which leaves only a file shorter than the keep-open answer's round trip.
+
 ## DeepSeek's review of #797 (2026-11-21)
 
 deepseek-v4.1-flash read the diff against main. Two of its three points were real and are fixed in

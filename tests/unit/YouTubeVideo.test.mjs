@@ -18,6 +18,10 @@ describe('youTubeVideo', () => {
       `https://www.youtube.com/live/${ID}?si=abc`,
       `https://youtu.be/${ID}?si=abc`,
       `http://youtu.be/${ID}`,
+      // A trailing slash, as some pages write them.
+      `https://youtu.be/${ID}/`,
+      `https://www.youtube.com/watch/?v=${ID}`,
+      `https://www.youtube.com/live/${ID}/`,
     ]) {
       expect(youTubeVideo(link)?.url, link).toBe(WATCH);
     }

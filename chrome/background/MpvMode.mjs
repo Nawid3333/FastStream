@@ -749,6 +749,11 @@ export function onMpvWatchEvent(state, event) {
         (state.local !== null && event.path === state.local))) {
       startMpvCountdown(state);
     }
+  } else if (event.type === 'path') {
+    // The user opened another file in this mpv during the countdown: the next episode would replace it.
+    if (!isSentStream(event.path, state.url, state.qualities) && !(state.local !== null && event.path === state.local)) {
+      cancelMpvCountdown(state);
+    }
   } else if (event.type === 'request' && (event.action === 'next' || event.action === 'previous')) {
     // A key or a button: now, whatever the countdown says.
     cancelMpvCountdown(state);
@@ -1412,12 +1417,14 @@ export async function openInMpv(tabId, url, ...rest) {
       return {ok: false, declined: true};
     }
     if (placed.extras) rest[5] = {...(rest[5] || {}), ...placed.extras};
-    let result = await Mpv.openStream(url, ...rest);
+    // Its turn may come after another send: asked again then (MpvBackend.sendStream).
+    const args = Array.from({length: 6}, (_, i) => rest[i]);
+    let result = await Mpv.openStream(url, ...args, wanted);
     if (placed.extras?.window && !result.ok && 'closed' in result && result.closed) {
       // The window went meanwhile: a fresh one, not the helper's own pipe's, where another window may play.
       rest[5] = {...rest[5], newWindow: true};
       delete rest[5].window;
-      result = await Mpv.openStream(url, ...rest);
+      result = await Mpv.openStream(url, ...Array.from({length: 6}, (_, i) => rest[i]), wanted);
     }
     // By the tab's id: the player's button and the MPV key's play pass no tab.
     if (result && result.ok && tabId !== undefined && tabId >= 0) {
