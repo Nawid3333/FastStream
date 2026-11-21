@@ -647,11 +647,17 @@
     "player_quality_unknown": {
         "message": "(inconnu)"
     },
-    "player_buffer_incognito_warning": {
-        "message": "Il n'y a pas assez d'espace pour pré-télécharger dans une fenêtre privée : FastStream conserve uniquement $1 de la vidéo en mémoire tampon."
+    "player_buffer_size_warning": {
+        "message": "Cette vidéo (environ $1) dépasse le réglage « Taille maximale de la vidéo préchargée » ($2) : elle n'est donc pas préchargée en entier. Elle se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance. Pour la précharger en entier, augmentez ce réglage ou laissez le champ vide."
     },
-    "player_buffer_storage_warning": {
-        "message": "Cette vidéo ne rentre pas dans les limites du pré-téléchargement (taille, espace disque ou mémoire vive) : FastStream conserve uniquement $1 en mémoire tampon."
+    "player_buffer_private_warning": {
+        "message": "Dans une fenêtre de navigation privée, FastStream garde la vidéo uniquement en mémoire vive, et cette vidéo (environ $1) dépasse la part de « Mémoire vive pour la vidéo en mémoire tampon » que FastStream peut lui consacrer ($2) : elle n'est donc pas préchargée en entier. Elle se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance."
+    },
+    "player_buffer_ram_warning": {
+        "message": "« Conserver la vidéo sur le disque » est désactivé : FastStream garde donc la vidéo uniquement en mémoire vive, et cette vidéo (environ $1) dépasse la part de « Mémoire vive pour la vidéo en mémoire tampon » que FastStream peut lui consacrer ($2). Elle n'est pas préchargée en entier, mais se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance. Pour la précharger en entier, activez « Conserver la vidéo sur le disque »."
+    },
+    "player_buffer_disk_warning": {
+        "message": "Cette vidéo (environ $1) dépasse l'espace disque que Firefox accorde à FastStream ($2 libres) : elle n'est donc pas préchargée en entier. Elle se lit quand même normalement et continue de se charger jusqu'à $3 à l'avance. Libérer de l'espace disque aide."
     },
     "player_error_drm": {
         "message": "Cette vidéo est protégée contre la copie (DRM), et FastStream ne peut pas la lire. Désactivez FastStream à l'aide du bouton de la barre d'outils pour la regarder dans le lecteur du site."
@@ -1405,6 +1411,12 @@
     },
     "perms_page_breakdown_perm12d": {
         "message": "FastStream lit les premiers octets d'une requête de lecteur dont l'adresse et le type n'indiquent aucun flux, pour reconnaître une playlist HLS ou un manifeste DASH. Les octets parviennent à la page sans modification et le reste de la réponse n'est pas touché."
+    },
+    "perms_page_breakdown_perm13h": {
+        "message": "Conserver les longues vidéos sur le disque"
+    },
+    "perms_page_breakdown_perm13d": {
+        "message": "Sans elle, Firefox permet à un module de stocker au plus 10 Go : une longue vidéo ne pourrait donc pas être préchargée en entier, même sans limite dans les réglages de FastStream. FastStream ne conserve toujours pas plus que le réglage « Taille maximale de la vidéo préchargée » et supprime la vidéo à la fermeture du lecteur. Firefox ne demande rien pour cette permission."
     },
     "player_audio_output_label": {
         "message": "Sortie audio"

@@ -647,11 +647,17 @@
     "player_quality_unknown": {
         "message": "(desconhecido)"
     },
-    "player_buffer_incognito_warning": {
-        "message": "Não há espaço suficiente para o pré-download em uma janela privativa: o FastStream mantém em buffer apenas $1 do vídeo."
+    "player_buffer_size_warning": {
+        "message": "Este vídeo (cerca de $1) é maior que a configuração \"Tamanho máximo do vídeo pré-baixado\" ($2), por isso não é pré-baixado por inteiro. Ele ainda é reproduzido normalmente e continua carregando até $3 à frente. Para pré-baixá-lo por inteiro, aumente essa configuração ou deixe o campo vazio."
     },
-    "player_buffer_storage_warning": {
-        "message": "Este vídeo não cabe nos limites do pré-download (tamanho, espaço em disco ou RAM): o FastStream mantém em buffer apenas $1 dele."
+    "player_buffer_private_warning": {
+        "message": "Em uma janela privativa, o FastStream mantém o vídeo apenas na RAM, e este vídeo (cerca de $1) é maior que a parte de \"RAM para o vídeo em buffer\" que o FastStream pode usar para ele ($2), por isso não é pré-baixado por inteiro. Ele ainda é reproduzido normalmente e continua carregando até $3 à frente."
+    },
+    "player_buffer_ram_warning": {
+        "message": "\"Manter o vídeo no disco\" está desativado, então o FastStream mantém o vídeo apenas na RAM, e este vídeo (cerca de $1) é maior que a parte de \"RAM para o vídeo em buffer\" que o FastStream pode usar para ele ($2). Ele não é pré-baixado por inteiro, mas ainda é reproduzido normalmente e continua carregando até $3 à frente. Para pré-baixá-lo por inteiro, ative \"Manter o vídeo no disco\"."
+    },
+    "player_buffer_disk_warning": {
+        "message": "Este vídeo (cerca de $1) é maior que o espaço em disco que o Firefox dá ao FastStream ($2 livres), por isso não é pré-baixado por inteiro. Ele ainda é reproduzido normalmente e continua carregando até $3 à frente. Liberar espaço em disco ajuda."
     },
     "player_error_drm": {
         "message": "Este vídeo é protegido contra cópia (DRM), e o FastStream não pode reproduzi-lo. Desative o FastStream pelo botão dele na barra de ferramentas para assisti-lo no reprodutor do próprio site."
@@ -1405,6 +1411,12 @@
     },
     "perms_page_breakdown_perm12d": {
         "message": "O FastStream lê os primeiros bytes de uma requisição de player cujo endereço e tipo não indicam um stream, para reconhecer uma playlist HLS ou um manifesto DASH. Os bytes seguem para a página sem alterações, e o resto da resposta não é tocado."
+    },
+    "perms_page_breakdown_perm13h": {
+        "message": "Manter vídeos longos no disco"
+    },
+    "perms_page_breakdown_perm13d": {
+        "message": "Sem ela, o Firefox permite que uma extensão guarde no máximo 10 GB, então um vídeo longo não poderia ser pré-baixado por inteiro mesmo sem limite nas configurações do FastStream. O FastStream continua guardando no máximo o que a configuração \"Tamanho máximo do vídeo pré-baixado\" permite e apaga o vídeo quando o player é fechado. O Firefox não pergunta sobre esta permissão."
     },
     "player_audio_output_label": {
         "message": "Saída de áudio"

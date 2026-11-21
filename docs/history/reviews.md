@@ -1323,6 +1323,27 @@ the PR, with a test each that fails without the fix:
   within the first seconds of loading (the lookup waits at most `RememberedWaitMs`), and the
   remembered time then replaces a position the user has just undone.
 
+## DeepSeek's review of #799 (2026-11-21)
+
+deepseek-v4.1-flash read the diff against main. Fixed in the PR, with a test each that fails without
+the fix:
+
+- **Said again as the bitrate moved.** The message came on each change from "fits" to "does not fit",
+  and a measured bitrate or another quality crosses that line back and forth. It is now said once
+  per video (`roomWarnedFor`); the old test called it three times with nothing changed.
+- **The disk figure was the whole quota.** Only 60 % of it is used, beside the RAM share, so a 7 GB
+  video could be "larger than" 10 GB free. The message now gives what the video may fill.
+
+Rejected:
+
+- **No message for the second video once no disk backend works.** `player_outofstorage` is said once
+  per page, and the cause does not change between videos.
+- **The RAM messages give a share, not the setting.** They say "the share of 'RAM for buffered
+  video' FastStream may use for it", which is that number (other players' shares and the 25 % margin
+  taken off).
+- **The locale strings and `perm13` are missing.** They are in the PR; the review was given part of
+  the diff.
+
 ## Codex's pass over the cloud settings (#789, 2026-11-21)
 
 Rejected:

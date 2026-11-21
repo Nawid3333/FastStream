@@ -265,7 +265,7 @@ A private window predownloads as a normal window with "Keep video on disk" off d
 the disk. Until then `updateHasDownloadSpace()` refused any predownload there and kept only
 "Buffer behind" + "Buffer ahead" (5:20 by default), saying "Not enough room" also when the
 RAM budget held the video; that refusal dated from a disk-backed private store, gone since
-2026-10-09. `player_buffer_incognito_warning` now says only that a video does not fit.
+2026-10-09. A private window's message (`player_buffer_private_warning` since 2026-11-21) now says only that a video does not fit.
 
 **The background is no private window and in no container** (2026-11-13, a review): what
 it fetches for such a tab goes with the normal window's cookies, cache and proxy. Two of
@@ -353,6 +353,27 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   keep it on disk. A pinned fragment the disk cannot take (full) is let go of like any other
   (`keepWithinMemoryBudget`); kept pinned in RAM, it held RAM "full" and nothing more was
   downloaded ahead for the rest of the video.
+- **`unlimitedStorage`: no quota of Firefox's below the settings** (2026-11-21, #798). Without it the
+  extension's origin is best-effort storage: measured in Firefox 160 (headless, a fresh profile, the
+  player page top-level and framed in a web page alike) `navigator.storage.estimate()` gave a quota of
+  exactly 10 GiB, `persisted()` false, and `persist()` never answered on the top-level page (a prompt
+  waiting) and false in the frame. So even with no limit in any setting, 60 % of 10 GiB and the RAM
+  share held no 3-hour 1080p movie (13.5 GB at 10 Mbit/s), and FastStream said "the predownload
+  limits". With `unlimitedStorage` the same pages got `persisted()` true and a quota of 900 GB (a
+  share of the disk). Firefox 160 shows no prompt for it: it is not in
+  `ExtensionPermissionMessages.sys.mjs`'s `PERMISSIONS_WITH_MESSAGE`, so the update installs without
+  asking. Persistent storage is not cleared under disk pressure: a session left by a crash goes by
+  the heartbeat prune (`opfs-worker.mjs` `prune`), as before.
+- **Why a video is not predownloaded whole** (2026-11-21, #798): `roomWarning` names the cause, once
+  per video, as an info for 12 s, and each message says it still plays and how far ahead it keeps
+  loading. The maximum size setting (`player_buffer_size_warning`; none for a maximum of 0, which
+  asks for nothing predownloaded), a private window's RAM (`player_buffer_private_warning`),
+  "Keep video on disk" off (`player_buffer_ram_warning`), and the disk Firefox gives
+  (`player_buffer_disk_warning`, now only a nearly full disk; its figure is what the video may fill,
+  the RAM share and 60 % of the quota, not the whole quota). With no disk backend
+  `player_outofstorage` has said it already. Nothing either when nothing is kept ahead (a RAM share
+  of 0): "plays normally" would not hold, and the options page warns about that 0. Before, one message, "does not fit in the predownload
+  limits (size, disk space or RAM)", was read as an error and became an issue.
 - **The Cache API backend** (a normal window without OPFS, the save converters) checks what it
   stored without reading it back (`match()`, body cancelled) and reads it when asked
   (`getBlob` then answers a promise; every caller awaits it).
