@@ -547,6 +547,14 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
+   * Changes with every clearSubtitles: subtitles fetched across one are the video before's.
+   * @return {number}
+   */
+  get subtitlesGeneration() {
+    return this.interfaceController.subtitlesManager.openSubtitlesSearch.downloadGeneration;
+  }
+
+  /**
    * @param {import('./SubtitleTrack.mjs').SubtitleTrack} subtitleTrack
    * @param {boolean} [autoset=false]
    * @return {import('./SubtitleTrack.mjs').SubtitleTrack} The track listed: the same one listed before, or this one.
