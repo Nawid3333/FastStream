@@ -1086,7 +1086,7 @@
         "message": "MPV 允許清單"
     },
     "options_mpv_allowlist_hint": {
-        "message": "此清單中的網站會在 mpv 開啟偵測到的串流。每行一個 URL，以該 URL 開頭的頁面同樣符合（可省略 https:// 和 www.，例如：crunchyroll.com @anime）。使用 ~ 代表正規表示式，! 代表排除。未標記的網站在 mpv 的著色器選擇中預設為電影；若非如此，請在該行結尾加上 @anime。若想明確寫出，也可以使用 @movie。播放器的 mpv 按鈕可針對單一影片覆蓋此設定。使用 @native 時，mpv 會不使用任何放大器播放該網站的影片。"
+        "message": "此清單中的網站會在 mpv 開啟偵測到的串流。每行一個 URL，以該 URL 開頭的頁面同樣符合（可省略 https:// 和 www.，例如：crunchyroll.com @anime）。使用 ~ 代表正規表示式，! 代表排除。未標記的網站在 mpv 的著色器選擇中預設為電影；若非如此，請在該行結尾加上 @anime。若想明確寫出，也可以使用 @movie。播放器的 mpv 按鈕可針對單一影片覆蓋此設定。使用 @native 時，mpv 會不使用任何放大演算法播放該網站的影片。"
     },
     "options_mpv_path": {
         "message": "mpv 路徑（選用：只有在 mpv 主機自己找不到 mpv 時才需要）"
@@ -1188,7 +1188,7 @@
         "message": "在 mpv 中開啟此串流（內容類型：電影——右鍵點擊可更改）"
     },
     "player_mpv_content_native": {
-        "message": "在 mpv 中開啟此串流（內容類型：原生，不使用放大器——右鍵點擊可更改）"
+        "message": "在 mpv 中開啟此串流（內容類型：原生，不使用放大演算法——右鍵點擊可更改）"
     },
     "options_help_header": {
         "message": "說明"
@@ -1272,7 +1272,7 @@
         "message": "此影片只能透過其頁面載入，mpv 無法開啟：FastStream 會在此處播放。"
     },
     "player_mpv_needs_hls_helper": {
-        "message": "mpv 只有使用較新的 mpv 助手才能播放此串流：請在 FastStream 的 mpv 資料夾中執行 update-local.cmd，然後重新傳送。"
+        "message": "mpv 只有使用較新的 mpv 主機才能播放此串流：請在 FastStream 的 mpv 資料夾中執行 update-local.cmd，然後重新傳送。"
     },
     "mpv_episode_loading": {
         "message": "正在 mpv 中載入"
@@ -1395,7 +1395,7 @@
         "message": "向網頁的右鍵選單添加 FastStream 項目：在 FastStream 或 MPV 中播放分頁影片，或在開啟 FastStream 或 MPV 的情況下在新分頁中開啟連結。Firefox 對此不會顯示警告。"
     },
     "perms_page_breakdown_perm11h": {
-        "message": "存取阻擋式 webRequest API"
+        "message": "存取阻斷式 webRequest API"
     },
     "perms_page_breakdown_perm11d": {
         "message": "FastStream 只會短暫保留播放器的請求，以便開始讀取其最初的位元組（下一項權限需要它）。"
