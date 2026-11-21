@@ -468,6 +468,8 @@ go of 20 s later, in RAM and on the disk alike. `ext-specs/reload-keeps-buffer.e
   in the event page survives 25 s with nothing else happening.
 - **A moved file whose part was let go of** is deleted (`adoptOne`), but not when the same part was downloaded
   again meanwhile: that download is saved under the same key, and deleting it lost it (an area review, 2026-11-21).
+  "Its data under the key" is `entry.blobId ?? key` (`keepsDataUnder`): a download moved on to a new link keeps its
+  data under the old key.
 - **Taking it back.** `FastStreamClient.takeBackBuffer` runs in `setSourceInternal` after the reset
   and before the player is built. The answer is `structuredClone`d into the player's realm first:
   its Blobs were not `instanceof Blob` there, and none was taken (measured). RAM Blobs go into the
