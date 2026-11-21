@@ -14,7 +14,7 @@ import {Capabilities, HostVersion, withHostVersion} from '../../native-host/fast
 //
 // That only works while the version moves with the host, so this file is the ratchet: a
 // change to the host or its installer fails it until HostVersion and RECORDED agree.
-// RequiredHostVersion follows only when the extension needs what the new host does.
+// RequiredHostVersion is HostVersion: only the latest helper is supported, an older one is told to update.
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '../..');
 const hostFile = path.join(root, 'native-host/faststream-mpv-host.mjs');
@@ -26,8 +26,8 @@ const installerFile = path.join(root, 'native-host/install.ps1');
 // installed host from the repository's by the host file alone: raising HostVersion changes
 // that file, so a change to install.ps1 reaches the PC the same way. After a change to
 // either: raise HostVersion in the host by one, and RequiredHostVersion in
-// chrome/background/MpvBackend.mjs with it when the extension needs the new host; then put
-// the new values here (a failure prints the hashes).
+// chrome/background/MpvBackend.mjs to the same; then put the new values here (a failure
+// prints the hashes).
 const RECORDED = {
   version: 32,
   host: '75e41ed8ac4c905f71f094f84bf15f1e68e5726f5de6c976c85ad0842a1bd808',
@@ -50,14 +50,14 @@ describe('the mpv host\'s version', () => {
     expect({version: HostVersion, host: sha256Of(hostFile), installer: sha256Of(installerFile)},
         'native-host/faststream-mpv-host.mjs or install.ps1 changed. A PC keeps running its ' +
         'installed copy, so the version has to move: set HostVersion in the host to ' +
-        `${next} (and RequiredHostVersion in chrome/background/MpvBackend.mjs too if the extension needs it), then run this test ` +
+        `${next} (and RequiredHostVersion in chrome/background/MpvBackend.mjs to the same), then run this test ` +
         'again and record the version and the hashes it prints in RECORDED').toEqual(RECORDED);
   });
 
-  it('is at least the one the extension asks for', () => {
-    // Higher than the host and a release would call its own host outdated; lower is a host change
-    // the extension does not need.
-    expect(RequiredHostVersion).toBeLessThanOrEqual(HostVersion);
+  it('is the one the extension asks for: only the latest helper is supported', () => {
+    // Higher than the host and a release would call its own host outdated; lower would keep an
+    // older helper working, and its code paths with it.
+    expect(RequiredHostVersion).toBe(HostVersion);
     expect(Number.isInteger(HostVersion) && HostVersion >= 1).toBe(true);
   });
 

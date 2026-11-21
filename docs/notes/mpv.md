@@ -31,12 +31,12 @@ makes the hand-off fail with `hostOutdated` and what to run (`options_mpv_test_o
 `_unix` outside Windows). That shows as "!" on the toolbar button in MPV mode with what to
 run in the tooltip (`tab.mpvHostOutdated`, persisted like `mpvError`), as the player's
 "Could not open in mpv" reason, and after "Test mpv connection". This replaced `mpv-host-changed.yml`'s e-mail. **Every change to
-the host file or to `install.ps1` raises `HostVersion` by one**, and `RequiredHostVersion`
-with it only when the extension needs the new host (since 2026-10-23: a change that alters
-no behaviour, such as the host's types, has every installed host go on working, and nobody
-is asked to reinstall): `tests/unit/mpvHostVersion.test.mjs` records both files' SHA-256
-beside the version, fails until `HostVersion` and the record agree (the failure prints the
-new hashes), and checks `RequiredHostVersion <= HostVersion`. The installer counts because `update-local.ps1` tells an installed host
+the host file or to `install.ps1` raises `HostVersion` by one, and `RequiredHostVersion` to
+the same** (the owner, 2026-11-21: only the latest helper; one "Update mpv" per helper change
+is a small cost next to code and tests for older helpers, so helper changes go out bundled):
+`tests/unit/mpvHostVersion.test.mjs` records both files' SHA-256 beside the version, fails
+until `HostVersion` and the record agree (the failure prints the new hashes), and checks
+`RequiredHostVersion === HostVersion`. The installer counts because `update-local.ps1` tells an installed host
 from the repository's by the host file alone; a raised `HostVersion` changes that file. The
 extension changes with it, so such a push releases, Firefox updates the extension, and
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
