@@ -186,7 +186,8 @@ describe('the player page\'s messages', () => {
     client.setAutoPlay = vi.fn();
     // As SubtitlesManager.loadTrackAndActivateBest: the track the player has already for one it has.
     const tracks = [];
-    client.loadSubtitleTrack = vi.fn((track) => tracks.find((t) => t.label === track.label) ??
+    // SubtitlesManager.loadSubtitleTrack's own test: SubtitleTrack.equals.
+    client.loadSubtitleTrack = vi.fn((track) => tracks.find((t) => t.equals(track)) ??
       (tracks.push(track), track));
     return {listener, client};
   }

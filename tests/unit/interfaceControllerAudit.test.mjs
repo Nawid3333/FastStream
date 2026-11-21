@@ -66,7 +66,7 @@ describe('InterfaceController.reset', () => {
     });
     self.reset();
     const cleared = self.setStatusMessage.mock.calls.filter((call) => call[1] === null).map((call) => call[0]);
-    expect(cleared).toEqual(expect.arrayContaining(['resumed', 'wait']));
+    expect(cleared).toEqual(expect.arrayContaining(['resumed', 'wait', 'subtitles-hint']));
   });
 });
 

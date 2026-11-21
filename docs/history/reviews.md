@@ -1357,3 +1357,8 @@ the pause came after it, and "Resumed at 0:30" stayed over the next video. Each 
 now; the wait notice goes when the downloads are paused, and `reset()` takes the resume and wait
 notices down. The subtitles notice came again each time the frame's list came with a new stream:
 only tracks the player did not have count now.
+
+glm-5.3-flash's pass over that (2026-11-21): the subtitles notice was the one `reset()` left up, so
+the last video's "subtitles available" stood over the next for up to 8 s; it goes with the others
+now (the next video's own notice comes later, with its subtitles). Its test harness matched tracks
+by label; it uses `SubtitleTrack.equals`, as the player does.
