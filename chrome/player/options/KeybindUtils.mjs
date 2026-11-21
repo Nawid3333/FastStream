@@ -9,9 +9,10 @@ import {DefaultKeybinds, KeybindsWithModifiers} from './defaults/DefaultKeybinds
 /**
  * Saved as `keybindsVersion`: mergeOptions() only fills missing keys, so a moved default needs
  * a migration that runs exactly once. 1: none saved; 2: percent seeks and speed presets;
- * 3: mpv's seeks; 4: speed steps on S and D; 5: numpad keys renamed by what they do.
+ * 3: mpv's seeks; 4: speed steps on S and D; 5: numpad keys renamed by what they do; 6: the subtitle sync tool;
+ * 7: the autoplay switch.
  */
-export const KEYBINDS_VERSION = 6;
+export const KEYBINDS_VERSION = 7;
 
 export const SKIP_BUTTON_SECONDS = 10;
 
@@ -87,6 +88,8 @@ export const RENAMED_IN_VERSION_5 = {
 
 export const ADDED_IN_VERSION_6 = ['SubtitleSyncTool'];
 
+export const ADDED_IN_VERSION_7 = ['ToggleAutoplayNext'];
+
 // Oldest first. renamed applies to every saved binding.
 const MIGRATIONS = [
   {version: 2, moved: MOVED_IN_VERSION_2, added: ADDED_IN_VERSION_2, renamed: {}},
@@ -94,6 +97,7 @@ const MIGRATIONS = [
   {version: 4, moved: MOVED_IN_VERSION_4, added: [], renamed: {}},
   {version: 5, moved: {}, added: [], renamed: RENAMED_IN_VERSION_5},
   {version: 6, moved: {}, added: ADDED_IN_VERSION_6, renamed: {}},
+  {version: 7, moved: {}, added: ADDED_IN_VERSION_7, renamed: {}},
 ];
 
 /**

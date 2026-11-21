@@ -13,6 +13,13 @@ that matches them) are off there; the player's own keys still work with a keyboa
 The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node can test it);
 `KeybindManager.mjs` and the options page use it.
 
+- **Shift+A switches autoplay** (2026-11-21, layout version 7). `ToggleAutoplayNext` does what the
+  autoplay switch does (this tab only; the options page sets where a new tab starts) and says the
+  new state on the video with the mpv notice's words. Shift+A was free, plain A is the 4x preset;
+  Ctrl+A would fire inside the player's text fields, where Ctrl combinations still count. mpv's
+  own toggle stays Ctrl+A (its Shift+A cycles the aspect ratio). A user's own binding on Shift+A
+  keeps it and the switch gets none (`ADDED_IN_VERSION_7`). `autoplayKey.test.mjs`.
+
 - **Percent seeks**: `SeekPercent10..90` on `Digit1..Digit9`. A live stream reports an infinite
   duration, which the `currentTime` setter throws on, so `seekPercentTarget` returns null for it.
 - **mpv seeks** (layout version 3, from Nawid's mpv `input.conf`): `SeekBackward60s/SeekForward60s`

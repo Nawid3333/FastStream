@@ -101,6 +101,9 @@
     "welcome_page_keybinds_content27": {
         "message": "- Abrir/fechar a ferramenta de sincronização das legendas"
     },
+    "welcome_page_keybinds_content28": {
+        "message": "- Ativar/desativar a reprodução automática do próximo vídeo"
+    },
     "welcome_page_keybinds_content19": {
         "message": "- Imagem em imagem"
     },

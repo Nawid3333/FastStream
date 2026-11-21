@@ -101,6 +101,9 @@
     "welcome_page_keybinds_content27": {
         "message": "- открыть/закрыть инструмент синхронизации субтитров"
     },
+    "welcome_page_keybinds_content28": {
+        "message": "- Включить/выключить автовоспроизведение следующего видео"
+    },
     "welcome_page_keybinds_content19": {
         "message": "- картинка в картинке"
     },

@@ -101,6 +101,9 @@
     "welcome_page_keybinds_content27": {
         "message": "- Open/close the subtitle resync tool"
     },
+    "welcome_page_keybinds_content28": {
+        "message": "- Autoplay the next video on/off"
+    },
     "welcome_page_keybinds_content19": {
         "message": "- Picture-in-picture"
     },

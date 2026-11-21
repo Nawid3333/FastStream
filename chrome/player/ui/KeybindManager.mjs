@@ -285,6 +285,13 @@ export class KeybindManager extends EventEmitter {
       this.client.previousVideo();
     });
 
+    // The autoplay switch (for this tab, as the switch itself), with its new state on the video.
+    this.on('ToggleAutoplayNext', /** @param {KeyboardEvent} e */ (e) => {
+      this.client.interfaceController.toggleAutoplayNext();
+      this.osd.show(Localize.getMessage('mpv_autoplay_title') + ': ' +
+        Localize.getMessage(this.client.options.autoplayNext ? 'mpv_autoplay_on' : 'mpv_autoplay_off'));
+    });
+
     this.on('SaveVideo', /** @param {KeyboardEvent} e */ (e) => {
       this.client.interfaceController.saveManager.saveVideo(e);
     });

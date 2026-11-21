@@ -42,6 +42,7 @@ export const DefaultKeybinds = {
   'SeekPercent90': 'Digit9',
   'NextVideo': 'KeyN',
   'PreviousVideo': 'Shift+KeyB',
+  'ToggleAutoplayNext': 'Shift+KeyA',
   'ToggleSubtitles': 'KeyC',
   'ShiftSubtitlesEarlier': 'None',
   'ShiftSubtitlesLater': 'None',
