@@ -279,6 +279,64 @@ describe('DownloadManager.adopt', () => {
     expect(manager.blobStore.blobStore.has(id)).toBe(false);
   });
 
+  describe('a part let go of while its file was moved, and downloaded again', () => {
+    /**
+     * Seg 3 let go of while its file is moved (the move ends when `moveEnds` is called), and downloaded again under
+     * the same key.
+     * @return {Promise<Object>}
+     */
+    async function letGoWhileMoved() {
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      let moveEnds;
+      const moving = new Promise((resolve) => {
+        moveEnds = resolve;
+      });
+      const id = manager.getIdentifier({url: seg(3), responseType: 'arraybuffer'});
+      const adoptStoredFile = manager.blobStore.adoptStoredFile;
+      manager.blobStore.adoptStoredFile = vi.fn(async (key, ...rest) => {
+        if (key === id) await moving;
+        return adoptStoredFile(key, ...rest);
+      });
+      const {onDisk} = manager.adopt(handOff, OLD);
+      manager.removeFile({url: seg(3), responseType: 'arraybuffer'});
+      await manager.blobStore.saveBlobAsync(new Blob(['fresh']), id);
+      const deletes = () => manager.blobStore.deleteBlob.mock.calls.filter(([deleted]) => deleted === id).length;
+      const before = deletes();
+      const end = async () => {
+        moveEnds();
+        await onDisk;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      };
+      return {manager, id, end, deletedSince: () => deletes() - before};
+    }
+
+    it('keeps the new download\'s file under that key', async () => {
+      const {manager, id, end, deletedSince} = await letGoWhileMoved();
+      const fresh = {status: 'fresh download'};
+      manager.storage.set(id, fresh);
+      await end();
+      expect(manager.storage.get(id)).toBe(fresh);
+      expect(manager.blobStore.blobStore.has(id)).toBe(true);
+      expect(deletedSince()).toBe(0);
+    });
+
+    it('keeps it when the new download went on under a new link, its data under the old key', async () => {
+      const {manager, id, end, deletedSince} = await letGoWhileMoved();
+      manager.storage.set('under the new link', {status: 'fresh download', blobId: id});
+      await end();
+      expect(manager.blobStore.blobStore.has(id)).toBe(true);
+      expect(deletedSince()).toBe(0);
+    });
+
+    it('deletes the moved file when the download under that key keeps its data under another', async () => {
+      const {manager, id, end, deletedSince} = await letGoWhileMoved();
+      manager.storage.set(id, {status: 'fresh download', blobId: 'its own older key'});
+      await end();
+      expect(deletedSince()).toBe(1);
+    });
+  });
+
   it('moves no file after the next source\'s storage went, and lets the old session go', async () => {
     // Each was moved and then deleted: thousands of disk moves for a long video, while the
     // next source started.

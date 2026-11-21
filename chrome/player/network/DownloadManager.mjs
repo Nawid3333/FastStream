@@ -367,13 +367,31 @@ export class DownloadManager {
       if (moved && kept && this.blobStore === store && this.storageGeneration === item.generation) {
         return true;
       }
-      if (moved) store.deleteBlob(item.identifier);
+      // The same part downloaded again meanwhile is saved under the same key, and keeps it under a new link
+      // (blobId): that file is the new download's now.
+      if (moved && !(this.blobStore === store && this.keepsDataUnder(item.identifier, item.entry))) {
+        store.deleteBlob(item.identifier);
+      }
       if (this.storageGeneration === item.generation) {
         item.entry.onDataLost?.(new Error('A handed-over download could not be moved here'));
       }
       return false;
     })();
     return item.moved;
+  }
+
+  /**
+   * Whether a download other than this one keeps its data under the store's key: its own key, or the one it had
+   * before a new link (blobId).
+   * @param {string} key
+   * @param {DownloadEntry} except
+   * @return {boolean}
+   */
+  keepsDataUnder(key, except) {
+    for (const [id, entry] of this.storage ?? []) {
+      if (entry !== except && (entry.blobId ?? id) === key) return true;
+    }
+    return false;
   }
 
   /** @param {DownloadEntry} entry */
