@@ -367,7 +367,9 @@ export class DownloadManager {
       if (moved && kept && this.blobStore === store && this.storageGeneration === item.generation) {
         return true;
       }
-      if (moved) store.deleteBlob(item.identifier);
+      // The same part downloaded again meanwhile is saved under the same key: that file is the new download's now.
+      const current = this.blobStore === store ? this.storage?.get(item.identifier) : undefined;
+      if (moved && (!current || current === item.entry)) store.deleteBlob(item.identifier);
       if (this.storageGeneration === item.generation) {
         item.entry.onDataLost?.(new Error('A handed-over download could not be moved here'));
       }

@@ -1323,6 +1323,13 @@ the PR, with a test each that fails without the fix:
   within the first seconds of loading (the lookup waits at most `RememberedWaitMs`), and the
   remembered time then replaces a position the user has just undone.
 
+## Codex's area review of the network code (2026-11-21)
+
+Confirmed by deepseek-v4.1-flash and fixed with a test that fails without the fix: **a part downloaded again lost its
+file when the old one's move ended.** A handed-over file let go of before its move was deleted by key when the move
+ended (`DownloadManager.adoptOne`); the same part downloaded again meanwhile is saved under that key, so its new file
+went and it was downloaded a third time. The delete now leaves a key another entry holds.
+
 ## DeepSeek's review of #799 (2026-11-21)
 
 deepseek-v4.1-flash read the diff against main. Fixed in the PR, with a test each that fails without

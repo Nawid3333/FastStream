@@ -279,6 +279,26 @@ describe('DownloadManager.adopt', () => {
     expect(manager.blobStore.blobStore.has(id)).toBe(false);
   });
 
+  it('leaves alone a part downloaded again under the same key while the old file was moved', async () => {
+    // Let go of before its move, then the same part downloaded again: the fresh download is saved under the same key,
+    // and the end of the old file's move deleted it.
+    const manager = new DownloadManager(null);
+    manager.downloaders = [];
+    const {onDisk} = manager.adopt(handOff, OLD);
+    manager.removeFile({url: seg(3), responseType: 'arraybuffer'});
+    const id = manager.getIdentifier({url: seg(3), responseType: 'arraybuffer'});
+    const fresh = {status: 'fresh download'};
+    manager.storage.set(id, fresh);
+    await manager.blobStore.saveBlobAsync(new Blob(['fresh']), id);
+    const deletes = () => manager.blobStore.deleteBlob.mock.calls.filter(([deleted]) => deleted === id).length;
+    const before = deletes();
+    await onDisk;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(manager.storage.get(id)).toBe(fresh);
+    expect(manager.blobStore.blobStore.has(id)).toBe(true);
+    expect(deletes()).toBe(before);
+  });
+
   it('moves no file after the next source\'s storage went, and lets the old session go', async () => {
     // Each was moved and then deleted: thousands of disk moves for a long video, while the
     // next source started.
