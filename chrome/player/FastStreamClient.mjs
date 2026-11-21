@@ -749,11 +749,10 @@ export class FastStreamClient extends EventEmitter {
     } else if (bitrate && this.duration) {
       // The RAM share, and with a disk 60 % of its free quota too: a small quota (Firefox's is a tenth of the
       // device's storage) left no room for a video the RAM budget holds.
-      let storageAvailable = ramOnly ? ramShare : ramShare + (/** @type {number} */ (this.storageAvailable) * 8) * 0.6;
+      const room = ramOnly ? ramShare : ramShare + (/** @type {number} */ (this.storageAvailable) * 8) * 0.6;
       // 0 is a limit too: nothing predownloaded (an empty field, -1, is none).
-      if (this.options.maxVideoSize >= 0 && this.options.maxVideoSize * 8 < storageAvailable) {
-        storageAvailable = this.options.maxVideoSize * 8;
-      }
+      const capped = this.options.maxVideoSize >= 0 && this.options.maxVideoSize * 8 < room;
+      const storageAvailable = capped ? this.options.maxVideoSize * 8 : room;
 
       const canBufferTime = storageAvailable / bitrate / 1.1;
       let bufferAhead = Math.max(Math.floor(canBufferTime - this.state.bufferBehind), 0);
@@ -779,10 +778,13 @@ export class FastStreamClient extends EventEmitter {
         // The quality on now may have no fragments yet (just switched to)
         if (fragments && !ramOnly) fragments.forEach(grandfather);
         if (this.audioFragments && !ramOnly) this.audioFragments.forEach(grandfather);
-        const windowSeconds = this.state.bufferBehind + Math.min(this.state.bufferAhead, this.ramAheadSeconds(ramRoom, bitrate));
-        if (Number.isFinite(windowSeconds)) {
-          const warning = incognito ? 'player_buffer_incognito_warning' : 'player_buffer_storage_warning';
-          this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage(warning, [StringUtils.formatDuration(windowSeconds)]), 'warning', 5000);
+        const warning = this.roomWarning({
+          capped, incognito, diskGone, ramShare,
+          ahead: Math.min(this.state.bufferAhead, this.ramAheadSeconds(ramRoom, bitrate)),
+          size: bitrate * this.duration / 8,
+        });
+        if (warning) {
+          this.interfaceController.setStatusMessage(StatusTypes.INFO, warning, 'info', 12000);
         }
       }
       this.hasDownloadSpace = newHasDownloadSpace || !this.options.downloadAll;
@@ -795,6 +797,32 @@ export class FastStreamClient extends EventEmitter {
     if (ramOnly && this.state.bufferAhead > this.ramAheadSeconds(ramRoom, bitrate)) {
       this.state.bufferAhead = this.ramAheadSeconds(ramRoom, bitrate);
     }
+  }
+
+  /**
+   * Why a video is not predownloaded whole, and what would change it: a setting, a private window or the disk.
+   * Each says the video plays as usual: read as an error, the old "does not fit in the limits" became an issue.
+   * @param {{capped: boolean, incognito: boolean, diskGone: boolean, ramShare: number, ahead: number, size: number}} why
+   *   ramShare in bits, ahead in seconds, size in bytes.
+   * @return {?string} Null for a maximum size of 0 (nothing predownloaded, as asked) and for no disk backend
+   *   (player_outofstorage said it).
+   */
+  roomWarning({capped, incognito, diskGone, ramShare, ahead, size}) {
+    if (!Number.isFinite(ahead)) return null;
+    const video = StringUtils.formatSize(size);
+    const kept = StringUtils.formatDuration(ahead);
+    if (capped) {
+      if (this.options.maxVideoSize === 0) return null;
+      return Localize.getMessage('player_buffer_size_warning', [video, StringUtils.formatSize(this.options.maxVideoSize), kept]);
+    }
+    if (incognito) {
+      return Localize.getMessage('player_buffer_private_warning', [video, StringUtils.formatSize(ramShare / 8), kept]);
+    }
+    if (diskGone) return null;
+    if (this.options.bufferToDisk === false) {
+      return Localize.getMessage('player_buffer_ram_warning', [video, StringUtils.formatSize(ramShare / 8), kept]);
+    }
+    return Localize.getMessage('player_buffer_disk_warning', [video, StringUtils.formatSize(/** @type {number} */ (this.storageAvailable)), kept]);
   }
 
   /**

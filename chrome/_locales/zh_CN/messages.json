@@ -647,11 +647,17 @@
     "player_quality_unknown": {
         "message": "(未知)"
     },
-    "player_buffer_incognito_warning": {
-        "message": "隐私窗口中没有足够的空间进行预下载：FastStream 只会缓冲 $1。"
+    "player_buffer_size_warning": {
+        "message": "此视频（约 $1）超过了“预下载视频的最大大小”设置（$2），因此不会完整预下载。它仍会正常播放，并持续向前加载最多 $3。如需完整预下载，请调大此设置或将其留空。"
     },
-    "player_buffer_storage_warning": {
-        "message": "此视频超出了预下载限制（大小、磁盘空间或内存）：FastStream 只会缓冲 $1。"
+    "player_buffer_private_warning": {
+        "message": "在隐私窗口中，FastStream 只将视频保存在内存中，而此视频（约 $1）超过了 FastStream 可为其使用的“缓冲视频所用内存”份额（$2），因此不会完整预下载。它仍会正常播放，并持续向前加载最多 $3。"
+    },
+    "player_buffer_ram_warning": {
+        "message": "“当此内存满时将视频保存在磁盘上”已关闭，因此 FastStream 只将视频保存在内存中，而此视频（约 $1）超过了 FastStream 可为其使用的“缓冲视频所用内存”份额（$2）。它不会完整预下载，但仍会正常播放，并持续向前加载最多 $3。如需完整预下载，请开启此设置。"
+    },
+    "player_buffer_disk_warning": {
+        "message": "此视频（约 $1）超过了 Firefox 分配给 FastStream 的磁盘空间（剩余 $2），因此不会完整预下载。它仍会正常播放，并持续向前加载最多 $3。清理磁盘空间会有帮助。"
     },
     "player_error_drm": {
         "message": "此视频受版权保护（DRM），FastStream 无法播放。请用工具栏按钮关闭 FastStream，然后在网站自带的播放器中观看。"
@@ -1405,6 +1411,12 @@
     },
     "perms_page_breakdown_perm12d": {
         "message": "对于地址和类型都看不出是视频流的播放器请求，FastStream 会读取其最初的字节，以识别 HLS 播放列表或 DASH 清单。这些字节原样传给页面，响应的其余部分不受影响。"
+    },
+    "perms_page_breakdown_perm13h": {
+        "message": "将长视频保存在磁盘上"
+    },
+    "perms_page_breakdown_perm13d": {
+        "message": "没有此权限时，Firefox 最多只允许附加组件存储 10 GB，因此即使 FastStream 的设置中没有限制，长视频也无法完整预下载。FastStream 仍然不会超过“预下载视频的最大大小”设置来保存视频，并会在播放器关闭时删除视频。Firefox 不会就此权限询问你。"
     },
     "player_audio_output_label": {
         "message": "音频输出"

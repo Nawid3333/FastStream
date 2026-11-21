@@ -647,11 +647,17 @@
     "player_quality_unknown": {
         "message": "(unknown)"
     },
-    "player_buffer_incognito_warning": {
-        "message": "Not enough room to predownload in a private window: FastStream keeps only $1 of the video buffered."
+    "player_buffer_size_warning": {
+        "message": "This video (about $1) is larger than the setting \"Maximum size of predownloaded video\" ($2), so it is not predownloaded whole. It still plays normally and keeps loading up to $3 ahead. To predownload it whole, raise that setting or leave it empty."
     },
-    "player_buffer_storage_warning": {
-        "message": "This video does not fit in the predownload limits (size, disk space or RAM): FastStream keeps only $1 of it buffered."
+    "player_buffer_private_warning": {
+        "message": "In a private window FastStream keeps video only in RAM, and this video (about $1) is larger than the share of \"RAM for buffered video\" FastStream may use for it ($2), so it is not predownloaded whole. It still plays normally and keeps loading up to $3 ahead."
+    },
+    "player_buffer_ram_warning": {
+        "message": "\"Keep video on disk\" is off, so FastStream keeps video only in RAM, and this video (about $1) is larger than the share of \"RAM for buffered video\" FastStream may use for it ($2). It is not predownloaded whole, but still plays normally and keeps loading up to $3 ahead. To predownload it whole, switch \"Keep video on disk\" on."
+    },
+    "player_buffer_disk_warning": {
+        "message": "This video (about $1) is larger than the disk space Firefox gives FastStream ($2 free), so it is not predownloaded whole. It still plays normally and keeps loading up to $3 ahead. Freeing disk space helps."
     },
     "player_error_drm": {
         "message": "This video is copy-protected (DRM), and FastStream cannot play it. Turn FastStream off with its toolbar button to watch it in the site's own player."
@@ -1405,6 +1411,12 @@
     },
     "perms_page_breakdown_perm12d": {
         "message": "FastStream reads the first bytes of a player's request whose address and type name no stream, to recognize an HLS playlist or a DASH manifest. The bytes go on to the page unchanged, and the rest of the response is left alone."
+    },
+    "perms_page_breakdown_perm13h": {
+        "message": "Keep long videos on your disk"
+    },
+    "perms_page_breakdown_perm13d": {
+        "message": "Without it, Firefox lets an add-on store at most 10 GB, so a long video could not be predownloaded whole even with no limit in FastStream's settings. FastStream still keeps no more than its \"Maximum size of predownloaded video\" setting, and deletes the video when the player closes. Firefox does not ask about this permission."
     },
     "player_audio_output_label": {
         "message": "Audio output"

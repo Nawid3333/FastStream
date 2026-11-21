@@ -647,11 +647,17 @@
     "player_quality_unknown": {
         "message": "(tidak diketahui)"
     },
-    "player_buffer_incognito_warning": {
-        "message": "Tidak cukup ruang untuk pra-unduh di jendela pribadi: FastStream hanya menyimpan $1 dari video tersebut."
+    "player_buffer_size_warning": {
+        "message": "Video ini (sekitar $1) lebih besar dari pengaturan \"Ukuran maksimum video yang dipraunduh\" ($2), jadi tidak dipraunduh seluruhnya. Video tetap diputar normal dan terus dimuat hingga $3 ke depan. Untuk mempraunduh seluruhnya, naikkan pengaturan itu atau biarkan kolomnya kosong."
     },
-    "player_buffer_storage_warning": {
-        "message": "Video ini tidak muat di batas pra-unduh (ukuran, ruang disk, atau RAM): FastStream hanya menyimpan $1 darinya."
+    "player_buffer_private_warning": {
+        "message": "Di jendela pribadi, FastStream menyimpan video hanya di RAM, dan video ini (sekitar $1) lebih besar dari bagian \"RAM untuk video yang di-buffer\" yang boleh dipakai FastStream untuknya ($2), jadi tidak dipraunduh seluruhnya. Video tetap diputar normal dan terus dimuat hingga $3 ke depan."
+    },
+    "player_buffer_ram_warning": {
+        "message": "\"Simpan video di disk\" nonaktif, jadi FastStream menyimpan video hanya di RAM, dan video ini (sekitar $1) lebih besar dari bagian \"RAM untuk video yang di-buffer\" yang boleh dipakai FastStream untuknya ($2). Video tidak dipraunduh seluruhnya, tetapi tetap diputar normal dan terus dimuat hingga $3 ke depan. Untuk mempraunduh seluruhnya, aktifkan \"Simpan video di disk\"."
+    },
+    "player_buffer_disk_warning": {
+        "message": "Video ini (sekitar $1) lebih besar dari ruang disk yang diberikan Firefox kepada FastStream ($2 kosong), jadi tidak dipraunduh seluruhnya. Video tetap diputar normal dan terus dimuat hingga $3 ke depan. Mengosongkan ruang disk akan membantu."
     },
     "player_error_drm": {
         "message": "Video ini dilindungi hak cipta (DRM), dan FastStream tidak dapat memutarnya. Matikan FastStream dengan tombol bilah alatnya untuk menontonnya di pemutar situs."
@@ -1405,6 +1411,12 @@
     },
     "perms_page_breakdown_perm12d": {
         "message": "FastStream membaca byte pertama dari permintaan pemutar yang alamat dan jenisnya tidak menunjukkan stream, untuk mengenali playlist HLS atau manifest DASH. Byte tersebut diteruskan ke halaman tanpa diubah, dan sisa respons tidak disentuh."
+    },
+    "perms_page_breakdown_perm13h": {
+        "message": "Menyimpan video panjang di disk"
+    },
+    "perms_page_breakdown_perm13d": {
+        "message": "Tanpa izin ini, Firefox hanya membolehkan pengaya menyimpan paling banyak 10 GB, sehingga video panjang tidak dapat dipraunduh seluruhnya meskipun tanpa batas di pengaturan FastStream. FastStream tetap tidak menyimpan lebih dari pengaturan \"Ukuran maksimum video yang dipraunduh\" dan menghapus video saat pemutar ditutup. Firefox tidak menanyakan izin ini."
     },
     "player_audio_output_label": {
         "message": "Output audio"

@@ -647,11 +647,17 @@
     "player_quality_unknown": {
         "message": "(onbekend)"
     },
-    "player_buffer_incognito_warning": {
-        "message": "Niet genoeg ruimte om vooraf te downloaden in een privévenster: FastStream buffert slechts $1 van de video."
+    "player_buffer_size_warning": {
+        "message": "Deze video (ongeveer $1) is groter dan de instelling 'Maximale grootte van vooraf gedownloade video' ($2) en wordt daarom niet volledig vooraf gedownload. Hij speelt gewoon af en blijft tot $3 vooruit laden. Om hem volledig vooraf te downloaden, verhoog je die instelling of laat je het veld leeg."
     },
-    "player_buffer_storage_warning": {
-        "message": "Deze video past niet binnen de limieten voor vooraf downloaden (grootte, schijfruimte of RAM): FastStream buffert slechts $1 van de video."
+    "player_buffer_private_warning": {
+        "message": "In een privévenster bewaart FastStream video alleen in het RAM, en deze video (ongeveer $1) is groter dan het deel van 'RAM voor gebufferde video' dat FastStream ervoor mag gebruiken ($2), dus wordt hij niet volledig vooraf gedownload. Hij speelt gewoon af en blijft tot $3 vooruit laden."
+    },
+    "player_buffer_ram_warning": {
+        "message": "'Video op schijf bewaren' staat uit, dus FastStream bewaart video alleen in het RAM, en deze video (ongeveer $1) is groter dan het deel van 'RAM voor gebufferde video' dat FastStream ervoor mag gebruiken ($2). Hij wordt niet volledig vooraf gedownload, maar speelt gewoon af en blijft tot $3 vooruit laden. Zet 'Video op schijf bewaren' aan om hem volledig vooraf te downloaden."
+    },
+    "player_buffer_disk_warning": {
+        "message": "Deze video (ongeveer $1) is groter dan de schijfruimte die Firefox aan FastStream geeft ($2 vrij) en wordt daarom niet volledig vooraf gedownload. Hij speelt gewoon af en blijft tot $3 vooruit laden. Schijfruimte vrijmaken helpt."
     },
     "player_error_drm": {
         "message": "Deze video is kopieerbeveiligd (DRM) en FastStream kan hem niet afspelen. Zet FastStream uit met de knop in de werkbalk om de video in de eigen speler van de site te bekijken."
@@ -1405,6 +1411,12 @@
     },
     "perms_page_breakdown_perm12d": {
         "message": "FastStream leest de eerste bytes van een verzoek van een speler waarvan adres en type geen stream noemen, om een HLS-afspeellijst of DASH-manifest te herkennen. De bytes gaan ongewijzigd naar de pagina en de rest van het antwoord blijft onaangeroerd."
+    },
+    "perms_page_breakdown_perm13h": {
+        "message": "Lange video's op de schijf bewaren"
+    },
+    "perms_page_breakdown_perm13d": {
+        "message": "Zonder deze toestemming laat Firefox een add-on hoogstens 10 GB opslaan, zodat een lange video zelfs zonder limiet in de instellingen van FastStream niet volledig vooraf gedownload kan worden. FastStream bewaart nog steeds niet meer dan de instelling 'Maximale grootte van vooraf gedownloade video' toestaat, en verwijdert de video als de speler sluit. Firefox vraagt niet om deze toestemming."
     },
     "player_audio_output_label": {
         "message": "Audio-uitvoer"
