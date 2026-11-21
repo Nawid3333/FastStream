@@ -1292,3 +1292,46 @@ Rejected:
   the https-to-http case needs the stream's own server to redirect to plain http.
 - **The manual MPV repeat-click guard is keyed by the URL only**: two tabs sending the same stream
   within three seconds is no real flow, and one mpv window for both is what the guard is for.
+
+## Codex's area reviews (2026-11-21)
+
+Codex reviewed areas of the code while Ollama's usage window was used up; each finding was checked
+against the code.
+
+Changed:
+
+- **A rebuild played a video the user had paused** (`FastStreamClient.setSourceInternal`): after an
+  automatic continuation turned autoplay on, another page quality or a recovery started the paused
+  video again. Test: `FastStreamClient.test.mjs`, "a video built again after autoplay".
+- **The remembered time undid a seek made while the player got ready** (MP4: the seek bar comes
+  before the first frame). Test: "does not seek to it over a seek the user made while the player got
+  ready".
+
+## DeepSeek's review of #797 (2026-11-21)
+
+deepseek-v4.1-flash read the diff against main. Two of its three points were real and are fixed in
+the PR, with a test each that fails without the fix:
+
+- **A blocked autoplay, then the user's play and pause.** Only autoplay set `autoPlayTriggered`, so
+  a rebuild with `play: false` (a quality switch, a recovery) played the paused video again. The
+  video's `play` event now marks it too.
+- **A late autoplay of the video before.** Its `play()` settling after the next source was set marked
+  the new one as autoplayed. Each write now checks it is still its own source. Unlikely (the old
+  player's pending `play()` usually rejects when it is torn down), but a one-line guard.
+- Rejected: **an undone seek lets the remembered time land.** `undoSeek` empties `pastSeeks`, so a
+  remembered time arriving after a seek and its undo would apply. That needs the seek and the undo
+  within the first seconds of loading (the lookup waits at most `RememberedWaitMs`), and the
+  remembered time then replaces a position the user has just undone.
+
+## Codex's pass over the cloud settings (#789, 2026-11-21)
+
+Rejected:
+
+- **Two exports at once can delete each other's chunks** (`CloudSettings.mjs`, the cleanup after
+  `set()`): it needs two exports interleaved on one device (Sync merges devices minutes apart), and
+  the copy's hash turns the damage into "incomplete" on import, never into wrong settings.
+- **A half-failed import says it worked** (`applyImportedSettings`): the file import and every option
+  on the page save the same way (`Utils.setConfig` logs a refused `storage.local` write); such a
+  write fails only on a broken or full profile.
+- **An imported regex can hang the URL lists** (`autoEnableURLs`, custom source patterns): the cloud
+  copy is the user's own, from their own Mozilla account, as if typed into the options.
