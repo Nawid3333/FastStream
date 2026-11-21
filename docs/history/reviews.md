@@ -1325,6 +1325,15 @@ does not keep the file open (a helper before 24 cannot keep it open) still told 
 there: helpers before the current one are no longer supported (the owner, 2026-11-21: only the latest helper and
 Firefox), which leaves only a file shorter than the keep-open answer's round trip.
 
+## Codex's reviews of #802 and #803 (2026-11-21)
+
+Fixed (#803): **a queued send's check was the first asker's only.** The page after a navigation
+asking for the same stream got the pending send back, and when the old page's check said no,
+both were dropped. A queued send now goes while any asker still wants it.
+
+Rejected (#802): **the Shift+A test mocks the on-screen display it checks.** The test checks what
+the key asks the display to show; showing it is the display's own job, shared by every key.
+
 ## DeepSeek's review of #797 (2026-11-21)
 
 deepseek-v4.1-flash read the diff against main. Two of its three points were real and are fixed in
@@ -1374,12 +1383,3 @@ Rejected:
   write fails only on a broken or full profile.
 - **An imported regex can hang the URL lists** (`autoEnableURLs`, custom source patterns): the cloud
   copy is the user's own, from their own Mozilla account, as if typed into the options.
-
-## Codex's reviews of #802 and #803 (2026-11-21)
-
-Fixed (#803): **a queued send's check was the first asker's only.** The page after a navigation
-asking for the same stream got the pending send back, and when the old page's check said no,
-both were dropped. A queued send now goes while any asker still wants it.
-
-Rejected (#802): **the Shift+A test mocks the on-screen display it checks.** The test checks what
-the key asks the display to show; showing it is the display's own job, shared by every key.
