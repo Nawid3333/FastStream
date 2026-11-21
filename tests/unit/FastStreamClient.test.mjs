@@ -52,7 +52,7 @@ const {EventEmitter} = await import('../../chrome/player/modules/eventemitter.mj
 const {DefaultPlayerEvents} = await import('../../chrome/player/enums/DefaultPlayerEvents.mjs');
 const {DownloadStatus} = await import('../../chrome/player/enums/DownloadStatus.mjs');
 const {ReferenceTypes} = await import('../../chrome/player/enums/ReferenceTypes.mjs');
-const {DISK_ONLY_ROOM_BYTES} = await import('../../chrome/player/network/MemoryBudget.mjs');
+const {DISK_ONLY_ROOM_BYTES, LOW} = await import('../../chrome/player/network/MemoryBudget.mjs');
 const {MessageTypes} = await import('../../chrome/player/enums/MessageTypes.mjs');
 const {Fragment} = await import('../../chrome/player/players/Fragment.mjs');
 const {LevelManager} = await import('../../chrome/player/players/LevelManager.mjs');
@@ -1235,8 +1235,10 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
       const client = movie({maxVideoSize: -1}, 10 * 1024 ** 3);
       expect(client.hasDownloadSpace).toBe(false);
       expect(said(client)).toEqual(['player_buffer_disk_warning']);
+      // What the video may fill: the RAM share and 60 % of the quota, not the whole quota (a 7 GB video was said to be
+      // larger than 10 GiB).
       expect(message).toHaveBeenCalledWith('player_buffer_disk_warning', [StringUtils.formatSize(13.5 * GB),
-        StringUtils.formatSize(10 * 1024 ** 3), StringUtils.formatDuration(client.state.bufferAhead)]);
+        StringUtils.formatSize(2 * GB * LOW + 0.6 * 10 * 1024 ** 3), StringUtils.formatDuration(client.state.bufferAhead)]);
     });
 
     it('names the maximum size when the setting holds it back, as an info that stays 12 s', () => {
@@ -1264,11 +1266,24 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
       expect(said(client)).toEqual([]);
     });
 
-    it('says it once per video', () => {
+    it('says it once per video, though a moving bitrate crosses the line again', () => {
       const client = movie({maxVideoSize: 5 * GB}, 900 * GB);
       client.updateHasDownloadSpace();
+      // A lower quality fits, the higher one again does not.
+      client.player.getVideoLevels = () => new Map([['video-1', {bitrate: 2e6}]]);
       client.updateHasDownloadSpace();
+      expect(client.hasDownloadSpace).toBe(true);
+      client.player.getVideoLevels = () => new Map([['video-1', {bitrate: 1e7}]]);
+      client.updateHasDownloadSpace();
+      expect(client.hasDownloadSpace).toBe(false);
       expect(said(client)).toEqual(['player_buffer_size_warning']);
+      // The next video is told again.
+      client.source = {};
+      client.player.getVideoLevels = () => new Map([['video-1', {bitrate: 2e6}]]);
+      client.updateHasDownloadSpace();
+      client.player.getVideoLevels = () => new Map([['video-1', {bitrate: 1e7}]]);
+      client.updateHasDownloadSpace();
+      expect(said(client)).toEqual(['player_buffer_size_warning', 'player_buffer_size_warning']);
     });
   });
 

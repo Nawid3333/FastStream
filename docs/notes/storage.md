@@ -369,7 +369,8 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   loading. The maximum size setting (`player_buffer_size_warning`; none for a maximum of 0, which
   asks for nothing predownloaded), a private window's RAM (`player_buffer_private_warning`),
   "Keep video on disk" off (`player_buffer_ram_warning`), and the disk Firefox gives
-  (`player_buffer_disk_warning`, now only a nearly full disk). With no disk backend
+  (`player_buffer_disk_warning`, now only a nearly full disk; its figure is what the video may fill,
+  the RAM share and 60 % of the quota, not the whole quota). With no disk backend
   `player_outofstorage` has said it already. Nothing either when nothing is kept ahead (a RAM share
   of 0): "plays normally" would not hold, and the options page warns about that 0. Before, one message, "does not fit in the predownload
   limits (size, disk space or RAM)", was read as an error and became an issue.

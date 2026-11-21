@@ -778,12 +778,14 @@ export class FastStreamClient extends EventEmitter {
         // The quality on now may have no fragments yet (just switched to)
         if (fragments && !ramOnly) fragments.forEach(grandfather);
         if (this.audioFragments && !ramOnly) this.audioFragments.forEach(grandfather);
-        const warning = this.roomWarning({
-          capped, incognito, diskGone, ramShare,
+        // Once per video: a bitrate that moves (measured, another quality) crosses the line again and again.
+        const warning = this.roomWarnedFor === this.source ? null : this.roomWarning({
+          capped, incognito, diskGone, ramShare, room,
           ahead: Math.min(this.state.bufferAhead, this.ramAheadSeconds(ramRoom, bitrate)),
           size: bitrate * this.duration / 8,
         });
         if (warning) {
+          this.roomWarnedFor = this.source;
           this.interfaceController.setStatusMessage(StatusTypes.INFO, warning, 'info', 12000);
         }
       }
@@ -802,12 +804,13 @@ export class FastStreamClient extends EventEmitter {
   /**
    * Why a video is not predownloaded whole, and what would change it: a setting, a private window or the disk.
    * Each says the video plays as usual: read as an error, the old "does not fit in the limits" became an issue.
-   * @param {{capped: boolean, incognito: boolean, diskGone: boolean, ramShare: number, ahead: number, size: number}} why
-   *   ramShare in bits, ahead in seconds, size in bytes.
+   * @param {{capped: boolean, incognito: boolean, diskGone: boolean, ramShare: number, room: number,
+   *   ahead: number, size: number}} why - ramShare and room (what the video may fill) in bits, ahead in seconds,
+   *   size in bytes.
    * @return {?string} Null for a maximum size of 0 (nothing predownloaded, as asked) and for no disk backend
    *   (player_outofstorage said it).
    */
-  roomWarning({capped, incognito, diskGone, ramShare, ahead, size}) {
+  roomWarning({capped, incognito, diskGone, ramShare, room, ahead, size}) {
     // Nothing kept ahead (a RAM share or buffer setting of 0): "plays normally" would not hold, and the options page
     // already warns about that 0.
     if (!Number.isFinite(ahead) || ahead <= 0) return null;
@@ -824,7 +827,9 @@ export class FastStreamClient extends EventEmitter {
     if (this.options.bufferToDisk === false) {
       return Localize.getMessage('player_buffer_ram_warning', [video, StringUtils.formatSize(ramShare / 8), kept]);
     }
-    return Localize.getMessage('player_buffer_disk_warning', [video, StringUtils.formatSize(/** @type {number} */ (this.storageAvailable)), kept]);
+    // What the video may fill (the RAM share and 60 % of the quota), not the whole quota: a video between the two was
+    // "larger" than a bigger number.
+    return Localize.getMessage('player_buffer_disk_warning', [video, StringUtils.formatSize(room / 8), kept]);
   }
 
   /**
