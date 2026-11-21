@@ -1239,3 +1239,31 @@ fetched again, round and round (5.97 GB moved for a 1.85 GB stream); older for "
 disk" off, reached by private windows now. The audio level's bitrate counts too ("fits the
 video and its separate audio track together"). Rejected from the Claude API reviewer: repeated pinning (`addReference` adds
 an id once) and an unset `bufferBehind` in a private window (it is only ever the option).
+
+## The translations of the November strings (2026-11-21)
+
+The 33 strings added since 2026-11-01 (MPV offer and hand-off, cloud settings, subtitle messages,
+permissions page) had only machine translations. Two models reviewed each of the 15 locales
+(kimi-k3.1-pro and mistral-large-4), each claim checked against the rest of its locale.
+
+Changed (37 strings, 13 locales):
+
+- **The mpv helper's name as the rest of the locale has it**, in the newest string
+  (`player_mpv_needs_hls_helper`): es "programa de conexión", it "programma di supporto", nl
+  "mpv-hulpje", pl "host mpv", ru "mpv-хост", id "program penghubung", zh_CN 辅助程序, zh_TW
+  主機 (each had a word of its own there); pt_BR "stream" (the locale's word, not
+  "transmissão"); tr "daha yeni" (newer).
+- **zh_CN/zh_TW 放大器** (an amplifier) for the upscaler: 放大算法 / 放大演算法.
+- **One spelling per locale**: id "subtitle" (37 times, against "subtitel" in the new strings), ms
+  "sarikata" (26 against 9).
+- Wording: fr "juste le temps de", pt_BR "API webRequest bloqueante", zh_TW 阻斷式, tr and ja
+  `player_mpv_declined`, ru `welcome_page_keybinds_content27` (the tool), ru/id/ms
+  `options_general_cyclesubs` (says what goes off), id/ms `perms_page_breakdown_perm12d`
+  ("menunjukkan"), id `options_cloud_quota`, ms `welcome_page_keybinds_content27`.
+
+Rejected: Turkish title case on `options_cloud_export`/`import` (every Turkish button is title
+case); a missing space in es `options_cloud_hint` (it is there); es "los desactiva" and it "li
+disattiva" (the pronoun is the subtitles); the content type "Nativ"/"Natif"/"Nativo"/"Native"
+left as it is (Movie is translated, Anime and Native are names); zh_TW 您 in the cloud strings
+(the locale uses 您 in its dialog-style strings); ko "$1은(는)" (the usual form for a
+placeholder); ms "Sync Sekarang" (Firefox's own Malay label could not be checked).

@@ -387,13 +387,13 @@
         "message": "Trek $1"
     },
     "player_subtitles_osd_off": {
-        "message": "Subtitel mati"
+        "message": "Subtitle mati"
     },
     "player_subtitles_osd_on": {
-        "message": "Subtitel: $1"
+        "message": "Subtitle: $1"
     },
     "player_subtitles_osd_none": {
-        "message": "Tidak ada subtitel"
+        "message": "Tidak ada subtitle"
     },
     "player_subtitles_new_cue": {
         "message": "Subtitle baru"
@@ -426,7 +426,7 @@
         "message": "File subtitle TTML atau DFXP ini tidak dapat dibaca."
     },
     "player_subtitles_ttml_images": {
-        "message": "File TTML ini menyimpan subtitelnya sebagai gambar, yang tidak dapat ditampilkan FastStream."
+        "message": "File TTML ini menyimpan subtitle-nya sebagai gambar, yang tidak dapat ditampilkan FastStream."
     },
     "player_subtitlesmenu_searchbtn": {
         "message": "Cari di OpenSubtitles"
@@ -858,7 +858,7 @@
         "message": "Secara otomatis aktifkan trek subtitle terbaik yang ditemukan\n(Ubah bahasa default di pengaturan subtitle)"
     },
     "options_general_cyclesubs": {
-        "message": "Tombol subtitel berpindah ke tiap trek satu per satu, lalu mati\n(Tidak dicentang: menyalakan dan mematikan subtitel)"
+        "message": "Tombol subtitle berpindah ke tiap trek satu per satu, lalu mematikan subtitle\n(Tidak dicentang: menyalakan dan mematikan subtitle)"
     },
     "options_general_stream": {
         "message": "Gunakan pemutar untuk memutar stream HLS/DASH saat membuka URL daftar putar (.m3u8/.mpd)"
@@ -1017,7 +1017,7 @@
         "message": "Belum ada salinan cloud. Ekspor dari komputer lain terlebih dahulu; jika baru saja melakukannya, gunakan \"Sinkronkan Sekarang\" di Firefox lalu coba lagi."
     },
     "options_cloud_quota": {
-        "message": "Terlalu besar untuk penyimpanan sinkronisasi Firefox yang 100 KB. Persingkat daftar URL, atau gunakan ekspor ke berkas."
+        "message": "Terlalu besar untuk penyimpanan sinkronisasi Firefox yang berkapasitas 100 KB. Persingkat daftar URL, atau gunakan ekspor ke berkas."
     },
     "options_cloud_incomplete": {
         "message": "Salinan cloud belum lengkap; mungkin masih disinkronkan. Coba lagi dalam beberapa menit."
@@ -1272,7 +1272,7 @@
         "message": "Video ini hanya dimuat melalui halamannya, dan mpv tidak dapat membukanya: FastStream memutarnya di sini."
     },
     "player_mpv_needs_hls_helper": {
-        "message": "mpv hanya dapat memutar stream ini dengan helper mpv yang lebih baru: jalankan update-local.cmd di folder mpv FastStream, lalu kirim lagi."
+        "message": "mpv hanya dapat memutar stream ini dengan program penghubung mpv yang lebih baru: jalankan update-local.cmd di folder mpv FastStream, lalu kirim lagi."
     },
     "mpv_episode_loading": {
         "message": "memuat di mpv"
@@ -1404,7 +1404,7 @@
         "message": "Membaca byte pertama dari respons"
     },
     "perms_page_breakdown_perm12d": {
-        "message": "FastStream membaca byte pertama dari permintaan pemutar yang alamat dan jenisnya tidak menyebut stream, untuk mengenali playlist HLS atau manifest DASH. Byte tersebut diteruskan ke halaman tanpa diubah, dan sisa respons tidak disentuh."
+        "message": "FastStream membaca byte pertama dari permintaan pemutar yang alamat dan jenisnya tidak menunjukkan stream, untuk mengenali playlist HLS atau manifest DASH. Byte tersebut diteruskan ke halaman tanpa diubah, dan sisa respons tidak disentuh."
     },
     "player_audio_output_label": {
         "message": "Output audio"
